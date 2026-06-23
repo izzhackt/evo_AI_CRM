@@ -187,3 +187,43 @@ Validation impact: unchanged real repo gates:
 `npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, and
 `npm audit --audit-level=moderate`.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Clarify Admissions CRM Acceptance Criteria
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: acceptance criteria.
+Affected plan section: `/goal-admissions-crm` acceptance criteria.
+Reason: the launch plan current slice and deliverables already name
+`/goal-admissions-crm`, but the detailed slice acceptance section still carried
+the prior prepared-AI slice checklist.
+Decision: replace the stale prepared-AI slice checklist in
+`docs/EVO_LAUNCH_PLAN.md` with admissions CRM acceptance criteria for Command
+Center, Admissions Pipeline, Student 360, global applications and documents
+queues, tasks, finance, navigation, status actions, and real validation. This
+does not add student-portal implementation; the student portal remains after the
+CRM contracts stabilize.
+Validation impact: unchanged real repo gates:
+`npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, and
+`npm audit --audit-level=moderate`.
+Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Expose Finance Overview Read-Only To Staff
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: acceptance criteria and role access.
+Affected plan section: `/goal-admissions-crm` staff finance overview surface.
+Reason: independent reviewer found that Command Center links exposed
+`/finance` to all staff while the finance page redirected non-admin/non-finance
+roles back to `/dashboard`, creating a broken route loop for the required CRM
+finance overview.
+Decision: make the finance overview route and navigation visible to staff as a
+read-only CRM operating surface, while keeping payment mutation controls and
+Server Actions restricted to admin and finance roles. This is not a broad role
+model redesign and does not add student-portal or external integration work.
+Validation impact: rerun real gates after the access correction:
+`npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, built
+app authenticated smoke, and `npm audit --audit-level=moderate` with the
+existing advisory reported exactly.
+Reviewer notes: addresses first independent code-reviewer `changes_requested`.

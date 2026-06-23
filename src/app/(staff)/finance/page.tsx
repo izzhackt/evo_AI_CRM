@@ -8,11 +8,12 @@ import { Badge, Card, StatCard, EmptyState, inputCls, btnCls, btnGhostCls } from
 
 export default async function FinancePage() {
   const user = await currentUser();
-  if (!user || (user.role !== "admin" && user.role !== "finance")) redirect("/dashboard");
+  if (!user) redirect("/dashboard");
 
   const { t } = await getT();
   const payments = allPayments();
   const clients = listClients();
+  const canMutatePayments = user.role === "admin" || user.role === "finance";
   const overduePayments = payments.filter(
     (payment) => payment.status !== "paid" && payment.due_date && payment.due_date < new Date().toISOString().slice(0, 10),
   ).length;
@@ -39,23 +40,25 @@ export default async function FinancePage() {
         <StatCard label={t("overduePayments")} value={overduePayments} />
       </div>
 
-      <Card title={`+ ${t("addPayment")}`}>
-        <form action={addPaymentAction} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          <select name="client_id" required className={inputCls}>
-            <option value="">{t("client")}…</option>
-            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <input name="title" required placeholder={t("payment")} className={`${inputCls} lg:col-span-2`} />
-          <input name="amount" type="number" step="0.01" required placeholder={t("amount")} className={inputCls} />
-          <select name="currency" className={inputCls}>
-            <option value="KGS">KGS</option>
-            <option value="USD">USD</option>
-            <option value="EUR">EUR</option>
-          </select>
-          <input name="due_date" type="date" className={inputCls} />
-          <button type="submit" className={btnCls}>{t("add")}</button>
-        </form>
-      </Card>
+      {canMutatePayments && (
+        <Card title={`+ ${t("addPayment")}`}>
+          <form action={addPaymentAction} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <select name="client_id" required className={inputCls}>
+              <option value="">{t("client")}…</option>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <input name="title" required placeholder={t("payment")} className={`${inputCls} lg:col-span-2`} />
+            <input name="amount" type="number" step="0.01" required placeholder={t("amount")} className={inputCls} />
+            <select name="currency" className={inputCls}>
+              <option value="KGS">KGS</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+            </select>
+            <input name="due_date" type="date" className={inputCls} />
+            <button type="submit" className={btnCls}>{t("add")}</button>
+          </form>
+        </Card>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">
@@ -70,33 +73,42 @@ export default async function FinancePage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {payments.map((p) => (
-              <tr key={p.id} className="transition hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  <Link href={`/clients/${p.client_id}`} className="text-indigo-700 hover:underline">
-                    {p.client_name}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-slate-700">{p.title}</td>
-                <td className="px-4 py-3 font-medium text-slate-800">
-                  {p.amount.toLocaleString("ru-RU")} {p.currency}
-                </td>
-                <td className="px-4 py-3 text-slate-600">{p.due_date ?? "—"}</td>
-                <td className="px-4 py-3">
-                  <Badge value={p.status} label={t(`pay.${p.status}`)} />
-                  {p.paid_at && <div className="mt-0.5 text-xs text-slate-400">{p.paid_at}</div>}
-                </td>
-                <td className="px-4 py-3">
-                  {p.status !== "paid" && (
-                    <form action={markPaymentPaidAction}>
-                      <input type="hidden" name="id" value={p.id} />
-                      <input type="hidden" name="client_id" value={p.client_id} />
-                      <button type="submit" className={btnGhostCls}>{t("markPaid")}</button>
-                    </form>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {payments.map((p) => {
+              const isOverdue = p.status !== "paid" && !!p.due_date && p.due_date < new Date().toISOString().slice(0, 10);
+              const visibleStatus = isOverdue ? "overdue" : p.status;
+              return (
+                <tr key={p.id} className="transition hover:bg-slate-50">
+                  <td className="px-4 py-3">
+                    <Link href={`/clients/${p.client_id}`} className="text-indigo-700 hover:underline">
+                      {p.client_name}
+                    </Link>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <Badge value={p.stage} label={t(`stage.${p.stage}`)} />
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      {[p.target_country, p.manager_name].filter(Boolean).join(" · ") || t("notAssigned")}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">{p.title}</td>
+                  <td className="px-4 py-3 font-medium text-slate-800">
+                    {p.amount.toLocaleString("ru-RU")} {p.currency}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{p.due_date ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <Badge value={visibleStatus} label={t(`pay.${visibleStatus}`)} />
+                    {p.paid_at && <div className="mt-0.5 text-xs text-slate-400">{p.paid_at}</div>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {canMutatePayments && p.status !== "paid" && (
+                      <form action={markPaymentPaidAction}>
+                        <input type="hidden" name="id" value={p.id} />
+                        <button type="submit" className={btnGhostCls}>{t("markPaid")}</button>
+                      </form>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {payments.length === 0 && <EmptyState text={t("noResults")} />}

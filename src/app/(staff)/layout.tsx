@@ -27,9 +27,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   const reportsNav = user.role === "admin" || user.role === "sales" || user.role === "finance"
     ? [{ href: "/reports", label: t("reports") }]
     : [];
-  const financeNav = user.role === "admin" || user.role === "finance"
-    ? [{ href: "/finance", label: t("finance") }]
-    : [];
+  const financeNav = [{ href: "/finance", label: t("finance") }];
   const settingsNav = user.role === "admin" ? [{ href: "/settings", label: t("settings") }] : [];
   const nav = [...baseNav.slice(0, 3), ...admissionsNav, ...baseNav.slice(3), ...reportsNav, ...financeNav, ...settingsNav];
 

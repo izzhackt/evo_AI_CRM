@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getT } from "@/lib/i18n";
 import { dashboardStats, listClients } from "@/lib/queries";
-import { LEAD_STATUSES, STAGES } from "@/lib/db";
+import { APP_STATUSES, DOC_STATUSES, LEAD_STATUSES, STAGES } from "@/lib/db";
 import { Badge, Card, EmptyState, StatCard } from "@/components/ui";
 
 export default async function DashboardPage() {
@@ -12,6 +12,10 @@ export default async function DashboardPage() {
   const stageCount = (stage: string) => stats.byStage.find((s) => s.stage === stage)?.c ?? 0;
   const maxLeadStatus = Math.max(1, ...stats.byLeadStatus.map((s) => s.c));
   const leadStatusCount = (status: string) => stats.byLeadStatus.find((s) => s.status === status)?.c ?? 0;
+  const maxApplicationStatus = Math.max(1, ...stats.byApplicationStatus.map((s) => s.c));
+  const applicationStatusCount = (status: string) => stats.byApplicationStatus.find((s) => s.status === status)?.c ?? 0;
+  const maxDocumentStatus = Math.max(1, ...stats.byDocumentStatus.map((s) => s.c));
+  const documentStatusCount = (status: string) => stats.byDocumentStatus.find((s) => s.status === status)?.c ?? 0;
   const queueItems = [
     { href: "/sales", label: t("admissionsPipeline"), value: stats.activeLeads, meta: t("activeLeads") },
     { href: "/applications", label: t("applicationQueue"), value: stats.activeApps, meta: t("activeApplications") },
@@ -70,6 +74,46 @@ export default async function DashboardPage() {
                 >
                   <span className="w-28 shrink-0 text-xs font-medium text-slate-600">{t(`lead.${status}`)}</span>
                   <span className="h-3 rounded bg-cyan-500" style={{ width: `${(c / maxLeadStatus) * 100}%` }} />
+                  <span className="text-xs font-semibold text-slate-700">{c}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card title={t("applicationStatuses")}>
+          <div className="space-y-2">
+            {APP_STATUSES.map((status) => {
+              const c = applicationStatusCount(status);
+              return (
+                <Link
+                  key={status}
+                  href={`/applications?status=${status}`}
+                  className="flex items-center gap-3 rounded-lg px-2 py-1 transition hover:bg-slate-50"
+                >
+                  <span className="w-28 shrink-0 text-xs font-medium text-slate-600">{t(`app.${status}`)}</span>
+                  <span className="h-3 rounded bg-violet-500" style={{ width: `${(c / maxApplicationStatus) * 100}%` }} />
+                  <span className="text-xs font-semibold text-slate-700">{c}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
+
+        <Card title={t("documentStatuses")}>
+          <div className="space-y-2">
+            {DOC_STATUSES.map((status) => {
+              const c = documentStatusCount(status);
+              return (
+                <Link
+                  key={status}
+                  href={`/documents?status=${status}`}
+                  className="flex items-center gap-3 rounded-lg px-2 py-1 transition hover:bg-slate-50"
+                >
+                  <span className="w-28 shrink-0 text-xs font-medium text-slate-600">{t(`doc.${status}`)}</span>
+                  <span className="h-3 rounded bg-emerald-500" style={{ width: `${(c / maxDocumentStatus) * 100}%` }} />
                   <span className="text-xs font-semibold text-slate-700">{c}</span>
                 </Link>
               );

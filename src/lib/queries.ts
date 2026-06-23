@@ -92,6 +92,10 @@ export type ApplicationQueueRow = {
   status: string;
   notes: string | null;
   updated_at: string;
+  document_total: number;
+  document_open: number;
+  open_tasks: number;
+  pending_payments: number;
 };
 
 export function allApplications(opts: { status?: string } = {}): ApplicationQueueRow[] {
@@ -102,7 +106,11 @@ export function allApplications(opts: { status?: string } = {}): ApplicationQueu
     params.push(opts.status);
   }
   const sql = `
-    SELECT ap.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name
+    SELECT ap.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id) AS document_total,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id AND doc.status != 'approved') AS document_open,
+      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
+      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
     FROM applications ap
     JOIN clients c ON c.id = ap.client_id
     JOIN users u ON u.id = c.user_id
@@ -124,6 +132,10 @@ export type DocumentQueueRow = {
   status: string;
   comment: string | null;
   updated_at: string;
+  application_total: number;
+  active_applications: number;
+  open_tasks: number;
+  pending_payments: number;
 };
 
 export function allDocuments(opts: { status?: string } = {}): DocumentQueueRow[] {
@@ -134,7 +146,11 @@ export function allDocuments(opts: { status?: string } = {}): DocumentQueueRow[]
     params.push(opts.status);
   }
   const sql = `
-    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name
+    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
+      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id) AS application_total,
+      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
+      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
+      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
     FROM documents doc
     JOIN clients c ON c.id = doc.client_id
     JOIN users u ON u.id = c.user_id
@@ -182,14 +198,17 @@ export function listStaff() {
 
 export function allPayments() {
   return db().prepare(`
-    SELECT p.*, u.name AS client_name, c.id AS client_id
+    SELECT p.*, u.name AS client_name, c.id AS client_id, c.stage, c.target_country,
+      m.name AS manager_name
     FROM payments p
     JOIN clients c ON c.id = p.client_id
     JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
     ORDER BY p.status = 'paid', p.due_date IS NULL, p.due_date
   `).all() as {
     id: number; title: string; amount: number; currency: string; due_date: string | null;
     paid_at: string | null; status: string; client_name: string; client_id: number;
+    stage: Stage; target_country: string | null; manager_name: string | null;
   }[];
 }
 
@@ -323,6 +342,10 @@ export function dashboardStats() {
   const urgentTasks = (d.prepare("SELECT COUNT(*) c FROM tasks WHERE status != 'done' AND priority IN ('high','urgent')").get() as { c: number }).c;
   const byStage = d.prepare("SELECT stage, COUNT(*) c FROM clients GROUP BY stage").all() as { stage: Stage; c: number }[];
   const byLeadStatus = d.prepare("SELECT status, COUNT(*) c FROM leads GROUP BY status").all() as { status: string; c: number }[];
+  const byApplicationStatus = d.prepare("SELECT status, COUNT(*) c FROM applications GROUP BY status").all() as { status: string; c: number }[];
+  const byDocumentStatus = d.prepare("SELECT status, COUNT(*) c FROM documents GROUP BY status").all() as { status: string; c: number }[];
+  const byTaskStatus = d.prepare("SELECT status, COUNT(*) c FROM tasks GROUP BY status").all() as { status: string; c: number }[];
+  const byPaymentStatus = d.prepare("SELECT status, COUNT(*) c FROM payments GROUP BY status").all() as { status: string; c: number }[];
   const deadlines = d.prepare(`
     SELECT ap.university, ap.deadline, ap.status, u.name AS client_name, c.id AS client_id
     FROM applications ap
@@ -342,6 +365,10 @@ export function dashboardStats() {
     urgentTasks,
     byStage,
     byLeadStatus,
+    byApplicationStatus,
+    byDocumentStatus,
+    byTaskStatus,
+    byPaymentStatus,
     deadlines,
   };
 }

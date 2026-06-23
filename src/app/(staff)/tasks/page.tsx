@@ -62,6 +62,7 @@ export default async function TasksPage({
           <select name="priority" defaultValue="normal" className={inputCls}>
             {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{t(`prio.${p}`)}</option>)}
           </select>
+          <input name="description" placeholder={t("notes")} className={`${inputCls} lg:col-span-3`} />
           <select name="assignee_id" className={inputCls}>
             <option value="">{t("assignee")}: {t("notAssigned")}</option>
             {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -95,8 +96,8 @@ export default async function TasksPage({
                     </div>
                     {task.description && <div className="mt-1 text-xs text-slate-500">{task.description}</div>}
                     <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-slate-400">
-                      {task.assignee_name && <span>👤 {task.assignee_name}</span>}
-                      {task.due_date && <span>📅 {task.due_date}</span>}
+                      {task.assignee_name && <span>{t("assignee")}: {task.assignee_name}</span>}
+                      {task.due_date && <span>{t("dueDate")}: {task.due_date}</span>}
                       {task.client_id && (
                         <Link href={`/clients/${task.client_id}`} className="text-indigo-600 hover:underline">
                           {task.client_name}

@@ -32,10 +32,10 @@ export default async function DocumentsPage({
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label={t("requiredDocuments")} value={statusCount("required")} />
-        <StatCard label={t("uploadedDocuments")} value={statusCount("uploaded")} />
-        <StatCard label={t("documentsInReview")} value={statusCount("review")} />
-        <StatCard label={t("approvedDocuments")} value={statusCount("approved")} />
+        <StatCard label={t("requiredDocuments")} value={statusCount("required")} href="/documents?status=required" />
+        <StatCard label={t("uploadedDocuments")} value={statusCount("uploaded")} href="/documents?status=uploaded" />
+        <StatCard label={t("documentsInReview")} value={statusCount("review")} href="/documents?status=review" />
+        <StatCard label={t("approvedDocuments")} value={statusCount("approved")} href="/documents?status=approved" />
       </div>
 
       <Card title={t("documentQueue")}>
@@ -58,6 +58,7 @@ export default async function DocumentsPage({
                 <th className="px-4 py-3">{t("client")}</th>
                 <th className="px-4 py-3">{t("comment")}</th>
                 <th className="px-4 py-3">{t("status")}</th>
+                <th className="px-4 py-3">{t("operationalContext")}</th>
                 <th className="px-4 py-3">{t("manager")}</th>
               </tr>
             </thead>
@@ -83,6 +84,12 @@ export default async function DocumentsPage({
                       </select>
                       <button type="submit" className={btnGhostCls}>{t("save")}</button>
                     </form>
+                    <div className="mt-1 text-xs text-slate-400">{t("updatedAt")}: {doc.updated_at}</div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-600">
+                    <div>{t("activeApplications")}: {doc.active_applications}/{doc.application_total}</div>
+                    <div>{t("openTasks")}: {doc.open_tasks}</div>
+                    <div>{t("pendingPayments")}: {doc.pending_payments}</div>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{doc.manager_name ?? "—"}</td>
                 </tr>

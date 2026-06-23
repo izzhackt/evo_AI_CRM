@@ -41,6 +41,23 @@ async function requireAdmissionsStaff() {
   return user;
 }
 
+async function requireFinanceStaff() {
+  const user = await requireStaff();
+  if (user.role !== "admin" && user.role !== "finance") redirect("/dashboard");
+  return user;
+}
+
+function revalidateStaffCrm(clientId?: number | null) {
+  revalidatePath("/dashboard");
+  revalidatePath("/sales");
+  revalidatePath("/clients");
+  revalidatePath("/applications");
+  revalidatePath("/documents");
+  revalidatePath("/tasks");
+  revalidatePath("/finance");
+  if (clientId) revalidatePath(`/clients/${clientId}`);
+}
+
 // ---------- auth ----------
 
 export async function loginAction(_prev: string | null, form: FormData): Promise<string | null> {
@@ -111,7 +128,7 @@ export async function createClientAction(form: FormData) {
     .prepare("INSERT INTO clients (user_id, stage, source, target_country, target_degree) VALUES (?, 'lead', ?, ?, ?)")
     .run(user.lastInsertRowid, str(form, "source") || null, str(form, "target_country") || null, str(form, "target_degree") || null);
 
-  revalidatePath("/clients");
+  revalidateStaffCrm(Number(client.lastInsertRowid));
   redirect(`/clients/${client.lastInsertRowid}`);
 }
 
@@ -132,8 +149,7 @@ export async function updateClientAction(form: FormData) {
       str(form, "notes") || null,
       id
     );
-  revalidatePath(`/clients/${id}`);
-  revalidatePath("/clients");
+  revalidateStaffCrm(id);
   revalidatePath("/portal");
 }
 
@@ -147,21 +163,21 @@ export async function addApplicationAction(form: FormData) {
   db()
     .prepare("INSERT INTO applications (client_id, university, country, program, degree, deadline) VALUES (?, ?, ?, ?, ?, ?)")
     .run(clientId, university, str(form, "country") || null, str(form, "program") || null, str(form, "degree") || null, str(form, "deadline") || null);
-  revalidatePath(`/clients/${clientId}`);
-  revalidatePath("/applications");
+  revalidateStaffCrm(clientId);
 }
 
 export async function setApplicationStatusAction(form: FormData) {
   await requireAdmissionsStaff();
   const id = optNum(form, "id");
-  const clientId = optNum(form, "client_id");
   const status = str(form, "status");
   if (!id || !(APP_STATUSES as readonly string[]).includes(status)) return;
-  db()
+  const d = db();
+  const row = d.prepare("SELECT client_id FROM applications WHERE id = ?").get(id) as { client_id: number } | undefined;
+  if (!row) return;
+  d
     .prepare("UPDATE applications SET status = ?, updated_at = datetime('now') WHERE id = ?")
     .run(status, id);
-  if (clientId) revalidatePath(`/clients/${clientId}`);
-  revalidatePath("/applications");
+  revalidateStaffCrm(row.client_id);
   revalidatePath("/portal");
 }
 
@@ -173,21 +189,21 @@ export async function addDocumentAction(form: FormData) {
   const name = str(form, "name");
   if (!clientId || !name) return;
   db().prepare("INSERT INTO documents (client_id, name) VALUES (?, ?)").run(clientId, name);
-  revalidatePath(`/clients/${clientId}`);
-  revalidatePath("/documents");
+  revalidateStaffCrm(clientId);
 }
 
 export async function setDocumentStatusAction(form: FormData) {
   await requireAdmissionsStaff();
   const id = optNum(form, "id");
-  const clientId = optNum(form, "client_id");
   const status = str(form, "status");
   if (!id || !(DOC_STATUSES as readonly string[]).includes(status)) return;
-  db()
+  const d = db();
+  const row = d.prepare("SELECT client_id FROM documents WHERE id = ?").get(id) as { client_id: number } | undefined;
+  if (!row) return;
+  d
     .prepare("UPDATE documents SET status = ?, updated_at = datetime('now') WHERE id = ?")
     .run(status, id);
-  if (clientId) revalidatePath(`/clients/${clientId}`);
-  revalidatePath("/documents");
+  revalidateStaffCrm(row.client_id);
   revalidatePath("/portal");
 }
 
@@ -206,14 +222,14 @@ export async function upsertVisaCaseAction(form: FormData) {
     d.prepare("INSERT INTO visa_cases (client_id, country, status, appointment_at, notes) VALUES (?, ?, ?, ?, ?)")
       .run(clientId, str(form, "country") || "—", str(form, "status") || "not_started", str(form, "appointment_at") || null, str(form, "notes") || null);
   }
-  revalidatePath(`/clients/${clientId}`);
+  revalidateStaffCrm(clientId);
   revalidatePath("/portal");
 }
 
 // ---------- payments ----------
 
 export async function addPaymentAction(form: FormData) {
-  await requireStaff();
+  await requireFinanceStaff();
   const clientId = optNum(form, "client_id");
   const title = str(form, "title");
   const amount = parseFloat(str(form, "amount"));
@@ -221,21 +237,21 @@ export async function addPaymentAction(form: FormData) {
   db()
     .prepare("INSERT INTO payments (client_id, title, amount, currency, due_date) VALUES (?, ?, ?, ?, ?)")
     .run(clientId, title, amount, str(form, "currency") || "KGS", str(form, "due_date") || null);
-  revalidatePath(`/clients/${clientId}`);
-  revalidatePath("/finance");
+  revalidateStaffCrm(clientId);
 }
 
 export async function markPaymentPaidAction(form: FormData) {
-  await requireStaff();
+  await requireFinanceStaff();
   const id = optNum(form, "id");
   if (!id) return;
-  db()
+  const d = db();
+  const row = d.prepare("SELECT client_id FROM payments WHERE id = ?").get(id) as { client_id: number } | undefined;
+  if (!row) return;
+  d
     .prepare("UPDATE payments SET status = 'paid', paid_at = date('now') WHERE id = ?")
     .run(id);
-  revalidatePath("/finance");
+  revalidateStaffCrm(row.client_id);
   revalidatePath("/portal");
-  const clientId = optNum(form, "client_id");
-  if (clientId) revalidatePath(`/clients/${clientId}`);
 }
 
 // ---------- tasks ----------
@@ -243,22 +259,26 @@ export async function markPaymentPaidAction(form: FormData) {
 export async function addTaskAction(form: FormData) {
   const user = await requireStaff();
   const title = str(form, "title");
+  const clientId = optNum(form, "client_id");
   if (!title) return;
   db()
     .prepare("INSERT INTO tasks (title, description, client_id, assignee_id, due_date, priority, status, created_by) VALUES (?, ?, ?, ?, ?, ?, 'todo', ?)")
     .run(
-      title, str(form, "description") || null, optNum(form, "client_id"), optNum(form, "assignee_id"),
+      title, str(form, "description") || null, clientId, optNum(form, "assignee_id"),
       str(form, "due_date") || null, str(form, "priority") || "normal", user.id
     );
-  revalidatePath("/tasks");
+  revalidateStaffCrm(clientId);
 }
 
 export async function completeTaskAction(form: FormData) {
   await requireStaff();
   const id = optNum(form, "id");
   if (!id) return;
-  db().prepare("UPDATE tasks SET status = 'done' WHERE id = ?").run(id);
-  revalidatePath("/tasks");
+  const d = db();
+  const row = d.prepare("SELECT client_id FROM tasks WHERE id = ?").get(id) as { client_id: number | null } | undefined;
+  if (!row) return;
+  d.prepare("UPDATE tasks SET status = 'done' WHERE id = ?").run(id);
+  revalidateStaffCrm(row.client_id);
 }
 
 // ---------- sales / leads ----------
@@ -275,6 +295,7 @@ export async function addLeadAction(form: FormData) {
       optNum(form, "manager_id") ?? user.id, str(form, "target_country") || null, str(form, "notes") || null
     );
   revalidatePath("/sales");
+  revalidatePath("/dashboard");
 }
 
 export async function moveLeadAction(form: FormData) {
@@ -288,6 +309,7 @@ export async function moveLeadAction(form: FormData) {
     .run(id, user.id, status);
   revalidatePath("/sales");
   revalidatePath(`/sales/${id}`);
+  revalidatePath("/dashboard");
 }
 
 export async function updateLeadAction(form: FormData) {
@@ -303,6 +325,7 @@ export async function updateLeadAction(form: FormData) {
     );
   revalidatePath(`/sales/${id}`);
   revalidatePath("/sales");
+  revalidatePath("/dashboard");
 }
 
 export async function addLeadNoteAction(form: FormData) {
@@ -344,7 +367,7 @@ export async function convertLeadAction(form: FormData) {
     .run(clientRow.lastInsertRowid, id);
 
   revalidatePath("/sales");
-  revalidatePath("/clients");
+  revalidateStaffCrm(Number(clientRow.lastInsertRowid));
   redirect(`/clients/${clientRow.lastInsertRowid}`);
 }
 
@@ -379,8 +402,11 @@ export async function moveTaskAction(form: FormData) {
   const id = optNum(form, "id");
   const status = str(form, "status");
   if (!id || !["todo", "in_progress", "review", "done"].includes(status)) return;
-  db().prepare("UPDATE tasks SET status = ? WHERE id = ?").run(status, id);
-  revalidatePath("/tasks");
+  const d = db();
+  const row = d.prepare("SELECT client_id FROM tasks WHERE id = ?").get(id) as { client_id: number | null } | undefined;
+  if (!row) return;
+  d.prepare("UPDATE tasks SET status = ? WHERE id = ?").run(status, id);
+  revalidateStaffCrm(row.client_id);
 }
 
 // ---------- whatsapp ----------
@@ -474,6 +500,6 @@ export async function postUpdateAction(form: FormData) {
   db()
     .prepare("INSERT INTO updates (client_id, author_id, message) VALUES (?, ?, ?)")
     .run(clientId, user.id, message);
-  revalidatePath(`/clients/${clientId}`);
+  revalidateStaffCrm(clientId);
   revalidatePath("/portal");
 }

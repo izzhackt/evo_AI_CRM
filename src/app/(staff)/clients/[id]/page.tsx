@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { currentUser } from "@/lib/auth";
 import { getT } from "@/lib/i18n";
 import {
   getClient, clientApplications, clientDocuments, clientVisaCase,
@@ -20,6 +21,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   if (!client) notFound();
 
   const { t } = await getT();
+  const user = await currentUser();
   const apps = clientApplications(clientId);
   const docs = clientDocuments(clientId);
   const visa = clientVisaCase(clientId);
@@ -31,6 +33,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const openDocuments = docs.filter((doc) => doc.status !== "approved").length;
   const pendingPayments = payments.filter((payment) => payment.status !== "paid").length;
   const nextDeadline = apps.find((app) => app.deadline && app.status !== "enrolled" && app.status !== "rejected")?.deadline ?? "—";
+  const canMutatePayments = user?.role === "admin" || user?.role === "finance";
 
   return (
     <div className="space-y-6">
@@ -125,6 +128,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             <input type="hidden" name="client_id" value={client.id} />
             <input name="university" required placeholder={t("university")} className={inputCls} />
             <input name="program" placeholder={t("program")} className={inputCls} />
+            <input name="degree" placeholder={t("degree")} className={inputCls} />
             <input name="country" placeholder={t("country")} className={inputCls} />
             <input name="deadline" type="date" className={inputCls} />
             <button type="submit" className={`${btnCls} sm:col-span-2`}>+ {t("addApplication")}</button>
@@ -198,7 +202,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge value={p.status} label={t(`pay.${p.status}`)} />
-                  {p.status !== "paid" && (
+                  {canMutatePayments && p.status !== "paid" && (
                     <form action={markPaymentPaidAction}>
                       <input type="hidden" name="id" value={p.id} />
                       <input type="hidden" name="client_id" value={client.id} />
@@ -210,18 +214,20 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             ))}
           </ul>
           {payments.length === 0 && <EmptyState text={t("noResults")} />}
-          <form action={addPaymentAction} className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2">
-            <input type="hidden" name="client_id" value={client.id} />
-            <input name="title" required placeholder={t("payment")} className={`${inputCls} sm:col-span-2`} />
-            <input name="amount" type="number" step="0.01" required placeholder={t("amount")} className={inputCls} />
-            <select name="currency" className={inputCls}>
-              <option value="KGS">KGS</option>
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-            </select>
-            <input name="due_date" type="date" className={inputCls} />
-            <button type="submit" className={btnCls}>+ {t("addPayment")}</button>
-          </form>
+          {canMutatePayments && (
+            <form action={addPaymentAction} className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2">
+              <input type="hidden" name="client_id" value={client.id} />
+              <input name="title" required placeholder={t("payment")} className={`${inputCls} sm:col-span-2`} />
+              <input name="amount" type="number" step="0.01" required placeholder={t("amount")} className={inputCls} />
+              <select name="currency" className={inputCls}>
+                <option value="KGS">KGS</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+              </select>
+              <input name="due_date" type="date" className={inputCls} />
+              <button type="submit" className={btnCls}>+ {t("addPayment")}</button>
+            </form>
+          )}
         </Card>
       </div>
 

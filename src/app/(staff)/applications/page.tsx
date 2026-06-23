@@ -35,10 +35,10 @@ export default async function ApplicationsPage({
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label={t("activeApplications")} value={statusCount("preparing") + statusCount("submitted")} />
+        <StatCard label={t("activeApplications")} value={statusCount("preparing") + statusCount("submitted")} href="/applications" />
         <StatCard label={t("dueApplications")} value={dueSoon} />
-        <StatCard label={t("offers")} value={statusCount("offer")} />
-        <StatCard label={t("enrolled")} value={statusCount("enrolled")} />
+        <StatCard label={t("offers")} value={statusCount("offer")} href="/applications?status=offer" />
+        <StatCard label={t("enrolled")} value={statusCount("enrolled")} href="/applications?status=enrolled" />
       </div>
 
       <Card title={t("applicationQueue")}>
@@ -62,6 +62,7 @@ export default async function ApplicationsPage({
                 <th className="px-4 py-3">{t("program")}</th>
                 <th className="px-4 py-3">{t("deadline")}</th>
                 <th className="px-4 py-3">{t("status")}</th>
+                <th className="px-4 py-3">{t("operationalContext")}</th>
                 <th className="px-4 py-3">{t("manager")}</th>
               </tr>
             </thead>
@@ -81,7 +82,10 @@ export default async function ApplicationsPage({
                     <div className="mt-1"><Badge value={app.stage} label={t(`stage.${app.stage}`)} /></div>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{app.program ?? "—"}</td>
-                  <td className="px-4 py-3 text-slate-600">{app.deadline ?? "—"}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {app.deadline ?? "—"}
+                    <div className="mt-0.5 text-xs text-slate-400">{t("updatedAt")}: {app.updated_at}</div>
+                  </td>
                   <td className="px-4 py-3">
                     <form action={setApplicationStatusAction} className="flex min-w-44 items-center gap-2">
                       <input type="hidden" name="id" value={app.id} />
@@ -93,6 +97,11 @@ export default async function ApplicationsPage({
                       </select>
                       <button type="submit" className={btnGhostCls}>{t("save")}</button>
                     </form>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-600">
+                    <div>{t("openDocuments")}: {app.document_open}/{app.document_total}</div>
+                    <div>{t("openTasks")}: {app.open_tasks}</div>
+                    <div>{t("pendingPayments")}: {app.pending_payments}</div>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{app.manager_name ?? "—"}</td>
                 </tr>

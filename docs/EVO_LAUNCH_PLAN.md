@@ -132,32 +132,36 @@ Current risk surfaced by repo inspection:
 
 ## Acceptance Criteria
 
-### This Prepared AI Prompts Slice
+### This Admissions CRM Core Slice
 
-- `docs/PLAN_CHANGES.md` has append-only prepared-AI and baseline-first entries
-  before the prepared-AI commit.
-- The baseline CRM runtime files are committed separately before this slice so a
-  clean checkout can build the app without mixing baseline and prepared-AI review.
-- `src/lib/prepared-ai.ts` defines the deterministic prompt library, response
-  scenarios, CRM fact extraction, and first-presentation bundle builder.
-- The WhatsApp conversation page builds the prepared-AI bundle from the real
-  conversation, linked lead, and message history read through repo queries.
-- The prepared-AI bundle is built only when `isPreparedAiAllowed(...)` passes
-  for first-presentation mode; normal operation leaves the drawer unavailable.
-- The AI drawer shows scenario options, prompt-library details, CRM facts, and a
-  deterministic streaming UI, then inserts the selected prepared reply into the
-  actual WhatsApp composer.
-- Missing WhatsApp credentials produce a failed outbound state and log the
-  missing configuration; they are not reported as demo delivery success.
-- Prepared responses are labeled and bounded as prepared content and cannot be
-  counted as live Anthropic integration success.
+- `docs/PLAN_CHANGES.md` has append-only admissions CRM entries before runtime
+  coding when scope, architecture, file ownership, or acceptance criteria need
+  clarification.
+- Staff navigation exposes the core CRM work queues for Command Center,
+  Admissions Pipeline, Student 360, tasks, documents, applications, and finance
+  overview.
+- Command Center metrics are computed from the real SQLite records through repo
+  query modules and link to the relevant CRM queues.
+- Admissions Pipeline shows real leads, statuses, owners, source, destination,
+  next steps, and connected task/document/application/finance context without
+  fake integration success claims.
+- Student 360 remains the per-student operating surface for profile, documents,
+  applications, visa, finance, tasks, communication history, and updates.
+- Global applications and documents queues use existing application/document
+  records, expose operational status summaries, and submit through validated
+  Server Actions that revalidate affected CRM routes.
+- Tasks and finance surfaces summarize real task and payment records and link
+  back into the student/application/document operating context.
+- The slice does not implement the student portal, live amoCRM, live WhatsApp,
+  live telephony, live Anthropic, broad auth redesign, data migration, or
+  deployment work.
 - Validation is run through the real repo commands available today:
   `npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, and
   `npm audit --audit-level=moderate`.
 - Pre-commit security audit is run with `npm audit --audit-level=moderate`; any
   existing advisory is documented rather than bypassed.
-- The prepared-AI commit uses a Conventional Commit message.
-- An independent code-reviewer reviews the prepared-AI diff against this goal
+- The admissions CRM commit uses a Conventional Commit message.
+- An independent code-reviewer reviews the admissions CRM diff against this goal
   before merge and returns `approved` or `changes_requested`.
 
 ### Launch Acceptance

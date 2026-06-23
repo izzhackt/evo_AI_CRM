@@ -1,20 +1,49 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getT } from "@/lib/i18n";
-import { getConversation, waMessages } from "@/lib/queries";
+import { getConversation, getLead, waMessages } from "@/lib/queries";
 import { sendWaMessageAction } from "@/lib/actions";
+import { isPreparedAiAllowed } from "@/lib/contracts";
+import { buildPreparedWhatsAppAssistant } from "@/lib/prepared-ai";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { WaReplyBox } from "@/components/WaReplyBox";
 import { EmptyState } from "@/components/ui";
 
-export default async function ConversationPage({ params }: { params: Promise<{ id: string }> }) {
+type ConversationSearchParams = Promise<{ mode?: string | string[] | undefined }>;
+
+function firstValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function ConversationPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: ConversationSearchParams;
+}) {
   const { id } = await params;
+  const query = await searchParams;
   const convId = parseInt(id, 10);
   const conv = getConversation(convId);
   if (!conv) notFound();
 
   const { t } = await getT();
   const messages = waMessages(convId);
+  const presentationMode = firstValue(query.mode) === "first_presentation" ? "first_presentation" : "normal_operation";
+  const preparedAiAllowed = isPreparedAiAllowed({
+    presentationMode,
+    userExplicitlyRequestedPreparedResponses: true,
+    useCase: "whatsapp_reply",
+  });
+  const lead = preparedAiAllowed && conv.lead_id ? getLead(conv.lead_id) : undefined;
+  const preparedAi = preparedAiAllowed
+    ? buildPreparedWhatsAppAssistant({
+        conversation: conv,
+        lead,
+        messages,
+      })
+    : undefined;
 
   return (
     <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-3xl flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -67,7 +96,11 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         labels={{
           placeholder: t("replyPlaceholder"),
           send: t("send"),
+          aiDraft: t("aiDraftReply"),
+          aiThinking: t("aiThinking"),
+          aiNotConfigured: t("aiNotConfigured"),
         }}
+        preparedAi={preparedAi}
       />
     </div>
   );

@@ -1,14 +1,14 @@
 import { db, getSetting } from "./db";
 
-export type SendResult = { status: "sent" | "failed" | "demo"; waId?: string };
+export type SendResult = { status: "sent" | "failed"; waId?: string; error?: "not_configured" | "provider_error" };
 
 // Отправка через официальный WhatsApp Cloud API (Meta).
 export async function sendWhatsApp(phone: string, text: string): Promise<SendResult> {
   const token = getSetting("wa_token");
   const phoneId = getSetting("wa_phone_id");
   if (!token || !phoneId) {
-    // если ключи не настроены, сохраняем как демо-отправку
-    return { status: "demo" };
+    console.error("WhatsApp send blocked: missing wa_token or wa_phone_id");
+    return { status: "failed", error: "not_configured" };
   }
 
   try {
@@ -27,13 +27,13 @@ export async function sendWhatsApp(phone: string, text: string): Promise<SendRes
     });
     if (!res.ok) {
       console.error("WhatsApp send failed:", res.status, await res.text());
-      return { status: "failed" };
+      return { status: "failed", error: "provider_error" };
     }
     const data = (await res.json()) as { messages?: { id: string }[] };
     return { status: "sent", waId: data.messages?.[0]?.id };
   } catch (e) {
     console.error("WhatsApp send error:", e);
-    return { status: "failed" };
+    return { status: "failed", error: "provider_error" };
   }
 }
 

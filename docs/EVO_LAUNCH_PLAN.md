@@ -9,15 +9,19 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Goal Slice
 
-Current slice: `/goal-plan-contract`.
+Current slice: `/goal-brand-research`.
 
 Deliverables for this slice:
 
-- Create this launch contract.
-- Create the append-only plan change log at `docs/PLAN_CHANGES.md`.
-- Include a research summary grounded in current docs and this repository.
-- Define acceptance criteria, file ownership, and merge order.
-- Run real repo validation after the docs change or record the exact blocker.
+- Create `docs/EVO_BRAND_RESEARCH.md`.
+- Use public `evoadmissions.com`, amoCRM docs, and public study-abroad CRM
+  patterns.
+- Produce product copy, data model terms, realistic countries/program flows, and
+  source-backed UX requirements.
+- Update `docs/PLAN_CHANGES.md` before work because this slice changes the goal
+  slice, merge order, and file ownership.
+- Run real repo validation after the research docs change or record the exact
+  blocker.
 - Commit only this slice with a Conventional Commit.
 - Request independent code-reviewer approval before merge.
 
@@ -26,8 +30,8 @@ Out of scope for this slice:
 - Runtime app changes.
 - Test harness implementation.
 - Integration rewrites.
+- Database data migration.
 - Deployment.
-- Data migration.
 
 ## Execution Rules
 

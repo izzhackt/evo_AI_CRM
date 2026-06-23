@@ -57,3 +57,23 @@ cleanup item.
 Validation impact: lint, route/type validation, and build can pass; npm audit
 currently exits non-zero due the existing Next/PostCSS advisory.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Add Brand Research Lane
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: scope and merge order.
+Affected plan section: goal slice, merge order, file ownership, launch acceptance.
+Reason: user requested `/goal-brand-research` after the initial launch contract:
+use public evoadmissions.com, amoCRM docs, and public study-abroad CRM patterns
+to produce product copy, data model terms, realistic countries/program flows,
+and source-backed UX requirements.
+Decision: set the current contract slice to `/goal-brand-research` and insert a
+docs-only `brand-research` lane immediately after `plan-contract` and before
+implementation lanes. The lane owns `docs/EVO_BRAND_RESEARCH.md`; it may update
+this change log only for discovered scope or validation constraints and must not
+modify runtime app code.
+Validation impact: run real repo validation after the docs change:
+`npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, and
+`npm audit --audit-level=moderate` with any blocker reported exactly.
+Reviewer notes: pending independent code-reviewer review.

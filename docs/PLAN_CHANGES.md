@@ -144,3 +144,46 @@ after the baseline commit; rerun the real validation gates after the prepared-AI
 commit and report the existing audit blocker exactly.
 Reviewer notes: user explicitly approved this commit order before the baseline
 commit was created.
+
+## 2026-06-24 - Add Admissions CRM Core Slice
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: scope, architecture, acceptance criteria, file ownership, and merge order.
+Affected plan section: goal slice, merge order, file ownership, validation.
+Reason: user requested `/goal-admissions-crm`: build the core staff CRM for
+Command Center, Admissions Pipeline, Student 360, tasks, documents,
+applications, and finance overview.
+Decision: set the current contract slice to `/goal-admissions-crm` and add a
+focused `admissions-crm-core` lane after the prepared-AI lane. The lane may edit
+`docs/EVO_LAUNCH_PLAN.md`, `docs/PLAN_CHANGES.md`,
+`src/app/(staff)/dashboard/page.tsx`, `src/app/(staff)/sales/page.tsx`,
+`src/app/(staff)/clients/page.tsx`, `src/app/(staff)/clients/[id]/page.tsx`,
+`src/app/(staff)/tasks/page.tsx`, `src/app/(staff)/finance/page.tsx`,
+`src/app/(staff)/layout.tsx`, `src/app/(staff)/applications/page.tsx`,
+`src/app/(staff)/documents/page.tsx`, `src/lib/queries.ts`,
+`src/lib/domain.ts`, `src/lib/i18n.ts`, and shared UI only if needed for these
+surfaces. It must use the existing Next.js App Router, SQLite data, query
+functions, and Server Actions; no hidden mocks, demo-only success paths, fake
+integration claims, or data migration are part of this slice.
+Validation impact: run the real repo gates after implementation:
+`npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, and
+`npm audit --audit-level=moderate`; report exact blockers for any non-zero gate.
+Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Include Shared CRM Server Action Hardening
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: file ownership and acceptance criteria.
+Affected plan section: `/goal-admissions-crm` file ownership and validation.
+Reason: the new global applications and documents queues submit through the
+existing shared status Server Actions, so the slice needs those actions to
+validate status input and revalidate the new queue routes.
+Decision: add `src/lib/actions.ts` to the `/goal-admissions-crm` write set for
+the narrow purpose of application/document status validation and route
+revalidation. Do not add new mutation paths or fake persistence.
+Validation impact: unchanged real repo gates:
+`npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, and
+`npm audit --audit-level=moderate`.
+Reviewer notes: pending independent code-reviewer review.

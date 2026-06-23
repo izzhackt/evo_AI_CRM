@@ -17,7 +17,10 @@ export default async function ClientsPage({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-slate-900">{t("clients")}</h1>
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">{t("student360")}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t("student360Hint")}</p>
+        </div>
         <details className="relative">
           <summary className={`${btnCls} cursor-pointer list-none`}>+ {t("addClient")}</summary>
           <form

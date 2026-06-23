@@ -10,7 +10,7 @@ import {
   addDocumentAction, setDocumentStatusAction, upsertVisaCaseAction,
   addPaymentAction, markPaymentPaidAction, postUpdateAction,
 } from "@/lib/actions";
-import { Badge, Card, EmptyState, inputCls, btnCls, btnGhostCls } from "@/components/ui";
+import { Badge, Card, EmptyState, StatCard, inputCls, btnCls, btnGhostCls } from "@/components/ui";
 import { AiSummary } from "@/components/AiSummary";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
@@ -27,10 +27,15 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const updates = clientUpdates(clientId);
   const staff = listStaff();
   const selectCls = "rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs";
+  const activeApps = apps.filter((app) => app.status === "preparing" || app.status === "submitted").length;
+  const openDocuments = docs.filter((doc) => doc.status !== "approved").length;
+  const pendingPayments = payments.filter((payment) => payment.status !== "paid").length;
+  const nextDeadline = apps.find((app) => app.deadline && app.status !== "enrolled" && app.status !== "rejected")?.deadline ?? "—";
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
+        <span className="text-xs font-semibold uppercase text-slate-400">{t("student360")}</span>
         <h1 className="text-xl font-bold text-slate-900">{client.name}</h1>
         <Badge value={client.stage} label={t(`stage.${client.stage}`)} />
         <span className="text-sm text-slate-500">{client.email}{client.phone ? ` · ${client.phone}` : ""}</span>
@@ -44,6 +49,13 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           notConfigured: t("aiNotConfigured"),
         }}
       />
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label={t("activeApplications")} value={activeApps} href="/applications" />
+        <StatCard label={t("openDocuments")} value={openDocuments} href="/documents" />
+        <StatCard label={t("pendingPayments")} value={pendingPayments} href="/finance" />
+        <StatCard label={t("nextDeadline")} value={nextDeadline} />
+      </div>
 
       {/* Profile */}
       <Card title={t("client")}>

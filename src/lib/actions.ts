@@ -3,7 +3,17 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { db, hashPassword, verifyPassword, getSetting, setSetting, LEAD_STATUSES } from "./db";
+import {
+  APP_STATUSES,
+  DOC_STATUSES,
+  LEAD_STATUSES,
+  STAGES,
+  db,
+  getSetting,
+  hashPassword,
+  setSetting,
+  verifyPassword,
+} from "./db";
 import { sendWhatsApp } from "./whatsapp";
 import { setSession, clearSession, currentUser, isStaff } from "./auth";
 import { LOCALES, Locale } from "./i18n";
@@ -22,6 +32,12 @@ function optNum(form: FormData, key: string): number | null {
 async function requireStaff() {
   const user = await currentUser();
   if (!user || !isStaff(user.role)) redirect("/login");
+  return user;
+}
+
+async function requireAdmissionsStaff() {
+  const user = await requireStaff();
+  if (user.role === "finance") redirect("/dashboard");
   return user;
 }
 
@@ -102,11 +118,13 @@ export async function createClientAction(form: FormData) {
 export async function updateClientAction(form: FormData) {
   await requireStaff();
   const id = optNum(form, "client_id");
+  const stage = str(form, "stage");
   if (!id) return;
+  if (!(STAGES as readonly string[]).includes(stage)) return;
   db()
     .prepare("UPDATE clients SET stage = ?, manager_id = ?, curator_id = ?, target_country = ?, target_degree = ?, notes = ? WHERE id = ?")
     .run(
-      str(form, "stage"),
+      stage,
       optNum(form, "manager_id"),
       optNum(form, "curator_id"),
       str(form, "target_country") || null,
@@ -122,7 +140,7 @@ export async function updateClientAction(form: FormData) {
 // ---------- applications ----------
 
 export async function addApplicationAction(form: FormData) {
-  await requireStaff();
+  await requireAdmissionsStaff();
   const clientId = optNum(form, "client_id");
   const university = str(form, "university");
   if (!clientId || !university) return;
@@ -130,40 +148,46 @@ export async function addApplicationAction(form: FormData) {
     .prepare("INSERT INTO applications (client_id, university, country, program, degree, deadline) VALUES (?, ?, ?, ?, ?, ?)")
     .run(clientId, university, str(form, "country") || null, str(form, "program") || null, str(form, "degree") || null, str(form, "deadline") || null);
   revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/applications");
 }
 
 export async function setApplicationStatusAction(form: FormData) {
-  await requireStaff();
+  await requireAdmissionsStaff();
   const id = optNum(form, "id");
   const clientId = optNum(form, "client_id");
-  if (!id) return;
+  const status = str(form, "status");
+  if (!id || !(APP_STATUSES as readonly string[]).includes(status)) return;
   db()
     .prepare("UPDATE applications SET status = ?, updated_at = datetime('now') WHERE id = ?")
-    .run(str(form, "status"), id);
-  revalidatePath(`/clients/${clientId}`);
+    .run(status, id);
+  if (clientId) revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/applications");
   revalidatePath("/portal");
 }
 
 // ---------- documents ----------
 
 export async function addDocumentAction(form: FormData) {
-  await requireStaff();
+  await requireAdmissionsStaff();
   const clientId = optNum(form, "client_id");
   const name = str(form, "name");
   if (!clientId || !name) return;
   db().prepare("INSERT INTO documents (client_id, name) VALUES (?, ?)").run(clientId, name);
   revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/documents");
 }
 
 export async function setDocumentStatusAction(form: FormData) {
-  await requireStaff();
+  await requireAdmissionsStaff();
   const id = optNum(form, "id");
   const clientId = optNum(form, "client_id");
-  if (!id) return;
+  const status = str(form, "status");
+  if (!id || !(DOC_STATUSES as readonly string[]).includes(status)) return;
   db()
     .prepare("UPDATE documents SET status = ?, updated_at = datetime('now') WHERE id = ?")
-    .run(str(form, "status"), id);
-  revalidatePath(`/clients/${clientId}`);
+    .run(status, id);
+  if (clientId) revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/documents");
   revalidatePath("/portal");
 }
 

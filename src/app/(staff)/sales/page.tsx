@@ -3,7 +3,7 @@ import { getT } from "@/lib/i18n";
 import { listLeads, listStaff } from "@/lib/queries";
 import { LEAD_STATUSES } from "@/lib/db";
 import { addLeadAction, moveLeadAction } from "@/lib/actions";
-import { inputCls, btnCls } from "@/components/ui";
+import { inputCls, btnCls, StatCard } from "@/components/ui";
 
 const COLUMN_COLORS: Record<string, string> = {
   new: "border-t-slate-400",
@@ -18,11 +18,18 @@ export default async function SalesPage() {
   const { t } = await getT();
   const leads = listLeads();
   const staff = listStaff();
+  const activeLeads = leads.filter((lead) => lead.status !== "won" && lead.status !== "lost");
+  const wonLeads = leads.filter((lead) => lead.status === "won");
+  const pipelineAmount = activeLeads.reduce((sum, lead) => sum + (lead.amount ?? 0), 0);
+  const wonAmount = wonLeads.reduce((sum, lead) => sum + (lead.amount ?? 0), 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-slate-900">{t("pipeline")}</h1>
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">{t("admissionsPipeline")}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t("admissionsPipelineHint")}</p>
+        </div>
         <details className="relative">
           <summary className={`${btnCls} cursor-pointer list-none`}>+ {t("addLead")}</summary>
           <form
@@ -42,6 +49,13 @@ export default async function SalesPage() {
             <button type="submit" className={`${btnCls} w-full`}>{t("add")}</button>
           </form>
         </details>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label={t("activeLeads")} value={activeLeads.length} />
+        <StatCard label={t("convertedLeads")} value={wonLeads.length} />
+        <StatCard label={t("pipelineValue")} value={`${pipelineAmount.toLocaleString("ru-RU")} KGS`} />
+        <StatCard label={t("wonValue")} value={`${wonAmount.toLocaleString("ru-RU")} KGS`} />
       </div>
 
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">

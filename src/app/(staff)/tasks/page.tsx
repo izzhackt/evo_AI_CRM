@@ -3,7 +3,7 @@ import { getT } from "@/lib/i18n";
 import { listTasks, listStaff, listClients } from "@/lib/queries";
 import { TASK_COLUMNS, TASK_PRIORITIES } from "@/lib/db";
 import { addTaskAction, moveTaskAction } from "@/lib/actions";
-import { Card, inputCls, btnCls } from "@/components/ui";
+import { Card, StatCard, inputCls, btnCls } from "@/components/ui";
 
 const PRIO_COLORS: Record<string, string> = {
   low: "bg-slate-100 text-slate-500",
@@ -30,11 +30,17 @@ export default async function TasksPage({
   const tasks = listTasks(assigneeId);
   const staff = listStaff();
   const clients = listClients();
+  const openTasks = tasks.filter((task) => task.status !== "done").length;
+  const urgentTasks = tasks.filter((task) => task.status !== "done" && (task.priority === "urgent" || task.priority === "high")).length;
+  const doneTasks = tasks.filter((task) => task.status === "done").length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-slate-900">{t("tasks")} · {t("board")}</h1>
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">{t("taskBoard")}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t("taskBoardHint")}</p>
+        </div>
         <form className="flex items-center gap-2">
           <select name="assignee" defaultValue={assignee ?? ""} className={`${inputCls} max-w-52`}>
             <option value="">{t("allAssignees")}</option>
@@ -42,6 +48,12 @@ export default async function TasksPage({
           </select>
           <button type="submit" className={btnCls}>{t("search")}</button>
         </form>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <StatCard label={t("openTasks")} value={openTasks} />
+        <StatCard label={t("urgentTasks")} value={urgentTasks} />
+        <StatCard label={t("doneTasks")} value={doneTasks} />
       </div>
 
       <Card title={`+ ${t("addTask")}`}>

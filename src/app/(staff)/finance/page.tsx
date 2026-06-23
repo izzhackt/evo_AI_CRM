@@ -13,6 +13,9 @@ export default async function FinancePage() {
   const { t } = await getT();
   const payments = allPayments();
   const clients = listClients();
+  const overduePayments = payments.filter(
+    (payment) => payment.status !== "paid" && payment.due_date && payment.due_date < new Date().toISOString().slice(0, 10),
+  ).length;
 
   const totals = (status: "paid" | "pending") => {
     const sums = new Map<string, number>();
@@ -24,12 +27,16 @@ export default async function FinancePage() {
   };
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold text-slate-900">{t("finance")}</h1>
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-xl font-bold text-slate-900">{t("financeOverview")}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t("financeOverviewHint")}</p>
+      </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label={t("totalPaid")} value={totals("paid")} />
         <StatCard label={t("totalPending")} value={totals("pending")} />
+        <StatCard label={t("overduePayments")} value={overduePayments} />
       </div>
 
       <Card title={`+ ${t("addPayment")}`}>

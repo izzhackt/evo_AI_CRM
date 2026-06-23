@@ -9,37 +9,32 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Goal Slice
 
-Current slice: `/goal-ai-prompts`.
+Current slice: `/goal-admissions-crm`.
 
 Deliverables for this slice:
 
-- Build a deterministic prepared-response AI layer for the first presentation.
-- Add a prompt library and response scenarios that are visibly prepared content,
-  not live Anthropic generation.
-- Add an AI drawer for the WhatsApp conversation screen with scenario selection,
-  CRM facts, deterministic streaming presentation, and reply insertion.
-- Gate the drawer with the prepared-AI contract so normal operation does not
-  build or show prepared responses.
-- Generate WhatsApp replies from the real conversation, linked lead, and message
-  history already available in the repo.
-- Prevent missing WhatsApp credentials from being reported as demo send success;
-  the UI must show a visible failed send state instead.
+- Build the core staff CRM surfaces for Command Center, Admissions Pipeline,
+  Student 360, tasks, documents, applications, and finance overview.
+- Use the existing Next.js App Router, Server Components, Server Actions,
+  SQLite schema, and query/action modules already present in the repo.
+- Add real staff overviews for applications and documents using the existing
+  application/document records and status update actions.
+- Improve Command Center metrics so operational counts reflect the real schema
+  and link into the CRM work queues.
+- Keep Student 360 as the per-student operating surface for profile, documents,
+  applications, visa, finance, and updates.
 - Update `docs/PLAN_CHANGES.md` before code because this slice changes scope,
   architecture, acceptance criteria, file ownership, and merge order.
-- Run real repo validation after the baseline commit and after the prepared-AI
-  change, or record the exact blocker.
+- Run real repo validation after implementation, or record the exact blocker.
 - Commit only this slice with a Conventional Commit.
 - Request independent code-reviewer approval before merge.
 
 Out of scope for this slice:
 
-- Live Anthropic generation for the prepared-response drawer.
-- Live amoCRM, WhatsApp, telephony, or student-portal integration work beyond
-  the minimal WhatsApp truthfulness guard named above.
-- Broad CRM feature logic, data-model migration, or UI redesign outside the
-  WhatsApp reply workflow.
-- Claiming prepared text as live AI or claiming WhatsApp delivery without Meta
-  credentials.
+- Live amoCRM, WhatsApp, telephony, Anthropic, or student-portal integration
+  work beyond reusing current repo data already available locally.
+- Prepared-response AI workflow changes.
+- Role model redesign or broad authentication/authorization changes.
 - Database data migration.
 - Deployment.
 
@@ -242,18 +237,21 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
    build from a clean checkout without mixing baseline and prepared-AI review.
 5. `prepared-ai-prompts`: user-requested first-presentation prepared response
    layer with explicit prepared/live boundaries.
-6. `validation-baseline`: add or repair real validation commands and any missing
+6. `admissions-crm-core`: core staff CRM surfaces for Command Center,
+   Admissions Pipeline, Student 360, tasks, documents, applications, and finance
+   overview.
+7. `validation-baseline`: add or repair real validation commands and any missing
    test infrastructure without changing user-facing behavior.
-7. `production-truthfulness`: remove, gate, or visibly label demo/fallback
+8. `production-truthfulness`: remove, gate, or visibly label demo/fallback
    behavior so no fake integration success is possible.
-8. `security-hardening`: validate inputs, secret handling, role checks, and
+9. `security-hardening`: validate inputs, secret handling, role checks, and
    webhook authentication.
-9. `crm-core-flow-verification`: verify and fix real staff and client CRM flows.
-10. `real-integrations`: validate WhatsApp, telephony, amoCRM, and Anthropic through real
+10. `crm-core-flow-verification`: verify and fix real staff and client CRM flows.
+11. `real-integrations`: validate WhatsApp, telephony, amoCRM, and Anthropic through real
    credentials or record exact blockers.
-11. `presentation-readiness`: first-presentation polish and documented
+12. `presentation-readiness`: first-presentation polish and documented
    boundaries between prepared and live behavior.
-12. `release-readiness`: deployment runbook, backup/restore check, production
+13. `release-readiness`: deployment runbook, backup/restore check, production
    build/start check, final audit, and no dirty worktree.
 
 Each lane must be merged or intentionally abandoned before the next lane starts.

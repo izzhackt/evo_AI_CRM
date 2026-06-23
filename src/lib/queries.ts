@@ -78,6 +78,73 @@ export function clientPayments(clientId: number) {
   }[];
 }
 
+export type ApplicationQueueRow = {
+  id: number;
+  client_id: number;
+  client_name: string;
+  stage: Stage;
+  manager_name: string | null;
+  university: string;
+  country: string | null;
+  program: string | null;
+  degree: string | null;
+  deadline: string | null;
+  status: string;
+  notes: string | null;
+  updated_at: string;
+};
+
+export function allApplications(opts: { status?: string } = {}): ApplicationQueueRow[] {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (opts.status) {
+    where.push("ap.status = ?");
+    params.push(opts.status);
+  }
+  const sql = `
+    SELECT ap.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name
+    FROM applications ap
+    JOIN clients c ON c.id = ap.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+    ORDER BY ap.status = 'enrolled', ap.status = 'rejected',
+      ap.deadline IS NULL, ap.deadline, ap.updated_at DESC
+  `;
+  return db().prepare(sql).all(...params) as ApplicationQueueRow[];
+}
+
+export type DocumentQueueRow = {
+  id: number;
+  client_id: number;
+  client_name: string;
+  stage: Stage;
+  manager_name: string | null;
+  name: string;
+  status: string;
+  comment: string | null;
+  updated_at: string;
+};
+
+export function allDocuments(opts: { status?: string } = {}): DocumentQueueRow[] {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (opts.status) {
+    where.push("doc.status = ?");
+    params.push(opts.status);
+  }
+  const sql = `
+    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name
+    FROM documents doc
+    JOIN clients c ON c.id = doc.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+    ORDER BY doc.status = 'approved', doc.status = 'rejected', doc.updated_at DESC
+  `;
+  return db().prepare(sql).all(...params) as DocumentQueueRow[];
+}
+
 export function clientUpdates(clientId: number) {
   return db().prepare(`
     SELECT up.*, a.name AS author_name
@@ -248,16 +315,33 @@ export function dashboardStats() {
   const d = db();
   const totalClients = (d.prepare("SELECT COUNT(*) c FROM clients WHERE stage != 'archived'").get() as { c: number }).c;
   const activeApps = (d.prepare("SELECT COUNT(*) c FROM applications WHERE status IN ('preparing','submitted')").get() as { c: number }).c;
-  const openTasks = (d.prepare("SELECT COUNT(*) c FROM tasks WHERE status = 'open'").get() as { c: number }).c;
+  const openTasks = (d.prepare("SELECT COUNT(*) c FROM tasks WHERE status != 'done'").get() as { c: number }).c;
   const pendingPayments = (d.prepare("SELECT COUNT(*) c FROM payments WHERE status != 'paid'").get() as { c: number }).c;
+  const activeLeads = (d.prepare("SELECT COUNT(*) c FROM leads WHERE status NOT IN ('won','lost')").get() as { c: number }).c;
+  const documentsInReview = (d.prepare("SELECT COUNT(*) c FROM documents WHERE status IN ('uploaded','review')").get() as { c: number }).c;
+  const overduePayments = (d.prepare("SELECT COUNT(*) c FROM payments WHERE status != 'paid' AND due_date IS NOT NULL AND due_date < date('now')").get() as { c: number }).c;
+  const urgentTasks = (d.prepare("SELECT COUNT(*) c FROM tasks WHERE status != 'done' AND priority IN ('high','urgent')").get() as { c: number }).c;
   const byStage = d.prepare("SELECT stage, COUNT(*) c FROM clients GROUP BY stage").all() as { stage: Stage; c: number }[];
+  const byLeadStatus = d.prepare("SELECT status, COUNT(*) c FROM leads GROUP BY status").all() as { status: string; c: number }[];
   const deadlines = d.prepare(`
-    SELECT ap.university, ap.deadline, u.name AS client_name, c.id AS client_id
+    SELECT ap.university, ap.deadline, ap.status, u.name AS client_name, c.id AS client_id
     FROM applications ap
     JOIN clients c ON c.id = ap.client_id
     JOIN users u ON u.id = c.user_id
     WHERE ap.deadline IS NOT NULL AND ap.status IN ('preparing','submitted')
     ORDER BY ap.deadline LIMIT 8
-  `).all() as { university: string; deadline: string; client_name: string; client_id: number }[];
-  return { totalClients, activeApps, openTasks, pendingPayments, byStage, deadlines };
+  `).all() as { university: string; deadline: string; status: string; client_name: string; client_id: number }[];
+  return {
+    totalClients,
+    activeApps,
+    openTasks,
+    pendingPayments,
+    activeLeads,
+    documentsInReview,
+    overduePayments,
+    urgentTasks,
+    byStage,
+    byLeadStatus,
+    deadlines,
+  };
 }

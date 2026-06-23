@@ -9,27 +9,28 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Goal Slice
 
-Current slice: `/goal-brand-research`.
+Current slice: `/goal-architecture`.
 
 Deliverables for this slice:
 
-- Create `docs/EVO_BRAND_RESEARCH.md`.
-- Use public `evoadmissions.com`, amoCRM docs, and public study-abroad CRM
-  patterns.
-- Produce product copy, data model terms, realistic countries/program flows, and
-  source-backed UX requirements.
-- Update `docs/PLAN_CHANGES.md` before work because this slice changes the goal
-  slice, merge order, and file ownership.
-- Run real repo validation after the research docs change or record the exact
+- Add explicit role, route, and domain entity contracts for the CRM.
+- Add an amoCRM adapter contract grounded in current amoCRM API shape.
+- Add a student portal contract for client-visible data, sections, and stage
+  semantics.
+- Add a prepared AI contract that keeps first-presentation prepared responses
+  separate from live Anthropic integration success.
+- Update `docs/PLAN_CHANGES.md` before code because this slice changes scope,
+  architecture, acceptance criteria, file ownership, and merge order.
+- Run real repo validation after the architecture change or record the exact
   blocker.
 - Commit only this slice with a Conventional Commit.
 - Request independent code-reviewer approval before merge.
 
 Out of scope for this slice:
 
-- Runtime app changes.
-- Test harness implementation.
-- Integration rewrites.
+- Live amoCRM HTTP implementation or OAuth storage.
+- Student portal UI redesign beyond interface/schema decisions.
+- Live AI fallback, mock, or demo response generation.
 - Database data migration.
 - Deployment.
 
@@ -93,6 +94,10 @@ Research was checked on 2026-06-24 against current local and online sources:
 - Context7 `better-sqlite3` docs confirm direct database opening, prepared
   statements, PRAGMA usage, transactions, and WAL mode as normal production
   patterns for SQLite-backed Node.js apps.
+- amoCRM's current developer docs describe `/api/v4/leads` as the deal endpoint
+  with pipeline/status IDs, responsible user IDs, custom field values, and
+  embedded contacts/companies; `/api/v4/contacts` carries contact custom field
+  values; OAuth access and refresh tokens come from `POST /oauth2/access_token`.
 - The existing README describes demo accounts, WhatsApp demo mode, IP telephony
   webhooks, client portal, multilingual UI, SQLite backup, and Anthropic-powered
   AI features. Those claims must be verified against the actual app before any
@@ -121,20 +126,28 @@ Current risk surfaced by repo inspection:
 
 ## Acceptance Criteria
 
-### This Plan Slice
+### This Architecture Slice
 
-- `docs/EVO_LAUNCH_PLAN.md` exists and names the contract, current scope,
-  research summary, acceptance criteria, file ownership, merge order, validation,
-  and stop conditions.
-- `docs/PLAN_CHANGES.md` exists and is append-only.
-- No source, runtime, configuration, package, or data files are modified by this
-  slice.
+- `docs/PLAN_CHANGES.md` has an append-only architecture lane entry before code
+  changes.
+- Role and route contracts define staff/client separation, default landing
+  routes, and staff navigation access by role.
+- Domain entity contracts define lead, client, application, document, visa,
+  payment, task, WhatsApp, call, and staff/user shapes without depending on
+  hidden mocks or demo data.
+- The amoCRM adapter contract names auth state, lead/contact payload shapes,
+  pipeline/status references, custom field mapping, sync result semantics, and
+  explicit blocked/not-configured states.
+- The student portal contract defines only client-visible DTOs and sections.
+- The prepared AI contract marks prepared first-presentation responses as a
+  distinct source and cannot be counted as live Anthropic success.
 - Validation is run through the real repo commands available today:
-  `npm run lint`, `npx next typegen && npx tsc --noEmit`, and `npm run build`.
+  `npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, and
+  `npm audit --audit-level=moderate`.
 - Pre-commit security audit is run with `npm audit --audit-level=moderate`; any
   existing advisory is documented rather than bypassed.
-- The docs-only commit uses a Conventional Commit message.
-- An independent code-reviewer reviews the docs diff against this goal before
+- The architecture commit uses a Conventional Commit message.
+- An independent code-reviewer reviews the architecture diff against this goal before
   merge and returns `approved` or `changes_requested`.
 
 ### Launch Acceptance
@@ -188,6 +201,13 @@ Application architecture:
 - `src/lib/ai.ts`: Anthropic client and AI generation contract.
 - `src/lib/whatsapp.ts`: WhatsApp Cloud API integration.
 - `src/lib/i18n.ts`: locale keys and translations.
+- `src/lib/domain.ts`: canonical CRM roles, route map, status values, domain
+  entity types, and route access helpers.
+- `src/lib/contracts/amo-crm.ts`: amoCRM adapter interface and sync DTOs.
+- `src/lib/contracts/student-portal.ts`: client-visible portal contract.
+- `src/lib/contracts/prepared-ai.ts`: prepared response boundary for the first
+  presentation.
+- `src/lib/contracts/index.ts`: public export surface for integration contracts.
 - `package.json`, `eslint.config.mjs`, `tsconfig.json`, `next.config.ts`:
   validation and build configuration.
 
@@ -196,19 +216,23 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
 
 ## Merge Order
 
-1. `plan-contract`: this docs-only slice. Blocks all implementation lanes.
-2. `validation-baseline`: add or repair real validation commands and any missing
+1. `plan-contract`: docs-only launch contract. Blocks implementation lanes.
+2. `brand-research`: docs-only product/domain research for copy and education
+   flow realism.
+3. `architecture-contract`: role, route, entity, amoCRM adapter, student portal,
+   and prepared AI contracts.
+4. `validation-baseline`: add or repair real validation commands and any missing
    test infrastructure without changing user-facing behavior.
-3. `production-truthfulness`: remove, gate, or visibly label demo/fallback
+5. `production-truthfulness`: remove, gate, or visibly label demo/fallback
    behavior so no fake integration success is possible.
-4. `security-hardening`: validate inputs, secret handling, role checks, and
+6. `security-hardening`: validate inputs, secret handling, role checks, and
    webhook authentication.
-5. `crm-core-flow-verification`: verify and fix real staff and client CRM flows.
-6. `real-integrations`: validate WhatsApp, telephony, and Anthropic through real
+7. `crm-core-flow-verification`: verify and fix real staff and client CRM flows.
+8. `real-integrations`: validate WhatsApp, telephony, amoCRM, and Anthropic through real
    credentials or record exact blockers.
-7. `presentation-readiness`: first-presentation polish, prepared AI responses if
+9. `presentation-readiness`: first-presentation polish, prepared AI responses if
    still needed, and documented boundaries between prepared and live behavior.
-8. `release-readiness`: deployment runbook, backup/restore check, production
+10. `release-readiness`: deployment runbook, backup/restore check, production
    build/start check, final audit, and no dirty worktree.
 
 Each lane must be merged or intentionally abandoned before the next lane starts.

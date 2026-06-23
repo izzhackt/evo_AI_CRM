@@ -77,3 +77,23 @@ Validation impact: run real repo validation after the docs change:
 `npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, and
 `npm audit --audit-level=moderate` with any blocker reported exactly.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Add Architecture Contract Lane
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: scope, architecture, acceptance criteria, file ownership, and merge order.
+Affected plan section: goal slice, research summary, acceptance criteria, file
+ownership, merge order, required validation commands.
+Reason: user requested `/goal-architecture`: redesign app architecture around
+roles, routes, domain entities, amoCRM adapter contract, student portal
+contract, and prepared AI contract.
+Decision: add an `architecture-contract` lane after docs/research planning and
+before runtime behavior hardening. This lane owns schema/interface decisions and
+adds compile-checked TypeScript contract modules without claiming live amoCRM,
+student portal, or Anthropic integration success.
+Validation impact: run the real repo validation gates after implementation:
+`npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, and
+`npm audit --audit-level=moderate`; report any exact blocker rather than
+substituting mocks or fake integration success.
+Reviewer notes: pending independent code-reviewer review.

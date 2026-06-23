@@ -97,3 +97,50 @@ Validation impact: run the real repo validation gates after implementation:
 `npm audit --audit-level=moderate`; report any exact blocker rather than
 substituting mocks or fake integration success.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Add Prepared AI Prompts Lane
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: scope, architecture, acceptance criteria, file ownership, and merge order.
+Affected plan section: goal slice, execution rules, file ownership, merge order,
+presentation-readiness.
+Reason: user requested `/goal-ai-prompts`: build a prepared-response AI layer
+for the first presentation, including a prompt library, response scenarios, an
+AI drawer, a WhatsApp/reply generator, and a deterministic streaming UI.
+Decision: set the current contract slice to `/goal-ai-prompts` and add a narrow
+implementation lane before broader runtime integration work because the user
+explicitly requested prepared responses for the first presentation. The lane may
+create or edit `src/lib/prepared-ai.ts`,
+`src/components/PreparedAiDrawer.tsx`, `src/components/WaReplyBox.tsx`,
+`src/app/(staff)/whatsapp/[id]/page.tsx`, and `src/lib/whatsapp.ts` only for the
+minimal truthfulness guard that prevents missing WhatsApp credentials from being
+reported as demo send success. It must use real conversation/lead data from the
+current repo, must stay deterministic, must be gated by the prepared-AI contract
+to first-presentation mode, and must not route prepared responses through the
+live Anthropic endpoints or imply live WhatsApp delivery success.
+Validation impact: run the real repo gates after implementation:
+`npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, and
+`npm audit --audit-level=moderate`; report exact blockers for any non-zero gate.
+Reviewer notes: first independent code-reviewer review requested changes for
+plan freshness, append-only ordering, WhatsApp demo-send truthfulness, and the
+dirty baseline commit boundary.
+
+## 2026-06-24 - Approve Separate Baseline Commit For Prepared AI
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: merge order and validation constraint.
+Affected plan section: merge order, acceptance criteria, validation.
+Reason: the prepared-AI slice depends on CRM runtime baseline files that were
+not previously tracked, and a single baseline-plus-prepared-AI commit would make
+slice review too broad and non-buildable from a clean checkout.
+Decision: create a separate baseline commit first with only the pre-existing CRM
+runtime files required to make the app build from a clean checkout, then commit
+the prepared-AI response workflow separately. Do not include prepared-AI files
+or behavior in the baseline commit except inseparable runtime baseline.
+Validation impact: run real lint, type/route validation, and production build
+after the baseline commit; rerun the real validation gates after the prepared-AI
+commit and report the existing audit blocker exactly.
+Reviewer notes: user explicitly approved this commit order before the baseline
+commit was created.

@@ -9,28 +9,37 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Goal Slice
 
-Current slice: `/goal-architecture`.
+Current slice: `/goal-ai-prompts`.
 
 Deliverables for this slice:
 
-- Add explicit role, route, and domain entity contracts for the CRM.
-- Add an amoCRM adapter contract grounded in current amoCRM API shape.
-- Add a student portal contract for client-visible data, sections, and stage
-  semantics.
-- Add a prepared AI contract that keeps first-presentation prepared responses
-  separate from live Anthropic integration success.
+- Build a deterministic prepared-response AI layer for the first presentation.
+- Add a prompt library and response scenarios that are visibly prepared content,
+  not live Anthropic generation.
+- Add an AI drawer for the WhatsApp conversation screen with scenario selection,
+  CRM facts, deterministic streaming presentation, and reply insertion.
+- Gate the drawer with the prepared-AI contract so normal operation does not
+  build or show prepared responses.
+- Generate WhatsApp replies from the real conversation, linked lead, and message
+  history already available in the repo.
+- Prevent missing WhatsApp credentials from being reported as demo send success;
+  the UI must show a visible failed send state instead.
 - Update `docs/PLAN_CHANGES.md` before code because this slice changes scope,
   architecture, acceptance criteria, file ownership, and merge order.
-- Run real repo validation after the architecture change or record the exact
-  blocker.
+- Run real repo validation after the baseline commit and after the prepared-AI
+  change, or record the exact blocker.
 - Commit only this slice with a Conventional Commit.
 - Request independent code-reviewer approval before merge.
 
 Out of scope for this slice:
 
-- Live amoCRM HTTP implementation or OAuth storage.
-- Student portal UI redesign beyond interface/schema decisions.
-- Live AI fallback, mock, or demo response generation.
+- Live Anthropic generation for the prepared-response drawer.
+- Live amoCRM, WhatsApp, telephony, or student-portal integration work beyond
+  the minimal WhatsApp truthfulness guard named above.
+- Broad CRM feature logic, data-model migration, or UI redesign outside the
+  WhatsApp reply workflow.
+- Claiming prepared text as live AI or claiming WhatsApp delivery without Meta
+  credentials.
 - Database data migration.
 - Deployment.
 
@@ -107,10 +116,12 @@ Current risk surfaced by repo inspection:
 
 - The repo has demo accounts and seeded demo data in `src/lib/db.ts`.
 - `src/lib/auth.ts` has a development fallback `AUTH_SECRET`.
-- `src/lib/whatsapp.ts` can return a `demo` send status when WhatsApp credentials
-  are missing.
-- README says missing WhatsApp keys use demo mode. That is acceptable only for
-  explicitly labeled presentation behavior, not production launch.
+- `src/lib/whatsapp.ts` must not return a `demo` send status when WhatsApp
+  credentials are missing; missing credentials must produce a visible failed
+  send state rather than fake delivery success.
+- README must not say missing WhatsApp keys use demo mode. Prepared AI text is
+  acceptable only for explicitly labeled presentation behavior, not production
+  launch or delivery success.
 - AI routes depend on live Anthropic configuration and should fail as
   `not_configured` when no key exists.
 - There is currently no explicit `typecheck` script and no test script in
@@ -126,29 +137,33 @@ Current risk surfaced by repo inspection:
 
 ## Acceptance Criteria
 
-### This Architecture Slice
+### This Prepared AI Prompts Slice
 
-- `docs/PLAN_CHANGES.md` has an append-only architecture lane entry before code
-  changes.
-- Role and route contracts define staff/client separation, default landing
-  routes, and staff navigation access by role.
-- Domain entity contracts define lead, client, application, document, visa,
-  payment, task, WhatsApp, call, and staff/user shapes without depending on
-  hidden mocks or demo data.
-- The amoCRM adapter contract names auth state, lead/contact payload shapes,
-  pipeline/status references, custom field mapping, sync result semantics, and
-  explicit blocked/not-configured states.
-- The student portal contract defines only client-visible DTOs and sections.
-- The prepared AI contract marks prepared first-presentation responses as a
-  distinct source and cannot be counted as live Anthropic success.
+- `docs/PLAN_CHANGES.md` has append-only prepared-AI and baseline-first entries
+  before the prepared-AI commit.
+- The baseline CRM runtime files are committed separately before this slice so a
+  clean checkout can build the app without mixing baseline and prepared-AI review.
+- `src/lib/prepared-ai.ts` defines the deterministic prompt library, response
+  scenarios, CRM fact extraction, and first-presentation bundle builder.
+- The WhatsApp conversation page builds the prepared-AI bundle from the real
+  conversation, linked lead, and message history read through repo queries.
+- The prepared-AI bundle is built only when `isPreparedAiAllowed(...)` passes
+  for first-presentation mode; normal operation leaves the drawer unavailable.
+- The AI drawer shows scenario options, prompt-library details, CRM facts, and a
+  deterministic streaming UI, then inserts the selected prepared reply into the
+  actual WhatsApp composer.
+- Missing WhatsApp credentials produce a failed outbound state and log the
+  missing configuration; they are not reported as demo delivery success.
+- Prepared responses are labeled and bounded as prepared content and cannot be
+  counted as live Anthropic integration success.
 - Validation is run through the real repo commands available today:
   `npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, and
   `npm audit --audit-level=moderate`.
 - Pre-commit security audit is run with `npm audit --audit-level=moderate`; any
   existing advisory is documented rather than bypassed.
-- The architecture commit uses a Conventional Commit message.
-- An independent code-reviewer reviews the architecture diff against this goal before
-  merge and returns `approved` or `changes_requested`.
+- The prepared-AI commit uses a Conventional Commit message.
+- An independent code-reviewer reviews the prepared-AI diff against this goal
+  before merge and returns `approved` or `changes_requested`.
 
 ### Launch Acceptance
 
@@ -199,6 +214,8 @@ Application architecture:
 - `src/lib/actions.ts`: Server Action mutations.
 - `src/lib/queries.ts`: read models.
 - `src/lib/ai.ts`: Anthropic client and AI generation contract.
+- `src/lib/prepared-ai.ts`: deterministic prepared prompt library and response
+  scenario generator for the first presentation.
 - `src/lib/whatsapp.ts`: WhatsApp Cloud API integration.
 - `src/lib/i18n.ts`: locale keys and translations.
 - `src/lib/domain.ts`: canonical CRM roles, route map, status values, domain
@@ -221,18 +238,22 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
    flow realism.
 3. `architecture-contract`: role, route, entity, amoCRM adapter, student portal,
    and prepared AI contracts.
-4. `validation-baseline`: add or repair real validation commands and any missing
+4. `crm-baseline`: separate runtime baseline commit required so later slices can
+   build from a clean checkout without mixing baseline and prepared-AI review.
+5. `prepared-ai-prompts`: user-requested first-presentation prepared response
+   layer with explicit prepared/live boundaries.
+6. `validation-baseline`: add or repair real validation commands and any missing
    test infrastructure without changing user-facing behavior.
-5. `production-truthfulness`: remove, gate, or visibly label demo/fallback
+7. `production-truthfulness`: remove, gate, or visibly label demo/fallback
    behavior so no fake integration success is possible.
-6. `security-hardening`: validate inputs, secret handling, role checks, and
+8. `security-hardening`: validate inputs, secret handling, role checks, and
    webhook authentication.
-7. `crm-core-flow-verification`: verify and fix real staff and client CRM flows.
-8. `real-integrations`: validate WhatsApp, telephony, amoCRM, and Anthropic through real
+9. `crm-core-flow-verification`: verify and fix real staff and client CRM flows.
+10. `real-integrations`: validate WhatsApp, telephony, amoCRM, and Anthropic through real
    credentials or record exact blockers.
-9. `presentation-readiness`: first-presentation polish, prepared AI responses if
-   still needed, and documented boundaries between prepared and live behavior.
-10. `release-readiness`: deployment runbook, backup/restore check, production
+11. `presentation-readiness`: first-presentation polish and documented
+   boundaries between prepared and live behavior.
+12. `release-readiness`: deployment runbook, backup/restore check, production
    build/start check, final audit, and no dirty worktree.
 
 Each lane must be merged or intentionally abandoned before the next lane starts.

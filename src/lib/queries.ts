@@ -78,6 +78,21 @@ export function clientPayments(clientId: number) {
   }[];
 }
 
+export function clientTasks(clientId: number) {
+  return db().prepare(`
+    SELECT t.*, a.name AS assignee_name
+    FROM tasks t
+    LEFT JOIN users a ON a.id = t.assignee_id
+    WHERE t.client_id = ?
+    ORDER BY t.status = 'done',
+      CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+      t.due_date IS NULL, t.due_date
+  `).all(clientId) as {
+    id: number; title: string; description: string | null; due_date: string | null;
+    status: string; priority: string; assignee_name: string | null;
+  }[];
+}
+
 export type ApplicationQueueRow = {
   id: number;
   client_id: number;
@@ -175,7 +190,8 @@ export function listTasks(assigneeId?: number) {
   const where = assigneeId ? "WHERE t.assignee_id = ?" : "";
   const params = assigneeId ? [assigneeId] : [];
   return db().prepare(`
-    SELECT t.*, a.name AS assignee_name, u.name AS client_name, c.id AS client_id
+    SELECT t.*, a.name AS assignee_name, u.name AS client_name, c.id AS client_id,
+      c.stage, c.target_country
     FROM tasks t
     LEFT JOIN users a ON a.id = t.assignee_id
     LEFT JOIN clients c ON c.id = t.client_id
@@ -187,6 +203,7 @@ export function listTasks(assigneeId?: number) {
     id: number; title: string; description: string | null; due_date: string | null;
     status: string; priority: string; assignee_name: string | null;
     client_name: string | null; client_id: number | null;
+    stage: Stage | null; target_country: string | null;
   }[];
 }
 
@@ -345,7 +362,17 @@ export function dashboardStats() {
   const byApplicationStatus = d.prepare("SELECT status, COUNT(*) c FROM applications GROUP BY status").all() as { status: string; c: number }[];
   const byDocumentStatus = d.prepare("SELECT status, COUNT(*) c FROM documents GROUP BY status").all() as { status: string; c: number }[];
   const byTaskStatus = d.prepare("SELECT status, COUNT(*) c FROM tasks GROUP BY status").all() as { status: string; c: number }[];
-  const byPaymentStatus = d.prepare("SELECT status, COUNT(*) c FROM payments GROUP BY status").all() as { status: string; c: number }[];
+  const byPaymentStatus = d.prepare(`
+    SELECT CASE
+      WHEN status != 'paid' AND due_date IS NOT NULL AND due_date < date('now') THEN 'overdue'
+      ELSE status
+    END AS status, COUNT(*) c
+    FROM payments
+    GROUP BY CASE
+      WHEN status != 'paid' AND due_date IS NOT NULL AND due_date < date('now') THEN 'overdue'
+      ELSE status
+    END
+  `).all() as { status: string; c: number }[];
   const deadlines = d.prepare(`
     SELECT ap.university, ap.deadline, ap.status, u.name AS client_name, c.id AS client_id
     FROM applications ap

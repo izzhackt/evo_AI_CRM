@@ -227,3 +227,21 @@ Validation impact: rerun real gates after the access correction:
 app authenticated smoke, and `npm audit --audit-level=moderate` with the
 existing advisory reported exactly.
 Reviewer notes: addresses first independent code-reviewer `changes_requested`.
+
+## 2026-06-24 - Include Admissions Metadata Copy
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: file ownership and i18n copy.
+Affected plan section: `/goal-admissions-crm` visible admissions copy.
+Reason: built-app smoke showed the staff pages still rendered root browser
+metadata as `EduAdmin` and generic client CRM copy, even after the staff shell
+and dictionaries were updated toward EVO Admissions/student language.
+Decision: add `src/app/layout.tsx` to the `/goal-admissions-crm` write set for
+the narrow purpose of replacing root metadata title and description with EVO
+Admissions/student copy. No route, auth, portal, external integration, or schema
+behavior changes are included.
+Validation impact: rerun real lint, route type generation, TypeScript, build,
+built-app authenticated smoke, and `npm audit --audit-level=moderate`; report
+the existing Next/PostCSS advisory exactly if it remains non-zero.
+Reviewer notes: pending independent code-reviewer review.

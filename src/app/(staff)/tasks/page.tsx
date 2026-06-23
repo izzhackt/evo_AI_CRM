@@ -3,7 +3,7 @@ import { getT } from "@/lib/i18n";
 import { listTasks, listStaff, listClients } from "@/lib/queries";
 import { TASK_COLUMNS, TASK_PRIORITIES } from "@/lib/db";
 import { addTaskAction, moveTaskAction } from "@/lib/actions";
-import { Card, StatCard, inputCls, btnCls } from "@/components/ui";
+import { Badge, Card, EmptyState, StatCard, inputCls, btnCls } from "@/components/ui";
 
 const PRIO_COLORS: Record<string, string> = {
   low: "bg-slate-100 text-slate-500",
@@ -95,7 +95,7 @@ export default async function TasksPage({
                       </span>
                     </div>
                     {task.description && <div className="mt-1 text-xs text-slate-500">{task.description}</div>}
-                    <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-slate-400">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
                       {task.assignee_name && <span>{t("assignee")}: {task.assignee_name}</span>}
                       {task.due_date && <span>{t("dueDate")}: {task.due_date}</span>}
                       {task.client_id && (
@@ -103,6 +103,8 @@ export default async function TasksPage({
                           {task.client_name}
                         </Link>
                       )}
+                      {task.stage && <Badge value={task.stage} label={t(`stage.${task.stage}`)} />}
+                      {task.target_country && <span>{task.target_country}</span>}
                     </div>
                     <form action={moveTaskAction} className="mt-2 flex gap-1">
                       <input type="hidden" name="id" value={task.id} />
@@ -113,6 +115,7 @@ export default async function TasksPage({
                     </form>
                   </div>
                 ))}
+                {column.length === 0 && <EmptyState text={t("noTasksInColumn")} />}
               </div>
             </div>
           );

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getT } from "@/lib/i18n";
 import { dashboardStats, listClients } from "@/lib/queries";
-import { APP_STATUSES, DOC_STATUSES, LEAD_STATUSES, STAGES } from "@/lib/db";
+import { APP_STATUSES, DOC_STATUSES, LEAD_STATUSES, PAYMENT_STATUSES, STAGES, TASK_COLUMNS } from "@/lib/db";
 import { Badge, Card, EmptyState, StatCard } from "@/components/ui";
 
 export default async function DashboardPage() {
@@ -16,6 +16,11 @@ export default async function DashboardPage() {
   const applicationStatusCount = (status: string) => stats.byApplicationStatus.find((s) => s.status === status)?.c ?? 0;
   const maxDocumentStatus = Math.max(1, ...stats.byDocumentStatus.map((s) => s.c));
   const documentStatusCount = (status: string) => stats.byDocumentStatus.find((s) => s.status === status)?.c ?? 0;
+  const maxTaskStatus = Math.max(1, ...stats.byTaskStatus.map((s) => s.c));
+  const taskStatusCount = (status: string) => stats.byTaskStatus.find((s) => s.status === status)?.c ?? 0;
+  const paymentStatuses = [...PAYMENT_STATUSES] as string[];
+  const maxPaymentStatus = Math.max(1, ...stats.byPaymentStatus.map((s) => s.c));
+  const paymentStatusCount = (status: string) => stats.byPaymentStatus.find((s) => s.status === status)?.c ?? 0;
   const queueItems = [
     { href: "/sales", label: t("admissionsPipeline"), value: stats.activeLeads, meta: t("activeLeads") },
     { href: "/applications", label: t("applicationQueue"), value: stats.activeApps, meta: t("activeApplications") },
@@ -114,6 +119,46 @@ export default async function DashboardPage() {
                 >
                   <span className="w-28 shrink-0 text-xs font-medium text-slate-600">{t(`doc.${status}`)}</span>
                   <span className="h-3 rounded bg-emerald-500" style={{ width: `${(c / maxDocumentStatus) * 100}%` }} />
+                  <span className="text-xs font-semibold text-slate-700">{c}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card title={t("taskStatuses")}>
+          <div className="space-y-2">
+            {TASK_COLUMNS.map((status) => {
+              const c = taskStatusCount(status);
+              return (
+                <Link
+                  key={status}
+                  href="/tasks"
+                  className="flex items-center gap-3 rounded-lg px-2 py-1 transition hover:bg-slate-50"
+                >
+                  <span className="w-28 shrink-0 text-xs font-medium text-slate-600">{t(`col.${status}`)}</span>
+                  <span className="h-3 rounded bg-amber-500" style={{ width: `${(c / maxTaskStatus) * 100}%` }} />
+                  <span className="text-xs font-semibold text-slate-700">{c}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
+
+        <Card title={t("paymentStatuses")}>
+          <div className="space-y-2">
+            {paymentStatuses.map((status) => {
+              const c = paymentStatusCount(status);
+              return (
+                <Link
+                  key={status}
+                  href="/finance"
+                  className="flex items-center gap-3 rounded-lg px-2 py-1 transition hover:bg-slate-50"
+                >
+                  <span className="w-28 shrink-0 text-xs font-medium text-slate-600">{t(`pay.${status}`)}</span>
+                  <span className="h-3 rounded bg-rose-500" style={{ width: `${(c / maxPaymentStatus) * 100}%` }} />
                   <span className="text-xs font-semibold text-slate-700">{c}</span>
                 </Link>
               );

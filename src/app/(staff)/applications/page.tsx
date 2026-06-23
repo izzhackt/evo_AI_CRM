@@ -17,8 +17,9 @@ export default async function ApplicationsPage({
 
   const { t } = await getT();
   const { status } = await searchParams;
-  const applications = allApplications({ status });
-  const allRows = status ? allApplications() : applications;
+  const selectedStatus = status && (APP_STATUSES as readonly string[]).includes(status) ? status : undefined;
+  const applications = allApplications({ status: selectedStatus });
+  const allRows = selectedStatus ? allApplications() : applications;
   const statusCount = (value: string) => allRows.filter((app) => app.status === value).length;
   const dueSoon = allRows.filter(
     (app) => app.deadline && app.status !== "enrolled" && app.status !== "rejected",
@@ -43,14 +44,14 @@ export default async function ApplicationsPage({
 
       <Card title={t("applicationQueue")}>
         <form className="mb-4 flex flex-wrap gap-2">
-          <select name="status" defaultValue={status ?? ""} className={`${inputCls} max-w-52`}>
+          <select name="status" defaultValue={selectedStatus ?? ""} className={`${inputCls} max-w-52`}>
             <option value="">{t("allStatuses")}</option>
             {APP_STATUSES.map((value) => (
               <option key={value} value={value}>{t(`app.${value}`)}</option>
             ))}
           </select>
           <button type="submit" className={btnGhostCls}>{t("search")}</button>
-          {status && <Link href="/applications" className={btnGhostCls}>{t("clearFilter")}</Link>}
+          {selectedStatus && <Link href="/applications" className={btnGhostCls}>{t("clearFilter")}</Link>}
         </form>
 
         <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -70,7 +71,9 @@ export default async function ApplicationsPage({
               {applications.map((app) => (
                 <tr key={app.id} className="align-top transition hover:bg-slate-50">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-900">{app.university}</div>
+                    <Link href={`/clients/${app.client_id}`} className="font-medium text-slate-900 hover:text-indigo-700 hover:underline">
+                      {app.university}
+                    </Link>
                     <div className="mt-0.5 text-xs text-slate-500">
                       {[app.country, app.degree].filter(Boolean).join(" · ") || t("notAssigned")}
                     </div>
@@ -108,7 +111,9 @@ export default async function ApplicationsPage({
               ))}
             </tbody>
           </table>
-          {applications.length === 0 && <EmptyState text={t("noResults")} />}
+          {applications.length === 0 && (
+            <EmptyState text={selectedStatus ? t("noFilteredApplications") : t("noApplications")} />
+          )}
         </div>
       </Card>
     </div>

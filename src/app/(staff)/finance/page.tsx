@@ -14,8 +14,12 @@ export default async function FinancePage() {
   const payments = allPayments();
   const clients = listClients();
   const canMutatePayments = user.role === "admin" || user.role === "finance";
+  const today = new Date().toISOString().slice(0, 10);
   const overduePayments = payments.filter(
-    (payment) => payment.status !== "paid" && payment.due_date && payment.due_date < new Date().toISOString().slice(0, 10),
+    (payment) => payment.status !== "paid" && payment.due_date && payment.due_date < today,
+  ).length;
+  const pendingPaymentRows = payments.filter(
+    (payment) => payment.status !== "paid" && (!payment.due_date || payment.due_date >= today),
   ).length;
 
   const totals = (status: "paid" | "pending") => {
@@ -32,11 +36,13 @@ export default async function FinancePage() {
       <div>
         <h1 className="text-xl font-bold text-slate-900">{t("financeOverview")}</h1>
         <p className="mt-1 text-sm text-slate-500">{t("financeOverviewHint")}</p>
+        {!canMutatePayments && <p className="mt-1 text-xs text-slate-400">{t("financeReadOnlyHint")}</p>}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label={t("totalPaid")} value={totals("paid")} />
         <StatCard label={t("totalPending")} value={totals("pending")} />
+        <StatCard label={t("pendingPayments")} value={pendingPaymentRows} />
         <StatCard label={t("overduePayments")} value={overduePayments} />
       </div>
 
@@ -74,7 +80,7 @@ export default async function FinancePage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {payments.map((p) => {
-              const isOverdue = p.status !== "paid" && !!p.due_date && p.due_date < new Date().toISOString().slice(0, 10);
+              const isOverdue = p.status !== "paid" && !!p.due_date && p.due_date < today;
               const visibleStatus = isOverdue ? "overdue" : p.status;
               return (
                 <tr key={p.id} className="transition hover:bg-slate-50">

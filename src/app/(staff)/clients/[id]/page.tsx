@@ -3,13 +3,13 @@ import { currentUser } from "@/lib/auth";
 import { getT } from "@/lib/i18n";
 import {
   getClient, clientApplications, clientDocuments, clientVisaCase,
-  clientPayments, clientUpdates, listStaff,
+  clientPayments, clientTasks, clientUpdates, listStaff,
 } from "@/lib/queries";
-import { STAGES, APP_STATUSES, DOC_STATUSES, VISA_STATUSES } from "@/lib/db";
+import { STAGES, APP_STATUSES, DOC_STATUSES, TASK_COLUMNS, TASK_PRIORITIES, VISA_STATUSES } from "@/lib/db";
 import {
   updateClientAction, addApplicationAction, setApplicationStatusAction,
   addDocumentAction, setDocumentStatusAction, upsertVisaCaseAction,
-  addPaymentAction, markPaymentPaidAction, postUpdateAction,
+  addPaymentAction, markPaymentPaidAction, addTaskAction, moveTaskAction, postUpdateAction,
 } from "@/lib/actions";
 import { Badge, Card, EmptyState, StatCard, inputCls, btnCls, btnGhostCls } from "@/components/ui";
 import { AiSummary } from "@/components/AiSummary";
@@ -26,12 +26,14 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const docs = clientDocuments(clientId);
   const visa = clientVisaCase(clientId);
   const payments = clientPayments(clientId);
+  const tasks = clientTasks(clientId);
   const updates = clientUpdates(clientId);
   const staff = listStaff();
   const selectCls = "rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs";
   const activeApps = apps.filter((app) => app.status === "preparing" || app.status === "submitted").length;
   const openDocuments = docs.filter((doc) => doc.status !== "approved").length;
   const pendingPayments = payments.filter((payment) => payment.status !== "paid").length;
+  const openTasks = tasks.filter((task) => task.status !== "done").length;
   const nextDeadline = apps.find((app) => app.deadline && app.status !== "enrolled" && app.status !== "rejected")?.deadline ?? "—";
   const canMutatePayments = user?.role === "admin" || user?.role === "finance";
 
@@ -53,9 +55,10 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         }}
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard label={t("activeApplications")} value={activeApps} href="/applications" />
         <StatCard label={t("openDocuments")} value={openDocuments} href="/documents" />
+        <StatCard label={t("openWork")} value={openTasks} href="/tasks" />
         <StatCard label={t("pendingPayments")} value={pendingPayments} href="/finance" />
         <StatCard label={t("nextDeadline")} value={nextDeadline} />
       </div>
@@ -185,6 +188,45 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             <div className="sm:col-span-2">
               <button type="submit" className={btnCls}>{visa ? t("save") : `+ ${t("addVisaCase")}`}</button>
             </div>
+          </form>
+        </Card>
+
+        {/* Open work */}
+        <Card title={t("openWork")}>
+          <ul className="divide-y divide-slate-100">
+            {tasks.map((task) => (
+              <li key={task.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <div>
+                  <div className="text-sm font-medium text-slate-800">{task.title}</div>
+                  <div className="text-xs text-slate-500">
+                    {[task.assignee_name, task.due_date ? `${t("dueDate")}: ${task.due_date}` : null, t(`prio.${task.priority}`)]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                </div>
+                <form action={moveTaskAction} className="flex items-center gap-1">
+                  <input type="hidden" name="id" value={task.id} />
+                  <select name="status" defaultValue={task.status} className={selectCls}>
+                    {TASK_COLUMNS.map((s) => <option key={s} value={s}>{t(`col.${s}`)}</option>)}
+                  </select>
+                  <button type="submit" className={btnGhostCls}>{t("save")}</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+          {tasks.length === 0 && <EmptyState text={t("noStudentTasks")} />}
+          <form action={addTaskAction} className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2">
+            <input type="hidden" name="client_id" value={client.id} />
+            <input name="title" required placeholder={t("title")} className={`${inputCls} sm:col-span-2`} />
+            <select name="priority" defaultValue="normal" className={inputCls}>
+              {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{t(`prio.${p}`)}</option>)}
+            </select>
+            <select name="assignee_id" className={inputCls}>
+              <option value="">{t("assignee")}: {t("notAssigned")}</option>
+              {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <input name="due_date" type="date" className={inputCls} />
+            <button type="submit" className={btnCls}>+ {t("addTask")}</button>
           </form>
         </Card>
 

@@ -8,6 +8,9 @@ import {
   DOC_STATUSES,
   LEAD_STATUSES,
   STAGES,
+  TASK_COLUMNS,
+  TASK_PRIORITIES,
+  VISA_STATUSES,
   db,
   getSetting,
   hashPassword,
@@ -17,6 +20,8 @@ import {
 import { sendWhatsApp } from "./whatsapp";
 import { setSession, clearSession, currentUser, isStaff } from "./auth";
 import { LOCALES, Locale } from "./i18n";
+
+const CURRENCIES = ["KGS", "USD", "EUR"] as const;
 
 function str(form: FormData, key: string): string {
   return String(form.get(key) ?? "").trim();
@@ -213,14 +218,16 @@ export async function upsertVisaCaseAction(form: FormData) {
   await requireStaff();
   const clientId = optNum(form, "client_id");
   if (!clientId) return;
+  const status = str(form, "status");
+  if (!(VISA_STATUSES as readonly string[]).includes(status)) return;
   const d = db();
   const existing = d.prepare("SELECT id FROM visa_cases WHERE client_id = ?").get(clientId) as { id: number } | undefined;
   if (existing) {
     d.prepare("UPDATE visa_cases SET country = ?, status = ?, appointment_at = ?, notes = ?, updated_at = datetime('now') WHERE id = ?")
-      .run(str(form, "country"), str(form, "status"), str(form, "appointment_at") || null, str(form, "notes") || null, existing.id);
+      .run(str(form, "country") || "—", status, str(form, "appointment_at") || null, str(form, "notes") || null, existing.id);
   } else {
     d.prepare("INSERT INTO visa_cases (client_id, country, status, appointment_at, notes) VALUES (?, ?, ?, ?, ?)")
-      .run(clientId, str(form, "country") || "—", str(form, "status") || "not_started", str(form, "appointment_at") || null, str(form, "notes") || null);
+      .run(clientId, str(form, "country") || "—", status, str(form, "appointment_at") || null, str(form, "notes") || null);
   }
   revalidateStaffCrm(clientId);
   revalidatePath("/portal");
@@ -233,10 +240,12 @@ export async function addPaymentAction(form: FormData) {
   const clientId = optNum(form, "client_id");
   const title = str(form, "title");
   const amount = parseFloat(str(form, "amount"));
-  if (!clientId || !title || !Number.isFinite(amount)) return;
+  const currency = str(form, "currency") || "KGS";
+  if (!clientId || !title || !Number.isFinite(amount) || amount <= 0) return;
+  if (!(CURRENCIES as readonly string[]).includes(currency)) return;
   db()
     .prepare("INSERT INTO payments (client_id, title, amount, currency, due_date) VALUES (?, ?, ?, ?, ?)")
-    .run(clientId, title, amount, str(form, "currency") || "KGS", str(form, "due_date") || null);
+    .run(clientId, title, amount, currency, str(form, "due_date") || null);
   revalidateStaffCrm(clientId);
 }
 
@@ -260,12 +269,14 @@ export async function addTaskAction(form: FormData) {
   const user = await requireStaff();
   const title = str(form, "title");
   const clientId = optNum(form, "client_id");
+  const priority = str(form, "priority") || "normal";
   if (!title) return;
+  if (!(TASK_PRIORITIES as readonly string[]).includes(priority)) return;
   db()
     .prepare("INSERT INTO tasks (title, description, client_id, assignee_id, due_date, priority, status, created_by) VALUES (?, ?, ?, ?, ?, ?, 'todo', ?)")
     .run(
       title, str(form, "description") || null, clientId, optNum(form, "assignee_id"),
-      str(form, "due_date") || null, str(form, "priority") || "normal", user.id
+      str(form, "due_date") || null, priority, user.id
     );
   revalidateStaffCrm(clientId);
 }
@@ -401,7 +412,7 @@ export async function moveTaskAction(form: FormData) {
   await requireStaff();
   const id = optNum(form, "id");
   const status = str(form, "status");
-  if (!id || !["todo", "in_progress", "review", "done"].includes(status)) return;
+  if (!id || !(TASK_COLUMNS as readonly string[]).includes(status)) return;
   const d = db();
   const row = d.prepare("SELECT client_id FROM tasks WHERE id = ?").get(id) as { client_id: number | null } | undefined;
   if (!row) return;

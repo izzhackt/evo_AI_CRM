@@ -17,8 +17,9 @@ export default async function DocumentsPage({
 
   const { t } = await getT();
   const { status } = await searchParams;
-  const documents = allDocuments({ status });
-  const allRows = status ? allDocuments() : documents;
+  const selectedStatus = status && (DOC_STATUSES as readonly string[]).includes(status) ? status : undefined;
+  const documents = allDocuments({ status: selectedStatus });
+  const allRows = selectedStatus ? allDocuments() : documents;
   const statusCount = (value: string) => allRows.filter((doc) => doc.status === value).length;
 
   return (
@@ -40,14 +41,14 @@ export default async function DocumentsPage({
 
       <Card title={t("documentQueue")}>
         <form className="mb-4 flex flex-wrap gap-2">
-          <select name="status" defaultValue={status ?? ""} className={`${inputCls} max-w-52`}>
+          <select name="status" defaultValue={selectedStatus ?? ""} className={`${inputCls} max-w-52`}>
             <option value="">{t("allStatuses")}</option>
             {DOC_STATUSES.map((value) => (
               <option key={value} value={value}>{t(`doc.${value}`)}</option>
             ))}
           </select>
           <button type="submit" className={btnGhostCls}>{t("search")}</button>
-          {status && <Link href="/documents" className={btnGhostCls}>{t("clearFilter")}</Link>}
+          {selectedStatus && <Link href="/documents" className={btnGhostCls}>{t("clearFilter")}</Link>}
         </form>
 
         <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -65,7 +66,11 @@ export default async function DocumentsPage({
             <tbody className="divide-y divide-slate-100">
               {documents.map((doc) => (
                 <tr key={doc.id} className="align-top transition hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-900">{doc.name}</td>
+                  <td className="px-4 py-3">
+                    <Link href={`/clients/${doc.client_id}`} className="font-medium text-slate-900 hover:text-indigo-700 hover:underline">
+                      {doc.name}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3">
                     <Link href={`/clients/${doc.client_id}`} className="font-medium text-indigo-700 hover:underline">
                       {doc.client_name}
@@ -96,7 +101,9 @@ export default async function DocumentsPage({
               ))}
             </tbody>
           </table>
-          {documents.length === 0 && <EmptyState text={t("noResults")} />}
+          {documents.length === 0 && (
+            <EmptyState text={selectedStatus ? t("noFilteredDocuments") : t("noDocuments")} />
+          )}
         </div>
       </Card>
     </div>

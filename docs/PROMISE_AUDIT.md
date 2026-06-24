@@ -53,7 +53,7 @@ Repo/product artifacts:
 | P07 | Team chat persists channels and messages. | App UI, scenario docs. | Channel creation and message insertion work in local CRM. | S26. | proven | low |
 | P08 | WhatsApp conversations can be tracked in the CRM. | App UI, launch docs. | Staff can create conversations; inbound webhook creates conversation and linked lead. | S27-S28. | proven | medium |
 | P09 | WhatsApp outbound sending is live. | UI references WhatsApp reply; launch plan forbids fake success. | Send path calls Meta only with credentials; missing credentials return `not_configured`. No live Meta credentials verified. | `src/lib/whatsapp.ts`, S27, QA named blocker. | partly proven | high until credentials supplied |
-| P10 | Telephony webhooks can log calls and link them to leads. | Calls page, launch docs. | Missing `tel_api_key` now returns `not_configured`/503 and inserts nothing; valid keyed webhook inserts and links by phone. | S29 and `src/app/api/webhooks/telephony/route.ts`. | partly proven | medium |
+| P10 | Telephony webhooks can log calls and link them to leads. | Calls page, launch docs. | Missing `tel_provider` or `tel_api_key` now returns `not_configured`/503 and inserts nothing; valid provider/key webhook inserts and links by phone. | S29 and `src/app/api/webhooks/telephony/route.ts`. | partly proven | medium |
 | P11 | Live telephony provider integration is configured. | Calls page copy references PBX providers. | Product copy now says `not_configured`; no live PBX provider credentials or provider callback have been verified. | QA named blocker and `src/lib/i18n.ts`. | missing evidence | high until credentials supplied |
 | P12 | amoCRM settings/integration exists. | Settings UI, launch docs. | Admin settings store sanitized amoCRM config; status is `not_configured`, `blocked`, or `configured`; missing credentials do not call network. | S32-S36. | partly proven | medium |
 | P13 | Real amoCRM sync succeeds. | Integration ambition in docs. | Real OAuth/API failure is surfaced as `blocked`; no real successful provider sync is verified. | S36 and QA named blocker. | missing evidence | high until credentials supplied |
@@ -82,9 +82,10 @@ Repo/product artifacts:
 ## Fixes Completed
 
 - Fixed telephony truthfulness. Previously, the telephony webhook could insert a
-  call while `tel_api_key` was absent. It now returns `not_configured` with
-  status 503 before any insert, and S29 verifies no call count change in the
-  missing-key case.
+  call while required provider configuration was absent. It now requires both
+  `tel_provider` and `tel_api_key`, returns `not_configured` with status 503
+  before any insert, and S29 verifies no call count change for missing-key and
+  missing-provider cases.
 - Refreshed the QA report and scenario evidence so integration truthfulness now
   includes telephony, not only WhatsApp and amoCRM.
 - Changed controlled in-app telephony copy in Russian, Kyrgyz, and English from

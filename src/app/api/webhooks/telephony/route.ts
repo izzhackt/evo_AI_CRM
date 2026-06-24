@@ -14,9 +14,14 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
+    const provider = getSetting("tel_provider")?.trim();
     const expectedKey = getSetting("tel_api_key")?.trim();
-    if (!expectedKey) {
-      return NextResponse.json({ error: "not_configured", missing: ["tel_api_key"] }, { status: HTTP_SERVICE_UNAVAILABLE });
+    const missing = [
+      ...(provider ? [] : ["tel_provider"]),
+      ...(expectedKey ? [] : ["tel_api_key"]),
+    ];
+    if (missing.length > 0) {
+      return NextResponse.json({ error: "not_configured", missing }, { status: HTTP_SERVICE_UNAVAILABLE });
     }
 
     const providedKey = body.api_key ?? req.headers.get("x-api-key");

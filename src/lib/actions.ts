@@ -518,9 +518,11 @@ export async function saveSettingsAction(form: FormData) {
 }
 
 export async function getIntegrationStatus() {
+  const telephonyProvider = getSetting("tel_provider")?.trim();
+  const telephonyApiKey = getSetting("tel_api_key")?.trim();
   return {
     whatsapp: !!getSetting("wa_token") && !!getSetting("wa_phone_id"),
-    telephony: !!getSetting("tel_api_key"),
+    telephony: !!telephonyProvider && !!telephonyApiKey,
     ai: !!getSetting("anthropic_api_key") || !!process.env.ANTHROPIC_API_KEY,
     amocrm: getAmoCrmLocalStatus(),
   };

@@ -61,7 +61,7 @@ Checklist scores after pass 2:
 - Updated WhatsApp disconnected copy in Russian, Kyrgyz, and English from demo-mode wording to explicit `WhatsApp not_configured`.
 - Updated WhatsApp conversation message status rendering so historical non-live outbound rows display `not_configured` instead of `(демо)`.
 - Added this QA report and refreshed scenario evidence from the required scenario runner.
-- Updated telephony webhook behavior so missing `tel_api_key` returns explicit `not_configured` and does not insert calls; refreshed the telephony scenario to prove missing-key rejection, invalid-key rejection, and valid keyed insertion.
+- Updated telephony webhook behavior so missing `tel_provider` or `tel_api_key` returns explicit `not_configured` and does not insert calls; refreshed the telephony scenario to prove missing-key rejection, missing-provider rejection, invalid-key rejection, and valid provider/key insertion.
 - Updated telephony disconnected copy in Russian, Kyrgyz, and English from demo-mode wording to explicit `Telephony not_configured`.
 
 ## Validation

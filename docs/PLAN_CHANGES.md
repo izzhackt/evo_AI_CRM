@@ -418,3 +418,14 @@ Reason: the remaining unsupported high-risk claims live on the external `evoadmi
 Decision: add `docs/PUBLIC_PROMISE_COPY_CHANGESET.md` with page-by-page replacement copy, evidence requirements for numeric claims, and acceptance checks. Link the promise audit to that handoff instead of pretending this CRM repo changed the external website.
 Validation impact: run `npm run promise-audit` and documentation consistency checks.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Tighten Telephony Provider Configuration Gate
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: reviewer-requested correctness fix.
+Affected plan section: promise audit / telephony integration truthfulness.
+Reason: independent review found that telephony was still treated as configured when `tel_api_key` existed but `tel_provider` was empty. That could hide the `not_configured` state and let the webhook proceed without a provider configuration.
+Decision: require both `tel_provider` and `tel_api_key` for telephony to count as configured. The webhook must return `not_configured` with exact missing fields before insertion, and the calls page must keep the `not_configured` warning for partial provider/key setup.
+Validation impact: extend S29 to cover missing-key and missing-provider states with no call insertion, then rerun promise audit, lint, typegen, TypeScript, production build, scenarios, and npm audit.
+Reviewer notes: addresses independent review finding from reviewer agent `019ef941-17d6-7631-b50d-52779e2c62a4`.

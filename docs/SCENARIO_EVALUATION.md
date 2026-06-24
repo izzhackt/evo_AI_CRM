@@ -1,6 +1,6 @@
 # Scenario Evaluation
 
-Generated: 2026-06-24T10:50:18.405Z
+Generated: 2026-06-24T10:55:15.365Z
 
 ## Method
 
@@ -16,7 +16,7 @@ Conditions:
 - No live WhatsApp, telephony, amoCRM, or Anthropic credentials supplied; missing
   provider credentials must surface as explicit blocked/not-configured states.
 - Base URL: `http://127.0.0.1:3130`.
-- Temp DB: `/var/folders/p4/c09jb8gd4qngjbkr1cqfh8rh0000gp/T/evo-crm-scenarios-25536-1782298216810/edu-admin.db` (isolated copy; removed after the run unless
+- Temp DB: `/var/folders/p4/c09jb8gd4qngjbkr1cqfh8rh0000gp/T/evo-crm-scenarios-48290-1782298513881/edu-admin.db` (isolated copy; removed after the run unless
   `EVO_KEEP_SCENARIO_DB=1` is set).
 
 ## Summary
@@ -58,7 +58,7 @@ Conditions:
 | S26 | Team chat | Chat renders and channel/message actions persist team communication. | Creating a channel redirects to chat detail, and sending a message inserts it for that channel. | PASS | channel 5 created (303); message 77 inserted |
 | S27 | WhatsApp operations | WhatsApp inbox/detail render and missing credentials are visibly blocked. | Conversation creation renders detail, inbox links it, and absent Cloud API credentials show a not-connected state instead of success. | PASS | conversation 5; WhatsApp Cloud credentials absent and inbox shows blocked state |
 | S28 | WhatsApp webhook and settings | Settings save integration token, verify endpoint works, and incoming webhook creates lead/conversation. | Admin settings form saves verify token; GET webhook echoes challenge; POST incoming message creates conversation and linked lead. | PASS | verify ok; inbound conversation 6, lead 10 |
-| S29 | Calls and telephony | Calls page and telephony webhook enforce key handling and insert calls. | Missing telephony key is explicitly blocked without inserting a call; configured key blocks invalid webhook; valid webhook inserts a call and links by lead phone. | PASS | not_configured copy shown; missing key 503; invalid key 403; call 5 linked to lead 1 |
+| S29 | Calls and telephony | Calls page and telephony webhook enforce key handling and insert calls. | Missing telephony provider or key is explicitly blocked without inserting a call; configured provider/key blocks invalid webhook; valid webhook inserts a call and links by lead phone. | PASS | not_configured copy shown; missing key 503; missing provider 503; invalid key 403; call 5 linked to lead 1 |
 | S30 | Reports and prepared AI boundary | Reports render and AI summary endpoint returns not_configured without Anthropic key. | Reports page loads real CRM totals; AI summary API for staff returns explicit not_configured instead of fake success. | PASS | reports 200; AI summary client 1 -> not_configured |
 | S32 | amoCRM integration | Settings page shows amoCRM as not_configured and check does not call the provider without credentials. | Admin settings render amoCRM status with exact missing fields, and the real check Server Action records not_configured without credentials. | PASS | amoCRM check returned not_configured:accountBaseUrl,clientId,clientSecret,redirectUri,refreshToken |
 | S33 | amoCRM integration | Admin can save sanitized amoCRM settings without leaking secrets in the rendered settings page. | Submitting the real settings form stores a normalized amoCRM URL and secret rows, while the follow-up page omits raw secret values. | PASS | amoCRM settings saved with normalized account URL and masked secrets |

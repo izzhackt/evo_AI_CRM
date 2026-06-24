@@ -606,7 +606,7 @@ return [
     id: "S29",
     capability: "Calls and telephony",
     scenario: "Calls page and telephony webhook enforce key handling and insert calls.",
-    criteria: "Missing telephony key is explicitly blocked without inserting a call; configured key blocks invalid webhook; valid webhook inserts a call and links by lead phone.",
+    criteria: "Missing telephony provider or key is explicitly blocked without inserting a call; configured provider/key blocks invalid webhook; valid webhook inserts a call and links by lead phone.",
     async run(ctx) {
       await ctx.submit("/settings", ctx.cookie(admin), { names: ["wa_token", "wa_phone_id", "wa_verify_token", "tel_provider", "tel_api_key", "anthropic_api_key"] }, {
         wa_token: "",
@@ -625,10 +625,33 @@ return [
       const beforeUnconfigured = scalar(ctx, "SELECT COUNT(*) AS count FROM calls WHERE phone = ?", [lead.phone]);
       const unconfigured = await ctx.postJson("/api/webhooks/telephony", { phone: lead.phone });
       assert(unconfigured.status === 503, `missing telephony key status ${unconfigured.status}`);
+      const unconfiguredBody = JSON.parse(unconfigured.text);
+      assert(unconfiguredBody.error === "not_configured", `missing key error ${unconfiguredBody.error}`);
+      assert(unconfiguredBody.missing.includes("tel_api_key"), "missing key response did not name tel_api_key");
       const afterUnconfigured = scalar(ctx, "SELECT COUNT(*) AS count FROM calls WHERE phone = ?", [lead.phone]);
       assert(afterUnconfigured.count === beforeUnconfigured.count, "unconfigured telephony webhook inserted a call");
 
       const key = unique("tel-key");
+      await ctx.submit("/settings", ctx.cookie(admin), { names: ["wa_token", "wa_phone_id", "wa_verify_token", "tel_provider", "tel_api_key", "anthropic_api_key"] }, {
+        wa_token: "",
+        wa_phone_id: "",
+        wa_verify_token: "",
+        tel_provider: "",
+        tel_api_key: key,
+        anthropic_api_key: "",
+      });
+      const partialPage = await ctx.get("/calls", ctx.cookie(sales));
+      assert(partialPage.status === 200, `calls page partial provider ${partialPage.status}`);
+      assert(partialPage.text.includes("not_configured"), "calls page hid telephony not_configured copy for missing provider");
+      const beforeMissingProvider = scalar(ctx, "SELECT COUNT(*) AS count FROM calls WHERE phone = ?", [lead.phone]);
+      const missingProvider = await ctx.postJson("/api/webhooks/telephony", { api_key: key, phone: lead.phone });
+      assert(missingProvider.status === 503, `missing telephony provider status ${missingProvider.status}`);
+      const missingProviderBody = JSON.parse(missingProvider.text);
+      assert(missingProviderBody.error === "not_configured", `missing provider error ${missingProviderBody.error}`);
+      assert(missingProviderBody.missing.includes("tel_provider"), "missing provider response did not name tel_provider");
+      const afterMissingProvider = scalar(ctx, "SELECT COUNT(*) AS count FROM calls WHERE phone = ?", [lead.phone]);
+      assert(afterMissingProvider.count === beforeMissingProvider.count, "missing-provider telephony webhook inserted a call");
+
       await ctx.submit("/settings", ctx.cookie(admin), { names: ["wa_token", "wa_phone_id", "wa_verify_token", "tel_provider", "tel_api_key", "anthropic_api_key"] }, {
         wa_token: "",
         wa_phone_id: "",
@@ -650,7 +673,7 @@ return [
       assert(good.status === 200, `valid webhook status ${good.status}`);
       const call = scalar(ctx, "SELECT id, lead_id, duration_sec, status FROM calls WHERE phone = ? ORDER BY id DESC LIMIT 1", [lead.phone]);
       assert(call?.lead_id === lead.id && call.duration_sec === 93, "call not inserted or linked");
-      return `not_configured copy shown; missing key ${unconfigured.status}; invalid key 403; call ${call.id} linked to lead ${call.lead_id}`;
+      return `not_configured copy shown; missing key ${unconfigured.status}; missing provider ${missingProvider.status}; invalid key 403; call ${call.id} linked to lead ${call.lead_id}`;
     },
   },
   {

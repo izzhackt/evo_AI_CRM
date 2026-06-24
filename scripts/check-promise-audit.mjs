@@ -48,6 +48,7 @@ for (const required of [
   "docs/PUBLIC_PROMISE_COPY_CHANGESET.md",
   "Public “almost 100%”",
   "Live WhatsApp send, live PBX provider, live amoCRM sync, live Anthropic AI",
+  "Missing `tel_provider` or `tel_api_key`",
   "Changed controlled in-app telephony copy",
   "Added live AI system guardrails",
   "must not repeat public outcome-guarantee claims",

@@ -1,6 +1,6 @@
 # Scenario Evaluation
 
-Generated: 2026-06-24T10:55:15.365Z
+Generated: 2026-06-24T10:58:25.977Z
 
 ## Method
 
@@ -16,7 +16,7 @@ Conditions:
 - No live WhatsApp, telephony, amoCRM, or Anthropic credentials supplied; missing
   provider credentials must surface as explicit blocked/not-configured states.
 - Base URL: `http://127.0.0.1:3130`.
-- Temp DB: `/var/folders/p4/c09jb8gd4qngjbkr1cqfh8rh0000gp/T/evo-crm-scenarios-48290-1782298513881/edu-admin.db` (isolated copy; removed after the run unless
+- Temp DB: `/var/folders/p4/c09jb8gd4qngjbkr1cqfh8rh0000gp/T/evo-crm-scenarios-67569-1782298704439/edu-admin.db` (isolated copy; removed after the run unless
   `EVO_KEEP_SCENARIO_DB=1` is set).
 
 ## Summary

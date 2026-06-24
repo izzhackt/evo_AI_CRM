@@ -1,4 +1,5 @@
-import { db, Stage } from "./db";
+import { db, Stage, STAGES } from "./db";
+import { STUDENT_PORTAL_SECTIONS, StudentPortalSnapshot } from "./contracts/student-portal";
 
 export type ClientRow = {
   id: number;
@@ -50,6 +51,224 @@ export function getClient(id: number): ClientRow | undefined {
 
 export function getClientByUserId(userId: number): ClientRow | undefined {
   return db().prepare(CLIENT_SELECT + " WHERE c.user_id = ?").get(userId) as ClientRow | undefined;
+}
+
+export type StudentPortalContactRow = {
+  id: number;
+  name: string;
+  role: string;
+  email: string;
+  phone: string | null;
+};
+
+export type StudentPortalTaskRow = {
+  id: number;
+  title: string;
+  description: string | null;
+  due_date: string | null;
+  status: string;
+  priority: string;
+  assignee_name: string | null;
+};
+
+type StudentPortalUpdateRow = {
+  id: number;
+  message: string;
+  created_at: string;
+  author_name: string | null;
+  is_read: number;
+};
+
+function staffContact(id: number | null): StudentPortalContactRow | null {
+  if (!id) return null;
+  const row = db()
+    .prepare("SELECT id, name, role, email, phone FROM users WHERE id = ? AND role != 'client'")
+    .get(id) as StudentPortalContactRow | undefined;
+  return row ?? null;
+}
+
+function portalStageTimeline(stage: Stage): StudentPortalSnapshot["stageTimeline"] {
+  const visibleStages = STAGES.filter((s) => s !== "archived");
+  const safeStage = stage === "archived" ? "enrolled" : stage;
+  const currentIndex = Math.max(0, visibleStages.indexOf(safeStage));
+  return visibleStages.map((stageItem, index) => ({
+    stage: stageItem,
+    labelKey: `stage.${stageItem}` as const,
+    state: index < currentIndex ? "complete" : index === currentIndex ? "current" : "locked",
+  }));
+}
+
+function portalProgressPercent(stage: Stage) {
+  const visibleStages = STAGES.filter((s) => s !== "archived");
+  const safeStage = stage === "archived" ? "enrolled" : stage;
+  const currentIndex = Math.max(0, visibleStages.indexOf(safeStage));
+  return Math.round(((currentIndex + 1) / visibleStages.length) * 100);
+}
+
+function portalPaymentStatus(payment: { status: string; due_date: string | null }, today: string) {
+  return payment.status !== "paid" && payment.due_date && payment.due_date < today ? "overdue" : payment.status;
+}
+
+function portalNextAction(
+  snapshot: Pick<StudentPortalSnapshot, "applications" | "documents" | "payments" | "tasks" | "visa">,
+  today: string,
+): StudentPortalSnapshot["nextAction"] {
+  const urgentTask = snapshot.tasks.find((task) => task.priority === "urgent" || task.priority === "high");
+  if (urgentTask) {
+    return {
+      labelKey: "portalNextTask",
+      detail: urgentTask.title,
+      dueDate: urgentTask.dueDate,
+      severity: urgentTask.priority === "urgent" ? "urgent" : "warning",
+    };
+  }
+
+  const openDocument = snapshot.documents.find((document) => document.status === "required" || document.status === "rejected");
+  if (openDocument) {
+    return {
+      labelKey: "portalNextDocument",
+      detail: openDocument.name,
+      dueDate: null,
+      severity: openDocument.status === "rejected" ? "urgent" : "warning",
+    };
+  }
+
+  const nextApplication = snapshot.applications.find(
+    (application) => application.deadline && application.status !== "enrolled" && application.status !== "rejected",
+  );
+  if (nextApplication) {
+    return {
+      labelKey: "portalNextDeadline",
+      detail: nextApplication.university,
+      dueDate: nextApplication.deadline,
+      severity: nextApplication.deadline && nextApplication.deadline < today ? "urgent" : "normal",
+    };
+  }
+
+  const openPayment = snapshot.payments.find((payment) => payment.status !== "paid");
+  if (openPayment) {
+    const visibleStatus = openPayment.dueDate && openPayment.dueDate < today ? "overdue" : openPayment.status;
+    return {
+      labelKey: visibleStatus === "overdue" ? "portalNextOverduePayment" : "portalNextPayment",
+      detail: openPayment.title,
+      dueDate: openPayment.dueDate,
+      severity: visibleStatus === "overdue" ? "urgent" : "normal",
+    };
+  }
+
+  if (snapshot.visa?.appointmentAt) {
+    return {
+      labelKey: "portalNextVisa",
+      detail: snapshot.visa.country,
+      dueDate: snapshot.visa.appointmentAt,
+      severity: "normal",
+    };
+  }
+
+  return null;
+}
+
+export function studentPortalSnapshotForUser(userId: number): StudentPortalSnapshot | undefined {
+  const client = getClientByUserId(userId);
+  if (!client) return undefined;
+  const today = new Date().toISOString().slice(0, 10);
+  const tasks = db().prepare(`
+    SELECT t.id, t.title, t.description, t.due_date, t.status, t.priority, a.name AS assignee_name
+    FROM tasks t
+    LEFT JOIN users a ON a.id = t.assignee_id
+    WHERE t.client_id = ? AND t.status != 'done'
+    ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+      t.due_date IS NULL, t.due_date, t.created_at DESC
+  `).all(client.id) as StudentPortalTaskRow[];
+
+  const rawSnapshot = {
+    applications: clientApplications(client.id),
+    documents: clientDocuments(client.id),
+    visa: clientVisaCase(client.id),
+    payments: clientPayments(client.id),
+    updates: db().prepare(`
+      SELECT up.*, a.name AS author_name
+      FROM updates up LEFT JOIN users a ON a.id = up.author_id
+      WHERE up.client_id = ? ORDER BY up.created_at DESC
+    `).all(client.id) as StudentPortalUpdateRow[],
+    tasks,
+  };
+
+  const snapshot: StudentPortalSnapshot = {
+    student: {
+      id: client.user_id,
+      name: client.name,
+      email: client.email,
+      phone: client.phone,
+    },
+    client: {
+      id: client.id,
+      stage: client.stage,
+      targetCountry: client.target_country,
+      targetDegree: client.target_degree,
+      managerId: client.manager_id,
+      curatorId: client.curator_id,
+    },
+    visibleSections: STUDENT_PORTAL_SECTIONS,
+    stageTimeline: portalStageTimeline(client.stage),
+    progressPercent: portalProgressPercent(client.stage),
+    nextAction: null,
+    manager: staffContact(client.manager_id),
+    curator: staffContact(client.curator_id),
+    updates: rawSnapshot.updates.map((update) => ({
+      id: update.id,
+      message: update.message,
+      authorName: update.author_name,
+      createdAt: update.created_at,
+      isRead: Boolean(update.is_read),
+    })),
+    applications: rawSnapshot.applications.map((application) => ({
+      id: application.id,
+      university: application.university,
+      country: application.country,
+      program: application.program,
+      degree: application.degree,
+      deadline: application.deadline,
+      status: application.status as StudentPortalSnapshot["applications"][number]["status"],
+      notes: application.notes,
+    })),
+    documents: rawSnapshot.documents.map((document) => ({
+      id: document.id,
+      name: document.name,
+      status: document.status as StudentPortalSnapshot["documents"][number]["status"],
+      comment: document.comment,
+      updatedAt: document.updated_at,
+    })),
+    visa: rawSnapshot.visa
+      ? {
+          id: rawSnapshot.visa.id,
+          country: rawSnapshot.visa.country,
+          status: rawSnapshot.visa.status as StudentPortalSnapshot["visa"]["status"],
+          appointmentAt: rawSnapshot.visa.appointment_at,
+          notes: rawSnapshot.visa.notes,
+        }
+      : null,
+    payments: rawSnapshot.payments.map((payment) => ({
+      id: payment.id,
+      title: payment.title,
+      amount: payment.amount,
+      currency: payment.currency,
+      dueDate: payment.due_date,
+      paidAt: payment.paid_at,
+      status: portalPaymentStatus(payment, today) as StudentPortalSnapshot["payments"][number]["status"],
+    })),
+    tasks: rawSnapshot.tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      dueDate: task.due_date,
+      status: task.status as StudentPortalSnapshot["tasks"][number]["status"],
+      priority: task.priority as StudentPortalSnapshot["tasks"][number]["priority"],
+      assigneeName: task.assignee_name,
+    })),
+    generatedAt: new Date().toISOString(),
+  };
+  return { ...snapshot, nextAction: portalNextAction(snapshot, today) };
 }
 
 export function clientApplications(clientId: number) {

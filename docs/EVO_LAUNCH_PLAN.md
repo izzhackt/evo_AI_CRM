@@ -9,30 +9,33 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Goal Slice
 
-Current slice: `/goal-admissions-crm`.
+Current slice: `/goal-student-portal`.
 
 Deliverables for this slice:
 
-- Build the core staff CRM surfaces for Command Center, Admissions Pipeline,
-  Student 360, tasks, documents, applications, and finance overview.
-- Use the existing Next.js App Router, Server Components, Server Actions,
-  SQLite schema, and query/action modules already present in the repo.
-- Add real staff overviews for applications and documents using the existing
-  application/document records and status update actions.
-- Improve Command Center metrics so operational counts reflect the real schema
-  and link into the CRM work queues.
-- Keep Student 360 as the per-student operating surface for profile, documents,
-  applications, visa, finance, and updates.
-- Update `docs/PLAN_CHANGES.md` before code because this slice changes scope,
-  architecture, acceptance criteria, file ownership, and merge order.
+- Build the first production-quality authenticated student portal experience
+  for EVO Admissions students and schoolers.
+- Use the committed Next.js App Router, Server Components, SQLite schema, CRM
+  query modules, and student/application/document/payment/task contracts already
+  present in the repo.
+- Keep `/portal` authenticated and client-only with no staff access, public data
+  leak, or cross-student visibility.
+- Read real existing SQLite CRM data and show current stage/progress, next
+  deadline/action, target country/degree, applications, documents, visa status,
+  payments, latest updates, manager/curator contact context, and open tasks/work
+  where relevant.
+- Add proper portal navigation or section tabs instead of a single long page.
+- Preserve Russian/Kyrgyz/English locale switching and add missing labels in all
+  three languages.
+- Keep staff routes working after portal changes.
 - Run real repo validation after implementation, or record the exact blocker.
 - Commit only this slice with a Conventional Commit.
 - Request independent code-reviewer approval before merge.
 
 Out of scope for this slice:
 
-- Live amoCRM, WhatsApp, telephony, Anthropic, or student-portal integration
-  work beyond reusing current repo data already available locally.
+- Redoing admissions CRM.
+- Live amoCRM, WhatsApp, telephony, or Anthropic integration work.
 - Prepared-response AI workflow changes.
 - Role model redesign or broad authentication/authorization changes.
 - Database data migration.
@@ -132,36 +135,38 @@ Current risk surfaced by repo inspection:
 
 ## Acceptance Criteria
 
-### This Admissions CRM Core Slice
+### This Student Portal Slice
 
-- `docs/PLAN_CHANGES.md` has append-only admissions CRM entries before runtime
-  coding when scope, architecture, file ownership, or acceptance criteria need
-  clarification.
-- Staff navigation exposes the core CRM work queues for Command Center,
-  Admissions Pipeline, Student 360, tasks, documents, applications, and finance
-  overview.
-- Command Center metrics are computed from the real SQLite records through repo
-  query modules and link to the relevant CRM queues.
-- Admissions Pipeline shows real leads, statuses, owners, source, destination,
-  next steps, and connected task/document/application/finance context without
-  fake integration success claims.
-- Student 360 remains the per-student operating surface for profile, documents,
-  applications, visa, finance, tasks, communication history, and updates.
-- Global applications and documents queues use existing application/document
-  records, expose operational status summaries, and submit through validated
-  Server Actions that revalidate affected CRM routes.
-- Tasks and finance surfaces summarize real task and payment records and link
-  back into the student/application/document operating context.
-- The slice does not implement the student portal, live amoCRM, live WhatsApp,
-  live telephony, live Anthropic, broad auth redesign, data migration, or
-  deployment work.
-- Validation is run through the real repo commands available today:
-  `npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`, and
-  `npm audit --audit-level=moderate`.
+- `docs/PLAN_CHANGES.md` has an append-only `/goal-student-portal` entry before
+  runtime coding because this lane changes scope, acceptance criteria, file
+  ownership, and validation.
+- `/portal` remains authenticated and client-only. Staff sessions redirect away
+  from the portal, public sessions redirect to login, and a client can only read
+  the CRM records linked to their own user/client row.
+- The portal reads real SQLite CRM data through the existing query layer or a
+  narrow portal read model; no hidden mocks, demo-only data, or fake integration
+  success are introduced.
+- The portal dashboard shows current stage/progress, next deadline/action,
+  target country/degree, applications, documents, visa status, payments, latest
+  updates, manager and curator contact context, and open tasks/work where
+  relevant.
+- The portal has first-presentation-ready navigation or tabs/sections instead of
+  a single long page, while preserving Russian/Kyrgyz/English locale switching.
+- The portal contract is extended only as needed to document the read-model
+  shape and remains backed by committed CRM contracts.
+- Existing staff routes continue to build and smoke successfully after the
+  portal changes.
+- Validation is run through the real repo commands for this slice:
+  `node node_modules/eslint/bin/eslint.js .`,
+  `node node_modules/next/dist/bin/next typegen`,
+  `node node_modules/typescript/bin/tsc --noEmit`,
+  `node node_modules/next/dist/bin/next build`, `npm run scenarios`, built-app
+  browser/session smoke for `/portal` as a client and at least one staff route,
+  and `npm audit --audit-level=moderate`.
 - Pre-commit security audit is run with `npm audit --audit-level=moderate`; any
   existing advisory is documented rather than bypassed.
-- The admissions CRM commit uses a Conventional Commit message.
-- An independent code-reviewer reviews the admissions CRM diff against this goal
+- The student portal commit uses a Conventional Commit message.
+- An independent code-reviewer reviews the student portal diff against this goal
   before merge and returns `approved` or `changes_requested`.
 
 ### Launch Acceptance
@@ -244,18 +249,21 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
 6. `admissions-crm-core`: core staff CRM surfaces for Command Center,
    Admissions Pipeline, Student 360, tasks, documents, applications, and finance
    overview.
-7. `validation-baseline`: add or repair real validation commands and any missing
+7. `student-portal`: first production-quality authenticated student portal over
+   the stable student, application, document, payment, task, and update
+   contracts.
+8. `validation-baseline`: add or repair real validation commands and any missing
    test infrastructure without changing user-facing behavior.
-8. `production-truthfulness`: remove, gate, or visibly label demo/fallback
+9. `production-truthfulness`: remove, gate, or visibly label demo/fallback
    behavior so no fake integration success is possible.
-9. `security-hardening`: validate inputs, secret handling, role checks, and
+10. `security-hardening`: validate inputs, secret handling, role checks, and
    webhook authentication.
-10. `crm-core-flow-verification`: verify and fix real staff and client CRM flows.
-11. `real-integrations`: validate WhatsApp, telephony, amoCRM, and Anthropic through real
+11. `crm-core-flow-verification`: verify and fix real staff and client CRM flows.
+12. `real-integrations`: validate WhatsApp, telephony, amoCRM, and Anthropic through real
    credentials or record exact blockers.
-12. `presentation-readiness`: first-presentation polish and documented
+13. `presentation-readiness`: first-presentation polish and documented
    boundaries between prepared and live behavior.
-13. `release-readiness`: deployment runbook, backup/restore check, production
+14. `release-readiness`: deployment runbook, backup/restore check, production
    build/start check, final audit, and no dirty worktree.
 
 Each lane must be merged or intentionally abandoned before the next lane starts.

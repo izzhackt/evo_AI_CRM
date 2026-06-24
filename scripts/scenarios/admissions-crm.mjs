@@ -471,6 +471,55 @@ return [
     },
   },
   {
+    id: "S31",
+    capability: "Student portal experience",
+    scenario: "Client portal renders a sectioned, client-scoped admissions dashboard.",
+    criteria: "The signed-in student sees own stage, target, applications, documents, payments, open tasks, team contacts, and section navigation without another student's data.",
+    async run(ctx) {
+      const cookie = ctx.cookie(client);
+      const portal = await ctx.get("/portal", cookie);
+      assert(portal.status === 200, `portal status ${portal.status}`);
+      const own = scalar(ctx, `
+        SELECT c.id, u.name, c.target_country, c.target_degree, m.name AS manager_name, cu.name AS curator_name
+        FROM clients c
+        JOIN users u ON u.id = c.user_id
+        LEFT JOIN users m ON m.id = c.manager_id
+        LEFT JOIN users cu ON cu.id = c.curator_id
+        WHERE u.email = ?
+      `, [client]);
+      const other = scalar(ctx, `
+        SELECT u.name, c.target_country
+        FROM clients c JOIN users u ON u.id = c.user_id
+        WHERE u.email != ? AND u.role = 'client'
+        ORDER BY c.id LIMIT 1
+      `, [client]);
+      assert(own, "seeded client portal record missing");
+      for (const text of [
+        "href=\"#overview\"",
+        "href=\"#applications\"",
+        "href=\"#documents\"",
+        "href=\"#work\"",
+        "href=\"#payments\"",
+        own.name,
+        own.target_country,
+        own.target_degree,
+        own.manager_name,
+        own.curator_name,
+        "TU München",
+        "Мотивационное письмо",
+        "Проверить мотивационное письмо",
+        "Консалтинговый пакет",
+      ]) {
+        assert(portal.text.includes(text), `portal missing ${text}`);
+      }
+      assert(!other || !portal.text.includes(other.name), `portal leaked other student ${other.name}`);
+      const staffPortal = await ctx.get("/portal", ctx.cookie(sales));
+      assert([303, 307, 308].includes(staffPortal.status), `staff portal status ${staffPortal.status}`);
+      assert(staffPortal.location?.includes("/dashboard"), `staff portal redirect ${staffPortal.location}`);
+      return `portal rendered scoped dashboard for client ${own.id} with navigation, contacts, and open work`;
+    },
+  },
+  {
     id: "S26",
     capability: "Team chat",
     scenario: "Chat renders and channel/message actions persist team communication.",

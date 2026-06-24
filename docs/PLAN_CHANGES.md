@@ -271,3 +271,33 @@ Validation impact: run the scenario runner plus the real gates:
 `npm audit --audit-level=moderate` with the known Next/PostCSS advisory reported
 if still present.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Add Student Portal Slice
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: scope, acceptance criteria, file ownership, and validation.
+Affected plan section: goal slice, acceptance criteria, file ownership,
+validation commands, and merge order.
+Reason: user requested `/goal-student-portal` after the admissions CRM contracts
+were committed and merged into `main`, so the portal can now read stable
+student, application, document, payment, task, and update contracts.
+Decision: set the current contract slice to `/goal-student-portal`. The lane may
+edit `docs/EVO_LAUNCH_PLAN.md`, `docs/PLAN_CHANGES.md`,
+`src/app/portal/page.tsx`, `src/lib/contracts/student-portal.ts`,
+`src/lib/queries.ts`, `src/lib/i18n.ts`, and `scripts/scenarios/*` for focused
+portal scenario coverage. The portal must stay authenticated and client-only,
+read real SQLite CRM data, show stage/progress, next action, target study
+context, applications, documents, visa, payments, latest updates, manager and
+curator contact context, and open tasks/work where relevant. This slice must
+not redo admissions CRM or implement live amoCRM, WhatsApp, telephony, or
+Anthropic integrations.
+Validation impact: run real repo gates after implementation:
+`node node_modules/eslint/bin/eslint.js .`,
+`node node_modules/next/dist/bin/next typegen`,
+`node node_modules/typescript/bin/tsc --noEmit`,
+`node node_modules/next/dist/bin/next build`, `npm run scenarios`, built-app
+browser smoke for `/portal` as a client and at least one staff route, and
+`npm audit --audit-level=moderate` with the known Next/PostCSS advisory reported
+exactly if it remains non-zero.
+Reviewer notes: pending independent code-reviewer review.

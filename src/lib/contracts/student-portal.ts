@@ -5,13 +5,17 @@ import type {
   EntityId,
   Payment,
   StudentDocument,
+  Task,
   UniversityApplication,
   UserIdentity,
   VisaCase,
 } from "../domain";
 
 export const STUDENT_PORTAL_SECTIONS = [
+  "overview",
   "stage",
+  "contacts",
+  "tasks",
   "updates",
   "applications",
   "documents",
@@ -35,6 +39,17 @@ export type StudentPortalUpdate = {
   readonly isRead: boolean;
 };
 
+export type StudentPortalContact = Pick<UserIdentity, "id" | "name" | "email" | "phone"> & {
+  readonly role: string;
+};
+
+export type StudentPortalNextAction = {
+  readonly labelKey: string;
+  readonly detail: string;
+  readonly dueDate: string | null;
+  readonly severity: "normal" | "warning" | "urgent";
+};
+
 export type StudentPortalApplication = Pick<
   UniversityApplication,
   "id" | "university" | "country" | "program" | "degree" | "deadline" | "status" | "notes"
@@ -46,6 +61,13 @@ export type StudentPortalVisaCase = Pick<VisaCase, "id" | "country" | "status" |
 
 export type StudentPortalPayment = Pick<Payment, "id" | "title" | "amount" | "currency" | "dueDate" | "paidAt" | "status">;
 
+export type StudentPortalTask = Pick<
+  Task,
+  "id" | "title" | "description" | "dueDate" | "status" | "priority"
+> & {
+  readonly assigneeName: string | null;
+};
+
 export type StudentPortalSnapshot = {
   readonly student: Pick<UserIdentity, "id" | "name" | "email" | "phone">;
   readonly client: Pick<
@@ -54,11 +76,16 @@ export type StudentPortalSnapshot = {
   >;
   readonly visibleSections: readonly StudentPortalSection[];
   readonly stageTimeline: readonly StudentPortalStageItem[];
+  readonly progressPercent: number;
+  readonly nextAction: StudentPortalNextAction | null;
+  readonly manager: StudentPortalContact | null;
+  readonly curator: StudentPortalContact | null;
   readonly updates: readonly StudentPortalUpdate[];
   readonly applications: readonly StudentPortalApplication[];
   readonly documents: readonly StudentPortalDocument[];
   readonly visa: StudentPortalVisaCase | null;
   readonly payments: readonly StudentPortalPayment[];
+  readonly tasks: readonly StudentPortalTask[];
   readonly generatedAt: DateTimeString;
 };
 

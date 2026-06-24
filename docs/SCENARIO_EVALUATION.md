@@ -1,6 +1,6 @@
 # Scenario Evaluation
 
-Generated: 2026-06-24T05:59:49.258Z
+Generated: 2026-06-24T06:30:09.483Z
 
 ## Method
 
@@ -16,14 +16,14 @@ Conditions:
 - No live WhatsApp, telephony, amoCRM, or Anthropic credentials supplied; missing
   provider credentials must surface as explicit blocked/not-configured states.
 - Base URL: `http://127.0.0.1:3130`.
-- Temp DB: `/var/folders/p4/c09jb8gd4qngjbkr1cqfh8rh0000gp/T/evo-crm-scenarios-38320-1782280788213/edu-admin.db` (isolated copy; removed after the run unless
+- Temp DB: `/var/folders/p4/c09jb8gd4qngjbkr1cqfh8rh0000gp/T/evo-crm-scenarios-30554-1782282608418/edu-admin.db` (isolated copy; removed after the run unless
   `EVO_KEEP_SCENARIO_DB=1` is set).
 
 ## Summary
 
-- Passed: 30
+- Passed: 31
 - Failed: 0
-- Total: 30
+- Total: 31
 
 ## Results
 
@@ -54,6 +54,7 @@ Conditions:
 | S23 | Finance | Add payment rejects invalid amount and accepts positive role-safe payment. | Negative amount does not insert a payment; positive finance submission creates pending payment with currency. | PASS | negative rejected; payment 4 2500 USD pending |
 | S24 | Finance | Mark payment paid action persists payment completion. | Submitting mark-paid form updates a pending payment to paid and sets paid_at. | PASS | payment 2 status paid, paid_at 2026-06-24 |
 | S25 | Student portal updates | Staff update becomes visible in the client portal. | Posting an update from Student 360 inserts a client update and the seeded client portal renders it. | PASS | portal rendered update for client 1 |
+| S31 | Student portal experience | Client portal renders a sectioned, client-scoped admissions dashboard. | The signed-in student sees own stage, target, applications, documents, payments, open tasks, team contacts, and section navigation without another student's data. | PASS | portal rendered scoped dashboard for client 1 with navigation, contacts, and open work |
 | S26 | Team chat | Chat renders and channel/message actions persist team communication. | Creating a channel redirects to chat detail, and sending a message inserts it for that channel. | PASS | channel 5 created (303); message 77 inserted |
 | S27 | WhatsApp operations | WhatsApp inbox/detail render and missing credentials are visibly blocked. | Conversation creation renders detail, inbox links it, and absent Cloud API credentials show a not-connected state instead of success. | PASS | conversation 5; WhatsApp Cloud credentials absent and inbox shows blocked state |
 | S28 | WhatsApp webhook and settings | Settings save integration token, verify endpoint works, and incoming webhook creates lead/conversation. | Admin settings form saves verify token; GET webhook echoes challenge; POST incoming message creates conversation and linked lead. | PASS | verify ok; inbound conversation 6, lead 10 |

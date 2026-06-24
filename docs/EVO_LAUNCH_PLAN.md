@@ -9,25 +9,26 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Goal Slice
 
-Current slice: `/goal-student-portal`.
+Current slice: `/goal-amocrm-integration`.
 
 Deliverables for this slice:
 
-- Build the first production-quality authenticated student portal experience
-  for EVO Admissions students and schoolers.
-- Use the committed Next.js App Router, Server Components, SQLite schema, CRM
-  query modules, and student/application/document/payment/task contracts already
-  present in the repo.
-- Keep `/portal` authenticated and client-only with no staff access, public data
-  leak, or cross-student visibility.
-- Read real existing SQLite CRM data and show current stage/progress, next
-  deadline/action, target country/degree, applications, documents, visa status,
-  payments, latest updates, manager/curator contact context, and open tasks/work
-  where relevant.
-- Add proper portal navigation or section tabs instead of a single long page.
-- Preserve Russian/Kyrgyz/English locale switching and add missing labels in all
-  three languages.
-- Keep staff routes working after portal changes.
+- Add a runtime amoCRM integration foundation that uses the existing
+  `AmoCrmAdapter` contract instead of only static type definitions.
+- Store amoCRM account URL/subdomain, OAuth client ID/secret, redirect URI,
+  refresh token, and optional pipeline/status/custom-field mapping values
+  through the existing SQLite settings pattern.
+- Validate and sanitize admin-submitted amoCRM account domains; accept only
+  `amocrm.ru` and `amocrm.com` account URLs or subdomains and reject Cyrillic or
+  unrelated domains.
+- Show a clear admin settings status summary that masks secrets and truthfully
+  reports `configured`, `not_configured`, or `blocked`.
+- Expose `getIntegrationStatus().amocrm` or equivalent for staff status checks.
+- Use real amoCRM OAuth/token/API endpoints only when required credentials are
+  present; missing credentials must return explicit `not_configured` with
+  missing fields and must not call the provider.
+- Add focused scenario coverage for missing credentials, valid settings save,
+  invalid domain rejection, non-admin save rejection, and no fake sync success.
 - Run real repo validation after implementation, or record the exact blocker.
 - Commit only this slice with a Conventional Commit.
 - Request independent code-reviewer approval before merge.
@@ -35,10 +36,14 @@ Deliverables for this slice:
 Out of scope for this slice:
 
 - Redoing admissions CRM.
-- Live amoCRM, WhatsApp, telephony, or Anthropic integration work.
+- Redoing student portal.
+- WhatsApp, telephony, or Anthropic integration changes except preserving
+  existing status behavior.
+- Claiming live amoCRM success without real credentials and provider responses.
+- Unauthenticated amoCRM webhook mutations.
 - Prepared-response AI workflow changes.
 - Role model redesign or broad authentication/authorization changes.
-- Database data migration.
+- New database migration framework.
 - Deployment.
 
 ## Execution Rules
@@ -135,39 +140,43 @@ Current risk surfaced by repo inspection:
 
 ## Acceptance Criteria
 
-### This Student Portal Slice
+### This amoCRM Integration Foundation Slice
 
-- `docs/PLAN_CHANGES.md` has an append-only `/goal-student-portal` entry before
-  runtime coding because this lane changes scope, acceptance criteria, file
-  ownership, and validation.
-- `/portal` remains authenticated and client-only. Staff sessions redirect away
-  from the portal, public sessions redirect to login, and a client can only read
-  the CRM records linked to their own user/client row.
-- The portal reads real SQLite CRM data through the existing query layer or a
-  narrow portal read model; no hidden mocks, demo-only data, or fake integration
-  success are introduced.
-- The portal dashboard shows current stage/progress, next deadline/action,
-  target country/degree, applications, documents, visa status, payments, latest
-  updates, manager and curator contact context, and open tasks/work where
-  relevant.
-- The portal has first-presentation-ready navigation or tabs/sections instead of
-  a single long page, while preserving Russian/Kyrgyz/English locale switching.
-- The portal contract is extended only as needed to document the read-model
-  shape and remains backed by committed CRM contracts.
-- Existing staff routes continue to build and smoke successfully after the
-  portal changes.
+- `docs/PLAN_CHANGES.md` has an append-only `/goal-amocrm-integration` entry
+  before runtime coding because this lane changes scope, architecture,
+  acceptance criteria, file ownership, external-service assumptions, and
+  validation.
+- The settings page supports amoCRM account base URL/subdomain, OAuth client ID,
+  OAuth client secret, redirect URI, refresh token, optional pipeline/status
+  mapping, optional responsible user ID, and optional custom-field mapping
+  values. Secret values are masked in the UI and are not printed in logs or
+  scenario evidence.
+- Settings save remains admin-only and validates amoCRM domains server-side.
+  Non-admin staff cannot save amoCRM settings.
+- `getIntegrationStatus()` returns a truthful amoCRM status object. Without real
+  credentials it returns `not_configured` or `blocked` with missing/invalid
+  inputs and does not call amoCRM.
+- A runtime `AmoCrmAdapter` implementation performs real OAuth refresh-token
+  exchange and real `/api/v4` contact/lead/link/fetch requests when credentials
+  are configured. Provider failures are returned as provider status/errors
+  without leaking token values.
+- A minimal admin-visible check/sync surface can be exercised locally without
+  real credentials and reports exact missing inputs instead of fake success.
+- No amoCRM webhook receiver accepts unauthenticated provider mutations in this
+  slice.
+- Existing staff CRM, student portal, WhatsApp, telephony, and Anthropic status
+  behavior continue to build and smoke successfully after the changes.
 - Validation is run through the real repo commands for this slice:
   `node node_modules/eslint/bin/eslint.js .`,
   `node node_modules/next/dist/bin/next typegen`,
   `node node_modules/typescript/bin/tsc --noEmit`,
-  `node node_modules/next/dist/bin/next build`, `npm run scenarios`, built-app
-  browser/session smoke for `/portal` as a client and at least one staff route,
-  and `npm audit --audit-level=moderate`.
+  `node node_modules/next/dist/bin/next build`, `npm run scenarios`, settings
+  smoke for admin and non-admin staff, and `npm audit --audit-level=moderate`.
 - Pre-commit security audit is run with `npm audit --audit-level=moderate`; any
   existing advisory is documented rather than bypassed.
-- The student portal commit uses a Conventional Commit message.
-- An independent code-reviewer reviews the student portal diff against this goal
-  before merge and returns `approved` or `changes_requested`.
+- The amoCRM integration foundation commit uses a Conventional Commit message.
+- An independent code-reviewer reviews the amoCRM integration diff against this
+  goal before merge and returns `approved` or `changes_requested`.
 
 ### Launch Acceptance
 
@@ -252,18 +261,20 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
 7. `student-portal`: first production-quality authenticated student portal over
    the stable student, application, document, payment, task, and update
    contracts.
-8. `validation-baseline`: add or repair real validation commands and any missing
+8. `amocrm-integration`: runtime amoCRM settings/status/adapter foundation with
+   truthful configured/not-configured/blocked behavior.
+9. `validation-baseline`: add or repair real validation commands and any missing
    test infrastructure without changing user-facing behavior.
-9. `production-truthfulness`: remove, gate, or visibly label demo/fallback
+10. `production-truthfulness`: remove, gate, or visibly label demo/fallback
    behavior so no fake integration success is possible.
-10. `security-hardening`: validate inputs, secret handling, role checks, and
+11. `security-hardening`: validate inputs, secret handling, role checks, and
    webhook authentication.
-11. `crm-core-flow-verification`: verify and fix real staff and client CRM flows.
-12. `real-integrations`: validate WhatsApp, telephony, amoCRM, and Anthropic through real
+12. `crm-core-flow-verification`: verify and fix real staff and client CRM flows.
+13. `real-integrations`: validate WhatsApp, telephony, amoCRM, and Anthropic through real
    credentials or record exact blockers.
-13. `presentation-readiness`: first-presentation polish and documented
+14. `presentation-readiness`: first-presentation polish and documented
    boundaries between prepared and live behavior.
-14. `release-readiness`: deployment runbook, backup/restore check, production
+15. `release-readiness`: deployment runbook, backup/restore check, production
    build/start check, final audit, and no dirty worktree.
 
 Each lane must be merged or intentionally abandoned before the next lane starts.
@@ -273,9 +284,11 @@ Each lane must be merged or intentionally abandoned before the next lane starts.
 Current baseline commands for this repo:
 
 ```bash
-npm run lint
-npx next typegen && npx tsc --noEmit
-npm run build
+node node_modules/eslint/bin/eslint.js .
+node node_modules/next/dist/bin/next typegen
+node node_modules/typescript/bin/tsc --noEmit
+node node_modules/next/dist/bin/next build
+npm run scenarios
 npm audit --audit-level=moderate
 ```
 

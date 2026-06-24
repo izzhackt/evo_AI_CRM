@@ -18,6 +18,7 @@ import {
   verifyPassword,
 } from "./db";
 import { sendWhatsApp } from "./whatsapp";
+import { createAmoCrmAdapter, getAmoCrmLocalStatus, normalizeAmoCrmAccountBaseUrl } from "./amocrm";
 import { setSession, clearSession, currentUser, isStaff } from "./auth";
 import { LOCALES, Locale } from "./i18n";
 
@@ -490,6 +491,29 @@ export async function saveSettingsAction(form: FormData) {
     const value = str(form, key);
     if (form.has(key)) setSetting(key, value);
   }
+
+  if (form.has("amocrm_account_base_url")) {
+    const rawBaseUrl = str(form, "amocrm_account_base_url");
+    const normalizedBaseUrl = normalizeAmoCrmAccountBaseUrl(rawBaseUrl);
+    if (rawBaseUrl && !normalizedBaseUrl) {
+      setSetting("amocrm_last_error", "invalid_account_domain");
+      revalidatePath("/settings");
+      return;
+    }
+    setSetting("amocrm_account_base_url", normalizedBaseUrl ?? "");
+    setSetting("amocrm_client_id", str(form, "amocrm_client_id"));
+    setPreservedSecret("amocrm_client_secret", str(form, "amocrm_client_secret"));
+    setSetting("amocrm_redirect_uri", str(form, "amocrm_redirect_uri"));
+    setPreservedSecret("amocrm_refresh_token", str(form, "amocrm_refresh_token"));
+    setPositiveIntegerSetting("amocrm_pipeline_id", str(form, "amocrm_pipeline_id"));
+    setPositiveIntegerSetting("amocrm_status_id", str(form, "amocrm_status_id"));
+    setPositiveIntegerSetting("amocrm_responsible_user_id", str(form, "amocrm_responsible_user_id"));
+    setPositiveIntegerSetting("amocrm_target_country_field_id", str(form, "amocrm_target_country_field_id"));
+    setPositiveIntegerSetting("amocrm_source_field_id", str(form, "amocrm_source_field_id"));
+    setSetting("amocrm_last_error", "");
+    setSetting("amocrm_last_check", "");
+  }
+
   revalidatePath("/settings");
 }
 
@@ -498,7 +522,36 @@ export async function getIntegrationStatus() {
     whatsapp: !!getSetting("wa_token") && !!getSetting("wa_phone_id"),
     telephony: !!getSetting("tel_api_key"),
     ai: !!getSetting("anthropic_api_key") || !!process.env.ANTHROPIC_API_KEY,
+    amocrm: getAmoCrmLocalStatus(),
   };
+}
+
+export async function checkAmoCrmAction() {
+  const user = await currentUser();
+  if (!user || user.role !== "admin") redirect("/dashboard");
+  const status = await createAmoCrmAdapter().getConnectionState();
+  if (status.status === "not_configured") {
+    setSetting("amocrm_last_check", `not_configured:${status.missing.join(",")}`);
+  } else if (status.status === "blocked") {
+    setSetting("amocrm_last_check", `blocked:${status.reason}`);
+  } else {
+    setSetting("amocrm_last_check", `configured:${status.accountBaseUrl}`);
+  }
+  revalidatePath("/settings");
+  redirect("/settings?amocrm_check=1");
+}
+
+function setPreservedSecret(key: string, value: string) {
+  if (value || !getSetting(key)) setSetting(key, value);
+}
+
+function setPositiveIntegerSetting(key: string, value: string) {
+  if (!value) {
+    setSetting(key, "");
+    return;
+  }
+  const parsed = Number.parseInt(value, 10);
+  setSetting(key, Number.isSafeInteger(parsed) && parsed > 0 ? String(parsed) : "");
 }
 
 // ---------- updates ----------

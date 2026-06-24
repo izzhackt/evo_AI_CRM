@@ -653,5 +653,128 @@ return [
       return `reports ${reports.status}; AI summary client ${clientId} -> ${body.error}`;
     },
   },
+  {
+    id: "S32",
+    capability: "amoCRM integration",
+    scenario: "Settings page shows amoCRM as not_configured and check does not call the provider without credentials.",
+    criteria: "Admin settings render amoCRM status with exact missing fields, and the real check Server Action records not_configured without credentials.",
+    async run(ctx) {
+      const page = await ctx.get("/settings", ctx.cookie(admin));
+      assert(page.status === 200, `settings status ${page.status}`);
+      assert(page.text.includes("amoCRM"), "settings page missing amoCRM section");
+      assert(page.text.includes("accountBaseUrl") && page.text.includes("refreshToken"), "settings page missing required amoCRM fields status");
+      await ctx.submit("/settings", ctx.cookie(admin), { includes: ["amoCRM"], excludes: ["name=\"wa_token\""] });
+      const check = scalar(ctx, "SELECT value FROM settings WHERE key = 'amocrm_last_check'");
+      assert(check?.value?.startsWith("not_configured:"), `unexpected amoCRM check ${check?.value}`);
+      return `amoCRM check returned ${check.value}`;
+    },
+  },
+  {
+    id: "S33",
+    capability: "amoCRM integration",
+    scenario: "Admin can save sanitized amoCRM settings without leaking secrets in the rendered settings page.",
+    criteria: "Submitting the real settings form stores a normalized amoCRM URL and secret rows, while the follow-up page omits raw secret values.",
+    async run(ctx) {
+      const clientSecret = unique("client-secret");
+      const refreshToken = unique("refresh-token");
+      await ctx.submit("/settings", ctx.cookie(admin), { names: ["amocrm_account_base_url", "amocrm_client_id", "amocrm_client_secret", "amocrm_redirect_uri", "amocrm_refresh_token"] }, {
+        amocrm_account_base_url: "evoadmissions.amocrm.ru",
+        amocrm_client_id: "scenario-client-id",
+        amocrm_client_secret: clientSecret,
+        amocrm_redirect_uri: "https://crm.evo.example/amocrm/oauth/callback",
+        amocrm_refresh_token: refreshToken,
+        amocrm_pipeline_id: "12345",
+        amocrm_status_id: "67890",
+        amocrm_responsible_user_id: "111",
+        amocrm_target_country_field_id: "222",
+        amocrm_source_field_id: "333",
+      });
+      const saved = scalar(ctx, "SELECT value FROM settings WHERE key = 'amocrm_account_base_url'");
+      const savedSecret = scalar(ctx, "SELECT value FROM settings WHERE key = 'amocrm_client_secret'");
+      assert(saved?.value === "https://evoadmissions.amocrm.ru", `unexpected amoCRM URL ${saved?.value}`);
+      assert(savedSecret?.value === clientSecret, "amoCRM client secret not stored");
+      const page = await ctx.get("/settings", ctx.cookie(admin));
+      assert(page.status === 200, `settings status ${page.status}`);
+      assert(!page.text.includes(clientSecret), "settings page leaked amoCRM client secret");
+      assert(!page.text.includes(refreshToken), "settings page leaked amoCRM refresh token");
+      assert(page.text.includes("https://evoadmissions.amocrm.ru"), "settings page missing normalized amoCRM account URL");
+      return "amoCRM settings saved with normalized account URL and masked secrets";
+    },
+  },
+  {
+    id: "S34",
+    capability: "amoCRM integration",
+    scenario: "Invalid amoCRM domains are rejected server-side.",
+    criteria: "Submitting a Cyrillic or unrelated amoCRM account domain does not replace the saved account URL and records a blocked validation state.",
+    async run(ctx) {
+      await ctx.submit("/settings", ctx.cookie(admin), { names: ["amocrm_account_base_url", "amocrm_client_id", "amocrm_client_secret", "amocrm_redirect_uri", "amocrm_refresh_token"] }, {
+        amocrm_account_base_url: "пример.amocrm.ru",
+        amocrm_client_id: "bad-client-id",
+        amocrm_client_secret: "bad-secret",
+        amocrm_redirect_uri: "https://crm.evo.example/amocrm/oauth/callback",
+        amocrm_refresh_token: "bad-refresh",
+      });
+      const saved = scalar(ctx, "SELECT value FROM settings WHERE key = 'amocrm_account_base_url'");
+      const error = scalar(ctx, "SELECT value FROM settings WHERE key = 'amocrm_last_error'");
+      assert(saved?.value === "https://evoadmissions.amocrm.ru", `invalid domain replaced setting with ${saved?.value}`);
+      assert(error?.value === "invalid_account_domain", `missing invalid domain error ${error?.value}`);
+      const page = await ctx.get("/settings", ctx.cookie(admin));
+      assert(page.text.includes("invalid_account_domain"), "settings page did not show invalid amoCRM domain state");
+      return "invalid Cyrillic amoCRM domain rejected and previous account URL preserved";
+    },
+  },
+  {
+    id: "S36",
+    capability: "amoCRM integration",
+    scenario: "Real amoCRM OAuth failure is surfaced as blocked instead of configured.",
+    criteria: "When required credentials are present but the real OAuth exchange fails, the settings status records and renders blocked without leaking token values.",
+    async run(ctx) {
+      const clientSecret = unique("provider-secret");
+      const refreshToken = unique("provider-refresh");
+      await ctx.submit("/settings", ctx.cookie(admin), { names: ["amocrm_account_base_url", "amocrm_client_id", "amocrm_client_secret", "amocrm_redirect_uri", "amocrm_refresh_token"] }, {
+        amocrm_account_base_url: "evoadmissions.amocrm.ru",
+        amocrm_client_id: "invalid-client-id",
+        amocrm_client_secret: clientSecret,
+        amocrm_redirect_uri: "https://crm.evo.example/amocrm/oauth/callback",
+        amocrm_refresh_token: refreshToken,
+        amocrm_pipeline_id: "12345",
+        amocrm_status_id: "67890",
+      });
+      await ctx.submit("/settings", ctx.cookie(admin), { includes: ["amoCRM"], excludes: ["name=\"wa_token\""] });
+      const check = scalar(ctx, "SELECT value FROM settings WHERE key = 'amocrm_last_check'");
+      assert(check?.value?.startsWith("blocked:provider_"), `expected blocked provider check, got ${check?.value}`);
+      const page = await ctx.get("/settings", ctx.cookie(admin));
+      assert(page.text.includes("blocked") || page.text.includes("заблок") || page.text.includes("бөгөт"), "settings page did not render blocked amoCRM status");
+      assert(!page.text.includes(clientSecret), "settings page leaked provider-check client secret");
+      assert(!page.text.includes(refreshToken), "settings page leaked provider-check refresh token");
+      return `amoCRM real OAuth check stored ${check.value}`;
+    },
+  },
+  {
+    id: "S35",
+    capability: "amoCRM integration",
+    scenario: "Non-admin staff cannot save amoCRM settings through the real Server Action path.",
+    criteria: "A sales session posting an admin-rendered settings Server Action is redirected and cannot mutate amoCRM settings.",
+    async run(ctx) {
+      const before = scalar(ctx, "SELECT value FROM settings WHERE key = 'amocrm_account_base_url'");
+      const post = await ctx.submitWithPostCookie(
+        "/settings",
+        ctx.cookie(admin),
+        ctx.cookie(sales),
+        { names: ["amocrm_account_base_url", "amocrm_client_id", "amocrm_client_secret", "amocrm_redirect_uri", "amocrm_refresh_token"] },
+        {
+          amocrm_account_base_url: "saleschange.amocrm.com",
+          amocrm_client_id: "sales-client-id",
+          amocrm_client_secret: "sales-secret",
+          amocrm_redirect_uri: "https://sales.example/callback",
+          amocrm_refresh_token: "sales-refresh",
+        },
+      );
+      const after = scalar(ctx, "SELECT value FROM settings WHERE key = 'amocrm_account_base_url'");
+      assert(post.actionRedirect?.includes("/dashboard") || post.location?.includes("/dashboard"), `expected dashboard redirect, got ${post.actionRedirect ?? post.location}`);
+      assert(after?.value === before?.value, "sales user mutated amoCRM settings");
+      return `sales settings post redirected to ${post.actionRedirect ?? post.location}; amoCRM account unchanged`;
+    },
+  },
 ];
 }

@@ -319,3 +319,14 @@ Validation impact: rerun `node node_modules/typescript/bin/tsc --noEmit` and,
 if feasible, the relevant static gates.
 Reviewer notes: post-merge validation repair before continuing
 `/goal-amocrm-integration`.
+
+## 2026-06-24 - Add amoCRM Integration Foundation Slice
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: scope, architecture, acceptance criteria, file ownership, validation requirements, and external-service assumption.
+Affected plan section: goal slice, acceptance criteria, file ownership, merge order, and required validation commands.
+Reason: orchestrator delegated `/goal-amocrm-integration` after the admissions CRM and student portal lanes were merged. This changes the active slice from student portal work to a runtime amoCRM integration foundation over the existing contract.
+Decision: set the current contract slice to `/goal-amocrm-integration`. The lane may edit `docs/EVO_LAUNCH_PLAN.md`, this change log, `src/lib/contracts/amo-crm.ts` only for narrow contract corrections, `src/lib/amocrm.ts`, `src/lib/actions.ts`, `src/app/(staff)/settings/page.tsx`, `src/lib/i18n.ts`, and scenario evidence files. It will store amoCRM configuration in existing SQLite `settings` rows, validate and sanitize admin-submitted amoCRM account domains, mask secret values in the UI, expose truthful `configured` / `not_configured` / `blocked` status, and call real amoCRM OAuth/API endpoints only when required credentials are present. It will not implement WhatsApp, telephony, Anthropic, staff CRM, or student portal changes, and it will not add an unauthenticated amoCRM webhook receiver.
+Validation impact: run real repo gates after implementation: `node node_modules/eslint/bin/eslint.js .`, `node node_modules/next/dist/bin/next typegen`, `node node_modules/typescript/bin/tsc --noEmit`, `node node_modules/next/dist/bin/next build`, `npm run scenarios`, and `npm audit --audit-level=moderate`; additionally smoke `/settings` as admin and non-admin through the scenario runner so missing amoCRM credentials are explicit and settings cannot be saved by non-admin staff. Report the known Next/PostCSS advisory exactly if audit remains non-zero.
+Reviewer notes: pending independent code-reviewer review.

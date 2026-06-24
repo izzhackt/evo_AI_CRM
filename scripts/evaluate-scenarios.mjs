@@ -228,6 +228,25 @@ class ScenarioContext {
     return post;
   }
 
+  async submitWithPostCookie(route, getCookie, postCookie, selector, overrides = {}) {
+    const page = await this.get(route, getCookie);
+    assert(page.status === 200, `GET ${route} returned ${page.status}`);
+    const form = findForm(page.text, selector);
+    const data = controlsFromForm(form);
+    for (const [key, value] of Object.entries(overrides)) {
+      data.set(key, value == null ? "" : String(value));
+    }
+    const actionMarker = [...data.keys()].find((key) => key.startsWith("$ACTION_"));
+    assert(actionMarker, `no Server Action marker found in form on ${route}`);
+    const post = await this.request("POST", route, {
+      cookie: postCookie,
+      body: data,
+      headers: { origin: this.baseUrl },
+    });
+    assert([200, 303].includes(post.status), `POST ${route} returned ${post.status}`);
+    return post;
+  }
+
   firstClientId() {
     const row = this.db.prepare("SELECT id FROM clients ORDER BY id LIMIT 1").get();
     assert(row, "no seeded client found");

@@ -15,6 +15,8 @@ export type AmoCrmTokenSet = {
   readonly receivedAt: DateTimeString;
 };
 
+export type AmoCrmConnectionMissingField = "accountBaseUrl" | "clientId" | "clientSecret" | "redirectUri" | "refreshToken";
+
 export type AmoCrmConnectionState =
   | {
       readonly status: "configured";
@@ -23,7 +25,7 @@ export type AmoCrmConnectionState =
     }
   | {
       readonly status: "not_configured";
-      readonly missing: readonly ("accountBaseUrl" | "clientId" | "clientSecret" | "redirectUri" | "refreshToken")[];
+      readonly missing: readonly AmoCrmConnectionMissingField[];
     }
   | {
       readonly status: "blocked";
@@ -104,9 +106,7 @@ export type AmoCrmSyncResult<T> =
     }
   | {
       readonly status: "not_configured";
-      readonly missing: AmoCrmConnectionState extends { readonly status: "not_configured"; readonly missing: infer M }
-        ? M
-        : never;
+      readonly missing: readonly AmoCrmConnectionMissingField[];
     }
   | {
       readonly status: "blocked";

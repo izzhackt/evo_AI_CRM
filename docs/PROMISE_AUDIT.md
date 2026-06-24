@@ -30,6 +30,7 @@ Repo/product artifacts:
 - `docs/EVO_BRAND_RESEARCH.md`
 - `docs/EVO_LAUNCH_PLAN.md`
 - `docs/PUBLIC_PROMISE_COPY_CHANGESET.md`
+- `docs/PUBLIC_PROMISE_LIVE_AUDIT.md`
 - `docs/QA_LAUNCH_REPORT.md`
 - `docs/SCENARIO_EVALUATION.md`
 - `src/lib/i18n.ts`
@@ -38,6 +39,7 @@ Repo/product artifacts:
 - `src/lib/whatsapp.ts`
 - `src/lib/amocrm.ts`
 - `src/app/api/webhooks/telephony/route.ts`
+- `scripts/audit-public-promises.mjs`
 - `scripts/scenarios/admissions-crm.mjs`
 
 ## Promise Register
@@ -98,6 +100,12 @@ Repo/product artifacts:
 - Added `docs/PUBLIC_PROMISE_COPY_CHANGESET.md` with exact external website
   replacement copy and acceptance checks for the public high-risk claims that
   cannot be edited from this CRM repo.
+- Added `npm run public-promise-audit`, a live external website check that
+  writes `docs/PUBLIC_PROMISE_LIVE_AUDIT.md` and fails while tracked high-risk
+  public claims remain on `evoadmissions.com`. Added
+  `npm run public-promise-audit:self-test` to prove the gate can clear when
+  grant wording has a non-guarantee boundary and numeric claims have
+  source/date evidence.
 
 ## Controlled Product Policy
 
@@ -124,8 +132,8 @@ real provider credentials, or authoritative source datasets:
 
 | Item | Current label | Needed decision |
 | --- | --- | --- |
-| Public “almost 100%” / no student without invitation claim. | unsupported | Apply `docs/PUBLIC_PROMISE_COPY_CHANGESET.md` in the external website/CMS or provide outcome evidence. Controlled CRM demo/AI surfaces must not repeat it. |
-| Public 4,000+ enrollments/applicants, 60+ countries, 200 partners. | missing evidence | Apply `docs/PUBLIC_PROMISE_COPY_CHANGESET.md`, provide authoritative datasets, or present them only as externally sourced brand metrics with citations. |
+| Public “almost 100%” / no student without invitation claim. | unsupported | Apply `docs/PUBLIC_PROMISE_COPY_CHANGESET.md` in the external website/CMS or provide outcome evidence, then rerun `npm run public-promise-audit` until it passes. Controlled CRM demo/AI surfaces must not repeat it. |
+| Public 4,000+ enrollments/applicants, 60+ countries, 200 partners. | missing evidence | Apply `docs/PUBLIC_PROMISE_COPY_CHANGESET.md`, provide authoritative datasets, or present them only as externally sourced brand metrics with citations, then rerun `npm run public-promise-audit` until high-risk metric findings clear. |
 | Live WhatsApp send, live PBX provider, live amoCRM sync, live Anthropic AI. | missing evidence / partly proven | Provide real credentials/provider accounts for validation. Until then, controlled demos must keep these explicit `not_configured`/prepared states. |
 
 ## Decisions Needed
@@ -138,3 +146,5 @@ real provider credentials, or authoritative source datasets:
 3. Provide real credentials/provider accounts for live WhatsApp send, PBX
    callback, amoCRM sync, and Anthropic validation when those promises should
    move from `not_configured` to proven live integrations.
+4. The promise-audit goal cannot be marked complete until
+   `npm run public-promise-audit` passes against the live public website.

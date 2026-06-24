@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "scenarios": "node scripts/evaluate-scenarios.mjs",
-    "promise-audit": "node scripts/check-promise-audit.mjs"
+    "promise-audit": "node scripts/check-promise-audit.mjs",
+    "public-promise-audit": "node scripts/audit-public-promises.mjs --write",
+    "public-promise-audit:self-test": "node scripts/audit-public-promises.mjs --self-test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",

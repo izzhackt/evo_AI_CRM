@@ -34,6 +34,7 @@ const ai = read("src/lib/ai.ts");
 const i18n = read("src/lib/i18n.ts");
 const preparedAi = read("src/lib/prepared-ai.ts");
 const publicCopyChangeset = read("docs/PUBLIC_PROMISE_COPY_CHANGESET.md");
+const publicLiveAudit = read("docs/PUBLIC_PROMISE_LIVE_AUDIT.md");
 
 for (const label of ["proven", "partly proven", "misleading", "unsupported", "outdated", "missing evidence"]) {
   assert(audit.includes(`\`${label}\``) || audit.includes(`| ${label} |`), `missing promise-audit label: ${label}`);
@@ -46,6 +47,7 @@ for (const required of [
   "## Remaining High-Risk Items",
   "## Decisions Needed",
   "docs/PUBLIC_PROMISE_COPY_CHANGESET.md",
+  "docs/PUBLIC_PROMISE_LIVE_AUDIT.md",
   "Public “almost 100%”",
   "Live WhatsApp send, live PBX provider, live amoCRM sync, live Anthropic AI",
   "Missing `tel_provider` or `tel_api_key`",
@@ -55,6 +57,18 @@ for (const required of [
   "This integration is `not_configured`",
 ]) {
   assert(audit.includes(required), `missing promise-audit section or decision: ${required}`);
+}
+
+for (const required of [
+  "# Public Promise Live Audit",
+  "## Acceptable Clear Conditions",
+  "## Findings",
+  "## Completion Gate",
+  "PUBLIC-OUTCOME-100",
+  "PUBLIC-4000-METRIC",
+  "npm run public-promise-audit",
+]) {
+  assert(publicLiveAudit.includes(required), `missing live public-promise audit evidence: ${required}`);
 }
 
 assert(!audit.includes("In-app telephony “Demo mode” copy."), "telephony demo-mode copy should not remain an open decision");

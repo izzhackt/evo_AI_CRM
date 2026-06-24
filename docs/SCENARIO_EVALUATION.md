@@ -1,6 +1,6 @@
 # Scenario Evaluation
 
-Generated: 2026-06-24T10:58:25.977Z
+Generated: 2026-06-25T04:43:14.114Z
 
 ## Method
 
@@ -16,7 +16,7 @@ Conditions:
 - No live WhatsApp, telephony, amoCRM, or Anthropic credentials supplied; missing
   provider credentials must surface as explicit blocked/not-configured states.
 - Base URL: `http://127.0.0.1:3130`.
-- Temp DB: `/var/folders/p4/c09jb8gd4qngjbkr1cqfh8rh0000gp/T/evo-crm-scenarios-67569-1782298704439/edu-admin.db` (isolated copy; removed after the run unless
+- Temp DB: `/var/folders/p4/c09jb8gd4qngjbkr1cqfh8rh0000gp/T/evo-crm-scenarios-7198-1782362592079/edu-admin.db` (isolated copy; removed after the run unless
   `EVO_KEEP_SCENARIO_DB=1` is set).
 
 ## Summary
@@ -52,7 +52,7 @@ Conditions:
 | S21 | Tasks | Move task action persists status changes. | Submitting a task move form changes status to review. | PASS | task 1 moved to review |
 | S22 | Finance | Finance overview shows paid, pending, overdue, and role-safe actions. | Finance page renders payment status logic; sales staff sees read-only page and finance user sees mutation controls. | PASS | sales finance read-only; finance role mutation form visible |
 | S23 | Finance | Add payment rejects invalid amount and accepts positive role-safe payment. | Negative amount does not insert a payment; positive finance submission creates pending payment with currency. | PASS | negative rejected; payment 4 2500 USD pending |
-| S24 | Finance | Mark payment paid action persists payment completion. | Submitting mark-paid form updates a pending payment to paid and sets paid_at. | PASS | payment 2 status paid, paid_at 2026-06-24 |
+| S24 | Finance | Mark payment paid action persists payment completion. | Submitting mark-paid form updates a pending payment to paid and sets paid_at. | PASS | payment 2 status paid, paid_at 2026-06-25 |
 | S25 | Student portal updates | Staff update becomes visible in the client portal. | Posting an update from Student 360 inserts a client update and the seeded client portal renders it. | PASS | portal rendered update for client 1 |
 | S31 | Student portal experience | Client portal renders a sectioned, client-scoped admissions dashboard. | The signed-in student sees own stage, target, applications, documents, payments, open tasks, team contacts, and section navigation without another student's data. | PASS | portal rendered scoped dashboard for client 1 with navigation, contacts, and open work |
 | S26 | Team chat | Chat renders and channel/message actions persist team communication. | Creating a channel redirects to chat detail, and sending a message inserts it for that channel. | PASS | channel 5 created (303); message 77 inserted |

@@ -385,3 +385,14 @@ Reason: the promise-audit goal requires a durable list of customer-facing promis
 Decision: add an internal `docs/PROMISE_AUDIT.md` register. Do not narrow public EVO marketing or in-app product copy in this step.
 Validation impact: run a documentation consistency check and keep the prior static/build/scenario evidence as the behavioral proof.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Add Promise Audit Verification Script
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: validation coverage.
+Affected plan section: promise audit evidence and AI answer truthfulness.
+Reason: the promise audit should be rerunnable enough to catch missing audit labels, unresolved high-risk decisions, and high-risk guarantee wording in prepared AI answers.
+Decision: add a local script that validates `docs/PROMISE_AUDIT.md` structure and scans prepared AI response text for unsupported guarantee-style claims. Do not change public marketing, production UI copy, or live AI prompts in this step.
+Validation impact: run the new script plus focused lint/type checks for changed files.
+Reviewer notes: pending independent code-reviewer review.

@@ -374,3 +374,14 @@ Reason: the customer-facing launch contract says missing WhatsApp, telephony, am
 Decision: update only the telephony webhook behavior and the affected scenario coverage so missing telephony credentials reject with an explicit `not_configured` error and do not insert calls. Do not edit public marketing copy or production/public copy without approval.
 Validation impact: rerun the affected scenario runner path, then the required static/build gates that cover the changed route.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Add Internal Promise Audit Register
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: internal documentation and completion evidence.
+Affected plan section: launch acceptance, promise audit evidence, and open approval decisions.
+Reason: the promise-audit goal requires a durable list of customer-facing promises from public marketing, repo documentation, demos, and AI surfaces, with evidence labels and remaining decisions. Public/production copy changes still require explicit approval.
+Decision: add an internal `docs/PROMISE_AUDIT.md` register. Do not narrow public EVO marketing or in-app product copy in this step.
+Validation impact: run a documentation consistency check and keep the prior static/build/scenario evidence as the behavioral proof.
+Reviewer notes: pending independent code-reviewer review.

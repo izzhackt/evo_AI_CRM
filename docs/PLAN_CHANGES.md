@@ -301,3 +301,21 @@ browser smoke for `/portal` as a client and at least one staff route, and
 `npm audit --audit-level=moderate` with the known Next/PostCSS advisory reported
 exactly if it remains non-zero.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Repair Student Portal Contract Alignment
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: validation repair.
+Affected plan section: `/goal-student-portal` acceptance evidence and
+validation.
+Reason: post-merge TypeScript validation showed the portal page still consumed
+the old row-shaped snapshot while `src/lib/queries.ts` now returns the
+camelCase `StudentPortalSnapshot` contract shape.
+Decision: update only `src/app/portal/page.tsx` and the narrow query return
+types needed for `tsc --noEmit`; no product scope, route, auth, integration,
+schema, or data migration change.
+Validation impact: rerun `node node_modules/typescript/bin/tsc --noEmit` and,
+if feasible, the relevant static gates.
+Reviewer notes: post-merge validation repair before continuing
+`/goal-amocrm-integration`.

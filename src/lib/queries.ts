@@ -243,7 +243,7 @@ export function studentPortalSnapshotForUser(userId: number): StudentPortalSnaps
       ? {
           id: rawSnapshot.visa.id,
           country: rawSnapshot.visa.country,
-          status: rawSnapshot.visa.status as StudentPortalSnapshot["visa"]["status"],
+          status: rawSnapshot.visa.status as NonNullable<StudentPortalSnapshot["visa"]>["status"],
           appointmentAt: rawSnapshot.visa.appointment_at,
           notes: rawSnapshot.visa.notes,
         }
@@ -280,7 +280,7 @@ export function clientApplications(clientId: number) {
 
 export function clientDocuments(clientId: number) {
   return db().prepare("SELECT * FROM documents WHERE client_id = ? ORDER BY id").all(clientId) as {
-    id: number; name: string; status: string; comment: string | null;
+    id: number; name: string; status: string; comment: string | null; updated_at: string;
   }[];
 }
 

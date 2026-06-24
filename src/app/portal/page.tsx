@@ -3,78 +3,9 @@ import { currentUser } from "@/lib/auth";
 import { getT } from "@/lib/i18n";
 import { logoutAction } from "@/lib/actions";
 import { LangSwitcher } from "@/components/LangSwitcher";
-import { studentPortalSnapshotForUser, StudentPortalSnapshotRow } from "@/lib/queries";
-import { STAGES } from "@/lib/db";
+import { studentPortalSnapshotForUser } from "@/lib/queries";
+import type { StudentPortalSnapshot } from "@/lib/contracts/student-portal";
 import { Badge, Card, EmptyState, StatCard } from "@/components/ui";
-
-const today = new Date().toISOString().slice(0, 10);
-
-function visiblePaymentStatus(payment: { status: string; due_date: string | null }) {
-  return payment.status !== "paid" && payment.due_date && payment.due_date < today ? "overdue" : payment.status;
-}
-
-function stageProgress(stage: string) {
-  const visibleStages = STAGES.filter((s) => s !== "archived");
-  const safeStage = stage === "archived" ? "enrolled" : stage;
-  const currentIndex = Math.max(0, visibleStages.indexOf(safeStage as (typeof visibleStages)[number]));
-  const progress = Math.round(((currentIndex + 1) / visibleStages.length) * 100);
-  return { visibleStages, currentIndex, progress };
-}
-
-function nextAction(snapshot: StudentPortalSnapshotRow) {
-  const urgentTask = snapshot.tasks.find((task) => task.priority === "urgent" || task.priority === "high");
-  if (urgentTask) {
-    return {
-      labelKey: "portalNextTask",
-      detail: urgentTask.title,
-      dueDate: urgentTask.due_date,
-      severity: urgentTask.priority === "urgent" ? "urgent" : "warning",
-    } as const;
-  }
-
-  const openDocument = snapshot.documents.find((doc) => doc.status === "required" || doc.status === "rejected");
-  if (openDocument) {
-    return {
-      labelKey: "portalNextDocument",
-      detail: openDocument.name,
-      dueDate: null,
-      severity: openDocument.status === "rejected" ? "urgent" : "warning",
-    } as const;
-  }
-
-  const nextApplication = snapshot.applications.find(
-    (application) => application.deadline && application.status !== "enrolled" && application.status !== "rejected",
-  );
-  if (nextApplication) {
-    return {
-      labelKey: "portalNextDeadline",
-      detail: nextApplication.university,
-      dueDate: nextApplication.deadline,
-      severity: nextApplication.deadline && nextApplication.deadline < today ? "urgent" : "normal",
-    } as const;
-  }
-
-  const openPayment = snapshot.payments.find((payment) => payment.status !== "paid");
-  if (openPayment) {
-    return {
-      labelKey: visiblePaymentStatus(openPayment) === "overdue" ? "portalNextOverduePayment" : "portalNextPayment",
-      detail: openPayment.title,
-      dueDate: openPayment.due_date,
-      severity: visiblePaymentStatus(openPayment) === "overdue" ? "urgent" : "normal",
-    } as const;
-  }
-
-  if (snapshot.visa?.appointment_at) {
-    return {
-      labelKey: "portalNextVisa",
-      detail: snapshot.visa.country,
-      dueDate: snapshot.visa.appointment_at,
-      severity: "normal",
-    } as const;
-  }
-
-  return null;
-}
 
 function ContactBlock({
   title,
@@ -82,7 +13,7 @@ function ContactBlock({
   fallback,
 }: {
   title: string;
-  contact: StudentPortalSnapshotRow["manager"];
+  contact: StudentPortalSnapshot["manager"];
   fallback: string;
 }) {
   return (
@@ -110,8 +41,8 @@ export default async function PortalPage() {
   const snapshot = studentPortalSnapshotForUser(user.id);
   if (!snapshot) redirect("/login");
 
-  const { visibleStages, currentIndex, progress } = stageProgress(snapshot.client.stage);
-  const action = nextAction(snapshot);
+  const progress = snapshot.progressPercent;
+  const action = snapshot.nextAction;
   const activeApplications = snapshot.applications.filter((app) => app.status !== "enrolled" && app.status !== "rejected").length;
   const openDocuments = snapshot.documents.filter((doc) => doc.status !== "approved").length;
   const openTasks = snapshot.tasks.length;
@@ -170,13 +101,13 @@ export default async function PortalPage() {
               <div>
                 <div className="text-xs font-semibold uppercase text-slate-400">{t("country")}</div>
                 <div className="mt-1 text-sm font-semibold text-slate-900">
-                  {snapshot.client.target_country ?? t("notAssigned")}
+                  {snapshot.client.targetCountry ?? t("notAssigned")}
                 </div>
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase text-slate-400">{t("degree")}</div>
                 <div className="mt-1 text-sm font-semibold text-slate-900">
-                  {snapshot.client.target_degree ?? t("notAssigned")}
+                  {snapshot.client.targetDegree ?? t("notAssigned")}
                 </div>
               </div>
             </div>
@@ -219,8 +150,8 @@ export default async function PortalPage() {
         <section id="stage" className="grid gap-6 lg:grid-cols-[1.4fr_0.95fr]">
           <Card title={t("yourStage")}>
             <ol className="grid gap-2 md:grid-cols-3">
-              {visibleStages.map((stage, index) => {
-                const state = index < currentIndex ? "complete" : index === currentIndex ? "current" : "locked";
+              {snapshot.stageTimeline.map((item, index) => {
+                const state = item.state;
                 const stateClass =
                   state === "complete"
                     ? "border-green-200 bg-green-50 text-green-800"
@@ -228,8 +159,8 @@ export default async function PortalPage() {
                       ? "border-blue-200 bg-blue-50 text-blue-800"
                       : "border-slate-200 bg-slate-50 text-slate-500";
                 return (
-                  <li key={stage} className={`rounded-lg border px-3 py-2 ${stateClass}`}>
-                    <div className="text-xs font-semibold">{index + 1}. {t(`stage.${stage}`)}</div>
+                  <li key={item.stage} className={`rounded-lg border px-3 py-2 ${stateClass}`}>
+                    <div className="text-xs font-semibold">{index + 1}. {t(item.labelKey)}</div>
                     <div className="mt-1 text-[11px]">{t(`portalStage.${state}`)}</div>
                   </li>
                 );
@@ -276,8 +207,8 @@ export default async function PortalPage() {
                   <span className="text-sm font-semibold text-slate-900">{snapshot.visa.country}</span>
                   <Badge value={snapshot.visa.status} label={t(`visa.${snapshot.visa.status}`)} />
                 </div>
-                {snapshot.visa.appointment_at && (
-                  <div className="text-sm text-slate-500">{t("appointment")}: {snapshot.visa.appointment_at}</div>
+                {snapshot.visa.appointmentAt && (
+                  <div className="text-sm text-slate-500">{t("appointment")}: {snapshot.visa.appointmentAt}</div>
                 )}
                 {snapshot.visa.notes && <p className="text-sm text-slate-600">{snapshot.visa.notes}</p>}
               </div>
@@ -343,7 +274,7 @@ export default async function PortalPage() {
                         <div className="text-sm font-semibold text-slate-900">{task.title}</div>
                         {task.description && <div className="mt-1 text-xs text-slate-500">{task.description}</div>}
                         <div className="mt-1 text-xs text-slate-400">
-                          {[task.assignee_name, task.due_date ? `${t("dueDate")}: ${task.due_date}` : null].filter(Boolean).join(" · ")}
+                          {[task.assigneeName, task.dueDate ? `${t("dueDate")}: ${task.dueDate}` : null].filter(Boolean).join(" · ")}
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-1">
@@ -375,7 +306,7 @@ export default async function PortalPage() {
                 {snapshot.updates.slice(0, 6).map((update) => (
                   <li key={update.id} className="rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3">
                     <p className="text-sm text-slate-800">{update.message}</p>
-                    <p className="mt-1 text-xs text-slate-500">{update.author_name ?? t("appName")} · {update.created_at}</p>
+                    <p className="mt-1 text-xs text-slate-500">{update.authorName ?? t("appName")} · {update.createdAt}</p>
                   </li>
                 ))}
               </ul>
@@ -386,15 +317,15 @@ export default async function PortalPage() {
             <div className="space-y-3 text-sm">
               <div>
                 <div className="text-xs font-semibold uppercase text-slate-400">{t("email")}</div>
-                <div className="mt-1 font-medium text-slate-900">{snapshot.client.email}</div>
+                <div className="mt-1 font-medium text-slate-900">{snapshot.student.email}</div>
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase text-slate-400">{t("phone")}</div>
-                <div className="mt-1 font-medium text-slate-900">{snapshot.client.phone ?? t("notAssigned")}</div>
+                <div className="mt-1 font-medium text-slate-900">{snapshot.student.phone ?? t("notAssigned")}</div>
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase text-slate-400">{t("updatedAt")}</div>
-                <div className="mt-1 font-medium text-slate-900">{snapshot.generated_at}</div>
+                <div className="mt-1 font-medium text-slate-900">{snapshot.generatedAt}</div>
               </div>
             </div>
           </Card>
@@ -416,19 +347,16 @@ export default async function PortalPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {snapshot.payments.map((payment) => {
-                      const status = visiblePaymentStatus(payment);
-                      return (
-                        <tr key={payment.id}>
-                          <td className="px-2 py-3 font-medium text-slate-900">{payment.title}</td>
-                          <td className="px-2 py-3 text-slate-600">
-                            {payment.amount.toLocaleString("ru-RU")} {payment.currency}
-                          </td>
-                          <td className="px-2 py-3 text-slate-600">{payment.due_date ?? "—"}</td>
-                          <td className="px-2 py-3"><Badge value={status} label={t(`pay.${status}`)} /></td>
-                        </tr>
-                      );
-                    })}
+                    {snapshot.payments.map((payment) => (
+                      <tr key={payment.id}>
+                        <td className="px-2 py-3 font-medium text-slate-900">{payment.title}</td>
+                        <td className="px-2 py-3 text-slate-600">
+                          {payment.amount.toLocaleString("ru-RU")} {payment.currency}
+                        </td>
+                        <td className="px-2 py-3 text-slate-600">{payment.dueDate ?? "—"}</td>
+                        <td className="px-2 py-3"><Badge value={payment.status} label={t(`pay.${payment.status}`)} /></td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

@@ -53,7 +53,7 @@ Checklist scores after pass 2:
 | i18n/language switching | 9/10 | English locale rendered after LangSwitcher submit and reload. |
 | Responsive layout | 9/10 | Staff dashboard, sales pipeline, and portal had no horizontal overflow at 390x844. |
 | Security/secret handling | 9/10 | Role routing held; amoCRM missing fields were named without secret leakage. |
-| Validation/build readiness | 9/10 | Static gates, production build, and scenarios passed; audit still has the known moderate Next/PostCSS advisory. |
+| Validation/build readiness | 10/10 | Static gates, production build, scenarios, audit, and production browser smoke pass after the PostCSS override. |
 | Presentation demo clarity | 9/10 | WhatsApp copy now uses `not_configured`; prepared AI remains labeled and separate from live Anthropic success. |
 
 ## Changes Made
@@ -73,9 +73,26 @@ Passed:
 - `npm run scenarios` - 36/36 scenarios passed.
 - Fresh-browser QA pass 2 - 18/18 checks passed.
 
-Non-zero known blocker:
+Original QA advisory, now resolved:
 
-- `npm audit --audit-level=moderate` exits 1 on PostCSS advisory `GHSA-qx2v-qp2m-jg93` through `next@16.2.9`; npm suggests `npm audit fix --force`, which would install `next@9.3.3` and is a breaking downgrade.
+- The QA pass initially found `npm audit --audit-level=moderate` exiting 1 on PostCSS advisory `GHSA-qx2v-qp2m-jg93` through `next@16.2.9`; npm suggested `npm audit fix --force`, which would install `next@9.3.3` and is a breaking downgrade.
+- The production-hardening pass added an npm override for `postcss@8.5.15`. Current `npm audit --audit-level=moderate` returns 0 vulnerabilities, and `npm ls next postcss eslint-config-next --depth=3` shows `next@16.2.9` using deduped `postcss@8.5.15`.
+
+## Production Hardening Addendum
+
+Additional validation after the PostCSS override:
+
+- `npm audit --audit-level=moderate` - passed, 0 vulnerabilities.
+- `node node_modules/eslint/bin/eslint.js .` - passed.
+- `node node_modules/next/dist/bin/next typegen` - passed.
+- `node node_modules/typescript/bin/tsc --noEmit` - passed.
+- `node node_modules/next/dist/bin/next build` - passed.
+- `npm run scenarios` - passed, 36/36 scenarios.
+- Production browser smoke on `next start` - passed, 7/7 checks.
+- Smoke screenshots:
+  - `/tmp/evo-production-hardening-smoke/01-admin-dashboard.png`
+  - `/tmp/evo-production-hardening-smoke/02-admin-settings.png`
+  - `/tmp/evo-production-hardening-smoke/03-mobile-client-portal.png`
 
 ## Named Blockers
 
@@ -83,8 +100,7 @@ Non-zero known blocker:
 - Telephony provider credentials/configuration are not configured for live provider verification.
 - amoCRM credentials are not configured in the QA environment; status remains `not_configured` with required fields named.
 - Anthropic API key is not configured; live AI endpoints return `not_configured`.
-- npm audit has the known moderate Next/PostCSS advisory described above.
 
 ## Stop Reason
 
-Stopped on success after one scoped copy/status clarity fix and a full green browser QA rerun. The only remaining non-zero validation gate is the documented audit advisory.
+Stopped on success after one scoped copy/status clarity fix, a full green browser QA rerun, and a production-hardening pass that resolved the audit advisory.

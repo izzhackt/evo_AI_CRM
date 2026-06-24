@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "scenarios": "node scripts/evaluate-scenarios.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",

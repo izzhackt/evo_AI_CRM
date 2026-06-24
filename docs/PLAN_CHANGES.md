@@ -245,3 +245,29 @@ Validation impact: rerun real lint, route type generation, TypeScript, build,
 built-app authenticated smoke, and `npm audit --audit-level=moderate`; report
 the existing Next/PostCSS advisory exactly if it remains non-zero.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Add CRM Flow Scenario Evaluation
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: validation scope and file ownership.
+Affected plan section: `crm-core-flow-verification`, `validation-baseline`, and
+`/goal-admissions-crm` acceptance evidence.
+Reason: the active goal requires 30 realistic scenarios covering major CRM
+capabilities, clear success criteria, consistent pass/fail evaluation, evidence
+for every outcome, fixes for failures, and a complete rerun after stabilization.
+Decision: add `scripts/evaluate-scenarios.mjs`, a package script for the same
+runner, `docs/SCENARIO_EVALUATION.md` as the generated evidence artifact, and a
+narrow `EVO_DB_PATH` runtime override in `src/lib/db.ts` so scenarios run against
+an isolated copy of the real SQLite data through the built Next.js server. The
+runner may exercise missing external credentials only as explicit
+`not_configured` or failed integration states; it must not claim live WhatsApp,
+telephony, amoCRM, or Anthropic success.
+Validation impact: run the scenario runner plus the real gates:
+`node node_modules/eslint/bin/eslint.js .`,
+`node node_modules/next/dist/bin/next typegen`,
+`node node_modules/typescript/bin/tsc --noEmit`,
+`node node_modules/next/dist/bin/next build`, and
+`npm audit --audit-level=moderate` with the known Next/PostCSS advisory reported
+if still present.
+Reviewer notes: pending independent code-reviewer review.

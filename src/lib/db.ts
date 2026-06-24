@@ -44,7 +44,7 @@ let _db: Database.Database | null = null;
 
 export function db(): Database.Database {
   if (_db) return _db;
-  const file = path.join(process.cwd(), "data", "edu-admin.db");
+  const file = process.env.EVO_DB_PATH || path.join(process.cwd(), "data", "edu-admin.db");
   _db = new Database(file);
   _db.pragma("journal_mode = WAL");
   _db.pragma("foreign_keys = ON");

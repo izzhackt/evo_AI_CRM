@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, getSetting } from "@/lib/db";
 
+const HTTP_BAD_REQUEST = 400;
+const HTTP_FORBIDDEN = 403;
+const HTTP_SERVICE_UNAVAILABLE = 503;
+
 // Универсальный webhook о звонках для АТС (Sipuni, Zadarma, Mango Office и др.).
 // Ожидает JSON: { direction: "in"|"out", phone: "+996...", duration_sec: 120,
 //                 status: "answered"|"missed"|"busy", recording_url?: "...", api_key?: "..." }
@@ -10,14 +14,18 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    const expectedKey = getSetting("tel_api_key");
+    const expectedKey = getSetting("tel_api_key")?.trim();
+    if (!expectedKey) {
+      return NextResponse.json({ error: "not_configured", missing: ["tel_api_key"] }, { status: HTTP_SERVICE_UNAVAILABLE });
+    }
+
     const providedKey = body.api_key ?? req.headers.get("x-api-key");
-    if (expectedKey && providedKey !== expectedKey) {
-      return NextResponse.json({ error: "invalid api key" }, { status: 403 });
+    if (providedKey !== expectedKey) {
+      return NextResponse.json({ error: "invalid api key" }, { status: HTTP_FORBIDDEN });
     }
 
     const phone = String(body.phone ?? body.caller ?? body.from ?? "").trim();
-    if (!phone) return NextResponse.json({ error: "phone required" }, { status: 400 });
+    if (!phone) return NextResponse.json({ error: "phone required" }, { status: HTTP_BAD_REQUEST });
 
     const d = db();
     // привязываем звонок к лиду по номеру телефона
@@ -40,6 +48,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("Telephony webhook error:", e);
-    return NextResponse.json({ ok: false }, { status: 400 });
+    return NextResponse.json({ ok: false }, { status: HTTP_BAD_REQUEST });
   }
 }

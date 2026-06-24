@@ -606,8 +606,26 @@ return [
     id: "S29",
     capability: "Calls and telephony",
     scenario: "Calls page and telephony webhook enforce key handling and insert calls.",
-    criteria: "Settings tel key blocks invalid webhook; valid webhook inserts a call and links by lead phone.",
+    criteria: "Missing telephony key is explicitly blocked without inserting a call; configured key blocks invalid webhook; valid webhook inserts a call and links by lead phone.",
     async run(ctx) {
+      await ctx.submit("/settings", ctx.cookie(admin), { names: ["wa_token", "wa_phone_id", "wa_verify_token", "tel_provider", "tel_api_key", "anthropic_api_key"] }, {
+        wa_token: "",
+        wa_phone_id: "",
+        wa_verify_token: "",
+        tel_provider: "other",
+        tel_api_key: "",
+        anthropic_api_key: "",
+      });
+      const page = await ctx.get("/calls", ctx.cookie(sales));
+      assert(page.status === 200, `calls page ${page.status}`);
+      const lead = scalar(ctx, "SELECT id, phone FROM leads WHERE phone IS NOT NULL ORDER BY id LIMIT 1");
+      assert(lead?.phone, "no lead with phone available");
+      const beforeUnconfigured = scalar(ctx, "SELECT COUNT(*) AS count FROM calls WHERE phone = ?", [lead.phone]);
+      const unconfigured = await ctx.postJson("/api/webhooks/telephony", { phone: lead.phone });
+      assert(unconfigured.status === 503, `missing telephony key status ${unconfigured.status}`);
+      const afterUnconfigured = scalar(ctx, "SELECT COUNT(*) AS count FROM calls WHERE phone = ?", [lead.phone]);
+      assert(afterUnconfigured.count === beforeUnconfigured.count, "unconfigured telephony webhook inserted a call");
+
       const key = unique("tel-key");
       await ctx.submit("/settings", ctx.cookie(admin), { names: ["wa_token", "wa_phone_id", "wa_verify_token", "tel_provider", "tel_api_key", "anthropic_api_key"] }, {
         wa_token: "",
@@ -617,10 +635,6 @@ return [
         tel_api_key: key,
         anthropic_api_key: "",
       });
-      const page = await ctx.get("/calls", ctx.cookie(sales));
-      assert(page.status === 200, `calls page ${page.status}`);
-      const lead = scalar(ctx, "SELECT id, phone FROM leads WHERE phone IS NOT NULL ORDER BY id LIMIT 1");
-      assert(lead?.phone, "no lead with phone available");
       const bad = await ctx.postJson("/api/webhooks/telephony", { api_key: "bad", phone: lead.phone });
       assert(bad.status === 403, `invalid key status ${bad.status}`);
       const good = await ctx.postJson("/api/webhooks/telephony", {
@@ -634,7 +648,7 @@ return [
       assert(good.status === 200, `valid webhook status ${good.status}`);
       const call = scalar(ctx, "SELECT id, lead_id, duration_sec, status FROM calls WHERE phone = ? ORDER BY id DESC LIMIT 1", [lead.phone]);
       assert(call?.lead_id === lead.id && call.duration_sec === 93, "call not inserted or linked");
-      return `invalid key 403; call ${call.id} linked to lead ${call.lead_id}`;
+      return `missing key ${unconfigured.status}; invalid key 403; call ${call.id} linked to lead ${call.lead_id}`;
     },
   },
   {

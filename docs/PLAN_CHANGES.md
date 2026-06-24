@@ -363,3 +363,14 @@ Reason: the final production readiness run still fails `npm audit --audit-level=
 Decision: add an npm `overrides` entry that forces Next's nested PostCSS dependency to the already-resolved patched `postcss@8.5.15`, and update the QA launch report so the resolved audit state is no longer documented as an open blocker. Do not downgrade Next or change application architecture. Accept the override only if audit, lint, typegen, TypeScript, production build, scenarios, and a browser smoke pass prove the app still works.
 Validation impact: rerun `npm audit --audit-level=moderate`, `node node_modules/eslint/bin/eslint.js .`, `node node_modules/next/dist/bin/next typegen`, `node node_modules/typescript/bin/tsc --noEmit`, `node node_modules/next/dist/bin/next build`, `npm run scenarios`, and at least a production browser smoke for login/dashboard/portal/settings after the override.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Promise Audit Telephony Truthfulness Fix
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: promise audit, integration truthfulness, and validation coverage.
+Affected plan section: launch acceptance security, integration truthfulness, and scenario evidence.
+Reason: the customer-facing launch contract says missing WhatsApp, telephony, amoCRM, or Anthropic credentials must be named as `not_configured` or blockers, but the telephony webhook path currently accepts call inserts when no `tel_api_key` is configured. That can make an unconfigured telephony integration look operational.
+Decision: update only the telephony webhook behavior and the affected scenario coverage so missing telephony credentials reject with an explicit `not_configured` error and do not insert calls. Do not edit public marketing copy or production/public copy without approval.
+Validation impact: rerun the affected scenario runner path, then the required static/build gates that cover the changed route.
+Reviewer notes: pending independent code-reviewer review.

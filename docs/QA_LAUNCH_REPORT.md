@@ -48,7 +48,7 @@ Checklist scores after pass 2:
 | Auth and role routing | 10/10 | Unauthenticated `/dashboard` redirected to `/login`; admin and client logins routed correctly; client was redirected from staff route to `/portal`. |
 | Staff CRM flow | 10/10 | Dashboard, sales, Student 360, reports, settings, and WhatsApp pages rendered at desktop size. |
 | Student portal flow | 10/10 | Client portal rendered at desktop and mobile sizes with scoped student dashboard content. |
-| Integration truthfulness | 9/10 | WhatsApp and amoCRM missing credentials surfaced as `not_configured`; no live provider success was claimed. |
+| Integration truthfulness | 9/10 | WhatsApp, telephony, and amoCRM missing credentials surfaced as `not_configured`/blocked states; no live provider success was claimed. |
 | AI/prepared boundary | 10/10 | Anthropic summary returned `not_configured`; prepared WhatsApp drawer was labeled as deterministic first-presentation content. |
 | i18n/language switching | 9/10 | English locale rendered after LangSwitcher submit and reload. |
 | Responsive layout | 9/10 | Staff dashboard, sales pipeline, and portal had no horizontal overflow at 390x844. |
@@ -61,6 +61,7 @@ Checklist scores after pass 2:
 - Updated WhatsApp disconnected copy in Russian, Kyrgyz, and English from demo-mode wording to explicit `WhatsApp not_configured`.
 - Updated WhatsApp conversation message status rendering so historical non-live outbound rows display `not_configured` instead of `(демо)`.
 - Added this QA report and refreshed scenario evidence from the required scenario runner.
+- Updated telephony webhook behavior so missing `tel_api_key` returns explicit `not_configured` and does not insert calls; refreshed the telephony scenario to prove missing-key rejection, invalid-key rejection, and valid keyed insertion.
 
 ## Validation
 

@@ -36,7 +36,6 @@ Repo/product artifacts:
 - `src/lib/ai.ts`
 - `src/lib/whatsapp.ts`
 - `src/lib/amocrm.ts`
-- `src/lib/i18n.ts`
 - `src/app/api/webhooks/telephony/route.ts`
 - `scripts/scenarios/admissions-crm.mjs`
 

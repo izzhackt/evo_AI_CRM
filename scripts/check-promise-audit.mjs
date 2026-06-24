@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readdirSync, readFileSync, statSync } from "fs";
 import path from "path";
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -13,6 +13,20 @@ function assert(condition, message) {
 
 function extractPreparedResponses(source) {
   return [...source.matchAll(/response:\s*"([^"]*)"/g)].map((match) => match[1]);
+}
+
+function walkFiles(relativeDir, extensions) {
+  const absoluteDir = path.join(repoRoot, relativeDir);
+  const entries = readdirSync(absoluteDir, { withFileTypes: true });
+  return entries.flatMap((entry) => {
+    const relativePath = path.join(relativeDir, entry.name);
+    const absolutePath = path.join(repoRoot, relativePath);
+    if (entry.isDirectory()) return walkFiles(relativePath, extensions);
+    if (!entry.isFile()) return [];
+    if (!extensions.includes(path.extname(entry.name))) return [];
+    if (statSync(absolutePath).size === 0) return [];
+    return [relativePath];
+  });
 }
 
 const audit = read("docs/PROMISE_AUDIT.md");
@@ -77,6 +91,19 @@ const forbiddenPreparedAnswerPatterns = [
   /почти\s+до\s+100%/i,
   /ни\s+один\s+студент\s+не\s+остается\s+без\s+приглашения/i,
 ];
+
+const controlledSurfaceFiles = [
+  ...walkFiles("src/app", [".ts", ".tsx"]),
+  ...walkFiles("src/components", [".ts", ".tsx"]),
+  ...walkFiles("src/lib", [".ts", ".tsx"]),
+].filter((file) => file !== "src/lib/ai.ts");
+
+for (const file of controlledSurfaceFiles) {
+  const content = read(file);
+  for (const pattern of forbiddenPreparedAnswerPatterns) {
+    assert(!pattern.test(content), `${file} contains unsupported guarantee wording`);
+  }
+}
 
 for (const response of extractPreparedResponses(preparedAi)) {
   for (const pattern of forbiddenPreparedAnswerPatterns) {

@@ -618,6 +618,8 @@ return [
       });
       const page = await ctx.get("/calls", ctx.cookie(sales));
       assert(page.status === 200, `calls page ${page.status}`);
+      assert(page.text.includes("not_configured"), "calls page did not show telephony not_configured copy");
+      assert(!page.text.includes("Demo mode") && !page.text.includes("Демо-режим"), "calls page still shows demo-mode copy");
       const lead = scalar(ctx, "SELECT id, phone FROM leads WHERE phone IS NOT NULL ORDER BY id LIMIT 1");
       assert(lead?.phone, "no lead with phone available");
       const beforeUnconfigured = scalar(ctx, "SELECT COUNT(*) AS count FROM calls WHERE phone = ?", [lead.phone]);
@@ -648,7 +650,7 @@ return [
       assert(good.status === 200, `valid webhook status ${good.status}`);
       const call = scalar(ctx, "SELECT id, lead_id, duration_sec, status FROM calls WHERE phone = ? ORDER BY id DESC LIMIT 1", [lead.phone]);
       assert(call?.lead_id === lead.id && call.duration_sec === 93, "call not inserted or linked");
-      return `missing key ${unconfigured.status}; invalid key 403; call ${call.id} linked to lead ${call.lead_id}`;
+      return `not_configured copy shown; missing key ${unconfigured.status}; invalid key 403; call ${call.id} linked to lead ${call.lead_id}`;
     },
   },
   {

@@ -16,6 +16,8 @@ function extractPreparedResponses(source) {
 }
 
 const audit = read("docs/PROMISE_AUDIT.md");
+const ai = read("src/lib/ai.ts");
+const i18n = read("src/lib/i18n.ts");
 const preparedAi = read("src/lib/prepared-ai.ts");
 
 for (const label of ["proven", "partly proven", "misleading", "unsupported", "outdated", "missing evidence"]) {
@@ -25,13 +27,41 @@ for (const label of ["proven", "partly proven", "misleading", "unsupported", "ou
 for (const required of [
   "## Promise Register",
   "## Fixes Completed",
+  "## Controlled Product Policy",
   "## Remaining High-Risk Items",
   "## Decisions Needed",
   "Public “almost 100%”",
   "Live WhatsApp send, live PBX provider, live amoCRM sync, live Anthropic AI",
-  "In-app telephony “Demo mode” copy",
+  "Changed controlled in-app telephony copy",
+  "Added live AI system guardrails",
+  "must not repeat public outcome-guarantee claims",
+  "This integration is `not_configured`",
 ]) {
   assert(audit.includes(required), `missing promise-audit section or decision: ${required}`);
+}
+
+assert(!audit.includes("In-app telephony “Demo mode” copy."), "telephony demo-mode copy should not remain an open decision");
+
+assert(
+  i18n.includes("Телефония not_configured") &&
+    i18n.includes("Телефония not_configured: АТСтен") &&
+    i18n.includes("Telephony not_configured"),
+  "telephony copy must use explicit not_configured wording in ru/ky/en",
+);
+
+assert(
+  !i18n.includes("Demo mode: connect your PBX") &&
+    !i18n.includes("Демо-режим: подключите вашу АТС") &&
+    !i18n.includes("Демо-режим: АТСти"),
+  "telephony copy still contains demo-mode wording",
+);
+
+for (const guardrail of [
+  "Не обещай поступление",
+  "Не используй формулировки вроде",
+  "Не заявляй, что WhatsApp, телефония, amoCRM или Anthropic успешно подключены",
+]) {
+  assert(ai.includes(guardrail), `live AI system prompt is missing guardrail: ${guardrail}`);
 }
 
 assert(

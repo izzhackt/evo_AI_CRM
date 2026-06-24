@@ -396,3 +396,14 @@ Reason: the promise audit should be rerunnable enough to catch missing audit lab
 Decision: add a local script that validates `docs/PROMISE_AUDIT.md` structure and scans prepared AI response text for unsupported guarantee-style claims. Do not change public marketing, production UI copy, or live AI prompts in this step.
 Validation impact: run the new script plus focused lint/type checks for changed files.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Professionalize Controlled Promise Surfaces
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: product copy, AI answer guardrails, and promise-audit validation.
+Affected plan section: promise audit evidence, integration truthfulness, and AI answer truthfulness.
+Reason: the user approved doing the remaining controlled surfaces at production/professional level. The repo can safely narrow in-app telephony copy and live AI system instructions without changing external public website copy.
+Decision: change in-app telephony copy in Russian, Kyrgyz, and English from demo-mode language to explicit `not_configured`; add live AI guardrails that forbid admission, scholarship, visa, deadline, price, and provider-success guarantees without CRM/provider evidence; extend the promise-audit verifier to enforce those controlled surfaces.
+Validation impact: run `npm run promise-audit`, focused lint/type checks, production build, and affected scenarios.
+Reviewer notes: pending independent code-reviewer review.

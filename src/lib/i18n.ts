@@ -296,7 +296,7 @@ const ru: Dict = {
   duration: "Длительность",
   recording: "Запись",
   logCall: "Записать звонок",
-  telephonyDemoNote: "Демо-режим: подключите вашу АТС (Sipuni, Zadarma, Mango Office и др.) в настройках — звонки будут появляться автоматически через webhook.",
+  telephonyDemoNote: "Телефония not_configured: реальные звонки из АТС пока не импортируются. Добавьте провайдера и API-ключ в настройках перед использованием webhook.",
 
   aiAssistant: "AI-ассистент",
   aiDraftReply: "Черновик ответа",
@@ -624,7 +624,7 @@ const ky: Dict = {
   duration: "Узактыгы",
   recording: "Жазуу",
   logCall: "Чалууну каттоо",
-  telephonyDemoNote: "Демо-режим: АТСти (Sipuni, Zadarma, Mango Office ж.б.) жөндөөлөрдөн туташтырыңыз — чалуулар webhook аркылуу автоматтык түрдө пайда болот.",
+  telephonyDemoNote: "Телефония not_configured: АТСтен келген чыныгы чалуулар азырынча импорттолбойт. Webhook колдонордон мурун жөндөөлөргө провайдерди жана API ачкычын кошуңуз.",
 
   aiAssistant: "AI-жардамчы",
   aiDraftReply: "Жооптун долбоору",
@@ -952,7 +952,7 @@ const en: Dict = {
   duration: "Duration",
   recording: "Recording",
   logCall: "Log a call",
-  telephonyDemoNote: "Demo mode: connect your PBX (Sipuni, Zadarma, Mango Office, etc.) in settings — calls will appear automatically via webhook.",
+  telephonyDemoNote: "Telephony not_configured: live PBX calls are not imported yet. Add a provider and API key in settings before using the webhook.",
 
   aiAssistant: "AI assistant",
   aiDraftReply: "Draft reply",

@@ -36,6 +36,7 @@ Repo/product artifacts:
 - `src/lib/ai.ts`
 - `src/lib/whatsapp.ts`
 - `src/lib/amocrm.ts`
+- `src/lib/i18n.ts`
 - `src/app/api/webhooks/telephony/route.ts`
 - `scripts/scenarios/admissions-crm.mjs`
 
@@ -53,10 +54,10 @@ Repo/product artifacts:
 | P08 | WhatsApp conversations can be tracked in the CRM. | App UI, launch docs. | Staff can create conversations; inbound webhook creates conversation and linked lead. | S27-S28. | proven | medium |
 | P09 | WhatsApp outbound sending is live. | UI references WhatsApp reply; launch plan forbids fake success. | Send path calls Meta only with credentials; missing credentials return `not_configured`. No live Meta credentials verified. | `src/lib/whatsapp.ts`, S27, QA named blocker. | partly proven | high until credentials supplied |
 | P10 | Telephony webhooks can log calls and link them to leads. | Calls page, launch docs. | Missing `tel_api_key` now returns `not_configured`/503 and inserts nothing; valid keyed webhook inserts and links by phone. | S29 and `src/app/api/webhooks/telephony/route.ts`. | partly proven | medium |
-| P11 | Live telephony provider integration is configured. | Calls page copy references PBX providers. | No live PBX provider credentials or provider callback have been verified. | QA named blocker. | missing evidence | high |
+| P11 | Live telephony provider integration is configured. | Calls page copy references PBX providers. | Product copy now says `not_configured`; no live PBX provider credentials or provider callback have been verified. | QA named blocker and `src/lib/i18n.ts`. | missing evidence | high until credentials supplied |
 | P12 | amoCRM settings/integration exists. | Settings UI, launch docs. | Admin settings store sanitized amoCRM config; status is `not_configured`, `blocked`, or `configured`; missing credentials do not call network. | S32-S36. | partly proven | medium |
 | P13 | Real amoCRM sync succeeds. | Integration ambition in docs. | Real OAuth/API failure is surfaced as `blocked`; no real successful provider sync is verified. | S36 and QA named blocker. | missing evidence | high until credentials supplied |
-| P14 | Live Claude/Anthropic AI summary and draft generation are available. | AI UI, API routes, launch docs. | Live endpoints return `not_configured` without key; no live Anthropic call is verified. | S30 and QA named blocker. | partly proven | high until key supplied |
+| P14 | Live Claude/Anthropic AI summary and draft generation are available. | AI UI, API routes, launch docs. | Live endpoints return `not_configured` without key; live AI system instructions now forbid admission, grant, visa, deadline, pricing, and provider-success guarantees without CRM/provider evidence. No live Anthropic call is verified. | S30, QA named blocker, and `src/lib/ai.ts`. | partly proven | high until key supplied |
 | P15 | Prepared AI WhatsApp replies are available for first presentation. | Prepared AI drawer and contract. | Prepared bundle is allowed only for explicit first-presentation context and labeled as deterministic prepared content. | `src/lib/contracts/prepared-ai.ts`, `src/lib/prepared-ai.ts`, QA report. | proven | low |
 | P16 | Prepared AI is live Anthropic output. | Possible demo misunderstanding. | Contract forbids representing prepared responses as live Anthropic success. | Launch plan and prepared AI contract. | misleading if claimed | high |
 | P17 | Three-language UI switch is available. | Login/register and app UI. | RU/KY/EN dictionaries exist; browser QA verified English switching after reload. Exhaustive per-screen RU/KY/EN coverage is not complete. | `src/lib/i18n.ts`, QA report. | partly proven | medium |
@@ -86,25 +87,50 @@ Repo/product artifacts:
   missing-key case.
 - Refreshed the QA report and scenario evidence so integration truthfulness now
   includes telephony, not only WhatsApp and amoCRM.
+- Changed controlled in-app telephony copy in Russian, Kyrgyz, and English from
+  demo-mode language to explicit `not_configured` language.
+- Added live AI system guardrails that forbid admission, invitation, visa,
+  scholarship/grant, deadline, pricing, and integration-success guarantees
+  unless they are explicitly supported by CRM/provider context.
+- Added `npm run promise-audit` so the audit structure and prepared-AI
+  no-guarantee checks are rerunnable.
+
+## Controlled Product Policy
+
+Until external evidence is supplied, CRM demos, product docs, and AI answers
+must not repeat public outcome-guarantee claims such as "almost 100%", "no
+student without invitation", "guaranteed grant", or live integration success.
+
+Professional safe replacements:
+
+- Instead of "almost 100% admission chance": "The CRM tracks each student's
+  applications, documents, deadlines, team tasks, and next actions so the team
+  can manage the admissions process with visible evidence."
+- Instead of "4,000+ enrollments / 60+ countries / 200 partners" inside product
+  demos: "These are external EVO brand metrics and must be shown only when the
+  source dataset or approved public page is cited."
+- Instead of "live WhatsApp/PBX/amoCRM/AI is working" without credentials:
+  "This integration is `not_configured`; the system blocks fake success until
+  real credentials and provider responses are validated."
 
 ## Remaining High-Risk Items
 
-These cannot be fully resolved without public/product-copy approval or external
-evidence:
+These cannot be fully resolved inside this repo without external website access,
+real provider credentials, or authoritative source datasets:
 
 | Item | Current label | Needed decision |
 | --- | --- | --- |
-| Public “almost 100%” / no student without invitation claim. | unsupported | Provide outcome evidence or approve narrowing/removal in public/demo copy. |
-| Public 4,000+ enrollments/applicants, 60+ countries, 200 partners. | missing evidence | Provide authoritative datasets or approve marking them as external brand claims not proven by the CRM. |
-| Live WhatsApp send, live PBX provider, live amoCRM sync, live Anthropic AI. | missing evidence / partly proven | Provide real credentials/provider accounts for validation, or keep all demos explicitly `not_configured`/prepared. |
-| In-app telephony “Demo mode” copy. | misleading if read as success | Approve changing RU/KY/EN product copy to explicit `Telephony not_configured` wording. |
+| Public “almost 100%” / no student without invitation claim. | unsupported | Update the external public website or provide outcome evidence. Controlled CRM demo/AI surfaces must not repeat it. |
+| Public 4,000+ enrollments/applicants, 60+ countries, 200 partners. | missing evidence | Provide authoritative datasets, or present them only as externally sourced brand metrics with citations. |
+| Live WhatsApp send, live PBX provider, live amoCRM sync, live Anthropic AI. | missing evidence / partly proven | Provide real credentials/provider accounts for validation. Until then, controlled demos must keep these explicit `not_configured`/prepared states. |
 
 ## Decisions Needed
 
 1. Should public EVO service/outcome marketing stay in scope for this CRM
-   promise audit, or should the CRM audit only cover product/demo claims?
-2. If public marketing stays in scope, provide evidence for P27-P31 or approve
-   narrowing those claims before they are repeated in demos, sales decks, or AI
-   answers.
-3. Approve or reject changing in-app telephony copy from “demo mode” language to
-   explicit `not_configured` language across Russian, Kyrgyz, and English.
+   implementation repo, or should external website edits happen in the website
+   CMS/repo?
+2. If public marketing stays in scope for this repo handoff, provide evidence
+   for P27-P31 or update the external website copy outside this repo.
+3. Provide real credentials/provider accounts for live WhatsApp send, PBX
+   callback, amoCRM sync, and Anthropic validation when those promises should
+   move from `not_configured` to proven live integrations.

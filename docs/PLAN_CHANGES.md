@@ -407,3 +407,14 @@ Reason: the user approved doing the remaining controlled surfaces at production/
 Decision: change in-app telephony copy in Russian, Kyrgyz, and English from demo-mode language to explicit `not_configured`; add live AI guardrails that forbid admission, scholarship, visa, deadline, price, and provider-success guarantees without CRM/provider evidence; extend the promise-audit verifier to enforce those controlled surfaces.
 Validation impact: run `npm run promise-audit`, focused lint/type checks, production build, and affected scenarios.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-06-24 - Add External Public Copy Handoff
+
+Date: 2026-06-24, workspace timezone.
+Author: Codex.
+Change type: external website handoff and promise-audit evidence.
+Affected plan section: public marketing promise remediation.
+Reason: the remaining unsupported high-risk claims live on the external `evoadmissions.com` website, whose source/CMS is not present in this repo. The CRM repo can still provide exact replacement copy and acceptance checks for whoever owns that site.
+Decision: add `docs/PUBLIC_PROMISE_COPY_CHANGESET.md` with page-by-page replacement copy, evidence requirements for numeric claims, and acceptance checks. Link the promise audit to that handoff instead of pretending this CRM repo changed the external website.
+Validation impact: run `npm run promise-audit` and documentation consistency checks.
+Reviewer notes: pending independent code-reviewer review.

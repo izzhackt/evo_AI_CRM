@@ -29,6 +29,7 @@ Repo/product artifacts:
 
 - `docs/EVO_BRAND_RESEARCH.md`
 - `docs/EVO_LAUNCH_PLAN.md`
+- `docs/PUBLIC_PROMISE_COPY_CHANGESET.md`
 - `docs/QA_LAUNCH_REPORT.md`
 - `docs/SCENARIO_EVALUATION.md`
 - `src/lib/i18n.ts`
@@ -93,6 +94,9 @@ Repo/product artifacts:
   unless they are explicitly supported by CRM/provider context.
 - Added `npm run promise-audit` so the audit structure and prepared-AI
   no-guarantee checks are rerunnable.
+- Added `docs/PUBLIC_PROMISE_COPY_CHANGESET.md` with exact external website
+  replacement copy and acceptance checks for the public high-risk claims that
+  cannot be edited from this CRM repo.
 
 ## Controlled Product Policy
 
@@ -119,8 +123,8 @@ real provider credentials, or authoritative source datasets:
 
 | Item | Current label | Needed decision |
 | --- | --- | --- |
-| Public “almost 100%” / no student without invitation claim. | unsupported | Update the external public website or provide outcome evidence. Controlled CRM demo/AI surfaces must not repeat it. |
-| Public 4,000+ enrollments/applicants, 60+ countries, 200 partners. | missing evidence | Provide authoritative datasets, or present them only as externally sourced brand metrics with citations. |
+| Public “almost 100%” / no student without invitation claim. | unsupported | Apply `docs/PUBLIC_PROMISE_COPY_CHANGESET.md` in the external website/CMS or provide outcome evidence. Controlled CRM demo/AI surfaces must not repeat it. |
+| Public 4,000+ enrollments/applicants, 60+ countries, 200 partners. | missing evidence | Apply `docs/PUBLIC_PROMISE_COPY_CHANGESET.md`, provide authoritative datasets, or present them only as externally sourced brand metrics with citations. |
 | Live WhatsApp send, live PBX provider, live amoCRM sync, live Anthropic AI. | missing evidence / partly proven | Provide real credentials/provider accounts for validation. Until then, controlled demos must keep these explicit `not_configured`/prepared states. |
 
 ## Decisions Needed

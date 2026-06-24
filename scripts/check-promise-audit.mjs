@@ -33,6 +33,7 @@ const audit = read("docs/PROMISE_AUDIT.md");
 const ai = read("src/lib/ai.ts");
 const i18n = read("src/lib/i18n.ts");
 const preparedAi = read("src/lib/prepared-ai.ts");
+const publicCopyChangeset = read("docs/PUBLIC_PROMISE_COPY_CHANGESET.md");
 
 for (const label of ["proven", "partly proven", "misleading", "unsupported", "outdated", "missing evidence"]) {
   assert(audit.includes(`\`${label}\``) || audit.includes(`| ${label} |`), `missing promise-audit label: ${label}`);
@@ -44,6 +45,7 @@ for (const required of [
   "## Controlled Product Policy",
   "## Remaining High-Risk Items",
   "## Decisions Needed",
+  "docs/PUBLIC_PROMISE_COPY_CHANGESET.md",
   "Public “almost 100%”",
   "Live WhatsApp send, live PBX provider, live amoCRM sync, live Anthropic AI",
   "Changed controlled in-app telephony copy",
@@ -55,6 +57,17 @@ for (const required of [
 }
 
 assert(!audit.includes("In-app telephony “Demo mode” copy."), "telephony demo-mode copy should not remain an open decision");
+
+for (const required of [
+  "## Required Changes",
+  "## Acceptance Checks",
+  "Повышаем управляемость процесса поступления",
+  "не является гарантией",
+  "No public page contains `почти до 100%`",
+  "Numeric claims such as `4 000+`, `60+`, `200`, `1 700 000+`, and `5 000+`",
+]) {
+  assert(publicCopyChangeset.includes(required), `missing public-copy handoff requirement: ${required}`);
+}
 
 assert(
   i18n.includes("Телефония not_configured") &&

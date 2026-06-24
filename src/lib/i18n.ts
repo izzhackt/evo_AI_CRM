@@ -279,7 +279,8 @@ const ru: Dict = {
 
   inbox: "Диалоги",
   replyPlaceholder: "Ответить в WhatsApp…",
-  waDemoNote: "Демо-режим: сообщения не отправляются в настоящий WhatsApp. Подключите WhatsApp Cloud API в настройках.",
+  waDemoNote: "WhatsApp not_configured: сообщения не отправляются в настоящий WhatsApp. Подключите WhatsApp Cloud API в настройках.",
+  waNotConfiguredStatus: "not_configured",
   waConnected: "Подключено к WhatsApp Cloud API",
   linkedLead: "Лид",
   linkedClient: "Студент",
@@ -606,7 +607,8 @@ const ky: Dict = {
 
   inbox: "Диалогдор",
   replyPlaceholder: "WhatsApp аркылуу жооп берүү…",
-  waDemoNote: "Демо-режим: билдирүүлөр чыныгы WhatsApp'ка жөнөтүлбөйт. Жөндөөлөрдөн WhatsApp Cloud API туташтырыңыз.",
+  waDemoNote: "WhatsApp not_configured: билдирүүлөр чыныгы WhatsApp'ка жөнөтүлбөйт. Жөндөөлөрдөн WhatsApp Cloud API туташтырыңыз.",
+  waNotConfiguredStatus: "not_configured",
   waConnected: "WhatsApp Cloud API туташтырылган",
   linkedLead: "Лид",
   linkedClient: "Студент",
@@ -933,7 +935,8 @@ const en: Dict = {
 
   inbox: "Inbox",
   replyPlaceholder: "Reply on WhatsApp…",
-  waDemoNote: "Demo mode: messages are not sent to real WhatsApp. Connect WhatsApp Cloud API in settings.",
+  waDemoNote: "WhatsApp not_configured: messages are not sent to real WhatsApp. Connect WhatsApp Cloud API in settings.",
+  waNotConfiguredStatus: "not_configured",
   waConnected: "Connected to WhatsApp Cloud API",
   linkedLead: "Lead",
   linkedClient: "Student",

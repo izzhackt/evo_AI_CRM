@@ -9,27 +9,28 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Goal Slice
 
-Current slice: `/goal-amocrm-integration`.
+Current slice: `/goal-qa-launch`.
 
 Deliverables for this slice:
 
-- Add a runtime amoCRM integration foundation that uses the existing
-  `AmoCrmAdapter` contract instead of only static type definitions.
-- Store amoCRM account URL/subdomain, OAuth client ID/secret, redirect URI,
-  refresh token, and optional pipeline/status/custom-field mapping values
-  through the existing SQLite settings pattern.
-- Validate and sanitize admin-submitted amoCRM account domains; accept only
-  `amocrm.ru` and `amocrm.com` account URLs or subdomains and reject Cyrillic or
-  unrelated domains.
-- Show a clear admin settings status summary that masks secrets and truthfully
-  reports `configured`, `not_configured`, or `blocked`.
-- Expose `getIntegrationStatus().amocrm` or equivalent for staff status checks.
-- Use real amoCRM OAuth/token/API endpoints only when required credentials are
-  present; missing credentials must return explicit `not_configured` with
-  missing fields and must not call the provider.
-- Add focused scenario coverage for missing credentials, valid settings save,
-  invalid domain rejection, non-admin save rejection, and no fake sync success.
-- Run real repo validation after implementation, or record the exact blocker.
+- Run a fresh-browser QA pass at desktop and mobile viewports covering login,
+  role routing, staff CRM, student portal, integration truthfulness,
+  prepared-versus-live AI boundaries, i18n switching, responsive layout,
+  security/secret handling, validation/build readiness, and presentation demo
+  clarity.
+- Capture meaningful local screenshots and record their paths in a QA report
+  without committing large generated binaries unless the repo adds an artifact
+  convention.
+- Score one checklist across passes, improve only the weakest safe area inside
+  release/presentation readiness scope, and rerun the full flow after any
+  change.
+- Name missing WhatsApp, telephony, amoCRM, or Anthropic credentials as
+  `not_configured` or blockers. Do not claim live integration success without
+  real provider credentials and responses.
+- Preserve the prepared AI boundary: prepared responses may be used for the
+  first presentation only as labeled prepared content and never as live
+  Anthropic success.
+- Run real repo validation after the QA pass, or record the exact blocker.
 - Commit only this slice with a Conventional Commit.
 - Request independent code-reviewer approval before merge.
 
@@ -37,11 +38,13 @@ Out of scope for this slice:
 
 - Redoing admissions CRM.
 - Redoing student portal.
-- WhatsApp, telephony, or Anthropic integration changes except preserving
-  existing status behavior.
-- Claiming live amoCRM success without real credentials and provider responses.
+- Rebuilding amoCRM architecture.
+- WhatsApp, telephony, amoCRM, or Anthropic integration changes except copy or
+  status clarity that prevents fake/demo success claims.
+- Claiming live WhatsApp, telephony, amoCRM, or Anthropic success without real
+  credentials and provider responses.
 - Unauthenticated amoCRM webhook mutations.
-- Prepared-response AI workflow changes.
+- Prepared-response AI workflow redesign.
 - Role model redesign or broad authentication/authorization changes.
 - New database migration framework.
 - Deployment.
@@ -140,43 +143,41 @@ Current risk surfaced by repo inspection:
 
 ## Acceptance Criteria
 
-### This amoCRM Integration Foundation Slice
+### This QA Launch Readiness Slice
 
-- `docs/PLAN_CHANGES.md` has an append-only `/goal-amocrm-integration` entry
-  before runtime coding because this lane changes scope, architecture,
-  acceptance criteria, file ownership, external-service assumptions, and
-  validation.
-- The settings page supports amoCRM account base URL/subdomain, OAuth client ID,
-  OAuth client secret, redirect URI, refresh token, optional pipeline/status
-  mapping, optional responsible user ID, and optional custom-field mapping
-  values. Secret values are masked in the UI and are not printed in logs or
-  scenario evidence.
-- Settings save remains admin-only and validates amoCRM domains server-side.
-  Non-admin staff cannot save amoCRM settings.
-- `getIntegrationStatus()` returns a truthful amoCRM status object. Without real
-  credentials it returns `not_configured` or `blocked` with missing/invalid
-  inputs and does not call amoCRM.
-- A runtime `AmoCrmAdapter` implementation performs real OAuth refresh-token
-  exchange and real `/api/v4` contact/lead/link/fetch requests when credentials
-  are configured. Provider failures are returned as provider status/errors
-  without leaking token values.
-- A minimal admin-visible check/sync surface can be exercised locally without
-  real credentials and reports exact missing inputs instead of fake success.
-- No amoCRM webhook receiver accepts unauthenticated provider mutations in this
-  slice.
-- Existing staff CRM, student portal, WhatsApp, telephony, and Anthropic status
-  behavior continue to build and smoke successfully after the changes.
+- `docs/PLAN_CHANGES.md` has an append-only `/goal-qa-launch` entry before
+  runtime or test coding because this lane changes active scope, acceptance
+  criteria, file ownership, merge-order status, and validation evidence.
+- `docs/QA_LAUNCH_REPORT.md` records the QA method, scored checklist, desktop
+  and mobile screenshots paths, pass/fail evidence, changes made, validation
+  output, stop reason, and named blockers.
+- Browser QA starts from a fresh context with no saved login, cookies, or site
+  data, then covers login and critical staff/client flows at 1440x900 and
+  390x844 or comparable desktop/mobile sizes.
+- The single checklist scores auth/role routing, staff CRM flow, student portal
+  flow, integration truthfulness, AI/prepared boundary, i18n/language switching,
+  responsive layout, security/secret handling, validation/build readiness, and
+  presentation demo clarity.
+- Any implementation change is limited to launch-blocking bug fixes, blocker or
+  prepared/live copy clarity, validation/scenario coverage, QA report/runbook
+  documentation, or small UI polish needed for critical flows.
+- Missing WhatsApp, telephony, amoCRM, and Anthropic credentials are reported as
+  explicit `not_configured` / `blocked` states or blockers, never as demo or
+  hidden mock success.
+- Existing staff CRM, student portal, amoCRM settings/status, WhatsApp,
+  telephony, and AI boundaries continue to build and smoke successfully after
+  the changes.
 - Validation is run through the real repo commands for this slice:
   `node node_modules/eslint/bin/eslint.js .`,
   `node node_modules/next/dist/bin/next typegen`,
   `node node_modules/typescript/bin/tsc --noEmit`,
-  `node node_modules/next/dist/bin/next build`, `npm run scenarios`, settings
-  smoke for admin and non-admin staff, and `npm audit --audit-level=moderate`.
+  `node node_modules/next/dist/bin/next build`, `npm run scenarios`, fresh
+  browser QA rerun, and `npm audit --audit-level=moderate`.
 - Pre-commit security audit is run with `npm audit --audit-level=moderate`; any
   existing advisory is documented rather than bypassed.
-- The amoCRM integration foundation commit uses a Conventional Commit message.
-- An independent code-reviewer reviews the amoCRM integration diff against this
-  goal before merge and returns `approved` or `changes_requested`.
+- The QA launch commit uses a Conventional Commit message.
+- An independent code-reviewer reviews the QA launch diff and evidence against
+  this goal before merge and returns `approved` or `changes_requested`.
 
 ### Launch Acceptance
 
@@ -244,6 +245,18 @@ Application architecture:
 Future lanes must name their write set before coding. If a lane needs to edit
 outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
 
+`/goal-qa-launch` named write set:
+
+- `docs/EVO_LAUNCH_PLAN.md`: current-slice and acceptance update.
+- `docs/PLAN_CHANGES.md`: append-only QA launch entry.
+- `docs/QA_LAUNCH_REPORT.md`: QA checklist, screenshot paths, validation, stop
+  reason, and blockers.
+- `docs/SCENARIO_EVALUATION.md`: refreshed only by the required scenario runner
+  as validation evidence.
+- Runtime, scenario, or copy files only if the QA pass exposes a
+  launch-blocking bug, fake-success claim, missing validation evidence, or small
+  critical-flow UI issue inside this slice.
+
 ## Merge Order
 
 1. `plan-contract`: docs-only launch contract. Blocks implementation lanes.
@@ -262,20 +275,13 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
    the stable student, application, document, payment, task, and update
    contracts.
 8. `amocrm-integration`: runtime amoCRM settings/status/adapter foundation with
-   truthful configured/not-configured/blocked behavior.
-9. `validation-baseline`: add or repair real validation commands and any missing
-   test infrastructure without changing user-facing behavior.
-10. `production-truthfulness`: remove, gate, or visibly label demo/fallback
-   behavior so no fake integration success is possible.
-11. `security-hardening`: validate inputs, secret handling, role checks, and
-   webhook authentication.
-12. `crm-core-flow-verification`: verify and fix real staff and client CRM flows.
-13. `real-integrations`: validate WhatsApp, telephony, amoCRM, and Anthropic through real
-   credentials or record exact blockers.
-14. `presentation-readiness`: first-presentation polish and documented
-   boundaries between prepared and live behavior.
-15. `release-readiness`: deployment runbook, backup/restore check, production
-   build/start check, final audit, and no dirty worktree.
+   truthful configured/not-configured/blocked behavior. Completed before
+   `/goal-qa-launch`.
+9. `/goal-qa-launch`: combined release/presentation QA readiness lane covering
+   validation-baseline, production truthfulness, security/secret checks,
+   CRM-core flow verification, real integration blocker recording,
+   presentation-readiness evidence, release-readiness reporting, and clean-tree
+   final audit without rebuilding feature architecture.
 
 Each lane must be merged or intentionally abandoned before the next lane starts.
 

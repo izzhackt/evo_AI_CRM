@@ -82,7 +82,7 @@ export default async function ConversationPage({
                 <p className="break-words">{m.text}</p>
                 <p className="mt-0.5 text-right text-[10px] text-slate-400">
                   {m.author_name ? `${m.author_name} · ` : ""}{m.created_at}
-                  {m.direction === "out" && (m.status === "sent" ? " ✓✓" : m.status === "demo" ? " (демо)" : m.status === "failed" ? " ⚠" : "")}
+                  {m.direction === "out" && (m.status === "sent" ? " ✓✓" : m.status === "demo" ? ` (${t("waNotConfiguredStatus")})` : m.status === "failed" ? " ⚠" : "")}
                 </p>
               </div>
             </div>

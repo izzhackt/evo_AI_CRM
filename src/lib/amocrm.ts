@@ -1,4 +1,4 @@
-import { getSetting, setSetting } from "./db";
+import { EVO_AMO_PIPELINE_ID, LEAD_STAGE_DEFINITIONS, getSetting, setSetting } from "./db";
 import type {
   AmoCrmAccountBaseUrl,
   AmoCrmAdapter,
@@ -122,8 +122,9 @@ export function getAmoCrmLocalStatus(
 }
 
 export function buildAmoCrmLeadPayload(input: AmoCrmLeadSyncInput, settings = readAmoCrmSettings()): AmoCrmLeadPayload {
-  const pipelineId = input.mapping?.pipeline.pipelineId ?? settings.pipelineId ?? 0;
-  const statusId = input.mapping?.pipeline.statusId ?? settings.statusId ?? 0;
+  const stageMapping = LEAD_STAGE_DEFINITIONS.find((stage) => stage.status === input.payload.localStatus);
+  const pipelineId = input.mapping?.pipeline.pipelineId ?? settings.pipelineId ?? EVO_AMO_PIPELINE_ID;
+  const statusId = input.mapping?.pipeline.statusId ?? stageMapping?.amoStatusId ?? settings.statusId ?? 0;
   const customFieldsValues = [
     ...input.payload.customFieldsValues,
     ...customTextField(settings.targetCountryFieldId, input.payload.targetCountry),
@@ -203,7 +204,7 @@ export function createAmoCrmAdapter(): AmoCrmAdapter {
           pipeline: { pipelineId: data.pipeline_id ?? 0, statusId: data.status_id ?? 0 },
           source: null,
           targetCountry: null,
-          localStatus: "new",
+          localStatus: localStatusFromAmoStatusId(data.status_id),
           customFieldsValues: [],
           contact: null,
         },
@@ -366,6 +367,10 @@ function codedField(fieldCode: "PHONE" | "EMAIL", value: string | null, enumCode
 function customTextField(fieldId: number | null, value: string | null): AmoCrmCustomFieldValue[] {
   if (!fieldId || !value) return [];
   return [{ fieldId, values: [{ value }] }];
+}
+
+function localStatusFromAmoStatusId(statusId: number | undefined) {
+  return LEAD_STAGE_DEFINITIONS.find((stage) => stage.amoStatusId === statusId)?.status ?? "processing_mp";
 }
 
 function emptyToNull(value: string | null): string | null {

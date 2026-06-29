@@ -1,18 +1,35 @@
-import { redirect } from "next/navigation";
-import { currentUser } from "@/lib/auth";
 import { getT } from "@/lib/i18n";
 import { getSetting } from "@/lib/db";
 import { checkAmoCrmAction, getIntegrationStatus, saveSettingsAction } from "@/lib/actions";
-import { Card, inputCls, btnCls } from "@/components/ui";
+import { requireStaffRoute } from "@/lib/guards";
+import { inputCls, btnCls, btnGhostCls, labelCls, cn } from "@/components/ui";
+import { Icon, type IconName } from "@/components/icons";
 
 function masked(value: string | null): string {
   if (!value) return "";
   return value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : "••••";
 }
 
+const PILL_TONE: Record<"ok" | "warn" | "info", string> = {
+  ok: "bg-ok-weak text-ok",
+  warn: "bg-warn-weak text-warn",
+  info: "bg-info-weak text-info",
+};
+
+function StatusPill({ tone, label }: { tone: "ok" | "warn" | "info"; label: string }) {
+  return (
+    <span className={cn("inline-flex min-h-6 items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold", PILL_TONE[tone])}>
+      {label}
+    </span>
+  );
+}
+
+function noteCls() {
+  return "rounded-ctl bg-surface-2 px-3 py-2.5 text-[12px] text-fg-3";
+}
+
 export default async function SettingsPage() {
-  const user = await currentUser();
-  if (!user || user.role !== "admin") redirect("/dashboard");
+  await requireStaffRoute("/settings");
   const { t } = await getT();
   const integrations = await getIntegrationStatus();
 
@@ -20,6 +37,7 @@ export default async function SettingsPage() {
     wa_token: getSetting("wa_token"),
     wa_phone_id: getSetting("wa_phone_id"),
     wa_verify_token: getSetting("wa_verify_token"),
+    wa_app_secret: getSetting("wa_app_secret"),
     tel_provider: getSetting("tel_provider"),
     tel_api_key: getSetting("tel_api_key"),
     anthropic_api_key: getSetting("anthropic_api_key"),
@@ -41,40 +59,59 @@ export default async function SettingsPage() {
     : amoStatus.status === "blocked"
       ? `${t("amocrmBlocked")}: ${amoStatus.reason}`
       : `${t("amocrmConfigured")}: ${amoStatus.accountBaseUrl}`;
+  const amoPill: { tone: "ok" | "warn" | "info"; label: string } =
+    amoStatus.status === "configured"
+      ? { tone: "ok", label: t("statusConnected") }
+      : amoStatus.status === "blocked"
+        ? { tone: "info", label: t("statusNotConfigured") }
+        : { tone: "warn", label: t("statusNotConfigured") };
+
+  const header = (icon: IconName, title: string, pill: { tone: "ok" | "warn" | "info"; label: string }) => (
+    <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-8 w-8 place-items-center rounded-nav bg-surface-2 text-fg-2"><Icon name={icon} size={16} /></span>
+        <h2 className="text-[14.5px] font-semibold text-fg">{title}</h2>
+      </div>
+      <StatusPill tone={pill.tone} label={pill.label} />
+    </header>
+  );
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-slate-900">⚙️ {t("integrationSettings")}</h1>
-        <p className="mt-1 text-sm text-slate-500">{t("adminOnly")}</p>
-      </div>
-
-      <form action={saveSettingsAction} className="space-y-6">
-        <Card title={`💬 ${t("waSection")}`}>
-          <div className="space-y-3">
-            <label className="block text-xs font-medium text-slate-500">
+    <div className="mx-auto max-w-[840px] space-y-5">
+      <form action={saveSettingsAction} className="space-y-5">
+        {/* WhatsApp */}
+        <section className="rounded-card border border-border bg-surface shadow-evo">
+          {header("message-circle", t("waSection"), integrations.whatsapp ? { tone: "ok", label: t("statusConnected") } : { tone: "warn", label: t("statusNotConfigured") })}
+          <div className="grid gap-3 px-5 py-4 sm:grid-cols-2">
+            <label className={labelCls}>
               {t("waToken")}
-              <input name="wa_token" defaultValue={fields.wa_token ?? ""} placeholder="EAAG…" className={`${inputCls} mt-1`} />
+              <input name="wa_token" type="password" placeholder={fields.wa_token ? masked(fields.wa_token) : "EAAG…"} className={cn(inputCls, "mt-1")} />
             </label>
-            <label className="block text-xs font-medium text-slate-500">
+            <label className={labelCls}>
               {t("waPhoneId")}
-              <input name="wa_phone_id" defaultValue={fields.wa_phone_id ?? ""} placeholder="1234567890" className={`${inputCls} mt-1`} />
+              <input name="wa_phone_id" defaultValue={fields.wa_phone_id ?? ""} placeholder="1234567890" className={cn(inputCls, "mt-1 font-mono")} />
             </label>
-            <label className="block text-xs font-medium text-slate-500">
+            <label className={labelCls}>
               {t("waVerifyToken")}
-              <input name="wa_verify_token" defaultValue={fields.wa_verify_token ?? ""} className={`${inputCls} mt-1`} />
+              <input name="wa_verify_token" type="password" placeholder={fields.wa_verify_token ? masked(fields.wa_verify_token) : ""} className={cn(inputCls, "mt-1")} />
             </label>
-            <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-              {t("webhookUrl")}: <code className="text-indigo-700">https://ваш-домен/api/webhooks/whatsapp</code>
+            <label className={labelCls}>
+              {t("waAppSecret")}
+              <input name="wa_app_secret" type="password" placeholder={fields.wa_app_secret ? masked(fields.wa_app_secret) : ""} className={cn(inputCls, "mt-1")} />
+            </label>
+            <p className={cn(noteCls(), "sm:col-span-2")}>
+              {t("webhookUrl")}: <code className="font-mono text-accent">https://ваш-домен/api/webhooks/whatsapp</code>
             </p>
           </div>
-        </Card>
+        </section>
 
-        <Card title={`📞 ${t("telSection")}`}>
-          <div className="space-y-3">
-            <label className="block text-xs font-medium text-slate-500">
+        {/* Telephony */}
+        <section className="rounded-card border border-border bg-surface shadow-evo">
+          {header("phone", t("telSection"), integrations.telephony ? { tone: "ok", label: t("statusConnected") } : { tone: "warn", label: t("statusNotConfigured") })}
+          <div className="grid gap-3 px-5 py-4 sm:grid-cols-2">
+            <label className={labelCls}>
               {t("telProvider")}
-              <select name="tel_provider" defaultValue={fields.tel_provider ?? ""} className={`${inputCls} mt-1`}>
+              <select name="tel_provider" defaultValue={fields.tel_provider ?? ""} className={cn(inputCls, "mt-1")}>
                 <option value="">—</option>
                 <option value="sipuni">Sipuni</option>
                 <option value="zadarma">Zadarma</option>
@@ -82,128 +119,100 @@ export default async function SettingsPage() {
                 <option value="other">Другая АТС</option>
               </select>
             </label>
-            <label className="block text-xs font-medium text-slate-500">
+            <label className={labelCls}>
               {t("telApiKey")}
-              <input name="tel_api_key" defaultValue={fields.tel_api_key ?? ""} className={`${inputCls} mt-1`} />
+              <input name="tel_api_key" type="password" placeholder={fields.tel_api_key ? masked(fields.tel_api_key) : ""} className={cn(inputCls, "mt-1")} />
             </label>
-            <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            <p className={cn(noteCls(), "sm:col-span-2")}>
               {t("telWebhookHint")}<br />
-              <code className="text-indigo-700">https://ваш-домен/api/webhooks/telephony</code>
+              <code className="font-mono text-accent">https://ваш-домен/api/webhooks/telephony</code>
             </p>
           </div>
-        </Card>
+        </section>
 
-        <Card title={`✨ ${t("aiSection")}`}>
-          <label className="block text-xs font-medium text-slate-500">
-            {t("aiApiKey")}
-            <input
-              name="anthropic_api_key"
-              defaultValue={fields.anthropic_api_key ?? ""}
-              placeholder={fields.anthropic_api_key ? masked(fields.anthropic_api_key) : "sk-ant-…"}
-              className={`${inputCls} mt-1`}
-            />
-          </label>
-          <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-            console.anthropic.com → API Keys
-          </p>
-        </Card>
+        {/* Claude AI */}
+        <section className="rounded-card border border-border bg-surface shadow-evo">
+          {header("message-square", t("aiSection"), fields.anthropic_api_key ? { tone: "ok", label: t("statusConnected") } : { tone: "warn", label: t("statusNotConfigured") })}
+          <div className="px-5 py-4">
+            <label className={labelCls}>
+              {t("aiApiKey")}
+              <input
+                name="anthropic_api_key"
+                placeholder={fields.anthropic_api_key ? masked(fields.anthropic_api_key) : "sk-ant-…"}
+                type="password"
+                className={cn(inputCls, "mt-1")}
+              />
+            </label>
+            <p className={cn(noteCls(), "mt-3")}>console.anthropic.com → API Keys</p>
+          </div>
+        </section>
 
-        <Card title={t("amocrmSection")}>
-          <div className="space-y-4">
-            <p
-              className={`rounded-lg px-3 py-2 text-xs ${
-                amoStatus.status === "configured"
-                  ? "bg-blue-50 text-blue-800"
-                  : amoStatus.status === "blocked"
-                    ? "bg-red-50 text-red-700"
-                    : "bg-amber-50 text-amber-800"
-              }`}
-            >
-              {amoStatusText}
-            </p>
+        {/* amoCRM */}
+        <section className="rounded-card border border-border bg-surface shadow-evo">
+          {header("funnel", t("amocrmSection"), amoPill)}
+          <div className="space-y-4 px-5 py-4">
+            <p className={cn("rounded-ctl px-3 py-2.5 text-[12px]", PILL_TONE[amoPill.tone])}>{amoStatusText}</p>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block text-xs font-medium text-slate-500">
+              <label className={labelCls}>
                 {t("amocrmAccount")}
-                <input
-                  name="amocrm_account_base_url"
-                  defaultValue={fields.amocrm_account_base_url ?? ""}
-                  placeholder="evoadmissions.amocrm.ru"
-                  className={`${inputCls} mt-1`}
-                />
+                <input name="amocrm_account_base_url" defaultValue={fields.amocrm_account_base_url ?? ""} placeholder="evoadmissions.amocrm.ru" className={cn(inputCls, "mt-1")} />
               </label>
-              <label className="block text-xs font-medium text-slate-500">
+              <label className={labelCls}>
                 {t("amocrmClientId")}
-                <input
-                  name="amocrm_client_id"
-                  defaultValue={fields.amocrm_client_id ?? ""}
-                  className={`${inputCls} mt-1`}
-                />
+                <input name="amocrm_client_id" defaultValue={fields.amocrm_client_id ?? ""} className={cn(inputCls, "mt-1")} />
               </label>
-              <label className="block text-xs font-medium text-slate-500">
+              <label className={labelCls}>
                 {t("amocrmClientSecret")}
-                <input
-                  name="amocrm_client_secret"
-                  type="password"
-                  placeholder={fields.amocrm_client_secret ? masked(fields.amocrm_client_secret) : ""}
-                  className={`${inputCls} mt-1`}
-                />
+                <input name="amocrm_client_secret" type="password" placeholder={fields.amocrm_client_secret ? masked(fields.amocrm_client_secret) : ""} className={cn(inputCls, "mt-1")} />
               </label>
-              <label className="block text-xs font-medium text-slate-500">
+              <label className={labelCls}>
                 {t("amocrmRefreshToken")}
-                <input
-                  name="amocrm_refresh_token"
-                  type="password"
-                  placeholder={fields.amocrm_refresh_token ? masked(fields.amocrm_refresh_token) : ""}
-                  className={`${inputCls} mt-1`}
-                />
+                <input name="amocrm_refresh_token" type="password" placeholder={fields.amocrm_refresh_token ? masked(fields.amocrm_refresh_token) : ""} className={cn(inputCls, "mt-1")} />
               </label>
-              <label className="block text-xs font-medium text-slate-500 sm:col-span-2">
+              <label className={cn(labelCls, "sm:col-span-2")}>
                 {t("amocrmRedirectUri")}
-                <input
-                  name="amocrm_redirect_uri"
-                  defaultValue={fields.amocrm_redirect_uri ?? ""}
-                  placeholder="https://your-domain.example/amocrm/oauth/callback"
-                  className={`${inputCls} mt-1`}
-                />
+                <input name="amocrm_redirect_uri" defaultValue={fields.amocrm_redirect_uri ?? ""} placeholder="https://your-domain.example/amocrm/oauth/callback" className={cn(inputCls, "mt-1")} />
               </label>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block text-xs font-medium text-slate-500">
+              <label className={labelCls}>
                 {t("amocrmPipelineId")}
-                <input name="amocrm_pipeline_id" inputMode="numeric" defaultValue={fields.amocrm_pipeline_id ?? ""} className={`${inputCls} mt-1`} />
+                <input name="amocrm_pipeline_id" inputMode="numeric" defaultValue={fields.amocrm_pipeline_id ?? ""} className={cn(inputCls, "mt-1 font-mono")} />
               </label>
-              <label className="block text-xs font-medium text-slate-500">
+              <label className={labelCls}>
                 {t("amocrmStatusId")}
-                <input name="amocrm_status_id" inputMode="numeric" defaultValue={fields.amocrm_status_id ?? ""} className={`${inputCls} mt-1`} />
+                <input name="amocrm_status_id" inputMode="numeric" defaultValue={fields.amocrm_status_id ?? ""} className={cn(inputCls, "mt-1 font-mono")} />
               </label>
-              <label className="block text-xs font-medium text-slate-500">
+              <label className={labelCls}>
                 {t("amocrmResponsibleUserId")}
-                <input name="amocrm_responsible_user_id" inputMode="numeric" defaultValue={fields.amocrm_responsible_user_id ?? ""} className={`${inputCls} mt-1`} />
+                <input name="amocrm_responsible_user_id" inputMode="numeric" defaultValue={fields.amocrm_responsible_user_id ?? ""} className={cn(inputCls, "mt-1 font-mono")} />
               </label>
-              <label className="block text-xs font-medium text-slate-500">
+              <label className={labelCls}>
                 {t("amocrmCountryFieldId")}
-                <input name="amocrm_target_country_field_id" inputMode="numeric" defaultValue={fields.amocrm_target_country_field_id ?? ""} className={`${inputCls} mt-1`} />
+                <input name="amocrm_target_country_field_id" inputMode="numeric" defaultValue={fields.amocrm_target_country_field_id ?? ""} className={cn(inputCls, "mt-1 font-mono")} />
               </label>
-              <label className="block text-xs font-medium text-slate-500">
+              <label className={labelCls}>
                 {t("amocrmSourceFieldId")}
-                <input name="amocrm_source_field_id" inputMode="numeric" defaultValue={fields.amocrm_source_field_id ?? ""} className={`${inputCls} mt-1`} />
+                <input name="amocrm_source_field_id" inputMode="numeric" defaultValue={fields.amocrm_source_field_id ?? ""} className={cn(inputCls, "mt-1 font-mono")} />
               </label>
             </div>
 
-            <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            <p className={noteCls()}>
               {t("amocrmCheckHint")}
-              {fields.amocrm_last_check ? <><br /><code className="text-slate-700">{fields.amocrm_last_check}</code></> : null}
+              {fields.amocrm_last_check ? <><br /><code className="font-mono text-fg-2">{fields.amocrm_last_check}</code></> : null}
             </p>
           </div>
-        </Card>
+        </section>
 
-        <button type="submit" className={btnCls}>{t("save")}</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="submit" className={btnCls}>{t("save")}</button>
+        </div>
       </form>
 
       <form action={checkAmoCrmAction}>
-        <button type="submit" className={btnCls}>{t("amocrmCheck")}</button>
+        <button type="submit" className={btnGhostCls}>{t("amocrmCheck")}</button>
       </form>
     </div>
   );

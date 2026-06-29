@@ -14,7 +14,7 @@ function ErrorMsg({ code, id, labels }: { code: string | null; id: string; label
       id={id}
       role="alert"
       aria-live="polite"
-      className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700"
+      className="rounded-ctl bg-danger-weak px-3 py-2.5 text-[13px] font-medium text-danger"
     >
       {labels[code] ?? code}
     </p>
@@ -24,7 +24,7 @@ function ErrorMsg({ code, id, labels }: { code: string | null; id: string; label
 export function LoginForm({ labels }: { labels: Labels }) {
   const [error, action, pending] = useActionState(loginAction, null);
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} aria-labelledby="login-title" aria-busy={pending} className="space-y-5">
       <ErrorMsg code={error} id="login-error" labels={labels} />
       <div>
         <label htmlFor="login-email" className={labelCls}>{labels.email}</label>
@@ -56,8 +56,11 @@ export function LoginForm({ labels }: { labels: Labels }) {
       <button type="submit" disabled={pending} className={`${btnCls} w-full`}>
         {labels.signIn}
       </button>
-      <p className="text-center text-sm text-slate-500">
-        <Link href="/register" className="font-semibold text-blue-600 hover:text-blue-700 hover:underline">
+      <p className="text-center text-[13px] text-fg-3">
+        <Link
+          href="/register"
+          className="inline-flex min-h-11 items-center justify-center text-pretty font-semibold text-accent transition-[color] duration-150 ease-out hover:underline focus:outline-none"
+        >
           {labels.noAccount}
         </Link>
       </p>
@@ -116,8 +119,11 @@ export function RegisterForm({ labels }: { labels: Labels }) {
       <button type="submit" disabled={pending} className={`${btnCls} w-full`}>
         {labels.signUp}
       </button>
-      <p className="text-center text-sm text-slate-500">
-        <Link href="/login" className="font-semibold text-blue-600 hover:text-blue-700 hover:underline">
+      <p className="text-center text-[13px] text-fg-3">
+        <Link
+          href="/login"
+          className="inline-flex min-h-11 items-center justify-center text-pretty font-semibold text-accent transition-[color] duration-150 ease-out hover:underline focus:outline-none"
+        >
           {labels.haveAccount}
         </Link>
       </p>

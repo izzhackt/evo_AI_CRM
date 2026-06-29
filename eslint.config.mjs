@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    ".twenty-reference/**",
+    "evo_website/**",
+    "twenty-evo-admissions-app/**",
+    "output/**",
   ]),
 ]);
 

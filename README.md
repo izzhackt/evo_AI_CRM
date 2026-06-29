@@ -2,6 +2,16 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+Use Node 22 for this project before installing or running the app:
+
+```bash
+nvm use
+npm ci
+```
+
+The app depends on `better-sqlite3`, which ships a native Node binary. Installing
+dependencies with a different Node major can make login fail at runtime.
+
 First, run the development server:
 
 ```bash

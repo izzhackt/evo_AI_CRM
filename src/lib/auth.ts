@@ -2,8 +2,9 @@ import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "crypto";
 import { db, Role } from "./db";
 
-const SECRET = process.env.AUTH_SECRET || "edu-admin-dev-secret-change-in-production";
+const DEV_AUTH_SECRET = "edu-admin-dev-secret-change-in-production";
 const COOKIE = "edu_session";
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 export type SessionUser = {
   id: number;
@@ -12,8 +13,16 @@ export type SessionUser = {
   role: Role;
 };
 
+function authSecret(): string {
+  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("AUTH_SECRET must be configured in production");
+  }
+  return DEV_AUTH_SECRET;
+}
+
 function sign(payload: string): string {
-  return createHmac("sha256", SECRET).update(payload).digest("hex");
+  return createHmac("sha256", authSecret()).update(payload).digest("hex");
 }
 
 export function makeToken(userId: number): string {
@@ -29,7 +38,12 @@ function parseToken(token: string): number | null {
   const expected = sign(payload);
   if (sig.length !== expected.length) return null;
   if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
-  const id = parseInt(payload.split(".")[0], 10);
+  const [rawId, rawIssuedAt] = payload.split(".");
+  const id = parseInt(rawId, 10);
+  const issuedAt = Number(rawIssuedAt);
+  if (!Number.isFinite(issuedAt)) return null;
+  const ageMs = Date.now() - issuedAt;
+  if (ageMs < -60_000 || ageMs > SESSION_MAX_AGE_SECONDS * 1000) return null;
   return Number.isFinite(id) ? id : null;
 }
 
@@ -39,7 +53,8 @@ export async function setSession(userId: number) {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 30,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: SESSION_MAX_AGE_SECONDS,
   });
 }
 

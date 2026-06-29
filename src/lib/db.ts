@@ -1,6 +1,15 @@
 import Database from "better-sqlite3";
 import path from "path";
-import { scryptSync, randomBytes } from "crypto";
+import { createCipheriv, createDecipheriv, createHash, scryptSync, randomBytes } from "crypto";
+export {
+  EVO_AMO_PIPELINE_ID,
+  LEAD_ACTIVE_STATUSES,
+  LEAD_STAGE_DEFINITIONS,
+  LEAD_STATUSES,
+  LEAD_TERMINAL_STATUSES,
+  isActiveLeadStatus,
+} from "./lead-stages";
+export type { LeadStatus } from "./lead-stages";
 
 export type Role = "admin" | "sales" | "curator" | "visa" | "finance" | "client";
 
@@ -22,9 +31,6 @@ export const DOC_STATUSES = ["required", "uploaded", "review", "approved", "reje
 export const VISA_STATUSES = ["not_started", "docs", "appointment", "submitted", "approved", "rejected"] as const;
 export const PAYMENT_STATUSES = ["pending", "paid", "overdue"] as const;
 
-export const LEAD_STATUSES = ["new", "contacted", "meeting", "proposal", "won", "lost"] as const;
-export type LeadStatus = (typeof LEAD_STATUSES)[number];
-
 export const TASK_COLUMNS = ["todo", "in_progress", "review", "done"] as const;
 export const TASK_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 
@@ -41,6 +47,16 @@ export function verifyPassword(password: string, stored: string): boolean {
 }
 
 let _db: Database.Database | null = null;
+const ENCRYPTED_SETTING_PREFIX = "enc:v1:";
+const SECRET_SETTING_KEYS = new Set([
+  "wa_token",
+  "wa_verify_token",
+  "wa_app_secret",
+  "tel_api_key",
+  "anthropic_api_key",
+  "amocrm_client_secret",
+  "amocrm_refresh_token",
+]);
 
 export function db(): Database.Database {
   if (_db) return _db;
@@ -125,6 +141,7 @@ function init(d: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
       description TEXT,
+      lead_id INTEGER REFERENCES leads(id),
       client_id INTEGER REFERENCES clients(id),
       assignee_id INTEGER REFERENCES users(id),
       due_date TEXT,
@@ -148,7 +165,7 @@ function init(d: Database.Database) {
       phone TEXT,
       email TEXT,
       source TEXT,
-      status TEXT NOT NULL DEFAULT 'new',
+      status TEXT NOT NULL DEFAULT 'processing_mp',
       amount REAL,
       currency TEXT NOT NULL DEFAULT 'KGS',
       manager_id INTEGER REFERENCES users(id),
@@ -234,22 +251,91 @@ function migrate(d: Database.Database) {
   if (!taskCols.includes("priority")) {
     d.exec("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'");
   }
+  if (!taskCols.includes("lead_id")) {
+    d.exec("ALTER TABLE tasks ADD COLUMN lead_id INTEGER REFERENCES leads(id)");
+  }
   // tasks status values moved from open/done to todo/in_progress/review/done
   d.exec("UPDATE tasks SET status = 'todo' WHERE status = 'open'");
+  d.exec(`
+    UPDATE leads SET status = CASE status
+      WHEN 'new' THEN 'processing_mp'
+      WHEN 'contacted' THEN 'qualified'
+      WHEN 'meeting' THEN 'meeting_scheduled'
+      WHEN 'proposal' THEN 'meeting_done'
+      WHEN 'won' THEN 'contract_signed'
+      WHEN 'lost' THEN 'no_request'
+      ELSE status
+    END
+    WHERE status IN ('new', 'contacted', 'meeting', 'proposal', 'won', 'lost')
+  `);
+  d.exec(`
+    UPDATE lead_activities SET text = CASE text
+      WHEN 'new' THEN 'processing_mp'
+      WHEN 'contacted' THEN 'qualified'
+      WHEN 'meeting' THEN 'meeting_scheduled'
+      WHEN 'proposal' THEN 'meeting_done'
+      WHEN 'won' THEN 'contract_signed'
+      WHEN 'lost' THEN 'no_request'
+      ELSE text
+    END
+    WHERE type = 'status' AND text IN ('new', 'contacted', 'meeting', 'proposal', 'won', 'lost')
+  `);
 }
 
 export function getSetting(key: string): string | null {
   const row = db().prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
-  return row?.value ?? null;
+  if (!row) return null;
+  return decryptSettingValue(key, row.value);
 }
 
 export function setSetting(key: string, value: string) {
-  db().prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
+  const storedValue = SECRET_SETTING_KEYS.has(key) ? encryptSettingValue(key, value) : value;
+  db().prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, storedValue);
+}
+
+function settingEncryptionKey(): Buffer | null {
+  const raw = process.env.EVO_SECRET_ENCRYPTION_KEY || process.env.AUTH_SECRET;
+  if (!raw) return null;
+  return createHash("sha256").update(raw).digest();
+}
+
+function encryptSettingValue(key: string, value: string): string {
+  if (!value) return value;
+  const secret = settingEncryptionKey();
+  if (!secret) return value;
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", secret, iv);
+  cipher.setAAD(Buffer.from(key));
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${ENCRYPTED_SETTING_PREFIX}${iv.toString("base64url")}.${tag.toString("base64url")}.${encrypted.toString("base64url")}`;
+}
+
+function decryptSettingValue(key: string, value: string): string | null {
+  if (!value.startsWith(ENCRYPTED_SETTING_PREFIX)) return value;
+  const secret = settingEncryptionKey();
+  if (!secret) return null;
+  const payload = value.slice(ENCRYPTED_SETTING_PREFIX.length);
+  const [ivText, tagText, encryptedText] = payload.split(".");
+  if (!ivText || !tagText || !encryptedText) return null;
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", secret, Buffer.from(ivText, "base64url"));
+    decipher.setAAD(Buffer.from(key));
+    decipher.setAuthTag(Buffer.from(tagText, "base64url"));
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(encryptedText, "base64url")),
+      decipher.final(),
+    ]);
+    return decrypted.toString("utf8");
+  } catch {
+    return null;
+  }
 }
 
 function seed(d: Database.Database) {
   const count = d.prepare("SELECT COUNT(*) AS c FROM users").get() as { c: number };
   if (count.c > 0) return;
+  if (process.env.NODE_ENV === "production" && process.env.EVO_ALLOW_DEMO_SEED !== "1") return;
 
   const insertUser = d.prepare(
     "INSERT INTO users (email, phone, password_hash, name, role) VALUES (?, ?, ?, ?, ?)"
@@ -320,6 +406,7 @@ function seed(d: Database.Database) {
 function seedV2(d: Database.Database) {
   const count = d.prepare("SELECT COUNT(*) AS c FROM leads").get() as { c: number };
   if (count.c > 0) return;
+  if (process.env.NODE_ENV === "production" && process.env.EVO_ALLOW_DEMO_SEED !== "1") return;
 
   const ids = (email: string) =>
     (d.prepare("SELECT id FROM users WHERE email = ?").get(email) as { id: number } | undefined)?.id ?? null;
@@ -330,18 +417,24 @@ function seedV2(d: Database.Database) {
   const insertLead = d.prepare(
     "INSERT INTO leads (name, phone, email, source, status, amount, currency, manager_id, target_country, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
-  const l1 = insertLead.run("Темирлан Касымов", "+996700123456", "temirlan@mail.kg", "Instagram", "new", 120000, "KGS", sales, "Германия", "Спросил про бесплатное обучение в Германии");
-  const l2 = insertLead.run("Асель Бекова", "+996555654321", null, "Сайт", "contacted", 150000, "KGS", sales, "США", "11 класс, хочет Computer Science");
-  insertLead.run("Чынгыз Алиев", "+996777888999", null, "Рекомендация", "meeting", 100000, "KGS", sales, "Турция", "Встреча в офисе в четверг");
-  insertLead.run("Мээрим Садыкова", "+996505111333", "meerim@gmail.com", "Instagram", "proposal", 180000, "KGS", sales, "Великобритания", "Отправлен пакет «Премиум»");
-  insertLead.run("Айбек Токтосунов", "+996700555666", null, "WhatsApp", "won", 150000, "KGS", sales, "Германия", "Договор подписан");
-  insertLead.run("Жылдыз Омурова", "+996555000777", null, "Сайт", "lost", 120000, "KGS", sales, "США", "Выбрала другое агентство");
+  const l1 = insertLead.run("Темирлан Касымов", "+996700123456", "temirlan@mail.kg", "Instagram", "processing_mp", 120000, "KGS", sales, "Германия", "Спросил про бесплатное обучение в Германии");
+  const l2 = insertLead.run("Асель Бекова", "+996555654321", null, "Сайт", "qualified", 150000, "KGS", sales, "США", "11 класс, хочет Computer Science");
+  const l3 = insertLead.run("Чынгыз Алиев", "+996777888999", null, "Рекомендация", "meeting_scheduled", 100000, "KGS", sales, "Турция", "Встреча в офисе в четверг");
+  insertLead.run("Мээрим Садыкова", "+996505111333", "meerim@gmail.com", "Instagram", "meeting_done", 180000, "KGS", sales, "Великобритания", "Отправлен пакет «Премиум»");
+  insertLead.run("Айбек Токтосунов", "+996700555666", null, "WhatsApp", "contract_signed", 150000, "KGS", sales, "Германия", "Договор подписан");
+  insertLead.run("Жылдыз Омурова", "+996555000777", null, "Сайт", "no_request", 120000, "KGS", sales, "США", "Выбрала другое агентство");
 
   const insertActivity = d.prepare(
     "INSERT INTO lead_activities (lead_id, author_id, type, text) VALUES (?, ?, ?, ?)"
   );
   insertActivity.run(l1.lastInsertRowid, sales, "note", "Написал в директ, интересуется учёбой в Германии после 11 класса");
   insertActivity.run(l2.lastInsertRowid, sales, "call", "Позвонил, договорились о консультации на следующей неделе");
+
+  const insertLeadTask = d.prepare(
+    "INSERT INTO tasks (title, description, lead_id, assignee_id, due_date, status, created_by, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  );
+  insertLeadTask.run("Ответить на заявку из Instagram", "Уточнить класс, бюджет и страну", l1.lastInsertRowid, sales, "2026-06-26", "todo", admin, "high");
+  insertLeadTask.run("Подтвердить встречу", null, l3.lastInsertRowid, sales, "2026-06-24", "todo", admin, "urgent");
 
   const insertChannel = d.prepare("INSERT INTO channels (name, description, created_by) VALUES (?, ?, ?)");
   const chGeneral = insertChannel.run("общий", "Общий канал команды", admin);

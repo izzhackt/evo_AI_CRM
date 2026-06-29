@@ -1,4 +1,15 @@
+import type { LeadStatus } from "./lead-stages";
+
 export const STAFF_ROLES = ["admin", "sales", "curator", "visa", "finance"] as const;
+export {
+  EVO_AMO_PIPELINE_ID,
+  LEAD_ACTIVE_STATUSES,
+  LEAD_STAGE_DEFINITIONS,
+  LEAD_STATUSES,
+  LEAD_TERMINAL_STATUSES,
+  isActiveLeadStatus,
+} from "./lead-stages";
+export type { LeadStatus } from "./lead-stages";
 export const ROLES = [...STAFF_ROLES, "client"] as const;
 
 export type StaffRole = (typeof STAFF_ROLES)[number];
@@ -146,9 +157,6 @@ export const CLIENT_STAGES = [
   "archived",
 ] as const;
 export type ClientStage = (typeof CLIENT_STAGES)[number];
-
-export const LEAD_STATUSES = ["new", "contacted", "meeting", "proposal", "won", "lost"] as const;
-export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
 export const APPLICATION_STATUSES = ["preparing", "submitted", "offer", "rejected", "enrolled"] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];

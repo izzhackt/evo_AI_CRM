@@ -36,7 +36,7 @@ export function WaReplyBox({
   }
 
   return (
-    <div className="border-t border-slate-100 p-3">
+    <div className="border-t border-border p-3">
       <form
         action={(form) => {
           startTransition(async () => {
@@ -53,21 +53,21 @@ export function WaReplyBox({
           required
           autoComplete="off"
           placeholder={labels.placeholder}
-          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          className="h-11 w-full rounded-ctl border border-border-strong bg-surface-2 px-3 text-[13.5px] text-fg placeholder:text-fg-3 transition-[border-color] duration-150 focus:border-accent focus:outline-none"
         />
         {preparedAi && (
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
             title={labels.aiDraft}
-            className="shrink-0 rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-700 transition hover:bg-violet-100"
+            className="h-11 shrink-0 rounded-ctl border border-border-strong bg-violet-weak px-3 text-[13px] font-semibold text-violet transition hover:brightness-[1.05]"
           >
             AI
           </button>
         )}
         <button
           type="submit"
-          className="shrink-0 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+          className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-ctl bg-accent px-4 text-[13.5px] font-semibold text-on-accent transition-[filter,transform] duration-150 hover:brightness-[1.08] active:scale-[0.98]"
         >
           {labels.send}
         </button>

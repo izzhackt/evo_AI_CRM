@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser, isStaff } from "@/lib/auth";
+import { currentUser } from "@/lib/auth";
 import { generateText } from "@/lib/ai";
 import { getConversation, waMessages, getLead } from "@/lib/queries";
+import { positiveInteger, readJsonObject } from "@/lib/request";
+import { roleCanAccessStaffRoute } from "@/lib/domain";
 
 // Черновик ответа клиенту в WhatsApp на основе истории переписки и данных лида
 export async function POST(req: NextRequest) {
   const user = await currentUser();
-  if (!user || !isStaff(user.role)) {
+  if (!user || !roleCanAccessStaffRoute(user.role, "/whatsapp")) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { conversationId } = await req.json();
-  const conv = getConversation(Number(conversationId));
+  const body = await readJsonObject(req);
+  const conversationId = positiveInteger(body?.conversationId);
+  if (!conversationId) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  const conv = getConversation(conversationId);
   if (!conv) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   const messages = waMessages(conv.id).slice(-15);

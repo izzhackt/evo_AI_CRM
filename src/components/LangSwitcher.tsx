@@ -1,12 +1,12 @@
 import { setLocaleAction } from "@/lib/actions";
-import { LOCALES, Locale, LOCALE_NAMES } from "@/lib/i18n";
+import { LOCALES, type Locale, LOCALE_NAMES } from "@/lib/i18n-data";
 
 export function LangSwitcher({ current }: { current: Locale }) {
   return (
     <form
       action={setLocaleAction}
       aria-label="Language"
-      className="inline-flex rounded-md border border-[var(--evo-border)] bg-white p-0.5 shadow-sm"
+      className="inline-flex rounded-ctl bg-surface-2 p-0.5"
     >
       {LOCALES.map((l) => (
         <button
@@ -16,8 +16,10 @@ export function LangSwitcher({ current }: { current: Locale }) {
           value={l}
           title={LOCALE_NAMES[l]}
           aria-pressed={l === current}
-          className={`min-w-9 rounded px-2.5 py-1.5 text-xs font-semibold uppercase transition ${
-            l === current ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+          className={`min-h-9 rounded-[8px] px-2.5 py-1.5 text-[12px] font-semibold uppercase transition-[background-color,color] duration-150 ease-out focus:outline-none ${
+            l === current
+              ? "bg-surface text-fg shadow-evo"
+              : "text-fg-3 hover:text-fg-2"
           }`}
         >
           {l.toUpperCase()}

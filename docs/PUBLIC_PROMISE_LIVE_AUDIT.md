@@ -1,7 +1,7 @@
 # Public Promise Live Audit
 
 Status: blocked.
-Generated: 2026-06-25T04:42:36.186Z.
+Generated: 2026-06-25T15:41:18.141Z.
 
 This is a live network audit of the external `evoadmissions.com` public website.
 The CRM repo cannot change those pages directly; use this report to verify the website/CMS copy handoff.

@@ -3,29 +3,50 @@ import { getT } from "@/lib/i18n";
 import { listClients } from "@/lib/queries";
 import { STAGES } from "@/lib/db";
 import { createClientAction } from "@/lib/actions";
-import { Badge, EmptyState, inputCls, btnCls } from "@/components/ui";
+import { requireStaffRoute } from "@/lib/guards";
+import { Badge, EmptyState, inputCls, btnCls, cn } from "@/components/ui";
+import { Icon } from "@/components/icons";
+
+function initials(name: string) {
+  return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
+}
 
 export default async function ClientsPage({
   searchParams,
 }: {
   searchParams: Promise<{ stage?: string; q?: string }>;
 }) {
+  await requireStaffRoute("/clients");
   const { t } = await getT();
   const { stage, q } = await searchParams;
   const clients = listClients({ stage, q });
+  const qs = (s?: string) => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (s) p.set("stage", s);
+    const str = p.toString();
+    return str ? `/clients?${str}` : "/clients";
+  };
+  const pillBase = "inline-flex min-h-9 items-center rounded-full px-3 text-[12.5px] font-medium transition-[background-color,color] duration-150";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">{t("student360")}</h1>
-          <p className="mt-1 text-sm text-slate-500">{t("student360Hint")}</p>
-        </div>
-        <details className="relative">
-          <summary className={`${btnCls} cursor-pointer list-none`}>+ {t("addClient")}</summary>
+        <form className="flex flex-1 flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-3"><Icon name="search" size={16} /></span>
+            <input name="q" defaultValue={q} placeholder={t("search")} className={cn(inputCls, "pl-9")} />
+            {stage && <input type="hidden" name="stage" value={stage} />}
+          </div>
+          <button type="submit" className={btnCls}>{t("search")}</button>
+        </form>
+        <details id="add" className="relative scroll-mt-24">
+          <summary className={cn(btnCls, "cursor-pointer list-none")}>
+            <Icon name="plus" size={16} /> {t("addClient")}
+          </summary>
           <form
             action={createClientAction}
-            className="absolute right-0 z-20 mt-2 w-80 space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-lg"
+            className="absolute right-0 z-20 mt-2 w-80 space-y-2.5 rounded-card border border-border bg-surface p-4 shadow-evo-lg"
           >
             <input name="name" required placeholder={t("name")} className={inputCls} />
             <input name="email" type="email" required placeholder={t("email")} className={inputCls} />
@@ -33,50 +54,55 @@ export default async function ClientsPage({
             <input name="target_country" placeholder={t("country")} className={inputCls} />
             <input name="target_degree" placeholder={t("degree")} className={inputCls} />
             <input name="source" placeholder={t("source")} className={inputCls} />
-            <button type="submit" className={`${btnCls} w-full`}>{t("add")}</button>
+            <button type="submit" className={cn(btnCls, "w-full")}>{t("add")}</button>
           </form>
         </details>
       </div>
 
-      <form className="flex flex-wrap gap-2">
-        <input name="q" defaultValue={q} placeholder={t("search")} className={`${inputCls} max-w-xs`} />
-        <select name="stage" defaultValue={stage ?? ""} className={`${inputCls} max-w-44`}>
-          <option value="">{t("allStages")}</option>
-          {STAGES.map((s) => (
-            <option key={s} value={s}>{t(`stage.${s}`)}</option>
-          ))}
-        </select>
-        <button type="submit" className={btnCls}>{t("search")}</button>
-      </form>
+      <div className="flex flex-wrap gap-2">
+        <Link href={qs()} className={cn(pillBase, !stage ? "bg-accent text-on-accent" : "bg-surface-2 text-fg-2 hover:text-fg")}>
+          {t("allStages")}
+        </Link>
+        {STAGES.map((s) => (
+          <Link key={s} href={qs(s)} className={cn(pillBase, stage === s ? "bg-accent text-on-accent" : "bg-surface-2 text-fg-2 hover:text-fg")}>
+            {t(`stage.${s}`)}
+          </Link>
+        ))}
+      </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
+      <div className="overflow-x-auto rounded-card border border-border bg-surface shadow-evo">
+        <table className="w-full text-left text-[13px]">
+          <thead className="border-b border-border bg-surface-2 text-[11px] uppercase tracking-[0.04em] text-fg-3">
             <tr>
-              <th className="px-4 py-3">{t("client")}</th>
-              <th className="px-4 py-3">{t("stage")}</th>
-              <th className="px-4 py-3">{t("country")}</th>
-              <th className="px-4 py-3">{t("manager")}</th>
-              <th className="px-4 py-3">{t("curator")}</th>
-              <th className="px-4 py-3">{t("phone")}</th>
+              <th className="px-5 py-3 font-semibold">{t("client")}</th>
+              <th className="px-4 py-3 font-semibold">{t("stage")}</th>
+              <th className="px-4 py-3 font-semibold">{t("country")}</th>
+              <th className="px-4 py-3 font-semibold">{t("manager")}</th>
+              <th className="px-4 py-3 font-semibold">{t("curator")}</th>
+              <th className="px-4 py-3 font-semibold">{t("phone")}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-border">
             {clients.map((c) => (
-              <tr key={c.id} className="transition hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  <Link href={`/clients/${c.id}`} className="font-medium text-indigo-700 hover:underline">
-                    {c.name}
+              <tr key={c.id} className="transition-[background-color] hover:bg-surface-2">
+                <td className="px-5 py-3">
+                  <Link href={`/clients/${c.id}`} className="flex items-center gap-3">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-weak text-[11px] font-semibold text-accent">
+                      {initials(c.name)}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-semibold text-fg hover:text-accent">{c.name}</span>
+                      <span className="block truncate text-[12px] text-fg-3">{c.email}</span>
+                    </span>
                   </Link>
-                  <div className="text-xs text-slate-400">{c.email}</div>
                 </td>
                 <td className="px-4 py-3"><Badge value={c.stage} label={t(`stage.${c.stage}`)} /></td>
-                <td className="px-4 py-3 text-slate-600">
+                <td className="px-4 py-3 text-fg-2">
                   {[c.target_country, c.target_degree].filter(Boolean).join(" · ") || "—"}
                 </td>
-                <td className="px-4 py-3 text-slate-600">{c.manager_name ?? "—"}</td>
-                <td className="px-4 py-3 text-slate-600">{c.curator_name ?? "—"}</td>
-                <td className="px-4 py-3 text-slate-600">{c.phone ?? "—"}</td>
+                <td className="px-4 py-3 text-fg-2">{c.manager_name ?? "—"}</td>
+                <td className="px-4 py-3 text-fg-2">{c.curator_name ?? "—"}</td>
+                <td className="px-4 py-3 font-mono text-[12.5px] text-fg-2">{c.phone ?? "—"}</td>
               </tr>
             ))}
           </tbody>

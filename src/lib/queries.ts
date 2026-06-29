@@ -1,5 +1,8 @@
-import { db, Stage, STAGES } from "./db";
+import { db, LEAD_ACTIVE_STATUSES, Stage, STAGES } from "./db";
 import { STUDENT_PORTAL_SECTIONS, StudentPortalSnapshot } from "./contracts/student-portal";
+
+const ACTIVE_LEAD_STATUS_SQL = LEAD_ACTIVE_STATUSES.map((status) => `'${status}'`).join(", ");
+const ACTIVE_LEAD_SQL = `l.client_id IS NULL AND l.status IN (${ACTIVE_LEAD_STATUS_SQL})`;
 
 export type ClientRow = {
   id: number;
@@ -410,19 +413,20 @@ export function listTasks(assigneeId?: number) {
   const params = assigneeId ? [assigneeId] : [];
   return db().prepare(`
     SELECT t.*, a.name AS assignee_name, u.name AS client_name, c.id AS client_id,
-      c.stage, c.target_country
+      c.stage, c.target_country, l.name AS lead_name, l.status AS lead_status
     FROM tasks t
     LEFT JOIN users a ON a.id = t.assignee_id
     LEFT JOIN clients c ON c.id = t.client_id
     LEFT JOIN users u ON u.id = c.user_id
+    LEFT JOIN leads l ON l.id = t.lead_id
     ${where}
     ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
              t.due_date IS NULL, t.due_date
   `).all(...params) as {
     id: number; title: string; description: string | null; due_date: string | null;
     status: string; priority: string; assignee_name: string | null;
-    client_name: string | null; client_id: number | null;
-    stage: Stage | null; target_country: string | null;
+    client_name: string | null; client_id: number | null; lead_id: number | null;
+    lead_name: string | null; lead_status: string | null; stage: Stage | null; target_country: string | null;
   }[];
 }
 
@@ -452,22 +456,68 @@ export type LeadRow = {
   id: number; name: string; phone: string | null; email: string | null;
   source: string | null; status: string; amount: number | null; currency: string;
   manager_id: number | null; client_id: number | null; target_country: string | null;
-  notes: string | null; created_at: string; manager_name: string | null;
+  notes: string | null; created_at: string; updated_at: string; manager_name: string | null;
+  open_tasks: number; overdue_tasks: number; next_task_due_date: string | null;
+  next_task_title: string | null; last_activity_at: string | null; last_call_at: string | null;
+  last_wa_at: string | null; last_touch_at: string | null; last_channel: string | null;
+  call_count: number; wa_message_count: number; unread_messages: number;
 };
 
 export function listLeads(): LeadRow[] {
   return db().prepare(`
-    SELECT l.*, m.name AS manager_name
-    FROM leads l LEFT JOIN users m ON m.id = l.manager_id
-    ORDER BY l.updated_at DESC
+    WITH lead_context AS (
+      SELECT l.*, m.name AS manager_name,
+        (SELECT COUNT(*) FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))) AS open_tasks,
+        (SELECT COUNT(*) FROM tasks t WHERE t.status != 'done' AND t.due_date IS NOT NULL AND t.due_date < date('now') AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))) AS overdue_tasks,
+        (SELECT t.due_date FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id)) ORDER BY t.due_date IS NULL, t.due_date LIMIT 1) AS next_task_due_date,
+        (SELECT t.title FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id)) ORDER BY t.due_date IS NULL, t.due_date LIMIT 1) AS next_task_title,
+        (SELECT MAX(a.created_at) FROM lead_activities a WHERE a.lead_id = l.id) AS last_activity_at,
+        (SELECT MAX(c.started_at) FROM calls c WHERE c.lead_id = l.id) AS last_call_at,
+        (SELECT MAX(w.last_message_at) FROM wa_conversations w WHERE w.lead_id = l.id) AS last_wa_at,
+        (SELECT COUNT(*) FROM calls c WHERE c.lead_id = l.id) AS call_count,
+        (SELECT COUNT(*) FROM wa_messages wm JOIN wa_conversations w ON w.id = wm.conversation_id WHERE w.lead_id = l.id) AS wa_message_count,
+        (SELECT COALESCE(SUM(w.unread), 0) FROM wa_conversations w WHERE w.lead_id = l.id) AS unread_messages
+      FROM leads l LEFT JOIN users m ON m.id = l.manager_id
+    )
+    SELECT *,
+      NULLIF(MAX(COALESCE(last_activity_at, ''), COALESCE(last_call_at, ''), COALESCE(last_wa_at, ''), COALESCE(updated_at, '')), '') AS last_touch_at,
+      CASE
+        WHEN COALESCE(last_wa_at, '') >= COALESCE(last_call_at, '') AND COALESCE(last_wa_at, '') >= COALESCE(last_activity_at, '') THEN 'WhatsApp'
+        WHEN COALESCE(last_call_at, '') >= COALESCE(last_activity_at, '') THEN 'Call'
+        WHEN last_activity_at IS NOT NULL THEN 'CRM'
+        ELSE NULL
+      END AS last_channel
+    FROM lead_context
+    ORDER BY updated_at DESC
   `).all() as LeadRow[];
 }
 
 export function getLead(id: number): LeadRow | undefined {
   return db().prepare(`
-    SELECT l.*, m.name AS manager_name
-    FROM leads l LEFT JOIN users m ON m.id = l.manager_id
-    WHERE l.id = ?
+    WITH lead_context AS (
+      SELECT l.*, m.name AS manager_name,
+        (SELECT COUNT(*) FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))) AS open_tasks,
+        (SELECT COUNT(*) FROM tasks t WHERE t.status != 'done' AND t.due_date IS NOT NULL AND t.due_date < date('now') AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))) AS overdue_tasks,
+        (SELECT t.due_date FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id)) ORDER BY t.due_date IS NULL, t.due_date LIMIT 1) AS next_task_due_date,
+        (SELECT t.title FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id)) ORDER BY t.due_date IS NULL, t.due_date LIMIT 1) AS next_task_title,
+        (SELECT MAX(a.created_at) FROM lead_activities a WHERE a.lead_id = l.id) AS last_activity_at,
+        (SELECT MAX(c.started_at) FROM calls c WHERE c.lead_id = l.id) AS last_call_at,
+        (SELECT MAX(w.last_message_at) FROM wa_conversations w WHERE w.lead_id = l.id) AS last_wa_at,
+        (SELECT COUNT(*) FROM calls c WHERE c.lead_id = l.id) AS call_count,
+        (SELECT COUNT(*) FROM wa_messages wm JOIN wa_conversations w ON w.id = wm.conversation_id WHERE w.lead_id = l.id) AS wa_message_count,
+        (SELECT COALESCE(SUM(w.unread), 0) FROM wa_conversations w WHERE w.lead_id = l.id) AS unread_messages
+      FROM leads l LEFT JOIN users m ON m.id = l.manager_id
+      WHERE l.id = ?
+    )
+    SELECT *,
+      NULLIF(MAX(COALESCE(last_activity_at, ''), COALESCE(last_call_at, ''), COALESCE(last_wa_at, ''), COALESCE(updated_at, '')), '') AS last_touch_at,
+      CASE
+        WHEN COALESCE(last_wa_at, '') >= COALESCE(last_call_at, '') AND COALESCE(last_wa_at, '') >= COALESCE(last_activity_at, '') THEN 'WhatsApp'
+        WHEN COALESCE(last_call_at, '') >= COALESCE(last_activity_at, '') THEN 'Call'
+        WHEN last_activity_at IS NOT NULL THEN 'CRM'
+        ELSE NULL
+      END AS last_channel
+    FROM lead_context
   `).get(id) as LeadRow | undefined;
 }
 
@@ -484,9 +534,9 @@ export function salesReport() {
   const byManager = d.prepare(`
     SELECT u.id, u.name,
       COUNT(l.id) AS leads,
-      SUM(CASE WHEN l.status = 'won' THEN 1 ELSE 0 END) AS won,
-      SUM(CASE WHEN l.status = 'lost' THEN 1 ELSE 0 END) AS lost,
-      SUM(CASE WHEN l.status = 'won' THEN COALESCE(l.amount, 0) ELSE 0 END) AS won_amount
+      SUM(CASE WHEN l.status = 'contract_signed' OR l.client_id IS NOT NULL THEN 1 ELSE 0 END) AS won,
+      SUM(CASE WHEN l.status = 'no_request' THEN 1 ELSE 0 END) AS lost,
+      SUM(CASE WHEN l.status = 'contract_signed' OR l.client_id IS NOT NULL THEN COALESCE(l.amount, 0) ELSE 0 END) AS won_amount
     FROM users u LEFT JOIN leads l ON l.manager_id = u.id
     WHERE u.role IN ('sales', 'admin')
     GROUP BY u.id HAVING leads > 0
@@ -498,10 +548,86 @@ export function salesReport() {
   `).all() as { month: string; c: number }[];
   const bySource = d.prepare(`
     SELECT COALESCE(source, '—') AS source, COUNT(*) AS c,
-      SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) AS won
+      SUM(CASE WHEN status = 'contract_signed' OR client_id IS NOT NULL THEN 1 ELSE 0 END) AS won
     FROM leads GROUP BY source ORDER BY c DESC
   `).all() as { source: string; c: number; won: number }[];
   return { byManager, byMonth: byMonth.reverse(), bySource };
+}
+
+export function salesCockpitStats() {
+  const d = db();
+  const dealWithoutTaskWhere = `
+    ${ACTIVE_LEAD_SQL} AND NOT EXISTS (
+      SELECT 1 FROM tasks t
+      WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))
+    )
+  `;
+  const dealsWithoutTasks = (d.prepare(`SELECT COUNT(*) c FROM leads l WHERE ${dealWithoutTaskWhere}`).get() as { c: number }).c;
+  const overdueLeadTasks = (d.prepare(`
+    SELECT COUNT(DISTINCT l.id) c
+    FROM leads l
+    JOIN tasks t ON t.status != 'done'
+      AND t.due_date IS NOT NULL
+      AND t.due_date < date('now')
+      AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))
+    WHERE ${ACTIVE_LEAD_SQL}
+  `).get() as { c: number }).c;
+  const managerRows = d.prepare(`
+    SELECT u.id, u.name,
+      SUM(CASE WHEN l.id IS NOT NULL AND ${ACTIVE_LEAD_SQL} THEN 1 ELSE 0 END) AS deals,
+      COALESCE(SUM(l.amount), 0) AS value,
+      SUM(CASE WHEN l.status = 'contract_signed' OR l.client_id IS NOT NULL THEN 1 ELSE 0 END) AS signed,
+      SUM(CASE WHEN l.id IS NOT NULL AND ${ACTIVE_LEAD_SQL} AND NOT EXISTS (
+        SELECT 1 FROM tasks t
+        WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))
+      ) THEN 1 ELSE 0 END) AS no_task,
+      (SELECT COUNT(*) FROM calls c WHERE c.manager_id = u.id) AS calls,
+      (SELECT COUNT(*) FROM wa_messages wm WHERE wm.author_id = u.id) AS messages
+    FROM users u
+    LEFT JOIN leads l ON l.manager_id = u.id
+    WHERE u.role IN ('sales', 'admin')
+    GROUP BY u.id
+    HAVING deals > 0 OR signed > 0
+    ORDER BY no_task DESC, deals DESC
+    LIMIT 6
+  `).all() as { id: number; name: string; deals: number; value: number; signed: number; no_task: number; calls: number; messages: number }[];
+  const sourceRows = d.prepare(`
+    SELECT COALESCE(NULLIF(TRIM(source), ''), '—') AS source,
+      COUNT(*) AS deals,
+      COALESCE(SUM(amount), 0) AS value,
+      SUM(CASE WHEN status = 'contract_signed' OR client_id IS NOT NULL THEN 1 ELSE 0 END) AS signed
+    FROM leads
+    GROUP BY COALESCE(NULLIF(TRIM(source), ''), '—')
+    ORDER BY deals DESC, value DESC
+    LIMIT 6
+  `).all() as { source: string; deals: number; value: number; signed: number }[];
+  const avgResponseMinutes = (d.prepare(`
+    SELECT AVG((julianday((
+      SELECT MIN(out_msg.created_at)
+      FROM wa_messages out_msg
+      WHERE out_msg.conversation_id = in_msg.conversation_id
+        AND out_msg.direction = 'out'
+        AND out_msg.created_at > in_msg.created_at
+    )) - julianday(in_msg.created_at)) * 24 * 60) AS minutes
+    FROM wa_messages in_msg
+    WHERE in_msg.direction = 'in'
+      AND EXISTS (
+        SELECT 1
+        FROM wa_messages out_msg
+        WHERE out_msg.conversation_id = in_msg.conversation_id
+          AND out_msg.direction = 'out'
+          AND out_msg.created_at > in_msg.created_at
+      )
+  `).get() as { minutes: number | null }).minutes;
+  const channelActivity = {
+    incomingCalls: (d.prepare("SELECT COUNT(*) c FROM calls WHERE direction = 'in'").get() as { c: number }).c,
+    outgoingCalls: (d.prepare("SELECT COUNT(*) c FROM calls WHERE direction = 'out'").get() as { c: number }).c,
+    incomingMessages: (d.prepare("SELECT COUNT(*) c FROM wa_messages WHERE direction = 'in'").get() as { c: number }).c,
+    outgoingMessages: (d.prepare("SELECT COUNT(*) c FROM wa_messages WHERE direction = 'out'").get() as { c: number }).c,
+    unreadConversations: (d.prepare("SELECT COALESCE(SUM(unread), 0) c FROM wa_conversations").get() as { c: number }).c,
+    avgResponseMinutes: avgResponseMinutes === null ? null : Math.max(0, Math.round(avgResponseMinutes)),
+  };
+  return { dealsWithoutTasks, overdueLeadTasks, managerRows, sourceRows, channelActivity };
 }
 
 export function listChannels() {
@@ -572,7 +698,7 @@ export function dashboardStats() {
   const activeApps = (d.prepare("SELECT COUNT(*) c FROM applications WHERE status IN ('preparing','submitted')").get() as { c: number }).c;
   const openTasks = (d.prepare("SELECT COUNT(*) c FROM tasks WHERE status != 'done'").get() as { c: number }).c;
   const pendingPayments = (d.prepare("SELECT COUNT(*) c FROM payments WHERE status != 'paid'").get() as { c: number }).c;
-  const activeLeads = (d.prepare("SELECT COUNT(*) c FROM leads WHERE status NOT IN ('won','lost')").get() as { c: number }).c;
+  const activeLeads = (d.prepare(`SELECT COUNT(*) c FROM leads l WHERE ${ACTIVE_LEAD_SQL}`).get() as { c: number }).c;
   const documentsInReview = (d.prepare("SELECT COUNT(*) c FROM documents WHERE status IN ('uploaded','review')").get() as { c: number }).c;
   const overduePayments = (d.prepare("SELECT COUNT(*) c FROM payments WHERE status != 'paid' AND due_date IS NOT NULL AND due_date < date('now')").get() as { c: number }).c;
   const urgentTasks = (d.prepare("SELECT COUNT(*) c FROM tasks WHERE status != 'done' AND priority IN ('high','urgent')").get() as { c: number }).c;

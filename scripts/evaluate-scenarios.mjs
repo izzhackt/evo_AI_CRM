@@ -119,14 +119,20 @@ async function waitForServer(baseUrl, processHandle) {
 
 function startServer(port, dbPath) {
   const logs = [];
-  const proc = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", String(port), "-H", "127.0.0.1"], {
+  const standaloneServer = path.join(repoRoot, ".next", "standalone", "server.js");
+  const args = existsSync(standaloneServer)
+    ? [standaloneServer]
+    : ["node_modules/next/dist/bin/next", "start", "-p", String(port), "-H", "127.0.0.1"];
+  const proc = spawn(process.execPath, args, {
     cwd: repoRoot,
     env: {
       ...process.env,
       AUTH_SECRET: authSecret,
       EVO_DB_PATH: dbPath,
+      HOSTNAME: "127.0.0.1",
       NEXT_TELEMETRY_DISABLED: "1",
       ANTHROPIC_API_KEY: "",
+      PORT: String(port),
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

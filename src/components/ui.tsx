@@ -1,79 +1,194 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-const BADGE_COLORS: Record<string, string> = {
-  // client stages
-  lead: "border-slate-200 bg-slate-50 text-slate-700",
-  consultation: "border-sky-200 bg-sky-50 text-sky-800",
-  contract: "border-blue-200 bg-blue-50 text-blue-800",
-  documents: "border-amber-200 bg-amber-50 text-amber-800",
-  applying: "border-cyan-200 bg-cyan-50 text-cyan-800",
-  offer: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  visa: "border-teal-200 bg-teal-50 text-teal-800",
-  enrolled: "border-green-200 bg-green-50 text-green-800",
-  archived: "border-gray-200 bg-gray-50 text-gray-500",
-  // application / document / visa / payment statuses
-  preparing: "border-amber-200 bg-amber-50 text-amber-800",
-  submitted: "border-sky-200 bg-sky-50 text-sky-800",
-  rejected: "border-red-200 bg-red-50 text-red-700",
-  required: "border-red-200 bg-red-50 text-red-700",
-  uploaded: "border-sky-200 bg-sky-50 text-sky-800",
-  review: "border-amber-200 bg-amber-50 text-amber-800",
-  approved: "border-green-200 bg-green-50 text-green-800",
-  not_started: "border-slate-200 bg-slate-50 text-slate-600",
-  docs: "border-amber-200 bg-amber-50 text-amber-800",
-  appointment: "border-sky-200 bg-sky-50 text-sky-800",
-  pending: "border-amber-200 bg-amber-50 text-amber-800",
-  paid: "border-green-200 bg-green-50 text-green-800",
-  overdue: "border-red-200 bg-red-50 text-red-700",
-  open: "border-sky-200 bg-sky-50 text-sky-800",
-  done: "border-green-200 bg-green-50 text-green-800",
+export function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+type Tone = "neutral" | "info" | "ok" | "warn" | "danger" | "violet" | "accent";
+
+const TONE_CLS: Record<Tone, string> = {
+  neutral: "bg-surface-2 text-fg-2",
+  info: "bg-info-weak text-info",
+  ok: "bg-ok-weak text-ok",
+  warn: "bg-warn-weak text-warn",
+  danger: "bg-danger-weak text-danger",
+  violet: "bg-violet-weak text-violet",
+  accent: "bg-accent-weak text-accent",
 };
 
-export function Badge({ value, label }: { value: string; label: string }) {
-  const color = BADGE_COLORS[value] ?? "border-slate-200 bg-slate-50 text-slate-700";
+// Semantic status → tone (theme-adaptive; never hardcode palette).
+const BADGE_TONE: Record<string, Tone> = {
+  // client stages
+  lead: "neutral",
+  consultation: "info",
+  contract: "violet",
+  documents: "warn",
+  applying: "violet",
+  offer: "ok",
+  visa: "info",
+  enrolled: "ok",
+  archived: "neutral",
+  // application / document / visa / payment statuses
+  preparing: "warn",
+  submitted: "info",
+  rejected: "danger",
+  required: "danger",
+  uploaded: "info",
+  review: "warn",
+  approved: "ok",
+  not_started: "neutral",
+  docs: "info",
+  appointment: "info",
+  pending: "warn",
+  paid: "ok",
+  overdue: "danger",
+  open: "info",
+  done: "ok",
+  // lead pipeline statuses
+  processing_mp: "info",
+  qualified: "info",
+  meeting_scheduled: "violet",
+  meeting_done: "warn",
+  contract_signed: "ok",
+  no_request: "neutral",
+  // calls
+  answered: "ok",
+  missed: "danger",
+  busy: "warn",
+  // task columns
+  todo: "neutral",
+  in_progress: "accent",
+};
+
+export function Badge({ value, label, className }: { value: string; label: string; className?: string }) {
+  const tone = BADGE_TONE[value] ?? "neutral";
   return (
-    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${color}`}>
+    <span
+      className={cn(
+        "inline-flex min-h-6 items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap",
+        TONE_CLS[tone],
+        className,
+      )}
+    >
       {label}
     </span>
   );
 }
 
-export function Card({ title, action, children }: { title?: string; action?: ReactNode; children: ReactNode }) {
+export function Card({
+  title,
+  action,
+  children,
+  className,
+  bodyClassName,
+}: {
+  title?: string;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  bodyClassName?: string;
+}) {
   return (
-    <section className="rounded-lg border border-[var(--evo-border)] bg-white shadow-[var(--evo-shadow-sm)]">
+    <section className={cn("rounded-card border border-border bg-surface shadow-evo", className)}>
       {(title || action) && (
-        <header className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3">
-          {title && <h2 className="text-sm font-semibold text-slate-900">{title}</h2>}
+        <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+          {title && <h2 className="text-[14.5px] font-semibold text-fg">{title}</h2>}
           {action}
         </header>
       )}
-      <div className="px-5 py-4">{children}</div>
+      <div className={cn("px-5 py-4", bodyClassName)}>{children}</div>
     </section>
   );
 }
 
-export function StatCard({ label, value, href }: { label: string; value: number | string; href?: string }) {
+export function StatCard({
+  label,
+  value,
+  href,
+  meta,
+  tone = "neutral",
+}: {
+  label: string;
+  value: number | string;
+  href?: string;
+  meta?: string;
+  tone?: "neutral" | "primary" | "accent" | "info" | "warning" | "danger" | "success";
+}) {
+  const stripe = {
+    neutral: "bg-border-strong",
+    primary: "bg-accent",
+    accent: "bg-accent",
+    info: "bg-info",
+    warning: "bg-warn",
+    danger: "bg-danger",
+    success: "bg-ok",
+  }[tone];
   const inner = (
-    <div className="min-h-24 rounded-lg border border-[var(--evo-border)] bg-white px-5 py-4 shadow-[var(--evo-shadow-sm)] transition hover:border-blue-200 hover:shadow-[var(--evo-shadow-md)]">
-      <div className="text-2xl font-semibold text-slate-950">{value}</div>
-      <div className="mt-1 text-xs font-medium text-slate-500">{label}</div>
+    <div
+      className={cn(
+        "relative h-full overflow-hidden rounded-card border border-border bg-surface px-5 py-4 shadow-evo transition-[transform,box-shadow,border-color] duration-150 ease-out",
+        href && "hover:-translate-y-0.5 hover:border-border-strong hover:shadow-evo-lg",
+      )}
+    >
+      <span className={cn("absolute inset-y-0 left-0 w-[3px]", stripe)} aria-hidden="true" />
+      <div className="font-mono text-[26px] font-semibold leading-none text-fg">{value}</div>
+      <div className="mt-2 text-[12px] font-medium text-fg-2">{label}</div>
+      {meta && <div className="mt-1.5 text-[12px] leading-4 text-fg-3">{meta}</div>}
     </div>
   );
-  return href ? <Link href={href}>{inner}</Link> : inner;
+  return href ? (
+    <Link href={href} className="block rounded-card focus:outline-none">
+      {inner}
+    </Link>
+  ) : (
+    inner
+  );
+}
+
+export function PageHeader({
+  title,
+  description,
+  eyebrow,
+  action,
+}: {
+  title: string;
+  description?: string;
+  eyebrow?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="min-w-0">
+        {eyebrow && <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-accent">{eyebrow}</div>}
+        <h1 className="text-[19px] font-bold leading-tight text-fg">{title}</h1>
+        {description && <p className="mt-1 max-w-3xl text-[13px] leading-6 text-fg-3">{description}</p>}
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
+    </div>
+  );
 }
 
 export const inputCls =
-  "h-10 w-full rounded-md border border-[var(--evo-border-strong)] bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15";
+  "h-11 w-full rounded-ctl border border-border-strong bg-surface-2 px-3 text-[13.5px] text-fg placeholder:text-fg-3 transition-[border-color,box-shadow] duration-150 ease-out focus:border-accent focus:outline-none";
 
 export const btnCls =
-  "inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl bg-accent px-4 text-[13.5px] font-semibold text-on-accent shadow-evo transition-[filter,transform] duration-150 ease-out hover:brightness-[1.08] active:scale-[0.98] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 export const btnGhostCls =
-  "inline-flex h-8 items-center justify-center rounded-md border border-[var(--evo-border-strong)] bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-ctl border border-border-strong bg-surface px-3 text-[13px] font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-border-strong hover:bg-surface-2 hover:text-fg active:scale-[0.98] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
 
-export const labelCls = "mb-1 block text-xs font-semibold text-slate-600";
+export const btnDangerGhostCls =
+  "inline-flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-ctl border border-border-strong bg-surface px-3 text-[13px] font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-danger hover:bg-danger-weak hover:text-danger active:scale-[0.98] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
+
+export const compactActionCls =
+  "inline-flex min-h-9 items-center gap-1 rounded-nav px-2.5 py-1 text-[12px] font-semibold text-accent transition-[background-color,color] duration-150 ease-out hover:bg-accent-weak focus:outline-none";
+
+export const filterBarCls =
+  "grid gap-2 rounded-card border border-border bg-surface p-3 shadow-evo";
+
+export const labelCls = "mb-1 block text-[12px] font-medium text-fg-2";
 
 export function EmptyState({ text }: { text: string }) {
-  return <p className="py-5 text-center text-sm text-slate-400">{text}</p>;
+  return <p className="py-6 text-center text-[13px] text-fg-3">{text}</p>;
 }

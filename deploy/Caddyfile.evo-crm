@@ -1,0 +1,7 @@
+crm.evoadmissions.com {
+	encode zstd gzip
+	reverse_proxy evo-crm-app:3000
+	header {
+		-Server
+	}
+}

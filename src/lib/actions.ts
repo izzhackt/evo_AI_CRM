@@ -20,7 +20,8 @@ import {
 import { sendWhatsApp } from "./whatsapp";
 import { createAmoCrmAdapter, getAmoCrmLocalStatus, normalizeAmoCrmAccountBaseUrl } from "./amocrm";
 import { setSession, clearSession, currentUser, isStaff } from "./auth";
-import { LOCALES, Locale } from "./i18n";
+import { LOCALES, type Locale } from "./i18n-data";
+import { normalizePhone } from "./phone";
 
 const CURRENCIES = ["KGS", "USD", "EUR"] as const;
 
@@ -47,6 +48,18 @@ async function requireAdmissionsStaff() {
   return user;
 }
 
+async function requireSalesStaff() {
+  const user = await requireStaff();
+  if (user.role !== "admin" && user.role !== "sales") redirect("/dashboard");
+  return user;
+}
+
+async function requireWhatsAppStaff() {
+  const user = await requireStaff();
+  if (user.role !== "admin" && user.role !== "sales" && user.role !== "curator") redirect("/dashboard");
+  return user;
+}
+
 async function requireFinanceStaff() {
   const user = await requireStaff();
   if (user.role !== "admin" && user.role !== "finance") redirect("/dashboard");
@@ -62,6 +75,10 @@ function revalidateStaffCrm(clientId?: number | null) {
   revalidatePath("/tasks");
   revalidatePath("/finance");
   if (clientId) revalidatePath(`/clients/${clientId}`);
+}
+
+function revalidateLeadTask(leadId?: number | null) {
+  if (leadId) revalidatePath(`/sales/${leadId}`);
 }
 
 // ---------- auth ----------
@@ -270,16 +287,18 @@ export async function addTaskAction(form: FormData) {
   const user = await requireStaff();
   const title = str(form, "title");
   const clientId = optNum(form, "client_id");
+  const leadId = optNum(form, "lead_id");
   const priority = str(form, "priority") || "normal";
   if (!title) return;
   if (!(TASK_PRIORITIES as readonly string[]).includes(priority)) return;
   db()
-    .prepare("INSERT INTO tasks (title, description, client_id, assignee_id, due_date, priority, status, created_by) VALUES (?, ?, ?, ?, ?, ?, 'todo', ?)")
+    .prepare("INSERT INTO tasks (title, description, lead_id, client_id, assignee_id, due_date, priority, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 'todo', ?)")
     .run(
-      title, str(form, "description") || null, clientId, optNum(form, "assignee_id"),
+      title, str(form, "description") || null, leadId, clientId, optNum(form, "assignee_id"),
       str(form, "due_date") || null, priority, user.id
     );
   revalidateStaffCrm(clientId);
+  revalidateLeadTask(leadId);
 }
 
 export async function completeTaskAction(form: FormData) {
@@ -287,31 +306,34 @@ export async function completeTaskAction(form: FormData) {
   const id = optNum(form, "id");
   if (!id) return;
   const d = db();
-  const row = d.prepare("SELECT client_id FROM tasks WHERE id = ?").get(id) as { client_id: number | null } | undefined;
+  const row = d.prepare("SELECT client_id, lead_id FROM tasks WHERE id = ?").get(id) as { client_id: number | null; lead_id: number | null } | undefined;
   if (!row) return;
   d.prepare("UPDATE tasks SET status = 'done' WHERE id = ?").run(id);
   revalidateStaffCrm(row.client_id);
+  revalidateLeadTask(row.lead_id);
 }
 
 // ---------- sales / leads ----------
 
 export async function addLeadAction(form: FormData) {
-  const user = await requireStaff();
+  const user = await requireSalesStaff();
   const name = str(form, "name");
   if (!name) return;
   db()
-    .prepare("INSERT INTO leads (name, phone, email, source, amount, currency, manager_id, target_country, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .prepare("INSERT INTO leads (name, phone, email, source, amount, currency, manager_id, target_country, notes, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
     .run(
-      name, str(form, "phone") || null, str(form, "email") || null, str(form, "source") || null,
+      name, normalizePhone(str(form, "phone")) || null, str(form, "email") || null, str(form, "source") || null,
       str(form, "amount") ? parseFloat(str(form, "amount")) : null, str(form, "currency") || "KGS",
-      optNum(form, "manager_id") ?? user.id, str(form, "target_country") || null, str(form, "notes") || null
-    );
+      optNum(form, "manager_id") ?? user.id, str(form, "target_country") || null, str(form, "notes") || null,
+      LEAD_STATUSES[0]
+  );
   revalidatePath("/sales");
   revalidatePath("/dashboard");
+  redirect("/sales");
 }
 
 export async function moveLeadAction(form: FormData) {
-  const user = await requireStaff();
+  const user = await requireSalesStaff();
   const id = optNum(form, "id");
   const status = str(form, "status");
   if (!id || !(LEAD_STATUSES as readonly string[]).includes(status)) return;
@@ -325,7 +347,7 @@ export async function moveLeadAction(form: FormData) {
 }
 
 export async function updateLeadAction(form: FormData) {
-  await requireStaff();
+  await requireSalesStaff();
   const id = optNum(form, "id");
   if (!id) return;
   db()
@@ -341,7 +363,7 @@ export async function updateLeadAction(form: FormData) {
 }
 
 export async function addLeadNoteAction(form: FormData) {
-  const user = await requireStaff();
+  const user = await requireSalesStaff();
   const id = optNum(form, "lead_id");
   const text = str(form, "text");
   if (!id || !text) return;
@@ -351,7 +373,7 @@ export async function addLeadNoteAction(form: FormData) {
 }
 
 export async function convertLeadAction(form: FormData) {
-  await requireStaff();
+  await requireSalesStaff();
   const id = optNum(form, "id");
   if (!id) return;
   const d = db();
@@ -375,7 +397,7 @@ export async function convertLeadAction(form: FormData) {
   const clientRow = d
     .prepare("INSERT INTO clients (user_id, stage, manager_id, source, target_country) VALUES (?, 'contract', ?, ?, ?)")
     .run(userId, lead.manager_id, lead.source, lead.target_country);
-  d.prepare("UPDATE leads SET status = 'won', client_id = ?, updated_at = datetime('now') WHERE id = ?")
+  d.prepare("UPDATE leads SET status = 'contract_signed', client_id = ?, updated_at = datetime('now') WHERE id = ?")
     .run(clientRow.lastInsertRowid, id);
 
   revalidatePath("/sales");
@@ -415,16 +437,17 @@ export async function moveTaskAction(form: FormData) {
   const status = str(form, "status");
   if (!id || !(TASK_COLUMNS as readonly string[]).includes(status)) return;
   const d = db();
-  const row = d.prepare("SELECT client_id FROM tasks WHERE id = ?").get(id) as { client_id: number | null } | undefined;
+  const row = d.prepare("SELECT client_id, lead_id FROM tasks WHERE id = ?").get(id) as { client_id: number | null; lead_id: number | null } | undefined;
   if (!row) return;
   d.prepare("UPDATE tasks SET status = ? WHERE id = ?").run(status, id);
   revalidateStaffCrm(row.client_id);
+  revalidateLeadTask(row.lead_id);
 }
 
 // ---------- whatsapp ----------
 
 export async function sendWaMessageAction(form: FormData) {
-  const user = await requireStaff();
+  const user = await requireWhatsAppStaff();
   const conversationId = optNum(form, "conversation_id");
   const text = str(form, "text");
   if (!conversationId || !text) return;
@@ -441,8 +464,8 @@ export async function sendWaMessageAction(form: FormData) {
 }
 
 export async function createConversationAction(form: FormData) {
-  await requireStaff();
-  const phone = str(form, "phone");
+  await requireWhatsAppStaff();
+  const phone = normalizePhone(str(form, "phone"));
   if (!phone) return;
   const d = db();
   const existing = d.prepare("SELECT id FROM wa_conversations WHERE phone = ?").get(phone) as { id: number } | undefined;
@@ -455,7 +478,7 @@ export async function createConversationAction(form: FormData) {
 }
 
 export async function markConversationReadAction(form: FormData) {
-  await requireStaff();
+  await requireWhatsAppStaff();
   const id = optNum(form, "id");
   if (!id) return;
   db().prepare("UPDATE wa_conversations SET unread = 0 WHERE id = ?").run(id);
@@ -465,8 +488,8 @@ export async function markConversationReadAction(form: FormData) {
 // ---------- telephony ----------
 
 export async function logCallAction(form: FormData) {
-  const user = await requireStaff();
-  const phone = str(form, "phone");
+  const user = await requireSalesStaff();
+  const phone = normalizePhone(str(form, "phone"));
   if (!phone) return;
   db()
     .prepare("INSERT INTO calls (direction, phone, manager_id, lead_id, duration_sec, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?)")
@@ -482,14 +505,14 @@ export async function logCallAction(form: FormData) {
 export async function saveSettingsAction(form: FormData) {
   const user = await currentUser();
   if (!user || user.role !== "admin") redirect("/dashboard");
-  const keys = [
-    "wa_token", "wa_phone_id", "wa_verify_token",
-    "tel_provider", "tel_api_key",
-    "anthropic_api_key",
-  ];
+  const keys = ["wa_phone_id", "tel_provider"];
   for (const key of keys) {
     const value = str(form, key);
     if (form.has(key)) setSetting(key, value);
+  }
+  const secretKeys = ["wa_token", "wa_verify_token", "wa_app_secret", "tel_api_key", "anthropic_api_key"];
+  for (const key of secretKeys) {
+    if (form.has(key)) setPreservedSecret(key, str(form, key));
   }
 
   if (form.has("amocrm_account_base_url")) {

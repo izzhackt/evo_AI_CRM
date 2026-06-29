@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser, isStaff } from "@/lib/auth";
+import { currentUser } from "@/lib/auth";
 import { generateText } from "@/lib/ai";
+import { positiveInteger, readJsonObject } from "@/lib/request";
+import { roleCanAccessStaffRoute } from "@/lib/domain";
 import {
   getClient, clientApplications, clientDocuments,
   clientVisaCase, clientPayments, clientUpdates,
@@ -9,12 +11,14 @@ import {
 // Сводка по клиенту: где находимся, что блокирует, что делать дальше
 export async function POST(req: NextRequest) {
   const user = await currentUser();
-  if (!user || !isStaff(user.role)) {
+  if (!user || !roleCanAccessStaffRoute(user.role, "/clients")) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { clientId } = await req.json();
-  const client = getClient(Number(clientId));
+  const body = await readJsonObject(req);
+  const clientId = positiveInteger(body?.clientId);
+  if (!clientId) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  const client = getClient(clientId);
   if (!client) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   const apps = clientApplications(client.id);

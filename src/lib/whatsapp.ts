@@ -1,9 +1,12 @@
-import { db, getSetting } from "./db";
+import { db, getSetting, LEAD_STATUSES } from "./db";
+import { normalizePhone } from "./phone";
 
 export type SendResult = { status: "sent" | "failed"; waId?: string; error?: "not_configured" | "provider_error" };
 
 // Отправка через официальный WhatsApp Cloud API (Meta).
 export async function sendWhatsApp(phone: string, text: string): Promise<SendResult> {
+  const normalizedPhone = normalizePhone(phone);
+  if (!normalizedPhone) return { status: "failed", error: "provider_error" };
   const token = getSetting("wa_token");
   const phoneId = getSetting("wa_phone_id");
   if (!token || !phoneId) {
@@ -20,7 +23,7 @@ export async function sendWhatsApp(phone: string, text: string): Promise<SendRes
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
-        to: phone.replace(/[^\d]/g, ""),
+        to: normalizedPhone.replace(/[^\d]/g, ""),
         type: "text",
         text: { body: text },
       }),
@@ -40,7 +43,9 @@ export async function sendWhatsApp(phone: string, text: string): Promise<SendRes
 // Входящее сообщение (из webhook): находим или создаём диалог, сохраняем сообщение.
 export function receiveWhatsApp(phone: string, name: string | null, text: string, waId?: string) {
   const d = db();
-  const existing = d.prepare("SELECT id FROM wa_conversations WHERE phone = ?").get(phone) as { id: number } | undefined;
+  const normalizedPhone = normalizePhone(phone);
+  if (!normalizedPhone) return null;
+  const existing = d.prepare("SELECT id FROM wa_conversations WHERE phone = ?").get(normalizedPhone) as { id: number } | undefined;
   let convId: number | bigint;
   if (existing) {
     convId = existing.id;
@@ -48,10 +53,10 @@ export function receiveWhatsApp(phone: string, name: string | null, text: string
       .run(name, convId);
   } else {
     // новый контакт в WhatsApp автоматически становится лидом с источником WhatsApp
-    const lead = d.prepare("INSERT INTO leads (name, phone, source, status) VALUES (?, ?, 'WhatsApp', 'new')")
-      .run(name ?? phone, phone);
+    const lead = d.prepare("INSERT INTO leads (name, phone, source, status) VALUES (?, ?, 'WhatsApp', ?)")
+      .run(name ?? normalizedPhone, normalizedPhone, LEAD_STATUSES[0]);
     convId = d.prepare("INSERT INTO wa_conversations (phone, name, lead_id, last_message_at, unread) VALUES (?, ?, ?, datetime('now'), 1)")
-      .run(phone, name, lead.lastInsertRowid).lastInsertRowid;
+      .run(normalizedPhone, name, lead.lastInsertRowid).lastInsertRowid;
   }
   d.prepare("INSERT INTO wa_messages (conversation_id, direction, text, status, wa_id) VALUES (?, 'in', ?, 'received', ?)")
     .run(convId, text, waId ?? null);

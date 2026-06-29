@@ -1,32 +1,144 @@
 @import "tailwindcss";
 
-:root {
-  --evo-bg: #f5f7fb;
-  --evo-bg-elevated: #ffffff;
-  --evo-bg-subtle: #f8fafc;
-  --evo-text: #111827;
-  --evo-text-muted: #64748b;
-  --evo-text-soft: #94a3b8;
-  --evo-border: #dbe3ef;
-  --evo-border-strong: #c8d3e2;
-  --evo-primary: #2563eb;
-  --evo-primary-strong: #1d4ed8;
-  --evo-primary-soft: #eff6ff;
-  --evo-accent: #0891b2;
-  --evo-success: #059669;
-  --evo-warning: #d97706;
-  --evo-danger: #dc2626;
-  --evo-shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06);
-  --evo-shadow-md: 0 12px 28px rgb(15 23 42 / 0.08);
-  --evo-radius-sm: 6px;
-  --evo-radius-md: 8px;
+/* ============================================================
+   EVO Admissions CRM — design tokens
+   Light = :root, Dark = [data-theme="dark"].
+   Always reference these variables; never hardcode palette.
+   ============================================================ */
+:root,
+[data-theme="light"] {
+  --bg: #f5f6f9;
+  --surface: #ffffff;
+  --surface-2: #f0f2f6;
+  --surface-3: #e9ecf2;
+  --border: #e7eaf0;
+  --border-strong: #d8dde6;
+  --text: #161a22;
+  --text-2: #5a6473;
+  --text-3: #98a1b1;
+  --accent: oklch(0.55 0.16 266);
+  --accent-2: oklch(0.5 0.16 266);
+  --accent-weak: oklch(0.96 0.025 266);
+  --on-accent: #ffffff;
+  --ok: oklch(0.58 0.12 158);
+  --ok-weak: oklch(0.95 0.04 158);
+  --warn: oklch(0.7 0.13 70);
+  --warn-weak: oklch(0.96 0.05 75);
+  --danger: oklch(0.58 0.18 25);
+  --danger-weak: oklch(0.96 0.04 25);
+  --info: oklch(0.6 0.12 240);
+  --info-weak: oklch(0.96 0.03 240);
+  --violet: oklch(0.56 0.16 300);
+  --violet-weak: oklch(0.96 0.035 300);
+  --shadow: 0 1px 2px rgb(20 24 35 / 0.04), 0 6px 20px -8px rgb(20 24 35 / 0.08);
+  --shadow-lg: 0 24px 60px -24px rgb(20 24 35 / 0.22);
   color-scheme: light;
 }
 
+[data-theme="dark"] {
+  --bg: #0b0d12;
+  --surface: #14171e;
+  --surface-2: #1a1e27;
+  --surface-3: #222732;
+  --border: #232833;
+  --border-strong: #2e3440;
+  --text: #eef1f7;
+  --text-2: #9aa3b3;
+  --text-3: #6a7383;
+  --accent: oklch(0.68 0.15 266);
+  --accent-2: oklch(0.74 0.14 266);
+  --accent-weak: oklch(0.32 0.08 266);
+  --on-accent: #0b0d12;
+  --ok: oklch(0.72 0.13 158);
+  --ok-weak: oklch(0.33 0.07 158);
+  --warn: oklch(0.78 0.13 75);
+  --warn-weak: oklch(0.36 0.08 70);
+  --danger: oklch(0.68 0.17 25);
+  --danger-weak: oklch(0.35 0.1 25);
+  --info: oklch(0.72 0.12 240);
+  --info-weak: oklch(0.32 0.07 240);
+  --violet: oklch(0.72 0.14 300);
+  --violet-weak: oklch(0.34 0.08 300);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -10px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 30px 70px -28px rgb(0 0 0 / 0.7);
+  color-scheme: dark;
+}
+
+/* Back-compat aliases for components outside the staff redesign scope
+   (e.g. /portal, AI drawer). They resolve live to the themed tokens. */
+:root {
+  --evo-bg: var(--bg);
+  --evo-bg-elevated: var(--surface);
+  --evo-bg-subtle: var(--surface-2);
+  --evo-bg-panel: var(--surface-2);
+  --evo-text: var(--text);
+  --evo-text-muted: var(--text-2);
+  --evo-text-soft: var(--text-3);
+  --evo-border: var(--border);
+  --evo-border-strong: var(--border-strong);
+  --evo-primary: var(--accent);
+  --evo-primary-strong: var(--accent-2);
+  --evo-primary-soft: var(--accent-weak);
+  --evo-accent: var(--info);
+  --evo-success: var(--ok);
+  --evo-warning: var(--warn);
+  --evo-danger: var(--danger);
+  --evo-shadow-sm: var(--shadow);
+  --evo-shadow-md: var(--shadow);
+  --evo-shadow-lg: var(--shadow-lg);
+  --evo-radius-sm: 8px;
+  --evo-radius-md: 10px;
+  --evo-radius-lg: 14px;
+  --evo-sidebar: var(--surface);
+  --evo-sidebar-muted: var(--text-3);
+  --evo-sidebar-active: var(--accent);
+  --evo-stage-processing: var(--info);
+  --evo-stage-qualified: var(--accent);
+  --evo-stage-meeting: var(--violet);
+  --evo-stage-done: var(--warn);
+  --evo-stage-won: var(--ok);
+  --evo-stage-lost: var(--text-3);
+}
+
+/* Map tokens to Tailwind v4 utilities (inline = utilities reference the
+   live vars, so light/dark switches at runtime). */
 @theme inline {
-  --color-background: var(--evo-bg);
-  --color-foreground: var(--evo-text);
-  --font-sans: Arial, Helvetica, sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--text);
+  --color-fg-2: var(--text-2);
+  --color-fg-3: var(--text-3);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-weak: var(--accent-weak);
+  --color-on-accent: var(--on-accent);
+  --color-ok: var(--ok);
+  --color-ok-weak: var(--ok-weak);
+  --color-warn: var(--warn);
+  --color-warn-weak: var(--warn-weak);
+  --color-danger: var(--danger);
+  --color-danger-weak: var(--danger-weak);
+  --color-info: var(--info);
+  --color-info-weak: var(--info-weak);
+  --color-violet: var(--violet);
+  --color-violet-weak: var(--violet-weak);
+
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+
+  --font-sans: var(--font-golos), system-ui, sans-serif;
+  --font-mono: var(--font-jbmono), ui-monospace, "JetBrains Mono", monospace;
+
+  --radius-card: 15px;
+  --radius-ctl: 11px;
+  --radius-nav: 9px;
+
+  --shadow-evo: var(--shadow);
+  --shadow-evo-lg: var(--shadow-lg);
 }
 
 * {
@@ -34,16 +146,17 @@
 }
 
 html {
-  background: var(--evo-bg);
+  background: var(--bg);
+  scroll-padding-top: 72px;
 }
 
 body {
   min-width: 320px;
-  background:
-    radial-gradient(circle at 12% 0%, rgb(37 99 235 / 0.07), transparent 26rem),
-    linear-gradient(180deg, #f8fbff 0%, var(--evo-bg) 34rem);
-  color: var(--evo-text);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-golos), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.45;
 }
 
 button,
@@ -53,6 +166,75 @@ textarea {
   font: inherit;
 }
 
+/* Tabular numerals for figures/money/dates */
+.mono,
+.font-mono {
+  font-feature-settings: "tnum";
+}
+
 ::selection {
-  background: rgb(37 99 235 / 0.18);
+  background: var(--accent-weak);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-weak);
+  border-radius: 4px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+/* Custom scrollbar (matches prototype) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+  background-clip: content-box;
+}
+
+/* Theme toggle icon swap (no JS state needed) */
+.theme-toggle .i-moon {
+  display: none;
+}
+[data-theme="dark"] .theme-toggle .i-sun {
+  display: none;
+}
+[data-theme="dark"] .theme-toggle .i-moon {
+  display: inline-flex;
+}
+
+/* Subtle entrance — transform only, never fade from opacity 0 */
+@keyframes evoRise {
+  from {
+    transform: translateY(7px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.page-in {
+  animation: evoRise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/output/
+/.playwright-mcp/
+/scripts/__pycache__/
 
 # next.js
 /.next/
@@ -40,3 +43,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 data/
+
+# local reference/prototype copies
+/.twenty-reference/
+/evo_website/

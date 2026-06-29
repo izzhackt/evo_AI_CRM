@@ -1,3 +1,5 @@
+import { createHmac } from "crypto";
+
 export function createScenarios({ assert, rowCount, scalar, unique }) {
 const admin = "admin@demo.kg";
 const sales = "sales@demo.kg";
@@ -53,22 +55,22 @@ return [
     id: "S04",
     capability: "Navigation and admissions copy",
     scenario: "Staff shell exposes admissions CRM navigation and metadata copy.",
-    criteria: "Admin dashboard includes EVO CRM shell plus applications/documents/finance navigation labels.",
+    criteria: "Admin dashboard includes EVO Admissions CRM shell plus applications/documents/finance navigation labels.",
     async run(ctx) {
       const res = await ctx.get("/dashboard", ctx.cookie(admin));
       assert(res.status === 200, `dashboard status ${res.status}`);
-      for (const text of ["EVO CRM", "/applications", "/documents", "/finance"]) {
+      for (const text of ["Admissions CRM", "/applications", "/documents", "/finance"]) {
         assert(res.text.includes(text), `missing ${text}`);
       }
       assert(res.text.includes("Command") || res.text.includes("Команд") || res.text.includes("Башкар"), "missing command center copy");
-      return "dashboard shell contains EVO CRM nav links for applications, documents, and finance";
+      return "dashboard shell contains EVO Admissions CRM nav links for applications, documents, and finance";
     },
   },
   {
     id: "S05",
     capability: "Role visibility",
     scenario: "Finance role can use finance overview but not admissions document/application queues.",
-    criteria: "Finance session loads /finance and redirects from /applications and /documents to /dashboard.",
+    criteria: "Finance session loads /finance and redirects from /applications and /documents to the finance role home.",
     async run(ctx) {
       const cookie = ctx.cookie(finance);
       const financePage = await ctx.get("/finance", cookie);
@@ -78,7 +80,7 @@ return [
       assert(!financePage.text.includes("name=\"title\"") || financePage.text.includes("name=\"amount\""), "finance form did not render for finance");
       for (const [name, res] of [["applications", apps], ["documents", docs]]) {
         assert([303, 307, 308].includes(res.status), `${name} status ${res.status}`);
-        assert(res.location?.includes("/dashboard"), `${name} did not redirect to dashboard`);
+        assert(res.location?.includes("/finance"), `${name} did not redirect to finance home`);
       }
       return `finance ${financePage.status}; applications ${apps.status}; documents ${docs.status}`;
     },
@@ -108,7 +110,7 @@ return [
       const res = await ctx.get("/sales", ctx.cookie(sales));
       const lead = scalar(ctx, "SELECT id, name FROM leads ORDER BY id LIMIT 1");
       assert(res.status === 200, `sales status ${res.status}`);
-      for (const text of ["new", "contacted", "meeting", "proposal", "won", "lost"]) {
+      for (const text of ["В обработке МП", "Лид квалифицирован", "Назначена встреча", "Встреча проведена", "Договор подписан", "Лиды без запроса"]) {
         assert(res.text.includes(text), `missing lead status ${text}`);
       }
       assert(res.text.includes(`/sales/${lead.id}`), "missing seeded lead link");
@@ -133,7 +135,7 @@ return [
       });
       const row = scalar(ctx, "SELECT id, status, target_country, amount FROM leads WHERE name = ?", [name]);
       assert(row, "lead was not inserted");
-      assert(row.status === "new" && row.target_country === "Canada" && row.amount === 120000, "lead fields incorrect");
+      assert(row.status === "processing_mp" && row.target_country === "Canada" && row.amount === 120000, "lead fields incorrect");
       return `created lead ${row.id} status ${row.status}, ${row.target_country}, ${row.amount} KGS`;
     },
   },
@@ -141,28 +143,54 @@ return [
     id: "S09",
     capability: "Admissions Pipeline",
     scenario: "Move lead Server Action updates lead status and activity.",
-    criteria: "Submitting a lead move form changes status to meeting and records a status activity.",
+    criteria: "Submitting a lead move form changes status to meeting scheduled and records a status activity.",
     async run(ctx) {
-      const leadId = ctx.firstLeadId("status != 'won' AND status != 'lost'");
-      await ctx.submit("/sales", ctx.cookie(sales), { names: ["id", "status"], includes: [`value="${leadId}"`] }, {
+      const leadId = ctx.firstLeadId("status != 'contract_signed' AND status != 'no_request'");
+      await ctx.submit(`/sales/${leadId}`, ctx.cookie(sales), { names: ["id", "status"], includes: [`value="${leadId}"`] }, {
         id: leadId,
-        status: "meeting",
+        status: "meeting_scheduled",
       });
       const lead = scalar(ctx, "SELECT status FROM leads WHERE id = ?", [leadId]);
-      const activity = rowCount(ctx, "lead_activities", "lead_id = ? AND type = 'status' AND text = 'meeting'", [leadId]);
-      assert(lead.status === "meeting", `lead status ${lead.status}`);
+      const activity = rowCount(ctx, "lead_activities", "lead_id = ? AND type = 'status' AND text = 'meeting_scheduled'", [leadId]);
+      assert(lead.status === "meeting_scheduled", `lead status ${lead.status}`);
       assert(activity > 0, "missing status activity");
       return `lead ${leadId} moved to ${lead.status}; status activities ${activity}`;
     },
   },
   {
+    id: "S08B",
+    capability: "Admissions Pipeline",
+    scenario: "Active pipeline risk views exclude terminal no-request leads.",
+    criteria: "A terminal no_request lead without tasks does not inflate active no-task drill-downs.",
+    async run(ctx) {
+      const name = unique("Terminal No Request");
+      ctx.db.prepare("INSERT INTO leads (name, phone, source, status, manager_id, amount) VALUES (?, ?, ?, 'no_request', ?, ?)")
+        .run(name, "+996700800802", "scenario-terminal", ctx.user(sales).id, 125000);
+      const page = await ctx.get("/sales?risk=no_task", ctx.cookie(admin));
+      assert(page.status === 200, `risk page ${page.status}`);
+      assert(!page.text.includes(name), "terminal no_request lead appeared in active no-task drill-down");
+      const activeNoTask = scalar(ctx, `
+        SELECT COUNT(*) AS count
+        FROM leads l
+        WHERE l.client_id IS NULL
+          AND l.status IN ('processing_mp', 'qualified', 'meeting_scheduled', 'meeting_done')
+          AND NOT EXISTS (
+            SELECT 1 FROM tasks t
+            WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))
+          )
+      `);
+      assert(activeNoTask.count >= 0, "active no-task query failed");
+      return `terminal no_request lead ${name} excluded; active no-task count ${activeNoTask.count}`;
+    },
+  },
+  {
     id: "S10",
     capability: "Admissions Pipeline",
-    scenario: "Convert lead Server Action creates Student 360 client and marks lead won.",
-    criteria: "Converting an unconverted lead creates a client, links it to the lead, and sets status won.",
+    scenario: "Convert lead Server Action creates Student 360 client and marks contract signed.",
+    criteria: "Converting an unconverted lead creates a client, links it to the lead, and sets status contract_signed.",
     async run(ctx) {
       const name = unique("Convert Lead");
-      ctx.db.prepare("INSERT INTO leads (name, phone, email, source, status, manager_id, target_country, amount) VALUES (?, ?, ?, ?, 'proposal', ?, ?, ?)")
+      ctx.db.prepare("INSERT INTO leads (name, phone, email, source, status, manager_id, target_country, amount) VALUES (?, ?, ?, ?, 'meeting_done', ?, ?, ?)")
         .run(name, "+996700900901", `${name.toLowerCase().replaceAll(" ", ".")}@example.com`, "scenario", ctx.user(sales).id, "Germany", 95000);
       const leadId = ctx.db.prepare("SELECT last_insert_rowid() AS id").get().id;
       await ctx.submit(`/sales/${leadId}`, ctx.cookie(sales), {
@@ -172,7 +200,7 @@ return [
       });
       const lead = scalar(ctx, "SELECT status, client_id FROM leads WHERE id = ?", [leadId]);
       const newClient = scalar(ctx, "SELECT clients.id, users.name, clients.target_country FROM clients JOIN users ON users.id = clients.user_id WHERE clients.id = ?", [lead.client_id]);
-      assert(lead.status === "won" && lead.client_id, "lead was not converted");
+      assert(lead.status === "contract_signed" && lead.client_id, "lead was not converted");
       assert(newClient?.name === name && newClient.target_country === "Germany", "client was not created from lead");
       return `lead ${leadId} converted to client ${lead.client_id}`;
     },
@@ -395,15 +423,15 @@ return [
     id: "S22",
     capability: "Finance",
     scenario: "Finance overview shows paid, pending, overdue, and role-safe actions.",
-    criteria: "Finance page renders payment status logic; sales staff sees read-only page and finance user sees mutation controls.",
+    criteria: "Finance page renders payment status logic; sales staff is redirected and finance user sees mutation controls.",
     async run(ctx) {
       const salesPage = await ctx.get("/finance", ctx.cookie(sales));
       const financePage = await ctx.get("/finance", ctx.cookie(finance));
-      assert(salesPage.status === 200 && financePage.status === 200, `finance statuses ${salesPage.status}/${financePage.status}`);
-      assert(salesPage.text.includes("overdue") || salesPage.text.includes("pay.overdue") || salesPage.text.includes("Проср"), "missing overdue semantics");
-      assert(!salesPage.text.includes("name=\"amount\""), "sales staff can see add-payment form");
+      assert([303, 307, 308].includes(salesPage.status) && financePage.status === 200, `finance statuses ${salesPage.status}/${financePage.status}`);
+      assert(salesPage.location?.includes("/sales"), `sales finance access did not return to sales home: ${salesPage.location}`);
+      assert(financePage.text.includes("overdue") || financePage.text.includes("pay.overdue") || financePage.text.includes("Проср"), "missing overdue semantics");
       assert(financePage.text.includes("name=\"amount\""), "finance user cannot see add-payment form");
-      return "sales finance read-only; finance role mutation form visible";
+      return "sales finance blocked; finance role mutation form visible";
     },
   },
   {
@@ -574,10 +602,12 @@ return [
     criteria: "Admin settings form saves verify token; GET webhook echoes challenge; POST incoming message creates conversation and linked lead.",
     async run(ctx) {
       const token = unique("wa-token");
-      await ctx.submit("/settings", ctx.cookie(admin), { names: ["wa_token", "wa_phone_id", "wa_verify_token", "tel_provider", "tel_api_key", "anthropic_api_key"] }, {
+      const appSecret = unique("wa-secret");
+      await ctx.submit("/settings", ctx.cookie(admin), { names: ["wa_token", "wa_phone_id", "wa_verify_token", "wa_app_secret", "tel_provider", "tel_api_key", "anthropic_api_key"] }, {
         wa_token: "",
         wa_phone_id: "",
         wa_verify_token: token,
+        wa_app_secret: appSecret,
         tel_provider: "other",
         tel_api_key: "",
         anthropic_api_key: "",
@@ -585,7 +615,7 @@ return [
       const verify = await ctx.get(`/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(token)}&hub.challenge=ok-challenge`);
       assert(verify.status === 200 && verify.text === "ok-challenge", `verify ${verify.status}/${verify.text}`);
       const from = `996700${Math.floor(100000 + Math.random() * 899999)}`;
-      const post = await ctx.postJson("/api/webhooks/whatsapp", {
+      const payload = {
         entry: [{
           changes: [{
             value: {
@@ -594,6 +624,11 @@ return [
             },
           }],
         }],
+      };
+      const rawPayload = JSON.stringify(payload);
+      const signature = `sha256=${createHmac("sha256", appSecret).update(rawPayload).digest("hex")}`;
+      const post = await ctx.postJson("/api/webhooks/whatsapp", payload, {
+        headers: { "x-hub-signature-256": signature },
       });
       assert(post.status === 200, `webhook post ${post.status}`);
       const conv = scalar(ctx, "SELECT id, lead_id FROM wa_conversations WHERE phone = ?", [`+${from}`]);
@@ -673,7 +708,20 @@ return [
       assert(good.status === 200, `valid webhook status ${good.status}`);
       const call = scalar(ctx, "SELECT id, lead_id, duration_sec, status FROM calls WHERE phone = ? ORDER BY id DESC LIMIT 1", [lead.phone]);
       assert(call?.lead_id === lead.id && call.duration_sec === 93, "call not inserted or linked");
-      return `not_configured copy shown; missing key ${unconfigured.status}; missing provider ${missingProvider.status}; invalid key 403; call ${call.id} linked to lead ${call.lead_id}`;
+      const digits = lead.phone.replace(/[^\d]/g, "");
+      const formattedPhone = `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
+      const formatted = await ctx.postJson("/api/webhooks/telephony", {
+        api_key: key,
+        phone: formattedPhone,
+        direction: "out",
+        duration_sec: 31,
+        status: "answered",
+        notes: "Scenario normalized telephony",
+      });
+      assert(formatted.status === 200, `formatted phone webhook status ${formatted.status}`);
+      const normalizedCall = scalar(ctx, "SELECT id, lead_id, duration_sec, status FROM calls WHERE phone = ? ORDER BY id DESC LIMIT 1", [lead.phone]);
+      assert(normalizedCall?.lead_id === lead.id && normalizedCall.duration_sec === 31, "formatted phone call not normalized or linked");
+      return `not_configured copy shown; missing key ${unconfigured.status}; missing provider ${missingProvider.status}; invalid key 403; calls ${call.id}/${normalizedCall.id} linked to lead ${lead.id}`;
     },
   },
   {
@@ -731,7 +779,7 @@ return [
       const saved = scalar(ctx, "SELECT value FROM settings WHERE key = 'amocrm_account_base_url'");
       const savedSecret = scalar(ctx, "SELECT value FROM settings WHERE key = 'amocrm_client_secret'");
       assert(saved?.value === "https://evoadmissions.amocrm.ru", `unexpected amoCRM URL ${saved?.value}`);
-      assert(savedSecret?.value === clientSecret, "amoCRM client secret not stored");
+      assert(savedSecret?.value?.startsWith("enc:v1:") && savedSecret.value !== clientSecret, "amoCRM client secret was not encrypted at rest");
       const page = await ctx.get("/settings", ctx.cookie(admin));
       assert(page.status === 200, `settings status ${page.status}`);
       assert(!page.text.includes(clientSecret), "settings page leaked amoCRM client secret");

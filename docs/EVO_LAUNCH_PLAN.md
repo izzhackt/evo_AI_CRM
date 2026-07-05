@@ -333,6 +333,10 @@ Acceptance criteria:
 10. `/goal-lead-agent-webhook-ownership`: make the lead-agent service the
     private WAHA webhook owner, use amoCRM as source of truth, and sync local
     CRM shadow state for the operator UI.
+11. `/goal-gemini-receive-only-rollout`: replace Anthropic drafting with
+    Gemini 3.5 Flash draft review in the EVO lead-agent, then prove receive-only
+    production WhatsApp rollout on `hermes-vps` with real WAHA, amoCRM, CRM sync,
+    and Gemini credentials while outbound WhatsApp remains disabled.
 
 Each lane must be merged or intentionally abandoned before the next lane starts.
 

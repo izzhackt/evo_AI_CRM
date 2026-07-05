@@ -495,3 +495,27 @@ remains blocked until real WAHA, amoCRM, CRM sync, and Anthropic credentials are
 configured on the server.
 Reviewer notes: addresses launch-control reviewer findings from agent
 `019f29ba-61b5-74b3-9287-2ca2705a469c`.
+
+## 2026-07-05 - Add Gemini Receive-Only Rollout Plan
+
+Date: 2026-07-05, workspace timezone.
+Author: Codex.
+Change type: scope, architecture, acceptance criteria, validation, and merge order.
+Affected plan section: add `/goal-gemini-receive-only-rollout` after
+`/goal-lead-agent-webhook-ownership`.
+Reason: user approved the first live rollout definition as a receive-only proof
+on the production VPS, using a dedicated EVO test WhatsApp number, real marked
+amoCRM test contact/lead, signed CRM sync, and Gemini 3.5 Flash draft review
+instead of Anthropic.
+Decision: add `docs/GEMINI_RECEIVE_ONLY_ROLLOUT_PRD.md`,
+`docs/adr/0001-use-gemini-for-lead-agent-draft-review.md`,
+`docs/LONG_RUN_CODEX_LAUNCH_HANDOFF.md`, and `CONTEXT.md` as the planning and
+handoff artifacts for launch-control execution. Gemini provider replacement is
+a separate implementation prerequisite before live rollout. WhatsApp outbound
+must remain disabled for the first live proof.
+Validation impact: planning-only change requires documentation review and issue
+publication. Implementation blocks must run lead-agent Python tests and ruff,
+parent CRM lint/type/build/scenarios where touched, and live production
+preflight/proof only with real WAHA, amoCRM, CRM sync, Gemini, and server
+credentials.
+Reviewer notes: pending long-run launch-control execution.

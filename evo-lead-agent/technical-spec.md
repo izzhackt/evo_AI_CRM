@@ -32,11 +32,12 @@ WAHA private service
 | Store | `src/evo_lead_agent/store.py` | SQLite idempotency, local history, CRM sync attempts |
 | Agent | `src/evo_lead_agent/agent.py` | Guarded Gemini decision JSON |
 
-The message-buffer and control model is derived from the owned Fusion source in
-`research/repos/fusion-ai-agents/ai-agents-backend`: Fusion buffers messages per
-chat/thread, schedules one delayed processor, and checks `agent_mode` before
-calling the AI agent. EVO keeps that behavior but implements it in SQLite so the
-local Docker product remains one service until Redis/ARQ is justified.
+The message-buffer and control model is adapted from the reference-only Fusion
+snapshot in `research/repos/fusion-ai-agents/ai-agents-backend`: Fusion buffers
+messages per chat/thread, schedules one delayed processor, and checks
+`agent_mode` before calling the AI agent. EVO keeps that behavior but implements
+it in SQLite so the local Docker product remains one service until Redis/ARQ is
+justified.
 
 Docker runtime processing is owned by a FastAPI lifespan worker. It polls due
 SQLite buffers, processes a bounded number of groups per pass, and stops on app

@@ -541,3 +541,43 @@ Validation impact: rerun parent CRM `npm run lint`, `npx next typegen`,
 must include bad-signature rejection, signed sync persistence, Operator UI draft
 review labeling, and zero outbound rows for receive-only draft evidence.
 Reviewer notes: pending independent launch-control review for issue #3.
+
+## 2026-07-05 - Issue 4 Receive-Only Production Preflight
+
+Date: 2026-07-05, workspace timezone.
+Author: Codex.
+Change type: active slice, file ownership, readiness contract, validation.
+Affected plan section: `/goal-gemini-receive-only-rollout` issue #4 block.
+Reason: issue #4 is unblocked after the Gemini provider prerequisite and needs
+the production preflight path to prove WAHA, amoCRM, CRM sync, Gemini, admin,
+and server env settings before issue #5 live message proof.
+Decision: set the active slice to
+`/goal-gemini-receive-only-production-preflight`; update parent deployment docs
+and Compose env ownership; update the nested lead-agent readiness/preflight/CLI
+path so `receive_only_rollout` is distinct from `live_whatsapp_outbound`, exact
+missing input names are reported, and local smoke remains no-outbound.
+Validation impact: run `uv run pytest` and `uv run ruff check .` in
+`evo-lead-agent`; run parent CRM validation because `deploy/README.md`,
+`deploy/env.lead-agent.example`, and `docker-compose.prod.yml` are touched.
+No production proof, outbound WhatsApp, or live provider success claim is part
+of this block.
+Reviewer notes: pending independent launch-control review.
+
+## 2026-07-05 - Issue 4 Review Fixes
+
+Date: 2026-07-05, workspace timezone.
+Author: Codex.
+Change type: reviewer-requested deployment-doc and contract correction.
+Affected plan section: `/goal-gemini-receive-only-rollout` issue #4 block.
+Reason: independent launch-control review found the VPS preflight docs used
+host-side `uv run` with container-only `/app/data` and Docker DNS names, and an
+older launch-plan acceptance bullet still referenced Anthropic/autoreply-disabled
+semantics.
+Decision: document production preflight as `docker compose exec lead-agent`
+using the installed `evo-lead-agent-*` console scripts inside the container, and
+replace the stale Anthropic/autoreply-disabled bullet with Gemini receive-only
+semantics: autoreply may be enabled only for draft review, outbound remains
+disabled.
+Validation impact: rerun parent lint/build checks through the pre-push hook and
+request independent re-review. No production proof or outbound WhatsApp change.
+Reviewer notes: addresses reviewer agent `019f32d0-96c3-7051-9149-eec6cb5ef73c`.

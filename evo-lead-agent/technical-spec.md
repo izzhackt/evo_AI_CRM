@@ -59,9 +59,10 @@ Requires:
 
 The raw request body is verified against `EVO_AGENT_WAHA_WEBHOOK_SECRET`.
 
-Accepted WAHA event:
+Accepted WAHA events:
 
 - `event: "message"`
+- `event: "session.status"`
 
 Ignored:
 
@@ -70,6 +71,10 @@ Ignored:
 - broadcast;
 - group chats;
 - payloads without phone, text, or provider message ID.
+
+`session.status` events are synced to EVO CRM when CRM sync is configured.
+Configured CRM sync failures return HTTP 503 so WAHA can retry the status
+update instead of losing account state.
 
 ## 4. amoCRM Integration
 

@@ -520,6 +520,28 @@ preflight/proof only with real WAHA, amoCRM, CRM sync, Gemini, and server
 credentials.
 Reviewer notes: pending long-run launch-control execution.
 
+## 2026-07-05 - Parent CRM Draft Review Evidence
+
+Date: 2026-07-05, workspace timezone.
+Author: Codex.
+Change type: schema, file ownership, and validation scope.
+Affected plan section: `/goal-gemini-receive-only-rollout` issue #3 parent CRM
+slice.
+Reason: receive-only draft review evidence must be stored separately from
+WhatsApp outbound message copies so staff can verify the Gemini draft without
+the Operator UI treating it as sent WhatsApp.
+Decision: add explicit lead/conversation draft-review shadow fields for text,
+status, provider, and model. Signed lead-agent sync may persist those fields
+with inbound message state, amoCRM identity, and lead-agent state. `wa_messages`
+remains the history table for inbound and actual outbound message copies; draft
+review text is not inserted as a sent outbound row unless a future signed sync
+payload provides explicit outbound delivery evidence.
+Validation impact: rerun parent CRM `npm run lint`, `npx next typegen`,
+`npx tsc --noEmit`, `npm run build`, and `npm run scenarios`. Scenario coverage
+must include bad-signature rejection, signed sync persistence, Operator UI draft
+review labeling, and zero outbound rows for receive-only draft evidence.
+Reviewer notes: pending independent launch-control review for issue #3.
+
 ## 2026-07-05 - Issue 4 Receive-Only Production Preflight
 
 Date: 2026-07-05, workspace timezone.

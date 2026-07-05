@@ -25,6 +25,10 @@ export type LeadAgentSyncInput = {
   agentState: string;
   agentSummary?: string | null;
   agentHandoffReason?: string | null;
+  draftReviewText?: string | null;
+  draftReviewStatus?: string | null;
+  draftReviewProvider?: string | null;
+  draftReviewModel?: string | null;
   outboundText?: string | null;
   outboundWaId?: string | null;
 };
@@ -167,6 +171,10 @@ export function syncLeadAgentWhatsApp(input: LeadAgentSyncInput): LeadAgentSyncR
     agentState,
     agentSummary: input.agentSummary?.trim() || null,
     agentHandoffReason: input.agentHandoffReason?.trim() || null,
+    draftReviewText: input.draftReviewText?.trim() || null,
+    draftReviewStatus: input.draftReviewStatus?.trim() || (input.draftReviewText?.trim() ? "generated" : null),
+    draftReviewProvider: input.draftReviewProvider?.trim() || null,
+    draftReviewModel: input.draftReviewModel?.trim() || null,
   });
   const conversationId = upsertLeadAgentConversation(d, {
     accountId,
@@ -178,6 +186,10 @@ export function syncLeadAgentWhatsApp(input: LeadAgentSyncInput): LeadAgentSyncR
     agentState,
     agentSummary: input.agentSummary?.trim() || null,
     agentHandoffReason: input.agentHandoffReason?.trim() || null,
+    draftReviewText: input.draftReviewText?.trim() || null,
+    draftReviewStatus: input.draftReviewStatus?.trim() || (input.draftReviewText?.trim() ? "generated" : null),
+    draftReviewProvider: input.draftReviewProvider?.trim() || null,
+    draftReviewModel: input.draftReviewModel?.trim() || null,
   });
 
   const inbound = d.prepare(`
@@ -218,6 +230,10 @@ function upsertLeadAgentLead(
     agentState: string;
     agentSummary: string | null;
     agentHandoffReason: string | null;
+    draftReviewText: string | null;
+    draftReviewStatus: string | null;
+    draftReviewProvider: string | null;
+    draftReviewModel: string | null;
   },
 ): number {
   const existingByAmo = d.prepare("SELECT id FROM leads WHERE amo_lead_id = ?").get(input.amoLeadId) as
@@ -240,6 +256,10 @@ function upsertLeadAgentLead(
           agent_state = ?,
           agent_summary = ?,
           agent_handoff_reason = ?,
+          agent_draft_review_text = ?,
+          agent_draft_review_status = ?,
+          agent_draft_review_provider = ?,
+          agent_draft_review_model = ?,
           agent_last_synced_at = datetime('now'),
           updated_at = datetime('now')
       WHERE id = ?
@@ -251,6 +271,10 @@ function upsertLeadAgentLead(
       input.agentState,
       input.agentSummary,
       input.agentHandoffReason,
+      input.draftReviewText,
+      input.draftReviewStatus,
+      input.draftReviewProvider,
+      input.draftReviewModel,
       existing.id,
     );
     return existing.id;
@@ -259,9 +283,11 @@ function upsertLeadAgentLead(
   return Number(d.prepare(`
     INSERT INTO leads (
       name, phone, source, status, amo_lead_id, amo_contact_id, agent_state,
-      agent_summary, agent_handoff_reason, agent_last_synced_at
+      agent_summary, agent_handoff_reason, agent_draft_review_text,
+      agent_draft_review_status, agent_draft_review_provider, agent_draft_review_model,
+      agent_last_synced_at
     )
-    VALUES (?, ?, 'WhatsApp', ?, ?, ?, ?, ?, ?, datetime('now'))
+    VALUES (?, ?, 'WhatsApp', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `).run(
     input.name ?? input.phone,
     input.phone,
@@ -271,6 +297,10 @@ function upsertLeadAgentLead(
     input.agentState,
     input.agentSummary,
     input.agentHandoffReason,
+    input.draftReviewText,
+    input.draftReviewStatus,
+    input.draftReviewProvider,
+    input.draftReviewModel,
   ).lastInsertRowid);
 }
 
@@ -286,6 +316,10 @@ function upsertLeadAgentConversation(
     agentState: string;
     agentSummary: string | null;
     agentHandoffReason: string | null;
+    draftReviewText: string | null;
+    draftReviewStatus: string | null;
+    draftReviewProvider: string | null;
+    draftReviewModel: string | null;
   },
 ): number {
   const existing = d.prepare(`
@@ -301,6 +335,10 @@ function upsertLeadAgentConversation(
           agent_state = ?,
           agent_summary = ?,
           agent_handoff_reason = ?,
+          agent_draft_review_text = ?,
+          agent_draft_review_status = ?,
+          agent_draft_review_provider = ?,
+          agent_draft_review_model = ?,
           agent_last_synced_at = datetime('now')
       WHERE id = ?
     `).run(
@@ -311,6 +349,10 @@ function upsertLeadAgentConversation(
       input.agentState,
       input.agentSummary,
       input.agentHandoffReason,
+      input.draftReviewText,
+      input.draftReviewStatus,
+      input.draftReviewProvider,
+      input.draftReviewModel,
       existing.id,
     );
     return existing.id;
@@ -319,10 +361,11 @@ function upsertLeadAgentConversation(
   return Number(d.prepare(`
     INSERT INTO wa_conversations (
       wa_account_id, phone, name, lead_id, amo_lead_id, amo_contact_id,
-      agent_state, agent_summary, agent_handoff_reason, agent_last_synced_at,
-      last_message_at, unread
+      agent_state, agent_summary, agent_handoff_reason, agent_draft_review_text,
+      agent_draft_review_status, agent_draft_review_provider, agent_draft_review_model,
+      agent_last_synced_at, last_message_at, unread
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 0)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 0)
   `).run(
     input.accountId,
     input.phone,
@@ -333,6 +376,10 @@ function upsertLeadAgentConversation(
     input.agentState,
     input.agentSummary,
     input.agentHandoffReason,
+    input.draftReviewText,
+    input.draftReviewStatus,
+    input.draftReviewProvider,
+    input.draftReviewModel,
   ).lastInsertRowid);
 }
 

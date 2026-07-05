@@ -180,6 +180,10 @@ function init(d: Database.Database) {
       agent_state TEXT,
       agent_summary TEXT,
       agent_handoff_reason TEXT,
+      agent_draft_review_text TEXT,
+      agent_draft_review_status TEXT,
+      agent_draft_review_provider TEXT,
+      agent_draft_review_model TEXT,
       agent_last_synced_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -235,6 +239,10 @@ function init(d: Database.Database) {
       agent_state TEXT,
       agent_summary TEXT,
       agent_handoff_reason TEXT,
+      agent_draft_review_text TEXT,
+      agent_draft_review_status TEXT,
+      agent_draft_review_provider TEXT,
+      agent_draft_review_model TEXT,
       agent_last_synced_at TEXT,
       last_message_at TEXT,
       unread INTEGER NOT NULL DEFAULT 0
@@ -303,12 +311,20 @@ function migrate(d: Database.Database) {
   addColumnIfMissing(d, "leads", "agent_state", "TEXT");
   addColumnIfMissing(d, "leads", "agent_summary", "TEXT");
   addColumnIfMissing(d, "leads", "agent_handoff_reason", "TEXT");
+  addColumnIfMissing(d, "leads", "agent_draft_review_text", "TEXT");
+  addColumnIfMissing(d, "leads", "agent_draft_review_status", "TEXT");
+  addColumnIfMissing(d, "leads", "agent_draft_review_provider", "TEXT");
+  addColumnIfMissing(d, "leads", "agent_draft_review_model", "TEXT");
   addColumnIfMissing(d, "leads", "agent_last_synced_at", "TEXT");
   addColumnIfMissing(d, "wa_conversations", "amo_lead_id", "INTEGER");
   addColumnIfMissing(d, "wa_conversations", "amo_contact_id", "INTEGER");
   addColumnIfMissing(d, "wa_conversations", "agent_state", "TEXT");
   addColumnIfMissing(d, "wa_conversations", "agent_summary", "TEXT");
   addColumnIfMissing(d, "wa_conversations", "agent_handoff_reason", "TEXT");
+  addColumnIfMissing(d, "wa_conversations", "agent_draft_review_text", "TEXT");
+  addColumnIfMissing(d, "wa_conversations", "agent_draft_review_status", "TEXT");
+  addColumnIfMissing(d, "wa_conversations", "agent_draft_review_provider", "TEXT");
+  addColumnIfMissing(d, "wa_conversations", "agent_draft_review_model", "TEXT");
   addColumnIfMissing(d, "wa_conversations", "agent_last_synced_at", "TEXT");
   // tasks status values moved from open/done to todo/in_progress/review/done
   d.exec("UPDATE tasks SET status = 'todo' WHERE status = 'open'");
@@ -401,6 +417,10 @@ function migrateWhatsAppConversations(d: Database.Database) {
         agent_state TEXT,
         agent_summary TEXT,
         agent_handoff_reason TEXT,
+        agent_draft_review_text TEXT,
+        agent_draft_review_status TEXT,
+        agent_draft_review_provider TEXT,
+        agent_draft_review_model TEXT,
         agent_last_synced_at TEXT,
         last_message_at TEXT,
         unread INTEGER NOT NULL DEFAULT 0

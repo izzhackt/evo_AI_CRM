@@ -17,7 +17,7 @@ import {
   setSetting,
   verifyPassword,
 } from "./db";
-import { sendWhatsApp } from "./whatsapp";
+import { getDefaultWhatsAppAccount, sendWhatsApp, upsertWahaAccount } from "./whatsapp";
 import { createAmoCrmAdapter, getAmoCrmLocalStatus, normalizeAmoCrmAccountBaseUrl } from "./amocrm";
 import { setSession, clearSession, currentUser, isStaff } from "./auth";
 import { LOCALES, type Locale } from "./i18n-data";
@@ -34,6 +34,16 @@ function optNum(form: FormData, key: string): number | null {
   if (!v) return null;
   const n = parseInt(v, 10);
   return Number.isFinite(n) ? n : null;
+}
+
+function normalizeUrl(value: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed).toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
 }
 
 async function requireStaff() {
@@ -452,10 +462,10 @@ export async function sendWaMessageAction(form: FormData) {
   const text = str(form, "text");
   if (!conversationId || !text) return;
   const d = db();
-  const conv = d.prepare("SELECT * FROM wa_conversations WHERE id = ?").get(conversationId) as { phone: string } | undefined;
+  const conv = d.prepare("SELECT * FROM wa_conversations WHERE id = ?").get(conversationId) as { phone: string; wa_account_id: number | null } | undefined;
   if (!conv) return;
 
-  const result = await sendWhatsApp(conv.phone, text);
+  const result = await sendWhatsApp(conv.phone, text, conv.wa_account_id);
   d.prepare("INSERT INTO wa_messages (conversation_id, direction, text, status, author_id, wa_id) VALUES (?, 'out', ?, ?, ?, ?)")
     .run(conversationId, text, result.status, user.id, result.waId ?? null);
   d.prepare("UPDATE wa_conversations SET last_message_at = datetime('now'), unread = 0 WHERE id = ?").run(conversationId);
@@ -468,11 +478,14 @@ export async function createConversationAction(form: FormData) {
   const phone = normalizePhone(str(form, "phone"));
   if (!phone) return;
   const d = db();
-  const existing = d.prepare("SELECT id FROM wa_conversations WHERE phone = ?").get(phone) as { id: number } | undefined;
+  const accountId = getDefaultWhatsAppAccount()?.id ?? null;
+  const existing = accountId
+    ? d.prepare("SELECT id FROM wa_conversations WHERE phone = ? AND wa_account_id = ?").get(phone, accountId) as { id: number } | undefined
+    : d.prepare("SELECT id FROM wa_conversations WHERE phone = ? AND wa_account_id IS NULL").get(phone) as { id: number } | undefined;
   const id = existing
     ? existing.id
-    : d.prepare("INSERT INTO wa_conversations (phone, name, last_message_at) VALUES (?, ?, datetime('now'))")
-        .run(phone, str(form, "name") || null).lastInsertRowid;
+    : d.prepare("INSERT INTO wa_conversations (wa_account_id, phone, name, last_message_at) VALUES (?, ?, ?, datetime('now'))")
+        .run(accountId, phone, str(form, "name") || null).lastInsertRowid;
   revalidatePath("/whatsapp");
   redirect(`/whatsapp/${id}`);
 }
@@ -483,6 +496,69 @@ export async function markConversationReadAction(form: FormData) {
   if (!id) return;
   db().prepare("UPDATE wa_conversations SET unread = 0 WHERE id = ?").run(id);
   revalidatePath("/whatsapp");
+}
+
+export async function startWahaSessionAction() {
+  const user = await currentUser();
+  if (!user || user.role !== "admin") redirect("/dashboard");
+
+  const baseUrl = normalizeUrl(getSetting("waha_base_url"));
+  const apiKey = getSetting("waha_api_key")?.trim();
+  const sessionName = getSetting("waha_session_name")?.trim();
+  const webhookSecret = getSetting("waha_webhook_secret")?.trim();
+  const webhookUrl = getSetting("waha_webhook_url")?.trim();
+  if (!baseUrl || !apiKey || !sessionName || !webhookSecret || !webhookUrl) {
+    setSetting("waha_last_error", "not_configured");
+    revalidatePath("/settings");
+    return;
+  }
+
+  const sessionConfig = {
+    name: sessionName,
+    config: {
+      webhooks: [
+        {
+          url: webhookUrl,
+          events: ["message", "session.status"],
+          hmac: { key: webhookSecret },
+          retries: { policy: "constant", delaySeconds: 2, attempts: 15 },
+        },
+      ],
+    },
+  };
+
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/start`, {
+      method: "POST",
+      headers: {
+        "X-Api-Key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(sessionConfig),
+    });
+    const text = await res.text();
+    const shouldRestart = res.status === 422 && text.toLowerCase().includes("already started");
+    const restartRes = shouldRestart
+      ? await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(sessionName)}/restart`, {
+          method: "POST",
+          headers: { "X-Api-Key": apiKey, "Content-Type": "application/json" },
+        })
+      : null;
+
+    if (res.ok || restartRes?.ok) {
+      upsertWahaAccount({
+        name: getSetting("waha_account_name") || sessionName,
+        sessionName,
+        ownerUserId: user.id,
+      });
+      setSetting("waha_last_error", "");
+    } else {
+      setSetting("waha_last_error", `provider_${restartRes?.status ?? res.status}`);
+    }
+  } catch {
+    setSetting("waha_last_error", "provider_unreachable");
+  }
+  revalidatePath("/settings");
 }
 
 // ---------- telephony ----------
@@ -505,14 +581,31 @@ export async function logCallAction(form: FormData) {
 export async function saveSettingsAction(form: FormData) {
   const user = await currentUser();
   if (!user || user.role !== "admin") redirect("/dashboard");
-  const keys = ["wa_phone_id", "tel_provider"];
+  const keys = ["wa_phone_id", "tel_provider", "wa_provider", "waha_account_name", "waha_base_url", "waha_session_name", "waha_webhook_url"];
   for (const key of keys) {
     const value = str(form, key);
     if (form.has(key)) setSetting(key, value);
   }
-  const secretKeys = ["wa_token", "wa_verify_token", "wa_app_secret", "tel_api_key", "anthropic_api_key"];
+  const secretKeys = [
+    "wa_token",
+    "wa_verify_token",
+    "wa_app_secret",
+    "waha_api_key",
+    "waha_webhook_secret",
+    "lead_agent_sync_secret",
+    "tel_api_key",
+    "anthropic_api_key",
+  ];
   for (const key of secretKeys) {
     if (form.has(key)) setPreservedSecret(key, str(form, key));
+  }
+
+  if (form.has("wa_provider") && str(form, "wa_provider") === "waha" && str(form, "waha_session_name")) {
+    upsertWahaAccount({
+      name: str(form, "waha_account_name") || str(form, "waha_session_name"),
+      sessionName: str(form, "waha_session_name"),
+      ownerUserId: user.id,
+    });
   }
 
   if (form.has("amocrm_account_base_url")) {
@@ -543,8 +636,15 @@ export async function saveSettingsAction(form: FormData) {
 export async function getIntegrationStatus() {
   const telephonyProvider = getSetting("tel_provider")?.trim();
   const telephonyApiKey = getSetting("tel_api_key")?.trim();
+  const metaConfigured = !!getSetting("wa_token") && !!getSetting("wa_phone_id");
+  const wahaConfigured = getSetting("wa_provider") === "waha" &&
+    !!getSetting("waha_base_url") &&
+    !!getSetting("waha_api_key") &&
+    !!getSetting("waha_session_name") &&
+    !!getSetting("waha_webhook_secret") &&
+    !!getSetting("waha_webhook_url");
   return {
-    whatsapp: !!getSetting("wa_token") && !!getSetting("wa_phone_id"),
+    whatsapp: metaConfigured || wahaConfigured,
     telephony: !!telephonyProvider && !!telephonyApiKey,
     ai: !!getSetting("anthropic_api_key") || !!process.env.ANTHROPIC_API_KEY,
     amocrm: getAmoCrmLocalStatus(),

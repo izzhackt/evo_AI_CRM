@@ -58,6 +58,52 @@ Append `deploy/Caddyfile.evo-crm` to the active Caddyfile used by the existing
 
 Do not replace the existing Caddyfile without backing it up.
 
+## WAHA
+
+WAHA runs in the same Compose project as a private service named `waha`. It does
+not publish a host port. The CRM reaches it on the Docker network at:
+
+```txt
+http://evo-crm-waha:3000
+```
+
+Create `/opt/evo-crm/.env.waha` from `deploy/env.waha.example`. Generate a
+plain API key and store only its SHA-512 hash there as
+`WAHA_API_KEY=sha512:<hash>`. Store the plain API key in CRM Settings and in
+`/opt/evo-crm/.env.lead-agent`.
+
+Create `/opt/evo-crm/.env.lead-agent` from `deploy/env.lead-agent.example`.
+The lead-agent service is the WAHA webhook owner. It resolves amoCRM identity
+first, then posts a signed internal sync event to the CRM operator UI.
+
+The lead-agent source is a private nested repo. Clone or update it on the VPS at:
+
+```txt
+/opt/evo-crm/evo-lead-agent
+```
+
+The parent CRM repo intentionally ignores that nested checkout; deploy both
+repos together before running `docker compose -f docker-compose.prod.yml up -d
+--build`.
+
+Use separate shared secrets:
+
+- `WAHA webhook HMAC secret` signs WAHA -> lead-agent webhooks.
+- `lead-agent sync secret` signs lead-agent -> CRM internal sync calls.
+
+Store CRM Settings as:
+
+```txt
+WA provider: WAHA
+WAHA Base URL: http://evo-crm-waha:3000
+WAHA session: crm_primary
+WAHA webhook URL: http://evo-lead-agent:8000/webhooks/waha
+lead-agent sync secret: same value as EVO_AGENT_CRM_SYNC_SECRET
+```
+
+Keep the WAHA dashboard/API private. Operators should scan QR only through the
+authenticated CRM Settings page, which proxies `/api/waha/qr`.
+
 ## DNS
 
 Create this public DNS record before expecting HTTPS to validate:

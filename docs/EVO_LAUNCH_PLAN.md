@@ -257,6 +257,54 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
   launch-blocking bug, fake-success claim, missing validation evidence, or small
   critical-flow UI issue inside this slice.
 
+`/goal-lead-agent-webhook-ownership` named write set:
+
+- `docs/EVO_LAUNCH_PLAN.md`: append this implementation block.
+- `docs/PLAN_CHANGES.md`: append webhook ownership and source-of-truth decision.
+- `AGENTS.md`, `deploy/README.md`, `docker-compose.prod.yml`,
+  `deploy/env.lead-agent.example`, `.gitignore`, `.dockerignore`,
+  `eslint.config.mjs`, `tsconfig.json`: deployment, repo-boundary, and
+  validation configuration for the lead-agent sibling service.
+- `src/lib/db.ts`, `src/lib/whatsapp.ts`, `src/lib/actions.ts`,
+  `src/lib/queries.ts`, `src/lib/i18n-data.ts`,
+  `src/app/(staff)/settings/page.tsx`,
+  `src/app/(staff)/whatsapp/[id]/page.tsx`, `scripts/bootstrap-admin.mjs`: CRM
+  schema, settings, read models, bootstrap schema, and operator-visible
+  source-of-truth state.
+- `src/app/api/internal/lead-agent/**`: private internal sync endpoint from the
+  lead-agent service into EVO CRM.
+- `evo-lead-agent/AGENTS.md`, `evo-lead-agent/README.md`,
+  `evo-lead-agent/.env.example`, `evo-lead-agent/Dockerfile`,
+  `evo-lead-agent/docker-compose.yml`, `evo-lead-agent/pyproject.toml`,
+  `evo-lead-agent/uv.lock`, `evo-lead-agent/SECURITY.md`,
+  `evo-lead-agent/functional-spec.md`, `evo-lead-agent/technical-spec.md`,
+  `evo-lead-agent/implementation-plan.md`,
+  `evo-lead-agent/token-cost-estimate.md`, `evo-lead-agent/research/README.md`,
+  `evo-lead-agent/*context-report.md`,
+  `evo-lead-agent/src/evo_lead_agent/**`, `evo-lead-agent/tests/**`:
+  product rename, lead-agent runtime packaging, callback configuration, signed
+  CRM sync client, service pipeline, and focused tests.
+
+Acceptance criteria:
+
+- WAHA webhook ownership moves to the lead-agent service. Production/session
+  configuration should point WAHA at `http://evo-lead-agent:8000/webhooks/waha`
+  on the private Docker network, not the public CRM route.
+- The lead-agent resolves or creates amoCRM contact/lead first, then sends a
+  signed internal sync payload to EVO CRM.
+- EVO CRM persists remote amoCRM identifiers and lead-agent state on the local
+  lead/conversation records without making local state the source of truth.
+- EVO CRM keeps the staff WhatsApp inbox/operator UI usable by storing inbound
+  and outbound message copies linked to the resolved amoCRM lead/contact.
+- Both internal CRM sync and WAHA webhooks must be authenticated with shared
+  secrets/HMAC-style verification; no public unauthenticated mutation endpoint
+  is allowed.
+- The first live test must keep autoreply and outbound disabled until WAHA,
+  amoCRM, CRM internal sync, and Anthropic configuration are verified with real
+  credentials.
+- Parent CRM validation must ignore the nested `evo-lead-agent` repo so parent
+  lint/type/build gates do not scan vendored research snapshots.
+
 ## Merge Order
 
 1. `plan-contract`: docs-only launch contract. Blocks implementation lanes.
@@ -282,6 +330,9 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
    CRM-core flow verification, real integration blocker recording,
    presentation-readiness evidence, release-readiness reporting, and clean-tree
    final audit without rebuilding feature architecture.
+10. `/goal-lead-agent-webhook-ownership`: make the lead-agent service the
+    private WAHA webhook owner, use amoCRM as source of truth, and sync local
+    CRM shadow state for the operator UI.
 
 Each lane must be merged or intentionally abandoned before the next lane starts.
 

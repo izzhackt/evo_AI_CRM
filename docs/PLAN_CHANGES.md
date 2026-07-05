@@ -440,3 +440,58 @@ Reason: the remaining high-risk unsupported promises live on the external `evoad
 Decision: add `npm run public-promise-audit`, backed by `scripts/audit-public-promises.mjs`, to fetch the public pages, write `docs/PUBLIC_PROMISE_LIVE_AUDIT.md`, and exit nonzero while tracked high-risk public claims remain. Add `npm run public-promise-audit:self-test` so the accepted future pass paths are tested without needing the external site to change during local validation. Keep the normal local CRM `npm run promise-audit` as a repo-owned surface verifier.
 Validation impact: run `npm run public-promise-audit` and expect it to fail until the external website/CMS is changed or evidence-backed copy is supplied; run `npm run public-promise-audit:self-test` and rerun local lint/type/build/scenario gates for repo-owned changes.
 Reviewer notes: pending independent code-reviewer review.
+
+## 2026-07-03 - Lead Agent Owns WAHA Webhook
+
+Date: 2026-07-03, workspace timezone.
+Author: Codex.
+Change type: architecture, merge order, file ownership, and validation scope.
+Affected plan section: add `/goal-lead-agent-webhook-ownership` implementation
+block after `/goal-qa-launch`.
+Reason: user approved the source-of-truth recommendation: the lead-agent should
+receive WAHA webhooks first, resolve amoCRM identity, then update EVO CRM as the
+operator UI. This avoids local-first CRM leads competing with amoCRM.
+Decision: move WAHA webhook ownership to the private `evo-lead-agent` FastAPI
+service. Add a signed internal CRM sync endpoint so the lead-agent can update
+local EVO CRM lead/conversation/message shadow state after amoCRM resolution and
+AI decision. Persist `amo_lead_id`, `amo_contact_id`, and lead-agent state in
+the CRM database while keeping amoCRM as source of truth. Keep autoreply and
+outbound disabled by default until real WAHA, amoCRM, CRM sync, and Anthropic
+configuration are verified.
+Validation impact: run focused Python tests in `evo-lead-agent`; run parent
+lint/type/build gates with the repo's Node 22 runtime after excluding the nested
+lead-agent repo from parent lint scope; run deterministic internal sync route
+checks locally. Live WhatsApp/amoCRM validation remains blocked until real
+credentials and server configuration are supplied.
+Reviewer notes: pending independent launch-control review.
+
+## 2026-07-03 - Lead Agent Review Fixes And Dirty Baseline Boundary
+
+Date: 2026-07-03, workspace timezone.
+Author: Codex.
+Change type: reviewer-requested contract fix and scope clarification.
+Affected plan section: `/goal-lead-agent-webhook-ownership` write set and
+acceptance criteria.
+Reason: independent review found two correctness gaps: lead-agent-to-CRM sync
+must use the parent CRM's camelCase payload contract, and WAHA `session.status`
+events must still update CRM session/account state after WAHA ownership moves
+from the CRM webhook to the lead-agent webhook. The same review also noted that
+the parent worktree already contained unrelated dirty files from earlier lanes,
+so this block needs a sharper boundary for launch-control review.
+Decision: add regression coverage for the lead-agent camelCase sync payload,
+forward WAHA session status events from lead-agent to the signed internal CRM
+endpoint, and make the parent internal endpoint accept both
+`whatsapp.message` and `whatsapp.session_status`. Expand the named write set to
+include the CRM read model, WhatsApp operator page, bootstrap schema, Docker
+ignore, and TypeScript exclusion files touched by this implementation. Treat
+pre-existing dirty files outside this write set as out-of-scope unless a later
+lane adopts them explicitly.
+Validation impact: rerun lead-agent Python tests and ruff; rerun parent lint,
+Next typegen, TypeScript, production build, and deterministic signed internal
+route checks for both message and session-status sync. Local Compose config is
+blocked until the real env files required by `docker-compose.prod.yml` exist:
+`.env.production`, `.env.waha`, and `.env.lead-agent`. Live provider validation
+remains blocked until real WAHA, amoCRM, CRM sync, and Anthropic credentials are
+configured on the server.
+Reviewer notes: addresses launch-control reviewer findings from agent
+`019f29ba-61b5-74b3-9287-2ca2705a469c`.

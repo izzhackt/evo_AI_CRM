@@ -638,6 +638,90 @@ return [
     },
   },
   {
+    id: "S28B",
+    capability: "WAHA WhatsApp integration",
+    scenario: "WAHA settings create a session account, signed webhook imports messages, status events update the account, and retries are idempotent.",
+    criteria: "Admin can save WAHA config; unsigned WAHA webhook is rejected; signed message creates one account-bound conversation and duplicate delivery is ignored.",
+    async run(ctx) {
+      const session = `crm_${Math.random().toString(36).slice(2, 8)}`;
+      const webhookSecret = unique("waha-hook");
+      await ctx.submit("/settings", ctx.cookie(admin), {
+        names: [
+          "wa_provider",
+          "waha_account_name",
+          "waha_base_url",
+          "waha_session_name",
+          "waha_api_key",
+          "waha_webhook_secret",
+        ],
+      }, {
+        wa_provider: "waha",
+        waha_account_name: "Scenario WAHA",
+        waha_base_url: "http://127.0.0.1:3000",
+        waha_session_name: session,
+        waha_api_key: unique("waha-api"),
+        waha_webhook_secret: webhookSecret,
+      });
+      const account = scalar(ctx, "SELECT id, provider, session_name, status FROM wa_accounts WHERE session_name = ?", [session]);
+      assert(account?.provider === "waha", "WAHA account was not created from settings");
+
+      const from = `996700${Math.floor(100000 + Math.random() * 899999)}`;
+      const messageId = unique("waha-msg");
+      const messagePayload = {
+        event: "message",
+        session,
+        engine: "WEBJS",
+        payload: {
+          id: messageId,
+          timestamp: Math.floor(Date.now() / 1000),
+          from: `${from}@c.us`,
+          fromMe: false,
+          to: "996700111222@c.us",
+          body: "WAHA inbound admissions question",
+          hasMedia: false,
+          ack: 1,
+        },
+      };
+
+      const rejected = await ctx.postJson("/api/webhooks/waha", messagePayload, {
+        headers: { "x-webhook-hmac": "bad", "x-webhook-hmac-algorithm": "sha512" },
+      });
+      assert(rejected.status === 403, `bad WAHA webhook status ${rejected.status}`);
+
+      const rawMessage = JSON.stringify(messagePayload);
+      const signature = createHmac("sha512", webhookSecret).update(rawMessage).digest("hex");
+      const firstPost = await ctx.postJson("/api/webhooks/waha", messagePayload, {
+        headers: { "x-webhook-hmac": signature, "x-webhook-hmac-algorithm": "sha512" },
+      });
+      const retryPost = await ctx.postJson("/api/webhooks/waha", messagePayload, {
+        headers: { "x-webhook-hmac": signature, "x-webhook-hmac-algorithm": "sha512" },
+      });
+      assert(firstPost.status === 200 && retryPost.status === 200, `WAHA posts ${firstPost.status}/${retryPost.status}`);
+
+      const conv = scalar(ctx, "SELECT id, lead_id, wa_account_id FROM wa_conversations WHERE phone = ? AND wa_account_id = ?", [`+${from}`, account.id]);
+      assert(conv?.wa_account_id === account.id, "WAHA webhook did not create account-bound conversation");
+      const messages = rowCount(ctx, "wa_messages", "wa_id = ?", [messageId]);
+      assert(messages === 1, `expected one deduped WAHA message, got ${messages}`);
+
+      const statusPayload = {
+        event: "session.status",
+        session,
+        engine: "WEBJS",
+        me: { id: "996700111222@c.us", pushName: "Scenario WAHA" },
+        payload: { status: "WORKING", statuses: [] },
+      };
+      const rawStatus = JSON.stringify(statusPayload);
+      const statusSignature = createHmac("sha512", webhookSecret).update(rawStatus).digest("hex");
+      const statusPost = await ctx.postJson("/api/webhooks/waha", statusPayload, {
+        headers: { "x-webhook-hmac": statusSignature, "x-webhook-hmac-algorithm": "sha512" },
+      });
+      assert(statusPost.status === 200, `WAHA status post ${statusPost.status}`);
+      const updated = scalar(ctx, "SELECT status, phone FROM wa_accounts WHERE id = ?", [account.id]);
+      assert(updated?.status === "WORKING" && updated.phone === "+996700111222", "WAHA status event did not update account state");
+      return `WAHA session ${session}; conversation ${conv.id}; duplicate message ignored; account ${updated.status}`;
+    },
+  },
+  {
     id: "S29",
     capability: "Calls and telephony",
     scenario: "Calls page and telephony webhook enforce key handling and insert calls.",

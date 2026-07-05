@@ -171,7 +171,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             <form action={addLeadNoteAction} className="mb-3 flex gap-2">
               <input type="hidden" name="lead_id" value={lead.id} />
               <input name="text" required placeholder={t("addNote")} className={inputCls} />
-              <button type="submit" aria-label={t("add")} className={cn(btnCls, "w-11 px-0")}><Icon name="plus" size={16} /></button>
+              <button type="submit" aria-label="+" title={t("add")} className={cn(btnCls, "w-11 px-0")}><Icon name="plus" size={16} /></button>
             </form>
             {activities.length === 0 ? (
               <EmptyState text={t("noResults")} />

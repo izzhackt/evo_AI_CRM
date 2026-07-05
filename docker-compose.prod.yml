@@ -33,10 +33,67 @@ services:
       retries: 5
       start_period: 30s
 
+  waha:
+    image: devlikeapro/waha:latest
+    restart: unless-stopped
+    env_file:
+      - .env.waha
+    expose:
+      - "3000"
+    volumes:
+      - evo_crm_waha_sessions:/app/.sessions
+    networks:
+      web:
+        aliases:
+          - evo-crm-waha
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/sessions').then(r=>process.exit([200,401,403].includes(r.status)?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  lead-agent:
+    build:
+      context: ./evo-lead-agent
+      dockerfile: Dockerfile
+    image: evo-lead-agent:latest
+    restart: unless-stopped
+    env_file:
+      - .env.lead-agent
+    environment:
+      EVO_AGENT_ENV: production
+      EVO_AGENT_DB_PATH: /app/data/evo-lead-agent.db
+      EVO_AGENT_WAHA_BASE_URL: http://evo-crm-waha:3000
+      EVO_AGENT_WAHA_SESSION: crm_primary
+      EVO_AGENT_CRM_BASE_URL: http://evo-crm-app:3000
+      EVO_AGENT_CRM_SYNC_PATH: /api/internal/lead-agent/whatsapp
+      EVO_AGENT_AUTOREPLY_ENABLED: "false"
+      EVO_AGENT_OUTBOUND_ENABLED: "false"
+    expose:
+      - "8000"
+    volumes:
+      - evo_crm_lead_agent_data:/app/data
+    depends_on:
+      - app
+      - waha
+    networks:
+      web:
+        aliases:
+          - evo-lead-agent
+    healthcheck:
+      test: ["CMD-SHELL", "python - <<'PY'\nimport json, urllib.request\nr=urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)\nraise SystemExit(0 if json.load(r).get('ok') else 1)\nPY"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 volumes:
   evo_crm_data:
   evo_crm_output:
   evo_crm_backups:
+  evo_crm_waha_sessions:
+  evo_crm_lead_agent_data:
 
 networks:
   web:

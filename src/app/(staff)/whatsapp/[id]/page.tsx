@@ -65,7 +65,9 @@ export default async function ConversationPage({
           </span>
           <div className="min-w-0">
             <div className="truncate text-[14px] font-semibold text-fg">{conv.name ?? conv.phone}</div>
-            <div className="font-mono text-[11.5px] text-fg-3">{conv.phone}</div>
+            <div className="font-mono text-[11.5px] text-fg-3">
+              {conv.phone}{conv.account_name ? ` · ${conv.account_name}` : ""}
+            </div>
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {!integrations.whatsapp && (
@@ -83,8 +85,25 @@ export default async function ConversationPage({
                 {t("linkedClient")} <Icon name="chevron-right" size={13} />
               </Link>
             )}
+            {conv.amo_lead_id && (
+              <span className="inline-flex items-center gap-1 rounded-nav border border-border px-2.5 py-1 text-[12px] text-fg-2">
+                amo <code className="font-mono">{conv.amo_lead_id}</code>
+              </span>
+            )}
+            {conv.agent_state && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-info-weak px-2.5 py-0.5 text-[11px] font-semibold text-info">
+                leadAgent: <code className="font-mono">{conv.agent_state}</code>
+              </span>
+            )}
           </div>
         </header>
+        {(conv.agent_summary || conv.agent_handoff_reason || conv.agent_last_synced_at) && (
+          <div className="border-b border-border bg-surface-2 px-5 py-2 text-[12px] text-fg-3">
+            {conv.agent_summary ? <span>{conv.agent_summary}</span> : null}
+            {conv.agent_handoff_reason ? <code className="ml-2 font-mono text-warn">{conv.agent_handoff_reason}</code> : null}
+            {conv.agent_last_synced_at ? <code className="ml-2 font-mono">{conv.agent_last_synced_at}</code> : null}
+          </div>
+        )}
 
         <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto bg-bg px-4 py-3">
           <div className="space-y-2">

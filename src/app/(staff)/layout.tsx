@@ -48,7 +48,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     "/clients": { title: t("student360"), hint: t("student360Hint") },
     "/applications": { title: t("applicationQueue"), hint: t("applicationQueueHint") },
     "/documents": { title: t("documentQueue"), hint: t("documentQueueHint") },
-    "/whatsapp": { title: t("whatsapp"), hint: t("inbox") },
+    "/whatsapp": { title: `${t("whatsapp")} · ${t("inbox")}` },
     "/calls": { title: t("callLog") },
     "/chat": { title: t("chat"), hint: t("channels") },
     "/tasks": { title: t("taskBoard"), hint: t("taskBoardHint") },

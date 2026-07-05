@@ -131,6 +131,12 @@ db.exec(`
     client_id INTEGER REFERENCES clients(id),
     target_country TEXT,
     notes TEXT,
+    amo_lead_id INTEGER,
+    amo_contact_id INTEGER,
+    agent_state TEXT,
+    agent_summary TEXT,
+    agent_handoff_reason TEXT,
+    agent_last_synced_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -160,12 +166,31 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS wa_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL DEFAULT 'meta',
+    name TEXT NOT NULL,
+    session_name TEXT,
+    phone TEXT,
+    status TEXT NOT NULL DEFAULT 'not_configured',
+    owner_user_id INTEGER REFERENCES users(id),
+    is_default INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
   CREATE TABLE IF NOT EXISTS wa_conversations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    phone TEXT NOT NULL UNIQUE,
+    wa_account_id INTEGER REFERENCES wa_accounts(id),
+    phone TEXT NOT NULL,
     name TEXT,
     lead_id INTEGER REFERENCES leads(id),
     client_id INTEGER REFERENCES clients(id),
+    amo_lead_id INTEGER,
+    amo_contact_id INTEGER,
+    agent_state TEXT,
+    agent_summary TEXT,
+    agent_handoff_reason TEXT,
+    agent_last_synced_at TEXT,
     last_message_at TEXT,
     unread INTEGER NOT NULL DEFAULT 0
   );
@@ -199,6 +224,18 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_accounts_provider_session
+    ON wa_accounts(provider, session_name)
+    WHERE session_name IS NOT NULL;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_conversations_account_phone
+    ON wa_conversations(wa_account_id, phone)
+    WHERE wa_account_id IS NOT NULL;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_conversations_legacy_phone
+    ON wa_conversations(phone)
+    WHERE wa_account_id IS NULL;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_messages_wa_id
+    ON wa_messages(wa_id)
+    WHERE wa_id IS NOT NULL;
 `);
 
 const taskColumns = db.prepare("PRAGMA table_info(tasks)").all().map((column) => column.name);

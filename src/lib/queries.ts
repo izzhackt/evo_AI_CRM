@@ -651,19 +651,31 @@ export function channelMessages(channelId: number, limit = 100) {
 
 export function listConversations() {
   return db().prepare(`
-    SELECT c.*,
+    SELECT c.*, a.name AS account_name, a.provider AS account_provider,
       (SELECT text FROM wa_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_text
     FROM wa_conversations c
+    LEFT JOIN wa_accounts a ON a.id = c.wa_account_id
     ORDER BY c.last_message_at DESC
   `).all() as {
     id: number; phone: string; name: string | null; lead_id: number | null;
     client_id: number | null; unread: number; last_text: string | null; last_message_at: string | null;
+    wa_account_id: number | null; account_name: string | null; account_provider: string | null;
+    amo_lead_id: number | null; amo_contact_id: number | null; agent_state: string | null;
+    agent_summary: string | null; agent_handoff_reason: string | null; agent_last_synced_at: string | null;
   }[];
 }
 
 export function getConversation(id: number) {
-  return db().prepare("SELECT * FROM wa_conversations WHERE id = ?").get(id) as {
+  return db().prepare(`
+    SELECT c.*, a.name AS account_name, a.provider AS account_provider
+    FROM wa_conversations c
+    LEFT JOIN wa_accounts a ON a.id = c.wa_account_id
+    WHERE c.id = ?
+  `).get(id) as {
     id: number; phone: string; name: string | null; lead_id: number | null; client_id: number | null;
+    wa_account_id: number | null; account_name: string | null; account_provider: string | null;
+    amo_lead_id: number | null; amo_contact_id: number | null; agent_state: string | null;
+    agent_summary: string | null; agent_handoff_reason: string | null; agent_last_synced_at: string | null;
   } | undefined;
 }
 

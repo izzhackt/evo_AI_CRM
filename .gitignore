@@ -44,7 +44,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 data/
+.waha-sessions/
 
 # local reference/prototype copies
 /.twenty-reference/
+/evo-lead-agent/
 /evo_website/

@@ -12,9 +12,10 @@ Done:
 - import the private source workspace into the EVO lead-agent repo;
 - add repo-local `AGENTS.md`;
 - rewrite README, functional spec, technical spec;
-- keep Fusion snapshots under `research/repos/` as owned source references for
-  product fundamentals, while rewriting the runtime around EVO Admissions,
-  WAHA HMAC, amoCRM identity, and conservative outbound controls.
+- keep Fusion snapshots under `research/repos/` as reference-only, untracked
+  research inputs, while making this parent-tracked `evo-lead-agent/` runtime
+  the canonical EVO product source for WAHA HMAC, amoCRM identity, and
+  conservative outbound controls.
 
 ## Phase 1 - Minimal Runtime Slice
 

@@ -1,4 +1,7 @@
 from pathlib import Path
+from dataclasses import replace
+import hashlib
+import hmac
 import json
 import logging
 
@@ -6,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from evo_lead_agent.config import Settings
 from evo_lead_agent.main import create_app
+from evo_lead_agent import service as service_module
 from evo_lead_agent.store import Store
 
 
@@ -299,3 +303,48 @@ def test_knowledge_import_rejects_raw_sensitive_metadata(tmp_path: Path) -> None
     assert payload["error"] == "unsafe_knowledge_entries"
     assert payload["review"]["unsafe_entries"] == 1
     assert store.knowledge_count() == 0
+
+
+def test_waha_session_status_sync_failure_returns_retryable_error(
+    tmp_path: Path, monkeypatch
+) -> None:
+    settings = replace(
+        _settings(tmp_path),
+        crm_base_url="http://crm.internal",
+        crm_sync_secret="sync-secret",
+    )
+
+    class FailingCrmSyncClient:
+        def __init__(self, settings: Settings) -> None:
+            self.settings = settings
+
+        async def sync_session_status(self, session: str, status: str, phone: str | None) -> None:
+            raise RuntimeError("crm unavailable")
+
+    monkeypatch.setattr(service_module, "EvoCrmSyncClient", FailingCrmSyncClient)
+    client = TestClient(create_app(settings, Store(settings.database_path)))
+    body = json.dumps(
+        {
+            "event": "session.status",
+            "session": "crm_primary",
+            "payload": {"status": "WORKING"},
+            "me": {"id": "996700111222@c.us"},
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
+    signature = hmac.new(settings.waha_webhook_secret.encode("utf-8"), body, hashlib.sha512)
+
+    response = client.post(
+        "/webhooks/waha",
+        content=body,
+        headers={
+            "content-type": "application/json",
+            "x-webhook-hmac": signature.hexdigest(),
+            "x-webhook-hmac-algorithm": "sha512",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": {"error": "webhook_processing_retryable", "reason": "crm_sync_failed"}
+    }

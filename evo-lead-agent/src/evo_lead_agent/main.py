@@ -4,7 +4,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from .cli import load_knowledge_entries, review_knowledge_entries
@@ -12,7 +12,7 @@ from .config import load_settings
 from .preflight import run_preflight
 from .readiness import build_readiness_report
 from .security import verify_waha_hmac
-from .service import LeadAgentService, parse_json_body
+from .service import LeadAgentService, RetryableWebhookError, parse_json_body
 from .store import Store
 
 settings = load_settings()
@@ -122,6 +122,11 @@ def create_app(app_settings=settings, app_store=store) -> FastAPI:
         try:
             payload = parse_json_body(raw_body)
             result = await app_service.handle_waha_payload(payload)
+        except RetryableWebhookError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={"error": "webhook_processing_retryable", "reason": exc.reason},
+            ) from exc
         except Exception:
             return JSONResponse({"error": "webhook_processing_failed"}, status_code=400)
         return JSONResponse(result)

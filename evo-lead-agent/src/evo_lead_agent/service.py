@@ -19,6 +19,13 @@ from .waha import WahaClient
 logger = logging.getLogger(__name__)
 
 
+class RetryableWebhookError(RuntimeError):
+    def __init__(self, reason: str, detail: str | None = None) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.detail = detail
+
+
 class LeadAgentService:
     def __init__(self, settings: Settings, store: Store) -> None:
         self.settings = settings
@@ -338,7 +345,7 @@ class LeadAgentService:
                 phone=phone,
             )
         except Exception as exc:
-            return {"accepted": False, "reason": "crm_sync_failed", "detail": str(exc)}
+            raise RetryableWebhookError("crm_sync_failed", str(exc)) from exc
 
         return {"accepted": True, "session_status": status.strip(), "crm_sync": "delivered"}
 

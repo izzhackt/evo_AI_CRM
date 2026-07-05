@@ -607,3 +607,25 @@ part of this ownership migration.
 Reviewer notes: reviewer agent `019f3423-0354-7ea2-9cc7-4919a553e536` found
 floating Docker dependency resolution; addressed by using locked `uv sync` in
 `evo-lead-agent/Dockerfile`.
+
+## 2026-07-06 - Parent Repo Lead-Agent Review Fixes
+
+Date: 2026-07-06, workspace timezone.
+Author: Codex.
+Change type: reviewer-requested webhook correctness and source-of-truth docs.
+Affected plan section: `/goal-lead-agent-webhook-ownership`,
+`/goal-gemini-receive-only-rollout`, deployment source layout.
+Reason: independent launch-control review found WAHA `session.status` CRM sync
+exceptions returned HTTP 200 with `accepted=false`, which could drop the only
+session/account-state update after webhook ownership moved. The same review
+found stale nested lead-agent docs still described `research/repos/*` snapshots
+as owned source references.
+Decision: make configured CRM sync failures for WAHA `session.status` raise a
+retryable FastAPI HTTP 503 instead of acknowledging the webhook. Keep missing
+CRM sync configuration as explicit not-configured behavior. Correct lead-agent
+docs so `research/repos/*` is reference-only and the parent-tracked
+`evo-lead-agent/` runtime is the canonical EVO product source.
+Validation impact: rerun lead-agent tests and ruff, then parent lint/type/build
+and Docker lead-agent image build. No production proof or outbound WhatsApp
+change is part of this review fix.
+Reviewer notes: addresses reviewer agent `019f342e-7ed9-7ab3-b02c-3a3e7e9670f6`.

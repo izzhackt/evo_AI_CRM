@@ -4,11 +4,11 @@
 
 - This repo is the EVO Admissions lead-agent product. Treat it as production
   work, not a demo or mock workspace.
-- Legacy source docs and reference snapshots are not deployable as-is, but the
-  Fusion repositories under `research/repos/` are owned product source for
-  chatbot fundamentals. Reuse their proven patterns deliberately, then adapt the
-  implementation to EVO Admissions, WAHA HMAC, amoCRM source-of-truth identity,
-  and local Docker/server constraints.
+- Legacy source docs and reference snapshots are not deployable as-is. The
+  Fusion repositories under `research/repos/` are reference-only snapshots, not
+  canonical EVO product source and not part of the deployable tree. Reuse proven
+  patterns deliberately only after adapting them to EVO Admissions, WAHA HMAC,
+  amoCRM source-of-truth identity, and local Docker/server constraints.
 - Before changing runtime integration behavior, verify current WAHA and amoCRM
   API docs from official sources, then cite the researched behavior in the
   relevant spec or implementation note.
@@ -26,11 +26,9 @@
   blocker and keep validation to deterministic local tests.
 - For larger changes, use planner/research/reviewer agents where available and
   keep an explicit plan in `implementation-plan.md`.
-- When a task says to build on the existing chatbot product, first inspect
-  `research/repos/fusion-ai-agents`, `research/repos/fusion-ai-agents-api`,
-  `research/repos/fusion-backend`, and `research/repos/fusion-parser`. Identify
-  the smallest reusable behavior, record the plan change, then port or adapt the
-  code with tests instead of copying an entire unrelated service.
+- When a task says to build on prior chatbot work, inspect reference snapshots
+  only for reusable behavior and record the plan change before adapting any
+  pattern. Do not copy an entire unrelated service into the EVO runtime.
 
 ## Current Product Boundary
 

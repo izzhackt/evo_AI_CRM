@@ -316,6 +316,8 @@ const ru: Dict = {
   linkedLead: "Лид",
   linkedClient: "Студент",
   newConversation: "Новый диалог",
+  draftReview: "Черновик на проверку",
+  draftReviewNotSent: "не отправлено",
 
   callLog: "Журнал звонков",
   direction: "Направление",
@@ -687,6 +689,8 @@ const ky: Dict = {
   linkedLead: "Лид",
   linkedClient: "Студент",
   newConversation: "Жаңы диалог",
+  draftReview: "Текшерүү үчүн долбоор",
+  draftReviewNotSent: "жөнөтүлгөн жок",
 
   callLog: "Чалуулар журналы",
   direction: "Багыты",
@@ -1058,6 +1062,8 @@ const en: Dict = {
   linkedLead: "Lead",
   linkedClient: "Student",
   newConversation: "New conversation",
+  draftReview: "Draft review",
+  draftReviewNotSent: "not sent",
 
   callLog: "Call log",
   direction: "Direction",

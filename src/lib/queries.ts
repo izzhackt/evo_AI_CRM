@@ -661,7 +661,9 @@ export function listConversations() {
     client_id: number | null; unread: number; last_text: string | null; last_message_at: string | null;
     wa_account_id: number | null; account_name: string | null; account_provider: string | null;
     amo_lead_id: number | null; amo_contact_id: number | null; agent_state: string | null;
-    agent_summary: string | null; agent_handoff_reason: string | null; agent_last_synced_at: string | null;
+    agent_summary: string | null; agent_handoff_reason: string | null; agent_draft_review_text: string | null;
+    agent_draft_review_status: string | null; agent_draft_review_provider: string | null;
+    agent_draft_review_model: string | null; agent_last_synced_at: string | null;
   }[];
 }
 
@@ -675,7 +677,9 @@ export function getConversation(id: number) {
     id: number; phone: string; name: string | null; lead_id: number | null; client_id: number | null;
     wa_account_id: number | null; account_name: string | null; account_provider: string | null;
     amo_lead_id: number | null; amo_contact_id: number | null; agent_state: string | null;
-    agent_summary: string | null; agent_handoff_reason: string | null; agent_last_synced_at: string | null;
+    agent_summary: string | null; agent_handoff_reason: string | null; agent_draft_review_text: string | null;
+    agent_draft_review_status: string | null; agent_draft_review_provider: string | null;
+    agent_draft_review_model: string | null; agent_last_synced_at: string | null;
   } | undefined;
 }
 

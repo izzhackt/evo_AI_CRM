@@ -49,6 +49,11 @@ export default async function ConversationPage({
   const preparedAi = preparedAiAllowed
     ? buildPreparedWhatsAppAssistant({ conversation: conv, lead, messages })
     : undefined;
+  const draftReviewMeta = [
+    conv.agent_draft_review_provider,
+    conv.agent_draft_review_model,
+    conv.agent_draft_review_status,
+  ].filter(Boolean).join(" · ");
 
   return (
     <div className="flex h-[calc(100vh-150px)] min-h-[420px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
@@ -102,6 +107,18 @@ export default async function ConversationPage({
             {conv.agent_summary ? <span>{conv.agent_summary}</span> : null}
             {conv.agent_handoff_reason ? <code className="ml-2 font-mono text-warn">{conv.agent_handoff_reason}</code> : null}
             {conv.agent_last_synced_at ? <code className="ml-2 font-mono">{conv.agent_last_synced_at}</code> : null}
+          </div>
+        )}
+        {conv.agent_draft_review_text && (
+          <div className="border-b border-border bg-info-weak px-5 py-3">
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              <span className="text-[12px] font-semibold text-info">{t("draftReview")}</span>
+              <span className="rounded-full border border-info/25 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-normal text-info">
+                {t("draftReviewNotSent")}
+              </span>
+              {draftReviewMeta && <code className="font-mono text-[11px] text-fg-3">{draftReviewMeta}</code>}
+            </div>
+            <p className="whitespace-pre-wrap break-words text-[13px] leading-5 text-fg">{conv.agent_draft_review_text}</p>
           </div>
         )}
 

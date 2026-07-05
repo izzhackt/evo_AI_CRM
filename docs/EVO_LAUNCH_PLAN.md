@@ -9,45 +9,31 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Goal Slice
 
-Current slice: `/goal-qa-launch`.
+Current slice: `/goal-gemini-receive-only-production-preflight`.
 
 Deliverables for this slice:
 
-- Run a fresh-browser QA pass at desktop and mobile viewports covering login,
-  role routing, staff CRM, student portal, integration truthfulness,
-  prepared-versus-live AI boundaries, i18n switching, responsive layout,
-  security/secret handling, validation/build readiness, and presentation demo
-  clarity.
-- Capture meaningful local screenshots and record their paths in a QA report
-  without committing large generated binaries unless the repo adds an artifact
-  convention.
-- Score one checklist across passes, improve only the weakest safe area inside
-  release/presentation readiness scope, and rerun the full flow after any
-  change.
-- Name missing WhatsApp, telephony, amoCRM, or Anthropic credentials as
-  `not_configured` or blockers. Do not claim live integration success without
-  real provider credentials and responses.
-- Preserve the prepared AI boundary: prepared responses may be used for the
-  first presentation only as labeled prepared content and never as live
-  Anthropic success.
-- Run real repo validation after the QA pass, or record the exact blocker.
+- Update the lead-agent readiness/preflight path so receive-only rollout
+  readiness is distinct from outbound WhatsApp readiness.
+- Make missing WAHA, amoCRM, CRM sync, Gemini, and admin configuration report
+  exact input names.
+- Keep local smoke no-outbound and failing when outbound is enabled.
+- Update production env examples and deployment docs with Gemini configuration
+  and receive-only safety flags.
+- Run lead-agent `uv run pytest` and `uv run ruff check .`.
+- Run parent CRM validation because deployment docs and Compose are touched, or
+  record the exact blocker.
 - Commit only this slice with a Conventional Commit.
 - Request independent code-reviewer approval before merge.
 
 Out of scope for this slice:
 
-- Redoing admissions CRM.
-- Redoing student portal.
-- Rebuilding amoCRM architecture.
-- WhatsApp, telephony, amoCRM, or Anthropic integration changes except copy or
-  status clarity that prevents fake/demo success claims.
-- Claiming live WhatsApp, telephony, amoCRM, or Anthropic success without real
-  credentials and provider responses.
-- Unauthenticated amoCRM webhook mutations.
-- Prepared-response AI workflow redesign.
-- Role model redesign or broad authentication/authorization changes.
-- New database migration framework.
-- Deployment.
+- Executing the production receive-only proof from issue #5.
+- Enabling outbound WhatsApp.
+- Claiming live WAHA, amoCRM, Gemini, or CRM sync success without real
+  credentials and real provider responses.
+- Merging or transplanting the unrelated Kant/Bitrix workspace.
+- Rebuilding the CRM UI, role model, student portal, or amoCRM architecture.
 
 ## Execution Rules
 
@@ -299,11 +285,40 @@ Acceptance criteria:
 - Both internal CRM sync and WAHA webhooks must be authenticated with shared
   secrets/HMAC-style verification; no public unauthenticated mutation endpoint
   is allowed.
-- The first live test must keep autoreply and outbound disabled until WAHA,
-  amoCRM, CRM internal sync, and Anthropic configuration are verified with real
-  credentials.
+- The first live receive-only test may enable autoreply only for Gemini draft
+  review, but must keep outbound disabled until WAHA, amoCRM, CRM internal sync,
+  and Gemini configuration are verified with real credentials and a later
+  outbound send test is explicitly approved.
 - Parent CRM validation must ignore the nested `evo-lead-agent` repo so parent
   lint/type/build gates do not scan vendored research snapshots.
+
+`/goal-gemini-receive-only-production-preflight` named write set:
+
+- `docs/EVO_LAUNCH_PLAN.md`, `docs/PLAN_CHANGES.md`, `deploy/README.md`,
+  `deploy/env.lead-agent.example`, `docker-compose.prod.yml`: parent launch
+  contract and production deployment readiness path.
+- `evo-lead-agent/README.md`, `evo-lead-agent/.env.example`,
+  `evo-lead-agent/PLAN_CHANGES.md`, `evo-lead-agent/implementation-plan.md`,
+  `evo-lead-agent/technical-spec.md`,
+  `evo-lead-agent/src/evo_lead_agent/readiness.py`,
+  `evo-lead-agent/src/evo_lead_agent/preflight.py`,
+  `evo-lead-agent/src/evo_lead_agent/cli.py`,
+  `evo-lead-agent/tests/test_readiness.py`,
+  `evo-lead-agent/tests/test_preflight.py`,
+  `evo-lead-agent/tests/test_cli.py`: nested lead-agent receive-only readiness,
+  preflight, local smoke, docs, and regression coverage.
+
+Acceptance criteria:
+
+- Env examples and deploy docs include Gemini configuration and receive-only
+  safety flags.
+- Readiness and preflight distinguish `receive_only_rollout` from
+  `live_whatsapp_outbound`.
+- Missing WAHA, amoCRM, CRM sync, Gemini, and admin configuration is reported
+  by exact missing input name.
+- Local smoke remains no-outbound and fails if outbound is enabled.
+- `uv run pytest` and `uv run ruff check .` pass in `evo-lead-agent`.
+- Parent CRM validation runs because deployment docs and Compose are touched.
 
 ## Merge Order
 

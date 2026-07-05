@@ -597,9 +597,13 @@ tracked files under `evo-lead-agent/`. Remove the parent ignore rule for that
 directory and stop documenting the lead-agent as a private nested repo clone.
 Do not vendor the unrelated research snapshot clones under
 `evo-lead-agent/research/repos`; keep only the product runtime, tests, examples,
-and lead-agent project docs needed to build and validate the service.
+and lead-agent project docs needed to build and validate the service. The
+production lead-agent image must install from the committed `uv.lock` rather
+than resolving floating `pyproject.toml` dependency ranges during Docker build.
 Validation impact: run `uv run pytest` and `uv run ruff check .` in
 `evo-lead-agent`; run parent lint/type/build checks because parent ignore rules
 and deployment docs change. No production proof or outbound WhatsApp change is
 part of this ownership migration.
-Reviewer notes: pending independent launch-control review.
+Reviewer notes: reviewer agent `019f3423-0354-7ea2-9cc7-4919a553e536` found
+floating Docker dependency resolution; addressed by using locked `uv sync` in
+`evo-lead-agent/Dockerfile`.

@@ -1,0 +1,20 @@
+{
+  "entries": [
+    {
+      "source": "amo_browser",
+      "external_id": "example-documents-ru",
+      "question": "Какие документы нужны для поступления?",
+      "answer": "Обычно нужны паспорт, аттестат, транскрипт и языковой сертификат, если есть. Точный список зависит от страны и программы.",
+      "language": "ru",
+      "tags": ["documents", "admissions"]
+    },
+    {
+      "source": "amo_browser",
+      "external_id": "example-price-ru",
+      "question": "Сколько стоит обучение?",
+      "answer": "Стоимость зависит от страны, университета, программы и пакета сопровождения. Менеджер уточнит цели и предложит подходящие варианты.",
+      "language": "ru",
+      "tags": ["price", "qualification"]
+    }
+  ]
+}

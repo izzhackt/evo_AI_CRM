@@ -1,0 +1,100 @@
+{
+  "entries": [
+    {
+      "source": "evo_starter",
+      "external_id": "starter-documents-ru",
+      "question": "Какие документы нужны для поступления?",
+      "answer": "Обычно нужны паспорт, аттестат или диплом, транскрипт с оценками и языковой сертификат, если он есть. Точный список зависит от страны, уровня программы и университета, поэтому менеджер уточнит направление и проверит требования.",
+      "language": "ru",
+      "tags": ["documents", "admissions"]
+    },
+    {
+      "source": "evo_starter",
+      "external_id": "starter-price-ru",
+      "question": "Сколько стоит обучение за границей?",
+      "answer": "Стоимость зависит от страны, университета, программы, уровня обучения и выбранного пакета сопровождения. Менеджер сначала уточнит страну, специальность, бюджет и сроки, затем предложит подходящие варианты.",
+      "language": "ru",
+      "tags": ["price", "qualification"]
+    },
+    {
+      "source": "evo_starter",
+      "external_id": "starter-countries-ru",
+      "question": "В какие страны можно поступить?",
+      "answer": "Можно рассматривать разные направления в зависимости от бюджета, языка, возраста, образования и целей студента. Напишите желаемую страну или специальность, и менеджер подберет реалистичные варианты.",
+      "language": "ru",
+      "tags": ["countries", "qualification"]
+    },
+    {
+      "source": "evo_starter",
+      "external_id": "starter-english-ru",
+      "question": "Можно ли поступить без IELTS или английского сертификата?",
+      "answer": "Иногда есть программы с внутренним тестом, подготовительным курсом или условным зачислением, но это зависит от страны и университета. Менеджер проверит варианты после того, как узнает уровень английского и желаемую программу.",
+      "language": "ru",
+      "tags": ["language", "ielts", "qualification"]
+    },
+    {
+      "source": "evo_starter",
+      "external_id": "starter-age-ru",
+      "question": "С какого возраста можно поступать за границу?",
+      "answer": "Возможности зависят от текущего класса, возраста, страны и типа программы: школа, foundation, бакалавриат, магистратура или языковая подготовка. Напишите возраст и текущее образование, чтобы менеджер подсказал подходящий маршрут.",
+      "language": "ru",
+      "tags": ["age", "qualification"]
+    },
+    {
+      "source": "evo_starter",
+      "external_id": "starter-scholarship-ru",
+      "question": "Можно ли получить грант или скидку на обучение?",
+      "answer": "В некоторых странах и университетах бывают скидки, стипендии или частичное финансирование, но решение всегда принимает учебное заведение. Менеджер сможет оценить шансы после проверки оценок, языка, программы и дедлайнов.",
+      "language": "ru",
+      "tags": ["scholarship", "qualification"]
+    },
+    {
+      "source": "evo_starter",
+      "external_id": "starter-visa-ru",
+      "question": "Вы помогаете с визой?",
+      "answer": "Команда может сопровождать подготовку документов и объяснить общий процесс, но решение по визе принимает консульство или миграционный орган. Менеджер уточнит страну и ситуацию, чтобы объяснить следующий шаг.",
+      "language": "ru",
+      "tags": ["visa", "handoff"]
+    },
+    {
+      "source": "evo_starter",
+      "external_id": "starter-deadline-ru",
+      "question": "Когда дедлайн подачи документов?",
+      "answer": "Дедлайны зависят от страны, университета, программы и набора. Чтобы не дать неверную дату, менеджер уточнит направление и желаемый intake, затем проверит актуальные сроки.",
+      "language": "ru",
+      "tags": ["deadline", "handoff"]
+    },
+    {
+      "source": "evo_starter",
+      "external_id": "starter-start-ru",
+      "question": "С чего начать поступление?",
+      "answer": "Лучше начать с короткой диагностики: страна или регион, желаемая специальность, текущий класс или образование, уровень английского, бюджет и желаемый intake. После этого менеджер сможет предложить реалистичный план.",
+      "language": "ru",
+      "tags": ["start", "qualification"]
+    },
+    {
+      "source": "evo_starter",
+      "external_id": "starter-consultation-ru",
+      "question": "Можно получить консультацию?",
+      "answer": "Да, менеджер может провести консультацию и разобрать цели, бюджет, документы и подходящие страны. Напишите, пожалуйста, имя студента, возраст, текущее образование и желаемое направление.",
+      "language": "ru",
+      "tags": ["consultation", "qualification"]
+    },
+    {
+      "source": "evo_starter",
+      "external_id": "starter-documents-en",
+      "question": "What documents do I need to apply?",
+      "answer": "Usually you need a passport, school certificate or diploma, transcript, and a language certificate if available. The exact list depends on the country, degree level, and university, so a manager should check the target program first.",
+      "language": "en",
+      "tags": ["documents", "admissions"]
+    },
+    {
+      "source": "evo_starter",
+      "external_id": "starter-start-en",
+      "question": "How do I start the application process?",
+      "answer": "Start with a short qualification check: target country or region, preferred major, current education, English level, budget, and desired intake. After that, a manager can suggest realistic study options.",
+      "language": "en",
+      "tags": ["start", "qualification"]
+    }
+  ]
+}

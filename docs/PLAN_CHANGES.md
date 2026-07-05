@@ -581,3 +581,25 @@ disabled.
 Validation impact: rerun parent lint/build checks through the pre-push hook and
 request independent re-review. No production proof or outbound WhatsApp change.
 Reviewer notes: addresses reviewer agent `019f32d0-96c3-7051-9149-eec6cb5ef73c`.
+
+## 2026-07-06 - Parent Repo Owns EVO Lead-Agent Source
+
+Date: 2026-07-06, workspace timezone.
+Author: Codex.
+Change type: source-of-truth, file ownership, deployment workflow.
+Affected plan section: `/goal-lead-agent-webhook-ownership`,
+`/goal-gemini-receive-only-rollout`, deployment source layout.
+Reason: user clarified that `nik1t7n/kanttsp-lead-agent` is a different
+project that only shares the broad idea. EVO production must not use that
+external repo as the source of truth.
+Decision: make `izzhackt/evo_AI_CRM` own the EVO-specific lead-agent source as
+tracked files under `evo-lead-agent/`. Remove the parent ignore rule for that
+directory and stop documenting the lead-agent as a private nested repo clone.
+Do not vendor the unrelated research snapshot clones under
+`evo-lead-agent/research/repos`; keep only the product runtime, tests, examples,
+and lead-agent project docs needed to build and validate the service.
+Validation impact: run `uv run pytest` and `uv run ruff check .` in
+`evo-lead-agent`; run parent lint/type/build checks because parent ignore rules
+and deployment docs change. No production proof or outbound WhatsApp change is
+part of this ownership migration.
+Reviewer notes: pending independent launch-control review.

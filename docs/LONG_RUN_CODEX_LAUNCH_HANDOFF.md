@@ -48,7 +48,8 @@ Run the launch-control flow for Gemini-backed receive-only WhatsApp rollout in E
 ## Current Branches
 
 - Parent CRM branch: `izzhacktcodex/waha-integration`
-- Nested lead-agent branch: `izzhacktcodex/evo-lead-agent`
+- Lead-agent source: parent-tracked `evo-lead-agent/` directory in
+  `izzhackt/evo_AI_CRM`
 
 ## Stop Conditions
 

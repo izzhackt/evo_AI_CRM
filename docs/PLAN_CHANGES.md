@@ -629,3 +629,47 @@ Validation impact: rerun lead-agent tests and ruff, then parent lint/type/build
 and Docker lead-agent image build. No production proof or outbound WhatsApp
 change is part of this review fix.
 Reviewer notes: addresses reviewer agent `019f342e-7ed9-7ab3-b02c-3a3e7e9670f6`.
+
+## 2026-07-06 - EVO Inbox Companion App PRD
+
+Date: 2026-07-06, workspace timezone.
+Author: Codex.
+Change type: new product lane, implementation contract, deployment strategy.
+Affected plan section: `/goal-evo-inbox-companion`.
+Reason: user chose to stop grilling and turn the WACRM-to-EVO Inbox plan into
+implementation docs. The companion app is now a separate product lane rather
+than an extension of the existing lead-agent rollout.
+Decision: add `docs/EVO_INBOX_COMPANION_PRD.md` and register
+`/goal-evo-inbox-companion` in `docs/EVO_LAUNCH_PLAN.md`. The lane will create
+`agent-lead2-crmwhatsapp/` from WACRM under MIT license, fully redesign retained
+surfaces as EVO Inbox, replace Meta Cloud API with WAHA session `evo-inbox`, use
+managed Supabase Cloud, keep amoCRM as identity source of truth, keep WACRM's
+own AI assistant in draft-only mode, host at `inbox.evoadmissions.com` on
+`hermes-vps`, and disable broadcasts, broad automations, flow-driven sending,
+and AI auto-reply for first launch.
+Validation impact: planning-only change. Future implementation blocks must run
+their local install/lint/type/build/test gates, Supabase migration checks, and
+live production checks only with real Supabase, WAHA, amoCRM, AI provider, DNS,
+Caddy, and `hermes-vps` credentials.
+Reviewer notes: pending implementation issue split and independent
+launch-control review during future PRs.
+
+## 2026-07-06 - EVO Inbox Issue Split And Remote Runbook
+
+Date: 2026-07-06, workspace timezone.
+Author: Codex.
+Change type: issue breakdown and remote execution planning.
+Affected plan section: `/goal-evo-inbox-companion`.
+Reason: user wants the PRD split into agent-ready implementation issues and
+plans to run long Codex sessions from `hermes-vps` while keeping GitHub as the
+source of truth.
+Decision: add `docs/EVO_INBOX_IMPLEMENTATION_ISSUES.md` with 11 dependency
+ordered implementation issues and ready-to-publish GitHub issue bodies. Add
+`docs/EVO_INBOX_REMOTE_LONG_RUNS.md` with server workspace setup and three long
+run prompts covering source/product pruning, core Supabase/WAHA/amoCRM paths,
+and AI/redesign/deployment/proof. Because current planning context lives on
+`izzhacktcodex/waha-integration` ahead of `main`, remote runs should start from
+that pushed branch or an EVO Inbox branch based on it until the branch is merged.
+Validation impact: planning-only change. GitHub issue publication is pending
+user approval of granularity per the issue-splitting workflow.
+Reviewer notes: no implementation yet.

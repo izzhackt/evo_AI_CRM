@@ -11,6 +11,15 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 Current slice: `/goal-gemini-receive-only-production-preflight`.
 
+Next major lane: `/goal-evo-inbox-companion`.
+
+The EVO Inbox companion lane is specified in
+`docs/EVO_INBOX_COMPANION_PRD.md`. It creates a WACRM-derived, fully redesigned
+standalone companion app at `agent-lead2-crmwhatsapp/`, hosted at
+`inbox.evoadmissions.com`, using managed Supabase Cloud, WAHA session
+`evo-inbox`, WACRM's own draft-only AI assistant, and amoCRM as the identity
+source of truth.
+
 Deliverables for this slice:
 
 - Update the lead-agent readiness/preflight path so receive-only rollout
@@ -230,6 +239,62 @@ Application architecture:
 
 Future lanes must name their write set before coding. If a lane needs to edit
 outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
+
+`/goal-evo-inbox-companion` planned write set:
+
+- `docs/EVO_INBOX_COMPANION_PRD.md`: product contract and acceptance context.
+- `docs/EVO_LAUNCH_PLAN.md`: lane status, phase plan, write sets, and
+  validation gates.
+- `docs/PLAN_CHANGES.md`: append-only decisions and scope changes.
+- `CONTEXT.md` and `docs/adr/**`: domain language and architectural decisions.
+- `agent-lead2-crmwhatsapp/**`: WACRM-derived EVO Inbox app, Supabase
+  migrations, WAHA transport, amoCRM resolver, AI draft surfaces, redesigned UI,
+  tests, and MIT license notice.
+- `docker-compose.prod.yml`, deployment docs, and Caddy deployment notes only
+  when the deployable companion service is introduced.
+
+`/goal-evo-inbox-companion` phase plan:
+
+1. Source setup: create a clean implementation branch from the intended base,
+   copy WACRM into `agent-lead2-crmwhatsapp/`, preserve MIT license notice, and
+   establish local install/build/test commands.
+2. Product pruning: remove or hide Meta Cloud API, broadcasts, broad
+   automations, flow-driven sending, and first-launch-disabled WACRM surfaces.
+3. WAHA transport: replace Meta send/webhook/session assumptions with WAHA
+   session `evo-inbox`, authenticated webhooks, idempotent inbound persistence,
+   and manual outbound send.
+4. Supabase foundation: configure managed Supabase, migrations, Auth, storage,
+   RLS, service-role server paths, and companion shadow records.
+5. amoCRM identity: resolve by phone, create missing contact/lead, store
+   `amo_contact_id` and `amo_lead_id`, and block local-only lead presentation
+   when amoCRM is unavailable.
+6. AI draft and knowledge: keep WACRM's OpenAI/Anthropic draft assistant and
+   knowledge base, default auto-reply off, and route manual sends through WAHA.
+7. Full EVO Inbox redesign: redesign retained surfaces around admissions
+   operators, integration status, lead profile, AI draft, knowledge base, and
+   production readiness.
+8. VPS deployment: add a separate `hermes-vps` service and Caddy route for
+   `inbox.evoadmissions.com`; verify only with real DNS, Supabase, WAHA, amoCRM,
+   and AI provider credentials.
+
+`/goal-evo-inbox-companion` acceptance criteria:
+
+- The companion app runs from `agent-lead2-crmwhatsapp/` without depending on
+  Meta Cloud API configuration.
+- First launch supports one WAHA session named `evo-inbox`.
+- Inbound WAHA messages are authenticated, idempotent, persisted in Supabase,
+  and visible in the redesigned EVO Inbox.
+- The app resolves or creates amoCRM identity before presenting a lead as real.
+- Supabase stores shadow records and app data, not canonical CRM identity.
+- AI draft works through the companion app's own assistant; auto-reply is off by
+  default.
+- An operator can send one manual WhatsApp reply through WAHA after reviewing
+  the conversation and optional AI draft.
+- Broadcasts, broad automations, flow-driven sending, and Meta templates are
+  absent or disabled in first-launch UI and runtime paths.
+- `inbox.evoadmissions.com` deployment is only claimed after a real
+  `hermes-vps` deployment, Caddy routing, DNS, WAHA, Supabase, amoCRM, and AI
+  provider check succeeds.
 
 `/goal-qa-launch` named write set:
 

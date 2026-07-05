@@ -136,6 +136,10 @@ db.exec(`
     agent_state TEXT,
     agent_summary TEXT,
     agent_handoff_reason TEXT,
+    agent_draft_review_text TEXT,
+    agent_draft_review_status TEXT,
+    agent_draft_review_provider TEXT,
+    agent_draft_review_model TEXT,
     agent_last_synced_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -190,6 +194,10 @@ db.exec(`
     agent_state TEXT,
     agent_summary TEXT,
     agent_handoff_reason TEXT,
+    agent_draft_review_text TEXT,
+    agent_draft_review_status TEXT,
+    agent_draft_review_provider TEXT,
+    agent_draft_review_model TEXT,
     agent_last_synced_at TEXT,
     last_message_at TEXT,
     unread INTEGER NOT NULL DEFAULT 0

@@ -92,6 +92,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
   }
 
+  const explicitOutboundText = optionalString(body.outboundText, 4000);
+  const outboundWaId = optionalString(body.outboundProviderMessageId, 256);
+  const replyText = optionalString(body.replyText, 4000);
+  const draftReviewText =
+    optionalString(body.draftReviewText, 4000) ??
+    optionalString(body.draftText, 4000) ??
+    (!outboundWaId ? replyText ?? explicitOutboundText : null);
+  const outboundText = outboundWaId ? explicitOutboundText ?? replyText : null;
+
   const result = syncLeadAgentWhatsApp({
     session,
     phone,
@@ -103,8 +112,12 @@ export async function POST(req: NextRequest) {
     agentState,
     agentSummary: optionalString(body.agentSummary, 2000),
     agentHandoffReason: optionalString(body.handoffReason, 500),
-    outboundText: optionalString(body.replyText, 4000),
-    outboundWaId: optionalString(body.outboundProviderMessageId, 256),
+    draftReviewText,
+    draftReviewStatus: optionalString(body.draftReviewStatus, 64),
+    draftReviewProvider: optionalString(body.draftReviewProvider, 64),
+    draftReviewModel: optionalString(body.draftReviewModel, 128),
+    outboundText,
+    outboundWaId,
   });
   if (!result) return NextResponse.json({ error: "sync_failed" }, { status: 400 });
   return NextResponse.json({ ok: true, ...result });

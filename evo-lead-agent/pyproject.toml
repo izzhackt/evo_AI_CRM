@@ -1,0 +1,47 @@
+[project]
+name = "evo-lead-agent"
+version = "0.1.0"
+description = "EVO Admissions WhatsApp lead agent with WAHA and amoCRM integration"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.116.0",
+  "google-genai>=2.10.0",
+  "httpx>=0.28.0",
+  "python-dotenv>=1.2.0",
+  "uvicorn[standard]>=0.35.0",
+]
+
+[project.scripts]
+evo-lead-agent-draft-knowledge = "evo_lead_agent.cli:draft_knowledge_main"
+evo-lead-agent-env-audit = "evo_lead_agent.cli:env_audit_main"
+evo-lead-agent-import-knowledge = "evo_lead_agent.cli:import_knowledge_main"
+evo-lead-agent-local-smoke = "evo_lead_agent.cli:local_smoke_main"
+evo-lead-agent-preflight = "evo_lead_agent.cli:preflight_main"
+evo-lead-agent-readiness = "evo_lead_agent.cli:readiness_main"
+evo-lead-agent-smoke-waha-webhook = "evo_lead_agent.cli:smoke_waha_webhook_main"
+evo-lead-agent-waha-setup = "evo_lead_agent.cli:waha_setup_main"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4.0",
+  "pytest-asyncio>=1.2.0",
+  "ruff>=0.12.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [
+  "research/repos",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/evo_lead_agent"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

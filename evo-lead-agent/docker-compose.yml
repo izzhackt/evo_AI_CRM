@@ -1,0 +1,60 @@
+services:
+  evo-lead-agent:
+    build: .
+    environment:
+      EVO_AGENT_ENV: ${EVO_AGENT_ENV:-local}
+      EVO_AGENT_DB_PATH: ${EVO_AGENT_DB_PATH:-data/evo-lead-agent.db}
+      EVO_AGENT_AUTOREPLY_ENABLED: ${EVO_AGENT_AUTOREPLY_ENABLED:-false}
+      EVO_AGENT_OUTBOUND_ENABLED: ${EVO_AGENT_OUTBOUND_ENABLED:-false}
+      EVO_AGENT_MAX_REPLY_CHARS: ${EVO_AGENT_MAX_REPLY_CHARS:-900}
+      EVO_AGENT_REPLY_DELAY_SECONDS: ${EVO_AGENT_REPLY_DELAY_SECONDS:-30}
+      EVO_AGENT_WORKER_ENABLED: ${EVO_AGENT_WORKER_ENABLED:-true}
+      EVO_AGENT_WORKER_POLL_INTERVAL_SECONDS: ${EVO_AGENT_WORKER_POLL_INTERVAL_SECONDS:-2}
+      EVO_AGENT_STARTER_KNOWLEDGE_PATH: ${EVO_AGENT_STARTER_KNOWLEDGE_PATH:-examples/evo-admissions-starter-knowledge.json}
+      EVO_AGENT_WAHA_BASE_URL: ${EVO_AGENT_WAHA_BASE_URL:-http://evo-crm-waha:3000}
+      EVO_AGENT_WAHA_API_KEY: ${EVO_AGENT_WAHA_API_KEY:-}
+      EVO_AGENT_WAHA_SESSION: ${EVO_AGENT_WAHA_SESSION:-crm_primary}
+      EVO_AGENT_WAHA_WEBHOOK_SECRET: ${EVO_AGENT_WAHA_WEBHOOK_SECRET:-}
+      EVO_AGENT_WAHA_WEBHOOK_URL: ${EVO_AGENT_WAHA_WEBHOOK_URL:-}
+      EVO_AGENT_AMO_BASE_URL: ${EVO_AGENT_AMO_BASE_URL:-https://example.amocrm.ru}
+      EVO_AGENT_AMO_CLIENT_ID: ${EVO_AGENT_AMO_CLIENT_ID:-}
+      EVO_AGENT_AMO_CLIENT_SECRET: ${EVO_AGENT_AMO_CLIENT_SECRET:-}
+      EVO_AGENT_AMO_REDIRECT_URI: ${EVO_AGENT_AMO_REDIRECT_URI:-}
+      EVO_AGENT_AMO_REFRESH_TOKEN: ${EVO_AGENT_AMO_REFRESH_TOKEN:-}
+      EVO_AGENT_AMO_TOKEN_FILE: ${EVO_AGENT_AMO_TOKEN_FILE:-data/amo-token.json}
+      EVO_AGENT_AMO_PIPELINE_ID: ${EVO_AGENT_AMO_PIPELINE_ID:-}
+      EVO_AGENT_AMO_STATUS_ID: ${EVO_AGENT_AMO_STATUS_ID:-}
+      EVO_AGENT_AMO_RESPONSIBLE_USER_ID: ${EVO_AGENT_AMO_RESPONSIBLE_USER_ID:-}
+      EVO_AGENT_CRM_BASE_URL: ${EVO_AGENT_CRM_BASE_URL:-http://evo-crm-app:3000}
+      EVO_AGENT_CRM_SYNC_PATH: ${EVO_AGENT_CRM_SYNC_PATH:-/api/internal/lead-agent/whatsapp}
+      EVO_AGENT_CRM_SYNC_SECRET: ${EVO_AGENT_CRM_SYNC_SECRET:-}
+      EVO_AGENT_CRM_SYNC_TIMEOUT_SECONDS: ${EVO_AGENT_CRM_SYNC_TIMEOUT_SECONDS:-10}
+      EVO_AGENT_ADMIN_API_KEY: ${EVO_AGENT_ADMIN_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      EVO_AGENT_GEMINI_API_KEY: ${EVO_AGENT_GEMINI_API_KEY:-}
+      EVO_AGENT_GEMINI_MODEL: ${EVO_AGENT_GEMINI_MODEL:-gemini-3.5-flash}
+    ports:
+      - "127.0.0.1:8088:8000"
+    volumes:
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "evo-crm-app:host-gateway"
+    restart: unless-stopped
+
+  evo-crm-waha:
+    image: devlikeapro/waha:latest
+    profiles:
+      - waha
+    environment:
+      WAHA_API_KEY: ${WAHA_API_KEY:-}
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - evo_crm_waha_sessions:/app/.sessions
+    restart: unless-stopped
+
+volumes:
+  evo_crm_waha_sessions:
+    name: evo_crm_waha_sessions

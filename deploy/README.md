@@ -105,15 +105,15 @@ The production Compose file intentionally reads these flags from
 `.env.lead-agent` instead of hard-coding them, so readiness can prove the real
 server setting.
 
-The lead-agent source is a private nested repo. Clone or update it on the VPS at:
+The lead-agent source is tracked by the parent `izzhackt/evo_AI_CRM` repo under:
 
 ```txt
 /opt/evo-crm/evo-lead-agent
 ```
 
-The parent CRM repo intentionally ignores that nested checkout; deploy both
-repos together before running `docker compose -f docker-compose.prod.yml up -d
---build`.
+Do not clone `nik1t7n/kanttsp-lead-agent` into this path for EVO production.
+Deploy the parent repo revision, which includes the EVO-specific lead-agent
+source, before running `docker compose -f docker-compose.prod.yml up -d --build`.
 
 Use separate shared secrets:
 

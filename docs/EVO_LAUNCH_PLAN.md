@@ -289,8 +289,10 @@ Acceptance criteria:
   review, but must keep outbound disabled until WAHA, amoCRM, CRM internal sync,
   and Gemini configuration are verified with real credentials and a later
   outbound send test is explicitly approved.
-- Parent CRM validation must ignore the nested `evo-lead-agent` repo so parent
-  lint/type/build gates do not scan vendored research snapshots.
+- The parent repo owns the EVO-specific `evo-lead-agent` source. Parent CRM
+  validation must still avoid scanning lead-agent Python/runtime internals with
+  Next.js tooling, and `evo-lead-agent/research/repos` stays untracked so
+  unrelated reference snapshots do not become production source.
 
 `/goal-gemini-receive-only-production-preflight` named write set:
 
@@ -305,7 +307,7 @@ Acceptance criteria:
   `evo-lead-agent/src/evo_lead_agent/cli.py`,
   `evo-lead-agent/tests/test_readiness.py`,
   `evo-lead-agent/tests/test_preflight.py`,
-  `evo-lead-agent/tests/test_cli.py`: nested lead-agent receive-only readiness,
+  `evo-lead-agent/tests/test_cli.py`: parent-tracked lead-agent receive-only readiness,
   preflight, local smoke, docs, and regression coverage.
 
 Acceptance criteria:

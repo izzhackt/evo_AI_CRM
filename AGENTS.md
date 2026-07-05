@@ -50,3 +50,17 @@
 - Store `WAHA_API_KEY=sha512:<hash>` in `/opt/evo-crm/.env.waha`; store the
   plain WAHA API key only in encrypted CRM settings and `.env.lead-agent`.
 - Use separate secrets for WAHA webhook HMAC and lead-agent-to-CRM sync HMAC.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues for `izzhackt/evo_AI_CRM` using the `gh` CLI authenticated with a PAT; external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: read root `CONTEXT.md` and root `docs/adr/` when they exist. See `docs/agents/domain.md`.

@@ -673,3 +673,32 @@ that pushed branch or an EVO Inbox branch based on it until the branch is merged
 Validation impact: planning-only change. GitHub issue publication is pending
 user approval of granularity per the issue-splitting workflow.
 Reviewer notes: no implementation yet.
+
+## 2026-07-05 - EVO Inbox Issues 1 And 2 Source/Product Shell
+
+Date: 2026-07-05, workspace timezone.
+Author: Codex.
+Change type: active slice, source provenance, file ownership, and validation.
+Affected plan section: `/goal-evo-inbox-companion` phase 1 source setup and
+phase 2 product pruning.
+Reason: durable goal mode started the first EVO Inbox companion implementation
+slice for issues 1 and 2: vendor the WACRM base into
+`agent-lead2-crmwhatsapp/` and remove first-launch Meta/bulk-automation product
+surfaces.
+Decision: use the upstream MIT-licensed WACRM repository at
+`https://github.com/ArnasDon/wacrm`, default branch `main`, commit
+`274db1c7ce42540f989ab3f3f069d1ce7166855a`, as the source base. The write set
+for this slice is `agent-lead2-crmwhatsapp/**` plus this change-log entry and
+minimal repo docs/config only if needed to keep the companion app installable,
+lintable, typecheckable, testable, and buildable in isolation. First-launch UI
+and runtime paths for Meta Cloud API setup, Meta templates, broadcasts, broad
+automations, flow-driven sending, and auto-reply must be absent or fail closed
+with explicit disabled responses. WAHA, Supabase, amoCRM, AI, DNS, Caddy, Meta
+live integration, and VPS deployment remain out of scope except for inert
+stubs/docs needed to keep the copied app buildable.
+Validation impact: run the companion app install command and the companion
+lint/typecheck/test/build commands that exist after setup. Run parent repo
+checks only if files outside docs/config and `agent-lead2-crmwhatsapp/**` are
+touched. Do not touch `/opt/evo-crm`, do not deploy, and do not claim live
+provider success.
+Reviewer notes: pending independent launch-control review.

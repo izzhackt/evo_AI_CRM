@@ -44,8 +44,8 @@ describe('sendMessageToConversation — param validation (pre-DB)', () => {
   it('rejects an unsupported message_type', async () => {
     await expectSendError(
       { ...base, messageType: 'carrier-pigeon' },
-      400,
-      /Unsupported message_type/
+      410,
+      /Unsupported first-launch WAHA message_type/
     );
   });
 
@@ -57,40 +57,23 @@ describe('sendMessageToConversation — param validation (pre-DB)', () => {
     );
   });
 
-  it('requires template_name for template messages', async () => {
-    await expectSendError(
-      { ...base, messageType: 'template' },
-      400,
-      /template_name is required/
-    );
-  });
-
-  it('requires media_url for media kinds', async () => {
-    for (const kind of ['image', 'video', 'document', 'audio']) {
+  it('fails closed for template and media sends in the first-launch WAHA path', async () => {
+    for (const messageType of ['template', 'image', 'video', 'document', 'audio']) {
       await expectSendError(
-        { ...base, messageType: kind },
-        400,
-        /media_url is required/
+        {
+          ...base,
+          messageType,
+          contentText: 'hello',
+          mediaUrl: 'https://x/y.jpg',
+          templateName: 'hello_world',
+        },
+        410,
+        /Unsupported first-launch WAHA message_type/
       );
     }
   });
 
-  it('rejects an over-long media caption (non-audio)', async () => {
-    await expectSendError(
-      {
-        ...base,
-        messageType: 'image',
-        mediaUrl: 'https://x/y.jpg',
-        contentText: 'a'.repeat(1025),
-      },
-      400,
-      /1024-character limit/
-    );
-  });
-
-  it('allows a long "caption" on audio (audio carries none) — so it reaches the DB', async () => {
-    // Audio is exempt from the caption cap, so validation passes and we
-    // proceed to the conversation lookup — proven by the stub throwing.
+  it('allows a text message to reach the DB lookup', async () => {
     const spy = vi.fn(() => {
       throw new Error('reached DB');
     });
@@ -98,9 +81,8 @@ describe('sendMessageToConversation — param validation (pre-DB)', () => {
     await expect(
       sendMessageToConversation(db, 'acct-1', {
         ...base,
-        messageType: 'audio',
-        mediaUrl: 'https://x/y.ogg',
-        contentText: 'a'.repeat(2000),
+        messageType: 'text',
+        contentText: 'Hello',
       })
     ).rejects.toThrow('reached DB');
     expect(spy).toHaveBeenCalledWith('conversations');

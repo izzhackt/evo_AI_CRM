@@ -1,9 +1,9 @@
 # Managed Supabase Companion Store
 
-Issue #11 prepares EVO Inbox Companion for a managed Supabase Cloud project.
-This document is about schema, environment, RLS, and validation workflow only.
-It does not connect WAHA, create a WAHA session, implement amoCRM lookup/create,
-deploy the app, or touch `/opt/evo-crm`.
+Issue #11 prepared EVO Inbox Companion for a managed Supabase Cloud project.
+Issues #13 and #14 now use those tables for WAHA and amoCRM configuration while
+keeping this document focused on schema, environment, RLS, and validation
+workflow. This document does not deploy the app or touch `/opt/evo-crm`.
 
 ## Store Boundary
 
@@ -13,7 +13,7 @@ Supabase stores companion app data:
 - Contacts and local shadow identity fields such as `contacts.amo_contact_id`.
 - Conversations and local lead shadow fields such as `conversations.amo_lead_id`.
 - Messages, reactions, notifications, and retained operator UI state.
-- Integration status/settings for future `waha` and `amocrm` providers.
+- Integration status/settings for `waha` and `amocrm` providers.
 - Encrypted integration secrets in `integration_secrets`.
 - AI settings, provider keys encrypted by the app, knowledge documents, and
   knowledge chunks.
@@ -116,6 +116,15 @@ authorization and account scoping before reading or writing data:
 - `integration_secrets` has no authenticated SELECT policy. Server code should
   expose only booleans such as `has_secret` to clients, read ciphertext with a
   service-role client, and decrypt only inside server-only code.
+
+Current WAHA/amoCRM usage:
+
+- WAHA public config: `baseUrl`, `sessionName` (default `evo-inbox`).
+- WAHA encrypted secrets: `api_key`, `webhook_hmac_secret`.
+- amoCRM public config: `baseUrl`, optional `pipelineId`, `statusId`, and
+  `responsibleUserId`.
+- amoCRM encrypted secrets: `access_token`, optional `refresh_token`,
+  `client_id`, and `client_secret`.
 
 Current local tests cover this boundary at the highest practical seam without a
 live Supabase project:

@@ -1,222 +1,132 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { toast } from 'sonner';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
   Eye,
   EyeOff,
-  Copy,
-  CheckCircle2,
-  XCircle,
   Loader2,
-  ExternalLink,
-  Zap,
-  AlertTriangle,
   RotateCcw,
+  ServerCog,
+  ShieldCheck,
+  Zap,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
+
 import { useAuth } from '@/hooks/use-auth';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { SettingsPanelHead } from './settings-panel-head';
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from '@/components/ui/accordion';
-import type { WhatsAppConfig as WhatsAppConfigType } from '@/types';
 
-const MASKED_TOKEN = '••••••••••••••••';
+const MASKED_SECRET = '****************';
+const DEFAULT_SESSION = 'evo-inbox';
 
-type ConnectionStatus = 'connected' | 'disconnected' | 'unknown';
-type ResetReason = 'token_corrupted' | 'meta_api_error' | null;
+interface WahaConfigResponse {
+  configured: boolean;
+  connected: boolean;
+  reason?: string;
+  message?: string;
+  public_config?: {
+    baseUrl?: string;
+    sessionName?: string;
+  };
+  has_secrets?: {
+    api_key?: boolean;
+    webhook_hmac_secret?: boolean;
+  };
+  session_status?: string;
+}
 
 export function WhatsAppConfig() {
-  const supabase = createClient();
-  // After multi-user, whatsapp_config is one-row-per-account, not
-  // one-row-per-user. We pull `accountId` straight off the auth
-  // context and key every read off it — so a teammate who just
-  // joined an account sees the inviter's saved config without
-  // having to re-enter anything.
   const { user, accountId, loading: authLoading, profileLoading } = useAuth();
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [showToken, setShowToken] = useState(false);
-  const [config, setConfig] = useState<WhatsAppConfigType | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('unknown');
-  const [resetReason, setResetReason] = useState<ResetReason>(null);
-  const [statusMessage, setStatusMessage] = useState<string>('');
-  // Guards against re-hydrating the form when the load effect below
-  // re-runs for reasons unrelated to actually switching accounts —
-  // e.g. Supabase's onAuthStateChange fires a token refresh (new
-  // `user` object, profileLoading flips true/false) when the browser
-  // tab regains focus. Without this, that churn calls fetchConfig()
-  // again and overwrites whatever the user typed but hadn't saved yet.
-  const loadedAccountIdRef = useRef<string | null>(null);
+  const [status, setStatus] = useState<WahaConfigResponse | null>(null);
+  const [baseUrl, setBaseUrl] = useState('');
+  const [sessionName, setSessionName] = useState(DEFAULT_SESSION);
+  const [apiKey, setApiKey] = useState('');
+  const [webhookSecret, setWebhookSecret] = useState('');
+  const [apiKeyEdited, setApiKeyEdited] = useState(false);
+  const [webhookSecretEdited, setWebhookSecretEdited] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
 
-  const [phoneNumberId, setPhoneNumberId] = useState('');
-  const [wabaId, setWabaId] = useState('');
-  const [accessToken, setAccessToken] = useState('');
-  const [verifyToken, setVerifyToken] = useState('');
-  const [pin, setPin] = useState('');
-  const [tokenEdited, setTokenEdited] = useState(false);
+  const webhookUrl = useMemo(
+    () =>
+      typeof window === 'undefined'
+        ? ''
+        : `${window.location.origin}/api/waha/webhook`,
+    [],
+  );
 
-  // True once /register has succeeded on Meta's side (timestamp set
-  // in the row). When false, the saved config is metadata-only and
-  // Meta will silently drop every inbound event — that's the
-  // multi-number bug that prompted this work.
-  const isRegistered = Boolean(config?.registered_at);
-  const lastRegistrationError = config?.last_registration_error ?? null;
-
-  const [verifyingRegistration, setVerifyingRegistration] = useState(false);
-  type RegistrationProbe = {
-    live: boolean;
-    checks: Record<string, boolean | null>;
-    errors?: string[];
-    last_registration_error?: string | null;
-    registered_at?: string | null;
-    subscribed_apps_at?: string | null;
-  };
-  const [registrationProbe, setRegistrationProbe] =
-    useState<RegistrationProbe | null>(null);
-
-  const webhookUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/api/whatsapp/webhook`
-      : '';
-
-  const fetchConfig = useCallback(async (acctId: string) => {
+  const loadConfig = useCallback(async () => {
     setLoading(true);
     try {
-      // Load form values from Supabase (shows what's in DB).
-      // Switched from `user_id` (which would only match the row's
-      // original author) to `account_id` so every member of the
-      // account sees the same saved configuration. UNIQUE(account_id)
-      // on the table guarantees the .maybeSingle() return type
-      // remains accurate.
-      const { data, error } = await supabase
-        .from('whatsapp_config')
-        .select('*')
-        .eq('account_id', acctId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Failed to load config row:', error);
-      }
-
-      if (data) {
-        setConfig(data);
-        setPhoneNumberId(data.phone_number_id || '');
-        setWabaId(data.waba_id || '');
-        setAccessToken(MASKED_TOKEN);
-        setVerifyToken('');
-        setPin('');
-        setTokenEdited(false);
-      } else {
-        setConfig(null);
-        setPhoneNumberId('');
-        setWabaId('');
-        setAccessToken('');
-        setVerifyToken('');
-        setPin('');
-        setTokenEdited(false);
-      }
-      // Clear any stale probe result when reloading the row.
-      setRegistrationProbe(null);
-
-      // Then verify health via the API (decrypts token + pings Meta)
-      if (data) {
-        try {
-          const res = await fetch('/api/whatsapp/config', { method: 'GET' });
-          const payload = await res.json();
-
-          if (payload.connected) {
-            setConnectionStatus('connected');
-            setResetReason(null);
-            setStatusMessage('');
-          } else {
-            setConnectionStatus('disconnected');
-            setResetReason(payload.needs_reset ? 'token_corrupted' : payload.reason === 'meta_api_error' ? 'meta_api_error' : null);
-            setStatusMessage(payload.message || '');
-          }
-        } catch (err) {
-          console.error('Health check failed:', err);
-          setConnectionStatus('disconnected');
-        }
-      } else {
-        setConnectionStatus('disconnected');
-        setResetReason(null);
-        setStatusMessage('');
-      }
+      const res = await fetch('/api/whatsapp/config', {
+        method: 'GET',
+        cache: 'no-store',
+      });
+      const data = (await res.json()) as WahaConfigResponse;
+      setStatus(data);
+      setBaseUrl(data.public_config?.baseUrl ?? '');
+      setSessionName(data.public_config?.sessionName ?? DEFAULT_SESSION);
+      setApiKey(data.has_secrets?.api_key ? MASKED_SECRET : '');
+      setWebhookSecret(
+        data.has_secrets?.webhook_hmac_secret ? MASKED_SECRET : '',
+      );
+      setApiKeyEdited(false);
+      setWebhookSecretEdited(false);
     } catch (err) {
-      console.error('fetchConfig error:', err);
-      toast.error('Failed to load WhatsApp configuration');
+      console.error('[waha-config] load failed:', err);
+      toast.error('Failed to load WAHA configuration');
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
-    // Need both the auth session (`!authLoading`) AND the profile
-    // (`!profileLoading`, which carries `accountId`). Without the
-    // second guard, the effect would fire with `accountId === null`
-    // for the first render window and bail without ever retrying
-    // once the profile arrives.
     if (authLoading || profileLoading) return;
     if (!user || !accountId) {
-      loadedAccountIdRef.current = null;
       setLoading(false);
       return;
     }
-    if (loadedAccountIdRef.current === accountId) return;
-    loadedAccountIdRef.current = accountId;
-    fetchConfig(accountId);
-  }, [authLoading, profileLoading, user?.id, accountId, fetchConfig]);
+    void loadConfig();
+  }, [accountId, authLoading, loadConfig, profileLoading, user]);
 
-  async function handleSave() {
-    if (!phoneNumberId.trim()) {
-      toast.error('Phone Number ID is required');
+  async function saveConfig() {
+    if (!baseUrl.trim()) {
+      toast.error('WAHA base URL is required');
       return;
     }
-    if (!config && (!accessToken.trim() || !tokenEdited)) {
-      toast.error('Access Token is required for initial setup');
+    if (!sessionName.trim()) {
+      toast.error('Session name is required');
       return;
     }
 
+    setSaving(true);
     try {
-      setSaving(true);
-
-      // Always POST through the API — it verifies with Meta and encrypts
-      // the access_token server-side with ENCRYPTION_KEY. Skipping this
-      // and writing direct to Supabase stores the token in plaintext,
-      // which then fails decryption on every subsequent health check.
       const payload: Record<string, unknown> = {
-        phone_number_id: phoneNumberId.trim(),
-        waba_id: wabaId.trim() || null,
-        verify_token: verifyToken.trim() || null,
-        // Optional — only sent when the user filled it in. The server
-        // requires it on first save or when changing numbers; for a
-        // simple token rotation, leaving it blank skips re-register.
-        pin: pin.trim() || null,
+        base_url: baseUrl.trim(),
+        session_name: sessionName.trim() || DEFAULT_SESSION,
       };
-
-      if (tokenEdited && accessToken !== MASKED_TOKEN && accessToken.trim()) {
-        payload.access_token = accessToken.trim();
-      } else if (config) {
-        // Existing config — reuse stored encrypted token by decrypting on the
-        // server. But our POST handler requires an access_token to verify
-        // with Meta. If the user didn't change the token, we need to signal
-        // that. Simplest: require token re-entry if they're updating.
-        toast.error('Please re-enter the Access Token to save changes');
-        setSaving(false);
-        return;
+      if (apiKeyEdited && apiKey !== MASKED_SECRET) {
+        payload.api_key = apiKey.trim();
+      }
+      if (webhookSecretEdited && webhookSecret !== MASKED_SECRET) {
+        payload.webhook_hmac_secret = webhookSecret.trim();
       }
 
       const res = await fetch('/api/whatsapp/config', {
@@ -224,157 +134,67 @@ export function WhatsAppConfig() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
-        toast.error(data.error || 'Failed to save configuration');
-        setSaving(false);
+        toast.error(data.error || 'Failed to save WAHA configuration');
         return;
       }
-
-      // The route now returns a structured outcome:
-      //   * registered=true   → number is live, events will flow
-      //   * registered=false  → credentials saved but /register
-      //                         failed; UI shows the specific error
-      //                         and a retry path. registration_error
-      //                         is human-readable from Meta.
-      if (data.registered === false && data.registration_error) {
-        toast.error(
-          `Saved, but Meta couldn't register the number: ${data.registration_error}`,
-          { duration: 12000 },
-        );
-      } else if (data.registration_skipped) {
-        // Credentials saved + verified, but /register was skipped
-        // because no PIN was supplied (e.g. a Meta test number).
-        // Don't claim the number is "Live" — point at the
-        // Registration status banner instead.
-        toast.success(
-          'Credentials saved and verified. Inbound registration was skipped (no PIN) — see Registration status below.',
-          { duration: 10000 },
-        );
-        setPin('');
-      } else {
-        toast.success(
-          data.phone_info?.verified_name
-            ? `Live — ${data.phone_info.verified_name} can now receive events.`
-            : 'WhatsApp connected. Events will start flowing within a minute.',
-        );
-        // Clear the PIN so subsequent saves don't accidentally
-        // re-register (which would void the active subscription if
-        // the PIN became stale).
-        setPin('');
-      }
-
-      if (accountId) await fetchConfig(accountId);
+      toast.success('WAHA configuration saved');
+      await loadConfig();
     } catch (err) {
-      console.error('Save error:', err);
-      toast.error('Failed to save configuration');
+      console.error('[waha-config] save failed:', err);
+      toast.error('Failed to save WAHA configuration');
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleTestConnection() {
+  async function testConnection() {
+    setTesting(true);
     try {
-      setTesting(true);
-      const res = await fetch('/api/whatsapp/config', { method: 'GET' });
-      const payload = await res.json();
-
-      if (payload.connected) {
-        setConnectionStatus('connected');
-        setResetReason(null);
-        setStatusMessage('');
-        toast.success(
-          payload.phone_info?.verified_name
-            ? `Connected to ${payload.phone_info.verified_name}`
-            : 'API connection successful'
-        );
-      } else {
-        setConnectionStatus('disconnected');
-        setResetReason(payload.needs_reset ? 'token_corrupted' : payload.reason === 'meta_api_error' ? 'meta_api_error' : null);
-        setStatusMessage(payload.message || '');
-        toast.error(payload.message || 'API connection failed');
+      await loadConfig();
+      if (status?.connected) {
+        toast.success('WAHA session is working');
       }
-    } catch (err) {
-      console.error('Test connection error:', err);
-      setConnectionStatus('disconnected');
-      toast.error('Connection test failed. Check network and try again.');
     } finally {
       setTesting(false);
     }
   }
 
-  async function handleVerifyRegistration() {
-    setVerifyingRegistration(true);
-    setRegistrationProbe(null);
+  async function resetConfig() {
+    if (!confirm('Delete the WAHA configuration for this account?')) return;
+    setResetting(true);
     try {
-      const res = await fetch('/api/whatsapp/config/verify-registration', {
-        method: 'GET',
-      });
-      const data = (await res.json()) as RegistrationProbe;
-      setRegistrationProbe(data);
-      if (data.live) {
-        toast.success('Number is fully wired — Meta is delivering events.');
-      } else {
-        toast.error(
-          'Number is not fully registered. See the checks below for which step failed.',
-          { duration: 8000 },
-        );
-      }
-      if (accountId) await fetchConfig(accountId);
-    } catch (err) {
-      console.error('verify-registration failed:', err);
-      toast.error('Could not reach the verification endpoint.');
-    } finally {
-      setVerifyingRegistration(false);
-    }
-  }
-
-  async function handleReset() {
-    if (!confirm('This will delete the current WhatsApp config so you can re-enter it. Continue?')) {
-      return;
-    }
-
-    try {
-      setResetting(true);
       const res = await fetch('/api/whatsapp/config', { method: 'DELETE' });
-      const data = await res.json();
-
       if (!res.ok) {
-        toast.error(data.error || 'Failed to reset configuration');
+        const data = await res.json();
+        toast.error(data.error || 'Failed to reset WAHA configuration');
         return;
       }
-
-      toast.success('Configuration cleared. You can now re-enter your credentials.');
-      setConfig(null);
-      setPhoneNumberId('');
-      setWabaId('');
-      setAccessToken('');
-      setVerifyToken('');
-      setTokenEdited(false);
-      setConnectionStatus('disconnected');
-      setResetReason(null);
-      setStatusMessage('');
-    } catch (err) {
-      console.error('Reset error:', err);
-      toast.error('Failed to reset configuration');
+      toast.success('WAHA configuration cleared');
+      setStatus(null);
+      setBaseUrl('');
+      setSessionName(DEFAULT_SESSION);
+      setApiKey('');
+      setWebhookSecret('');
+      setApiKeyEdited(false);
+      setWebhookSecretEdited(false);
     } finally {
       setResetting(false);
     }
   }
 
-  function handleCopyWebhookUrl() {
-    navigator.clipboard.writeText(webhookUrl);
-    toast.success('Webhook URL copied to clipboard');
+  function copyWebhookUrl() {
+    void navigator.clipboard.writeText(webhookUrl);
+    toast.success('Webhook URL copied');
   }
 
   if (loading) {
     return (
       <section className="animate-in fade-in-50 duration-200">
         <SettingsPanelHead
-          title="WhatsApp connection"
-          description="Connect your Meta WhatsApp Business API. Credentials, webhook, and setup steps all live here."
+          title="WhatsApp WAHA"
+          description="Configure the private WAHA session used by EVO Inbox."
         />
         <div className="flex items-center justify-center py-12">
           <Loader2 className="size-6 animate-spin text-primary" />
@@ -383,474 +203,224 @@ export function WhatsAppConfig() {
     );
   }
 
-  const showResetBanner = resetReason === 'token_corrupted';
+  const connected = Boolean(status?.connected);
+  const configured = Boolean(status?.configured);
 
   return (
     <section className="animate-in fade-in-50 duration-200">
       <SettingsPanelHead
-        title="WhatsApp connection"
-        description="Connect your Meta WhatsApp Business API. Credentials, webhook, and setup steps all live here."
+        title="WhatsApp WAHA"
+        description="Configure session evo-inbox, API auth, and signed WAHA webhooks."
       />
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-      {/* Main config form */}
-      <div className="space-y-6">
-        {/* Corrupted-token reset banner */}
-        {showResetBanner && (
-          <Alert className="bg-amber-950/40 border-amber-600/40">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="size-5 text-amber-400 mt-0.5 shrink-0" />
-              <div className="flex-1">
-                <AlertTitle className="text-amber-200 mb-1">
-                  Stored token can&apos;t be decrypted
-                </AlertTitle>
-                <AlertDescription className="text-amber-100/80 text-sm">
-                  {statusMessage}
-                </AlertDescription>
-                <Button
-                  onClick={handleReset}
-                  disabled={resetting}
-                  size="sm"
-                  className="mt-3 bg-amber-600 hover:bg-amber-700 text-white"
-                >
-                  {resetting ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Resetting...
-                    </>
-                  ) : (
-                    <>
-                      <RotateCcw className="size-4" />
-                      Reset Configuration
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </Alert>
-        )}
 
-        {/* Connection Status */}
-        <Alert className="bg-card border-border">
-          <div className="flex items-center gap-2">
-            {connectionStatus === 'connected' ? (
-              <CheckCircle2 className="size-4 text-primary" />
-            ) : (
-              <XCircle className="size-4 text-red-500" />
-            )}
-            <AlertTitle className="text-foreground mb-0">
-              {connectionStatus === 'connected' ? 'Credentials valid' : 'Not Connected'}
-            </AlertTitle>
-          </div>
-          <AlertDescription className="text-muted-foreground">
-            {connectionStatus === 'connected'
-              ? 'Your access token authenticates with Meta. See Registration status below for whether webhooks are actually wired.'
-              : statusMessage ||
-                'Configure your Meta API credentials below to connect your WhatsApp Business account.'}
-          </AlertDescription>
-        </Alert>
-
-        {/* Registration Status — the "is it actually live?" check.
-            Credentials being valid is necessary but not sufficient;
-            without a successful /register call the number won't
-            receive inbound events. Surface this dimension separately
-            so users don't trust a misleading green banner. */}
-        {config && (
-          <Alert
-            className={
-              isRegistered
-                ? 'bg-emerald-950/30 border-emerald-700/50'
-                : 'bg-amber-950/30 border-amber-700/50'
-            }
-          >
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                {isRegistered ? (
-                  <CheckCircle2 className="size-4 text-emerald-400" />
-                ) : (
-                  <AlertTriangle className="size-4 text-amber-400" />
-                )}
-                <AlertTitle
-                  className={
-                    'mb-0 ' + (isRegistered ? 'text-emerald-200' : 'text-amber-200')
-                  }
-                >
-                  {isRegistered
-                    ? 'Registered — Meta will deliver events to wacrm'
-                    : 'Not registered — Meta will not deliver events'}
-                </AlertTitle>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleVerifyRegistration}
-                disabled={verifyingRegistration}
-                className="border-border bg-transparent text-foreground hover:bg-muted h-7"
-              >
-                {verifyingRegistration ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Zap className="size-3.5" />
-                )}
-                Verify with Meta
-              </Button>
-            </div>
-            <AlertDescription className="text-muted-foreground mt-2 text-xs leading-relaxed">
-              {isRegistered ? (
-                <>
-                  Subscribed since{' '}
-                  {config.registered_at
-                    ? new Date(config.registered_at).toLocaleString()
-                    : 'unknown'}
-                  . Click <strong>Verify with Meta</strong> if events
-                  stop arriving.
-                </>
-              ) : lastRegistrationError ? (
-                <>
-                  Last attempt failed with:{' '}
-                  <span className="text-red-300">
-                    &quot;{lastRegistrationError}&quot;
-                  </span>
-                  . Enter (or correct) the 2-step PIN below and click
-                  Save Configuration to retry.
-                </>
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="space-y-6">
+          <Alert className="bg-card">
+            <div className="flex items-center gap-2">
+              {connected ? (
+                <CheckCircle2 className="size-4 text-emerald-500" />
+              ) : configured ? (
+                <AlertTriangle className="size-4 text-amber-500" />
               ) : (
-                <>
-                  This number was saved before registration tracking
-                  existed, or registration was skipped. Enter the
-                  2-step PIN below and click Save Configuration to
-                  subscribe it.
-                </>
+                <AlertTriangle className="size-4 text-red-500" />
               )}
+              <AlertTitle className="mb-0">
+                {connected
+                  ? 'WAHA session working'
+                  : configured
+                    ? 'WAHA configured, status blocked'
+                    : 'WAHA not configured'}
+              </AlertTitle>
+            </div>
+            <AlertDescription>
+              {connected
+                ? `Session ${status?.session_status ?? DEFAULT_SESSION} is ready.`
+                : status?.message ||
+                  'Save the WAHA base URL, API key, and webhook HMAC secret.'}
             </AlertDescription>
-
-            {registrationProbe && (
-              <div className="mt-3 rounded border border-border bg-card/60 px-3 py-2 space-y-1.5 text-[11px]">
-                <p className="font-medium text-foreground">
-                  Diagnostic — last run: {' '}
-                  <span className={registrationProbe.live ? 'text-emerald-400' : 'text-amber-400'}>
-                    {registrationProbe.live ? 'live' : 'not live'}
-                  </span>
-                </p>
-                <ul className="space-y-0.5 text-muted-foreground">
-                  {Object.entries(registrationProbe.checks).map(([k, v]) => (
-                    <li key={k} className="flex items-center gap-1.5">
-                      {v === true ? (
-                        <CheckCircle2 className="size-3 text-emerald-400 shrink-0" />
-                      ) : v === false ? (
-                        <XCircle className="size-3 text-red-400 shrink-0" />
-                      ) : (
-                        <span className="size-3 rounded-full border border-border shrink-0" />
-                      )}
-                      <code className="text-muted-foreground">{k}</code>
-                    </li>
-                  ))}
-                </ul>
-                {(registrationProbe.errors ?? []).length > 0 && (
-                  <ul className="pt-1 space-y-0.5 text-red-300">
-                    {registrationProbe.errors?.map((e, i) => (
-                      <li key={i}>• {e}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
           </Alert>
-        )}
 
-        {/* API Credentials */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-foreground">API Credentials</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Enter your Meta WhatsApp Business API credentials.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-muted-foreground">Phone Number ID</Label>
-              <Input
-                placeholder="e.g. 100234567890123"
-                value={phoneNumberId}
-                onChange={(e) => setPhoneNumberId(e.target.value)}
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-muted-foreground">WhatsApp Business Account ID</Label>
-              <Input
-                placeholder="e.g. 100234567890456"
-                value={wabaId}
-                onChange={(e) => setWabaId(e.target.value)}
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-muted-foreground">Permanent Access Token</Label>
-              <div className="relative">
+          <Card>
+            <CardHeader>
+              <CardTitle>WAHA session</CardTitle>
+              <CardDescription>
+                Secrets are encrypted server-side and never returned to the browser.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Base URL</Label>
                 <Input
-                  type={showToken ? 'text' : 'password'}
-                  placeholder="Enter your access token"
-                  value={accessToken}
-                  onChange={(e) => {
-                    setAccessToken(e.target.value);
-                    setTokenEdited(true);
-                  }}
-                  onFocus={() => {
-                    if (accessToken === MASKED_TOKEN) {
-                      setAccessToken('');
-                      setTokenEdited(true);
-                    }
-                  }}
-                  className="bg-muted border-border text-foreground placeholder:text-muted-foreground pr-10"
+                  value={baseUrl}
+                  onChange={(event) => setBaseUrl(event.target.value)}
+                  placeholder="http://evo-crm-waha:3000"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowToken(!showToken)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showToken ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
               </div>
-              {config && !tokenEdited && (
-                <p className="text-xs text-muted-foreground">
-                  Token is hidden for security. Re-enter it to update configuration.
-                </p>
-              )}
-            </div>
 
-            <div className="space-y-2">
-              <Label className="text-muted-foreground">Webhook Verify Token</Label>
-              <Input
-                placeholder="Create a custom verify token"
-                value={verifyToken}
-                onChange={(e) => setVerifyToken(e.target.value)}
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
-              />
-              <p className="text-xs text-muted-foreground">
-                A custom string you create. Must match the token you set in Meta webhook settings.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-muted-foreground">
-                Two-step verification PIN
-                <span className="ml-1 text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="6-digit PIN from Meta WhatsApp Manager"
-                value={pin}
-                onChange={(e) =>
-                  setPin(e.target.value.replace(/\D/g, '').slice(0, 6))
-                }
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground tracking-widest"
-              />
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Needed only to wire <strong className="text-muted-foreground">inbound</strong> messages
-                for a <strong className="text-muted-foreground">production</strong> number. Set it in{' '}
-                <strong className="text-muted-foreground">
-                  Meta Business Manager → WhatsApp Accounts → Phone
-                  Numbers → Two-step verification
-                </strong>
-                , then paste it here so wacrm can subscribe the number —
-                otherwise Meta routes inbound events to whichever app
-                last claimed it (the symptom that hits second numbers
-                under a shared WABA).{' '}
-                <strong className="text-muted-foreground">Meta test numbers</strong> have no
-                PIN and are pre-registered — leave this blank for them.
-                Leaving it blank also keeps an existing registration
-                untouched.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Webhook URL */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-foreground">Webhook Configuration</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Use this URL as your webhook callback in the Meta App Dashboard.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label className="text-muted-foreground">Webhook Callback URL</Label>
-              <div className="flex gap-2">
+              <div className="space-y-2">
+                <Label>Session name</Label>
                 <Input
-                  readOnly
-                  value={webhookUrl}
-                  className="bg-muted border-border text-muted-foreground font-mono text-sm"
+                  value={sessionName}
+                  onChange={(event) => setSessionName(event.target.value)}
+                  placeholder={DEFAULT_SESSION}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>WAHA API key</Label>
+                <div className="relative">
+                  <Input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(event) => {
+                      setApiKey(event.target.value);
+                      setApiKeyEdited(true);
+                    }}
+                    onFocus={() => {
+                      if (apiKey === MASKED_SECRET) {
+                        setApiKey('');
+                        setApiKeyEdited(true);
+                      }
+                    }}
+                    placeholder="X-Api-Key value"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey((value) => !value)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  >
+                    {showApiKey ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Webhook HMAC secret</Label>
+                <div className="relative">
+                  <Input
+                    type={showWebhookSecret ? 'text' : 'password'}
+                    value={webhookSecret}
+                    onChange={(event) => {
+                      setWebhookSecret(event.target.value);
+                      setWebhookSecretEdited(true);
+                    }}
+                    onFocus={() => {
+                      if (webhookSecret === MASKED_SECRET) {
+                        setWebhookSecret('');
+                        setWebhookSecretEdited(true);
+                      }
+                    }}
+                    placeholder="config.webhooks[].hmac.key"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowWebhookSecret((value) => !value)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  >
+                    {showWebhookSecret ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Webhook URL</CardTitle>
+              <CardDescription>
+                Configure WAHA session webhooks for message and session.status.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2">
+                <Input readOnly value={webhookUrl} className="font-mono text-sm" />
                 <Button
+                  type="button"
                   variant="outline"
                   size="icon"
-                  onClick={handleCopyWebhookUrl}
-                  className="shrink-0 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                  onClick={copyWebhookUrl}
                 >
                   <Copy className="size-4" />
                 </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap gap-3">
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Save Configuration'
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleTestConnection}
-            disabled={testing || !config}
-            className="border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-          >
-            {testing ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Testing...
-              </>
-            ) : (
-              <>
-                <Zap className="size-4" />
-                Test API Connection
-              </>
-            )}
-          </Button>
-          {config && (
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={saveConfig} disabled={saving}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save configuration
+            </Button>
             <Button
               variant="outline"
-              onClick={handleReset}
-              disabled={resetting}
-              className="border-red-900 text-red-400 hover:text-red-300 hover:bg-red-950/40"
+              onClick={testConnection}
+              disabled={testing || !configured}
             >
-              {resetting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Resetting...
-                </>
+              {testing ? (
+                <Loader2 className="size-4 animate-spin" />
               ) : (
-                <>
-                  <RotateCcw className="size-4" />
-                  Reset Configuration
-                </>
+                <Zap className="size-4" />
               )}
+              Check status
             </Button>
-          )}
+            {configured ? (
+              <Button
+                variant="outline"
+                onClick={resetConfig}
+                disabled={resetting}
+                className="border-red-900 text-red-400 hover:bg-red-950/40 hover:text-red-300"
+              >
+                {resetting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="size-4" />
+                )}
+                Reset
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ServerCog className="size-4" />
+                Session contract
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <p>Default session: {DEFAULT_SESSION}</p>
+              <p>Send API: POST /api/sendText with session, chatId, and text.</p>
+              <p>Direct chat IDs use phone digits plus @c.us.</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ShieldCheck className="size-4" />
+                Webhook auth
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <p>WAHA signs raw webhook bodies with sha512 HMAC.</p>
+              <p>Unsigned or invalid-HMAC session.status events are rejected.</p>
+              <p>Keep the WAHA API private and protected by X-Api-Key.</p>
+            </CardContent>
+          </Card>
         </div>
       </div>
-
-      {/* Setup Instructions Sidebar */}
-      <div>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-foreground text-base">Setup Instructions</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Follow these steps to connect your WhatsApp Business API.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Accordion>
-              <AccordionItem className="border-border">
-                <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
-                  <span className="flex items-center gap-2">
-                    <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
-                    Create a Meta App
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
-                  <ol className="list-decimal list-inside space-y-1 text-sm">
-                    <li>Go to <span className="text-primary">developers.facebook.com</span></li>
-                    <li>Click &quot;My Apps&quot; and then &quot;Create App&quot;</li>
-                    <li>Select &quot;Business&quot; as the app type</li>
-                    <li>Fill in app details and create</li>
-                  </ol>
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem className="border-border">
-                <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
-                  <span className="flex items-center gap-2">
-                    <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">2</span>
-                    Add WhatsApp Product
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
-                  <ol className="list-decimal list-inside space-y-1 text-sm">
-                    <li>In your app dashboard, click &quot;Add Product&quot;</li>
-                    <li>Find &quot;WhatsApp&quot; and click &quot;Set Up&quot;</li>
-                    <li>Follow the setup wizard to link your business</li>
-                  </ol>
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem className="border-border">
-                <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
-                  <span className="flex items-center gap-2">
-                    <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">3</span>
-                    Get API Credentials
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
-                  <ol className="list-decimal list-inside space-y-1 text-sm">
-                    <li>Go to WhatsApp &gt; API Setup</li>
-                    <li>Copy your <strong className="text-foreground">Phone Number ID</strong></li>
-                    <li>Copy your <strong className="text-foreground">WhatsApp Business Account ID</strong></li>
-                    <li>Generate a <strong className="text-foreground">Permanent Access Token</strong> from Business Settings &gt; System Users</li>
-                  </ol>
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem className="border-border">
-                <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
-                  <span className="flex items-center gap-2">
-                    <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">4</span>
-                    Configure Webhooks
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
-                  <ol className="list-decimal list-inside space-y-1 text-sm">
-                    <li>Go to WhatsApp &gt; Configuration</li>
-                    <li>Click &quot;Edit&quot; on the Webhook section</li>
-                    <li>Paste the <strong className="text-foreground">Webhook Callback URL</strong> from above</li>
-                    <li>Enter the same <strong className="text-foreground">Verify Token</strong> you set here</li>
-                    <li>Subscribe to &quot;messages&quot; webhook field</li>
-                  </ol>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-
-            <div className="mt-4 pt-4 border-t border-border">
-              <a
-                href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors"
-              >
-                <ExternalLink className="size-3.5" />
-                Meta WhatsApp API Documentation
-              </a>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
     </section>
   );
 }

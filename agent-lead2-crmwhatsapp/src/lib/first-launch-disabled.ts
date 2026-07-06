@@ -19,7 +19,6 @@ const DISABLED_API_PREFIXES: Array<{
   prefix: string;
   feature: FirstLaunchDisabledFeature;
 }> = [
-  { prefix: '/api/whatsapp/config', feature: 'meta_transport' },
   { prefix: '/api/whatsapp/media', feature: 'meta_transport' },
   { prefix: '/api/whatsapp/react', feature: 'meta_transport' },
   { prefix: '/api/whatsapp/send', feature: 'meta_transport' },

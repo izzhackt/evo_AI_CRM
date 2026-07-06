@@ -219,6 +219,8 @@ export interface Message {
   media_url?: string;
   template_name?: string;
   message_id?: string;
+  waha_session_name?: string | null;
+  waha_message_id?: string | null;
   status: MessageStatus;
   created_at: string;
   reply_to_message_id?: string;

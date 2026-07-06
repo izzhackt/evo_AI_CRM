@@ -14,6 +14,10 @@ const evoShadowMigration = readFileSync(
   join(migrationsDir, '031_evo_companion_shadow_store.sql'),
   'utf8'
 );
+const wahaInboundMigration = readFileSync(
+  join(migrationsDir, '032_waha_inbound_message_idempotency.sql'),
+  'utf8'
+);
 
 function expectRlsEnabled(table: string) {
   expect(allMigrationsSql).toMatch(
@@ -97,5 +101,17 @@ describe('Supabase companion schema contract', () => {
     expect(evoShadowMigration).toMatch(/CREATE\s+POLICY\s+integration_secrets_insert/i);
     expect(evoShadowMigration).toMatch(/CREATE\s+POLICY\s+integration_secrets_update/i);
     expect(evoShadowMigration).toMatch(/CREATE\s+POLICY\s+integration_secrets_delete/i);
+  });
+
+  it('adds WAHA-specific inbound message idempotency without changing legacy Meta ids', () => {
+    expect(wahaInboundMigration).toMatch(/ALTER\s+TABLE\s+messages[\s\S]*waha_session_name\s+text/i);
+    expect(wahaInboundMigration).toMatch(/ALTER\s+TABLE\s+messages[\s\S]*waha_message_id\s+text/i);
+    expect(wahaInboundMigration).toMatch(
+      /CREATE\s+UNIQUE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+idx_messages_waha_session_message_id/i
+    );
+    expect(wahaInboundMigration).toMatch(
+      /WHERE\s+waha_session_name\s+IS\s+NOT\s+NULL\s+AND\s+waha_message_id\s+IS\s+NOT\s+NULL/i
+    );
+    expect(wahaInboundMigration).not.toMatch(/UNIQUE\s*\(\s*message_id\s*\)/i);
   });
 });

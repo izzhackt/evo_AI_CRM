@@ -32,9 +32,14 @@ Disabled runtime paths fail closed with `410` and
 `error: "first_launch_disabled"`. This is intentional product pruning, not a
 missing configuration state.
 
-WAHA, managed Supabase provisioning, amoCRM identity resolution, live AI provider
-validation, DNS, Caddy, and VPS deployment are later implementation issues. This
-slice does not claim live provider or deployment success.
+Managed Supabase schema, environment, RLS, and validation workflow notes live in
+`docs/supabase-managed-store.md`. This repo keeps the companion migrations with
+the app and stores only companion data plus amoCRM shadow identifiers in
+Supabase; amoCRM remains the canonical identity and sales-state system.
+
+WAHA, amoCRM identity resolution, live AI provider validation, DNS, Caddy, and
+VPS deployment are later implementation issues. This slice does not claim live
+provider or deployment success.
 
 ## Local Commands
 

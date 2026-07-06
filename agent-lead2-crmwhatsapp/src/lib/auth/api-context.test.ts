@@ -90,6 +90,7 @@ describe("requireApiKey", () => {
     findActiveKeyByHash.mockResolvedValue(row());
     const ctx = await requireApiKey(reqWith(`Bearer ${KEY}`));
     expect(ctx.authType).toBe("api_key");
+    expect(ctx.supabase).toEqual({ __isMockAdminClient: true });
     expect(ctx.accountId).toBe("acct-1");
     expect(ctx.keyId).toBe("key-1");
     expect(ctx.scopes).toEqual(["contacts:read"]);

@@ -863,3 +863,52 @@ or existing config, and only safe amoCRM lookup validation if credentials and a
 clearly intended test phone are present. Do not deploy and do not touch
 `/opt/evo-crm`.
 Reviewer notes: pending independent launch-control review.
+
+## 2026-07-06 - EVO Inbox Issue 15 Inbound WAHA Delivery
+
+Date: 2026-07-06, workspace timezone.
+Author: Codex.
+Change type: active slice, webhook delivery, data model, file ownership, validation, and external-service assumption.
+Affected plan section: `/goal-evo-inbox-companion` phases 3, 4, and 5, GitHub issue #15.
+Reason: issue #15 is the next implementation stage after the WAHA authenticated
+webhook boundary and amoCRM identity resolver landed in issues #13 and #14. The
+companion app now needs signed WAHA `message` events to become staff-visible
+EVO Inbox conversations/messages only after amoCRM identity is resolved.
+Decision: keep this slice scoped to inbound WAHA delivery only. Parse signed
+WAHA `message` webhook envelopes, ignore outbound/from-me messages, preserve
+existing `session.status` handling, and keep unsupported signed events as
+ignored. Resolve amoCRM contact/lead identity through the configured amoCRM
+client before creating any new local inbox conversation or message, then persist
+nullable shadow identifiers on Supabase contacts/conversations. Use the existing
+staff inbox `contacts`, `conversations`, and `messages` tables and read path;
+do not create a separate inbox model. Add WAHA-specific message shadow columns
+and a partial unique index so duplicate WAHA message ids are idempotent without
+changing legacy Meta Cloud `message_id` semantics. Missing Supabase, WAHA, or
+amoCRM configuration and amoCRM/Supabase provider failures must return explicit
+not-configured/blocked errors and must not be reported as live provider success.
+Manual operator replies, AI/autoreply, redesign, deployment, Caddy/DNS, and
+production proof remain out of scope.
+
+Current official docs consulted on 2026-07-06:
+- WAHA Events: `https://waha.devlike.pro/docs/how-to/events/` documents
+  per-session webhooks, HMAC config, `X-Webhook-Hmac`, and
+  `X-Webhook-Hmac-Algorithm: sha512`.
+- WAHA Receive messages:
+  `https://waha.devlike.pro/docs/how-to/receive-messages/` documents `message`
+  webhook payloads with `event`, `session`, `payload.id`, `timestamp`, `from`,
+  `fromMe`, `to`, `body`, and WhatsApp chat id forms such as phone digits plus
+  `@c.us`.
+- amoCRM Contacts API:
+  `https://www.amocrm.ru/developers/content/crm_platform/contacts-api`
+  documents `GET /api/v4/contacts`, `POST /api/v4/contacts`, `query`, and
+  `with=leads`.
+- amoCRM Leads API:
+  `https://www.amocrm.ru/developers/content/crm_platform/leads-api` documents
+  `GET /api/v4/leads`, `POST /api/v4/leads`, and lead-contact embedding through
+  `_embedded.contacts`.
+Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm ci --include=dev`,
+`npm test`, targeted inbound/WAHA tests, `npm run lint`, `npm run typecheck`,
+`npm run build`, `git diff --check`, and a staged secret scan. No production
+deployment, no `/opt/evo-crm` access, and no live WAHA/amoCRM/Supabase success
+claims unless real credentials and real services are exercised.
+Reviewer notes: pending independent launch-control review.

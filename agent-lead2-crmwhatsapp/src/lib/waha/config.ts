@@ -63,19 +63,26 @@ export async function loadWahaRuntimeConfig(
 export async function findWahaWebhookCandidates(
   db: SupabaseClient,
   sessionName: string,
-): Promise<Array<{ settingId: string; webhookHmacSecret: string }>> {
+): Promise<
+  Array<{ settingId: string; accountId: string; webhookHmacSecret: string }>
+> {
   const { data, error } = await db
     .from('integration_settings')
-    .select('id, public_config')
+    .select('id, account_id, public_config')
     .eq('provider', 'waha');
 
   if (error) {
     throw new Error('Failed to load WAHA webhook settings');
   }
 
-  const matches: Array<{ settingId: string; webhookHmacSecret: string }> = [];
+  const matches: Array<{
+    settingId: string;
+    accountId: string;
+    webhookHmacSecret: string;
+  }> = [];
   for (const row of (data ?? []) as Array<{
     id: string;
+    account_id: string;
     public_config: Record<string, unknown> | null;
   }>) {
     const publicConfig = row.public_config ?? {};
@@ -89,6 +96,7 @@ export async function findWahaWebhookCandidates(
     if (secrets.webhook_hmac_secret) {
       matches.push({
         settingId: row.id,
+        accountId: row.account_id,
         webhookHmacSecret: secrets.webhook_hmac_secret,
       });
     }

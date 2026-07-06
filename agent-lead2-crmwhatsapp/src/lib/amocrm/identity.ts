@@ -25,6 +25,35 @@ export class AmoCrmIdentityError extends Error {
   }
 }
 
+export async function resolveAmoCrmIdentityFromProvider(input: {
+  phone: string;
+  name?: string | null;
+  client: AmoCrmClient;
+}): Promise<AmoCrmIdentity> {
+  let contact = await input.client.findContactByPhone(input.phone);
+  if (!contact) {
+    contact = await input.client.createContact({
+      phone: input.phone,
+      name: input.name ?? null,
+    });
+  }
+
+  let amoLeadId = contact.leadId ?? null;
+  if (!amoLeadId) {
+    const label = input.name?.trim() || input.phone;
+    const lead = await input.client.createLead({
+      contactId: contact.id,
+      name: `WhatsApp - ${label}`,
+    });
+    amoLeadId = lead.id;
+  }
+
+  return {
+    amoContactId: contact.id,
+    amoLeadId,
+  };
+}
+
 interface ShadowDb {
   from(table: string): {
     update(value: Record<string, unknown>): {
@@ -45,38 +74,23 @@ export async function resolveAmoCrmIdentity(input: {
   persist: (identity: PersistAmoCrmShadowInput) => Promise<void>;
 }): Promise<AmoCrmIdentity> {
   try {
-    let contact = await input.client.findContactByPhone(input.phone);
-    if (!contact) {
-      contact = await input.client.createContact({
-        phone: input.phone,
-        name: input.name ?? null,
-      });
-    }
-
-    let amoLeadId = contact.leadId ?? null;
-    if (!amoLeadId) {
-      const label = input.name?.trim() || input.phone;
-      const lead = await input.client.createLead({
-        contactId: contact.id,
-        name: `WhatsApp - ${label}`,
-      });
-      amoLeadId = lead.id;
-    }
+    const resolved = await resolveAmoCrmIdentityFromProvider({
+      phone: input.phone,
+      name: input.name,
+      client: input.client,
+    });
 
     const identity = {
       accountId: input.accountId,
       localContactId: input.localContactId,
       localConversationId: input.localConversationId,
-      amoContactId: contact.id,
-      amoLeadId,
+      amoContactId: resolved.amoContactId,
+      amoLeadId: resolved.amoLeadId,
     };
 
     await input.persist(identity);
 
-    return {
-      amoContactId: contact.id,
-      amoLeadId,
-    };
+    return resolved;
   } catch (err) {
     if (err instanceof AmoCrmIdentityError) throw err;
     throw new AmoCrmIdentityError('amoCRM identity resolution failed', err);

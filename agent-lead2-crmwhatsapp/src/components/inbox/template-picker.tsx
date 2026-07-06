@@ -194,8 +194,8 @@ export function TemplatePicker({
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
             {selected
-              ? "Fill in the placeholders to render this template. Meta requires every variable to be set."
-              : "Pick an approved WhatsApp template to send to this contact."}
+              ? "Fill in the placeholders to render this template."
+              : "Template sending is disabled for the first-launch inbox."}
           </DialogDescription>
         </DialogHeader>
 
@@ -209,8 +209,7 @@ export function TemplatePicker({
               <div className="rounded-md border border-border bg-background/50 p-6 text-center">
                 <p className="text-sm text-popover-foreground">No approved templates</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Approve a template in Meta WhatsApp Manager, then sync it
-                  from Settings → Templates.
+                  Template setup and sync are intentionally unavailable in this slice.
                 </p>
               </div>
             ) : (

@@ -269,7 +269,7 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
   // Pull ~10 from each source (plenty of headroom after merge-sort),
   // then interleave by timestamp. The individual per-table limits
   // keep the payload small; the final limit is enforced after sort.
-  const [msgs, contacts, deals, broadcasts, autoLogs] = await Promise.all([
+  const [msgs, contacts, deals] = await Promise.all([
     db
       .from('messages')
       .select('id, content_text, sender_type, created_at, conversation_id, conversations(contact_id, contacts(name, phone))')
@@ -285,16 +285,6 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
       .from('deals')
       .select('id, title, updated_at, stage:pipeline_stages(name)')
       .order('updated_at', { ascending: false })
-      .limit(10),
-    db
-      .from('broadcasts')
-      .select('id, name, status, total_recipients, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5),
-    db
-      .from('automation_logs')
-      .select('id, trigger_event, status, created_at, automation:automations(name), contact:contacts(name, phone)')
-      .order('created_at', { ascending: false })
       .limit(10),
   ])
 
@@ -349,46 +339,6 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
         : `Deal "${d.title}" updated`,
       at: d.updated_at,
       href: '/pipelines',
-    })
-  }
-
-  for (const b of (broadcasts.data ?? []) as Array<{
-    id: string
-    name: string
-    status: string
-    total_recipients: number
-    created_at: string
-  }>) {
-    const label =
-      b.status === 'sent'
-        ? `sent to ${b.total_recipients} contacts`
-        : `${b.status} (${b.total_recipients} recipients)`
-    items.push({
-      id: `broadcast-${b.id}`,
-      kind: 'broadcast',
-      text: `Broadcast "${b.name}" ${label}`,
-      at: b.created_at,
-      href: '/broadcasts',
-    })
-  }
-
-  for (const l of (autoLogs.data ?? []) as unknown as Array<{
-    id: string
-    trigger_event: string
-    status: string
-    created_at: string
-    automation: { name: string }[] | { name: string } | null
-    contact: { name: string | null; phone: string }[] | { name: string | null; phone: string } | null
-  }>) {
-    const automation = Array.isArray(l.automation) ? l.automation[0] : l.automation
-    const contact = Array.isArray(l.contact) ? l.contact[0] : l.contact
-    const who = contact?.name || contact?.phone || 'a contact'
-    const autoName = automation?.name || 'Automation'
-    items.push({
-      id: `auto-${l.id}`,
-      kind: 'automation',
-      text: `Automation "${autoName}" ${l.status === 'failed' ? 'failed for' : 'triggered for'} ${who}`,
-      at: l.created_at,
     })
   }
 

@@ -6,8 +6,6 @@ import {
   MessageSquare,
   UserPlus,
   Briefcase,
-  Radio,
-  Zap,
   Inbox,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
@@ -34,8 +32,6 @@ const KIND_THEME: Record<ActivityKind, KindTheme> = {
   message: { icon: MessageSquare, badge: 'bg-blue-500/10 text-blue-400' },
   contact: { icon: UserPlus, badge: 'bg-primary/10 text-primary' },
   deal: { icon: Briefcase, badge: 'bg-primary/10 text-primary' },
-  broadcast: { icon: Radio, badge: 'bg-amber-500/10 text-amber-400' },
-  automation: { icon: Zap, badge: 'bg-rose-500/10 text-rose-400' },
 }
 
 export function ActivityFeed({ items, loading }: ActivityFeedProps) {
@@ -76,7 +72,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
           <EmptyState
             icon={Inbox}
             title="No activity yet"
-            hint="Activity from messages, deals, broadcasts, and automations will appear here."
+            hint="Activity from conversations, contacts, and deals will appear here."
           />
         </div>
       ) : (

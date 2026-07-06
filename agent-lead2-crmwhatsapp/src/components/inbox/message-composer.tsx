@@ -9,7 +9,6 @@ import {
 } from "react";
 import {
   Send,
-  LayoutTemplate,
   Paperclip,
   Image as ImageIcon,
   Video,
@@ -96,7 +95,6 @@ interface MessageComposerProps {
   sessionExpired: boolean;
   onSend: (text: string, replyToId?: string) => void;
   onSendMedia: (payload: SendMediaPayload) => void;
-  onOpenTemplates: () => void;
   replyTo?: ReplyDraft | null;
   onClearReply?: () => void;
 }
@@ -117,7 +115,6 @@ export function MessageComposer({
   sessionExpired,
   onSend,
   onSendMedia,
-  onOpenTemplates,
   replyTo,
   onClearReply,
 }: MessageComposerProps) {
@@ -435,19 +432,10 @@ export function MessageComposer({
         </div>
       )}
       {sessionExpired && (
-        <div className="mb-2 flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2">
+        <div className="mb-2 rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-400">
-            24-hour session expired. Use a template to re-engage.
+            24-hour WhatsApp session expired. First-launch outbound messaging is unavailable for this conversation.
           </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-amber-400 hover:text-amber-300"
-            onClick={onOpenTemplates}
-          >
-            <LayoutTemplate className="mr-1 h-3 w-3" />
-            Templates
-          </Button>
         </div>
       )}
 
@@ -562,18 +550,6 @@ export function MessageComposer({
             size="sm"
             canAct={!readOnly}
             gateReason="send messages"
-            title={readOnly ? undefined : "Send template"}
-            className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-            onClick={onOpenTemplates}
-          >
-            <LayoutTemplate className="h-4 w-4" />
-          </GatedButton>
-
-          <GatedButton
-            variant="ghost"
-            size="sm"
-            canAct={!readOnly}
-            gateReason="send messages"
             disabled={drafting}
             title={readOnly ? undefined : "Draft a reply with AI"}
             className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-primary"
@@ -595,7 +571,7 @@ export function MessageComposer({
               readOnly
                 ? "Read-only — viewers can browse but not reply"
                 : sessionExpired
-                  ? "Session expired - use a template"
+                  ? "Session expired - outbound messaging unavailable"
                   : "Type a message... (Shift+Enter for new line)"
             }
             disabled={sessionExpired || readOnly}

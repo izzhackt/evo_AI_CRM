@@ -31,12 +31,8 @@
 //
 // Use it like:
 //
-//   <GatedButton
-//     canAct={canCreate}
-//     gateReason="create broadcasts"
-//     onClick={() => router.push("/broadcasts/new")}
-//   >
-//     <Plus className="h-4 w-4" /> New Broadcast
+//   <GatedButton canAct={canCreate} gateReason="create records">
+//     Create
 //   </GatedButton>
 //
 // `canAct` defaults to true so unrelated usages still work.

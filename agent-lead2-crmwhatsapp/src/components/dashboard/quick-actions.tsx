@@ -1,7 +1,7 @@
 "use client"
 
 import Link from 'next/link'
-import { UserPlus, Briefcase, Radio, Zap } from 'lucide-react'
+import { Briefcase, MessageSquare, UserPlus } from 'lucide-react'
 import type { ComponentType } from 'react'
 
 // Quick-action shortcuts. Each navigates to the page that owns the
@@ -16,15 +16,14 @@ interface Action {
 }
 
 const ACTIONS: Action[] = [
+  { label: 'Open Inbox', href: '/inbox', icon: MessageSquare, tint: 'text-primary' },
   { label: 'New Contact', href: '/contacts', icon: UserPlus, tint: 'text-primary' },
-  { label: 'New Deal', href: '/pipelines', icon: Briefcase, tint: 'text-blue-400' },
-  { label: 'New Broadcast', href: '/broadcasts/new', icon: Radio, tint: 'text-amber-400' },
-  { label: 'New Automation', href: '/automations/new', icon: Zap, tint: 'text-primary' },
+  { label: 'Pipeline Board', href: '/pipelines', icon: Briefcase, tint: 'text-blue-400' },
 ]
 
 export function QuickActions() {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       {ACTIONS.map((a) => {
         const Icon = a.icon
         return (

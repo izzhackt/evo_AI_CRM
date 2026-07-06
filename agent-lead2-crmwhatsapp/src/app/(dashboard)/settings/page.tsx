@@ -12,6 +12,7 @@ import { SecurityPanel } from '@/components/settings/security-panel';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
 import { DealsSettings } from '@/components/settings/deals-settings';
+import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
 import {
@@ -55,6 +56,7 @@ export default function SettingsPage() {
     appearance: <AppearancePanel />,
     fields: <FieldsAndTagsPanel />,
     deals: <DealsSettings />,
+    whatsapp: <WhatsAppConfig />,
     members: <MembersTab />,
     api: <ApiKeysSettings />,
   };

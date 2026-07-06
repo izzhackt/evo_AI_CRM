@@ -37,9 +37,26 @@ Managed Supabase schema, environment, RLS, and validation workflow notes live in
 the app and stores only companion data plus amoCRM shadow identifiers in
 Supabase; amoCRM remains the canonical identity and sales-state system.
 
-WAHA, amoCRM identity resolution, live AI provider validation, DNS, Caddy, and
-VPS deployment are later implementation issues. This slice does not claim live
-provider or deployment success.
+WAHA is the active first-launch WhatsApp transport boundary. Account admins save
+the WAHA base URL, session name, API key, and webhook HMAC secret through the
+WhatsApp WAHA settings panel. Public fields are stored in
+`integration_settings.public_config`; the API key and HMAC secret are encrypted
+in `integration_secrets`. The default session is `evo-inbox`, manual text
+sending uses WAHA `POST /api/sendText` with `{ session, chatId, text }`, and
+WAHA `session.status` webhooks are accepted only at `/api/waha/webhook` with a
+valid `X-Webhook-Hmac` sha512 signature.
+
+amoCRM identity resolution is implemented as a narrow server-side boundary.
+amoCRM credentials and token material are encrypted in `integration_secrets`;
+non-secret account/pipeline settings live in `integration_settings`. The first
+scope resolves by phone, creates missing contacts/leads through amoCRM API v4
+when configured, and stores only `amo_contact_id` / `amo_lead_id` shadow fields
+locally. If amoCRM configuration or provider calls fail, identity-dependent
+writes fail clearly instead of presenting a local-only lead as real.
+
+Live WAHA, live amoCRM, live AI provider validation, DNS, Caddy, and VPS
+deployment are not claimed unless real credentials and real provider responses
+were exercised.
 
 ## Local Commands
 

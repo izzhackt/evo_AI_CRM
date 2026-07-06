@@ -465,6 +465,44 @@ checks locally. Live WhatsApp/amoCRM validation remains blocked until real
 credentials and server configuration are supplied.
 Reviewer notes: pending independent launch-control review.
 
+## 2026-07-06 - EVO Inbox Issues 13 And 14 Validation Evidence
+
+Date: 2026-07-06, workspace timezone.
+Author: Codex.
+Change type: validation evidence, live-service blocker record, and release
+guardrails.
+Affected plan section: `/goal-evo-inbox-companion` issue #13/#14 validation
+gate.
+Reason: implementation completed for the WAHA session configuration/authenticated
+webhook boundary and amoCRM identity resolver, so the branch needs reproducible
+local validation and explicit provider-readiness evidence before PR.
+Decision: no deployment was attempted and `/opt/evo-crm` was not used as a
+command target. Live WAHA validation is blocked because no WAHA base URL/API
+key, Supabase URL/service-role key, or `ENCRYPTION_KEY` is present in the
+environment or `.env.local`. Live amoCRM validation is blocked because no
+amoCRM domain/access token, Supabase URL/service-role key, or `ENCRYPTION_KEY`
+is present in the environment or `.env.local`, and no clearly intended real
+test phone is available. No live WAHA or amoCRM success is claimed.
+Validation impact:
+- `npm ci --include=dev`: passed; 680 packages audited, 0 vulnerabilities.
+- `npm test`: passed; 68 test files, 643 tests.
+- `npm run lint`: passed with 10 pre-existing warnings in unrelated inbox,
+  pipeline, contact, legacy webhook, and image components.
+- `npm run typecheck`: passed.
+- `npm run build`: passed with existing Next.js workspace-root and
+  middleware/proxy warnings.
+- Targeted checks: the requested `rg` commands were run; the two commands that
+  included a non-existent `app` path were rerun as `src docs .env.local.example`
+  from `agent-lead2-crmwhatsapp/`. Broad Meta results remain in intentionally
+  disabled first-launch surfaces (templates, broadcasts, automations, flows, and
+  the legacy Meta webhook). A focused active-path scan of WAHA config/send/status
+  code found no Meta endpoint or credential references.
+- Presence-only live-readiness check: `NEXT_PUBLIC_SUPABASE_URL`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_KEY`, WAHA credential variables, and
+  amoCRM credential variables are missing from the shell environment, and
+  `.env.local` is absent.
+Reviewer notes: pending independent launch-control review.
+
 ## 2026-07-03 - Lead Agent Review Fixes And Dirty Baseline Boundary
 
 Date: 2026-07-03, workspace timezone.
@@ -755,4 +793,73 @@ installed. Docker is available, but `SUPABASE_ACCESS_TOKEN` is unset and the
 Supabase CLI is missing, so linked cloud validation, local stack reset,
 `supabase db push --dry-run`, and `supabase gen types` could not be run. No live
 Supabase success is claimed.
+Reviewer notes: pending independent launch-control review.
+
+## 2026-07-06 - EVO Inbox Issues 13 And 14 WAHA/amoCRM Boundaries
+
+Date: 2026-07-06, workspace timezone.
+Author: Codex.
+Change type: active slice, architecture, file ownership, validation, and external-service assumption.
+Affected plan section: `/goal-evo-inbox-companion` phases 3 and 5, GitHub issues #13 and #14.
+Reason: durable goal mode started the EVO Inbox companion implementation slice
+for WAHA session configuration/authenticated webhook boundary and amoCRM
+identity resolution after issue #11 created the managed Supabase
+settings/secrets tables.
+Decision: use `integration_settings.public_config` for non-secret WAHA and
+amoCRM fields and `integration_secrets.encrypted_value` for WAHA API key, WAHA
+webhook HMAC secret, and amoCRM OAuth/token material through the existing
+`ENCRYPTION_KEY` AES-256-GCM helper. WAHA is the active first-launch WhatsApp
+transport with default session `evo-inbox`; manual text sending uses the
+documented `POST /api/sendText` body `{ session, chatId, text }` and
+`X-Api-Key` when configured. WAHA session status is read from
+`GET /api/sessions/{session}` and accepted from authenticated webhook events,
+then updates `integration_settings.status`, `last_checked_at`, and `last_error`
+idempotently. The inbound message delivery path for issue #15 remains out of
+scope; this slice only authenticates WAHA webhooks and handles
+`session.status` events.
+
+For amoCRM, implement a narrow server-only client over the configured account
+base URL/domain with `Authorization: Bearer` API requests. OAuth/token material
+and long-lived tokens are stored only as encrypted integration secrets.
+Phone identity resolution searches amoCRM contacts first, creates missing
+contacts/leads through `/api/v4/contacts` and `/api/v4/leads` API contracts
+when configured, and persists only `amo_contact_id` / `amo_lead_id` shadow
+fields in Supabase. Identity-dependent contact/conversation writes must fail
+clearly when amoCRM is not configured or provider calls fail; they must not
+create local-only real leads.
+
+Current official docs consulted on 2026-07-06:
+- WAHA Sessions: `https://waha.devlike.pro/docs/how-to/sessions/`
+  (`GET/POST /api/sessions`, `GET /api/sessions/{name}`, status values,
+  session config webhooks, HMAC key config).
+- WAHA Send messages: `https://waha.devlike.pro/docs/how-to/send-messages/`
+  (`POST /api/sendText`, direct chat IDs as phone digits plus `@c.us`).
+- WAHA Events: `https://waha.devlike.pro/docs/how-to/events/` (webhook headers
+  `X-Webhook-Hmac`, `X-Webhook-Hmac-Algorithm: sha512`, HMAC over raw body).
+- WAHA Security: `https://waha.devlike.pro/docs/how-to/security/`
+  (`X-Api-Key`, do not expose WAHA API publicly).
+- WAHA OpenAPI: `https://waha.devlike.pro/swagger/openapi.json` (session
+  create/update examples include `message` and `session.status` webhooks with
+  HMAC).
+- amoCRM API Reference:
+  `https://www.amocrm.ru/developers/content/crm_platform/api-reference`.
+- amoCRM OAuth: `https://www.amocrm.ru/developers/content/oauth/step-by-step`
+  (`POST /oauth2/access_token`, `Authorization: Bearer`, refresh-token
+  rotation, long-lived token option).
+- amoCRM Contacts API:
+  `https://www.amocrm.ru/developers/content/crm_platform/contacts-api`
+  (`GET/POST /api/v4/contacts`, `custom_fields_values`, `with=leads`).
+- amoCRM Leads API:
+  `https://www.amocrm.ru/developers/content/crm_platform/leads-api`
+  (`GET/POST /api/v4/leads`, `_embedded.contacts`).
+- amoCRM Filters API:
+  `https://www.amocrm.ru/developers/content/crm_platform/filters-api`
+  (`query`, `filter[custom_fields_values]`, and other list filters).
+Validation impact: run `npm ci --include=dev`, `npm test`, `npm run lint`,
+`npm run typecheck`, and `npm run build` from `agent-lead2-crmwhatsapp/`; run
+targeted `rg` checks for Meta/WAHA/amoCRM terms. Perform only read-only live
+WAHA status validation if WAHA base URL and API key are present in environment
+or existing config, and only safe amoCRM lookup validation if credentials and a
+clearly intended test phone are present. Do not deploy and do not touch
+`/opt/evo-crm`.
 Reviewer notes: pending independent launch-control review.

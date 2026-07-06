@@ -2,6 +2,7 @@ import {
   Coins,
   KeyRound,
   LayoutGrid,
+  MessageCircle,
   Palette,
   Shield,
   Tags,
@@ -25,6 +26,7 @@ export const SETTINGS_SECTIONS = [
   'appearance',
   'fields',
   'deals',
+  'whatsapp',
   'members',
   'api',
 ] as const;
@@ -48,6 +50,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   appearance: { id: 'appearance', label: 'Appearance', icon: Palette, group: 'account' },
   fields: { id: 'fields', label: 'Fields & tags', icon: Tags, group: 'workspace' },
   deals: { id: 'deals', label: 'Deals & currency', icon: Coins, group: 'workspace' },
+  whatsapp: { id: 'whatsapp', label: 'WhatsApp WAHA', icon: MessageCircle, group: 'workspace' },
   members: { id: 'members', label: 'Team members', icon: UsersRound, group: 'workspace' },
   api: { id: 'api', label: 'API keys', icon: KeyRound, group: 'workspace' },
 };

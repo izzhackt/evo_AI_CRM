@@ -11,7 +11,6 @@ describe('first-launch disabled route map', () => {
   it.each([
     ['/api/whatsapp/send', 'meta_transport'],
     ['/api/v1/messages', 'meta_transport'],
-    ['/api/whatsapp/config', 'meta_transport'],
     ['/api/whatsapp/webhook', 'meta_transport'],
     ['/api/whatsapp/templates/sync', 'meta_templates'],
   ])('blocks Meta transport or template path %s', (pathname, feature) => {
@@ -67,6 +66,7 @@ describe('first-launch disabled route map', () => {
     expect(resolveFirstLaunchDisabledPath('/agents')).toBeNull();
     expect(resolveFirstLaunchDisabledPath('/api/ai/draft')).toBeNull();
     expect(resolveFirstLaunchDisabledPath('/api/ai/knowledge')).toBeNull();
+    expect(resolveFirstLaunchDisabledPath('/api/whatsapp/config')).toBeNull();
   });
 
   it('uses a fail-closed payload and status for disabled modules', () => {

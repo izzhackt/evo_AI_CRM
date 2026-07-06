@@ -18,6 +18,10 @@ const wahaInboundMigration = readFileSync(
   join(migrationsDir, '032_waha_inbound_message_idempotency.sql'),
   'utf8'
 );
+const wahaManualOutboundMigration = readFileSync(
+  join(migrationsDir, '033_waha_manual_outbound_status.sql'),
+  'utf8'
+);
 
 function expectRlsEnabled(table: string) {
   expect(allMigrationsSql).toMatch(
@@ -113,5 +117,15 @@ describe('Supabase companion schema contract', () => {
       /WHERE\s+waha_session_name\s+IS\s+NOT\s+NULL\s+AND\s+waha_message_id\s+IS\s+NOT\s+NULL/i
     );
     expect(wahaInboundMigration).not.toMatch(/UNIQUE\s*\(\s*message_id\s*\)/i);
+  });
+
+  it('adds nullable WAHA manual outbound provider status without requiring provider ids', () => {
+    expect(wahaManualOutboundMigration).toMatch(
+      /ALTER\s+TABLE\s+messages[\s\S]*waha_message_status\s+text/i
+    );
+    expect(wahaManualOutboundMigration).toMatch(/accepted_without_id/i);
+    expect(wahaManualOutboundMigration).not.toMatch(
+      /waha_message_id\s+text\s+NOT\s+NULL/i
+    );
   });
 });

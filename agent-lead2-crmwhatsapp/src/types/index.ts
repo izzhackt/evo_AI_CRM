@@ -221,6 +221,7 @@ export interface Message {
   message_id?: string;
   waha_session_name?: string | null;
   waha_message_id?: string | null;
+  waha_message_status?: string | null;
   status: MessageStatus;
   created_at: string;
   reply_to_message_id?: string;

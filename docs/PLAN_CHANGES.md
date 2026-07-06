@@ -912,3 +912,47 @@ Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm ci --include=dev`,
 deployment, no `/opt/evo-crm` access, and no live WAHA/amoCRM/Supabase success
 claims unless real credentials and real services are exercised.
 Reviewer notes: pending independent launch-control review.
+
+## 2026-07-06 - EVO Inbox Issue 16 Manual WAHA Reply
+
+Date: 2026-07-06, workspace timezone.
+Author: Codex.
+Change type: active slice, manual outbound transport, data model, file ownership,
+validation, and external-service assumption.
+Affected plan section: `/goal-evo-inbox-companion` phase 3 manual outbound
+send, GitHub issue #16.
+Reason: issue #16 enables an operator-approved text reply from an existing EVO
+Inbox conversation through the WAHA companion session after issue #15 made
+inbound conversations visible.
+Decision: keep this slice scoped to first-launch manual text sends only. The
+operator UI posts only text replies to the WAHA manual-send path; media,
+templates, broadcasts, automations, flow-driven sends, and AI auto-replies
+remain disabled or untouched. The send path loads WAHA base URL, session
+`evo-inbox`, and API key from encrypted integration settings, sends
+`POST /api/sendText` with direct user `chatId` in `@c.us` form, and persists a
+local outbound staff message only after WAHA accepts the send. Add a nullable
+provider-status shadow column for WAHA outbound results so an accepted send
+without a provider id can be represented truthfully without inventing an id.
+Reply targets must belong to the same conversation and, when available, map to
+the target WAHA message id as WAHA `reply_to`.
+
+Because WAHA send acceptance and Supabase persistence cannot be made one
+transaction, a DB failure after WAHA acceptance may leave a real external
+message without a local message row. Surface that case explicitly as
+`db_error`, do not fake a persisted sent message, and keep conversation preview
+updates after successful message persistence only.
+
+Current official docs consulted on 2026-07-06:
+- WAHA Send messages: `https://waha.devlike.pro/docs/how-to/send-messages/`
+  documents `POST /api/sendText`, common `session` and `chatId` fields,
+  direct-user chat IDs as international digits plus `@c.us`, converting
+  internal `@s.whatsapp.net` ids to `@c.us` before sending, `X-Api-Key`, and
+  optional `reply_to`.
+
+Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm ci --include=dev`,
+`npm test`, targeted WAHA/manual-send tests, `npm run lint`,
+`npm run typecheck`, `npm run build`, `git diff --check`, and a secret scan over
+the PR diff. No production deployment, no `/opt/evo-crm` access, and no live
+WAHA/Supabase success claims unless real credentials and real services are
+exercised.
+Reviewer notes: pending independent launch-control review.

@@ -7,16 +7,19 @@ export interface WahaConfig {
 export interface WahaSendTextInput {
   to: string;
   text: string;
+  replyTo?: string | null;
 }
 
 export interface WahaSendTextPayload {
   session: string;
   chatId: string;
   text: string;
+  reply_to?: string;
 }
 
 export interface WahaSendResult {
   whatsappMessageId: string;
+  messageStatus: 'accepted' | 'accepted_without_id';
   raw: unknown;
 }
 
@@ -64,7 +67,23 @@ export function normalizeWahaBaseUrl(baseUrl: string): string {
 
 export function toWahaChatId(value: string): string {
   const raw = value.trim();
-  if (raw.includes('@')) return raw;
+  if (raw.endsWith('@c.us')) {
+    const digits = raw.slice(0, -'@c.us'.length).replace(/\D/g, '');
+    if (!digits) {
+      throw new WahaConfigurationError(['chatId']);
+    }
+    return `${digits}@c.us`;
+  }
+  if (raw.endsWith('@s.whatsapp.net')) {
+    const digits = raw.slice(0, -'@s.whatsapp.net'.length).replace(/\D/g, '');
+    if (!digits) {
+      throw new WahaConfigurationError(['chatId']);
+    }
+    return `${digits}@c.us`;
+  }
+  if (raw.includes('@')) {
+    throw new WahaConfigurationError(['chatId']);
+  }
 
   const digits = raw.replace(/\D/g, '');
   if (!digits) {
@@ -77,12 +96,18 @@ export function buildWahaSendTextPayload(input: {
   sessionName: string;
   to: string;
   text: string;
+  replyTo?: string | null;
 }): WahaSendTextPayload {
-  return {
+  const payload: WahaSendTextPayload = {
     session: input.sessionName,
     chatId: toWahaChatId(input.to),
     text: input.text,
   };
+  const replyTo = input.replyTo?.trim();
+  if (replyTo) {
+    payload.reply_to = replyTo;
+  }
+  return payload;
 }
 
 function validateWahaConfig(config: WahaConfig): ValidatedWahaConfig {
@@ -152,6 +177,7 @@ export async function sendWahaText(
     sessionName: safeConfig.sessionName,
     to: input.to,
     text: input.text,
+    replyTo: input.replyTo,
   });
 
   const response = await fetchImpl(`${safeConfig.baseUrl}/api/sendText`, {
@@ -170,6 +196,7 @@ export async function sendWahaText(
 
   return {
     whatsappMessageId: extractWahaMessageId(data),
+    messageStatus: extractWahaMessageId(data) ? 'accepted' : 'accepted_without_id',
     raw: data,
   };
 }

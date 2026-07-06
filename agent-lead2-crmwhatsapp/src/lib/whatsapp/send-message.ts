@@ -1,8 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { integrationsAdminClient } from '@/lib/integrations/admin-client';
-import { loadWahaRuntimeConfig } from '@/lib/waha/config';
-import { sendWahaText } from '@/lib/waha/client';
+import {
+  loadWahaRuntimeConfig,
+  type WahaRuntimeConfig,
+} from '@/lib/waha/config';
+import { sendWahaText, toWahaChatId } from '@/lib/waha/client';
 import { isValidE164, normalizePhone } from '@/lib/whatsapp/phone-utils';
 
 export const VALID_MESSAGE_TYPES = ['text'] as const;
@@ -35,7 +38,25 @@ export interface SendMessageParams {
 export interface SendMessageResult {
   messageId: string;
   whatsappMessageId: string;
+  wahaMessageStatus: 'accepted' | 'accepted_without_id';
 }
+
+export interface SendMessageDeps {
+  integrationsAdminClient?: () => SupabaseClient;
+  loadWahaRuntimeConfig?: (
+    db: SupabaseClient,
+    accountId: string,
+  ) => Promise<WahaRuntimeConfig>;
+  sendWahaText?: typeof sendWahaText;
+  now?: () => Date;
+}
+
+const defaultDeps = {
+  integrationsAdminClient,
+  loadWahaRuntimeConfig,
+  sendWahaText,
+  now: () => new Date(),
+} satisfies Required<SendMessageDeps>;
 
 export function validateSendMessageParams(params: {
   messageType: string;
@@ -70,7 +91,9 @@ export async function sendMessageToConversation(
   db: SupabaseClient,
   accountId: string,
   params: SendMessageParams,
+  deps: SendMessageDeps = {},
 ): Promise<SendMessageResult> {
+  const resolvedDeps = { ...defaultDeps, ...deps };
   const { conversationId, messageType, contentText, replyToMessageId } = params;
 
   if (!conversationId) {
@@ -111,8 +134,8 @@ export async function sendMessageToConversation(
     );
   }
 
-  const normalizedPhone = normalizePhone(contact.phone);
-  if (!isValidE164(normalizedPhone)) {
+  const wahaRecipient = resolveWahaRecipient(contact.phone);
+  if (!wahaRecipient) {
     throw new SendMessageError(
       'bad_request',
       'Invalid phone number format',
@@ -121,10 +144,11 @@ export async function sendMessageToConversation(
   }
 
   let replyToInternalId: string | null = null;
+  let replyToProviderId: string | null = null;
   if (replyToMessageId) {
     const { data: parent, error: parentError } = await db
       .from('messages')
-      .select('id, conversation_id')
+      .select('id, conversation_id, message_id, waha_message_id')
       .eq('id', replyToMessageId)
       .eq('conversation_id', conversationId)
       .maybeSingle();
@@ -137,19 +161,25 @@ export async function sendMessageToConversation(
       );
     }
     replyToInternalId = String(parent.id);
+    replyToProviderId = providerMessageId(parent);
   }
 
   let waMessageId = '';
+  let waMessageStatus: 'accepted' | 'accepted_without_id' = 'accepted_without_id';
+  let waSessionName = '';
   try {
-    const runtime = await loadWahaRuntimeConfig(
-      integrationsAdminClient(),
+    const runtime = await resolvedDeps.loadWahaRuntimeConfig(
+      resolvedDeps.integrationsAdminClient(),
       accountId,
     );
-    const result = await sendWahaText(runtime.config, {
-      to: normalizedPhone,
+    const result = await resolvedDeps.sendWahaText(runtime.config, {
+      to: wahaRecipient,
       text: contentText!,
+      replyTo: replyToProviderId,
     });
     waMessageId = result.whatsappMessageId;
+    waMessageStatus = result.messageStatus;
+    waSessionName = runtime.config.sessionName;
   } catch (err) {
     const code =
       err && typeof err === 'object' && 'code' in err
@@ -174,6 +204,9 @@ export async function sendMessageToConversation(
       media_url: null,
       template_name: null,
       message_id: waMessageId || null,
+      waha_session_name: waSessionName || null,
+      waha_message_id: waMessageId || null,
+      waha_message_status: waMessageStatus,
       status: 'sent',
       reply_to_message_id: replyToInternalId,
     })
@@ -188,17 +221,63 @@ export async function sendMessageToConversation(
     );
   }
 
-  await db
+  const now = resolvedDeps.now().toISOString();
+  const updateResult = await db
     .from('conversations')
     .update({
       last_message_text: contentText,
-      last_message_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      last_message_at: now,
+      updated_at: now,
     })
-    .eq('id', conversationId);
+    .eq('id', conversationId)
+    .eq('account_id', accountId);
+
+  if (hasSupabaseError(updateResult)) {
+    throw new SendMessageError(
+      'db_error',
+      'Message sent and saved, but failed to update conversation preview',
+      500,
+    );
+  }
 
   return {
     messageId: String(messageRecord.id),
     whatsappMessageId: waMessageId,
+    wahaMessageStatus: waMessageStatus,
   };
+}
+
+function resolveWahaRecipient(value: string): string | null {
+  const raw = value.trim();
+  if (raw.includes('@')) {
+    try {
+      return toWahaChatId(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  const normalizedPhone = normalizePhone(raw);
+  return isValidE164(normalizedPhone) ? normalizedPhone : null;
+}
+
+function providerMessageId(parent: unknown): string | null {
+  if (!parent || typeof parent !== 'object') return null;
+  const row = parent as Record<string, unknown>;
+  if (typeof row.waha_message_id === 'string' && row.waha_message_id.trim()) {
+    return row.waha_message_id.trim();
+  }
+  if (typeof row.message_id === 'string' && row.message_id.trim()) {
+    return row.message_id.trim();
+  }
+  return null;
+}
+
+function hasSupabaseError(value: unknown): value is { error: unknown } {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    'error' in value &&
+    (value as { error: unknown }).error != null
+  );
 }

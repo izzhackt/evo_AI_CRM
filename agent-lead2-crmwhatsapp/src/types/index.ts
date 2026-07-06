@@ -98,6 +98,13 @@ export interface Contact {
   email?: string;
   company?: string;
   avatar_url?: string;
+  /**
+   * Shadow amoCRM contact id added by migration 031. This is a local
+   * lookup/cache field only; amoCRM remains the canonical contact
+   * identity source.
+   */
+  amo_contact_id?: string | null;
+  amo_contact_synced_at?: string | null;
   created_at: string;
   updated_at: string;
   /** Hydrated by queries that embed `contact_tags(tags(*))` (e.g. the
@@ -156,6 +163,12 @@ export interface Conversation {
   last_message_text?: string;
   last_message_at?: string;
   unread_count: number;
+  /**
+   * Shadow amoCRM lead id added by migration 031. amoCRM remains
+   * canonical for lead identity, sales status, and pipeline state.
+   */
+  amo_lead_id?: string | null;
+  amo_lead_synced_at?: string | null;
   created_at: string;
   updated_at: string;
   contact?: Contact;
@@ -251,6 +264,42 @@ export interface WhatsAppConfig {
   last_registration_error?: string;
 }
 
+// ============================================================
+// Integration settings (migration 031)
+// ============================================================
+
+export type IntegrationProvider = 'waha' | 'amocrm';
+export type IntegrationStatus = 'not_configured' | 'configured' | 'blocked';
+
+export interface IntegrationSetting {
+  id: string;
+  account_id: string;
+  provider: IntegrationProvider;
+  status: IntegrationStatus;
+  /**
+   * Non-secret settings only. Provider credentials and HMAC/API
+   * secrets live encrypted in `integration_secrets` and are read by
+   * server-only service-role paths after app-level authorization.
+   */
+  public_config: Record<string, unknown>;
+  last_checked_at?: string | null;
+  last_error?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IntegrationSecret {
+  id: string;
+  setting_id: string;
+  secret_name: string;
+  /** AES-256-GCM ciphertext; never expose plaintext to client code. */
+  encrypted_value: string;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)
 // rather than collapsing to a local TitleCase set — distinctions like
 // PAUSED vs DISABLED vs IN_APPEAL drive the edit/resubmit/delete flows.
@@ -335,6 +384,12 @@ export interface Deal {
   notes?: string;
   expected_close_date?: string;
   status?: DealStatus;
+  /**
+   * Optional shadow amoCRM lead id added by migration 031 for retained
+   * pipeline context. Local deal status is not canonical amoCRM state.
+   */
+  amo_lead_id?: string | null;
+  amo_lead_synced_at?: string | null;
   created_at: string;
   updated_at?: string;
   contact?: Contact;

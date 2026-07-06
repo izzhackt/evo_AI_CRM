@@ -702,3 +702,57 @@ checks only if files outside docs/config and `agent-lead2-crmwhatsapp/**` are
 touched. Do not touch `/opt/evo-crm`, do not deploy, and do not claim live
 provider success.
 Reviewer notes: pending independent launch-control review.
+
+## 2026-07-06 - EVO Inbox Issue 11 Supabase Store
+
+Date: 2026-07-06, workspace timezone.
+Author: Codex.
+Change type: active slice, data model, documentation, validation assumptions.
+Affected plan section: `/goal-evo-inbox-companion` phase 4 Supabase foundation
+and GitHub issue #11.
+Reason: issue #11 prepares `agent-lead2-crmwhatsapp/` for managed Supabase
+Cloud as the companion app data store before WAHA or amoCRM adapter work starts.
+The existing WACRM migrations already cover Supabase Auth profiles, accounts,
+account members, conversations, messages, AI settings, knowledge documents, and
+knowledge chunks, but they do not yet have EVO-specific amoCRM shadow identity
+fields or a provider-neutral secure settings boundary for future WAHA/amoCRM
+configuration.
+Decision: keep this slice scoped to Supabase schema/docs/tests only. Add an
+additive companion migration for nullable `amo_contact_id` / `amo_lead_id`
+shadow fields and account-scoped integration settings/secrets tables. Store only
+companion app data, operator UI cache/state, encrypted provider secrets, and
+shadow amoCRM identifiers in Supabase; amoCRM remains canonical for lead/contact
+identity and sales state. Do not implement WAHA send/webhook adapters, amoCRM
+lookup/create, deployment, or `/opt/evo-crm` changes.
+Validation impact: run `npm ci --include=dev`, `npm test`, `npm run lint`,
+`npm run typecheck`, and `npm run build` in `agent-lead2-crmwhatsapp/`. Check
+the Supabase CLI with `supabase --version`. Current official Supabase docs
+consulted on 2026-07-06: CLI docs for `supabase link`, `supabase migration
+list`, `supabase db push --dry-run`, `supabase db reset`, and `supabase gen
+types`; RLS docs requiring RLS on exposed schema tables; API key docs that
+secret/service keys bypass RLS and must never be public. If no linked Supabase
+project, access token, local Docker stack, or usable CLI is present, record the
+exact blocker instead of claiming migration/typegen success.
+Reviewer notes: pending independent launch-control review.
+
+## 2026-07-06 - EVO Inbox Issue 11 Validation Evidence
+
+Date: 2026-07-06, workspace timezone.
+Author: Codex.
+Change type: validation evidence and external-service blocker.
+Affected plan section: `/goal-evo-inbox-companion` issue #11 validation gate.
+Reason: issue #11 requires real companion validation and explicit Supabase
+migration/typegen blocker recording when live/local Supabase is unavailable.
+Decision: companion app validation was run from `agent-lead2-crmwhatsapp/`:
+`npm ci --include=dev`, `npm test`, `npm run lint`, `npm run typecheck`, and
+`npm run build`. Supabase validation attempts were `supabase --version`,
+`docker info`, and `test -n "$SUPABASE_ACCESS_TOKEN"`.
+Validation impact: npm install passed with zero vulnerabilities; tests passed
+with 63 files and 625 tests; lint passed with 11 pre-existing warnings;
+typecheck passed; build passed with existing Next.js workspace-root and
+middleware/proxy warnings. `supabase --version` failed because `supabase` is not
+installed. Docker is available, but `SUPABASE_ACCESS_TOKEN` is unset and the
+Supabase CLI is missing, so linked cloud validation, local stack reset,
+`supabase db push --dry-run`, and `supabase gen types` could not be run. No live
+Supabase success is claimed.
+Reviewer notes: pending independent launch-control review.

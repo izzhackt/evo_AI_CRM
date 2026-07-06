@@ -13,6 +13,13 @@ export interface WahaWebhookConfig {
   hmac: { key: string };
 }
 
+export function extractWahaWebhookSessionName(body: unknown): string | null {
+  if (!body || typeof body !== 'object') return null;
+  const obj = body as Record<string, unknown>;
+  const sessionName = typeof obj.session === 'string' ? obj.session.trim() : '';
+  return sessionName || null;
+}
+
 export function signWahaWebhookBody(rawBody: string, secret: string): string {
   return createHmac('sha512', secret).update(rawBody).digest('hex');
 }
@@ -56,7 +63,7 @@ export function extractWahaSessionStatusEvent(
       : typeof obj.status === 'string'
         ? obj.status
         : null;
-  const sessionName = typeof obj.session === 'string' ? obj.session : null;
+  const sessionName = extractWahaWebhookSessionName(body);
 
   if (!sessionName || !status) return null;
   return { sessionName, status: status.toUpperCase() };

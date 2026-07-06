@@ -49,4 +49,37 @@ describe('POST /api/waha/webhook', () => {
     expect(response.status).toBe(401);
     expect(json).toEqual({ error: 'Invalid signature' });
   });
+
+  it('rejects unsigned non-status WAHA webhooks before ignoring them', async () => {
+    const messageBody = JSON.stringify({
+      event: 'message',
+      session: 'evo-inbox',
+      payload: { id: 'message-1' },
+    });
+
+    const response = await POST(request(messageBody));
+    const json = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(json).toEqual({ error: 'Invalid signature' });
+  });
+
+  it('accepts signed unsupported WAHA events as ignored', async () => {
+    const messageBody = JSON.stringify({
+      event: 'message',
+      session: 'evo-inbox',
+      payload: { id: 'message-1' },
+    });
+
+    const response = await POST(
+      request(messageBody, {
+        'X-Webhook-Hmac': signWahaWebhookBody(messageBody, 'secret'),
+        'X-Webhook-Hmac-Algorithm': 'sha512',
+      }),
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(202);
+    expect(json).toEqual({ status: 'ignored' });
+  });
 });

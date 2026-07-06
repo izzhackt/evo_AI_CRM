@@ -4,6 +4,7 @@ import { integrationsAdminClient } from '@/lib/integrations/admin-client';
 import { findWahaWebhookCandidates } from '@/lib/waha/config';
 import {
   extractWahaSessionStatusEvent,
+  extractWahaWebhookSessionName,
   updateWahaSessionStatus,
   verifyWahaWebhookSignature,
 } from '@/lib/waha/webhook';
@@ -22,13 +23,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const event = extractWahaSessionStatusEvent(body);
-  if (!event) {
-    return NextResponse.json({ status: 'ignored' }, { status: 202 });
+  const sessionName = extractWahaWebhookSessionName(body);
+  if (!sessionName) {
+    return NextResponse.json({ error: 'Missing session' }, { status: 400 });
   }
 
   const db = integrationsAdminClient();
-  const candidates = await findWahaWebhookCandidates(db, event.sessionName);
+  const candidates = await findWahaWebhookCandidates(db, sessionName);
   const matched = candidates.find((candidate) =>
     verifyWahaWebhookSignature({
       rawBody,
@@ -40,6 +41,11 @@ export async function POST(request: Request) {
 
   if (!matched) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+  }
+
+  const event = extractWahaSessionStatusEvent(body);
+  if (!event) {
+    return NextResponse.json({ status: 'ignored' }, { status: 202 });
   }
 
   await updateWahaSessionStatus(db, matched.settingId, event);

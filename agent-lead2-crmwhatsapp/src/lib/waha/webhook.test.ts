@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildWahaSessionWebhook,
   extractWahaSessionStatusEvent,
+  extractWahaWebhookSessionName,
   mapWahaStatusToIntegrationState,
   signWahaWebhookBody,
   updateWahaSessionStatus,
@@ -60,6 +61,17 @@ describe('WAHA webhook boundary', () => {
       status: 'blocked',
       lastError: 'WAHA session status is FAILED',
     });
+  });
+
+  it('extracts the WAHA session name before event-specific handling', () => {
+    expect(
+      extractWahaWebhookSessionName({
+        event: 'message',
+        session: ' evo-inbox ',
+        payload: { id: 'message-1' },
+      }),
+    ).toBe('evo-inbox');
+    expect(extractWahaWebhookSessionName({ event: 'message' })).toBeNull();
   });
 
   it('builds a WAHA session webhook config with HMAC and session.status', () => {

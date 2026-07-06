@@ -36,12 +36,13 @@ export default function AgentsPage() {
       <div className="flex items-center gap-2">
         <Bot className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          AI Drafts
+          EVO Companion AI Assistant
         </h1>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Configure the bring-your-own-key draft assistant, then test suggested
-        replies before staff use them in the inbox.
+        Configure bring-your-own OpenAI or Anthropic draft generation,
+        knowledge retrieval, and operator review. Auto-reply is unavailable for
+        first launch.
       </p>
 
       {decided && (

@@ -13,6 +13,9 @@ import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
+import { AmoCrmConfig } from '@/components/settings/amocrm-config';
+import { AiConfig } from '@/components/settings/ai-config';
+import { ProductionReadiness } from '@/components/settings/production-readiness';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
 import {
@@ -57,6 +60,9 @@ export default function SettingsPage() {
     fields: <FieldsAndTagsPanel />,
     deals: <DealsSettings />,
     whatsapp: <WhatsAppConfig />,
+    amocrm: <AmoCrmConfig />,
+    ai: <AiConfig />,
+    readiness: <ProductionReadiness />,
     members: <MembersTab />,
     api: <ApiKeysSettings />,
   };
@@ -65,11 +71,11 @@ export default function SettingsPage() {
     <div>
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Settings
+          EVO Inbox settings
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Everything in one place — your account and your workspace. Pick a
-          section to manage it.
+          Configure the first-launch inbox, identity, AI draft, and deployment
+          readiness surfaces without enabling disabled automation modules.
         </p>
       </div>
 

@@ -220,7 +220,7 @@ export function AiConfig() {
   return (
     <div>
       <SettingsPanelHead
-        title="Agent setup"
+        title="EVO Companion AI Assistant"
         description="Bring your own OpenAI or Anthropic key. EVO Inbox uses it for draft replies and knowledge-grounded review only. Automatic WhatsApp replies are disabled for first launch."
       />
 
@@ -237,8 +237,8 @@ export function AiConfig() {
               <Sparkles className="h-4 w-4 text-primary" /> Provider & key
             </CardTitle>
             <CardDescription>
-              Your key is encrypted at rest (AES-256-GCM) and never shown again
-              after saving.
+              Your provider key is encrypted at rest and used only for
+              operator-reviewed admissions reply drafts.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -364,9 +364,9 @@ export function AiConfig() {
           <CardHeader>
             <CardTitle className="text-base">Behaviour</CardTitle>
             <CardDescription>
-              Tell the assistant about your business — products, tone, what it
-              may and may not promise. This context feeds operator-reviewed
-              drafts only.
+              Tell the assistant how EVO handles consultations, countries,
+              scholarships, documents, deadlines, and handoff rules. This
+              context feeds operator-reviewed drafts only.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -376,7 +376,7 @@ export function AiConfig() {
                 id="ai-prompt"
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
-                placeholder="e.g. We are Acme, a coffee-equipment store. Be warm and concise. Never quote prices or delivery dates — hand off to a human for those."
+                placeholder="Example: Be concise and warm. Do not promise admission, visas, scholarships, deadlines, or prices without staff confirmation. Hand off sensitive cases to an EVO operator."
                 rows={5}
                 disabled={disabled}
               />

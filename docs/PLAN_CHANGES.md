@@ -465,6 +465,50 @@ checks locally. Live WhatsApp/amoCRM validation remains blocked until real
 credentials and server configuration are supplied.
 Reviewer notes: pending independent launch-control review.
 
+## 2026-07-06 - EVO Inbox Issues 17-19 Production-Ready Preflight
+
+Date: 2026-07-06, workspace timezone.
+Author: Codex.
+Change type: active slice, AI safety, product redesign, deployment support,
+proof-prep runbook, validation, and external-service assumption.
+Affected plan section: `/goal-evo-inbox-companion` phases 6, 7, 8 and GitHub
+issues #17, #18, #19, with #20 prepared only as a credential/proof checklist.
+Reason: durable goal mode started the final pre-production companion app
+implementation run after inbound WAHA delivery and manual WAHA replies landed.
+Decision: keep WACRM's retained AI assistant as the EVO Companion AI Assistant
+in draft-only mode. OpenAI/Anthropic keys remain bring-your-own and encrypted;
+knowledge retrieval must feed draft generation when configured; missing AI
+config, decrypt failures, and provider failures must surface as explicit
+errors. AI auto-reply remains unavailable for first launch and must not retain
+an active runtime send path.
+
+Redesign retained first-launch surfaces as EVO Inbox for admissions operators:
+inbox, contact/lead profile, AI/knowledge, WAHA settings, amoCRM settings, and
+production readiness. Disabled modules such as broadcasts, broad automations,
+templates, flows, and auto-reply stay absent from active navigation or fail
+closed through existing disabled-module gates.
+
+Add reviewable `hermes-vps` deployment support for a separate
+`inbox.evoadmissions.com` service without touching `/opt/evo-crm` or claiming a
+live deployment. The companion Next.js app should use official standalone
+output semantics: `output: "standalone"`, run the generated standalone
+`server.js`, and include copied `public` plus `.next/static` assets. WAHA stays
+private on the Docker network; Caddy routes only the companion app hostname to
+the companion app service.
+
+Prepare #20 only as a real proof checklist/runbook naming the required
+Supabase, ENCRYPTION_KEY, WAHA, amoCRM, AI provider, test WhatsApp number, DNS,
+and Caddy inputs and the exact proof sequence. Do not mark #20 done and do not
+perform a production proof in this run.
+Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm ci --include=dev`,
+`npm test`, targeted AI/knowledge/WAHA/deployment/preflight tests,
+`npm run lint`, `npm run typecheck`, `npm run build`, browser/UI checks when a
+local server can run, `git diff --check`, and a PR diff secret scan. Build or
+preflight may only report live Supabase, WAHA, amoCRM, AI, DNS, Caddy, or
+production success if real credentials/services are present and explicitly
+exercised. Do not deploy and do not touch `/opt/evo-crm`.
+Reviewer notes: pending independent launch-control review.
+
 ## 2026-07-06 - EVO Inbox Issues 13 And 14 Validation Evidence
 
 Date: 2026-07-06, workspace timezone.

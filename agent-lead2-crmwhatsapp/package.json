@@ -30,6 +30,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "preflight:prod": "node scripts/preflight-prod.mjs",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

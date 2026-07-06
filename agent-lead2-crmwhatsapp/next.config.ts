@@ -62,6 +62,15 @@ const SECURITY_HEADERS = [
 
 const nextConfig: NextConfig = {
   /**
+   * Required for the hermes-vps Docker image. Next emits a minimal
+   * `.next/standalone` server, but `public` and `.next/static` still
+   * have to be copied into the runtime image for `server.js` to serve
+   * them:
+   * https://nextjs.org/docs/pages/api-reference/config/next-config-js/output
+   */
+  output: "standalone",
+
+  /**
    * Cache-Control policy.
    *
    * Why this exists:

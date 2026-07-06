@@ -105,6 +105,26 @@ export function SettingsOverview({
     subtitle: ReactNode;
   }[] = [
     {
+      section: 'whatsapp',
+      loading: false,
+      subtitle: 'Private WAHA session evo-inbox',
+    },
+    {
+      section: 'amocrm',
+      loading: false,
+      subtitle: 'Canonical contact and lead identity',
+    },
+    {
+      section: 'ai',
+      loading: false,
+      subtitle: 'Draft-only assistant and knowledge base',
+    },
+    {
+      section: 'readiness',
+      loading: false,
+      subtitle: 'Production preflight blockers',
+    },
+    {
       section: 'members',
       loading: countsLoading,
       subtitle:

@@ -90,7 +90,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard", label: "Workspace", icon: LayoutDashboard },
   { href: "/inbox", label: "EVO Inbox", icon: MessageSquare },
   { href: "/notifications", label: "Notifications", icon: Bell },
-  { href: "/contacts", label: "Contacts", icon: Users },
+  { href: "/contacts", label: "Lead profiles", icon: Users },
   { href: "/pipelines", label: "Pipelines", icon: GitBranch },
   { href: "/agents", label: "AI Drafts", icon: Bot },
 ];

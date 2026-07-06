@@ -1,10 +1,13 @@
 import {
+  Bot,
   Coins,
   KeyRound,
+  Link2,
   LayoutGrid,
   MessageCircle,
   Palette,
   Shield,
+  ShieldCheck,
   Tags,
   User,
   UsersRound,
@@ -27,6 +30,9 @@ export const SETTINGS_SECTIONS = [
   'fields',
   'deals',
   'whatsapp',
+  'amocrm',
+  'ai',
+  'readiness',
   'members',
   'api',
 ] as const;
@@ -51,6 +57,9 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   fields: { id: 'fields', label: 'Fields & tags', icon: Tags, group: 'workspace' },
   deals: { id: 'deals', label: 'Deals & currency', icon: Coins, group: 'workspace' },
   whatsapp: { id: 'whatsapp', label: 'WhatsApp WAHA', icon: MessageCircle, group: 'workspace' },
+  amocrm: { id: 'amocrm', label: 'amoCRM identity', icon: Link2, group: 'workspace' },
+  ai: { id: 'ai', label: 'AI Assistant', icon: Bot, group: 'workspace' },
+  readiness: { id: 'readiness', label: 'Readiness', icon: ShieldCheck, group: 'workspace' },
   members: { id: 'members', label: 'Team members', icon: UsersRound, group: 'workspace' },
   api: { id: 'api', label: 'API keys', icon: KeyRound, group: 'workspace' },
 };

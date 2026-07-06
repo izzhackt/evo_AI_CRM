@@ -4,17 +4,17 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
+import type { Contact, Conversation, Deal, ContactNote, Tag } from "@/types";
 import {
   Phone,
   Mail,
   Copy,
   Check,
-  User,
   Tag as TagIcon,
   DollarSign,
   StickyNote,
   Plus,
+  Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,9 +22,10 @@ import { format } from "date-fns";
 
 interface ContactSidebarProps {
   contact: Contact | null;
+  conversation?: Conversation | null;
 }
 
-export function ContactSidebar({ contact }: ContactSidebarProps) {
+export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
   const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -125,6 +126,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
   const displayName = contact.name || contact.phone;
   const initials = displayName.charAt(0).toUpperCase();
+  const amoContactId = contact.amo_contact_id?.trim();
+  const amoLeadId = conversation?.amo_lead_id?.trim();
 
   return (
     <div className="flex h-full w-70 flex-col border-l border-border bg-card">
@@ -172,6 +175,49 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                 <span className="truncate">{contact.email}</span>
               </div>
             )}
+          </div>
+
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* amoCRM identity */}
+          <div>
+            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <Link2 className="h-3 w-3" />
+              amoCRM identity
+            </div>
+            <div className="mt-2 space-y-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-muted-foreground">Contact</span>
+                <span
+                  className={cn(
+                    "min-w-0 truncate font-mono",
+                    amoContactId ? "text-foreground" : "text-amber-300",
+                  )}
+                  title={amoContactId || "Unresolved"}
+                >
+                  {amoContactId || "Unresolved"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-muted-foreground">Lead</span>
+                <span
+                  className={cn(
+                    "min-w-0 truncate font-mono",
+                    amoLeadId ? "text-foreground" : "text-amber-300",
+                  )}
+                  title={amoLeadId || "Pending sync"}
+                >
+                  {amoLeadId || "Pending sync"}
+                </span>
+              </div>
+              {(!amoContactId || !amoLeadId) && (
+                <p className="text-[11px] leading-4 text-muted-foreground">
+                  Blocked until the lead-agent resolves or creates amoCRM
+                  identity.
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Divider */}

@@ -12,13 +12,22 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
-import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Remembers the agent's show/hide choice for the desktop contact panel
 // across reloads and sessions (device-scoped, like the theme prefs).
-const CONTACT_PANEL_STORAGE_KEY = "wacrm:inbox:contact-panel-open";
+const CONTACT_PANEL_STORAGE_KEY = "evo-inbox:contact-panel-open";
+
+interface WahaInboxStatus {
+  configured: boolean;
+  connected: boolean;
+  reason?: string;
+  message?: string;
+  public_config?: {
+    sessionName?: string;
+  };
+}
 
 export default function InboxPage() {
   const router = useRouter();
@@ -35,9 +44,7 @@ export default function InboxPage() {
     useState<Conversation | null>(null);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [whatsappConnected, setWhatsappConnected] = useState<boolean | null>(
-    null
-  );
+  const [wahaStatus, setWahaStatus] = useState<WahaInboxStatus | null>(null);
   /**
    * Bumped whenever we want children (ConversationList, MessageThread)
    * to refetch from the DB — used as a safety net against missed
@@ -159,44 +166,40 @@ export default function InboxPage() {
     }
   }, []);
 
-  // Check WhatsApp connection status on mount
+  // Check private WAHA session status on mount. This uses the encrypted
+  // integration endpoint, not the retired whatsapp_config table, so the
+  // banner matches the first-launch Settings surface.
   useEffect(() => {
     const checkConnection = async () => {
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const user = session?.user;
-
-      if (!user) return;
-
-      // whatsapp_config is one-row-per-account post-multi-user, so
-      // the previous `.eq('user_id', user.id)` would miss the row
-      // for any teammate who didn't personally save the config —
-      // the "WhatsApp not connected" banner would show in the
-      // shared inbox even though the admin had it configured.
-      // Resolve account_id via the profile and query by that.
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("account_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const accountId = profile?.account_id as string | undefined;
-      if (!accountId) {
-        setWhatsappConnected(false);
-        return;
+      try {
+        const res = await fetch("/api/whatsapp/config", {
+          cache: "no-store",
+        });
+        const data = (await res.json().catch(() => ({}))) as WahaInboxStatus;
+        if (!res.ok) {
+          setWahaStatus({
+            configured: false,
+            connected: false,
+            reason: data.reason ?? "waha_status_unavailable",
+            message:
+              data.message ??
+              "WAHA status could not be loaded for this account.",
+          });
+          return;
+        }
+        setWahaStatus(data);
+      } catch (err) {
+        console.error("[inbox] WAHA status check failed:", err);
+        setWahaStatus({
+          configured: false,
+          connected: false,
+          reason: "waha_status_unavailable",
+          message: "WAHA status could not be loaded for this account.",
+        });
       }
-
-      const { data } = await supabase
-        .from("whatsapp_config")
-        .select("status")
-        .eq("account_id", accountId)
-        .maybeSingle();
-
-      setWhatsappConnected(data?.status === "connected");
     };
 
-    checkConnection();
+    void checkConnection();
   }, []);
 
   // Handle realtime message events
@@ -547,16 +550,24 @@ export default function InboxPage() {
   // it back to the list. On lg+ both panes render side-by-side as
   // before, unchanged.
   const hasActiveConv = !!activeConversation;
+  const wahaSessionName =
+    wahaStatus?.public_config?.sessionName?.trim() || "evo-inbox";
+  const wahaBlockedMessage =
+    wahaStatus?.message ||
+    (wahaStatus?.configured
+      ? "WAHA is configured, but the session is not ready. Check Settings > WhatsApp WAHA before sending."
+      : "Save the WAHA base URL, API key, and webhook HMAC secret in Settings > WhatsApp WAHA.");
 
   return (
     <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
       {/* WhatsApp connection banner — in the flex column, not absolute,
           so it pushes the panels down instead of overlapping them. */}
-      {whatsappConnected === false && (
+      {wahaStatus && !wahaStatus.connected && (
         <div className="flex shrink-0 items-center justify-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2">
           <WifiOff className="h-4 w-4 text-amber-400" />
-          <p className="text-xs text-amber-400">
-            WhatsApp® is not connected. Go to Settings to connect your account.
+          <p className="min-w-0 text-center text-xs text-amber-300">
+            WAHA session <span className="font-mono">{wahaSessionName}</span>{" "}
+            is blocked. {wahaBlockedMessage}
           </p>
         </div>
       )}
@@ -619,7 +630,10 @@ export default function InboxPage() {
             toggle — which is itself desktop-only — never affects it. */}
         {contactPanelOpen && (
           <div className="hidden lg:block">
-            <ContactSidebar contact={activeContact} />
+            <ContactSidebar
+              contact={activeContact}
+              conversation={activeConversation}
+            />
           </div>
         )}
       </div>

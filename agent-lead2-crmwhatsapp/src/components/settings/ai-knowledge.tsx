@@ -162,8 +162,9 @@ export function AiKnowledgeCard({
           <BookOpen className="h-4 w-4 text-primary" /> Knowledge base
         </CardTitle>
         <CardDescription>
-          Add FAQs, policies, or product details. The assistant retrieves the
-          relevant pieces when drafting operator-reviewed replies.
+          Add EVO admissions guidance, country notes, document checklists, and
+          consultation policy. The assistant retrieves relevant excerpts when
+          drafting operator-reviewed replies.
           {hasEmbeddingsKey
             ? ' Semantic search is on (embeddings key set).'
             : ' Using keyword search — add an embeddings key above for semantic search.'}
@@ -227,7 +228,7 @@ export function AiKnowledgeCard({
                     id="kb-title"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Returns & refunds policy"
+                    placeholder="e.g. Italy bachelor admissions checklist"
                     disabled={saving}
                   />
                 </div>
@@ -237,7 +238,7 @@ export function AiKnowledgeCard({
                     id="kb-content"
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    placeholder="Paste the FAQ answer, policy text, or product details…"
+                    placeholder="Paste the approved EVO guidance, checklist, policy, or operator note."
                     rows={8}
                     disabled={saving}
                   />

@@ -50,6 +50,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     isActive: true,
     autoReplyEnabled: false,
     autoReplyMaxPerConversation: 1,
+    embeddingsProvider: 'keyword',
     embeddingsApiKey: null,
     ...overrides,
   }

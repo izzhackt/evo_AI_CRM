@@ -22,6 +22,10 @@ const wahaManualOutboundMigration = readFileSync(
   join(migrationsDir, '033_waha_manual_outbound_status.sql'),
   'utf8'
 )
+const embeddingsScaleMigration = readFileSync(
+  join(migrationsDir, '035_ai_embeddings_provider_and_scale.sql'),
+  'utf8'
+)
 
 function expectRlsEnabled(table: string) {
   expect(allMigrationsSql).toMatch(
@@ -166,6 +170,27 @@ describe('Supabase companion schema contract', () => {
     )
     expect(allMigrationsSql).toMatch(
       /CHECK\s*\(\s*provider\s+IN\s*\([\s\S]*'openai'[\s\S]*'anthropic'[\s\S]*'gemini'[\s\S]*\)\s*\)/i
+    )
+  })
+
+  it('adds explicit embeddings provider selection with keyword as the default', () => {
+    expect(embeddingsScaleMigration).toMatch(
+      /ALTER\s+TABLE\s+ai_configs[\s\S]*ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+embeddings_provider\s+text\s+NOT\s+NULL\s+DEFAULT\s+'keyword'/i
+    )
+    expect(embeddingsScaleMigration).toMatch(
+      /DROP\s+CONSTRAINT\s+IF\s+EXISTS\s+ai_configs_embeddings_provider_check/i
+    )
+    expect(embeddingsScaleMigration).toMatch(
+      /CHECK\s*\(\s*embeddings_provider\s+IN\s*\([\s\S]*'keyword'[\s\S]*'gemini'[\s\S]*'openai'[\s\S]*\)\s*\)/i
+    )
+  })
+
+  it('adds composite indexes for production inbox and message growth paths', () => {
+    expect(embeddingsScaleMigration).toMatch(
+      /CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+idx_conversations_account_last_message[\s\S]*ON\s+conversations\s*\(\s*account_id,\s*last_message_at\s+DESC\s+NULLS\s+LAST,\s*updated_at\s+DESC\s+NULLS\s+LAST,\s*id\s*\)/i
+    )
+    expect(embeddingsScaleMigration).toMatch(
+      /CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+idx_messages_conversation_created_at[\s\S]*ON\s+messages\s*\(\s*conversation_id,\s*created_at,\s*id\s*\)/i
     )
   })
 })

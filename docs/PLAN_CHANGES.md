@@ -1141,3 +1141,60 @@ This proves WAHA session status webhooks are now accepted, but does not prove
 inbound message delivery, amoCRM identity resolution, AI draft generation, or
 manual outbound send.
 Reviewer notes: pending independent launch-control review.
+
+## 2026-07-07 - EVO Inbox Issue 27 Gemini Embeddings And Supabase Scale
+
+Date: 2026-07-07, workspace timezone.
+Author: Codex.
+Change type: active slice, AI retrieval architecture, Supabase schema/indexing,
+storage planning, validation, and external-service assumption.
+Affected plan section: `/goal-evo-inbox-companion` phase 6 AI draft/knowledge
+and managed Supabase foundation, GitHub issue #27.
+Reason: EVO Inbox first launch needs multilingual Russian/Kyrgyz knowledge
+retrieval with the owner's existing Gemini rollout key, while preserving
+operator-reviewed manual drafts and making Supabase storage/index growth
+explicit before production traffic.
+Decision: add an account-level `ai_configs.embeddings_provider` selection with
+`keyword`, `gemini`, and `openai`. `keyword` remains the no-provider default
+and uses only the existing language-neutral FTS path. `gemini` uses Gemini
+embeddings with the same encrypted Gemini key when the account's draft provider
+is Gemini; otherwise it uses the optional encrypted embeddings override key.
+`openai` uses OpenAI `text-embedding-3-small` with the same encrypted OpenAI key
+when the draft provider is OpenAI or the optional embeddings override key when
+the draft provider differs. Knowledge ingestion and draft/playground retrieval
+must use the selected provider and fall back to keyword retrieval on missing
+semantic configuration or provider failure. Auto-reply stays unavailable and
+forced off.
+
+Keep the existing `vector(1536)` Supabase column. Google's official Gemini
+embedding docs checked on 2026-07-07 state that `gemini-embedding-2` supports
+flexible output dimensions with recommended sizes including 1536, and that
+embedding spaces are incompatible across Gemini embedding model families, so
+future model-family changes require re-embedding knowledge chunks. The Google
+Embeddings API docs checked on 2026-07-07 document `models.embedContent` as the
+server endpoint that returns a text embedding vector. Supabase vector-index docs
+checked on 2026-07-07 state that large vector tables should be indexed, pgvector
+supports HNSW and IVFFlat, Supabase generally recommends HNSW, and indexed
+vector columns support up to 2000 dimensions on pgvector 0.7.0+, so the current
+1536-dimensional HNSW cosine index remains valid.
+
+Supabase storage/readiness decision: retain HNSW for `ai_knowledge_chunks`
+because account knowledge bases grow incrementally and need good recall from
+small row counts. Add composite hot-path indexes for inbox ordering and message
+timeline reads where missing. Document storage growth for conversations,
+messages, and vector chunks using Supabase's current plan guidance checked on
+2026-07-07: Free projects have a 500 MB database-size quota/read-only risk,
+while Pro includes materially larger database/storage headroom. Free is enough
+only for initial proof/small pilot traffic; move to Pro before sustained
+production WhatsApp traffic, large imported histories, or thousands of
+knowledge chunks.
+
+Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm ci --include=dev`,
+`npm test`, targeted AI/knowledge/embeddings/schema/preflight tests,
+`npm run lint`, `npm run typecheck`, `npm run build`, `git diff --check`, and a
+PR diff secret scan. Live Gemini/Supabase smoke may only be claimed if provider
+and Supabase credentials are present in the current allowed workspace
+environment and actually exercised; otherwise report the exact missing env or
+service blocker. No deployment, no rsync, no `/opt/evo-crm` access, and no
+unattended WhatsApp auto-reply.
+Reviewer notes: pending independent launch-control review.

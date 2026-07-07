@@ -84,6 +84,7 @@ export async function POST(request: Request) {
         isActive: true,
         autoReplyEnabled: false,
         autoReplyMaxPerConversation: 3,
+        embeddingsProvider: 'keyword',
         embeddingsApiKey: null,
       })
     } catch (err) {

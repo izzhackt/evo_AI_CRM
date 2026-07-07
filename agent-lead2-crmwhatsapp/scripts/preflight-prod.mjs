@@ -29,6 +29,21 @@ function requireEnv(name, description) {
   });
 }
 
+function requireEnum(name, allowed, description, fallback) {
+  const raw = value(name) || fallback;
+  const ok = allowed.includes(raw);
+  checks.push({
+    name,
+    ok,
+    description,
+    message: ok
+      ? raw === value(name)
+        ? `valid: ${raw}`
+        : `default: ${raw}`
+      : `${name} must be one of: ${allowed.join(', ')}`,
+  });
+}
+
 function requireEncryptionKey() {
   const key = value('ENCRYPTION_KEY');
   const ok = /^[a-f0-9]{64}$/i.test(key);
@@ -57,6 +72,12 @@ requireEnv('EVO_INBOX_AMOCRM_ACCESS_TOKEN', 'amoCRM token for proof setup');
 requireEnv(
   'EVO_INBOX_GEMINI_API_KEY',
   'Gemini API key for EVO Companion draft proof',
+);
+requireEnum(
+  'EVO_INBOX_EMBEDDINGS_PROVIDER',
+  ['keyword', 'gemini', 'openai'],
+  'AI knowledge retrieval provider selection',
+  'gemini',
 );
 requireEnv('EVO_INBOX_TEST_WHATSAPP_NUMBER', 'real WhatsApp number for proof');
 

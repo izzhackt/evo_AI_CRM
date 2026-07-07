@@ -4,6 +4,9 @@ import crypto from 'node:crypto';
 
 const DEFAULT_PROVIDER = 'gemini';
 const DEFAULT_MODEL = 'gemini-3.5-flash';
+const DEFAULT_EMBEDDINGS_PROVIDER = 'gemini';
+const GEMINI_EMBEDDING_MODEL = 'gemini-embedding-2';
+const EMBEDDING_DIMENSIONS = 1536;
 const GEMINI_GENERATE_CONTENT_BASE_URL =
   'https://generativelanguage.googleapis.com/v1beta/models';
 const GEMINI_VALIDATION_MAX_OUTPUT_TOKENS = 256;
@@ -158,6 +161,37 @@ async function validateGemini({ apiKey, model }) {
   }
 }
 
+async function validateGeminiEmbedding({ apiKey }) {
+  const response = await fetch(
+    `${GEMINI_GENERATE_CONTENT_BASE_URL}/${GEMINI_EMBEDDING_MODEL}:embedContent`,
+    {
+      method: 'POST',
+      headers: {
+        'x-goog-api-key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: {
+          parts: [{ text: 'task: search result | query: ping' }],
+        },
+        output_dimensionality: EMBEDDING_DIMENSIONS,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Gemini embeddings validation failed with ${response.status}: ${await errorDetail(response)}`
+    );
+  }
+
+  const data = await response.json().catch(() => null);
+  const values = data?.embedding?.values;
+  if (!Array.isArray(values) || values.length !== EMBEDDING_DIMENSIONS) {
+    throw new Error('Gemini embeddings validation returned an invalid vector');
+  }
+}
+
 function geminiGenerateContentUrl(model) {
   const modelId = model.replace(/^models\//, '');
   return `${GEMINI_GENERATE_CONTENT_BASE_URL}/${encodeURIComponent(modelId)}:generateContent`;
@@ -220,6 +254,7 @@ async function upsertAiConfig({
   encryptedApiKey,
   systemPrompt,
   isActive,
+  embeddingsProvider,
 }) {
   const createdBy = value('EVO_INBOX_CONFIG_USER_ID') || account.owner_user_id;
   const payload = {
@@ -231,6 +266,7 @@ async function upsertAiConfig({
     is_active: isActive,
     auto_reply_enabled: false,
     auto_reply_max_per_conversation: 1,
+    embeddings_provider: embeddingsProvider,
   };
   if (createdBy) payload.created_by = createdBy;
 
@@ -261,12 +297,22 @@ async function main() {
     );
   }
   const model = value('EVO_INBOX_AI_MODEL') || DEFAULT_MODEL;
+  const embeddingsProvider =
+    value('EVO_INBOX_EMBEDDINGS_PROVIDER') || DEFAULT_EMBEDDINGS_PROVIDER;
+  if (embeddingsProvider !== 'keyword' && embeddingsProvider !== 'gemini') {
+    throw new Error(
+      'EVO_INBOX_EMBEDDINGS_PROVIDER must be keyword or gemini for this seed command'
+    );
+  }
   const apiKey = requireEnv('EVO_INBOX_GEMINI_API_KEY');
   const systemPrompt = value('EVO_INBOX_AI_SYSTEM_PROMPT') || null;
   const isActive = optionalBoolean('EVO_INBOX_AI_ACTIVE', true);
 
   const account = await selectAccount({ supabaseUrl, serviceRoleKey });
   await validateGemini({ apiKey, model });
+  if (embeddingsProvider === 'gemini') {
+    await validateGeminiEmbedding({ apiKey });
+  }
   const config = await upsertAiConfig({
     supabaseUrl,
     serviceRoleKey,
@@ -276,6 +322,7 @@ async function main() {
     encryptedApiKey: encrypt(apiKey, encryptionKey),
     systemPrompt,
     isActive,
+    embeddingsProvider,
   });
 
   process.stdout.write(
@@ -285,13 +332,17 @@ async function main() {
         validation: {
           provider,
           model,
+          embeddings_provider: embeddingsProvider,
           live_provider_call: true,
+          gemini_embeddings_live_provider_call:
+            embeddingsProvider === 'gemini',
         },
         ai_config: {
           id: config.id,
           account_id: config.account_id,
           provider: config.provider,
           model: config.model,
+          embeddings_provider: config.embeddings_provider,
           is_active: config.is_active,
           auto_reply_enabled: config.auto_reply_enabled,
           auto_reply_max_per_conversation:

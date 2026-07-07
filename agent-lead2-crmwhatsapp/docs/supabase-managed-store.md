@@ -136,6 +136,23 @@ npm test -- src/lib/supabase/schema-contract.test.ts src/lib/auth/api-context.te
 Live Postgres RLS behavior still needs linked or local Supabase validation before
 claiming database-enforced success.
 
+## Scale And Retention Readiness
+
+Issue #27 adds explicit knowledge retrieval provider selection and the first
+production-scale storage audit for conversations, messages, and knowledge
+vectors. Use `docs/supabase-scale-retention.md` before production proof and
+before any historical import.
+
+Current decision:
+
+- Free Supabase is acceptable only for issue #20 proof and a small pilot.
+- Move to Pro before sustained production WhatsApp traffic, any import above
+  50k messages, database size above 250 MB, or thousands of knowledge chunks.
+- Keep `vector(1536)` and HNSW for Gemini/OpenAI semantic retrieval; the
+  language-neutral keyword path remains the fallback.
+- No automatic retention deletion is enabled until an owner-approved retention
+  policy exists.
+
 ## 2026-07-06 Validation Attempt
 
 Commands run from `agent-lead2-crmwhatsapp/`:

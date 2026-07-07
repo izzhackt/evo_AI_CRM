@@ -166,8 +166,8 @@ export function AiKnowledgeCard({
           consultation policy. The assistant retrieves relevant excerpts when
           drafting operator-reviewed replies.
           {hasEmbeddingsKey
-            ? ' Semantic search is on (embeddings key set).'
-            : ' Using keyword search — add an embeddings key above for semantic search.'}
+            ? ' Semantic search is on.'
+            : ' Using keyword search — select Gemini or OpenAI retrieval above for semantic search.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -265,7 +265,7 @@ export function AiKnowledgeCard({
                       size="sm"
                       onClick={reindex}
                       disabled={reindexing}
-                      title="Re-embed all documents (e.g. after adding an embeddings key)"
+                      title="Re-embed all documents after changing semantic retrieval"
                     >
                       {reindexing ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />

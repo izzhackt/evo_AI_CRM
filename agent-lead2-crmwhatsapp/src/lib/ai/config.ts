@@ -1,20 +1,24 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import type { AiConfig } from './types'
+import type { AiConfig, AiProvider, EmbeddingsProvider } from './types'
 
 interface AiConfigRow {
-  provider: 'openai' | 'anthropic' | 'gemini'
+  provider: AiProvider
   model: string
   api_key: string
   system_prompt: string | null
   is_active: boolean
   auto_reply_enabled: boolean
   auto_reply_max_per_conversation: number
+  embeddings_provider: EmbeddingsProvider | null
   embeddings_api_key: string | null
 }
 
 const CONFIG_COLUMNS =
-  'provider, model, api_key, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, embeddings_api_key'
+  'provider, model, api_key, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, embeddings_provider, embeddings_api_key'
+
+const EMBEDDINGS_COLUMNS =
+  'provider, api_key, embeddings_provider, embeddings_api_key'
 
 /**
  * Load and decrypt the account's AI config for *use* (draft or
@@ -51,32 +55,19 @@ export async function loadAiConfig(
   // rather than letting decrypt() throw on null.
   if (!row.api_key) return null
 
-  // The embeddings key is optional and independent of the chat key —
-  // a corrupt/undecryptable one should downgrade to lexical KB, not
-  // take down draft/auto-reply, so decrypt failures are swallowed here.
-  let embeddingsApiKey: string | null = null
-  if (row.embeddings_api_key) {
-    try {
-      embeddingsApiKey = decrypt(row.embeddings_api_key)
-    } catch {
-      // Not silent — a rotated/mismatched ENCRYPTION_KEY here means
-      // semantic search quietly stops working, so leave a breadcrumb.
-      console.error(
-        `[ai config] embeddings key for account ${accountId} could not be decrypted — check ENCRYPTION_KEY; semantic search is disabled until it is re-entered.`
-      )
-      embeddingsApiKey = null
-    }
-  }
+  const apiKey = decrypt(row.api_key)
+  const embeddingsConfig = resolveEmbeddingsFromRow(row, apiKey, accountId)
 
   return {
     provider: row.provider,
     model: row.model,
-    apiKey: decrypt(row.api_key),
+    apiKey,
     systemPrompt: row.system_prompt,
     isActive: row.is_active,
     autoReplyEnabled: false,
     autoReplyMaxPerConversation: 1,
-    embeddingsApiKey,
+    embeddingsProvider: embeddingsConfig.provider,
+    embeddingsApiKey: embeddingsConfig.key,
   }
 }
 
@@ -86,27 +77,106 @@ export async function loadAiConfig(
  * semantic search works) whenever an embeddings key is present, even if
  * the assistant's master switch is currently off.
  *
- * Returns `{ key, corrupt }`: `key` is null when there's no key OR it
- * can't be decrypted; `corrupt` distinguishes those cases so callers can
- * warn ("a key is set but unusable") rather than silently indexing
- * lexical-only and reporting success.
+ * Returns `{ provider, key, corrupt }`: `key` is null when the selected
+ * provider is keyword-only, no usable key exists, or decryption failed.
+ * `corrupt` distinguishes broken ciphertext from intentionally
+ * keyword-only/no-key states.
  */
 export async function loadEmbeddingsKey(
   db: SupabaseClient,
   accountId: string
-): Promise<{ key: string | null; corrupt: boolean }> {
+): Promise<{ provider: EmbeddingsProvider; key: string | null; corrupt: boolean }> {
+  return loadEmbeddingsConfig(db, accountId)
+}
+
+export async function loadEmbeddingsConfig(
+  db: SupabaseClient,
+  accountId: string
+): Promise<{ provider: EmbeddingsProvider; key: string | null; corrupt: boolean }> {
   const { data, error } = await db
     .from('ai_configs')
-    .select('embeddings_api_key')
+    .select(EMBEDDINGS_COLUMNS)
     .eq('account_id', accountId)
     .maybeSingle()
-  if (error || !data?.embeddings_api_key) return { key: null, corrupt: false }
-  try {
-    return { key: decrypt(data.embeddings_api_key), corrupt: false }
-  } catch {
-    console.error(
-      `[ai config] embeddings key for account ${accountId} could not be decrypted — check ENCRYPTION_KEY.`
-    )
-    return { key: null, corrupt: true }
+  if (error || !data) {
+    return { provider: 'keyword', key: null, corrupt: false }
   }
+
+  const row = data as Pick<
+    AiConfigRow,
+    'provider' | 'api_key' | 'embeddings_provider' | 'embeddings_api_key'
+  >
+  const embeddingsProvider = normalizeEmbeddingsProvider(row.embeddings_provider)
+  if (embeddingsProvider === 'keyword') {
+    return { provider: 'keyword', key: null, corrupt: false }
+  }
+
+  if (row.embeddings_api_key) {
+    try {
+      return {
+        provider: embeddingsProvider,
+        key: decrypt(row.embeddings_api_key),
+        corrupt: false,
+      }
+    } catch {
+      console.error(
+        `[ai config] embeddings key for account ${accountId} could not be decrypted — check ENCRYPTION_KEY.`
+      )
+      return { provider: embeddingsProvider, key: null, corrupt: true }
+    }
+  }
+
+  if (row.provider === embeddingsProvider && row.api_key) {
+    try {
+      return {
+        provider: embeddingsProvider,
+        key: decrypt(row.api_key),
+        corrupt: false,
+      }
+    } catch {
+      console.error(
+        `[ai config] primary ${embeddingsProvider} key for account ${accountId} could not be decrypted — check ENCRYPTION_KEY.`
+      )
+      return { provider: embeddingsProvider, key: null, corrupt: true }
+    }
+  }
+
+  return { provider: embeddingsProvider, key: null, corrupt: false }
+}
+
+function resolveEmbeddingsFromRow(
+  row: Pick<
+    AiConfigRow,
+    'provider' | 'api_key' | 'embeddings_provider' | 'embeddings_api_key'
+  >,
+  primaryApiKey: string,
+  accountId: string,
+): { provider: EmbeddingsProvider; key: string | null } {
+  const provider = normalizeEmbeddingsProvider(row.embeddings_provider)
+  if (provider === 'keyword') return { provider, key: null }
+
+  if (row.embeddings_api_key) {
+    try {
+      return { provider, key: decrypt(row.embeddings_api_key) }
+    } catch {
+      console.error(
+        `[ai config] embeddings key for account ${accountId} could not be decrypted — check ENCRYPTION_KEY; semantic search is disabled until it is re-entered.`
+      )
+      return { provider, key: null }
+    }
+  }
+
+  if (row.provider === provider) return { provider, key: primaryApiKey }
+  return { provider, key: null }
+}
+
+function normalizeEmbeddingsProvider(
+  value: EmbeddingsProvider | null | undefined,
+): EmbeddingsProvider {
+  if (value === 'gemini' || value === 'openai') return value
+  return 'keyword'
+}
+
+export function isEmbeddingsProvider(value: unknown): value is EmbeddingsProvider {
+  return value === 'keyword' || value === 'gemini' || value === 'openai'
 }

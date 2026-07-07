@@ -19,6 +19,9 @@ deployment or production proof was performed in this run.
 - DNS/Caddy requirements: `inbox.evoadmissions.com` must resolve to
   `hermes-vps`, and `evo-edge-caddy` plus `evo-inbox-app` must share
   `EVO_CADDY_NETWORK`
+- Until that DNS record exists, `https://evo-inbox.72.62.119.112.sslip.io`
+  may be used for server/proxy smoke checks, but it does not satisfy the final
+  `inbox.evoadmissions.com` production proof.
 - `acadis-caddy-1` must not own host ports `80/443` during EVO Inbox proof.
   Preserve `/opt/acadis` if archived, but serve EVO routes from
   `evo-edge-caddy`.

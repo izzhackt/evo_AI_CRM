@@ -1,4 +1,4 @@
-inbox.evoadmissions.com {
+inbox.evoadmissions.com, evo-inbox.72.62.119.112.sslip.io {
 	encode zstd gzip
 	reverse_proxy evo-inbox-app:3000
 	header {

@@ -9,6 +9,8 @@ deployed from a dirty workstation, and this run does not touch `/opt/evo-crm`.
 - Target service name: `evo-inbox`.
 - Target path: `/opt/evo-inbox`.
 - Target public host: `https://inbox.evoadmissions.com`.
+- Temporary fallback host until DNS is created:
+  `https://evo-inbox.72.62.119.112.sslip.io`.
 - Caddy reverse-proxy target: `evo-inbox-app:3000`.
 - Caddy Docker network: `${EVO_CADDY_NETWORK:-evo_public_web}`. This must be an EVO-owned neutral edge network, not an `acadis_*` project network.
 - Public edge proxy: `evo-edge-caddy`, configured from

@@ -1,0 +1,25 @@
+name: evo-edge
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: evo-edge-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.evo-edge:/etc/caddy/Caddyfile:ro
+      - evo_edge_caddy_data:/data
+      - evo_edge_caddy_config:/config
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
+    name: ${EVO_CADDY_NETWORK:-evo_public_web}
+
+volumes:
+  evo_edge_caddy_data:
+  evo_edge_caddy_config:

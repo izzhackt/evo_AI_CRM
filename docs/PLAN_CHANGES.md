@@ -465,6 +465,50 @@ checks locally. Live WhatsApp/amoCRM validation remains blocked until real
 credentials and server configuration are supplied.
 Reviewer notes: pending independent launch-control review.
 
+## 2026-07-07 - EVO Inbox Neutral Edge Proxy Cutover
+
+Date: 2026-07-07, workspace timezone.
+Author: Codex.
+Change type: deployment topology, public edge proxy, server ownership boundary.
+Affected plan section: EVO Inbox hermes-vps deployment and production proof.
+Reason: `acadis-caddy-1` owned host ports `80/443`, but Acadis is a separate
+project and must not remain the public edge dependency for EVO Inbox.
+Decision: add an EVO-owned edge proxy Compose unit named `evo-edge-caddy` on
+the neutral Docker network `evo_public_web`. EVO Inbox remains deployed from
+`/opt/evo-inbox` and proxies publicly as `inbox.evoadmissions.com` to
+`evo-inbox-app:3000`. The separate private WAHA service remains
+`evo-inbox-waha` on `evo_inbox_private`, with no public port mappings. The
+legacy root EVO CRM Compose default network is changed from
+`acadis_acadis_web` to `evo_public_web` so future EVO deploys do not recreate
+the Acadis dependency.
+
+Operational rule: preserve `/opt/acadis` and its Docker volumes when archiving
+Acadis, but stop the Acadis stack before starting `evo-edge-caddy` if Acadis
+owns `80/443`. Public EVO routes should be served from
+`agent-lead2-crmwhatsapp/deploy/Caddyfile.evo-edge`. Do not claim production
+proof until real DNS, WAHA QR/session, amoCRM, AI provider, and test WhatsApp
+checks pass through the live path.
+
+Current official docs consulted on 2026-07-07:
+- Docker Compose networking:
+  `https://docs.docker.com/compose/how-tos/networking/` documents service
+  discovery on shared Compose networks.
+- Docker Compose networks reference:
+  `https://docs.docker.com/reference/compose-file/networks/` documents external
+  reusable networks and explicit service network attachment.
+- Caddy reverse proxy quick-start:
+  `https://caddyserver.com/docs/quick-starts/reverse-proxy` documents using
+  Caddy as a production reverse proxy.
+- Caddy `reverse_proxy` directive:
+  `https://caddyserver.com/docs/caddyfile/directives/reverse_proxy` documents
+  upstream proxying from a Caddyfile.
+
+Validation impact: run deployment config tests, Compose config rendering for
+both inbox and edge Compose files, full test/lint/typecheck/build where changed
+runtime behavior is touched, then perform real VPS container, port, and HTTP
+checks. No live WhatsApp/amoCRM/AI success can be claimed until real credentials
+and messages are exercised.
+
 ## 2026-07-06 - EVO Inbox Issues 17-19 Production-Ready Preflight
 
 Date: 2026-07-06, workspace timezone.

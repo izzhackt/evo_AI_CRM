@@ -11,6 +11,8 @@ deployed from a dirty workstation, and this run does not touch `/opt/evo-crm`.
 - Target public host: `https://inbox.evoadmissions.com`.
 - Caddy reverse-proxy target: `evo-inbox-app:3000`.
 - Caddy Docker network: `${EVO_CADDY_NETWORK:-evo_public_web}`. This must be an EVO-owned neutral edge network, not an `acadis_*` project network.
+- Public edge proxy: `evo-edge-caddy`, configured from
+  `deploy/docker-compose.edge.yml` and `deploy/Caddyfile.evo-edge`.
 - Private WAHA service: `evo-inbox-waha`, reachable from the companion app at
   `http://evo-inbox-waha:3000`.
 - WAHA stays private on the companion Compose network. Do not add public
@@ -26,7 +28,9 @@ https://nextjs.org/docs/pages/api-reference/config/next-config-js/output
 
 - `Dockerfile`
 - `deploy/docker-compose.inbox.prod.yml`
+- `deploy/docker-compose.edge.yml`
 - `deploy/Caddyfile.inbox.evoadmissions.com`
+- `deploy/Caddyfile.evo-edge`
 - `deploy/env.production.example`
 - `deploy/env.waha.example`
 - `scripts/preflight-prod.mjs`
@@ -82,9 +86,13 @@ available:
 2. Create `.env.production` from `deploy/env.production.example`.
 3. Create `.env.waha` from `deploy/env.waha.example`.
 4. Confirm DNS for `inbox.evoadmissions.com` points at the VPS.
-5. Add `deploy/Caddyfile.inbox.evoadmissions.com` to the EVO-owned edge proxy
-   config, with that proxy attached to `EVO_CADDY_NETWORK`.
-6. Start the service with
+5. If `acadis-caddy-1` owns host ports `80/443`, stop the Acadis stack before
+   starting the EVO edge proxy. Preserve `/opt/acadis` and its Docker volumes;
+   do not delete Acadis data as part of the EVO Inbox cutover.
+6. Start the EVO edge proxy with
+   `docker compose -f deploy/docker-compose.edge.yml up -d`.
+7. Start the service with
    `docker compose -f deploy/docker-compose.inbox.prod.yml up -d --build`.
-7. Confirm both `evo-inbox` app and `evo-inbox-waha` healthchecks pass.
-8. Execute the issue #20 live proof checklist.
+8. Confirm `evo-edge-caddy`, `evo-inbox` app, and `evo-inbox-waha`
+   healthchecks pass.
+9. Execute the issue #20 live proof checklist.

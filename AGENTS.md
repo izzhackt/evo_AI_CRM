@@ -37,11 +37,11 @@
   `evo-crm`.
 - The app container is `evo-crm-app-1`, image `evo-crm:latest`, private network
   alias `evo-crm-app:3000`.
-- Caddy runs in `/opt/acadis` as container `acadis-caddy-1` and reverse proxies
-  to `evo-crm-app:3000` on Docker network `acadis_acadis_web`.
-- Do not introduce new EVO Inbox dependencies on the `acadis_*` Docker networks;
-  Arcadis/acadis is a separate project boundary. EVO Inbox should use its own
-  Compose project and neutral EVO-owned proxy/network names.
+- Public EVO routes should be served by `evo-edge-caddy` on `evo_public_web`,
+  not by `/opt/acadis` or any `acadis_*` Docker network.
+- Do not introduce new EVO dependencies on the `acadis_*` Docker networks;
+  Arcadis/acadis is a separate project boundary. EVO services should use their
+  own Compose projects and neutral EVO-owned proxy/network names.
 
 ## EVO Inbox Companion Boundary
 
@@ -49,6 +49,11 @@
 - Public companion URL: `https://inbox.evoadmissions.com`.
 - Compose project: `evo-inbox`.
 - Public edge/proxy network: `evo_public_web`.
+- Public edge proxy: `evo-edge-caddy`, configured from
+  `agent-lead2-crmwhatsapp/deploy/docker-compose.edge.yml` and
+  `agent-lead2-crmwhatsapp/deploy/Caddyfile.evo-edge`.
+- `acadis-caddy-1` is not an EVO edge dependency. If it owns `80/443`, archive
+  or stop the Acadis stack and move public routes onto `evo-edge-caddy`.
 - Private WAHA service: `evo-inbox-waha`, reachable only on the companion
   Compose private network at `http://evo-inbox-waha:3000`.
 - First-launch WAHA session: `evo-inbox`.

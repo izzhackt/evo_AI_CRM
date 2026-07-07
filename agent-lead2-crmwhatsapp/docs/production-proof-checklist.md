@@ -17,8 +17,11 @@ deployment or production proof was performed in this run.
 - OpenAI or Anthropic key: `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`
 - Test WhatsApp number: `EVO_INBOX_TEST_WHATSAPP_NUMBER`
 - DNS/Caddy requirements: `inbox.evoadmissions.com` must resolve to
-  `hermes-vps`, the EVO-owned edge proxy must include the inbox vhost, and the
-  proxy plus `evo-inbox-app` must share `EVO_CADDY_NETWORK`
+  `hermes-vps`, and `evo-edge-caddy` plus `evo-inbox-app` must share
+  `EVO_CADDY_NETWORK`
+- `acadis-caddy-1` must not own host ports `80/443` during EVO Inbox proof.
+  Preserve `/opt/acadis` if archived, but serve EVO routes from
+  `evo-edge-caddy`.
 - Private WAHA requirement: the separate `evo-inbox-waha` service must be
   reachable only on Docker networking at `http://evo-inbox-waha:3000`
 

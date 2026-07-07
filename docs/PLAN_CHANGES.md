@@ -500,6 +500,33 @@ Reviewer notes: independent review found that Gemini must use the native
 steps, and production preflight must require `EVO_INBOX_GEMINI_API_KEY` rather
 than legacy OpenAI/Anthropic globals. Those fixes were applied before commit.
 
+## 2026-07-08 - EVO Inbox Gemini GenerateContent Runtime
+
+Date: 2026-07-08, workspace timezone.
+Author: Codex.
+Change type: companion AI provider runtime correction.
+Affected plan section: `/goal-evo-inbox-companion` Gemini draft provider and
+production seed workflow.
+Reason: real production validation with the user-provided Gemini key showed
+that the Interactions API request with `store:false` returned HTTP 200 but no
+inline output steps/text. A follow-up live Google call to `models/{model}:generateContent`
+with `store:false`, `systemInstruction`, and a realistic output budget returned
+the expected `OK` text for `gemini-3.5-flash`.
+Decision: use the Gemini GenerateContent REST endpoint for EVO Inbox Gemini
+drafts and `npm run seed:prod-ai` validation. Keep the same encrypted
+account-level key storage, keep `store:false`, pass business policy through
+`systemInstruction`, pass the WhatsApp transcript through `contents`, set
+Gemini thinking to `MINIMAL` only for Gemini 3 model ids, and parse only
+candidate text parts.
+Validation impact: update Gemini provider tests, run companion lint,
+typecheck, tests, and build, redeploy `/opt/evo-inbox`, rerun the real seed
+with the production `.env.gemini`, and verify dashboard AI setup against the
+real production app. Do not claim live AI draft generation until a real app
+draft/playground request succeeds with the seeded key.
+Reviewer notes: independent review found unconditional `thinkingLevel` would
+break older Gemini model ids and the empty-output regression needed explicit
+coverage. Both were fixed before deployment.
+
 ## 2026-07-07 - EVO Inbox Neutral Edge Proxy Cutover
 
 Date: 2026-07-07, workspace timezone.

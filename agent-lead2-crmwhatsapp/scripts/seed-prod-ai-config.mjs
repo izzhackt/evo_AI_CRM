@@ -4,8 +4,9 @@ import crypto from 'node:crypto';
 
 const DEFAULT_PROVIDER = 'gemini';
 const DEFAULT_MODEL = 'gemini-3.5-flash';
-const GEMINI_INTERACTIONS_URL =
-  'https://generativelanguage.googleapis.com/v1beta/interactions';
+const GEMINI_GENERATE_CONTENT_BASE_URL =
+  'https://generativelanguage.googleapis.com/v1beta/models';
+const GEMINI_VALIDATION_MAX_OUTPUT_TOKENS = 256;
 const GCM_IV_LENGTH = 12;
 
 const PLACEHOLDER_PATTERNS = [
@@ -120,20 +121,27 @@ async function selectAccount({ supabaseUrl, serviceRoleKey }) {
 }
 
 async function validateGemini({ apiKey, model }) {
-  const response = await fetch(GEMINI_INTERACTIONS_URL, {
+  const response = await fetch(geminiGenerateContentUrl(model), {
     method: 'POST',
     headers: {
       'x-goog-api-key': apiKey,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model,
       store: false,
-      system_instruction: 'You are a connectivity check.',
-      input: 'Reply with exactly OK.',
-      generation_config: {
-        max_output_tokens: 16,
+      systemInstruction: {
+        parts: [{ text: 'You are a connectivity check.' }],
       },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: 'Reply with exactly OK.' }],
+        },
+      ],
+      generationConfig: geminiGenerationConfig(
+        model,
+        GEMINI_VALIDATION_MAX_OUTPUT_TOKENS
+      ),
     }),
   });
 
@@ -150,6 +158,24 @@ async function validateGemini({ apiKey, model }) {
   }
 }
 
+function geminiGenerateContentUrl(model) {
+  const modelId = model.replace(/^models\//, '');
+  return `${GEMINI_GENERATE_CONTENT_BASE_URL}/${encodeURIComponent(modelId)}:generateContent`;
+}
+
+function geminiGenerationConfig(model, maxOutputTokens) {
+  const config = { maxOutputTokens };
+  if (supportsThinkingLevel(model)) {
+    config.thinkingConfig = { thinkingLevel: 'MINIMAL' };
+  }
+  return config;
+}
+
+function supportsThinkingLevel(model) {
+  const modelId = model.replace(/^models\//, '');
+  return /^gemini-3(?:[.-]|$)/i.test(modelId);
+}
+
 async function errorDetail(response) {
   try {
     const body = await response.json();
@@ -163,26 +189,22 @@ async function errorDetail(response) {
 
 function extractGeminiText(data) {
   if (!data || typeof data !== 'object') return '';
-  if (typeof data.output_text === 'string') return data.output_text.trim();
-  if (typeof data.outputText === 'string') return data.outputText.trim();
 
-  const steps = Array.isArray(data.steps) ? data.steps : [];
-  for (const step of steps.slice().reverse()) {
-    if (step?.type !== 'model_output') continue;
-    const text = extractContentText(step?.content);
+  const candidates = Array.isArray(data.candidates) ? data.candidates : [];
+  for (const candidate of candidates) {
+    const text = extractPartsText(candidate?.content?.parts);
     if (text) return text;
   }
   return '';
 }
 
-function extractContentText(content) {
-  if (typeof content === 'string') return content.trim();
-  if (!Array.isArray(content)) return '';
+function extractPartsText(parts) {
+  if (!Array.isArray(parts)) return '';
 
-  return content
-    .map((block) => {
-      if (typeof block === 'string') return block;
-      if (typeof block?.text === 'string') return block.text;
+  return parts
+    .map((part) => {
+      if (part?.thought === true) return '';
+      if (typeof part?.text === 'string') return part.text;
       return '';
     })
     .join('')

@@ -7,27 +7,26 @@ import {
   type ProviderArgs,
 } from './shared'
 
-const GEMINI_INTERACTIONS_URL =
-  'https://generativelanguage.googleapis.com/v1beta/interactions'
+const GEMINI_GENERATE_CONTENT_BASE_URL =
+  'https://generativelanguage.googleapis.com/v1beta/models'
 
-type GeminiContentBlock = string | { text?: unknown; type?: unknown }
+type GeminiPart = { text?: unknown; thought?: unknown }
 
-interface GeminiStep {
-  type?: string
-  content?: GeminiContentBlock | GeminiContentBlock[]
+interface GeminiCandidate {
+  content?: {
+    parts?: GeminiPart[]
+  }
 }
 
 interface GeminiResponse {
-  output_text?: unknown
-  outputText?: unknown
-  steps?: GeminiStep[]
+  candidates?: GeminiCandidate[]
 }
 
 /**
- * Call Google's Gemini Interactions API with the account's own key.
+ * Call Google's Gemini GenerateContent API with the account's own key.
  * The app sends the policy/business prompt through Gemini's native
- * `system_instruction` channel and keeps the WhatsApp transcript in
- * user input. Returns raw model text; `generateReply` handles handoff
+ * `systemInstruction` channel and keeps the WhatsApp transcript in
+ * user content. Returns raw model text; `generateReply` handles handoff
  * parsing.
  */
 export async function generateGemini(args: ProviderArgs): Promise<string> {
@@ -35,20 +34,24 @@ export async function generateGemini(args: ProviderArgs): Promise<string> {
 
   let res: Response
   try {
-    res = await fetch(GEMINI_INTERACTIONS_URL, {
+    res = await fetch(geminiGenerateContentUrl(model), {
       method: 'POST',
       headers: {
         'x-goog-api-key': apiKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model,
         store: false,
-        system_instruction: systemPrompt,
-        input: buildGeminiInput(messages),
-        generation_config: {
-          max_output_tokens: MAX_OUTPUT_TOKENS,
+        systemInstruction: {
+          parts: [{ text: systemPrompt }],
         },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: buildGeminiInput(messages) }],
+          },
+        ],
+        generationConfig: geminiGenerationConfig(model, MAX_OUTPUT_TOKENS),
       }),
       signal: AbortSignal.timeout(timeoutMs),
     })
@@ -70,6 +73,32 @@ export async function generateGemini(args: ProviderArgs): Promise<string> {
   return text
 }
 
+function geminiGenerateContentUrl(model: string): string {
+  const modelId = model.replace(/^models\//, '')
+  return `${GEMINI_GENERATE_CONTENT_BASE_URL}/${encodeURIComponent(modelId)}:generateContent`
+}
+
+function geminiGenerationConfig(
+  model: string,
+  maxOutputTokens: number,
+): { maxOutputTokens: number; thinkingConfig?: { thinkingLevel: 'MINIMAL' } } {
+  const config: {
+    maxOutputTokens: number
+    thinkingConfig?: { thinkingLevel: 'MINIMAL' }
+  } = { maxOutputTokens }
+
+  if (supportsThinkingLevel(model)) {
+    config.thinkingConfig = { thinkingLevel: 'MINIMAL' }
+  }
+
+  return config
+}
+
+function supportsThinkingLevel(model: string): boolean {
+  const modelId = model.replace(/^models\//, '')
+  return /^gemini-3(?:[.-]|$)/i.test(modelId)
+}
+
 function buildGeminiInput(messages: ChatMessage[]): string {
   const transcript = mergeConsecutive(messages)
     .map((message) => {
@@ -87,26 +116,22 @@ function buildGeminiInput(messages: ChatMessage[]): string {
 
 function extractGeminiText(data: GeminiResponse | null): string {
   if (!data) return ''
-  if (typeof data.output_text === 'string') return data.output_text.trim()
-  if (typeof data.outputText === 'string') return data.outputText.trim()
 
-  const steps = Array.isArray(data.steps) ? data.steps : []
-  for (const step of steps.slice().reverse()) {
-    if (step.type !== 'model_output') continue
-    const text = extractContentText(step.content)
+  const candidates = Array.isArray(data.candidates) ? data.candidates : []
+  for (const candidate of candidates) {
+    const text = extractPartsText(candidate.content?.parts)
     if (text) return text
   }
   return ''
 }
 
-function extractContentText(content: GeminiStep['content']): string {
-  if (typeof content === 'string') return content.trim()
-  if (!Array.isArray(content)) return ''
+function extractPartsText(parts: GeminiPart[] | undefined): string {
+  if (!Array.isArray(parts)) return ''
 
-  return content
-    .map((block) => {
-      if (typeof block === 'string') return block
-      if (typeof block?.text === 'string') return block.text
+  return parts
+    .map((part) => {
+      if (part?.thought === true) return ''
+      if (typeof part?.text === 'string') return part.text
       return ''
     })
     .join('')

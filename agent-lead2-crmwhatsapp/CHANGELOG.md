@@ -18,7 +18,7 @@ and polish.
   stored AES-256-GCM-encrypted in `ai_configs.api_key`, and auto-reply remains
   disabled for first launch.
 - **Production Gemini seed command.** `npm run seed:prod-ai` reads an ignored
-  VPS `.env.gemini` file, validates the key with Google's Interactions API, and
+  VPS `.env.gemini` file, validates the key with Google's GenerateContent API, and
   upserts the encrypted account-level AI config. **Migration required:** apply
   `supabase/migrations/034_ai_gemini_provider.sql`.
 

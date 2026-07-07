@@ -146,7 +146,7 @@ Required seed variables:
 | `EVO_INBOX_AI_SYSTEM_PROMPT` | Optional business instructions stored in `ai_configs.system_prompt`.                                 |
 
 The seed command validates the Gemini key with Google's server-side
-Interactions API, then upserts `ai_configs(provider='gemini')`. It prints only
+GenerateContent API, then upserts `ai_configs(provider='gemini')`. It prints only
 the provider, model, account id, active flags, and `has_api_key`; it must not
 print the key or decrypted secret.
 

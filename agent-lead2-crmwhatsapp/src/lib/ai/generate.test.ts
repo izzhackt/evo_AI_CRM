@@ -177,10 +177,20 @@ describe('generateReply — Anthropic', () => {
 })
 
 describe('generateReply — Gemini', () => {
-  it('calls the Interactions API and returns output_text', async () => {
+  it('calls the GenerateContent API and returns candidate text', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(okResponse({ output_text: 'Sure, I can help.' }))
+      .mockResolvedValue(
+        okResponse({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: 'Sure, I can help.' }],
+              },
+            },
+          ],
+        })
+      )
     vi.stubGlobal('fetch', fetchMock)
 
     const res = await generateReply({
@@ -196,30 +206,66 @@ describe('generateReply — Gemini', () => {
     expect(res).toEqual({ text: 'Sure, I can help.', handoff: false })
     const [url, opts] = fetchMock.mock.calls[0]
     expect(url).toContain(
-      'generativelanguage.googleapis.com/v1beta/interactions'
+      'generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent'
     )
     expect(opts.headers['x-goog-api-key']).toBe('AIza-test')
     const body = JSON.parse(opts.body)
     expect(body).toMatchObject({
-      model: 'gemini-3.5-flash',
       store: false,
-      system_instruction: 'sys',
-      generation_config: { max_output_tokens: expect.any(Number) },
+      systemInstruction: { parts: [{ text: 'sys' }] },
+      generationConfig: {
+        maxOutputTokens: expect.any(Number),
+        thinkingConfig: { thinkingLevel: 'MINIMAL' },
+      },
     })
-    expect(body.input).not.toContain('sys')
-    expect(body.input).toContain('Customer: Hi')
+    expect(body.contents[0].parts[0].text).not.toContain('sys')
+    expect(body.contents[0].parts[0].text).toContain('Customer: Hi')
   })
 
-  it('parses model_output steps when output_text is absent', async () => {
+  it('omits Gemini 3 thinkingLevel for older Gemini model ids', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      okResponse({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: 'OK' }],
+            },
+          },
+        ],
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await generateReply({
+      config: config({
+        provider: 'gemini',
+        model: 'models/gemini-2.0-flash',
+        apiKey: 'AIza-test',
+      }),
+      systemPrompt: 'sys',
+      messages: [{ role: 'user', content: 'Hi' }],
+    })
+
+    const [url, opts] = fetchMock.mock.calls[0]
+    expect(url).toContain(
+      'generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+    )
+    const body = JSON.parse(opts.body)
+    expect(body.generationConfig).toEqual({
+      maxOutputTokens: expect.any(Number),
+    })
+  })
+
+  it('parses handoff from candidate text', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
         okResponse({
-          steps: [
-            { type: 'thought', content: [{ type: 'text', text: 'thinking' }] },
+          candidates: [
             {
-              type: 'model_output',
-              content: [{ type: 'text', text: '[[HANDOFF]]' }],
+              content: {
+                parts: [{ text: '[[HANDOFF]]' }],
+              },
             },
           ],
         })
@@ -235,14 +281,20 @@ describe('generateReply — Gemini', () => {
     expect(res).toEqual({ text: '', handoff: true })
   })
 
-  it('ignores non-model_output text when output_text is absent', async () => {
+  it('ignores thought parts in candidate text', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
         okResponse({
-          steps: [
-            { type: 'model_output', content: [{ type: 'text', text: 'Final' }] },
-            { type: 'thought', content: [{ type: 'text', text: 'Do not expose' }] },
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { text: 'Do not expose', thought: true },
+                  { text: 'Final' },
+                ],
+              },
+            },
           ],
         })
       )
@@ -255,6 +307,34 @@ describe('generateReply — Gemini', () => {
     })
 
     expect(res.text).toBe('Final')
+  })
+
+  it('fails clearly when Gemini returns no candidate text', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        okResponse({
+          promptFeedback: { blockReason: 'OTHER' },
+          candidates: [
+            {
+              content: {
+                parts: [{ text: 'internal thought', thought: true }],
+              },
+            },
+          ],
+        })
+      )
+    )
+
+    await expect(
+      generateReply({
+        config: config({ provider: 'gemini' }),
+        systemPrompt: 'sys',
+        messages: [{ role: 'user', content: 'Hi' }],
+      })
+    ).rejects.toMatchObject({
+      code: 'empty_response',
+    } satisfies Partial<AiError>)
   })
 
   it('maps a 403 to an invalid_key AiError', async () => {

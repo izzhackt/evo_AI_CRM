@@ -28,8 +28,24 @@ describe('EVO Inbox production deployment config', () => {
     expect(compose).toContain('expose:');
     expect(compose).not.toMatch(/\n\s+ports:/);
     expect(compose).toContain('evo-inbox-app');
+    expect(compose).toContain('evo_public_web');
+    expect(compose).not.toContain('acadis_acadis_web');
     expect(caddy).toContain('inbox.evoadmissions.com');
     expect(caddy).toContain('reverse_proxy evo-inbox-app:3000');
+  });
+
+  it('runs WAHA as a separate private companion service', () => {
+    const compose = read('deploy/docker-compose.inbox.prod.yml');
+    const env = read('deploy/env.production.example');
+    const wahaEnv = read('deploy/env.waha.example');
+
+    expect(compose).toContain('container_name: evo-inbox-waha');
+    expect(compose).toContain('evo_inbox_private');
+    expect(env).toContain('EVO_INBOX_WAHA_BASE_URL=http://evo-inbox-waha:3000');
+    expect(wahaEnv).toContain('WAHA_API_KEY=sha512:');
+    expect(wahaEnv).toContain('WAHA_API_KEY_EXCLUDE_PATH=ping');
+    expect(`${compose}\n${env}\n${wahaEnv}`).not.toContain('evo-crm-waha');
+    expect(`${compose}\n${env}\n${wahaEnv}`).not.toContain('crm_primary');
   });
 
   it('documents the required proof/preflight credentials without values', () => {
@@ -50,6 +66,7 @@ describe('EVO Inbox production deployment config', () => {
       'ANTHROPIC_API_KEY',
       'EVO_INBOX_TEST_WHATSAPP_NUMBER',
       'DNS/Caddy requirements',
+      'evo-inbox-waha',
     ]) {
       expect(`${env}\n${runbook}`).toContain(needle);
     }

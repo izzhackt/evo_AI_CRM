@@ -17,8 +17,10 @@ deployment or production proof was performed in this run.
 - OpenAI or Anthropic key: `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`
 - Test WhatsApp number: `EVO_INBOX_TEST_WHATSAPP_NUMBER`
 - DNS/Caddy requirements: `inbox.evoadmissions.com` must resolve to
-  `hermes-vps`, Caddy must include the inbox vhost, and Caddy plus
-  `evo-inbox-app` must share `EVO_CADDY_NETWORK`
+  `hermes-vps`, the EVO-owned edge proxy must include the inbox vhost, and the
+  proxy plus `evo-inbox-app` must share `EVO_CADDY_NETWORK`
+- Private WAHA requirement: the separate `evo-inbox-waha` service must be
+  reachable only on Docker networking at `http://evo-inbox-waha:3000`
 
 ## Required proof sequence
 
@@ -34,7 +36,8 @@ deployment or production proof was performed in this run.
 ## Pass criteria
 
 - The public inbox host responds through Caddy.
-- WAHA is reachable only on Docker networking and has no public port.
+- WAHA is the separate `evo-inbox-waha` service, reachable only on Docker
+  networking and with no public port.
 - The inbound WhatsApp message appears in EVO Inbox.
 - The amoCRM contact/lead exists and matches the Supabase shadow ids.
 - AI draft generation uses at least one configured knowledge document.

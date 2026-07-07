@@ -43,8 +43,26 @@
   Arcadis/acadis is a separate project boundary. EVO Inbox should use its own
   Compose project and neutral EVO-owned proxy/network names.
 
+## EVO Inbox Companion Boundary
+
+- Target path: `/opt/evo-inbox`.
+- Public companion URL: `https://inbox.evoadmissions.com`.
+- Compose project: `evo-inbox`.
+- Public edge/proxy network: `evo_public_web`.
+- Private WAHA service: `evo-inbox-waha`, reachable only on the companion
+  Compose private network at `http://evo-inbox-waha:3000`.
+- First-launch WAHA session: `evo-inbox`.
+- Do not reuse `/opt/evo-crm`, `evo-crm-waha`, `crm_primary`, or the lead-agent
+  webhook path for the companion app. EVO Inbox owns its own WAHA webhook at
+  `/api/waha/webhook`, its own HMAC secret, and its own encrypted WAHA settings.
+- Do not publish WAHA ports publicly. Operator access to WAHA QR/dashboard must
+  use a private server-side path such as SSH tunnel or an authenticated internal
+  admin surface.
+
 ## WhatsApp And Lead-Agent Boundary
 
+- This section describes the existing production CRM/lead-agent path, not the
+  EVO Inbox companion app.
 - WAHA is a private Compose service, not a public port.
 - CRM-to-WAHA base URL: `http://evo-crm-waha:3000`.
 - The lead-agent owns WAHA inbound automation:

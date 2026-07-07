@@ -19,7 +19,11 @@ services:
       EVO_CADDY_NETWORK: ${EVO_CADDY_NETWORK:-evo_public_web}
     expose:
       - "3000"
+    depends_on:
+      waha:
+        condition: service_healthy
     networks:
+      private:
       web:
         aliases:
           - evo-inbox-app
@@ -30,7 +34,33 @@ services:
       retries: 5
       start_period: 30s
 
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: evo-inbox-waha
+    restart: unless-stopped
+    env_file:
+      - ../.env.waha
+    expose:
+      - "3000"
+    volumes:
+      - evo_inbox_waha_sessions:/app/.sessions
+    networks:
+      private:
+        aliases:
+          - evo-inbox-waha
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/ping').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 networks:
+  private:
+    name: evo_inbox_private
   web:
     external: true
     name: ${EVO_CADDY_NETWORK:-evo_public_web}
+
+volumes:
+  evo_inbox_waha_sessions:

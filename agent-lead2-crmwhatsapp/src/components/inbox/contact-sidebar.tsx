@@ -213,8 +213,7 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
               </div>
               {(!amoContactId || !amoLeadId) && (
                 <p className="text-[11px] leading-4 text-muted-foreground">
-                  Blocked until the lead-agent resolves or creates amoCRM
-                  identity.
+                  Blocked until EVO Inbox resolves or creates amoCRM identity.
                 </p>
               )}
             </div>

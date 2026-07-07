@@ -253,7 +253,7 @@ export function WhatsAppConfig() {
                 <Input
                   value={baseUrl}
                   onChange={(event) => setBaseUrl(event.target.value)}
-                  placeholder="http://evo-crm-waha:3000"
+                  placeholder="http://evo-inbox-waha:3000"
                 />
               </div>
 

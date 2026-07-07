@@ -12,10 +12,70 @@ import {
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { validateAiCredentials } from '@/lib/ai/validate'
 import { embedTexts } from '@/lib/ai/embeddings'
-import { AiError, type AiProvider } from '@/lib/ai/types'
+import { isEmbeddingsProvider } from '@/lib/ai/config'
+import { AiError, type AiProvider, type EmbeddingsProvider } from '@/lib/ai/types'
 
 function bad(message: string) {
   return NextResponse.json({ error: message }, { status: 400 })
+}
+
+type SemanticEmbeddingsProvider = Exclude<EmbeddingsProvider, 'keyword'>
+
+function resolveEmbeddingsCredential(args: {
+  embeddingsProvider: EmbeddingsProvider
+  provider: AiProvider
+  apiKeyPlain: string
+  rawEmbeddingsKey: string
+  clearEmbeddingsKey: boolean
+  existingEmbeddingsProvider: EmbeddingsProvider
+  existingEmbeddingsKeyCiphertext: string | null
+}):
+  | { config: { provider: SemanticEmbeddingsProvider; apiKey: string } | null }
+  | { error: string } {
+  const {
+    embeddingsProvider,
+    provider,
+    apiKeyPlain,
+    rawEmbeddingsKey,
+    clearEmbeddingsKey,
+    existingEmbeddingsProvider,
+    existingEmbeddingsKeyCiphertext,
+  } = args
+
+  if (embeddingsProvider === 'keyword') return { config: null }
+
+  if (rawEmbeddingsKey) {
+    return { config: { provider: embeddingsProvider, apiKey: rawEmbeddingsKey } }
+  }
+
+  if (
+    !clearEmbeddingsKey &&
+    existingEmbeddingsKeyCiphertext &&
+    existingEmbeddingsProvider === embeddingsProvider
+  ) {
+    try {
+      return {
+        config: {
+          provider: embeddingsProvider,
+          apiKey: decrypt(existingEmbeddingsKeyCiphertext),
+        },
+      }
+    } catch {
+      return {
+        error:
+          'Stored embeddings key could not be decrypted — re-enter the embeddings key.',
+      }
+    }
+  }
+
+  if (provider === embeddingsProvider) {
+    return { config: { provider: embeddingsProvider, apiKey: apiKeyPlain } }
+  }
+
+  const label = embeddingsProvider === 'gemini' ? 'Gemini' : 'OpenAI'
+  return {
+    error: `${label} embeddings require a ${label} API key. Enter an embeddings override key or switch the draft provider to ${label}.`,
+  }
 }
 
 /**
@@ -34,7 +94,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, api_key, embeddings_api_key'
+        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, api_key, embeddings_provider, embeddings_api_key'
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -56,6 +116,7 @@ export async function GET() {
       has_key: !!api_key,
       has_embeddings_key: !!embeddings_api_key,
       ...safe,
+      embeddings_provider: safe.embeddings_provider ?? 'keyword',
       auto_reply_enabled: false,
       auto_reply_max_per_conversation: 1,
     })
@@ -104,6 +165,14 @@ export async function POST(request: Request) {
 
     const rawKey = typeof body.api_key === 'string' ? body.api_key.trim() : ''
 
+    const requestedEmbeddingsProvider = body.embeddings_provider
+    if (
+      requestedEmbeddingsProvider !== undefined &&
+      !isEmbeddingsProvider(requestedEmbeddingsProvider)
+    ) {
+      return bad('embeddings_provider must be "keyword", "gemini", or "openai"')
+    }
+
     // Embeddings key (optional, for semantic KB search): a non-empty
     // string sets/replaces it; an explicit null clears it; absent leaves
     // it unchanged. The form only sends it when the admin edits it.
@@ -116,9 +185,17 @@ export async function POST(request: Request) {
     // Reuse the stored key when the form didn't send a fresh one.
     const { data: existing } = await supabase
       .from('ai_configs')
-      .select('id, provider, model, api_key')
+      .select('id, provider, model, api_key, embeddings_provider, embeddings_api_key')
       .eq('account_id', accountId)
       .maybeSingle()
+
+    const existingEmbeddingsProvider = isEmbeddingsProvider(
+      existing?.embeddings_provider,
+    )
+      ? existing.embeddings_provider
+      : 'keyword'
+    const embeddingsProvider =
+      requestedEmbeddingsProvider ?? existingEmbeddingsProvider
 
     let apiKeyPlain: string
     if (rawKey) {
@@ -153,6 +230,7 @@ export async function POST(request: Request) {
           isActive,
           autoReplyEnabled,
           autoReplyMaxPerConversation: maxPer,
+          embeddingsProvider,
           embeddingsApiKey: null,
         })
       } catch (err) {
@@ -167,11 +245,36 @@ export async function POST(request: Request) {
       }
     }
 
-    // Validate a new embeddings key before storing (a cheap 1-input
-    // embed), same "verify before save" discipline as the chat key.
-    if (rawEmbeddingsKey) {
+    const embeddingsResolution = resolveEmbeddingsCredential({
+      embeddingsProvider,
+      provider,
+      apiKeyPlain,
+      rawEmbeddingsKey,
+      clearEmbeddingsKey,
+      existingEmbeddingsProvider,
+      existingEmbeddingsKeyCiphertext:
+        typeof existing?.embeddings_api_key === 'string'
+          ? existing.embeddings_api_key
+          : null,
+    })
+    if ('error' in embeddingsResolution) return bad(embeddingsResolution.error)
+
+    // Validate semantic embeddings when the setting or credentials that
+    // feed it changed. Keyword-only mode intentionally makes no provider
+    // call.
+    const embeddingsChanged =
+      !existing ||
+      embeddingsProvider !== existingEmbeddingsProvider ||
+      rawEmbeddingsKey !== '' ||
+      clearEmbeddingsKey ||
+      (credentialsChanged && embeddingsProvider === provider)
+
+    if (
+      embeddingsResolution.config &&
+      embeddingsChanged
+    ) {
       try {
-        await embedTexts(rawEmbeddingsKey, ['ping'])
+        await embedTexts(embeddingsResolution.config, ['ping'], 'validation')
       } catch (err) {
         if (err instanceof AiError) {
           return NextResponse.json(
@@ -192,10 +295,15 @@ export async function POST(request: Request) {
       is_active: isActive,
       auto_reply_enabled: autoReplyEnabled,
       auto_reply_max_per_conversation: maxPer,
+      embeddings_provider: embeddingsProvider,
     }
     if (rawEmbeddingsKey) {
       shared.embeddings_api_key = encrypt(rawEmbeddingsKey)
-    } else if (clearEmbeddingsKey) {
+    } else if (
+      clearEmbeddingsKey ||
+      (embeddingsProvider !== existingEmbeddingsProvider &&
+        embeddingsProvider === provider)
+    ) {
       shared.embeddings_api_key = null
     }
 

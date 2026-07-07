@@ -16,6 +16,9 @@ deployment or production proof was performed in this run.
 - amoCRM token: `EVO_INBOX_AMOCRM_ACCESS_TOKEN`
 - Gemini key for this rollout: `EVO_INBOX_GEMINI_API_KEY` in the ignored
   `.env.gemini` seed file
+- AI knowledge retrieval provider: `EVO_INBOX_EMBEDDINGS_PROVIDER=gemini` for
+  first proof, reusing the Gemini key for embeddings; use `keyword` only when
+  deliberately proving lexical fallback
 - Test WhatsApp number: `EVO_INBOX_TEST_WHATSAPP_NUMBER`
 - DNS/Caddy requirements: `inbox.evoadmissions.com` must resolve to
   `hermes-vps`, and `evo-edge-caddy` plus `evo-inbox-app` must share
@@ -37,8 +40,9 @@ deployment or production proof was performed in this run.
    `session.status` webhook from WAHA returns HTTP 200 from
    `/api/waha/webhook`.
 4. Seed Gemini AI draft settings with `npm run seed:prod-ai`; verify the
-   command succeeds with a real Google provider call and stores only encrypted
-   account-level AI config in Supabase.
+   command succeeds with real Google GenerateContent and Gemini Embeddings
+   provider calls, then stores only encrypted account-level AI config in
+   Supabase with `embeddings_provider='gemini'`.
 5. Receive a real WhatsApp message from the provided test number.
 6. Resolve or create the amoCRM contact and lead identity for that sender.
 7. Verify Supabase shadow records store `amo_contact_id` and `amo_lead_id`.
@@ -55,7 +59,10 @@ deployment or production proof was performed in this run.
   encrypted `api_key` / `webhook_hmac_secret` rows.
 - WAHA `session.status` webhooks for `evo-inbox` are accepted with HTTP 200.
 - Gemini AI config exists in Supabase as `provider='gemini'`,
-  `model='gemini-3.5-flash'`, and encrypted `api_key`.
+  `model='gemini-3.5-flash'`, `embeddings_provider='gemini'`, and encrypted
+  `api_key`.
+- Supabase scale audit from `docs/supabase-scale-retention.md` shows the
+  database is still within the current plan threshold, or the project is on Pro.
 - The inbound WhatsApp message appears in EVO Inbox.
 - The amoCRM contact/lead exists and matches the Supabase shadow ids.
 - AI draft generation uses at least one configured knowledge document.

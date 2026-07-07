@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { embedTexts, toVectorLiteral } from './embeddings'
+import { EMBEDDING_DIMENSIONS, embedTexts, toVectorLiteral } from './embeddings'
 import { AiError } from './types'
 
 function okEmbeddings(count: number, shuffle = false): Response {
@@ -9,6 +9,14 @@ function okEmbeddings(count: number, shuffle = false): Response {
   }))
   if (shuffle) rows.reverse()
   return { ok: true, status: 200, json: async () => ({ data: rows }) } as unknown as Response
+}
+
+function okGeminiEmbedding(values = [0.1, 0.2]): Response {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ embedding: { values } }),
+  } as unknown as Response
 }
 
 beforeEach(() => vi.stubGlobal('fetch', vi.fn()))
@@ -24,7 +32,7 @@ describe('embedTexts', () => {
   it('returns [] and makes no request for empty input', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-    expect(await embedTexts('sk-x', [])).toEqual([])
+    expect(await embedTexts({ provider: 'openai', apiKey: 'sk-x' }, [])).toEqual([])
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -35,7 +43,7 @@ describe('embedTexts', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const out = await embedTexts('sk-x', ['a', 'b', 'c'])
+    const out = await embedTexts({ provider: 'openai', apiKey: 'sk-x' }, ['a', 'b', 'c'])
     expect(out).toHaveLength(3)
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, opts] = fetchMock.mock.calls[0]
@@ -53,7 +61,7 @@ describe('embedTexts', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const inputs = Array.from({ length: 100 }, (_, i) => `t${i}`)
-    const out = await embedTexts('sk-x', inputs)
+    const out = await embedTexts({ provider: 'openai', apiKey: 'sk-x' }, inputs)
     expect(out).toHaveLength(100)
     expect(fetchMock).toHaveBeenCalledTimes(2) // 96 + 4
   })
@@ -66,7 +74,7 @@ describe('embedTexts', () => {
         return okEmbeddings(n, true)
       }),
     )
-    const out = await embedTexts('sk-x', ['a', 'b', 'c'])
+    const out = await embedTexts({ provider: 'openai', apiKey: 'sk-x' }, ['a', 'b', 'c'])
     expect(out[0]).toEqual([0, 0.5]) // index 0 first despite shuffle
     expect(out[2]).toEqual([2, 2.5])
   })
@@ -80,7 +88,9 @@ describe('embedTexts', () => {
         json: async () => ({ error: { message: 'bad key' } }),
       } as unknown as Response),
     )
-    await expect(embedTexts('sk-x', ['a'])).rejects.toMatchObject({
+    await expect(
+      embedTexts({ provider: 'openai', apiKey: 'sk-x' }, ['a']),
+    ).rejects.toMatchObject({
       code: 'invalid_key',
     })
   })
@@ -94,7 +104,9 @@ describe('embedTexts', () => {
         json: async () => ({ data: [{ embedding: [0.1] }, { embedding: [0.2] }] }),
       } as unknown as Response),
     )
-    await expect(embedTexts('sk-x', ['a', 'b'])).rejects.toBeInstanceOf(AiError)
+    await expect(
+      embedTexts({ provider: 'openai', apiKey: 'sk-x' }, ['a', 'b']),
+    ).rejects.toBeInstanceOf(AiError)
   })
 
   it('throws on a malformed response (count mismatch)', async () => {
@@ -106,6 +118,64 @@ describe('embedTexts', () => {
         json: async () => ({ data: [] }),
       } as unknown as Response),
     )
-    await expect(embedTexts('sk-x', ['a', 'b'])).rejects.toBeInstanceOf(AiError)
+    await expect(
+      embedTexts({ provider: 'openai', apiKey: 'sk-x' }, ['a', 'b']),
+    ).rejects.toBeInstanceOf(AiError)
+  })
+
+  it('calls Gemini embedContent with a 1536-dim retrieval query prompt', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okGeminiEmbedding([0.3, 0.4]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const out = await embedTexts(
+      { provider: 'gemini', apiKey: 'AIza-test' },
+      ['Салам, Германияга окууга кантип тапшырсам болот?'],
+      'query',
+    )
+
+    expect(out).toEqual([[0.3, 0.4]])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, opts] = fetchMock.mock.calls[0]
+    expect(url).toContain('generativelanguage.googleapis.com')
+    expect(url).toContain('/models/gemini-embedding-2:embedContent')
+    expect((opts as { headers: Record<string, string> }).headers['x-goog-api-key']).toBe(
+      'AIza-test',
+    )
+    const body = JSON.parse((opts as { body: string }).body)
+    expect(body.output_dimensionality).toBe(EMBEDDING_DIMENSIONS)
+    expect(body.content.parts[0].text).toContain('task: search result | query:')
+    expect(body.content.parts[0].text).toContain('Германияга окууга')
+  })
+
+  it('calls Gemini embedContent with the document retrieval structure', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okGeminiEmbedding([0.5, 0.6]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await embedTexts(
+      { provider: 'gemini', apiKey: 'AIza-test' },
+      ['Германия: консультация, документы, дедлайны.'],
+      'document',
+    )
+
+    const [, opts] = fetchMock.mock.calls[0]
+    const body = JSON.parse((opts as { body: string }).body)
+    expect(body.content.parts[0].text).toBe(
+      'title: none | text: Германия: консультация, документы, дедлайны.',
+    )
+  })
+
+  it('throws when Gemini omits the embedding vector', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ embedding: {} }),
+      } as unknown as Response),
+    )
+
+    await expect(
+      embedTexts({ provider: 'gemini', apiKey: 'AIza-test' }, ['q'], 'query'),
+    ).rejects.toMatchObject({ code: 'embeddings_malformed' })
   })
 })

@@ -34,7 +34,7 @@ import {
 import { SettingsPanelHead } from './settings-panel-head';
 import { AiKnowledgeCard } from './ai-knowledge';
 import { AI_PROVIDER_DEFAULT_MODEL } from '@/lib/ai/defaults';
-import type { AiProvider } from '@/lib/ai/types';
+import type { AiProvider, EmbeddingsProvider } from '@/lib/ai/types';
 
 const MASKED_KEY = '••••••••••••••••';
 
@@ -48,6 +48,18 @@ const KEY_PLACEHOLDER: Record<AiProvider, string> = {
   openai: 'sk-...',
   anthropic: 'sk-ant-...',
   gemini: 'AIza...',
+};
+
+const EMBEDDINGS_PROVIDER_LABEL: Record<EmbeddingsProvider, string> = {
+  keyword: 'Keyword only',
+  gemini: 'Gemini embeddings',
+  openai: 'OpenAI embeddings',
+};
+
+const EMBEDDINGS_KEY_PLACEHOLDER: Record<EmbeddingsProvider, string> = {
+  keyword: '',
+  gemini: 'AIza...',
+  openai: 'sk-...',
 };
 
 export function AiConfig() {
@@ -66,6 +78,8 @@ export function AiConfig() {
   const [keyEdited, setKeyEdited] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [hasStoredKey, setHasStoredKey] = useState(false);
+  const [embeddingsProvider, setEmbeddingsProvider] =
+    useState<EmbeddingsProvider>('keyword');
   const [embeddingsKey, setEmbeddingsKey] = useState('');
   const [embeddingsKeyEdited, setEmbeddingsKeyEdited] = useState(false);
   const [hasStoredEmbeddingsKey, setHasStoredEmbeddingsKey] = useState(false);
@@ -96,6 +110,7 @@ export function AiConfig() {
         setHasStoredKey(Boolean(data.has_key));
         setApiKey(data.has_key ? MASKED_KEY : '');
         setKeyEdited(false);
+        setEmbeddingsProvider(data.embeddings_provider ?? 'keyword');
         setHasStoredEmbeddingsKey(Boolean(data.has_embeddings_key));
         setEmbeddingsKey(data.has_embeddings_key ? MASKED_KEY : '');
         setEmbeddingsKeyEdited(false);
@@ -135,6 +150,7 @@ export function AiConfig() {
     provider,
     model: model.trim(),
     api_key: keyPayload(),
+    embeddings_provider: embeddingsProvider,
     embeddings_api_key: embeddingsKeyPayload(),
     system_prompt: systemPrompt.trim() || null,
     is_active: isActive,
@@ -204,6 +220,10 @@ export function AiConfig() {
         setHasStoredKey(false);
         setApiKey('');
         setKeyEdited(false);
+        setEmbeddingsProvider('keyword');
+        setHasStoredEmbeddingsKey(false);
+        setEmbeddingsKey('');
+        setEmbeddingsKeyEdited(false);
         setIsActive(false);
         setSystemPrompt('');
       } else {
@@ -226,6 +246,16 @@ export function AiConfig() {
   }
 
   const disabled = !canEdit || saving;
+  const hasPrimaryProviderKey = keyEdited
+    ? apiKey.trim().length > 0
+    : hasStoredKey;
+  const hasEmbeddingsOverrideKey = embeddingsKeyEdited
+    ? embeddingsKey.trim().length > 0
+    : hasStoredEmbeddingsKey;
+  const semanticKnowledgeEnabled =
+    embeddingsProvider !== 'keyword' &&
+    (hasEmbeddingsOverrideKey ||
+      (provider === embeddingsProvider && hasPrimaryProviderKey));
 
   return (
     <div>
@@ -339,39 +369,63 @@ export function AiConfig() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="ai-embeddings-key">
-                Embeddings key{' '}
-                <span className="text-muted-foreground font-normal">
-                  (optional — enables semantic knowledge-base search)
-                </span>
-              </Label>
-              <Input
-                id="ai-embeddings-key"
-                type="password"
-                value={embeddingsKey}
-                onChange={(e) => {
-                  setEmbeddingsKey(e.target.value);
-                  setEmbeddingsKeyEdited(true);
-                }}
-                onFocus={() => {
-                  if (!embeddingsKeyEdited && hasStoredEmbeddingsKey) {
-                    setEmbeddingsKey('');
-                    setEmbeddingsKeyEdited(true);
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Knowledge retrieval</Label>
+                <Select
+                  value={embeddingsProvider}
+                  onValueChange={(v) =>
+                    setEmbeddingsProvider(v as EmbeddingsProvider)
                   }
-                }}
-                placeholder="sk-... (OpenAI)"
-                disabled={disabled}
-                autoComplete="off"
-              />
-              <p className="text-muted-foreground text-xs">
-                An OpenAI key used only to embed your knowledge base
-                (text-embedding-3-small)
-                {provider === 'openai' ? ' — can be the same key as above' : ''}.
-                Leave blank to use keyword search instead. Clear it to turn
-                semantic search off.
-              </p>
+                  disabled={disabled}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="keyword">
+                      {EMBEDDINGS_PROVIDER_LABEL.keyword}
+                    </SelectItem>
+                    <SelectItem value="gemini">
+                      {EMBEDDINGS_PROVIDER_LABEL.gemini}
+                    </SelectItem>
+                    <SelectItem value="openai">
+                      {EMBEDDINGS_PROVIDER_LABEL.openai}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ai-embeddings-key">
+                  Embeddings override key
+                </Label>
+                <Input
+                  id="ai-embeddings-key"
+                  type="password"
+                  value={embeddingsKey}
+                  onChange={(e) => {
+                    setEmbeddingsKey(e.target.value);
+                    setEmbeddingsKeyEdited(true);
+                  }}
+                  onFocus={() => {
+                    if (!embeddingsKeyEdited && hasStoredEmbeddingsKey) {
+                      setEmbeddingsKey('');
+                      setEmbeddingsKeyEdited(true);
+                    }
+                  }}
+                  placeholder={EMBEDDINGS_KEY_PLACEHOLDER[embeddingsProvider]}
+                  disabled={disabled || embeddingsProvider === 'keyword'}
+                  autoComplete="off"
+                />
+              </div>
             </div>
+            <p className="text-muted-foreground text-xs">
+              Keyword mode uses multilingual full-text search only. Gemini and
+              OpenAI modes use the current draft key when the providers match;
+              otherwise add an override key here. Clear the override to fall
+              back to the matching draft key or keyword search.
+            </p>
           </CardContent>
         </Card>
 
@@ -429,11 +483,7 @@ export function AiConfig() {
         <AiKnowledgeCard
           accountId={accountId}
           canEdit={canEdit}
-          hasEmbeddingsKey={
-            embeddingsKeyEdited
-              ? embeddingsKey.trim().length > 0
-              : hasStoredEmbeddingsKey
-          }
+          hasEmbeddingsKey={semanticKnowledgeEnabled}
         />
 
         <div className="flex items-center justify-between">

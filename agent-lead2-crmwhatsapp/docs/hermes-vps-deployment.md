@@ -135,20 +135,28 @@ npm run seed:prod-ai
 
 Required seed variables:
 
-| Variable                     | Purpose                                                                                              |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `EVO_INBOX_AI_PROVIDER`      | Must be `gemini` for this seed command.                                                              |
-| `EVO_INBOX_AI_MODEL`         | Optional; defaults to `gemini-3.5-flash`.                                                            |
-| `EVO_INBOX_AI_ACTIVE`        | Optional; defaults to `true`, enabling the operator-reviewed draft button.                           |
-| `EVO_INBOX_ACCOUNT_ID`       | Optional when exactly one Supabase `accounts` row exists; required when there are multiple accounts. |
-| `EVO_INBOX_CONFIG_USER_ID`   | Optional audit user id; falls back to `accounts.owner_user_id` when present.                         |
-| `EVO_INBOX_GEMINI_API_KEY`   | Plain Gemini API key; validated with Google, then stored encrypted in Supabase.                      |
-| `EVO_INBOX_AI_SYSTEM_PROMPT` | Optional business instructions stored in `ai_configs.system_prompt`.                                 |
+| Variable                        | Purpose                                                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `EVO_INBOX_AI_PROVIDER`         | Must be `gemini` for this seed command.                                                              |
+| `EVO_INBOX_AI_MODEL`            | Optional; defaults to `gemini-3.5-flash`.                                                            |
+| `EVO_INBOX_AI_ACTIVE`           | Optional; defaults to `true`, enabling the operator-reviewed draft button.                           |
+| `EVO_INBOX_EMBEDDINGS_PROVIDER` | Optional; defaults to `gemini`. Use `keyword` to seed keyword-only retrieval instead.                |
+| `EVO_INBOX_ACCOUNT_ID`          | Optional when exactly one Supabase `accounts` row exists; required when there are multiple accounts. |
+| `EVO_INBOX_CONFIG_USER_ID`      | Optional audit user id; falls back to `accounts.owner_user_id` when present.                         |
+| `EVO_INBOX_GEMINI_API_KEY`      | Plain Gemini API key; validated with Google, then stored encrypted in Supabase.                      |
+| `EVO_INBOX_AI_SYSTEM_PROMPT`    | Optional business instructions stored in `ai_configs.system_prompt`.                                 |
 
 The seed command validates the Gemini key with Google's server-side
-GenerateContent API, then upserts `ai_configs(provider='gemini')`. It prints only
-the provider, model, account id, active flags, and `has_api_key`; it must not
-print the key or decrypted secret.
+GenerateContent API and, when `EVO_INBOX_EMBEDDINGS_PROVIDER=gemini`, Google's
+Gemini Embeddings API. It then upserts `ai_configs(provider='gemini')` with the
+selected `embeddings_provider`. It prints only the provider, model, embeddings
+provider, account id, active flags, and `has_api_key`; it must not print the key
+or decrypted secret.
+
+Production scale note: run `docs/supabase-scale-retention.md` before live proof
+or imports. Supabase Free is for proof/small pilot only; move to Pro before
+sustained WhatsApp production traffic, imports above 50k messages, database size
+above 250 MB, or thousands of knowledge chunks.
 
 ## Deployment outline
 

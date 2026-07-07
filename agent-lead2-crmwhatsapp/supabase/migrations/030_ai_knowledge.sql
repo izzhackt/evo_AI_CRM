@@ -9,11 +9,10 @@
 -- Hybrid retrieval:
 --   - Lexical: a generated `fts` tsvector on each chunk, ranked with
 --     ts_rank. Works for every account with no extra credentials.
---   - Semantic: an optional pgvector `embedding` per chunk (OpenAI
---     text-embedding-3-small, 1536 dims), populated only when the
---     account configures an embeddings key. Anthropic-only accounts
---     (Anthropic has no embeddings API) keep the lexical path with
---     zero extra setup.
+--   - Semantic: an optional pgvector `embedding` per chunk (1536 dims),
+--     populated only when the account selects Gemini or OpenAI
+--     embeddings. Accounts without semantic embeddings keep the lexical
+--     path with zero extra setup.
 --
 -- pgvector: `CREATE EXTENSION IF NOT EXISTS vector` works on a stock
 -- Postgres. On hosted Supabase the extension usually lives in the
@@ -32,9 +31,10 @@
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Optional embeddings key (OpenAI-compatible). When set, the KB is
--- embedded and semantic search turns on. Stored AES-256-GCM-encrypted,
--- same as ai_configs.api_key.
+-- Optional embeddings override key. The selected semantic provider is
+-- tracked by a later migration; this ciphertext lets an account use a
+-- different provider/key for embeddings than for draft generation.
+-- Stored AES-256-GCM-encrypted, same as ai_configs.api_key.
 ALTER TABLE ai_configs
   ADD COLUMN IF NOT EXISTS embeddings_api_key text;
 

@@ -8,6 +8,8 @@
 
 export type AiProvider = 'openai' | 'anthropic' | 'gemini'
 
+export type EmbeddingsProvider = 'keyword' | 'gemini' | 'openai'
+
 /**
  * Account AI setup, decrypted and ready to use. Produced by
  * `loadAiConfig` — `apiKey` is the plaintext BYO provider key
@@ -21,9 +23,12 @@ export interface AiConfig {
   isActive: boolean
   autoReplyEnabled: boolean
   autoReplyMaxPerConversation: number
-  /** Optional OpenAI-compatible key for embeddings. When set, the
-   *  knowledge base is embedded and semantic retrieval turns on; when
-   *  null, retrieval falls back to lexical full-text search. */
+  /** Explicit retrieval mode: keyword-only, Gemini embeddings, or
+   *  OpenAI embeddings. */
+  embeddingsProvider: EmbeddingsProvider
+  /** Optional key resolved for the selected semantic embeddings
+   *  provider. When null, retrieval falls back to lexical search even
+   *  if a semantic provider is selected. */
   embeddingsApiKey: string | null
 }
 

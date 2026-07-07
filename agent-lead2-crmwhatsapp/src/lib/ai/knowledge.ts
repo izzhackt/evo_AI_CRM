@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AiConfig } from './types'
 import { chunkText } from './chunk'
-import { embedTexts, toVectorLiteral } from './embeddings'
+import { embedTexts, type EmbeddingRequestConfig, toVectorLiteral } from './embeddings'
 
 // ============================================================
 // Knowledge base: ingest (chunk + optionally embed) and hybrid
@@ -27,7 +27,7 @@ interface MatchRow {
 export async function ingestDocument(
   db: SupabaseClient,
   accountId: string,
-  config: Pick<AiConfig, 'embeddingsApiKey'>,
+  config: Pick<AiConfig, 'embeddingsProvider' | 'embeddingsApiKey'>,
   documentId: string,
   content: string,
 ): Promise<void> {
@@ -48,11 +48,12 @@ export async function ingestDocument(
   // AFTER inserting (embedding-less) rows, so the route can warn
   // "semantic indexing failed" — which is now truthful, because lexical
   // search really does still work.
+  const semanticConfig = toSemanticEmbeddingConfig(config)
   let embeddings: number[][] | null = null
   let embedError: unknown = null
-  if (config.embeddingsApiKey) {
+  if (semanticConfig) {
     try {
-      embeddings = await embedTexts(config.embeddingsApiKey, chunks)
+      embeddings = await embedTexts(semanticConfig, chunks, 'document')
     } catch (err) {
       embedError = err
     }
@@ -84,7 +85,7 @@ export async function ingestDocument(
 export async function retrieveKnowledge(
   db: SupabaseClient,
   accountId: string,
-  config: Pick<AiConfig, 'embeddingsApiKey'>,
+  config: Pick<AiConfig, 'embeddingsProvider' | 'embeddingsApiKey'>,
   queryText: string,
   k = 5,
 ): Promise<string[]> {
@@ -108,9 +109,10 @@ export async function retrieveKnowledge(
   const picked = new Map<string, string>() // id → content, preserves order
 
   // Semantic path.
-  if (config.embeddingsApiKey) {
+  const semanticConfig = toSemanticEmbeddingConfig(config)
+  if (semanticConfig) {
     try {
-      const [queryEmbedding] = await embedTexts(config.embeddingsApiKey, [query])
+      const [queryEmbedding] = await embedTexts(semanticConfig, [query], 'query')
       if (queryEmbedding) {
         const { data, error } = await db.rpc('match_ai_knowledge_semantic', {
           p_account_id: accountId,
@@ -146,4 +148,16 @@ export async function retrieveKnowledge(
   }
 
   return Array.from(picked.values()).slice(0, k)
+}
+
+function toSemanticEmbeddingConfig(
+  config: Pick<AiConfig, 'embeddingsProvider' | 'embeddingsApiKey'>,
+): EmbeddingRequestConfig | null {
+  if (config.embeddingsProvider === 'keyword' || !config.embeddingsApiKey) {
+    return null
+  }
+  return {
+    provider: config.embeddingsProvider,
+    apiKey: config.embeddingsApiKey,
+  }
 }

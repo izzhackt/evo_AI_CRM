@@ -1044,3 +1044,33 @@ the PR diff. No production deployment, no `/opt/evo-crm` access, and no live
 WAHA/Supabase success claims unless real credentials and real services are
 exercised.
 Reviewer notes: pending independent launch-control review.
+
+## 2026-07-07 - EVO Inbox Live WAHA Settings Seed
+
+Date: 2026-07-07, workspace timezone.
+Author: Codex.
+Change type: production setup evidence, deployment tooling, and validation
+scope.
+Affected plan section: `/goal-evo-inbox-companion` issue #20 production proof
+preparation and WAHA runtime configuration.
+Reason: the live `evo-inbox` WAHA session connected successfully on
+`hermes-vps`, but the companion app initially rejected WAHA webhooks with
+`503 waha_not_configured` because the Supabase account-level WAHA runtime
+settings had not been seeded.
+Decision: seed `integration_settings(provider='waha')` for the live EVO account
+with `public_config.baseUrl=http://evo-inbox-waha:3000` and
+`public_config.sessionName=evo-inbox`, then store only encrypted
+`integration_secrets` rows for `api_key` and `webhook_hmac_secret`. Add
+`scripts/seed-prod-waha-config.mjs` and `npm run seed:prod-waha` so this
+production setup step is repeatable from GitHub-owned code and never requires
+hardcoding or committing secrets.
+Validation impact: live Supabase seeding was performed with the real
+service-role key and `ENCRYPTION_KEY`; the command output showed a configured
+WAHA setting and secret names only. A real WAHA `evo-inbox` session restart then
+emitted real `session.status` webhooks to
+`http://evo-inbox-app:3000/api/waha/webhook`, and WAHA logged HTTP 200
+responses. WAHA returned to `WORKING` for WhatsApp id `971561322050@c.us`.
+This proves WAHA session status webhooks are now accepted, but does not prove
+inbound message delivery, amoCRM identity resolution, AI draft generation, or
+manual outbound send.
+Reviewer notes: pending independent launch-control review.

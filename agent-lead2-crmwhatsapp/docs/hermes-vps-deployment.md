@@ -26,6 +26,13 @@ standalone output docs, `.next/standalone` contains the minimal server, while
 `server.js` to serve assets:
 https://nextjs.org/docs/pages/api-reference/config/next-config-js/output
 
+`NEXT_PUBLIC_*` values used by browser code must be available during
+`next build`, not only as container runtime variables. Build the app with
+Compose's `--env-file ../.env.production` from the `deploy/` directory so the
+public Supabase URL/key are passed as Docker build args. Server-only secrets
+such as `SUPABASE_SERVICE_ROLE_KEY` and `ENCRYPTION_KEY` remain runtime-only and
+must not be passed as build args.
+
 ## Review artifacts
 
 - `Dockerfile`
@@ -41,15 +48,15 @@ https://nextjs.org/docs/pages/api-reference/config/next-config-js/output
 
 Set these on the target host in `.env.production`; do not commit real values.
 
-| Variable | Purpose |
-| --- | --- |
-| `NEXT_PUBLIC_SITE_URL` | Canonical URL, `https://inbox.evoadmissions.com`. |
-| `EVO_INBOX_DOMAIN` | Expected DNS/Caddy hostname, `inbox.evoadmissions.com`. |
-| `EVO_CADDY_NETWORK` | Docker network shared with Caddy, normally `evo_public_web`. |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase companion project URL. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/publishable key. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase service role key. |
-| `ENCRYPTION_KEY` | 64 hex chars for encrypted integration and AI secrets. |
+| Variable                        | Purpose                                                      |
+| ------------------------------- | ------------------------------------------------------------ |
+| `NEXT_PUBLIC_SITE_URL`          | Canonical URL, `https://inbox.evoadmissions.com`.            |
+| `EVO_INBOX_DOMAIN`              | Expected DNS/Caddy hostname, `inbox.evoadmissions.com`.      |
+| `EVO_CADDY_NETWORK`             | Docker network shared with Caddy, normally `evo_public_web`. |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase companion project URL.                              |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/publishable key.                               |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Server-only Supabase service role key.                       |
+| `ENCRYPTION_KEY`                | 64 hex chars for encrypted integration and AI secrets.       |
 
 WAHA, amoCRM, and AI provider secrets are account-level settings stored
 encrypted in Supabase. The private WAHA container stores only
@@ -79,6 +86,34 @@ Supabase, WAHA, amoCRM, AI, `ENCRYPTION_KEY`, and DNS/Caddy inputs, but it does
 not call live services or prove production. Issue #20 requires the real proof
 sequence in `docs/production-proof-checklist.md`.
 
+## Seed WAHA runtime settings
+
+After `.env.production` contains the live Supabase keys, `ENCRYPTION_KEY`, and
+WAHA proof variables, seed the encrypted account-level WAHA runtime settings:
+
+```bash
+set -a
+. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production
+set +a
+npm run seed:prod-waha
+```
+
+Required seed variables:
+
+| Variable                      | Purpose                                                                                              |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `EVO_INBOX_ACCOUNT_ID`        | Optional when exactly one Supabase `accounts` row exists; required when there are multiple accounts. |
+| `EVO_INBOX_CONFIG_USER_ID`    | Optional audit user id; falls back to `accounts.owner_user_id` when present.                         |
+| `EVO_INBOX_WAHA_BASE_URL`     | Private app-to-WAHA URL, normally `http://evo-inbox-waha:3000`.                                      |
+| `EVO_INBOX_WAHA_SESSION_NAME` | Optional WAHA session name; defaults to `evo-inbox`.                                                 |
+| `EVO_INBOX_WAHA_API_KEY`      | Plain WAHA API key used by the app; stored encrypted in Supabase.                                    |
+| `EVO_INBOX_WAHA_WEBHOOK_HMAC` | WAHA webhook HMAC secret; stored encrypted in Supabase.                                              |
+
+The seed command upserts `integration_settings(provider='waha')` and encrypted
+`integration_secrets` for `api_key` and `webhook_hmac_secret`. It prints only
+the setting id, account id, public config, and secret names; it must not print
+secret values.
+
 ## Deployment outline
 
 Only perform this after a reviewed PR is merged and real credentials are
@@ -93,8 +128,10 @@ available:
    do not delete Acadis data as part of the EVO Inbox cutover.
 6. Start the EVO edge proxy with
    `docker compose -f deploy/docker-compose.edge.yml up -d`.
-7. Start the service with
-   `docker compose -f deploy/docker-compose.inbox.prod.yml up -d --build`.
-8. Confirm `evo-edge-caddy`, `evo-inbox` app, and `evo-inbox-waha`
+7. Start the service from `agent-lead2-crmwhatsapp/deploy/` with
+   `docker compose --env-file ../.env.production -f docker-compose.inbox.prod.yml up -d --build`.
+8. Run `npm run seed:prod-waha` from `agent-lead2-crmwhatsapp/` after loading
+   `.env.production`.
+9. Confirm `evo-edge-caddy`, `evo-inbox` app, and `evo-inbox-waha`
    healthchecks pass.
-9. Execute the issue #20 live proof checklist.
+10. Execute the issue #20 live proof checklist.

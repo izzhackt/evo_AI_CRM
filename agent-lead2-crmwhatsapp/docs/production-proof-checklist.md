@@ -32,18 +32,24 @@ deployment or production proof was performed in this run.
 
 1. Deploy the reviewed EVO Inbox build for `inbox.evoadmissions.com`.
 2. Connect the WAHA session named `evo-inbox`.
-3. Receive a real WhatsApp message from the provided test number.
-4. Resolve or create the amoCRM contact and lead identity for that sender.
-5. Verify Supabase shadow records store `amo_contact_id` and `amo_lead_id`.
-6. Generate an EVO Companion AI draft using configured knowledge.
-7. Manually send the WAHA reply from the operator inbox.
-8. Verify no automatic AI auto-reply was sent.
+3. Seed WAHA runtime settings with `npm run seed:prod-waha`; verify a real
+   `session.status` webhook from WAHA returns HTTP 200 from
+   `/api/waha/webhook`.
+4. Receive a real WhatsApp message from the provided test number.
+5. Resolve or create the amoCRM contact and lead identity for that sender.
+6. Verify Supabase shadow records store `amo_contact_id` and `amo_lead_id`.
+7. Generate an EVO Companion AI draft using configured knowledge.
+8. Manually send the WAHA reply from the operator inbox.
+9. Verify no automatic AI auto-reply was sent.
 
 ## Pass criteria
 
 - The public inbox host responds through Caddy.
 - WAHA is the separate `evo-inbox-waha` service, reachable only on Docker
   networking and with no public port.
+- WAHA account settings exist in Supabase with non-secret public config and
+  encrypted `api_key` / `webhook_hmac_secret` rows.
+- WAHA `session.status` webhooks for `evo-inbox` are accepted with HTTP 200.
 - The inbound WhatsApp message appears in EVO Inbox.
 - The amoCRM contact/lead exists and matches the Supabase shadow ids.
 - AI draft generation uses at least one configured knowledge document.

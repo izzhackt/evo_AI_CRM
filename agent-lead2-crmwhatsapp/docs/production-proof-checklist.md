@@ -14,7 +14,8 @@ deployment or production proof was performed in this run.
 - WAHA webhook HMAC secret: `EVO_INBOX_WAHA_WEBHOOK_HMAC`
 - amoCRM domain: `EVO_INBOX_AMOCRM_BASE_URL`
 - amoCRM token: `EVO_INBOX_AMOCRM_ACCESS_TOKEN`
-- OpenAI or Anthropic key: `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`
+- Gemini key for this rollout: `EVO_INBOX_GEMINI_API_KEY` in the ignored
+  `.env.gemini` seed file
 - Test WhatsApp number: `EVO_INBOX_TEST_WHATSAPP_NUMBER`
 - DNS/Caddy requirements: `inbox.evoadmissions.com` must resolve to
   `hermes-vps`, and `evo-edge-caddy` plus `evo-inbox-app` must share
@@ -35,12 +36,15 @@ deployment or production proof was performed in this run.
 3. Seed WAHA runtime settings with `npm run seed:prod-waha`; verify a real
    `session.status` webhook from WAHA returns HTTP 200 from
    `/api/waha/webhook`.
-4. Receive a real WhatsApp message from the provided test number.
-5. Resolve or create the amoCRM contact and lead identity for that sender.
-6. Verify Supabase shadow records store `amo_contact_id` and `amo_lead_id`.
-7. Generate an EVO Companion AI draft using configured knowledge.
-8. Manually send the WAHA reply from the operator inbox.
-9. Verify no automatic AI auto-reply was sent.
+4. Seed Gemini AI draft settings with `npm run seed:prod-ai`; verify the
+   command succeeds with a real Google provider call and stores only encrypted
+   account-level AI config in Supabase.
+5. Receive a real WhatsApp message from the provided test number.
+6. Resolve or create the amoCRM contact and lead identity for that sender.
+7. Verify Supabase shadow records store `amo_contact_id` and `amo_lead_id`.
+8. Generate an EVO Companion AI draft using configured knowledge.
+9. Manually send the WAHA reply from the operator inbox.
+10. Verify no automatic AI auto-reply was sent.
 
 ## Pass criteria
 
@@ -50,6 +54,8 @@ deployment or production proof was performed in this run.
 - WAHA account settings exist in Supabase with non-secret public config and
   encrypted `api_key` / `webhook_hmac_secret` rows.
 - WAHA `session.status` webhooks for `evo-inbox` are accepted with HTTP 200.
+- Gemini AI config exists in Supabase as `provider='gemini'`,
+  `model='gemini-3.5-flash'`, and encrypted `api_key`.
 - The inbound WhatsApp message appears in EVO Inbox.
 - The amoCRM contact/lead exists and matches the Supabase shadow ids.
 - AI draft generation uses at least one configured knowledge document.
@@ -61,5 +67,5 @@ deployment or production proof was performed in this run.
 - Real Supabase project keys are required.
 - Real WAHA credentials and a connected `evo-inbox` session are required.
 - Real amoCRM token/domain are required.
-- Real OpenAI or Anthropic key is required.
+- Real Gemini key is required for this rollout.
 - Real test WhatsApp number and DNS/Caddy access are required.

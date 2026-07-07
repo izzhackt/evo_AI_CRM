@@ -51,7 +51,7 @@ function checkRequiredEnv(
   id: string,
   label: string,
   required: string[],
-  message: string,
+  message: string
 ): PreflightCheck {
   const missing = required.filter((name) => !present(env, name))
   return {
@@ -63,7 +63,9 @@ function checkRequiredEnv(
   }
 }
 
-export function buildProductionPreflight(input: PreflightInput): PreflightResult {
+export function buildProductionPreflight(
+  input: PreflightInput
+): PreflightResult {
   const { env, waha, amocrm, ai } = input
   const checks: PreflightCheck[] = [
     checkRequiredEnv(
@@ -75,7 +77,7 @@ export function buildProductionPreflight(input: PreflightInput): PreflightResult
         'NEXT_PUBLIC_SUPABASE_ANON_KEY',
         'SUPABASE_SERVICE_ROLE_KEY',
       ],
-      'Supabase URL, anon key, and service-role key are present.',
+      'Supabase URL, anon key, and service-role key are present.'
     ),
     {
       id: 'encryption',
@@ -91,7 +93,7 @@ export function buildProductionPreflight(input: PreflightInput): PreflightResult
       'domain',
       'DNS and Caddy route',
       ['NEXT_PUBLIC_SITE_URL', 'EVO_INBOX_DOMAIN', 'EVO_CADDY_NETWORK'],
-      'Public URL, inbox domain, and Caddy Docker network are declared.',
+      'Public URL, inbox domain, and Caddy Docker network are declared.'
     ),
     {
       id: 'waha',
@@ -121,26 +123,27 @@ export function buildProductionPreflight(input: PreflightInput): PreflightResult
       id: 'ai',
       label: 'Companion AI draft',
       status: ai.configured && ai.active && ai.hasKey ? 'pass' : 'blocked',
-      missing: ai.configured && ai.active && ai.hasKey ? [] : ['AI provider key'],
+      missing:
+        ai.configured && ai.active && ai.hasKey ? [] : ['AI provider key'],
       message:
         ai.message ??
         (ai.configured && ai.active && ai.hasKey
           ? `AI draft provider is configured${ai.provider ? ` (${ai.provider})` : ''}.`
-          : 'OpenAI or Anthropic BYO key must be saved and enabled for draft generation.'),
+          : 'OpenAI, Anthropic, or Gemini BYO key must be saved and enabled for draft generation.'),
     },
     checkRequiredEnv(
       env,
       'proof-number',
       'Production proof test number',
       ['EVO_INBOX_TEST_WHATSAPP_NUMBER'],
-      'Dedicated test WhatsApp number is declared for the proof run.',
+      'Dedicated test WhatsApp number is declared for the proof run.'
     ),
   ]
 
   const blockers = checks
     .filter((check) => check.status === 'blocked')
     .flatMap((check) =>
-      check.missing.length > 0 ? check.missing : [check.label],
+      check.missing.length > 0 ? check.missing : [check.label]
     )
 
   return {

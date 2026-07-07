@@ -67,6 +67,7 @@ describe('EVO Inbox production deployment config', () => {
 
   it('documents the required proof/preflight credentials without values', () => {
     const env = read('deploy/env.production.example');
+    const geminiEnv = read('deploy/env.gemini.example');
     const runbook = read('docs/production-proof-checklist.md');
 
     for (const needle of [
@@ -79,13 +80,15 @@ describe('EVO Inbox production deployment config', () => {
       'EVO_INBOX_WAHA_WEBHOOK_HMAC',
       'EVO_INBOX_AMOCRM_BASE_URL',
       'EVO_INBOX_AMOCRM_ACCESS_TOKEN',
-      'OPENAI_API_KEY',
-      'ANTHROPIC_API_KEY',
+      'EVO_INBOX_GEMINI_API_KEY',
       'EVO_INBOX_TEST_WHATSAPP_NUMBER',
       'DNS/Caddy requirements',
       'evo-inbox-waha',
     ]) {
-      expect(`${env}\n${runbook}`).toContain(needle);
+      expect(`${env}\n${geminiEnv}\n${runbook}`).toContain(needle);
     }
+
+    expect(env).not.toContain('OPENAI_API_KEY');
+    expect(env).not.toContain('ANTHROPIC_API_KEY');
   });
 });

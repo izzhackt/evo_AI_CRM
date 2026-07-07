@@ -1,7 +1,13 @@
-import { AiError, type AiConfig, type ChatMessage, type GenerateResult } from './types'
+import {
+  AiError,
+  type AiConfig,
+  type ChatMessage,
+  type GenerateResult,
+} from './types'
 import { HANDOFF_SENTINEL, aiRequestTimeoutMs } from './defaults'
 import { generateOpenAi } from './providers/openai'
 import { generateAnthropic } from './providers/anthropic'
+import { generateGemini } from './providers/gemini'
 
 export interface GenerateArgs {
   config: AiConfig
@@ -16,7 +22,9 @@ export interface GenerateArgs {
  * Dispatches to the right adapter, then parses the handoff sentinel out
  * of the raw text. Throws `AiError` on any provider/network failure.
  */
-export async function generateReply(args: GenerateArgs): Promise<GenerateResult> {
+export async function generateReply(
+  args: GenerateArgs
+): Promise<GenerateResult> {
   const { config, systemPrompt, messages } = args
   const timeoutMs = aiRequestTimeoutMs()
   const providerArgs = {
@@ -34,6 +42,9 @@ export async function generateReply(args: GenerateArgs): Promise<GenerateResult>
       break
     case 'anthropic':
       raw = await generateAnthropic(providerArgs)
+      break
+    case 'gemini':
+      raw = await generateGemini(providerArgs)
       break
     default:
       throw new AiError(`Unsupported AI provider: ${config.provider}`, {

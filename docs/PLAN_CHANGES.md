@@ -465,6 +465,41 @@ checks locally. Live WhatsApp/amoCRM validation remains blocked until real
 credentials and server configuration are supplied.
 Reviewer notes: pending independent launch-control review.
 
+## 2026-07-07 - EVO Inbox Gemini AI Provider
+
+Date: 2026-07-07, workspace timezone.
+Author: Codex.
+Change type: companion AI provider expansion and production setup workflow.
+Affected plan section: `/goal-evo-inbox-companion` draft-only AI assistant.
+Reason: the live EVO Inbox companion app currently supports OpenAI and
+Anthropic BYO keys only, while the requested production proof should use
+Gemini 3.5 Flash for operator-reviewed AI drafts.
+Decision: add Gemini as a third account-level `ai_configs.provider` value,
+defaulting to model `gemini-3.5-flash`. Store the Gemini API key in the same
+AES-256-GCM encrypted `ai_configs.api_key` column as existing providers, never
+in client-side code or committed env files. Validate Gemini keys through
+Google's server-side Gemini API before save. Add `deploy/env.gemini.example`
+and `npm run seed:prod-ai` so the VPS operator can paste the real key into an
+ignored `.env.gemini` file and seed the dashboard configuration repeatably.
+Keep the first-launch AI behavior draft-only; do not enable automatic WhatsApp
+replies.
+Current provider research: Google's current Gemini API docs list
+`gemini-3.5-flash` as the stable Gemini 3.5 Flash model. Google recommends the
+Interactions API for access to latest models, but server-side REST is acceptable
+and avoids adding a dependency:
+https://ai.google.dev/gemini-api/docs/models and
+https://ai.google.dev/gemini-api/docs/text-generation.
+Validation impact: update unit tests for provider dispatch and Gemini response
+parsing; add route-level coverage for `/api/ai/test` and `/api/ai/config`; run
+companion lint, typecheck, tests, build, and a real settings save against
+production only after the user provides a real Gemini API key in an ignored VPS
+env/runtime file. Do not claim live AI draft success until a real Gemini
+provider call succeeds with that key.
+Reviewer notes: independent review found that Gemini must use the native
+`system_instruction` channel, model-output parsing must ignore non-output
+steps, and production preflight must require `EVO_INBOX_GEMINI_API_KEY` rather
+than legacy OpenAI/Anthropic globals. Those fixes were applied before commit.
+
 ## 2026-07-07 - EVO Inbox Neutral Edge Proxy Cutover
 
 Date: 2026-07-07, workspace timezone.
@@ -490,6 +525,7 @@ proof until real DNS, WAHA QR/session, amoCRM, AI provider, and test WhatsApp
 checks pass through the live path.
 
 Current official docs consulted on 2026-07-07:
+
 - Docker Compose networking:
   `https://docs.docker.com/compose/how-tos/networking/` documents service
   discovery on shared Compose networks.
@@ -572,6 +608,7 @@ amoCRM domain/access token, Supabase URL/service-role key, or `ENCRYPTION_KEY`
 is present in the environment or `.env.local`, and no clearly intended real
 test phone is available. No live WAHA or amoCRM success is claimed.
 Validation impact:
+
 - `npm ci --include=dev`: passed; 680 packages audited, 0 vulnerabilities.
 - `npm test`: passed; 68 test files, 643 tests.
 - `npm run lint`: passed with 10 pre-existing warnings in unrelated inbox,
@@ -589,7 +626,7 @@ Validation impact:
   `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_KEY`, WAHA credential variables, and
   amoCRM credential variables are missing from the shell environment, and
   `.env.local` is absent.
-Reviewer notes: pending independent launch-control review.
+  Reviewer notes: pending independent launch-control review.
 
 ## 2026-07-03 - Lead Agent Review Fixes And Dirty Baseline Boundary
 
@@ -917,6 +954,7 @@ clearly when amoCRM is not configured or provider calls fail; they must not
 create local-only real leads.
 
 Current official docs consulted on 2026-07-06:
+
 - WAHA Sessions: `https://waha.devlike.pro/docs/how-to/sessions/`
   (`GET/POST /api/sessions`, `GET /api/sessions/{name}`, status values,
   session config webhooks, HMAC key config).
@@ -943,14 +981,14 @@ Current official docs consulted on 2026-07-06:
 - amoCRM Filters API:
   `https://www.amocrm.ru/developers/content/crm_platform/filters-api`
   (`query`, `filter[custom_fields_values]`, and other list filters).
-Validation impact: run `npm ci --include=dev`, `npm test`, `npm run lint`,
-`npm run typecheck`, and `npm run build` from `agent-lead2-crmwhatsapp/`; run
-targeted `rg` checks for Meta/WAHA/amoCRM terms. Perform only read-only live
-WAHA status validation if WAHA base URL and API key are present in environment
-or existing config, and only safe amoCRM lookup validation if credentials and a
-clearly intended test phone are present. Do not deploy and do not touch
-`/opt/evo-crm`.
-Reviewer notes: pending independent launch-control review.
+  Validation impact: run `npm ci --include=dev`, `npm test`, `npm run lint`,
+  `npm run typecheck`, and `npm run build` from `agent-lead2-crmwhatsapp/`; run
+  targeted `rg` checks for Meta/WAHA/amoCRM terms. Perform only read-only live
+  WAHA status validation if WAHA base URL and API key are present in environment
+  or existing config, and only safe amoCRM lookup validation if credentials and a
+  clearly intended test phone are present. Do not deploy and do not touch
+  `/opt/evo-crm`.
+  Reviewer notes: pending independent launch-control review.
 
 ## 2026-07-06 - EVO Inbox Issue 15 Inbound WAHA Delivery
 
@@ -978,6 +1016,7 @@ Manual operator replies, AI/autoreply, redesign, deployment, Caddy/DNS, and
 production proof remain out of scope.
 
 Current official docs consulted on 2026-07-06:
+
 - WAHA Events: `https://waha.devlike.pro/docs/how-to/events/` documents
   per-session webhooks, HMAC config, `X-Webhook-Hmac`, and
   `X-Webhook-Hmac-Algorithm: sha512`.
@@ -994,12 +1033,12 @@ Current official docs consulted on 2026-07-06:
   `https://www.amocrm.ru/developers/content/crm_platform/leads-api` documents
   `GET /api/v4/leads`, `POST /api/v4/leads`, and lead-contact embedding through
   `_embedded.contacts`.
-Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm ci --include=dev`,
-`npm test`, targeted inbound/WAHA tests, `npm run lint`, `npm run typecheck`,
-`npm run build`, `git diff --check`, and a staged secret scan. No production
-deployment, no `/opt/evo-crm` access, and no live WAHA/amoCRM/Supabase success
-claims unless real credentials and real services are exercised.
-Reviewer notes: pending independent launch-control review.
+  Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm ci --include=dev`,
+  `npm test`, targeted inbound/WAHA tests, `npm run lint`, `npm run typecheck`,
+  `npm run build`, `git diff --check`, and a staged secret scan. No production
+  deployment, no `/opt/evo-crm` access, and no live WAHA/amoCRM/Supabase success
+  claims unless real credentials and real services are exercised.
+  Reviewer notes: pending independent launch-control review.
 
 ## 2026-07-06 - EVO Inbox Issue 16 Manual WAHA Reply
 
@@ -1031,6 +1070,7 @@ message without a local message row. Surface that case explicitly as
 updates after successful message persistence only.
 
 Current official docs consulted on 2026-07-06:
+
 - WAHA Send messages: `https://waha.devlike.pro/docs/how-to/send-messages/`
   documents `POST /api/sendText`, common `session` and `chatId` fields,
   direct-user chat IDs as international digits plus `@c.us`, converting

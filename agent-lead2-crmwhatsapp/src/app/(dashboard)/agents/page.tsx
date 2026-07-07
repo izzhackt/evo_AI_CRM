@@ -40,7 +40,7 @@ export default function AgentsPage() {
         </h1>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Configure bring-your-own OpenAI or Anthropic draft generation,
+        Configure bring-your-own OpenAI, Anthropic, or Gemini draft generation,
         knowledge retrieval, and operator review. Auto-reply is unavailable for
         first launch.
       </p>

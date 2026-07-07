@@ -3,7 +3,7 @@ import { decrypt } from '@/lib/whatsapp/encryption'
 import type { AiConfig } from './types'
 
 interface AiConfigRow {
-  provider: 'openai' | 'anthropic'
+  provider: 'openai' | 'anthropic' | 'gemini'
   model: string
   api_key: string
   system_prompt: string | null
@@ -30,7 +30,7 @@ const CONFIG_COLUMNS =
 export async function loadAiConfig(
   db: SupabaseClient,
   accountId: string,
-  opts: { requireActive?: boolean } = {},
+  opts: { requireActive?: boolean } = {}
 ): Promise<AiConfig | null> {
   const { requireActive = true } = opts
   const { data, error } = await db
@@ -62,7 +62,7 @@ export async function loadAiConfig(
       // Not silent — a rotated/mismatched ENCRYPTION_KEY here means
       // semantic search quietly stops working, so leave a breadcrumb.
       console.error(
-        `[ai config] embeddings key for account ${accountId} could not be decrypted — check ENCRYPTION_KEY; semantic search is disabled until it is re-entered.`,
+        `[ai config] embeddings key for account ${accountId} could not be decrypted — check ENCRYPTION_KEY; semantic search is disabled until it is re-entered.`
       )
       embeddingsApiKey = null
     }
@@ -93,7 +93,7 @@ export async function loadAiConfig(
  */
 export async function loadEmbeddingsKey(
   db: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<{ key: string | null; corrupt: boolean }> {
   const { data, error } = await db
     .from('ai_configs')
@@ -105,7 +105,7 @@ export async function loadEmbeddingsKey(
     return { key: decrypt(data.embeddings_api_key), corrupt: false }
   } catch {
     console.error(
-      `[ai config] embeddings key for account ${accountId} could not be decrypted — check ENCRYPTION_KEY.`,
+      `[ai config] embeddings key for account ${accountId} could not be decrypted — check ENCRYPTION_KEY.`
     )
     return { key: null, corrupt: true }
   }

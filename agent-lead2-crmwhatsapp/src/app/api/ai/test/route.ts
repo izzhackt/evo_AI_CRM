@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { validateAiCredentials } from '@/lib/ai/validate'
 import { AiError, type AiProvider } from '@/lib/ai/types'
@@ -23,14 +27,21 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null)
     if (!body || typeof body !== 'object') {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
     }
 
     const provider = body.provider as AiProvider
-    if (provider !== 'openai' && provider !== 'anthropic') {
+    if (
+      provider !== 'openai' &&
+      provider !== 'anthropic' &&
+      provider !== 'gemini'
+    ) {
       return NextResponse.json(
-        { error: 'provider must be "openai" or "anthropic"' },
-        { status: 400 },
+        { error: 'provider must be "openai", "anthropic", or "gemini"' },
+        { status: 400 }
       )
     }
     const model = typeof body.model === 'string' ? body.model.trim() : ''
@@ -49,15 +60,17 @@ export async function POST(request: Request) {
       if (!existing?.api_key) {
         return NextResponse.json(
           { error: 'Enter an API key to test.' },
-          { status: 400 },
+          { status: 400 }
         )
       }
       try {
         apiKeyPlain = decrypt(existing.api_key)
       } catch {
         return NextResponse.json(
-          { error: 'Stored API key could not be decrypted — re-enter your key.' },
-          { status: 400 },
+          {
+            error: 'Stored API key could not be decrypted — re-enter your key.',
+          },
+          { status: 400 }
         )
       }
     }
@@ -77,13 +90,13 @@ export async function POST(request: Request) {
       if (err instanceof AiError) {
         return NextResponse.json(
           { error: err.message, code: err.code },
-          { status: 400 },
+          { status: 400 }
         )
       }
       console.error('[ai/test] validation error:', err)
       return NextResponse.json(
         { error: 'Could not validate the API key.' },
-        { status: 400 },
+        { status: 400 }
       )
     }
 

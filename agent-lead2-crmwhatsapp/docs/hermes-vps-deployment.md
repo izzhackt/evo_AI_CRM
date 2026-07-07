@@ -65,14 +65,19 @@ in encrypted EVO Inbox settings and, for the proof run, in `.env.production` as
 `EVO_INBOX_WAHA_API_KEY`. For the proof run only, the preflight script also
 checks `EVO_INBOX_WAHA_BASE_URL`, `EVO_INBOX_WAHA_API_KEY`,
 `EVO_INBOX_WAHA_WEBHOOK_HMAC`, `EVO_INBOX_AMOCRM_BASE_URL`,
-`EVO_INBOX_AMOCRM_ACCESS_TOKEN`, and either `OPENAI_API_KEY` or
-`ANTHROPIC_API_KEY`.
+`EVO_INBOX_AMOCRM_ACCESS_TOKEN`, and `EVO_INBOX_GEMINI_API_KEY` from the
+ignored `.env.gemini` seed file.
 
 ## Preflight commands
 
-Run from `agent-lead2-crmwhatsapp/` after installing dependencies:
+Run from `agent-lead2-crmwhatsapp/` after installing dependencies and loading
+both production env files:
 
 ```bash
+set -a
+. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production
+. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.gemini
+set +a
 npm run preflight:prod
 npm run lint
 npm run typecheck
@@ -114,6 +119,37 @@ The seed command upserts `integration_settings(provider='waha')` and encrypted
 the setting id, account id, public config, and secret names; it must not print
 secret values.
 
+## Seed Gemini AI draft settings
+
+After `.env.production` contains the live Supabase keys and `ENCRYPTION_KEY`,
+create `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.gemini` from
+`deploy/env.gemini.example`, then seed the encrypted account-level AI config:
+
+```bash
+set -a
+. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production
+. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.gemini
+set +a
+npm run seed:prod-ai
+```
+
+Required seed variables:
+
+| Variable                     | Purpose                                                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `EVO_INBOX_AI_PROVIDER`      | Must be `gemini` for this seed command.                                                              |
+| `EVO_INBOX_AI_MODEL`         | Optional; defaults to `gemini-3.5-flash`.                                                            |
+| `EVO_INBOX_AI_ACTIVE`        | Optional; defaults to `true`, enabling the operator-reviewed draft button.                           |
+| `EVO_INBOX_ACCOUNT_ID`       | Optional when exactly one Supabase `accounts` row exists; required when there are multiple accounts. |
+| `EVO_INBOX_CONFIG_USER_ID`   | Optional audit user id; falls back to `accounts.owner_user_id` when present.                         |
+| `EVO_INBOX_GEMINI_API_KEY`   | Plain Gemini API key; validated with Google, then stored encrypted in Supabase.                      |
+| `EVO_INBOX_AI_SYSTEM_PROMPT` | Optional business instructions stored in `ai_configs.system_prompt`.                                 |
+
+The seed command validates the Gemini key with Google's server-side
+Interactions API, then upserts `ai_configs(provider='gemini')`. It prints only
+the provider, model, account id, active flags, and `has_api_key`; it must not
+print the key or decrypted secret.
+
 ## Deployment outline
 
 Only perform this after a reviewed PR is merged and real credentials are
@@ -132,6 +168,8 @@ available:
    `docker compose --env-file ../.env.production -f docker-compose.inbox.prod.yml up -d --build`.
 8. Run `npm run seed:prod-waha` from `agent-lead2-crmwhatsapp/` after loading
    `.env.production`.
-9. Confirm `evo-edge-caddy`, `evo-inbox` app, and `evo-inbox-waha`
-   healthchecks pass.
-10. Execute the issue #20 live proof checklist.
+9. Run `npm run seed:prod-ai` from `agent-lead2-crmwhatsapp/` after loading
+   `.env.production` and `.env.gemini`.
+10. Confirm `evo-edge-caddy`, `evo-inbox` app, and `evo-inbox-waha`
+    healthchecks pass.
+11. Execute the issue #20 live proof checklist.

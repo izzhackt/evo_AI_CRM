@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff } from 'lucide-react';
+import {
+  Loader2,
+  Sparkles,
+  CheckCircle2,
+  Trash2,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/button';
@@ -34,11 +41,13 @@ const MASKED_KEY = '••••••••••••••••';
 const PROVIDER_LABEL: Record<AiProvider, string> = {
   openai: 'OpenAI',
   anthropic: 'Anthropic (Claude)',
+  gemini: 'Google Gemini',
 };
 
 const KEY_PLACEHOLDER: Record<AiProvider, string> = {
   openai: 'sk-...',
   anthropic: 'sk-ant-...',
+  gemini: 'AIza...',
 };
 
 export function AiConfig() {
@@ -111,6 +120,7 @@ export function AiConfig() {
     const isDefaultModel =
       model === AI_PROVIDER_DEFAULT_MODEL.openai ||
       model === AI_PROVIDER_DEFAULT_MODEL.anthropic ||
+      model === AI_PROVIDER_DEFAULT_MODEL.gemini ||
       model.trim() === '';
     if (isDefaultModel) setModel(AI_PROVIDER_DEFAULT_MODEL[next]);
   };
@@ -209,7 +219,7 @@ export function AiConfig() {
 
   if (loading || profileLoading) {
     return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
+      <div className="text-muted-foreground flex items-center justify-center py-16">
         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading…
       </div>
     );
@@ -221,11 +231,11 @@ export function AiConfig() {
     <div>
       <SettingsPanelHead
         title="EVO Companion AI Assistant"
-        description="Bring your own OpenAI or Anthropic key. EVO Inbox uses it for draft replies and knowledge-grounded review only. Automatic WhatsApp replies are disabled for first launch."
+        description="Bring your own OpenAI, Anthropic, or Gemini key. EVO Inbox uses it for draft replies and knowledge-grounded review only. Automatic WhatsApp replies are disabled for first launch."
       />
 
       {!canEdit && (
-        <p className="mb-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+        <p className="border-border bg-muted/40 text-muted-foreground mb-4 rounded-md border px-3 py-2 text-sm">
           Only admins and owners can change the AI configuration.
         </p>
       )}
@@ -234,7 +244,7 @@ export function AiConfig() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="h-4 w-4 text-primary" /> Provider & key
+              <Sparkles className="text-primary h-4 w-4" /> Provider & key
             </CardTitle>
             <CardDescription>
               Your provider key is encrypted at rest and used only for
@@ -254,9 +264,14 @@ export function AiConfig() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="openai">{PROVIDER_LABEL.openai}</SelectItem>
+                    <SelectItem value="openai">
+                      {PROVIDER_LABEL.openai}
+                    </SelectItem>
                     <SelectItem value="anthropic">
                       {PROVIDER_LABEL.anthropic}
+                    </SelectItem>
+                    <SelectItem value="gemini">
+                      {PROVIDER_LABEL.gemini}
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -299,7 +314,7 @@ export function AiConfig() {
                   <button
                     type="button"
                     onClick={() => setShowKey((s) => !s)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
                     tabIndex={-1}
                   >
                     {showKey ? (
@@ -327,7 +342,7 @@ export function AiConfig() {
             <div className="space-y-2">
               <Label htmlFor="ai-embeddings-key">
                 Embeddings key{' '}
-                <span className="font-normal text-muted-foreground">
+                <span className="text-muted-foreground font-normal">
                   (optional — enables semantic knowledge-base search)
                 </span>
               </Label>
@@ -349,7 +364,7 @@ export function AiConfig() {
                 disabled={disabled}
                 autoComplete="off"
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 An OpenAI key used only to embed your knowledge base
                 (text-embedding-3-small)
                 {provider === 'openai' ? ' — can be the same key as above' : ''}.

@@ -4,7 +4,11 @@ import {
   requireRole,
   toErrorResponse,
 } from '@/lib/auth/account'
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { validateAiCredentials } from '@/lib/ai/validate'
 import { embedTexts } from '@/lib/ai/embeddings'
@@ -30,7 +34,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, api_key, embeddings_api_key',
+        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, api_key, embeddings_api_key'
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -39,7 +43,7 @@ export async function GET() {
       console.error('[ai/config GET] fetch error:', error)
       return NextResponse.json(
         { error: 'Failed to load AI configuration' },
-        { status: 500 },
+        { status: 500 }
       )
     }
 
@@ -80,8 +84,12 @@ export async function POST(request: Request) {
     if (!body || typeof body !== 'object') return bad('Invalid request body')
 
     const provider = body.provider as AiProvider
-    if (provider !== 'openai' && provider !== 'anthropic') {
-      return bad('provider must be "openai" or "anthropic"')
+    if (
+      provider !== 'openai' &&
+      provider !== 'anthropic' &&
+      provider !== 'gemini'
+    ) {
+      return bad('provider must be "openai", "anthropic", or "gemini"')
     }
     const model = typeof body.model === 'string' ? body.model.trim() : ''
     if (!model) return bad('model is required')
@@ -151,7 +159,7 @@ export async function POST(request: Request) {
         if (err instanceof AiError) {
           return NextResponse.json(
             { error: err.message, code: err.code },
-            { status: 400 },
+            { status: 400 }
           )
         }
         console.error('[ai/config POST] validation error:', err)
@@ -168,7 +176,7 @@ export async function POST(request: Request) {
         if (err instanceof AiError) {
           return NextResponse.json(
             { error: `Embeddings key: ${err.message}`, code: err.code },
-            { status: 400 },
+            { status: 400 }
           )
         }
         console.error('[ai/config POST] embeddings validation error:', err)
@@ -200,7 +208,7 @@ export async function POST(request: Request) {
         console.error('[ai/config POST] update error:', upErr)
         return NextResponse.json(
           { error: 'Failed to save AI configuration' },
-          { status: 500 },
+          { status: 500 }
         )
       }
     } else {
@@ -214,7 +222,7 @@ export async function POST(request: Request) {
         console.error('[ai/config POST] insert error:', insErr)
         return NextResponse.json(
           { error: 'Failed to save AI configuration' },
-          { status: 500 },
+          { status: 500 }
         )
       }
     }
@@ -242,7 +250,7 @@ export async function DELETE() {
       console.error('[ai/config DELETE] error:', error)
       return NextResponse.json(
         { error: 'Failed to delete AI configuration' },
-        { status: 500 },
+        { status: 500 }
       )
     }
     return NextResponse.json({ success: true })

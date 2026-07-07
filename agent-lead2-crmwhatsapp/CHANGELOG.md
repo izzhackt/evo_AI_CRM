@@ -9,6 +9,19 @@ Versions follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0, `MINOR` bumps cover new modules; `PATCH` bumps cover bug fixes
 and polish.
 
+## [Unreleased]
+
+### Added
+
+- **Google Gemini AI provider.** Accounts can use Gemini in the AI Agents setup
+  flow with `gemini-3.5-flash` as the default model. The provider key is still
+  stored AES-256-GCM-encrypted in `ai_configs.api_key`, and auto-reply remains
+  disabled for first launch.
+- **Production Gemini seed command.** `npm run seed:prod-ai` reads an ignored
+  VPS `.env.gemini` file, validates the key with Google's Interactions API, and
+  upserts the encrypted account-level AI config. **Migration required:** apply
+  `supabase/migrations/034_ai_gemini_provider.sql`.
+
 ## [0.7.0] — 2026-07-02
 
 Promotes the AI assistant to a first-class **AI Agents** section in the
@@ -19,7 +32,7 @@ sidebar — it's no longer tucked inside Settings.
 - **AI Agents (sidebar).** A dedicated `/agents` area with two tabs:
   - **Playground** — a test chat to message your agent and see its
     grounded, multi-turn replies (and where it would hand off to a human)
-    *before* it ever answers a real customer. Runs the exact same path as
+    _before_ it ever answers a real customer. Runs the exact same path as
     the auto-reply bot (knowledge-base retrieval + your provider), and
     works even before you flip the master switch on, so you can try, then
     enable. Backed by `POST /api/ai/playground`.
@@ -59,7 +72,7 @@ relevant excerpts are retrieved into every draft and auto-reply.
 ## [0.5.0] — 2026-07-02
 
 Adds the **AI reply assistant** — bring-your-own-key. Each account
-pastes its own OpenAI or Anthropic key under **Settings → AI
+pastes its own provider key under **Settings → AI
 Assistant**; wacrm calls the provider directly with that key, so
 there's no per-seat AI fee and your conversation data never leaves
 your own infrastructure for a wacrm-run service. The key is stored
@@ -95,7 +108,7 @@ returned to the client after saving.
 ## [0.4.0] — 2026-07-01
 
 Completes the public API (#245): **outbound event webhooks** so
-automations can *react* to activity instead of polling.
+automations can _react_ to activity instead of polling.
 
 ### Added
 
@@ -156,11 +169,11 @@ always did.
   - `POST /api/v1/broadcasts` + `GET /api/v1/broadcasts/{id}` — launch a
     template broadcast to a recipient list and poll its progress
     (`broadcasts:send`).
-  All list endpoints share one cursor-pagination contract
-  (`{ data, meta: { next_cursor } }`). No migration required — the
-  scopes already existed and the tables are unchanged. Outbound event
-  webhooks (react to inbound messages) are the remaining roadmap item.
-  See `docs/public-api.md`. ([#245](https://github.com/ArnasDon/wacrm/issues/245))
+    All list endpoints share one cursor-pagination contract
+    (`{ data, meta: { next_cursor } }`). No migration required — the
+    scopes already existed and the tables are unchanged. Outbound event
+    webhooks (react to inbound messages) are the remaining roadmap item.
+    See `docs/public-api.md`. ([#245](https://github.com/ArnasDon/wacrm/issues/245))
 
 ### Changed
 
@@ -199,8 +212,8 @@ always did.
 
 - `supabase/migrations/020_account_sharing_followups.sql` —
   composite partial indexes on `automations(account_id,
-  trigger_type) WHERE is_active` and `flows(account_id) WHERE
-  status='active'` for the engine dispatch hot path; updated
+trigger_type) WHERE is_active` and `flows(account_id) WHERE
+status='active'` for the engine dispatch hot path; updated
   `flow-media` storage RLS to allow account-member writes under
   the new path convention. Idempotent.
 
@@ -391,10 +404,10 @@ when two users on the same instance saved the same WhatsApp
 - **Inbound WhatsApp messages no longer silently disappear** when two
   users have claimed the same `phone_number_id`. Previously the
   webhook used `.single()` to look up the owning config, which errors
-  `PGRST116` for both 0 rows *and* ≥2 rows — the second user's save
+  `PGRST116` for both 0 rows _and_ ≥2 rows — the second user's save
   put the DB into the ≥2-row state and every inbound message was
-  dropped while the log misleadingly reported *"No config found for
-  phone_number_id"*. Three layers of fix: `POST /api/whatsapp/config`
+  dropped while the log misleadingly reported _"No config found for
+  phone_number_id"_. Three layers of fix: `POST /api/whatsapp/config`
   now returns **409** when another user has already claimed the
   number, the webhook lookup distinguishes 0 rows from ≥2 rows and
   logs the conflicting `user_id`s, and a new DB constraint

@@ -42,19 +42,6 @@ function requireEncryptionKey() {
   });
 }
 
-function requireOneOf(names, description) {
-  const present = names.filter((name) => !missing(name));
-  checks.push({
-    name: names.join(' or '),
-    ok: present.length > 0,
-    description,
-    message:
-      present.length > 0
-        ? `${present.join(', ')} present`
-        : `missing one of ${names.join(', ')}`,
-  });
-}
-
 requireEnv('NEXT_PUBLIC_SUPABASE_URL', 'Supabase project URL');
 requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'Supabase anon/publishable key');
 requireEnv('SUPABASE_SERVICE_ROLE_KEY', 'Supabase service-role key');
@@ -67,9 +54,9 @@ requireEnv('EVO_INBOX_WAHA_API_KEY', 'WAHA API key for proof setup');
 requireEnv('EVO_INBOX_WAHA_WEBHOOK_HMAC', 'WAHA webhook HMAC secret');
 requireEnv('EVO_INBOX_AMOCRM_BASE_URL', 'amoCRM account/domain URL');
 requireEnv('EVO_INBOX_AMOCRM_ACCESS_TOKEN', 'amoCRM token for proof setup');
-requireOneOf(
-  ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY'],
-  'AI provider key for EVO Companion draft proof',
+requireEnv(
+  'EVO_INBOX_GEMINI_API_KEY',
+  'Gemini API key for EVO Companion draft proof',
 );
 requireEnv('EVO_INBOX_TEST_WHATSAPP_NUMBER', 'real WhatsApp number for proof');
 

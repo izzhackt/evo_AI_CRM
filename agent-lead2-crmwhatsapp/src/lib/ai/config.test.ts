@@ -43,6 +43,24 @@ describe('loadAiConfig requireActive', () => {
     expect(config!.apiKey).toBe('plain:enc-key')
   })
 
+  it('loads a Gemini config row', async () => {
+    const config = await loadAiConfig(
+      dbReturning({
+        ...ROW,
+        provider: 'gemini',
+        model: 'gemini-3.5-flash',
+        is_active: true,
+      }),
+      'acct'
+    )
+
+    expect(config).toMatchObject({
+      provider: 'gemini',
+      model: 'gemini-3.5-flash',
+    })
+    expect(config!.apiKey).toBe('plain:enc-key')
+  })
+
   it('forces auto-reply off even if a stored row enables it', async () => {
     const config = await loadAiConfig(
       dbReturning({
@@ -51,7 +69,7 @@ describe('loadAiConfig requireActive', () => {
         auto_reply_max_per_conversation: 20,
       }),
       'acct',
-      { requireActive: false },
+      { requireActive: false }
     )
 
     expect(config!.autoReplyEnabled).toBe(false)
@@ -60,7 +78,7 @@ describe('loadAiConfig requireActive', () => {
 
   it('returns null when there is no row', async () => {
     expect(
-      await loadAiConfig(dbReturning(null), 'acct', { requireActive: false }),
+      await loadAiConfig(dbReturning(null), 'acct', { requireActive: false })
     ).toBeNull()
   })
 })

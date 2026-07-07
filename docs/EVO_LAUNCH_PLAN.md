@@ -29,6 +29,8 @@ Deliverables for this slice:
 - Keep local smoke no-outbound and failing when outbound is enabled.
 - Update production env examples and deployment docs with Gemini configuration
   and receive-only safety flags.
+- For the EVO Inbox companion, add Gemini as an encrypted account-level AI
+  provider with a repeatable VPS seed command; keep the assistant draft-only.
 - Run lead-agent `uv run pytest` and `uv run ruff check .`.
 - Run parent CRM validation because deployment docs and Compose are touched, or
   record the exact blocker.
@@ -96,7 +98,7 @@ Research was checked on 2026-06-24 against current local and online sources:
 - Context7 official Next.js docs for `/vercel/next.js/v16.2.9` confirm route
   handlers live under `app/**/route.ts`, supported HTTP methods are exported
   functions, `next build` is the production build gate, and `next typegen && tsc
-  --noEmit` is the documented route/type validation path.
+--noEmit` is the documented route/type validation path.
 - Context7 official Anthropic TypeScript SDK docs confirm server-side SDK usage
   through `client.messages.create`, API-key configuration, and message arrays as
   the real request path. Launch validation must use a real configured API key or

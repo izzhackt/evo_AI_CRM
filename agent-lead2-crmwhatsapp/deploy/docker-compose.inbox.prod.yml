@@ -24,6 +24,8 @@ services:
         condition: service_healthy
     networks:
       private:
+        aliases:
+          - evo-inbox-app
       web:
         aliases:
           - evo-inbox-app

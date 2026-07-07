@@ -73,3 +73,8 @@ npm run build
 `npm ci --include=dev` is the install command for local validation because this
 VPS npm config omits dev dependencies by default, while lint/typecheck/test
 require the dev toolchain.
+
+Production review artifacts for `inbox.evoadmissions.com` live in
+`deploy/`, with the deployment preflight notes in
+`docs/hermes-vps-deployment.md` and the issue #20 real proof checklist in
+`docs/production-proof-checklist.md`.

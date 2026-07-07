@@ -342,9 +342,12 @@ export default function ContactsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Contacts</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            Lead profiles
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage your contact list. {totalCount > 0 && `${totalCount} total contacts.`}
+            Review WhatsApp lead profiles and amoCRM identity shadow records.
+            {totalCount > 0 && ` ${totalCount} total profiles.`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -375,7 +378,7 @@ export default function ContactsPage() {
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Plus className="size-4" />
-            Add Contact
+            Add lead profile
           </GatedButton>
         </div>
       </div>
@@ -545,7 +548,7 @@ export default function ContactsPage() {
               <TableHead className="text-muted-foreground hidden md:table-cell">Email</TableHead>
               <TableHead className="text-muted-foreground hidden lg:table-cell">Company</TableHead>
               <TableHead className="text-muted-foreground hidden md:table-cell">Tags</TableHead>
-              <TableHead className="text-muted-foreground hidden lg:table-cell">Created</TableHead>
+              <TableHead className="text-muted-foreground hidden lg:table-cell">amoCRM</TableHead>
               <TableHead className="text-muted-foreground w-12" />
             </TableRow>
           </TableHeader>
@@ -636,12 +639,19 @@ export default function ContactsPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-xs hidden lg:table-cell">
-                    {new Date(contact.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
+                  <TableCell className="hidden lg:table-cell">
+                    {contact.amo_contact_id ? (
+                      <span
+                        className="block max-w-36 truncate font-mono text-xs text-foreground"
+                        title={contact.amo_contact_id}
+                      >
+                        {contact.amo_contact_id}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-amber-300">
+                        Unresolved
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
@@ -802,7 +812,7 @@ export default function ContactsPage() {
         <DialogContent className="bg-popover border-border text-popover-foreground sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-popover-foreground">
-              Delete {selected.size} {selected.size === 1 ? 'Contact' : 'Contacts'}
+              Delete {selected.size} {selected.size === 1 ? 'profile' : 'profiles'}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
               Are you sure you want to delete{' '}

@@ -98,25 +98,14 @@ beforeEach(() => {
 })
 
 describe('dispatchInboundToAiReply — eligibility gates', () => {
-  it('claims a slot and sends on the happy path', async () => {
+  it('is unavailable for first launch and never reaches generation or sending', async () => {
     await dispatchInboundToAiReply(ARGS)
-    expect(h.state.rpcCalls).toEqual([
-      {
-        name: 'claim_ai_reply_slot',
-        args: { conversation_id: 'conv-1', max_replies: 3 },
-      },
-    ])
-    expect(h.engineSendText).toHaveBeenCalledWith(
-      expect.objectContaining({ conversationId: 'conv-1', text: 'Hello!' }),
-    )
-  })
-
-  it('grounds the reply in retrieved knowledge', async () => {
-    h.retrieveKnowledge.mockResolvedValue(['Returns accepted within 30 days.'])
-    await dispatchInboundToAiReply(ARGS)
-    expect(h.retrieveKnowledge).toHaveBeenCalled()
-    const systemPrompt = h.generateReply.mock.calls[0][0].systemPrompt as string
-    expect(systemPrompt).toContain('Returns accepted within 30 days.')
+    expect(h.loadAiConfig).not.toHaveBeenCalled()
+    expect(h.buildConversationContext).not.toHaveBeenCalled()
+    expect(h.retrieveKnowledge).not.toHaveBeenCalled()
+    expect(h.generateReply).not.toHaveBeenCalled()
+    expect(h.state.rpcCalls).toEqual([])
+    expect(h.engineSendText).not.toHaveBeenCalled()
   })
 
   it('stands down when an active message-level automation exists', async () => {
@@ -129,8 +118,7 @@ describe('dispatchInboundToAiReply — eligibility gates', () => {
   it('does not send when the atomic slot claim loses the race', async () => {
     h.state.claim = false
     await dispatchInboundToAiReply(ARGS)
-    // It still attempts the claim, but the send is skipped.
-    expect(h.state.rpcCalls).toHaveLength(1)
+    expect(h.state.rpcCalls).toHaveLength(0)
     expect(h.engineSendText).not.toHaveBeenCalled()
   })
 
@@ -186,11 +174,11 @@ describe('dispatchInboundToAiReply — eligibility gates', () => {
 })
 
 describe('dispatchInboundToAiReply — handoff', () => {
-  it('disables auto-reply and does not send on handoff', async () => {
+  it('does not mutate conversation state for handoff because auto-reply is unavailable', async () => {
     h.generateReply.mockResolvedValue({ text: '', handoff: true })
     await dispatchInboundToAiReply(ARGS)
     expect(h.engineSendText).not.toHaveBeenCalled()
-    expect(h.state.updatePayload).toEqual({ ai_autoreply_disabled: true })
+    expect(h.state.updatePayload).toBeNull()
     expect(h.state.rpcCalls).toHaveLength(0)
   })
 })

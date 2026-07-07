@@ -1,0 +1,36 @@
+name: evo-inbox
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: evo-inbox:latest
+    restart: unless-stopped
+    env_file:
+      - ../.env.production
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://inbox.evoadmissions.com}
+      EVO_INBOX_DOMAIN: ${EVO_INBOX_DOMAIN:-inbox.evoadmissions.com}
+      EVO_CADDY_NETWORK: ${EVO_CADDY_NETWORK:-acadis_acadis_web}
+    expose:
+      - "3000"
+    networks:
+      web:
+        aliases:
+          - evo-inbox-app
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  web:
+    external: true
+    name: ${EVO_CADDY_NETWORK:-acadis_acadis_web}

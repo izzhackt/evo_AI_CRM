@@ -713,6 +713,7 @@ export function MessageThread({
   }
 
   const displayName = contact.name || contact.phone;
+  const amoLeadId = conversation.amo_lead_id?.trim();
   const messageGroups = groupMessagesByDate(messages);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
@@ -767,6 +768,22 @@ export function MessageThread({
           >
             <Clock className="h-3 w-3" />
             {sessionInfo.remaining}
+          </Badge>
+          <Badge
+            variant="outline"
+            className={cn(
+              "ml-1 hidden max-w-36 gap-1 border-border text-[10px] md:inline-flex",
+              amoLeadId ? "text-primary" : "text-amber-300",
+            )}
+            title={
+              amoLeadId
+                ? `amoCRM lead ${amoLeadId}`
+                : "amoCRM lead unresolved"
+            }
+          >
+            <span className="truncate">
+              {amoLeadId ? `amoCRM ${amoLeadId}` : "amoCRM pending"}
+            </span>
           </Badge>
         </div>
 

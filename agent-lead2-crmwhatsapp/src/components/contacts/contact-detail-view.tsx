@@ -30,6 +30,7 @@ import {
   Trash2,
   Save,
   DollarSign,
+  Link2,
 } from 'lucide-react';
 
 interface ContactDetailViewProps {
@@ -349,7 +350,7 @@ export function ContactDetailView({
                     {contact.name || 'Unknown'}
                   </SheetTitle>
                   <SheetDescription className="text-muted-foreground text-xs mt-0.5">
-                    Contact details
+                    Lead profile
                   </SheetDescription>
                   <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                     <button
@@ -374,6 +375,14 @@ export function ContactDetailView({
                       <span className="flex items-center gap-1">
                         <Building2 className="size-3" />
                         {contact.company}
+                      </span>
+                    )}
+                    {contact.amo_contact_id && (
+                      <span className="flex min-w-0 items-center gap-1">
+                        <Link2 className="size-3" />
+                        <span className="max-w-40 truncate font-mono">
+                          {contact.amo_contact_id}
+                        </span>
                       </span>
                     )}
                   </div>
@@ -419,6 +428,42 @@ export function ContactDetailView({
               {/* Details Tab */}
               <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3">
                 <div className="space-y-3">
+                  <div className="rounded-md border border-border bg-muted/40 p-3">
+                    <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      <Link2 className="size-3" />
+                      amoCRM identity
+                    </div>
+                    <div className="mt-2 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Contact ID</span>
+                        <span
+                          className={
+                            contact.amo_contact_id
+                              ? 'min-w-0 truncate font-mono text-foreground'
+                              : 'text-amber-300'
+                          }
+                          title={contact.amo_contact_id ?? 'Unresolved'}
+                        >
+                          {contact.amo_contact_id ?? 'Unresolved'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Last sync</span>
+                        <span className="text-muted-foreground">
+                          {contact.amo_contact_synced_at
+                            ? new Date(
+                                contact.amo_contact_synced_at,
+                              ).toLocaleString()
+                            : 'Not synced'}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
+                      amoCRM remains the canonical identity and sales-status
+                      source. EVO Inbox stores this read-only shadow id for
+                      operator context.
+                    </p>
+                  </div>
                   <div className="space-y-1.5">
                     <Label className="text-muted-foreground text-xs">Name</Label>
                     <Input

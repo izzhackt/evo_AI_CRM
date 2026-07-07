@@ -431,6 +431,9 @@ function ConversationItem({
   const contact = conversation.contact;
   const displayName = contact?.name || contact?.phone || "Unknown";
   const initials = displayName.charAt(0).toUpperCase();
+  const hasAmoIdentity = Boolean(
+    contact?.amo_contact_id || conversation.amo_lead_id,
+  );
 
   const handleClick = useCallback(() => {
     onSelect(conversation);
@@ -466,8 +469,25 @@ function ConversationItem({
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium text-foreground">
-            {displayName}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-sm font-medium text-foreground">
+              {displayName}
+            </span>
+            <span
+              className={cn(
+                "hidden shrink-0 rounded border px-1 py-px text-[9px] uppercase leading-none sm:inline-flex",
+                hasAmoIdentity
+                  ? "border-primary/30 text-primary"
+                  : "border-amber-500/30 text-amber-300",
+              )}
+              title={
+                hasAmoIdentity
+                  ? "amoCRM identity present"
+                  : "amoCRM identity unresolved"
+              }
+            >
+              amo
+            </span>
           </span>
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>

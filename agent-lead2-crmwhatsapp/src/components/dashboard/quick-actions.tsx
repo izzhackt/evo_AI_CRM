@@ -17,7 +17,7 @@ interface Action {
 
 const ACTIONS: Action[] = [
   { label: 'Open Inbox', href: '/inbox', icon: MessageSquare, tint: 'text-primary' },
-  { label: 'New Contact', href: '/contacts', icon: UserPlus, tint: 'text-primary' },
+  { label: 'New lead profile', href: '/contacts', icon: UserPlus, tint: 'text-primary' },
   { label: 'Pipeline Board', href: '/pipelines', icon: Briefcase, tint: 'text-blue-400' },
 ]
 

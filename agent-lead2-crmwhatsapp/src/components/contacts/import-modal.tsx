@@ -402,7 +402,7 @@ export function ImportModal({
         <div className="shrink-0 space-y-4 border-b border-border/80 px-6 pt-6 pb-5">
           <DialogHeader className="gap-1.5">
             <DialogTitle className="text-lg text-popover-foreground">
-              Import Contacts
+              Import lead profiles
             </DialogTitle>
             <DialogDescription className="leading-relaxed text-muted-foreground">
               Upload a CSV with a required{' '}

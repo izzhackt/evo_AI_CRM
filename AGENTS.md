@@ -3,6 +3,10 @@
 ## How To Work In This Repo
 
 - Treat this repo as the production EVO Admissions CRM workspace.
+- Treat GitHub as the latest shared source of truth for code, migrations,
+  docs, runbooks, issues, and PR state. Push reviewed repo changes promptly
+  after validation so local/VPS worktrees do not become private sources of
+  truth.
 - Analyze current repo state and deployment context before editing. Use
   `rg`/targeted reads first; do not guess from memory.
 - For integrations, architecture, external APIs, or "do it properly" requests,
@@ -17,6 +21,9 @@
   blocker.
 - Do not hardcode credentials, WhatsApp session data, customer personal data,
   amoCRM tokens, WAHA API keys, Anthropic keys, or server secrets.
+- Keep real runtime secrets only in ignored `.env*` files, VPS secret files,
+  provider dashboards, or encrypted application settings; commit only safe
+  examples such as `.env.example` and documented placeholder values.
 - Keep WAHA, the lead-agent, and their dashboards/APIs private unless explicit
   authenticated public access is added.
 

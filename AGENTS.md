@@ -39,6 +39,9 @@
   alias `evo-crm-app:3000`.
 - Caddy runs in `/opt/acadis` as container `acadis-caddy-1` and reverse proxies
   to `evo-crm-app:3000` on Docker network `acadis_acadis_web`.
+- Do not introduce new EVO Inbox dependencies on the `acadis_*` Docker networks;
+  Arcadis/acadis is a separate project boundary. EVO Inbox should use its own
+  Compose project and neutral EVO-owned proxy/network names.
 
 ## WhatsApp And Lead-Agent Boundary
 

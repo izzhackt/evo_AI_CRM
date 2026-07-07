@@ -9,7 +9,7 @@ deployed from a dirty workstation, and this run does not touch `/opt/evo-crm`.
 - Target service name: `evo-inbox`.
 - Target public host: `https://inbox.evoadmissions.com`.
 - Caddy reverse-proxy target: `evo-inbox-app:3000`.
-- Caddy Docker network: `${EVO_CADDY_NETWORK:-acadis_acadis_web}`.
+- Caddy Docker network: `${EVO_CADDY_NETWORK:-evo_public_web}`. This must be an EVO-owned neutral edge network, not an `acadis_*` project network.
 - WAHA stays private on the Docker network. Do not add public `ports:` for WAHA.
 
 The Next.js container uses `output: "standalone"`. Per the official Next.js
@@ -34,7 +34,7 @@ Set these on the target host in `.env.production`; do not commit real values.
 | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | Canonical URL, `https://inbox.evoadmissions.com`. |
 | `EVO_INBOX_DOMAIN` | Expected DNS/Caddy hostname, `inbox.evoadmissions.com`. |
-| `EVO_CADDY_NETWORK` | Docker network shared with Caddy, normally `acadis_acadis_web`. |
+| `EVO_CADDY_NETWORK` | Docker network shared with Caddy, normally `evo_public_web`. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase companion project URL. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/publishable key. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase service role key. |

@@ -465,6 +465,34 @@ checks locally. Live WhatsApp/amoCRM validation remains blocked until real
 credentials and server configuration are supplied.
 Reviewer notes: pending independent launch-control review.
 
+## 2026-07-08 - EVO Inbox amoCRM Production Seed Path
+
+Date: 2026-07-08, workspace timezone.
+Author: Codex.
+Change type: production setup tooling, proof-readiness, and secret-handling
+scope.
+Affected plan section: long-run EVO Inbox amoCRM connection and production
+proof.
+Reason: the live amoCRM external integration creation reached the account
+security-confirmation step, so the production token cannot be finished until the
+owner supplies the email code. Once the token exists, setup still needs a
+repeatable GitHub-owned command equivalent to the WAHA/Gemini seeds instead of
+manual Supabase edits or unreviewed secret handling.
+Decision: add `npm run seed:prod-amocrm` plus an ignored `.env.amocrm` flow. The
+command validates the provided long-lived token with the real amoCRM
+`GET /api/v4/account` endpoint, upserts encrypted account-level
+`integration_settings(provider='amocrm')`/`integration_secrets(access_token)`,
+stores only non-secret public routing ids, and resets `not_configured`/`blocked`
+CRM sync rows to `pending` so the internal retry endpoint can complete identity
+sync after configuration repair. It prints only provider/account metadata and
+secret names, never decrypted token material.
+Validation impact: run from `agent-lead2-crmwhatsapp/`: targeted
+`scripts/seed-prod-amocrm-config.test.ts`, script syntax check, lint,
+typecheck, build as needed for the PR. Live amoCRM success may only be claimed
+after the email confirmation code is supplied, the long-lived token is generated
+and seeded, and the real account/token API call succeeds.
+Reviewer notes: pending independent launch-control review.
+
 ## 2026-07-08 - EVO Inbox Reliable amoCRM Sync Buffer
 
 Date: 2026-07-08, workspace timezone.

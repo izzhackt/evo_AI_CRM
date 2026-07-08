@@ -158,6 +158,47 @@ or imports. Supabase Free is for proof/small pilot only; move to Pro before
 sustained WhatsApp production traffic, imports above 50k messages, database size
 above 250 MB, or thousands of knowledge chunks.
 
+## Seed amoCRM identity settings
+
+After the EVO Inbox amoCRM external/private integration is created and its
+long-lived token is copied once, create
+`/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.amocrm` from
+`deploy/env.amocrm.example`, then seed the encrypted account-level amoCRM
+configuration:
+
+```bash
+set -a
+. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production
+. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.amocrm
+set +a
+npm run seed:prod-amocrm
+```
+
+Required seed variables:
+
+| Variable                        | Purpose                                                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `EVO_INBOX_AMOCRM_BASE_URL`     | amoCRM/Kommo account URL, for example `https://evoadmissions.amocrm.ru`.                             |
+| `EVO_INBOX_AMOCRM_ACCESS_TOKEN` | Long-lived token copied from the integration Keys and scopes tab; stored encrypted after validation. |
+| `EVO_INBOX_ACCOUNT_ID`          | Optional when exactly one Supabase `accounts` row exists; required when there are multiple accounts. |
+| `EVO_INBOX_CONFIG_USER_ID`      | Optional audit user id; falls back to `accounts.owner_user_id` when present.                         |
+
+Optional routing variables:
+
+| Variable                               | Purpose                                                     |
+| -------------------------------------- | ----------------------------------------------------------- |
+| `EVO_INBOX_AMOCRM_PIPELINE_ID`         | Force created leads into a specific amoCRM pipeline.        |
+| `EVO_INBOX_AMOCRM_STATUS_ID`           | Force created leads into a specific amoCRM status.          |
+| `EVO_INBOX_AMOCRM_RESPONSIBLE_USER_ID` | Assign created leads to a specific responsible amoCRM user. |
+
+The seed command calls `GET /api/v4/account` on the amoCRM account with the
+provided bearer token before writing anything to Supabase. It upserts
+`integration_settings(provider='amocrm')`, stores only encrypted
+`access_token` secret material, and resets existing `not_configured` or
+`blocked` CRM sync rows back to `pending` so the internal retry endpoint can
+resolve them. It prints only non-secret provider/account metadata and secret
+names; it must not print the token.
+
 ## amoCRM sync retry
 
 Inbound WAHA messages are saved to Supabase before amoCRM sync. If amoCRM is
@@ -197,9 +238,11 @@ available:
    `docker compose --env-file ../.env.production -f docker-compose.inbox.prod.yml up -d --build`.
 8. Run `npm run seed:prod-waha` from `agent-lead2-crmwhatsapp/` after loading
    `.env.production`.
-9. Run `npm run seed:prod-ai` from `agent-lead2-crmwhatsapp/` after loading
-   `.env.production` and `.env.gemini`.
-10. Apply Supabase migration `036_reliable_amocrm_sync_buffer.sql`.
-11. Confirm `evo-edge-caddy`, `evo-inbox` app, and `evo-inbox-waha`
+9. Run `npm run seed:prod-amocrm` from `agent-lead2-crmwhatsapp/` after loading
+   `.env.production` and `.env.amocrm`.
+10. Run `npm run seed:prod-ai` from `agent-lead2-crmwhatsapp/` after loading
+    `.env.production` and `.env.gemini`.
+11. Apply Supabase migration `036_reliable_amocrm_sync_buffer.sql`.
+12. Confirm `evo-edge-caddy`, `evo-inbox` app, and `evo-inbox-waha`
     healthchecks pass.
-12. Execute the issue #20 live proof checklist.
+13. Execute the issue #20 live proof checklist.

@@ -14,6 +14,8 @@ deployment or production proof was performed in this run.
 - WAHA webhook HMAC secret: `EVO_INBOX_WAHA_WEBHOOK_HMAC`
 - amoCRM domain: `EVO_INBOX_AMOCRM_BASE_URL`
 - amoCRM token: `EVO_INBOX_AMOCRM_ACCESS_TOKEN`
+- amoCRM seed file: ignored `.env.amocrm`, created from
+  `deploy/env.amocrm.example`
 - Gemini key for this rollout: `EVO_INBOX_GEMINI_API_KEY` in the ignored
   `.env.gemini` seed file
 - AI knowledge retrieval provider: `EVO_INBOX_EMBEDDINGS_PROVIDER=gemini` for
@@ -39,23 +41,27 @@ deployment or production proof was performed in this run.
 3. Seed WAHA runtime settings with `npm run seed:prod-waha`; verify a real
    `session.status` webhook from WAHA returns HTTP 200 from
    `/api/waha/webhook`.
-4. Seed Gemini AI draft settings with `npm run seed:prod-ai`; verify the
+4. Seed amoCRM identity settings with `npm run seed:prod-amocrm`; verify the
+   command succeeds with a real `GET /api/v4/account` provider call, stores
+   only encrypted `access_token` secret material, and resets repairable CRM sync
+   rows to `pending`.
+5. Seed Gemini AI draft settings with `npm run seed:prod-ai`; verify the
    command succeeds with real Google GenerateContent and Gemini Embeddings
    provider calls, then stores only encrypted account-level AI config in
    Supabase with `embeddings_provider='gemini'`.
-5. Receive a real WhatsApp message from the provided test number.
-6. Verify the message appears in EVO Inbox and the Supabase message row exists
+6. Receive a real WhatsApp message from the provided test number.
+7. Verify the message appears in EVO Inbox and the Supabase message row exists
    even if amoCRM is not yet synced.
-7. Verify `crm_sync_status` on the conversation and message is truthful:
+8. Verify `crm_sync_status` on the conversation and message is truthful:
    `synced`, `pending`, `not_configured`, or `blocked`.
-8. Resolve or create the amoCRM contact and lead identity for that sender; if
+9. Resolve or create the amoCRM contact and lead identity for that sender; if
    it stayed pending/not configured, run the internal CRM sync retry endpoint
    after configuration is fixed.
-9. Verify Supabase shadow records store `amo_contact_id` and `amo_lead_id` when
-   `crm_sync_status='synced'`.
-10. Generate an EVO Companion AI draft using configured knowledge.
-11. Manually send the WAHA reply from the operator inbox.
-12. Verify no automatic AI auto-reply was sent.
+10. Verify Supabase shadow records store `amo_contact_id` and `amo_lead_id` when
+    `crm_sync_status='synced'`.
+11. Generate an EVO Companion AI draft using configured knowledge.
+12. Manually send the WAHA reply from the operator inbox.
+13. Verify no automatic AI auto-reply was sent.
 
 ## Pass criteria
 
@@ -68,6 +74,8 @@ deployment or production proof was performed in this run.
 - Gemini AI config exists in Supabase as `provider='gemini'`,
   `model='gemini-3.5-flash'`, `embeddings_provider='gemini'`, and encrypted
   `api_key`.
+- amoCRM settings exist in Supabase with non-secret public config and encrypted
+  `access_token`.
 - Supabase scale audit from `docs/supabase-scale-retention.md` shows the
   database is still within the current plan threshold, or the project is on Pro.
 - The inbound WhatsApp message appears in EVO Inbox.

@@ -238,6 +238,10 @@ const TRANSLATIONS = {
     'inbox.noMessagesYet': 'No messages yet',
     'inbox.amoIdentityPresent': 'amoCRM identity present',
     'inbox.amoIdentityUnresolved': 'amoCRM identity unresolved',
+    'inbox.crmSync.synced': 'CRM synced',
+    'inbox.crmSync.pending': 'CRM pending',
+    'inbox.crmSync.notConfigured': 'amoCRM not configured',
+    'inbox.crmSync.blocked': 'CRM blocked',
     'inbox.selectConversation': 'Select a conversation',
     'inbox.selectConversationHint':
       'Choose a conversation from the left to start messaging',
@@ -668,7 +672,7 @@ const TRANSLATIONS = {
     'settings.amocrm.loadingDescription':
       'Configure the identity source of truth for EVO Inbox leads.',
     'settings.amocrm.description':
-      'Resolve or create the canonical amoCRM contact and lead before EVO Inbox presents a WhatsApp sender as a real lead.',
+      'Incoming WhatsApp messages are saved first; amoCRM then resolves the canonical contact and lead.',
     'settings.amocrm.loadFailed': 'Failed to load amoCRM configuration',
     'settings.amocrm.baseUrlRequired': 'amoCRM account URL is required',
     'settings.amocrm.accessTokenRequired': 'amoCRM access token is required',
@@ -684,7 +688,7 @@ const TRANSLATIONS = {
     'settings.amocrm.statusConfiguredDescription':
       'Inbound WhatsApp senders can be tied to amoCRM shadow identifiers in EVO Inbox.',
     'settings.amocrm.statusMissingDescription':
-      'Save the amoCRM account URL and access token before inbound conversations can be presented as real leads.',
+      'Inbound WhatsApp messages remain visible in EVO Inbox, but CRM sync stays pending until the account URL and access token are saved.',
     'settings.amocrm.connection': 'Account connection',
     'settings.amocrm.accountUrl': 'amoCRM account URL',
     'settings.amocrm.pipelineId': 'Pipeline ID',
@@ -705,7 +709,7 @@ const TRANSLATIONS = {
     'settings.amocrm.boundaryShadow':
       'EVO Inbox stores only shadow fields such as amo_contact_id and amo_lead_id for operator speed.',
     'settings.amocrm.boundaryBlocked':
-      'When amoCRM is missing or rejects a request, inbound lead presentation is blocked instead of creating a local-only real lead.',
+      'When amoCRM is missing or unavailable, messages stay visible with pending/not configured CRM status and retry later.',
 
     'settings.readiness.title': 'Production readiness',
     'settings.readiness.loadingDescription':
@@ -1256,6 +1260,10 @@ const TRANSLATIONS = {
     'inbox.noMessagesYet': 'Сообщений пока нет',
     'inbox.amoIdentityPresent': 'amoCRM-идентичность найдена',
     'inbox.amoIdentityUnresolved': 'amoCRM-идентичность не найдена',
+    'inbox.crmSync.synced': 'CRM синхронизирована',
+    'inbox.crmSync.pending': 'CRM ожидает',
+    'inbox.crmSync.notConfigured': 'amoCRM не настроена',
+    'inbox.crmSync.blocked': 'CRM заблокирована',
     'inbox.selectConversation': 'Выберите диалог',
     'inbox.selectConversationHint':
       'Выберите диалог слева, чтобы начать переписку',
@@ -1691,7 +1699,7 @@ const TRANSLATIONS = {
     'settings.amocrm.loadingDescription':
       'Настройте источник истины для identity лидов EVO Inbox.',
     'settings.amocrm.description':
-      'Сначала находите или создавайте каноничный контакт и лид в amoCRM, и только потом показывайте WhatsApp-отправителя как реального лида в EVO Inbox.',
+      'Входящие WhatsApp-сообщения сначала сохраняются; потом amoCRM определяет каноничный contact и lead.',
     'settings.amocrm.loadFailed': 'Не удалось загрузить amoCRM-настройки',
     'settings.amocrm.baseUrlRequired': 'amoCRM account URL обязателен',
     'settings.amocrm.accessTokenRequired': 'amoCRM access token обязателен',
@@ -1707,7 +1715,7 @@ const TRANSLATIONS = {
     'settings.amocrm.statusConfiguredDescription':
       'Входящих WhatsApp-отправителей можно связать с amoCRM shadow identifiers в EVO Inbox.',
     'settings.amocrm.statusMissingDescription':
-      'Сохраните amoCRM account URL и access token, прежде чем показывать входящие диалоги как реальные лиды.',
+      'Входящие WhatsApp-сообщения остаются видимыми в EVO Inbox, но CRM sync будет ждать account URL и access token.',
     'settings.amocrm.connection': 'Подключение аккаунта',
     'settings.amocrm.accountUrl': 'amoCRM account URL',
     'settings.amocrm.pipelineId': 'Pipeline ID',
@@ -1728,7 +1736,7 @@ const TRANSLATIONS = {
     'settings.amocrm.boundaryShadow':
       'EVO Inbox хранит только shadow-поля вроде amo_contact_id и amo_lead_id для скорости оператора.',
     'settings.amocrm.boundaryBlocked':
-      'Если amoCRM отсутствует или отклоняет запрос, показ входящего лида блокируется вместо создания локального real lead.',
+      'Если amoCRM отсутствует или временно недоступна, сообщения остаются видимыми со статусом CRM pending/not configured и повторяются позже.',
 
     'settings.readiness.title': 'Готовность production',
     'settings.readiness.loadingDescription':

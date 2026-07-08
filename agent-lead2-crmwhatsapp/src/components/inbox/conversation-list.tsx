@@ -10,7 +10,7 @@ import {
 import { useLanguage } from "@/hooks/use-language";
 import type { TranslationKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { Conversation, ConversationStatus, Tag } from "@/types";
+import type { Conversation, ConversationStatus, CrmSyncStatus, Tag } from "@/types";
 import { Search, ChevronDown, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -46,6 +46,20 @@ const STATUS_LABEL_KEY: Record<ConversationStatus, TranslationKey> = {
   open: "inbox.status.open",
   pending: "inbox.status.pending",
   closed: "inbox.status.closed",
+};
+
+const CRM_SYNC_LABEL_KEY: Record<CrmSyncStatus, TranslationKey> = {
+  synced: "inbox.crmSync.synced",
+  pending: "inbox.crmSync.pending",
+  not_configured: "inbox.crmSync.notConfigured",
+  blocked: "inbox.crmSync.blocked",
+};
+
+const CRM_SYNC_CLASSES: Record<CrmSyncStatus, string> = {
+  synced: "border-primary/30 text-primary",
+  pending: "border-amber-500/30 text-amber-300",
+  not_configured: "border-amber-500/30 text-amber-300",
+  blocked: "border-red-500/30 text-red-300",
 };
 
 type InboxFilter = ConversationStatus | "all" | "unread";
@@ -443,6 +457,8 @@ function ConversationItem({
   const hasAmoIdentity = Boolean(
     contact?.amo_contact_id || conversation.amo_lead_id,
   );
+  const crmSyncStatus =
+    conversation.crm_sync_status ?? (hasAmoIdentity ? "synced" : "pending");
 
   const handleClick = useCallback(() => {
     onSelect(conversation);
@@ -482,18 +498,12 @@ function ConversationItem({
             </span>
             <span
               className={cn(
-                "hidden shrink-0 rounded border px-1 py-px text-[9px] uppercase leading-none sm:inline-flex",
-                hasAmoIdentity
-                  ? "border-primary/30 text-primary"
-                  : "border-amber-500/30 text-amber-300",
+                "hidden max-w-[96px] shrink-0 rounded border px-1 py-px text-[9px] uppercase leading-none sm:inline-flex",
+                CRM_SYNC_CLASSES[crmSyncStatus],
               )}
-              title={
-                hasAmoIdentity
-                  ? t("inbox.amoIdentityPresent")
-                  : t("inbox.amoIdentityUnresolved")
-              }
+              title={conversation.crm_sync_error ?? t(CRM_SYNC_LABEL_KEY[crmSyncStatus])}
             >
-              amo
+              <span className="truncate">{t(CRM_SYNC_LABEL_KEY[crmSyncStatus])}</span>
             </span>
           </span>
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>

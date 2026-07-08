@@ -106,6 +106,10 @@ export async function POST(request: Request) {
           status: result.status,
           conversation_id: result.conversationId,
           message_id: result.messageId,
+          crm_sync_status: result.crmSyncStatus,
+          crm_sync_error: result.crmSyncError,
+          crm_sync_retryable: result.crmSyncRetryable,
+          missing_fields: result.missingFields,
         },
         { status: 200 },
       );

@@ -158,6 +158,27 @@ or imports. Supabase Free is for proof/small pilot only; move to Pro before
 sustained WhatsApp production traffic, imports above 50k messages, database size
 above 250 MB, or thousands of knowledge chunks.
 
+## amoCRM sync retry
+
+Inbound WAHA messages are saved to Supabase before amoCRM sync. If amoCRM is
+missing or temporarily unavailable, conversations/messages keep
+`crm_sync_status='pending'` or `not_configured` and remain visible in EVO Inbox.
+After fixing amoCRM configuration, run the bounded internal retry from
+`/opt/evo-inbox/agent-lead2-crmwhatsapp/deploy`:
+
+```bash
+docker compose --env-file ../.env.production -f docker-compose.inbox.prod.yml exec -T app \
+  sh -lc 'curl -fsS -X POST http://127.0.0.1:3000/api/internal/crm-sync \
+    -H "x-cron-secret: $AUTOMATION_CRON_SECRET" \
+    -H "content-type: application/json" \
+    --data "{\"limit\":20,\"include_blocked\":true}"'
+```
+
+The endpoint requires `AUTOMATION_CRON_SECRET`, uses the service-role Supabase
+client only after that secret matches, and returns counts for synced, pending,
+not configured, and blocked rows. It does not make Supabase canonical for lead
+identity; synced rows must still match amoCRM shadow ids.
+
 ## Deployment outline
 
 Only perform this after a reviewed PR is merged and real credentials are
@@ -178,6 +199,7 @@ available:
    `.env.production`.
 9. Run `npm run seed:prod-ai` from `agent-lead2-crmwhatsapp/` after loading
    `.env.production` and `.env.gemini`.
-10. Confirm `evo-edge-caddy`, `evo-inbox` app, and `evo-inbox-waha`
+10. Apply Supabase migration `036_reliable_amocrm_sync_buffer.sql`.
+11. Confirm `evo-edge-caddy`, `evo-inbox` app, and `evo-inbox-waha`
     healthchecks pass.
-11. Execute the issue #20 live proof checklist.
+12. Execute the issue #20 live proof checklist.

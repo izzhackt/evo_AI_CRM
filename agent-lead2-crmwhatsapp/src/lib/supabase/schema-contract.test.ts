@@ -26,6 +26,10 @@ const embeddingsScaleMigration = readFileSync(
   join(migrationsDir, '035_ai_embeddings_provider_and_scale.sql'),
   'utf8'
 )
+const reliableAmoCrmSyncMigration = readFileSync(
+  join(migrationsDir, '036_reliable_amocrm_sync_buffer.sql'),
+  'utf8'
+)
 
 function expectRlsEnabled(table: string) {
   expect(allMigrationsSql).toMatch(
@@ -191,6 +195,24 @@ describe('Supabase companion schema contract', () => {
     )
     expect(embeddingsScaleMigration).toMatch(
       /CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+idx_messages_conversation_created_at[\s\S]*ON\s+messages\s*\(\s*conversation_id,\s*created_at,\s*id\s*\)/i
+    )
+  })
+
+  it('adds explicit retryable amoCRM sync status to conversations and messages', () => {
+    expect(reliableAmoCrmSyncMigration).toMatch(
+      /ALTER\s+TABLE\s+conversations[\s\S]*ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+crm_sync_status\s+text\s+NOT\s+NULL\s+DEFAULT\s+'pending'/i
+    )
+    expect(reliableAmoCrmSyncMigration).toMatch(
+      /CHECK\s*\(\s*crm_sync_status\s+IN\s*\([\s\S]*'pending'[\s\S]*'synced'[\s\S]*'not_configured'[\s\S]*'blocked'[\s\S]*\)\s*\)/i
+    )
+    expect(reliableAmoCrmSyncMigration).toMatch(
+      /ALTER\s+TABLE\s+messages[\s\S]*ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+crm_sync_status\s+text\s+NOT\s+NULL\s+DEFAULT\s+'pending'/i
+    )
+    expect(reliableAmoCrmSyncMigration).toMatch(
+      /idx_conversations_account_crm_sync_retry/i
+    )
+    expect(reliableAmoCrmSyncMigration).toMatch(
+      /idx_messages_conversation_crm_sync_status/i
     )
   })
 })

@@ -153,6 +153,7 @@ export interface ContactNote {
 }
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
+export type CrmSyncStatus = 'pending' | 'synced' | 'not_configured' | 'blocked';
 
 export interface Conversation {
   id: string;
@@ -169,6 +170,9 @@ export interface Conversation {
    */
   amo_lead_id?: string | null;
   amo_lead_synced_at?: string | null;
+  crm_sync_status?: CrmSyncStatus;
+  crm_sync_error?: string | null;
+  crm_sync_attempted_at?: string | null;
   created_at: string;
   updated_at: string;
   contact?: Contact;
@@ -222,6 +226,9 @@ export interface Message {
   waha_session_name?: string | null;
   waha_message_id?: string | null;
   waha_message_status?: string | null;
+  crm_sync_status?: CrmSyncStatus;
+  crm_sync_error?: string | null;
+  crm_sync_attempted_at?: string | null;
   status: MessageStatus;
   created_at: string;
   reply_to_message_id?: string;

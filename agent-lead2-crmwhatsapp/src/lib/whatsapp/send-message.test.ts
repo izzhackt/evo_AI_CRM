@@ -258,6 +258,45 @@ describe('sendMessageToConversation', () => {
     });
   });
 
+  it('inherits the conversation CRM sync state on outbound messages', async () => {
+    const state = makeState({
+      conversation: {
+        id: 'conv-1',
+        account_id: 'acct-1',
+        amo_lead_id: 'amo-lead-1',
+        crm_sync_status: 'synced',
+        crm_sync_error: 'stale error from before sync',
+        crm_sync_attempted_at: '2026-07-06T19:00:00.000Z',
+        contact: {
+          id: 'contact-1',
+          phone: '+1 (415) 555-1212',
+        },
+      },
+    });
+    const deps = makeDeps();
+
+    await sendMessageToConversation(
+      makeDb(state),
+      'acct-1',
+      {
+        conversationId: 'conv-1',
+        messageType: 'text',
+        contentText: 'Synced reply',
+      },
+      deps,
+    );
+
+    expect(state.insertedMessages[0]).toEqual(
+      expect.objectContaining({
+        conversation_id: 'conv-1',
+        content_text: 'Synced reply',
+        crm_sync_status: 'synced',
+        crm_sync_error: null,
+        crm_sync_attempted_at: '2026-07-06T19:00:00.000Z',
+      }),
+    );
+  });
+
   it('normalizes internal WhatsApp ids to direct WAHA @c.us chat ids', async () => {
     const state = makeState({
       conversation: {

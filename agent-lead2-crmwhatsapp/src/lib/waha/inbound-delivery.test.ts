@@ -14,11 +14,15 @@ import {
 } from './inbound-delivery';
 
 type Row = Record<string, unknown>;
-type TableName = 'integration_settings' | 'conversations' | 'messages';
+type TableName = 'contacts' | 'integration_settings' | 'conversations' | 'messages';
+type Filter =
+  | { op: 'eq'; column: string; value: unknown }
+  | { op: 'neq'; column: string; value: unknown }
+  | { op: 'in'; column: string; value: unknown[] };
 
 class MemoryBuilder {
   private mode: 'select' | 'insert' | 'update' = 'select';
-  private filters: Array<{ column: string; value: unknown }> = [];
+  private filters: Filter[] = [];
   private insertValue: Row | null = null;
   private updateValue: Row | null = null;
   private limitCount: number | null = null;
@@ -33,7 +37,17 @@ class MemoryBuilder {
   }
 
   eq(column: string, value: unknown) {
-    this.filters.push({ column, value });
+    this.filters.push({ op: 'eq', column, value });
+    return this;
+  }
+
+  neq(column: string, value: unknown) {
+    this.filters.push({ op: 'neq', column, value });
+    return this;
+  }
+
+  in(column: string, value: unknown[]) {
+    this.filters.push({ op: 'in', column, value });
     return this;
   }
 
@@ -102,21 +116,30 @@ class MemoryDb {
           last_error: null,
         },
       ],
+      contacts: seed?.contacts ?? [
+        {
+          id: 'contact-1',
+          account_id: 'acct-1',
+          phone: '+14155551212',
+          name: 'Alice Applicant',
+          amo_contact_id: null,
+        },
+      ],
       conversations: seed?.conversations ?? [],
       messages: seed?.messages ?? [],
     };
   }
 
   from(table: string) {
-    if (!['integration_settings', 'conversations', 'messages'].includes(table)) {
+    if (!['contacts', 'integration_settings', 'conversations', 'messages'].includes(table)) {
       throw new Error(`Unexpected table ${table}`);
     }
     return new MemoryBuilder(this, table as TableName);
   }
 
-  select(table: TableName, filters: Array<{ column: string; value: unknown }>, limit: number | null) {
+  select(table: TableName, filters: Filter[], limit: number | null) {
     const rows = this.tables[table].filter((row) =>
-      filters.every((filter) => row[filter.column] === filter.value),
+      filters.every((filter) => matchesFilter(row, filter)),
     );
     return {
       data: limit == null ? rows : rows.slice(0, limit),
@@ -149,14 +172,20 @@ class MemoryDb {
     return { data: [row], error: null };
   }
 
-  update(table: TableName, filters: Array<{ column: string; value: unknown }>, value: Row) {
+  update(table: TableName, filters: Filter[], value: Row) {
     for (const row of this.tables[table]) {
-      if (filters.every((filter) => row[filter.column] === filter.value)) {
+      if (filters.every((filter) => matchesFilter(row, filter))) {
         Object.assign(row, value);
       }
     }
     return { data: null, error: null };
   }
+}
+
+function matchesFilter(row: Row, filter: Filter): boolean {
+  if (filter.op === 'eq') return row[filter.column] === filter.value;
+  if (filter.op === 'neq') return row[filter.column] !== filter.value;
+  return filter.value.includes(row[filter.column]);
 }
 
 const inboundMessage: WahaInboundMessage = {
@@ -203,7 +232,7 @@ function createDeps(
 }
 
 describe('deliverWahaInboundMessage', () => {
-  it('resolves amoCRM identity before creating local inbox state and inserts the inbound message once', async () => {
+  it('saves local inbox state before resolving amoCRM identity and inserts the inbound message once', async () => {
     const db = new MemoryDb();
     const deps = createDeps();
 
@@ -216,6 +245,10 @@ describe('deliverWahaInboundMessage', () => {
       status: 'received',
       conversationId: 'conversations-1',
       messageId: 'messages-1',
+      crmSyncStatus: 'synced',
+      crmSyncError: null,
+      crmSyncRetryable: false,
+      missingFields: undefined,
     });
     expect(deps.resolveAmoCrmIdentityFromProvider).toHaveBeenCalledWith({
       client: expect.any(Object),
@@ -223,8 +256,8 @@ describe('deliverWahaInboundMessage', () => {
       name: 'Alice Applicant',
     });
     expect(
-      deps.resolveAmoCrmIdentityFromProvider.mock.invocationCallOrder[0],
-    ).toBeLessThan(deps.findOrCreateContact.mock.invocationCallOrder[0]);
+      deps.findOrCreateContact.mock.invocationCallOrder[0],
+    ).toBeLessThan(deps.resolveAmoCrmIdentityFromProvider.mock.invocationCallOrder[0]);
     expect(deps.persistAmoCrmShadowIdentity).toHaveBeenCalledWith(
       db,
       expect.objectContaining({
@@ -247,6 +280,7 @@ describe('deliverWahaInboundMessage', () => {
         waha_session_name: 'evo-inbox',
         waha_message_id: 'waha-message-1',
         status: 'delivered',
+        crm_sync_status: 'synced',
         created_at: '2026-07-06T17:30:00.000Z',
       }),
     ]);
@@ -256,6 +290,7 @@ describe('deliverWahaInboundMessage', () => {
       last_message_text: 'Hello from WhatsApp',
       last_message_at: '2026-07-06T17:30:00.000Z',
       unread_count: 1,
+      crm_sync_status: 'synced',
     });
   });
 
@@ -278,12 +313,14 @@ describe('deliverWahaInboundMessage', () => {
       status: 'duplicate',
       conversationId: 'conversation-existing',
       messageId: 'messages-existing',
+      crmSyncStatus: 'pending',
+      crmSyncError: null,
     });
     expect(deps.loadAmoCrmConfig).not.toHaveBeenCalled();
     expect(db.tables.messages).toHaveLength(1);
   });
 
-  it('fails as not configured and creates no local inbox rows when amoCRM config is missing', async () => {
+  it('saves local inbox rows as not configured when amoCRM config is missing', async () => {
     const db = new MemoryDb();
     const deps = createDeps({
       loadAmoCrmConfig: vi.fn(async () => {
@@ -293,21 +330,31 @@ describe('deliverWahaInboundMessage', () => {
 
     await expect(
       deliverWahaInboundMessage({ db, accountId: 'acct-1', message: inboundMessage }, deps),
-    ).rejects.toMatchObject({
-      code: 'amocrm_not_configured',
-      status: 503,
-      integrationStatus: 'not_configured',
+    ).resolves.toMatchObject({
+      status: 'received',
+      conversationId: 'conversations-1',
+      messageId: 'messages-1',
+      crmSyncStatus: 'not_configured',
+      crmSyncRetryable: true,
       missingFields: ['baseUrl', 'accessToken'],
-    } satisfies Partial<WahaInboundDeliveryError>);
-    expect(db.tables.conversations).toHaveLength(0);
-    expect(db.tables.messages).toHaveLength(0);
+    });
+    expect(db.tables.conversations).toHaveLength(1);
+    expect(db.tables.messages).toHaveLength(1);
+    expect(db.tables.conversations[0]).toMatchObject({
+      crm_sync_status: 'not_configured',
+      crm_sync_error: 'amoCRM configuration is missing: baseUrl, accessToken',
+    });
+    expect(db.tables.messages[0]).toMatchObject({
+      crm_sync_status: 'not_configured',
+      crm_sync_error: 'amoCRM configuration is missing: baseUrl, accessToken',
+    });
     expect(db.tables.integration_settings[0]).toMatchObject({
       status: 'not_configured',
       last_error: 'amoCRM configuration is missing: baseUrl, accessToken',
     });
   });
 
-  it('fails as blocked and creates no local inbox rows when amoCRM provider resolution fails', async () => {
+  it('keeps local inbox rows pending when amoCRM provider is temporarily unavailable', async () => {
     const db = new MemoryDb();
     const deps = createDeps({
       resolveAmoCrmIdentityFromProvider: vi.fn(async () => {
@@ -319,17 +366,59 @@ describe('deliverWahaInboundMessage', () => {
 
     await expect(
       deliverWahaInboundMessage({ db, accountId: 'acct-1', message: inboundMessage }, deps),
-    ).rejects.toMatchObject({
-      code: 'amocrm_blocked',
-      status: 502,
-      integrationStatus: 'blocked',
-    } satisfies Partial<WahaInboundDeliveryError>);
-    expect(deps.findOrCreateContact).not.toHaveBeenCalled();
-    expect(db.tables.conversations).toHaveLength(0);
-    expect(db.tables.messages).toHaveLength(0);
+    ).resolves.toMatchObject({
+      status: 'received',
+      conversationId: 'conversations-1',
+      messageId: 'messages-1',
+      crmSyncStatus: 'pending',
+      crmSyncRetryable: true,
+    });
+    expect(db.tables.conversations).toHaveLength(1);
+    expect(db.tables.messages).toHaveLength(1);
+    expect(db.tables.conversations[0]).toMatchObject({
+      crm_sync_status: 'pending',
+      crm_sync_error: 'amoCRM identity sync is pending after provider HTTP 503.',
+    });
+    expect(db.tables.messages[0]).toMatchObject({
+      crm_sync_status: 'pending',
+      crm_sync_error: 'amoCRM identity sync is pending after provider HTTP 503.',
+    });
+    expect(db.tables.integration_settings[0]).toMatchObject({
+      status: 'configured',
+      last_error: 'amoCRM identity sync is pending after provider HTTP 503.',
+    });
+  });
+
+  it('saves local inbox rows as blocked when amoCRM rejects the token', async () => {
+    const db = new MemoryDb();
+    const deps = createDeps({
+      resolveAmoCrmIdentityFromProvider: vi.fn(async () => {
+        throw new AmoCrmProviderError('amoCRM API failed with 401', 401, {
+          title: 'unauthorized',
+        });
+      }),
+    });
+
+    await expect(
+      deliverWahaInboundMessage({ db, accountId: 'acct-1', message: inboundMessage }, deps),
+    ).resolves.toMatchObject({
+      status: 'received',
+      conversationId: 'conversations-1',
+      messageId: 'messages-1',
+      crmSyncStatus: 'blocked',
+      crmSyncRetryable: false,
+    });
+    expect(db.tables.conversations).toHaveLength(1);
+    expect(db.tables.messages).toHaveLength(1);
+    expect(db.tables.conversations[0]).toMatchObject({
+      crm_sync_status: 'blocked',
+      crm_sync_error:
+        'amoCRM rejected identity sync with HTTP 401. Check the token, account URL, pipeline, status, or permissions.',
+    });
     expect(db.tables.integration_settings[0]).toMatchObject({
       status: 'blocked',
-      last_error: 'amoCRM identity resolution failed',
+      last_error:
+        'amoCRM rejected identity sync with HTTP 401. Check the token, account URL, pipeline, status, or permissions.',
     });
   });
 

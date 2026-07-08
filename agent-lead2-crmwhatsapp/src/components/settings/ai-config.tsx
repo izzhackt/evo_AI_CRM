@@ -291,7 +291,11 @@ export function AiConfig() {
                   disabled={disabled}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>
+                      {(selected: AiProvider | null) =>
+                        selected ? PROVIDER_LABEL[selected] : 'Select provider'
+                      }
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="openai">
@@ -380,7 +384,13 @@ export function AiConfig() {
                   disabled={disabled}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>
+                      {(selected: EmbeddingsProvider | null) =>
+                        selected
+                          ? EMBEDDINGS_PROVIDER_LABEL[selected]
+                          : 'Select retrieval'
+                      }
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="keyword">

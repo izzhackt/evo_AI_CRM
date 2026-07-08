@@ -276,6 +276,10 @@ const TRANSLATIONS = {
       'Read-only - viewers can browse but not reply',
     'inbox.composer.sessionExpiredPlaceholder':
       'Session expired - outbound messaging unavailable',
+    'inbox.session.noCustomerMessages': 'No customer messages',
+    'inbox.session.expired': 'Expired',
+    'inbox.session.hoursRemaining': '{count}h remaining',
+    'inbox.session.minutesRemaining': '{count}m remaining',
     'inbox.composer.placeholder': 'Type a message... (Shift+Enter for new line)',
     'inbox.composer.attachMedia': 'Attach media',
     'inbox.composer.photo': 'Photo',
@@ -1291,6 +1295,10 @@ const TRANSLATIONS = {
       'Режим просмотра - можно читать, но нельзя отвечать',
     'inbox.composer.sessionExpiredPlaceholder':
       'Сессия истекла - исходящие сообщения недоступны',
+    'inbox.session.noCustomerMessages': 'Нет сообщений от клиента',
+    'inbox.session.expired': 'Истекла',
+    'inbox.session.hoursRemaining': 'осталось {count} ч',
+    'inbox.session.minutesRemaining': 'осталось {count} мин',
     'inbox.composer.placeholder':
       'Введите сообщение... (Shift+Enter для новой строки)',
     'inbox.composer.attachMedia': 'Прикрепить медиа',

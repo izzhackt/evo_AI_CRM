@@ -229,23 +229,29 @@ export function MessageThread({
       .reverse()
       .find((m) => m.sender_type === "customer");
 
-    if (!lastCustomerMsg) return { expired: true, remaining: "No customer messages" };
+    if (!lastCustomerMsg) {
+      return { expired: true, remaining: t("inbox.session.noCustomerMessages") };
+    }
 
     const hoursSince = differenceInHours(new Date(), new Date(lastCustomerMsg.created_at));
     const expired = hoursSince >= 24;
 
     if (expired) {
-      return { expired: true, remaining: "Expired" };
+      return { expired: true, remaining: t("inbox.session.expired") };
     }
 
     const hoursLeft = 24 - hoursSince;
     const remaining =
       hoursLeft >= 1
-        ? `${Math.floor(hoursLeft)}h remaining`
-        : `${Math.floor(hoursLeft * 60)}m remaining`;
+        ? t("inbox.session.hoursRemaining", {
+            count: Math.floor(hoursLeft),
+          })
+        : t("inbox.session.minutesRemaining", {
+            count: Math.floor(hoursLeft * 60),
+          });
 
     return { expired, remaining };
-  }, [messages]);
+  }, [messages, t]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause

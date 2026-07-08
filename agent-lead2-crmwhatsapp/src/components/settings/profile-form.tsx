@@ -6,6 +6,7 @@ import { Loader2, Upload, Trash2, Mail, CircleAlert } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { useLanguage } from '@/hooks/use-language';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,6 +33,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function ProfileForm() {
   const { user, profile, refreshProfile } = useAuth();
+  const { locale, t } = useLanguage();
   const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -70,14 +72,14 @@ export function ProfileForm() {
     if (!file) return;
 
     if (!ALLOWED_MIME.has(file.type)) {
-      toast.error('Unsupported image type', {
-        description: 'Use PNG, JPG, WebP, or GIF.',
+      toast.error(t('settings.profile.unsupportedImage'), {
+        description: t('settings.profile.supportedImageTypes'),
       });
       return;
     }
     if (file.size > MAX_AVATAR_BYTES) {
-      toast.error('Image is too large', {
-        description: 'Maximum 2 MB.',
+      toast.error(t('settings.profile.imageTooLarge'), {
+        description: t('settings.profile.maxAvatar'),
       });
       return;
     }
@@ -101,12 +103,12 @@ export function ProfileForm() {
 
     const trimmedName = fullName.trim();
     if (!trimmedName) {
-      toast.error('Display name is required');
+      toast.error(t('settings.profile.nameRequired'));
       return;
     }
     const trimmedEmail = email.trim();
     if (!EMAIL_RE.test(trimmedEmail)) {
-      toast.error('Enter a valid email address');
+      toast.error(t('settings.profile.invalidEmail'));
       return;
     }
 
@@ -127,7 +129,7 @@ export function ProfileForm() {
             contentType: pendingAvatar.type,
           });
         if (uploadError) {
-          throw new Error(`Upload failed: ${uploadError.message}`);
+          throw new Error(t('settings.profile.uploadFailed', { message: uploadError.message }));
         }
         const {
           data: { publicUrl },
@@ -146,7 +148,7 @@ export function ProfileForm() {
         })
         .eq('user_id', user.id);
       if (updateError) {
-        throw new Error(`Save failed: ${updateError.message}`);
+        throw new Error(t('settings.profile.saveFailed', { message: updateError.message }));
       }
 
       // Email change goes through Supabase Auth, which emails a
@@ -161,8 +163,8 @@ export function ProfileForm() {
         });
         if (emailError) {
           // Partial success: name/avatar saved but email didn't.
-          toast.success('Profile saved');
-          toast.error(`Email change failed: ${emailError.message}`);
+          toast.success(t('settings.profile.saved'));
+          toast.error(t('settings.profile.emailChangeFailed', { message: emailError.message }));
           setSaving(false);
           await refreshProfile();
           return;
@@ -178,8 +180,8 @@ export function ProfileForm() {
 
       toast.success(
         emailSent
-          ? 'Profile saved — check your email to confirm the address change'
-          : 'Profile saved',
+          ? t('settings.profile.savedEmail')
+          : t('settings.profile.saved'),
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -197,7 +199,7 @@ export function ProfileForm() {
       removeAvatar);
 
   const joined = user?.created_at
-    ? new Date(user.created_at).toLocaleDateString(undefined, {
+    ? new Date(user.created_at).toLocaleDateString(locale === 'ru' ? 'ru-RU' : undefined, {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
@@ -207,8 +209,8 @@ export function ProfileForm() {
   return (
     <section className="max-w-2xl animate-in fade-in-50 duration-200">
       <SettingsPanelHead
-        title="Your profile"
-        description="How you show up across the app. Your avatar and name appear in the header, sidebar, and anywhere your teammates see you."
+        title={t('settings.profile.title')}
+        description={t('settings.profile.description')}
       />
       <form onSubmit={onSubmit} className="space-y-4">
         <Card>
@@ -217,7 +219,7 @@ export function ProfileForm() {
           <div className="flex flex-wrap items-center gap-5">
             <Avatar size="lg" className="size-16">
               {currentAvatar ? (
-                <AvatarImage src={currentAvatar} alt={fullName || 'Avatar'} />
+                <AvatarImage src={currentAvatar} alt={fullName || t('settings.profile.title')} />
               ) : null}
               <AvatarFallback className="bg-primary/10 text-base text-primary">
                 {initial}
@@ -239,7 +241,7 @@ export function ProfileForm() {
                 disabled={saving}
               >
                 <Upload className="size-4" />
-                {currentAvatar ? 'Change photo' : 'Upload photo'}
+                {currentAvatar ? t('settings.profile.changePhoto') : t('settings.profile.uploadPhoto')}
               </Button>
               {currentAvatar && (
                 <Button
@@ -250,11 +252,11 @@ export function ProfileForm() {
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <Trash2 className="size-4" />
-                  Remove
+                  {t('common.remove')}
                 </Button>
               )}
               <p className="w-full text-xs text-muted-foreground">
-                PNG, JPG, WebP, or GIF. Up to 2 MB.
+                {t('settings.profile.avatarHint')}
               </p>
             </div>
           </div>
@@ -262,7 +264,7 @@ export function ProfileForm() {
           {/* Name */}
           <div className="space-y-2">
             <Label htmlFor="profile-full-name" className="text-foreground">
-              Display name
+              {t('settings.profile.displayName')}
             </Label>
             <Input
               id="profile-full-name"
@@ -278,7 +280,7 @@ export function ProfileForm() {
           {/* Email */}
           <div className="space-y-2">
             <Label htmlFor="profile-email" className="text-foreground">
-              Email
+              {t('common.email')}
             </Label>
             <Input
               id="profile-email"
@@ -292,9 +294,10 @@ export function ProfileForm() {
               <p className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
                 <Mail className="mt-0.5 size-3.5 shrink-0" />
                 <span>
-                  Check the inbox for <strong>{profile?.email}</strong> and{' '}
-                  <strong>{email}</strong> — both need to confirm before the
-                  change takes effect.
+                  {t('settings.profile.emailPending', {
+                    oldEmail: profile?.email ?? '',
+                    newEmail: email,
+                  })}
                 </span>
               </p>
             )}
@@ -303,21 +306,21 @@ export function ProfileForm() {
           {/* Read-only block */}
           <div className="rounded-lg border border-border bg-muted p-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Account details
+              {t('settings.profile.accountDetails')}
             </p>
             <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-muted-foreground">Role</dt>
+                <dt className="text-muted-foreground">{t('settings.profile.role')}</dt>
                 <dd className="mt-0.5 font-mono text-foreground">
                   {profile?.role ?? 'user'}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Joined</dt>
+                <dt className="text-muted-foreground">{t('settings.profile.joined')}</dt>
                 <dd className="mt-0.5 text-foreground">{joined}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-muted-foreground">User ID</dt>
+                <dt className="text-muted-foreground">{t('settings.profile.userId')}</dt>
                 <dd className="mt-0.5 break-all font-mono text-xs text-muted-foreground">
                   {user?.id ?? '—'}
                 </dd>
@@ -328,7 +331,7 @@ export function ProfileForm() {
           {!profile && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <CircleAlert className="size-4" />
-              Loading your profile…
+              {t('settings.profile.loading')}
             </p>
           )}
 
@@ -340,10 +343,10 @@ export function ProfileForm() {
             {saving ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                Saving…
+                {t('common.saving')}
               </>
             ) : (
-              'Save changes'
+              t('settings.profile.saveChanges')
             )}
           </Button>
         </div>

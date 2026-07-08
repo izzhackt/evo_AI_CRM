@@ -465,6 +465,64 @@ checks locally. Live WhatsApp/amoCRM validation remains blocked until real
 credentials and server configuration are supplied.
 Reviewer notes: pending independent launch-control review.
 
+## 2026-07-08 - EVO Inbox Russian Interface Toggle
+
+Date: 2026-07-08, workspace timezone.
+Author: Codex.
+Change type: active slice, operator UI localization, accessibility, and
+launch-readiness alignment.
+Affected plan section: `/goal-evo-inbox-companion` UI launch invariant for
+Russian/Kyrgyz/English locale switching.
+Reason: operators need the EVO Inbox companion UI to support Russian-speaking
+staff while preserving the existing English interface and the first-launch
+manual-operator workflow.
+Decision: add an English/Russian client-side locale provider with a persisted
+EN/RU toggle in the app shell and auth/join surfaces. Keep user-entered data,
+provider error payloads, API scope ids, CSV column names, template names, and
+stored business values unchanged. Translate fixed product copy across the
+dashboard, inbox, contacts, pipelines, settings, AI setup, API keys, member
+invites, CSV import, first-launch disabled surfaces, and key accessibility
+labels. The bootstrap script applies `data-locale` and `html.lang` before
+hydration, matching the existing theme/mode boot pattern.
+Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm run typecheck`,
+`npm run lint`, `npm test`, `npm run build`, and browser smoke checks for the
+language toggle on `/login` and `/dashboard` when real local auth/runtime paths
+are available. Do not claim production deployment or live Gemini/Supabase proof
+from this localization slice alone.
+Reviewer notes: pending independent launch-control review.
+
+## 2026-07-08 - EVO Inbox Russian Operator UI Toggle
+
+Date: 2026-07-08, workspace timezone.
+Author: Codex.
+Change type: active slice, localization infrastructure and first-launch UI
+translation.
+Affected plan section: `/goal-evo-inbox-companion` first-launch operator
+experience.
+Reason: Operators need a Russian version of the EVO Inbox companion with a
+visible language toggle, while customer conversations remain multilingual and
+AI drafts remain constrained to Kyrgyz, Russian, or English.
+Decision: add a client-side `en`/`ru` language preference for the companion app
+using a typed dictionary and a visible toggle in the authenticated shell and
+auth pages. Do not add locale path segments in this slice; the app is an
+authenticated dashboard and a persisted local preference is sufficient without
+changing routing, middleware, Supabase auth redirects, or invite URLs.
+
+Scope boundary: translate the active first-launch operator surface: auth pages,
+dashboard shell/navigation/header, AI Drafts, dashboard widgets, inbox
+operator controls, contacts/pipelines surfaces, settings sections, and the
+first-launch disabled page. Broadcasts, automations, and flows remain blocked
+by middleware for first launch and are not accepted as translated product
+surfaces in this slice. User/customer data, uploaded knowledge content,
+WhatsApp message text, provider/API errors, and integration payloads must stay
+as source data rather than being machine-translated by the UI.
+
+Validation impact: run `npm run typecheck`, `npm run lint`, relevant tests, a
+production build if feasible, and browser checks that English/Russian toggles
+change the visible active UI without logging the user out or changing the
+current route.
+Reviewer notes: pending independent launch-control review.
+
 ## 2026-07-07 - EVO Inbox Gemini AI Provider
 
 Date: 2026-07-07, workspace timezone.

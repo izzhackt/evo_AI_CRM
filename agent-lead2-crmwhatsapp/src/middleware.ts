@@ -3,21 +3,24 @@ import { NextResponse, type NextRequest } from 'next/server'
 import {
   FIRST_LAUNCH_DISABLED_STATUS,
   firstLaunchDisabledPayload,
+  resolveLocale,
   resolveFirstLaunchDisabledPath,
 } from '@/lib/first-launch-disabled'
+import { LOCALE_STORAGE_KEY, translate } from '@/lib/i18n'
 
 export async function middleware(request: NextRequest) {
   const disabled = resolveFirstLaunchDisabledPath(request.nextUrl.pathname)
   if (disabled) {
+    const locale = resolveLocale(request.cookies.get(LOCALE_STORAGE_KEY)?.value)
     if (disabled.surface === 'api') {
-      return NextResponse.json(firstLaunchDisabledPayload(disabled.feature), {
+      return NextResponse.json(firstLaunchDisabledPayload(disabled.feature, locale), {
         status: FIRST_LAUNCH_DISABLED_STATUS,
       })
     }
 
-    const payload = firstLaunchDisabledPayload(disabled.feature)
+    const payload = firstLaunchDisabledPayload(disabled.feature, locale)
     return new NextResponse(
-      `<!doctype html><html><head><meta charset="utf-8"><title>EVO Inbox feature disabled</title></head><body><main style="font-family:system-ui,sans-serif;max-width:720px;margin:64px auto;padding:0 24px;line-height:1.5"><p style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#64748b">EVO Inbox first launch</p><h1 style="font-size:28px;margin:0 0 12px">Feature disabled</h1><p>${payload.message}</p><p><a href="/inbox">Return to inbox</a></p></main></body></html>`,
+      `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><title>EVO Inbox</title></head><body><main style="font-family:system-ui,sans-serif;max-width:720px;margin:64px auto;padding:0 24px;line-height:1.5"><p style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#64748b">${translate(locale, 'firstLaunch.eyebrow')}</p><h1 style="font-size:28px;margin:0 0 12px">${translate(locale, 'firstLaunch.title')}</h1><p>${payload.message}</p><p><a href="/inbox">${translate(locale, 'firstLaunch.return')}</a></p></main></body></html>`,
       {
         status: FIRST_LAUNCH_DISABLED_STATUS,
         headers: { 'content-type': 'text/html; charset=utf-8' },

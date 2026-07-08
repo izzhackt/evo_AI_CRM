@@ -12,6 +12,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useLanguage } from '@/hooks/use-language';
 import { SettingsPanelHead } from './settings-panel-head';
 
 interface PreflightCheck {
@@ -29,6 +30,7 @@ interface PreflightResponse {
 }
 
 export function ProductionReadiness() {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [result, setResult] = useState<PreflightResponse | null>(null);
@@ -43,17 +45,21 @@ export function ProductionReadiness() {
       });
       const data = (await res.json().catch(() => null)) as PreflightResponse | null;
       if (!data || !Array.isArray(data.checks)) {
-        setError(res.ok ? 'Readiness response was invalid.' : 'Readiness check failed.');
+        setError(
+          res.ok
+            ? t('settings.readiness.invalidResponse')
+            : t('settings.readiness.checkFailed'),
+        );
         return;
       }
       setResult(data);
     } catch {
-      setError('Could not reach the readiness preflight endpoint.');
+      setError(t('settings.readiness.endpointUnreachable'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -68,8 +74,8 @@ export function ProductionReadiness() {
     return (
       <section className="animate-in fade-in-50 duration-200">
         <SettingsPanelHead
-          title="Production readiness"
-          description="Review blockers before deploying or proving EVO Inbox."
+          title={t('settings.readiness.title')}
+          description={t('settings.readiness.loadingDescription')}
         />
         <div className="flex items-center justify-center py-12">
           <Loader2 className="size-6 animate-spin text-primary" />
@@ -81,8 +87,8 @@ export function ProductionReadiness() {
   return (
     <section className="animate-in fade-in-50 space-y-6 duration-200">
       <SettingsPanelHead
-        title="Production readiness"
-        description="Local preflight for inbox.evoadmissions.com. It does not deploy, send WhatsApp messages, or claim live provider success."
+        title={t('settings.readiness.title')}
+        description={t('settings.readiness.description')}
         action={
           <Button variant="outline" onClick={refresh} disabled={refreshing}>
             {refreshing ? (
@@ -90,7 +96,7 @@ export function ProductionReadiness() {
             ) : (
               <RefreshCw className="size-4" />
             )}
-            Refresh
+            {t('settings.readiness.refresh')}
           </Button>
         }
       />
@@ -98,7 +104,7 @@ export function ProductionReadiness() {
       {error ? (
         <Alert className="border-red-900 bg-red-950/20">
           <AlertTriangle className="size-4 text-red-400" />
-          <AlertTitle>Readiness unavailable</AlertTitle>
+          <AlertTitle>{t('settings.readiness.unavailable')}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : result ? (
@@ -110,12 +116,18 @@ export function ProductionReadiness() {
               <AlertTriangle className="size-4 text-amber-400" />
             )}
             <AlertTitle>
-              {result.ready ? 'Preflight ready' : 'Preflight blocked'}
+              {t(
+                result.ready
+                  ? 'settings.readiness.ready'
+                  : 'settings.readiness.blocked',
+              )}
             </AlertTitle>
             <AlertDescription>
               {result.ready
-                ? 'All required local configuration inputs are present. Live proof still requires real provider exercise.'
-                : `Missing or blocked: ${result.blockers.join(', ')}`}
+                ? t('settings.readiness.readyDescription')
+                : t('settings.readiness.missing', {
+                    items: result.blockers.join(', '),
+                  })}
             </AlertDescription>
           </Alert>
 
@@ -167,10 +179,7 @@ export function ProductionReadiness() {
           <div className="flex items-start gap-3 rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">
             <ShieldCheck className="mt-0.5 size-4 text-primary" />
             <p>
-              Issue #20 is not complete from this screen. The production proof
-              still requires deployment, real inbound WhatsApp, amoCRM identity
-              verification, Supabase record checks, AI draft generation from
-              knowledge, one manual WAHA reply, and verified no auto-reply.
+              {t('settings.readiness.proofNote')}
             </p>
           </div>
         </>

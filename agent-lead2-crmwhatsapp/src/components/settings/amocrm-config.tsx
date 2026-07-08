@@ -24,6 +24,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/use-auth';
+import { useLanguage } from '@/hooks/use-language';
 import { SettingsPanelHead } from './settings-panel-head';
 
 const MASKED_SECRET = '****************';
@@ -54,6 +55,7 @@ export function AmoCrmConfig() {
     profileLoading,
     canEditSettings,
   } = useAuth();
+  const { t } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -96,11 +98,11 @@ export function AmoCrmConfig() {
       setClientSecretEdited(false);
     } catch (err) {
       console.error('[amocrm-config] load failed:', err);
-      toast.error('Failed to load amoCRM configuration');
+      toast.error(t('settings.amocrm.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (authLoading || profileLoading) return;
@@ -113,11 +115,11 @@ export function AmoCrmConfig() {
 
   async function saveConfig() {
     if (!baseUrl.trim()) {
-      toast.error('amoCRM account URL is required');
+      toast.error(t('settings.amocrm.baseUrlRequired'));
       return;
     }
     if (!accessToken.trim() && !status?.has_secrets?.access_token) {
-      toast.error('amoCRM access token is required');
+      toast.error(t('settings.amocrm.accessTokenRequired'));
       return;
     }
 
@@ -149,30 +151,30 @@ export function AmoCrmConfig() {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || 'Failed to save amoCRM configuration');
+        toast.error(data.error || t('settings.amocrm.saveFailed'));
         return;
       }
-      toast.success('amoCRM configuration saved');
+      toast.success(t('settings.amocrm.saved'));
       await loadConfig();
     } catch (err) {
       console.error('[amocrm-config] save failed:', err);
-      toast.error('Failed to save amoCRM configuration');
+      toast.error(t('settings.amocrm.saveFailed'));
     } finally {
       setSaving(false);
     }
   }
 
   async function resetConfig() {
-    if (!confirm('Delete the amoCRM configuration for this account?')) return;
+    if (!confirm(t('settings.amocrm.resetConfirm'))) return;
     setResetting(true);
     try {
       const res = await fetch('/api/integrations/amocrm/config', { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json();
-        toast.error(data.error || 'Failed to reset amoCRM configuration');
+        toast.error(data.error || t('settings.amocrm.resetFailed'));
         return;
       }
-      toast.success('amoCRM configuration cleared');
+      toast.success(t('settings.amocrm.cleared'));
       setStatus(null);
       setBaseUrl('');
       setPipelineId('');
@@ -200,8 +202,8 @@ export function AmoCrmConfig() {
     return (
       <section className="animate-in fade-in-50 duration-200">
         <SettingsPanelHead
-          title="amoCRM identity"
-          description="Configure the identity source of truth for EVO Inbox leads."
+          title={t('settings.amocrm.title')}
+          description={t('settings.amocrm.loadingDescription')}
         />
         <div className="flex items-center justify-center py-12">
           <Loader2 className="size-6 animate-spin text-primary" />
@@ -216,8 +218,8 @@ export function AmoCrmConfig() {
   return (
     <section className="animate-in fade-in-50 duration-200">
       <SettingsPanelHead
-        title="amoCRM identity"
-        description="Resolve or create the canonical amoCRM contact and lead before EVO Inbox presents a WhatsApp sender as a real lead."
+        title={t('settings.amocrm.title')}
+        description={t('settings.amocrm.description')}
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -233,30 +235,30 @@ export function AmoCrmConfig() {
               )}
               <AlertTitle className="mb-0">
                 {configured
-                  ? 'amoCRM identity configured'
+                  ? t('settings.amocrm.statusConfigured')
                   : blocked
-                    ? 'amoCRM identity blocked'
-                    : 'amoCRM identity not configured'}
+                    ? t('settings.amocrm.statusBlocked')
+                    : t('settings.amocrm.statusMissing')}
               </AlertTitle>
             </div>
             <AlertDescription>
               {configured
-                ? 'Inbound WhatsApp senders can be tied to amoCRM shadow identifiers in EVO Inbox.'
+                ? t('settings.amocrm.statusConfiguredDescription')
                 : status?.message ||
-                  'Save the amoCRM account URL and access token before inbound conversations can be presented as real leads.'}
+                  t('settings.amocrm.statusMissingDescription')}
             </AlertDescription>
           </Alert>
 
           <Card>
             <CardHeader>
-              <CardTitle>Account connection</CardTitle>
+              <CardTitle>{t('settings.amocrm.connection')}</CardTitle>
               <CardDescription>
-                Secrets are encrypted with ENCRYPTION_KEY and never returned after saving.
+                {t('settings.secretsEncrypted')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>amoCRM account URL</Label>
+                <Label>{t('settings.amocrm.accountUrl')}</Label>
                 <Input
                   value={baseUrl}
                   onChange={(event) => setBaseUrl(event.target.value)}
@@ -267,36 +269,36 @@ export function AmoCrmConfig() {
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Pipeline ID</Label>
+                  <Label>{t('settings.amocrm.pipelineId')}</Label>
                   <Input
                     value={pipelineId}
                     onChange={(event) => setPipelineId(event.target.value)}
-                    placeholder="optional"
+                    placeholder={t('settings.amocrm.optional')}
                     disabled={!canEditSettings || saving}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Status ID</Label>
+                  <Label>{t('settings.amocrm.statusId')}</Label>
                   <Input
                     value={statusId}
                     onChange={(event) => setStatusId(event.target.value)}
-                    placeholder="optional"
+                    placeholder={t('settings.amocrm.optional')}
                     disabled={!canEditSettings || saving}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Responsible user ID</Label>
+                  <Label>{t('settings.amocrm.responsibleUserId')}</Label>
                   <Input
                     value={responsibleUserId}
                     onChange={(event) => setResponsibleUserId(event.target.value)}
-                    placeholder="optional"
+                    placeholder={t('settings.amocrm.optional')}
                     disabled={!canEditSettings || saving}
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Access token</Label>
+                <Label>{t('settings.amocrm.accessToken')}</Label>
                 <Input
                   type={showSecrets ? 'text' : 'password'}
                   value={accessToken}
@@ -307,14 +309,14 @@ export function AmoCrmConfig() {
                   onFocus={() =>
                     secretFocus(setAccessToken, () => setAccessEdited(true))(accessToken)
                   }
-                  placeholder="Long-lived amoCRM token"
+                  placeholder={t('settings.amocrm.longLivedToken')}
                   disabled={!canEditSettings || saving}
                 />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Refresh token</Label>
+                  <Label>{t('settings.amocrm.refreshToken')}</Label>
                   <Input
                     type={showSecrets ? 'text' : 'password'}
                     value={refreshToken}
@@ -327,12 +329,12 @@ export function AmoCrmConfig() {
                         refreshToken,
                       )
                     }
-                    placeholder="optional"
+                    placeholder={t('settings.amocrm.optional')}
                     disabled={!canEditSettings || saving}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Client ID</Label>
+                  <Label>{t('settings.amocrm.clientId')}</Label>
                   <Input
                     type={showSecrets ? 'text' : 'password'}
                     value={clientId}
@@ -343,12 +345,12 @@ export function AmoCrmConfig() {
                     onFocus={() =>
                       secretFocus(setClientId, () => setClientIdEdited(true))(clientId)
                     }
-                    placeholder="optional"
+                    placeholder={t('settings.amocrm.optional')}
                     disabled={!canEditSettings || saving}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Client secret</Label>
+                  <Label>{t('settings.amocrm.clientSecret')}</Label>
                   <Input
                     type={showSecrets ? 'text' : 'password'}
                     value={clientSecret}
@@ -361,7 +363,7 @@ export function AmoCrmConfig() {
                         setClientSecretEdited(true),
                       )(clientSecret)
                     }
-                    placeholder="optional"
+                    placeholder={t('settings.amocrm.optional')}
                     disabled={!canEditSettings || saving}
                   />
                 </div>
@@ -374,7 +376,7 @@ export function AmoCrmConfig() {
                 className="w-full sm:w-auto"
               >
                 {showSecrets ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                {showSecrets ? 'Hide secrets' : 'Show secrets'}
+                {t(showSecrets ? 'settings.amocrm.hideSecrets' : 'settings.amocrm.showSecrets')}
               </Button>
             </CardContent>
           </Card>
@@ -382,7 +384,7 @@ export function AmoCrmConfig() {
           <div className="flex flex-wrap gap-3">
             <Button onClick={saveConfig} disabled={!canEditSettings || saving}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-              Save configuration
+              {t('settings.amocrm.saveConfiguration')}
             </Button>
             {configured ? (
               <Button
@@ -396,7 +398,7 @@ export function AmoCrmConfig() {
                 ) : (
                   <RotateCcw className="size-4" />
                 )}
-                Reset
+                {t('settings.whatsapp.reset')}
               </Button>
             ) : null}
           </div>
@@ -406,13 +408,13 @@ export function AmoCrmConfig() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <ShieldCheck className="size-4" />
-              Identity boundary
+              {t('settings.amocrm.identityBoundary')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>amoCRM remains canonical for contact identity, lead identity, and sales status.</p>
-            <p>EVO Inbox stores only shadow fields such as amo_contact_id and amo_lead_id for operator speed.</p>
-            <p>When amoCRM is missing or rejects a request, inbound lead presentation is blocked instead of creating a local-only real lead.</p>
+            <p>{t('settings.amocrm.boundaryCanonical')}</p>
+            <p>{t('settings.amocrm.boundaryShadow')}</p>
+            <p>{t('settings.amocrm.boundaryBlocked')}</p>
           </CardContent>
         </Card>
       </div>

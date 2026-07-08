@@ -19,6 +19,7 @@ import { DealCard } from "./deal-card";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useLanguage } from "@/hooks/use-language";
 import { formatCurrency } from "@/lib/currency";
 
 interface PipelineBoardProps {
@@ -37,6 +38,7 @@ export function PipelineBoard({
   onEditDeal,
 }: PipelineBoardProps) {
   const { defaultCurrency } = useAuth();
+  const { t } = useLanguage();
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
 
   const sortedStages = useMemo(
@@ -118,6 +120,8 @@ export function PipelineBoard({
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
+              addDealLabel={t("pipelines.addDeal")}
+              dropDealLabel={t("pipelines.dropDealHere")}
             />
           );
         })}
@@ -192,6 +196,8 @@ function StageColumn({
   currency,
   onAddDeal,
   onEditDeal,
+  addDealLabel,
+  dropDealLabel,
 }: {
   stage: PipelineStage;
   deals: Deal[];
@@ -199,6 +205,8 @@ function StageColumn({
   currency: string;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  addDealLabel: string;
+  dropDealLabel: string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
@@ -237,7 +245,7 @@ function StageColumn({
       >
         {deals.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-lg border-2 border-dashed border-border py-10 text-xs text-muted-foreground">
-            Drop a deal here
+            {dropDealLabel}
           </div>
         ) : (
           deals.map((deal) => (
@@ -258,7 +266,7 @@ function StageColumn({
         className="mt-3 w-full justify-start border border-dashed border-border bg-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
       >
         <Plus className="mr-1 h-3 w-3" />
-        Add Deal
+        {addDealLabel}
       </Button>
     </div>
   );

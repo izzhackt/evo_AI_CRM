@@ -16,6 +16,7 @@ import {
 import { toast } from 'sonner';
 
 import { useAuth } from '@/hooks/use-auth';
+import { useLanguage } from '@/hooks/use-language';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,6 +51,7 @@ interface WahaConfigResponse {
 
 export function WhatsAppConfig() {
   const { user, accountId, loading: authLoading, profileLoading } = useAuth();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -91,11 +93,11 @@ export function WhatsAppConfig() {
       setWebhookSecretEdited(false);
     } catch (err) {
       console.error('[waha-config] load failed:', err);
-      toast.error('Failed to load WAHA configuration');
+      toast.error(t('settings.whatsapp.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (authLoading || profileLoading) return;
@@ -108,11 +110,11 @@ export function WhatsAppConfig() {
 
   async function saveConfig() {
     if (!baseUrl.trim()) {
-      toast.error('WAHA base URL is required');
+      toast.error(t('settings.whatsapp.baseUrlRequired'));
       return;
     }
     if (!sessionName.trim()) {
-      toast.error('Session name is required');
+      toast.error(t('settings.whatsapp.sessionRequired'));
       return;
     }
 
@@ -136,14 +138,14 @@ export function WhatsAppConfig() {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || 'Failed to save WAHA configuration');
+        toast.error(data.error || t('settings.whatsapp.saveFailed'));
         return;
       }
-      toast.success('WAHA configuration saved');
+      toast.success(t('settings.whatsapp.saved'));
       await loadConfig();
     } catch (err) {
       console.error('[waha-config] save failed:', err);
-      toast.error('Failed to save WAHA configuration');
+      toast.error(t('settings.whatsapp.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -154,7 +156,7 @@ export function WhatsAppConfig() {
     try {
       await loadConfig();
       if (status?.connected) {
-        toast.success('WAHA session is working');
+        toast.success(t('settings.whatsapp.working'));
       }
     } finally {
       setTesting(false);
@@ -162,16 +164,16 @@ export function WhatsAppConfig() {
   }
 
   async function resetConfig() {
-    if (!confirm('Delete the WAHA configuration for this account?')) return;
+    if (!confirm(t('settings.whatsapp.resetConfirm'))) return;
     setResetting(true);
     try {
       const res = await fetch('/api/whatsapp/config', { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json();
-        toast.error(data.error || 'Failed to reset WAHA configuration');
+        toast.error(data.error || t('settings.whatsapp.resetFailed'));
         return;
       }
-      toast.success('WAHA configuration cleared');
+      toast.success(t('settings.whatsapp.cleared'));
       setStatus(null);
       setBaseUrl('');
       setSessionName(DEFAULT_SESSION);
@@ -186,15 +188,15 @@ export function WhatsAppConfig() {
 
   function copyWebhookUrl() {
     void navigator.clipboard.writeText(webhookUrl);
-    toast.success('Webhook URL copied');
+    toast.success(t('settings.whatsapp.webhookCopied'));
   }
 
   if (loading) {
     return (
       <section className="animate-in fade-in-50 duration-200">
         <SettingsPanelHead
-          title="WhatsApp WAHA"
-          description="Configure the private WAHA session used by EVO Inbox."
+          title={t('settings.whatsapp.title')}
+          description={t('settings.whatsapp.loadingDescription')}
         />
         <div className="flex items-center justify-center py-12">
           <Loader2 className="size-6 animate-spin text-primary" />
@@ -209,8 +211,8 @@ export function WhatsAppConfig() {
   return (
     <section className="animate-in fade-in-50 duration-200">
       <SettingsPanelHead
-        title="WhatsApp WAHA"
-        description="Configure session evo-inbox, API auth, and signed WAHA webhooks."
+        title={t('settings.whatsapp.title')}
+        description={t('settings.whatsapp.description')}
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -226,30 +228,30 @@ export function WhatsAppConfig() {
               )}
               <AlertTitle className="mb-0">
                 {connected
-                  ? 'WAHA session working'
+                  ? t('settings.whatsapp.statusWorking')
                   : configured
-                    ? 'WAHA configured, status blocked'
-                    : 'WAHA not configured'}
+                    ? t('settings.whatsapp.statusBlocked')
+                    : t('settings.whatsapp.statusMissing')}
               </AlertTitle>
             </div>
             <AlertDescription>
               {connected
                 ? `Session ${status?.session_status ?? DEFAULT_SESSION} is ready.`
                 : status?.message ||
-                  'Save the WAHA base URL, API key, and webhook HMAC secret.'}
+                  t('settings.whatsapp.statusMissingDescription')}
             </AlertDescription>
           </Alert>
 
           <Card>
             <CardHeader>
-              <CardTitle>WAHA session</CardTitle>
+              <CardTitle>{t('settings.whatsapp.sessionCard')}</CardTitle>
               <CardDescription>
-                Secrets are encrypted server-side and never returned to the browser.
+                {t('settings.secretsEncrypted')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Base URL</Label>
+                <Label>{t('settings.whatsapp.baseUrl')}</Label>
                 <Input
                   value={baseUrl}
                   onChange={(event) => setBaseUrl(event.target.value)}
@@ -258,7 +260,7 @@ export function WhatsAppConfig() {
               </div>
 
               <div className="space-y-2">
-                <Label>Session name</Label>
+                <Label>{t('settings.whatsapp.sessionName')}</Label>
                 <Input
                   value={sessionName}
                   onChange={(event) => setSessionName(event.target.value)}
@@ -267,7 +269,7 @@ export function WhatsAppConfig() {
               </div>
 
               <div className="space-y-2">
-                <Label>WAHA API key</Label>
+                <Label>{t('settings.whatsapp.apiKey')}</Label>
                 <div className="relative">
                   <Input
                     type={showApiKey ? 'text' : 'password'}
@@ -300,7 +302,7 @@ export function WhatsAppConfig() {
               </div>
 
               <div className="space-y-2">
-                <Label>Webhook HMAC secret</Label>
+                <Label>{t('settings.whatsapp.webhookSecret')}</Label>
                 <div className="relative">
                   <Input
                     type={showWebhookSecret ? 'text' : 'password'}
@@ -336,7 +338,7 @@ export function WhatsAppConfig() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Webhook URL</CardTitle>
+              <CardTitle>{t('settings.whatsapp.webhookUrl')}</CardTitle>
               <CardDescription>
                 Configure WAHA session webhooks for message and session.status.
               </CardDescription>
@@ -359,7 +361,7 @@ export function WhatsAppConfig() {
           <div className="flex flex-wrap gap-3">
             <Button onClick={saveConfig} disabled={saving}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-              Save configuration
+              {t('settings.whatsapp.saveConfiguration')}
             </Button>
             <Button
               variant="outline"
@@ -371,7 +373,7 @@ export function WhatsAppConfig() {
               ) : (
                 <Zap className="size-4" />
               )}
-              Check status
+              {t('settings.whatsapp.testSession')}
             </Button>
             {configured ? (
               <Button
@@ -385,7 +387,7 @@ export function WhatsAppConfig() {
                 ) : (
                   <RotateCcw className="size-4" />
                 )}
-                Reset
+                {t('settings.whatsapp.reset')}
               </Button>
             ) : null}
           </div>
@@ -396,13 +398,13 @@ export function WhatsAppConfig() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ServerCog className="size-4" />
-                Session contract
+                {t('settings.whatsapp.sessionContract')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p>Default session: {DEFAULT_SESSION}</p>
-              <p>Send API: POST /api/sendText with session, chatId, and text.</p>
-              <p>Direct chat IDs use phone digits plus @c.us.</p>
+              <p>{t('settings.whatsapp.defaultSession', { session: DEFAULT_SESSION })}</p>
+              <p>{t('settings.whatsapp.sendApi')}</p>
+              <p>{t('settings.whatsapp.chatIds')}</p>
             </CardContent>
           </Card>
 
@@ -410,13 +412,13 @@ export function WhatsAppConfig() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShieldCheck className="size-4" />
-                Webhook auth
+                {t('settings.whatsapp.webhookAuth')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p>WAHA signs raw webhook bodies with sha512 HMAC.</p>
-              <p>Unsigned or invalid-HMAC session.status events are rejected.</p>
-              <p>Keep the WAHA API private and protected by X-Api-Key.</p>
+              <p>{t('settings.whatsapp.hmacBodies')}</p>
+              <p>{t('settings.whatsapp.rejectInvalid')}</p>
+              <p>{t('settings.whatsapp.keepPrivate')}</p>
             </CardContent>
           </Card>
         </div>

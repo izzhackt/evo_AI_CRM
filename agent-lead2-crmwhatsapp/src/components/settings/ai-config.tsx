@@ -11,6 +11,7 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { useLanguage } from '@/hooks/use-language';
 import { canEditSettings } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,12 +51,6 @@ const KEY_PLACEHOLDER: Record<AiProvider, string> = {
   gemini: 'AIza...',
 };
 
-const EMBEDDINGS_PROVIDER_LABEL: Record<EmbeddingsProvider, string> = {
-  keyword: 'Keyword only',
-  gemini: 'Gemini embeddings',
-  openai: 'OpenAI embeddings',
-};
-
 const EMBEDDINGS_KEY_PLACEHOLDER: Record<EmbeddingsProvider, string> = {
   keyword: '',
   gemini: 'AIza...',
@@ -64,7 +59,13 @@ const EMBEDDINGS_KEY_PLACEHOLDER: Record<EmbeddingsProvider, string> = {
 
 export function AiConfig() {
   const { accountId, accountRole, profileLoading } = useAuth();
+  const { t } = useLanguage();
   const canEdit = accountRole ? canEditSettings(accountRole) : false;
+  const embeddingsProviderLabel: Record<EmbeddingsProvider, string> = {
+    keyword: t('ai.config.keywordOnly'),
+    gemini: t('ai.config.geminiEmbeddings'),
+    openai: t('ai.config.openaiEmbeddings'),
+  };
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -98,7 +99,7 @@ export function AiConfig() {
       const res = await fetch('/api/ai/config');
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error ?? 'Failed to load AI configuration');
+        toast.error(data.error ?? t('ai.config.loadFailed'));
         return;
       }
       if (data.configured) {
@@ -116,11 +117,11 @@ export function AiConfig() {
         setEmbeddingsKeyEdited(false);
       }
     } catch {
-      toast.error('Failed to load AI configuration');
+      toast.error(t('ai.config.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!accountId || loadedAccountIdRef.current === accountId) return;
@@ -171,10 +172,10 @@ export function AiConfig() {
         }),
       });
       const data = await res.json();
-      if (res.ok) toast.success('Key works — the provider responded.');
-      else toast.error(data.error ?? 'The provider rejected the request.');
+      if (res.ok) toast.success(t('ai.config.testSuccess'));
+      else toast.error(data.error ?? t('ai.config.testRejected'));
     } catch {
-      toast.error('Could not reach the provider.');
+      toast.error(t('ai.config.providerUnreachable'));
     } finally {
       setTesting(false);
     }
@@ -182,11 +183,11 @@ export function AiConfig() {
 
   const handleSave = async () => {
     if (!model.trim()) {
-      toast.error('Enter a model name.');
+      toast.error(t('ai.config.modelRequired'));
       return;
     }
     if (!configured && !keyEdited) {
-      toast.error('Enter your API key.');
+      toast.error(t('ai.config.apiKeyRequired'));
       return;
     }
     setSaving(true);
@@ -198,13 +199,13 @@ export function AiConfig() {
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success('AI assistant saved.');
+        toast.success(t('ai.config.saveSuccess'));
         await fetchConfig();
       } else {
-        toast.error(data.error ?? 'Failed to save.');
+        toast.error(data.error ?? t('ai.config.saveFailed'));
       }
     } catch {
-      toast.error('Failed to save.');
+      toast.error(t('ai.config.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -215,7 +216,7 @@ export function AiConfig() {
     try {
       const res = await fetch('/api/ai/config', { method: 'DELETE' });
       if (res.ok) {
-        toast.success('AI configuration removed.');
+        toast.success(t('ai.config.removeSuccess'));
         setConfigured(false);
         setHasStoredKey(false);
         setApiKey('');
@@ -228,10 +229,10 @@ export function AiConfig() {
         setSystemPrompt('');
       } else {
         const data = await res.json();
-        toast.error(data.error ?? 'Failed to remove.');
+        toast.error(data.error ?? t('ai.config.removeFailed'));
       }
     } catch {
-      toast.error('Failed to remove.');
+      toast.error(t('ai.config.removeFailed'));
     } finally {
       setRemoving(false);
     }
@@ -240,7 +241,7 @@ export function AiConfig() {
   if (loading || profileLoading) {
     return (
       <div className="text-muted-foreground flex items-center justify-center py-16">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading…
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t('common.loading')}
       </div>
     );
   }
@@ -260,13 +261,13 @@ export function AiConfig() {
   return (
     <div>
       <SettingsPanelHead
-        title="EVO Companion AI Assistant"
-        description="Bring your own OpenAI, Anthropic, or Gemini key. EVO Inbox uses it for draft replies and knowledge-grounded review only. Automatic WhatsApp replies are disabled for first launch."
+        title={t('ai.config.title')}
+        description={t('ai.config.description')}
       />
 
       {!canEdit && (
         <p className="border-border bg-muted/40 text-muted-foreground mb-4 rounded-md border px-3 py-2 text-sm">
-          Only admins and owners can change the AI configuration.
+          {t('ai.config.adminOnly')}
         </p>
       )}
 
@@ -274,17 +275,17 @@ export function AiConfig() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="text-primary h-4 w-4" /> Provider & key
+              <Sparkles className="text-primary h-4 w-4" />{' '}
+              {t('ai.config.providerCardTitle')}
             </CardTitle>
             <CardDescription>
-              Your provider key is encrypted at rest and used only for
-              operator-reviewed admissions reply drafts.
+              {t('ai.config.providerCardDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Provider</Label>
+                <Label>{t('ai.config.provider')}</Label>
                 <Select
                   value={provider}
                   onValueChange={(v) => handleProviderChange(v as AiProvider)}
@@ -293,7 +294,7 @@ export function AiConfig() {
                   <SelectTrigger>
                     <SelectValue>
                       {(selected: AiProvider | null) =>
-                        selected ? PROVIDER_LABEL[selected] : 'Select provider'
+                        selected ? PROVIDER_LABEL[selected] : t('ai.config.selectProvider')
                       }
                     </SelectValue>
                   </SelectTrigger>
@@ -312,7 +313,7 @@ export function AiConfig() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="ai-model">Model</Label>
+                <Label htmlFor="ai-model">{t('ai.config.model')}</Label>
                 <Input
                   id="ai-model"
                   value={model}
@@ -324,7 +325,7 @@ export function AiConfig() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ai-key">API key</Label>
+              <Label htmlFor="ai-key">{t('ai.config.apiKey')}</Label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Input
@@ -348,6 +349,8 @@ export function AiConfig() {
                   <button
                     type="button"
                     onClick={() => setShowKey((s) => !s)}
+                    aria-label={showKey ? t('ai.config.hideKey') : t('ai.config.showKey')}
+                    title={showKey ? t('ai.config.hideKey') : t('ai.config.showKey')}
                     className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
                     tabIndex={-1}
                   >
@@ -368,14 +371,14 @@ export function AiConfig() {
                   ) : (
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                   )}
-                  Test key
+                  {t('ai.config.testKey')}
                 </Button>
               </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Knowledge retrieval</Label>
+                <Label>{t('ai.config.retrieval')}</Label>
                 <Select
                   value={embeddingsProvider}
                   onValueChange={(v) =>
@@ -387,20 +390,20 @@ export function AiConfig() {
                     <SelectValue>
                       {(selected: EmbeddingsProvider | null) =>
                         selected
-                          ? EMBEDDINGS_PROVIDER_LABEL[selected]
-                          : 'Select retrieval'
+                          ? embeddingsProviderLabel[selected]
+                          : t('ai.config.selectRetrieval')
                       }
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="keyword">
-                      {EMBEDDINGS_PROVIDER_LABEL.keyword}
+                      {embeddingsProviderLabel.keyword}
                     </SelectItem>
                     <SelectItem value="gemini">
-                      {EMBEDDINGS_PROVIDER_LABEL.gemini}
+                      {embeddingsProviderLabel.gemini}
                     </SelectItem>
                     <SelectItem value="openai">
-                      {EMBEDDINGS_PROVIDER_LABEL.openai}
+                      {embeddingsProviderLabel.openai}
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -408,7 +411,7 @@ export function AiConfig() {
 
               <div className="space-y-2">
                 <Label htmlFor="ai-embeddings-key">
-                  Embeddings override key
+                  {t('ai.config.embeddingsOverrideKey')}
                 </Label>
                 <Input
                   id="ai-embeddings-key"
@@ -431,31 +434,26 @@ export function AiConfig() {
               </div>
             </div>
             <p className="text-muted-foreground text-xs">
-              Keyword mode uses multilingual full-text search only. Gemini and
-              OpenAI modes use the current draft key when the providers match;
-              otherwise add an override key here. Clear the override to fall
-              back to the matching draft key or keyword search.
+              {t('ai.config.retrievalHelp')}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Behaviour</CardTitle>
+            <CardTitle className="text-base">{t('ai.config.behaviour')}</CardTitle>
             <CardDescription>
-              Tell the assistant how EVO handles consultations, countries,
-              scholarships, documents, deadlines, and handoff rules. This
-              context feeds operator-reviewed drafts only.
+              {t('ai.config.behaviourDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="ai-prompt">Business context & instructions</Label>
+              <Label htmlFor="ai-prompt">{t('ai.config.instructions')}</Label>
               <Textarea
                 id="ai-prompt"
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
-                placeholder="Example: Be concise and warm. Do not promise admission, visas, scholarships, deadlines, or prices without staff confirmation. Hand off sensitive cases to an EVO operator."
+                placeholder={t('ai.config.instructionsPlaceholder')}
                 rows={5}
                 disabled={disabled}
               />
@@ -464,11 +462,10 @@ export function AiConfig() {
             <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
               <div>
                 <p className="text-sm font-medium text-foreground">
-                  Enable AI assistant
+                  {t('ai.config.enable')}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Master switch. Turns on the “Draft with AI” button in the
-                  inbox.
+                  {t('ai.config.enableHelp')}
                 </p>
               </div>
               <Switch
@@ -480,11 +477,10 @@ export function AiConfig() {
 
             <div className="rounded-md border border-border bg-muted/30 p-3">
               <p className="text-sm font-medium text-foreground">
-                Auto-reply disabled for first launch
+                {t('ai.config.autoReplyDisabled')}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                The assistant can draft replies for staff review, but it cannot
-                send unattended WhatsApp messages in this slice.
+                {t('ai.config.autoReplyDisabledHelp')}
               </p>
             </div>
           </CardContent>
@@ -509,7 +505,7 @@ export function AiConfig() {
               ) : (
                 <Trash2 className="mr-2 h-4 w-4" />
               )}
-              Remove
+              {removing ? t('common.removing') : t('common.remove')}
             </Button>
           ) : (
             <span />
@@ -517,7 +513,7 @@ export function AiConfig() {
 
           <Button onClick={handleSave} disabled={disabled}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </div>
       </div>

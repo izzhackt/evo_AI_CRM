@@ -104,12 +104,19 @@ describe("first-launch retained UI", () => {
       join(process.cwd(), "src/components/settings/ai-config.tsx"),
       "utf8",
     );
+    const i18n = readFileSync(
+      join(process.cwd(), "src/lib/i18n.ts"),
+      "utf8",
+    );
 
-    expect(settingsPage).toContain("EVO Inbox settings");
+    expect(settingsPage).toContain("settings.title");
+    expect(i18n).toContain("'settings.title': 'EVO Inbox settings'");
     expect(settingsSections).toContain("amocrm");
     expect(settingsSections).toContain("readiness");
-    expect(aiConfig).toContain("EVO Companion AI Assistant");
-    expect(aiConfig).toContain("Automatic WhatsApp replies are disabled");
+    expect(aiConfig).toContain("ai.config.title");
+    expect(aiConfig).toContain("ai.config.description");
+    expect(i18n).toContain("EVO Companion AI Assistant");
+    expect(i18n).toContain("Automatic WhatsApp replies are disabled");
   });
 
   it("does not expose disabled module routes in primary navigation", () => {
@@ -121,8 +128,8 @@ describe("first-launch retained UI", () => {
     expect(source).not.toContain('href: "/broadcasts"');
     expect(source).not.toContain('href: "/automations"');
     expect(source).not.toContain('href: "/flows"');
-    expect(source).toContain('label: "EVO Inbox"');
-    expect(source).toContain('label: "Lead profiles"');
-    expect(source).toContain('label: "AI Drafts"');
+    expect(source).toContain('labelKey: "nav.inbox"');
+    expect(source).toContain('labelKey: "nav.contacts"');
+    expect(source).toContain('labelKey: "nav.aiDrafts"');
   });
 });

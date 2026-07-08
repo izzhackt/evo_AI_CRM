@@ -2,6 +2,12 @@
 
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/hooks/use-language";
+import {
+  DEFAULT_LOCALE,
+  translate,
+  type TranslationKey,
+} from "@/lib/i18n";
 import type { Message } from "@/types";
 
 interface ReplyQuoteProps {
@@ -26,6 +32,7 @@ export function ReplyQuote({
   onDismiss,
   onPrimary = false,
 }: ReplyQuoteProps) {
+  const { t } = useLanguage();
   const isChip = !!onDismiss;
   return (
     <div
@@ -63,7 +70,7 @@ export function ReplyQuote({
         <button
           type="button"
           onClick={onDismiss}
-          aria-label="Cancel reply"
+          aria-label={t("inbox.message.cancelReply")}
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" />
@@ -74,22 +81,27 @@ export function ReplyQuote({
 }
 
 /** Build the one-line preview text shown inside a reply quote. */
-export function buildReplyPreview(message: Message): string {
+export function buildReplyPreview(
+  message: Message,
+  t?: (key: TranslationKey) => string,
+): string {
   if (message.content_text) return message.content_text;
+  const label = (key: TranslationKey) =>
+    t ? t(key) : translate(DEFAULT_LOCALE, key);
   switch (message.content_type) {
     case "image":
-      return "[Image]";
+      return `[${label("inbox.message.image")}]`;
     case "video":
-      return "[Video]";
+      return `[${label("inbox.message.video")}]`;
     case "audio":
-      return "[Audio]";
+      return `[${label("inbox.message.audio")}]`;
     case "document":
-      return "[Document]";
+      return `[${label("inbox.message.document")}]`;
     case "location":
-      return "[Location]";
+      return `[${label("inbox.message.locationShared")}]`;
     case "template":
-      return "[Template]";
+      return `[${label("inbox.message.template")}]`;
     default:
-      return "[Message]";
+      return `[${label("inbox.message.unsupportedType")}]`;
   }
 }

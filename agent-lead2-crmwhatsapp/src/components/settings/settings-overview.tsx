@@ -5,6 +5,7 @@ import { ChevronRight, Loader2 } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { useLanguage } from '@/hooks/use-language';
 import { useTheme } from '@/hooks/use-theme';
 import { THEMES } from '@/lib/themes';
 import { CURRENCIES } from '@/lib/currency';
@@ -31,6 +32,7 @@ export function SettingsOverview({
   const { user, profile, accountId, accountRole, defaultCurrency, canManageMembers } =
     useAuth();
   const { mode, theme } = useTheme();
+  const { t } = useLanguage();
 
   const [counts, setCounts] = useState<OverviewCounts | null>(null);
   const [countsLoading, setCountsLoading] = useState(true);
@@ -95,7 +97,26 @@ export function SettingsOverview({
   const currencyLabel =
     CURRENCIES.find((c) => c.code === defaultCurrency)?.label ?? defaultCurrency;
   const themeName = THEMES.find((t) => t.id === theme)?.name ?? theme;
-  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  const memberCountLabel =
+    counts?.members === 1
+      ? t('settings.overview.members.one')
+      : t('settings.overview.members.many', { count: counts?.members ?? 0 });
+  const pendingInviteLabel =
+    counts?.pendingInvites === 1
+      ? t('settings.overview.invites.one')
+      : t('settings.overview.invites.many', {
+          count: counts?.pendingInvites ?? 0,
+        });
+  const tagCountLabel =
+    counts?.tags === 1
+      ? t('settings.overview.tags.one')
+      : t('settings.overview.tags.many', { count: counts?.tags ?? 0 });
+  const customFieldCountLabel =
+    counts?.customFields === 1
+      ? t('settings.overview.customFields.one')
+      : t('settings.overview.customFields.many', {
+          count: counts?.customFields ?? 0,
+        });
 
   // Per-tile loading + subtitle. `null` counts render as a graceful
   // fallback so a single failed query never blanks a tile.
@@ -107,35 +128,31 @@ export function SettingsOverview({
     {
       section: 'whatsapp',
       loading: false,
-      subtitle: 'Private WAHA session evo-inbox',
+      subtitle: t('settings.overview.waha'),
     },
     {
       section: 'amocrm',
       loading: false,
-      subtitle: 'Canonical contact and lead identity',
+      subtitle: t('settings.overview.amocrm'),
     },
     {
       section: 'ai',
       loading: false,
-      subtitle: 'Draft-only assistant and knowledge base',
+      subtitle: t('settings.overview.ai'),
     },
     {
       section: 'readiness',
       loading: false,
-      subtitle: 'Production preflight blockers',
+      subtitle: t('settings.overview.readiness'),
     },
     {
       section: 'members',
       loading: countsLoading,
       subtitle:
         counts?.members == null
-          ? 'View team members'
-          : `${counts.members} member${counts.members === 1 ? '' : 's'}${
-              counts.pendingInvites
-                ? ` · ${counts.pendingInvites} pending invite${
-                    counts.pendingInvites === 1 ? '' : 's'
-                  }`
-                : ''
+          ? t('settings.overview.viewMembers')
+          : `${memberCountLabel}${
+              counts.pendingInvites ? ` · ${pendingInviteLabel}` : ''
             }`,
     },
     {
@@ -148,15 +165,16 @@ export function SettingsOverview({
       loading: countsLoading,
       subtitle:
         counts?.tags == null && counts?.customFields == null
-          ? 'Tags and custom fields'
-          : `${counts?.tags ?? 0} tag${counts?.tags === 1 ? '' : 's'} · ${
-              counts?.customFields ?? 0
-            } custom field${counts?.customFields === 1 ? '' : 's'}`,
+          ? t('settings.overview.fieldsFallback')
+          : `${tagCountLabel} · ${customFieldCountLabel}`,
     },
     {
       section: 'appearance',
       loading: false,
-      subtitle: `${cap(mode)} mode · ${themeName} accent`,
+      subtitle: t('settings.overview.modeAccent', {
+        mode: t(mode === 'dark' ? 'common.dark' : 'common.light'),
+        theme: themeName,
+      }),
     },
   ];
 
@@ -185,7 +203,15 @@ export function SettingsOverview({
         {roleMeta && RoleIcon ? (
           <SettingsChip variant={roleMeta.variant}>
             <RoleIcon />
-            {roleMeta.label}
+            {t(
+              accountRole === 'owner'
+                ? 'common.owner'
+                : accountRole === 'admin'
+                  ? 'common.admin'
+                  : accountRole === 'agent'
+                    ? 'common.agent'
+                    : 'common.viewer',
+            )}
           </SettingsChip>
         ) : null}
       </Card>
@@ -210,12 +236,13 @@ export function SettingsOverview({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-foreground">
-                  {meta.label}
+                  {t(meta.labelKey)}
                 </span>
                 <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                   {loading ? (
                     <>
-                      <Loader2 className="size-3 animate-spin" /> Loading…
+                      <Loader2 className="size-3 animate-spin" />{' '}
+                      {t('common.loadingEllipsis')}
                     </>
                   ) : (
                     subtitle

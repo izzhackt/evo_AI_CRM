@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useLanguage } from "@/hooks/use-language";
 import { cn } from "@/lib/utils";
 import type { Contact, Conversation, Deal, ContactNote, Tag } from "@/types";
 import {
@@ -27,6 +28,7 @@ interface ContactSidebarProps {
 
 export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
   const { accountId } = useAuth();
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
@@ -119,7 +121,7 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
   if (!contact) {
     return (
       <div className="flex h-full w-70 items-center justify-center border-l border-border bg-card">
-        <p className="text-sm text-muted-foreground">Select a conversation</p>
+        <p className="text-sm text-muted-foreground">{t("inbox.selectConversation")}</p>
       </div>
     );
   }
@@ -184,36 +186,36 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <Link2 className="h-3 w-3" />
-              amoCRM identity
+              {t("inbox.contact.amoIdentity")}
             </div>
             <div className="mt-2 space-y-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
               <div className="flex items-center justify-between gap-3 text-xs">
-                <span className="text-muted-foreground">Contact</span>
+                <span className="text-muted-foreground">{t("inbox.contact.contact")}</span>
                 <span
                   className={cn(
                     "min-w-0 truncate font-mono",
                     amoContactId ? "text-foreground" : "text-amber-300",
                   )}
-                  title={amoContactId || "Unresolved"}
+                  title={amoContactId || t("inbox.contact.unresolved")}
                 >
-                  {amoContactId || "Unresolved"}
+                  {amoContactId || t("inbox.contact.unresolved")}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 text-xs">
-                <span className="text-muted-foreground">Lead</span>
+                <span className="text-muted-foreground">{t("inbox.contact.lead")}</span>
                 <span
                   className={cn(
                     "min-w-0 truncate font-mono",
                     amoLeadId ? "text-foreground" : "text-amber-300",
                   )}
-                  title={amoLeadId || "Pending sync"}
+                  title={amoLeadId || t("inbox.contact.pendingSync")}
                 >
-                  {amoLeadId || "Pending sync"}
+                  {amoLeadId || t("inbox.contact.pendingSync")}
                 </span>
               </div>
               {(!amoContactId || !amoLeadId) && (
                 <p className="text-[11px] leading-4 text-muted-foreground">
-                  Blocked until EVO Inbox resolves or creates amoCRM identity.
+                  {t("inbox.contact.amoBlocked")}
                 </p>
               )}
             </div>
@@ -226,11 +228,11 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <TagIcon className="h-3 w-3" />
-              Tags
+              {t("inbox.tags")}
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {tags.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">No tags</p>
+                <p className="px-1 text-xs text-muted-foreground">{t("inbox.contact.noTags")}</p>
               ) : (
                 tags.map((tag) => (
                   <span
@@ -255,11 +257,11 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <DollarSign className="h-3 w-3" />
-              Active Deals
+              {t("inbox.contact.activeDeals")}
             </div>
             <div className="mt-2 space-y-2">
               {deals.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">No deals</p>
+                <p className="px-1 text-xs text-muted-foreground">{t("inbox.contact.noDeals")}</p>
               ) : (
                 deals.map((deal) => (
                   <div
@@ -299,14 +301,14 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <StickyNote className="h-3 w-3" />
-              Notes
+              {t("inbox.contact.notes")}
             </div>
             <div className="mt-2">
               <div className="flex gap-2">
                 <textarea
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Add a note..."
+                  placeholder={t("inbox.contact.addNote")}
                   rows={2}
                   className="flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground placeholder-muted-foreground outline-none focus:border-primary/50"
                 />

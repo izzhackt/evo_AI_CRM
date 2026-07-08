@@ -1,3 +1,10 @@
+import {
+  DEFAULT_LOCALE,
+  isLocale,
+  translate,
+  type Locale,
+} from '@/lib/i18n';
+
 export const FIRST_LAUNCH_DISABLED_STATUS = 410;
 
 export const FIRST_LAUNCH_DISABLED_CODE = 'first_launch_disabled';
@@ -64,11 +71,17 @@ export function resolveFirstLaunchDisabledPath(
   return null;
 }
 
-export function firstLaunchDisabledPayload(feature: FirstLaunchDisabledFeature) {
+export function firstLaunchDisabledPayload(
+  feature: FirstLaunchDisabledFeature,
+  locale: Locale = DEFAULT_LOCALE,
+) {
   return {
     error: FIRST_LAUNCH_DISABLED_CODE,
     feature,
-    message:
-      'This surface is intentionally disabled for the first EVO Inbox launch. Meta Cloud API, templates, broadcasts, automations, flow-driven sends, and auto-reply are out of scope until later slices replace the transport with WAHA and prove manual operator workflows.',
+    message: translate(locale, 'firstLaunch.message'),
   };
+}
+
+export function resolveLocale(value: unknown): Locale {
+  return isLocale(value) ? value : DEFAULT_LOCALE;
 }

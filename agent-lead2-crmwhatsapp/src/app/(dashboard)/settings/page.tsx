@@ -4,6 +4,7 @@ import { useMemo, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useAuth } from '@/hooks/use-auth';
+import { useLanguage } from '@/hooks/use-language';
 import { useTheme } from '@/hooks/use-theme';
 import { SettingsRail } from '@/components/settings/settings-rail';
 import { SettingsOverview } from '@/components/settings/settings-overview';
@@ -28,6 +29,7 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const { defaultCurrency } = useAuth();
   const { mode } = useTheme();
+  const { t } = useLanguage();
 
   // The URL (`?tab=`) is the single source of truth for the active
   // section — deep-linkable, and it keeps the existing links in the
@@ -46,10 +48,10 @@ export default function SettingsPage() {
   // already in context.
   const hints: Partial<Record<SettingsSection, ReactNode>> = useMemo(
     () => ({
-      appearance: mode.charAt(0).toUpperCase() + mode.slice(1),
+      appearance: t(mode === 'dark' ? 'common.dark' : 'common.light'),
       deals: defaultCurrency,
     }),
-    [mode, defaultCurrency],
+    [mode, defaultCurrency, t],
   );
 
   const panel: Record<SettingsSection, ReactNode> = {
@@ -71,11 +73,10 @@ export default function SettingsPage() {
     <div>
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          EVO Inbox settings
+          {t('settings.title')}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Configure the first-launch inbox, identity, AI draft, and deployment
-          readiness surfaces without enabling disabled automation modules.
+          {t('settings.description')}
         </p>
       </div>
 

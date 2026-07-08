@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { useLanguage } from "@/hooks/use-language";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import {
@@ -24,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import type { AccountRole } from "@/lib/auth/roles";
+import type { TranslationKey } from "@/lib/i18n";
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single
@@ -31,32 +33,32 @@ import type { AccountRole } from "@/lib/auth/roles";
 // wants to recolour "agent" rows, this is the one diff.
 const ROLE_CHIP: Record<
   AccountRole,
-  { icon: typeof Crown; label: string; className: string }
+  { icon: typeof Crown; labelKey: TranslationKey; className: string }
 > = {
   owner: {
     icon: Crown,
-    label: "Owner",
+    labelKey: "common.owner",
     // Amber: scarce, immutable, "the boss" — gets visual emphasis.
     className:
       "border-amber-500/40 bg-amber-500/10 text-amber-300",
   },
   admin: {
     icon: Shield,
-    label: "Admin",
+    labelKey: "common.admin",
     // Primary-tinted: significant but not as scarce as owner.
     className:
       "border-primary/40 bg-primary/10 text-primary",
   },
   agent: {
     icon: UserCog,
-    label: "Agent",
+    labelKey: "common.agent",
     // Neutral slate: the operational default.
     className:
       "border-border bg-muted text-foreground",
   },
   viewer: {
     icon: User,
-    label: "Viewer",
+    labelKey: "common.viewer",
     // Muted slate: read-only role; visually quieter than agent.
     className:
       "border-border bg-card text-muted-foreground",
@@ -77,7 +79,7 @@ import {
 
 interface NavItem {
   href: string;
-  label: string;
+  labelKey: TranslationKey;
   icon: typeof LayoutDashboard;
   /**
    * When true, the nav row renders a small "Beta" chip after the label.
@@ -87,16 +89,16 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Workspace", icon: LayoutDashboard },
-  { href: "/inbox", label: "EVO Inbox", icon: MessageSquare },
-  { href: "/notifications", label: "Notifications", icon: Bell },
-  { href: "/contacts", label: "Lead profiles", icon: Users },
-  { href: "/pipelines", label: "Pipelines", icon: GitBranch },
-  { href: "/agents", label: "AI Drafts", icon: Bot },
+  { href: "/dashboard", labelKey: "nav.workspace", icon: LayoutDashboard },
+  { href: "/inbox", labelKey: "nav.inbox", icon: MessageSquare },
+  { href: "/notifications", labelKey: "nav.notifications", icon: Bell },
+  { href: "/contacts", labelKey: "nav.contacts", icon: Users },
+  { href: "/pipelines", labelKey: "nav.pipelines", icon: GitBranch },
+  { href: "/agents", labelKey: "nav.aiDrafts", icon: Bot },
 ];
 
-const bottomNavItems = [
-  { href: "/settings", label: "Settings", icon: Settings },
+const bottomNavItems: NavItem[] = [
+  { href: "/settings", labelKey: "nav.settings", icon: Settings },
 ];
 
 interface SidebarProps {
@@ -108,6 +110,7 @@ interface SidebarProps {
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
+  const { t } = useLanguage();
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
   // Only surface the account-name strip when it actually carries
@@ -154,7 +157,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           part of the main flex row there. */}
       <button
         type="button"
-        aria-label="Close menu"
+        aria-label={t("nav.closeMenu")}
         onClick={onClose}
         className={cn(
           "fixed inset-0 z-30 bg-background/70 backdrop-blur-sm transition-opacity lg:hidden",
@@ -173,7 +176,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           // Desktop: static, always visible — reset all the mobile framing.
           "lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none",
         )}
-        aria-label="Primary"
+        aria-label={t("nav.primary")}
       >
         {/* Logo row. On mobile we put a close button here; on desktop the
             close button is hidden since the sidebar is always-visible. */}
@@ -189,7 +192,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close menu"
+            aria-label={t("nav.closeMenu")}
             className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
           >
             <X className="h-5 w-5" />
@@ -227,10 +230,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     )}
                   >
                     <item.icon className="h-4 w-4" />
-                    <span className="flex-1">{item.label}</span>
+                    <span className="flex-1">{t(item.labelKey)}</span>
                     {item.beta && (
                       <span
-                        aria-label="Beta feature"
+                        aria-label={t("nav.betaFeature")}
                         className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
                       >
                         Beta
@@ -238,7 +241,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     )}
                     {showUnreadDot && (
                       <span
-                        aria-label={`${totalUnread} unread conversation${totalUnread === 1 ? "" : "s"}`}
+                        aria-label={t(
+                          totalUnread === 1
+                            ? "nav.unreadConversations.one"
+                            : "nav.unreadConversations.many",
+                          { count: totalUnread },
+                        )}
                         className="relative flex h-2 w-2"
                       >
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
@@ -247,7 +255,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     )}
                     {showNotificationBadge && (
                       <span
-                        aria-label={`${unreadNotifications} unread notification${unreadNotifications === 1 ? "" : "s"}`}
+                        aria-label={t(
+                          unreadNotifications === 1
+                            ? "nav.unreadNotifications.one"
+                            : "nav.unreadNotifications.many",
+                          { count: unreadNotifications },
+                        )}
                         className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
                       >
                         {unreadNotifications > 9 ? "9+" : unreadNotifications}
@@ -276,7 +289,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     )}
                   >
                     <item.icon className="h-4 w-4" />
-                    {item.label}
+                    {t(item.labelKey)}
                   </Link>
                 </li>
               );
@@ -314,7 +327,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${meta.className}`}
                     >
                       <Icon className="size-3" />
-                      {meta.label}
+                      {t(meta.labelKey)}
                     </span>
                   );
                 })()
@@ -361,7 +374,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 }
               >
                 <User className="size-4" />
-                Profile
+                {t("common.profile")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 render={
@@ -373,7 +386,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 }
               >
                 <Settings className="size-4" />
-                Settings
+                {t("common.settings")}
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-border" />
               <DropdownMenuItem
@@ -381,7 +394,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
               >
                 <LogOut className="size-4" />
-                Sign out
+                {t("common.signOut")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

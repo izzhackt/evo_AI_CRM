@@ -13,6 +13,7 @@ import {
   UsersRound,
   type LucideIcon,
 } from 'lucide-react';
+import type { TranslationKey } from '@/lib/i18n';
 
 /**
  * Settings information architecture for the redesigned page.
@@ -44,30 +45,30 @@ export const DEFAULT_SECTION: SettingsSection = 'overview';
 /** Rail grouping. `adminOnly` items are hidden for non-admins. */
 export interface SectionMeta {
   id: SettingsSection;
-  label: string;
+  labelKey: TranslationKey;
   icon: LucideIcon;
   group: 'top' | 'account' | 'workspace';
 }
 
 export const SECTION_META: Record<SettingsSection, SectionMeta> = {
-  overview: { id: 'overview', label: 'Overview', icon: LayoutGrid, group: 'top' },
-  profile: { id: 'profile', label: 'Your profile', icon: User, group: 'account' },
-  security: { id: 'security', label: 'Login & security', icon: Shield, group: 'account' },
-  appearance: { id: 'appearance', label: 'Appearance', icon: Palette, group: 'account' },
-  fields: { id: 'fields', label: 'Fields & tags', icon: Tags, group: 'workspace' },
-  deals: { id: 'deals', label: 'Deals & currency', icon: Coins, group: 'workspace' },
-  whatsapp: { id: 'whatsapp', label: 'WhatsApp WAHA', icon: MessageCircle, group: 'workspace' },
-  amocrm: { id: 'amocrm', label: 'amoCRM identity', icon: Link2, group: 'workspace' },
-  ai: { id: 'ai', label: 'AI Assistant', icon: Bot, group: 'workspace' },
-  readiness: { id: 'readiness', label: 'Readiness', icon: ShieldCheck, group: 'workspace' },
-  members: { id: 'members', label: 'Team members', icon: UsersRound, group: 'workspace' },
-  api: { id: 'api', label: 'API keys', icon: KeyRound, group: 'workspace' },
+  overview: { id: 'overview', labelKey: 'settings.overview', icon: LayoutGrid, group: 'top' },
+  profile: { id: 'profile', labelKey: 'settings.profile', icon: User, group: 'account' },
+  security: { id: 'security', labelKey: 'settings.security', icon: Shield, group: 'account' },
+  appearance: { id: 'appearance', labelKey: 'settings.appearance', icon: Palette, group: 'account' },
+  fields: { id: 'fields', labelKey: 'settings.fields', icon: Tags, group: 'workspace' },
+  deals: { id: 'deals', labelKey: 'settings.deals', icon: Coins, group: 'workspace' },
+  whatsapp: { id: 'whatsapp', labelKey: 'settings.whatsapp', icon: MessageCircle, group: 'workspace' },
+  amocrm: { id: 'amocrm', labelKey: 'settings.amocrm', icon: Link2, group: 'workspace' },
+  ai: { id: 'ai', labelKey: 'settings.ai', icon: Bot, group: 'workspace' },
+  readiness: { id: 'readiness', labelKey: 'settings.readiness', icon: ShieldCheck, group: 'workspace' },
+  members: { id: 'members', labelKey: 'settings.members', icon: UsersRound, group: 'workspace' },
+  api: { id: 'api', labelKey: 'settings.api', icon: KeyRound, group: 'workspace' },
 };
 
-export const RAIL_GROUPS: { label: string | null; group: SectionMeta['group'] }[] = [
-  { label: null, group: 'top' },
-  { label: 'Account', group: 'account' },
-  { label: 'Workspace', group: 'workspace' },
+export const RAIL_GROUPS: { labelKey: TranslationKey | null; group: SectionMeta['group'] }[] = [
+  { labelKey: null, group: 'top' },
+  { labelKey: 'settings.account', group: 'account' },
+  { labelKey: 'common.workspace', group: 'workspace' },
 ];
 
 function isSection(value: string | null): value is SettingsSection {

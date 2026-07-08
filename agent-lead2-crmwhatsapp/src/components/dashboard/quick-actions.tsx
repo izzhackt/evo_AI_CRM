@@ -3,25 +3,29 @@
 import Link from 'next/link'
 import { Briefcase, MessageSquare, UserPlus } from 'lucide-react'
 import type { ComponentType } from 'react'
+import { useLanguage } from '@/hooks/use-language'
+import type { TranslationKey } from '@/lib/i18n'
 
 // Quick-action shortcuts. Each navigates to the page that owns the
 // relevant "create" flow. We deliberately don't try to auto-open any
 // modal on the target page — that'd require touching those pages,
 // which is out of scope here.
 interface Action {
-  label: string
+  labelKey: TranslationKey
   href: string
   icon: ComponentType<{ className?: string }>
   tint: string
 }
 
 const ACTIONS: Action[] = [
-  { label: 'Open Inbox', href: '/inbox', icon: MessageSquare, tint: 'text-primary' },
-  { label: 'New lead profile', href: '/contacts', icon: UserPlus, tint: 'text-primary' },
-  { label: 'Pipeline Board', href: '/pipelines', icon: Briefcase, tint: 'text-blue-400' },
+  { labelKey: 'dashboard.quick.inbox', href: '/inbox', icon: MessageSquare, tint: 'text-primary' },
+  { labelKey: 'dashboard.quick.newLead', href: '/contacts', icon: UserPlus, tint: 'text-primary' },
+  { labelKey: 'dashboard.quick.pipeline', href: '/pipelines', icon: Briefcase, tint: 'text-blue-400' },
 ]
 
 export function QuickActions() {
+  const { t } = useLanguage()
+
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       {ACTIONS.map((a) => {
@@ -35,7 +39,7 @@ export function QuickActions() {
             <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-muted ${a.tint}`}>
               <Icon className="h-4 w-4" />
             </div>
-            <span className="text-sm font-medium text-foreground">{a.label}</span>
+            <span className="text-sm font-medium text-foreground">{t(a.labelKey)}</span>
           </Link>
         )
       })}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MessageSquare } from 'lucide-react'
 import type { ConversationsSeriesPoint } from '@/lib/dashboard/types'
+import { useLanguage } from '@/hooks/use-language'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
 import { cn } from '@/lib/utils'
@@ -29,6 +30,7 @@ const PADDING = { top: 16, right: 16, bottom: 28, left: 40 }
 
 export function ConversationsChart({ series, loading, range, onRangeChange }: ConversationsChartProps) {
   const data = series[range]
+  const { t } = useLanguage()
 
   // Memoise the max so per-day hover math doesn't recompute it.
   const { maxY, niceTicks } = useMemo(() => {
@@ -49,8 +51,12 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
     <section className="flex h-full flex-col rounded-xl border border-border bg-card">
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Conversations Over Time</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">Daily message volume by direction</p>
+          <h2 className="text-sm font-semibold text-foreground">
+            {t('dashboard.conversations.title')}
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {t('dashboard.conversations.description')}
+          </p>
         </div>
         <div className="flex items-center gap-1 rounded-lg bg-muted/60 p-1">
           {[7, 30, 90].map((r) => (
@@ -65,7 +71,7 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              {r} days
+              {t('common.days', { count: r })}
             </button>
           ))}
         </div>
@@ -77,8 +83,8 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
         ) : data.every((p) => p.incoming === 0 && p.outgoing === 0) ? (
           <EmptyState
             icon={MessageSquare}
-            title="No message activity in this range"
-            hint="Send or receive messages to start populating this chart."
+            title={t('dashboard.conversations.emptyTitle')}
+            hint={t('dashboard.conversations.emptyHint')}
           />
         ) : (
           <LineSvg data={data} maxY={maxY} ticks={niceTicks} />
@@ -86,8 +92,8 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
       </div>
 
       <footer className="flex items-center gap-4 border-t border-border px-5 py-3 text-xs text-muted-foreground">
-        <LegendDot color="#3b82f6" label="Incoming" />
-        <LegendDot color="#7c3aed" label="Outgoing" />
+        <LegendDot color="#3b82f6" label={t('dashboard.conversations.incoming')} />
+        <LegendDot color="#7c3aed" label={t('dashboard.conversations.outgoing')} />
       </footer>
     </section>
   )
@@ -106,6 +112,7 @@ function LineSvg({
   maxY: number
   ticks: number[]
 }) {
+  const { locale, t } = useLanguage()
   // Hover state: both the snapped index AND the tooltip's pixel
   // offset inside the wrapper div. They're stored together so the
   // tooltip positions against the chart's actual rendered pixels,
@@ -233,7 +240,7 @@ function LineSvg({
               textAnchor="middle"
               className="fill-muted-foreground text-[10px]"
             >
-              {shortDayLabel(p.day)}
+              {shortDayLabel(p.day, locale)}
             </text>
           ) : null,
         )}
@@ -283,15 +290,17 @@ function LineSvg({
           className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-md border border-border bg-popover px-2.5 py-1.5 text-[11px] shadow-lg"
           style={{ left: `${hover.tooltipLeftPx}px` }}
         >
-          <div className="font-medium text-popover-foreground">{longDayLabel(hovered.day)}</div>
+          <div className="font-medium text-popover-foreground">
+            {longDayLabel(hovered.day, locale)}
+          </div>
           <div className="mt-1 flex flex-col gap-0.5">
             <span className="flex items-center gap-1.5 text-blue-300">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
-              {hovered.incoming} incoming
+              {t('dashboard.conversations.incomingCount', { count: hovered.incoming })}
             </span>
             <span className="flex items-center gap-1.5 text-primary">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
-              {hovered.outgoing} outgoing
+              {t('dashboard.conversations.outgoingCount', { count: hovered.outgoing })}
             </span>
           </div>
         </div>
@@ -309,18 +318,18 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   )
 }
 
-function shortDayLabel(key: string): string {
+function shortDayLabel(key: string, locale: string): string {
   // key is YYYY-MM-DD; return "Apr 17"-style. Using Date with an
   // appended time avoids timezone-shift surprises across midnight.
   const [y, m, d] = key.split('-').map(Number)
   const date = new Date(y, m - 1, d)
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return date.toLocaleDateString(locale === 'ru' ? 'ru-RU' : undefined, { month: 'short', day: 'numeric' })
 }
 
-function longDayLabel(key: string): string {
+function longDayLabel(key: string, locale: string): string {
   const [y, m, d] = key.split('-').map(Number)
   const date = new Date(y, m - 1, d)
-  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+  return date.toLocaleDateString(locale === 'ru' ? 'ru-RU' : undefined, { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 /**

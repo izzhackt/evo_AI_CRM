@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { CustomFieldsPanel } from '@/components/contacts/custom-fields-manager';
+import { useLanguage } from '@/hooks/use-language';
 import { SettingsChip } from './settings-chip';
 
 /**
@@ -19,20 +20,21 @@ import { SettingsChip } from './settings-chip';
  * `custom_fields` RLS.
  */
 export function CustomFieldsSettings() {
+  const { t } = useLanguage();
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-foreground">
           <SlidersHorizontal className="size-4 text-primary" />
-          Custom fields
+          {t('settings.fields.customTitle')}
           <SettingsChip variant="admin" className="font-medium">
             <Shield />
-            Admin
+            {t('common.admin')}
           </SettingsChip>
         </CardTitle>
         <CardDescription className="text-muted-foreground">
-          Extra contact fields (e.g. ZIP code, lead source). They appear on
-          every contact and in the “Update Contact Field” automation action.
+          {t('settings.fields.customDescription')}
         </CardDescription>
       </CardHeader>
       <CardContent>

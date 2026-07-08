@@ -3,7 +3,13 @@ import { Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
+import { LanguageProvider } from "@/hooks/use-language";
 import { ThemedToaster } from "@/components/themed-toaster";
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  LOCALE_STORAGE_KEY,
+} from "@/lib/i18n";
 import {
   DEFAULT_MODE,
   DEFAULT_THEME,
@@ -68,9 +74,20 @@ const THEME_BOOT_SCRIPT = `
     var MODES = ${JSON.stringify(MODES)};
     var savedMode = localStorage.getItem(MODE_KEY);
     d.dataset.mode = MODES.indexOf(savedMode) !== -1 ? savedMode : MODE_DEFAULT;
+
+    var LOCALE_KEY = ${JSON.stringify(LOCALE_STORAGE_KEY)};
+    var LOCALE_DEFAULT = ${JSON.stringify(DEFAULT_LOCALE)};
+    var LOCALES = ${JSON.stringify(LOCALES)};
+    var savedLocale = localStorage.getItem(LOCALE_KEY);
+    var locale = LOCALES.indexOf(savedLocale) !== -1 ? savedLocale : LOCALE_DEFAULT;
+    d.dataset.locale = locale;
+    d.lang = locale;
+    document.cookie = LOCALE_KEY + '=' + locale + '; Path=/; Max-Age=31536000; SameSite=Lax';
   } catch (_e) {
     d.dataset.theme = ${JSON.stringify(DEFAULT_THEME)};
     d.dataset.mode = ${JSON.stringify(DEFAULT_MODE)};
+    d.dataset.locale = ${JSON.stringify(DEFAULT_LOCALE)};
+    d.lang = ${JSON.stringify(DEFAULT_LOCALE)};
   }
 })();
 `;
@@ -103,10 +120,12 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full bg-background text-foreground font-sans">
-        <ThemeProvider>
-          {children}
-          <ThemedToaster />
-        </ThemeProvider>
+        <LanguageProvider>
+          <ThemeProvider>
+            {children}
+            <ThemedToaster />
+          </ThemeProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

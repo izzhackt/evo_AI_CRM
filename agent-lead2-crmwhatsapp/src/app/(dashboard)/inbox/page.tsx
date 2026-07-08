@@ -9,6 +9,7 @@ import {
 } from "@/lib/inbox/conversations";
 import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useLanguage } from "@/hooks/use-language";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
@@ -32,6 +33,7 @@ interface WahaInboxStatus {
 export default function InboxPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useLanguage();
   /**
    * `?c=<id>` deep-link support. Used when landing here from the
    * dashboard's recent-conversations list so the right thread opens
@@ -555,8 +557,8 @@ export default function InboxPage() {
   const wahaBlockedMessage =
     wahaStatus?.message ||
     (wahaStatus?.configured
-      ? "WAHA is configured, but the session is not ready. Check Settings > WhatsApp WAHA before sending."
-      : "Save the WAHA base URL, API key, and webhook HMAC secret in Settings > WhatsApp WAHA.");
+      ? t("inbox.wahaConfiguredBlocked")
+      : t("inbox.wahaMissingConfig"));
 
   return (
     <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
@@ -566,8 +568,8 @@ export default function InboxPage() {
         <div className="flex shrink-0 items-center justify-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2">
           <WifiOff className="h-4 w-4 text-amber-400" />
           <p className="min-w-0 text-center text-xs text-amber-300">
-            WAHA session <span className="font-mono">{wahaSessionName}</span>{" "}
-            is blocked. {wahaBlockedMessage}
+            {t("inbox.wahaSession")} <span className="font-mono">{wahaSessionName}</span>{" "}
+            {t("inbox.wahaBlocked")} {wahaBlockedMessage}
           </p>
         </div>
       )}

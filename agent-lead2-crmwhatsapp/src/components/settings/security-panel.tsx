@@ -1,5 +1,6 @@
 'use client';
 
+import { useLanguage } from '@/hooks/use-language';
 import { PasswordForm } from './password-form';
 import { SessionsCard } from './sessions-card';
 import { SettingsPanelHead } from './settings-panel-head';
@@ -9,11 +10,13 @@ import { SettingsPanelHead } from './settings-panel-head';
  * and active-sessions cards into their own dedicated home.
  */
 export function SecurityPanel() {
+  const { t } = useLanguage();
+
   return (
     <section className="max-w-2xl animate-in fade-in-50 duration-200">
       <SettingsPanelHead
-        title="Login & security"
-        description="Change your password and sign out of your devices. These keep your account safe."
+        title={t('settings.security.title')}
+        description={t('settings.security.description')}
       />
       <div className="space-y-4">
         <PasswordForm />

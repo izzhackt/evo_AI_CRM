@@ -12,6 +12,8 @@ Supabase stores companion app data:
 - Supabase Auth users, `profiles`, `accounts`, account roles, and invitations.
 - Contacts and local shadow identity fields such as `contacts.amo_contact_id`.
 - Conversations and local lead shadow fields such as `conversations.amo_lead_id`.
+- Conversation/message CRM sync state such as `crm_sync_status`, which can be
+  `pending`, `synced`, `not_configured`, or `blocked`.
 - Messages, reactions, notifications, and retained operator UI state.
 - Integration status/settings for `waha` and `amocrm` providers.
 - Encrypted integration secrets in `integration_secrets`.
@@ -22,6 +24,10 @@ Supabase stores companion app data:
 amoCRM remains canonical for contact identity, lead identity, sales state, and
 pipeline status. Supabase shadow fields are lookup/cache fields for the
 companion operator UI and must not be presented as canonical amoCRM state.
+Inbound WhatsApp messages are still saved locally first so operators do not lose
+visibility when amoCRM is missing or temporarily unavailable; unsynced rows must
+be shown as pending/not configured/blocked until the retry path records the
+amoCRM shadow ids.
 
 ## Runtime Environment
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { resetAmoCrmSyncAfterConfigChange } from '@/lib/amocrm/sync';
 import {
   getCurrentAccount,
   requireRole,
@@ -140,6 +141,7 @@ export async function POST(request: Request) {
       },
       userId: ctx.userId,
     });
+    await resetAmoCrmSyncAfterConfigChange(admin, ctx.accountId);
 
     return NextResponse.json({
       success: true,

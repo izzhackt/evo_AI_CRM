@@ -465,6 +465,67 @@ checks locally. Live WhatsApp/amoCRM validation remains blocked until real
 credentials and server configuration are supplied.
 Reviewer notes: pending independent launch-control review.
 
+## 2026-07-08 - EVO Inbox Reliable amoCRM Sync Buffer
+
+Date: 2026-07-08, workspace timezone.
+Author: Codex.
+Change type: reliability architecture, Supabase schema, inbound webhook
+behavior, retry operations, UI state, validation scope, and production proof
+scope.
+Affected plan section: `/goal-evo-inbox-companion` WAHA inbound and amoCRM
+identity resolution.
+Reason: the current WAHA inbound path resolves amoCRM identity before inserting
+local Supabase inbox records. If amoCRM is not configured or the amoCRM API is
+temporarily unavailable, WAHA receives an error and the inbound message can be
+blocked from the operator inbox. That protects the old "amoCRM first" identity
+contract but is weaker for production uptime and risks losing the operator view
+of real WhatsApp messages.
+Decision: keep amoCRM as the canonical identity and lead source of truth, but
+make Supabase the durable intake buffer for EVO Inbox messages. The WAHA
+webhook must create or find the local contact/conversation and insert the
+message first, then attempt a best-effort amoCRM sync. Conversations and
+messages get `crm_sync_status` with `pending`, `synced`, `not_configured`, and
+`blocked`. Missing amoCRM configuration records `not_configured`; temporary
+provider errors keep retryable `pending`; authentication/permission errors and
+non-retryable provider errors record `blocked`. WAHA receives HTTP 200 after
+the local save succeeds, including the CRM sync state, so WAHA does not retry a
+message that is already safely visible in EVO Inbox.
+
+Add a small CRM sync layer that can run from the webhook path and from an
+internal retry endpoint. The retry endpoint processes only local pending
+conversations/messages, attempts the existing amoCRM contact/lead resolution,
+stores `amo_contact_id` and `amo_lead_id` shadow ids on success, and advances
+`crm_sync_status` to `synced`. It does not make Supabase canonical for lead
+identity; UI labels must present unsynced rows as local inbox messages awaiting
+CRM sync, not as fully resolved amoCRM leads.
+
+Current official docs consulted on 2026-07-08:
+
+- Next.js 16.2.9 App Router route handler docs state that route handlers export
+  HTTP method functions such as `POST(request)`, can parse request JSON with
+  `request.json()`, and POST handlers are not cached by default.
+- Supabase JavaScript docs show the current server-side pattern of checking
+  `{ data, error }`, using `.maybeSingle()` for optional lookup, `.single()`
+  after insert/select when exactly one row is expected, and throwing/returning
+  on the `error` object.
+- Kommo/amoCRM long-lived-token docs state private integrations use Bearer
+  tokens, tokens should be saved securely, and access can be revoked.
+- Kommo contact docs state contacts can be found by phone with the `query`
+  parameter, and lead docs state `POST /api/v4/leads` creates one or more
+  leads.
+- Kommo limits docs state normal API activity is limited to 7 requests per
+  second and entity list/add/update operations should be kept within documented
+  limits, so the retry endpoint must process a bounded batch.
+
+Validation impact: run from `agent-lead2-crmwhatsapp/`: targeted WAHA/amoCRM
+sync tests, API route tests, schema/migration tests, `npm test`,
+`npm run lint`, `npm run typecheck`, `npm run build`, `git diff --check`, and a
+PR diff secret scan. Production proof may only claim live WhatsApp, Supabase,
+amoCRM, and Gemini behavior after the merged branch is deployed only to
+`/opt/evo-inbox`, migration 036 is applied, real amoCRM settings are present,
+and the real services are exercised. Do not touch `/opt/evo-crm`.
+Reviewer notes: pending independent launch-control review.
+
 ## 2026-07-08 - EVO Inbox Russian Interface Toggle
 
 Date: 2026-07-08, workspace timezone.

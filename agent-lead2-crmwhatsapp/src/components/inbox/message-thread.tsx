@@ -14,6 +14,7 @@ import type {
   MessageReaction,
   Contact,
   ConversationStatus,
+  CrmSyncStatus,
   Profile,
 } from "@/types";
 import {
@@ -138,6 +139,20 @@ const STATUS_OPTIONS: { labelKey: TranslationKey; value: ConversationStatus; col
   { labelKey: "inbox.status.pending", value: "pending", color: "text-amber-400" },
   { labelKey: "inbox.status.closed", value: "closed", color: "text-muted-foreground" },
 ];
+
+const CRM_SYNC_LABEL_KEY: Record<CrmSyncStatus, TranslationKey> = {
+  synced: "inbox.crmSync.synced",
+  pending: "inbox.crmSync.pending",
+  not_configured: "inbox.crmSync.notConfigured",
+  blocked: "inbox.crmSync.blocked",
+};
+
+const CRM_SYNC_CLASSES: Record<CrmSyncStatus, string> = {
+  synced: "text-primary",
+  pending: "text-amber-300",
+  not_configured: "text-amber-300",
+  blocked: "text-red-300",
+};
 
 /**
  * WhatsApp-style doodle background applied to the chat area (both the
@@ -732,6 +747,11 @@ export function MessageThread({
 
   const displayName = contact.name || contact.phone;
   const amoLeadId = conversation.amo_lead_id?.trim();
+  const crmSyncStatus =
+    conversation.crm_sync_status ?? (amoLeadId ? "synced" : "pending");
+  const crmSyncTitle =
+    conversation.crm_sync_error ??
+    (amoLeadId ? `amoCRM lead ${amoLeadId}` : t(CRM_SYNC_LABEL_KEY[crmSyncStatus]));
   const messageGroups = groupMessagesByDate(messages);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
@@ -791,16 +811,12 @@ export function MessageThread({
             variant="outline"
             className={cn(
               "ml-1 hidden max-w-36 gap-1 border-border text-[10px] md:inline-flex",
-              amoLeadId ? "text-primary" : "text-amber-300",
+              CRM_SYNC_CLASSES[crmSyncStatus],
             )}
-            title={
-              amoLeadId
-                ? `amoCRM lead ${amoLeadId}`
-                : t("inbox.amoIdentityUnresolved")
-            }
+            title={crmSyncTitle}
           >
             <span className="truncate">
-              {amoLeadId ? `amoCRM ${amoLeadId}` : t("inbox.amoIdentityUnresolved")}
+              {t(CRM_SYNC_LABEL_KEY[crmSyncStatus])}
             </span>
           </Badge>
         </div>

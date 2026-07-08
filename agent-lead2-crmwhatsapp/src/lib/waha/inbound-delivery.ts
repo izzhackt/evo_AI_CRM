@@ -1,11 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import {
-  AmoCrmConfigurationError,
-  AmoCrmProviderError,
-  createAmoCrmClient,
-  type AmoCrmClient,
-} from '@/lib/amocrm/client';
+import { createAmoCrmClient, type AmoCrmClient } from '@/lib/amocrm/client';
 import {
   loadAmoCrmRuntimeConfig,
   type AmoCrmRuntimeConfig,
@@ -15,9 +10,13 @@ import {
   resolveAmoCrmIdentityFromProvider,
   type AmoCrmIdentity,
 } from '@/lib/amocrm/identity';
+import {
+  syncAmoCrmConversation,
+  type AmoCrmSyncOutcome,
+} from '@/lib/amocrm/sync';
 import { findOrCreateContact, resolveAuditUserId } from '@/lib/api/v1/contacts';
 import { isUniqueViolation } from '@/lib/contacts/dedupe';
-import type { IntegrationStatus } from '@/types';
+import type { CrmSyncStatus, IntegrationStatus } from '@/types';
 
 import type { WahaInboundMessage } from './inbound-message';
 
@@ -29,6 +28,10 @@ export interface WahaInboundDeliveryResult {
   status: 'received' | 'duplicate';
   conversationId: string;
   messageId: string;
+  crmSyncStatus: CrmSyncStatus;
+  crmSyncError?: string | null;
+  crmSyncRetryable?: boolean;
+  missingFields?: string[];
 }
 
 export interface WahaInboundDeliveryDeps {
@@ -75,6 +78,13 @@ interface ConversationShadow {
   unreadCount: number;
 }
 
+interface ExistingWahaMessage {
+  messageId: string;
+  conversationId: string;
+  crmSyncStatus: CrmSyncStatus;
+  crmSyncError: string | null;
+}
+
 const defaultDeps = {
   loadAmoCrmConfig: loadAmoCrmRuntimeConfig,
   createAmoCrmClient,
@@ -101,21 +111,10 @@ export async function deliverWahaInboundMessage(
       status: 'duplicate',
       conversationId: duplicate.conversationId,
       messageId: duplicate.messageId,
+      crmSyncStatus: duplicate.crmSyncStatus,
+      crmSyncError: duplicate.crmSyncError,
     };
   }
-
-  const amoConfig = await loadAmoConfigOrThrow(
-    db,
-    input.accountId,
-    resolvedDeps,
-  );
-  const amoIdentity = await resolveRemoteAmoIdentityOrThrow(
-    db,
-    input.accountId,
-    input.message,
-    amoConfig,
-    resolvedDeps,
-  );
 
   const auditUserId = await resolveAuditUserOrThrow(
     db,
@@ -136,24 +135,6 @@ export async function deliverWahaInboundMessage(
     contact.id,
   );
 
-  await persistShadowOrThrow(db, {
-    accountId: input.accountId,
-    localContactId: contact.id,
-    localConversationId: conversation.id,
-    amoContactId: amoIdentity.amoContactId,
-    amoLeadId: amoIdentity.amoLeadId,
-    deps: resolvedDeps,
-  });
-
-  const duplicateAfterShadow = await findExistingWahaMessage(db, input.message);
-  if (duplicateAfterShadow) {
-    return {
-      status: 'duplicate',
-      conversationId: duplicateAfterShadow.conversationId,
-      messageId: duplicateAfterShadow.messageId,
-    };
-  }
-
   const inserted = await insertInboundMessage(
     db,
     conversation.id,
@@ -165,6 +146,8 @@ export async function deliverWahaInboundMessage(
       status: 'duplicate',
       conversationId: inserted.conversationId,
       messageId: inserted.messageId,
+      crmSyncStatus: inserted.crmSyncStatus,
+      crmSyncError: inserted.crmSyncError,
     };
   }
 
@@ -175,73 +158,57 @@ export async function deliverWahaInboundMessage(
     input.message,
     resolvedDeps.now(),
   );
-  await setIntegrationState(db, input.accountId, 'configured', null);
+
+  const syncOutcome = await syncAfterLocalSave(
+    db,
+    input,
+    contact.id,
+    conversation.id,
+    resolvedDeps,
+  );
 
   return {
     status: 'received',
     conversationId: conversation.id,
     messageId: inserted.messageId,
+    crmSyncStatus: syncOutcome.status,
+    crmSyncError: syncOutcome.error,
+    crmSyncRetryable: syncOutcome.retryable,
+    missingFields: syncOutcome.missingFields,
   };
 }
 
-async function loadAmoConfigOrThrow(
+async function syncAfterLocalSave(
   db: SupabaseClient,
-  accountId: string,
+  input: {
+    accountId: string;
+    message: WahaInboundMessage;
+  },
+  contactId: string,
+  conversationId: string,
   deps: Required<WahaInboundDeliveryDeps>,
-): Promise<AmoCrmRuntimeConfig> {
+): Promise<AmoCrmSyncOutcome> {
   try {
-    return await deps.loadAmoCrmConfig(db, accountId);
-  } catch (err) {
-    if (err instanceof AmoCrmConfigurationError) {
-      await setIntegrationState(db, accountId, 'not_configured', err.message);
-      throw new WahaInboundDeliveryError({
-        code: 'amocrm_not_configured',
-        message: err.message,
-        status: 503,
-        integrationStatus: 'not_configured',
-        missingFields: err.missingFields,
-      });
-    }
-    throw toSupabaseError('Failed to load amoCRM integration configuration', err);
-  }
-}
-
-async function resolveRemoteAmoIdentityOrThrow(
-  db: SupabaseClient,
-  accountId: string,
-  message: WahaInboundMessage,
-  amoConfig: AmoCrmRuntimeConfig,
-  deps: Required<WahaInboundDeliveryDeps>,
-): Promise<AmoCrmIdentity> {
-  try {
-    return await deps.resolveAmoCrmIdentityFromProvider({
-      client: deps.createAmoCrmClient(amoConfig.config),
-      phone: message.senderPhone,
-      name: message.senderName,
+    return await syncAmoCrmConversation(db, {
+      accountId: input.accountId,
+      conversationId,
+      contactId,
+      phone: input.message.senderPhone,
+      name: input.message.senderName,
+    }, {
+      loadAmoCrmConfig: deps.loadAmoCrmConfig,
+      createAmoCrmClient: deps.createAmoCrmClient,
+      resolveAmoCrmIdentityFromProvider: deps.resolveAmoCrmIdentityFromProvider,
+      persistAmoCrmShadowIdentity: deps.persistAmoCrmShadowIdentity,
+      now: deps.now,
     });
   } catch (err) {
-    if (err instanceof AmoCrmConfigurationError) {
-      await setIntegrationState(db, accountId, 'not_configured', err.message);
-      throw new WahaInboundDeliveryError({
-        code: 'amocrm_not_configured',
-        message: err.message,
-        status: 503,
-        integrationStatus: 'not_configured',
-        missingFields: err.missingFields,
-      });
-    }
-
-    const messageText =
-      err instanceof AmoCrmProviderError
-        ? 'amoCRM identity resolution failed'
-        : 'amoCRM identity resolution failed';
-    await setIntegrationState(db, accountId, 'blocked', messageText);
-    throw new WahaInboundDeliveryError({
-      code: 'amocrm_blocked',
-      message: messageText,
-      status: 502,
-      integrationStatus: 'blocked',
-    });
+    void err;
+    return {
+      status: 'pending',
+      retryable: true,
+      error: 'amoCRM sync did not complete after the message was saved locally.',
+    };
   }
 }
 
@@ -274,37 +241,13 @@ async function createContactOrThrow(
   }
 }
 
-async function persistShadowOrThrow(
-  db: SupabaseClient,
-  input: {
-    accountId: string;
-    localContactId: string;
-    localConversationId: string;
-    amoContactId: string;
-    amoLeadId: string;
-    deps: Required<WahaInboundDeliveryDeps>;
-  },
-): Promise<void> {
-  try {
-    await input.deps.persistAmoCrmShadowIdentity(db, {
-      accountId: input.accountId,
-      localContactId: input.localContactId,
-      localConversationId: input.localConversationId,
-      amoContactId: input.amoContactId,
-      amoLeadId: input.amoLeadId,
-    });
-  } catch (err) {
-    throw toSupabaseError('Failed to persist amoCRM shadow identity', err);
-  }
-}
-
 async function findExistingWahaMessage(
   db: SupabaseClient,
   message: WahaInboundMessage,
-): Promise<{ messageId: string; conversationId: string } | null> {
+): Promise<ExistingWahaMessage | null> {
   const { data, error } = await db
     .from('messages')
-    .select('id, conversation_id')
+    .select('id, conversation_id, crm_sync_status, crm_sync_error')
     .eq('waha_session_name', message.sessionName)
     .eq('waha_message_id', message.messageId)
     .maybeSingle();
@@ -316,6 +259,8 @@ async function findExistingWahaMessage(
   return {
     messageId: String(data.id),
     conversationId: String(data.conversation_id),
+    crmSyncStatus: toCrmSyncStatus(data.crm_sync_status),
+    crmSyncError: typeof data.crm_sync_error === 'string' ? data.crm_sync_error : null,
   };
 }
 
@@ -370,7 +315,7 @@ async function insertInboundMessage(
   conversationId: string,
   contactId: string,
   message: WahaInboundMessage,
-): Promise<{ messageId: string; conversationId: string; duplicate: boolean }> {
+): Promise<ExistingWahaMessage & { duplicate: boolean }> {
   const { data, error } = await db
     .from('messages')
     .insert({
@@ -399,6 +344,8 @@ async function insertInboundMessage(
   return {
     messageId: String(data.id),
     conversationId,
+    crmSyncStatus: 'pending',
+    crmSyncError: null,
     duplicate: false,
   };
 }
@@ -427,30 +374,17 @@ async function updateConversationPreview(
   }
 }
 
-async function setIntegrationState(
-  db: SupabaseClient,
-  accountId: string,
-  status: IntegrationStatus,
-  lastError: string | null,
-): Promise<void> {
-  const result = await db
-    .from('integration_settings')
-    .update({
-      status,
-      last_checked_at: new Date().toISOString(),
-      last_error: lastError,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('account_id', accountId)
-    .eq('provider', 'amocrm');
-
-  if (hasSupabaseError(result)) {
-    throw toSupabaseError('Failed to update amoCRM integration state', result.error);
-  }
-}
-
 function toUnreadCount(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function toCrmSyncStatus(value: unknown): CrmSyncStatus {
+  return value === 'synced' ||
+    value === 'not_configured' ||
+    value === 'blocked' ||
+    value === 'pending'
+    ? value
+    : 'pending';
 }
 
 function hasSupabaseError(value: unknown): value is { error: unknown } {

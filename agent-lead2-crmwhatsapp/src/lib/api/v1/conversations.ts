@@ -18,6 +18,10 @@ export interface ApiConversation {
   last_message_text: string | null;
   last_message_at: string | null;
   unread_count: number;
+  amo_lead_id: string | null;
+  crm_sync_status: string;
+  crm_sync_error: string | null;
+  crm_sync_attempted_at: string | null;
   created_at: string;
   updated_at: string;
   contact: {
@@ -40,6 +44,9 @@ export interface ApiMessage {
   media_url: string | null;
   template_name: string | null;
   whatsapp_message_id: string | null;
+  crm_sync_status: string;
+  crm_sync_error: string | null;
+  crm_sync_attempted_at: string | null;
   status: string;
   reply_to_message_id: string | null;
   interactive_reply_id: string | null;
@@ -60,6 +67,10 @@ export function serializeConversation(conv: Conversation): ApiConversation {
     last_message_text: conv.last_message_text ?? null,
     last_message_at: conv.last_message_at ?? null,
     unread_count: conv.unread_count ?? 0,
+    amo_lead_id: conv.amo_lead_id ?? null,
+    crm_sync_status: conv.crm_sync_status ?? 'pending',
+    crm_sync_error: conv.crm_sync_error ?? null,
+    crm_sync_attempted_at: conv.crm_sync_attempted_at ?? null,
     created_at: conv.created_at,
     updated_at: conv.updated_at,
     contact: c
@@ -92,6 +103,9 @@ export function serializeMessage(m: Message): ApiMessage {
     media_url: m.media_url ?? null,
     template_name: m.template_name ?? null,
     whatsapp_message_id: m.message_id ?? null,
+    crm_sync_status: m.crm_sync_status ?? 'pending',
+    crm_sync_error: m.crm_sync_error ?? null,
+    crm_sync_attempted_at: m.crm_sync_attempted_at ?? null,
     status: m.status,
     reply_to_message_id: m.reply_to_message_id ?? null,
     interactive_reply_id: m.interactive_reply_id ?? null,

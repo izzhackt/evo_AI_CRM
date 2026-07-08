@@ -9,7 +9,7 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Goal Slice
 
-Current slice: `/goal-gemini-receive-only-production-preflight`.
+Current slice: `/goal-evo-inbox-reliable-amocrm-sync-buffer`.
 
 Next major lane: `/goal-evo-inbox-companion`.
 
@@ -20,7 +20,36 @@ standalone companion app at `agent-lead2-crmwhatsapp/`, hosted at
 `evo-inbox`, WACRM's own draft-only AI assistant, and amoCRM as the identity
 source of truth.
 
-Deliverables for this slice:
+Deliverables for the reliable amoCRM sync buffer slice:
+
+- Inbound WAHA `message` webhooks must save the local Supabase contact,
+  conversation, and message before attempting amoCRM identity sync.
+- Missing amoCRM configuration or temporary amoCRM provider failure must not
+  prevent the message from appearing in EVO Inbox.
+- Conversations and messages must expose `crm_sync_status` as `pending`,
+  `synced`, `not_configured`, or `blocked`, with a safe operator-visible error.
+- WAHA must receive HTTP 200 after local save, including the CRM sync state, so
+  a saved message is not retried as a failed webhook.
+- Add a bounded internal retry endpoint protected by `AUTOMATION_CRON_SECRET`
+  to process pending/not configured CRM sync rows and optionally blocked rows
+  after operator repair.
+- Settings, Inbox UI, public API serializers, readiness, deployment docs, and
+  proof checklist must show the new local-save-first behavior truthfully.
+- Add migration `036_reliable_amocrm_sync_buffer.sql`.
+- Run targeted WAHA/amoCRM/readiness/schema tests plus `npm test`,
+  `npm run lint`, `npm run typecheck`, `npm run build`, `git diff --check`,
+  and a PR diff secret scan.
+- Commit only this slice with a Conventional Commit.
+- Request independent launch-control code-reviewer approval before merge.
+
+Out of scope for this slice:
+
+- Creating the real amoCRM external integration or token in the owner's browser.
+- Claiming live WhatsApp, amoCRM, Gemini, Supabase migration, or deployment
+  success before the real production services are exercised.
+- Auto-reply, broadcast, template, historical import, or `/opt/evo-crm` changes.
+
+Previous Gemini/preflight slice deliverables:
 
 - Update the lead-agent readiness/preflight path so receive-only rollout
   readiness is distinct from outbound WhatsApp readiness.

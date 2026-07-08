@@ -44,11 +44,18 @@ deployment or production proof was performed in this run.
    provider calls, then stores only encrypted account-level AI config in
    Supabase with `embeddings_provider='gemini'`.
 5. Receive a real WhatsApp message from the provided test number.
-6. Resolve or create the amoCRM contact and lead identity for that sender.
-7. Verify Supabase shadow records store `amo_contact_id` and `amo_lead_id`.
-8. Generate an EVO Companion AI draft using configured knowledge.
-9. Manually send the WAHA reply from the operator inbox.
-10. Verify no automatic AI auto-reply was sent.
+6. Verify the message appears in EVO Inbox and the Supabase message row exists
+   even if amoCRM is not yet synced.
+7. Verify `crm_sync_status` on the conversation and message is truthful:
+   `synced`, `pending`, `not_configured`, or `blocked`.
+8. Resolve or create the amoCRM contact and lead identity for that sender; if
+   it stayed pending/not configured, run the internal CRM sync retry endpoint
+   after configuration is fixed.
+9. Verify Supabase shadow records store `amo_contact_id` and `amo_lead_id` when
+   `crm_sync_status='synced'`.
+10. Generate an EVO Companion AI draft using configured knowledge.
+11. Manually send the WAHA reply from the operator inbox.
+12. Verify no automatic AI auto-reply was sent.
 
 ## Pass criteria
 
@@ -64,7 +71,11 @@ deployment or production proof was performed in this run.
 - Supabase scale audit from `docs/supabase-scale-retention.md` shows the
   database is still within the current plan threshold, or the project is on Pro.
 - The inbound WhatsApp message appears in EVO Inbox.
+- The WAHA webhook returns HTTP 200 after local Supabase save, even when amoCRM
+  sync is pending, not configured, or blocked.
 - The amoCRM contact/lead exists and matches the Supabase shadow ids.
+- No conversation or message is left in `pending`, `not_configured`, or
+  `blocked` for the final proof conversation.
 - AI draft generation uses at least one configured knowledge document.
 - The operator can edit before sending, and the reply is delivered manually.
 - No unattended auto-reply appears in WAHA, Supabase messages, or amoCRM notes.

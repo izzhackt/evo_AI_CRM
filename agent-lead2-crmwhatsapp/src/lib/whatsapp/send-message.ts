@@ -7,6 +7,7 @@ import {
 } from '@/lib/waha/config';
 import { sendWahaText, toWahaChatId } from '@/lib/waha/client';
 import { isValidE164, normalizePhone } from '@/lib/whatsapp/phone-utils';
+import type { CrmSyncStatus } from '@/types';
 
 export const VALID_MESSAGE_TYPES = ['text'] as const;
 
@@ -57,6 +58,13 @@ const defaultDeps = {
   sendWahaText,
   now: () => new Date(),
 } satisfies Required<SendMessageDeps>;
+
+const CRM_SYNC_STATUSES = new Set<CrmSyncStatus>([
+  'pending',
+  'synced',
+  'not_configured',
+  'blocked',
+]);
 
 export function validateSendMessageParams(params: {
   messageType: string;
@@ -121,6 +129,7 @@ export async function sendMessageToConversation(
   if (convError || !conversation) {
     throw new SendMessageError('not_found', 'Conversation not found', 404);
   }
+  const crmSyncFields = messageCrmSyncFields(conversation);
 
   const contact = conversation.contact as
     | { id: string; phone?: string | null }
@@ -207,6 +216,7 @@ export async function sendMessageToConversation(
       waha_session_name: waSessionName || null,
       waha_message_id: waMessageId || null,
       waha_message_status: waMessageStatus,
+      ...crmSyncFields,
       status: 'sent',
       reply_to_message_id: replyToInternalId,
     })
@@ -259,6 +269,34 @@ function resolveWahaRecipient(value: string): string | null {
 
   const normalizedPhone = normalizePhone(raw);
   return isValidE164(normalizedPhone) ? normalizedPhone : null;
+}
+
+function messageCrmSyncFields(conversation: unknown): {
+  crm_sync_status: CrmSyncStatus;
+  crm_sync_error: string | null;
+  crm_sync_attempted_at: string | null;
+} {
+  const row =
+    conversation && typeof conversation === 'object'
+      ? (conversation as Record<string, unknown>)
+      : {};
+  const status = toCrmSyncStatus(row.crm_sync_status, row.amo_lead_id);
+  return {
+    crm_sync_status: status,
+    crm_sync_error: status === 'synced' ? null : textOrNull(row.crm_sync_error),
+    crm_sync_attempted_at: textOrNull(row.crm_sync_attempted_at),
+  };
+}
+
+function toCrmSyncStatus(value: unknown, amoLeadId: unknown): CrmSyncStatus {
+  if (typeof value === 'string' && CRM_SYNC_STATUSES.has(value as CrmSyncStatus)) {
+    return value as CrmSyncStatus;
+  }
+  return textOrNull(amoLeadId) ? 'synced' : 'pending';
+}
+
+function textOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function providerMessageId(parent: unknown): string | null {

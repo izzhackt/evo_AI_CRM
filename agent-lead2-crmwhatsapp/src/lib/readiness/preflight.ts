@@ -6,6 +6,9 @@ export interface IntegrationReadinessState {
   status?: string | null
   message?: string | null
   missingFields?: string[]
+  pendingSyncCount?: number
+  notConfiguredSyncCount?: number
+  blockedSyncCount?: number
 }
 
 export interface AiReadinessState {
@@ -67,6 +70,10 @@ export function buildProductionPreflight(
   input: PreflightInput
 ): PreflightResult {
   const { env, waha, amocrm, ai } = input
+  const crmSyncBacklog =
+    (amocrm.pendingSyncCount ?? 0) +
+    (amocrm.notConfiguredSyncCount ?? 0) +
+    (amocrm.blockedSyncCount ?? 0)
   const checks: PreflightCheck[] = [
     checkRequiredEnv(
       env,
@@ -118,6 +125,18 @@ export function buildProductionPreflight(
         (amocrm.configured
           ? 'amoCRM identity configuration is present.'
           : 'amoCRM domain/base URL and access token must be configured.'),
+    },
+    {
+      id: 'amocrm-sync',
+      label: 'amoCRM sync backlog',
+      status: amocrm.configured && crmSyncBacklog === 0 ? 'pass' : 'blocked',
+      missing:
+        amocrm.configured && crmSyncBacklog === 0 ? [] : ['crm_sync_status'],
+      message: !amocrm.configured
+        ? 'WhatsApp messages can be saved locally, but amoCRM sync is not configured yet.'
+        : crmSyncBacklog === 0
+          ? 'No local inbox conversations are waiting for amoCRM sync.'
+          : `${crmSyncBacklog} local inbox conversation(s) are waiting for amoCRM sync (${amocrm.pendingSyncCount ?? 0} pending, ${amocrm.notConfiguredSyncCount ?? 0} not configured, ${amocrm.blockedSyncCount ?? 0} blocked).`,
     },
     {
       id: 'ai',

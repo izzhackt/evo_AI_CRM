@@ -56,14 +56,14 @@ vi.mock('@/lib/waha/inbound-delivery', () => {
       status: 'received',
       conversationId: 'conversation-1',
       messageId: 'message-1',
+      crmSyncStatus: 'synced',
+      crmSyncError: null,
+      crmSyncRetryable: false,
     })),
   };
 });
 
-import {
-  WahaInboundDeliveryError,
-  deliverWahaInboundMessage,
-} from '@/lib/waha/inbound-delivery';
+import { deliverWahaInboundMessage } from '@/lib/waha/inbound-delivery';
 import { POST } from './route';
 
 beforeEach(() => {
@@ -72,6 +72,9 @@ beforeEach(() => {
     status: 'received',
     conversationId: 'conversation-1',
     messageId: 'message-1',
+    crmSyncStatus: 'synced',
+    crmSyncError: null,
+    crmSyncRetryable: false,
   });
 });
 
@@ -150,6 +153,9 @@ describe('POST /api/waha/webhook', () => {
       status: 'received',
       conversation_id: 'conversation-1',
       message_id: 'message-1',
+      crm_sync_status: 'synced',
+      crm_sync_error: null,
+      crm_sync_retryable: false,
     });
     expect(deliverWahaInboundMessage).toHaveBeenCalledWith({
       db: {},
@@ -188,16 +194,16 @@ describe('POST /api/waha/webhook', () => {
     });
   });
 
-  it('surfaces missing amoCRM configuration as a not-configured webhook response', async () => {
-    vi.mocked(deliverWahaInboundMessage).mockRejectedValueOnce(
-      new WahaInboundDeliveryError({
-        code: 'amocrm_not_configured',
-        message: 'amoCRM configuration is missing: baseUrl',
-        status: 503,
-        integrationStatus: 'not_configured',
-        missingFields: ['baseUrl'],
-      }),
-    );
+  it('accepts inbound messages after local save when amoCRM is not configured', async () => {
+    vi.mocked(deliverWahaInboundMessage).mockResolvedValueOnce({
+      status: 'received',
+      conversationId: 'conversation-1',
+      messageId: 'message-2',
+      crmSyncStatus: 'not_configured',
+      crmSyncError: 'amoCRM configuration is missing: baseUrl',
+      crmSyncRetryable: true,
+      missingFields: ['baseUrl'],
+    });
     const messageBody = JSON.stringify({
       event: 'message',
       session: 'evo-inbox',
@@ -217,11 +223,14 @@ describe('POST /api/waha/webhook', () => {
     );
     const json = await response.json();
 
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(200);
     expect(json).toEqual({
-      error: 'amocrm_not_configured',
-      message: 'amoCRM configuration is missing: baseUrl',
-      integration_status: 'not_configured',
+      status: 'received',
+      conversation_id: 'conversation-1',
+      message_id: 'message-2',
+      crm_sync_status: 'not_configured',
+      crm_sync_error: 'amoCRM configuration is missing: baseUrl',
+      crm_sync_retryable: true,
       missing_fields: ['baseUrl'],
     });
   });

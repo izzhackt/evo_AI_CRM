@@ -68,11 +68,13 @@ async function loadAmoCrmState(
   accountId: string,
 ): Promise<IntegrationReadinessState> {
   const admin = integrationsAdminClient()
+  const syncCounts = await loadAmoCrmSyncCounts(admin, accountId)
   const setting = await getIntegrationSetting(admin, accountId, 'amocrm')
   if (!setting) {
     return {
       configured: false,
       missingFields: ['baseUrl', 'accessToken'],
+      ...syncCounts,
     }
   }
 
@@ -86,6 +88,7 @@ async function loadAmoCrmState(
       missingFields: ['ENCRYPTION_KEY'],
       message:
         'Stored amoCRM secrets cannot be decrypted with the current ENCRYPTION_KEY.',
+      ...syncCounts,
     }
   }
 
@@ -97,6 +100,36 @@ async function loadAmoCrmState(
     configured: missingFields.length === 0,
     status: setting.status,
     missingFields,
+    ...syncCounts,
+  }
+}
+
+async function loadAmoCrmSyncCounts(
+  admin: ReturnType<typeof integrationsAdminClient>,
+  accountId: string,
+) {
+  const { data, error } = await admin
+    .from('conversations')
+    .select('crm_sync_status')
+    .eq('account_id', accountId)
+    .in('crm_sync_status', ['pending', 'not_configured', 'blocked'])
+
+  if (error) {
+    return {
+      pendingSyncCount: 1,
+      notConfiguredSyncCount: 0,
+      blockedSyncCount: 0,
+      message: 'Failed to load amoCRM sync backlog.',
+    }
+  }
+
+  const rows = (data ?? []) as Array<{ crm_sync_status?: unknown }>
+  return {
+    pendingSyncCount: rows.filter((row) => row.crm_sync_status === 'pending').length,
+    notConfiguredSyncCount: rows.filter(
+      (row) => row.crm_sync_status === 'not_configured',
+    ).length,
+    blockedSyncCount: rows.filter((row) => row.crm_sync_status === 'blocked').length,
   }
 }
 

@@ -1,5 +1,14 @@
 # EVO Inbox Companion Implementation Issues
 
+> [!WARNING]
+> **Historical planning snapshot — superseded.** The proposed issue bodies in
+> this file were used to bootstrap the work and no longer represent current
+> status. Use the repository's
+> [GitHub Issues](https://github.com/izzhackt/evo_AI_CRM/issues) for active work
+> and `docs/EVO_LAUNCH_PLAN.md` for the current implementation contract. Retain
+> this file only for planning provenance; do not publish or execute its checklist
+> as a new plan.
+
 Status: proposed issue split. Publish to GitHub after user approval.
 
 Parent PRD: `docs/EVO_INBOX_COMPANION_PRD.md`
@@ -257,4 +266,3 @@ Execute the first real production proof for EVO Inbox. The proof must use real c
 ## Blocked by
 
 Issue 10.
-

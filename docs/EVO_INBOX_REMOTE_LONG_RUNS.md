@@ -1,5 +1,12 @@
 # EVO Inbox Remote Codex Long Runs
 
+> [!WARNING]
+> **Historical runbook — superseded.** Its branch names, prompts, and workspace
+> assumptions describe an earlier implementation phase and must not be used for
+> a new run. Start from GitHub `main`, follow `CONTRIBUTING.md` and `AGENTS.md`,
+> and use `docs/EVO_LAUNCH_PLAN.md` plus current GitHub Issues for active work.
+> This file is retained only as execution-history context.
+
 This runbook is for running long Codex sessions from `hermes-vps` while keeping GitHub as the source of truth.
 
 ## Source Of Truth Model

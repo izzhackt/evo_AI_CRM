@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-Status: contract v0, created 2026-06-24 in the workspace timezone.
+Status: active contract, updated 2026-07-12 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 Implementation lanes are blocked until this plan and `docs/PLAN_CHANGES.md` are
@@ -9,9 +9,51 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Goal Slice
 
-Current slice: `/goal-evo-inbox-reliable-amocrm-sync-buffer`.
+Current slice: `/goal-evo-platform-source-of-truth`.
 
-Next major lane: `/goal-evo-inbox-companion`.
+Next major lanes: reviewed integration into `main`, then the real production
+proofs tracked by GitHub issues #5 and #20.
+
+This slice makes the current repository understandable and usable as the EVO
+Admissions Platform source of truth without moving runtime code or changing
+production. It is documentation, governance, and controlled source-document
+work.
+
+Deliverables:
+
+- Replace the generic root README with a team-facing platform entrypoint.
+- Add a complete documentation index, platform/system map, data-ownership
+  registry, current-status page, onboarding guide, and business knowledge map.
+- Add an EVO company profile based only on supplied real company documents,
+  with no bank account values, personal identity numbers, signatures, or home
+  addresses copied into tracked Markdown.
+- Store the supplied public brand book in a tracked company brand folder.
+- Store supplied bank/legal originals in a local Git-ignored private folder
+  with restrictive permissions and a tracked safe manifest/checksum registry.
+- Add a branded team overview presentation and a concise demo/presenter script.
+- Mark historical handoffs and copied issue plans as archived or superseded;
+  keep GitHub Issues as the changing work-status authority.
+- Correct the active deployment documentation where it still names the Acadis
+  proxy instead of the EVO-owned edge boundary.
+- Track the safe root `.env.example` while continuing to ignore real `.env*`
+  files.
+- Do not move `src/`, `agent-lead2-crmwhatsapp/`, `evo-lead-agent/`, change
+  APIs/data models, deploy, alter DNS, or exercise outbound WhatsApp.
+
+Acceptance evidence:
+
+- All four supplied PDFs are identified by page count and SHA-256 checksum;
+  the 24-page brand book is tracked and visually reviewed.
+- Private source PDFs are present locally, ignored by Git, and not present in
+  the staged diff.
+- The presentation renders without overflow, overlap, clipping, or unresolved
+  placeholders and is visually reviewed slide by slide.
+- Repository links and source-of-truth statements are internally consistent.
+- `git diff --check`, a staged-diff secret/PII scan, root lint/typecheck/build,
+  and an independent launch-control review pass before merge.
+
+Historical implementation material below remains as prior-slice context until
+the documentation archive pass is complete.
 
 The EVO Inbox companion lane is specified in
 `docs/EVO_INBOX_COMPANION_PRD.md`. It creates a WACRM-derived, fully redesigned

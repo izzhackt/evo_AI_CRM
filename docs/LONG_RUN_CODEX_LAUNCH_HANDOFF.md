@@ -1,5 +1,12 @@
 # Long-Run Codex Launch Handoff
 
+> [!WARNING]
+> **Historical handoff — superseded.** This snapshot describes a completed
+> launch-control moment and is not a current instruction set. Use
+> `docs/EVO_LAUNCH_PLAN.md` for the active contract, `docs/PLAN_CHANGES.md` for
+> later decisions, and current GitHub Issues for executable work. Retain this
+> file only for audit context.
+
 ## Objective
 
 Run the launch-control flow for Gemini-backed receive-only WhatsApp rollout in EVO Admissions CRM.

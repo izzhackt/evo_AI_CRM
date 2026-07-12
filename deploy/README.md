@@ -51,12 +51,49 @@ docker compose -f docker-compose.prod.yml exec app node scripts/backup-sqlite.mj
 
 Backups are written to the `evo_crm_backups` Docker volume.
 
-## Caddy
+## EVO Edge Caddy
 
-Append `deploy/Caddyfile.evo-crm` to the active Caddyfile used by the existing
-`acadis-caddy-1` container, then reload Caddy.
+Public EVO traffic is owned by `evo-edge-caddy`, not by a Caddy container or
+network from another project. The canonical edge definitions are:
 
-Do not replace the existing Caddyfile without backing it up.
+- `agent-lead2-crmwhatsapp/deploy/docker-compose.edge.yml`
+- `agent-lead2-crmwhatsapp/deploy/Caddyfile.evo-edge`
+
+Both `evo-edge-caddy` and the CRM app must join the external
+`evo_public_web` network. Ensure `/opt/evo-crm/.env.production` contains this
+exact value before starting or recreating the CRM:
+
+```dotenv
+EVO_CADDY_NETWORK=evo_public_web
+```
+
+Create the shared network once if it does not exist:
+
+```bash
+docker network inspect evo_public_web >/dev/null 2>&1 \
+  || docker network create evo_public_web
+```
+
+Start or reconcile the EVO edge from the checked-out repository:
+
+```bash
+cd /opt/evo-inbox/agent-lead2-crmwhatsapp/deploy
+docker compose -f docker-compose.edge.yml up -d
+docker exec evo-edge-caddy caddy validate --config /etc/caddy/Caddyfile
+docker exec evo-edge-caddy caddy reload --config /etc/caddy/Caddyfile
+```
+
+`deploy/Caddyfile.evo-crm` is a CRM-only reference snippet. The combined
+`Caddyfile.evo-edge` is the production source for both CRM and Inbox public
+routes. Do not attach EVO services to an `acadis_*` network and do not run a
+second public proxy for EVO.
+
+Verify the real public routes after the reload:
+
+```bash
+curl -fsS -o /dev/null -w '%{http_code}\n' https://crm.evoadmissions.com/
+curl -fsS -o /dev/null -w '%{http_code}\n' https://inbox.evoadmissions.com/
+```
 
 ## WAHA
 

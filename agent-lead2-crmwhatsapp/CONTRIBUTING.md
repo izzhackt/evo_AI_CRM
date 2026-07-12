@@ -1,124 +1,102 @@
-# Using this template
+# Contributing To EVO Inbox
 
-This is a **template repository**, not a collaborative product. The
-expected flow is:
+EVO Inbox is a production component of the private
+[`izzhackt/evo_AI_CRM`](https://github.com/izzhackt/evo_AI_CRM) repository. It
+is not maintained as a generic WACRM template or as an independent upstream
+fork. Start with the repository-level [`CONTRIBUTING.md`](../CONTRIBUTING.md),
+then use this guide for Inbox-specific work.
 
-1. **Fork** it to your own GitHub account or organisation.
-2. **Deploy** the fork — see [`docs/`](./docs/README.md).
-3. **Customise** your fork. Rebrand, add the features you need, remove
-   the ones you don't, swap hosting, change the schema.
+## Product Boundary
 
-You **don't** need to send changes back upstream. The fact that your
-fork diverges is the whole point — the upstream is deliberately
-opinionated about stack, UX, and scope, and your fork is where those
-opinions become yours.
+EVO Inbox is the operator-facing WhatsApp companion for EVO Admissions. Its
+first-launch boundary is deliberately narrow:
 
-## Fork and run
+- WAHA owns WhatsApp transport through the dedicated `evo-inbox` session.
+- managed Supabase stores Inbox application data;
+- amoCRM owns lead and contact identity;
+- the Inbox AI assistant prepares drafts, while automatic sending remains off;
+- broadcasts, bulk automation, and the old Meta-first product surfaces are not
+  part of the EVO first launch.
+
+Do not reuse the CRM WAHA session, CRM webhook, CRM database, or lead-agent
+secrets. Do not expose WAHA directly to the public internet. Architecture
+changes require an ADR or launch-plan change before implementation.
+
+## Local Setup
+
+Run commands from this directory:
 
 ```bash
-# 1. Fork on GitHub: https://github.com/ArnasDon/wacrm → Fork
-# 2. Clone your fork
-git clone https://github.com/<your-username>/wacrm.git
-cd wacrm
-
-cp .env.local.example .env.local   # fill in Supabase + Meta creds
-npm install
+cp .env.local.example .env.local
+npm ci --include=dev
 npm run dev
 ```
 
-Full setup (Supabase migrations, WhatsApp Business API, deploy) lives in
-[`docs/`](./docs/README.md).
+Fill `.env.local` with authorized development values. Never commit Supabase
+service-role keys, encryption keys, WAHA credentials, amoCRM tokens, AI-provider
+keys, customer data, or WhatsApp session material.
 
-## Keeping your fork up to date
+The application requires real Supabase configuration to exercise its real data
+path. If an integration credential is unavailable, keep the failure explicit
+and report the missing input; do not create a fake success path.
 
-Pull in upstream bug fixes and security patches periodically:
+## Workflow
+
+1. Work from the parent repository and its GitHub Issue tracker.
+2. Read the relevant ADRs in `../docs/adr/`, the current launch plan, and
+   `docs/hermes-vps-deployment.md` when deployment is involved.
+3. Create an issue-focused branch from the reviewed shared baseline.
+4. Keep changes within the Issue's acceptance criteria and named write set.
+5. Add or update tests for changed behavior.
+6. Open a pull request in `izzhackt/evo_AI_CRM`; do not send EVO changes to the
+   WACRM upstream project.
+
+For a visible product change, include desktop and mobile evidence. For WAHA,
+amoCRM, Supabase, AI, DNS, Caddy, or VPS claims, record the real service and
+environment exercised. A local unit test is useful evidence, but it is not a
+substitute for a requested live integration proof.
+
+## Required Validation
+
+Run the complete local gate before requesting review:
 
 ```bash
-git remote add upstream https://github.com/ArnasDon/wacrm.git  # once
-git fetch upstream
-git checkout main
-git merge upstream/main     # or: git rebase upstream/main
-# Resolve any conflicts (likely in areas you've customised), then push
-git push origin main
+npm run lint
+npm run typecheck
+npm test
+npm run format:check
+npm run build
 ```
 
-If you've made heavy local customisations, rebasing can surface
-conflicts every time you pull. Pinning to a specific upstream tag and
-updating on your schedule is a valid alternative.
+When a database migration changes, apply and verify it against the authorized
+managed Supabase project named by the Issue. When a production integration
+changes, also run the relevant real preflight or proof checklist in `docs/`.
+State any credential, provider, DNS, or deployment blocker exactly in the pull
+request.
 
-## Reporting bugs in the upstream template
+## Pull Request Checklist
 
-If you find a bug in the upstream code — not one you introduced in your
-fork — please file it using the
-[bug report](https://github.com/ArnasDon/wacrm/issues/new?template=bug_report.yml)
-template. Including the commit SHA, the runtime (Hostinger / Vercel /
-local / other), and logs will get to a fix fastest.
+- Link the parent GitHub Issue.
+- Explain operator-visible behavior and data ownership impact.
+- List validation commands and actual results.
+- Include screenshots for UI changes.
+- Identify new environment values, migrations, deployment steps, and rollback
+  risks.
+- Confirm that no secrets, customer data, session files, or database exports
+  entered the diff.
+- Request owner review for deployment, authentication, webhook, encryption, or
+  provider-boundary changes.
 
-## Reporting security issues
+Report vulnerabilities through the parent repository's private
+[`SECURITY.md`](../SECURITY.md) process, never through a normal Issue or pull
+request.
 
-**Do not file security issues publicly.** Follow the private flow in
-[SECURITY.md](./.github/SECURITY.md).
+## WACRM Provenance And License
 
-## Upstream pull requests
+EVO Inbox was derived from the MIT-licensed WACRM codebase. Preserve the
+existing [`LICENSE`](./LICENSE) file and its attribution in redistributions.
+EVO product ownership does not remove the upstream license notice.
 
-Not the primary flow, but welcome in specific cases:
-
-- **Security fixes** — always welcome, please follow SECURITY.md first
-  for disclosure.
-- **Bug fixes** that match upstream intent (crash, correctness,
-  documentation errors, typos) — land quickly.
-- **Small improvements** (accessibility, obvious UX nits) — usually
-  welcome, open an issue first to check alignment.
-
-Less likely to land:
-
-- **New features.** The template's scope is intentionally narrow. A
-  "great idea for a CRM" is often a great idea for *your* CRM — i.e.
-  your fork — but would dilute the template for the next forker.
-- **Stack changes** (different ORM, different UI kit, different auth
-  provider). These belong in a fork, not upstream.
-- **Opinionated refactors** without a concrete correctness or
-  performance motivation.
-
-If you do send a PR, the usual rules apply:
-
-- Branch off the latest `main` (don't push to a merged branch — commits
-  end up orphaned).
-- Run `npm run typecheck` and `npm run format` locally first.
-- Fill in the PR template, especially the **Test plan**.
-- One logical change per PR.
-- Commit-message first line is imperative + terse; the body explains
-  the *why*, the diff shows the *what*.
-
-Expect a review within a few days. PRs opened without an issue may be
-closed — open the issue first to align.
-
-## If you maintain a public fork
-
-- Rebrand. The "CRM Template for WhatsApp" name, favicon, and
-  `wacrm.tech` URL belong to the upstream project; please swap them
-  for your own before putting your deployment in front of users.
-- Keep the MIT [`LICENSE`](./LICENSE) file — that's how the template's
-  permissions travel with the code. Attribution in a `README` section
-  is appreciated but not required.
-- You are free to re-license additions to your fork however you like.
-
-## Dev-loop reference
-
-Even if you never send a PR upstream, these are the scripts you'll use
-in your fork:
-
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Turbopack dev server on port 3000. |
-| `npm run build` | Production build. Next also runs its own typecheck here. |
-| `npm run typecheck` | `tsc --noEmit`. Fast TS-only pass. |
-| `npm run lint` | ESLint. |
-| `npm run format` | Prettier write. |
-| `npm run format:check` | Prettier in check-only mode. Useful in CI. |
-
-## Licensing
-
-This template is MIT ([`LICENSE`](./LICENSE)). Anything you contribute
-upstream is assumed to be MIT too. Your fork's additions are yours to
-license however you like.
+Upstream fixes may be reviewed and ported deliberately through a normal EVO
+pull request. Do not merge or rebase the WACRM repository wholesale: EVO Inbox
+has different product, data, security, and deployment boundaries.

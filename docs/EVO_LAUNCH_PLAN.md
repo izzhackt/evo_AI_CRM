@@ -1,6 +1,7 @@
 # EVO Launch Plan
 
-Status: active contract, updated 2026-07-12 in the workspace timezone.
+Status: source-of-truth slice completed through PR #32 and merge commit
+`4edbe185`; updated 2026-07-13 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 Implementation lanes are blocked until this plan and `docs/PLAN_CHANGES.md` are
@@ -9,10 +10,10 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Goal Slice
 
-Current slice: `/goal-evo-platform-source-of-truth`.
+Completed slice: `/goal-evo-platform-source-of-truth`.
 
-Next major lanes: reviewed integration into `main`, then the real production
-proofs tracked by GitHub issues #5 and #20.
+Next major lanes require their own reviewed slice: integration into `main`,
+then the real production proofs tracked by GitHub issues #5 and #20.
 
 This slice makes the current repository understandable and usable as the EVO
 Admissions Platform source of truth without moving runtime code or changing

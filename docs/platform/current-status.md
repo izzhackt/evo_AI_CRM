@@ -21,7 +21,7 @@ HTTP-проверку. Внешняя интеграция считается р
 | Область | Ответственный (Owner) | Статус на 2026-07-13 | Последняя проверка | Источник |
 |---|---|---|---|---|
 | GitHub-репозиторий | Технический ответственный | Приватный `izzhackt/evo_AI_CRM`; основная ветка — `main` | 2026-07-13 | `gh repo view` |
-| Интеграционная основа | Технический ответственный | Ветка `izzhacktcodex/waha-integration` содержит проверенные PR #32 и #33 и остаётся впереди `origin/main`; точные head и число коммитов нужно получать живой командой, а не копировать в этот снимок | 2026-07-13 | `git rev-list --left-right --count origin/main...origin/izzhacktcodex/waha-integration`, `git rev-parse` |
+| Интеграционная основа | Технический ответственный | Ветка `izzhacktcodex/waha-integration` содержит проверенные PR #32 и #33 и остаётся впереди `origin/main`; точные head и число коммитов нужно получать живой командой, а не копировать в этот снимок | 2026-07-13 | `git rev-list --left-right --count origin/main...origin/izzhacktcodex/waha-integration`, `git rev-parse origin/izzhacktcodex/waha-integration` |
 | Документация source of truth | Технический ответственный | Основной source-of-truth slice объединён через PR #32; его post-merge статус закрыт через PR #33; оба PR прошли независимую проверку | 2026-07-13 | `gh pr view 32`, `gh pr view 33` |
 | Доставка изменений в `main` | Технический ответственный | Вся интеграционная ветка требует отдельного review и PR в `main`; `main` пока не содержит весь актуальный контекст платформы | 2026-07-13 | `gh pr list`, `git rev-list` |
 | EVO Admissions CRM | Ответственные за операционную и техническую работу | Приложение и рабочая конфигурация Compose есть в репозитории | 2026-07-12 | `src/app/`, `docker-compose.prod.yml` |

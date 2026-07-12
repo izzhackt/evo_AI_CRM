@@ -1345,3 +1345,33 @@ environment and actually exercised; otherwise report the exact missing env or
 service blocker. No deployment, no rsync, no `/opt/evo-crm` access, and no
 unattended WhatsApp auto-reply.
 Reviewer notes: pending independent launch-control review.
+
+## 2026-07-12 - EVO Platform Source Of Truth And Company Documents
+
+Date: 2026-07-12, workspace timezone.
+Author: Codex.
+Change type: active slice, information architecture, governance, source-document
+classification, presentation, and validation scope.
+Affected plan section: goal slice, repository entrypoints, documentation
+ownership, source-document handling, and validation.
+Reason: the user approved the read-only repository audit and asked to turn the
+workspace into a team source of truth, add proper subfolders, and preserve four
+supplied real EVO documents. The audit proved that the default README is generic,
+the current platform spans three runtimes, changing work status is duplicated in
+Markdown, and the supplied charter contains personal identity and address data.
+Decision: keep one EVO Admissions Platform repository and improve its
+documentation structure before moving runtime paths. Track the public brand
+book. Keep the bank requisites, registration certificate, and charter in a
+local Git-ignored private source-document folder with restrictive permissions;
+track only a sanitized manifest and checksums. Create team onboarding, platform
+and data-ownership maps, a safe company profile, and a branded overview deck.
+GitHub `main` remains the intended shared canonical branch, amoCRM remains the
+identity/sales-state authority, Supabase remains the Inbox data store, and the
+VPS remains runtime rather than code source of truth.
+Validation impact: render and inspect all supplied PDFs; verify page counts and
+checksums; render and inspect every presentation slide; run presentation
+overflow checks, `git diff --check`, a staged-diff secret/PII scan, root
+lint/typecheck/build, and independent launch-control review. No production
+deployment, DNS change, live integration claim, or outbound WhatsApp action is
+authorized by this slice.
+Reviewer notes: pending independent launch-control review.

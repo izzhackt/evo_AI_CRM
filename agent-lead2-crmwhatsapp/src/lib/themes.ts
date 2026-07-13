@@ -32,9 +32,9 @@ export const STORAGE_KEY = "wacrm.theme";
  *
  * The CSS variables live in `src/app/globals.css` under
  * `html[data-mode="..."]` blocks (neutral surfaces only). Applied
- * at runtime via `document.documentElement.dataset.mode`. Dark is
- * the historical default and stays the app's identity; light is the
- * opt-in eye-strain-friendly alternative.
+ * at runtime via `document.documentElement.dataset.mode`. Light is
+ * the default for new visitors; an explicitly saved light or dark
+ * preference always wins on that browser.
  *
  * Persisted under its own localStorage key so it composes freely
  * with the accent choice (you can run Violet-light or Violet-dark).
@@ -43,14 +43,27 @@ export const MODES = ["light", "dark"] as const;
 
 export type Mode = (typeof MODES)[number];
 
-export const DEFAULT_MODE: Mode = "dark";
+export const DEFAULT_MODE: Mode = "light";
 
 export const MODE_STORAGE_KEY = "wacrm.mode";
+
+export const MODE_THEME_COLORS: Record<Mode, string> = {
+  light: "#fcfcfd",
+  dark: "#020617",
+};
 
 export function isMode(value: unknown): value is Mode {
   return (
     typeof value === "string" && (MODES as ReadonlyArray<string>).includes(value)
   );
+}
+
+export function resolveMode(value: unknown): Mode {
+  return isMode(value) ? value : DEFAULT_MODE;
+}
+
+export function getOppositeMode(mode: Mode): Mode {
+  return mode === "dark" ? "light" : "dark";
 }
 
 export interface ThemeMeta {

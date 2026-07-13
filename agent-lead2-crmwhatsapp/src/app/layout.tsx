@@ -14,6 +14,7 @@ import {
   DEFAULT_MODE,
   DEFAULT_THEME,
   MODE_STORAGE_KEY,
+  MODE_THEME_COLORS,
   MODES,
   STORAGE_KEY,
   THEME_IDS,
@@ -45,8 +46,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#020617",
-  colorScheme: "dark light",
+  themeColor: MODE_THEME_COLORS[DEFAULT_MODE],
+  colorScheme: "light dark",
 };
 
 // Inline boot script — runs before React hydrates so the user's
@@ -62,6 +63,12 @@ export const viewport: Viewport = {
 const THEME_BOOT_SCRIPT = `
 (function(){
   var d = document.documentElement;
+  var MODE_COLORS = ${JSON.stringify(MODE_THEME_COLORS)};
+  function applyMode(mode) {
+    d.dataset.mode = mode;
+    var themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor) themeColor.setAttribute('content', MODE_COLORS[mode]);
+  }
   try {
     var THEME_KEY = ${JSON.stringify(STORAGE_KEY)};
     var THEME_DEFAULT = ${JSON.stringify(DEFAULT_THEME)};
@@ -73,7 +80,7 @@ const THEME_BOOT_SCRIPT = `
     var MODE_DEFAULT = ${JSON.stringify(DEFAULT_MODE)};
     var MODES = ${JSON.stringify(MODES)};
     var savedMode = localStorage.getItem(MODE_KEY);
-    d.dataset.mode = MODES.indexOf(savedMode) !== -1 ? savedMode : MODE_DEFAULT;
+    applyMode(MODES.indexOf(savedMode) !== -1 ? savedMode : MODE_DEFAULT);
 
     var LOCALE_KEY = ${JSON.stringify(LOCALE_STORAGE_KEY)};
     var LOCALE_DEFAULT = ${JSON.stringify(DEFAULT_LOCALE)};
@@ -85,7 +92,7 @@ const THEME_BOOT_SCRIPT = `
     document.cookie = LOCALE_KEY + '=' + locale + '; Path=/; Max-Age=31536000; SameSite=Lax';
   } catch (_e) {
     d.dataset.theme = ${JSON.stringify(DEFAULT_THEME)};
-    d.dataset.mode = ${JSON.stringify(DEFAULT_MODE)};
+    applyMode(${JSON.stringify(DEFAULT_MODE)});
     d.dataset.locale = ${JSON.stringify(DEFAULT_LOCALE)};
     d.lang = ${JSON.stringify(DEFAULT_LOCALE)};
   }

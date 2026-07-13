@@ -1452,3 +1452,27 @@ embedding mechanics, source-conflict disclosure, privacy boundaries, glossary,
 and named write set. The first content reviews requested specific wording and
 semantic chunk-boundary fixes; those changes were applied and the reviewers
 then returned `APPROVED`.
+
+## 2026-07-13 - EVO Knowledge And Business Context Closeout
+
+Date: 2026-07-13, workspace timezone.
+Author: Codex.
+Change type: post-merge closeout and final audit.
+Affected plan section: `/goal-evo-knowledge-business-context`, GitHub issue #36,
+implementation PR #38.
+Reason: implementation PR #38 merged into the integration source-of-truth
+branch and the execution contract must record the actual terminal state.
+Decision: mark the slice complete at merge commit `2484cae5`. Keep the two
+country files as paste-ready text rather than claiming a binary Markdown upload
+feature. Keep the owner-approved Malaysia guarantee wording and its documented
+governance conflict. Leave the unrelated presentation ZIP untracked.
+
+Final audit: the merged branch contains all nine named files and no unexpected
+tracked change. Source SHA-256 values still match. The real chunker still
+returns 14 China chunks with maximum 1,197 and 13 Malaysia chunks with maximum
+1,185, with zero oversized or semantic-boundary issues. PR #38 is confirmed
+merged into `izzhacktcodex/waha-integration` at commit `2484cae5`.
+Reviewer notes: independent closeout review approved the PR and commit facts,
+append-only history, terminal plan status, validation evidence, and two-file
+scope. No new runtime, business-content, deployment, provider, or data change is
+introduced.

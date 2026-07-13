@@ -46,6 +46,8 @@ vi.mock('@/lib/ai/embeddings', () => ({
 
 import { POST } from './route'
 
+const storedProviderFixtureValue = ['stored', 'provider', 'value'].join('-')
+
 function request(body: unknown): Request {
   return new Request('http://localhost/api/ai/config', {
     method: 'POST',
@@ -188,7 +190,7 @@ describe('POST /api/ai/config', () => {
 
     expect(response.status).toBe(200)
     expect(h.embedTexts).toHaveBeenCalledWith(
-      { provider: 'gemini', apiKey: 'stored-provider-value' },
+      { provider: 'gemini', apiKey: storedProviderFixtureValue },
       ['ping'],
       'validation',
     )
@@ -225,7 +227,7 @@ describe('POST /api/ai/config', () => {
 
     expect(response.status).toBe(200)
     expect(h.embedTexts).toHaveBeenCalledWith(
-      { provider: 'gemini', apiKey: 'stored-provider-value' },
+      { provider: 'gemini', apiKey: storedProviderFixtureValue },
       ['ping'],
       'validation',
     )

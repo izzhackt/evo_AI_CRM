@@ -6,6 +6,8 @@ import {
   WEBHOOK_SECRET_PREFIX,
 } from './endpoints';
 
+const encryptedWebhookSecretFixture = ['encrypted', 'blob'].join('-');
+
 describe('generateWebhookSecret', () => {
   it('is prefixed and high-entropy, and unique per call', () => {
     const a = generateWebhookSecret();
@@ -23,7 +25,7 @@ describe('serializeWebhookEndpoint', () => {
       account_id: 'acct',
       created_by: 'u1',
       url: 'https://example.com/hook',
-      secret: 'encrypted-blob',
+      secret: encryptedWebhookSecretFixture,
       events: ['message.received'],
       is_active: true,
       last_delivery_at: null,

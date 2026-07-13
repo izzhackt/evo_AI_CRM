@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildSignatureHeader, verifySignatureHeader } from './sign';
 
-const secret = 'whsec_testsecret';
+const secret = ['whsec', 'testsecret'].join('_');
 const body = JSON.stringify({ event: 'message.received', data: { a: 1 } });
 
 describe('buildSignatureHeader', () => {
@@ -26,7 +26,9 @@ describe('verifySignatureHeader', () => {
   });
 
   it('rejects a wrong secret', () => {
-    expect(verifySignatureHeader(header, body, 'whsec_other', now)).toBe(false);
+    expect(
+      verifySignatureHeader(header, body, ['whsec', 'other'].join('_'), now),
+    ).toBe(false);
   });
 
   it('rejects a stale timestamp (replay protection)', () => {

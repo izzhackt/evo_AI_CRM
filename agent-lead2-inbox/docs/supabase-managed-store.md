@@ -68,7 +68,7 @@ tables in exposed schemas and that service/secret keys bypass RLS.
 
 ## Managed Cloud Workflow
 
-Run from `agent-lead2-crmwhatsapp/`.
+Run from `agent-lead2-inbox/`.
 
 ```bash
 supabase login
@@ -161,7 +161,7 @@ Current decision:
 
 ## 2026-07-06 Validation Attempt
 
-Commands run from `agent-lead2-crmwhatsapp/`:
+Commands run from `agent-lead2-inbox/`:
 
 ```bash
 npm ci --include=dev

@@ -65,11 +65,11 @@ Parent PRD: `docs/EVO_INBOX_COMPANION_PRD.md`
 
 ## What to build
 
-Create the `agent-lead2-crmwhatsapp/` companion app workspace from the WACRM MIT base inside `izzhackt/evo_AI_CRM`. The slice should make the copied app installable, buildable, and testable in isolation without touching the current EVO CRM runtime. Preserve the WACRM MIT license notice and establish the branch/workspace conventions for future EVO Inbox work.
+Create the `agent-lead2-inbox/` companion app workspace from the WACRM MIT base inside `izzhackt/evo_AI_CRM`. The slice should make the copied app installable, buildable, and testable in isolation without touching the current EVO CRM runtime. Preserve the WACRM MIT license notice and establish the branch/workspace conventions for future EVO Inbox work.
 
 ## Acceptance criteria
 
-- [ ] `agent-lead2-crmwhatsapp/` contains the WACRM-derived app source and a preserved MIT license notice.
+- [ ] `agent-lead2-inbox/` contains the WACRM-derived app source and a preserved MIT license notice.
 - [ ] The copied app has a clearly EVO-owned package/app identity while still acknowledging the WACRM base.
 - [ ] Local install, lint, typecheck, test, and build commands are documented and run from the companion folder.
 - [ ] The existing parent EVO CRM app remains untouched except for docs or repo-level config required to ignore/build the companion workspace correctly.

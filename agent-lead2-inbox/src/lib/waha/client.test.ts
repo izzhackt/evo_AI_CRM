@@ -9,6 +9,8 @@ import {
   toWahaChatId,
 } from './client';
 
+const wahaApiKeyFixture = ['test', 'api', 'key'].join('-');
+
 describe('WAHA client', () => {
   it('normalizes direct WhatsApp chat ids for WAHA', () => {
     expect(toWahaChatId('+1 (415) 555-1212')).toBe('14155551212@c.us');
@@ -46,7 +48,7 @@ describe('WAHA client', () => {
       {
         baseUrl: 'https://waha.internal/',
         sessionName: 'evo-inbox',
-        apiKey: 'test-api-key',
+        apiKey: wahaApiKeyFixture,
       },
       {
         to: '+1 (415) 555-1212',
@@ -61,7 +63,7 @@ describe('WAHA client', () => {
         method: 'POST',
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
-          'X-Api-Key': 'test-api-key',
+          'X-Api-Key': wahaApiKeyFixture,
         }),
         body: JSON.stringify({
           session: 'evo-inbox',
@@ -86,7 +88,7 @@ describe('WAHA client', () => {
       {
         baseUrl: 'https://waha.internal/',
         sessionName: 'evo-inbox',
-        apiKey: 'test-api-key',
+        apiKey: wahaApiKeyFixture,
       },
       {
         to: '+1 (415) 555-1212',

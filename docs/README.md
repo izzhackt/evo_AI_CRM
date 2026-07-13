@@ -69,8 +69,8 @@
 
 - [Product requirements](EVO_INBOX_COMPANION_PRD.md)
 - [Implementation issues](EVO_INBOX_IMPLEMENTATION_ISSUES.md)
-- [README приложения](../agent-lead2-crmwhatsapp/README.md)
-- [Хранилище данных Supabase](../agent-lead2-crmwhatsapp/docs/supabase-managed-store.md)
+- [README приложения](../agent-lead2-inbox/README.md)
+- [Хранилище данных Supabase](../agent-lead2-inbox/docs/supabase-managed-store.md)
 
 ### Проверки и отчёты
 

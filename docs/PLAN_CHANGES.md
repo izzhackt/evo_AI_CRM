@@ -486,7 +486,7 @@ stores only non-secret public routing ids, and resets `not_configured`/`blocked`
 CRM sync rows to `pending` so the internal retry endpoint can complete identity
 sync after configuration repair. It prints only provider/account metadata and
 secret names, never decrypted token material.
-Validation impact: run from `agent-lead2-crmwhatsapp/`: targeted
+Validation impact: run from `agent-lead2-inbox/`: targeted
 `scripts/seed-prod-amocrm-config.test.ts`, script syntax check, lint,
 typecheck, build as needed for the PR. Live amoCRM success may only be claimed
 after the email confirmation code is supplied, the long-lived token is generated
@@ -545,7 +545,7 @@ Current official docs consulted on 2026-07-08:
   second and entity list/add/update operations should be kept within documented
   limits, so the retry endpoint must process a bounded batch.
 
-Validation impact: run from `agent-lead2-crmwhatsapp/`: targeted WAHA/amoCRM
+Validation impact: run from `agent-lead2-inbox/`: targeted WAHA/amoCRM
 sync tests, API route tests, schema/migration tests, `npm test`,
 `npm run lint`, `npm run typecheck`, `npm run build`, `git diff --check`, and a
 PR diff secret scan. Production proof may only claim live WhatsApp, Supabase,
@@ -573,7 +573,7 @@ dashboard, inbox, contacts, pipelines, settings, AI setup, API keys, member
 invites, CSV import, first-launch disabled surfaces, and key accessibility
 labels. The bootstrap script applies `data-locale` and `html.lang` before
 hydration, matching the existing theme/mode boot pattern.
-Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm run typecheck`,
+Validation impact: run from `agent-lead2-inbox/`: `npm run typecheck`,
 `npm run lint`, `npm test`, `npm run build`, and browser smoke checks for the
 language toggle on `/login` and `/dashboard` when real local auth/runtime paths
 are available. Do not claim production deployment or live Gemini/Supabase proof
@@ -694,7 +694,7 @@ the Acadis dependency.
 Operational rule: preserve `/opt/acadis` and its Docker volumes when archiving
 Acadis, but stop the Acadis stack before starting `evo-edge-caddy` if Acadis
 owns `80/443`. Public EVO routes should be served from
-`agent-lead2-crmwhatsapp/deploy/Caddyfile.evo-edge`. Do not claim production
+`agent-lead2-inbox/deploy/Caddyfile.evo-edge`. Do not claim production
 proof until real DNS, WAHA QR/session, amoCRM, AI provider, and test WhatsApp
 checks pass through the live path.
 
@@ -754,7 +754,7 @@ Prepare #20 only as a real proof checklist/runbook naming the required
 Supabase, ENCRYPTION_KEY, WAHA, amoCRM, AI provider, test WhatsApp number, DNS,
 and Caddy inputs and the exact proof sequence. Do not mark #20 done and do not
 perform a production proof in this run.
-Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm ci --include=dev`,
+Validation impact: run from `agent-lead2-inbox/`: `npm ci --include=dev`,
 `npm test`, targeted AI/knowledge/WAHA/deployment/preflight tests,
 `npm run lint`, `npm run typecheck`, `npm run build`, browser/UI checks when a
 local server can run, `git diff --check`, and a PR diff secret scan. Build or
@@ -792,7 +792,7 @@ Validation impact:
   middleware/proxy warnings.
 - Targeted checks: the requested `rg` commands were run; the two commands that
   included a non-existent `app` path were rerun as `src docs .env.local.example`
-  from `agent-lead2-crmwhatsapp/`. Broad Meta results remain in intentionally
+  from `agent-lead2-inbox/`. Broad Meta results remain in intentionally
   disabled first-launch surfaces (templates, broadcasts, automations, flows, and
   the legacy Meta webhook). A focused active-path scan of WAHA config/send/status
   code found no Meta endpoint or credential references.
@@ -978,7 +978,7 @@ implementation docs. The companion app is now a separate product lane rather
 than an extension of the existing lead-agent rollout.
 Decision: add `docs/EVO_INBOX_COMPANION_PRD.md` and register
 `/goal-evo-inbox-companion` in `docs/EVO_LAUNCH_PLAN.md`. The lane will create
-`agent-lead2-crmwhatsapp/` from WACRM under MIT license, fully redesign retained
+`agent-lead2-inbox/` from WACRM under MIT license, fully redesign retained
 surfaces as EVO Inbox, replace Meta Cloud API with WAHA session `evo-inbox`, use
 managed Supabase Cloud, keep amoCRM as identity source of truth, keep WACRM's
 own AI assistant in draft-only mode, host at `inbox.evoadmissions.com` on
@@ -1020,12 +1020,12 @@ Affected plan section: `/goal-evo-inbox-companion` phase 1 source setup and
 phase 2 product pruning.
 Reason: durable goal mode started the first EVO Inbox companion implementation
 slice for issues 1 and 2: vendor the WACRM base into
-`agent-lead2-crmwhatsapp/` and remove first-launch Meta/bulk-automation product
+`agent-lead2-inbox/` and remove first-launch Meta/bulk-automation product
 surfaces.
 Decision: use the upstream MIT-licensed WACRM repository at
 `https://github.com/ArnasDon/wacrm`, default branch `main`, commit
 `274db1c7ce42540f989ab3f3f069d1ce7166855a`, as the source base. The write set
-for this slice is `agent-lead2-crmwhatsapp/**` plus this change-log entry and
+for this slice is `agent-lead2-inbox/**` plus this change-log entry and
 minimal repo docs/config only if needed to keep the companion app installable,
 lintable, typecheckable, testable, and buildable in isolation. First-launch UI
 and runtime paths for Meta Cloud API setup, Meta templates, broadcasts, broad
@@ -1035,7 +1035,7 @@ live integration, and VPS deployment remain out of scope except for inert
 stubs/docs needed to keep the copied app buildable.
 Validation impact: run the companion app install command and the companion
 lint/typecheck/test/build commands that exist after setup. Run parent repo
-checks only if files outside docs/config and `agent-lead2-crmwhatsapp/**` are
+checks only if files outside docs/config and `agent-lead2-inbox/**` are
 touched. Do not touch `/opt/evo-crm`, do not deploy, and do not claim live
 provider success.
 Reviewer notes: pending independent launch-control review.
@@ -1047,7 +1047,7 @@ Author: Codex.
 Change type: active slice, data model, documentation, validation assumptions.
 Affected plan section: `/goal-evo-inbox-companion` phase 4 Supabase foundation
 and GitHub issue #11.
-Reason: issue #11 prepares `agent-lead2-crmwhatsapp/` for managed Supabase
+Reason: issue #11 prepares `agent-lead2-inbox/` for managed Supabase
 Cloud as the companion app data store before WAHA or amoCRM adapter work starts.
 The existing WACRM migrations already cover Supabase Auth profiles, accounts,
 account members, conversations, messages, AI settings, knowledge documents, and
@@ -1062,7 +1062,7 @@ shadow amoCRM identifiers in Supabase; amoCRM remains canonical for lead/contact
 identity and sales state. Do not implement WAHA send/webhook adapters, amoCRM
 lookup/create, deployment, or `/opt/evo-crm` changes.
 Validation impact: run `npm ci --include=dev`, `npm test`, `npm run lint`,
-`npm run typecheck`, and `npm run build` in `agent-lead2-crmwhatsapp/`. Check
+`npm run typecheck`, and `npm run build` in `agent-lead2-inbox/`. Check
 the Supabase CLI with `supabase --version`. Current official Supabase docs
 consulted on 2026-07-06: CLI docs for `supabase link`, `supabase migration
 list`, `supabase db push --dry-run`, `supabase db reset`, and `supabase gen
@@ -1080,7 +1080,7 @@ Change type: validation evidence and external-service blocker.
 Affected plan section: `/goal-evo-inbox-companion` issue #11 validation gate.
 Reason: issue #11 requires real companion validation and explicit Supabase
 migration/typegen blocker recording when live/local Supabase is unavailable.
-Decision: companion app validation was run from `agent-lead2-crmwhatsapp/`:
+Decision: companion app validation was run from `agent-lead2-inbox/`:
 `npm ci --include=dev`, `npm test`, `npm run lint`, `npm run typecheck`, and
 `npm run build`. Supabase validation attempts were `supabase --version`,
 `docker info`, and `test -n "$SUPABASE_ACCESS_TOKEN"`.
@@ -1156,7 +1156,7 @@ Current official docs consulted on 2026-07-06:
   `https://www.amocrm.ru/developers/content/crm_platform/filters-api`
   (`query`, `filter[custom_fields_values]`, and other list filters).
   Validation impact: run `npm ci --include=dev`, `npm test`, `npm run lint`,
-  `npm run typecheck`, and `npm run build` from `agent-lead2-crmwhatsapp/`; run
+  `npm run typecheck`, and `npm run build` from `agent-lead2-inbox/`; run
   targeted `rg` checks for Meta/WAHA/amoCRM terms. Perform only read-only live
   WAHA status validation if WAHA base URL and API key are present in environment
   or existing config, and only safe amoCRM lookup validation if credentials and a
@@ -1207,7 +1207,7 @@ Current official docs consulted on 2026-07-06:
   `https://www.amocrm.ru/developers/content/crm_platform/leads-api` documents
   `GET /api/v4/leads`, `POST /api/v4/leads`, and lead-contact embedding through
   `_embedded.contacts`.
-  Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm ci --include=dev`,
+  Validation impact: run from `agent-lead2-inbox/`: `npm ci --include=dev`,
   `npm test`, targeted inbound/WAHA tests, `npm run lint`, `npm run typecheck`,
   `npm run build`, `git diff --check`, and a staged secret scan. No production
   deployment, no `/opt/evo-crm` access, and no live WAHA/amoCRM/Supabase success
@@ -1251,7 +1251,7 @@ Current official docs consulted on 2026-07-06:
   internal `@s.whatsapp.net` ids to `@c.us` before sending, `X-Api-Key`, and
   optional `reply_to`.
 
-Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm ci --include=dev`,
+Validation impact: run from `agent-lead2-inbox/`: `npm ci --include=dev`,
 `npm test`, targeted WAHA/manual-send tests, `npm run lint`,
 `npm run typecheck`, `npm run build`, `git diff --check`, and a secret scan over
 the PR diff. No production deployment, no `/opt/evo-crm` access, and no live
@@ -1336,7 +1336,7 @@ only for initial proof/small pilot traffic; move to Pro before sustained
 production WhatsApp traffic, large imported histories, or thousands of
 knowledge chunks.
 
-Validation impact: run from `agent-lead2-crmwhatsapp/`: `npm ci --include=dev`,
+Validation impact: run from `agent-lead2-inbox/`: `npm ci --include=dev`,
 `npm test`, targeted AI/knowledge/embeddings/schema/preflight tests,
 `npm run lint`, `npm run typecheck`, `npm run build`, `git diff --check`, and a
 PR diff secret scan. Live Gemini/Supabase smoke may only be claimed if provider
@@ -1476,3 +1476,24 @@ Reviewer notes: independent closeout review approved the PR and commit facts,
 append-only history, terminal plan status, validation evidence, and two-file
 scope. No new runtime, business-content, deployment, provider, or data change is
 introduced.
+
+## 2026-07-13 - Rename EVO Inbox Workspace Folder
+
+Date: 2026-07-13, workspace timezone.
+Author: Codex.
+Change type: repository layout, documentation, deployment path references.
+Affected plan section: EVO Inbox companion app workspace and production runbooks.
+Reason: the historical folder name `agent-lead2-crmwhatsapp/` no longer matches
+the product boundary. The application is the EVO Inbox companion app, not a
+generic CRM WhatsApp folder.
+Decision: rename `agent-lead2-crmwhatsapp/` to `agent-lead2-inbox/` and update
+repository, deployment, and runbook references to the new path. Keep service
+names, Docker Compose project names, public hostnames, WAHA session names,
+Supabase behavior, and runtime secrets unchanged. Do not remove
+`evo-lead-agent/`; it remains the production CRM lead-agent backend used by the
+`evo-crm` Compose project.
+
+Validation impact: verify no tracked references to the old folder name remain,
+run the renamed EVO Inbox test/build gates from `agent-lead2-inbox/`, run root
+lint/type/build checks affected by path exclusions, and inspect the resulting
+Compose files without printing runtime secrets.

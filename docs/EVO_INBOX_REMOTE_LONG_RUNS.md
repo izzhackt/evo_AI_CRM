@@ -84,7 +84,7 @@ Goal: implement the first EVO Inbox companion slices from docs/EVO_INBOX_COMPANI
 Must follow:
 - Read AGENTS.md, CONTEXT.md, docs/EVO_INBOX_COMPANION_PRD.md, docs/EVO_INBOX_IMPLEMENTATION_ISSUES.md, docs/EVO_LAUNCH_PLAN.md, docs/PLAN_CHANGES.md, and relevant ADRs before editing.
 - Work only in the named slice. Do not implement WAHA, Supabase, amoCRM, AI, or VPS deployment yet except for stubs/docs needed to keep the app buildable.
-- Create agent-lead2-crmwhatsapp/ from WACRM under MIT license. Preserve the MIT notice.
+- Create agent-lead2-inbox/ from WACRM under MIT license. Preserve the MIT notice.
 - Establish install/lint/typecheck/test/build commands for the companion app.
 - Remove or disable active first-launch surfaces for Meta Cloud API, Meta templates, broadcasts, broad automations, flow-driven sending, and auto-reply.
 - Do not claim live Meta, WAHA, Supabase, amoCRM, AI, DNS, Caddy, or VPS success.

@@ -13,7 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     ".twenty-reference/**",
-    "agent-lead2-crmwhatsapp/**",
+    "agent-lead2-inbox/**",
     "evo-lead-agent/**",
     "evo_website/**",
     "twenty-evo-admissions-app/**",

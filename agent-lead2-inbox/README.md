@@ -2,7 +2,7 @@
 
 EVO Inbox Companion is the first EVO-owned WhatsApp admissions inbox workspace
 derived from the MIT-licensed WACRM base. It lives inside
-`izzhackt/evo_AI_CRM` at `agent-lead2-crmwhatsapp/` and is intentionally
+`izzhackt/evo_AI_CRM` at `agent-lead2-inbox/` and is intentionally
 separate from the current EVO Admissions CRM runtime.
 
 ## Source And License

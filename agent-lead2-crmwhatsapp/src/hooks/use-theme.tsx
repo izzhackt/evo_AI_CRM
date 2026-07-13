@@ -12,10 +12,13 @@ import {
 import {
   DEFAULT_MODE,
   DEFAULT_THEME,
+  getOppositeMode,
   MODE_STORAGE_KEY,
+  MODE_THEME_COLORS,
   STORAGE_KEY,
   isMode,
   isThemeId,
+  resolveMode,
   type Mode,
   type ThemeId,
 } from "@/lib/themes";
@@ -47,6 +50,14 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+function applyModeToDocument(next: Mode) {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.mode = next;
+  document
+    .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    ?.setAttribute("content", MODE_THEME_COLORS[next]);
+}
+
 function readInitialTheme(): ThemeId {
   if (typeof window === "undefined") return DEFAULT_THEME;
   // Whatever the boot script applied is the truth. Fall back to
@@ -69,7 +80,7 @@ function readInitialMode(): Mode {
   if (isMode(fromAttr)) return fromAttr;
   try {
     const stored = localStorage.getItem(MODE_STORAGE_KEY);
-    if (isMode(stored)) return stored;
+    return resolveMode(stored);
   } catch {
     // localStorage can throw in private-browsing / sandboxed contexts.
   }
@@ -95,9 +106,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setMode = useCallback((next: Mode) => {
     setModeState(next);
-    if (typeof document !== "undefined") {
-      document.documentElement.dataset.mode = next;
-    }
+    applyModeToDocument(next);
     try {
       localStorage.setItem(MODE_STORAGE_KEY, next);
     } catch {
@@ -106,7 +115,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleMode = useCallback(() => {
-    setMode(mode === "dark" ? "light" : "dark");
+    setMode(getOppositeMode(mode));
   }, [mode, setMode]);
 
   // Sync from other tabs — change theme or mode in tab A, tab B
@@ -123,7 +132,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (e.key === MODE_STORAGE_KEY) {
         if (isMode(e.newValue) && e.newValue !== mode) {
           setModeState(e.newValue);
-          document.documentElement.dataset.mode = e.newValue;
+          applyModeToDocument(e.newValue);
         }
       }
     }

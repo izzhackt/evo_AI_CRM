@@ -1421,3 +1421,34 @@ deployment, DNS change, or WhatsApp send is authorized by this slice.
 Reviewer notes: independent plan review approved the bounded write set,
 acceptance criteria, trusted-content boundary, privacy controls, and readiness
 to begin implementation on 2026-07-13.
+
+## 2026-07-13 - EVO Knowledge And Business Context Implementation Review
+
+Date: 2026-07-13, workspace timezone.
+Author: Codex.
+Change type: implementation evidence, source preservation, retrieval quality,
+validation, and independent review.
+Affected plan section: `/goal-evo-knowledge-business-context`, GitHub issue #36.
+Reason: the planned country upload pack and business context are complete and
+must pass launch-control acceptance before merge.
+Decision: keep the final deliverable scoped to two separate country documents,
+one registry/upload guide, one comprehensive business context with a concise
+copy-ready EVO Inbox instruction block, the business/documentation indexes, and
+the root domain glossary. Preserve the unrelated untracked presentation ZIP and
+exclude the generated scenario report from the diff.
+
+Validation evidence: source SHA-256 values remained unchanged. The real EVO
+Inbox chunker produced 14 China chunks with maximum length 1,197 and 13 Malaysia
+chunks with maximum length 1,185; no oversized chunk, orphan heading, or handoff
+lead-in split remained. Relative links, draft/editorial marker scans,
+secret/credential scans, and `git diff --check` passed. Under Node 22.23.1,
+root lint, Next route generation, TypeScript, production build, all 39 scenarios,
+and `npm audit --audit-level=moderate` passed. Focused Inbox chunk and retrieval
+tests passed 16 of 16.
+
+Reviewer notes: three independent final reviews approved the cleaned China
+content, cleaned Malaysia content, business model, data ownership, upload and
+embedding mechanics, source-conflict disclosure, privacy boundaries, glossary,
+and named write set. The first content reviews requested specific wording and
+semantic chunk-boundary fixes; those changes were applied and the reviewers
+then returned `APPROVED`.

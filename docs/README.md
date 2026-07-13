@@ -13,8 +13,9 @@
 3. [Кто владеет какими данными](platform/data-ownership.md)
 4. [Текущий проверенный статус](platform/current-status.md)
 5. [Профиль EVO Admissions](business/evo-company-profile.md)
-6. [Процесс поступления](business/admissions-process.md)
-7. [Руководство по продажам](business/sales-playbook.md)
+6. [Бизнес-контекст EVO Admissions](business/evo-business-context.md)
+7. [Процесс поступления](business/admissions-process.md)
+8. [Руководство по продажам](business/sales-playbook.md)
 
 Для показа коллегам или партнёрам используйте
 [материалы презентации](../presentations/README.md) и
@@ -47,8 +48,12 @@
 
 - [Индекс бизнес-знаний](business/README.md)
 - [Профиль компании](business/evo-company-profile.md)
+- [Полный бизнес-контекст](business/evo-business-context.md) — клиенты, услуги,
+  коммерческая модель, путь поступления, роли, системы, AI и KPI.
 - [Процесс поступления](business/admissions-process.md)
 - [Руководство по продажам](business/sales-playbook.md)
+- [Upload pack базы знаний](business/knowledge-base/README.md) — два очищенных
+  текста по Китаю и Малайзии и инструкция по загрузке в EVO Inbox.
 - [Исследование бренда и продукта](EVO_BRAND_RESEARCH.md) — исследовательская
   база; проверяйте статус факта перед внешним использованием.
 

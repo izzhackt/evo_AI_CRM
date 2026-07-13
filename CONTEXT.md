@@ -79,3 +79,67 @@ _Avoid_: receive-only proof, auto-reply proof
 **Full EVO Inbox Redesign**:
 The redesign of all retained Companion WAHA CRM App surfaces around EVO admissions work, rather than a light rename of WACRM.
 _Avoid_: light rebrand, template skin
+
+**Admissions Inquiry**:
+The pre-contract request from a prospective student or decision-making family member that still needs qualification and a next action.
+_Avoid_: student file, confirmed client, application
+
+**Admissions Lead**:
+The amoCRM sales record that links an Admissions Inquiry to its canonical contact, owner, and sales stage.
+_Avoid_: applicant file, local Inbox deal
+
+**Applicant**:
+The person seeking admission to a school, university, language course, Foundation, bachelor, master, or doctoral program.
+_Avoid_: lead, payer, parent
+
+**Student Operational File**:
+The post-agreement EVO CRM record used to manage the applicant's admissions delivery, including applications, documents, visa work, payments, tasks, and support.
+_Avoid_: lead, WhatsApp conversation, amoCRM deal
+
+**Decision Participant**:
+A parent, guardian, sponsor, or other person who materially participates in the applicant's choice, consent, or payment.
+_Avoid_: applicant, contact owner
+
+**Admissions Consultation**:
+The structured conversation that clarifies the applicant's profile, destination, program, intake, language, academic standing, budget, documents, and next action.
+_Avoid_: sales pitch, guaranteed assessment
+
+**Admissions Route**:
+The agreed country, level, language pathway, program direction, intake, and funding approach used to plan an applicant's case.
+_Avoid_: generic recommendation, single lead stage
+
+**Intake**:
+The defined period when a program begins and for which an applicant submits an application.
+_Avoid_: deadline, application date
+
+**University Application**:
+One applicant's attempt to enter one specific university and program for a specific intake, with its own deadline, status, evidence, and result.
+_Avoid_: student file, sales lead
+
+**Country Knowledge Document**:
+An owner-approved, separately versioned body of country-specific services, prices, routes, requirements, and handoff guidance used by EVO Inbox retrieval.
+_Avoid_: system prompt, unreviewed notes, customer transcript
+
+**Owner-Approved Business Claim**:
+A service, price, process, or promise that the responsible EVO owner has explicitly accepted for operational use, even when broader governance work remains open.
+_Avoid_: externally verified fact, AI inference
+
+**EVO Service Fee**:
+The amount charged by EVO Admissions for the approved scope of consultation and admissions support.
+_Avoid_: tuition, provider fee, total study budget
+
+**Third-Party Study Cost**:
+A payment to a university, government, insurer, translator, airline, landlord, or other provider that must remain separate from the EVO Service Fee.
+_Avoid_: EVO revenue, package price
+
+**External Outcome**:
+An admission, scholarship, or visa decision made by a university, scholarship body, consulate, migration authority, or other outside organization.
+_Avoid_: internal task result, CRM stage
+
+**Manager Handoff**:
+The deliberate transfer from AI-assisted qualification to a responsible EVO employee when the answer is missing, case-specific, sensitive, exceptional, or ready for consultation or application.
+_Avoid_: failed reply, silent abandonment
+
+**Sensitive Applicant Document**:
+A passport, education record, medical form, bank statement, criminal-record certificate, or other file that must not be collected through an ordinary chat or committed to Git.
+_Avoid_: knowledge-base content, public brochure

@@ -1,8 +1,7 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-knowledge-business-context` implementation complete and
-independently approved; merge pending in GitHub issue #36; updated 2026-07-13
-in the workspace timezone.
+Status: `/goal-evo-knowledge-business-context` completed through PR #38 and
+merge commit `2484cae5`; updated 2026-07-13 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 Implementation lanes are blocked until this plan and `docs/PLAN_CHANGES.md` are
@@ -11,7 +10,7 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Current Goal Slice
 
-Active slice: `/goal-evo-knowledge-business-context`.
+Completed slice: `/goal-evo-knowledge-business-context`.
 
 This slice turns the two owner-supplied country drafts into clean text that can
 be pasted into EVO Inbox and consolidates the company's business model into one

@@ -1,14 +1,73 @@
 # EVO Launch Plan
 
-Status: source-of-truth slice completed through PR #32 and merge commit
-`4edbe185`; updated 2026-07-13 in the workspace timezone.
+Status: `/goal-evo-knowledge-business-context` active in GitHub issue #36;
+updated 2026-07-13 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 Implementation lanes are blocked until this plan and `docs/PLAN_CHANGES.md` are
 reviewed and merged. If scope, architecture, acceptance criteria, file
 ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
-## Goal Slice
+## Current Goal Slice
+
+Active slice: `/goal-evo-knowledge-business-context`.
+
+This slice turns the two owner-supplied country drafts into clean text that can
+be pasted into EVO Inbox and consolidates the company's business model into one
+team-facing context document. The user has explicitly approved the supplied
+China and Malaysia content as trusted business input. This slice therefore
+cleans and structures that content without external fact-checking or silent
+changes to its substantive claims.
+
+Named write set:
+
+- `docs/EVO_LAUNCH_PLAN.md` and `docs/PLAN_CHANGES.md`: execution contract and
+  append-only decision record for issue #36.
+- `docs/business/knowledge-base/README.md`: upload workflow, document registry,
+  ownership, review rules, and current EVO Inbox text-input limitation.
+- `docs/business/knowledge-base/ready-to-upload/`: normalized China and Malaysia
+  Markdown texts, each intended to be pasted as one separate knowledge document.
+- `docs/business/evo-business-context.md`: company, customer, service,
+  operating-model, system, data, AI, measurement, governance, and risk context.
+- `docs/business/README.md`, `docs/README.md`, and `CONTEXT.md`: discoverability
+  and canonical business vocabulary.
+
+Deliverables:
+
+- Preserve the supplied Downloads files byte-for-byte and create reviewed copies
+  under stable ASCII filenames in the repository.
+- Remove draft labels, warning markers, unresolved transcription notes, open
+  questions, broken numbering, and repeated FAQ copies.
+- Preserve the owner-approved country claims, prices, routes, service promises,
+  office details, and process content while making cost categories and steps
+  independently understandable to retrieval.
+- Add instructions that keep the assistant inside the approved text, collect a
+  minimal admissions profile, avoid requesting sensitive documents in ordinary
+  chat, and hand case-specific or uncovered questions to an EVO manager.
+- Explain the current upload path accurately: EVO Inbox accepts a title and
+  pasted text, then chunks and embeds the saved content; this slice does not add
+  binary Markdown-file upload behavior.
+- Build the business context from supplied company documents, existing business
+  docs, implemented CRM entities, EVO Inbox contracts, Lead Agent contracts,
+  and the current data-ownership map. Unknown owners and KPIs remain explicit
+  gaps rather than invented facts.
+- Do not change runtime code, database schemas, provider settings, deployment,
+  DNS, production data, or WhatsApp behavior.
+
+Acceptance evidence:
+
+- SHA-256 checks prove the two supplied source files are unchanged.
+- Both upload texts have no `⚠️`, draft/open-question markers, placeholder
+  instructions, duplicated FAQ section, secret, or real client personal data.
+- A chunk preview using the application's 1,200-character boundary shows both
+  documents split into bounded, readable retrieval units.
+- Repository links resolve, `git diff --check` passes, and a diff scan finds no
+  secrets, bank values, private legal identifiers, or copied customer records.
+- Required repository validation passes, or an exact unrelated blocker is
+  recorded.
+- An independent launch-control reviewer approves the final diff before merge.
+
+## Previous Goal Slice
 
 Completed slice: `/goal-evo-platform-source-of-truth`.
 

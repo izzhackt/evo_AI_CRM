@@ -1375,3 +1375,49 @@ lint/typecheck/build, and independent launch-control review. No production
 deployment, DNS change, live integration claim, or outbound WhatsApp action is
 authorized by this slice.
 Reviewer notes: pending independent launch-control review.
+
+## 2026-07-13 - EVO Country Knowledge Upload Pack And Business Context
+
+Date: 2026-07-13, workspace timezone.
+Author: Codex.
+Change type: active slice, business knowledge ownership, content normalization,
+retrieval preparation, documentation architecture, and validation scope.
+Affected plan section: `/goal-evo-knowledge-business-context`, GitHub issue #36.
+Reason: the user approved two supplied China and Malaysia knowledge drafts as
+trusted content and asked for upload-ready versions with editorial debris
+removed, missing bot guidance added, and a complete business context assembled
+from prior company documents and the implemented codebase.
+Decision: preserve both supplied Downloads files unchanged and create two
+reviewed, normalized Markdown documents under
+`docs/business/knowledge-base/ready-to-upload/`. Treat the supplied substantive
+country content as owner-approved business input for this slice; do not perform
+external fact-checking or silently replace its claims. Remove only drafting
+metadata, unresolved transcription notes, open questions, duplicate FAQ copies,
+and presentation noise. Add retrieval-friendly headings, separate cost
+categories, lead-qualification fields, privacy-safe document handling, and
+human-handoff rules. Store upload instructions and review metadata in a nearby
+registry rather than mixing operational maintenance notes into customer-facing
+answers.
+
+Create `docs/business/evo-business-context.md` as the narrative business map and
+extend root `CONTEXT.md` only with canonical glossary terms. The business
+context must distinguish legal company scope, owner-approved offer knowledge,
+implemented operating entities, external-system authority, current AI
+boundaries, and governance gaps. It must not copy restricted bank values,
+registration numbers, personal addresses, signatures, credentials, customer
+records, or other private source-document content.
+
+Current product constraint: EVO Inbox accepts knowledge through separate title
+and text fields. Saving the text creates retrieval chunks and embeddings. This
+slice documents that workflow and produces paste-ready text; it does not add a
+binary `.md` upload control or change the embedding implementation.
+
+Validation impact: verify source and output checksums, scan for draft markers,
+open questions, placeholders, secrets, and personal data; preview the exact
+1,200-character chunking boundary; validate internal links; run
+`git diff --check`, the repository's required code gates, and an independent
+launch-control review. No external provider request, production database write,
+deployment, DNS change, or WhatsApp send is authorized by this slice.
+Reviewer notes: independent plan review approved the bounded write set,
+acceptance criteria, trusted-content boundary, privacy controls, and readiness
+to begin implementation on 2026-07-13.

@@ -22,6 +22,14 @@ FROM node:22-bookworm-slim AS runner
 
 WORKDIR /app
 
+ARG EVO_IMAGE_SOURCE
+ARG EVO_IMAGE_REVISION
+ARG EVO_IMAGE_VERSION
+
+LABEL org.opencontainers.image.source="${EVO_IMAGE_SOURCE}" \
+      org.opencontainers.image.revision="${EVO_IMAGE_REVISION}" \
+      org.opencontainers.image.version="${EVO_IMAGE_VERSION}"
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000

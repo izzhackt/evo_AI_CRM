@@ -1,9 +1,10 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-main-production-consolidation` is active. Plan PR #41 was
-independently approved and merged. Security/repository-gates PR #43 is merged;
-a post-merge uv cache-path correction must pass before the integration
-candidate is frozen for promotion. Updated 2026-07-23 in the workspace timezone.
+Status: `/goal-evo-main-production-consolidation` is active. Plan PR #41,
+security/repository-gates PR #43, cache correction PR #44, and promotion PR #45
+are merged. GitHub `main` is now the reviewed source of truth at merge commit
+`0303fae691f45a52028708d85b8fc36b7a39ee93`. Production release reconciliation
+is the active block. Updated 2026-07-23 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 Implementation lanes are blocked until this plan and `docs/PLAN_CHANGES.md` are

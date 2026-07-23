@@ -1671,3 +1671,28 @@ deployment readiness.
 Validation impact: reproduce the initializer and all 39 scenarios in a clean
 checkout with no pre-existing `data/` directory, then require the complete
 GitHub CRM job and a fresh independent review to pass on the new exact head.
+
+## 2026-07-23 - Correct Lead Agent Cache Invalidation Path
+
+Date: 2026-07-23, workspace timezone.
+Author: Codex.
+Change type: post-merge CI correction before candidate freeze.
+Affected plan section: `/goal-evo-main-production-consolidation`, security and
+repository gates.
+
+Reason: the post-merge integration workflow passed its Lead Agent checks but
+emitted an annotation that no file matched
+`evo-lead-agent/evo-lead-agent/uv.lock`. The setup action resolves a relative
+`cache-dependency-glob` from its configured `working-directory`, so the current
+input duplicates the subdirectory and never invalidates the cache from the real
+lockfile.
+
+Decision: keep `working-directory: evo-lead-agent` and change only
+`cache-dependency-glob` to `uv.lock`. Current setup-uv documentation states that
+relative cache globs are interpreted from the working directory:
+`https://github.com/astral-sh/setup-uv/blob/main/docs/caching.md`.
+
+Validation impact: require the Lead Agent GitHub job to pass without the
+no-file-matched annotation, verify all other platform jobs remain green, and
+obtain independent review before freezing the promotion candidate. This changes
+no dependencies, runtime behavior, provider state, data, deployment, or DNS.

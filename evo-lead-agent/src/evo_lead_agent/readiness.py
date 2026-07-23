@@ -5,7 +5,9 @@ from typing import Any
 from .config import Settings
 
 
-def build_readiness_report(settings: Settings, knowledge_count: int | None = None) -> dict[str, Any]:
+def build_readiness_report(
+    settings: Settings, knowledge_count: int | None = None
+) -> dict[str, Any]:
     runtime_missing = [
         *(["EVO_AGENT_FROZEN=false"] if settings.frozen else []),
         *(["EVO_AGENT_WORKER_ENABLED=true"] if not settings.worker_enabled else []),
@@ -185,7 +187,11 @@ def _warnings(settings: Settings, knowledge_count: int | None) -> list[str]:
         warnings.append("live_outbound_without_reply_delay")
     if settings.autoreply_enabled and knowledge_count == 0:
         warnings.append("autoreply_enabled_without_imported_knowledge")
-    if settings.outbound_enabled and not settings.worker_enabled and settings.reply_delay_seconds > 0:
+    if (
+        settings.outbound_enabled
+        and not settings.worker_enabled
+        and settings.reply_delay_seconds > 0
+    ):
         warnings.append("reply_delay_requires_worker_or_manual_process_due")
     return warnings
 

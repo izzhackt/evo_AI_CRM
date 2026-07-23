@@ -53,7 +53,9 @@ def create_app(app_settings=settings, app_store=store) -> FastAPI:
         return {
             "ok": True,
             "status": "live",
-            "ready": False if app_settings.frozen or not app_settings.worker_enabled else build_readiness_report(
+            "ready": False
+            if app_settings.frozen or not app_settings.worker_enabled
+            else build_readiness_report(
                 app_settings,
                 app_store.knowledge_count(),
             )["ready"]["receive_only_rollout"],
@@ -77,7 +79,9 @@ def create_app(app_settings=settings, app_store=store) -> FastAPI:
             return JSONResponse({"error": str(exc)}, status_code=400)
         review = review_knowledge_entries(entries)
         if not review["ok"]:
-            return JSONResponse({"error": "unsafe_knowledge_entries", "review": review}, status_code=422)
+            return JSONResponse(
+                {"error": "unsafe_knowledge_entries", "review": review}, status_code=422
+            )
         imported = app_store.upsert_knowledge_entries(entries)
         return JSONResponse(
             {

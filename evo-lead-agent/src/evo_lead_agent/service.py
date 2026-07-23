@@ -78,6 +78,13 @@ class LeadAgentService:
                 continue
 
     async def process_due_buffers(self, phone: str | None = None, max_groups: int = 10) -> dict[str, Any]:
+        if self.settings.frozen:
+            return {
+                "processed_count": 0,
+                "results": [],
+                "blocked": True,
+                "reason": "lead_agent_frozen",
+            }
         processed: list[dict[str, Any]] = []
         for _ in range(max(1, max_groups)):
             messages = self.store.claim_next_due_buffer(phone=phone)

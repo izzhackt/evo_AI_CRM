@@ -106,6 +106,7 @@ volumes:
 
 networks:
   private:
+    external: true
     name: evo_crm_private
   web:
     external: true

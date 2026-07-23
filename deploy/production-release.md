@@ -588,6 +588,11 @@ connect_if_missing "$EVO_CADDY_NETWORK" evo-crm-app "$CRM_APP_ID"
 connect_if_missing "$EVO_CADDY_NETWORK" evo-inbox-app "$INBOX_APP_ID"
 ```
 
+The CRM Compose file deliberately declares `evo_crm_private` as external.
+`external` means Docker, rather than Compose, owns this bridge lifecycle; it
+does not publish the network or any service port. This lets the live containers
+join the final private bridge before Compose replaces them.
+
 The public preconnections ensure the live edge can resolve the replacement app
 aliases before any app is recreated. Do not disconnect these containers from
 an old network yet. The one-service recreation below replaces them with the

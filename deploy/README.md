@@ -80,6 +80,15 @@ docker network inspect evo_public_web >/dev/null 2>&1 \
   || docker network create evo_public_web
 ```
 
+CRM internal traffic uses a separate pre-provisioned bridge. It has no
+published host ports; declaring it `external` in Compose only keeps Compose from
+trying to recreate a bridge that live containers must join before rollout:
+
+```bash
+docker network inspect evo_crm_private >/dev/null 2>&1 \
+  || docker network create evo_crm_private
+```
+
 `deploy/Caddyfile.evo-crm` is a CRM-only reference snippet. The combined
 `Caddyfile.evo-edge` is the production source for both CRM and Inbox public
 routes, the existing Invite Bishkek and legacy Inbox fallback routes, and the

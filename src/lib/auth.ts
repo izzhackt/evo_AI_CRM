@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "crypto";
+import { NextResponse } from "next/server";
 import { db, Role } from "./db";
 
 const DEV_AUTH_SECRET = "edu-admin-dev-secret-change-in-production";
@@ -77,4 +78,23 @@ export async function currentUser(): Promise<SessionUser | null> {
 
 export function isStaff(role: Role): boolean {
   return role !== "client";
+}
+
+export type AdminApiAuthorization =
+  | { user: SessionUser; response?: never }
+  | { user?: never; response: NextResponse };
+
+export async function requireAdminApi(): Promise<AdminApiAuthorization> {
+  const user = await currentUser();
+  if (!user) {
+    return {
+      response: NextResponse.json({ error: "authentication_required" }, { status: 401 }),
+    };
+  }
+  if (user.role !== "admin") {
+    return {
+      response: NextResponse.json({ error: "forbidden" }, { status: 403 }),
+    };
+  }
+  return { user };
 }

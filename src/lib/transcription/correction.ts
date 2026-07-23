@@ -37,6 +37,8 @@ Critical rules:
 - Return only valid JSON.`;
 
 const ZAI_CORRECTION_MODEL = "glm-5.2";
+const MAX_CORRECTION_SEGMENTS = 10_000;
+const MAX_CORRECTION_TEXT_CHARS = 1_000_000;
 const ZAI_CODING_PLAN_BASE_URL =
   process.env.ZAI_CODING_PLAN_BASE_URL || "https://api.z.ai/api/coding/paas/v4";
 
@@ -156,7 +158,7 @@ async function fetchZaiCorrection(prompt: string, apiKey: string) {
 
   const responseText = await response.text();
   if (!response.ok) {
-    console.error("Z.ai correction error:", response.status, responseText);
+    console.error("Z.ai correction request failed:", response.status);
     if (response.status === 429 || response.status >= 500) {
       throw new Error("zai_overloaded");
     }
@@ -229,6 +231,13 @@ export async function correctTranscriptWithContext(input: {
   language?: string | null;
   segments: RawTranscriptSegment[];
 }) {
+  if (
+    input.segments.length === 0 ||
+    input.segments.length > MAX_CORRECTION_SEGMENTS ||
+    input.segments.reduce((total, segment) => total + segment.text.length, 0) > MAX_CORRECTION_TEXT_CHARS
+  ) {
+    throw new Error("correction_input_too_large");
+  }
   const prompt = `${DOMAIN_CONTEXT}
 
 Transcript metadata:

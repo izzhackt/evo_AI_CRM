@@ -12,10 +12,11 @@
 2. [Обзор систем](platform/system-overview.md)
 3. [Кто владеет какими данными](platform/data-ownership.md)
 4. [Текущий проверенный статус](platform/current-status.md)
-5. [Профиль EVO Admissions](business/evo-company-profile.md)
-6. [Бизнес-контекст EVO Admissions](business/evo-business-context.md)
-7. [Процесс поступления](business/admissions-process.md)
-8. [Руководство по продажам](business/sales-playbook.md)
+5. [Безопасность Transcription Lab](platform/transcription-security.md)
+6. [Профиль EVO Admissions](business/evo-company-profile.md)
+7. [Бизнес-контекст EVO Admissions](business/evo-business-context.md)
+8. [Процесс поступления](business/admissions-process.md)
+9. [Руководство по продажам](business/sales-playbook.md)
 
 Для показа коллегам или партнёрам используйте
 [материалы презентации](../presentations/README.md) и
@@ -31,6 +32,8 @@
   сообщение, документ, секрет или задачу.
 - [Текущий статус](platform/current-status.md) — что подтверждено сейчас, что
   ещё не завершено и что нельзя обещать.
+- [Безопасность Transcription Lab](platform/transcription-security.md) —
+  серверные ограничения, хранение, удаление и production-флаги.
 - [Архитектурные решения](adr/) — почему были выбраны отдельный Inbox,
   Supabase, WAHA и draft-only AI.
 

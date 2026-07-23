@@ -11,3 +11,12 @@ export async function requireStaffRoute(route: StaffRoute): Promise<SessionUser>
   }
   return user;
 }
+
+export async function requireAdminPage(): Promise<SessionUser> {
+  const user = await currentUser();
+  if (!user) redirect("/login");
+  if (user.role !== "admin") {
+    redirect(isStaff(user.role) ? ROLE_HOME_ROUTE[user.role] : "/portal");
+  }
+  return user;
+}

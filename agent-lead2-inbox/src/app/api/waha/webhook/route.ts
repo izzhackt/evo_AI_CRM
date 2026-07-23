@@ -4,7 +4,10 @@ import {
   IntegrationsAdminConfigurationError,
   integrationsAdminClient,
 } from '@/lib/integrations/admin-client';
-import { findWahaWebhookCandidates } from '@/lib/waha/config';
+import {
+  findWahaWebhookCandidates,
+  loadWahaRuntimeConfig,
+} from '@/lib/waha/config';
 import {
   WahaInboundDeliveryError,
   deliverWahaInboundMessage,
@@ -13,6 +16,10 @@ import {
   WahaInboundMessageParseError,
   parseWahaInboundMessageEvent,
 } from '@/lib/waha/inbound-message';
+import {
+  archiveWahaInboundMedia,
+  WahaMediaArchiveError,
+} from '@/lib/waha/media-archive';
 import {
   extractWahaMessageAckEvent,
   extractWahaSessionStatusEvent,
@@ -122,6 +129,16 @@ export async function POST(request: Request) {
         accountId: matched.accountId,
         message: parsed.message,
       });
+      if (parsed.message.media) {
+        const runtime = await loadWahaRuntimeConfig(db, matched.accountId);
+        await archiveWahaInboundMedia({
+          db,
+          accountId: matched.accountId,
+          messageId: result.messageId,
+          media: parsed.message.media,
+          waha: runtime.config,
+        });
+      }
       return NextResponse.json(
         {
           status: result.status,
@@ -153,6 +170,12 @@ export async function POST(request: Request) {
             missing_fields: err.missingFields,
           },
           { status: err.status }
+        );
+      }
+      if (err instanceof WahaMediaArchiveError) {
+        return NextResponse.json(
+          { error: err.code, message: err.message },
+          { status: err.status },
         );
       }
       throw err;

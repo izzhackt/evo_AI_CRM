@@ -472,4 +472,84 @@ SELECT EXISTS (
   SELECT 1 / 0;
 \endif
 
+-- Block C: the bucket is private, members can access only their account path,
+-- and browser roles cannot forge content-free media audit evidence.
+SELECT public = FALSE AS expected
+FROM storage.buckets
+WHERE id = 'chat-media'
+\gset
+\if :expected
+\else
+  \echo 'FAIL: chat-media bucket is public'
+  SELECT 1 / 0;
+\endif
+
+INSERT INTO storage.objects (bucket_id, name)
+VALUES ('chat-media', 'account-' || :'account_two_id' || '/message/foreign.pdf');
+
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  false
+);
+
+INSERT INTO storage.objects (bucket_id, name)
+VALUES ('chat-media', 'account-' || :'account_one_id' || '/message/own.pdf');
+
+SELECT EXISTS (
+  SELECT 1
+  FROM storage.objects
+  WHERE bucket_id = 'chat-media'
+    AND name = 'account-' || :'account_one_id' || '/message/own.pdf'
+) AS expected
+\gset
+\if :expected
+\else
+  \echo 'FAIL: account member cannot read own private media metadata'
+  SELECT 1 / 0;
+\endif
+
+\set ON_ERROR_STOP off
+INSERT INTO storage.objects (bucket_id, name)
+VALUES ('chat-media', 'account-' || :'account_two_id' || '/message/forged.pdf');
+\set cross_media_insert_state :SQLSTATE
+\set ON_ERROR_STOP on
+SELECT :'cross_media_insert_state' = '42501' AS expected \gset
+\if :expected
+\else
+  \echo 'FAIL: account member inserted cross-account private media'
+  SELECT 1 / 0;
+\endif
+
+SELECT NOT EXISTS (
+  SELECT 1
+  FROM storage.objects
+  WHERE bucket_id = 'chat-media'
+    AND name = 'account-' || :'account_two_id' || '/message/foreign.pdf'
+) AS expected
+\gset
+\if :expected
+\else
+  \echo 'FAIL: account member read cross-account private media metadata'
+  SELECT 1 / 0;
+\endif
+
+\set ON_ERROR_STOP off
+INSERT INTO public.media_audit_events (
+  account_id, event_type, object_key_sha256
+) VALUES (
+  :'account_one_id', 'access_grant', repeat('a', 64)
+);
+\set forged_media_audit_state :SQLSTATE
+\set ON_ERROR_STOP on
+SELECT :'forged_media_audit_state' = '42501' AS expected \gset
+\if :expected
+\else
+  \echo 'FAIL: authenticated user forged media audit evidence'
+  SELECT 1 / 0;
+\endif
+
+RESET ROLE;
+
 \echo 'PASS: real PostgreSQL role/RLS authorization policy suite'

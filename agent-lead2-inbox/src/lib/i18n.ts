@@ -286,6 +286,8 @@ const TRANSLATIONS = {
     'inbox.session.minutesRemaining': '{count}m remaining',
     'inbox.composer.placeholder': 'Type a message... (Shift+Enter for new line)',
     'inbox.composer.attachMedia': 'Attach media',
+    'inbox.composer.mediaUnavailable':
+      'Media sending is unavailable: this Inbox transport is verified only for text replies.',
     'inbox.composer.photo': 'Photo',
     'inbox.composer.video': 'Video',
     'inbox.composer.document': 'Document',
@@ -1314,6 +1316,8 @@ const TRANSLATIONS = {
     'inbox.composer.placeholder':
       'Введите сообщение... (Shift+Enter для новой строки)',
     'inbox.composer.attachMedia': 'Прикрепить медиа',
+    'inbox.composer.mediaUnavailable':
+      'Отправка медиа недоступна: текущий транспорт Inbox подтвержден только для текстовых ответов.',
     'inbox.composer.photo': 'Фото',
     'inbox.composer.video': 'Видео',
     'inbox.composer.document': 'Документ',

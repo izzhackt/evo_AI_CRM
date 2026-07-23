@@ -80,6 +80,11 @@ export async function uploadAccountMedia(
   bucket: string,
   file: File,
 ): Promise<UploadAccountMediaResult> {
+  if (bucket === "chat-media") {
+    throw new Error(
+      "Outbound Inbox media is disabled until the WAHA media send path is implemented and verified.",
+    );
+  }
   const supabase = createClient();
 
   const {

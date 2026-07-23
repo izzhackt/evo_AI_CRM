@@ -43,6 +43,9 @@ done < <(
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -f /workspace/supabase/migrations/038_authorization_containment.sql
+docker exec "$container_name" \
+  psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -f /workspace/supabase/migrations/039_private_inbox_media.sql
 
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \

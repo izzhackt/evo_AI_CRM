@@ -1,10 +1,9 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-main-production-consolidation` is active. Plan PR #41,
-security/repository-gates PR #43, cache correction PR #44, and promotion PR #45
-are merged. GitHub `main` is now the reviewed source of truth at merge commit
-`0303fae691f45a52028708d85b8fc36b7a39ee93`. Production release reconciliation
-is the active block. Updated 2026-07-23 in the workspace timezone.
+Status: `/goal-evo-preplatform-hardening` is active from GitHub `main` commit
+`14ed2e34c8b97f238aad2db872e7bdc54bf8b238`. Implementation is blocked until
+this plan-only change is independently reviewed and merged. Updated 2026-07-24
+in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 Implementation lanes are blocked until this plan and `docs/PLAN_CHANGES.md` are
@@ -13,7 +12,162 @@ ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Current Goal Slice
 
-Active slice: `/goal-evo-main-production-consolidation`.
+Active slice: `/goal-evo-preplatform-hardening`.
+
+### Goal
+
+Harden the current EVO CRM, EVO Inbox, retained EVO Lead Agent, and production
+boundaries before any unified EVO Platform implementation. amoCRM remains the
+sales identity/status source of truth. AI remains draft-only and automatic
+WhatsApp replies remain disabled.
+
+This slice does not build the unified platform, merge databases, retire the
+Lead Agent, redesign the complete role model, add automatic replies, or begin
+the final platform UI.
+
+### Reconciled baseline
+
+- PR #46 merged immutable deployment and rollback controls.
+- PR #47 merged durable AI-draft, outbound-attempt, outbound-message, and WAHA
+  acknowledgement evidence with server-only delivery audit writes.
+- PR #48 fixed migration 037 UUID defaults for production PostgreSQL.
+- GitHub `main` and this clean worktree resolve to `14ed2e34`.
+- Production Inbox runs revision `14ed2e34`, release `2026-07-23.2`; production
+  CRM and Lead Agent run revision `1f0d1a81`, release `2026-07-23.1`.
+- Application health checks are green on EVO-owned networks, but liveness is
+  not provider readiness.
+- No real WhatsApp/amoCRM proof exists. Missing inputs remain the amoCRM
+  production URL/token, dedicated test number, explicit approval for one
+  controlled reply, canonical DNS records, and the older CRM WAHA QR.
+- The original checkout's modified Malaysia knowledge-base document and
+  untracked presentation archive are owner work outside this goal.
+
+### Ordered blocks
+
+Every block starts from refreshed GitHub `main`, has one coherent PR, real
+validation, and a separate launch-control reviewer verdict of `approved`.
+Shared migrations, deployment files, and plan files merge sequentially.
+
+1. **A — critical authorization containment**
+   - Prevent profile, account, membership, ownership, or role self-promotion.
+     System-owned identity, membership, role, account, and provider/audit fields
+     may change only through authorized server paths.
+   - Inventory exposed Supabase tables, views, RPCs, grants, RLS/storage
+     policies, and `SECURITY DEFINER` functions. Deny cross-account writes and
+     remove unnecessary authenticated/anonymous grants.
+   - Add disposable PostgreSQL role-policy tests using JWT claims for ordinary
+     staff, privileged staff, and `service_role`, including negative
+     insert/update/delete/RPC and cross-account cases. Table-owner execution
+     does not prove RLS because owners normally bypass it.
+
+2. **B — main CRM sensitive surfaces**
+   - Authenticate and admin-gate Transcription Lab plus upload, job, SSE,
+     detail, and improvement endpoints, or disable the complete production
+     surface when no approved operator role can be proven.
+   - Enforce server-side upload type/size/count limits, bounded processing, safe
+     names, failure cleanup, retention/deletion, and non-sensitive audit output.
+     Edge limits supplement but do not replace application validation.
+   - Require production-safe secret encryption and fail closed when secure
+     encryption configuration is unavailable.
+   - Add negative permission tests for finance, documents, client/portal data,
+     AI routes, and transcription routes.
+   - Public registration versus invite-only access is an owner decision. Stop
+     before changing `/register`, account creation, or invite policy without it.
+
+3. **C — privacy and media truthfulness**
+   - Keep customer documents/media in private storage with account-scoped RLS
+     and short-lived authorized access. Never expose public bucket URLs or
+     service-role keys. Audit upload, access grant, deletion, and retention
+     without customer content.
+   - Verify real WAHA media receive/send support. Disable unsupported media UI
+     instead of storing or displaying simulated capability.
+   - Define retention/deletion for CRM files, Inbox media, transcripts, AI
+     drafts, outbound attempts/messages, ACK evidence, and logs. Preserve
+     #47/#48's append-only delivery evidence; do not recreate or weaken it.
+
+4. **D — Lead Agent minimal containment**
+   - Prove whether the production Lead Agent is still an active inbound webhook
+     owner. Keep outbound and automatic replies disabled.
+   - If active, add bounded replay rejection, atomic crash-claim
+     lease/recovery, idempotent amoCRM side effects, deterministic
+     phone/contact/lead selection, and non-sensitive liveness/readiness output.
+   - If unused or blocked by credentials, freeze it disabled and document the
+     exact blocker instead of overbuilding a service planned for retirement.
+
+5. **E — runtime and deployment hardening**
+   - Build on PR #46 rather than repeating it. Verify third-party images by
+     immutable digest and first-party images by Git revision/version labels.
+   - Separate liveness from dependency/provider readiness. Validate private
+     endpoints, Caddy routing, CSP/cache/security headers, application/edge
+     request limits, resource limits, correlation IDs, actionable logs/alerts,
+     and rollback evidence.
+   - Use current official Docker, Caddy, Next.js, Supabase, WAHA, and amoCRM
+     documentation. Validate real Compose/Caddy/runtime state without secrets or
+     customer data. Canonical DNS remains an owner-controlled external action.
+
+6. **F — backup and disaster recovery**
+   - Inventory main CRM SQLite/files, managed Supabase database and Storage
+     objects, retained Lead Agent SQLite/token state, encrypted settings, WAHA
+     session/relink material, and release configuration.
+   - Define owner-approved RPO/RTO per store. Supabase database backups do not
+     include Storage objects, so their recovery procedures are separate.
+   - Restore only into isolated disposable destinations, never production.
+     Verify integrity, schema/version, application reads, protected-key
+     decryption, and the documented WAHA relink procedure.
+
+7. **G — final acceptance and completion audit**
+   - Map every requirement to merged PRs, clean Git state, real test/runtime
+     evidence, or an exact external blocker.
+   - Prove role denials, restart persistence, duplicate/replay behavior,
+     provider-outage handling, zero automatic customer reply, isolated restore,
+     production image-to-Git mapping, and no open hardening PR.
+   - Run a real WhatsApp/amoCRM path only with real credentials, an
+     EVO-controlled sender/recipient, and explicit approval for the visible
+     manual reply. Missing inputs are blockers; mocks do not satisfy this plan.
+
+### Write boundaries and merge order
+
+- Plan-only PR: `docs/EVO_LAUNCH_PLAN.md` and append-only
+  `docs/PLAN_CHANGES.md`.
+- A owns Inbox authorization migrations/helpers/policy tests and merges before
+  any later Inbox schema work.
+- B owns main CRM guards, transcription, secret handling, and sensitive-surface
+  tests.
+- C owns private media/storage policy, signed access, truthful media UI,
+  retention/deletion, and audit events; it starts after A and B.
+- D owns only `evo-lead-agent/**` plus directly required deployment/docs.
+- E owns shared Dockerfiles, Compose, Caddy, observability, deployment
+  scripts/runbooks, and release metadata.
+- F owns backup/restore scripts and runbooks and follows E for shared files.
+- G owns audit evidence and plan status. DNS/provider mutation is excluded
+  unless separately authorized with required inputs.
+
+### Required evidence
+
+- Real disposable PostgreSQL role-policy execution, not SQL text matching.
+- Focused negative tests plus full affected lint/type/test/build/audit gates.
+- Real browser allow/deny checks for affected roles and surfaces.
+- `git diff --check origin/main..BLOCK_SHA` and redacted secret scanning.
+- Real production Compose/Caddy rendering without printing secret values.
+- Restart/persistence and isolated restore evidence where applicable.
+- Separate independent reviewer approval before each merge.
+
+### Stop conditions
+
+- Stop before changing registration/invite behavior without the owner's policy.
+- Stop before DNS mutation without authoritative access and owner approval.
+- Stop before real outbound WhatsApp without real credentials, a dedicated test
+  sender/recipient, and explicit approval for that reply.
+- Stop before destructive or production restore actions; rehearsals must be
+  isolated.
+- Stop Lead Agent expansion if active ownership cannot be proven.
+- Stop if architecture, schema, acceptance, or merge-order changes lack an
+  append-only `PLAN_CHANGES.md` entry.
+- Never print, commit, or copy secrets or customer data into evidence.
+
+## Completed Main Production Consolidation Slice
+
+Completed slice: `/goal-evo-main-production-consolidation`.
 
 ### Goal
 

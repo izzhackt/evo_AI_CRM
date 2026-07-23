@@ -1990,3 +1990,62 @@ message was sent. Keep production on merged release
 `1f0d1a810014e2ecee496cb9c3a7217a70c86486` until the database-first gate can
 be completed. Canonical Web-X DNS, amoCRM readiness, and a dedicated test
 number remain separate external prerequisites.
+
+## 2026-07-24 - Reconcile Inbox Audit And Start Pre-Platform Hardening
+
+Date: 2026-07-24, workspace timezone.
+Author: Codex.
+Change type: plan reconciliation, security scope, merge order, real acceptance,
+and stop conditions.
+Affected plan section: `/goal-evo-preplatform-hardening`.
+
+Reason: PR #47 and its migration compatibility fix in PR #48 are merged,
+migration 037 is applied, and EVO Inbox revision `14ed2e34` is deployed as
+release `2026-07-23.2`. The prior plan status still described production
+reconciliation as active and the preceding entry recorded the earlier
+pre-deployment hold. The owner authorized a separate hardening goal before any
+unified EVO Platform implementation.
+
+Decision:
+
+- Limit implementation to the current CRM, Inbox, Lead Agent, and production
+  boundaries. Keep amoCRM authoritative for sales identity/state, AI
+  draft-only, and automatic WhatsApp replies disabled.
+- Credit PR #47/#48 for durable drafts, outbound attempts/messages,
+  acknowledgement evidence, server-only delivery audit writes, and
+  non-retryable unknown outcomes. Do not duplicate or weaken those controls.
+- Order work as authorization containment; main CRM sensitive surfaces; privacy
+  and truthful media support; conditional minimal Lead Agent containment;
+  runtime/deployment hardening; isolated disaster-recovery rehearsals; and final
+  acceptance audit.
+- Merge shared migrations, deployment files, and plan files sequentially.
+  Refresh every block from GitHub `main` and require separate launch-control
+  approval before merge.
+- Make public registration versus invite-only behavior an explicit owner
+  decision and stop before changing it.
+- Require real PostgreSQL role-policy tests with ordinary, privileged, and
+  service roles. SQL text matching or table-owner queries do not prove RLS.
+- Treat managed Supabase database restore and Storage object recovery as
+  separate procedures because database backups exclude Storage objects.
+- Run restore rehearsals only in isolated disposable destinations. Never
+  overwrite production during validation.
+- Keep DNS, credentials, dedicated WhatsApp test identities, externally visible
+  replies, and destructive actions behind explicit owner authority.
+
+Official implementation references checked during planning:
+
+- `https://supabase.com/docs/guides/api/securing-your-api`
+- `https://supabase.com/docs/guides/storage/security/access-control`
+- `https://supabase.com/docs/guides/storage/serving/downloads`
+- `https://supabase.com/docs/guides/platform/backups`
+- `https://www.postgresql.org/docs/17/ddl-rowsecurity.html`
+- `https://www.postgresql.org/docs/17/app-pgrestore.html`
+- `https://nextjs.org/docs/app/guides/authentication`
+- `https://docs.docker.com/reference/compose-file/services/`
+- `https://caddyserver.com/docs/caddyfile/directives/request_body`
+
+Validation impact: the plan-only PR changes only
+`docs/EVO_LAUNCH_PLAN.md` and `docs/PLAN_CHANGES.md`; run
+`git diff --check`, link/secret-pattern review, and independent plan-freshness
+review. No runtime code, schema, provider, DNS, production, or customer data
+change is authorized by this entry.

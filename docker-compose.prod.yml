@@ -79,6 +79,10 @@ services:
       EVO_AGENT_WAHA_SESSION: crm_primary
       EVO_AGENT_CRM_BASE_URL: http://evo-crm-app:3000
       EVO_AGENT_CRM_SYNC_PATH: /api/internal/lead-agent/whatsapp
+      EVO_AGENT_FROZEN: "true"
+      EVO_AGENT_WORKER_ENABLED: "false"
+      EVO_AGENT_AUTOREPLY_ENABLED: "false"
+      EVO_AGENT_OUTBOUND_ENABLED: "false"
     expose:
       - "8000"
     volumes:

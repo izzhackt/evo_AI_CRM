@@ -6,6 +6,10 @@ from .config import Settings
 
 
 def build_readiness_report(settings: Settings, knowledge_count: int | None = None) -> dict[str, Any]:
+    runtime_missing = [
+        *(["EVO_AGENT_FROZEN=false"] if settings.frozen else []),
+        *(["EVO_AGENT_WORKER_ENABLED=true"] if not settings.worker_enabled else []),
+    ]
     missing = {
         "admin_api": _missing_admin(settings),
         "waha_webhook": _missing_waha_webhook(settings),
@@ -17,18 +21,26 @@ def build_readiness_report(settings: Settings, knowledge_count: int | None = Non
     stages = {
         "docker_start": _stage(True, []),
         "private_admin": _stage(not missing["admin_api"], missing["admin_api"]),
-        "waha_inbound_capture": _stage(not missing["waha_webhook"], missing["waha_webhook"]),
+        "waha_inbound_capture": _stage(
+            not runtime_missing and not missing["waha_webhook"],
+            [*runtime_missing, *missing["waha_webhook"]],
+        ),
         "amo_crm_shadow_sync": _stage(
-            not missing["waha_webhook"] and not missing["amo"] and not missing["crm_sync"],
-            [*missing["waha_webhook"], *missing["amo"], *missing["crm_sync"]],
+            not runtime_missing
+            and not missing["waha_webhook"]
+            and not missing["amo"]
+            and not missing["crm_sync"],
+            [*runtime_missing, *missing["waha_webhook"], *missing["amo"], *missing["crm_sync"]],
         ),
         "ai_decision_review": _stage(
-            not missing["waha_webhook"]
+            not runtime_missing
+            and not missing["waha_webhook"]
             and not missing["amo"]
             and not missing["crm_sync"]
             and not missing["gemini"]
             and settings.autoreply_enabled,
             [
+                *runtime_missing,
                 *missing["waha_webhook"],
                 *missing["amo"],
                 *missing["crm_sync"],
@@ -37,7 +49,8 @@ def build_readiness_report(settings: Settings, knowledge_count: int | None = Non
             ],
         ),
         "receive_only_rollout": _stage(
-            not missing["admin_api"]
+            not runtime_missing
+            and not missing["admin_api"]
             and not missing["waha_webhook"]
             and not missing["waha_api"]
             and not missing["amo"]
@@ -46,6 +59,7 @@ def build_readiness_report(settings: Settings, knowledge_count: int | None = Non
             and settings.autoreply_enabled
             and not settings.outbound_enabled,
             [
+                *runtime_missing,
                 *missing["admin_api"],
                 *missing["waha_webhook"],
                 *missing["waha_api"],
@@ -57,7 +71,8 @@ def build_readiness_report(settings: Settings, knowledge_count: int | None = Non
             ],
         ),
         "live_whatsapp_outbound": _stage(
-            not missing["waha_webhook"]
+            not runtime_missing
+            and not missing["waha_webhook"]
             and not missing["waha_api"]
             and not missing["amo"]
             and not missing["crm_sync"]
@@ -65,6 +80,7 @@ def build_readiness_report(settings: Settings, knowledge_count: int | None = Non
             and settings.autoreply_enabled
             and settings.outbound_enabled,
             [
+                *runtime_missing,
                 *missing["waha_webhook"],
                 *missing["waha_api"],
                 *missing["amo"],

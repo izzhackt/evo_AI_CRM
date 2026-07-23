@@ -85,7 +85,7 @@ def test_startup_seeds_starter_knowledge_when_database_is_empty(tmp_path: Path) 
     with TestClient(create_app(_settings(tmp_path, starter_knowledge_path=starter_path), store)) as client:
         health = client.get("/health").json()
 
-    assert health["knowledge_count"] == 12
+    assert health == {"ok": True, "status": "live", "ready": False, "frozen": False}
     assert store.search_knowledge("Какие документы нужны?", limit=1)[0]["external_id"] == "starter-documents-ru"
 
 
@@ -108,7 +108,7 @@ def test_startup_does_not_seed_starter_knowledge_over_existing_entries(tmp_path:
     with TestClient(create_app(_settings(tmp_path, starter_knowledge_path=starter_path), store)) as client:
         health = client.get("/health").json()
 
-    assert health["knowledge_count"] == 1
+    assert health["ok"] is True
     assert store.search_knowledge("Какие документы нужны?", limit=1)[0]["external_id"] == "existing-docs"
 
 
@@ -119,7 +119,7 @@ def test_startup_does_not_crash_when_starter_knowledge_file_is_missing(tmp_path:
     with TestClient(create_app(_settings(tmp_path, starter_knowledge_path=missing_path), store)) as client:
         health = client.get("/health").json()
 
-    assert health["knowledge_count"] == 0
+    assert health["ok"] is True
 
 
 def test_startup_rejects_unsafe_starter_knowledge_without_logging_raw_values(
@@ -151,7 +151,7 @@ def test_startup_rejects_unsafe_starter_knowledge_without_logging_raw_values(
             health = client.get("/health").json()
 
     rendered_logs = "\n".join(record.getMessage() for record in caplog.records)
-    assert health["knowledge_count"] == 0
+    assert health["ok"] is True
     assert "unsafe=1" in rendered_logs
     assert "+996" not in rendered_logs
     assert "example.com/private" not in rendered_logs
@@ -232,8 +232,26 @@ def test_knowledge_import_updates_health_count(tmp_path: Path) -> None:
     assert payload["knowledge_count"] == 1
     assert payload["review"]["unsafe_entries"] == 0
     health = client.get("/health").json()
-    assert health["knowledge_count"] == 1
-    assert health["worker_enabled"] is False
+    assert health == {"ok": True, "status": "live", "ready": False, "frozen": False}
+
+
+def test_frozen_agent_is_live_but_not_ready_and_rejects_webhooks(tmp_path: Path) -> None:
+    settings = replace(
+        _settings(tmp_path),
+        frozen=True,
+        worker_enabled=True,
+        autoreply_enabled=True,
+        outbound_enabled=True,
+    )
+    client = TestClient(create_app(settings, Store(tmp_path / "agent.db")))
+
+    health = client.get("/health")
+    webhook = client.post("/webhooks/waha", content=b"{}")
+
+    assert health.status_code == 200
+    assert health.json() == {"ok": True, "status": "live", "ready": False, "frozen": True}
+    assert webhook.status_code == 503
+    assert webhook.json() == {"error": "lead_agent_frozen"}
 
 
 def test_knowledge_import_rejects_non_object_entries(tmp_path: Path) -> None:

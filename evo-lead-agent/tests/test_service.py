@@ -45,6 +45,30 @@ def _settings(tmp_path: Path) -> Settings:
 
 
 @pytest.mark.asyncio
+async def test_frozen_service_rejects_processing_before_any_provider_call(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    class ForbiddenProvider:
+        def __init__(self, *args, **kwargs) -> None:
+            raise AssertionError("frozen service must not construct a provider client")
+
+    monkeypatch.setattr(service_module, "WahaClient", ForbiddenProvider)
+    settings = replace(
+        _settings(tmp_path),
+        frozen=True,
+        worker_enabled=True,
+        autoreply_enabled=True,
+        outbound_enabled=True,
+    )
+    service = LeadAgentService(settings=settings, store=Store(tmp_path / "agent.db"))
+
+    result = await service.handle_waha_payload({"event": "message"})
+
+    assert result == {"accepted": False, "ignored": True, "reason": "lead_agent_frozen"}
+
+
+@pytest.mark.asyncio
 async def test_service_reports_missing_amo_for_realistic_waha_payload(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     service = LeadAgentService(settings=settings, store=Store(settings.database_path))

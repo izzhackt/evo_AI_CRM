@@ -52,7 +52,9 @@ def _settings(
 
 
 def test_knowledge_import_requires_admin_key(tmp_path: Path) -> None:
-    client = TestClient(create_app(_settings(tmp_path, admin_api_key=None), Store(tmp_path / "agent.db")))
+    client = TestClient(
+        create_app(_settings(tmp_path, admin_api_key=None), Store(tmp_path / "agent.db"))
+    )
 
     response = client.post("/admin/knowledge/import", json=[])
 
@@ -63,7 +65,9 @@ def test_knowledge_import_requires_admin_key(tmp_path: Path) -> None:
 def test_knowledge_import_rejects_wrong_admin_key(tmp_path: Path) -> None:
     client = TestClient(create_app(_settings(tmp_path), Store(tmp_path / "agent.db")))
 
-    response = client.post("/admin/knowledge/import", headers={"x-evo-agent-admin-key": "wrong"}, json=[])
+    response = client.post(
+        "/admin/knowledge/import", headers={"x-evo-agent-admin-key": "wrong"}, json=[]
+    )
 
     assert response.status_code == 403
     assert response.json()["error"] == "invalid_admin_key"
@@ -77,16 +81,34 @@ def test_docs_and_openapi_are_not_public(tmp_path: Path) -> None:
     assert client.get("/openapi.json").status_code == 404
 
 
+def test_health_propagates_safe_request_id_and_replaces_invalid_value(
+    tmp_path: Path,
+) -> None:
+    client = TestClient(create_app(_settings(tmp_path), Store(tmp_path / "agent.db")))
+
+    supplied = client.get("/health", headers={"x-request-id": "deploy-check-123"})
+    assert supplied.headers["x-request-id"] == "deploy-check-123"
+
+    generated = client.get("/health", headers={"x-request-id": "bad value"})
+    assert generated.headers["x-request-id"] != "bad value"
+    assert len(generated.headers["x-request-id"]) == 36
+
+
 def test_startup_seeds_starter_knowledge_when_database_is_empty(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     starter_path = repo_root / "examples" / "evo-admissions-starter-knowledge.json"
     store = Store(tmp_path / "agent.db")
 
-    with TestClient(create_app(_settings(tmp_path, starter_knowledge_path=starter_path), store)) as client:
+    with TestClient(
+        create_app(_settings(tmp_path, starter_knowledge_path=starter_path), store)
+    ) as client:
         health = client.get("/health").json()
 
     assert health == {"ok": True, "status": "live", "ready": False, "frozen": False}
-    assert store.search_knowledge("Какие документы нужны?", limit=1)[0]["external_id"] == "starter-documents-ru"
+    assert (
+        store.search_knowledge("Какие документы нужны?", limit=1)[0]["external_id"]
+        == "starter-documents-ru"
+    )
 
 
 def test_startup_does_not_seed_starter_knowledge_over_existing_entries(tmp_path: Path) -> None:
@@ -105,18 +127,25 @@ def test_startup_does_not_seed_starter_knowledge_over_existing_entries(tmp_path:
         ]
     )
 
-    with TestClient(create_app(_settings(tmp_path, starter_knowledge_path=starter_path), store)) as client:
+    with TestClient(
+        create_app(_settings(tmp_path, starter_knowledge_path=starter_path), store)
+    ) as client:
         health = client.get("/health").json()
 
     assert health["ok"] is True
-    assert store.search_knowledge("Какие документы нужны?", limit=1)[0]["external_id"] == "existing-docs"
+    assert (
+        store.search_knowledge("Какие документы нужны?", limit=1)[0]["external_id"]
+        == "existing-docs"
+    )
 
 
 def test_startup_does_not_crash_when_starter_knowledge_file_is_missing(tmp_path: Path) -> None:
     missing_path = tmp_path / "missing-starter.json"
     store = Store(tmp_path / "agent.db")
 
-    with TestClient(create_app(_settings(tmp_path, starter_knowledge_path=missing_path), store)) as client:
+    with TestClient(
+        create_app(_settings(tmp_path, starter_knowledge_path=missing_path), store)
+    ) as client:
         health = client.get("/health").json()
 
     assert health["ok"] is True
@@ -147,7 +176,9 @@ def test_startup_rejects_unsafe_starter_knowledge_without_logging_raw_values(
     store = Store(tmp_path / "agent.db")
 
     with caplog.at_level(logging.WARNING, logger="evo_lead_agent.main"):
-        with TestClient(create_app(_settings(tmp_path, starter_knowledge_path=unsafe_path), store)) as client:
+        with TestClient(
+            create_app(_settings(tmp_path, starter_knowledge_path=unsafe_path), store)
+        ) as client:
             health = client.get("/health").json()
 
     rendered_logs = "\n".join(record.getMessage() for record in caplog.records)
@@ -158,7 +189,9 @@ def test_startup_rejects_unsafe_starter_knowledge_without_logging_raw_values(
 
 
 def test_readiness_requires_admin_key(tmp_path: Path) -> None:
-    client = TestClient(create_app(_settings(tmp_path, admin_api_key=None), Store(tmp_path / "agent.db")))
+    client = TestClient(
+        create_app(_settings(tmp_path, admin_api_key=None), Store(tmp_path / "agent.db"))
+    )
 
     response = client.get("/admin/readiness")
 
@@ -176,7 +209,9 @@ def test_readiness_rejects_wrong_admin_key(tmp_path: Path) -> None:
 
 
 def test_preflight_requires_admin_key(tmp_path: Path) -> None:
-    client = TestClient(create_app(_settings(tmp_path, admin_api_key=None), Store(tmp_path / "agent.db")))
+    client = TestClient(
+        create_app(_settings(tmp_path, admin_api_key=None), Store(tmp_path / "agent.db"))
+    )
 
     response = client.get("/admin/preflight")
 

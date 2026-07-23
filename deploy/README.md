@@ -1,5 +1,8 @@
 # EVO CRM Production Deployment
 
+Runtime health/readiness, private-route, resource-limit, correlation-log, and
+alert ownership rules are in [runtime-hardening.md](./runtime-hardening.md).
+
 Target server: `hermes-vps`
 
 Existing runtime/secrets path: `/opt/evo-crm`

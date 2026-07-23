@@ -9,6 +9,7 @@ import { NextRequest } from "next/server";
 //                      of the test is that these must survive onto whatever
 //                      response the middleware returns — including redirects.
 let mockUser: { id: string } | null = null;
+let authCalls = 0;
 let refreshedCookies: Array<{
   name: string;
   value: string;
@@ -28,6 +29,7 @@ vi.mock("@supabase/ssr", () => ({
       // refreshed inside getUser(), which rotates the refresh token and
       // pushes the new cookies through setAll() before resolving.
       getUser: async () => {
+        authCalls += 1;
         if (refreshedCookies.length) opts.cookies.setAll(refreshedCookies);
         return { data: { user: mockUser } };
       },
@@ -43,6 +45,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
   mockUser = null;
   refreshedCookies = [];
+  authCalls = 0;
 });
 
 afterEach(() => vi.clearAllMocks());
@@ -109,5 +112,25 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     // No redirect — the normal NextResponse.next() already carries cookies.
     expect(res.headers.get("location")).toBeNull();
     expect(res.cookies.get(ROTATED.name)?.value).toBe(ROTATED.value);
+  });
+
+  it("propagates a safe request ID across auth redirects", async () => {
+    mockUser = null;
+    const res = await middleware(
+      new NextRequest("https://app.test/dashboard", {
+        headers: { "x-request-id": "edge-request-123" },
+      }),
+    );
+
+    expect(res.headers.get("x-request-id")).toBe("edge-request-123");
+  });
+
+  it("does not call Supabase auth for liveness", async () => {
+    const res = await middleware(
+      new NextRequest("https://app.test/api/health"),
+    );
+
+    expect(authCalls).toBe(0);
+    expect(res.headers.get("x-request-id")).toBeTruthy();
   });
 });

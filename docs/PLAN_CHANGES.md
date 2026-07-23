@@ -2049,3 +2049,48 @@ Validation impact: the plan-only PR changes only
 `git diff --check`, link/secret-pattern review, and independent plan-freshness
 review. No runtime code, schema, provider, DNS, production, or customer data
 change is authorized by this entry.
+
+## 2026-07-24 - Freeze Retained Lead Agent After Ownership Proof
+
+Date: 2026-07-24, workspace timezone.
+Author: Codex.
+Change type: runtime ownership correction and Block D acceptance decision.
+Affected plan section: `/goal-evo-preplatform-hardening`, Block D.
+
+Reason: read-only production evidence established that the retained Lead Agent
+is not the active inbound webhook owner. The `crm_primary` WAHA session is in
+`SCAN_QR_CODE` and its configured webhook targets
+`evo-crm-app/api/webhooks/waha`, not the Lead Agent. The Lead Agent is live as a
+container but reports `amo_configured=false`, `outbound_enabled=false`, and
+`worker_enabled=true`; therefore missing amoCRM prerequisites block real
+processing while the enabled worker can be mistaken for production readiness.
+
+Decision:
+
+- Complete Block D through the plan's unused/blocked branch: freeze the retained
+  Lead Agent disabled instead of implementing replay protection, crash leases,
+  amoCRM idempotency, or identity-selection redesign for an inactive path.
+- Add an explicit fail-closed freeze setting that defaults to enabled and gates
+  worker startup, inbound WAHA processing, and every WAHA send path. Keep
+  automatic replies and outbound disabled in production defaults.
+- Keep `/health` as a non-sensitive liveness response and report frozen/readiness
+  state separately. Missing prerequisites may be named, but configured URLs,
+  paths, tokens, keys, session data, and customer data must not be returned.
+- Unfreezing is not authorized by this block. It requires a later ownership
+  decision, a WAHA session routed to the Lead Agent, a connected session,
+  complete amoCRM/CRM/Gemini/HMAC prerequisites, and separate real acceptance.
+- Do not change production, WAHA registration, provider data, customer data,
+  Inbox, main CRM runtime, Caddy, or DNS in this block.
+
+Official references checked:
+
+- `https://waha.devlike.pro/docs/how-to/sessions/` (session webhook ownership)
+- `https://waha.devlike.pro/docs/how-to/events/` (session webhook delivery)
+- `https://docs.docker.com/reference/compose-file/services/` (healthcheck
+  semantics)
+
+Validation impact: run the complete Lead Agent pytest and Ruff gates, inspect
+the rendered production Compose configuration with safe placeholder values,
+run affected root configuration checks, and require an independent read-only
+launch-control review. No provider success may be claimed because the WAHA
+session requires QR and amoCRM is not configured.

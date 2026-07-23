@@ -32,6 +32,8 @@ class LeadAgentService:
         self.store = store
 
     async def handle_waha_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if self.settings.frozen:
+            return {"accepted": False, "ignored": True, "reason": "lead_agent_frozen"}
         event = payload.get("event")
         if event == "session.status":
             return await self._sync_session_status(payload)
@@ -76,6 +78,13 @@ class LeadAgentService:
                 continue
 
     async def process_due_buffers(self, phone: str | None = None, max_groups: int = 10) -> dict[str, Any]:
+        if self.settings.frozen:
+            return {
+                "processed_count": 0,
+                "results": [],
+                "blocked": True,
+                "reason": "lead_agent_frozen",
+            }
         processed: list[dict[str, Any]] = []
         for _ in range(max(1, max_groups)):
             messages = self.store.claim_next_due_buffer(phone=phone)
@@ -192,7 +201,12 @@ class LeadAgentService:
                 complete_till=int(time.time()) + 3600,
             )
 
-        if decision.reply_text and self.settings.outbound_enabled and self.settings.waha_configured:
+        if (
+            decision.reply_text
+            and not self.settings.frozen
+            and self.settings.outbound_enabled
+            and self.settings.waha_configured
+        ):
             waha = WahaClient(
                 base_url=self.settings.waha_base_url or "",
                 api_key=self.settings.waha_api_key or "",

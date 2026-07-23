@@ -8,10 +8,11 @@ reference snapshots, not as product behavior.
 
 ## Product Boundary
 
-- WAHA receives and sends WhatsApp messages.
-- The lead agent receives signed WAHA webhooks, deduplicates inbound messages,
-  resolves or creates the lead/contact in amoCRM, stores local thread history,
-  and can draft or send guarded replies.
+- This is a retained service, not the current production webhook owner.
+- Read-only evidence on 2026-07-24 showed that the production `crm_primary`
+  session is waiting for QR and targets the main CRM webhook, not this service.
+- The production Lead Agent also lacks amoCRM configuration, so it cannot
+  complete its identity-first processing contract.
 - amoCRM is the source of truth for lead/contact identity and sales status.
 - EVO CRM remains the staff/operator UI and WhatsApp console. The lead-agent
   posts a signed internal sync event to EVO CRM after amoCRM resolution so local
@@ -22,15 +23,28 @@ reference snapshots, not as product behavior.
 The service is intentionally conservative by default:
 
 ```bash
+EVO_AGENT_FROZEN=true
+EVO_AGENT_WORKER_ENABLED=false
 EVO_AGENT_AUTOREPLY_ENABLED=false
 EVO_AGENT_OUTBOUND_ENABLED=false
 ```
 
-With these defaults the service records inbound state, writes amoCRM notes, and
-syncs EVO CRM shadow state when credentials are configured, but it does not send
-WhatsApp replies. Turn on `EVO_AGENT_AUTOREPLY_ENABLED=true` only after
-Gemini, amoCRM, and CRM sync are validated. Turn on
-`EVO_AGENT_OUTBOUND_ENABLED=true` only when live WhatsApp replies are approved.
+While frozen, the buffer worker does not start, the WAHA webhook returns
+`503 lead_agent_frozen`, and the service-level send path is disabled even if
+outbound flags are accidentally enabled. `/health` proves only that the process
+is live; `ready=false` is expected while frozen.
+
+Do not unfreeze this service by changing one environment variable. A later
+owner-approved activation must first establish all of the following:
+
+- WAHA webhook ownership explicitly moved to this service;
+- the intended WAHA session is connected rather than waiting for QR;
+- amoCRM, CRM sync, Gemini, admin, and webhook-HMAC prerequisites are present;
+- worker and receive-only behavior pass real provider acceptance;
+- outbound and automatic replies remain off unless separately approved.
+
+The larger replay, lease, amoCRM-idempotency, and identity-selection redesign is
+intentionally deferred while this path is unused and blocked.
 
 ## Local Setup
 

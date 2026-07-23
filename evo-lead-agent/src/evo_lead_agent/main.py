@@ -28,7 +28,7 @@ def create_app(app_settings=settings, app_store=store) -> FastAPI:
         stop_event = asyncio.Event()
         worker_task = None
         seed_starter_knowledge(app_settings, app_store)
-        if app_settings.worker_enabled:
+        if app_settings.worker_enabled and not app_settings.frozen:
             worker_task = asyncio.create_task(app_service.run_buffer_worker(stop_event))
         try:
             yield
@@ -52,15 +52,14 @@ def create_app(app_settings=settings, app_store=store) -> FastAPI:
     async def health() -> dict[str, object]:
         return {
             "ok": True,
-            "env": app_settings.app_env,
-            "amo_configured": app_settings.amo_configured,
-            "waha_configured": app_settings.waha_configured,
-            "crm_sync_configured": app_settings.crm_sync_configured,
-            "gemini_configured": app_settings.gemini_configured,
-            "knowledge_count": app_store.knowledge_count(),
-            "autoreply_enabled": app_settings.autoreply_enabled,
-            "outbound_enabled": app_settings.outbound_enabled,
-            "worker_enabled": app_settings.worker_enabled,
+            "status": "live",
+            "ready": False
+            if app_settings.frozen or not app_settings.worker_enabled
+            else build_readiness_report(
+                app_settings,
+                app_store.knowledge_count(),
+            )["ready"]["receive_only_rollout"],
+            "frozen": app_settings.frozen,
         }
 
     @app.post("/admin/knowledge/import")
@@ -80,7 +79,9 @@ def create_app(app_settings=settings, app_store=store) -> FastAPI:
             return JSONResponse({"error": str(exc)}, status_code=400)
         review = review_knowledge_entries(entries)
         if not review["ok"]:
-            return JSONResponse({"error": "unsafe_knowledge_entries", "review": review}, status_code=422)
+            return JSONResponse(
+                {"error": "unsafe_knowledge_entries", "review": review}, status_code=422
+            )
         imported = app_store.upsert_knowledge_entries(entries)
         return JSONResponse(
             {
@@ -109,6 +110,8 @@ def create_app(app_settings=settings, app_store=store) -> FastAPI:
 
     @app.post("/webhooks/waha")
     async def waha_webhook(request: Request) -> JSONResponse:
+        if app_settings.frozen:
+            return JSONResponse({"error": "lead_agent_frozen"}, status_code=503)
         if not app_settings.waha_webhook_secret:
             return JSONResponse({"error": "waha_webhook_secret_not_configured"}, status_code=503)
         raw_body = await request.body()

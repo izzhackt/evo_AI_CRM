@@ -63,6 +63,7 @@ class Settings:
     reply_delay_seconds: int
     worker_enabled: bool
     worker_poll_interval_seconds: float
+    frozen: bool = False
     starter_knowledge_path: Path | None = None
 
     @property
@@ -130,8 +131,9 @@ def load_settings() -> Settings:
         outbound_enabled=_bool("EVO_AGENT_OUTBOUND_ENABLED", False),
         max_reply_chars=int(os.getenv("EVO_AGENT_MAX_REPLY_CHARS", "900")),
         reply_delay_seconds=int(os.getenv("EVO_AGENT_REPLY_DELAY_SECONDS", "30")),
-        worker_enabled=_bool("EVO_AGENT_WORKER_ENABLED", True),
+        worker_enabled=_bool("EVO_AGENT_WORKER_ENABLED", False),
         worker_poll_interval_seconds=float(os.getenv("EVO_AGENT_WORKER_POLL_INTERVAL_SECONDS", "2")),
+        frozen=_bool("EVO_AGENT_FROZEN", True),
         starter_knowledge_path=(
             Path(starter_path)
             if (starter_path := os.getenv("EVO_AGENT_STARTER_KNOWLEDGE_PATH", "examples/evo-admissions-starter-knowledge.json").strip())

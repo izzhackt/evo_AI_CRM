@@ -45,6 +45,70 @@ def _settings(tmp_path: Path) -> Settings:
 
 
 @pytest.mark.asyncio
+async def test_frozen_service_rejects_processing_before_any_provider_call(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    class ForbiddenProvider:
+        def __init__(self, *args, **kwargs) -> None:
+            raise AssertionError("frozen service must not construct a provider client")
+
+    monkeypatch.setattr(service_module, "WahaClient", ForbiddenProvider)
+    settings = replace(
+        _settings(tmp_path),
+        frozen=True,
+        worker_enabled=True,
+        autoreply_enabled=True,
+        outbound_enabled=True,
+    )
+    service = LeadAgentService(settings=settings, store=Store(tmp_path / "agent.db"))
+
+    result = await service.handle_waha_payload({"event": "message"})
+
+    assert result == {"accepted": False, "ignored": True, "reason": "lead_agent_frozen"}
+
+
+@pytest.mark.asyncio
+async def test_frozen_service_rejects_manual_buffer_processing_before_provider_call(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    class ForbiddenProvider:
+        def __init__(self, *args, **kwargs) -> None:
+            raise AssertionError("frozen service must not construct a provider client")
+
+    monkeypatch.setattr(service_module, "AmoCrmClient", ForbiddenProvider)
+    settings = replace(
+        _settings(tmp_path),
+        frozen=True,
+        worker_enabled=True,
+        autoreply_enabled=True,
+        outbound_enabled=True,
+    )
+    store = Store(tmp_path / "agent.db")
+    queued = InboundMessage(
+        session="crm_primary",
+        provider_message_id="queued-before-freeze",
+        phone="+996700111222",
+        chat_id="996700111222@c.us",
+        text="Pre-existing queued message",
+    )
+    store.record_inbound(queued, amo_lead_id=123, amo_contact_id=456)
+    store.enqueue_message_buffer(queued, delay_seconds=0)
+    service = LeadAgentService(settings=settings, store=store)
+
+    result = await service.process_due_buffers()
+
+    assert result == {
+        "processed_count": 0,
+        "results": [],
+        "blocked": True,
+        "reason": "lead_agent_frozen",
+    }
+    assert store.claim_next_due_buffer(phone=queued.phone)[0].provider_message_id == queued.provider_message_id
+
+
+@pytest.mark.asyncio
 async def test_service_reports_missing_amo_for_realistic_waha_payload(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     service = LeadAgentService(settings=settings, store=Store(settings.database_path))

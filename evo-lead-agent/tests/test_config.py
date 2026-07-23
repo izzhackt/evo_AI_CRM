@@ -66,3 +66,12 @@ def test_load_settings_accepts_google_api_key_for_gemini(tmp_path, monkeypatch) 
 
     assert settings.gemini_api_key == "google-gemini-key"
     assert settings.gemini_model == "gemini-3.5-flash"
+
+
+def test_load_settings_defaults_to_frozen_with_worker_disabled(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    settings = load_settings()
+
+    assert settings.frozen is True
+    assert settings.worker_enabled is False

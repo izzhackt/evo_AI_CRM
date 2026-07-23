@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 from evo_lead_agent.config import Settings
@@ -113,6 +114,16 @@ def test_readiness_reports_live_outbound_ready_when_configured(tmp_path: Path) -
     assert report["stages"]["live_whatsapp_outbound"]["ok"] is True
     assert report["warnings"] == []
     assert report["next_action"] == "configure_receive_only_rollout: EVO_AGENT_OUTBOUND_ENABLED=false"
+
+
+def test_readiness_reports_freeze_as_explicit_blocker(tmp_path: Path) -> None:
+    settings = replace(_settings(tmp_path), frozen=True)
+
+    report = build_readiness_report(settings, knowledge_count=1)
+
+    assert report["ready"]["receive_only_rollout"] is False
+    assert report["ready"]["live_whatsapp_outbound"] is False
+    assert report["stages"]["waha_inbound_capture"]["missing"][0] == "EVO_AGENT_FROZEN=false"
 
 
 def test_readiness_report_does_not_include_secret_values(tmp_path: Path) -> None:

@@ -266,8 +266,10 @@ def test_cli_env_audit_passes_receive_only_preflight_without_enabling_outbound(
     }
     for key, value in secret_values.items():
         monkeypatch.setenv(key, value)
-    monkeypatch.setenv("EVO_AGENT_AUTOREPLY_ENABLED", "true")
-    monkeypatch.setenv("EVO_AGENT_OUTBOUND_ENABLED", "false")
+        monkeypatch.setenv("EVO_AGENT_AUTOREPLY_ENABLED", "true")
+        monkeypatch.setenv("EVO_AGENT_OUTBOUND_ENABLED", "false")
+        monkeypatch.setenv("EVO_AGENT_FROZEN", "false")
+        monkeypatch.setenv("EVO_AGENT_WORKER_ENABLED", "true")
 
     exit_code = env_audit_main(["--db", str(database)])
     rendered = capsys.readouterr().out
@@ -396,6 +398,8 @@ def test_cli_readiness_returns_success_when_receive_only_ready(
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
     monkeypatch.setenv("EVO_AGENT_AUTOREPLY_ENABLED", "true")
     monkeypatch.setenv("EVO_AGENT_OUTBOUND_ENABLED", "false")
+    monkeypatch.setenv("EVO_AGENT_FROZEN", "false")
+    monkeypatch.setenv("EVO_AGENT_WORKER_ENABLED", "true")
 
     exit_code = readiness_main(["--db", str(database)])
     output = json.loads(capsys.readouterr().out)

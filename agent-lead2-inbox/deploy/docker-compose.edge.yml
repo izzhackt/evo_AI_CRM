@@ -2,7 +2,7 @@ name: evo-edge
 
 services:
   caddy:
-    image: caddy:2-alpine
+    image: "${EVO_CADDY_IMAGE_REPOSITORY:-caddy:2-alpine}@${EVO_CADDY_IMAGE_DIGEST:?set EVO_CADDY_IMAGE_DIGEST to an immutable sha256 digest}"
     container_name: evo-edge-caddy
     restart: unless-stopped
     ports:

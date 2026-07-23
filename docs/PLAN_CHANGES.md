@@ -1696,3 +1696,100 @@ Validation impact: require the Lead Agent GitHub job to pass without the
 no-file-matched annotation, verify all other platform jobs remain green, and
 obtain independent review before freezing the promotion candidate. This changes
 no dependencies, runtime behavior, provider state, data, deployment, or DNS.
+
+## 2026-07-23 - Reconcile The Production Release Boundary
+
+Date: 2026-07-23, workspace timezone.
+Author: Codex.
+Change type: production architecture, release provenance, rollback, and
+deployment runbook.
+Affected plan section: `/goal-evo-main-production-consolidation`, production
+release reconciliation.
+
+Reason: promotion PR #45 was independently approved and merged with preserved
+history. GitHub `main` now points at
+`0303fae691f45a52028708d85b8fc36b7a39ee93`. A fresh read-only audit of
+`hermes-vps` confirmed that the fallback CRM and Inbox sites are healthy and the
+EVO edge proxy owns public ingress, but the running CRM app, WAHA, and Lead
+Agent still depend on `acadis_acadis_web`. The running images use mutable tags
+without OCI source/revision/version labels. The live edge Caddyfile also
+contains two intentional routes that are not yet represented in Git:
+`invite-bishkek.72.62.119.112.sslip.io` and
+`inbox.72.62.119.112.sslip.io`. The production CRM checkout contains a retained
+untracked Git backup directory and the Inbox checkout contains the live Caddy
+edit, so neither checkout is a safe deployment source. Canonical EVO DNS remains
+absent and is not part of this code block.
+
+Decision:
+
+- Commit both active non-EVO `sslip.io` proxy routes to the canonical EVO edge
+  Caddyfile. Preserve their current upstreams exactly; removal requires a
+  separate owner-approved change.
+- Give the CRM Compose project an EVO-owned private network. Keep only the CRM
+  app on both that private network and `evo_public_web`; keep CRM WAHA and the
+  Lead Agent on the private network only. Do not make the private network
+  Docker-internal because those services require controlled outbound provider
+  access.
+- Tag the three EVO-built images with the exact merged release revision and add
+  OCI source, revision, and version labels at build time. Require immutable
+  digest references for WAHA and Caddy so a release cannot silently pull a
+  different third-party image behind a mutable tag.
+- Allow service `env_file` paths to be supplied as release variables. Production
+  will continue reading the existing mode-`0600` secret files from
+  `/opt/evo-crm` and the current Inbox checkout; no secret value is copied into
+  Git or the clean release source.
+- Deploy from a detached clean release worktree under
+  `/opt/evo-releases/<full-main-sha>/repo`, not from either dirty live checkout.
+  Keep `/opt/evo-crm/evo-lead-agent.git-backup-*` and both original checkouts
+  untouched.
+- Before a container is recreated, save its inspect data and image identity,
+  validate the resolved Compose/Caddy configuration, create an application
+  SQLite backup, and snapshot every stateful EVO volume into a timestamped
+  release evidence directory. Retain the prior image IDs and exact config files
+  as the rollback contract.
+- Build all EVO images before changing runtime state. Pre-connect the existing
+  CRM containers to `evo_crm_private`, then reconcile CRM WAHA, Lead Agent, and
+  app one boundary at a time with a health check after each. Reconcile Inbox
+  WAHA and app separately, then validate and gracefully reload the edge proxy.
+  Do not remove the old Acadis network; another project owns it.
+
+Validation impact: validate both production Compose files with explicit
+release variables and external secret-file paths, validate the edge Compose
+file and Caddyfile, build all three EVO images, inspect their OCI labels and
+release tags, rerun the scoped application test/build gates, check the complete
+diff for secrets and whitespace, and obtain independent review before merge.
+After merge, fetch the exact new `main` SHA on the VPS, repeat all preflight
+checks and backups, deploy one boundary at a time, verify health and public
+fallback routing, and prove that no running EVO CRM container remains attached
+to an `acadis_*` network. DNS and real-provider proof remain later blocks and
+must report external blockers honestly.
+
+## 2026-07-23 - Pre-Provision The CRM Private Network Explicitly
+
+Date: 2026-07-23, workspace timezone.
+Author: Codex.
+Change type: independent-review correction.
+Affected plan section: `/goal-evo-main-production-consolidation`, production
+release reconciliation.
+
+Reason: independent review of PR #46 reproduced a deployment failure in the
+first runbook version. The runbook created `evo_crm_private` with
+`docker network create` so live containers could be preconnected before
+boundary-by-boundary replacement, while Compose declared the same name as a
+Compose-managed network. Compose rejects a pre-existing network without its
+expected project labels, so the first CRM service recreation would stop even
+after all preflight checks passed.
+
+Decision: declare `evo_crm_private` as an external Compose network and keep its
+explicit creation in the reviewed runbook before preconnecting the three live
+CRM containers. Here, `external` changes only which tool manages the network
+lifecycle; it does not publish a port or make the bridge publicly reachable.
+The network remains EVO-owned and contains only the CRM app, CRM WAHA, and Lead
+Agent. Continue to keep only the CRM app on the separate external
+`evo_public_web` network.
+
+Validation impact: reproduce the original failure with a disposable
+Compose-managed named network, then validate that the corrected external
+network accepts a pre-created Docker bridge and allows service startup. Re-run
+the CRM resolved-model topology assertions, all GitHub checks, and independent
+review on the new exact PR head before merge.

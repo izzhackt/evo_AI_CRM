@@ -14,6 +14,24 @@ crm.evoadmissions.com, evo-crm.72.62.119.112.sslip.io {
 	}
 }
 
+# Existing VPS routes are intentionally part of the EVO edge source of truth.
+# Keep them when reconciling the live, locally edited Caddyfile.
+invite-bishkek.72.62.119.112.sslip.io {
+	encode zstd gzip
+	reverse_proxy 172.16.1.1:13200
+	header {
+		-Server
+	}
+}
+
+inbox.72.62.119.112.sslip.io {
+	encode zstd gzip
+	reverse_proxy 172.16.1.1:13210
+	header {
+		-Server
+	}
+}
+
 codex.72.62.119.112.sslip.io {
 	encode zstd gzip
 	reverse_proxy 172.19.0.1:8787

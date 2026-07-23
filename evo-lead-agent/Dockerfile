@@ -1,5 +1,13 @@
 FROM python:3.13-slim
 
+ARG EVO_IMAGE_SOURCE
+ARG EVO_IMAGE_REVISION
+ARG EVO_IMAGE_VERSION
+
+LABEL org.opencontainers.image.source="${EVO_IMAGE_SOURCE}" \
+      org.opencontainers.image.revision="${EVO_IMAGE_REVISION}" \
+      org.opencontainers.image.version="${EVO_IMAGE_VERSION}"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH" \

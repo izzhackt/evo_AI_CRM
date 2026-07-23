@@ -10,10 +10,7 @@ import {
 import {
   Send,
   Paperclip,
-  Image as ImageIcon,
-  Video,
   FileText,
-  Mic,
   Square,
   X,
   Loader2,
@@ -21,12 +18,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useCan } from "@/hooks/use-can";
 import { useLanguage } from "@/hooks/use-language";
 import { cn } from "@/lib/utils";
@@ -543,44 +534,16 @@ export function MessageComposer({
         </div>
       ) : (
         <div className="flex items-end gap-2">
-          {/* Attach menu — photo / video / document / voice. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              disabled={inputsDisabled || busy}
-              title={
-                readOnly
-                  ? t("inbox.composer.readOnlyCannotSend")
-                  : inputsDisabled
-                    ? undefined
-                    : t("inbox.composer.attachMedia")
-              }
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {busy ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Paperclip className="h-4 w-4" />
-              )}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="border-border bg-popover">
-              <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
-                <ImageIcon className="mr-2 h-4 w-4" />
-                {t("inbox.composer.photo")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => videoInputRef.current?.click()}>
-                <Video className="mr-2 h-4 w-4" />
-                {t("inbox.composer.video")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => documentInputRef.current?.click()}>
-                <FileText className="mr-2 h-4 w-4" />
-                {t("inbox.composer.document")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void startRecording()}>
-                <Mic className="mr-2 h-4 w-4" />
-                {t("inbox.composer.voiceNote")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* WAHA outbound is verified only for sendText in this release. */}
+          <button
+            type="button"
+            disabled
+            aria-label={t("inbox.composer.mediaUnavailable")}
+            title={t("inbox.composer.mediaUnavailable")}
+            className="inline-flex h-9 w-9 shrink-0 cursor-not-allowed items-center justify-center rounded-md p-0 text-muted-foreground opacity-40"
+          >
+            <Paperclip className="h-4 w-4" />
+          </button>
 
           <GatedButton
             variant="ghost"

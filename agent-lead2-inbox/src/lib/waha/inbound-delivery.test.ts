@@ -196,6 +196,7 @@ const inboundMessage: WahaInboundMessage = {
   senderName: 'Alice Applicant',
   contentType: 'text',
   contentText: 'Hello from WhatsApp',
+  media: null,
   receivedAt: '2026-07-06T17:30:00.000Z',
 };
 

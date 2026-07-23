@@ -35,6 +35,7 @@ describe('WAHA inbound message parser', () => {
         senderName: 'Alice Applicant',
         contentType: 'text',
         contentText: 'Hello from WhatsApp',
+        media: null,
         receivedAt: '2023-11-14T22:13:20.000Z',
       },
     });
@@ -57,6 +58,34 @@ describe('WAHA inbound message parser', () => {
       expect(result.message.chatId).toBe('14155551212@c.us');
       expect(result.message.senderPhone).toBe('+14155551212');
       expect(result.message.receivedAt).toBe('2023-11-14T22:13:20.000Z');
+    }
+  });
+
+  it('extracts the authenticated WAHA media descriptor without exposing bytes', () => {
+    const result = parseWahaInboundMessageEvent({
+      event: 'message',
+      session: 'evo-inbox',
+      payload: {
+        id: 'media-1',
+        timestamp: 1700000000,
+        from: '14155551212@c.us',
+        hasMedia: true,
+        media: {
+          url: 'http://evo-inbox-waha:3000/api/files/media-1.pdf',
+          mimetype: 'application/pdf',
+          filename: 'admission.pdf',
+        },
+      },
+    });
+
+    expect(result.kind).toBe('message');
+    if (result.kind === 'message') {
+      expect(result.message.contentType).toBe('document');
+      expect(result.message.media).toEqual({
+        url: 'http://evo-inbox-waha:3000/api/files/media-1.pdf',
+        mimetype: 'application/pdf',
+        filename: 'admission.pdf',
+      });
     }
   });
 

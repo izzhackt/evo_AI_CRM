@@ -10,7 +10,14 @@ export interface WahaInboundMessage {
   senderName: string | null;
   contentType: ContentType;
   contentText: string;
+  media: WahaInboundMedia | null;
   receivedAt: string;
+}
+
+export interface WahaInboundMedia {
+  url: string;
+  mimetype: string;
+  filename: string | null;
 }
 
 export type WahaInboundMessageParseResult =
@@ -94,8 +101,24 @@ export function parseWahaInboundMessageEvent(
       senderName: extractSenderName(messagePayload),
       contentType: inferContentType(messagePayload),
       contentText: extractContentText(messagePayload),
+      media: extractInboundMedia(messagePayload),
       receivedAt: timestamp as string,
     },
+  };
+}
+
+function extractInboundMedia(
+  payload: Record<string, unknown>,
+): WahaInboundMedia | null {
+  if (payload.hasMedia !== true) return null;
+  const media = asRecord(payload.media);
+  const url = stringValue(media?.url);
+  const mimetype = stringValue(media?.mimetype).toLowerCase();
+  if (!url || !mimetype) return null;
+  return {
+    url,
+    mimetype,
+    filename: stringValue(media?.filename) || null,
   };
 }
 

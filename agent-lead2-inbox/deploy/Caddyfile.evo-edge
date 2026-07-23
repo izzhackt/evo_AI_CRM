@@ -5,7 +5,7 @@
 }
 
 (evo_app) {
-	@private path /api/internal/* /api/readiness/* /admin/* /metrics
+	@private path /api/internal /api/internal/* /api/readiness /api/readiness/* /admin /admin/* /metrics
 	respond @private 404
 
 	@health path /api/health

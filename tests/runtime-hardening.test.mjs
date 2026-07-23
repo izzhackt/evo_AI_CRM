@@ -15,7 +15,10 @@ function requireRootComposeHardening(value) {
 
 function requireCaddyHardening(value) {
   assert.match(value, /Content-Security-Policy-Report-Only/);
-  assert.match(value, /@private path \/api\/internal\/\*/);
+  assert.match(
+    value,
+    /@private path \/api\/internal \/api\/internal\/\* \/api\/readiness \/api\/readiness\/\* \/admin \/admin\/\* \/metrics/,
+  );
   assert.match(value, /respond @private 404/);
   assert.match(value, /max_header_size 32KB/);
 }
@@ -73,7 +76,7 @@ test("edge configuration denies private routes and sets bounded security policy"
   assert.match(value, /request_body\s*\{[\s\S]*max_size\s+20MB/);
   assert.match(value, /Content-Security-Policy/);
   assert.match(value, /Cache-Control\s+"no-store"/);
-  assert.match(value, /@private[\s\S]*\/api\/internal\/\*/);
+  assert.match(value, /@private[\s\S]*\/api\/readiness \/api\/readiness\/\*/);
   assert.match(value, /respond @private 404/);
 });
 

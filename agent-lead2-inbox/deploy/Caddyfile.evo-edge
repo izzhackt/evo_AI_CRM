@@ -1,0 +1,23 @@
+inbox.evoadmissions.com, evo-inbox.72.62.119.112.sslip.io {
+	encode zstd gzip
+	reverse_proxy evo-inbox-app:3000
+	header {
+		-Server
+	}
+}
+
+crm.evoadmissions.com, evo-crm.72.62.119.112.sslip.io {
+	encode zstd gzip
+	reverse_proxy evo-crm-app:3000
+	header {
+		-Server
+	}
+}
+
+codex.72.62.119.112.sslip.io {
+	encode zstd gzip
+	reverse_proxy 172.19.0.1:8787
+	header {
+		-Server
+	}
+}

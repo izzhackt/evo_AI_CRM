@@ -184,10 +184,10 @@ export default async function SalesPage({
 
                       <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-2.5">
                         <div className="flex items-center gap-3 font-mono text-[12px] text-fg-3">
-                          <span className="inline-flex items-center gap-1"><Icon name="phone" size={13} />{lead.call_count}</span>
-                          <span className="inline-flex items-center gap-1"><Icon name="message-circle" size={13} />{lead.wa_message_count}</span>
+                          <span className="inline-flex items-center gap-1"><Icon name="phone" size={13} />{t("calls")}: {lead.call_count}</span>
+                          <span className="inline-flex items-center gap-1"><Icon name="message-circle" size={13} />{t("messages")}: {lead.wa_message_count}</span>
                           {lead.unread_messages > 0 && (
-                            <span className="inline-flex items-center rounded-full bg-accent-weak px-1.5 text-[11px] font-semibold text-accent">{lead.unread_messages}</span>
+                            <span className="inline-flex items-center rounded-full bg-accent-weak px-1.5 text-[11px] font-semibold text-accent">{t("unread")}: {lead.unread_messages}</span>
                           )}
                         </div>
                         <div className="flex items-center gap-1">

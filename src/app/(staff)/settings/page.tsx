@@ -1,9 +1,10 @@
 import { getT } from "@/lib/i18n";
 import { getSetting } from "@/lib/db";
-import { checkAmoCrmAction, getIntegrationStatus, saveSettingsAction } from "@/lib/actions";
+import { checkAmoCrmAction, getIntegrationStatus, saveSettingsAction, startWahaSessionAction } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
 import { inputCls, btnCls, btnGhostCls, labelCls, cn } from "@/components/ui";
 import { Icon, type IconName } from "@/components/icons";
+import { WahaQr } from "@/components/WahaQr";
 
 function masked(value: string | null): string {
   if (!value) return "";
@@ -34,10 +35,19 @@ export default async function SettingsPage() {
   const integrations = await getIntegrationStatus();
 
   const fields = {
+    wa_provider: getSetting("wa_provider"),
     wa_token: getSetting("wa_token"),
     wa_phone_id: getSetting("wa_phone_id"),
     wa_verify_token: getSetting("wa_verify_token"),
     wa_app_secret: getSetting("wa_app_secret"),
+    waha_account_name: getSetting("waha_account_name"),
+    waha_base_url: getSetting("waha_base_url"),
+    waha_session_name: getSetting("waha_session_name"),
+    waha_webhook_url: getSetting("waha_webhook_url"),
+    waha_api_key: getSetting("waha_api_key"),
+    waha_webhook_secret: getSetting("waha_webhook_secret"),
+    lead_agent_sync_secret: getSetting("lead_agent_sync_secret"),
+    waha_last_error: getSetting("waha_last_error"),
     tel_provider: getSetting("tel_provider"),
     tel_api_key: getSetting("tel_api_key"),
     anthropic_api_key: getSetting("anthropic_api_key"),
@@ -84,6 +94,17 @@ export default async function SettingsPage() {
           {header("message-circle", t("waSection"), integrations.whatsapp ? { tone: "ok", label: t("statusConnected") } : { tone: "warn", label: t("statusNotConfigured") })}
           <div className="grid gap-3 px-5 py-4 sm:grid-cols-2">
             <label className={labelCls}>
+              {t("waProvider")}
+              <select name="wa_provider" defaultValue={fields.wa_provider ?? "meta"} className={cn(inputCls, "mt-1")}>
+                <option value="meta">Meta Cloud API</option>
+                <option value="waha">WAHA</option>
+              </select>
+            </label>
+            <label className={labelCls}>
+              {t("wahaAccountName")}
+              <input name="waha_account_name" defaultValue={fields.waha_account_name ?? ""} placeholder="Admissions WhatsApp" className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={labelCls}>
               {t("waToken")}
               <input name="wa_token" type="password" placeholder={fields.wa_token ? masked(fields.wa_token) : "EAAG…"} className={cn(inputCls, "mt-1")} />
             </label>
@@ -99,9 +120,43 @@ export default async function SettingsPage() {
               {t("waAppSecret")}
               <input name="wa_app_secret" type="password" placeholder={fields.wa_app_secret ? masked(fields.wa_app_secret) : ""} className={cn(inputCls, "mt-1")} />
             </label>
+            <label className={labelCls}>
+              {t("wahaBaseUrl")}
+              <input name="waha_base_url" defaultValue={fields.waha_base_url ?? ""} placeholder="http://127.0.0.1:3000" className={cn(inputCls, "mt-1 font-mono")} />
+            </label>
+            <label className={labelCls}>
+              {t("wahaSessionName")}
+              <input name="waha_session_name" defaultValue={fields.waha_session_name ?? ""} placeholder="crm_primary" className={cn(inputCls, "mt-1 font-mono")} />
+            </label>
+            <label className={cn(labelCls, "sm:col-span-2")}>
+              {t("wahaWebhookUrl")}
+              <input name="waha_webhook_url" defaultValue={fields.waha_webhook_url ?? ""} placeholder="https://your-domain/api/webhooks/waha" className={cn(inputCls, "mt-1 font-mono")} />
+            </label>
+            <label className={labelCls}>
+              {t("wahaApiKey")}
+              <input name="waha_api_key" type="password" placeholder={fields.waha_api_key ? masked(fields.waha_api_key) : ""} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={labelCls}>
+              {t("wahaWebhookSecret")}
+              <input name="waha_webhook_secret" type="password" placeholder={fields.waha_webhook_secret ? masked(fields.waha_webhook_secret) : ""} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={labelCls}>
+              {t("leadAgentSyncSecret")}
+              <input name="lead_agent_sync_secret" type="password" placeholder={fields.lead_agent_sync_secret ? masked(fields.lead_agent_sync_secret) : ""} className={cn(inputCls, "mt-1")} />
+            </label>
             <p className={cn(noteCls(), "sm:col-span-2")}>
-              {t("webhookUrl")}: <code className="font-mono text-accent">https://ваш-домен/api/webhooks/whatsapp</code>
+              Meta {t("webhookUrl")}: <code className="font-mono text-accent">https://ваш-домен/api/webhooks/whatsapp</code><br />
+              WAHA {t("webhookUrl")}: <code className="font-mono text-accent">http://evo-lead-agent:8000/webhooks/waha</code>
+              {fields.waha_last_error ? <><br />WAHA: <code className="font-mono text-warn">{fields.waha_last_error}</code></> : null}
             </p>
+            {fields.wa_provider === "waha" && fields.waha_session_name ? (
+              <div className="space-y-2 sm:col-span-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button formAction={startWahaSessionAction} className={btnGhostCls}>{t("wahaStartSession")}</button>
+                </div>
+                <WahaQr />
+              </div>
+            ) : null}
           </div>
         </section>
 

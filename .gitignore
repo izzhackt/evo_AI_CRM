@@ -13,6 +13,7 @@
 # testing
 /coverage
 /output/
+/tmp/
 /.playwright-mcp/
 /scripts/__pycache__/
 
@@ -35,6 +36,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 .admin-bootstrap.env
 
 # vercel
@@ -44,7 +46,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 data/
+.waha-sessions/
 
 # local reference/prototype copies
 /.twenty-reference/
 /evo_website/
+
+# Private company originals. Keep the tracked README and safe manifest only.
+/docs/company/private-source-documents/*.pdf

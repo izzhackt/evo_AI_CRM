@@ -1,53 +1,368 @@
 # EVO Launch Plan
 
-Status: contract v0, created 2026-06-24 in the workspace timezone.
+Status: `/goal-evo-main-production-consolidation` is active. Plan PR #41 was
+independently approved and merged. Security/repository-gates PR #43 is merged;
+a post-merge uv cache-path correction must pass before the integration
+candidate is frozen for promotion. Updated 2026-07-23 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 Implementation lanes are blocked until this plan and `docs/PLAN_CHANGES.md` are
 reviewed and merged. If scope, architecture, acceptance criteria, file
 ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
-## Goal Slice
+## Current Goal Slice
 
-Current slice: `/goal-qa-launch`.
+Active slice: `/goal-evo-main-production-consolidation`.
 
-Deliverables for this slice:
+### Goal
 
-- Run a fresh-browser QA pass at desktop and mobile viewports covering login,
-  role routing, staff CRM, student portal, integration truthfulness,
-  prepared-versus-live AI boundaries, i18n switching, responsive layout,
-  security/secret handling, validation/build readiness, and presentation demo
-  clarity.
-- Capture meaningful local screenshots and record their paths in a QA report
-  without committing large generated binaries unless the repo adds an artifact
-  convention.
-- Score one checklist across passes, improve only the weakest safe area inside
-  release/presentation readiness scope, and rerun the full flow after any
-  change.
-- Name missing WhatsApp, telephony, amoCRM, or Anthropic credentials as
-  `not_configured` or blockers. Do not claim live integration success without
-  real provider credentials and responses.
-- Preserve the prepared AI boundary: prepared responses may be used for the
-  first presentation only as labeled prepared content and never as live
-  Anthropic success.
-- Run real repo validation after the QA pass, or record the exact blocker.
+Make GitHub `main` the reviewed source of truth for the complete EVO platform,
+then deploy that exact release to `hermes-vps` and prove the real EVO Inbox
+WhatsApp path without losing active server configuration or claiming provider
+success that was not exercised.
+
+Candidate ancestry at planning time is linear:
+
+- `origin/main`: `c1a00b0a3013946a94677fc0f01838740217b622`
+- integration candidate after PR #40:
+  `8116aad7c6cc97c3de198e3de1c7cad020105416`
+- distance: zero commits behind and 41 commits ahead of `main`
+
+The candidate is not releasable as-is. Current audits find vulnerable runtime
+dependencies, no effective repository-root GitHub Actions workflow, three
+full-range whitespace failures, dirty production checkouts, missing canonical
+DNS, and incomplete real-provider readiness.
+
+### Ordered blocks
+
+Each block requires its own branch, PR, real validation evidence, and
+independent launch-control approval. Do not begin a later block before the prior
+block is merged or explicitly abandoned.
+
+1. **Security and repository gates**
+   - Upgrade both Next.js applications to the current secure stable patch.
+   - Remove the shadcn code-generation CLI from production dependencies; invoke
+     it through the documented ephemeral package runner when future component
+     generation is needed. Preserve the small runtime Tailwind extension
+     currently imported from that package as a reviewed, tracked local
+     stylesheet so removing the CLI does not alter the rendered UI.
+   - Apply safe transitive dependency updates until
+     `npm audit --audit-level=moderate` passes for both applications.
+   - Fix the three existing `git diff --check` findings without unrelated
+     formatting churn.
+   - Add repository-root GitHub Actions coverage for the main CRM, EVO Inbox,
+     and EVO Lead Agent. A workflow nested under an application directory is
+     documentation only because GitHub discovers workflows from root
+     `.github/workflows/`.
+   - Open a dedicated issue for normalizing the pre-existing EVO Inbox formatter
+     baseline without mixing hundreds of unrelated rewrites into this release.
+
+2. **Frozen integration promotion**
+   - Open an integration-to-`main` PR from one frozen, fully validated candidate
+     SHA.
+   - Preserve the 41-commit implementation history with a merge commit; do not
+     squash the umbrella promotion.
+   - Reconfirm `main` and the candidate SHA immediately before merge. Merge only
+     the independently approved unchanged candidate.
+
+3. **Production release reconciliation**
+   - Do not deploy from either dirty production checkout.
+   - Preserve the active Caddy additions currently routing
+     `invite-bishkek.72.62.119.112.sslip.io` and
+     `inbox.72.62.119.112.sslip.io` as a separately reviewed infrastructure
+     change before replacing the server checkout.
+   - Preserve the `/opt/evo-crm/evo-lead-agent.git-backup-*` material until the
+     owner explicitly approves archival or removal.
+   - Build release images from the merged `main` SHA and add OCI source,
+     revision, and version labels so a running image can be mapped back to Git.
+   - Back up persistent data and record current image digests before deployment.
+   - Move EVO CRM services off `acadis_*` networks onto EVO-owned networks while
+     preserving private WAHA access and existing volumes.
+   - Validate Compose and Caddy before restart, deploy one service boundary at a
+     time, and retain the previous image digests for rollback.
+
+4. **Canonical domains**
+   - Create `A` records for `crm.evoadmissions.com` and
+     `inbox.evoadmissions.com` pointing to `72.62.119.112` only through the
+     authoritative DNS provider.
+   - Verify public resolution, valid TLS, the expected login redirect, and Caddy
+     routing. If authoritative DNS access is unavailable, record that exact
+     external blocker and keep the working sslip.io routes.
+
+5. **Real production proof**
+   - Use a dedicated EVO-controlled test WhatsApp sender and the connected
+     `evo-inbox` WAHA session.
+   - Confirm real Supabase, encrypted WAHA, amoCRM, Gemini, and knowledge-base
+     configuration through authenticated production readiness checks.
+   - Keep unattended auto-reply disabled.
+   - Send one controlled inbound message, verify the persisted message and
+     amoCRM contact/lead identity, generate one knowledge-grounded Gemini draft,
+     have the operator inspect/edit it, and send one manual WAHA reply.
+   - Verify delivery and confirm no additional automatic outbound message
+     exists in WAHA, Supabase, or amoCRM.
+   - Run the legacy receive-only Lead Agent proof separately only after
+     `crm_primary` is relinked and its missing amoCRM OAuth configuration is
+     supplied. Do not reuse EVO Inbox credentials or its WAHA session.
+
+### Named write boundaries
+
+- Security/gates block: root and EVO Inbox package manifests/lockfiles, the
+  EVO Inbox global-style import plus its local shadcn Tailwind extension, the
+  three whitespace-only files, root `.github/workflows/`, and plan evidence.
+- Promotion block: plan evidence and GitHub PR state only; no runtime feature
+  changes.
+- Production block: EVO-owned Dockerfiles, Compose/Caddy configuration,
+  deployment scripts/runbooks, and release metadata. Provider data may change
+  only during the explicitly controlled production proof.
+- DNS changes are limited to the two canonical EVO `A` records.
+
+### Required validation
+
+Run under Node `22.23.1`:
+
+```bash
+# Main CRM
+npm ci
+npm run lint
+node node_modules/next/dist/bin/next typegen
+node node_modules/typescript/bin/tsc --noEmit
+npm run build
+npm run scenarios
+npm audit --audit-level=moderate
+
+# EVO Inbox
+cd agent-lead2-inbox
+npm ci --include=dev
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm audit --audit-level=moderate
+
+# EVO Lead Agent
+cd evo-lead-agent
+uv sync --extra dev
+uv run ruff check .
+uv run pytest
+```
+
+Also require:
+
+- `git diff --check origin/main..CANDIDATE_SHA`
+- a redacted Git-history secret scan over the same range
+- validated production Compose rendering with real server environment files,
+  without printing secret values
+- real browser checks of the CRM and Inbox login/operator surfaces
+- the authenticated production readiness and provider proof described above
+
+`npm run format:check` currently fails across hundreds of pre-existing EVO
+Inbox files. It is not a release gate for this slice because fixing the whole
+format baseline would mix unrelated source churn into the security block.
+Changed files must still match the repository formatter, and a separate
+format-baseline issue must remain visible.
+
+### Rollback and stop conditions
+
+- Stop before DNS mutation if authoritative provider access or the exact zone is
+  unavailable.
+- Stop before the real message proof if an EVO-controlled test number,
+  authenticated Inbox operator, connected WAHA session, or real
+  Supabase/amoCRM/Gemini configuration is unavailable.
+- Stop deployment if backups, current image digests, Caddy validation, Compose
+  validation, or a rollback image is missing.
+- Stop if the active dirty Caddy routes cannot be preserved without ownership
+  clarification.
+- Stop if dependency audit, CI, full-range diff, independent review, or frozen
+  candidate checks fail.
+- Never print, commit, or copy secret values into logs or repository files.
+
+## Most Recently Completed Goal Slice
+
+Completed slice: `/goal-evo-knowledge-business-context`.
+
+This slice turns the two owner-supplied country drafts into clean text that can
+be pasted into EVO Inbox and consolidates the company's business model into one
+team-facing context document. The user has explicitly approved the supplied
+China and Malaysia content as trusted business input. This slice therefore
+cleans and structures that content without external fact-checking or silent
+changes to its substantive claims.
+
+Named write set:
+
+- `docs/EVO_LAUNCH_PLAN.md` and `docs/PLAN_CHANGES.md`: execution contract and
+  append-only decision record for issue #36.
+- `docs/business/knowledge-base/README.md`: upload workflow, document registry,
+  ownership, review rules, and current EVO Inbox text-input limitation.
+- `docs/business/knowledge-base/ready-to-upload/`: normalized China and Malaysia
+  Markdown texts, each intended to be pasted as one separate knowledge document.
+- `docs/business/evo-business-context.md`: company, customer, service,
+  operating-model, system, data, AI, measurement, governance, and risk context.
+- `docs/business/README.md`, `docs/README.md`, and `CONTEXT.md`: discoverability
+  and canonical business vocabulary.
+
+Deliverables:
+
+- Preserve the supplied Downloads files byte-for-byte and create reviewed copies
+  under stable ASCII filenames in the repository.
+- Remove draft labels, warning markers, unresolved transcription notes, open
+  questions, broken numbering, and repeated FAQ copies.
+- Preserve the owner-approved country claims, prices, routes, service promises,
+  office details, and process content while making cost categories and steps
+  independently understandable to retrieval.
+- Add instructions that keep the assistant inside the approved text, collect a
+  minimal admissions profile, avoid requesting sensitive documents in ordinary
+  chat, and hand case-specific or uncovered questions to an EVO manager.
+- Explain the current upload path accurately: EVO Inbox accepts a title and
+  pasted text, then chunks and embeds the saved content; this slice does not add
+  binary Markdown-file upload behavior.
+- Build the business context from supplied company documents, existing business
+  docs, implemented CRM entities, EVO Inbox contracts, Lead Agent contracts,
+  and the current data-ownership map. Unknown owners and KPIs remain explicit
+  gaps rather than invented facts.
+- Do not change runtime code, database schemas, provider settings, deployment,
+  DNS, production data, or WhatsApp behavior.
+
+Acceptance evidence:
+
+- SHA-256 checks prove the two supplied source files are unchanged.
+- Both upload texts have no `⚠️`, draft/open-question markers, placeholder
+  instructions, duplicated FAQ section, secret, or real client personal data.
+- A chunk preview using the application's 1,200-character boundary shows both
+  documents split into bounded, readable retrieval units.
+- Repository links resolve, `git diff --check` passes, and a diff scan finds no
+  secrets, bank values, private legal identifiers, or copied customer records.
+- Required repository validation passes, or an exact unrelated blocker is
+  recorded.
+- An independent launch-control reviewer approves the final diff before merge.
+
+Implementation evidence recorded 2026-07-13:
+
+- The supplied China and Malaysia source SHA-256 values still match the values
+  recorded in the knowledge registry.
+- The real EVO Inbox `chunkText` function produced 14 China chunks with a
+  1,197-character maximum and 13 Malaysia chunks with a 1,185-character
+  maximum. No chunk exceeded 1,200 characters, ended with an orphan heading, or
+  split a handoff lead-in from its trigger list.
+- Relative-link, draft-marker, secret/credential, and diff-whitespace checks
+  passed with no finding.
+- Root lint, Next route generation, TypeScript, production build, all 39
+  repository scenarios, and `npm audit --audit-level=moderate` passed under
+  Node 22.23.1. The scenario report generated by validation was restored and is
+  not part of this slice.
+- The two focused EVO Inbox chunk/retrieval test files passed all 16 tests.
+- Independent reviewers approved the final China document, Malaysia document,
+  business context, data ownership, upload mechanics, privacy controls, and
+  named write-set compliance.
+
+## Previous Goal Slice
+
+Completed slice: `/goal-evo-platform-source-of-truth`.
+
+Next major lanes require their own reviewed slice: integration into `main`,
+then the real production proofs tracked by GitHub issues #5 and #20.
+
+This slice makes the current repository understandable and usable as the EVO
+Admissions Platform source of truth without moving runtime code or changing
+production. It is documentation, governance, and controlled source-document
+work.
+
+Deliverables:
+
+- Replace the generic root README with a team-facing platform entrypoint.
+- Add a complete documentation index, platform/system map, data-ownership
+  registry, current-status page, onboarding guide, and business knowledge map.
+- Add an EVO company profile based only on supplied real company documents,
+  with no bank account values, personal identity numbers, signatures, or home
+  addresses copied into tracked Markdown.
+- Store the supplied public brand book in a tracked company brand folder.
+- Store supplied bank/legal originals in a local Git-ignored private folder
+  with restrictive permissions and a tracked safe manifest/checksum registry.
+- Add a branded team overview presentation and a concise demo/presenter script.
+- Mark historical handoffs and copied issue plans as archived or superseded;
+  keep GitHub Issues as the changing work-status authority.
+- Correct the active deployment documentation where it still names the Acadis
+  proxy instead of the EVO-owned edge boundary.
+- Track the safe root `.env.example` while continuing to ignore real `.env*`
+  files.
+- Do not move `src/`, `agent-lead2-inbox/`, `evo-lead-agent/`, change
+  APIs/data models, deploy, alter DNS, or exercise outbound WhatsApp.
+
+Acceptance evidence:
+
+- All four supplied PDFs are identified by page count and SHA-256 checksum;
+  the 24-page brand book is tracked and visually reviewed.
+- Private source PDFs are present locally, ignored by Git, and not present in
+  the staged diff.
+- The presentation renders without overflow, overlap, clipping, or unresolved
+  placeholders and is visually reviewed slide by slide.
+- Repository links and source-of-truth statements are internally consistent.
+- `git diff --check`, a staged-diff secret/PII scan, root lint/typecheck/build,
+  and an independent launch-control review pass before merge.
+
+Historical implementation material below remains as prior-slice context until
+the documentation archive pass is complete.
+
+The EVO Inbox companion lane is specified in
+`docs/EVO_INBOX_COMPANION_PRD.md`. It creates a WACRM-derived, fully redesigned
+standalone companion app at `agent-lead2-inbox/`, hosted at
+`inbox.evoadmissions.com`, using managed Supabase Cloud, WAHA session
+`evo-inbox`, WACRM's own draft-only AI assistant, and amoCRM as the identity
+source of truth.
+
+Deliverables for the reliable amoCRM sync buffer slice:
+
+- Inbound WAHA `message` webhooks must save the local Supabase contact,
+  conversation, and message before attempting amoCRM identity sync.
+- Missing amoCRM configuration or temporary amoCRM provider failure must not
+  prevent the message from appearing in EVO Inbox.
+- Conversations and messages must expose `crm_sync_status` as `pending`,
+  `synced`, `not_configured`, or `blocked`, with a safe operator-visible error.
+- WAHA must receive HTTP 200 after local save, including the CRM sync state, so
+  a saved message is not retried as a failed webhook.
+- Add a bounded internal retry endpoint protected by `AUTOMATION_CRON_SECRET`
+  to process pending/not configured CRM sync rows and optionally blocked rows
+  after operator repair.
+- Settings, Inbox UI, public API serializers, readiness, deployment docs, and
+  proof checklist must show the new local-save-first behavior truthfully.
+- Add migration `036_reliable_amocrm_sync_buffer.sql`.
+- Run targeted WAHA/amoCRM/readiness/schema tests plus `npm test`,
+  `npm run lint`, `npm run typecheck`, `npm run build`, `git diff --check`,
+  and a PR diff secret scan.
+- Commit only this slice with a Conventional Commit.
+- Request independent launch-control code-reviewer approval before merge.
+
+Out of scope for this slice:
+
+- Creating the real amoCRM external integration or token in the owner's browser.
+- Claiming live WhatsApp, amoCRM, Gemini, Supabase migration, or deployment
+  success before the real production services are exercised.
+- Auto-reply, broadcast, template, historical import, or `/opt/evo-crm` changes.
+
+Previous Gemini/preflight slice deliverables:
+
+- Update the lead-agent readiness/preflight path so receive-only rollout
+  readiness is distinct from outbound WhatsApp readiness.
+- Make missing WAHA, amoCRM, CRM sync, Gemini, and admin configuration report
+  exact input names.
+- Keep local smoke no-outbound and failing when outbound is enabled.
+- Update production env examples and deployment docs with Gemini configuration
+  and receive-only safety flags.
+- For the EVO Inbox companion, add Gemini as an encrypted account-level AI
+  provider with a repeatable VPS seed command; keep the assistant draft-only.
+- Run lead-agent `uv run pytest` and `uv run ruff check .`.
+- Run parent CRM validation because deployment docs and Compose are touched, or
+  record the exact blocker.
 - Commit only this slice with a Conventional Commit.
 - Request independent code-reviewer approval before merge.
 
 Out of scope for this slice:
 
-- Redoing admissions CRM.
-- Redoing student portal.
-- Rebuilding amoCRM architecture.
-- WhatsApp, telephony, amoCRM, or Anthropic integration changes except copy or
-  status clarity that prevents fake/demo success claims.
-- Claiming live WhatsApp, telephony, amoCRM, or Anthropic success without real
-  credentials and provider responses.
-- Unauthenticated amoCRM webhook mutations.
-- Prepared-response AI workflow redesign.
-- Role model redesign or broad authentication/authorization changes.
-- New database migration framework.
-- Deployment.
+- Executing the production receive-only proof from issue #5.
+- Enabling outbound WhatsApp.
+- Claiming live WAHA, amoCRM, Gemini, or CRM sync success without real
+  credentials and real provider responses.
+- Merging or transplanting the unrelated Kant/Bitrix workspace.
+- Rebuilding the CRM UI, role model, student portal, or amoCRM architecture.
 
 ## Execution Rules
 
@@ -101,7 +416,7 @@ Research was checked on 2026-06-24 against current local and online sources:
 - Context7 official Next.js docs for `/vercel/next.js/v16.2.9` confirm route
   handlers live under `app/**/route.ts`, supported HTTP methods are exported
   functions, `next build` is the production build gate, and `next typegen && tsc
-  --noEmit` is the documented route/type validation path.
+--noEmit` is the documented route/type validation path.
 - Context7 official Anthropic TypeScript SDK docs confirm server-side SDK usage
   through `client.messages.create`, API-key configuration, and message arrays as
   the real request path. Launch validation must use a real configured API key or
@@ -245,6 +560,62 @@ Application architecture:
 Future lanes must name their write set before coding. If a lane needs to edit
 outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
 
+`/goal-evo-inbox-companion` planned write set:
+
+- `docs/EVO_INBOX_COMPANION_PRD.md`: product contract and acceptance context.
+- `docs/EVO_LAUNCH_PLAN.md`: lane status, phase plan, write sets, and
+  validation gates.
+- `docs/PLAN_CHANGES.md`: append-only decisions and scope changes.
+- `CONTEXT.md` and `docs/adr/**`: domain language and architectural decisions.
+- `agent-lead2-inbox/**`: WACRM-derived EVO Inbox app, Supabase
+  migrations, WAHA transport, amoCRM resolver, AI draft surfaces, redesigned UI,
+  tests, and MIT license notice.
+- `docker-compose.prod.yml`, deployment docs, and Caddy deployment notes only
+  when the deployable companion service is introduced.
+
+`/goal-evo-inbox-companion` phase plan:
+
+1. Source setup: create a clean implementation branch from the intended base,
+   copy WACRM into `agent-lead2-inbox/`, preserve MIT license notice, and
+   establish local install/build/test commands.
+2. Product pruning: remove or hide Meta Cloud API, broadcasts, broad
+   automations, flow-driven sending, and first-launch-disabled WACRM surfaces.
+3. WAHA transport: replace Meta send/webhook/session assumptions with WAHA
+   session `evo-inbox`, authenticated webhooks, idempotent inbound persistence,
+   and manual outbound send.
+4. Supabase foundation: configure managed Supabase, migrations, Auth, storage,
+   RLS, service-role server paths, and companion shadow records.
+5. amoCRM identity: resolve by phone, create missing contact/lead, store
+   `amo_contact_id` and `amo_lead_id`, and block local-only lead presentation
+   when amoCRM is unavailable.
+6. AI draft and knowledge: keep WACRM's OpenAI/Anthropic draft assistant and
+   knowledge base, default auto-reply off, and route manual sends through WAHA.
+7. Full EVO Inbox redesign: redesign retained surfaces around admissions
+   operators, integration status, lead profile, AI draft, knowledge base, and
+   production readiness.
+8. VPS deployment: add a separate `hermes-vps` service and Caddy route for
+   `inbox.evoadmissions.com`; verify only with real DNS, Supabase, WAHA, amoCRM,
+   and AI provider credentials.
+
+`/goal-evo-inbox-companion` acceptance criteria:
+
+- The companion app runs from `agent-lead2-inbox/` without depending on
+  Meta Cloud API configuration.
+- First launch supports one WAHA session named `evo-inbox`.
+- Inbound WAHA messages are authenticated, idempotent, persisted in Supabase,
+  and visible in the redesigned EVO Inbox.
+- The app resolves or creates amoCRM identity before presenting a lead as real.
+- Supabase stores shadow records and app data, not canonical CRM identity.
+- AI draft works through the companion app's own assistant; auto-reply is off by
+  default.
+- An operator can send one manual WhatsApp reply through WAHA after reviewing
+  the conversation and optional AI draft.
+- Broadcasts, broad automations, flow-driven sending, and Meta templates are
+  absent or disabled in first-launch UI and runtime paths.
+- `inbox.evoadmissions.com` deployment is only claimed after a real
+  `hermes-vps` deployment, Caddy routing, DNS, WAHA, Supabase, amoCRM, and AI
+  provider check succeeds.
+
 `/goal-qa-launch` named write set:
 
 - `docs/EVO_LAUNCH_PLAN.md`: current-slice and acceptance update.
@@ -256,6 +627,85 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
 - Runtime, scenario, or copy files only if the QA pass exposes a
   launch-blocking bug, fake-success claim, missing validation evidence, or small
   critical-flow UI issue inside this slice.
+
+`/goal-lead-agent-webhook-ownership` named write set:
+
+- `docs/EVO_LAUNCH_PLAN.md`: append this implementation block.
+- `docs/PLAN_CHANGES.md`: append webhook ownership and source-of-truth decision.
+- `AGENTS.md`, `deploy/README.md`, `docker-compose.prod.yml`,
+  `deploy/env.lead-agent.example`, `.gitignore`, `.dockerignore`,
+  `eslint.config.mjs`, `tsconfig.json`: deployment, repo-boundary, and
+  validation configuration for the lead-agent sibling service.
+- `src/lib/db.ts`, `src/lib/whatsapp.ts`, `src/lib/actions.ts`,
+  `src/lib/queries.ts`, `src/lib/i18n-data.ts`,
+  `src/app/(staff)/settings/page.tsx`,
+  `src/app/(staff)/whatsapp/[id]/page.tsx`, `scripts/bootstrap-admin.mjs`: CRM
+  schema, settings, read models, bootstrap schema, and operator-visible
+  source-of-truth state.
+- `src/app/api/internal/lead-agent/**`: private internal sync endpoint from the
+  lead-agent service into EVO CRM.
+- `evo-lead-agent/AGENTS.md`, `evo-lead-agent/README.md`,
+  `evo-lead-agent/.env.example`, `evo-lead-agent/Dockerfile`,
+  `evo-lead-agent/docker-compose.yml`, `evo-lead-agent/pyproject.toml`,
+  `evo-lead-agent/uv.lock`, `evo-lead-agent/SECURITY.md`,
+  `evo-lead-agent/functional-spec.md`, `evo-lead-agent/technical-spec.md`,
+  `evo-lead-agent/implementation-plan.md`,
+  `evo-lead-agent/token-cost-estimate.md`, `evo-lead-agent/research/README.md`,
+  `evo-lead-agent/*context-report.md`,
+  `evo-lead-agent/src/evo_lead_agent/**`, `evo-lead-agent/tests/**`:
+  product rename, lead-agent runtime packaging, callback configuration, signed
+  CRM sync client, service pipeline, and focused tests.
+
+Acceptance criteria:
+
+- WAHA webhook ownership moves to the lead-agent service. Production/session
+  configuration should point WAHA at `http://evo-lead-agent:8000/webhooks/waha`
+  on the private Docker network, not the public CRM route.
+- The lead-agent resolves or creates amoCRM contact/lead first, then sends a
+  signed internal sync payload to EVO CRM.
+- EVO CRM persists remote amoCRM identifiers and lead-agent state on the local
+  lead/conversation records without making local state the source of truth.
+- EVO CRM keeps the staff WhatsApp inbox/operator UI usable by storing inbound
+  and outbound message copies linked to the resolved amoCRM lead/contact.
+- Both internal CRM sync and WAHA webhooks must be authenticated with shared
+  secrets/HMAC-style verification; no public unauthenticated mutation endpoint
+  is allowed.
+- The first live receive-only test may enable autoreply only for Gemini draft
+  review, but must keep outbound disabled until WAHA, amoCRM, CRM internal sync,
+  and Gemini configuration are verified with real credentials and a later
+  outbound send test is explicitly approved.
+- The parent repo owns the EVO-specific `evo-lead-agent` source. Parent CRM
+  validation must still avoid scanning lead-agent Python/runtime internals with
+  Next.js tooling, and `evo-lead-agent/research/repos` stays untracked so
+  unrelated reference snapshots do not become production source.
+
+`/goal-gemini-receive-only-production-preflight` named write set:
+
+- `docs/EVO_LAUNCH_PLAN.md`, `docs/PLAN_CHANGES.md`, `deploy/README.md`,
+  `deploy/env.lead-agent.example`, `docker-compose.prod.yml`: parent launch
+  contract and production deployment readiness path.
+- `evo-lead-agent/README.md`, `evo-lead-agent/.env.example`,
+  `evo-lead-agent/PLAN_CHANGES.md`, `evo-lead-agent/implementation-plan.md`,
+  `evo-lead-agent/technical-spec.md`,
+  `evo-lead-agent/src/evo_lead_agent/readiness.py`,
+  `evo-lead-agent/src/evo_lead_agent/preflight.py`,
+  `evo-lead-agent/src/evo_lead_agent/cli.py`,
+  `evo-lead-agent/tests/test_readiness.py`,
+  `evo-lead-agent/tests/test_preflight.py`,
+  `evo-lead-agent/tests/test_cli.py`: parent-tracked lead-agent receive-only readiness,
+  preflight, local smoke, docs, and regression coverage.
+
+Acceptance criteria:
+
+- Env examples and deploy docs include Gemini configuration and receive-only
+  safety flags.
+- Readiness and preflight distinguish `receive_only_rollout` from
+  `live_whatsapp_outbound`.
+- Missing WAHA, amoCRM, CRM sync, Gemini, and admin configuration is reported
+  by exact missing input name.
+- Local smoke remains no-outbound and fails if outbound is enabled.
+- `uv run pytest` and `uv run ruff check .` pass in `evo-lead-agent`.
+- Parent CRM validation runs because deployment docs and Compose are touched.
 
 ## Merge Order
 
@@ -282,6 +732,13 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
    CRM-core flow verification, real integration blocker recording,
    presentation-readiness evidence, release-readiness reporting, and clean-tree
    final audit without rebuilding feature architecture.
+10. `/goal-lead-agent-webhook-ownership`: make the lead-agent service the
+    private WAHA webhook owner, use amoCRM as source of truth, and sync local
+    CRM shadow state for the operator UI.
+11. `/goal-gemini-receive-only-rollout`: replace Anthropic drafting with
+    Gemini 3.5 Flash draft review in the EVO lead-agent, then prove receive-only
+    production WhatsApp rollout on `hermes-vps` with real WAHA, amoCRM, CRM sync,
+    and Gemini credentials while outbound WhatsApp remains disabled.
 
 Each lane must be merged or intentionally abandoned before the next lane starts.
 

@@ -59,7 +59,9 @@ export async function WaList({ activeId }: { activeId?: number }) {
                         <span className="shrink-0 font-mono text-[11px] text-fg-3">{c.last_message_at ?? ""}</span>
                       </div>
                       <div className="mt-0.5 flex items-center justify-between gap-2">
-                        <span className="truncate text-[12px] text-fg-3">{c.last_text ?? "—"}</span>
+                        <span className="truncate text-[12px] text-fg-3">
+                          {c.account_name ? `${c.account_name}: ` : ""}{c.last_text ?? "—"}
+                        </span>
                         {c.unread > 0 && (
                           <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-ok px-1.5 text-[10px] font-bold text-on-accent">
                             {c.unread}

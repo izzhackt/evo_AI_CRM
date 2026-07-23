@@ -1,0 +1,15 @@
+# @izzhackt is currently the only repository collaborator with write access.
+# Add EVO team handles here only after GitHub access has been granted.
+
+* @izzhackt
+
+# Keep governance and production boundaries under explicit owner review.
+/.github/ @izzhackt
+/AGENTS.md @izzhackt
+/CONTRIBUTING.md @izzhackt
+/SECURITY.md @izzhackt
+/CONTEXT.md @izzhackt
+/docs/ @izzhackt
+/deploy/ @izzhackt
+/docker-compose.prod.yml @izzhackt
+/agent-lead2-inbox/deploy/ @izzhackt

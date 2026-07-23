@@ -50,8 +50,8 @@
 - Compose project: `evo-inbox`.
 - Public edge/proxy network: `evo_public_web`.
 - Public edge proxy: `evo-edge-caddy`, configured from
-  `agent-lead2-crmwhatsapp/deploy/docker-compose.edge.yml` and
-  `agent-lead2-crmwhatsapp/deploy/Caddyfile.evo-edge`.
+  `agent-lead2-inbox/deploy/docker-compose.edge.yml` and
+  `agent-lead2-inbox/deploy/Caddyfile.evo-edge`.
 - `acadis-caddy-1` is not an EVO edge dependency. If it owns `80/443`, archive
   or stop the Acadis stack and move public routes onto `evo-edge-caddy`.
 - Private WAHA service: `evo-inbox-waha`, reachable only on the companion

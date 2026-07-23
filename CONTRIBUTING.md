@@ -32,10 +32,10 @@ before coding.
 ## Repository Map
 
 - `src/`, `tests/`, and the root `package.json`: EVO Admissions CRM.
-- `agent-lead2-crmwhatsapp/`: EVO Inbox companion application.
+- `agent-lead2-inbox/`: EVO Inbox companion application.
 - `evo-lead-agent/`: WhatsApp lead-agent service.
 - `deploy/`, `docker-compose.prod.yml`, and
-  `agent-lead2-crmwhatsapp/deploy/`: production deployment definitions.
+  `agent-lead2-inbox/deploy/`: production deployment definitions.
 - `docs/`: product, architecture, operations, and business documentation.
 
 Each application has its own dependencies and validation commands. Install and
@@ -60,7 +60,7 @@ data to make local development convenient.
 For EVO Inbox:
 
 ```bash
-cd agent-lead2-crmwhatsapp
+cd agent-lead2-inbox
 cp .env.local.example .env.local
 npm ci --include=dev
 ```
@@ -108,7 +108,7 @@ changes.
 ### EVO Inbox
 
 ```bash
-cd agent-lead2-crmwhatsapp
+cd agent-lead2-inbox
 npm run lint
 npm run typecheck
 npm test

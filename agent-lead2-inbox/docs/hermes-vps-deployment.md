@@ -70,13 +70,13 @@ ignored `.env.gemini` seed file.
 
 ## Preflight commands
 
-Run from `agent-lead2-crmwhatsapp/` after installing dependencies and loading
+Run from `agent-lead2-inbox/` after installing dependencies and loading
 both production env files:
 
 ```bash
 set -a
-. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production
-. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.gemini
+. /opt/evo-inbox/agent-lead2-inbox/.env.production
+. /opt/evo-inbox/agent-lead2-inbox/.env.gemini
 set +a
 npm run preflight:prod
 npm run lint
@@ -98,7 +98,7 @@ WAHA proof variables, seed the encrypted account-level WAHA runtime settings:
 
 ```bash
 set -a
-. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production
+. /opt/evo-inbox/agent-lead2-inbox/.env.production
 set +a
 npm run seed:prod-waha
 ```
@@ -122,13 +122,13 @@ secret values.
 ## Seed Gemini AI draft settings
 
 After `.env.production` contains the live Supabase keys and `ENCRYPTION_KEY`,
-create `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.gemini` from
+create `/opt/evo-inbox/agent-lead2-inbox/.env.gemini` from
 `deploy/env.gemini.example`, then seed the encrypted account-level AI config:
 
 ```bash
 set -a
-. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production
-. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.gemini
+. /opt/evo-inbox/agent-lead2-inbox/.env.production
+. /opt/evo-inbox/agent-lead2-inbox/.env.gemini
 set +a
 npm run seed:prod-ai
 ```
@@ -162,14 +162,14 @@ above 250 MB, or thousands of knowledge chunks.
 
 After the EVO Inbox amoCRM external/private integration is created and its
 long-lived token is copied once, create
-`/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.amocrm` from
+`/opt/evo-inbox/agent-lead2-inbox/.env.amocrm` from
 `deploy/env.amocrm.example`, then seed the encrypted account-level amoCRM
 configuration:
 
 ```bash
 set -a
-. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production
-. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.amocrm
+. /opt/evo-inbox/agent-lead2-inbox/.env.production
+. /opt/evo-inbox/agent-lead2-inbox/.env.amocrm
 set +a
 npm run seed:prod-amocrm
 ```
@@ -205,7 +205,7 @@ Inbound WAHA messages are saved to Supabase before amoCRM sync. If amoCRM is
 missing or temporarily unavailable, conversations/messages keep
 `crm_sync_status='pending'` or `not_configured` and remain visible in EVO Inbox.
 After fixing amoCRM configuration, run the bounded internal retry from
-`/opt/evo-inbox/agent-lead2-crmwhatsapp/deploy`:
+`/opt/evo-inbox/agent-lead2-inbox/deploy`:
 
 ```bash
 docker compose --env-file ../.env.production -f docker-compose.inbox.prod.yml exec -T app \
@@ -234,13 +234,13 @@ available:
    do not delete Acadis data as part of the EVO Inbox cutover.
 6. Start the EVO edge proxy with
    `docker compose -f deploy/docker-compose.edge.yml up -d`.
-7. Start the service from `agent-lead2-crmwhatsapp/deploy/` with
+7. Start the service from `agent-lead2-inbox/deploy/` with
    `docker compose --env-file ../.env.production -f docker-compose.inbox.prod.yml up -d --build`.
-8. Run `npm run seed:prod-waha` from `agent-lead2-crmwhatsapp/` after loading
+8. Run `npm run seed:prod-waha` from `agent-lead2-inbox/` after loading
    `.env.production`.
-9. Run `npm run seed:prod-amocrm` from `agent-lead2-crmwhatsapp/` after loading
+9. Run `npm run seed:prod-amocrm` from `agent-lead2-inbox/` after loading
    `.env.production` and `.env.amocrm`.
-10. Run `npm run seed:prod-ai` from `agent-lead2-crmwhatsapp/` after loading
+10. Run `npm run seed:prod-ai` from `agent-lead2-inbox/` after loading
     `.env.production` and `.env.gemini`.
 11. Apply Supabase migration `036_reliable_amocrm_sync_buffer.sql`.
 12. Confirm `evo-edge-caddy`, `evo-inbox` app, and `evo-inbox-waha`

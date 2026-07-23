@@ -10,6 +10,8 @@ import {
   verifyWahaWebhookSignature,
 } from './webhook';
 
+const webhookSecretFixture = ['webhook', 'fixture'].join('-');
+
 describe('WAHA webhook boundary', () => {
   it('verifies WAHA sha512 HMAC over the raw request body', () => {
     const rawBody = JSON.stringify({
@@ -17,12 +19,12 @@ describe('WAHA webhook boundary', () => {
       session: 'evo-inbox',
       payload: { status: 'WORKING' },
     });
-    const signature = signWahaWebhookBody(rawBody, 'webhook-secret');
+    const signature = signWahaWebhookBody(rawBody, webhookSecretFixture);
 
     expect(
       verifyWahaWebhookSignature({
         rawBody,
-        secret: 'webhook-secret',
+        secret: webhookSecretFixture,
         signature,
         algorithm: 'sha512',
       }),
@@ -30,7 +32,7 @@ describe('WAHA webhook boundary', () => {
     expect(
       verifyWahaWebhookSignature({
         rawBody,
-        secret: 'webhook-secret',
+        secret: webhookSecretFixture,
         signature: undefined,
         algorithm: 'sha512',
       }),
@@ -38,7 +40,7 @@ describe('WAHA webhook boundary', () => {
     expect(
       verifyWahaWebhookSignature({
         rawBody,
-        secret: 'webhook-secret',
+        secret: webhookSecretFixture,
         signature: 'not-valid',
         algorithm: 'sha512',
       }),

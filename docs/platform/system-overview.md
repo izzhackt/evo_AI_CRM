@@ -4,7 +4,7 @@
 - Status: Active (действующий)
 - Last verified: 2026-07-12
 - Sources: `package.json`, `src/app/`, `docker-compose.prod.yml`,
-  `agent-lead2-crmwhatsapp/`, `evo-lead-agent/`, `AGENTS.md`
+  `agent-lead2-inbox/`, `evo-lead-agent/`, `AGENTS.md`
 
 ## Главное простыми словами
 
@@ -28,7 +28,7 @@ EVO Admissions Platform — не одна большая программа. Э�
 | Компонент | Что видит команда | Техническая основа | Где находится |
 |---|---|---|---|
 | EVO Admissions CRM | Клиенты, заявки, документы, визы, платежи, задачи, звонки, продажи и WhatsApp-контекст | Next.js, SQLite | корень репозитория; рабочий сервер `/opt/evo-crm` |
-| EVO Inbox | Диалоги, контакты, контекст этапа продаж, настройки, база знаний, AI-черновики и ручная отправка | Next.js, управляемый Supabase | `agent-lead2-crmwhatsapp/`; рабочий сервер `/opt/evo-inbox` |
+| EVO Inbox | Диалоги, контакты, контекст этапа продаж, настройки, база знаний, AI-черновики и ручная отправка | Next.js, управляемый Supabase | `agent-lead2-inbox/`; рабочий сервер `/opt/evo-inbox` |
 | EVO Lead Agent | У команды нет отдельного публичного интерфейса; это приватный сервис обработки | Python, FastAPI, локальная SQLite-память | `evo-lead-agent/`; сервис Compose основной CRM |
 | amoCRM | Канонический контакт, лид и этап продаж | Внешний облачный сервис | вне репозитория |
 | WAHA | WhatsApp-сессия, приём webhook и отправка сообщения | Приватный контейнер | отдельная сессия для CRM и отдельная для Inbox |

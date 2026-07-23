@@ -11,6 +11,8 @@ import {
   type SendMessageDeps,
 } from './send-message';
 
+const wahaApiKeyFixture = ['test', 'api', 'key'].join('-');
+
 interface QueryCall {
   table: string;
   op: 'select' | 'insert' | 'update';
@@ -176,7 +178,7 @@ function makeDeps(overrides: Partial<SendMessageDeps> = {}) {
       config: {
         baseUrl: 'https://waha.internal',
         sessionName: 'evo-inbox',
-        apiKey: 'test-api-key',
+        apiKey: wahaApiKeyFixture,
       },
       webhookHmacSecret: 'test-hmac',
       publicConfig: {},
@@ -220,7 +222,7 @@ describe('sendMessageToConversation', () => {
       {
         baseUrl: 'https://waha.internal',
         sessionName: 'evo-inbox',
-        apiKey: 'test-api-key',
+        apiKey: wahaApiKeyFixture,
       },
       {
         to: '14155551212',

@@ -1476,3 +1476,24 @@ Reviewer notes: independent closeout review approved the PR and commit facts,
 append-only history, terminal plan status, validation evidence, and two-file
 scope. No new runtime, business-content, deployment, provider, or data change is
 introduced.
+
+## 2026-07-13 - Rename EVO Inbox Workspace Folder
+
+Date: 2026-07-13, workspace timezone.
+Author: Codex.
+Change type: repository layout, documentation, deployment path references.
+Affected plan section: EVO Inbox companion app workspace and production runbooks.
+Reason: the historical folder name `agent-lead2-crmwhatsapp/` no longer matches
+the product boundary. The application is the EVO Inbox companion app, not a
+generic CRM WhatsApp folder.
+Decision: rename `agent-lead2-crmwhatsapp/` to `agent-lead2-inbox/` and update
+repository, deployment, and runbook references to the new path. Keep service
+names, Docker Compose project names, public hostnames, WAHA session names,
+Supabase behavior, and runtime secrets unchanged. Do not remove
+`evo-lead-agent/`; it remains the production CRM lead-agent backend used by the
+`evo-crm` Compose project.
+
+Validation impact: verify no tracked references to the old folder name remain,
+run the renamed EVO Inbox test/build gates from `agent-lead2-inbox/`, run root
+lint/type/build checks affected by path exclusions, and inspect the resulting
+Compose files without printing runtime secrets.

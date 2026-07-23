@@ -8,7 +8,7 @@ The first release must not create a second CRM source of truth, hide behind mock
 
 ## Solution
 
-Create `agent-lead2-crmwhatsapp/` inside this repository as an EVO-owned companion application derived from WACRM under its MIT license. Redesign the retained surfaces into `EVO Inbox`, remove Meta Cloud API integration completely, wire WAHA session `evo-inbox`, use managed Supabase Cloud for app data/auth/files/AI knowledge, and resolve or create amoCRM contact and lead identity from WhatsApp senders.
+Create `agent-lead2-inbox/` inside this repository as an EVO-owned companion application derived from WACRM under its MIT license. Redesign the retained surfaces into `EVO Inbox`, remove Meta Cloud API integration completely, wire WAHA session `evo-inbox`, use managed Supabase Cloud for app data/auth/files/AI knowledge, and resolve or create amoCRM contact and lead identity from WhatsApp senders.
 
 Host the app at `inbox.evoadmissions.com` on `hermes-vps` as a separate service behind Caddy. GitHub remains the source of truth for code, plan, issues, PRs, and deployment config. amoCRM remains the source of truth for CRM identity and sales state. Supabase stores only companion app data and shadow identity fields.
 
@@ -38,7 +38,7 @@ Host the app at `inbox.evoadmissions.com` on `hermes-vps` as a separate service 
 ## Implementation Decisions
 
 - The companion app is standalone and does not replace the existing EVO Operator UI.
-- The companion app lives under `agent-lead2-crmwhatsapp/` in `izzhackt/evo_AI_CRM`.
+- The companion app lives under `agent-lead2-inbox/` in `izzhackt/evo_AI_CRM`.
 - The WACRM base can be copied and modified because it is MIT licensed; the MIT license notice must remain in the companion app.
 - The companion app receives a full EVO Inbox redesign, not a light WACRM rename.
 - Retained first-launch surfaces are inbox, contacts/lead profile, optional pipeline context, AI draft, knowledge base, WAHA settings/status, amoCRM settings/status, and production readiness/status.

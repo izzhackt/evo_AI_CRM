@@ -5,11 +5,11 @@
   "description": "EVO Inbox companion app derived from WACRM for first-launch WhatsApp admissions inbox work.",
   "license": "MIT",
   "author": "Arnas Donauskas",
-  "homepage": "https://github.com/izzhackt/evo_AI_CRM/tree/main/agent-lead2-crmwhatsapp",
+  "homepage": "https://github.com/izzhackt/evo_AI_CRM/tree/main/agent-lead2-inbox",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/izzhackt/evo_AI_CRM.git",
-    "directory": "agent-lead2-crmwhatsapp"
+    "directory": "agent-lead2-inbox"
   },
   "bugs": {
     "url": "https://github.com/izzhackt/evo_AI_CRM/issues"

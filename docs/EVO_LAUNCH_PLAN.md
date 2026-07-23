@@ -116,7 +116,7 @@ Deliverables:
   proxy instead of the EVO-owned edge boundary.
 - Track the safe root `.env.example` while continuing to ignore real `.env*`
   files.
-- Do not move `src/`, `agent-lead2-crmwhatsapp/`, `evo-lead-agent/`, change
+- Do not move `src/`, `agent-lead2-inbox/`, `evo-lead-agent/`, change
   APIs/data models, deploy, alter DNS, or exercise outbound WhatsApp.
 
 Acceptance evidence:
@@ -136,7 +136,7 @@ the documentation archive pass is complete.
 
 The EVO Inbox companion lane is specified in
 `docs/EVO_INBOX_COMPANION_PRD.md`. It creates a WACRM-derived, fully redesigned
-standalone companion app at `agent-lead2-crmwhatsapp/`, hosted at
+standalone companion app at `agent-lead2-inbox/`, hosted at
 `inbox.evoadmissions.com`, using managed Supabase Cloud, WAHA session
 `evo-inbox`, WACRM's own draft-only AI assistant, and amoCRM as the identity
 source of truth.
@@ -399,7 +399,7 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
   validation gates.
 - `docs/PLAN_CHANGES.md`: append-only decisions and scope changes.
 - `CONTEXT.md` and `docs/adr/**`: domain language and architectural decisions.
-- `agent-lead2-crmwhatsapp/**`: WACRM-derived EVO Inbox app, Supabase
+- `agent-lead2-inbox/**`: WACRM-derived EVO Inbox app, Supabase
   migrations, WAHA transport, amoCRM resolver, AI draft surfaces, redesigned UI,
   tests, and MIT license notice.
 - `docker-compose.prod.yml`, deployment docs, and Caddy deployment notes only
@@ -408,7 +408,7 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
 `/goal-evo-inbox-companion` phase plan:
 
 1. Source setup: create a clean implementation branch from the intended base,
-   copy WACRM into `agent-lead2-crmwhatsapp/`, preserve MIT license notice, and
+   copy WACRM into `agent-lead2-inbox/`, preserve MIT license notice, and
    establish local install/build/test commands.
 2. Product pruning: remove or hide Meta Cloud API, broadcasts, broad
    automations, flow-driven sending, and first-launch-disabled WACRM surfaces.
@@ -431,7 +431,7 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
 
 `/goal-evo-inbox-companion` acceptance criteria:
 
-- The companion app runs from `agent-lead2-crmwhatsapp/` without depending on
+- The companion app runs from `agent-lead2-inbox/` without depending on
   Meta Cloud API configuration.
 - First launch supports one WAHA session named `evo-inbox`.
 - Inbound WAHA messages are authenticated, idempotent, persisted in Supabase,

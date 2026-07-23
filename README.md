@@ -14,7 +14,7 @@
 | Часть | Папка | Для чего нужна |
 |---|---|---|
 | EVO Admissions CRM | корень репозитория | Работа сотрудников с лидами, студентами, заявками, документами, визами, платежами, задачами, звонками и WhatsApp-контекстом |
-| EVO Inbox | `agent-lead2-crmwhatsapp/` | Отдельный WhatsApp-first inbox: диалоги, контакты, amoCRM-контекст, ручные ответы и AI-черновики |
+| EVO Inbox | `agent-lead2-inbox/` | Отдельный WhatsApp-first inbox: диалоги, контакты, amoCRM-контекст, ручные ответы и AI-черновики |
 | EVO Lead Agent | `evo-lead-agent/` | Приватный Python-сервис между WAHA, amoCRM, Gemini и основной CRM |
 | Командные материалы | `docs/`, `presentations/` | Архитектура, правила работы с данными, сведения о компании, процесс поступления, руководство по продажам, onboarding и презентации |
 | Production-конфигурация | `docker-compose.prod.yml`, `deploy/` | Описание контейнеров и публичного edge-proxy для сервера `hermes-vps` |
@@ -77,7 +77,7 @@ EVO Inbox — отдельное Next.js-приложение. В новом т�
 управляемого Supabase-проекта:
 
 ```bash
-cd agent-lead2-crmwhatsapp
+cd agent-lead2-inbox
 cp .env.local.example .env.local
 npm ci --include=dev
 npm run dev -- --port 3001
@@ -85,10 +85,10 @@ npm run dev -- --port 3001
 
 Откройте <http://localhost:3001>. Обязательные переменные и правила хранения
 секретов объяснены в
-[`agent-lead2-crmwhatsapp/.env.local.example`](agent-lead2-crmwhatsapp/.env.local.example).
+[`agent-lead2-inbox/.env.local.example`](agent-lead2-inbox/.env.local.example).
 Одних переменных недостаточно: в реальном Supabase должны быть применены
 миграции и создана первая разрешённая учётная запись. Используйте утверждённый
-[инструкцию по Supabase](agent-lead2-crmwhatsapp/docs/supabase-managed-store.md); если
+[инструкцию по Supabase](agent-lead2-inbox/docs/supabase-managed-store.md); если
 доступа к проекту или первой учётной записи нет, запуск Inbox заблокирован.
 
 Проверка кода:

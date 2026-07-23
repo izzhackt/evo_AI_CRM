@@ -4,7 +4,7 @@
 - Status: Active (действующий)
 - Last verified: 2026-07-12
 - Sources: `AGENTS.md`, `CONTEXT.md`, `src/lib/db.ts`,
-  `agent-lead2-crmwhatsapp/docs/supabase-managed-store.md`,
+  `agent-lead2-inbox/docs/supabase-managed-store.md`,
   `evo-lead-agent/README.md`
 
 ## Что означает «владелец данных»

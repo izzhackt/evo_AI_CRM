@@ -141,7 +141,7 @@ jobs:
         with:
           working-directory: evo-lead-agent
           enable-cache: true
-          cache-dependency-glob: evo-lead-agent/uv.lock
+          cache-dependency-glob: uv.lock
 
       - name: Install locked dependencies
         run: uv sync --locked --extra dev

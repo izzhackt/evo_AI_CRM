@@ -1763,3 +1763,33 @@ checks and backups, deploy one boundary at a time, verify health and public
 fallback routing, and prove that no running EVO CRM container remains attached
 to an `acadis_*` network. DNS and real-provider proof remain later blocks and
 must report external blockers honestly.
+
+## 2026-07-23 - Pre-Provision The CRM Private Network Explicitly
+
+Date: 2026-07-23, workspace timezone.
+Author: Codex.
+Change type: independent-review correction.
+Affected plan section: `/goal-evo-main-production-consolidation`, production
+release reconciliation.
+
+Reason: independent review of PR #46 reproduced a deployment failure in the
+first runbook version. The runbook created `evo_crm_private` with
+`docker network create` so live containers could be preconnected before
+boundary-by-boundary replacement, while Compose declared the same name as a
+Compose-managed network. Compose rejects a pre-existing network without its
+expected project labels, so the first CRM service recreation would stop even
+after all preflight checks passed.
+
+Decision: declare `evo_crm_private` as an external Compose network and keep its
+explicit creation in the reviewed runbook before preconnecting the three live
+CRM containers. Here, `external` changes only which tool manages the network
+lifecycle; it does not publish a port or make the bridge publicly reachable.
+The network remains EVO-owned and contains only the CRM app, CRM WAHA, and Lead
+Agent. Continue to keep only the CRM app on the separate external
+`evo_public_web` network.
+
+Validation impact: reproduce the original failure with a disposable
+Compose-managed named network, then validate that the corrected external
+network accepts a pre-created Docker bridge and allows service startup. Re-run
+the CRM resolved-model topology assertions, all GitHub checks, and independent
+review on the new exact PR head before merge.

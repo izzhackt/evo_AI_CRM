@@ -1643,3 +1643,31 @@ whether its immediate base is integration or `main`.
 Validation impact: rerun the workflow on the unchanged dependency/runtime
 implementation plus this correction; require all four GitHub jobs to pass and
 obtain a fresh independent review of the new exact head before merge.
+
+## 2026-07-23 - Initialize The Ignored Scenario Database In CI
+
+Date: 2026-07-23, workspace timezone.
+Author: Codex.
+Change type: CI environment correction after real workflow execution.
+Affected plan section: `/goal-evo-main-production-consolidation`, security and
+repository gates.
+
+Reason: the corrected CRM job ran `npm run scenarios` on GitHub and failed
+before the first scenario because `data/edu-admin.db` is intentionally ignored.
+The local runner copies that database, but a clean GitHub checkout correctly
+contains no database or customer records.
+
+Decision: do not commit, upload, or synthesize a separate database fixture.
+Inside the isolated GitHub runner, compile and execute the checked-in CRM
+`src/lib/db.ts` plus `src/lib/lead-stages.ts` initialization path against an
+ephemeral ignored SQLite file. This uses the application's real schema,
+migrations, and built-in demo seed code. Run the unchanged 39-scenario harness
+against the resulting database and discard it with the runner.
+
+This database is regression-test input only. It is not a mock provider and does
+not establish live WhatsApp, amoCRM, Gemini, Supabase, telephony, DNS, or
+deployment readiness.
+
+Validation impact: reproduce the initializer and all 39 scenarios in a clean
+checkout with no pre-existing `data/` directory, then require the complete
+GitHub CRM job and a fresh independent review to pass on the new exact head.

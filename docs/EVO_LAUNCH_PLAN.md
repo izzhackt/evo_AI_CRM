@@ -1,8 +1,9 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-main-production-consolidation` is active from integration
-candidate `8116aad7`; implementation remains blocked until this plan is
-independently reviewed and merged. Updated 2026-07-23 in the workspace timezone.
+Status: `/goal-evo-main-production-consolidation` is active. Plan PR #41 was
+independently approved and merged into the integration branch; the
+security/repository-gates block is in implementation. Updated 2026-07-23 in the
+workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 Implementation lanes are blocked until this plan and `docs/PLAN_CHANGES.md` are
@@ -42,7 +43,9 @@ block is merged or explicitly abandoned.
    - Upgrade both Next.js applications to the current secure stable patch.
    - Remove the shadcn code-generation CLI from production dependencies; invoke
      it through the documented ephemeral package runner when future component
-     generation is needed.
+     generation is needed. Preserve the small runtime Tailwind extension
+     currently imported from that package as a reviewed, tracked local
+     stylesheet so removing the CLI does not alter the rendered UI.
    - Apply safe transitive dependency updates until
      `npm audit --audit-level=moderate` passes for both applications.
    - Fix the three existing `git diff --check` findings without unrelated
@@ -104,6 +107,7 @@ block is merged or explicitly abandoned.
 ### Named write boundaries
 
 - Security/gates block: root and EVO Inbox package manifests/lockfiles, the
+  EVO Inbox global-style import plus its local shadcn Tailwind extension, the
   three whitespace-only files, root `.github/workflows/`, and plan evidence.
 - Promotion block: plan evidence and GitHub PR state only; no runtime feature
   changes.

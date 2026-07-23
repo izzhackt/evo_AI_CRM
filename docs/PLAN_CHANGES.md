@@ -1560,3 +1560,114 @@ Validation impact: this plan-only block changes no runtime, dependency, DNS,
 server, database, provider, or WhatsApp state. Validate Markdown whitespace,
 links, the recorded Git ancestry, and the current public/server facts. Require
 independent launch-control approval before implementation.
+
+## 2026-07-23 - Localize Shadcn Runtime Styles In Security Block
+
+Date: 2026-07-23, workspace timezone.
+Author: Codex.
+Change type: implementation-boundary clarification and dependency hardening.
+Affected plan section: `/goal-evo-main-production-consolidation`, security and
+repository gates.
+
+Reason: implementation inspection found that EVO Inbox imports
+`shadcn/tailwind.css` from the code-generation CLI package during its production
+build. Removing `shadcn` from the application dependencies without replacing
+that import makes the real Next.js build fail, even though the imported file is
+only a small static Tailwind extension.
+
+Decision: expand the security-block write boundary only to
+`agent-lead2-inbox/src/app/globals.css` and a tracked local
+`agent-lead2-inbox/src/app/shadcn-tailwind.css`. Preserve the exact required
+custom variants, accordion keyframes, animation utilities, and no-scrollbar
+utility with the upstream MIT attribution. Continue to remove the shadcn CLI
+from installed application dependencies and use the documented ephemeral
+`npx shadcn@latest` command for future component generation.
+
+Implementation evidence:
+
+- main CRM and EVO Inbox now use Next.js `16.2.11`,
+  `eslint-config-next` `16.2.11`, and Sharp `0.35.0`;
+- both lockfiles resolve with `npm ci` and report zero findings from
+  `npm audit --audit-level=moderate`;
+- the shadcn CLI and its CLI/MCP dependency tree are absent from the EVO Inbox
+  lockfile;
+- issue #42 tracks the deliberately separate repository-wide EVO Inbox
+  formatter baseline;
+- the repository-root workflow covers locked install, lint, typecheck, build,
+  audit, and tests across the main CRM, EVO Inbox, and EVO Lead Agent;
+- local validation has passed the main CRM lint, generated-route typecheck,
+  production build, and all 39 real local-database scenarios; EVO Inbox lint
+  with zero errors and six existing warnings, typecheck, all 724 tests,
+  production build, and dependency audit; and EVO Lead Agent Ruff plus all 108
+  tests.
+
+Official implementation references:
+
+- npm documents root `overrides` for replacing vulnerable transitive versions:
+  `https://docs.npmjs.com/files/package.json/#overrides`.
+- Next.js documents installing Sharp for production image optimization:
+  `https://nextjs.org/docs/messages/install-sharp`.
+- shadcn documents the package-runner CLI form:
+  `https://ui.shadcn.com/docs/cli`.
+- GitHub documents repository-root workflow discovery:
+  `https://docs.github.com/en/actions/concepts/workflows-and-actions/workflows`.
+- Astral documents `astral-sh/setup-uv` for GitHub Actions:
+  `https://docs.astral.sh/uv/guides/integration/github/`.
+
+Validation impact: rerun both locked Node installs, dependency audits, lint,
+typechecks, tests, and production builds after the local stylesheet is in place;
+run EVO Lead Agent locked sync, Ruff, and pytest; validate the workflow YAML;
+check the complete `main..candidate` diff for whitespace; run a redacted secret
+scan over the same range; and require an independent launch-control review
+before merge. No deployment, DNS, provider, customer data, or WhatsApp state is
+changed by this block.
+
+## 2026-07-23 - Close Release-Gate Review Gaps
+
+Date: 2026-07-23, workspace timezone.
+Author: Codex.
+Change type: independent-review correction.
+Affected plan section: `/goal-evo-main-production-consolidation`, security and
+repository gates.
+
+Reason: independent review of PR #43 found that the first root workflow version
+did not automate `npm run scenarios` and compared whitespace only with the PR
+base. Because PR #43 targets the integration branch, that comparison did not
+enforce the launch contract's complete `main..candidate` release range.
+
+Decision: add the 39-case CRM scenario runner to the CRM CI job. Fetch the
+current `origin/main` release baseline explicitly and run
+`git diff --check origin/main..HEAD_SHA` for every pull request, regardless of
+whether its immediate base is integration or `main`.
+
+Validation impact: rerun the workflow on the unchanged dependency/runtime
+implementation plus this correction; require all four GitHub jobs to pass and
+obtain a fresh independent review of the new exact head before merge.
+
+## 2026-07-23 - Initialize The Ignored Scenario Database In CI
+
+Date: 2026-07-23, workspace timezone.
+Author: Codex.
+Change type: CI environment correction after real workflow execution.
+Affected plan section: `/goal-evo-main-production-consolidation`, security and
+repository gates.
+
+Reason: the corrected CRM job ran `npm run scenarios` on GitHub and failed
+before the first scenario because `data/edu-admin.db` is intentionally ignored.
+The local runner copies that database, but a clean GitHub checkout correctly
+contains no database or customer records.
+
+Decision: do not commit, upload, or synthesize a separate database fixture.
+Inside the isolated GitHub runner, compile and execute the checked-in CRM
+`src/lib/db.ts` plus `src/lib/lead-stages.ts` initialization path against an
+ephemeral ignored SQLite file. This uses the application's real schema,
+migrations, and built-in demo seed code. Run the unchanged 39-scenario harness
+against the resulting database and discard it with the runner.
+
+This database is regression-test input only. It is not a mock provider and does
+not establish live WhatsApp, amoCRM, Gemini, Supabase, telephony, DNS, or
+deployment readiness.
+
+Validation impact: reproduce the initializer and all 39 scenarios in a clean
+checkout with no pre-existing `data/` directory, then require the complete
+GitHub CRM job and a fresh independent review to pass on the new exact head.

@@ -3,8 +3,19 @@ name: evo-edge
 services:
   caddy:
     image: "${EVO_CADDY_IMAGE_REPOSITORY:-caddy:2-alpine}@${EVO_CADDY_IMAGE_DIGEST:?set EVO_CADDY_IMAGE_DIGEST to an immutable sha256 digest}"
+    labels:
+      com.evo.image.provenance: "third-party-digest"
     container_name: evo-edge-caddy
     restart: unless-stopped
+    init: true
+    cpus: "1.00"
+    mem_limit: 512m
+    pids_limit: 192
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     ports:
       - "80:80"
       - "443:443"

@@ -14,7 +14,7 @@
     "lint": "eslint",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:security": "node --experimental-strip-types --test tests/secret-storage.test.mjs tests/transcription-jobs.test.mjs tests/request-limits.test.mjs",
+    "test:security": "node --experimental-strip-types --test tests/secret-storage.test.mjs tests/transcription-jobs.test.mjs tests/request-limits.test.mjs tests/runtime-hardening.test.mjs",
     "scenarios": "EVO_SECRET_ENCRYPTION_KEY=scenario-evaluation-only-key node scripts/evaluate-scenarios.mjs",
     "bootstrap:admin": "node scripts/bootstrap-admin.mjs",
     "backup:db": "node scripts/backup-sqlite.mjs",

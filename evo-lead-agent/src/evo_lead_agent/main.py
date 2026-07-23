@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
+import time
+import uuid
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, HTTPException, Request
@@ -17,7 +21,8 @@ from .store import Store
 
 settings = load_settings()
 store = Store(settings.database_path)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
 
 
 def create_app(app_settings=settings, app_store=store) -> FastAPI:
@@ -47,6 +52,45 @@ def create_app(app_settings=settings, app_store=store) -> FastAPI:
         redoc_url=None,
         openapi_url=None,
     )
+
+    @app.middleware("http")
+    async def request_context(request: Request, call_next):
+        incoming_id = request.headers.get("x-request-id", "")
+        request_id = incoming_id if REQUEST_ID_PATTERN.fullmatch(incoming_id) else str(uuid.uuid4())
+        request.state.request_id = request_id
+        started = time.monotonic()
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.exception(
+                json.dumps(
+                    {
+                        "event": "http_request_failed",
+                        "request_id": request_id,
+                        "method": request.method,
+                        "path": request.url.path,
+                        "service": "evo-lead-agent",
+                    },
+                    separators=(",", ":"),
+                )
+            )
+            raise
+        response.headers["x-request-id"] = request_id
+        logger.info(
+            json.dumps(
+                {
+                    "event": "http_request",
+                    "request_id": request_id,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": response.status_code,
+                    "duration_ms": round((time.monotonic() - started) * 1000),
+                    "service": "evo-lead-agent",
+                },
+                separators=(",", ":"),
+            )
+        )
+        return response
 
     @app.get("/health")
     async def health() -> dict[str, object]:

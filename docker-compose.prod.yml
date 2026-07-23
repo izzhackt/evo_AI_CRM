@@ -10,7 +10,19 @@ services:
         EVO_IMAGE_REVISION: "${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
         EVO_IMAGE_VERSION: "${EVO_RELEASE_VERSION:?set EVO_RELEASE_VERSION}"
     image: "evo-crm:${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
+    labels:
+      org.opencontainers.image.revision: "${EVO_RELEASE_REVISION}"
+      org.opencontainers.image.version: "${EVO_RELEASE_VERSION}"
     restart: unless-stopped
+    init: true
+    cpus: "1.50"
+    mem_limit: 1536m
+    pids_limit: 256
+    logging: &bounded-logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     env_file:
       - "${EVO_CRM_APP_ENV_FILE:-.env.production}"
     environment:
@@ -34,7 +46,7 @@ services:
         aliases:
           - evo-crm-app
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))\""]
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -42,7 +54,14 @@ services:
 
   waha:
     image: "${EVO_WAHA_IMAGE_REPOSITORY:-devlikeapro/waha}@${EVO_WAHA_IMAGE_DIGEST:?set EVO_WAHA_IMAGE_DIGEST to an immutable sha256 digest}"
+    labels:
+      com.evo.image.provenance: "third-party-digest"
     restart: unless-stopped
+    init: true
+    cpus: "2.00"
+    mem_limit: 2048m
+    pids_limit: 512
+    logging: *bounded-logging
     env_file:
       - "${EVO_CRM_WAHA_ENV_FILE:-.env.waha}"
     expose:
@@ -54,7 +73,7 @@ services:
         aliases:
           - evo-crm-waha
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/sessions').then(r=>process.exit([200,401,403].includes(r.status)?0:1)).catch(()=>process.exit(1))\""]
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -69,7 +88,15 @@ services:
         EVO_IMAGE_REVISION: "${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
         EVO_IMAGE_VERSION: "${EVO_RELEASE_VERSION:?set EVO_RELEASE_VERSION}"
     image: "evo-lead-agent:${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
+    labels:
+      org.opencontainers.image.revision: "${EVO_RELEASE_REVISION}"
+      org.opencontainers.image.version: "${EVO_RELEASE_VERSION}"
     restart: unless-stopped
+    init: true
+    cpus: "1.00"
+    mem_limit: 768m
+    pids_limit: 192
+    logging: *bounded-logging
     env_file:
       - "${EVO_CRM_LEAD_AGENT_ENV_FILE:-.env.lead-agent}"
     environment:

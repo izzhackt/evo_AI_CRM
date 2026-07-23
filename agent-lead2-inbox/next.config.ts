@@ -69,6 +69,9 @@ const nextConfig: NextConfig = {
    * https://nextjs.org/docs/pages/api-reference/config/next-config-js/output
    */
   output: "standalone",
+  experimental: {
+    proxyClientMaxBodySize: "20mb",
+  },
 
   /**
    * Cache-Control policy.

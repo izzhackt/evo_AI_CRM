@@ -9,23 +9,51 @@ import {
 import { LOCALE_STORAGE_KEY, translate } from '@/lib/i18n'
 
 export async function middleware(request: NextRequest) {
+  const incomingId = request.headers.get('x-request-id')
+  const requestId =
+    incomingId && /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(incomingId)
+      ? incomingId
+      : crypto.randomUUID()
+  request.headers.set('x-request-id', requestId)
+  console.info(JSON.stringify({
+    event: 'http_request',
+    request_id: requestId,
+    method: request.method,
+    path: request.nextUrl.pathname,
+    service: 'evo-inbox',
+  }))
+
+  const withRequestId = (response: NextResponse) => {
+    response.headers.set('x-request-id', requestId)
+    return response
+  }
+
+  if (
+    request.nextUrl.pathname === '/api/health' ||
+    request.nextUrl.pathname === '/api/readiness'
+  ) {
+    return withRequestId(
+      NextResponse.next({ request: { headers: request.headers } }),
+    )
+  }
+
   const disabled = resolveFirstLaunchDisabledPath(request.nextUrl.pathname)
   if (disabled) {
     const locale = resolveLocale(request.cookies.get(LOCALE_STORAGE_KEY)?.value)
     if (disabled.surface === 'api') {
-      return NextResponse.json(firstLaunchDisabledPayload(disabled.feature, locale), {
+      return withRequestId(NextResponse.json(firstLaunchDisabledPayload(disabled.feature, locale), {
         status: FIRST_LAUNCH_DISABLED_STATUS,
-      })
+      }))
     }
 
     const payload = firstLaunchDisabledPayload(disabled.feature, locale)
-    return new NextResponse(
+    return withRequestId(new NextResponse(
       `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><title>EVO Inbox</title></head><body><main style="font-family:system-ui,sans-serif;max-width:720px;margin:64px auto;padding:0 24px;line-height:1.5"><p style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#64748b">${translate(locale, 'firstLaunch.eyebrow')}</p><h1 style="font-size:28px;margin:0 0 12px">${translate(locale, 'firstLaunch.title')}</h1><p>${payload.message}</p><p><a href="/inbox">${translate(locale, 'firstLaunch.return')}</a></p></main></body></html>`,
       {
         status: FIRST_LAUNCH_DISABLED_STATUS,
         headers: { 'content-type': 'text/html; charset=utf-8' },
       },
-    )
+    ))
   }
 
   let supabaseResponse = NextResponse.next({ request })
@@ -65,6 +93,7 @@ export async function middleware(request: NextRequest) {
     supabaseResponse.cookies.getAll().forEach((cookie) => {
       response.cookies.set(cookie)
     })
+    response.headers.set('x-request-id', requestId)
     return response
   }
 
@@ -111,7 +140,7 @@ export async function middleware(request: NextRequest) {
     )
   }
 
-  return supabaseResponse
+  return withRequestId(supabaseResponse)
 }
 
 export const config = {

@@ -78,4 +78,3 @@ Host the app at `inbox.evoadmissions.com` on `hermes-vps` as a separate service 
 ## Further Notes
 
 Primary implementation should proceed in mergeable launch-control blocks. Each block needs a named write set, real validation, and independent review before merge. If a block changes the scope, architecture, acceptance criteria, deployment shape, or data model, update `docs/PLAN_CHANGES.md` before coding.
-

@@ -315,7 +315,6 @@ export function applyEdgeConnection(
       return null;
   }
 }
-
 /**
  * Walk every node and clear any `next_node_key` / `true_next` /
  * `false_next` / `button.next_node_key` / `row.next_node_key`
@@ -409,4 +408,3 @@ function patchedConfigWithoutKey(
       return null;
   }
 }
-

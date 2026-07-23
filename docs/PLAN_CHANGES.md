@@ -1497,3 +1497,66 @@ Validation impact: verify no tracked references to the old folder name remain,
 run the renamed EVO Inbox test/build gates from `agent-lead2-inbox/`, run root
 lint/type/build checks affected by path exclusions, and inspect the resulting
 Compose files without printing runtime secrets.
+
+## 2026-07-23 - Plan Main Promotion And Real Production Proof
+
+Date: 2026-07-23, workspace timezone.
+Author: Codex.
+Change type: launch contract, security gate, CI, release/deployment, DNS, and
+real-provider acceptance criteria.
+Affected plan section: `/goal-evo-main-production-consolidation`.
+
+Reason: the owner authorized completing the remaining consolidation and real
+production-proof work. Live review found a linear integration candidate 41
+commits ahead of `main`, but it also found release blockers that the prior
+completed goal did not cover:
+
+- newly published high-severity advisories affect the installed Next.js and
+  Sharp runtime dependency chain in both web applications;
+- EVO Inbox carries the shadcn code-generation CLI as a production dependency,
+  pulling unrelated CLI/MCP packages into the runtime audit;
+- GitHub sees no effective Actions workflow because the only workflow is nested
+  below the repository root;
+- the complete `main..integration` range has three whitespace failures;
+- both production checkouts differ from the remote integration head, with an
+  active uncommitted Caddy change on the Inbox checkout and a retained Git backup
+  directory under the CRM checkout;
+- the main CRM containers still join an `acadis_*` network;
+- canonical EVO DNS records do not exist;
+- the `evo-inbox` WAHA session is working, while `crm_primary` requires QR
+  relinking and the Lead Agent readiness check lacks amoCRM OAuth configuration.
+
+Decision: execute five sequential reviewed blocks: security/repository gates,
+frozen integration promotion, production reconciliation, canonical DNS, and a
+controlled real-provider proof. Treat dependency audit, root CI, full-range
+whitespace/secret checks, immutable release identity, backups, rollback
+artifacts, provider readiness, and independent review as release gates. Do not
+deploy from dirty checkouts or overwrite active Caddy routes. Keep EVO Inbox and
+the legacy Lead Agent as separate WAHA/credential boundaries.
+
+The production proof must use a dedicated EVO-controlled test sender and one
+operator-approved manual reply. Auto-reply remains disabled. A missing DNS
+provider login, authenticated Inbox operator, exact test number, or real
+Supabase/amoCRM/Gemini setting is a named blocker, not permission to substitute
+mock data or claim partial success.
+
+Current official sources consulted:
+
+- Next.js upgrade guidance documents patch upgrades through
+  `@next/codemod upgrade patch`:
+  `https://nextjs.org/docs/app/guides/upgrading/codemods`.
+- shadcn project guidance invokes the CLI through the package runner as
+  `npx shadcn@latest`, so it does not need to ship as an application runtime
+  dependency: `https://ui.shadcn.com/docs/cli`.
+- GitHub discovers workflow files from repository-root `.github/workflows/`:
+  `https://docs.github.com/en/actions/concepts/workflows-and-actions/workflows`.
+- GitHub CLI supports guarding a PR merge with the reviewed head through
+  `gh pr merge --match-head-commit`:
+  `https://cli.github.com/manual/gh_pr_merge`.
+- WAHA session status is read through the session-list API:
+  `https://waha.devlike.pro/docs/how-to/sessions/`.
+
+Validation impact: this plan-only block changes no runtime, dependency, DNS,
+server, database, provider, or WhatsApp state. Validate Markdown whitespace,
+links, the recorded Git ancestry, and the current public/server facts. Require
+independent launch-control approval before implementation.

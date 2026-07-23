@@ -1621,3 +1621,25 @@ check the complete `main..candidate` diff for whitespace; run a redacted secret
 scan over the same range; and require an independent launch-control review
 before merge. No deployment, DNS, provider, customer data, or WhatsApp state is
 changed by this block.
+
+## 2026-07-23 - Close Release-Gate Review Gaps
+
+Date: 2026-07-23, workspace timezone.
+Author: Codex.
+Change type: independent-review correction.
+Affected plan section: `/goal-evo-main-production-consolidation`, security and
+repository gates.
+
+Reason: independent review of PR #43 found that the first root workflow version
+did not automate `npm run scenarios` and compared whitespace only with the PR
+base. Because PR #43 targets the integration branch, that comparison did not
+enforce the launch contract's complete `main..candidate` release range.
+
+Decision: add the 39-case CRM scenario runner to the CRM CI job. Fetch the
+current `origin/main` release baseline explicitly and run
+`git diff --check origin/main..HEAD_SHA` for every pull request, regardless of
+whether its immediate base is integration or `main`.
+
+Validation impact: rerun the workflow on the unchanged dependency/runtime
+implementation plus this correction; require all four GitHub jobs to pass and
+obtain a fresh independent review of the new exact head before merge.

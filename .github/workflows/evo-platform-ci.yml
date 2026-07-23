@@ -28,11 +28,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reject whitespace errors in the complete PR diff
+      - name: Refresh the main release baseline
+        run: git fetch --no-tags origin main:refs/remotes/origin/main
+
+      - name: Reject whitespace errors in the complete release diff
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: git diff --check "$BASE_SHA..$HEAD_SHA"
+        run: git diff --check "origin/main..$HEAD_SHA"
 
   crm:
     name: Main CRM
@@ -62,6 +64,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Run CRM scenarios
+        run: npm run scenarios
 
       - name: Audit dependencies
         run: npm audit --audit-level=moderate

@@ -1,13 +1,22 @@
 # EVO Inbox hermes-vps deployment preflight
 
-This is review configuration for `inbox.evoadmissions.com`. It must not be
-deployed from a dirty workstation, and this run does not touch `/opt/evo-crm`.
+This is the companion-specific configuration for `inbox.evoadmissions.com`.
+The actual production sequence is the repository-level
+[EVO Production Release Runbook](../../deploy/production-release.md). It
+deploys CRM and Inbox from one exact reviewed `main` SHA without changing the
+existing `/opt/evo-crm` or `/opt/evo-inbox` checkouts.
 
 ## Source contract
 
 - GitHub remains the source of truth.
 - Target service name: `evo-inbox`.
-- Target path: `/opt/evo-inbox`.
+- Clean release source:
+  `/opt/evo-releases/<full-main-sha>/repo/agent-lead2-inbox`.
+- Existing runtime secret files remain under the historical live-checkout path
+  `/opt/evo-inbox/agent-lead2-crmwhatsapp/` and are passed to Compose by
+  absolute path. They are never copied into the clean release. The reviewed
+  source path is `agent-lead2-inbox/`; this release deliberately does not rename
+  or clean the old server checkout.
 - Target public host: `https://inbox.evoadmissions.com`.
 - Temporary fallback host until DNS is created:
   `https://evo-inbox.72.62.119.112.sslip.io`.
@@ -27,11 +36,11 @@ standalone output docs, `.next/standalone` contains the minimal server, while
 https://nextjs.org/docs/pages/api-reference/config/next-config-js/output
 
 `NEXT_PUBLIC_*` values used by browser code must be available during
-`next build`, not only as container runtime variables. Build the app with
-Compose's `--env-file ../.env.production` from the `deploy/` directory so the
-public Supabase URL/key are passed as Docker build args. Server-only secrets
-such as `SUPABASE_SERVICE_ROLE_KEY` and `ENCRYPTION_KEY` remain runtime-only and
-must not be passed as build args.
+`next build`, not only as container runtime variables. Pass the external
+`EVO_INBOX_APP_ENV_FILE` to Compose with `--env-file` so the public Supabase
+URL/key are available as Docker build args. Server-only secrets such as
+`SUPABASE_SERVICE_ROLE_KEY` and `ENCRYPTION_KEY` remain runtime-only and must
+not be passed as build args.
 
 ## Review artifacts
 
@@ -70,13 +79,14 @@ ignored `.env.gemini` seed file.
 
 ## Preflight commands
 
-Run from `agent-lead2-inbox/` after installing dependencies and loading
-both production env files:
+Run from the clean release's `agent-lead2-inbox/` directory after the release
+runbook has set `EVO_RELEASE_REPO` and the external secret paths:
 
 ```bash
+cd "$EVO_RELEASE_REPO/agent-lead2-inbox"
 set -a
-. /opt/evo-inbox/agent-lead2-inbox/.env.production
-. /opt/evo-inbox/agent-lead2-inbox/.env.gemini
+. "$EVO_INBOX_APP_ENV_FILE"
+. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.gemini
 set +a
 npm run preflight:prod
 npm run lint
@@ -97,8 +107,9 @@ After `.env.production` contains the live Supabase keys, `ENCRYPTION_KEY`, and
 WAHA proof variables, seed the encrypted account-level WAHA runtime settings:
 
 ```bash
+cd "$EVO_RELEASE_REPO/agent-lead2-inbox"
 set -a
-. /opt/evo-inbox/agent-lead2-inbox/.env.production
+. "$EVO_INBOX_APP_ENV_FILE"
 set +a
 npm run seed:prod-waha
 ```
@@ -122,13 +133,14 @@ secret values.
 ## Seed Gemini AI draft settings
 
 After `.env.production` contains the live Supabase keys and `ENCRYPTION_KEY`,
-create `/opt/evo-inbox/agent-lead2-inbox/.env.gemini` from
+create `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.gemini` from
 `deploy/env.gemini.example`, then seed the encrypted account-level AI config:
 
 ```bash
+cd "$EVO_RELEASE_REPO/agent-lead2-inbox"
 set -a
-. /opt/evo-inbox/agent-lead2-inbox/.env.production
-. /opt/evo-inbox/agent-lead2-inbox/.env.gemini
+. "$EVO_INBOX_APP_ENV_FILE"
+. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.gemini
 set +a
 npm run seed:prod-ai
 ```
@@ -162,14 +174,15 @@ above 250 MB, or thousands of knowledge chunks.
 
 After the EVO Inbox amoCRM external/private integration is created and its
 long-lived token is copied once, create
-`/opt/evo-inbox/agent-lead2-inbox/.env.amocrm` from
+`/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.amocrm` from
 `deploy/env.amocrm.example`, then seed the encrypted account-level amoCRM
 configuration:
 
 ```bash
+cd "$EVO_RELEASE_REPO/agent-lead2-inbox"
 set -a
-. /opt/evo-inbox/agent-lead2-inbox/.env.production
-. /opt/evo-inbox/agent-lead2-inbox/.env.amocrm
+. "$EVO_INBOX_APP_ENV_FILE"
+. /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.amocrm
 set +a
 npm run seed:prod-amocrm
 ```
@@ -204,11 +217,14 @@ names; it must not print the token.
 Inbound WAHA messages are saved to Supabase before amoCRM sync. If amoCRM is
 missing or temporarily unavailable, conversations/messages keep
 `crm_sync_status='pending'` or `not_configured` and remain visible in EVO Inbox.
-After fixing amoCRM configuration, run the bounded internal retry from
-`/opt/evo-inbox/agent-lead2-inbox/deploy`:
+After fixing amoCRM configuration, run the bounded internal retry through the
+clean release Compose definition:
 
 ```bash
-docker compose --env-file ../.env.production -f docker-compose.inbox.prod.yml exec -T app \
+docker compose -p evo-inbox \
+  --env-file "$EVO_INBOX_APP_ENV_FILE" \
+  -f "$EVO_RELEASE_REPO/agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml" \
+  exec -T app \
   sh -lc 'curl -fsS -X POST http://127.0.0.1:3000/api/internal/crm-sync \
     -H "x-cron-secret: $AUTOMATION_CRON_SECRET" \
     -H "content-type: application/json" \
@@ -222,27 +238,26 @@ identity; synced rows must still match amoCRM shadow ids.
 
 ## Deployment outline
 
-Only perform this after a reviewed PR is merged and real credentials are
-available:
+Do not deploy Inbox independently with `up -d --build`. Follow the central
+release runbook, which:
 
-1. Fetch the reviewed commit on `hermes-vps` into `/opt/evo-inbox`.
-2. Create `.env.production` from `deploy/env.production.example`.
-3. Create `.env.waha` from `deploy/env.waha.example`.
-4. Confirm DNS for `inbox.evoadmissions.com` points at the VPS.
-5. If `acadis-caddy-1` owns host ports `80/443`, stop the Acadis stack before
-   starting the EVO edge proxy. Preserve `/opt/acadis` and its Docker volumes;
-   do not delete Acadis data as part of the EVO Inbox cutover.
-6. Start the EVO edge proxy with
-   `docker compose -f deploy/docker-compose.edge.yml up -d`.
-7. Start the service from `agent-lead2-inbox/deploy/` with
-   `docker compose --env-file ../.env.production -f docker-compose.inbox.prod.yml up -d --build`.
-8. Run `npm run seed:prod-waha` from `agent-lead2-inbox/` after loading
-   `.env.production`.
-9. Run `npm run seed:prod-amocrm` from `agent-lead2-inbox/` after loading
-   `.env.production` and `.env.amocrm`.
-10. Run `npm run seed:prod-ai` from `agent-lead2-inbox/` after loading
-    `.env.production` and `.env.gemini`.
-11. Apply Supabase migration `036_reliable_amocrm_sync_buffer.sql`.
-12. Confirm `evo-edge-caddy`, `evo-inbox` app, and `evo-inbox-waha`
-    healthchecks pass.
-13. Execute the issue #20 live proof checklist.
+1. verifies the exact merged `main` SHA and creates a clean detached worktree;
+2. validates external secret-file paths without displaying their contents;
+3. captures prior image IDs, configuration, SQLite backup, and consistent
+   stateful-volume snapshots;
+4. pins WAHA and Caddy to the currently approved immutable digests;
+5. builds and inspects the SHA-tagged Inbox image;
+6. deploys the Inbox app and private WAHA one boundary at a time;
+7. validates Caddy before a graceful reload and checks the fallback URL;
+8. records canonical DNS as passed or blocked without changing the provider;
+9. provides exact image/config rollback from untouched prior checkouts.
+
+Apply Supabase migration `036_reliable_amocrm_sync_buffer.sql` and run the
+provider seed commands only when their separate reviewed rollout requires
+them. A container healthcheck does not prove real WAHA, amoCRM, Gemini, or
+outbound behavior; execute the issue #20 credentialed proof checklist
+separately.
+
+If any non-EVO proxy owns host ports `80/443`, stop the release and plan the
+ownership change. Do not stop or remove Acadis resources as an automatic EVO
+deployment step.

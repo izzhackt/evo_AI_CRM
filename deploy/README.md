@@ -2,15 +2,28 @@
 
 Target server: `hermes-vps`
 
-Target path: `/opt/evo-crm`
+Existing runtime/secrets path: `/opt/evo-crm`
 
-The app runs as a Docker Compose project named `evo-crm`. It does not publish
-host ports. The app container joins the existing Caddy web network and is
-reached by Caddy at `evo-crm-app:3000`.
+Clean release path: `/opt/evo-releases/<full-main-sha>/repo`
+
+The app runs as Docker Compose project `evo-crm`. Its public app joins
+`evo_public_web` at `evo-crm-app:3000`; CRM WAHA and the lead-agent communicate
+only on `evo_crm_private`.
+
+Use [production-release.md](production-release.md) for every production
+release. It pins one reviewed `main` SHA in a clean detached worktree, keeps
+server secrets outside release source, backs up local state, captures rollback
+images/configuration, and deploys one service boundary at a time.
 
 ## Required Environment
 
-Create `/opt/evo-crm/.env.production` from `deploy/env.production.example`.
+Keep these existing server files outside the detached release worktree:
+
+- `/opt/evo-crm/.env.production`
+- `/opt/evo-crm/.env.waha`
+- `/opt/evo-crm/.env.lead-agent`
+
+Create them from the matching safe examples when provisioning a new server.
 Generate secrets on the server:
 
 ```bash
@@ -20,36 +33,29 @@ openssl rand -base64 32
 
 Do not commit or print the real values.
 
-## Build And Start
-
-```bash
-cd /opt/evo-crm
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs --tail=200 app
-```
-
 ## Bootstrap First Admin
 
 Run once after the app container is healthy:
 
 ```bash
-cd /opt/evo-crm
-docker compose -f docker-compose.prod.yml exec \
+read -r -s -p 'Initial admin password: ' EVO_ADMIN_PASSWORD
+printf '\n'
+export EVO_ADMIN_PASSWORD
+docker compose -p evo-crm \
+  -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" exec \
   -e EVO_ADMIN_EMAIL='admin@example.com' \
-  -e EVO_ADMIN_PASSWORD='replace-with-long-password' \
+  -e EVO_ADMIN_PASSWORD \
   -e EVO_ADMIN_NAME='EVO Admin' \
   app node scripts/bootstrap-admin.mjs
+unset EVO_ADMIN_PASSWORD
 ```
 
 ## Backup
 
-```bash
-cd /opt/evo-crm
-docker compose -f docker-compose.prod.yml exec app node scripts/backup-sqlite.mjs
-```
-
-Backups are written to the `evo_crm_backups` Docker volume.
+The release runbook requires both the application SQLite logical backup and a
+consistent snapshot of CRM data, backups, output, WAHA sessions, lead-agent
+data, Inbox WAHA sessions, and Caddy state before deployment. The normal
+logical backup is written to the `evo_crm_backups` Docker volume.
 
 ## EVO Edge Caddy
 
@@ -74,26 +80,25 @@ docker network inspect evo_public_web >/dev/null 2>&1 \
   || docker network create evo_public_web
 ```
 
-Start or reconcile the EVO edge from the checked-out repository:
-
-```bash
-cd /opt/evo-inbox/agent-lead2-inbox/deploy
-docker compose -f docker-compose.edge.yml up -d
-docker exec evo-edge-caddy caddy validate --config /etc/caddy/Caddyfile
-docker exec evo-edge-caddy caddy reload --config /etc/caddy/Caddyfile
-```
-
 `deploy/Caddyfile.evo-crm` is a CRM-only reference snippet. The combined
 `Caddyfile.evo-edge` is the production source for both CRM and Inbox public
-routes. Do not attach EVO services to an `acadis_*` network and do not run a
-second public proxy for EVO.
+routes, the existing Invite Bishkek and legacy Inbox fallback routes, and the
+Codex route. Follow the release runbook to validate the candidate before
+reconciling the edge and to perform a graceful Caddy reload. Do not attach EVO
+services to an `acadis_*` network and do not run a second public proxy for EVO.
 
-Verify the real public routes after the reload:
+Verify fallback routes after the reload:
 
 ```bash
-curl -fsS -o /dev/null -w '%{http_code}\n' https://crm.evoadmissions.com/
-curl -fsS -o /dev/null -w '%{http_code}\n' https://inbox.evoadmissions.com/
+curl -fsS -o /dev/null -w '%{http_code}\n' \
+  https://evo-crm.72.62.119.112.sslip.io/login
+curl -fsS -o /dev/null -w '%{http_code}\n' \
+  https://evo-inbox.72.62.119.112.sslip.io/api/health
 ```
+
+Check `crm.evoadmissions.com` and `inbox.evoadmissions.com` separately as DNS
+gates. Do not report either canonical URL as working until it resolves to the
+VPS and its HTTPS request succeeds.
 
 ## WAHA
 
@@ -145,12 +150,12 @@ server setting.
 The lead-agent source is tracked by the parent `izzhackt/evo_AI_CRM` repo under:
 
 ```txt
-/opt/evo-crm/evo-lead-agent
+$EVO_RELEASE_REPO/evo-lead-agent
 ```
 
 Do not clone `nik1t7n/kanttsp-lead-agent` into this path for EVO production.
-Deploy the parent repo revision, which includes the EVO-specific lead-agent
-source, before running `docker compose -f docker-compose.prod.yml up -d --build`.
+Build the parent repository's exact reviewed main SHA using the release
+runbook, which includes the EVO-specific lead-agent source.
 
 Use separate shared secrets:
 
@@ -184,10 +189,11 @@ Official integration behavior checked for this rollout:
 Before issue #5 live proof, run the lead-agent gates on the VPS:
 
 ```bash
-cd /opt/evo-crm
-docker compose -f docker-compose.prod.yml exec lead-agent \
+docker compose -p evo-crm \
+  -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" exec lead-agent \
   evo-lead-agent-env-audit --db /app/data/evo-lead-agent.db --pretty
-docker compose -f docker-compose.prod.yml exec lead-agent sh -lc '
+docker compose -p evo-crm \
+  -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" exec lead-agent sh -lc '
   evo-lead-agent-waha-setup \
     --base-url "$EVO_AGENT_WAHA_BASE_URL" \
     --api-key "$EVO_AGENT_WAHA_API_KEY" \
@@ -197,7 +203,8 @@ docker compose -f docker-compose.prod.yml exec lead-agent sh -lc '
     --qr-output /app/data/waha-crm-primary-qr.png \
     --pretty
 '
-docker compose -f docker-compose.prod.yml exec lead-agent \
+docker compose -p evo-crm \
+  -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" exec lead-agent \
   evo-lead-agent-preflight --db /app/data/evo-lead-agent.db --pretty
 ```
 

@@ -7,7 +7,7 @@ vi.mock('./embeddings', () => ({
   toVectorLiteral: (v: number[]) => `[${v.join(',')}]`,
 }))
 
-import { retrieveKnowledge, ingestDocument } from './knowledge'
+import { ingestDocument, retrieveKnowledge, retrieveKnowledgeWithEvidence } from './knowledge'
 
 interface FakeState {
   semantic: { id: string; content: string }[]
@@ -194,6 +194,26 @@ describe('retrieveKnowledge', () => {
       'match_ai_knowledge_semantic',
       'match_ai_knowledge_fts',
     ])
+  })
+
+  it('returns the exact chunk ids used as immutable draft evidence', async () => {
+    const { db, state } = makeDb()
+    state.fts = [
+      { id: 'chunk-1', content: 'Italy admissions evidence' },
+      { id: 'chunk-2', content: 'Scholarship evidence' },
+    ]
+
+    await expect(
+      retrieveKnowledgeWithEvidence(
+        db,
+        'acct',
+        { embeddingsProvider: 'keyword', embeddingsApiKey: null },
+        'Italy scholarship',
+      ),
+    ).resolves.toEqual({
+      excerpts: ['Italy admissions evidence', 'Scholarship evidence'],
+      chunkIds: ['chunk-1', 'chunk-2'],
+    })
   })
 })
 

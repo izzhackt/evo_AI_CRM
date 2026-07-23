@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { signWahaWebhookBody } from '@/lib/waha/webhook';
 
+const h = vi.hoisted(() => ({
+  rpc: vi.fn(),
+}));
+
 vi.mock('@/lib/integrations/admin-client', () => ({
   IntegrationsAdminConfigurationError: class IntegrationsAdminConfigurationError extends Error {
     readonly code = 'supabase_not_configured';
@@ -9,12 +13,14 @@ vi.mock('@/lib/integrations/admin-client', () => ({
     readonly missingFields: string[];
 
     constructor(missingFields: string[]) {
-      super(`Supabase service configuration is missing: ${missingFields.join(', ')}`);
+      super(
+        `Supabase service configuration is missing: ${missingFields.join(', ')}`
+      );
       this.name = 'IntegrationsAdminConfigurationError';
       this.missingFields = missingFields;
     }
   },
-  integrationsAdminClient: () => ({}),
+  integrationsAdminClient: () => ({ rpc: h.rpc }),
 }));
 
 vi.mock('@/lib/waha/config', () => ({
@@ -67,6 +73,8 @@ import { deliverWahaInboundMessage } from '@/lib/waha/inbound-delivery';
 import { POST } from './route';
 
 beforeEach(() => {
+  h.rpc.mockReset();
+  h.rpc.mockResolvedValue({ data: true, error: null });
   vi.mocked(deliverWahaInboundMessage).mockReset();
   vi.mocked(deliverWahaInboundMessage).mockResolvedValue({
     status: 'received',
@@ -106,7 +114,7 @@ describe('POST /api/waha/webhook', () => {
       request(rawBody, {
         'X-Webhook-Hmac': signWahaWebhookBody(rawBody, 'wrong-secret'),
         'X-Webhook-Hmac-Algorithm': 'sha512',
-      }),
+      })
     );
     const json = await response.json();
 
@@ -144,7 +152,7 @@ describe('POST /api/waha/webhook', () => {
       request(messageBody, {
         'X-Webhook-Hmac': signWahaWebhookBody(messageBody, 'secret'),
         'X-Webhook-Hmac-Algorithm': 'sha512',
-      }),
+      })
     );
     const json = await response.json();
 
@@ -158,7 +166,7 @@ describe('POST /api/waha/webhook', () => {
       crm_sync_retryable: false,
     });
     expect(deliverWahaInboundMessage).toHaveBeenCalledWith({
-      db: {},
+      db: { rpc: h.rpc },
       accountId: 'acct-1',
       message: expect.objectContaining({
         messageId: 'message-1',
@@ -183,7 +191,7 @@ describe('POST /api/waha/webhook', () => {
       request(messageBody, {
         'X-Webhook-Hmac': signWahaWebhookBody(messageBody, 'secret'),
         'X-Webhook-Hmac-Algorithm': 'sha512',
-      }),
+      })
     );
     const json = await response.json();
 
@@ -219,7 +227,7 @@ describe('POST /api/waha/webhook', () => {
       request(messageBody, {
         'X-Webhook-Hmac': signWahaWebhookBody(messageBody, 'secret'),
         'X-Webhook-Hmac-Algorithm': 'sha512',
-      }),
+      })
     );
     const json = await response.json();
 
@@ -235,22 +243,75 @@ describe('POST /api/waha/webhook', () => {
     });
   });
 
-  it('accepts signed unsupported WAHA events as ignored', async () => {
+  it('records signed message.ack evidence without entering inbound delivery', async () => {
     const eventBody = JSON.stringify({
+      id: 'evt-ack-1',
       event: 'message.ack',
       session: 'evo-inbox',
-      payload: { id: 'message-1' },
+      timestamp: 1_727_745_026_123,
+      payload: {
+        id: 'true_14155551212@c.us_AAA',
+        from: '14155551212@c.us',
+        fromMe: true,
+        ack: 2,
+        ackName: 'DEVICE',
+      },
     });
 
     const response = await POST(
       request(eventBody, {
         'X-Webhook-Hmac': signWahaWebhookBody(eventBody, 'secret'),
         'X-Webhook-Hmac-Algorithm': 'sha512',
-      }),
+      })
     );
     const json = await response.json();
 
+    expect(response.status).toBe(200);
+    expect(json).toEqual({
+      status: 'received',
+      message_id: 'true_14155551212@c.us_AAA',
+      ack: 2,
+      ack_name: 'DEVICE',
+    });
+    expect(h.rpc).toHaveBeenCalledWith('record_waha_message_ack', {
+      p_account_id: 'acct-1',
+      p_session_name: 'evo-inbox',
+      p_waha_message_id: 'true_14155551212@c.us_AAA',
+      p_ack: 2,
+      p_ack_name: 'DEVICE',
+      p_ack_at: '2024-10-01T01:10:26.123Z',
+      p_source: 'webhook',
+      p_provider_event_id: 'evt-ack-1',
+    });
+    expect(deliverWahaInboundMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps a valid acknowledgement for an unknown provider id unresolved', async () => {
+    h.rpc.mockResolvedValue({ data: false, error: null });
+    const eventBody = JSON.stringify({
+      event: 'message.ack',
+      session: 'evo-inbox',
+      timestamp: 1_727_745_026,
+      payload: {
+        id: 'true_14155551212@c.us_UNKNOWN',
+        ack: 1,
+        ackName: 'SERVER',
+      },
+    });
+
+    const response = await POST(
+      request(eventBody, {
+        'X-Webhook-Hmac': signWahaWebhookBody(eventBody, 'secret'),
+        'X-Webhook-Hmac-Algorithm': 'sha512',
+      })
+    );
+
     expect(response.status).toBe(202);
-    expect(json).toEqual({ status: 'ignored' });
+    await expect(response.json()).resolves.toEqual({
+      status: 'unresolved',
+      message_id: 'true_14155551212@c.us_UNKNOWN',
+      ack: 1,
+      ack_name: 'SERVER',
+    });
   });
 });

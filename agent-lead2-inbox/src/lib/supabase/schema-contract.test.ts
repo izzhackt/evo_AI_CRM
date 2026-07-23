@@ -30,6 +30,10 @@ const reliableAmoCrmSyncMigration = readFileSync(
   join(migrationsDir, '036_reliable_amocrm_sync_buffer.sql'),
   'utf8'
 )
+const outboundAuditMigration = readFileSync(
+  join(migrationsDir, '037_operator_drafts_and_waha_outbox.sql'),
+  'utf8'
+)
 
 function expectRlsEnabled(table: string) {
   expect(allMigrationsSql).toMatch(
@@ -213,6 +217,93 @@ describe('Supabase companion schema contract', () => {
     )
     expect(reliableAmoCrmSyncMigration).toMatch(
       /idx_messages_conversation_crm_sync_status/i
+    )
+  })
+
+  it('adds immutable account-scoped AI draft audits with member read-only access', () => {
+    expect(outboundAuditMigration).toMatch(
+      /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+ai_drafts\s*\([\s\S]*account_id\s+uuid\s+NOT\s+NULL[\s\S]*conversation_id\s+uuid\s+NOT\s+NULL[\s\S]*created_by\s+uuid\s+NOT\s+NULL[\s\S]*provider\s+text\s+NOT\s+NULL[\s\S]*model\s+text\s+NOT\s+NULL[\s\S]*content_text\s+text\s+NOT\s+NULL[\s\S]*knowledge_chunk_ids\s+uuid\[\]\s+NOT\s+NULL[\s\S]*knowledge_item_count\s+integer\s+NOT\s+NULL[\s\S]*created_at\s+timestamptz\s+NOT\s+NULL/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /ALTER\s+TABLE\s+ai_drafts\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /CREATE\s+POLICY\s+ai_drafts_select\s+ON\s+ai_drafts\s+FOR\s+SELECT[\s\S]*is_account_member\s*\(\s*account_id\s*\)/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /REVOKE\s+INSERT,\s*UPDATE,\s*DELETE\s+ON\s+TABLE\s+ai_drafts\s+FROM\s+anon,\s*authenticated/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /CREATE\s+TRIGGER\s+ai_drafts_immutable/i
+    )
+  })
+
+  it('extends messages with a backward-compatible durable WAHA outbox contract', () => {
+    for (const column of [
+      'ai_draft_id',
+      'outbound_state',
+      'outbound_attempt_count',
+      'outbound_error_code',
+      'outbound_error',
+      'outbound_started_at',
+      'outbound_completed_at',
+      'waha_chat_id',
+      'waha_ack',
+      'waha_ack_name',
+      'waha_ack_at',
+    ]) {
+      expect(outboundAuditMigration).toMatch(
+        new RegExp(`ADD\\s+COLUMN\\s+IF\\s+NOT\\s+EXISTS\\s+${column}\\b`, 'i')
+      )
+    }
+
+    expect(outboundAuditMigration).toMatch(
+      /CHECK\s*\(\s*outbound_state\s+IN\s*\(\s*'queued',\s*'dispatching',\s*'accepted',\s*'rejected',\s*'unknown'\s*\)\s*\)/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /FOREIGN\s+KEY\s*\(\s*ai_draft_id,\s*conversation_id\s*\)[\s\S]*REFERENCES\s+ai_drafts\s*\(\s*id,\s*conversation_id\s*\)/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+idx_messages_waha_outbound_reconcile[\s\S]*ON\s+messages\s*\(\s*outbound_state,\s*waha_session_name,\s*waha_message_id\s*\)[\s\S]*WHERE[\s\S]*waha_message_id\s+IS\s+NOT\s+NULL[\s\S]*waha_chat_id\s+IS\s+NOT\s+NULL/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /DROP\s+POLICY\s+IF\s+EXISTS\s+messages_modify\s+ON\s+messages/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /CREATE\s+POLICY\s+messages_select\s+ON\s+messages\s+FOR\s+SELECT[\s\S]*is_account_member\s*\(\s*c\.account_id\s*\)/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /REVOKE\s+INSERT,\s*UPDATE,\s*DELETE,\s*TRUNCATE,\s*REFERENCES,\s*TRIGGER\s+ON\s+TABLE\s+messages\s+FROM\s+anon,\s*authenticated/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /GRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s*DELETE\s+ON\s+TABLE\s+messages\s+TO\s+service_role/i
+    )
+  })
+
+  it('records immutable acknowledgement evidence through a service-role-only RPC', () => {
+    expect(outboundAuditMigration).toMatch(
+      /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+waha_message_ack_events/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /UNIQUE\s*\(\s*account_id,\s*waha_session_name,\s*waha_message_id,\s*ack\s*\)/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /CREATE\s+TRIGGER\s+waha_message_ack_events_immutable/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+record_waha_message_ack[\s\S]*SECURITY\s+DEFINER[\s\S]*c\.account_id\s*=\s*p_account_id[\s\S]*m\.waha_session_name\s*=\s*p_session_name[\s\S]*m\.waha_message_id\s*=\s*p_waha_message_id/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /p_ack\s*=\s*-1\s+AND\s+m\.waha_ack\s*=\s*0/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /p_ack\s*>=\s*0\s+AND\s+m\.waha_ack\s*>=\s*0\s+AND\s+p_ack\s*>\s*m\.waha_ack/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /REVOKE\s+ALL\s+ON\s+FUNCTION\s+record_waha_message_ack[\s\S]*FROM\s+PUBLIC,\s*anon,\s*authenticated/i
+    )
+    expect(outboundAuditMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+record_waha_message_ack[\s\S]*TO\s+service_role/i
     )
   })
 })

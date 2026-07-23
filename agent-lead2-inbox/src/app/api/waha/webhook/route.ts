@@ -14,8 +14,10 @@ import {
   parseWahaInboundMessageEvent,
 } from '@/lib/waha/inbound-message';
 import {
+  extractWahaMessageAckEvent,
   extractWahaSessionStatusEvent,
   extractWahaWebhookSessionName,
+  recordWahaMessageAck,
   updateWahaSessionStatus,
   verifyWahaWebhookSignature,
 } from '@/lib/waha/webhook';
@@ -51,7 +53,7 @@ export async function POST(request: Request) {
           integration_status: 'not_configured',
           missing_fields: err.missingFields,
         },
-        { status: err.status },
+        { status: err.status }
       );
     }
     throw err;
@@ -63,7 +65,7 @@ export async function POST(request: Request) {
         error: 'waha_not_configured',
         integration_status: 'not_configured',
       },
-      { status: 503 },
+      { status: 503 }
     );
   }
 
@@ -73,11 +75,30 @@ export async function POST(request: Request) {
       secret: candidate.webhookHmacSecret,
       signature,
       algorithm,
-    }),
+    })
   );
 
   if (!matched) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+  }
+
+  const ackEvent = extractWahaMessageAckEvent(body);
+  if (ackEvent) {
+    const recorded = await recordWahaMessageAck(
+      db,
+      matched.accountId,
+      ackEvent,
+      'webhook'
+    );
+    return NextResponse.json(
+      {
+        status: recorded ? 'received' : 'unresolved',
+        message_id: ackEvent.messageId,
+        ack: ackEvent.ack,
+        ack_name: ackEvent.ackName,
+      },
+      { status: recorded ? 200 : 202 }
+    );
   }
 
   const event = extractWahaSessionStatusEvent(body);
@@ -92,7 +113,7 @@ export async function POST(request: Request) {
       if (parsed.kind === 'ignored') {
         return NextResponse.json(
           { status: 'ignored', reason: parsed.reason },
-          { status: 202 },
+          { status: 202 }
         );
       }
 
@@ -111,7 +132,7 @@ export async function POST(request: Request) {
           crm_sync_retryable: result.crmSyncRetryable,
           missing_fields: result.missingFields,
         },
-        { status: 200 },
+        { status: 200 }
       );
     } catch (err) {
       if (err instanceof WahaInboundMessageParseError) {
@@ -120,7 +141,7 @@ export async function POST(request: Request) {
             error: err.code,
             missing_fields: err.missingFields,
           },
-          { status: err.status },
+          { status: err.status }
         );
       }
       if (err instanceof WahaInboundDeliveryError) {
@@ -131,7 +152,7 @@ export async function POST(request: Request) {
             integration_status: err.integrationStatus,
             missing_fields: err.missingFields,
           },
-          { status: err.status },
+          { status: err.status }
         );
       }
       throw err;

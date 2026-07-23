@@ -1,3 +1,5 @@
+import type { WahaAckName } from '@/types';
+
 export interface WahaConfig {
   baseUrl: string;
   sessionName: string;
@@ -30,6 +32,19 @@ export interface WahaSessionStatus {
   raw: unknown;
 }
 
+export interface WahaGetMessageInput {
+  chatId: string;
+  messageId: string;
+}
+
+export interface WahaMessageLookup {
+  messageId: string;
+  chatId: string;
+  ack: number | null;
+  ackName: WahaAckName | null;
+  raw: unknown;
+}
+
 export class WahaConfigurationError extends Error {
   readonly code = 'waha_not_configured';
   readonly status = 400;
@@ -54,6 +69,8 @@ export class WahaProviderError extends Error {
 }
 
 type FetchLike = typeof fetch;
+
+export const WAHA_REQUEST_TIMEOUT_MS = 15_000;
 
 interface ValidatedWahaConfig {
   baseUrl: string;
@@ -157,6 +174,36 @@ function extractWahaMessageId(data: unknown): string {
   return '';
 }
 
+const WAHA_ACK_NAMES: Record<number, WahaAckName> = {
+  [-1]: 'ERROR',
+  0: 'PENDING',
+  1: 'SERVER',
+  2: 'DEVICE',
+  3: 'READ',
+  4: 'PLAYED',
+};
+
+export function parseWahaMessageAck(data: unknown): {
+  ack: number | null;
+  ackName: WahaAckName | null;
+} {
+  if (!data || typeof data !== 'object') {
+    return { ack: null, ackName: null };
+  }
+
+  const obj = data as Record<string, unknown>;
+  const ack =
+    typeof obj.ack === 'number' && Number.isInteger(obj.ack) ? obj.ack : null;
+  const ackName =
+    typeof obj.ackName === 'string' ? obj.ackName.trim().toUpperCase() : '';
+  const expectedName = ack === null ? undefined : WAHA_ACK_NAMES[ack];
+
+  if (!expectedName || ackName !== expectedName) {
+    return { ack: null, ackName: null };
+  }
+  return { ack, ackName: expectedName };
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return null;
@@ -170,7 +217,7 @@ async function readJson(response: Response): Promise<unknown> {
 export async function sendWahaText(
   config: WahaConfig,
   input: WahaSendTextInput,
-  fetchImpl: FetchLike = fetch,
+  fetchImpl: FetchLike = fetch
 ): Promise<WahaSendResult> {
   const safeConfig = validateWahaConfig(config);
   const payload = buildWahaSendTextPayload({
@@ -184,19 +231,76 @@ export async function sendWahaText(
     method: 'POST',
     headers: jsonHeaders(safeConfig.apiKey),
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(WAHA_REQUEST_TIMEOUT_MS),
   });
   const data = await readJson(response);
 
   if (!response.ok) {
     throw new WahaProviderError(
       `WAHA sendText failed with ${response.status}`,
-      response.status,
+      response.status
     );
   }
 
   return {
     whatsappMessageId: extractWahaMessageId(data),
-    messageStatus: extractWahaMessageId(data) ? 'accepted' : 'accepted_without_id',
+    messageStatus: extractWahaMessageId(data)
+      ? 'accepted'
+      : 'accepted_without_id',
+    raw: data,
+  };
+}
+
+export async function getWahaMessageById(
+  config: WahaConfig,
+  input: WahaGetMessageInput,
+  fetchImpl: FetchLike = fetch
+): Promise<WahaMessageLookup | null> {
+  const safeConfig = validateWahaConfig(config);
+  const chatId = input.chatId.trim();
+  const messageId = input.messageId.trim();
+  const missingFields: string[] = [];
+  if (!chatId) missingFields.push('chatId');
+  if (!messageId) missingFields.push('messageId');
+  if (missingFields.length > 0) {
+    throw new WahaConfigurationError(missingFields);
+  }
+
+  const sessionPath = encodeURIComponent(safeConfig.sessionName);
+  const chatPath = encodeURIComponent(chatId);
+  const messagePath = encodeURIComponent(messageId);
+  const response = await fetchImpl(
+    `${safeConfig.baseUrl}/api/${sessionPath}/chats/${chatPath}/messages/${messagePath}?downloadMedia=false`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'X-Api-Key': safeConfig.apiKey,
+      },
+      signal: AbortSignal.timeout(WAHA_REQUEST_TIMEOUT_MS),
+    }
+  );
+  const data = await readJson(response);
+
+  // The endpoint is engine/version dependent. A missing or unsupported lookup
+  // is unresolved evidence, never permission to retry the original send.
+  if ([404, 405, 501].includes(response.status)) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new WahaProviderError(
+      `WAHA message lookup failed with ${response.status}`,
+      response.status
+    );
+  }
+
+  const providerMessageId = extractWahaMessageId(data) || messageId;
+  const ack = parseWahaMessageAck(data);
+  return {
+    messageId: providerMessageId,
+    chatId,
+    ack: ack.ack,
+    ackName: ack.ackName,
     raw: data,
   };
 }
@@ -218,23 +322,26 @@ export function parseWahaSessionStatus(data: unknown): WahaSessionStatus {
 
 export async function getWahaSessionStatus(
   config: WahaConfig,
-  fetchImpl: FetchLike = fetch,
+  fetchImpl: FetchLike = fetch
 ): Promise<WahaSessionStatus> {
   const safeConfig = validateWahaConfig(config);
   const session = encodeURIComponent(safeConfig.sessionName);
-  const response = await fetchImpl(`${safeConfig.baseUrl}/api/sessions/${session}`, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      'X-Api-Key': safeConfig.apiKey,
-    },
-  });
+  const response = await fetchImpl(
+    `${safeConfig.baseUrl}/api/sessions/${session}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'X-Api-Key': safeConfig.apiKey,
+      },
+    }
+  );
   const data = await readJson(response);
 
   if (!response.ok) {
     throw new WahaProviderError(
       `WAHA session status failed with ${response.status}`,
-      response.status,
+      response.status
     );
   }
 

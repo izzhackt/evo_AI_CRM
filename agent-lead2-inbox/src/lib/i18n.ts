@@ -313,6 +313,10 @@ const TRANSLATIONS = {
     'inbox.message.nothingToCopy': 'Nothing to copy',
     'inbox.message.copied': 'Copied',
     'inbox.message.copyFailed': 'Copy failed',
+    'inbox.message.deliveryUnknown':
+      'Delivery is not confirmed. Check WhatsApp before trying again.',
+    'inbox.message.deliveryEvidenceMissing':
+      'WAHA accepted the request but returned no message ID. Verify delivery in WhatsApp.',
     'inbox.message.reactWith': 'React with {emoji}',
     'inbox.message.reply': 'Reply',
     'inbox.message.copy': 'Copy',
@@ -1338,6 +1342,10 @@ const TRANSLATIONS = {
     'inbox.message.nothingToCopy': 'Нечего копировать',
     'inbox.message.copied': 'Скопировано',
     'inbox.message.copyFailed': 'Не удалось скопировать',
+    'inbox.message.deliveryUnknown':
+      'Доставка не подтверждена. Проверьте WhatsApp перед повторной попыткой.',
+    'inbox.message.deliveryEvidenceMissing':
+      'WAHA принял запрос, но не вернул ID сообщения. Проверьте доставку в WhatsApp.',
     'inbox.message.reactWith': 'Поставить реакцию {emoji}',
     'inbox.message.reply': 'Ответить',
     'inbox.message.copy': 'Копировать',

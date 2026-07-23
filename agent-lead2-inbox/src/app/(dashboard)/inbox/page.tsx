@@ -216,8 +216,14 @@ export default function InboxPage() {
           newMsg.conversation_id === activeConversation.id
         ) {
           setMessages((prev) => {
-            // Avoid duplicates
-            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            // Manual WAHA sends use the browser's idempotency UUID as the
+            // actual database primary key. Replace that exact optimistic row
+            // with the durable outbox row when realtime delivers the INSERT.
+            if (prev.some((m) => m.id === newMsg.id)) {
+              return prev.map((message) =>
+                message.id === newMsg.id ? newMsg : message
+              );
+            }
             // Replace optimistic message if it exists
             const withoutOptimistic = prev.filter(
               (m) => !m.id.startsWith("temp-")
@@ -231,7 +237,18 @@ export default function InboxPage() {
         // the preview and triggering a hydrate — see the comment on
         // knownConvIdsRef for why a closure flag inside the updater would
         // always read false here.
-        if (knownConvIdsRef.current.has(newMsg.conversation_id)) {
+        const isUnconfirmedOutbound =
+          newMsg.sender_type === "agent" &&
+          !!newMsg.outbound_state &&
+          newMsg.outbound_state !== "accepted";
+
+        // A durable outbox INSERT happens before WAHA. Do not make that queued
+        // intent look like a customer-visible message in the conversation
+        // preview; the service updates the conversation only after acceptance.
+        if (
+          !isUnconfirmedOutbound &&
+          knownConvIdsRef.current.has(newMsg.conversation_id)
+        ) {
           setConversations((prev) =>
             prev.map((c) =>
               c.id === newMsg.conversation_id
@@ -247,7 +264,7 @@ export default function InboxPage() {
                 : c,
             ),
           );
-        } else {
+        } else if (!isUnconfirmedOutbound) {
           // First time we're seeing this conv: the conv-INSERT event
           // hasn't landed yet, or was missed. Hydrate from the DB so
           // the row surfaces with its `contact` joined; the conv-UPDATE

@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
-import { createCipheriv, createDecipheriv, createHash, scryptSync, randomBytes } from "crypto";
+import { scryptSync, randomBytes } from "crypto";
+import { decryptRuntimeSecret, encryptRuntimeSecret } from "./secret-storage";
 export {
   EVO_AMO_PIPELINE_ID,
   LEAD_ACTIVE_STATUSES,
@@ -47,7 +48,6 @@ export function verifyPassword(password: string, stored: string): boolean {
 }
 
 let _db: Database.Database | null = null;
-const ENCRYPTED_SETTING_PREFIX = "enc:v1:";
 const SECRET_SETTING_KEYS = new Set([
   "wa_token",
   "wa_verify_token",
@@ -443,51 +443,12 @@ function migrateWhatsAppConversations(d: Database.Database) {
 export function getSetting(key: string): string | null {
   const row = db().prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
   if (!row) return null;
-  return decryptSettingValue(key, row.value);
+  return SECRET_SETTING_KEYS.has(key) ? decryptRuntimeSecret(key, row.value) : row.value;
 }
 
 export function setSetting(key: string, value: string) {
-  const storedValue = SECRET_SETTING_KEYS.has(key) ? encryptSettingValue(key, value) : value;
+  const storedValue = SECRET_SETTING_KEYS.has(key) ? encryptRuntimeSecret(key, value) : value;
   db().prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, storedValue);
-}
-
-function settingEncryptionKey(): Buffer | null {
-  const raw = process.env.EVO_SECRET_ENCRYPTION_KEY || process.env.AUTH_SECRET;
-  if (!raw) return null;
-  return createHash("sha256").update(raw).digest();
-}
-
-function encryptSettingValue(key: string, value: string): string {
-  if (!value) return value;
-  const secret = settingEncryptionKey();
-  if (!secret) return value;
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", secret, iv);
-  cipher.setAAD(Buffer.from(key));
-  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return `${ENCRYPTED_SETTING_PREFIX}${iv.toString("base64url")}.${tag.toString("base64url")}.${encrypted.toString("base64url")}`;
-}
-
-function decryptSettingValue(key: string, value: string): string | null {
-  if (!value.startsWith(ENCRYPTED_SETTING_PREFIX)) return value;
-  const secret = settingEncryptionKey();
-  if (!secret) return null;
-  const payload = value.slice(ENCRYPTED_SETTING_PREFIX.length);
-  const [ivText, tagText, encryptedText] = payload.split(".");
-  if (!ivText || !tagText || !encryptedText) return null;
-  try {
-    const decipher = createDecipheriv("aes-256-gcm", secret, Buffer.from(ivText, "base64url"));
-    decipher.setAAD(Buffer.from(key));
-    decipher.setAuthTag(Buffer.from(tagText, "base64url"));
-    const decrypted = Buffer.concat([
-      decipher.update(Buffer.from(encryptedText, "base64url")),
-      decipher.final(),
-    ]);
-    return decrypted.toString("utf8");
-  } catch {
-    return null;
-  }
 }
 
 function seed(d: Database.Database) {

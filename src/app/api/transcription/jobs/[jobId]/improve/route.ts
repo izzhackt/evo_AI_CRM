@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/auth";
 import { correctTranscriptWithContext, type RawTranscriptSegment } from "@/lib/transcription/correction";
 import { getJobDir, readJobRecord } from "@/lib/transcription/jobs";
 
@@ -59,10 +60,18 @@ function renderReportMarkdown(result: Awaited<ReturnType<typeof correctTranscrip
 }
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
+  const authorization = await requireAdminApi();
+  if (authorization.response) return authorization.response;
+  if (process.env.EVO_ENABLE_EXTERNAL_TRANSCRIPT_IMPROVEMENT !== "1") {
+    return NextResponse.json({ error: "external_processing_disabled" }, { status: 503 });
+  }
   const { jobId } = await params;
   const record = await readJobRecord(jobId);
   if (!record) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  if (record.status !== "completed") {
+    return NextResponse.json({ error: "job_not_completed" }, { status: 409 });
   }
   if (record.status !== "completed") {
     return NextResponse.json({ error: "job_not_completed" }, { status: 409 });
@@ -97,10 +106,20 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ jo
     await writeFile(outputs.correctedJson, JSON.stringify(result, null, 2), "utf8");
     await writeFile(outputs.correctedMd, renderCorrectedMarkdown(result), "utf8");
     await writeFile(outputs.correctionReport, renderReportMarkdown(result), "utf8");
-    return NextResponse.json({ result, outputs });
+    return NextResponse.json({
+      result,
+      outputs: {
+        correctedJson: true,
+        correctedMd: true,
+        correctionReport: true,
+      },
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "not_configured") {
       return NextResponse.json({ error: "not_configured" }, { status: 400 });
+    }
+    if (error instanceof Error && error.message === "correction_input_too_large") {
+      return NextResponse.json({ error: "correction_input_too_large" }, { status: 413 });
     }
     if (
       error instanceof Error &&

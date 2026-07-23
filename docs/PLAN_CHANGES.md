@@ -1793,3 +1793,73 @@ Compose-managed named network, then validate that the corrected external
 network accepts a pre-created Docker bridge and allows service startup. Re-run
 the CRM resolved-model topology assertions, all GitHub checks, and independent
 review on the new exact PR head before merge.
+
+## 2026-07-23 - Add A Durable Audit Boundary Before Real WhatsApp Proof
+
+Date: 2026-07-23, workspace timezone.
+Author: Codex.
+Change type: provider-proof safety and auditability.
+Affected plan section: `/goal-evo-main-production-consolidation`, real
+production proof.
+
+Reason: the exact merged production release is healthy, the `evo-inbox` WAHA
+session is genuinely `WORKING`, and unattended Inbox auto-reply is disabled.
+However, the current draft route returns generated text without a durable audit
+record, the manual-send route drops the authenticated operator identifier, and
+WAHA is called before the message row is inserted. A successful provider send
+followed by a database failure can therefore become invisible. Repeating an
+ambiguous request can duplicate a customer message.
+
+WAHA's current official documentation describes `POST /api/sendText`, provider
+message identifiers, `message.ack` delivery events, webhook HMAC/retries, and
+message lookup by provider identifier. It does not document a caller-supplied
+idempotency key or metadata field:
+
+- https://waha.devlike.pro/docs/how-to/send-messages/
+- https://waha.devlike.pro/docs/how-to/events/
+- https://waha.devlike.pro/docs/how-to/chats/
+
+Supabase/Postgres remains the authorization and durability boundary. The
+authenticated client stays subject to Row Level Security, while uniqueness and
+atomic database operations provide concurrency control. Service-role access is
+limited to the already signed provider-webhook and secret-protected
+reconciliation paths.
+
+Decision:
+
+- Add an immutable account-scoped AI draft audit table. Store the requesting
+  operator, conversation, provider/model, retrieved knowledge evidence,
+  generated text, and creation time. Do not return a generated draft when its
+  audit insert fails.
+- Return the audit identifier to the editable composer and include it only when
+  the operator manually sends that draft or an edited version of it.
+- Add a required client request UUID to manual sends. Use the existing
+  `messages` row as a durable outbox: insert `status = sending`, `sender_id`,
+  request UUID, optional draft reference, payload, and provider-attempt fields
+  before the WAHA call. A unique request index is the concurrency gate.
+- On a duplicate UUID, return the already confirmed result or the existing
+  uncertain/in-progress state without calling WAHA again. Reject UUID reuse
+  with different content, conversation, operator, reply target, or draft.
+- Record explicit provider phases. A confirmed HTTP success advances the same
+  row to `sent`; a confirmed provider rejection advances it to `failed`; a
+  transport interruption or persistence failure after the call remains
+  visible and is never automatically retried.
+- Subscribe the signed Inbox WAHA webhook to `message.ack`, keep idempotent ack
+  evidence, and update message state monotonically. Add bounded reconciliation
+  for messages that have a stable WAHA identifier only. Rows without a
+  provider identifier require operator review; text/timestamp matching is not
+  accepted as proof.
+- Keep automatic reply structurally disabled. Do not run a real outbound
+  message during this implementation block.
+
+Validation impact: add migration/schema-contract coverage; unit-test draft audit
+success/failure, operator attribution, concurrent/duplicate request behavior,
+pre-provider persistence failure, confirmed provider rejection, ambiguous
+transport failure, post-provider update failure, ack duplication/out-of-order
+handling, and bounded reconciliation. Run the complete EVO Inbox lint,
+typecheck, tests, production build, dependency audit, diff/secret checks, and
+independent review. Before deployment, apply and verify the reviewed migration
+against the intended Supabase project, update the WAHA session webhook
+subscription, and re-run authenticated readiness. Real inbound/draft/manual
+outbound proof remains blocked until amoCRM and a dedicated test number are
+configured and an operator explicitly approves the single test reply.

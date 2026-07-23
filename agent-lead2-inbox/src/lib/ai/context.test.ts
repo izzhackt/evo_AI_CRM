@@ -3,14 +3,31 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildConversationContext } from './context'
 
 /** Minimal fake matching the query chain in buildConversationContext:
- *  from().select().eq().eq().order().limit() → { data, error }. */
+ *  from().select().eq().eq().in().order().limit() → { data, error }. */
 function fakeDb(rows: unknown[]): SupabaseClient {
+  let filteredRows = rows
   const chain = {
     from: () => chain,
     select: () => chain,
     eq: () => chain,
+    in: (_column: string, values: string[]) => {
+      if (
+        filteredRows.some(
+          (row) => !!row && typeof row === 'object' && 'status' in row,
+        )
+      ) {
+        filteredRows = filteredRows.filter(
+          (row) =>
+            !!row &&
+            typeof row === 'object' &&
+            'status' in row &&
+            values.includes(String((row as { status: unknown }).status)),
+        )
+      }
+      return chain
+    },
     order: () => chain,
-    limit: () => Promise.resolve({ data: rows, error: null }),
+    limit: () => Promise.resolve({ data: filteredRows, error: null }),
   }
   return chain as unknown as SupabaseClient
 }
@@ -49,5 +66,22 @@ describe('buildConversationContext', () => {
       'conv-1',
     )
     expect(out).toEqual([{ role: 'user', content: 'real' }])
+  })
+
+  it('excludes sending, failed, and ambiguous outbound rows', async () => {
+    const out = await buildConversationContext(
+      fakeDb([
+        { sender_type: 'agent', content_text: 'uncertain', status: 'sending' },
+        { sender_type: 'agent', content_text: 'rejected', status: 'failed' },
+        {
+          sender_type: 'customer',
+          content_text: 'received',
+          status: 'delivered',
+        },
+      ]),
+      'conv-1',
+    )
+
+    expect(out).toEqual([{ role: 'user', content: 'received' }])
   })
 })

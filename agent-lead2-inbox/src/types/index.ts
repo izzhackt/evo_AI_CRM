@@ -1,4 +1,4 @@
-import type { AccountRole } from "@/lib/auth/roles";
+import type { AccountRole } from '@/lib/auth/roles';
 
 export interface Profile {
   id: string;
@@ -77,7 +77,7 @@ export interface AccountInvitation {
   id: string;
   account_id: string;
   /** Roles offered via invite — owner is never offered. */
-  role: Exclude<AccountRole, "owner">;
+  role: Exclude<AccountRole, 'owner'>;
   created_by_user_id: string | null;
   label: string | null;
   created_at: string;
@@ -211,7 +211,25 @@ export type ContentType =
   | 'template'
   /** Customer tapped a reply button or list row on a message we sent. */
   | 'interactive';
-export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageStatus =
+  'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type OutboundState =
+  'queued' | 'dispatching' | 'accepted' | 'rejected' | 'unknown';
+export type WahaAckName =
+  'ERROR' | 'PENDING' | 'SERVER' | 'DEVICE' | 'READ' | 'PLAYED';
+
+export interface AiDraft {
+  id: string;
+  account_id: string;
+  conversation_id: string;
+  created_by: string;
+  provider: string;
+  model: string;
+  content_text: string;
+  knowledge_chunk_ids: string[];
+  knowledge_item_count: number;
+  created_at: string;
+}
 
 export interface Message {
   id: string;
@@ -226,6 +244,17 @@ export interface Message {
   waha_session_name?: string | null;
   waha_message_id?: string | null;
   waha_message_status?: string | null;
+  waha_chat_id?: string | null;
+  waha_ack?: number | null;
+  waha_ack_name?: WahaAckName | null;
+  waha_ack_at?: string | null;
+  ai_draft_id?: string | null;
+  outbound_state?: OutboundState | null;
+  outbound_attempt_count?: number;
+  outbound_error_code?: string | null;
+  outbound_error?: string | null;
+  outbound_started_at?: string | null;
+  outbound_completed_at?: string | null;
   crm_sync_status?: CrmSyncStatus;
   crm_sync_error?: string | null;
   crm_sync_attempted_at?: string | null;
@@ -239,6 +268,20 @@ export interface Message {
    * cue (renders with a "↩ button reply" affordance).
    */
   interactive_reply_id?: string;
+}
+
+export interface WahaMessageAckEvent {
+  id: string;
+  account_id: string;
+  message_id: string;
+  waha_session_name: string;
+  waha_message_id: string;
+  ack: number;
+  ack_name: WahaAckName;
+  source: 'webhook' | 'reconciliation';
+  provider_event_id?: string | null;
+  occurred_at: string;
+  recorded_at: string;
 }
 
 export type ReactionActor = 'customer' | 'agent';
@@ -407,8 +450,10 @@ export interface Deal {
   assignee?: Profile;
 }
 
-export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
-export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
+export type BroadcastStatus =
+  'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
+export type RecipientStatus =
+  'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
 
 export interface Broadcast {
   id: string;
@@ -550,10 +595,7 @@ export interface WaitStepConfig {
 }
 
 export type ConditionSubject =
-  | 'contact_field'
-  | 'tag_presence'
-  | 'message_content'
-  | 'time_of_day';
+  'contact_field' | 'tag_presence' | 'message_content' | 'time_of_day';
 
 export interface ConditionStepConfig {
   subject: ConditionSubject;

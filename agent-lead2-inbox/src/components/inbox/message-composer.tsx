@@ -36,6 +36,10 @@ import {
   deleteAccountMedia,
   MEDIA_MAX_BYTES_BY_KIND,
 } from "@/lib/storage/upload-media";
+import {
+  resolvePendingTextSend,
+  type PendingTextSend,
+} from "@/lib/whatsapp/outbound-request";
 import { ReplyQuote } from "./reply-quote";
 
 /** Media content types an agent can send from the composer. */
@@ -91,10 +95,16 @@ interface MediaDraft {
   caption: string;
 }
 
+export interface SendTextPayload {
+  requestId: string;
+  replyToId?: string;
+  aiDraftId?: string;
+}
+
 interface MessageComposerProps {
   conversationId: string;
   sessionExpired: boolean;
-  onSend: (text: string, replyToId?: string) => void;
+  onSend: (text: string, payload: SendTextPayload) => Promise<boolean>;
   onSendMedia: (payload: SendMediaPayload) => void;
   replyTo?: ReplyDraft | null;
   onClearReply?: () => void;
@@ -123,6 +133,8 @@ export function MessageComposer({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [aiDraftId, setAiDraftId] = useState<string | null>(null);
+  const pendingTextSendRef = useRef<PendingTextSend | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Media attachment state. `draft` holds an uploaded-but-not-yet-sent
@@ -194,17 +206,34 @@ export function MessageComposer({
     const trimmed = text.trim();
     if (!trimmed || sending || sessionExpired) return;
 
+    const replyToId = replyTo?.id;
+    const draftId = aiDraftId ?? undefined;
+    const pending = resolvePendingTextSend(pendingTextSendRef.current, {
+      text: trimmed,
+      replyToId,
+      aiDraftId: draftId,
+    });
+    pendingTextSendRef.current = pending;
+
     setSending(true);
     try {
-      onSend(trimmed, replyTo?.id);
-      setText("");
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
+      const sent = await onSend(trimmed, {
+        requestId: pending.requestId,
+        replyToId,
+        aiDraftId: draftId,
+      });
+      if (sent) {
+        pendingTextSendRef.current = null;
+        setAiDraftId(null);
+        setText("");
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+        }
       }
     } finally {
       setSending(false);
     }
-  }, [text, sending, sessionExpired, onSend, replyTo?.id]);
+  }, [text, sending, sessionExpired, onSend, replyTo?.id, aiDraftId]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -225,8 +254,8 @@ export function MessageComposer({
   );
 
   // Ask the AI assistant for a suggested reply and drop it into the
-  // composer for the agent to edit + send. Read-only server-side —
-  // nothing is sent until the agent hits Send.
+  // composer for the agent to edit + send. Generation is audited server-side,
+  // but nothing is sent to WhatsApp until the agent hits Send.
   const handleDraft = useCallback(async () => {
     if (drafting) return;
     setDrafting(true);
@@ -246,10 +275,14 @@ export function MessageComposer({
         return;
       }
       const draftText = typeof data.draft === "string" ? data.draft.trim() : "";
-      if (!draftText) {
+      const draftId =
+        typeof data.draft_id === "string" ? data.draft_id.trim() : "";
+      if (!draftText || !draftId) {
         toast.error(t("inbox.composer.aiEmpty"));
         return;
       }
+      pendingTextSendRef.current = null;
+      setAiDraftId(draftId);
       setText(draftText);
       // Let the textarea grow to fit and drop the cursor at the end so
       // the agent can tweak immediately.

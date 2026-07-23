@@ -6,9 +6,11 @@ import { AiError, type AiConfig } from '@/lib/ai/types'
 const h = vi.hoisted(() => ({
   requireRole: vi.fn(),
   checkRateLimit: vi.fn(),
+  integrationsAdminClient: vi.fn(),
   loadAiConfig: vi.fn(),
   buildConversationContext: vi.fn(),
-  retrieveKnowledge: vi.fn(),
+  retrieveKnowledgeWithEvidence: vi.fn(),
+  recordAiDraftAudit: vi.fn(),
   buildSystemPrompt: vi.fn(),
   generateReply: vi.fn(),
 }))
@@ -35,7 +37,15 @@ vi.mock('@/lib/ai/config', () => ({ loadAiConfig: h.loadAiConfig }))
 vi.mock('@/lib/ai/context', () => ({
   buildConversationContext: h.buildConversationContext,
 }))
-vi.mock('@/lib/ai/knowledge', () => ({ retrieveKnowledge: h.retrieveKnowledge }))
+vi.mock('@/lib/integrations/admin-client', () => ({
+  integrationsAdminClient: h.integrationsAdminClient,
+}))
+vi.mock('@/lib/ai/knowledge', () => ({
+  retrieveKnowledgeWithEvidence: h.retrieveKnowledgeWithEvidence,
+}))
+vi.mock('@/lib/ai/draft-audit', () => ({
+  recordAiDraftAudit: h.recordAiDraftAudit,
+}))
 vi.mock('@/lib/ai/defaults', () => ({ buildSystemPrompt: h.buildSystemPrompt }))
 vi.mock('@/lib/ai/generate', () => ({ generateReply: h.generateReply }))
 
@@ -80,7 +90,12 @@ beforeEach(() => {
   h.buildConversationContext.mockResolvedValue([
     { role: 'user', content: 'Do you help with universities in Italy?' },
   ])
-  h.retrieveKnowledge.mockResolvedValue([])
+  h.retrieveKnowledgeWithEvidence.mockResolvedValue({
+    excerpts: [],
+    chunkIds: [],
+  })
+  h.integrationsAdminClient.mockReturnValue({ kind: 'service-role-db' })
+  h.recordAiDraftAudit.mockResolvedValue('draft-1')
   h.buildSystemPrompt.mockReturnValue('system prompt')
   h.generateReply.mockResolvedValue({ text: 'Yes, we can help.', handoff: false })
 
@@ -104,22 +119,29 @@ describe('POST /api/ai/draft', () => {
       code: 'ai_not_configured',
     })
     expect(h.buildConversationContext).not.toHaveBeenCalled()
-    expect(h.retrieveKnowledge).not.toHaveBeenCalled()
+    expect(h.retrieveKnowledgeWithEvidence).not.toHaveBeenCalled()
     expect(h.generateReply).not.toHaveBeenCalled()
+    expect(h.recordAiDraftAudit).not.toHaveBeenCalled()
   })
 
-  it('grounds a draft reply in retrieved knowledge', async () => {
-    h.retrieveKnowledge.mockResolvedValue([
-      'EVO supports applications to universities in Italy and scholarship review.',
-    ])
+  it('grounds and audits a draft reply before returning it', async () => {
+    h.retrieveKnowledgeWithEvidence.mockResolvedValue({
+      excerpts: [
+        'EVO supports applications to universities in Italy and scholarship review.',
+      ],
+      chunkIds: ['chunk-1'],
+    })
     h.buildSystemPrompt.mockReturnValue('system prompt with knowledge')
 
     const response = await POST(request({ conversation_id: 'conv-1' }))
     const json = await response.json()
 
     expect(response.status).toBe(200)
-    expect(json).toEqual({ draft: 'Yes, we can help.' })
-    expect(h.retrieveKnowledge).toHaveBeenCalledWith(
+    expect(json).toEqual({
+      draft: 'Yes, we can help.',
+      draft_id: 'draft-1',
+    })
+    expect(h.retrieveKnowledgeWithEvidence).toHaveBeenCalledWith(
       expect.anything(),
       'acct-1',
       expect.objectContaining({ provider: 'openai' }),
@@ -137,6 +159,18 @@ describe('POST /api/ai/draft', () => {
       systemPrompt: 'system prompt with knowledge',
       messages: [{ role: 'user', content: 'Do you help with universities in Italy?' }],
     })
+    expect(h.recordAiDraftAudit).toHaveBeenCalledWith(
+      { kind: 'service-role-db' },
+      {
+        accountId: 'acct-1',
+        conversationId: 'conv-1',
+        createdBy: 'user-1',
+        provider: 'openai',
+        model: 'gpt-test',
+        contentText: 'Yes, we can help.',
+        knowledgeChunkIds: ['chunk-1'],
+      },
+    )
   })
 
   it('surfaces provider failures without pretending a draft exists', async () => {
@@ -154,6 +188,20 @@ describe('POST /api/ai/draft', () => {
     expect(json).toEqual({
       error: 'OpenAI rejected the request.',
       code: 'provider_error',
+    })
+    expect(h.recordAiDraftAudit).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the generated draft cannot be audited', async () => {
+    h.recordAiDraftAudit.mockRejectedValue(new Error('audit insert failed'))
+
+    const response = await POST(request({ conversation_id: 'conv-1' }))
+    const json = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(json).toEqual({
+      error: 'The AI draft could not be saved for operator review. Please try again.',
+      code: 'ai_draft_audit_failed',
     })
   })
 })

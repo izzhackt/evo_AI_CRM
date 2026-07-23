@@ -5,7 +5,7 @@ import { sendMessageToConversation } from '@/lib/whatsapp/send-message';
 
 function stringBodyValue(
   body: Record<string, unknown>,
-  key: string,
+  key: string
 ): string | null {
   const value = body[key];
   return typeof value === 'string' ? value : null;
@@ -13,7 +13,7 @@ function stringBodyValue(
 
 function stringArrayBodyValue(
   body: Record<string, unknown>,
-  key: string,
+  key: string
 ): string[] {
   const value = body[key];
   return Array.isArray(value)
@@ -28,7 +28,8 @@ function manualSendErrorResponse(err: unknown): NextResponse {
     const message =
       err instanceof Error
         ? err.message
-        : 'message' in err && typeof (err as { message: unknown }).message === 'string'
+        : 'message' in err &&
+            typeof (err as { message: unknown }).message === 'string'
           ? (err as { message: string }).message
           : 'Manual WhatsApp send failed';
     const missingFields =
@@ -36,14 +37,26 @@ function manualSendErrorResponse(err: unknown): NextResponse {
       Array.isArray((err as { missingFields?: unknown }).missingFields)
         ? (err as { missingFields: string[] }).missingFields
         : undefined;
+    const messageId =
+      'messageId' in err &&
+      typeof (err as { messageId?: unknown }).messageId === 'string'
+        ? (err as { messageId: string }).messageId
+        : undefined;
+    const outboundState =
+      'outboundState' in err &&
+      typeof (err as { outboundState?: unknown }).outboundState === 'string'
+        ? (err as { outboundState: string }).outboundState
+        : undefined;
 
     return NextResponse.json(
       {
         error: message,
         code,
         ...(missingFields ? { missing_fields: missingFields } : {}),
+        ...(messageId ? { message_id: messageId } : {}),
+        ...(outboundState ? { outbound_state: outboundState } : {}),
       },
-      { status: Number.isFinite(status) ? status : 500 },
+      { status: Number.isFinite(status) ? status : 500 }
     );
   }
 
@@ -52,17 +65,19 @@ function manualSendErrorResponse(err: unknown): NextResponse {
 
 export async function POST(request: Request) {
   try {
-    const { supabase, accountId } = await requireRole('agent');
+    const { supabase, accountId, userId } = await requireRole('agent');
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return NextResponse.json(
         { error: 'Invalid JSON', code: 'bad_request' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     const input = body as Record<string, unknown>;
     const result = await sendMessageToConversation(supabase, accountId, {
+      requestId: request.headers.get('Idempotency-Key') ?? '',
+      operatorId: userId,
       conversationId: stringBodyValue(input, 'conversation_id') ?? '',
       messageType: stringBodyValue(input, 'message_type') ?? '',
       contentText: stringBodyValue(input, 'content_text'),
@@ -73,12 +88,14 @@ export async function POST(request: Request) {
       templateParams: stringArrayBodyValue(input, 'template_params'),
       templateMessageParams: input.template_message_params,
       replyToMessageId: stringBodyValue(input, 'reply_to_message_id'),
+      aiDraftId: stringBodyValue(input, 'ai_draft_id'),
     });
 
     return NextResponse.json({
       message_id: result.messageId,
       whatsapp_message_id: result.whatsappMessageId,
       waha_message_status: result.wahaMessageStatus,
+      outbound_state: result.outboundState,
     });
   } catch (err) {
     return manualSendErrorResponse(err);

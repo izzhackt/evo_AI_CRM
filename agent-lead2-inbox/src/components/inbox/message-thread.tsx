@@ -43,11 +43,16 @@ import {
   MessageComposer,
   CHAT_MEDIA_BUCKET,
   type SendMediaPayload,
+  type SendTextPayload,
 } from "./message-composer";
 import { deleteAccountMedia } from "@/lib/storage/upload-media";
 import { buildReplyPreview } from "./reply-quote";
 import { toast } from "sonner";
 import type { TranslationKey } from "@/lib/i18n";
+import {
+  resolveManualSendFailureState,
+  resolveManualSendSuccessState,
+} from "@/lib/whatsapp/outbound-request";
 
 interface ReplyDraft {
   id: string;
@@ -461,57 +466,77 @@ export function MessageThread({
   }, [messages]);
 
   const handleSend = useCallback(
-    async (text: string, replyToId?: string) => {
-      if (!conversation) return;
-
-      const tempId = `temp-${Date.now()}`;
+    async (text: string, send: SendTextPayload): Promise<boolean> => {
+      if (!conversation) return false;
 
       // Optimistic update — shows the message immediately with "sending" status
       const optimisticMsg: Message = {
-        id: tempId,
+        id: send.requestId,
         conversation_id: conversation.id,
         sender_type: "agent",
         content_type: "text",
         content_text: text,
         status: "sending",
+        outbound_state: "queued",
         created_at: new Date().toISOString(),
-        reply_to_message_id: replyToId,
+        reply_to_message_id: send.replyToId,
+        ai_draft_id: send.aiDraftId,
       };
       onNewMessage(optimisticMsg);
-      setReplyTo(null);
+      onUpdateMessage(send.requestId, {
+        status: "sending",
+        outbound_state: "queued",
+      });
 
       try {
         const res = await fetch("/api/whatsapp/send", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": send.requestId,
+          },
           body: JSON.stringify({
             conversation_id: conversation.id,
             message_type: "text",
             content_text: text,
-            reply_to_message_id: replyToId,
+            reply_to_message_id: send.replyToId,
+            ai_draft_id: send.aiDraftId,
           }),
         });
 
-        const payload = await res.json().catch(() => ({}));
+        const responseBody = await res.json().catch(() => ({}));
 
         if (!res.ok) {
-          const reason = payload?.error || `HTTP ${res.status}`;
+          const reason = responseBody?.error || `HTTP ${res.status}`;
           console.error("Failed to send message:", reason);
           toast.error(t("inbox.failedToSend", { reason }));
-          // Mark the optimistic bubble as failed so the user sees what happened
-          onUpdateMessage(tempId, { status: "failed" });
-          return;
+          onUpdateMessage(
+            send.requestId,
+            resolveManualSendFailureState(responseBody?.outbound_state),
+          );
+          return false;
         }
 
-        // Success — the realtime INSERT event will replace the temp bubble
-        // with the real DB row. If realtime hasn't arrived yet, at least
-        // flip status to 'sent' so the UI stops showing "sending".
-        onUpdateMessage(tempId, { status: "sent" });
+        // The database row uses the same UUID as the optimistic bubble, so
+        // realtime can replace/advance that exact row without guesswork.
+        onUpdateMessage(
+          send.requestId,
+          resolveManualSendSuccessState(responseBody),
+        );
+        setReplyTo(null);
+        return true;
       } catch (err) {
         console.error("Failed to send message:", err);
         const reason = err instanceof Error ? err.message : t("inbox.networkError");
         toast.error(t("inbox.failedToSend", { reason }));
-        onUpdateMessage(tempId, { status: "failed" });
+        // A lost HTTP response is ambiguous: the provider may have received
+        // the request. Preserve the same idempotency UUID for an operator
+        // retry and never present this as a confirmed provider rejection.
+        onUpdateMessage(send.requestId, {
+          status: "failed",
+          outbound_state: "unknown",
+        });
+        return false;
       }
     },
     [conversation, onNewMessage, onUpdateMessage, t]
@@ -1043,6 +1068,7 @@ export function MessageThread({
 
       {/* Composer */}
       <MessageComposer
+        key={conversation.id}
         conversationId={conversation.id}
         sessionExpired={sessionInfo.expired}
         onSend={handleSend}

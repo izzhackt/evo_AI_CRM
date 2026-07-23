@@ -142,6 +142,75 @@ npm test -- src/lib/supabase/schema-contract.test.ts src/lib/auth/api-context.te
 Live Postgres RLS behavior still needs linked or local Supabase validation before
 claiming database-enforced success.
 
+## Draft Audit And Manual-Outbox Migration
+
+Migration `037_operator_drafts_and_waha_outbox.sql` is a required database-first
+release gate. It must be applied and verified on the intended Supabase project
+before deploying application code that returns audited AI drafts or persists
+manual sends.
+
+The migration adds:
+
+- append-only, account-scoped `ai_drafts` rows containing the operator,
+  conversation, provider/model, generated text, and exact knowledge chunk ids;
+- durable outbound state on `messages`, using the browser request UUID as the
+  existing `messages.id` primary key and concurrency gate;
+- WAHA acknowledgement evidence and a narrowly granted service-role RPC that
+  advances message state without allowing browser clients to forge provider
+  acknowledgements.
+
+The application inserts a queued message before the WAHA request. A confirmed
+provider rejection becomes `rejected`; a timeout, lost response, or database
+finalization failure remains `unknown` or `dispatching` for review. Those
+ambiguous rows must never be sent again automatically.
+
+A successful WAHA response without a stable provider message id remains a
+confirmed request acceptance and is stored as
+`waha_message_status='accepted_without_id'`. It cannot be reconciled later, so
+the Inbox shows an amber operator-review warning instead of a normal sent
+checkmark. Verify the message directly in WhatsApp; do not resend it
+automatically.
+
+Production sequence:
+
+```bash
+supabase migration list
+supabase db push --dry-run
+# Review that only the intended pending migration is listed.
+supabase db push
+supabase migration list
+```
+
+After the push, verify the migration remotely before deploying code:
+
+```sql
+select to_regclass('public.ai_drafts') is not null as ai_drafts_exists;
+
+select column_name
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'messages'
+  and column_name in (
+    'ai_draft_id',
+    'outbound_state',
+    'outbound_attempt_count',
+    'outbound_error_code',
+    'outbound_error',
+    'outbound_started_at',
+    'outbound_completed_at',
+    'waha_chat_id',
+    'waha_ack',
+    'waha_ack_name',
+    'waha_ack_at'
+  )
+order by column_name;
+```
+
+If the linked project, migration history, or pending set is unclear, stop
+before `db push`. Do not deploy the new application image first: old code can
+continue against the additive schema, while new code cannot safely run without
+it.
+
 ## Scale And Retention Readiness
 
 Issue #27 adds explicit knowledge retrieval provider selection and the first

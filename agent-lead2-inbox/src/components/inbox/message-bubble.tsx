@@ -9,6 +9,7 @@ import {
   Check,
   CheckCheck,
   XCircle,
+  TriangleAlert,
   FileText,
   MapPin,
   LayoutTemplate,
@@ -28,8 +29,49 @@ interface MessageBubbleProps {
   onToggleReaction?: (emoji: string) => void;
 }
 
-function StatusIcon({ status }: { status: Message["status"] }) {
-  switch (status) {
+function StatusIcon({ message }: { message: Message }) {
+  const { t } = useLanguage();
+
+  if (
+    message.outbound_state === "unknown" ||
+    (message.outbound_state === "dispatching" && message.status === "failed")
+  ) {
+    return (
+      <span
+        className="inline-flex"
+        title={t("inbox.message.deliveryUnknown")}
+      >
+        <TriangleAlert
+          aria-label={t("inbox.message.deliveryUnknown")}
+          className="h-3 w-3 text-amber-300"
+        />
+      </span>
+    );
+  }
+  if (message.waha_message_status === "accepted_without_id") {
+    return (
+      <span
+        className="inline-flex"
+        title={t("inbox.message.deliveryEvidenceMissing")}
+      >
+        <TriangleAlert
+          aria-label={t("inbox.message.deliveryEvidenceMissing")}
+          className="h-3 w-3 text-amber-300"
+        />
+      </span>
+    );
+  }
+  if (
+    message.outbound_state === "queued" ||
+    message.outbound_state === "dispatching"
+  ) {
+    return <Clock className="h-3 w-3 text-muted-foreground" />;
+  }
+  if (message.outbound_state === "rejected") {
+    return <XCircle className="h-3 w-3 text-red-400" />;
+  }
+
+  switch (message.status) {
     case "sending":
       return <Clock className="h-3 w-3 text-muted-foreground" />;
     case "sent":
@@ -299,7 +341,7 @@ export function MessageBubble({
           >
             {time}
           </span>
-          {isAgent && <StatusIcon status={message.status} />}
+          {isAgent && <StatusIcon message={message} />}
         </div>
       </div>
       {reactions && reactions.length > 0 && onToggleReaction && (

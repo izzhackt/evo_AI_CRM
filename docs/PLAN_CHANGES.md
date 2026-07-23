@@ -1793,3 +1793,200 @@ Compose-managed named network, then validate that the corrected external
 network accepts a pre-created Docker bridge and allows service startup. Re-run
 the CRM resolved-model topology assertions, all GitHub checks, and independent
 review on the new exact PR head before merge.
+
+## 2026-07-23 - Add A Durable Audit Boundary Before Real WhatsApp Proof
+
+Date: 2026-07-23, workspace timezone.
+Author: Codex.
+Change type: provider-proof safety and auditability.
+Affected plan section: `/goal-evo-main-production-consolidation`, real
+production proof.
+
+Reason: the exact merged production release is healthy, the `evo-inbox` WAHA
+session is genuinely `WORKING`, and unattended Inbox auto-reply is disabled.
+However, the current draft route returns generated text without a durable audit
+record, the manual-send route drops the authenticated operator identifier, and
+WAHA is called before the message row is inserted. A successful provider send
+followed by a database failure can therefore become invisible. Repeating an
+ambiguous request can duplicate a customer message.
+
+WAHA's current official documentation describes `POST /api/sendText`, provider
+message identifiers, `message.ack` delivery events, webhook HMAC/retries, and
+message lookup by provider identifier. It does not document a caller-supplied
+idempotency key or metadata field:
+
+- https://waha.devlike.pro/docs/how-to/send-messages/
+- https://waha.devlike.pro/docs/how-to/events/
+- https://waha.devlike.pro/docs/how-to/chats/
+
+Supabase/Postgres remains the authorization and durability boundary. The
+authenticated client stays subject to Row Level Security, while uniqueness and
+atomic database operations provide concurrency control. Service-role writes
+are limited to server-controlled paths after app-level authorization: the
+draft audit, durable manual outbox, signed provider webhook, automations and
+flows, and secret-protected reconciliation.
+
+Decision:
+
+- Add an immutable account-scoped AI draft audit table. Store the requesting
+  operator, conversation, provider/model, retrieved knowledge evidence,
+  generated text, and creation time. Do not return a generated draft when its
+  audit insert fails.
+- Return the audit identifier to the editable composer and include it only when
+  the operator manually sends that draft or an edited version of it.
+- Add a required client request UUID to manual sends. Use the existing
+  `messages` row as a durable outbox: insert `status = sending`, `sender_id`,
+  request UUID, optional draft reference, payload, and provider-attempt fields
+  before the WAHA call. A unique request index is the concurrency gate.
+- On a duplicate UUID, return the already confirmed result or the existing
+  uncertain/in-progress state without calling WAHA again. Reject UUID reuse
+  with different content, conversation, operator, reply target, or draft.
+- Record explicit provider phases. A confirmed HTTP success advances the same
+  row to `sent`; a confirmed provider rejection advances it to `failed`; a
+  transport interruption or persistence failure after the call remains
+  visible and is never automatically retried.
+- Subscribe the signed Inbox WAHA webhook to `message.ack`, keep idempotent ack
+  evidence, and update message state monotonically. Add bounded reconciliation
+  for messages that have a stable WAHA identifier only. Rows without a
+  provider identifier require operator review; text/timestamp matching is not
+  accepted as proof.
+- Keep automatic reply structurally disabled. Do not run a real outbound
+  message during this implementation block.
+
+Validation impact: add migration/schema-contract coverage; unit-test draft audit
+success/failure, operator attribution, concurrent/duplicate request behavior,
+pre-provider persistence failure, confirmed provider rejection, ambiguous
+transport failure, post-provider update failure, ack duplication/out-of-order
+handling, and bounded reconciliation. Run the complete EVO Inbox lint,
+typecheck, tests, production build, dependency audit, diff/secret checks, and
+independent review. Before deployment, apply and verify the reviewed migration
+against the intended Supabase project, update the WAHA session webhook
+subscription, and re-run authenticated readiness. Real inbound/draft/manual
+outbound proof remains blocked until amoCRM and a dedicated test number are
+configured and an operator explicitly approves the single test reply.
+
+## 2026-07-24 - Make Message Delivery Evidence Server-Write-Only
+
+Date: 2026-07-24, workspace timezone.
+Author: Codex.
+Change type: authorization correction discovered by independent review.
+Affected plan section: `/goal-evo-main-production-consolidation`, durable
+outbound audit boundary.
+
+Reason: migration 017 gives authenticated account agents a broad
+`messages_modify FOR ALL` policy. Row-level membership prevents cross-account
+access, but it does not prevent an in-account browser client from inserting,
+updating, or deleting message rows and provider-delivery fields. Leaving that
+policy in place would let a caller forge operator attribution, accepted or read
+status, WAHA identifiers and acknowledgements, or delete the durable outbox
+evidence entirely.
+
+Decision:
+
+- Keep authenticated account members' existing `messages_select` access.
+- Remove authenticated and anonymous insert, update, and delete access to
+  `messages`; all current application message writes already use a
+  server-controlled service-role client.
+- Keep the service role as the only direct message writer. Signed provider
+  webhooks, secret-protected reconciliation, automations, flows, and the manual
+  outbox continue through that server boundary.
+- Add a schema-contract assertion and real PostgreSQL role checks proving an
+  authenticated account agent can select its messages but cannot insert,
+  alter, or delete delivery evidence.
+
+Validation impact: re-run the migration twice against a disposable PostgreSQL
+schema containing migrations 032 and 033 prerequisites; exercise
+authenticated-role SELECT/INSERT/UPDATE/DELETE behavior, append-only draft and
+ack evidence, cross-conversation foreign keys, duplicate/out-of-order
+acknowledgements, the complete Inbox test/typecheck/lint/build/audit gates, and
+independent review.
+
+## 2026-07-24 - Preserve Terminal ACK And Missing-ID Review Semantics
+
+Date: 2026-07-24, workspace timezone.
+Author: Codex.
+Change type: delivery-state correctness discovered by independent review.
+Affected plan section: `/goal-evo-main-production-consolidation`, provider
+acknowledgement and operator evidence.
+
+Reason: WAHA acknowledgement numbers are not a simple numeric progression:
+`ERROR=-1` is terminal while `PENDING=0` is not. A numeric `new > old` rule
+would retain a prior pending state when a later error arrives. Separately,
+WAHA can return HTTP success without a stable message identifier. That confirms
+request acceptance but cannot support later message lookup or delivery proof;
+rendering a normal sent checkmark hides the required operator review.
+
+Decision:
+
+- Permit `PENDING -> ERROR`, make ERROR terminal, and do not let a late ERROR
+  regress a message that already has positive server/device/read evidence.
+- Let an accepted send move to `rejected` if a valid terminal ERROR
+  acknowledgement follows before positive delivery evidence.
+- Continue storing HTTP success without an id as
+  `waha_message_status='accepted_without_id'`, but show an explicit amber
+  review warning rather than a normal sent checkmark.
+- Preserve the provider status and optional provider id in the immediate
+  optimistic UI update so the warning does not depend on realtime timing.
+- Add regression coverage for pending-to-error transition and success without
+  a provider identifier.
+
+Validation impact: exercise the SQL transition sequence `PENDING -> ERROR` and
+prove later positive or stale events cannot incorrectly overwrite a terminal
+or delivered state; run focused UI-state tests, then repeat every full release
+gate and independent review on the corrected diff.
+
+## 2026-07-24 - Validate The Outbound Audit Release And Hold Deployment
+
+Date: 2026-07-24, workspace timezone.
+Author: Codex.
+Change type: implementation closeout and operational hold.
+Affected plan section: `/goal-evo-main-production-consolidation`, provider-proof
+release gate.
+
+Implementation result:
+
+- AI draft text is returned only after an immutable operator/provider/model/
+  knowledge-evidence record is stored.
+- Manual text sends use one client UUID as the durable `messages` primary key,
+  persist before WAHA, claim `queued -> dispatching` atomically, and never make
+  a second provider call for an accepted, rejected, dispatching, or unknown
+  operation.
+- Authenticated browser roles retain message SELECT access but cannot insert,
+  update, delete, truncate, or invoke the acknowledgement RPC.
+- Signed `message.ack` evidence is append-only and duplicate-safe. Materialized
+  state handles terminal ERROR explicitly and never regresses positive
+  delivery evidence because of a stale event.
+- Accepted responses without a provider id remain non-retryable acceptance
+  evidence and display an amber operator-review warning.
+- Reconciliation performs bounded provider GET lookups only and contains no
+  send path. Automatic reply remains disabled.
+
+Validation evidence:
+
+- Node `22.23.1`: all 84 Vitest files and 764 tests passed.
+- TypeScript passed; repository ESLint reported zero errors and six existing
+  warnings.
+- Next.js `16.2.11` production build passed; `npm audit --audit-level=moderate`
+  reported zero vulnerabilities.
+- Migration 037 applied twice after migrations 032 and 033 in a disposable
+  PostgreSQL 17 database. Real role checks proved authenticated SELECT and
+  denied INSERT/UPDATE/DELETE/TRUNCATE/RPC writes; service-role writes passed.
+- PostgreSQL checks also passed for append-only drafts and ACK evidence,
+  cross-account/cross-conversation foreign keys, duplicate ACKs,
+  `PENDING -> ERROR`, terminal ERROR, and stale ERROR after positive delivery
+  evidence.
+- Final independent review approved with no remaining blocking, high, or
+  medium finding.
+- Diff whitespace and scoped secret-pattern checks passed; only explicit dummy
+  test secrets were matched.
+
+Operational hold: the intended managed Supabase project is not linked locally
+and neither the workstation nor `hermes-vps` has a database-admin connection,
+Supabase access token, database password, or authenticated management session.
+The existing server-only service-role key is not a safe DDL credential.
+Therefore migration 037 was not applied to production, the new application
+image was not deployed, the live WAHA session was not changed, and no WhatsApp
+message was sent. Keep production on merged release
+`1f0d1a810014e2ecee496cb9c3a7217a70c86486` until the database-first gate can
+be completed. Canonical Web-X DNS, amoCRM readiness, and a dedicated test
+number remain separate external prerequisites.

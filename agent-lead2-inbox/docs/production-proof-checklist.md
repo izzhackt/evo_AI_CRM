@@ -71,6 +71,10 @@ deployment or production proof was performed in this run.
 - WAHA account settings exist in Supabase with non-secret public config and
   encrypted `api_key` / `webhook_hmac_secret` rows.
 - WAHA `session.status` webhooks for `evo-inbox` are accepted with HTTP 200.
+- The WEBJS session has `config.webjs.tagsEventsOn=true`, and its signed webhook
+  subscribes to `message`, `message.ack`, and `session.status`. Preserve the
+  full existing session configuration when using WAHA's full-replacement
+  `PUT /api/sessions/{session}` operation.
 - Gemini AI config exists in Supabase as `provider='gemini'`,
   `model='gemini-3.5-flash'`, `embeddings_provider='gemini'`, and encrypted
   `api_key`.

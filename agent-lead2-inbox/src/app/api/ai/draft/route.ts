@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import { integrationsAdminClient } from '@/lib/integrations/admin-client'
 import { loadAiConfig } from '@/lib/ai/config'
 import { buildConversationContext } from '@/lib/ai/context'
-import { retrieveKnowledge } from '@/lib/ai/knowledge'
+import { recordAiDraftAudit } from '@/lib/ai/draft-audit'
+import { retrieveKnowledgeWithEvidence } from '@/lib/ai/knowledge'
 import { generateReply } from '@/lib/ai/generate'
 import { buildSystemPrompt } from '@/lib/ai/defaults'
 import { latestUserMessage } from '@/lib/ai/query'
@@ -13,10 +15,12 @@ import { AiError } from '@/lib/ai/types'
  * POST /api/ai/draft  (agent+)
  *
  * Body: { conversation_id }
- * Returns: { draft } — a suggested reply for the agent to edit + send.
+ * Returns: { draft, draft_id } — a suggested reply for the agent to edit +
+ * send, plus its immutable audit identifier.
  *
- * Uses the account's configured provider/key (BYO). Read-only: it never
- * sends or stores anything, just hands text back to the composer.
+ * Uses the account's configured provider/key (BYO). It never sends a
+ * WhatsApp message. The generated text is returned only after its operator,
+ * provider, model, and knowledge evidence have been stored for audit.
  */
 export async function POST(request: Request) {
   try {
@@ -89,7 +93,7 @@ export async function POST(request: Request) {
 
     // Ground the draft in the account's knowledge base (best-effort —
     // returns [] when there's no KB or retrieval fails).
-    const knowledge = await retrieveKnowledge(
+    const knowledge = await retrieveKnowledgeWithEvidence(
       supabase,
       accountId,
       config,
@@ -99,11 +103,33 @@ export async function POST(request: Request) {
     const systemPrompt = buildSystemPrompt({
       userPrompt: config.systemPrompt,
       mode: 'draft',
-      knowledge,
+      knowledge: knowledge.excerpts,
     })
 
     const { text } = await generateReply({ config, systemPrompt, messages })
-    return NextResponse.json({ draft: text })
+    let draftId: string
+    try {
+      draftId = await recordAiDraftAudit(integrationsAdminClient(), {
+        accountId,
+        conversationId,
+        createdBy: userId,
+        provider: config.provider,
+        model: config.model,
+        contentText: text,
+        knowledgeChunkIds: knowledge.chunkIds,
+      })
+    } catch (err) {
+      console.error('[ai/draft] audit persistence failed:', err)
+      throw new AiError(
+        'The AI draft could not be saved for operator review. Please try again.',
+        {
+          code: 'ai_draft_audit_failed',
+          status: 503,
+        },
+      )
+    }
+
+    return NextResponse.json({ draft: text, draft_id: draftId })
   } catch (err) {
     if (err instanceof AiError) {
       return NextResponse.json(

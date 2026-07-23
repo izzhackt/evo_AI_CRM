@@ -9,9 +9,14 @@ import { embedTexts, type EmbeddingRequestConfig, toVectorLiteral } from './embe
 // lexical full-text search).
 // ============================================================
 
-interface MatchRow {
+export interface KnowledgeMatch {
   id: string
   content: string
+}
+
+export interface KnowledgeRetrieval {
+  excerpts: string[]
+  chunkIds: string[]
 }
 
 /**
@@ -89,8 +94,25 @@ export async function retrieveKnowledge(
   queryText: string,
   k = 5,
 ): Promise<string[]> {
+  const result = await retrieveKnowledgeWithEvidence(db, accountId, config, queryText, k)
+  return result.excerpts
+}
+
+/**
+ * Same retrieval as `retrieveKnowledge`, plus the exact chunk identifiers
+ * used to ground the answer. Draft generation stores those identifiers in its
+ * immutable audit row; the generated text never becomes a WhatsApp message
+ * until an operator explicitly sends it.
+ */
+export async function retrieveKnowledgeWithEvidence(
+  db: SupabaseClient,
+  accountId: string,
+  config: Pick<AiConfig, 'embeddingsProvider' | 'embeddingsApiKey'>,
+  queryText: string,
+  k = 5,
+): Promise<KnowledgeRetrieval> {
   const query = queryText.trim()
-  if (!query || k <= 0) return []
+  if (!query || k <= 0) return { excerpts: [], chunkIds: [] }
 
   // Skip everything when the account has no knowledge base — otherwise
   // every draft / auto-reply would pay for a query embedding + two RPCs
@@ -101,9 +123,9 @@ export async function retrieveKnowledge(
       .from('ai_knowledge_chunks')
       .select('id', { count: 'exact', head: true })
       .eq('account_id', accountId)
-    if (error || !count) return []
+    if (error || !count) return { excerpts: [], chunkIds: [] }
   } catch {
-    return []
+    return { excerpts: [], chunkIds: [] }
   }
 
   const picked = new Map<string, string>() // id → content, preserves order
@@ -120,7 +142,9 @@ export async function retrieveKnowledge(
           p_match_count: k,
         })
         if (!error && Array.isArray(data)) {
-          for (const row of data as MatchRow[]) picked.set(row.id, row.content)
+          for (const row of data as KnowledgeMatch[]) {
+            picked.set(row.id, row.content)
+          }
         }
       }
     } catch (err) {
@@ -137,7 +161,7 @@ export async function retrieveKnowledge(
         p_match_count: k,
       })
       if (!error && Array.isArray(data)) {
-        for (const row of data as MatchRow[]) {
+        for (const row of data as KnowledgeMatch[]) {
           if (picked.size >= k) break
           if (!picked.has(row.id)) picked.set(row.id, row.content)
         }
@@ -147,7 +171,14 @@ export async function retrieveKnowledge(
     }
   }
 
-  return Array.from(picked.values()).slice(0, k)
+  const matches = Array.from(picked.entries())
+    .slice(0, k)
+    .map(([id, content]) => ({ id, content }))
+
+  return {
+    excerpts: matches.map((match) => match.content),
+    chunkIds: matches.map((match) => match.id),
+  }
 }
 
 function toSemanticEmbeddingConfig(

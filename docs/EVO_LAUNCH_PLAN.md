@@ -103,7 +103,37 @@ block is merged or explicitly abandoned.
      exists in WAHA, Supabase, or amoCRM.
    - Run the legacy receive-only Lead Agent proof separately only after
      `crm_primary` is relinked and its missing amoCRM OAuth configuration is
-     supplied. Do not reuse EVO Inbox credentials or its WAHA session.
+      supplied. Do not reuse EVO Inbox credentials or its WAHA session.
+
+6. **Provider-proof audit hardening**
+   - Before any real outbound proof, persist every generated AI draft with its
+     account, conversation, requesting operator, provider, model, knowledge
+     evidence, generated text, and timestamp. Return the draft to the composer
+     only after that audit record exists.
+   - Carry the generated draft identifier through the editable composer to the
+     manual-send request. A manual message may omit that identifier when the
+     operator wrote the reply without AI.
+   - Require a client-generated UUID for every manual send. Persist the complete
+     send intent, operator (`messages.sender_id`), optional AI draft reference,
+     and a `sending` provider state before calling WAHA. Enforce a unique
+     request identifier so concurrent or repeated requests cannot call WAHA
+     twice.
+   - Treat a lost/ambiguous WAHA response as an uncertain operation and never
+     retry it automatically. WAHA documents `POST /api/sendText`, returned
+     message identifiers, `message.ack` events, and message lookup by provider
+     identifier, but it does not document a caller-supplied idempotency key:
+     https://waha.devlike.pro/docs/how-to/send-messages/
+     https://waha.devlike.pro/docs/how-to/events/
+     https://waha.devlike.pro/docs/how-to/chats/
+   - Subscribe the signed EVO Inbox webhook to `message.ack`, persist
+     acknowledgement history idempotently, and advance message state
+     monotonically. Add a secret-protected reconciliation path only for rows
+     that have a stable WAHA message identifier; do not infer provider success
+     by matching message text or timestamps.
+   - Keep first-launch automatic reply disabled. This block may create local
+     migrations, tests, and reviewed code, but it must not send a real WhatsApp
+     message. Apply the migration to the intended Supabase project before
+     deploying the corresponding application image.
 
 ### Named write boundaries
 
@@ -116,6 +146,11 @@ block is merged or explicitly abandoned.
   deployment scripts/runbooks, and release metadata. Provider data may change
   only during the explicitly controlled production proof.
 - DNS changes are limited to the two canonical EVO `A` records.
+- Provider-proof audit block: EVO Inbox Supabase migrations/schema contract,
+  AI draft route/composer state, manual WAHA send service/route, signed WAHA
+  acknowledgement handling, bounded reconciliation route, focused tests, and
+  implementation/runbook evidence. No provider message or customer record is
+  created during implementation validation.
 
 ### Required validation
 

@@ -236,6 +236,70 @@ client only after that secret matches, and returns counts for synced, pending,
 not configured, and blocked rows. It does not make Supabase canonical for lead
 identity; synced rows must still match amoCRM shadow ids.
 
+## Audited Manual-Outbound Rollout
+
+The audited manual-outbound release is database-first:
+
+1. apply and verify Supabase migration
+   `037_operator_drafts_and_waha_outbox.sql` using the managed-store runbook;
+2. deploy the exact reviewed application SHA through the central release
+   runbook;
+3. configure the existing `evo-inbox` WAHA session to deliver signed
+   `message` and `message.ack` events to `/api/waha/webhook`;
+4. confirm readiness without sending a WhatsApp message;
+5. run a single operator-approved provider proof only when the dedicated test
+   number and required integrations are ready.
+
+WAHA acknowledgements must use the same `webhook_hmac_secret` already stored in
+encrypted Inbox settings. Do not expose WAHA ports or its dashboard publicly.
+After changing the session subscription, use a private server-side path to
+inspect the session and confirm both events are present.
+
+The production session currently uses the WEBJS engine. WAHA documents that
+WEBJS requires `config.webjs.tagsEventsOn=true` for `message.ack`, and warns
+that the option can affect performance and stability:
+https://waha.devlike.pro/docs/how-to/sessions/#webjs
+
+WAHA also documents `PUT /api/sessions/{session}` as a **full configuration**
+replacement. Read and preserve the current session configuration before
+updating it; never submit a partial object that could remove the existing
+webhook, HMAC, ignore rules, metadata, or other session settings. The reviewed
+result must contain:
+
+- `config.webjs.tagsEventsOn=true`;
+- the existing signed webhook URL and HMAC key;
+- webhook events `message`, `message.ack`, and `session.status`.
+
+After the update, confirm the session returns to `WORKING`. This configuration
+change is a provider-proof prerequisite, not part of an ordinary application
+container restart.
+
+The secret-protected reconciler is diagnostic and repair-only. It may look up a
+message by its existing provider id, but it never calls WAHA `sendText`:
+
+```bash
+docker compose -p evo-inbox \
+  --env-file "$EVO_INBOX_APP_ENV_FILE" \
+  -f "$EVO_RELEASE_REPO/agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml" \
+  exec -T app \
+  sh -lc 'curl -fsS -X POST http://127.0.0.1:3000/api/internal/waha-outbound-reconcile \
+    -H "x-cron-secret: $AUTOMATION_CRON_SECRET" \
+    -H "content-type: application/json" \
+    --data "{\"limit\":20}"'
+```
+
+Treat `dispatching` and `unknown` rows as operational evidence, not permission
+to call the provider again. A browser retry reuses the same request UUID, so
+those states can only return the durable operation and cannot produce a second
+provider call. A `queued` row is different: it proves that no provider attempt
+started (`outbound_attempt_count=0`), so the same UUID may safely continue from
+the claim step after a configuration problem is fixed.
+
+`waha_message_status='accepted_without_id'` means WAHA returned success but no
+stable provider message id. The request must not be resent automatically; the
+operator must verify delivery directly in WhatsApp because webhook and
+read-only lookup reconciliation cannot link that row to provider evidence.
+
 ## Deployment outline
 
 Do not deploy Inbox independently with `up -d --build`. Follow the central
@@ -252,9 +316,11 @@ release runbook, which:
 8. records canonical DNS as passed or blocked without changing the provider;
 9. provides exact image/config rollback from untouched prior checkouts.
 
-Apply Supabase migration `036_reliable_amocrm_sync_buffer.sql` and run the
-provider seed commands only when their separate reviewed rollout requires
-them. A container healthcheck does not prove real WAHA, amoCRM, Gemini, or
+Apply Supabase migrations `036_reliable_amocrm_sync_buffer.sql` and
+`037_operator_drafts_and_waha_outbox.sql` when their separate reviewed rollouts
+require them. Migration `037` must be verified before its application image is
+deployed. Run provider seed commands only for their separately reviewed
+rollout. A container healthcheck does not prove real WAHA, amoCRM, Gemini, or
 outbound behavior; execute the issue #20 credentialed proof checklist
 separately.
 

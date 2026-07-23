@@ -12,6 +12,9 @@ interface DbMessage {
  * provider-neutral chat shape. Customer messages become `user`; agent
  * and bot messages become `assistant`. Non-text messages (media,
  * templates, interactive) are excluded — they carry no text to model.
+ * Durable outbound rows that are still sending, rejected, or ambiguous are
+ * also excluded so the next AI draft never treats an unconfirmed reply as
+ * something the customer already received.
  *
  * Ordered oldest-first (chronological) so the transcript reads
  * naturally and the most recent customer message lands last.
@@ -26,6 +29,7 @@ export async function buildConversationContext(
     .select('sender_type, content_text')
     .eq('conversation_id', conversationId)
     .eq('content_type', 'text')
+    .in('status', ['sent', 'delivered', 'read'])
     .order('created_at', { ascending: false })
     .limit(limit)
 

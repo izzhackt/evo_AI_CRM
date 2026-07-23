@@ -17,7 +17,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_conversations_id_account_id
   ON conversations (id, account_id);
 
 CREATE TABLE IF NOT EXISTS ai_drafts (
-  id                   uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id           uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   conversation_id      uuid NOT NULL,
   created_by           uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
@@ -212,7 +212,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_waha_outbound_reconcile
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS waha_message_ack_events (
-  id                 uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id         uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   message_id         uuid NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
   waha_session_name  text NOT NULL,

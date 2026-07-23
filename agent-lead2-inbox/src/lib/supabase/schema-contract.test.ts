@@ -221,6 +221,10 @@ describe('Supabase companion schema contract', () => {
   })
 
   it('adds immutable account-scoped AI draft audits with member read-only access', () => {
+    expect(
+      outboundAuditMigration.match(/DEFAULT\s+gen_random_uuid\(\)/gi) ?? []
+    ).toHaveLength(2)
+    expect(outboundAuditMigration).not.toMatch(/\buuid_generate_v4\(\)/i)
     expect(outboundAuditMigration).toMatch(
       /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+ai_drafts\s*\([\s\S]*account_id\s+uuid\s+NOT\s+NULL[\s\S]*conversation_id\s+uuid\s+NOT\s+NULL[\s\S]*created_by\s+uuid\s+NOT\s+NULL[\s\S]*provider\s+text\s+NOT\s+NULL[\s\S]*model\s+text\s+NOT\s+NULL[\s\S]*content_text\s+text\s+NOT\s+NULL[\s\S]*knowledge_chunk_ids\s+uuid\[\]\s+NOT\s+NULL[\s\S]*knowledge_item_count\s+integer\s+NOT\s+NULL[\s\S]*created_at\s+timestamptz\s+NOT\s+NULL/i
     )

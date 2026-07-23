@@ -1,7 +1,8 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-knowledge-business-context` completed through PR #38 and
-merge commit `2484cae5`; updated 2026-07-13 in the workspace timezone.
+Status: `/goal-evo-main-production-consolidation` is active from integration
+candidate `8116aad7`; implementation remains blocked until this plan is
+independently reviewed and merged. Updated 2026-07-23 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 Implementation lanes are blocked until this plan and `docs/PLAN_CHANGES.md` are
@@ -9,6 +10,169 @@ reviewed and merged. If scope, architecture, acceptance criteria, file
 ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Current Goal Slice
+
+Active slice: `/goal-evo-main-production-consolidation`.
+
+### Goal
+
+Make GitHub `main` the reviewed source of truth for the complete EVO platform,
+then deploy that exact release to `hermes-vps` and prove the real EVO Inbox
+WhatsApp path without losing active server configuration or claiming provider
+success that was not exercised.
+
+Candidate ancestry at planning time is linear:
+
+- `origin/main`: `c1a00b0a3013946a94677fc0f01838740217b622`
+- integration candidate after PR #40:
+  `8116aad7c6cc97c3de198e3de1c7cad020105416`
+- distance: zero commits behind and 41 commits ahead of `main`
+
+The candidate is not releasable as-is. Current audits find vulnerable runtime
+dependencies, no effective repository-root GitHub Actions workflow, three
+full-range whitespace failures, dirty production checkouts, missing canonical
+DNS, and incomplete real-provider readiness.
+
+### Ordered blocks
+
+Each block requires its own branch, PR, real validation evidence, and
+independent launch-control approval. Do not begin a later block before the prior
+block is merged or explicitly abandoned.
+
+1. **Security and repository gates**
+   - Upgrade both Next.js applications to the current secure stable patch.
+   - Remove the shadcn code-generation CLI from production dependencies; invoke
+     it through the documented ephemeral package runner when future component
+     generation is needed.
+   - Apply safe transitive dependency updates until
+     `npm audit --audit-level=moderate` passes for both applications.
+   - Fix the three existing `git diff --check` findings without unrelated
+     formatting churn.
+   - Add repository-root GitHub Actions coverage for the main CRM, EVO Inbox,
+     and EVO Lead Agent. A workflow nested under an application directory is
+     documentation only because GitHub discovers workflows from root
+     `.github/workflows/`.
+   - Open a dedicated issue for normalizing the pre-existing EVO Inbox formatter
+     baseline without mixing hundreds of unrelated rewrites into this release.
+
+2. **Frozen integration promotion**
+   - Open an integration-to-`main` PR from one frozen, fully validated candidate
+     SHA.
+   - Preserve the 41-commit implementation history with a merge commit; do not
+     squash the umbrella promotion.
+   - Reconfirm `main` and the candidate SHA immediately before merge. Merge only
+     the independently approved unchanged candidate.
+
+3. **Production release reconciliation**
+   - Do not deploy from either dirty production checkout.
+   - Preserve the active Caddy additions currently routing
+     `invite-bishkek.72.62.119.112.sslip.io` and
+     `inbox.72.62.119.112.sslip.io` as a separately reviewed infrastructure
+     change before replacing the server checkout.
+   - Preserve the `/opt/evo-crm/evo-lead-agent.git-backup-*` material until the
+     owner explicitly approves archival or removal.
+   - Build release images from the merged `main` SHA and add OCI source,
+     revision, and version labels so a running image can be mapped back to Git.
+   - Back up persistent data and record current image digests before deployment.
+   - Move EVO CRM services off `acadis_*` networks onto EVO-owned networks while
+     preserving private WAHA access and existing volumes.
+   - Validate Compose and Caddy before restart, deploy one service boundary at a
+     time, and retain the previous image digests for rollback.
+
+4. **Canonical domains**
+   - Create `A` records for `crm.evoadmissions.com` and
+     `inbox.evoadmissions.com` pointing to `72.62.119.112` only through the
+     authoritative DNS provider.
+   - Verify public resolution, valid TLS, the expected login redirect, and Caddy
+     routing. If authoritative DNS access is unavailable, record that exact
+     external blocker and keep the working sslip.io routes.
+
+5. **Real production proof**
+   - Use a dedicated EVO-controlled test WhatsApp sender and the connected
+     `evo-inbox` WAHA session.
+   - Confirm real Supabase, encrypted WAHA, amoCRM, Gemini, and knowledge-base
+     configuration through authenticated production readiness checks.
+   - Keep unattended auto-reply disabled.
+   - Send one controlled inbound message, verify the persisted message and
+     amoCRM contact/lead identity, generate one knowledge-grounded Gemini draft,
+     have the operator inspect/edit it, and send one manual WAHA reply.
+   - Verify delivery and confirm no additional automatic outbound message
+     exists in WAHA, Supabase, or amoCRM.
+   - Run the legacy receive-only Lead Agent proof separately only after
+     `crm_primary` is relinked and its missing amoCRM OAuth configuration is
+     supplied. Do not reuse EVO Inbox credentials or its WAHA session.
+
+### Named write boundaries
+
+- Security/gates block: root and EVO Inbox package manifests/lockfiles, the
+  three whitespace-only files, root `.github/workflows/`, and plan evidence.
+- Promotion block: plan evidence and GitHub PR state only; no runtime feature
+  changes.
+- Production block: EVO-owned Dockerfiles, Compose/Caddy configuration,
+  deployment scripts/runbooks, and release metadata. Provider data may change
+  only during the explicitly controlled production proof.
+- DNS changes are limited to the two canonical EVO `A` records.
+
+### Required validation
+
+Run under Node `22.23.1`:
+
+```bash
+# Main CRM
+npm ci
+npm run lint
+node node_modules/next/dist/bin/next typegen
+node node_modules/typescript/bin/tsc --noEmit
+npm run build
+npm run scenarios
+npm audit --audit-level=moderate
+
+# EVO Inbox
+cd agent-lead2-inbox
+npm ci --include=dev
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm audit --audit-level=moderate
+
+# EVO Lead Agent
+cd evo-lead-agent
+uv sync --extra dev
+uv run ruff check .
+uv run pytest
+```
+
+Also require:
+
+- `git diff --check origin/main..CANDIDATE_SHA`
+- a redacted Git-history secret scan over the same range
+- validated production Compose rendering with real server environment files,
+  without printing secret values
+- real browser checks of the CRM and Inbox login/operator surfaces
+- the authenticated production readiness and provider proof described above
+
+`npm run format:check` currently fails across hundreds of pre-existing EVO
+Inbox files. It is not a release gate for this slice because fixing the whole
+format baseline would mix unrelated source churn into the security block.
+Changed files must still match the repository formatter, and a separate
+format-baseline issue must remain visible.
+
+### Rollback and stop conditions
+
+- Stop before DNS mutation if authoritative provider access or the exact zone is
+  unavailable.
+- Stop before the real message proof if an EVO-controlled test number,
+  authenticated Inbox operator, connected WAHA session, or real
+  Supabase/amoCRM/Gemini configuration is unavailable.
+- Stop deployment if backups, current image digests, Caddy validation, Compose
+  validation, or a rollback image is missing.
+- Stop if the active dirty Caddy routes cannot be preserved without ownership
+  clarification.
+- Stop if dependency audit, CI, full-range diff, independent review, or frozen
+  candidate checks fail.
+- Never print, commit, or copy secret values into logs or repository files.
+
+## Most Recently Completed Goal Slice
 
 Completed slice: `/goal-evo-knowledge-business-context`.
 

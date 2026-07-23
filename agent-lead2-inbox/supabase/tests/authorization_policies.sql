@@ -134,7 +134,6 @@ BEGIN
     AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
     AND p.proname NOT IN (
       'filter_contacts_by_tags',
-      'is_account_member',
       'peek_invitation',
       'redeem_invitation',
       'remove_account_member',
@@ -159,6 +158,25 @@ BEGIN
     'EXECUTE'
   ) THEN
     RAISE EXCEPTION 'Cross-account knowledge RPCs remain client executable';
+  END IF;
+
+  IF to_regprocedure(
+    'public.is_account_member(uuid,account_role_enum)'
+  ) IS NOT NULL
+     OR to_regprocedure(
+       'private.is_account_member(uuid,public.account_role_enum)'
+     ) IS NULL
+     OR NOT has_function_privilege(
+       'authenticated',
+       'private.is_account_member(uuid,public.account_role_enum)',
+       'EXECUTE'
+     )
+     OR has_function_privilege(
+       'anon',
+       'private.is_account_member(uuid,public.account_role_enum)',
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'Membership policy helper is not private and policy-executable';
   END IF;
 END;
 $$;

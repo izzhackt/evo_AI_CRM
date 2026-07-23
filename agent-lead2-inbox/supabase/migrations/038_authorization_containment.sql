@@ -28,6 +28,26 @@
 -- by anon/authenticated callers while those functions are migrated over time.
 REVOKE CREATE ON SCHEMA public FROM PUBLIC, anon, authenticated;
 
+-- Policy helpers must be executable by the roles whose policies call them,
+-- but they do not need to be RPCs. Moving the existing function preserves its
+-- dependency OID in every policy while removing it from the exposed schema.
+CREATE SCHEMA IF NOT EXISTS private;
+REVOKE ALL ON SCHEMA private FROM PUBLIC, anon, authenticated;
+GRANT USAGE ON SCHEMA private TO authenticated, service_role;
+
+DO $$
+BEGIN
+  IF to_regprocedure(
+    'public.is_account_member(uuid,account_role_enum)'
+  ) IS NOT NULL THEN
+    ALTER FUNCTION public.is_account_member(UUID, account_role_enum)
+      SET SCHEMA private;
+  END IF;
+END;
+$$;
+REVOKE ALL ON FUNCTION private.is_account_member(UUID, public.account_role_enum)
+  FROM PUBLIC, anon, authenticated;
+
 -- Anonymous access is read-only where an explicit SELECT policy allows it.
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   ON ALL TABLES IN SCHEMA public
@@ -64,7 +84,7 @@ CREATE POLICY account_invitations_insert
   FOR INSERT
   TO authenticated
   WITH CHECK (
-    is_account_member(account_id, 'admin')
+    private.is_account_member(account_id, 'admin')
     AND created_by_user_id = auth.uid()
     AND accepted_at IS NULL
     AND accepted_by_user_id IS NULL
@@ -74,7 +94,7 @@ CREATE POLICY account_invitations_delete
   FOR DELETE
   TO authenticated
   USING (
-    is_account_member(account_id, 'admin')
+    private.is_account_member(account_id, 'admin')
     AND accepted_at IS NULL
   );
 
@@ -293,7 +313,7 @@ GRANT EXECUTE ON FUNCTION public.touch_presence(TEXT)
   TO authenticated;
 GRANT EXECUTE ON FUNCTION public.filter_contacts_by_tags(UUID[], TEXT, INT, INT)
   TO authenticated;
-GRANT EXECUTE ON FUNCTION public.is_account_member(UUID, account_role_enum)
+GRANT EXECUTE ON FUNCTION private.is_account_member(UUID, public.account_role_enum)
   TO authenticated;
 GRANT EXECUTE ON FUNCTION public.match_ai_knowledge_fts(UUID, TEXT, INTEGER)
   TO service_role;
@@ -302,3 +322,5 @@ GRANT EXECUTE ON FUNCTION public.match_ai_knowledge_semantic(UUID, TEXT, INTEGER
 
 -- Server-only routines used by the retained engines and provider adapters.
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
+GRANT EXECUTE ON FUNCTION private.is_account_member(UUID, public.account_role_enum)
+  TO service_role;

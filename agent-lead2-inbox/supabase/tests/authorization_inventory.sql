@@ -73,7 +73,7 @@ LEFT JOIN pg_depend d
   ON d.classid = 'pg_proc'::regclass
   AND d.objid = p.oid
   AND d.deptype = 'e'
-WHERE n.nspname = 'public'
+WHERE n.nspname IN ('public', 'private')
   AND d.objid IS NULL
 ORDER BY function_name, arguments;
 

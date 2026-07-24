@@ -11,7 +11,7 @@ import { STAFF_NAV_ITEMS } from "@/lib/domain";
 import type { Locale } from "@/lib/i18n-data";
 
 const NAV_GROUP_DEFS = [
-  { key: "navOperations", hrefs: ["/dashboard", "/sales", "/clients", "/applications", "/documents"] },
+  { key: "navOperations", hrefs: ["/dashboard", "/sales", "/clients", "/applications", "/documents", "/visa"] },
   { key: "navCommunications", hrefs: ["/whatsapp", "/calls", "/chat"] },
   { key: "navAnalytics", hrefs: ["/tasks", "/reports", "/finance"] },
   { key: "navSystem", hrefs: ["/settings"] },
@@ -82,6 +82,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     "/clients": { title: t("student360"), hint: t("student360Hint") },
     "/applications": { title: t("applicationQueue"), hint: t("applicationQueueHint") },
     "/documents": { title: t("documentQueue"), hint: t("documentQueueHint") },
+    "/visa": { title: t("visaQueue"), hint: t("visaQueueHint") },
     "/whatsapp": { title: `${t("whatsapp")} · ${t("inbox")}` },
     "/calls": { title: t("callLog") },
     "/chat": { title: t("chat"), hint: t("channels") },

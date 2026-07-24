@@ -180,7 +180,8 @@ test("student portal renders scoped client dashboard", async ({ page, runtimeErr
 });
 
 test("mobile staff dashboard stays within viewport", async ({ page, runtimeErrors }, testInfo) => {
-  await login(page, "sales@demo.kg", "sales123", /\/dashboard$/);
+  await login(page, "sales@demo.kg", "sales123", /\/sales$/);
+  await page.goto("/dashboard");
   await expect(page.locator("#staff-main").getByRole("heading", { name: "Командный центр" })).toBeVisible();
   const mobileMenuOpen = await openMobileStaffMenu(page);
   await expect(page.getByRole("link", { name: "Student 360" })).toBeVisible();
@@ -199,8 +200,7 @@ test("mobile staff dashboard stays within viewport", async ({ page, runtimeError
 });
 
 test("mobile sales cockpit remains usable without page overflow", async ({ page, runtimeErrors }, testInfo) => {
-  await login(page, "sales@demo.kg", "sales123", /\/dashboard$/);
-  await page.goto("/sales");
+  await login(page, "sales@demo.kg", "sales123", /\/sales$/);
   await expect(page.locator("#staff-main").getByRole("heading", { name: "Воронка поступления" })).toBeVisible();
   await expect(page.getByText("Быстрое добавление")).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

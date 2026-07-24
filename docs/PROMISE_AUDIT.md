@@ -46,7 +46,7 @@ Repo/product artifacts:
 
 | ID | Promise | Source | Current behavior | Evidence | Label | Risk |
 | --- | --- | --- | --- | --- | --- | --- |
-| P01 | Staff can log in and reach the CRM command center. | App demo, scenario docs. | Staff session routes to `/dashboard`. | S01-S02 in `docs/SCENARIO_EVALUATION.md`. | proven | low |
+| P01 | Staff can log in and reach the correct EVO workspace. | App demo, scenario docs. | Staff session routes to the role-specific home; the seeded sales account lands on `/sales`. | S01-S02 in `docs/SCENARIO_EVALUATION.md`. | proven | low |
 | P02 | Client/student users are isolated from staff routes and can use a portal. | App demo, launch plan. | Client can load `/portal`; staff route redirects back to portal. | S03 and S31. | proven | low |
 | P03 | Staff dashboard covers admissions queues, applications, documents, tasks, finance, and clients. | App UI, launch plan. | Dashboard and navigation render real queue links and counts. | S04-S06. | proven | low |
 | P04 | Admissions pipeline can create leads, move statuses, add notes, and convert leads to clients. | App UI, demo flow. | Server Actions persist lead creation, movement, notes, and conversion. | S07-S12. | proven | low |

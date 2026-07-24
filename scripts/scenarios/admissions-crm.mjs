@@ -22,8 +22,8 @@ return [
   {
     id: "S02",
     capability: "Auth and route protection",
-    scenario: "Staff credentials authenticate to Command Center.",
-    criteria: "Submitting the real login form with a current seeded staff account sets edu_session and redirects to /dashboard.",
+    scenario: "Staff credentials authenticate to the role-specific workspace.",
+    criteria: "Submitting the real login form with the seeded sales account sets edu_session and redirects to its /sales home.",
     async run(ctx) {
       const post = await ctx.submit("/login", undefined, { names: ["email", "password"] }, {
         email: sales,
@@ -31,7 +31,7 @@ return [
       });
       assert(post.setCookie.some((cookie) => cookie.includes("edu_session=")), "login did not set edu_session");
       const redirectTarget = post.location ?? post.actionRedirect;
-      assert(redirectTarget?.includes("/dashboard"), `expected /dashboard redirect, got ${redirectTarget}`);
+      assert(redirectTarget?.includes("/sales"), `expected /sales redirect, got ${redirectTarget}`);
       return `login form accepted ${sales}; set edu_session and redirected to ${redirectTarget}`;
     },
   },

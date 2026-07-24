@@ -21,6 +21,7 @@ export const STAFF_ROUTE_VALUES = [
   "/clients",
   "/applications",
   "/documents",
+  "/visa",
   "/whatsapp",
   "/calls",
   "/tasks",
@@ -46,6 +47,7 @@ export const APP_ROUTES = {
     clients: "/clients",
     applications: "/applications",
     documents: "/documents",
+    visa: "/visa",
     whatsapp: "/whatsapp",
     calls: "/calls",
     tasks: "/tasks",
@@ -60,7 +62,7 @@ export const ROLE_HOME_ROUTE = {
   admin: APP_ROUTES.staff.dashboard,
   sales: APP_ROUTES.staff.sales,
   curator: APP_ROUTES.staff.clients,
-  visa: APP_ROUTES.staff.clients,
+  visa: APP_ROUTES.staff.visa,
   finance: APP_ROUTES.staff.finance,
   client: APP_ROUTES.portal,
 } satisfies Record<Role, StaffRoute | ClientRoute>;
@@ -96,6 +98,11 @@ export const STAFF_NAV_ITEMS = [
     href: APP_ROUTES.staff.documents,
     labelKey: "documents",
     allowedRoles: ["admin", "sales", "curator", "visa"],
+  },
+  {
+    href: APP_ROUTES.staff.visa,
+    labelKey: "visa",
+    allowedRoles: ["admin", "curator", "visa"],
   },
   {
     href: APP_ROUTES.staff.whatsapp,

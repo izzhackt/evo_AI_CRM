@@ -20,6 +20,7 @@ import {
 import { getDefaultWhatsAppAccount, sendWhatsApp, upsertWahaAccount } from "./whatsapp";
 import { createAmoCrmAdapter, getAmoCrmLocalStatus, normalizeAmoCrmAccountBaseUrl } from "./amocrm";
 import { setSession, clearSession, currentUser, isStaff } from "./auth";
+import { ROLE_HOME_ROUTE, type Role } from "./domain";
 import { LOCALES, type Locale } from "./i18n-data";
 import { normalizePhone } from "./phone";
 
@@ -76,6 +77,14 @@ async function requireFinanceStaff() {
   return user;
 }
 
+async function requireVisaStaff() {
+  const user = await requireStaff();
+  if (user.role !== "admin" && user.role !== "curator" && user.role !== "visa") {
+    redirect(ROLE_HOME_ROUTE[user.role]);
+  }
+  return user;
+}
+
 function revalidateStaffCrm(clientId?: number | null) {
   revalidatePath("/dashboard");
   revalidatePath("/sales");
@@ -100,11 +109,11 @@ export async function loginAction(_prev: string | null, form: FormData): Promise
 
   const row = db()
     .prepare("SELECT id, password_hash, role FROM users WHERE lower(email) = ?")
-    .get(email) as { id: number; password_hash: string; role: string } | undefined;
+    .get(email) as { id: number; password_hash: string; role: Role } | undefined;
   if (!row || !verifyPassword(password, row.password_hash)) return "invalidCredentials";
 
   await setSession(row.id);
-  redirect(row.role === "client" ? "/portal" : "/dashboard");
+  redirect(ROLE_HOME_ROUTE[row.role]);
 }
 
 export async function registerAction(_prev: string | null, form: FormData): Promise<string | null> {
@@ -243,7 +252,7 @@ export async function setDocumentStatusAction(form: FormData) {
 // ---------- visa ----------
 
 export async function upsertVisaCaseAction(form: FormData) {
-  await requireStaff();
+  await requireVisaStaff();
   const clientId = optNum(form, "client_id");
   if (!clientId) return;
   const status = str(form, "status");
@@ -258,6 +267,8 @@ export async function upsertVisaCaseAction(form: FormData) {
       .run(clientId, str(form, "country") || "—", status, str(form, "appointment_at") || null, str(form, "notes") || null);
   }
   revalidateStaffCrm(clientId);
+  revalidatePath("/visa");
+  if (existing) revalidatePath(`/visa/${existing.id}`);
   revalidatePath("/portal");
 }
 

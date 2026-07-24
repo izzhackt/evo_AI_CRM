@@ -5,12 +5,34 @@ import { usePathname } from "next/navigation";
 import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Icon } from "@/components/icons";
+import { EvoWordmark } from "@/components/platform/EvoWordmark";
 import { btnCls } from "@/components/ui";
 import type { Locale } from "@/lib/i18n-data";
 
 type Meta = { title: string; hint?: string };
 
 const ADD_ROUTES = new Set(["/sales", "/clients", "/tasks", "/finance", "/calls", "/whatsapp"]);
+
+const STATUS_COPY: Record<Locale, { platform: string; amo: string; waha: string; ai: string }> = {
+  ru: {
+    platform: "EVO Platform",
+    amo: "amoCRM: не проверен",
+    waha: "WAHA: не проверен",
+    ai: "AI: только черновики",
+  },
+  ky: {
+    platform: "EVO Platform",
+    amo: "amoCRM: текшериле элек",
+    waha: "WAHA: текшериле элек",
+    ai: "AI: черновик гана",
+  },
+  en: {
+    platform: "EVO Platform",
+    amo: "amoCRM: not verified",
+    waha: "WAHA: not verified",
+    ai: "AI: drafts only",
+  },
+};
 
 export function TopBar({
   titles,
@@ -27,25 +49,70 @@ export function TopBar({
   const base = `/${pathname.split("/")[1] ?? ""}`;
   const meta = titles[base] ?? titles["/dashboard"];
   const showAdd = ADD_ROUTES.has(base);
+  const statusCopy = STATUS_COPY[locale];
 
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-[color-mix(in_oklab,var(--bg)_80%,transparent)] backdrop-blur">
-      <div className="flex min-h-[68px] items-center justify-between gap-3 px-5 py-3 sm:px-7">
-        <div className="min-w-0">
-          <h1 className="truncate text-[19px] font-bold leading-tight text-fg">{meta.title}</h1>
-          {meta.hint && <div className="mt-0.5 truncate text-[13px] text-fg-3">{meta.hint}</div>}
+    <header className="staff-topbar">
+      <div className="staff-topbar__row">
+        <Link href="/dashboard" aria-label="EVO Admissions" className="staff-topbar__mobile-brand">
+          <EvoWordmark />
+        </Link>
+
+        <div className="staff-topbar__context">
+          <div className="staff-topbar__breadcrumb" aria-label={`${statusCopy.platform}: ${meta.title}`}>
+            <span>{statusCopy.platform}</span>
+            <Icon name="chevron-right" size={14} />
+            <h1 className="staff-topbar__desktop-title">{meta.title}</h1>
+          </div>
+          <h1 className="staff-topbar__mobile-title">{meta.title}</h1>
+          {meta.hint && <p className="staff-topbar__hint">{meta.hint}</p>}
         </div>
-        <div className="flex shrink-0 items-center gap-2.5">
-          <div className="hidden sm:block">
+
+        <div className="staff-topbar__status" aria-label={`${statusCopy.amo}; ${statusCopy.waha}; ${statusCopy.ai}`}>
+          <span className="provider-status provider-status--unknown">
+            <span className="provider-status__dot" aria-hidden="true" />
+            {statusCopy.amo}
+          </span>
+          <span className="provider-status provider-status--unknown">
+            <span className="provider-status__dot" aria-hidden="true" />
+            {statusCopy.waha}
+          </span>
+          <span className="provider-status provider-status--draft">
+            <span className="provider-status__dot" aria-hidden="true" />
+            {statusCopy.ai}
+          </span>
+        </div>
+
+        <div className="staff-topbar__actions">
+          <div className="staff-topbar__language">
             <LangSwitcher current={locale} />
           </div>
           <ThemeToggle label={themeLabel} />
           {showAdd && (
             <Link href={`${base}#add`} className={btnCls}>
               <Icon name="plus" size={16} />
-              <span className="hidden sm:inline">{addLabel}</span>
+              <span className="hidden xl:inline">{addLabel}</span>
             </Link>
           )}
+        </div>
+      </div>
+      <div className="staff-topbar__mobile-meta">
+        <div className="staff-topbar__mobile-status">
+          <span className="provider-status provider-status--unknown">
+            <span className="provider-status__dot" aria-hidden="true" />
+            {statusCopy.amo}
+          </span>
+          <span className="provider-status provider-status--unknown">
+            <span className="provider-status__dot" aria-hidden="true" />
+            {statusCopy.waha}
+          </span>
+          <span className="provider-status provider-status--draft">
+            <span className="provider-status__dot" aria-hidden="true" />
+            {statusCopy.ai}
+          </span>
+        </div>
+        <div className="staff-topbar__mobile-language">
+          <LangSwitcher current={locale} />
         </div>
       </div>
     </header>

@@ -6,17 +6,17 @@
   --portal-border-strong: #d6d9de;
   --portal-text: #14161a;
   --portal-muted: #5b6068;
-  --portal-soft: #878c94;
+  --portal-soft: #646a73;
   --portal-accent: #d70217;
   --portal-accent-dark: #b00213;
   --portal-accent-soft: #fce8ea;
-  --portal-success: #1f8a5b;
+  --portal-success: #12633f;
   --portal-success-soft: #e6f4ed;
-  --portal-warning: #c77700;
+  --portal-warning: #8a5200;
   --portal-warning-soft: #fcf3e3;
   --portal-danger: #c81e1e;
   --portal-danger-soft: #fceaea;
-  --portal-info: #1e6fb8;
+  --portal-info: #14548f;
   --portal-info-soft: #e7f0f9;
   min-height: 100vh;
   background: var(--portal-bg);
@@ -1018,6 +1018,116 @@ a.actionCard:hover {
   display: none;
 }
 
+.moreDialog {
+  width: min(calc(100% - 24px), 480px);
+  max-height: min(76dvh, 620px);
+  margin: auto auto 12px;
+  overflow: visible;
+  border: 1px solid var(--portal-border);
+  border-radius: 22px;
+  background: transparent;
+  padding: 0;
+  color: var(--portal-text);
+  box-shadow: 0 24px 70px rgb(20 22 26 / 0.28);
+}
+
+.moreDialog::backdrop {
+  background: rgb(20 22 26 / 0.48);
+  backdrop-filter: blur(3px);
+}
+
+.moreSheet {
+  overflow: hidden auto;
+  max-height: min(76dvh, 620px);
+  border-radius: inherit;
+  background: var(--portal-surface);
+  padding: 20px;
+}
+
+.moreHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 2px 16px;
+}
+
+.moreEyebrow {
+  color: var(--portal-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.moreTitle {
+  margin: 4px 0 0;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.moreClose {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--portal-border);
+  border-radius: 50%;
+  background: var(--portal-surface);
+  color: var(--portal-text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.moreCloseIcon {
+  transform: rotate(90deg);
+}
+
+.moreNavigation {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.moreLink {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  min-height: 64px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--portal-border);
+  border-radius: 14px;
+  background: var(--portal-subtle);
+  padding: 10px 12px;
+  color: var(--portal-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.moreLinkIcon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--portal-surface);
+  color: var(--portal-muted);
+  box-shadow: inset 0 0 0 1px var(--portal-border);
+}
+
+.moreLinkActive {
+  border-color: rgb(215 2 23 / 0.35);
+  background: rgb(215 2 23 / 0.06);
+  color: var(--portal-accent);
+}
+
+.moreLinkActive .moreLinkIcon {
+  background: var(--portal-accent);
+  color: #fff;
+  box-shadow: none;
+}
+
 .loadingGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.7fr);
@@ -1357,14 +1467,37 @@ a.actionCard:hover {
     justify-content: center;
     gap: 3px;
     border-radius: 9px;
-    color: #92979f;
+    color: var(--portal-muted);
     font-size: 9.5px;
     font-weight: 700;
     text-align: center;
   }
 
+  .bottomButton {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .moreButtonIcon {
+    display: grid;
+    height: 21px;
+    place-items: center;
+    transform: rotate(-90deg);
+  }
+
   .bottomLinkActive {
     color: var(--portal-accent);
+  }
+
+  .moreDialog {
+    width: calc(100% - 16px);
+    margin-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  .moreSheet {
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
   }
 }
 

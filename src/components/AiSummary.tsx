@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Icon } from "@/components/icons";
 
 export function AiSummary({
   clientId,
@@ -16,6 +17,7 @@ export function AiSummary({
   async function run() {
     setLoading(true);
     setError(null);
+    setSummary(null);
     try {
       const res = await fetch("/api/ai/summary", {
         method: "POST",
@@ -36,21 +38,40 @@ export function AiSummary({
   }
 
   return (
-    <div>
+    <div aria-busy={loading}>
       <button
         type="button"
         onClick={run}
         disabled={loading}
-        className="inline-flex items-center rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
+        aria-controls={`ai-summary-result-${clientId}`}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
       >
-        {loading ? labels.thinking : `✨ ${labels.button}`}
+        {!loading && <Icon name="message-square" size={14} />}
+        {loading ? labels.thinking : labels.button}
       </button>
-      {error && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{error}</p>}
-      {summary && (
-        <div className="mt-3 whitespace-pre-wrap rounded-lg border border-violet-100 bg-violet-50/50 px-4 py-3 text-sm text-slate-800">
-          {summary}
-        </div>
-      )}
+      <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {loading ? labels.thinking : ""}
+      </p>
+      <div id={`ai-summary-result-${clientId}`}>
+        {error && (
+          <p
+            role="alert"
+            className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800"
+          >
+            {error}
+          </p>
+        )}
+        {summary && (
+          <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className="mt-3 whitespace-pre-wrap rounded-lg border border-violet-100 bg-violet-50/50 px-4 py-3 text-sm text-slate-800"
+          >
+            {summary}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

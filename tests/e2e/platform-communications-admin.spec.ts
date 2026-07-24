@@ -2,6 +2,11 @@ import fs from "fs";
 import path from "path";
 
 import { expect, test as base, type Page } from "@playwright/test";
+import {
+  getConversationStatePresentation,
+  getDeliveryPresentation,
+  getHandoffReasonLabelKey,
+} from "../../src/components/platform/communications/whatsapp-state";
 
 const evidenceDir = path.join(
   process.cwd(),
@@ -47,6 +52,37 @@ async function expectNoPageOverflow(page: Page) {
     .toEqual({ viewport: viewportWidth, document: viewportWidth });
 }
 
+test("stored WhatsApp statuses map without inventing delivery", async ({}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "pure status contract");
+
+  expect(getDeliveryPresentation("in", "demo")).toEqual({
+    labelKey: "providerDeliveryReceived",
+    state: "received",
+  });
+  expect(getDeliveryPresentation("out", "sent").state).toBe("sent");
+  expect(getDeliveryPresentation("out", "delivered").state).toBe("delivered");
+  expect(getDeliveryPresentation("out", "read").state).toBe("read");
+  expect(getDeliveryPresentation("out", "failed").state).toBe("failed");
+  expect(getDeliveryPresentation("out", "demo")).toEqual({
+    labelKey: "providerDeliveryUnknown",
+    state: "unknown",
+  });
+
+  expect(getConversationStatePresentation("handoff_required")).toMatchObject({
+    labelKey: "agentStateHandoffRequired",
+    nextActionKey: "agentNextReviewHandoff",
+  });
+  expect(getConversationStatePresentation("unrecognized_provider_state")).toMatchObject({
+    labelKey: "agentStateRecorded",
+    nextActionKey: "agentNextVerifyInAmo",
+  });
+  expect(getConversationStatePresentation(null)).toBeNull();
+  expect(getHandoffReasonLabelKey("operator_takeover")).toBe(
+    "handoffReasonOperatorTakeover",
+  );
+  expect(getHandoffReasonLabelKey("unrecognized_reason")).toBeNull();
+});
+
 test("communications and admin workflows remain truthful and drill down", async ({
   page,
   runtimeErrors,
@@ -60,13 +96,19 @@ test("communications and admin workflows remain truthful and drill down", async 
   await expect(page.getByText(/AI создаёт только черновик/)).toBeVisible();
   await page.locator('.staff-topbar__actions a[href="/whatsapp#add"]').click();
   await expect(page.locator("details#add")).toHaveAttribute("open", "");
-  await expect(page.locator('details#add input[name="phone"]')).toBeFocused();
+  await expect(page.getByLabel("Телефон")).toBeFocused();
+  await expect(page.getByLabel("Имя и фамилия")).toBeVisible();
   await page.locator("details#add > summary").click();
   const conversation = page.locator('a[href^="/whatsapp/"]:visible').first();
   await expect(conversation).toBeVisible();
+  await expect(conversation).toHaveAttribute("aria-label", /Открыть диалог:/);
   await conversation.click();
   await expect(page.getByText("Контекст диалога", { exact: true })).toBeVisible();
   await expect(page.getByText(/Офлайн-статус и конфликты/)).toBeVisible();
+  await expect(page.locator("[data-delivery-status]").first()).toHaveAttribute(
+    "data-delivery-status",
+    /received|sent|delivered|read|failed|unknown/,
+  );
   await expectNoPageOverflow(page);
   await page.screenshot({
     path: path.join(evidenceDir, "01-whatsapp-desktop-1440.png"),

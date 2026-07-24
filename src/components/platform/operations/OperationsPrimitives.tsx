@@ -37,7 +37,7 @@ export function ContextBanner({
         </span>
         <div className="min-w-0">
           <h2 className="text-[13px] font-bold text-current">{title}</h2>
-          <p className="mt-0.5 text-[12.5px] leading-5 opacity-80">{description}</p>
+          <p className="mt-0.5 text-[12.5px] leading-5">{description}</p>
         </div>
       </div>
       {action && <div className="shrink-0">{action}</div>}

@@ -184,7 +184,7 @@ test("mobile portal behaves like a native five-tab workspace", async (
   await expect(mobileNavigation.getByRole("link", { name: "Документы" })).toBeVisible();
   await expect(mobileNavigation.getByRole("link", { name: "Заявки" })).toBeVisible();
   await expect(mobileNavigation.getByRole("link", { name: "Сообщения" })).toBeVisible();
-  await expect(mobileNavigation.getByRole("link", { name: "Профиль" })).toBeVisible();
+  await expect(mobileNavigation.getByRole("button", { name: "Ещё" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await saveEvidence(page, testInfo, "overview-mobile-390x844");
 
@@ -204,6 +204,42 @@ test("mobile portal behaves like a native five-tab workspace", async (
   expect(runtimeErrors).toEqual([]);
 });
 
+test("mobile More navigation exposes every portal destination and restores focus", async ({
+  page,
+  runtimeErrors,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page, "client@demo.kg", "client123", /\/portal$/);
+
+  const bottomNavigation = page.getByRole("navigation", { name: "Навигация кабинета" });
+  const moreButton = bottomNavigation.getByRole("button", { name: "Ещё" });
+  await moreButton.focus();
+  await moreButton.press("Enter");
+
+  const moreDialog = page.getByRole("dialog", { name: "Другие разделы" });
+  await expect(moreDialog).toBeVisible();
+  await expect(moreDialog.getByRole("link", { name: "Виза" })).toBeFocused();
+  await expect(moreDialog.getByRole("link", { name: "Оплаты" })).toBeVisible();
+  await expect(moreDialog.getByRole("link", { name: "Моя команда" })).toBeVisible();
+  await expect(moreDialog.getByRole("link", { name: "Профиль" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(moreDialog).not.toBeVisible();
+  await expect(moreButton).toBeFocused();
+
+  await moreButton.press("Enter");
+  await moreDialog.getByRole("link", { name: "Виза" }).click();
+  await expect(page).toHaveURL(/\/portal\/visa$/);
+  await expect(page.locator("#portal-main h1")).toHaveText("Виза");
+
+  const activeMoreButton = bottomNavigation.getByRole("button", { name: "Ещё: Виза" });
+  await expect(activeMoreButton).toHaveClass(/bottomLinkActive/);
+  await activeMoreButton.click();
+  await expect(moreDialog.getByRole("link", { name: "Виза" })).toHaveAttribute("aria-current", "page");
+  await expectNoHorizontalOverflow(page);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("portal copy switches between English and Kyrgyz", async ({ page, runtimeErrors }) => {
   await page.setViewportSize({ width: 1440, height: 1024 });
   await login(page, "client@demo.kg", "client123", /\/portal$/);
@@ -216,5 +252,11 @@ test("portal copy switches between English and Kyrgyz", async ({ page, runtimeEr
   await page.getByRole("button", { name: "ky", exact: true }).click();
   await expect(page.locator("#portal-main h1")).toHaveText("Документтер");
   await expect(page.getByText("Кабинеттен жүктөө азырынча жеткиликсиз")).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const kyrgyzNavigation = page.getByRole("navigation", { name: "Кабинеттин навигациясы" });
+  await kyrgyzNavigation.getByRole("button", { name: "Дагы" }).click();
+  await expect(page.getByRole("dialog", { name: "Башка бөлүмдөр" })).toBeVisible();
+  await page.keyboard.press("Escape");
   expect(runtimeErrors).toEqual([]);
 });

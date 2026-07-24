@@ -214,6 +214,7 @@ export function TopBar({
           {showAdd && (
             <Link
               href={`${base}#add`}
+              aria-label={addLabel}
               className={btnCls}
               onClick={(event) => {
                 const target = document.getElementById("add");

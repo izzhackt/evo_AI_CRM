@@ -15,7 +15,7 @@ import { requireStaffRoute } from "@/lib/guards";
 import { Badge, Card, EmptyState, StatCard, inputCls, btnCls, btnGhostCls, labelCls, cn } from "@/components/ui";
 import { AiSummary } from "@/components/AiSummary";
 import { StudentProgress } from "@/components/platform/core/StudentProgress";
-const selectCls = "rounded-nav border border-border-strong bg-surface-2 px-2 py-1.5 text-[12px] text-fg focus:border-accent focus:outline-none";
+const selectCls = "rounded-nav border border-border-strong bg-surface-2 px-2 py-1.5 text-[12px] text-fg focus-visible:border-accent";
 
 function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
@@ -304,12 +304,15 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                     {[a.program, a.country, a.deadline ? `${t("deadline")}: ${a.deadline}` : null].filter(Boolean).join(" · ")}
                   </div>
                 </div>
-                <form action={setApplicationStatusAction} className="flex w-full items-center gap-1.5 sm:w-auto">
+                <form action={setApplicationStatusAction} className="flex w-full items-end gap-1.5 sm:w-auto">
                   <input type="hidden" name="id" value={a.id} />
                   <input type="hidden" name="client_id" value={client.id} />
-                  <select name="status" defaultValue={a.status} className={cn(selectCls, "min-w-0 flex-1 sm:flex-none")}>
-                    {APP_STATUSES.map((s) => <option key={s} value={s}>{t(`app.${s}`)}</option>)}
-                  </select>
+                  <label className={cn(labelCls, "mb-0 min-w-0 flex-1 sm:min-w-36")}>
+                    {t("status")}
+                    <select name="status" defaultValue={a.status} className={cn(selectCls, "mt-1 w-full")}>
+                      {APP_STATUSES.map((s) => <option key={s} value={s}>{t(`app.${s}`)}</option>)}
+                    </select>
+                  </label>
                   <button type="submit" className={btnGhostCls}>{t("save")}</button>
                 </form>
               </li>
@@ -318,11 +321,26 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           {apps.length === 0 && <EmptyState text={t("noResults")} />}
           <form action={addApplicationAction} className="mt-3 grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
             <input type="hidden" name="client_id" value={client.id} />
-            <input name="university" required placeholder={t("university")} className={inputCls} />
-            <input name="program" placeholder={t("program")} className={inputCls} />
-            <input name="degree" placeholder={t("degree")} className={inputCls} />
-            <input name="country" placeholder={t("country")} className={inputCls} />
-            <input name="deadline" type="date" className={cn(inputCls, "font-mono")} />
+            <label className={cn(labelCls, "mb-0")}>
+              {t("university")}
+              <input name="university" required placeholder={t("university")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("program")}
+              <input name="program" placeholder={t("program")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("degree")}
+              <input name="degree" placeholder={t("degree")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("country")}
+              <input name="country" placeholder={t("country")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("deadline")}
+              <input name="deadline" type="date" className={cn(inputCls, "mt-1 font-mono")} />
+            </label>
             <button type="submit" className={cn(btnCls, "sm:col-span-2")}>+ {t("addApplication")}</button>
           </form>
           </Card>
@@ -350,10 +368,13 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             ))}
           </ul>
           {docs.length === 0 && <EmptyState text={t("noResults")} />}
-          <form action={addDocumentAction} className="mt-3 flex flex-col gap-2 border-t border-border pt-3 sm:flex-row">
+          <form action={addDocumentAction} className="mt-3 flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-end">
             <input type="hidden" name="client_id" value={client.id} />
-            <input name="name" required placeholder={t("document")} className={inputCls} />
-            <button type="submit" className={cn(btnCls, "sm:w-11 sm:px-0")}>+</button>
+            <label className={cn(labelCls, "mb-0 min-w-0 flex-1")}>
+              {t("document")}
+              <input name="name" required placeholder={t("document")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <button type="submit" aria-label={`+ ${t("document")}`} className={cn(btnCls, "sm:w-11 sm:px-0")}>+</button>
           </form>
           </Card>
         </section>
@@ -402,11 +423,14 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                       .join(" · ")}
                   </div>
                 </div>
-                <form action={moveTaskAction} className="flex w-full items-center gap-1.5 sm:w-auto">
+                <form action={moveTaskAction} className="flex w-full items-end gap-1.5 sm:w-auto">
                   <input type="hidden" name="id" value={task.id} />
-                  <select name="status" defaultValue={task.status} className={cn(selectCls, "min-w-0 flex-1 sm:flex-none")}>
-                    {TASK_COLUMNS.map((s) => <option key={s} value={s}>{t(`col.${s}`)}</option>)}
-                  </select>
+                  <label className={cn(labelCls, "mb-0 min-w-0 flex-1 sm:min-w-32")}>
+                    {t("status")}
+                    <select name="status" defaultValue={task.status} className={cn(selectCls, "mt-1 w-full")}>
+                      {TASK_COLUMNS.map((s) => <option key={s} value={s}>{t(`col.${s}`)}</option>)}
+                    </select>
+                  </label>
                   <button type="submit" className={btnGhostCls}>{t("save")}</button>
                 </form>
               </li>
@@ -415,15 +439,27 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           {tasks.length === 0 && <EmptyState text={t("noStudentTasks")} />}
           <form action={addTaskAction} className="mt-3 grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
             <input type="hidden" name="client_id" value={client.id} />
-            <input name="title" required placeholder={t("title")} className={cn(inputCls, "sm:col-span-2")} />
-            <select name="priority" defaultValue="normal" className={inputCls}>
-              {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{t(`prio.${p}`)}</option>)}
-            </select>
-            <select name="assignee_id" className={inputCls}>
-              <option value="">{t("assignee")}: {t("notAssigned")}</option>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <input name="due_date" type="date" className={cn(inputCls, "font-mono")} />
+            <label className={cn(labelCls, "mb-0 sm:col-span-2")}>
+              {t("title")}
+              <input name="title" required placeholder={t("title")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("priority")}
+              <select name="priority" defaultValue="normal" className={cn(inputCls, "mt-1")}>
+                {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{t(`prio.${p}`)}</option>)}
+              </select>
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("assignee")}
+              <select name="assignee_id" className={cn(inputCls, "mt-1")}>
+                <option value="">{t("notAssigned")}</option>
+                {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("dueDate")}
+              <input name="due_date" type="date" className={cn(inputCls, "mt-1 font-mono")} />
+            </label>
             <button type="submit" className={btnCls}>+ {t("addTask")}</button>
           </form>
           </Card>
@@ -459,14 +495,26 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           {canMutatePayments && (
             <form action={addPaymentAction} className="mt-3 grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
               <input type="hidden" name="client_id" value={client.id} />
-              <input name="title" required placeholder={t("payment")} className={cn(inputCls, "sm:col-span-2")} />
-              <input name="amount" type="number" step="0.01" required placeholder={t("amount")} className={inputCls} />
-              <select name="currency" className={inputCls}>
-                <option value="KGS">KGS</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-              </select>
-              <input name="due_date" type="date" className={cn(inputCls, "font-mono")} />
+              <label className={cn(labelCls, "mb-0 sm:col-span-2")}>
+                {t("payment")}
+                <input name="title" required placeholder={t("payment")} className={cn(inputCls, "mt-1")} />
+              </label>
+              <label className={cn(labelCls, "mb-0")}>
+                {t("amount")}
+                <input name="amount" type="number" step="0.01" required placeholder={t("amount")} className={cn(inputCls, "mt-1")} />
+              </label>
+              <label className={cn(labelCls, "mb-0")}>
+                KGS / USD / EUR
+                <select name="currency" className={cn(inputCls, "mt-1")}>
+                  <option value="KGS">KGS</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                </select>
+              </label>
+              <label className={cn(labelCls, "mb-0")}>
+                {t("dueDate")}
+                <input name="due_date" type="date" className={cn(inputCls, "mt-1 font-mono")} />
+              </label>
               <button type="submit" className={btnCls}>+ {t("addPayment")}</button>
             </form>
           )}
@@ -477,9 +525,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       {/* Updates */}
       <section id="updates" className="scroll-mt-24">
         <Card title={t("updates")}>
-        <form action={postUpdateAction} className="mb-4 flex flex-col gap-2 sm:flex-row">
+        <form action={postUpdateAction} className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">
           <input type="hidden" name="client_id" value={client.id} />
-          <input name="message" required placeholder={t("updatePlaceholder")} className={inputCls} />
+          <label className={cn(labelCls, "mb-0 min-w-0 flex-1")}>
+            {t("updates")}
+            <input name="message" required placeholder={t("updatePlaceholder")} className={cn(inputCls, "mt-1")} />
+          </label>
           <button type="submit" className={btnCls}>{t("send")}</button>
         </form>
         {updates.length === 0 ? (

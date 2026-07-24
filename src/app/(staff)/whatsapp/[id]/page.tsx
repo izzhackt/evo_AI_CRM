@@ -7,6 +7,12 @@ import {
   ContextBanner,
   KeyValueGrid,
 } from "@/components/platform/operations/OperationsPrimitives";
+import {
+  getConversationStatePresentation,
+  getDeliveryPresentation,
+  getHandoffReasonLabelKey,
+  type OperationalTone,
+} from "@/components/platform/communications/whatsapp-state";
 import { WaList } from "@/components/WaList";
 import { WaReplyBox } from "@/components/WaReplyBox";
 import { EmptyState, cn } from "@/components/ui";
@@ -30,6 +36,16 @@ function initials(name: string) {
     .slice(0, 2)
     .map((word) => word[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+function stateClassName(tone: OperationalTone) {
+  return {
+    neutral: "bg-surface-3 text-fg-2",
+    info: "bg-info-weak text-info",
+    ok: "bg-ok-weak text-ok",
+    warning: "bg-warn-weak text-warn",
+    danger: "bg-danger-weak text-danger",
+  }[tone];
 }
 
 export default async function ConversationPage({
@@ -89,13 +105,16 @@ export default async function ConversationPage({
   ]
     .filter(Boolean)
     .join(" · ");
-
-  function deliveryLabel(direction: string, status: string) {
-    if (direction === "in") return t("providerDeliveryReceived");
-    if (status === "sent") return t("providerDeliverySent");
-    if (status === "failed") return t("providerDeliveryFailed");
-    return t("providerDeliveryUnknown");
-  }
+  const operationalState = getConversationStatePresentation(conversation.agent_state);
+  const handoffReasonKey = getHandoffReasonLabelKey(conversation.agent_handoff_reason);
+  const operationalOwner =
+    lead?.manager_name ?? client?.manager_name ?? t("operationalOwnerNotRecorded");
+  const hasOperationalContext = Boolean(
+    conversation.agent_state ||
+      conversation.agent_summary ||
+      conversation.agent_handoff_reason ||
+      conversation.agent_last_synced_at,
+  );
 
   return (
     <div className="space-y-4" data-testid="whatsapp-conversation">
@@ -143,20 +162,85 @@ export default async function ConversationPage({
             </span>
           </header>
 
-          {(conversation.agent_summary ||
-            conversation.agent_handoff_reason ||
-            conversation.agent_last_synced_at) && (
-            <div className="border-b border-border bg-surface-2 px-4 py-2 text-[12px] text-fg-3">
-              {conversation.agent_summary && <span>{conversation.agent_summary}</span>}
-              {conversation.agent_handoff_reason && (
-                <code className="ml-2 font-mono text-warn">
-                  {conversation.agent_handoff_reason}
-                </code>
+          {hasOperationalContext && (
+            <section
+              aria-labelledby="agent-operational-state"
+              data-testid="agent-operational-state"
+              className="border-b border-border bg-surface-2 px-4 py-3"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 id="agent-operational-state" className="text-[12px] font-semibold text-fg">
+                  {t("agentOperationalState")}
+                </h2>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
+                    stateClassName(operationalState?.tone ?? "neutral"),
+                  )}
+                >
+                  {operationalState
+                    ? t(operationalState.labelKey)
+                    : t("syncNotVerified")}
+                </span>
+              </div>
+
+              {conversation.agent_summary && (
+                <div className="mt-2">
+                  <p className="text-[10.5px] font-semibold uppercase tracking-wide text-fg-3">
+                    {t("agentSummary")}
+                  </p>
+                  <p className="mt-0.5 text-[12px] leading-5 text-fg-2">
+                    {conversation.agent_summary}
+                  </p>
+                </div>
               )}
-              {conversation.agent_last_synced_at && (
-                <code className="ml-2 font-mono">{conversation.agent_last_synced_at}</code>
-              )}
-            </div>
+
+              <dl className="mt-2 grid gap-x-5 gap-y-2 text-[11.5px] sm:grid-cols-2 xl:grid-cols-4">
+                <div>
+                  <dt className="text-fg-3">{t("handoffReason")}</dt>
+                  <dd className="mt-0.5 font-medium text-fg">
+                    {conversation.agent_handoff_reason ? (
+                      handoffReasonKey ? (
+                        t(handoffReasonKey)
+                      ) : (
+                        <code className="font-mono text-warn">
+                          {conversation.agent_handoff_reason}
+                        </code>
+                      )
+                    ) : (
+                      t("handoffReasonNotRecorded")
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-fg-3">{t("operationalOwner")}</dt>
+                  <dd className="mt-0.5 font-medium text-fg">{operationalOwner}</dd>
+                </div>
+                <div>
+                  <dt className="text-fg-3">{t("operationalNextAction")}</dt>
+                  <dd className="mt-0.5 font-medium text-fg">
+                    {operationalState
+                      ? t(operationalState.nextActionKey)
+                      : t("agentNextVerifyInAmo")}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-fg-3">{t("lastSync")}</dt>
+                  <dd className="mt-0.5 font-mono text-fg">
+                    {conversation.agent_last_synced_at ?? t("syncNotVerified")}
+                  </dd>
+                </div>
+                {operationalState?.labelKey === "agentStateRecorded" &&
+                  conversation.agent_state && (
+                    <div>
+                      <dt className="text-fg-3">{t("storedStateCode")}</dt>
+                      <dd className="mt-0.5 font-mono text-fg">
+                        {conversation.agent_state}
+                      </dd>
+                    </div>
+                  )}
+              </dl>
+            </section>
           )}
 
           {conversation.agent_draft_review_text && (
@@ -181,6 +265,7 @@ export default async function ConversationPage({
               {messages.length === 0 && <EmptyState text={t("noMessages")} />}
               {messages.map((message) => {
                 const outgoing = message.direction === "out";
+                const delivery = getDeliveryPresentation(message.direction, message.status);
                 return (
                   <div
                     key={message.id}
@@ -198,11 +283,17 @@ export default async function ConversationPage({
                       <p
                         className={cn(
                           "mt-1 text-right font-mono text-[9.5px]",
-                          outgoing ? "text-on-accent/75" : "text-fg-3",
+                          outgoing ? "text-on-accent" : "text-fg-3",
                         )}
                       >
                         {message.author_name ? `${message.author_name} · ` : ""}
-                        {message.created_at} · {deliveryLabel(message.direction, message.status)}
+                        {message.created_at} ·{" "}
+                        <span
+                          data-delivery-status={delivery.state}
+                          aria-label={t(delivery.labelKey)}
+                        >
+                          {t(delivery.labelKey)}
+                        </span>
                       </p>
                     </div>
                   </div>
@@ -262,8 +353,10 @@ export default async function ConversationPage({
                   ) : t("syncNotVerified"),
                 },
                 {
-                  label: t("syncState"),
-                  value: conversation.agent_state ?? t("syncNotVerified"),
+                  label: t("agentOperationalState"),
+                  value: operationalState
+                    ? t(operationalState.labelKey)
+                    : t("syncNotVerified"),
                 },
                 {
                   label: t("lastSync"),

@@ -49,11 +49,11 @@ export default async function FinancePage() {
       />
 
       {canMutatePayments && (
-        <details className="rounded-card border border-border bg-surface shadow-evo">
+        <details id="add" className="scroll-mt-24 rounded-card border border-border bg-surface shadow-evo">
           <summary className="cursor-pointer list-none px-5 py-4 text-[13.5px] font-semibold text-accent marker:hidden">
             ＋ {t("addPayment")}
           </summary>
-          <form id="add-payment" action={addPaymentAction} className="grid scroll-mt-24 gap-3 border-t border-border px-5 py-4 sm:grid-cols-2 xl:grid-cols-3">
+          <form action={addPaymentAction} className="grid gap-3 border-t border-border px-5 py-4 sm:grid-cols-2 xl:grid-cols-3">
             <div>
               <label htmlFor="payment-client" className={labelCls}>{t("client")}</label>
               <select id="payment-client" name="client_id" required className={inputCls}>

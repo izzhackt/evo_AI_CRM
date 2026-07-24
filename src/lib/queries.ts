@@ -1,5 +1,6 @@
 import { db, LEAD_ACTIVE_STATUSES, Stage, STAGES } from "./db";
 import { STUDENT_PORTAL_SECTIONS, StudentPortalSnapshot } from "./contracts/student-portal";
+import type { StaffRole } from "./domain";
 
 const ACTIVE_LEAD_STATUS_SQL = LEAD_ACTIVE_STATUSES.map((status) => `'${status}'`).join(", ");
 const ACTIVE_LEAD_SQL = `l.client_id IS NULL AND l.status IN (${ACTIVE_LEAD_STATUS_SQL})`;
@@ -547,9 +548,211 @@ export function listTasks(assigneeId?: number) {
 }
 
 export function listStaff() {
-  return db().prepare("SELECT id, name, role FROM users WHERE role != 'client' ORDER BY name").all() as {
-    id: number; name: string; role: string;
+  return db().prepare("SELECT id, name, email, role, created_at FROM users WHERE role != 'client' ORDER BY name").all() as {
+    id: number; name: string; email: string; role: string; created_at: string;
   }[];
+}
+
+export type OperatorNotificationKind =
+  | "task_overdue"
+  | "task_priority"
+  | "whatsapp_unread"
+  | "document_attention"
+  | "payment_overdue"
+  | "application_deadline";
+
+export type OperatorNotification = {
+  id: string;
+  kind: OperatorNotificationKind;
+  group: "urgent" | "today" | "upcoming";
+  title: string;
+  subject: string | null;
+  href: string;
+  occurred_at: string | null;
+  priority: number;
+};
+
+export const OPERATOR_NOTIFICATION_LIMIT = 40;
+
+function notificationGroup(
+  dateValue: string | null,
+  forceUrgent = false,
+): OperatorNotification["group"] {
+  if (forceUrgent) return "urgent";
+  if (!dateValue) return "upcoming";
+  const date = dateValue.slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  if (date < today) return "urgent";
+  if (date === today) return "today";
+  return "upcoming";
+}
+
+/**
+ * Role-filtered, read-only attention feed assembled from existing operational
+ * tables. This is deliberately not an unread-notification store: this
+ * workspace has no notification acknowledgement table.
+ */
+export function listOperatorNotifications(
+  role: StaffRole,
+  limit = OPERATOR_NOTIFICATION_LIMIT,
+): OperatorNotification[] {
+  const d = db();
+  const items: OperatorNotification[] = [];
+  const today = new Date().toISOString().slice(0, 10);
+  const sourceLimit = Math.max(0, limit);
+  if (sourceLimit === 0) return items;
+
+  const tasks = d.prepare(`
+    SELECT t.id, t.title, t.due_date, t.priority,
+      COALESCE(l.name, u.name) AS subject
+    FROM tasks t
+    LEFT JOIN leads l ON l.id = t.lead_id
+    LEFT JOIN clients c ON c.id = t.client_id
+    LEFT JOIN users u ON u.id = c.user_id
+    WHERE t.status != 'done'
+      AND (
+        t.priority IN ('urgent', 'high')
+        OR (t.due_date IS NOT NULL AND t.due_date <= date('now', '+7 days'))
+      )
+    ORDER BY t.due_date IS NULL, t.due_date
+    LIMIT ?
+  `).all(sourceLimit) as {
+    id: number;
+    title: string;
+    due_date: string | null;
+    priority: string;
+    subject: string | null;
+  }[];
+  for (const task of tasks) {
+    const overdue = Boolean(task.due_date && task.due_date.slice(0, 10) < today);
+    items.push({
+      id: `task-${task.id}`,
+      kind: overdue ? "task_overdue" : "task_priority",
+      group: notificationGroup(task.due_date, overdue || task.priority === "urgent"),
+      title: task.title,
+      subject: task.subject,
+      href: `/tasks?view=list#task-${task.id}`,
+      occurred_at: task.due_date,
+      priority: overdue || task.priority === "urgent" ? 0 : 2,
+    });
+  }
+
+  if (["admin", "sales", "curator"].includes(role)) {
+    const conversations = d.prepare(`
+      SELECT id, COALESCE(name, phone) AS title, unread, last_message_at
+      FROM wa_conversations
+      WHERE unread > 0
+      ORDER BY last_message_at DESC
+      LIMIT ?
+    `).all(sourceLimit) as {
+      id: number; title: string; unread: number; last_message_at: string | null;
+    }[];
+    for (const conversation of conversations) {
+      items.push({
+        id: `whatsapp-${conversation.id}`,
+        kind: "whatsapp_unread",
+        group: notificationGroup(conversation.last_message_at),
+        title: conversation.title,
+        subject: String(conversation.unread),
+        href: `/whatsapp/${conversation.id}`,
+        occurred_at: conversation.last_message_at,
+        priority: 1,
+      });
+    }
+  }
+
+  if (["admin", "sales", "curator", "visa"].includes(role)) {
+    const documents = d.prepare(`
+      SELECT doc.id, doc.name, doc.status, doc.updated_at, u.name AS client_name
+      FROM documents doc
+      JOIN clients c ON c.id = doc.client_id
+      JOIN users u ON u.id = c.user_id
+      WHERE doc.status IN ('uploaded', 'review', 'rejected')
+      ORDER BY doc.status = 'rejected' DESC, doc.updated_at DESC
+      LIMIT ?
+    `).all(sourceLimit) as {
+      id: number; name: string; status: string; updated_at: string; client_name: string;
+    }[];
+    for (const document of documents) {
+      const rejected = document.status === "rejected";
+      items.push({
+        id: `document-${document.id}`,
+        kind: "document_attention",
+        group: rejected ? "urgent" : "upcoming",
+        title: document.name,
+        subject: document.client_name,
+        href: `/documents/${document.id}`,
+        occurred_at: document.updated_at,
+        priority: rejected ? 0 : 3,
+      });
+    }
+
+    const applications = d.prepare(`
+      SELECT ap.id, ap.university, ap.deadline, u.name AS client_name
+      FROM applications ap
+      JOIN clients c ON c.id = ap.client_id
+      JOIN users u ON u.id = c.user_id
+      WHERE ap.status NOT IN ('enrolled', 'rejected')
+        AND ap.deadline IS NOT NULL
+        AND ap.deadline <= date('now', '+14 days')
+      ORDER BY ap.deadline
+      LIMIT ?
+    `).all(sourceLimit) as {
+      id: number; university: string; deadline: string; client_name: string;
+    }[];
+    for (const application of applications) {
+      const group = notificationGroup(application.deadline);
+      items.push({
+        id: `application-${application.id}`,
+        kind: "application_deadline",
+        group,
+        title: application.university,
+        subject: application.client_name,
+        href: `/applications/${application.id}`,
+        occurred_at: application.deadline,
+        priority: group === "urgent" ? 0 : 2,
+      });
+    }
+  }
+
+  if (["admin", "finance"].includes(role)) {
+    const payments = d.prepare(`
+      SELECT p.id, p.title, p.due_date, u.name AS client_name
+      FROM payments p
+      JOIN clients c ON c.id = p.client_id
+      JOIN users u ON u.id = c.user_id
+      WHERE p.status != 'paid'
+        AND p.due_date IS NOT NULL
+        AND p.due_date < date('now')
+      ORDER BY p.due_date
+      LIMIT ?
+    `).all(sourceLimit) as {
+      id: number; title: string; due_date: string; client_name: string;
+    }[];
+    for (const payment of payments) {
+      items.push({
+        id: `payment-${payment.id}`,
+        kind: "payment_overdue",
+        group: "urgent",
+        title: payment.title,
+        subject: payment.client_name,
+        // Finance currently exposes one supported queue rather than a
+        // record-level filter or anchor. Keep this action truthful until that
+        // route owns a real overdue-payment drilldown.
+        href: "/finance",
+        occurred_at: payment.due_date,
+        priority: 0,
+      });
+    }
+  }
+
+  return items
+    .sort(
+      (a, b) =>
+        a.priority - b.priority ||
+        String(a.occurred_at ?? "").localeCompare(String(b.occurred_at ?? "")),
+    )
+    .slice(0, sourceLimit);
 }
 
 export type PaymentQueueRow = {
@@ -668,27 +871,37 @@ export function leadActivities(leadId: number) {
   `).all(leadId) as { id: number; type: string; text: string; created_at: string; author_name: string | null }[];
 }
 
-export function salesReport() {
+export type SalesReportPeriod = "30d" | "quarter" | "year" | "all";
+
+export function salesReport(period: SalesReportPeriod = "all") {
   const d = db();
+  const periodSql = {
+    "30d": "datetime('now', '-30 days')",
+    quarter: "datetime('now', '-3 months')",
+    year: "datetime('now', 'start of year')",
+    all: null,
+  }[period];
+  const leadJoinFilter = periodSql ? ` AND l.created_at >= ${periodSql}` : "";
+  const leadWhereFilter = periodSql ? ` WHERE created_at >= ${periodSql}` : "";
   const byManager = d.prepare(`
     SELECT u.id, u.name,
       COUNT(l.id) AS leads,
       SUM(CASE WHEN l.status = 'contract_signed' OR l.client_id IS NOT NULL THEN 1 ELSE 0 END) AS won,
       SUM(CASE WHEN l.status = 'no_request' THEN 1 ELSE 0 END) AS lost,
       SUM(CASE WHEN l.status = 'contract_signed' OR l.client_id IS NOT NULL THEN COALESCE(l.amount, 0) ELSE 0 END) AS won_amount
-    FROM users u LEFT JOIN leads l ON l.manager_id = u.id
+    FROM users u LEFT JOIN leads l ON l.manager_id = u.id${leadJoinFilter}
     WHERE u.role IN ('sales', 'admin')
     GROUP BY u.id HAVING leads > 0
     ORDER BY won_amount DESC
   `).all() as { id: number; name: string; leads: number; won: number; lost: number; won_amount: number }[];
   const byMonth = d.prepare(`
     SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS c
-    FROM leads GROUP BY month ORDER BY month DESC LIMIT 12
+    FROM leads${leadWhereFilter} GROUP BY month ORDER BY month DESC LIMIT 12
   `).all() as { month: string; c: number }[];
   const bySource = d.prepare(`
     SELECT COALESCE(source, '—') AS source, COUNT(*) AS c,
       SUM(CASE WHEN status = 'contract_signed' OR client_id IS NOT NULL THEN 1 ELSE 0 END) AS won
-    FROM leads GROUP BY source ORDER BY c DESC
+    FROM leads${leadWhereFilter} GROUP BY source ORDER BY c DESC
   `).all() as { source: string; c: number; won: number }[];
   return { byManager, byMonth: byMonth.reverse(), bySource };
 }
@@ -845,6 +1058,64 @@ export function listCalls() {
     duration_sec: number; status: string; recording_url: string | null;
     notes: string | null; manager_name: string | null; lead_name: string | null; lead_id: number | null;
   }[];
+}
+
+export type OperationalAuditRow = {
+  id: string;
+  kind: "lead_activity" | "call" | "chat";
+  title: string;
+  detail: string | null;
+  occurred_at: string;
+  actor_name: string | null;
+};
+
+/**
+ * Available operational history only. This is not a security audit log:
+ * authentication, role changes, and setting mutations are not persisted in a
+ * dedicated audit table in the current workspace.
+ */
+export function listOperationalAuditTrail(limit = 60): OperationalAuditRow[] {
+  return db().prepare(`
+    SELECT * FROM (
+      SELECT
+        'lead-' || a.id AS id,
+        'lead_activity' AS kind,
+        l.name AS title,
+        a.text AS detail,
+        a.created_at AS occurred_at,
+        u.name AS actor_name
+      FROM lead_activities a
+      JOIN leads l ON l.id = a.lead_id
+      LEFT JOIN users u ON u.id = a.author_id
+
+      UNION ALL
+
+      SELECT
+        'call-' || c.id AS id,
+        'call' AS kind,
+        c.phone AS title,
+        COALESCE(c.notes, c.status) AS detail,
+        c.started_at AS occurred_at,
+        u.name AS actor_name
+      FROM calls c
+      LEFT JOIN users u ON u.id = c.manager_id
+
+      UNION ALL
+
+      SELECT
+        'chat-' || m.id AS id,
+        'chat' AS kind,
+        '#' || ch.name AS title,
+        m.text AS detail,
+        m.created_at AS occurred_at,
+        u.name AS actor_name
+      FROM channel_messages m
+      JOIN channels ch ON ch.id = m.channel_id
+      LEFT JOIN users u ON u.id = m.author_id
+    )
+    ORDER BY occurred_at DESC
+    LIMIT ?
+  `).all(Math.max(0, limit)) as OperationalAuditRow[];
 }
 
 export function dashboardStats() {

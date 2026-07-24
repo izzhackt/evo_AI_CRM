@@ -711,8 +711,8 @@ return [
   {
     id: "S28B",
     capability: "WAHA WhatsApp integration",
-    scenario: "WAHA settings create a session account, signed webhook imports messages, status events update the account, and retries are idempotent.",
-    criteria: "Admin can save WAHA config; unsigned WAHA webhook is rejected; signed message creates one account-bound conversation and duplicate delivery is ignored.",
+    scenario: "WAHA settings create a session account, signed webhook imports messages, status events update the account, retries are idempotent, and provider errors stay visible.",
+    criteria: "Admin can save WAHA config; unsigned WAHA webhook is rejected; signed message creates one account-bound conversation; duplicate delivery is ignored; a stored provider failure renders as blocked in the staff shell and settings overview.",
     async run(ctx) {
       const session = `crm_${Math.random().toString(36).slice(2, 8)}`;
       const webhookSecret = unique("waha-hook");
@@ -724,6 +724,7 @@ return [
           "waha_session_name",
           "waha_api_key",
           "waha_webhook_secret",
+          "waha_webhook_url",
         ],
       }, {
         wa_provider: "waha",
@@ -732,6 +733,7 @@ return [
         waha_session_name: session,
         waha_api_key: unique("waha-api"),
         waha_webhook_secret: webhookSecret,
+        waha_webhook_url: "https://crm.evo.example/api/webhooks/waha",
       });
       const account = scalar(ctx, "SELECT id, provider, session_name, status FROM wa_accounts WHERE session_name = ?", [session]);
       assert(account?.provider === "waha", "WAHA account was not created from settings");
@@ -789,7 +791,31 @@ return [
       assert(statusPost.status === 200, `WAHA status post ${statusPost.status}`);
       const updated = scalar(ctx, "SELECT status, phone FROM wa_accounts WHERE id = ?", [account.id]);
       assert(updated?.status === "WORKING" && updated.phone === "+996700111222", "WAHA status event did not update account state");
-      return `WAHA session ${session}; conversation ${conv.id}; duplicate message ignored; account ${updated.status}`;
+      ctx.db
+        .prepare("INSERT INTO settings (key, value) VALUES ('waha_last_error', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+        .run("provider_unreachable");
+      const blockedShell = await ctx.get("/dashboard", ctx.cookie(admin));
+      const blockedLabels = [
+        "WhatsApp: заблокировано",
+        "WhatsApp: бөгөттөлгөн",
+        "WhatsApp: blocked",
+      ];
+      assert(
+        blockedLabels.some((label) => blockedShell.text.includes(label)),
+        `staff shell hid the configured WAHA provider failure; labels=${blockedShell.text.match(/WhatsApp.{0,90}/g)?.slice(0, 3).join(" | ") ?? "none"}`,
+      );
+      const blockedSettings = await ctx.get("/settings?tab=overview", ctx.cookie(admin));
+      const blockedSettingsLabels = [
+        "WhatsApp заблокирован",
+        "WhatsApp бөгөттөлгөн",
+        "WhatsApp is blocked",
+      ];
+      assert(
+        blockedSettingsLabels.some((label) => blockedSettings.text.includes(label)),
+        "settings overview mislabeled the configured WAHA provider failure",
+      );
+      ctx.db.prepare("UPDATE settings SET value = '' WHERE key = 'waha_last_error'").run();
+      return `WAHA session ${session}; conversation ${conv.id}; duplicate message ignored; account ${updated.status}; provider failure rendered blocked in shell and settings`;
     },
   },
   {
@@ -916,7 +942,10 @@ return [
       });
       const page = await ctx.get("/calls", ctx.cookie(sales));
       assert(page.status === 200, `calls page ${page.status}`);
-      assert(page.text.includes("not_configured"), "calls page did not show telephony not_configured copy");
+      assert(
+        page.text.includes("Не настроено") && page.text.includes("Телефония не настроена"),
+        "calls page did not show the user-facing telephony unavailable state",
+      );
       assert(!page.text.includes("Demo mode") && !page.text.includes("Демо-режим"), "calls page still shows demo-mode copy");
       const lead = scalar(ctx, "SELECT id, phone FROM leads WHERE phone IS NOT NULL ORDER BY id LIMIT 1");
       assert(lead?.phone, "no lead with phone available");
@@ -940,7 +969,10 @@ return [
       });
       const partialPage = await ctx.get("/calls", ctx.cookie(sales));
       assert(partialPage.status === 200, `calls page partial provider ${partialPage.status}`);
-      assert(partialPage.text.includes("not_configured"), "calls page hid telephony not_configured copy for missing provider");
+      assert(
+        partialPage.text.includes("Не настроено") && partialPage.text.includes("Телефония не настроена"),
+        "calls page hid the user-facing telephony unavailable state for a missing provider",
+      );
       const beforeMissingProvider = scalar(ctx, "SELECT COUNT(*) AS count FROM calls WHERE phone = ?", [lead.phone]);
       const missingProvider = await ctx.postJson("/api/webhooks/telephony", { api_key: key, phone: lead.phone });
       assert(missingProvider.status === 503, `missing telephony provider status ${missingProvider.status}`);
@@ -984,7 +1016,7 @@ return [
       assert(formatted.status === 200, `formatted phone webhook status ${formatted.status}`);
       const normalizedCall = scalar(ctx, "SELECT id, lead_id, duration_sec, status FROM calls WHERE phone = ? ORDER BY id DESC LIMIT 1", [lead.phone]);
       assert(normalizedCall?.lead_id === lead.id && normalizedCall.duration_sec === 31, "formatted phone call not normalized or linked");
-      return `not_configured copy shown; missing key ${unconfigured.status}; missing provider ${missingProvider.status}; invalid key 403; calls ${call.id}/${normalizedCall.id} linked to lead ${lead.id}`;
+      return `user-facing unavailable state shown; missing key ${unconfigured.status}; missing provider ${missingProvider.status}; invalid key 403; calls ${call.id}/${normalizedCall.id} linked to lead ${lead.id}`;
     },
   },
   {

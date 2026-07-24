@@ -28,6 +28,11 @@ export type IconName =
   | "call-out"
   | "chevron-right"
   | "alert"
+  | "bell"
+  | "calendar"
+  | "clock"
+  | "refresh"
+  | "shield"
   | "menu"
   | "x";
 
@@ -66,6 +71,11 @@ const PATHS: Record<IconName, string> = {
   "call-out": '<path d="M7 17 17 7"/><path d="M7 7h10v10"/>',
   "chevron-right": '<path d="m9 18 6-6-6-6"/>',
   alert: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 11h18"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0 2 5"/><path d="M20 4v7h-7"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>',
   menu: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>',
   x: '<path d="m18 6-12 12"/><path d="m6 6 12 12"/>',
 };

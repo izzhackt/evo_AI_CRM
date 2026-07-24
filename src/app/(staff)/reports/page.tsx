@@ -1,35 +1,101 @@
-import { getT } from "@/lib/i18n";
-import { salesReport } from "@/lib/queries";
+import Link from "next/link";
+
+import { Icon } from "@/components/icons";
+import { ContextBanner } from "@/components/platform/operations/OperationsPrimitives";
+import {
+  Card,
+  EmptyState,
+  PageHeader,
+  StatCard,
+  btnGhostCls,
+  cn,
+} from "@/components/ui";
 import { requireStaffRoute } from "@/lib/guards";
-import { Card, EmptyState, StatCard, cn } from "@/components/ui";
+import { getT } from "@/lib/i18n";
+import { salesReport, type SalesReportPeriod } from "@/lib/queries";
 
-const num = (n: number) => n.toLocaleString("ru-RU");
+const PERIODS: SalesReportPeriod[] = ["30d", "quarter", "year", "all"];
 
-export default async function ReportsPage() {
-  await requireStaffRoute("/reports");
-  const { t } = await getT();
-  const { byManager, bySource } = salesReport();
-
-  const totalLeads = byManager.reduce((s, m) => s + m.leads, 0);
-  const totalWon = byManager.reduce((s, m) => s + m.won, 0);
-  const totalWonAmount = byManager.reduce((s, m) => s + m.won_amount, 0);
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string }>;
+}) {
+  const user = await requireStaffRoute("/reports");
+  const { t, locale } = await getT();
+  const params = await searchParams;
+  const period: SalesReportPeriod = PERIODS.includes(params.period as SalesReportPeriod)
+    ? (params.period as SalesReportPeriod)
+    : "quarter";
+  const { byManager, byMonth, bySource } = salesReport(period);
+  const canOpenSales = user.role === "admin" || user.role === "sales";
+  const localeTag = locale === "ky" ? "ky-KG" : locale === "en" ? "en-GB" : "ru-RU";
+  const number = (value: number) => value.toLocaleString(localeTag);
+  const totalLeads = byManager.reduce((sum, manager) => sum + manager.leads, 0);
+  const totalWon = byManager.reduce((sum, manager) => sum + manager.won, 0);
+  const totalWonAmount = byManager.reduce((sum, manager) => sum + manager.won_amount, 0);
   const conversion = totalLeads ? Math.round((totalWon / totalLeads) * 100) : 0;
-  const avgCheck = totalWon ? Math.round(totalWonAmount / totalWon) : 0;
-  const maxSource = Math.max(1, ...bySource.map((s) => s.c));
+  const average = totalWon ? Math.round(totalWonAmount / totalWon) : 0;
+  const maxSource = Math.max(1, ...bySource.map((source) => source.c));
+  const maxMonth = Math.max(1, ...byMonth.map((month) => month.c));
 
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label={t("leadsCount")} value={num(totalLeads)} tone="accent" />
-        <StatCard label={t("signed")} value={num(totalWon)} tone="success" />
+    <div className="space-y-5" data-testid="reports-page">
+      <PageHeader
+        title={t("salesReport")}
+        description={t("reportDrilldownHint")}
+        action={
+          <div className="flex flex-wrap gap-1 rounded-ctl bg-surface-2 p-1">
+            {PERIODS.map((item) => (
+              <Link
+                key={item}
+                href={`/reports?period=${item}`}
+                aria-current={period === item ? "page" : undefined}
+                className={cn(
+                  "inline-flex min-h-9 items-center rounded-nav px-3 text-[11.5px] font-semibold",
+                  period === item
+                    ? "bg-surface text-accent shadow-evo"
+                    : "text-fg-3 hover:text-fg",
+                )}
+              >
+                {t(`period${item === "30d" ? "30d" : item[0].toUpperCase() + item.slice(1)}`)}
+              </Link>
+            ))}
+          </div>
+        }
+      />
+
+      {!canOpenSales && (
+        <ContextBanner
+          title={t("readOnly")}
+          description={t("reportDrilldownRestricted")}
+          tone="warning"
+        />
+      )}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          label={t("leadsCount")}
+          value={number(totalLeads)}
+          tone="accent"
+          href={canOpenSales ? "/sales?view=list" : undefined}
+        />
+        <StatCard
+          label={t("signed")}
+          value={number(totalWon)}
+          tone="success"
+          href={canOpenSales ? "/sales?view=list&status=contract_signed" : undefined}
+        />
         <StatCard label={t("conversion")} value={`${conversion}%`} tone="info" />
-        <StatCard label={t("avgCheck")} value={`${num(avgCheck)} KGS`} tone="neutral" />
+        <StatCard label={t("avgCheck")} value={`${number(average)} KGS`} tone="neutral" />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
+      <div className="grid gap-5 xl:grid-cols-[1.45fr_1fr]">
         <Card title={t("byManager")} bodyClassName="px-0 py-0">
           {byManager.length === 0 ? (
-            <div className="px-5 py-4"><EmptyState text={t("noResults")} /></div>
+            <div className="px-5 py-4">
+              <EmptyState text={t("reportNoData")} />
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-[13px]">
@@ -43,15 +109,29 @@ export default async function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {byManager.map((m) => {
-                    const conv = m.leads ? Math.round((m.won / m.leads) * 100) : 0;
+                  {byManager.map((manager) => {
+                    const managerConversion = manager.leads
+                      ? Math.round((manager.won / manager.leads) * 100)
+                      : 0;
                     return (
-                      <tr key={m.id} className="transition-[background-color] hover:bg-surface-2">
-                        <td className="px-5 py-3 font-medium text-fg">{m.name}</td>
-                        <td className="px-3 py-3 text-right font-mono text-fg-2">{num(m.leads)}</td>
-                        <td className="px-3 py-3 text-right font-mono font-semibold text-ok">{num(m.won)}</td>
-                        <td className="px-3 py-3 text-right font-mono text-fg-2">{conv}%</td>
-                        <td className="px-5 py-3 text-right font-mono font-semibold text-fg">{num(m.won_amount)} KGS</td>
+                      <tr key={manager.id} className="hover:bg-surface-2">
+                        <td className="px-5 py-3 font-medium text-fg">
+                          {canOpenSales ? (
+                            <Link
+                              href={`/sales?view=list&manager=${manager.id}`}
+                              className="inline-flex items-center gap-1 text-accent hover:underline"
+                            >
+                              {manager.name}
+                              <Icon name="chevron-right" size={13} />
+                            </Link>
+                          ) : manager.name}
+                        </td>
+                        <td className="px-3 py-3 text-right font-mono text-fg-2">{number(manager.leads)}</td>
+                        <td className="px-3 py-3 text-right font-mono font-semibold text-ok">{number(manager.won)}</td>
+                        <td className="px-3 py-3 text-right font-mono text-fg-2">{managerConversion}%</td>
+                        <td className="px-5 py-3 text-right font-mono font-semibold text-fg">
+                          {number(manager.won_amount)} KGS
+                        </td>
                       </tr>
                     );
                   })}
@@ -63,25 +143,81 @@ export default async function ReportsPage() {
 
         <Card title={t("bySource")}>
           {bySource.length === 0 ? (
-            <EmptyState text={t("noResults")} />
+            <EmptyState text={t("reportNoData")} />
           ) : (
-            <div className="space-y-3.5">
-              {bySource.map((s) => (
-                <div key={s.source}>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="truncate text-[13px] text-fg-2">{s.source}</span>
-                    <span className="shrink-0 font-mono text-[12px] text-fg-3">
-                      {s.c} · {s.won} {t("signed").toLowerCase()}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-surface-2">
-                    <div className={cn("h-full rounded-full bg-accent")} style={{ width: `${Math.max(4, (s.c / maxSource) * 100)}%` }} />
-                  </div>
-                </div>
-              ))}
+            <div className="space-y-2">
+              {bySource.map((source) => {
+                const content = (
+                  <>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-[13px] font-semibold text-fg-2">{source.source}</span>
+                      <span className="shrink-0 font-mono text-[11px] text-fg-3">
+                        {source.c} · {source.won} {t("signed").toLowerCase()}
+                      </span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-2">
+                      <div
+                        className="h-full rounded-full bg-accent"
+                        style={{ width: `${Math.max(4, (source.c / maxSource) * 100)}%` }}
+                      />
+                    </div>
+                  </>
+                );
+                return canOpenSales ? (
+                  <Link
+                    key={source.source}
+                    href={`/sales?view=list&source=${encodeURIComponent(source.source)}`}
+                    className="block rounded-ctl border border-transparent p-2 hover:border-border hover:bg-surface-2"
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={source.source} className="p-2">{content}</div>
+                );
+              })}
             </div>
           )}
         </Card>
+      </div>
+
+      <Card title={t("byMonth")}>
+        {byMonth.length === 0 ? (
+          <EmptyState text={t("reportNoData")} />
+        ) : (
+          <div className="grid h-56 grid-cols-6 items-end gap-2 sm:grid-cols-12" data-testid="report-month-chart">
+            {byMonth.map((month) => (
+              <div key={month.month} className="flex h-full min-w-0 flex-col justify-end gap-2">
+                <span className="text-center font-mono text-[10px] font-semibold text-fg-2">{month.c}</span>
+                <div
+                  className="min-h-2 rounded-t bg-accent"
+                  style={{ height: `${Math.max(6, (month.c / maxMonth) * 100)}%` }}
+                />
+                <span className="truncate text-center font-mono text-[9px] text-fg-3">
+                  {month.month.slice(5)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <div className="flex flex-wrap gap-2">
+        <Link href="/tasks?view=list" className={btnGhostCls}>
+          <Icon name="check-square" size={15} />
+          {t("tasks")}
+        </Link>
+        {canOpenSales && (
+          <>
+            <Link href="/calls" className={btnGhostCls}>
+              <Icon name="phone" size={15} />
+              {t("calls")}
+            </Link>
+            <Link href="/whatsapp" className={btnGhostCls}>
+              <Icon name="message-circle" size={15} />
+              {t("whatsapp")}
+            </Link>
+          </>
+        )}
       </div>
     </div>
   );

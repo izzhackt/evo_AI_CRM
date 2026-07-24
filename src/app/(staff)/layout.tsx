@@ -1,18 +1,22 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { currentUser, isStaff } from "@/lib/auth";
+import { currentUser } from "@/lib/auth";
 import { getT } from "@/lib/i18n";
-import { logoutAction } from "@/lib/actions";
+import { getIntegrationStatus, logoutAction } from "@/lib/actions";
 import { MobileStaffNav, StaffNav, type MobileNavCopy, type NavGroup } from "@/components/StaffNav";
 import { TopBar } from "@/components/TopBar";
 import { Icon } from "@/components/icons";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
-import { STAFF_NAV_ITEMS } from "@/lib/domain";
+import { STAFF_NAV_ITEMS, isStaffRole } from "@/lib/domain";
 import type { Locale } from "@/lib/i18n-data";
+import {
+  listOperatorNotifications,
+  OPERATOR_NOTIFICATION_LIMIT,
+} from "@/lib/queries";
 
 const NAV_GROUP_DEFS = [
   { key: "navOperations", hrefs: ["/dashboard", "/sales", "/clients", "/applications", "/documents", "/visa"] },
-  { key: "navCommunications", hrefs: ["/whatsapp", "/calls", "/chat"] },
+  { key: "navCommunications", hrefs: ["/whatsapp", "/calls", "/chat", "/notifications"] },
   { key: "navAnalytics", hrefs: ["/tasks", "/reports", "/finance"] },
   { key: "navSystem", hrefs: ["/settings"] },
 ] as const;
@@ -68,13 +72,22 @@ function initials(name: string) {
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
   if (!user) redirect("/login");
-  if (!isStaff(user.role)) redirect("/portal");
+  const role = user.role;
+  if (!isStaffRole(role)) redirect("/portal");
   const { t, locale } = await getT();
   const shellCopy = SHELL_COPY[locale];
+  const notificationBatch = listOperatorNotifications(
+    role,
+    OPERATOR_NOTIFICATION_LIMIT + 1,
+  );
+  const notificationCountCapped =
+    notificationBatch.length > OPERATOR_NOTIFICATION_LIMIT;
+  const notifications = notificationBatch.slice(0, OPERATOR_NOTIFICATION_LIMIT);
+  const integrations = await getIntegrationStatus();
 
   const allowed = new Map(
     STAFF_NAV_ITEMS
-      .filter((item) => (item.allowedRoles as readonly string[]).includes(user.role))
+      .filter((item) => (item.allowedRoles as readonly string[]).includes(role))
       .map((item) => [item.href as string, t(item.labelKey)] as const),
   );
   const groups: NavGroup[] = NAV_GROUP_DEFS
@@ -98,10 +111,11 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     "/whatsapp": { title: `${t("whatsapp")} · ${t("inbox")}` },
     "/calls": { title: t("callLog") },
     "/chat": { title: t("chat"), hint: t("channels") },
+    "/notifications": { title: t("notifications"), hint: t("notificationsHint") },
     "/tasks": { title: t("taskBoard"), hint: t("taskBoardHint") },
     "/reports": { title: t("salesReport") },
     "/finance": { title: t("financeOverview"), hint: t("financeOverviewHint") },
-    "/settings": { title: t("integrationSettings"), hint: t("adminOnly") },
+    "/settings": { title: t("settings"), hint: t("adminOnly") },
   };
 
   return (
@@ -139,7 +153,30 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         </aside>
 
         <div className="staff-workspace">
-          <TopBar titles={titles} locale={locale} addLabel={t("add")} themeLabel={t("toggleTheme")} />
+          <TopBar
+            titles={titles}
+            locale={locale}
+            addLabel={t("add")}
+            themeLabel={t("toggleTheme")}
+            notificationCount={notifications.length}
+            notificationCountCapped={notificationCountCapped}
+            integrationStatus={{
+              amo:
+                integrations.amocrm.status === "configured"
+                  ? "configured_not_verified"
+                  : integrations.amocrm.status,
+              whatsapp:
+                integrations.whatsappState === "configured"
+                  ? "configured_not_verified"
+                  : integrations.whatsappState,
+            }}
+            notificationPreview={notifications.slice(0, 3).map((item) => ({
+              id: item.id,
+              title: item.title,
+              subject: item.subject,
+              href: item.href,
+            }))}
+          />
           <main
             id="staff-main"
             tabIndex={-1}

@@ -62,8 +62,8 @@ test("rejects invalid login without server overlay", async ({ page, runtimeError
 test("staff can log in, navigate core pages, and create a real lead", async ({ page, runtimeErrors }, testInfo) => {
   await login(page, "admin@demo.kg", "admin123", /\/dashboard$/);
   await expect(page.locator("#staff-main").getByRole("heading", { name: "Командный центр" })).toBeVisible();
-  await expect(page.locator(".provider-status:visible", { hasText: "amoCRM: не проверен" })).toBeVisible();
-  await expect(page.locator(".provider-status:visible", { hasText: "WAHA: не проверен" })).toBeVisible();
+  await expect(page.locator(".provider-status:visible", { hasText: "amoCRM: не настроено" })).toBeVisible();
+  await expect(page.locator(".provider-status:visible", { hasText: "WhatsApp: не настроено" })).toBeVisible();
   await expect(page.locator(".provider-status:visible", { hasText: "AI: только черновики" })).toBeVisible();
   const mobileMenuOpen = await openMobileStaffMenu(page);
   await expect(page.getByRole("link", { name: "Поступление" })).toBeVisible();

@@ -647,15 +647,28 @@ export async function saveSettingsAction(form: FormData) {
 export async function getIntegrationStatus() {
   const telephonyProvider = getSetting("tel_provider")?.trim();
   const telephonyApiKey = getSetting("tel_api_key")?.trim();
+  const whatsappProvider = getSetting("wa_provider")?.trim() || "meta";
   const metaConfigured = !!getSetting("wa_token") && !!getSetting("wa_phone_id");
-  const wahaConfigured = getSetting("wa_provider") === "waha" &&
+  const wahaConfigured = whatsappProvider === "waha" &&
     !!getSetting("waha_base_url") &&
     !!getSetting("waha_api_key") &&
     !!getSetting("waha_session_name") &&
     !!getSetting("waha_webhook_secret") &&
     !!getSetting("waha_webhook_url");
+  const wahaLastError = getSetting("waha_last_error")?.trim();
+  const whatsappState: "not_configured" | "configured" | "blocked" =
+    whatsappProvider === "waha"
+      ? !wahaConfigured
+        ? "not_configured"
+        : wahaLastError
+          ? "blocked"
+          : "configured"
+      : metaConfigured
+        ? "configured"
+        : "not_configured";
   return {
-    whatsapp: metaConfigured || wahaConfigured,
+    whatsapp: whatsappState === "configured",
+    whatsappState,
     telephony: !!telephonyProvider && !!telephonyApiKey,
     ai: !!getSetting("anthropic_api_key") || !!process.env.ANTHROPIC_API_KEY,
     amocrm: getAmoCrmLocalStatus(),

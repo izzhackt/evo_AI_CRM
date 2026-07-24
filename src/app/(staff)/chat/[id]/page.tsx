@@ -51,6 +51,31 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
 
       {/* Messages */}
       <section className="flex min-w-0 flex-1 flex-col">
+        <details className="border-b border-border md:hidden">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 py-2 text-[12px] font-semibold text-accent">
+            <span>{t("channels")}</span>
+            <Icon name="chevron-right" size={15} />
+          </summary>
+          <nav className="grid gap-1 border-t border-border bg-surface-2 p-2">
+            {channels.map((item) => (
+              <Link
+                key={item.id}
+                href={`/chat/${item.id}`}
+                className={cn(
+                  "rounded-nav px-3 py-2 text-[13px]",
+                  item.id === channelId ? "bg-accent-weak font-semibold text-accent" : "text-fg-2",
+                )}
+              >
+                # {item.name}
+              </Link>
+            ))}
+          </nav>
+          <form action={createChannelAction} className="grid gap-2 border-t border-border p-3">
+            <input name="name" required placeholder={t("channelName")} className={inputCls} />
+            <input name="description" placeholder={t("description")} className={inputCls} />
+            <button type="submit" className={cn(btnCls, "w-full")}>{t("add")}</button>
+          </form>
+        </details>
         <header className="border-b border-border px-5 py-3">
           <div className="text-[14px] font-semibold text-fg"># {channel.name}</div>
           {channel.description && <div className="text-[12px] text-fg-3">{channel.description}</div>}
@@ -67,7 +92,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
                 <div className="min-w-0">
                   <div className="flex items-baseline gap-2">
                     <span className="text-[13.5px] font-semibold text-fg">
-                      {m.author_name}{m.author_id === user?.id ? " (вы)" : ""}
+                      {m.author_name}{m.author_id === user?.id ? ` (${t("you")})` : ""}
                     </span>
                     <span className="font-mono text-[11px] text-fg-3">{m.created_at}</span>
                   </div>
@@ -81,8 +106,8 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
         <form action={sendChannelMessageAction} className="flex gap-2 border-t border-border p-3">
           <input type="hidden" name="channel_id" value={channelId} />
           <input name="text" required autoComplete="off" placeholder={t("messagePlaceholder")} className={inputCls} />
-          <button type="submit" className={cn(btnCls, "shrink-0")}>
-            <Icon name="send" size={15} /> {t("send")}
+          <button type="submit" aria-label={t("send")} className={cn(btnCls, "shrink-0 px-3 sm:px-4")}>
+            <Icon name="send" size={15} /> <span className="hidden sm:inline">{t("send")}</span>
           </button>
         </form>
       </section>

@@ -24,6 +24,7 @@ export const STAFF_ROUTE_VALUES = [
   "/visa",
   "/whatsapp",
   "/calls",
+  "/notifications",
   "/tasks",
   "/chat",
   "/reports",
@@ -50,6 +51,7 @@ export const APP_ROUTES = {
     visa: "/visa",
     whatsapp: "/whatsapp",
     calls: "/calls",
+    notifications: "/notifications",
     tasks: "/tasks",
     chat: "/chat",
     reports: "/reports",
@@ -113,6 +115,11 @@ export const STAFF_NAV_ITEMS = [
     href: APP_ROUTES.staff.calls,
     labelKey: "calls",
     allowedRoles: ["admin", "sales"],
+  },
+  {
+    href: APP_ROUTES.staff.notifications,
+    labelKey: "notifications",
+    allowedRoles: STAFF_ROLES,
   },
   {
     href: APP_ROUTES.staff.tasks,

@@ -15,6 +15,7 @@ const NAV_ICON: Record<string, IconName> = {
   "/visa": "file-check",
   "/whatsapp": "message-circle",
   "/calls": "phone",
+  "/notifications": "bell",
   "/chat": "message-square",
   "/tasks": "check-square",
   "/reports": "bar-chart",

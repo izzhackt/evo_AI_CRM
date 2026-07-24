@@ -80,3 +80,24 @@ and the old Inbox runtime revision.
 
 These items are blockers, not delegated decisions. This audit does not turn any
 proposal into policy or authorize any external action.
+
+## Owner decision after this audit
+
+On 2026-07-24 (Asia/Bishkek), the owner accepted the increased rollback and
+data-loss risk of proceeding without a pre-migration Supabase database and
+Storage backup and decided not to upgrade the Supabase plan now. The exact
+append-only boundary is recorded in
+[`PLAN_CHANGES.md`](PLAN_CHANGES.md#2026-07-24---owner-accepts-temporary-supabase-pre-migration-backup-risk).
+
+This changes one immediate stop condition only: production migrations 038/039
+and the Inbox deployment may proceed without the full Supabase backup after
+transaction-level validation, migration-specific rollback SQL and durable
+rollback evidence, and every other release gate pass. Destructive migrations
+and data rewrites remain prohibited.
+
+The missing real Supabase database-plus-Storage backup and isolated restore
+rehearsal remains an open Block F/Block G acceptance item, with owner review
+targeted for 2026-08-03 after about ten days of platform use. RPO/RTO remains
+unapproved. The overall `blocked_external` verdict is unchanged because this
+decision neither supplies the deferred restore evidence nor clears the other
+external acceptance gates.

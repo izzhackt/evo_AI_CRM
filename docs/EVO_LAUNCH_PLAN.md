@@ -219,6 +219,186 @@ rehearsal. None may be inferred or marked complete from automated tests.
   append-only `PLAN_CHANGES.md` entry.
 - Never print, commit, or copy secrets or customer data into evidence.
 
+## Planned EVO Platform Frontend Slice
+
+Planned slice: `/goal-evo-platform-frontend`.
+
+This slice may run after its planning-only PR is independently reviewed and
+merged. It does not close or weaken `/goal-evo-preplatform-hardening`; the
+remaining owner/external gates in that goal stay open.
+
+### Goal
+
+Turn the reviewed Claude Design handoff into the real, responsive and
+accessible EVO Platform frontend inside the root Next.js CRM application.
+The result should present one coherent staff workspace and student portal while
+preserving the current system ownership boundaries:
+
+- amoCRM remains authoritative for contact/lead identity, responsible manager
+  and sales-pipeline stage;
+- the root CRM remains the canonical host for staff operations and the student
+  portal;
+- EVO Inbox remains the current WhatsApp conversation runtime and Supabase
+  owner until a later backend/data migration decision;
+- AI customer replies remain draft-only and require a human to send;
+- the retained Lead Agent remains frozen and backend-only.
+
+One frontend does not imply one physical database or one runtime in this slice.
+No schema merge, Supabase consolidation, Lead Agent deletion, live provider
+mutation, production deployment or outbound WhatsApp test is authorized here.
+
+### Reviewed design baseline
+
+- Source bundle:
+  `docs/design/evo-platform/prototype/`.
+- Completion contract:
+  `docs/design/evo-platform/COMPLETION_CHECKLIST.md`.
+- Browser and static audit:
+  `docs/design/evo-platform/AUDIT_2026-07-24.md`.
+- The handoff covers the main information architecture, seven staff roles,
+  Student Portal, design tokens and eight core flows.
+- The handoff is not production code. Its known gaps include broken staff
+  tablet/mobile layouts, a phone-shaped rather than native desktop Student
+  Portal, incomplete navigable system states, CDN runtime dependencies,
+  inaccessible clickable `div` controls and unlabelled/unmanaged overlays.
+
+### Role mapping for this frontend slice
+
+The prototype's seven staff personas are design viewpoints, not permission
+records to add to production. This slice preserves the five existing staff
+roles in `src/lib/domain.ts`:
+
+| Prototype viewpoint | Existing application role in this slice |
+|---|---|
+| Руководство | `admin` dashboard/report viewpoint; no new role |
+| Администратор | `admin` |
+| Продажи | `sales` |
+| Куратор | `curator` |
+| Визовый специалист | `visa` |
+| Финансы | `finance` |
+| Оператор Inbox | existing `admin`/`sales`/`curator` WhatsApp access; no new role |
+
+The student remains the existing `client` role. Role switching in the design
+bundle is demonstration-only and must not be copied into the real application
+as an authorization mechanism. Adding a distinct leadership or Inbox-operator
+role requires a later role-policy amendment and server-side authorization
+work. The completion checklist's permissions-matrix item means documenting and
+testing the current five staff roles plus `client`, not silently expanding
+them.
+
+### Inbox data boundary for this frontend slice
+
+The root `/whatsapp` route currently reads and writes the main CRM's local
+`wa_*` shadow tables through existing CRM queries/actions. It does not read the
+separate EVO Inbox Supabase project. Therefore:
+
+- this slice may redesign `/whatsapp` over the existing root CRM read/action
+  path and must label its source truthfully;
+- it must preserve all current send/configuration guards and draft-only AI;
+- it must not claim that the root view is connected to EVO Inbox Supabase;
+- the shell may link to or report the separate EVO Inbox runtime status only
+  when that status is available through an already-authorized read path;
+- a real Supabase-to-root read bridge, shared Inbox API or data migration is a
+  later backend/integration slice with its own authentication, ownership,
+  privacy and failure-mode design.
+
+“Unified Inbox” in this frontend slice means one consistent interaction design,
+not a hidden cross-database integration.
+
+### Architecture and implementation order
+
+1. **Planning and evidence**
+   - Commit the unmodified Claude Design source, completion checklist, browser
+     evidence and gap audit.
+   - Keep the prototype clearly labelled as reference-only.
+2. **Frontend foundation**
+   - Implement EVO brand tokens, real logo treatment, typography, primitives,
+     semantic tables, tabs, dialogs, drawers, feedback and state components.
+   - Keep data-reading pages as Server Components and isolate only interactive
+     controls in focused Client Components.
+   - Implement keyboard focus, reduced-motion handling and native semantic
+     controls.
+3. **Unified responsive shell**
+   - Rebuild the root staff shell and topbar for desktop, tablet and urgent
+     mobile work without replacing existing authentication or role checks.
+   - Expose truthful amoCRM, WAHA and AI status labels without implying that a
+     provider was exercised.
+4. **Staff workspaces**
+   - Recreate the reviewed dashboard, sales funnel/list, Lead 360, Student 360,
+     applications, documents, visa, finance, tasks/calendar, calls/meetings,
+     Inbox, notifications, reports and administration surfaces on existing
+     root routes where possible.
+   - Add only read-model/UI routes required for missing surfaces; do not change
+     provider ownership or create a second source of truth.
+   - Keep `/whatsapp` on the existing CRM `wa_*` read/action path and label the
+     separate EVO Inbox bridge as deferred.
+5. **Student Portal**
+   - Rebuild `/portal` as a true mobile-first surface with an actual desktop
+     layout, accessible document resubmission and the reviewed progress,
+     applications, visa, payments, messages, team and security views.
+6. **Validation and handoff**
+   - Run lint, type/build, relevant unit/e2e suites and secret scanning.
+   - Exercise the critical flows in a real browser at 1440x1024, 834x1194 and
+     390x844, save screenshots and audit keyboard/focus behavior.
+   - Keep provider-dependent flows labelled blocked or simulated unless real
+     credentials and explicit mutation/send approval are separately supplied.
+
+### Named write set
+
+- `docs/EVO_LAUNCH_PLAN.md`, `docs/PLAN_CHANGES.md`,
+  `docs/design/evo-platform/**`: contract, source handoff and audit evidence.
+- `eslint.config.mjs`: ignore only the immutable, reference-only Claude Design
+  export under `docs/design/evo-platform/prototype/**`; application source
+  remains linted.
+- `src/app/globals.css`, `src/app/layout.tsx`,
+  `src/app/(staff)/**`, `src/app/login/**`, `src/app/portal/**`:
+  responsive application surfaces.
+- `src/components/**`, `src/lib/domain.ts`, `src/lib/i18n*.ts`:
+  shared design system, navigation, truthful presentation models and copy.
+- `src/lib/queries.ts`, `src/lib/actions.ts` only for presentation/read-model
+  adaptation of existing root CRM data and existing guarded actions. No new
+  cross-runtime provider write path is included.
+- `tests/**`, `playwright.config.ts` only where required for frontend
+  acceptance and regression coverage.
+
+Database migrations, provider clients, webhook handlers, Compose/Caddy,
+production secrets and deployments are outside this slice unless a later
+append-only plan amendment explicitly adds them.
+
+### Acceptance criteria
+
+- Every applicable item in the completion checklist maps to a real application
+  route, component state or explicitly recorded provider blocker.
+- The permissions matrix covers the current `admin`, `sales`, `curator`,
+  `visa`, `finance` and `client` roles; prototype-only leadership/Inbox
+  personas do not become production roles in this slice.
+- Staff views are usable without horizontal page overflow at 1440x1024 and
+  834x1194; Inbox, tasks and notifications have an intentional 390x844 urgent
+  mobile experience.
+- Student Portal uses native mobile and desktop layouts rather than a device
+  frame embedded in a marketing page.
+- Navigation, cards, forms, tabs, tables, kanban, drawers and dialogs are
+  keyboard-operable with visible focus and appropriate semantics.
+- No frontend success state claims a real amoCRM, WAHA, Supabase, AI or
+  telephony result unless that real service was exercised.
+- Sales stages and operational student stages remain visibly distinct.
+- AI drafts cannot auto-send and the manual-send boundary is explicit.
+- The root application lint, build and affected automated/browser tests pass.
+
+### Merge order and stop conditions
+
+1. Planning/design-evidence PR, including the narrow lint ignore required to
+   store the immutable design exporter source outside the runtime.
+2. Design-system and responsive-shell PR.
+3. Staff workspace PRs split by non-overlapping route ownership.
+4. Student Portal PR.
+5. Cross-flow browser acceptance and final integration PR.
+
+Stop before changing backend ownership, merging databases, deleting a runtime,
+changing role policy, deploying to production or sending a real message. Those
+actions require a separate architecture amendment and, where applicable,
+explicit owner approval and real provider inputs.
+
 ## Completed Main Production Consolidation Slice
 
 Completed slice: `/goal-evo-main-production-consolidation`.

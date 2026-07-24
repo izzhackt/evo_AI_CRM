@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:"SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#14161A;background:#F6F7F9;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.55}
+  a{color:#D70217;text-decoration:none}
+  a:hover{color:#B00213}
+  h1,h2,h3,h4{font-family:"Montserrat",sans-serif;margin:0;letter-spacing:-.01em}
+  ::selection{background:rgba(215,2,23,.16)}
+  .evo-hov:hover{border-color:#D70217!important;transform:translateY(-2px)}
+  .evo-hov{transition:.14s}
+</style>
+</helmet>
+<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden"><defs>
+<g id="__ic" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></g>
+<symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></symbol>
+<symbol id="i-trending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></symbol>
+<symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92Z"></path></symbol>
+<symbol id="i-check-square" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></symbol>
+<symbol id="i-plane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"></path></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="15"></line></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></symbol>
+<symbol id="i-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></symbol>
+<symbol id="i-alert-tri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></symbol>
+<symbol id="i-alert-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></symbol>
+<symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></symbol>
+<symbol id="i-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></symbol>
+<symbol id="i-paperclip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></symbol>
+<symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></symbol>
+<symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+<symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></symbol>
+<symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></symbol>
+<symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4M10 10h4M10 14h4"></path></symbol>
+<symbol id="i-cap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"></path><path d="M6 12v5c0 1 2 3 6 3s6-2 6-3v-5"></path></symbol>
+<symbol id="i-map" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></symbol>
+<symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></symbol>
+<symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></symbol>
+<symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></symbol>
+</defs></svg>
+<div style="max-width:1120px;margin:0 auto;padding:0 28px 120px">
+
+  <!-- HERO -->
+  <header style="padding:52px 0 36px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:30px">
+      <div style="display:flex;align-items:baseline;gap:3px;font-family:Montserrat;font-weight:800;font-size:22px"><span>EVO</span><span style="width:7px;height:7px;border-radius:50%;background:#D70217;align-self:center;margin:0 1px"></span><span style="font-weight:600;letter-spacing:.16em;font-size:13px;text-transform:uppercase;position:relative;top:-1px">Admissions</span></div>
+      <span style="margin-left:4px;padding:4px 10px;border:1px solid #E4E6EA;border-radius:999px;font-size:11px;font-weight:600;color:#5B6068;letter-spacing:.04em">PLATFORM · FRONTEND & PROTOTYPE</span>
+    </div>
+    <h1 style="font-size:46px;font-weight:800;line-height:1.04;max-width:820px;margin-bottom:18px;text-wrap:balance">Единая платформа сопровождения поступления EVO Admissions</h1>
+    <p style="font-size:18px;color:#5B6068;max-width:720px;line-height:1.5;margin:0 0 14px">Один продукт для сотрудников и студентов поверх продаж, коммуникаций, документов, заявок, визы и финансов. amoCRM — источник истины по продажам; AI работает только в режиме черновика.</p>
+    <p style="font-size:13px;color:#878C94;max-width:720px;margin:0">Кликабельный высокоточный прототип. Интеракции демонстрируют дизайн-намерение — они не означают, что amoCRM, WAHA, Supabase, AI или телефония реально подключены и проверены.</p>
+  </header>
+
+  <!-- SURFACE CARDS -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px">
+    <a href="EVO Staff Workspace.dc.html" class="evo-hov" style="display:block;background:#131519;border:1px solid #131519;border-radius:16px;padding:24px;color:#fff">
+      <span style="width:44px;height:44px;border-radius:12px;background:rgba(215,2,23,.16);color:#fff;display:flex;align-items:center;justify-content:center;margin-bottom:16px"><svg style="width:22px;height:22px"><use href="#i-grid"></use></svg></span>
+      <div style="font-family:Montserrat;font-weight:700;font-size:19px;margin-bottom:6px">Staff Workspace</div>
+      <div style="font-size:13.5px;color:rgba(255,255,255,.6);line-height:1.5;margin-bottom:14px">Desktop-first рабочее пространство: командный центр, воронка, Student 360, документы, виза, финансы, диалоги.</div>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#fff">Открыть <svg style="width:15px;height:15px"><use href="#i-arrow-right"></use></svg></span>
+    </a>
+    <a href="EVO Student Portal.dc.html" class="evo-hov" style="display:block;background:#fff;border:1px solid #E4E6EA;border-radius:16px;padding:24px">
+      <span style="width:44px;height:44px;border-radius:12px;background:#FCE8EA;color:#D70217;display:flex;align-items:center;justify-content:center;margin-bottom:16px"><svg style="width:22px;height:22px"><use href="#i-cap"></use></svg></span>
+      <div style="font-family:Montserrat;font-weight:700;font-size:19px;margin-bottom:6px">Student Portal</div>
+      <div style="font-size:13.5px;color:#5B6068;line-height:1.5;margin-bottom:14px">Mobile-first кабинет: прогресс, следующий шаг, документы, заявки, виза, оплаты, сообщения и команда EVO.</div>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#D70217">Открыть <svg style="width:15px;height:15px"><use href="#i-arrow-right"></use></svg></span>
+    </a>
+    <a href="EVO Design System.dc.html" class="evo-hov" style="display:block;background:#fff;border:1px solid #E4E6EA;border-radius:16px;padding:24px">
+      <span style="width:44px;height:44px;border-radius:12px;background:#F0F1F4;color:#14161A;display:flex;align-items:center;justify-content:center;margin-bottom:16px"><svg style="width:22px;height:22px"><use href="#i-sparkles"></use></svg></span>
+      <div style="font-family:Montserrat;font-weight:700;font-size:19px;margin-bottom:6px">Дизайн-система</div>
+      <div style="font-size:13.5px;color:#5B6068;line-height:1.5;margin-bottom:14px">Токены, логотип, иконки, компоненты, статусы, состояния и паттерны единого визуального языка.</div>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#D70217">Открыть <svg style="width:15px;height:15px"><use href="#i-arrow-right"></use></svg></span>
+    </a>
+  </div>
+
+  <!-- QUICK FLOWS -->
+  <div style="background:#fff;border:1px solid #E4E6EA;border-radius:16px;padding:22px;margin-bottom:52px">
+    <div style="font-size:12px;font-weight:700;color:#D70217;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px">Быстрый вход в сценарии</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+      <a href="EVO Staff Workspace.dc.html?role=sales&view=dashboard" style="display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid #EEEFF2;border-radius:10px;color:#14161A;font-size:12.5px;font-weight:600"><svg style="width:16px;height:16px;color:#1E6FB8"><use href="#i-trending"></use></svg>Продажи</a>
+      <a href="EVO Staff Workspace.dc.html?role=inbox&view=inbox" style="display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid #EEEFF2;border-radius:10px;color:#14161A;font-size:12.5px;font-weight:600"><svg style="width:16px;height:16px;color:#0E8A6E"><use href="#i-chat"></use></svg>Диалоги + AI</a>
+      <a href="EVO Staff Workspace.dc.html?role=curator&view=documents" style="display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid #EEEFF2;border-radius:10px;color:#14161A;font-size:12.5px;font-weight:600"><svg style="width:16px;height:16px;color:#7E4BC9"><use href="#i-folder"></use></svg>Документы</a>
+      <a href="EVO Staff Workspace.dc.html?role=finance&view=finance" style="display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid #EEEFF2;border-radius:10px;color:#14161A;font-size:12.5px;font-weight:600"><svg style="width:16px;height:16px;color:#C77700"><use href="#i-wallet"></use></svg>Финансы</a>
+      <a href="EVO Staff Workspace.dc.html?role=visa&view=visa" style="display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid #EEEFF2;border-radius:10px;color:#14161A;font-size:12.5px;font-weight:600"><svg style="width:16px;height:16px;color:#1F8A5B"><use href="#i-plane"></use></svg>Виза</a>
+      <a href="EVO Staff Workspace.dc.html?role=admin&view=admin" style="display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid #EEEFF2;border-radius:10px;color:#14161A;font-size:12.5px;font-weight:600"><svg style="width:16px;height:16px;color:#7E020F"><use href="#i-settings"></use></svg>Админ и роли</a>
+      <a href="EVO Staff Workspace.dc.html?role=leadership&view=reports" style="display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid #EEEFF2;border-radius:10px;color:#14161A;font-size:12.5px;font-weight:600"><svg style="width:16px;height:16px;color:#131519"><use href="#i-chart"></use></svg>Отчёты</a>
+      <a href="EVO Student Portal.dc.html" style="display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid #EEEFF2;border-radius:10px;color:#14161A;font-size:12.5px;font-weight:600"><svg style="width:16px;height:16px;color:#D70217"><use href="#i-cap"></use></svg>Кабинет студента</a>
+    </div>
+  </div>
+
+  <!-- SOURCE OF TRUTH -->
+  <section style="margin-bottom:48px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">01</span><h2 style="font-size:24px;font-weight:700">Источники истины и границы</h2></div>
+    <p style="color:#5B6068;margin:0 0 20px;max-width:760px">Дизайн опирается на подтверждённый бизнес-контекст EVO. Текущее разделение CRM и Inbox не считается обязательным будущим UX — они объединены в один продукт с единой моделью данных и навигацией.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:22px">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">Владельцы данных</h3>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+          <div style="display:flex;gap:10px"><span style="width:6px;height:6px;border-radius:50%;background:#D70217;margin-top:7px;flex-shrink:0"></span><div><b>amoCRM</b> — контакт, лид, ответственный, этап продаж, история продаж.</div></div>
+          <div style="display:flex;gap:10px"><span style="width:6px;height:6px;border-radius:50%;background:#1E6FB8;margin-top:7px;flex-shrink:0"></span><div><b>EVO CRM</b> — профиль студента и операции поступления (заявки, документы, виза, платежи, задачи).</div></div>
+          <div style="display:flex;gap:10px"><span style="width:6px;height:6px;border-radius:50%;background:#0E8A6E;margin-top:7px;flex-shrink:0"></span><div><b>Supabase (Inbox)</b> — диалоги, сообщения, настройки и база знаний.</div></div>
+          <div style="display:flex;gap:10px"><span style="width:6px;height:6px;border-radius:50%;background:#C77700;margin-top:7px;flex-shrink:0"></span><div><b>WAHA</b> — транспорт WhatsApp; <b>внешние органы</b> — решения по заявке, гранту и визе.</div></div>
+        </div>
+        <p style="font-size:12px;color:#878C94;margin:14px 0 0;line-height:1.5">Единый UX не означает одну физическую базу. Связанные данные показывают источник, статус синхронизации и конфликты.</p>
+      </div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:22px">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">Непреложные границы v1</h3>
+        <div style="display:flex;flex-direction:column;gap:9px;font-size:13px">
+          <div style="display:flex;align-items:flex-start;gap:9px"><svg style="width:16px;height:16px;color:#1F8A5B;flex-shrink:0;margin-top:1px"><use href="#i-check-circle"></use></svg>amoCRM остаётся источником истины по продажам.</div>
+          <div style="display:flex;align-items:flex-start;gap:9px"><svg style="width:16px;height:16px;color:#1F8A5B;flex-shrink:0;margin-top:1px"><use href="#i-check-circle"></use></svg>AI-ответы клиентам — только черновики, отправляет человек.</div>
+          <div style="display:flex;align-items:flex-start;gap:9px"><svg style="width:16px;height:16px;color:#1F8A5B;flex-shrink:0;margin-top:1px"><use href="#i-check-circle"></use></svg>EVO Lead Agent — backend-only, без отдельного UI.</div>
+          <div style="display:flex;align-items:flex-start;gap:9px"><svg style="width:16px;height:16px;color:#1F8A5B;flex-shrink:0;margin-top:1px"><use href="#i-check-circle"></use></svg>Этап продаж и операционный этап студента визуально различимы.</div>
+          <div style="display:flex;align-items:flex-start;gap:9px"><svg style="width:16px;height:16px;color:#1F8A5B;flex-shrink:0;margin-top:1px"><use href="#i-check-circle"></use></svg>Массовые рассылки и авто-ответы — вне v1.</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+      <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:600;background:#E6F4ED;color:#1F8A5B">CONFIRMED — подтверждённый repo-факт</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:600;background:#FCF3E3;color:#C77700">HYPOTHESIS — безопасное допущение v1</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:600;background:#E7F0F9;color:#1E6FB8">OPEN DECISION — требует решения владельца</span>
+    </div>
+  </section>
+
+  <!-- IA -->
+  <section style="margin-bottom:48px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">02</span><h2 style="font-size:24px;font-weight:700">Информационная архитектура</h2></div>
+    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px">
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:22px">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;color:#5B6068">Staff Workspace</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;font-size:13px">
+          <div><div style="font-size:11px;font-weight:700;color:#878C94;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Операции</div><div style="display:flex;flex-direction:column;gap:6px"><span>Командный центр</span><span>Поступление · воронка</span><span>Student 360</span><span>Заявки в вузы</span><span>Документы</span><span>Виза</span><span>Финансы</span></div></div>
+          <div><div style="font-size:11px;font-weight:700;color:#878C94;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Работа · Связь · Система</div><div style="display:flex;flex-direction:column;gap:6px"><span>Задачи и календарь</span><span>Звонки и встречи</span><span>Диалоги</span><span>Уведомления</span><span>Отчёты</span><span>Администрирование</span></div></div>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:22px">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;color:#5B6068">Student Portal</h3>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:13px"><span>Главная · прогресс и следующий шаг</span><span>Документы · загрузка и переделка</span><span>Заявки · статус и дедлайны</span><span>Виза</span><span>Оплаты</span><span>Сообщения и уведомления</span><span>Моя команда · профиль</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROLES -->
+  <section style="margin-bottom:48px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">03</span><h2 style="font-size:24px;font-weight:700">Роли и доступ</h2></div>
+    <p style="color:#5B6068;margin:0 0 20px;max-width:760px">Навигация, экраны и действия меняются по роли. Права показываются не только скрытием пунктов меню, но и состояниями «только чтение», «нет доступа» и «требуется подтверждение». Полная матрица — в разделе «Администрирование → Роли».</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:34px;height:34px;border-radius:9px;background:#131519;color:#fff;display:flex;align-items:center;justify-content:center"><svg style="width:17px;height:17px"><use href="#i-shield"></use></svg></span><div style="font-size:14.5px;font-weight:700">Руководство</div></div><div style="font-size:12.5px;color:#5B6068">Обзор компании, KPI, воронка, риски, нагрузка, аудит.</div></div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:34px;height:34px;border-radius:9px;background:#7E020F;color:#fff;display:flex;align-items:center;justify-content:center"><svg style="width:17px;height:17px"><use href="#i-settings"></use></svg></span><div style="font-size:14.5px;font-weight:700">Администратор</div></div><div style="font-size:12.5px;color:#5B6068">Пользователи, роли, интеграции, готовность, аудит.</div></div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:34px;height:34px;border-radius:9px;background:#1E6FB8;color:#fff;display:flex;align-items:center;justify-content:center"><svg style="width:17px;height:17px"><use href="#i-trending"></use></svg></span><div style="font-size:14.5px;font-weight:700">Продажи</div></div><div style="font-size:12.5px;color:#5B6068">Лиды, воронка amoCRM, квалификация, консультации, договор.</div></div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:34px;height:34px;border-radius:9px;background:#7E4BC9;color:#fff;display:flex;align-items:center;justify-content:center"><svg style="width:17px;height:17px"><use href="#i-cap"></use></svg></span><div style="font-size:14.5px;font-weight:700">Куратор</div></div><div style="font-size:12.5px;color:#5B6068">Student 360, стратегия, документы, заявки, дедлайны, связь.</div></div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:34px;height:34px;border-radius:9px;background:#1F8A5B;color:#fff;display:flex;align-items:center;justify-content:center"><svg style="width:17px;height:17px"><use href="#i-plane"></use></svg></span><div style="font-size:14.5px;font-weight:700">Визовый специалист</div></div><div style="font-size:12.5px;color:#5B6068">Визовые кейсы, чек-лист, документы, записи, риски.</div></div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:34px;height:34px;border-radius:9px;background:#C77700;color:#fff;display:flex;align-items:center;justify-content:center"><svg style="width:17px;height:17px"><use href="#i-wallet"></use></svg></span><div style="font-size:14.5px;font-weight:700">Финансы</div></div><div style="font-size:12.5px;color:#5B6068">Обязательства, оплаты, долг, просрочки, разблокировка.</div></div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:34px;height:34px;border-radius:9px;background:#0E8A6E;color:#fff;display:flex;align-items:center;justify-content:center"><svg style="width:17px;height:17px"><use href="#i-chat"></use></svg></span><div style="font-size:14.5px;font-weight:700">Оператор Inbox</div></div><div style="font-size:12.5px;color:#5B6068">Диалоги, назначение, контекст, AI-черновики, ручная отправка.</div></div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:34px;height:34px;border-radius:9px;background:#D70217;color:#fff;display:flex;align-items:center;justify-content:center"><svg style="width:17px;height:17px"><use href="#i-cap"></use></svg></span><div style="font-size:14.5px;font-weight:700">Студент</div></div><div style="font-size:12.5px;color:#5B6068">Прогресс, следующий шаг, документы, заявки, виза, оплаты.</div></div>
+      <div style="background:#131519;border:1px solid #131519;border-radius:14px;padding:18px;display:flex;flex-direction:column;justify-content:center"><a href="EVO Staff Workspace.dc.html?role=admin&view=admin" style="font-size:13px;font-weight:600;color:#fff;display:inline-flex;align-items:center;gap:7px">Полная матрица прав <svg style="width:15px;height:15px"><use href="#i-arrow-right"></use></svg></a><div style="font-size:12px;color:rgba(255,255,255,.5);margin-top:6px">Переключение роли — в правом верхнем углу рабочего пространства.</div></div>
+    </div>
+  </section>
+
+  <!-- FLOWS -->
+  <section style="margin-bottom:48px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">04</span><h2 style="font-size:24px;font-weight:700">Сквозные сценарии</h2></div>
+    <p style="color:#5B6068;margin:0 0 20px;max-width:760px">Восемь кликабельных end-to-end потоков. Начните с точки входа — навигация, состояния и действия работают внутри прототипа.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <a href="EVO Staff Workspace.dc.html?role=sales&view=dashboard" class="evo-hov" style="display:flex;gap:13px;background:#fff;border:1px solid #E4E6EA;border-radius:13px;padding:16px"><span style="width:30px;height:30px;border-radius:8px;background:#FCE8EA;color:#D70217;display:flex;align-items:center;justify-content:center;font-family:Montserrat;font-weight:800;font-size:13px;flex-shrink:0">1</span><div><div style="font-size:14px;font-weight:600;color:#14161A">Обращение → квалификация → встреча → договор → Student 360</div><div style="font-size:12px;color:#878C94;margin-top:3px">Дашборд → «Новое обращение» → шаги мастера</div></div></a>
+      <a href="EVO Staff Workspace.dc.html?role=inbox&view=inbox" class="evo-hov" style="display:flex;gap:13px;background:#fff;border:1px solid #E4E6EA;border-radius:13px;padding:16px"><span style="width:30px;height:30px;border-radius:8px;background:#FCE8EA;color:#D70217;display:flex;align-items:center;justify-content:center;font-family:Montserrat;font-weight:800;font-size:13px;flex-shrink:0">2</span><div><div style="font-size:14px;font-weight:600;color:#14161A">WhatsApp → AI-черновик → правка → ручная отправка → статус доставки</div><div style="font-size:12px;color:#878C94;margin-top:3px">Диалоги → кнопка AI → «Вставить» → отправить</div></div></a>
+      <a href="EVO Staff Workspace.dc.html?role=curator&view=documents" class="evo-hov" style="display:flex;gap:13px;background:#fff;border:1px solid #E4E6EA;border-radius:13px;padding:16px"><span style="width:30px;height:30px;border-radius:8px;background:#FCE8EA;color:#D70217;display:flex;align-items:center;justify-content:center;font-family:Montserrat;font-weight:800;font-size:13px;flex-shrink:0">3</span><div><div style="font-size:14px;font-weight:600;color:#14161A">Документ → проверка → возврат → переделка → принят</div><div style="font-size:12px;color:#878C94;margin-top:3px">Очередь документов → карточка → решение; со стороны студента — в портале</div></div></a>
+      <a href="EVO Staff Workspace.dc.html?role=curator&view=applications" class="evo-hov" style="display:flex;gap:13px;background:#fff;border:1px solid #E4E6EA;border-radius:13px;padding:16px"><span style="width:30px;height:30px;border-radius:8px;background:#FCE8EA;color:#D70217;display:flex;align-items:center;justify-content:center;font-family:Montserrat;font-weight:800;font-size:13px;flex-shrink:0">4</span><div><div style="font-size:14px;font-weight:600;color:#14161A">Стратегия → заявка → подача → решение → зачисление</div><div style="font-size:12px;color:#878C94;margin-top:3px">Заявки → карточка → обновление статуса</div></div></a>
+      <a href="EVO Staff Workspace.dc.html?role=visa&view=visa" class="evo-hov" style="display:flex;gap:13px;background:#fff;border:1px solid #E4E6EA;border-radius:13px;padding:16px"><span style="width:30px;height:30px;border-radius:8px;background:#FCE8EA;color:#D70217;display:flex;align-items:center;justify-content:center;font-family:Montserrat;font-weight:800;font-size:13px;flex-shrink:0">5</span><div><div style="font-size:14px;font-weight:600;color:#14161A">Виза: чек-лист → запись → подача → решение</div><div style="font-size:12px;color:#878C94;margin-top:3px">Визовые кейсы → карточка студента → вкладка «Виза»</div></div></a>
+      <a href="EVO Staff Workspace.dc.html?role=finance&view=finance" class="evo-hov" style="display:flex;gap:13px;background:#fff;border:1px solid #E4E6EA;border-radius:13px;padding:16px"><span style="width:30px;height:30px;border-radius:8px;background:#FCE8EA;color:#D70217;display:flex;align-items:center;justify-content:center;font-family:Montserrat;font-weight:800;font-size:13px;flex-shrink:0">6</span><div><div style="font-size:14px;font-weight:600;color:#14161A">Просрочка платежа → блок → действие → разблокировка</div><div style="font-size:12px;color:#878C94;margin-top:3px">Финансы → «Подтвердить оплату» снимает визовый блок</div></div></a>
+      <a href="EVO Staff Workspace.dc.html?role=admin&view=admin" class="evo-hov" style="display:flex;gap:13px;background:#fff;border:1px solid #E4E6EA;border-radius:13px;padding:16px"><span style="width:30px;height:30px;border-radius:8px;background:#FCE8EA;color:#D70217;display:flex;align-items:center;justify-content:center;font-family:Montserrat;font-weight:800;font-size:13px;flex-shrink:0">7</span><div><div style="font-size:14px;font-weight:600;color:#14161A">Приглашение → назначение роли → ограниченный доступ</div><div style="font-size:12px;color:#878C94;margin-top:3px">Админ → пригласить; проверьте ограничения сменой роли</div></div></a>
+      <a href="EVO Student Portal.dc.html" class="evo-hov" style="display:flex;gap:13px;background:#fff;border:1px solid #E4E6EA;border-radius:13px;padding:16px"><span style="width:30px;height:30px;border-radius:8px;background:#FCE8EA;color:#D70217;display:flex;align-items:center;justify-content:center;font-family:Montserrat;font-weight:800;font-size:13px;flex-shrink:0">8</span><div><div style="font-size:14px;font-weight:600;color:#14161A">Студент: следующий шаг → загрузка документа → статус</div><div style="font-size:12px;color:#878C94;margin-top:3px">Портал → «Следующее действие» → загрузить новую версию</div></div></a>
+    </div>
+  </section>
+
+  <!-- STATES + RESPONSIVE -->
+  <section style="margin-bottom:48px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">05</span><h2 style="font-size:24px;font-weight:700">Состояния и адаптивность</h2></div>
+    <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:16px">
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:22px">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">Покрытые состояния</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:7px">
+          <sc-for list="{{ states }}" as="s" hint-placeholder-count="18"><span style="padding:4px 10px;border-radius:999px;font-size:11.5px;font-weight:600;background:#F0F1F4;color:#5B6068">{{ s }}</span></sc-for>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:22px">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">Мастер-вьюпорты</h3>
+        <div style="display:flex;flex-direction:column;gap:12px;font-size:13px">
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:8px;background:#F0F1F4;color:#5B6068;display:flex;align-items:center;justify-content:center"><svg style="width:16px;height:16px"><use href="#i-grid"></use></svg></span><div><b>1440 × 1024</b><div style="font-size:11.5px;color:#878C94">Staff desktop</div></div></div>
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:8px;background:#F0F1F4;color:#5B6068;display:flex;align-items:center;justify-content:center"><svg style="width:16px;height:16px"><use href="#i-file"></use></svg></span><div><b>834 × 1194</b><div style="font-size:11.5px;color:#878C94">Staff tablet</div></div></div>
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:8px;background:#F0F1F4;color:#5B6068;display:flex;align-items:center;justify-content:center"><svg style="width:16px;height:16px"><use href="#i-cap"></use></svg></span><div><b>390 × 844</b><div style="font-size:11.5px;color:#878C94">Student mobile</div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ASSUMPTIONS -->
+  <section style="margin-bottom:48px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">06</span><h2 style="font-size:24px;font-weight:700">Гипотезы и открытые решения</h2></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:12px;background:#fff;border:1px solid #E4E6EA;border-radius:12px;padding:15px"><span style="padding:3px 9px;border-radius:6px;font-size:10.5px;font-weight:700;background:#FCF3E3;color:#C77700;height:fit-content;white-space:nowrap">HYPOTHESIS</span><div style="font-size:13px"><b>Единый вход для сотрудников.</b> Staff Workspace и Inbox используют одну навигацию и учётную запись. В коде это раздельные приложения — объединение принято как безопасное направление v1.</div></div>
+      <div style="display:flex;gap:12px;background:#fff;border:1px solid #E4E6EA;border-radius:12px;padding:15px"><span style="padding:3px 9px;border-radius:6px;font-size:10.5px;font-weight:700;background:#FCF3E3;color:#C77700;height:fit-content;white-space:nowrap">HYPOTHESIS</span><div style="font-size:13px"><b>Разблокировка визы по оплате.</b> Подтверждение платежа снимает финансовую блокировку визового этапа. Правило требует утверждения владельцем финансов.</div></div>
+      <div style="display:flex;gap:12px;background:#fff;border:1px solid #E4E6EA;border-radius:12px;padding:15px"><span style="padding:3px 9px;border-radius:6px;font-size:10.5px;font-weight:700;background:#E7F0F9;color:#1E6FB8;height:fit-content;white-space:nowrap">OPEN DECISION</span><div style="font-size:13px"><b>Гарантии по Малайзии.</b> Источник содержит формулировку «гарантированная виза / 100% поступление», конфликтующую с общим правилом «результат принадлежит внешнему органу». В прототипе используется осторожная формулировка; требуется решение руководства.</div></div>
+      <div style="display:flex;gap:12px;background:#fff;border:1px solid #E4E6EA;border-radius:12px;padding:15px"><span style="padding:3px 9px;border-radius:6px;font-size:10.5px;font-weight:700;background:#E7F0F9;color:#1E6FB8;height:fit-content;white-space:nowrap">OPEN DECISION</span><div style="font-size:13px"><b>Доступ родителя/спонсора.</b> Показаны как связанные лица без отдельного входа. Отдельный логин для них — открытое решение.</div></div>
+      <div style="display:flex;gap:12px;background:#fff;border:1px solid #E4E6EA;border-radius:12px;padding:15px"><span style="padding:3px 9px;border-radius:6px;font-size:10.5px;font-weight:700;background:#E7F0F9;color:#1E6FB8;height:fit-content;white-space:nowrap">OPEN DECISION</span><div style="font-size:13px"><b>KPI и метрики.</b> Показатели в отчётах демонстрационные. Владельца, формулу, цель и период для каждого KPI ещё нужно утвердить.</div></div>
+    </div>
+  </section>
+
+  <!-- HANDOFF -->
+  <section style="margin-bottom:20px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">07</span><h2 style="font-size:24px;font-weight:700">Заметки для разработки</h2></div>
+    <div style="background:#131519;color:#fff;border-radius:16px;padding:26px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <div>
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">Что это</h3>
+          <div style="font-size:13px;color:rgba(255,255,255,.7);line-height:1.6">Высокоточный кликабельный фронтенд-прототип в единой дизайн-системе. Данные — обезличенные демонстрационные. Интеракции показывают намерение UX.</div>
+        </div>
+        <div>
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">Что НЕ реализовано</h3>
+          <div style="font-size:13px;color:rgba(255,255,255,.7);line-height:1.6">Реальные интеграции amoCRM, WAHA, Supabase, AI и телефонии не подключены и не проверены. Никакая интеграция не является «работающей» в этом прототипе. Backend строится отдельно по этому handoff.</div>
+        </div>
+      </div>
+      <div style="margin-top:20px;padding-top:18px;border-top:1px solid rgba(255,255,255,.12);display:flex;gap:10px;flex-wrap:wrap">
+        <a href="EVO Design System.dc.html" style="display:inline-flex;align-items:center;gap:7px;padding:9px 15px;background:#fff;color:#14161A;border-radius:9px;font-size:13px;font-weight:600">Токены и компоненты</a>
+        <a href="EVO Staff Workspace.dc.html" style="display:inline-flex;align-items:center;gap:7px;padding:9px 15px;background:rgba(255,255,255,.1);color:#fff;border-radius:9px;font-size:13px;font-weight:600">Staff Workspace</a>
+        <a href="EVO Student Portal.dc.html" style="display:inline-flex;align-items:center;gap:7px;padding:9px 15px;background:rgba(255,255,255,.1);color:#fff;border-radius:9px;font-size:13px;font-weight:600">Student Portal</a>
+      </div>
+    </div>
+  </section>
+
+  <div style="text-align:center;padding:32px 0 0;color:#878C94;font-size:12.5px;border-top:1px solid #E4E6EA;margin-top:40px">EVO Platform · единая дизайн-система · фирменный красный #D70217 · Montserrat + SF Pro Text · прототип, не production</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals(){
+    return { states:['Загрузка / skeleton','Пусто','Нет результатов','Успех','Валидация','Ошибка + восстановление','Нет доступа','Только чтение','Требуется подтверждение','Интеграция не настроена','amoCRM недоступен','WAHA недоступен','AI недоступен','Оффлайн / переподключение','Синхронизация','Ошибка синхро','Конфликт данных','Возможный дубль','Блокировка с причиной','Просроченный дедлайн','Документ на переделке','Документ отклонён','Платёж просрочен','Отправка / доставлено / прочитано'] };
+  }
+}
+</script>
+</body>
+</html>

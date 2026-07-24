@@ -2142,3 +2142,77 @@ Affected plan section: `/goal-evo-preplatform-hardening`, Block G.
 - Keep RPO/RTO as proposed technical targets pending explicit owner approval.
   This status entry changes no runtime, policy, schema, provider, DNS,
   production, or customer data.
+
+## 2026-07-24 - Owner Accepts Temporary Supabase Pre-Migration Backup Risk
+
+Date: 2026-07-24, Asia/Bishkek.
+Author: EVO owner decision, recorded by Codex.
+Change type: immediate stop-condition exception and deferred acceptance work.
+Affected plan section: `/goal-evo-preplatform-hardening`, production migration
+and Inbox deployment gate, Block F backup/restore, and Block G final acceptance.
+Reason: the owner explicitly decided not to upgrade the Supabase plan now and
+to proceed with the already-reviewed production migrations and deployment
+without a pre-migration Supabase backup. The owner accepts the resulting
+increased rollback and data-loss risk so the pre-platform release is not held
+for the provider-plan and isolated-restore prerequisites.
+Decision:
+
+- Absence of a full pre-migration Supabase database and Storage backup is no
+  longer an immediate stop condition for production migrations 038/039 and the
+  Inbox deployment. Those actions may proceed only after transaction-level
+  validation, migration-specific rollback SQL and durable rollback evidence,
+  and every other existing release gate pass.
+- For only those named actions, this later owner decision explicitly supersedes
+  the generic `docs/EVO_LAUNCH_PLAN.md` instruction to "Stop deployment if
+  backups, restore evidence, or rollback evidence are missing." The generic
+  stop condition remains binding for every other release action, and missing
+  rollback evidence still stops migrations 038/039 and the Inbox deployment.
+- This is a narrow, time-bounded risk acceptance. It does not authorize a
+  destructive migration, destructive DDL, data rewrite, backfill that replaces
+  existing values, production restore, provider-plan change, deployment, DNS
+  change, customer-data access, or any other external action.
+- Migration execution must remain additive/non-destructive and fail closed.
+  If transaction-level validation or the reviewed rollback path exposes a
+  destructive operation, irreversible effect, ambiguous data rewrite, or
+  rollback gap, stop and obtain a new owner decision.
+- Schedule owner review for 2026-08-03, after about ten days of platform use.
+  That follow-up must cover the Supabase plan upgrade decision, a real logical
+  database backup, a separate real Storage-object export with inventory and
+  checksums, and an isolated restore rehearsal into disposable destinations.
+- Provider database backups alone do not satisfy the deferred requirement:
+  Supabase documents that database backups contain Storage metadata but not the
+  stored objects. Database and Storage evidence must therefore be captured and
+  restored separately.
+- A local-only, schema-only, mocked, simulated, or production-in-place restore
+  is not acceptance evidence. The eventual rehearsal must exercise the real
+  Supabase database and Storage paths against isolated destinations and record
+  integrity, object-count/checksum, application-read, authorization, and
+  cleanup evidence without exposing secrets or customer data.
+- The eventual Block F/Block G backup-and-restore acceptance requirement
+  remains open. This decision changes only whether migrations 038/039 and the
+  Inbox deployment must wait for it; it does not mark Block F or Block G
+  complete.
+- RPO/RTO values remain unapproved proposals. This risk acceptance does not
+  approve, revise, or imply an RPO, RTO, retention policy, backup owner, or
+  recovery owner.
+
+Validation impact:
+
+- Before production migration or deployment, retain the reviewed
+  transaction-level validation output, exact rollback SQL, rollback rehearsal
+  or dry-run evidence appropriate to each non-destructive migration, and all
+  other required release-gate evidence.
+- On 2026-08-03, re-open this deferred gate for explicit owner review; do not
+  infer approval to purchase a plan, create provider resources, access
+  production data, or perform the restore rehearsal.
+- This plan-only amendment changes no code, migration, runtime, deployment,
+  provider, DNS, secret, or customer data.
+
+Official references rechecked:
+
+- `https://supabase.com/docs/guides/platform/backups`
+- `https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore`
+- `https://supabase.com/docs/guides/storage/management/download-objects`
+
+Reviewer notes: require an independent read-only launch-control review of the
+decision boundary and this documentation-only diff before merge.

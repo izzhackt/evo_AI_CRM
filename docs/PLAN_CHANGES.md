@@ -2216,3 +2216,44 @@ Official references rechecked:
 
 Reviewer notes: require an independent read-only launch-control review of the
 decision boundary and this documentation-only diff before merge.
+
+## 2026-07-24 - Correct Inbox Readiness Probe and Reconcile VPS Source
+
+Date: 2026-07-24, Asia/Bishkek.
+Author: Codex.
+Change type: production readiness correction and source-of-truth reconciliation.
+Affected plan section: `/goal-evo-preplatform-hardening`, Blocks E and G.
+Reason: WAHA's private unauthenticated readiness surface is `/ping`, while
+`/health` requires API authentication. The prior Inbox dependency probe called
+`/health` without that credential and could report WAHA unavailable even when
+the private service was healthy. Production also contained checkout drift that
+prevented the VPS source tree from proving exact correspondence to GitHub.
+Decision:
+
+- Probe the private WAHA service at unauthenticated `/ping`, with the existing
+  timeout and without exposing WAHA or placing its API key in the Inbox app.
+- Keep `/api/health` as liveness and `/api/readiness` as dependency readiness.
+  Continue returning `404` for readiness and internal routes at the public edge.
+- Reconcile `/opt/evo-inbox` to the exact reviewed GitHub `main` revision before
+  deployment. Preserve prior drift in a read-only archive rather than deleting
+  it or treating it as a release input.
+- Leave the existing Caddy bind-mount source unchanged when byte comparison
+  proves it is identical to the reviewed source.
+- Require exact OCI revision/release labels, private Supabase and WAHA readiness
+  before and after application restart, clean VPS source, public-route denial,
+  and security-header checks as production evidence.
+- This correction does not authorize a WAHA restart, QR relink, public port,
+  WhatsApp send, amoCRM mutation, DNS change, CSP enforcement, backup-plan
+  purchase, or final launch-complete claim.
+
+Validation impact:
+
+- PR #58 merged as `a09a72fc55d869c861df520f76d62413a2315fc1`
+  after all four CI checks passed and an independent Codex launch-control review
+  returned `approved`. GitHub's review API contains no submitted review record,
+  so the approval remains task evidence rather than a GitHub approval.
+- Production Inbox release `2026-07-24.2` matched that exact revision. Private
+  readiness reported both Supabase and WAHA ready before and after application
+  restart; WAHA remained private and unchanged.
+- Record the refreshed production and blocker matrix in
+  `docs/BLOCK_G_FINAL_AUDIT.md`. Block G remains externally blocked.

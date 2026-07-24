@@ -5,29 +5,30 @@ Date: 2026-07-24 (Asia/Bishkek).
 Verdict: `blocked_external`.
 
 The `/goal-evo-preplatform-hardening` goal remains **open**. Blocks A-F are
-merged and independently reviewed, but Block G cannot be completed without
-owner decisions, production Supabase access and an isolated restore target,
-and an explicitly authorized real WhatsApp/amoCRM test. No customer message,
-provider mutation, deployment, migration, DNS change, QR relink, or production
-restore was performed during this audit.
+merged and independently reviewed, and the production Supabase containment
+migrations plus the hardened Inbox runtime are now deployed. Block G still
+cannot be completed without owner decisions, the deferred isolated Supabase
+database and Storage restore rehearsal, and an explicitly authorized real
+WhatsApp/amoCRM test. No customer message, amoCRM mutation, DNS change, QR
+relink, or production restore was performed during this audit.
 
 ## Requirement status
 
 | Requirement | Status | Evidence and boundary |
 |---|---|---|
-| GitHub baseline and hardening PR closure | PASS | GitHub `main` is `564332b420a1fb1bd6232dda945d044bb922d3f0`. PRs #47-#55 are merged, all four repository CI jobs passed on every PR, and no earlier hardening PR was open when this audit started. |
+| GitHub baseline and hardening PR closure | PASS | GitHub `main` is `a09a72fc55d869c861df520f76d62413a2315fc1`. PRs #47-#58 are merged and all four repository CI jobs passed on PR #58. |
 | Independent launch-control review | PASS | The plan review and Blocks A-F have recorded final `approved` verdicts in Codex tasks `019f90ed-cdd2-73b1-9a0a-9d5de95850de`, `019f90f1-1274-7740-a4d8-06bafe083880`, `019f9107-640c-76b0-911f-e7e49e443a54`, `019f911d-c8cc-7e80-ac75-98e94eec45ac`, `019f9133-dd7c-7012-b5c7-8dbd6f9e50f5`, `019f914a-80c3-7190-8821-61ece8bd63b1`, and `019f916b-28fb-7420-8572-0416f2c04249`. GitHub itself has no review records for these PRs; the independent reviews are task evidence. |
-| A: role-policy and self-promotion denial | PARTIAL | Disposable PostgreSQL tests covered ordinary, privileged, and `service_role` cases. In production, the formerly public `is_account_member` RPC now returns `404`, consistent with migration 038 moving it out of the exposed schema. Full migration history and all production grants/policies cannot be independently inspected without an authorized database-admin connection, so this is not promoted to PASS. |
+| A: role-policy and self-promotion denial | PASS | Disposable PostgreSQL role-policy tests cover ordinary staff, privileged staff, and `service_role`, including forbidden-write denials. Production migration 038 was first executed with its postconditions in a transaction that deliberately rolled back, then applied transactionally to project `iosckaqtovbbnssqcpde`. A separate post-commit audit proved registration of migration 038, removal of the public helper, presence of the private helper, and authenticated `private` schema usage. |
 | B: sensitive CRM and Transcription Lab surfaces | PASS | Merged tests and production evidence cover unauthenticated/admin denial, upload bounds, encryption fail-closed behavior, retention/restart behavior, and negative sensitive-route access. Public registration policy remains deliberately undecided and unchanged. |
-| C: private media and truthful capability | BLOCKED | Migration 039's `media_audit_events` surface returns `404` in production, including through the server role, and production Inbox still runs pre-Block-C revision `14ed2e34`. Unsupported outbound media remains disabled rather than simulated. |
+| C: private media and truthful capability | PASS | Production migration 039 was first executed with its postconditions in the same successful rollback dry-run, then applied transactionally. The separate post-commit audit proved migration registration, the `media_audit_events` table, private `chat-media` bucket, denial of authenticated audit inserts, and `messages.media_retention_until`. Unsupported outbound media remains disabled rather than simulated. |
 | Durable drafts, outbound attempts/messages and ACK evidence | PASS | PRs #47/#48 preserve append-only draft/delivery evidence, signed server-only acknowledgement writes, explicit unknown outcomes, and no automatic retry of unknown delivery outcomes for the active text path. |
 | Provider outage and duplicate/replay behavior | PARTIAL | The active paths have merged automated coverage. A real provider outage/replay was not induced because there is no authorized, isolated WhatsApp/amoCRM test path. Mocks are not accepted as final proof. |
 | Lead Agent containment and restart persistence | PASS | Production evidence records `frozen=true`, `ready=false`, worker/outbound/autoreply disabled, and webhook rejection `503 lead_agent_frozen` after restart. No automatic reply was sent. |
-| E: private runtime, edge and image-to-Git mapping | PARTIAL | CRM and Lead Agent run `564332b420a1fb1bd6232dda945d044bb922d3f0`; Inbox runs `14ed2e34c8b97f238aad2db872e7bdc54bf8b238`. Private probe routes return `404`; immutable third-party image, security headers, limits and rollback evidence are recorded. CSP remains report-only pending observation and owner approval. Canonical DNS remains unresolved and owner-controlled. |
+| E: private runtime, edge and image-to-Git mapping | PARTIAL | CRM and Lead Agent run `564332b420a1fb1bd6232dda945d044bb922d3f0`; Inbox release `2026-07-24.2` carries exact OCI revision `a09a72fc55d869c861df520f76d62413a2315fc1`. Private readiness reported both Supabase and WAHA ready before and after an application restart; public readiness and internal routes returned `404`. WAHA remained private and unchanged. The fallback host served the expected security headers. CSP remains report-only pending observation and owner approval, and canonical DNS remains unresolved and owner-controlled. |
 | F: backup and isolated restore | PARTIAL | Main CRM SQLite, encrypted settings, generated-file inventory, Lead Agent SQLite/application reads, and exact release configuration passed isolated verification. WAHA archives are inventory/extraction evidence only; QR relink was documented but not executed. Supabase database and Storage restores remain blocked by missing authorized credentials and disposable destinations. |
 | RPO/RTO and retention operations | BLOCKED | RPO/RTO values remain proposals, not approved policy. Production retention scheduling and its owner remain undecided; this audit makes no policy choice. |
 | Real WhatsApp/amoCRM acceptance | BLOCKED | Required production amoCRM credentials, EVO-controlled sender/recipient, QR/relink readiness where needed, and explicit approval for one visible manual reply are absent. No message was sent. |
-| Block G completion | BLOCKED | Required production Supabase proof, full isolated restore, real provider-path proof, and owner-controlled release decisions remain open. The honest goal state is `blocked_external`, not complete. |
+| Block G completion | BLOCKED | Production Supabase and deployed-runtime proof now pass. The deferred full isolated Supabase database and Storage restore, real provider-path proof, and owner-controlled release decisions remain open. The honest goal state is `blocked_external`, not complete. |
 
 ## Pull request provenance
 
@@ -42,37 +43,65 @@ restore was performed during this audit.
 | [#53](https://github.com/izzhackt/evo_AI_CRM/pull/53) | Block D Lead Agent freeze | `16ec2f2fede8ff009e0508ef3ed18512b40cf630` | `e02bf19baa0c8793a4cd97cc537413e22466ddf8` |
 | [#54](https://github.com/izzhackt/evo_AI_CRM/pull/54) | Block E runtime hardening | `0b976dfd711657c95d5b4cb13a4928fe91b786c4` | `e9c90b57561f0cda0526a02ad7d4ad2a57323652` |
 | [#55](https://github.com/izzhackt/evo_AI_CRM/pull/55) | Block F disaster recovery | `0afe128c2b9f8b6202d2933c1fa755571fb4f358` | `564332b420a1fb1bd6232dda945d044bb922d3f0` |
+| [#56](https://github.com/izzhackt/evo_AI_CRM/pull/56) | Block G final audit | `f77481d9aa47e10dfa4a1091752eca2a7ba41bba` | `426b06834e9feb9efc595170cedf7973d9bb8f37` |
+| [#57](https://github.com/izzhackt/evo_AI_CRM/pull/57) | temporary Supabase backup-risk decision | `e9a44968a5060c532a1b6018c864d3f16d663c2c` | `88cf6da7609c794a6ca50df6d5c3e338c0305119` |
+| [#58](https://github.com/izzhackt/evo_AI_CRM/pull/58) | private WAHA readiness correction | `c7fdeffa20bd289384bac9283dcefa5afd48266a` | `a09a72fc55d869c861df520f76d62413a2315fc1` |
+
+PR #58 received a separate Codex launch-control verdict of `approved`. GitHub's
+review API reports no submitted review record for that PR, so the independent
+approval is task evidence and is not represented here as a GitHub approval.
 
 ## Production and recovery evidence
 
 - CRM image revision: `564332b420a1fb1bd6232dda945d044bb922d3f0`.
 - Lead Agent image revision: `564332b420a1fb1bd6232dda945d044bb922d3f0`.
-- Inbox image revision: `14ed2e34c8b97f238aad2db872e7bdc54bf8b238`.
+- Inbox image revision: `a09a72fc55d869c861df520f76d62413a2315fc1`.
+- Inbox release: `2026-07-24.2`.
 - Protected production evidence:
   `/opt/evo-release-evidence/564332b420a1fb1bd6232dda945d044bb922d3f0/2026-07-24.1`.
 - Sanitized restore results are durable in
   [`BLOCK_F_REHEARSAL_EVIDENCE.md`](BLOCK_F_REHEARSAL_EVIDENCE.md).
 
-Migration 038 must not be recorded as definitely absent: its public RPC marker
-is now absent, which is consistent with application. It also must not be
-recorded as fully proven without database migration-history/admin access.
-Migration 039 remains not applied based on its absent production table surface
-and the old Inbox runtime revision.
+Production project `iosckaqtovbbnssqcpde` registered migrations 038 and 039
+after the exact reviewed SQL and postconditions completed successfully inside a
+rollback-only dry-run transaction. The later production transaction committed
+both migrations. A separate read-only post-commit audit returned true for both
+migration-history records, removal of the public helper, presence of the
+private helper, authenticated usage of the private schema, presence of the
+media audit table, private `chat-media`, denial of authenticated audit inserts,
+and the message-retention column.
+
+The deployed Inbox OCI revision and release labels matched the exact values
+above. Its private readiness response reported `supabase.ready=true` and
+`waha.ready=true` both before and after an application-container restart.
+Readiness uses WAHA's private unauthenticated `/ping` endpoint; WAHA itself was
+not restarted, relinked, reconfigured, or exposed. Public readiness and
+internal-only routes returned `404`, and the fallback host retained the
+expected security headers.
+
+The VPS checkout at `/opt/evo-inbox` was reconciled to a clean checkout at the
+exact GitHub `main` revision. Previously drifted source was preserved in a
+read-only archive. The older Caddy bind-mount source was byte-identical to the
+reviewed file and was left unchanged.
 
 ## External owner and credential blockers
 
 - Decide public registration versus invite-only; no registration behavior was
   changed.
-- Provide authorized Supabase database/Management and Storage backup access,
-  plus isolated database/project and bucket restore destinations.
+- Re-open the owner-approved deferred Supabase plan, database backup, Storage
+  export and isolated restore decision around 2026-08-03. RPO/RTO remain
+  unapproved; the current production migration/deployment exception does not
+  complete Block F or Block G.
 - Approve or revise the proposed RPO/RTO values.
-- Decide DNS ownership and authorize exact records/changes.
+- Add or authorize the absent canonical `crm.evoadmissions.com` and
+  `inbox.evoadmissions.com` DNS A records.
 - Choose the monitoring destination, credentials, responsible owner and on-call
   rotation.
 - Decide CSP enforcement after the report-only observation period.
-- Provide an EVO-controlled WhatsApp sender/recipient, production amoCRM
-  credentials, and explicit approval for one visible manual reply.
-- Confirm WAHA QR/relink availability and separately authorize any relink.
+- Provide real WhatsApp/amoCRM credentials, an EVO-controlled dedicated test
+  sender/recipient, and explicit approval for one visible manual reply.
+- Confirm QR availability for the older CRM WAHA session and separately
+  authorize any relink.
 - Provide an authenticated operator session for final Inbox browser proof.
 - Decide retention scheduling and operational ownership.
 - Separately authorize any production permission correction for legacy

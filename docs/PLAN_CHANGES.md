@@ -2311,3 +2311,70 @@ Validation impact:
   gates are current before production evidence is reconciled.
 - Treat the WAHA limit drift as documented and blocked until the owner-approved
   continuity procedure exists; planning does not authorize a runtime change.
+
+## 2026-07-24 - Record Internal Hardening Closure Evidence
+
+Date: 2026-07-24, Asia/Bishkek.
+Author: Codex.
+Change type: evidence-only closure record.
+Affected plan section: `/goal-evo-preplatform-hardening`, remaining internal
+closure lanes and Block G.
+Reason: the sequential CI and production-checkout reconciliation lanes approved
+in PR #60 are now merged and independently audited. The durable audit must
+separate those closed internal lanes from the still-owner-controlled WAHA
+runtime-limit change and the unchanged external acceptance gates.
+Decision:
+
+- Record PR #60 merged at
+  `819c7f31bdd2cf899baf205151457b5fc1db32ac` and PR #61 merged at
+  `e7d8be9dd0de464ae0440872a1f47ec33f17095e`.
+- Record that all four PR #60 checks and all four PR #61 checks passed. The
+  separate post-merge `main` run `30062821017` passed its three executed jobs
+  at exact commit `e7d8be9dd0de464ae0440872a1f47ec33f17095e`;
+  the PR-only `Changed range` job was skipped by design.
+- Treat the root `npm run test:security` evidence as the required aggregate
+  gate: `22/22` Node tests passed and the real disposable PostgreSQL role/RLS
+  suite returned `PASS`. The PostgreSQL path uses bounded TCP readiness,
+  guaranteed cleanup, and positive/negative cases for ordinary staff,
+  privileged staff, `anon`, and server-only `service_role`.
+- Record `/opt/evo-crm` as a clean detached checkout at exact deployed revision
+  `564332b420a1fb1bd6232dda945d044bb922d3f0`, with
+  `origin/main=e7d8be9dd0de464ae0440872a1f47ec33f17095e`.
+- Preserve the prior `caa280ee536f6b93516987a674553bf1eb3c73a0`
+  checkout and the untracked Lead Agent Git backup in
+  `/opt/evo-archives/crm-source-reconcile-20260724T025648Z`. Manifest hashes,
+  the complete Git bundle, the tar archive, and retained
+  `stash@{0}=pre-reconcile-20260724T025648Z` were verified.
+- Record `/opt/evo-crm` as `root:root`; the three real runtime environment files
+  were already `root:root` mode `0600`. Secret values were not inspected.
+- Record that the checkout reconciliation did not rebuild, recreate, restart,
+  reconfigure, or otherwise change a production container.
+- Record the final internal-gap audit verdict:
+  independent Codex read-only review task `/root/audit_internal_gap_closure`
+  returned `approved`. This was orchestration evidence, not a submitted GitHub
+  PR review; GitHub review arrays may remain empty.
+- Record that the original-checkout Malaysia knowledge-base modification and
+  untracked presentation archive remain untouched.
+- Keep both live WAHA containers' unset `Memory`, `NanoCpus`, and `PidsLimit`
+  as an explicit `OWNER_BLOCKED` Block E/G runtime gap. Do not claim the
+  reviewed Compose limits are active and do not recreate, restart, relink, or
+  mutate either session until a restart/session-continuity and QR/relink plan
+  is ready and the owner explicitly approves the provider risk.
+- Keep every owner/external gate unchanged: canonical DNS, public-registration
+  policy, monitoring destination and responsible owner, retention schedule and
+  owner, CSP enforcement, RPO/RTO, the deferred real Supabase database-plus-
+  Storage backup and isolated restore rehearsal, authenticated Inbox browser
+  acceptance, real WhatsApp/amoCRM inputs and explicit send approval, older CRM
+  WAHA QR/relink approval, and any legacy volume-permission correction.
+- Keep the overall goal and Block G open. Internal closure evidence does not
+  satisfy or waive any owner/external gate.
+
+Validation impact:
+
+- This evidence-only entry changes no application, migration, workflow,
+  production runtime, provider, DNS, secret, or customer-visible state.
+- The source evidence is GitHub merge/CI state, the actual aggregate test log,
+  read-only production Git/file-metadata/container inspection, archive
+  verification, and the independent audit verdict.
+- A later final acceptance audit must still prove or explicitly retain every
+  owner/external blocker; this entry must not be used to infer approval.

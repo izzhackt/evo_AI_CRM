@@ -16,19 +16,19 @@ relink, or production restore was performed during this audit.
 
 | Requirement | Status | Evidence and boundary |
 |---|---|---|
-| GitHub baseline and hardening PR closure | PASS | GitHub `main` is `a09a72fc55d869c861df520f76d62413a2315fc1`. PRs #47-#58 are merged and all four repository CI jobs passed on PR #58. |
-| Independent launch-control review | PASS | The plan review and Blocks A-F have recorded final `approved` verdicts in Codex tasks `019f90ed-cdd2-73b1-9a0a-9d5de95850de`, `019f90f1-1274-7740-a4d8-06bafe083880`, `019f9107-640c-76b0-911f-e7e49e443a54`, `019f911d-c8cc-7e80-ac75-98e94eec45ac`, `019f9133-dd7c-7012-b5c7-8dbd6f9e50f5`, `019f914a-80c3-7190-8821-61ece8bd63b1`, and `019f916b-28fb-7420-8572-0416f2c04249`. GitHub itself has no review records for these PRs; the independent reviews are task evidence. |
+| GitHub baseline and hardening PR closure | PASS | GitHub `main` is `e7d8be9dd0de464ae0440872a1f47ec33f17095e`. PRs #47-#61 are merged. PRs #60 and #61 each passed all four PR checks. Post-merge `main` run `30062821017` passed its three executed jobs at that exact commit; the PR-only `Changed range` job was skipped by design. |
+| Independent launch-control review | PASS | The plan review and Blocks A-F have recorded final `approved` verdicts in Codex tasks `019f90ed-cdd2-73b1-9a0a-9d5de95850de`, `019f90f1-1274-7740-a4d8-06bafe083880`, `019f9107-640c-76b0-911f-e7e49e443a54`, `019f911d-c8cc-7e80-ac75-98e94eec45ac`, `019f9133-dd7c-7012-b5c7-8dbd6f9e50f5`, `019f914a-80c3-7190-8821-61ece8bd63b1`, and `019f916b-28fb-7420-8572-0416f2c04249`. Independent Codex read-only review task `/root/audit_internal_gap_closure` returned `approved` for the final internal-gap audit. These are orchestration records, not submitted GitHub PR reviews; GitHub review arrays may remain empty. |
 | A: role-policy and self-promotion denial | PASS | Disposable PostgreSQL role-policy tests cover ordinary staff, privileged staff, and `service_role`, including forbidden-write denials. Production migration 038 was first executed with its postconditions in a transaction that deliberately rolled back, then applied transactionally to project `iosckaqtovbbnssqcpde`. A separate post-commit audit proved registration of migration 038, removal of the public helper, presence of the private helper, and authenticated `private` schema usage. |
 | B: sensitive CRM and Transcription Lab surfaces | PASS | Merged tests and production evidence cover unauthenticated/admin denial, upload bounds, encryption fail-closed behavior, retention/restart behavior, and negative sensitive-route access. Public registration policy remains deliberately undecided and unchanged. |
 | C: private media and truthful capability | PASS | Production migration 039 was first executed with its postconditions in the same successful rollback dry-run, then applied transactionally. The separate post-commit audit proved migration registration, the `media_audit_events` table, private `chat-media` bucket, denial of authenticated audit inserts, and `messages.media_retention_until`. Unsupported outbound media remains disabled rather than simulated. |
 | Durable drafts, outbound attempts/messages and ACK evidence | PASS | PRs #47/#48 preserve append-only draft/delivery evidence, signed server-only acknowledgement writes, explicit unknown outcomes, and no automatic retry of unknown delivery outcomes for the active text path. |
 | Provider outage and duplicate/replay behavior | PARTIAL | The active paths have merged automated coverage. A real provider outage/replay was not induced because there is no authorized, isolated WhatsApp/amoCRM test path. Mocks are not accepted as final proof. |
 | Lead Agent containment and restart persistence | PASS | Production evidence records `frozen=true`, `ready=false`, worker/outbound/autoreply disabled, and webhook rejection `503 lead_agent_frozen` after restart. No automatic reply was sent. |
-| E: private runtime, edge and image-to-Git mapping | PARTIAL | CRM and Lead Agent run `564332b420a1fb1bd6232dda945d044bb922d3f0`; Inbox release `2026-07-24.2` carries exact OCI revision `a09a72fc55d869c861df520f76d62413a2315fc1`. Private readiness reported both Supabase and WAHA ready before and after an application restart; public readiness and internal routes returned `404`. WAHA remained private and unchanged. The fallback host served the expected security headers. CSP remains report-only pending observation and owner approval, and canonical DNS remains unresolved and owner-controlled. |
+| E: private runtime, edge and image-to-Git mapping | PARTIAL | CRM and Lead Agent run `564332b420a1fb1bd6232dda945d044bb922d3f0`; Inbox release `2026-07-24.2` carries exact OCI revision `a09a72fc55d869c861df520f76d62413a2315fc1`. Private readiness reported both Supabase and WAHA ready before and after an application restart; public readiness and internal routes returned `404`. WAHA remained private and unchanged. The fallback host served the expected security headers. Both live WAHA containers still report unset memory, CPU, and process limits. Applying the reviewed Compose limits remains `OWNER_BLOCKED` until a restart/session-continuity and QR/relink plan exists and the owner approves the user-visible provider risk. CSP remains report-only pending observation and owner approval, and canonical DNS remains unresolved and owner-controlled. |
 | F: backup and isolated restore | PARTIAL | Main CRM SQLite, encrypted settings, generated-file inventory, Lead Agent SQLite/application reads, and exact release configuration passed isolated verification. WAHA archives are inventory/extraction evidence only; QR relink was documented but not executed. Supabase database and Storage restores remain blocked by missing authorized credentials and disposable destinations. |
 | RPO/RTO and retention operations | BLOCKED | RPO/RTO values remain proposals, not approved policy. Production retention scheduling and its owner remain undecided; this audit makes no policy choice. |
 | Real WhatsApp/amoCRM acceptance | BLOCKED | Required production amoCRM credentials, EVO-controlled sender/recipient, QR/relink readiness where needed, and explicit approval for one visible manual reply are absent. No message was sent. |
-| Block G completion | BLOCKED | Production Supabase and deployed-runtime proof now pass. The deferred full isolated Supabase database and Storage restore, real provider-path proof, and owner-controlled release decisions remain open. The honest goal state is `blocked_external`, not complete. |
+| Block G completion | BLOCKED | Production Supabase and the non-owner-controlled internal closure lanes now pass. WAHA runtime-limit activation remains `OWNER_BLOCKED`; the deferred full isolated Supabase database and Storage restore, real provider-path proof, and other owner-controlled release decisions remain open. The honest goal state is `blocked_external`, not complete. |
 
 ## Pull request provenance
 
@@ -46,6 +46,9 @@ relink, or production restore was performed during this audit.
 | [#56](https://github.com/izzhackt/evo_AI_CRM/pull/56) | Block G final audit | `f77481d9aa47e10dfa4a1091752eca2a7ba41bba` | `426b06834e9feb9efc595170cedf7973d9bb8f37` |
 | [#57](https://github.com/izzhackt/evo_AI_CRM/pull/57) | temporary Supabase backup-risk decision | `e9a44968a5060c532a1b6018c864d3f16d663c2c` | `88cf6da7609c794a6ca50df6d5c3e338c0305119` |
 | [#58](https://github.com/izzhackt/evo_AI_CRM/pull/58) | private WAHA readiness correction | `c7fdeffa20bd289384bac9283dcefa5afd48266a` | `a09a72fc55d869c861df520f76d62413a2315fc1` |
+| [#59](https://github.com/izzhackt/evo_AI_CRM/pull/59) | production hardening audit refresh | `52a5f6ce5d4389af73c86752cbd0187f555990f4` | `43e3896e2e5282632cd887a9213103dddf449559` |
+| [#60](https://github.com/izzhackt/evo_AI_CRM/pull/60) | remaining internal-gap closure plan | `0c81d105c7c94875fe50199a41a12930f4d58890` | `819c7f31bdd2cf899baf205151457b5fc1db32ac` |
+| [#61](https://github.com/izzhackt/evo_AI_CRM/pull/61) | mandatory aggregate security CI gate | `9360414c8acdf38ff961388e57faa9948bedc190` | `e7d8be9dd0de464ae0440872a1f47ec33f17095e` |
 
 PR #58 received a separate Codex launch-control verdict of `approved`. GitHub's
 review API reports no submitted review record for that PR, so the independent
@@ -78,6 +81,57 @@ Readiness uses WAHA's private unauthenticated `/ping` endpoint; WAHA itself was
 not restarted, relinked, reconfigured, or exposed. Public readiness and
 internal-only routes returned `404`, and the fallback host retained the
 expected security headers.
+
+## 2026-07-24 internal-gap closure evidence
+
+The final internal closure plan merged through PR #60 at
+`819c7f31bdd2cf899baf205151457b5fc1db32ac`. PR #61 then merged the mandatory
+aggregate security gate at `e7d8be9dd0de464ae0440872a1f47ec33f17095e`.
+All four PR #60 checks and all four PR #61 checks passed. The separate
+post-merge `main` workflow run `30062821017` passed its three executed jobs at
+that exact commit; its PR-only `Changed range` job was skipped by design.
+
+That `main` run executed the root `npm run test:security` command, not only a
+workflow-text or SQL-text check. Its Node test phase reported `22` tests,
+`22` passes, and `0` failures. The same aggregate command created a disposable
+real PostgreSQL instance, waited for TCP readiness for no more than 60
+one-second attempts, applied the migration set, and returned
+`PASS: real PostgreSQL role/RLS authorization policy suite`. The suite covers
+positive and forbidden-write cases as the real `authenticated` ordinary-staff
+and privileged-admin roles, `anon`, and server-only `service_role`. An exit
+trap removes the disposable database container on success or failure.
+
+The production checkout reconciliation was non-disruptive:
+
+- `/opt/evo-crm` is a clean, detached checkout at exact deployed revision
+  `564332b420a1fb1bd6232dda945d044bb922d3f0`; its fetched
+  `origin/main` is `e7d8be9dd0de464ae0440872a1f47ec33f17095e`.
+- The prior `caa280ee536f6b93516987a674553bf1eb3c73a0` checkout and its
+  untracked `evo-lead-agent.git-backup-20260705T212121Z/` tree remain preserved
+  under access-restricted
+  `/opt/evo-archives/crm-source-reconcile-20260724T025648Z`.
+- Every recorded archive manifest checksum passed, the old-checkout Git bundle
+  verified as complete at `caa280ee536f6b93516987a674553bf1eb3c73a0`,
+  the untracked backup tar archive passed full listing, and
+  `stash@{0}` remains
+  `pre-reconcile-20260724T025648Z`.
+- `/opt/evo-crm` remains owned by `root:root`. The three real runtime environment
+  files were already `root:root` mode `0600`; their values were not read.
+- The CRM app and Lead Agent remained healthy on images carrying revision
+  `564332b420a1fb1bd6232dda945d044bb922d3f0`. No container was rebuilt,
+  recreated, restarted, or reconfigured by the checkout reconciliation.
+
+Independent Codex read-only review task `/root/audit_internal_gap_closure`
+returned `approved`. This was orchestration evidence, not a submitted GitHub PR
+review. The original-checkout Malaysia knowledge-base modification and
+untracked presentation archive remained untouched.
+
+The internal closure does not clear the runtime limit gap. Both
+`evo-crm-waha-1` and `evo-inbox-waha` still report `Memory=0`,
+`NanoCpus=0`, and no `PidsLimit`. The reviewed Compose limits are therefore not
+claimed as active. This remains `OWNER_BLOCKED`: applying them requires an
+approved restart/session-continuity and QR/relink plan. No WAHA container was
+restarted, relinked, reconfigured, exposed, or sent a message.
 
 The VPS checkout at `/opt/evo-inbox` was reconciled to a clean checkout at the
 exact GitHub `main` revision. Previously drifted source was preserved in a

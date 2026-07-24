@@ -2257,3 +2257,57 @@ Validation impact:
   restart; WAHA remained private and unchanged.
 - Record the refreshed production and blocker matrix in
   `docs/BLOCK_G_FINAL_AUDIT.md`. Block G remains externally blocked.
+
+## 2026-07-24 - Close Remaining Internal CI and Production-State Gaps
+
+Date: 2026-07-24, Asia/Bishkek.
+Author: Codex.
+Change type: plan freshness and non-disruptive production reconciliation.
+Affected plan section: `/goal-evo-preplatform-hardening`, Blocks A, E, and G.
+Reason: The refreshed Block G audit proves the reviewed authorization harness
+exists and the authorized Inbox/Supabase release is deployed, but it does not
+prove that GitHub Actions is required to run the real PostgreSQL role-policy
+harness. A separate live audit also found that `/opt/evo-crm` is an old/dirty
+operational checkout and that the running WAHA container does not have the
+reviewed Compose resource limits applied. These are internal evidence gaps, not
+reasons to weaken Block G or to infer owner approval for disruptive provider
+work.
+Decision:
+
+- Add a dedicated, sequential CI-hardening block that requires
+  `agent-lead2-inbox/scripts/test-postgres-authorization.sh` through the root
+  `npm run test:security` command in GitHub Actions. It must use only
+  ephemeral/disposable PostgreSQL, exercise real database roles and negative
+  writes, and require no production connection or secret.
+- Add a separate production-reconciliation block for `/opt/evo-crm`. Before
+  changing its checkout, preserve all dirty and untracked state in a
+  recoverable access-restricted archive. Reconcile the checkout to the exact
+  reviewed source matching the deployed CRM/Lead Agent revision, then prove Git
+  cleanliness and image provenance without restarting, recreating, rebuilding,
+  or reconfiguring services.
+- Audit legacy environment and configuration file permissions without exposing
+  values. Tighten a file only when its identity, required runtime readers, and
+  non-disruptive mode are proven; otherwise leave it unchanged and record the
+  blocker.
+- Record that the live WAHA container has unset `Memory`, `NanoCpus`, and
+  `PidsLimit` even though the reviewed Compose definition declares limits. Do
+  not recreate, restart, relink, or mutate WAHA merely to apply them. The older
+  CRM WAHA session awaits QR/relink continuity planning, and any provider
+  interruption is user-visible; owner approval is required first.
+- Keep canonical DNS, registration policy, monitoring destination and owner,
+  retention schedule and owner, CSP enforcement, RPO/RTO, real provider
+  acceptance, and backup/restore as explicit owner/external gates. The
+  owner-approved Supabase backup deferral remains narrow and does not satisfy
+  the eventual database-plus-Storage restore requirement.
+- Block G remains open. Completion requires the internal lanes above to be
+  merged and verified and every remaining owner/external gate to be either
+  satisfied with real evidence or reported as an exact blocker.
+
+Validation impact:
+
+- This plan-only PR changes no application, migration, workflow, VPS runtime,
+  DNS, provider, or customer-visible state.
+- Implement the CI lane before the operational checkout lane so repository
+  gates are current before production evidence is reconciled.
+- Treat the WAHA limit drift as documented and blocked until the owner-approved
+  continuity procedure exists; planning does not authorize a runtime change.

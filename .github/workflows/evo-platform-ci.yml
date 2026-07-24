@@ -53,6 +53,12 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Test security boundaries
+        run: npm run test:security
+
+      - name: Test PostgreSQL authorization policies
+        run: bash agent-lead2-inbox/scripts/test-postgres-authorization.sh
+
       - name: Lint
         run: npm run lint
 

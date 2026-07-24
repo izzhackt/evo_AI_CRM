@@ -66,7 +66,7 @@ export function Badge({ value, label, className }: { value: string; label: strin
   return (
     <span
       className={cn(
-        "inline-flex min-h-6 items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap",
+        "inline-flex min-h-6 items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold leading-4 whitespace-nowrap",
         TONE_CLS[tone],
         className,
       )}
@@ -90,7 +90,7 @@ export function Card({
   bodyClassName?: string;
 }) {
   return (
-    <section className={cn("rounded-card border border-border bg-surface shadow-evo", className)}>
+    <section className={cn("min-w-0 rounded-card border border-border bg-surface shadow-evo", className)}>
       {(title || action) && (
         <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-5 py-3.5">
           {title && <h2 className="text-[14.5px] font-semibold text-fg">{title}</h2>}
@@ -127,8 +127,8 @@ export function StatCard({
   const inner = (
     <div
       className={cn(
-        "relative h-full overflow-hidden rounded-card border border-border bg-surface px-5 py-4 shadow-evo transition-[transform,box-shadow,border-color] duration-150 ease-out",
-        href && "hover:-translate-y-0.5 hover:border-border-strong hover:shadow-evo-lg",
+        "relative h-full overflow-hidden rounded-card border border-border bg-surface px-5 py-4 shadow-evo transition-[transform,box-shadow,border-color] duration-150 ease-out motion-reduce:transition-none",
+        href && "hover:-translate-y-0.5 hover:border-border-strong hover:shadow-evo-lg motion-reduce:hover:translate-y-0",
       )}
     >
       <span className={cn("absolute inset-y-0 left-0 w-[3px]", stripe)} aria-hidden="true" />
@@ -138,7 +138,7 @@ export function StatCard({
     </div>
   );
   return href ? (
-    <Link href={href} className="block rounded-card focus:outline-none">
+    <Link href={href} className="block rounded-card">
       {inner}
     </Link>
   ) : (
@@ -170,19 +170,19 @@ export function PageHeader({
 }
 
 export const inputCls =
-  "h-11 w-full rounded-ctl border border-border-strong bg-surface-2 px-3 text-[13.5px] text-fg placeholder:text-fg-3 transition-[border-color,box-shadow] duration-150 ease-out focus:border-accent focus:outline-none";
+  "h-11 w-full min-w-0 rounded-ctl border border-border-strong bg-surface px-3 text-[13.5px] text-fg placeholder:text-fg-3 transition-[border-color,box-shadow,background-color] duration-150 ease-out hover:bg-surface-2 focus-visible:border-accent motion-reduce:transition-none";
 
 export const btnCls =
-  "inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl bg-accent px-4 text-[13.5px] font-semibold text-on-accent shadow-evo transition-[filter,transform] duration-150 ease-out hover:brightness-[1.08] active:scale-[0.98] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
+  "inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-accent bg-accent px-4 text-[13.5px] font-semibold text-on-accent transition-[background-color,border-color,transform] duration-150 ease-out hover:border-accent-2 hover:bg-accent-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 export const btnGhostCls =
-  "inline-flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-ctl border border-border-strong bg-surface px-3 text-[13px] font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-border-strong hover:bg-surface-2 hover:text-fg active:scale-[0.98] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
+  "inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-border-strong bg-surface px-3 text-[13px] font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:bg-surface-2 hover:text-fg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 export const btnDangerGhostCls =
-  "inline-flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-ctl border border-border-strong bg-surface px-3 text-[13px] font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-danger hover:bg-danger-weak hover:text-danger active:scale-[0.98] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
+  "inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-border-strong bg-surface px-3 text-[13px] font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-danger hover:bg-danger-weak hover:text-danger active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 export const compactActionCls =
-  "inline-flex min-h-9 items-center gap-1 rounded-nav px-2.5 py-1 text-[12px] font-semibold text-accent transition-[background-color,color] duration-150 ease-out hover:bg-accent-weak focus:outline-none";
+  "inline-flex min-h-10 items-center gap-1 rounded-nav px-2.5 py-1 text-[12px] font-semibold text-accent transition-[background-color,color] duration-150 ease-out hover:bg-accent-weak motion-reduce:transition-none";
 
 export const filterBarCls =
   "grid gap-2 rounded-card border border-border bg-surface p-3 shadow-evo";

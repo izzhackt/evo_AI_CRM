@@ -38,6 +38,13 @@ async function login(page: Page, email: string, password: string, target: RegExp
   ]);
 }
 
+async function openMobileStaffMenu(page: Page) {
+  if ((page.viewportSize()?.width ?? 1440) >= 768) return false;
+  await page.getByRole("button", { name: "Ещё" }).click();
+  await expect(page.getByRole("dialog", { name: "Все разделы" })).toBeVisible();
+  return true;
+}
+
 test("rejects invalid login without server overlay", async ({ page, runtimeErrors }) => {
   await page.goto("/login");
   await page.getByLabel("Эл. почта").fill("missing@example.com");
@@ -51,7 +58,14 @@ test("rejects invalid login without server overlay", async ({ page, runtimeError
 test("staff can log in, navigate core pages, and create a real lead", async ({ page, runtimeErrors }, testInfo) => {
   await login(page, "admin@demo.kg", "admin123", /\/dashboard$/);
   await expect(page.getByRole("heading", { name: "Командный центр" })).toBeVisible();
+  await expect(page.locator(".provider-status:visible", { hasText: "amoCRM: не проверен" })).toBeVisible();
+  await expect(page.locator(".provider-status:visible", { hasText: "WAHA: не проверен" })).toBeVisible();
+  await expect(page.locator(".provider-status:visible", { hasText: "AI: только черновики" })).toBeVisible();
+  const mobileMenuOpen = await openMobileStaffMenu(page);
   await expect(page.getByRole("link", { name: "Поступление" })).toBeVisible();
+  if (mobileMenuOpen) {
+    await page.getByRole("button", { name: "Закрыть меню" }).click();
+  }
   await saveScreenshot(page, testInfo, "dashboard");
   await page.locator('a[href="/sales?risk=no_task"]').click();
   await expect(page).toHaveURL(/\/sales\?risk=no_task$/);
@@ -122,9 +136,9 @@ test("staff can log in, navigate core pages, and create a real lead", async ({ p
   await expect(page.locator("body")).toContainText("Назначена встреча");
   await saveScreenshot(page, testInfo, "sales-lead-detail");
   await page.goto("/clients/1");
-  await expect(page.getByText("Заявки").first()).toBeVisible();
-  await expect(page.getByText("Документы").first()).toBeVisible();
-  await expect(page.getByText("Платежи").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Заявки в вузы", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Документы", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Платежи", exact: true })).toBeVisible();
   await saveScreenshot(page, testInfo, "student-360-detail");
   expect(runtimeErrors).toEqual([]);
 });
@@ -142,7 +156,16 @@ test("student portal renders scoped client dashboard", async ({ page, runtimeErr
 test("mobile staff dashboard stays within viewport", async ({ page, runtimeErrors }, testInfo) => {
   await login(page, "sales@demo.kg", "sales123", /\/dashboard$/);
   await expect(page.getByRole("heading", { name: "Командный центр" })).toBeVisible();
+  const mobileMenuOpen = await openMobileStaffMenu(page);
   await expect(page.getByRole("link", { name: "Student 360" })).toBeVisible();
+  if (mobileMenuOpen) {
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Все разделы" })).toBeHidden();
+    await expect(page.getByRole("button", { name: "Ещё" })).toHaveAttribute("aria-expanded", "false");
+    await page.getByRole("button", { name: "Ещё" }).click();
+    await expect(page.getByRole("dialog", { name: "Все разделы" })).toBeVisible();
+    await page.getByRole("button", { name: "Закрыть меню" }).click();
+  }
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(2);
   await saveScreenshot(page, testInfo, "mobile-dashboard");

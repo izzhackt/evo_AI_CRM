@@ -27,7 +27,9 @@ export type IconName =
   | "call-in"
   | "call-out"
   | "chevron-right"
-  | "alert";
+  | "alert"
+  | "menu"
+  | "x";
 
 const PATHS: Record<IconName, string> = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -64,6 +66,8 @@ const PATHS: Record<IconName, string> = {
   "call-out": '<path d="M7 17 17 7"/><path d="M7 7h10v10"/>',
   "chevron-right": '<path d="m9 18 6-6-6-6"/>',
   alert: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  menu: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>',
+  x: '<path d="m18 6-12 12"/><path d="m6 6 12 12"/>',
 };
 
 export function Icon({

@@ -18,6 +18,8 @@ const eslintConfig = defineConfig([
     "evo_website/**",
     "twenty-evo-admissions-app/**",
     "output/**",
+    // Immutable Claude Design export kept as documentation, not runtime code.
+    "docs/design/evo-platform/prototype/**",
   ]),
 ]);
 

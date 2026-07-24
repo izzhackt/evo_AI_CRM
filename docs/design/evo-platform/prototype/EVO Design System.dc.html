@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:"SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#14161A;background:#F6F7F9;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5}
+  a{color:#D70217;text-decoration:none}
+  a:hover{color:#B00213}
+  ::selection{background:rgba(215,2,23,.16)}
+  h1,h2,h3,h4{font-family:"Montserrat",sans-serif;margin:0;letter-spacing:-.01em}
+  @keyframes evospin{to{transform:rotate(360deg)}}
+  @keyframes evoshimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+  @keyframes evoup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<g id="__ic" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></g>
+<symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></symbol>
+<symbol id="i-trending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></symbol>
+<symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92Z"></path></symbol>
+<symbol id="i-check-square" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></symbol>
+<symbol id="i-plane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"></path></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="15"></line></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></symbol>
+<symbol id="i-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></symbol>
+<symbol id="i-alert-tri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></symbol>
+<symbol id="i-alert-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></symbol>
+<symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></symbol>
+<symbol id="i-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></symbol>
+<symbol id="i-paperclip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></symbol>
+<symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></symbol>
+<symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+<symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></symbol>
+<symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></symbol>
+<symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4M10 10h4M10 14h4"></path></symbol>
+<symbol id="i-cap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"></path><path d="M6 12v5c0 1 2 3 6 3s6-2 6-3v-5"></path></symbol>
+<symbol id="i-map" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></symbol>
+<symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></symbol>
+<symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></symbol>
+<symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></symbol>
+</defs></svg>
+
+<div style="max-width:1200px;margin:0 auto;padding:0 32px 120px">
+
+  <header style="padding:56px 0 40px;border-bottom:1px solid #E4E6EA;margin-bottom:40px">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:28px">
+      <div style="display:flex;align-items:baseline;gap:3px;font-family:Montserrat;font-weight:800;font-size:22px;letter-spacing:-.02em">
+        <span style="color:#14161A">EVO</span><span style="width:7px;height:7px;border-radius:50%;background:#D70217;align-self:center;margin:0 1px"></span><span style="color:#14161A;font-weight:600;letter-spacing:.16em;font-size:13px;text-transform:uppercase;position:relative;top:-1px">Admissions</span>
+      </div>
+      <span style="margin-left:6px;padding:4px 10px;border:1px solid #E4E6EA;border-radius:999px;font-size:11px;font-weight:600;color:#5B6068;letter-spacing:.04em">DESIGN SYSTEM v1</span>
+    </div>
+    <h1 style="font-size:44px;font-weight:800;line-height:1.05;max-width:760px;margin-bottom:16px">Единая дизайн-система EVO Platform</h1>
+    <p style="font-size:17px;color:#5B6068;max-width:680px;line-height:1.55;margin:0 0 22px">Токены, компоненты и паттерны для рабочего пространства сотрудников и кабинета студента. Один визуальный язык поверх продаж, поступления, документов, визы и финансов.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a href="EVO Platform.dc.html" style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:#D70217;color:#fff;border-radius:8px;font-weight:600;font-size:14px">Обзор проекта <svg style="width:16px;height:16px"><use href="#i-arrow-right"></use></svg></a>
+      <a href="EVO Staff Workspace.dc.html" style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:#fff;color:#14161A;border:1px solid #E4E6EA;border-radius:8px;font-weight:600;font-size:14px">Staff Workspace</a>
+      <a href="EVO Student Portal.dc.html" style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:#fff;color:#14161A;border:1px solid #E4E6EA;border-radius:8px;font-weight:600;font-size:14px">Student Portal</a>
+    </div>
+  </header>
+
+  <!-- ============ BRAND & LOGO ============ -->
+  <section style="margin-bottom:52px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">01</span><h2 style="font-size:24px;font-weight:700">Логотип и бренд</h2></div>
+    <p style="color:#5B6068;margin:0 0 20px;max-width:720px">Знак EVO Admissions строится типографически: акцент — фирменная красная точка. Не применяем тени, свечения, градиенты, прозрачности; не деформируем и не перекрашиваем произвольно.</p>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:28px;display:flex;flex-direction:column;align-items:center;gap:16px">
+        <div style="flex:1;display:flex;align-items:center"><div style="display:flex;align-items:baseline;gap:2px;font-family:Montserrat;font-weight:800;font-size:26px"><span>EVO</span><span style="width:8px;height:8px;border-radius:50%;background:#D70217;align-self:center"></span><span style="font-weight:600;letter-spacing:.16em;font-size:14px;text-transform:uppercase;position:relative;top:-2px">Admissions</span></div></div>
+        <span style="font-size:12px;color:#878C94">Основная версия</span>
+      </div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:28px;display:flex;flex-direction:column;align-items:center;gap:16px">
+        <div style="flex:1;display:flex;align-items:center;flex-direction:column;justify-content:center;gap:3px"><div style="font-family:Montserrat;font-weight:800;font-size:28px;display:flex;align-items:baseline;gap:2px"><span>EVO</span><span style="width:8px;height:8px;border-radius:50%;background:#D70217;align-self:center"></span></div><span style="font-family:Montserrat;font-weight:600;letter-spacing:.22em;font-size:11px;text-transform:uppercase;color:#14161A">Admissions</span></div>
+        <span style="font-size:12px;color:#878C94">Вертикальная</span>
+      </div>
+      <div style="background:#14161A;border:1px solid #14161A;border-radius:14px;padding:28px;display:flex;flex-direction:column;align-items:center;gap:16px">
+        <div style="flex:1;display:flex;align-items:center"><div style="display:flex;align-items:baseline;gap:2px;font-family:Montserrat;font-weight:800;font-size:26px;color:#fff"><span>EVO</span><span style="width:8px;height:8px;border-radius:50%;background:#D70217;align-self:center"></span><span style="font-weight:600;letter-spacing:.16em;font-size:14px;text-transform:uppercase;position:relative;top:-2px">Admissions</span></div></div>
+        <span style="font-size:12px;color:rgba(255,255,255,.5)">Инверсия</span>
+      </div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:28px;display:flex;flex-direction:column;align-items:center;gap:16px">
+        <div style="flex:1;display:flex;align-items:center"><div style="display:flex;align-items:baseline;gap:2px;font-family:Montserrat;font-weight:800;font-size:26px;color:#14161A"><span>EVO</span><span style="width:8px;height:8px;border-radius:50%;background:#14161A;align-self:center"></span><span style="font-weight:600;letter-spacing:.16em;font-size:14px;text-transform:uppercase;position:relative;top:-2px">Admissions</span></div></div>
+        <span style="font-size:12px;color:#878C94">Монохром</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ COLOR ============ -->
+  <section style="margin-bottom:52px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">02</span><h2 style="font-size:24px;font-weight:700">Цвет</h2></div>
+    <p style="color:#5B6068;margin:0 0 20px;max-width:720px">Красный — фирменный акцент и цвет действия, а не заливка для каждого статуса. Основа — белый, чёрный, серые. Семантические цвета различимы: успех, предупреждение, информация, ошибка.</p>
+    <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:24px">
+      <div style="font-size:12px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Фирменный акцент</div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:24px">
+        <div><div style="height:56px;border-radius:10px;background:#FCE8EA;border:1px solid #E4E6EA"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Tint</div><div style="font-size:11px;color:#878C94">#FCE8EA</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#F4A9B1"></div><div style="font-size:12px;margin-top:6px;font-weight:600">300</div><div style="font-size:11px;color:#878C94">#F4A9B1</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#E8556A"></div><div style="font-size:12px;margin-top:6px;font-weight:600">500</div><div style="font-size:11px;color:#878C94">#E8556A</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#D70217;box-shadow:0 2px 8px rgba(215,2,23,.28)"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Brand ●</div><div style="font-size:11px;color:#878C94">#D70217</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#B00213"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Hover</div><div style="font-size:11px;color:#878C94">#B00213</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#7E020F"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Deep</div><div style="font-size:11px;color:#878C94">#7E020F</div></div>
+      </div>
+      <div style="font-size:12px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Нейтральные</div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:24px">
+        <div><div style="height:56px;border-radius:10px;background:#14161A"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Ink</div><div style="font-size:11px;color:#878C94">#14161A</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#5B6068"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Secondary</div><div style="font-size:11px;color:#878C94">#5B6068</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#878C94"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Muted</div><div style="font-size:11px;color:#878C94">#878C94</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#E4E6EA"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Border</div><div style="font-size:11px;color:#878C94">#E4E6EA</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#F6F7F9;border:1px solid #E4E6EA"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Canvas</div><div style="font-size:11px;color:#878C94">#F6F7F9</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#fff;border:1px solid #E4E6EA"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Surface</div><div style="font-size:11px;color:#878C94">#FFFFFF</div></div>
+      </div>
+      <div style="font-size:12px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Семантические</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        <div><div style="height:56px;border-radius:10px;background:#1F8A5B"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Success</div><div style="font-size:11px;color:#878C94">#1F8A5B · tint #E6F4ED</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#C77700"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Warning</div><div style="font-size:11px;color:#878C94">#C77700 · tint #FCF3E3</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#1E6FB8"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Info</div><div style="font-size:11px;color:#878C94">#1E6FB8 · tint #E7F0F9</div></div>
+        <div><div style="height:56px;border-radius:10px;background:#C81E1E"></div><div style="font-size:12px;margin-top:6px;font-weight:600">Danger</div><div style="font-size:11px;color:#878C94">#C81E1E · tint #FCEAEA</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TYPOGRAPHY ============ -->
+  <section style="margin-bottom:52px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">03</span><h2 style="font-size:24px;font-weight:700">Типографика</h2></div>
+    <p style="color:#5B6068;margin:0 0 20px;max-width:720px">Montserrat (700/800) — заголовки, KPI, логотип. SF Pro Text / системный стек — интерфейс и плотные тексты. Базовый размер тела — 14px, минимум для читаемости.</p>
+    <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:28px;display:grid;grid-template-columns:1fr 1fr;gap:28px">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:16px">Display · Montserrat</div>
+        <div style="font-family:Montserrat;font-weight:800;font-size:40px;line-height:1.05;letter-spacing:-.02em;margin-bottom:10px">Командный центр</div>
+        <div style="font-family:Montserrat;font-weight:700;font-size:28px;margin-bottom:10px">Student 360</div>
+        <div style="font-family:Montserrat;font-weight:700;font-size:20px;margin-bottom:10px">Очередь документов</div>
+        <div style="font-family:Montserrat;font-weight:800;font-size:34px;color:#D70217">$248 500</div>
+        <div style="font-size:12px;color:#878C94;margin-top:4px">KPI · Montserrat 800</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:16px">Body · SF Pro / System</div>
+        <div style="font-size:16px;margin-bottom:8px">16 / Крупный текст и подзаголовки</div>
+        <div style="font-size:14px;margin-bottom:8px">14 / Базовый текст интерфейса, строки таблиц, поля форм и описания.</div>
+        <div style="font-size:13px;color:#5B6068;margin-bottom:8px">13 / Вторичный текст, подписи, метаданные</div>
+        <div style="font-size:12px;color:#878C94;margin-bottom:14px">12 / Мелкие подписи и статусы</div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5B6068">11 / OVERLINE · РАЗДЕЛ</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SPACING / RADIUS / ELEVATION / MOTION ============ -->
+  <section style="margin-bottom:52px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">04</span><h2 style="font-size:24px;font-weight:700">Отступы, радиусы, тени, движение</h2></div>
+    <p style="color:#5B6068;margin:0 0 20px;max-width:720px">Шаг сетки — 4px. Радиусы 6 / 8 / 12 / 16 / полный. Тени сдержанные. Движение — 120–200мс, ease.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:24px">
+        <div style="font-size:12px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px">Шкала отступов</div>
+        <div style="display:flex;align-items:flex-end;gap:10px">
+          <div style="text-align:center"><div style="width:4px;height:4px;background:#D70217;margin:0 auto"></div><div style="font-size:11px;color:#878C94;margin-top:8px">4</div></div>
+          <div style="text-align:center"><div style="width:8px;height:8px;background:#D70217;margin:0 auto"></div><div style="font-size:11px;color:#878C94;margin-top:8px">8</div></div>
+          <div style="text-align:center"><div style="width:12px;height:12px;background:#D70217;margin:0 auto"></div><div style="font-size:11px;color:#878C94;margin-top:8px">12</div></div>
+          <div style="text-align:center"><div style="width:16px;height:16px;background:#D70217;margin:0 auto"></div><div style="font-size:11px;color:#878C94;margin-top:8px">16</div></div>
+          <div style="text-align:center"><div style="width:24px;height:24px;background:#D70217;margin:0 auto"></div><div style="font-size:11px;color:#878C94;margin-top:8px">24</div></div>
+          <div style="text-align:center"><div style="width:32px;height:32px;background:#D70217;margin:0 auto"></div><div style="font-size:11px;color:#878C94;margin-top:8px">32</div></div>
+          <div style="text-align:center"><div style="width:48px;height:48px;background:#D70217;margin:0 auto"></div><div style="font-size:11px;color:#878C94;margin-top:8px">48</div></div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin:24px 0 14px">Радиусы</div>
+        <div style="display:flex;gap:12px">
+          <div style="text-align:center"><div style="width:48px;height:40px;background:#F6F7F9;border:1px solid #E4E6EA;border-radius:6px"></div><div style="font-size:11px;color:#878C94;margin-top:6px">6</div></div>
+          <div style="text-align:center"><div style="width:48px;height:40px;background:#F6F7F9;border:1px solid #E4E6EA;border-radius:8px"></div><div style="font-size:11px;color:#878C94;margin-top:6px">8</div></div>
+          <div style="text-align:center"><div style="width:48px;height:40px;background:#F6F7F9;border:1px solid #E4E6EA;border-radius:12px"></div><div style="font-size:11px;color:#878C94;margin-top:6px">12</div></div>
+          <div style="text-align:center"><div style="width:48px;height:40px;background:#F6F7F9;border:1px solid #E4E6EA;border-radius:16px"></div><div style="font-size:11px;color:#878C94;margin-top:6px">16</div></div>
+          <div style="text-align:center"><div style="width:40px;height:40px;background:#F6F7F9;border:1px solid #E4E6EA;border-radius:999px"></div><div style="font-size:11px;color:#878C94;margin-top:6px">full</div></div>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:24px">
+        <div style="font-size:12px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px">Тени</div>
+        <div style="display:flex;gap:16px;margin-bottom:24px">
+          <div style="text-align:center"><div style="width:64px;height:48px;background:#fff;border:1px solid #EEEFF2;border-radius:10px;box-shadow:0 1px 2px rgba(20,22,26,.06),0 1px 3px rgba(20,22,26,.04)"></div><div style="font-size:11px;color:#878C94;margin-top:8px">card</div></div>
+          <div style="text-align:center"><div style="width:64px;height:48px;background:#fff;border-radius:10px;box-shadow:0 8px 24px rgba(20,22,26,.12)"></div><div style="font-size:11px;color:#878C94;margin-top:8px">popover</div></div>
+          <div style="text-align:center"><div style="width:64px;height:48px;background:#fff;border-radius:10px;box-shadow:0 24px 60px rgba(20,22,26,.24)"></div><div style="font-size:11px;color:#878C94;margin-top:8px">modal</div></div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px">Движение</div>
+        <div style="font-size:13px;color:#5B6068;line-height:1.7">Hover / нажатие — <b style="color:#14161A">120мс</b> ease<br>Drawer / modal — <b style="color:#14161A">200мс</b> cubic-bezier(.2,.7,.2,1)<br>Загрузка — <b style="color:#14161A">skeleton shimmer</b> 1.4с</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ICONS ============ -->
+  <section style="margin-bottom:52px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">05</span><h2 style="font-size:24px;font-weight:700">Иконки</h2></div>
+    <p style="color:#5B6068;margin:0 0 20px;max-width:720px">Единый линейный набор, обводка 1.75, скруглённые концы. Без эмодзи в интерфейсе.</p>
+    <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:24px;display:grid;grid-template-columns:repeat(12,1fr);gap:16px;color:#14161A">
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-grid"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-trending"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-users"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-cap"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-file"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-folder"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-chat"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-phone"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-check-square"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-calendar"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-plane"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-wallet"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-chart"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-bell"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-settings"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-search"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-filter"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-building"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-shield"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-upload"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-send"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-sparkles"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-history"></use></svg></div>
+      <div style="display:flex;justify-content:center"><svg style="width:22px;height:22px"><use href="#i-refresh"></use></svg></div>
+    </div>
+  </section>
+
+  <!-- ============ BUTTONS ============ -->
+  <section style="margin-bottom:52px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">06</span><h2 style="font-size:24px;font-weight:700">Кнопки</h2></div>
+    <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:20px">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <button style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:#D70217;color:#fff;border:none;border-radius:8px;font-weight:600;font-size:14px;font-family:inherit;cursor:pointer">Основная</button>
+        <button style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:#fff;color:#14161A;border:1px solid #D6D9DE;border-radius:8px;font-weight:600;font-size:14px;font-family:inherit;cursor:pointer">Вторичная</button>
+        <button style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:transparent;color:#5B6068;border:none;border-radius:8px;font-weight:600;font-size:14px;font-family:inherit;cursor:pointer">Тихая</button>
+        <button style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:#FCEAEA;color:#C81E1E;border:1px solid #F3C9C9;border-radius:8px;font-weight:600;font-size:14px;font-family:inherit;cursor:pointer">Опасная</button>
+        <button style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:#E4E6EA;color:#A6ABB3;border:none;border-radius:8px;font-weight:600;font-size:14px;font-family:inherit;cursor:not-allowed" disabled="">Отключена</button>
+        <button style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:#D70217;color:#fff;border:none;border-radius:8px;font-weight:600;font-size:14px;font-family:inherit;cursor:wait;opacity:.85"><svg style="width:16px;height:16px;animation:evospin 0.8s linear infinite"><use href="#i-refresh"></use></svg>Загрузка</button>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <button style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#D70217;color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;font-family:inherit;cursor:pointer"><svg style="width:15px;height:15px"><use href="#i-plus"></use></svg>Малая</button>
+        <button style="display:inline-flex;align-items:center;gap:8px;padding:12px 20px;background:#D70217;color:#fff;border:none;border-radius:9px;font-weight:600;font-size:15px;font-family:inherit;cursor:pointer">Большая</button>
+        <button style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;background:#fff;border:1px solid #D6D9DE;border-radius:8px;cursor:pointer;color:#14161A"><svg style="width:18px;height:18px"><use href="#i-filter"></use></svg></button>
+        <button style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;background:#fff;border:1px solid #D6D9DE;border-radius:8px;cursor:pointer;color:#14161A"><svg style="width:18px;height:18px"><use href="#i-dots"></use></svg></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ INPUTS / SELECTION ============ -->
+  <section style="margin-bottom:52px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">07</span><h2 style="font-size:24px;font-weight:700">Поля, формы и контролы</h2></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:16px">
+        <div><label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Имя студента</label><input value="Айдана Осмонова" style="width:100%;padding:10px 12px;border:1px solid #D6D9DE;border-radius:8px;font-size:14px;font-family:inherit;color:#14161A"></div>
+        <div><label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Активное поле</label><input value="Фокус · красная рамка" style="width:100%;padding:10px 12px;border:1px solid #D70217;border-radius:8px;font-size:14px;font-family:inherit;box-shadow:0 0 0 3px rgba(215,2,23,.16);color:#14161A"></div>
+        <div><label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Ошибка валидации</label><input value="неверный телефон" style="width:100%;padding:10px 12px;border:1px solid #C81E1E;border-radius:8px;font-size:14px;font-family:inherit;color:#14161A"><div style="display:flex;align-items:center;gap:5px;color:#C81E1E;font-size:12px;margin-top:6px"><svg style="width:14px;height:14px"><use href="#i-alert-circle"></use></svg>Введите номер в формате +996 XXX XXX XXX</div></div>
+        <div><label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Только чтение</label><div style="width:100%;padding:10px 12px;background:#F6F7F9;border:1px solid #EEEFF2;border-radius:8px;font-size:14px;color:#5B6068">amoCRM · источник истины</div></div>
+      </div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:18px">
+        <div style="position:relative"><label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Поиск</label><svg style="width:16px;height:16px;position:absolute;left:12px;top:35px;color:#878C94"><use href="#i-search"></use></svg><input placeholder="Студент, телефон, университет…" style="width:100%;padding:10px 12px 10px 36px;border:1px solid #D6D9DE;border-radius:8px;font-size:14px;font-family:inherit"></div>
+        <div style="display:flex;gap:24px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><span style="width:18px;height:18px;border-radius:5px;background:#D70217;display:inline-flex;align-items:center;justify-content:center;color:#fff"><svg style="width:12px;height:12px"><use href="#i-check"></use></svg></span>Выбран</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><span style="width:18px;height:18px;border-radius:5px;border:1.5px solid #C6CACF;display:inline-block"></span>Не выбран</label>
+        </div>
+        <div style="display:flex;gap:24px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><span style="width:18px;height:18px;border-radius:50%;border:1.5px solid #D70217;display:inline-flex;align-items:center;justify-content:center"><span style="width:9px;height:9px;border-radius:50%;background:#D70217"></span></span>Радио вкл</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><span style="width:18px;height:18px;border-radius:50%;border:1.5px solid #C6CACF;display:inline-block"></span>Радио выкл</label>
+        </div>
+        <div style="display:flex;align-items:center;gap:24px">
+          <div onclick="{{ toggleSw1 }}" style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px"><span style="width:40px;height:23px;border-radius:999px;padding:2px;display:flex;transition:.15s;background:{{ sw1bg }};justify-content:{{ sw1pos }}"><span style="width:19px;height:19px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)"></span></span>Переключатель</div>
+        </div>
+        <div style="display:inline-flex;background:#F0F1F4;border-radius:9px;padding:3px;width:fit-content">
+          <button onclick="{{ setSeg0 }}" style="padding:7px 16px;border:none;border-radius:7px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;background:{{ seg0bg }};color:{{ seg0col }};box-shadow:{{ seg0sh }}">Канбан</button>
+          <button onclick="{{ setSeg1 }}" style="padding:7px 16px;border:none;border-radius:7px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;background:{{ seg1bg }};color:{{ seg1col }};box-shadow:{{ seg1sh }}">Список</button>
+          <button onclick="{{ setSeg2 }}" style="padding:7px 16px;border:none;border-radius:7px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;background:{{ seg2bg }};color:{{ seg2col }};box-shadow:{{ seg2sh }}">Календарь</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STATUSES ============ -->
+  <section style="margin-bottom:52px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">08</span><h2 style="font-size:24px;font-weight:700">Статусы, чипы и бейджи</h2></div>
+    <p style="color:#5B6068;margin:0 0 20px;max-width:720px">Этапы продаж и операционные этапы студента различимы по форме и цвету. Красный — только для критичного (просрочка, блок, отказ).</p>
+    <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:18px">
+      <div><div style="font-size:11px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Воронка продаж (amoCRM)</div><div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:600;background:#F0F1F4;color:#5B6068"><span style="width:6px;height:6px;border-radius:50%;background:#878C94"></span>В обработке МП</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:600;background:#E7F0F9;color:#1E6FB8"><span style="width:6px;height:6px;border-radius:50%;background:#1E6FB8"></span>Лид квалифицирован</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:600;background:#E7F0F9;color:#1E6FB8"><span style="width:6px;height:6px;border-radius:50%;background:#1E6FB8"></span>Назначена встреча</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:600;background:#FCF3E3;color:#C77700"><span style="width:6px;height:6px;border-radius:50%;background:#C77700"></span>Встреча проведена</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:600;background:#E6F4ED;color:#1F8A5B"><span style="width:6px;height:6px;border-radius:50%;background:#1F8A5B"></span>Договор подписан</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:600;background:#F0F1F4;color:#878C94"><span style="width:6px;height:6px;border-radius:50%;background:#B4B8BF"></span>Лиды без запроса</span>
+      </div></div>
+      <div><div style="font-size:11px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Операционный этап студента</div><div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span style="padding:4px 11px;border-radius:7px;font-size:12px;font-weight:600;background:#F0F1F4;color:#5B6068;border:1px solid #E4E6EA">Консультация</span>
+        <span style="padding:4px 11px;border-radius:7px;font-size:12px;font-weight:600;background:#F0F1F4;color:#5B6068;border:1px solid #E4E6EA">Договор</span>
+        <span style="padding:4px 11px;border-radius:7px;font-size:12px;font-weight:600;background:#EEF3FB;color:#1E6FB8;border:1px solid #D4E3F4">Документы</span>
+        <span style="padding:4px 11px;border-radius:7px;font-size:12px;font-weight:600;background:#EEF3FB;color:#1E6FB8;border:1px solid #D4E3F4">Подача заявок</span>
+        <span style="padding:4px 11px;border-radius:7px;font-size:12px;font-weight:600;background:#FBF0E1;color:#C77700;border:1px solid #F0DCBB">Оффер</span>
+        <span style="padding:4px 11px;border-radius:7px;font-size:12px;font-weight:600;background:#EEF3FB;color:#1E6FB8;border:1px solid #D4E3F4">Виза</span>
+        <span style="padding:4px 11px;border-radius:7px;font-size:12px;font-weight:600;background:#E6F4ED;color:#1F8A5B;border:1px solid #C9E7D6">Зачислен</span>
+      </div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
+        <div><div style="font-size:11px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Документы</div><div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#F0F1F4;color:#5B6068">Требуется</span>
+          <span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#E7F0F9;color:#1E6FB8">Загружен</span>
+          <span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#FCF3E3;color:#C77700">На проверке</span>
+          <span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#E6F4ED;color:#1F8A5B">Принят</span>
+          <span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#FCEAEA;color:#C81E1E">Отклонён</span>
+        </div></div>
+        <div><div style="font-size:11px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Платежи</div><div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#FCF3E3;color:#C77700">Ожидает</span>
+          <span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#E6F4ED;color:#1F8A5B">Оплачен</span>
+          <span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#FCEAEA;color:#C81E1E">Просрочен</span>
+        </div></div>
+        <div><div style="font-size:11px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Приоритет задач</div><div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#F0F1F4;color:#878C94">Низкий</span>
+          <span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#F0F1F4;color:#5B6068">Обычный</span>
+          <span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#FCF3E3;color:#C77700">Высокий</span>
+          <span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#FCEAEA;color:#C81E1E">Срочно</span>
+        </div></div>
+      </div>
+      <div><div style="font-size:11px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Интеграции и синхронизация</div><div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-size:12px;font-weight:600;background:#E6F4ED;color:#1F8A5B"><svg style="width:13px;height:13px"><use href="#i-check-circle"></use></svg>Синхронизировано</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-size:12px;font-weight:600;background:#FCF3E3;color:#C77700"><svg style="width:13px;height:13px;animation:evospin 1.2s linear infinite"><use href="#i-refresh"></use></svg>Синхронизация…</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-size:12px;font-weight:600;background:#FCEAEA;color:#C81E1E"><svg style="width:13px;height:13px"><use href="#i-alert-tri"></use></svg>Ошибка синхро</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-size:12px;font-weight:600;background:#F0F1F4;color:#5B6068"><svg style="width:13px;height:13px"><use href="#i-link"></use></svg>Возможный дубль</span>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ============ FEEDBACK: tabs/drawer/modal/toast ============ -->
+  <section style="margin-bottom:52px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">09</span><h2 style="font-size:24px;font-weight:700">Обратная связь и оверлеи</h2></div>
+    <p style="color:#5B6068;margin:0 0 20px;max-width:720px">Вкладки, drawer, модальные окна, подтверждения, тосты и баннеры. Кнопки ниже работают.</p>
+    <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:24px">
+      <div style="display:flex;gap:4px;border-bottom:1px solid #E4E6EA;margin-bottom:18px">
+        <button onclick="{{ setTab0 }}" style="padding:10px 16px;border:none;background:none;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;color:{{ tab0col }};border-bottom:2px solid {{ tab0bd }};margin-bottom:-1px">Профиль</button>
+        <button onclick="{{ setTab1 }}" style="padding:10px 16px;border:none;background:none;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;color:{{ tab1col }};border-bottom:2px solid {{ tab1bd }};margin-bottom:-1px">Документы</button>
+        <button onclick="{{ setTab2 }}" style="padding:10px 16px;border:none;background:none;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;color:{{ tab2col }};border-bottom:2px solid {{ tab2bd }};margin-bottom:-1px">История</button>
+      </div>
+      <div style="font-size:14px;color:#5B6068;min-height:40px;margin-bottom:20px">{{ tabText }}</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+        <button onclick="{{ openDrawer }}" style="padding:10px 16px;background:#fff;border:1px solid #D6D9DE;border-radius:8px;font-weight:600;font-size:14px;font-family:inherit;cursor:pointer">Открыть drawer</button>
+        <button onclick="{{ openModal }}" style="padding:10px 16px;background:#fff;border:1px solid #D6D9DE;border-radius:8px;font-weight:600;font-size:14px;font-family:inherit;cursor:pointer">Модальное окно</button>
+        <button onclick="{{ fireToast }}" style="padding:10px 16px;background:#fff;border:1px solid #D6D9DE;border-radius:8px;font-weight:600;font-size:14px;font-family:inherit;cursor:pointer">Показать тост</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:#E7F0F9;border:1px solid #D4E3F4;border-radius:10px;color:#1E4E7E"><svg style="width:18px;height:18px;flex-shrink:0;color:#1E6FB8"><use href="#i-info"></use></svg><div style="font-size:13px"><b>Информация.</b> amoCRM остаётся источником истины для контакта, лида и этапа продаж.</div></div>
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:#FCF3E3;border:1px solid #F0DCBB;border-radius:10px;color:#8A5A08"><svg style="width:18px;height:18px;flex-shrink:0;color:#C77700"><use href="#i-alert-tri"></use></svg><div style="font-size:13px"><b>Предупреждение.</b> Документ требует исправления до подачи заявки.</div></div>
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:#FCEAEA;border:1px solid #F3C9C9;border-radius:10px;color:#9A1818"><svg style="width:18px;height:18px;flex-shrink:0;color:#C81E1E"><use href="#i-alert-circle"></use></svg><div style="font-size:13px"><b>Ошибка.</b> Не удалось связаться с amoCRM. Данные не изменены, изменения сохранены локально как черновик. <a href="#" style="color:#C81E1E;font-weight:600;text-decoration:underline">Повторить</a></div></div>
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:#E6F4ED;border:1px solid #C9E7D6;border-radius:10px;color:#146B45"><svg style="width:18px;height:18px;flex-shrink:0;color:#1F8A5B"><use href="#i-check-circle"></use></svg><div style="font-size:13px"><b>Готово.</b> Заявка в NUS обновлена: статус «Подана».</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STATES ============ -->
+  <section style="margin-bottom:52px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">10</span><h2 style="font-size:24px;font-weight:700">Состояния</h2></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:12px"><div style="font-size:11px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase">Загрузка</div>
+        <div style="height:12px;border-radius:6px;background:linear-gradient(90deg,#EEF0F3 25%,#F6F7F9 37%,#EEF0F3 63%);background-size:800px 100%;animation:evoshimmer 1.4s infinite"></div>
+        <div style="height:12px;width:70%;border-radius:6px;background:linear-gradient(90deg,#EEF0F3 25%,#F6F7F9 37%,#EEF0F3 63%);background-size:800px 100%;animation:evoshimmer 1.4s infinite"></div>
+        <div style="height:12px;width:85%;border-radius:6px;background:linear-gradient(90deg,#EEF0F3 25%,#F6F7F9 37%,#EEF0F3 63%);background-size:800px 100%;animation:evoshimmer 1.4s infinite"></div>
+      </div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:22px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px"><div style="width:44px;height:44px;border-radius:12px;background:#F6F7F9;display:flex;align-items:center;justify-content:center;color:#B4B8BF"><svg style="width:22px;height:22px"><use href="#i-folder"></use></svg></div><div style="font-weight:600;font-size:14px">Пусто</div><div style="font-size:12px;color:#878C94">Добавьте первую заявку, чтобы команда видела прогресс.</div></div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:22px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px"><div style="width:44px;height:44px;border-radius:12px;background:#FCEAEA;display:flex;align-items:center;justify-content:center;color:#C81E1E"><svg style="width:22px;height:22px"><use href="#i-lock"></use></svg></div><div style="font-weight:600;font-size:14px">Нет доступа</div><div style="font-size:12px;color:#878C94">Раздел «Финансы» доступен финансам и руководству.</div></div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:22px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px"><div style="width:44px;height:44px;border-radius:12px;background:#FCF3E3;display:flex;align-items:center;justify-content:center;color:#C77700"><svg style="width:22px;height:22px"><use href="#i-search"></use></svg></div><div style="font-weight:600;font-size:14px">Ничего не найдено</div><div style="font-size:12px;color:#878C94">Измените запрос или сбросьте фильтры.</div></div>
+    </div>
+  </section>
+
+  <!-- ============ TIMELINE + CHAT ============ -->
+  <section style="margin-bottom:52px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="font-family:Montserrat;font-weight:700;font-size:12px;color:#D70217;letter-spacing:.08em">11</span><h2 style="font-size:24px;font-weight:700">Таймлайн, чат и AI-черновик</h2></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:24px">
+        <div style="font-size:11px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase;margin-bottom:16px">Единый таймлайн / аудит</div>
+        <div style="display:flex;flex-direction:column;gap:0">
+          <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:9px;height:9px;border-radius:50%;background:#1F8A5B;margin-top:4px"></span><span style="width:2px;flex:1;background:#E4E6EA"></span></div><div style="padding-bottom:18px"><div style="font-size:13px;font-weight:600">Этап продаж → «Договор подписан»</div><div style="font-size:12px;color:#878C94">Динара К. · сегодня 11:24 · amoCRM</div></div></div>
+          <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:9px;height:9px;border-radius:50%;background:#1E6FB8;margin-top:4px"></span><span style="width:2px;flex:1;background:#E4E6EA"></span></div><div style="padding-bottom:18px"><div style="font-size:13px;font-weight:600">Документ «Паспорт» отправлен на проверку</div><div style="font-size:12px;color:#878C94">Студент · вчера 18:03</div></div></div>
+          <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:9px;height:9px;border-radius:50%;background:#878C94;margin-top:4px"></span></div><div><div style="font-size:13px;font-weight:600">Звонок · исходящий · 4:12</div><div style="font-size:12px;color:#878C94">Азамат Т. · 22 июля</div></div></div>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:11px;font-weight:700;color:#878C94;letter-spacing:.06em;text-transform:uppercase">WhatsApp · диалог</div>
+        <div style="align-self:flex-start;max-width:78%;background:#F0F1F4;border-radius:12px 12px 12px 3px;padding:9px 12px;font-size:13px">Здравствуйте! Подскажите по языковому году в Китае</div>
+        <div style="align-self:flex-end;max-width:78%;background:#D70217;color:#fff;border-radius:12px 12px 3px 12px;padding:9px 12px;font-size:13px">Здравствуйте! Расскажу подробно. Сопровождение — $1 500 <span style="display:inline-flex;align-items:center;gap:2px;margin-left:4px;opacity:.85;font-size:11px">11:20 <svg style="width:13px;height:13px"><use href="#i-check"></use></svg></span></div>
+        <div style="border:1px dashed #C6CACF;border-radius:12px;padding:12px;background:#FBFBFC">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#7E4BC9;margin-bottom:6px"><svg style="width:14px;height:14px"><use href="#i-sparkles"></use></svg>AI-черновик · требует проверки</div>
+          <div style="font-size:13px;color:#14161A;margin-bottom:10px">Языковой год в Китае: сопровождение EVO — $1 500. Отдельно оплачиваются университет, проживание и виза. Хотите записаться на бесплатную консультацию?</div>
+          <div style="display:flex;gap:8px"><button style="padding:6px 12px;background:#D70217;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">Вставить в ответ</button><button style="padding:6px 12px;background:#fff;border:1px solid #D6D9DE;border-radius:7px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">Пересоздать</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div style="text-align:center;padding:40px 0;color:#878C94;font-size:13px;border-top:1px solid #E4E6EA">EVO Platform · дизайн-система v1 · фирменный красный #D70217 · Montserrat + SF Pro Text</div>
+</div>
+
+<!-- DRAWER -->
+<sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+  <div onclick="{{ closeOverlays }}" style="position:fixed;inset:0;background:rgba(20,22,26,.44);z-index:60"></div>
+  <div style="position:fixed;top:0;right:0;bottom:0;width:420px;background:#fff;z-index:61;box-shadow:-24px 0 60px rgba(20,22,26,.24);animation:evoup .2s ease;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #E4E6EA"><div style="font-family:Montserrat;font-weight:700;font-size:17px">Быстрое действие</div><button onclick="{{ closeOverlays }}" style="width:32px;height:32px;border:none;background:#F6F7F9;border-radius:8px;cursor:pointer;color:#5B6068;display:flex;align-items:center;justify-content:center"><svg style="width:18px;height:18px"><use href="#i-x"></use></svg></button></div>
+    <div style="padding:24px;flex:1;font-size:14px;color:#5B6068;line-height:1.6">Drawer используется для быстрых форм и деталей записи без ухода со страницы: заметка к лиду, создание задачи, предпросмотр документа.</div>
+    <div style="padding:16px 24px;border-top:1px solid #E4E6EA;display:flex;gap:10px;justify-content:flex-end"><button onclick="{{ closeOverlays }}" style="padding:10px 16px;background:#fff;border:1px solid #D6D9DE;border-radius:8px;font-weight:600;font-family:inherit;cursor:pointer">Отмена</button><button onclick="{{ closeOverlays }}" style="padding:10px 16px;background:#D70217;color:#fff;border:none;border-radius:8px;font-weight:600;font-family:inherit;cursor:pointer">Сохранить</button></div>
+  </div>
+</sc-if>
+
+<!-- MODAL / CONFIRM -->
+<sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+  <div onclick="{{ closeOverlays }}" style="position:fixed;inset:0;background:rgba(20,22,26,.44);z-index:60;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div onclick="{{ stop }}" style="width:420px;max-width:100%;background:#fff;border-radius:16px;box-shadow:0 24px 60px rgba(20,22,26,.24);animation:evoup .2s ease;overflow:hidden">
+      <div style="padding:24px 24px 0"><div style="width:44px;height:44px;border-radius:12px;background:#FCEAEA;color:#C81E1E;display:flex;align-items:center;justify-content:center;margin-bottom:14px"><svg style="width:22px;height:22px"><use href="#i-alert-tri"></use></svg></div><div style="font-family:Montserrat;font-weight:700;font-size:18px;margin-bottom:6px">Отклонить документ?</div><div style="font-size:14px;color:#5B6068;line-height:1.5">Студент получит уведомление и сможет загрузить новую версию. Укажите причину в комментарии.</div></div>
+      <div style="padding:20px 24px;display:flex;gap:10px;justify-content:flex-end"><button onclick="{{ closeOverlays }}" style="padding:10px 16px;background:#fff;border:1px solid #D6D9DE;border-radius:8px;font-weight:600;font-family:inherit;cursor:pointer">Отмена</button><button onclick="{{ closeOverlays }}" style="padding:10px 16px;background:#C81E1E;color:#fff;border:none;border-radius:8px;font-weight:600;font-family:inherit;cursor:pointer">Отклонить</button></div>
+    </div>
+  </div>
+</sc-if>
+
+<!-- TOAST -->
+<sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:70;display:flex;align-items:center;gap:10px;background:#14161A;color:#fff;padding:12px 18px;border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.32);animation:evoup .2s ease;font-size:14px"><svg style="width:18px;height:18px;color:#4ADE80"><use href="#i-check-circle"></use></svg>Сохранено</div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { tab: 0, drawer:false, modal:false, toast:false, sw1:true, seg:1 };
+  renderVals(){
+    const s = this.state;
+    const tabTexts = [
+      "Профиль: идентификация, контакты, участники решения, источник и ответственный.",
+      "Документы: чек-лист, версии, срок действия, AI-подсказки и решение специалиста.",
+      "История: единая лента изменений, звонков, сообщений и смен статуса с автором и временем."
+    ];
+    const seg = (i)=>({ bg: s.seg===i?"#fff":"transparent", col: s.seg===i?"#14161A":"#878C94", sh: s.seg===i?"0 1px 2px rgba(20,22,26,.12)":"none" });
+    const tab = (i)=>({ col: s.tab===i?"#D70217":"#878C94", bd: s.tab===i?"#D70217":"transparent" });
+    return {
+      drawerOpen: s.drawer, modalOpen: s.modal, toastOpen: s.toast,
+      tabText: tabTexts[s.tab],
+      tab0col: tab(0).col, tab0bd: tab(0).bd, tab1col: tab(1).col, tab1bd: tab(1).bd, tab2col: tab(2).col, tab2bd: tab(2).bd,
+      seg0bg: seg(0).bg, seg0col: seg(0).col, seg0sh: seg(0).sh,
+      seg1bg: seg(1).bg, seg1col: seg(1).col, seg1sh: seg(1).sh,
+      seg2bg: seg(2).bg, seg2col: seg(2).col, seg2sh: seg(2).sh,
+      sw1bg: s.sw1?"#D70217":"#C6CACF", sw1pos: s.sw1?"flex-end":"flex-start",
+      setTab0:()=>this.setState({tab:0}), setTab1:()=>this.setState({tab:1}), setTab2:()=>this.setState({tab:2}),
+      setSeg0:()=>this.setState({seg:0}), setSeg1:()=>this.setState({seg:1}), setSeg2:()=>this.setState({seg:2}),
+      toggleSw1:()=>this.setState(p=>({sw1:!p.sw1})),
+      openDrawer:()=>this.setState({drawer:true}), openModal:()=>this.setState({modal:true}),
+      fireToast:()=>{ this.setState({toast:true}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({toast:false}),2200); },
+      closeOverlays:()=>this.setState({drawer:false,modal:false}),
+      stop:(e)=>e.stopPropagation()
+    };
+  }
+}
+</script>
+</body>
+</html>

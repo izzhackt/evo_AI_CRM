@@ -2378,3 +2378,58 @@ Validation impact:
   verification, and the independent audit verdict.
 - A later final acceptance audit must still prove or explicitly retain every
   owner/external blocker; this entry must not be used to infer approval.
+
+## 2026-07-24 - Plan The Unified EVO Platform Frontend
+
+Source: owner request to review and complete the Claude Design handoff, then
+begin the next implementation step.
+
+Affected plan section: new planned `/goal-evo-platform-frontend` slice.
+
+Reason:
+
+- The Claude Design archive now provides a coherent high-fidelity direction for
+  staff and student experiences, but it is a design reference rather than
+  production Next.js code.
+- Real browser review found material gaps that must be corrected during
+  implementation: staff tablet/mobile overflow, phone-shaped desktop Student
+  Portal, incomplete connected system states, external CDN dependencies,
+  inaccessible click targets and unmanaged overlay focus.
+- The repository already has one appropriate canonical frontend host: the root
+  Next.js CRM with existing authentication, role checks and admissions read
+  models. Starting a third frontend or treating EVO Inbox as the platform shell
+  would duplicate those foundations.
+
+Change:
+
+- Add a planned frontend slice after a planning/evidence PR is independently
+  reviewed and merged.
+- Build the unified staff workspace and Student Portal in the root Next.js
+  application.
+- Treat EVO Inbox as the current WhatsApp runtime/data adapter and UX donor,
+  not the canonical shell.
+- Keep the first redesigned root `/whatsapp` view on its existing CRM `wa_*`
+  shadow-data and guarded-action path. Label it truthfully; a Supabase Inbox
+  read bridge is a later backend slice.
+- Map prototype personas onto the existing five staff roles plus `client`.
+  Do not create `leadership` or `inbox` roles, widen route access or reproduce
+  the prototype switcher as real authorization.
+- Preserve amoCRM as the source of truth for lead/contact identity and sales
+  stage; keep operational student stages separate.
+- Preserve draft-only AI and manual outbound sending.
+- Exclude database consolidation, Supabase migration, Lead Agent deletion,
+  backend ownership changes, production deployment and real outbound/provider
+  mutations from this frontend slice.
+- Require responsive browser evidence at 1440x1024, 834x1194 and 390x844 plus
+  keyboard/focus checks before completion.
+
+Validation impact:
+
+- The planning PR contains documentation, the unmodified design handoff,
+  browser/static audit evidence and one narrow ESLint ignore for that immutable
+  reference directory. The ignore does not cover application source.
+- Implementation begins in later PRs from refreshed `main`.
+- Each implementation PR must run the root lint/build/affected tests and real
+  browser checks for its owned routes.
+- No prototype interaction or local success toast may be reported as real
+  amoCRM, WAHA, Supabase, AI, telephony or persistence proof.

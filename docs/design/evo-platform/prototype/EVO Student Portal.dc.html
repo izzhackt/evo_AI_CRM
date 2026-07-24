@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:"SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#14161A;background:#DCDFE5;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5}
+  a{color:#D70217;text-decoration:none}
+  a:hover{color:#B00213}
+  h1,h2,h3,h4{font-family:"Montserrat",sans-serif;margin:0;letter-spacing:-.01em}
+  button{font-family:inherit}
+  .evo-scr::-webkit-scrollbar{width:0}
+  @keyframes evoup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes evosheet{from{transform:translateY(100%)}to{transform:none}}
+</style>
+</helmet>
+<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden"><defs>
+<g id="__ic" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></g>
+<symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></symbol>
+<symbol id="i-trending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></symbol>
+<symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92Z"></path></symbol>
+<symbol id="i-check-square" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></symbol>
+<symbol id="i-plane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"></path></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="15"></line></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></symbol>
+<symbol id="i-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></symbol>
+<symbol id="i-alert-tri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></symbol>
+<symbol id="i-alert-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></symbol>
+<symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></symbol>
+<symbol id="i-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></symbol>
+<symbol id="i-paperclip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></symbol>
+<symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></symbol>
+<symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+<symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></symbol>
+<symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></symbol>
+<symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4M10 10h4M10 14h4"></path></symbol>
+<symbol id="i-cap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"></path><path d="M6 12v5c0 1 2 3 6 3s6-2 6-3v-5"></path></symbol>
+<symbol id="i-map" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></symbol>
+<symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></symbol>
+<symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></symbol>
+<symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></symbol>
+</defs></svg>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;gap:28px;padding:32px 20px;flex-wrap:wrap">
+
+  <!-- intro / desktop note -->
+  <div style="max-width:300px;padding-top:24px;order:{{ introOrder }}">
+    <div style="display:flex;align-items:baseline;gap:2px;font-family:Montserrat;font-weight:800;font-size:19px;margin-bottom:16px"><span>EVO</span><span style="width:6px;height:6px;border-radius:50%;background:#D70217;align-self:center"></span><span style="font-weight:600;letter-spacing:.14em;font-size:10px;text-transform:uppercase;position:relative;top:-2px;color:#5B6068">Admissions</span></div>
+    <h1 style="font-size:26px;font-weight:800;line-height:1.15;margin-bottom:12px">Кабинет студента</h1>
+    <p style="font-size:14px;color:#5B6068;line-height:1.6;margin:0 0 18px">Mobile-first кабинет в единой дизайн-системе EVO. Студент видит прогресс, следующий шаг, документы, заявки, визу, оплаты и сообщения команды.</p>
+    <div style="display:inline-flex;background:#fff;border:1px solid #D6D9DE;border-radius:10px;padding:3px;margin-bottom:18px">
+      <button onclick="{{ setPhone }}" style="padding:7px 14px;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;background:{{ phoneBg }};color:{{ phoneCol }}">Телефон</button>
+      <button onclick="{{ setDesktop }}" style="padding:7px 14px;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;background:{{ deskBg }};color:{{ deskCol }}">Десктоп</button>
+    </div>
+    <div style="font-size:12.5px;color:#878C94;line-height:1.6">Мастер-вьюпорт: 390 × 844.<br>Десктоп-адаптация центрирует контент в колонке с верхней навигацией.</div>
+  </div>
+
+  <!-- device -->
+  <div style="width:{{ frameW }};max-width:100%;order:2">
+    <div style="background:#0B0C0E;border-radius:{{ frameRadius }};padding:{{ framePad }};box-shadow:0 30px 70px rgba(20,22,26,.32)">
+      <div class="evo-scr" style="background:#F6F7F9;border-radius:{{ screenRadius }};overflow:hidden;height:{{ screenH }};display:flex;flex-direction:column;position:relative">
+        <!-- status bar -->
+        <div style="height:34px;flex-shrink:0;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:12px;font-weight:700"><span>9:41</span><span style="display:flex;align-items:center;gap:5px"><span style="display:flex;gap:2px;align-items:flex-end"><span style="width:3px;height:6px;background:#14161A;border-radius:1px"></span><span style="width:3px;height:8px;background:#14161A;border-radius:1px"></span><span style="width:3px;height:10px;background:#14161A;border-radius:1px"></span></span><span style="width:20px;height:10px;border:1.5px solid #14161A;border-radius:3px;position:relative"><span style="position:absolute;inset:1.5px;right:5px;background:#14161A;border-radius:1px"></span></span></span></div>
+
+        <!-- app bar -->
+        <div style="flex-shrink:0;background:#fff;border-bottom:1px solid #EEEFF2;padding:8px 18px 12px;display:flex;align-items:center;justify-content:space-between">
+          <div><div style="font-family:Montserrat;font-weight:800;font-size:18px">{{ screenTitle }}</div></div>
+          <div style="display:flex;gap:8px">
+            <button onclick="{{ toggleNotif }}" style="position:relative;width:36px;height:36px;border:1px solid #E4E6EA;background:#fff;border-radius:10px;cursor:pointer;color:#5B6068;display:flex;align-items:center;justify-content:center"><svg style="width:18px;height:18px"><use href="#i-bell"></use></svg><span style="position:absolute;top:-3px;right:-3px;width:16px;height:16px;border-radius:8px;background:#D70217;color:#fff;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff">3</span></button>
+          </div>
+        </div>
+
+        <!-- content -->
+        <div class="evo-scr" style="flex:1;overflow-y:auto;padding:16px 16px 90px">
+
+          <!-- HOME -->
+          <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+              <div style="width:60px;height:60px;border-radius:50%;background:conic-gradient(#D70217 0 {{ progressDeg }},#EAECEF {{ progressDeg }} 360deg);flex-shrink:0;display:flex;align-items:center;justify-content:center"><span style="width:48px;height:48px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-family:Montserrat;font-weight:800;font-size:15px">{{ progress }}</span></div>
+              <div><div style="font-size:12.5px;color:#878C94">Ваш прогресс поступления</div><div style="font-size:17px;font-weight:700">Этап: {{ stageLabel }}</div><div style="font-size:12.5px;color:#5B6068">{{ country }} · {{ degree }}</div></div>
+            </div>
+
+            <div onclick="{{ goNextAction }}" style="background:#fff;border:1px solid #F3C9C9;border-left:3px solid #D70217;border-radius:14px;padding:15px;margin-bottom:14px;cursor:pointer">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:#D70217;letter-spacing:.05em;text-transform:uppercase">Следующее действие</div><span style="padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:600;background:#FCEAEA;color:#C81E1E">Срочно</span></div>
+              <div style="font-size:15px;font-weight:700;margin-bottom:3px">Переделать мотивационное письмо</div>
+              <div style="font-size:12.5px;color:#878C94">Куратор вернул документ с комментарием · нажмите, чтобы открыть</div>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:16px;margin-bottom:14px">
+              <div style="font-size:13px;font-weight:700;margin-bottom:14px">Путь поступления</div>
+              <sc-for list="{{ timeline }}" as="t" hint-placeholder-count="7">
+                <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:12px;height:12px;border-radius:50%;background:{{ t.dot }};flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center"><sc-if value="{{ t.done }}" hint-placeholder-val="{{ false }}"><svg style="width:8px;height:8px;color:#fff"><use href="#i-check"></use></svg></sc-if></span><span style="width:2px;flex:1;background:{{ t.line }}"></span></div><div style="padding-bottom:14px"><div style="font-size:13.5px;font-weight:600;color:{{ t.col }}">{{ t.label }}</div><div style="font-size:11.5px;color:#878C94">{{ t.state }}</div></div></div>
+              </sc-for>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+              <div onclick="{{ goVisa }}" style="background:#fff;border:1px solid #E4E6EA;border-radius:13px;padding:13px;text-align:center;cursor:pointer"><span style="width:34px;height:34px;border-radius:10px;background:#EEF3FB;color:#1E6FB8;display:inline-flex;align-items:center;justify-content:center;margin-bottom:6px"><svg style="width:17px;height:17px"><use href="#i-plane"></use></svg></span><div style="font-size:12px;font-weight:600">Виза</div></div>
+              <div onclick="{{ goPayments }}" style="background:#fff;border:1px solid #F3C9C9;border-radius:13px;padding:13px;text-align:center;cursor:pointer"><span style="width:34px;height:34px;border-radius:10px;background:#FCEAEA;color:#C81E1E;display:inline-flex;align-items:center;justify-content:center;margin-bottom:6px"><svg style="width:17px;height:17px"><use href="#i-wallet"></use></svg></span><div style="font-size:12px;font-weight:600">Оплаты</div></div>
+              <div onclick="{{ goTeam }}" style="background:#fff;border:1px solid #E4E6EA;border-radius:13px;padding:13px;text-align:center;cursor:pointer"><span style="width:34px;height:34px;border-radius:10px;background:#F0EAF9;color:#7E4BC9;display:inline-flex;align-items:center;justify-content:center;margin-bottom:6px"><svg style="width:17px;height:17px"><use href="#i-users"></use></svg></span><div style="font-size:12px;font-weight:600">Команда</div></div>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:16px">
+              <div style="font-size:13px;font-weight:700;margin-bottom:10px">Последнее обновление</div>
+              <div style="display:flex;gap:10px"><span style="width:32px;height:32px;border-radius:9px;background:#7E4BC9;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">АМ</span><div><div style="font-size:13px;line-height:1.45">Аружан, проверила аттестат — всё хорошо. Осталось обновить мотивационное письмо по комментарию.</div><div style="font-size:11px;color:#878C94;margin-top:4px">Аида Мамбетова · куратор · сегодня 10:20</div></div></div>
+            </div>
+          </sc-if>
+
+          <!-- DOCUMENTS -->
+          <sc-if value="{{ isDocuments }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div style="font-size:12.5px;color:#5B6068">Готовность: <b style="color:#14161A">{{ docReady }}</b></div></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{ documents }}" as="d" hint-placeholder-count="4">
+                <div onclick="{{ d.onOpen }}" style="background:#fff;border:1px solid {{ d.cardBd }};border-radius:13px;padding:14px;cursor:pointer">
+                  <div style="display:flex;align-items:center;gap:11px"><span style="width:38px;height:38px;border-radius:10px;background:#F0F1F4;color:#5B6068;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg style="width:18px;height:18px"><use href="#i-file"></use></svg></span><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">{{ d.name }}</div><div style="font-size:11.5px;color:#878C94">{{ d.hint }}</div></div><span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:{{ d.sBg }};color:{{ d.sColor }};white-space:nowrap">{{ d.sLabel }}</span></div>
+                  <sc-if value="{{ d.comment }}" hint-placeholder-val="{{ false }}"><div style="margin-top:10px;padding:9px 11px;background:#FCEAEA;border-radius:9px;font-size:12px;color:#9A1818"><b>Комментарий куратора:</b> {{ d.comment }}</div></sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- APPLICATIONS -->
+          <sc-if value="{{ isApplications }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{ applications }}" as="a" hint-placeholder-count="2">
+                <div style="background:#fff;border:1px solid #E4E6EA;border-radius:13px;padding:15px">
+                  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px"><div style="display:flex;gap:10px"><span style="width:38px;height:38px;border-radius:10px;background:#F0F1F4;color:#5B6068;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg style="width:18px;height:18px"><use href="#i-building"></use></svg></span><div><div style="font-size:14.5px;font-weight:700">{{ a.uni }}</div><div style="font-size:12px;color:#878C94">{{ a.program }} · {{ a.country }}</div></div></div><span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:{{ a.sBg }};color:{{ a.sColor }};white-space:nowrap">{{ a.sLabel }}</span></div>
+                  <div style="display:flex;align-items:center;gap:8px;padding-top:10px;border-top:1px solid #F2F3F5;font-size:12px;color:#5B6068"><svg style="width:14px;height:14px;color:#878C94"><use href="#i-calendar"></use></svg>Дедлайн: <b style="color:#14161A">{{ a.deadline }}</b></div>
+                  <sc-if value="{{ a.action }}" hint-placeholder-val="{{ false }}"><div style="margin-top:8px;font-size:12px;color:#C77700;display:flex;align-items:center;gap:6px"><svg style="width:14px;height:14px"><use href="#i-alert-tri"></use></svg>{{ a.action }}</div></sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- VISA -->
+          <sc-if value="{{ isVisa }}" hint-placeholder-val="{{ false }}">
+            <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:18px;text-align:center">
+              <span style="width:48px;height:48px;border-radius:13px;background:#EEF3FB;color:#1E6FB8;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px"><svg style="width:24px;height:24px"><use href="#i-plane"></use></svg></span>
+              <div style="font-size:16px;font-weight:700;margin-bottom:6px">Виза · Китай</div>
+              <div style="font-size:13px;color:#5B6068;line-height:1.55">Визовый этап откроется после получения письма о зачислении. Команда подготовит чек-лист и запись — вы получите уведомление.</div>
+              <span style="display:inline-block;margin-top:12px;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;background:#F0F1F4;color:#5B6068">Пока не начато</span>
+            </div>
+            <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:16px;margin-top:12px">
+              <div style="font-size:13px;font-weight:700;margin-bottom:10px">Что понадобится позже</div>
+              <div style="display:flex;flex-direction:column;gap:9px;font-size:13px;color:#5B6068">
+                <div style="display:flex;align-items:center;gap:9px"><svg style="width:15px;height:15px;color:#C6CACF"><use href="#i-check"></use></svg>Загранпаспорт (готов)</div>
+                <div style="display:flex;align-items:center;gap:9px"><svg style="width:15px;height:15px;color:#C6CACF"><use href="#i-check"></use></svg>Письмо о зачислении и JW202</div>
+                <div style="display:flex;align-items:center;gap:9px"><svg style="width:15px;height:15px;color:#C6CACF"><use href="#i-check"></use></svg>Финансовые доказательства</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- PAYMENTS -->
+          <sc-if value="{{ isPayments }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{ payments }}" as="p" hint-placeholder-count="2">
+                <div style="background:#fff;border:1px solid {{ p.cardBd }};border-radius:13px;padding:15px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><div style="font-size:14px;font-weight:600">{{ p.title }}</div><span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:{{ p.sBg }};color:{{ p.sColor }}">{{ p.sLabel }}</span></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between"><div style="font-family:Montserrat;font-weight:800;font-size:20px">{{ p.amount }}</div><div style="font-size:12px;color:#878C94">срок {{ p.due }}</div></div>
+                  <sc-if value="{{ p.overdue }}" hint-placeholder-val="{{ false }}"><div style="margin-top:10px;padding:9px 11px;background:#FCEAEA;border-radius:9px;font-size:12px;color:#9A1818">Платёж просрочен. По вопросам оплаты свяжитесь с командой — визовый этап приостановлен до оплаты.</div></sc-if>
+                </div>
+              </sc-for>
+              <div style="font-size:12px;color:#878C94;padding:6px 4px;line-height:1.5">Указана только плата за сопровождение EVO. Стоимость обучения, проживания, визы и перелёта оплачивается отдельно.</div>
+            </div>
+          </sc-if>
+
+          <!-- MESSAGES -->
+          <sc-if value="{{ isMessages }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{ messages }}" as="m" hint-placeholder-count="3">
+                <div style="display:flex;justify-content:{{ m.align }}"><div style="max-width:82%;background:{{ m.bg }};color:{{ m.col }};border-radius:{{ m.radius }};padding:10px 13px;font-size:13.5px;line-height:1.4">{{ m.t }}<div style="font-size:10.5px;margin-top:4px;color:{{ m.timeCol }}">{{ m.who }} · {{ m.when }}</div></div></div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- TEAM -->
+          <sc-if value="{{ isTeam }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{ team }}" as="m" hint-placeholder-count="3">
+                <div style="background:#fff;border:1px solid #E4E6EA;border-radius:13px;padding:14px;display:flex;align-items:center;gap:12px">
+                  <span style="width:44px;height:44px;border-radius:12px;background:{{ m.color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0">{{ m.initials }}</span>
+                  <div style="flex:1"><div style="font-size:14.5px;font-weight:600">{{ m.name }}</div><div style="font-size:12px;color:#878C94">{{ m.role }}</div></div>
+                  <button onclick="{{ goMessages }}" style="width:38px;height:38px;border:1px solid #E4E6EA;background:#fff;border-radius:10px;cursor:pointer;color:#1E6FB8;display:flex;align-items:center;justify-content:center"><svg style="width:18px;height:18px"><use href="#i-chat"></use></svg></button>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- PROFILE -->
+          <sc-if value="{{ isProfile }}" hint-placeholder-val="{{ false }}">
+            <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;padding:18px;text-align:center;margin-bottom:12px">
+              <span style="width:64px;height:64px;border-radius:18px;background:#D70217;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;margin-bottom:10px">АС</span>
+              <div style="font-size:17px;font-weight:700">Аружан Серик</div>
+              <div style="font-size:12.5px;color:#878C94">a.serik@example.kg · +996 555 300 774</div>
+            </div>
+            <div style="background:#fff;border:1px solid #E4E6EA;border-radius:14px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #F2F3F5"><svg style="width:18px;height:18px;color:#5B6068"><use href="#i-user"></use></svg><span style="flex:1;font-size:13.5px;font-weight:600">Личные данные</span><svg style="width:16px;height:16px;color:#C6CACF"><use href="#i-chevron-right"></use></svg></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #F2F3F5"><svg style="width:18px;height:18px;color:#5B6068"><use href="#i-shield"></use></svg><span style="flex:1;font-size:13.5px;font-weight:600">Безопасность и пароль</span><svg style="width:16px;height:16px;color:#C6CACF"><use href="#i-chevron-right"></use></svg></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #F2F3F5"><svg style="width:18px;height:18px;color:#5B6068"><use href="#i-info"></use></svg><span style="flex:1;font-size:13.5px;font-weight:600">Язык · Русский</span><svg style="width:16px;height:16px;color:#C6CACF"><use href="#i-chevron-right"></use></svg></div>
+              <div onclick="{{ goAuth }}" style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer"><svg style="width:18px;height:18px;color:#C81E1E"><use href="#i-logout"></use></svg><span style="flex:1;font-size:13.5px;font-weight:600;color:#C81E1E">Выйти</span></div>
+            </div>
+          </sc-if>
+
+          <!-- AUTH -->
+          <sc-if value="{{ isAuth }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:20px 4px">
+              <div style="display:flex;align-items:baseline;gap:2px;font-family:Montserrat;font-weight:800;font-size:22px;justify-content:center;margin-bottom:8px"><span>EVO</span><span style="width:7px;height:7px;border-radius:50%;background:#D70217;align-self:center"></span><span style="font-weight:600;letter-spacing:.14em;font-size:11px;text-transform:uppercase;position:relative;top:-2px;color:#5B6068">Admissions</span></div>
+              <div style="text-align:center;font-size:13px;color:#878C94;margin-bottom:24px">Кабинет студента</div>
+              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Эл. почта или телефон</label>
+              <input value="a.serik@example.kg" style="width:100%;padding:12px;border:1px solid #D6D9DE;border-radius:10px;font-size:14px;margin-bottom:14px">
+              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Пароль</label>
+              <input type="password" value="12345678" style="width:100%;padding:12px;border:1px solid #D6D9DE;border-radius:10px;font-size:14px;margin-bottom:8px">
+              <div style="text-align:right;margin-bottom:18px"><a href="#" onclick="{{ recover }}" style="font-size:12.5px;font-weight:600">Забыли пароль?</a></div>
+              <button onclick="{{ goHome }}" style="width:100%;padding:13px;background:#D70217;color:#fff;border:none;border-radius:11px;font-weight:700;font-size:15px;cursor:pointer">Войти</button>
+              <div style="margin-top:16px;padding:11px 13px;background:#E7F0F9;border-radius:10px;font-size:12px;color:#1E4E7E;line-height:1.5">Доступ в кабинет открывается по приглашению от команды EVO после подписания договора.</div>
+            </div>
+          </sc-if>
+
+        </div>
+
+        <!-- bottom nav -->
+        <sc-if value="{{ showBottomNav }}" hint-placeholder-val="{{ true }}">
+          <div style="flex-shrink:0;background:#fff;border-top:1px solid #EEEFF2;display:flex;padding:8px 6px 10px">
+            <sc-for list="{{ bottomNav }}" as="n" hint-placeholder-count="5">
+              <button onclick="{{ n.onClick }}" style="flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;color:{{ n.color }}"><svg style="width:22px;height:22px"><use href="{{ n.icon }}"></use></svg><span style="font-size:10px;font-weight:600">{{ n.label }}</span></button>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <!-- notif sheet -->
+        <sc-if value="{{ notifOpen }}" hint-placeholder-val="{{ false }}">
+          <div onclick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(20,22,26,.4);z-index:20"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;z-index:21;padding:18px;animation:evosheet .22s ease;max-height:80%;overflow-y:auto">
+            <div style="width:36px;height:4px;background:#E4E6EA;border-radius:2px;margin:0 auto 14px"></div>
+            <div style="font-size:16px;font-weight:800;margin-bottom:12px">Уведомления</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;gap:11px;padding:11px;border:1px solid #F3C9C9;background:#FCEAEA;border-radius:11px"><svg style="width:18px;height:18px;color:#C81E1E;flex-shrink:0"><use href="#i-folder"></use></svg><div><div style="font-size:13px;font-weight:600">Документ требует переделки</div><div style="font-size:11.5px;color:#878C94">Мотивационное письмо · сегодня</div></div></div>
+              <div style="display:flex;gap:11px;padding:11px;border:1px solid #F0DCBB;background:#FCF3E3;border-radius:11px"><svg style="width:18px;height:18px;color:#C77700;flex-shrink:0"><use href="#i-wallet"></use></svg><div><div style="font-size:13px;font-weight:600">Ожидается платёж</div><div style="font-size:11.5px;color:#878C94">2-й платёж сопровождения · срок 15.07</div></div></div>
+              <div style="display:flex;gap:11px;padding:11px;border:1px solid #E4E6EA;border-radius:11px"><svg style="width:18px;height:18px;color:#1E6FB8;flex-shrink:0"><use href="#i-chat"></use></svg><div><div style="font-size:13px;font-weight:600">Новое сообщение от куратора</div><div style="font-size:11.5px;color:#878C94">Аида Мамбетова · сегодня 10:20</div></div></div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- doc sheet (resubmission flow) -->
+        <sc-if value="{{ docSheet }}" hint-placeholder-val="{{ false }}">
+          <div onclick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(20,22,26,.4);z-index:20"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;z-index:21;padding:18px;animation:evosheet .22s ease;max-height:88%;overflow-y:auto">
+            <div style="width:36px;height:4px;background:#E4E6EA;border-radius:2px;margin:0 auto 14px"></div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="width:40px;height:40px;border-radius:11px;background:#F0F1F4;color:#5B6068;display:flex;align-items:center;justify-content:center"><svg style="width:19px;height:19px"><use href="#i-file"></use></svg></span><div style="flex:1"><div style="font-size:15px;font-weight:700">{{ docSheet.name }}</div><span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:{{ docSheet.sBg }};color:{{ docSheet.sColor }}">{{ docSheet.sLabel }}</span></div></div>
+            <sc-if value="{{ docSheet.comment }}" hint-placeholder-val="{{ false }}"><div style="padding:11px 13px;background:#FCEAEA;border-radius:10px;font-size:12.5px;color:#9A1818;margin-bottom:14px"><b>Комментарий куратора:</b> {{ docSheet.comment }}</div></sc-if>
+            <div style="border:2px dashed #D6D9DE;border-radius:13px;padding:26px;text-align:center;margin-bottom:14px"><svg style="width:28px;height:28px;color:#B4B8BF"><use href="#i-upload"></use></svg><div style="font-size:13px;font-weight:600;margin-top:8px">Загрузите новую версию</div><div style="font-size:11.5px;color:#878C94;margin-top:2px">PDF, JPG или PNG до 10 МБ</div></div>
+            <button onclick="{{ uploadDoc }}" style="width:100%;padding:13px;background:#D70217;color:#fff;border:none;border-radius:11px;font-weight:700;font-size:15px;cursor:pointer">Отправить на проверку</button>
+          </div>
+        </sc-if>
+
+        <!-- toast -->
+        <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;bottom:96px;left:16px;right:16px;background:#14161A;color:#fff;padding:12px 16px;border-radius:12px;font-size:13.5px;font-weight:500;display:flex;align-items:center;gap:9px;z-index:30;animation:evoup .2s ease"><svg style="width:17px;height:17px;color:#4ADE80"><use href="#i-check-circle"></use></svg>{{ toastText }}</div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { mode:'phone', view:'home', notifOpen:false, docSheetId:null, docState:{}, toast:false, toastText:'' };
+
+  TITLES = {home:'Главная',documents:'Документы',applications:'Заявки',visa:'Виза',payments:'Оплаты',messages:'Сообщения',team:'Моя команда',profile:'Профиль',auth:'Вход'};
+
+  docStatus(s){ return ({required:{l:'Требуется',bg:'#F0F1F4',c:'#5B6068'},uploaded:{l:'Загружен',bg:'#E7F0F9',c:'#1E6FB8'},review:{l:'На проверке',bg:'#FCF3E3',c:'#C77700'},approved:{l:'Принят',bg:'#E6F4ED',c:'#1F8A5B'},rejected:{l:'Нужна переделка',bg:'#FCEAEA',c:'#C81E1E'}})[s]; }
+
+  get baseDocs(){ return [
+    {id:1,name:'Загранпаспорт',status:'approved',hint:'Действителен до 2030'},
+    {id:2,name:'Аттестат + перевод',status:'review',hint:'Проверяет куратор'},
+    {id:3,name:'Мотивационное письмо',status:'rejected',hint:'Вернул куратор',comment:'Добавьте акцент на проектах по CS, сократите до 1 страницы.'},
+    {id:4,name:'Сертификат HSK',status:'required',hint:'Загрузите после экзамена'},
+  ]; }
+
+  toastMsg(t){ this.setState({toast:true,toastText:t}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({toast:false}),2400); }
+  go(v){ this.setState({view:v,notifOpen:false,docSheetId:null}); }
+
+  renderVals(){
+    const s=this.state, desktop=s.mode==='desktop';
+    const docs=this.baseDocs.map(d=>{ const st=this.state.docState[d.id]||d.status; const x=this.docStatus(st); return {...d,status:st, sLabel:x.l,sBg:x.bg,sColor:x.c, cardBd: st==='rejected'?'#F3C9C9':'#E4E6EA', comment: st==='rejected'?d.comment:null, onOpen:()=>this.setState({docSheetId:d.id})}; });
+    const docsApproved=docs.filter(d=>d.status==='approved').length;
+    const timelineDef=[['Консультация','done'],['Договор','done'],['Документы','current'],['Подача заявок','ahead'],['Оффер','ahead'],['Виза','ahead'],['Зачисление','ahead']];
+    const timeline=timelineDef.map(([label,st],i)=>({label, done:st==='done', dot:st==='done'?'#1F8A5B':st==='current'?'#D70217':'#E7E9ED', line: i<2?'#1F8A5B':'#E7E9ED', col: st==='ahead'?'#B4B8BF':'#14161A', state: st==='done'?'Завершено':st==='current'?'Текущий этап':'Впереди'}));
+    const applications=[
+      {uni:'Tsinghua University',program:'Computer Science',country:'Китай',status:'preparing',deadline:'15 авг 2026',action:'Нужен сертификат HSK'},
+      {uni:'Zhejiang University',program:'Software Engineering',country:'Китай',status:'preparing',deadline:'1 сен 2026',action:null},
+    ].map(a=>{ const x={preparing:['Готовится','#F0F1F4','#5B6068'],submitted:['Подана','#E7F0F9','#1E6FB8'],offer:['Оффер','#FBF0E1','#C77700'],enrolled:['Зачислен','#E6F4ED','#1F8A5B']}[a.status]; return {...a,sLabel:x[0],sBg:x[1],sColor:x[2]}; });
+    const payments=[
+      {title:'Сопровождение · 1-й платёж',amount:'$750',due:'20 июн',status:'paid'},
+      {title:'Сопровождение · 2-й платёж',amount:'$750',due:'15 июл',status:'overdue'},
+    ].map(p=>{ const x={paid:['Оплачен','#E6F4ED','#1F8A5B'],pending:['Ожидает','#FCF3E3','#C77700'],overdue:['Просрочен','#FCEAEA','#C81E1E']}[p.status]; return {...p,sLabel:x[0],sBg:x[1],sColor:x[2], overdue:p.status==='overdue', cardBd:p.status==='overdue'?'#F3C9C9':'#E4E6EA'}; });
+    const messages=[
+      {who:'Аида М.',t:'Аружан, аттестат приняли. Осталось мотивационное письмо — оставила комментарий в документах.',when:'10:20',dir:'in'},
+      {who:'Вы',t:'Поняла, спасибо! Сегодня переделаю и загружу.',when:'10:35',dir:'out'},
+      {who:'Аида М.',t:'Отлично, HSK можно загрузить после экзамена 5 августа.',when:'10:38',dir:'in'},
+    ].map(m=>({...m, align:m.dir==='out'?'flex-end':'flex-start', bg:m.dir==='out'?'#D70217':'#fff', col:m.dir==='out'?'#fff':'#14161A', radius:m.dir==='out'?'14px 14px 4px 14px':'14px 14px 14px 4px', timeCol:m.dir==='out'?'rgba(255,255,255,.75)':'#878C94', border:m.dir==='out'?'none':'1px solid #E4E6EA'}));
+    const team=[
+      {name:'Азамат Турсунов',role:'Менеджер продаж',initials:'АТ',color:'#1E6FB8'},
+      {name:'Аида Мамбетова',role:'Куратор',initials:'АМ',color:'#7E4BC9'},
+      {name:'Нурлан Джолдошев',role:'Визовый специалист',initials:'НД',color:'#1F8A5B'},
+    ];
+    const navDef=[['home','Главная','i-home'],['documents','Документы','i-folder'],['applications','Заявки','i-file'],['messages','Сообщения','i-chat'],['profile','Профиль','i-user']];
+    const bottomNav=navDef.map(([v,label,icon])=>({label, icon:'#'+icon, color: s.view===v?'#D70217':'#9AA0A8', onClick:()=>this.go(v)}));
+    const docSheet=s.docSheetId?docs.find(d=>d.id===s.docSheetId):null;
+
+    return {
+      introOrder: desktop?2:1, frameW: desktop?'760px':'390px', frameRadius: desktop?'20px':'46px', framePad: desktop?'0':'11px',
+      screenRadius: desktop?'20px':'36px', screenH: desktop?'760px':'782px',
+      phoneBg: !desktop?'#D70217':'transparent', phoneCol: !desktop?'#fff':'#5B6068', deskBg: desktop?'#D70217':'transparent', deskCol: desktop?'#fff':'#5B6068',
+      screenTitle:this.TITLES[s.view], showBottomNav: s.view!=='auth',
+      isHome:s.view==='home', isDocuments:s.view==='documents', isApplications:s.view==='applications', isVisa:s.view==='visa', isPayments:s.view==='payments', isMessages:s.view==='messages', isTeam:s.view==='team', isProfile:s.view==='profile', isAuth:s.view==='auth',
+      progress:'44%', progressDeg:'158deg', stageLabel:'Документы', country:'Китай', degree:'Бакалавриат · CS',
+      timeline, documents:docs, docReady:Math.round(docsApproved/docs.length*100)+'%', applications, payments, messages, team,
+      bottomNav, notifOpen:s.notifOpen, docSheet, toastOpen:s.toast, toastText:s.toastText,
+      setPhone:()=>this.setState({mode:'phone'}), setDesktop:()=>this.setState({mode:'desktop'}),
+      toggleNotif:()=>this.setState(p=>({notifOpen:!p.notifOpen})), closeSheet:()=>this.setState({notifOpen:false,docSheetId:null}),
+      goHome:()=>this.go('home'), goVisa:()=>this.go('visa'), goPayments:()=>this.go('payments'), goTeam:()=>this.go('team'), goMessages:()=>this.go('messages'), goAuth:()=>this.go('auth'),
+      goNextAction:()=>this.setState({view:'documents',docSheetId:3}),
+      uploadDoc:()=>{ const id=this.state.docSheetId; this.setState(p=>({docState:{...p.docState,[id]:'review'},docSheetId:null})); this.toastMsg('Документ отправлен на проверку'); },
+      recover:()=>this.toastMsg('Ссылка отправлена на почту'),
+    };
+  }
+}
+</script>
+</body>
+</html>

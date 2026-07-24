@@ -1,14 +1,16 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-preplatform-hardening` is active from GitHub `main` commit
-`14ed2e34c8b97f238aad2db872e7bdc54bf8b238`. Implementation is blocked until
-this plan-only change is independently reviewed and merged. Updated 2026-07-24
-in the workspace timezone.
+Status: `/goal-evo-preplatform-hardening` remains open from GitHub `main`
+commit `43e3896e2e5282632cd887a9213103dddf449559`. Blocks A-F are merged,
+independently reviewed, and deployed where authorized. Block G remains
+incomplete because internal closure work and explicit owner/external gates
+remain. Updated 2026-07-24 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
-Implementation lanes are blocked until this plan and `docs/PLAN_CHANGES.md` are
-reviewed and merged. If scope, architecture, acceptance criteria, file
-ownership, or merge order changes, update `docs/PLAN_CHANGES.md` before coding.
+New implementation lanes are blocked until their plan and
+`docs/PLAN_CHANGES.md` amendment is independently reviewed and merged. If
+scope, architecture, acceptance criteria, file ownership, or merge order
+changes, update `docs/PLAN_CHANGES.md` before coding.
 
 ## Current Goal Slice
 
@@ -27,18 +29,25 @@ the final platform UI.
 
 ### Reconciled baseline
 
-- PR #46 merged immutable deployment and rollback controls.
-- PR #47 merged durable AI-draft, outbound-attempt, outbound-message, and WAHA
-  acknowledgement evidence with server-only delivery audit writes.
-- PR #48 fixed migration 037 UUID defaults for production PostgreSQL.
-- GitHub `main` and this clean worktree resolve to `14ed2e34`.
-- Production Inbox runs revision `14ed2e34`, release `2026-07-23.2`; production
-  CRM and Lead Agent run revision `1f0d1a81`, release `2026-07-23.1`.
-- Application health checks are green on EVO-owned networks, but liveness is
-  not provider readiness.
+- PRs #46-#48 merged immutable release controls and durable, server-written
+  Inbox draft/outbound/ACK evidence; unknown delivery outcomes are not retried
+  automatically.
+- PRs #49-#55 merged the plan and Blocks A-F. PRs #56-#59 recorded and refreshed
+  the final-audit evidence and the approved narrow Supabase backup-risk
+  exception.
+- GitHub `main` and this clean worktree resolve to `43e3896e`.
+- Production Inbox runs revision `a09a72fc`, release `2026-07-24.2`.
+  Production CRM and Lead Agent run revision `564332b4`, release
+  `2026-07-24.1`.
+- Production Supabase migrations 038/039 are registered. Private Inbox
+  readiness proved both Supabase and WAHA ready before and after the authorized
+  Inbox application restart; WAHA itself was not restarted or reconfigured.
+- The retained Lead Agent is frozen with worker, outbound, and automatic reply
+  paths disabled.
 - No real WhatsApp/amoCRM proof exists. Missing inputs remain the amoCRM
-  production URL/token, dedicated test number, explicit approval for one
-  controlled reply, canonical DNS records, and the older CRM WAHA QR.
+  production URL/token, dedicated test sender/recipient, explicit approval for
+  one controlled manual reply, canonical DNS records, and a QR/relink plan for
+  the older CRM WAHA session.
 - The original checkout's modified Malaysia knowledge-base document and
   untracked presentation archive are owner work outside this goal.
 
@@ -124,6 +133,51 @@ Shared migrations, deployment files, and plan files merge sequentially.
    - Run a real WhatsApp/amoCRM path only with real credentials, an
      EVO-controlled sender/recipient, and explicit approval for the visible
      manual reply. Missing inputs are blockers; mocks do not satisfy this plan.
+
+### Remaining internal closure lanes
+
+These lanes close newly confirmed internal gaps before Block G can be
+re-audited. Each lane starts from refreshed `main`, uses a coherent PR, passes
+real validation, and receives a separate launch-control reviewer verdict.
+
+1. **CI enforcement for PostgreSQL authorization**
+   - Require the existing real-role harness
+     `agent-lead2-inbox/scripts/test-postgres-authorization.sh` through the
+     repository-root `npm run test:security` gate in GitHub Actions.
+   - Provision only safe ephemeral/disposable PostgreSQL for CI. Do not connect
+     the harness to production or require committed/runtime secrets.
+   - Prove the workflow actually executes ordinary-staff, privileged-staff, and
+     `service_role` allow/deny cases, including forbidden writes, rather than
+     accepting SQL text inspection as equivalent evidence.
+
+2. **Non-disruptive CRM checkout and permission reconciliation**
+   - Inventory `/opt/evo-crm` and preserve every dirty or untracked item in a
+     recoverable, access-restricted archive before changing the operational
+     checkout.
+   - Reconcile `/opt/evo-crm` to the exact reviewed source corresponding to the
+     currently deployed CRM/Lead Agent revision. Prove the resulting Git state
+     and image-to-Git mapping without building, recreating, restarting, or
+     otherwise changing running services.
+   - Audit legacy environment/configuration file ownership and modes without
+     printing values. Tighten permissions only when the target and runtime
+     access requirements are proven and the change is non-disruptive; otherwise
+     record the exact blocker.
+
+3. **WAHA runtime-limit drift containment**
+   - Record the live finding that WAHA has unset `Memory`, `NanoCpus`, and
+     `PidsLimit` despite reviewed Compose limits.
+   - Do not recreate, restart, relink, or mutate WAHA to apply those limits
+     until a QR/relink and session-continuity procedure is ready and the owner
+     explicitly approves the user-visible provider risk.
+   - Until approval, treat the runtime drift as an explicit Block E/G blocker,
+     preserve WAHA privacy, and make no claim that its Compose limits are active
+     in the running container.
+
+Owner/external gates remain unchanged: canonical DNS, public registration
+policy, monitoring destination and responsible owner, retention schedule and
+owner, CSP enforcement, RPO/RTO, provider acceptance inputs/approval, and the
+deferred real Supabase database-plus-Storage backup and isolated restore
+rehearsal. None may be inferred or marked complete from automated tests.
 
 ### Write boundaries and merge order
 

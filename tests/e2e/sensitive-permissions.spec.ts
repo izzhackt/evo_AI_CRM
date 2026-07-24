@@ -48,7 +48,7 @@ test("anonymous requests cannot reach any transcription endpoint", async ({ page
 });
 
 test("finance role is denied documents, portal data, AI, and transcription", async ({ page }) => {
-  await login(page, "finance@demo.kg", "finance123");
+  await login(page, "finance@demo.kg", "finance123", /\/finance$/);
 
   await page.goto("/documents");
   await expect(page).toHaveURL(/\/finance$/);
@@ -99,7 +99,7 @@ test("client cannot access finance, documents, client records, AI, or transcript
 });
 
 test("sales role cannot access finance or another user's portal", async ({ page }) => {
-  await login(page, "sales@demo.kg", "sales123");
+  await login(page, "sales@demo.kg", "sales123", /\/sales$/);
   await page.goto("/finance");
   await expect(page).toHaveURL(/\/sales$/);
   await page.goto("/portal");

@@ -384,6 +384,21 @@ export function allApplications(opts: { status?: string } = {}): ApplicationQueu
   return db().prepare(sql).all(...params) as ApplicationQueueRow[];
 }
 
+export function getApplication(id: number): ApplicationQueueRow | undefined {
+  return db().prepare(`
+    SELECT ap.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id) AS document_total,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id AND doc.status != 'approved') AS document_open,
+      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
+      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
+    FROM applications ap
+    JOIN clients c ON c.id = ap.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    WHERE ap.id = ?
+  `).get(id) as ApplicationQueueRow | undefined;
+}
+
 export type DocumentQueueRow = {
   id: number;
   client_id: number;
@@ -421,6 +436,82 @@ export function allDocuments(opts: { status?: string } = {}): DocumentQueueRow[]
     ORDER BY doc.status = 'approved', doc.status = 'rejected', doc.updated_at DESC
   `;
   return db().prepare(sql).all(...params) as DocumentQueueRow[];
+}
+
+export function getDocument(id: number): DocumentQueueRow | undefined {
+  return db().prepare(`
+    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
+      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id) AS application_total,
+      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
+      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
+      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
+    FROM documents doc
+    JOIN clients c ON c.id = doc.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    WHERE doc.id = ?
+  `).get(id) as DocumentQueueRow | undefined;
+}
+
+export type VisaQueueRow = {
+  id: number;
+  client_id: number;
+  client_name: string;
+  stage: Stage;
+  target_country: string | null;
+  manager_name: string | null;
+  curator_name: string | null;
+  country: string;
+  status: string;
+  appointment_at: string | null;
+  notes: string | null;
+  updated_at: string;
+  document_total: number;
+  document_open: number;
+  active_applications: number;
+  open_tasks: number;
+};
+
+export function allVisaCases(opts: { status?: string } = {}): VisaQueueRow[] {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (opts.status) {
+    where.push("v.status = ?");
+    params.push(opts.status);
+  }
+  return db().prepare(`
+    SELECT v.*, c.id AS client_id, c.stage, c.target_country, u.name AS client_name,
+      m.name AS manager_name, cu.name AS curator_name,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id) AS document_total,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id AND doc.status != 'approved') AS document_open,
+      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
+      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks
+    FROM visa_cases v
+    JOIN clients c ON c.id = v.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    LEFT JOIN users cu ON cu.id = c.curator_id
+    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+    ORDER BY v.status = 'approved', v.status = 'rejected',
+      v.appointment_at IS NULL, v.appointment_at, v.updated_at DESC
+  `).all(...params) as VisaQueueRow[];
+}
+
+export function getVisaCase(id: number): VisaQueueRow | undefined {
+  return db().prepare(`
+    SELECT v.*, c.id AS client_id, c.stage, c.target_country, u.name AS client_name,
+      m.name AS manager_name, cu.name AS curator_name,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id) AS document_total,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id AND doc.status != 'approved') AS document_open,
+      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
+      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks
+    FROM visa_cases v
+    JOIN clients c ON c.id = v.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    LEFT JOIN users cu ON cu.id = c.curator_id
+    WHERE v.id = ?
+  `).get(id) as VisaQueueRow | undefined;
 }
 
 export function clientUpdates(clientId: number) {
@@ -461,7 +552,22 @@ export function listStaff() {
   }[];
 }
 
-export function allPayments() {
+export type PaymentQueueRow = {
+  id: number;
+  title: string;
+  amount: number;
+  currency: string;
+  due_date: string | null;
+  paid_at: string | null;
+  status: string;
+  client_name: string;
+  client_id: number;
+  stage: Stage;
+  target_country: string | null;
+  manager_name: string | null;
+};
+
+export function allPayments(): PaymentQueueRow[] {
   return db().prepare(`
     SELECT p.*, u.name AS client_name, c.id AS client_id, c.stage, c.target_country,
       m.name AS manager_name
@@ -470,11 +576,19 @@ export function allPayments() {
     JOIN users u ON u.id = c.user_id
     LEFT JOIN users m ON m.id = c.manager_id
     ORDER BY p.status = 'paid', p.due_date IS NULL, p.due_date
-  `).all() as {
-    id: number; title: string; amount: number; currency: string; due_date: string | null;
-    paid_at: string | null; status: string; client_name: string; client_id: number;
-    stage: Stage; target_country: string | null; manager_name: string | null;
-  }[];
+  `).all() as PaymentQueueRow[];
+}
+
+export function getPayment(id: number): PaymentQueueRow | undefined {
+  return db().prepare(`
+    SELECT p.*, u.name AS client_name, c.id AS client_id, c.stage, c.target_country,
+      m.name AS manager_name
+    FROM payments p
+    JOIN clients c ON c.id = p.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    WHERE p.id = ?
+  `).get(id) as PaymentQueueRow | undefined;
 }
 
 export type LeadRow = {

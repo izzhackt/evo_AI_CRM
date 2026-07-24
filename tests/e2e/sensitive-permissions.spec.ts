@@ -51,11 +51,12 @@ test("finance role is denied documents, portal data, AI, and transcription", asy
   await login(page, "finance@demo.kg", "finance123", /\/finance$/);
 
   await page.goto("/documents");
-  await expect(page).toHaveURL(/\/finance$/);
+  await expect(page).toHaveURL(/\/access-denied\?from=%2Fdocuments$/);
+  await expect(page.locator("#staff-main").getByRole("heading", { name: "Нет доступа к разделу" })).toBeVisible();
   await page.goto("/portal");
   await expect(page).toHaveURL(/\/dashboard$/);
   await page.goto("/transcription-lab");
-  await expect(page).toHaveURL(/\/finance$/);
+  await expect(page).toHaveURL(/\/access-denied\?from=%2Ftranscription-lab$/);
 
   const summary = await browserFetch(page, "/api/ai/summary", {
     method: "POST",
@@ -101,13 +102,20 @@ test("client cannot access finance, documents, client records, AI, or transcript
 test("sales role cannot access finance or another user's portal", async ({ page }) => {
   await login(page, "sales@demo.kg", "sales123", /\/sales$/);
   await page.goto("/finance");
-  await expect(page).toHaveURL(/\/sales$/);
+  await expect(page).toHaveURL(/\/access-denied\?from=%2Ffinance$/);
+  await expect(page.getByText("Защищённые данные раздела не загружались.")).toBeVisible();
   await page.goto("/portal");
   await expect(page).toHaveURL(/\/dashboard$/);
 });
 
 test("admin can reach the lab and authenticated transcription handlers enforce limits", async ({ page }) => {
   await login(page, "admin@demo.kg", "admin123");
+  await page.goto("/access-denied");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/access-denied?from=%2Funknown");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/access-denied?from=%2Ffinance");
+  await expect(page).toHaveURL(/\/finance$/);
   await page.goto("/transcription-lab");
   await expect(page.getByRole("heading", { name: "Live MP3 Transcription Lab" })).toBeVisible();
 

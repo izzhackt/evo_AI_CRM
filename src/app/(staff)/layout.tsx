@@ -21,10 +21,14 @@ const SHELL_COPY: Record<
   Locale,
   MobileNavCopy & {
     skip: string;
+    accessDeniedTitle: string;
+    accessDeniedHint: string;
   }
 > = {
   ru: {
     skip: "Перейти к основному содержимому",
+    accessDeniedTitle: "Нет доступа",
+    accessDeniedHint: "Права роли проверены на сервере",
     navigationLabel: "Основная навигация",
     moreLabel: "Ещё",
     menuTitle: "Все разделы",
@@ -32,6 +36,8 @@ const SHELL_COPY: Record<
   },
   ky: {
     skip: "Негизги мазмунга өтүү",
+    accessDeniedTitle: "Кирүүгө укук жок",
+    accessDeniedHint: "Ролдун укуктары серверде текшерилди",
     navigationLabel: "Негизги навигация",
     moreLabel: "Дагы",
     menuTitle: "Бардык бөлүмдөр",
@@ -39,6 +45,8 @@ const SHELL_COPY: Record<
   },
   en: {
     skip: "Skip to main content",
+    accessDeniedTitle: "Access denied",
+    accessDeniedHint: "Role permissions were checked on the server",
     navigationLabel: "Primary navigation",
     moreLabel: "More",
     menuTitle: "All sections",
@@ -77,6 +85,10 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     .filter((g) => g.items.length > 0);
 
   const titles: Record<string, { title: string; hint?: string }> = {
+    "/access-denied": {
+      title: shellCopy.accessDeniedTitle,
+      hint: shellCopy.accessDeniedHint,
+    },
     "/dashboard": { title: t("commandCenter"), hint: t("commandCenterHint") },
     "/sales": { title: t("admissionsPipeline"), hint: t("admissionsPipelineHint") },
     "/clients": { title: t("student360"), hint: t("student360Hint") },

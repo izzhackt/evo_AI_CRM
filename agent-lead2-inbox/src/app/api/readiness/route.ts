@@ -18,13 +18,13 @@ async function reachable(url: string, headers?: HeadersInit): Promise<boolean> {
 export async function GET() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '')
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const wahaUrl = process.env.WAHA_BASE_URL?.replace(/\/$/, '')
+  const wahaUrl = process.env.EVO_INBOX_WAHA_BASE_URL?.replace(/\/$/, '')
 
   const [supabase, waha] = await Promise.all([
     supabaseUrl && supabaseKey
       ? reachable(`${supabaseUrl}/auth/v1/health`, { apikey: supabaseKey })
       : false,
-    wahaUrl ? reachable(`${wahaUrl}/health`) : false,
+    wahaUrl ? reachable(`${wahaUrl}/ping`) : false,
   ])
   const ready = supabase && waha
 

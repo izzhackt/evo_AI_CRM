@@ -93,7 +93,9 @@ This changes one immediate stop condition only: production migrations 038/039
 and the Inbox deployment may proceed without the full Supabase backup after
 transaction-level validation, migration-specific rollback SQL and durable
 rollback evidence, and every other release gate pass. Destructive migrations
-and data rewrites remain prohibited.
+and data rewrites remain prohibited. For these named actions only, the later
+owner decision in `PLAN_CHANGES.md` supersedes the launch plan's generic
+backup-related deployment stop; the generic stop remains binding otherwise.
 
 The missing real Supabase database-plus-Storage backup and isolated restore
 rehearsal remains an open Block F/Block G acceptance item, with owner review

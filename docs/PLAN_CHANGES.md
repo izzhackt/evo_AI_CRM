@@ -2162,6 +2162,11 @@ Decision:
   Inbox deployment. Those actions may proceed only after transaction-level
   validation, migration-specific rollback SQL and durable rollback evidence,
   and every other existing release gate pass.
+- For only those named actions, this later owner decision explicitly supersedes
+  the generic `docs/EVO_LAUNCH_PLAN.md` instruction to "Stop deployment if
+  backups, restore evidence, or rollback evidence are missing." The generic
+  stop condition remains binding for every other release action, and missing
+  rollback evidence still stops migrations 038/039 and the Inbox deployment.
 - This is a narrow, time-bounded risk acceptance. It does not authorize a
   destructive migration, destructive DDL, data rewrite, backfill that replaces
   existing values, production restore, provider-plan change, deployment, DNS

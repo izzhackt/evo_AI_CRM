@@ -31,7 +31,7 @@ function walkFiles(relativeDir, extensions) {
 
 const audit = read("docs/PROMISE_AUDIT.md");
 const ai = read("src/lib/ai.ts");
-const i18n = read("src/lib/i18n.ts");
+const i18n = `${read("src/lib/i18n.ts")}\n${read("src/lib/i18n-data.ts")}`;
 const preparedAi = read("src/lib/prepared-ai.ts");
 const publicCopyChangeset = read("docs/PUBLIC_PROMISE_COPY_CHANGESET.md");
 const publicLiveAudit = read("docs/PUBLIC_PROMISE_LIVE_AUDIT.md");

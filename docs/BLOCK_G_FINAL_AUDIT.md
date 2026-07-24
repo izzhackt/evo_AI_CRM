@@ -72,8 +72,8 @@ media audit table, private `chat-media`, denial of authenticated audit inserts,
 and the message-retention column.
 
 The deployed Inbox OCI revision and release labels matched the exact values
-above. Its private readiness response reported `supabase.ready=true` and
-`waha.ready=true` both before and after an application-container restart.
+above. Its private readiness response reported `checks.supabase=true` and
+`checks.waha=true` both before and after an application-container restart.
 Readiness uses WAHA's private unauthenticated `/ping` endpoint; WAHA itself was
 not restarted, relinked, reconfigured, or exposed. Public readiness and
 internal-only routes returned `404`, and the fallback host retained the

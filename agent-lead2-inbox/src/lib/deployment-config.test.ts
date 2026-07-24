@@ -51,6 +51,9 @@ describe('EVO Inbox production deployment config', () => {
 
     expect(compose).toContain('container_name: evo-inbox-waha');
     expect(compose).toContain('evo_inbox_private');
+    expect(compose).toContain(
+      'EVO_INBOX_WAHA_BASE_URL: ${EVO_INBOX_WAHA_BASE_URL:-http://evo-inbox-waha:3000}',
+    );
     expect(env).toContain('EVO_INBOX_WAHA_BASE_URL=http://evo-inbox-waha:3000');
     expect(wahaEnv).toContain('WAHA_API_KEY=sha512:');
     expect(wahaEnv).toContain('WAHA_API_KEY_EXCLUDE_PATH=ping');

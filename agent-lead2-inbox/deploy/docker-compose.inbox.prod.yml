@@ -36,6 +36,7 @@ services:
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://inbox.evoadmissions.com}
       EVO_INBOX_DOMAIN: ${EVO_INBOX_DOMAIN:-inbox.evoadmissions.com}
       EVO_CADDY_NETWORK: ${EVO_CADDY_NETWORK:-evo_public_web}
+      EVO_INBOX_WAHA_BASE_URL: ${EVO_INBOX_WAHA_BASE_URL:-http://evo-inbox-waha:3000}
     expose:
       - '3000'
     depends_on:

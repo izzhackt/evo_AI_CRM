@@ -9,9 +9,9 @@ boundary-by-boundary rollout, and rollback.
 - `/api/health` is process liveness. It never calls a provider and is the
   Compose healthcheck target for first-party web applications.
 - `/api/readiness` is dependency readiness. CRM checks that its SQLite store is
-  readable and writable. Inbox checks Supabase Auth and private WAHA `/health`
-  with a three-second timeout. Caddy returns `404` for public readiness
-  requests; run them from an EVO-owned private network.
+  readable and writable. Inbox checks Supabase Auth and private unauthenticated
+  WAHA `/ping` with a three-second timeout. Caddy returns `404` for public
+  readiness requests; run them from an EVO-owned private network.
 - Lead Agent `/health` stays liveness plus its explicit frozen/readiness fields.
   Frozen is expected containment, not provider readiness.
 - A green container is not real WhatsApp, amoCRM, Supabase data-path, AI, or

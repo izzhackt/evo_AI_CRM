@@ -68,6 +68,14 @@
 - [Словарь доменных терминов](../CONTEXT.md)
 - [Launch plan](EVO_LAUNCH_PLAN.md) и [история изменений плана](PLAN_CHANGES.md)
 
+### Unified frontend
+
+- [Индекс EVO Platform frontend](design/evo-platform/README.md)
+- [План реализации](design/evo-platform/IMPLEMENTATION_PLAN.md)
+- [Checklist готовности](design/evo-platform/COMPLETION_CHECKLIST.md)
+- [Финальный frontend-аудит](design/evo-platform/FINAL_FRONTEND_AUDIT_2026-07-24.md)
+- [Master prompt для Claude Design](design/evo-platform/CLAUDE_DESIGN_MASTER_PROMPT.md)
+
 ### EVO Inbox
 
 - [Product requirements](EVO_INBOX_COMPANION_PRD.md)

@@ -61,42 +61,42 @@ export type PreparedWhatsAppInput = {
 export const PREPARED_AI_PROMPT_LIBRARY: PreparedAiPrompt[] = [
   {
     id: "wa-price-boundary",
-    title: "WhatsApp price boundary",
-    purpose: "Answer a pricing question without inventing terms or overpromising.",
+    title: "Границы ответа о стоимости",
+    purpose: "Ответить на вопрос о стоимости, не выдумывая условия и не обещая лишнего.",
     instructions: [
-      "Use only CRM facts already visible in the conversation and linked lead.",
-      "State that final pricing is confirmed by the manager after qualification.",
-      "Ask one concrete next-step question.",
+      "Использовать только факты из диалога и связанного лида в CRM.",
+      "Уточнить, что итоговую стоимость менеджер подтвердит после квалификации.",
+      "Задать один конкретный вопрос о следующем шаге.",
     ],
   },
   {
     id: "wa-consultation-booking",
-    title: "Consultation booking",
-    purpose: "Move a qualified lead toward a consultation slot.",
+    title: "Запись на консультацию",
+    purpose: "Перевести квалифицированного лида к выбору времени консультации.",
     instructions: [
-      "Acknowledge the destination or program goal.",
-      "Keep the reply short enough for WhatsApp.",
-      "Offer a consultation without claiming availability that is not in CRM.",
+      "Подтвердить выбранную страну или цель по программе.",
+      "Сделать ответ достаточно коротким для WhatsApp.",
+      "Предложить консультацию, не выдумывая свободные слоты, которых нет в CRM.",
     ],
   },
   {
     id: "wa-program-fit",
-    title: "Program fit triage",
-    purpose: "Collect missing education-fit details for country and program matching.",
+    title: "Уточнение профиля для подбора",
+    purpose: "Собрать недостающие данные для подбора страны и программы.",
     instructions: [
-      "Ask for current class or degree level, target intake, and language background.",
-      "Mention the target country only when it exists in CRM.",
-      "Do not promise admission probability.",
+      "Уточнить текущий класс или уровень образования, желаемый набор и знание языка.",
+      "Упоминать целевую страну, только если она указана в CRM.",
+      "Не обещать вероятность поступления.",
     ],
   },
   {
     id: "wa-documents-next-step",
-    title: "Document next step",
-    purpose: "Explain the first document checkpoint without pretending a review happened.",
+    title: "Следующий шаг по документам",
+    purpose: "Объяснить первую проверку документов, не создавая видимость уже проведённой проверки.",
     instructions: [
-      "Name common first documents only as a starting checklist.",
-      "Ask the client to send what they already have.",
-      "Avoid claiming that submitted files were checked unless CRM says so.",
+      "Назвать типичные первые документы только как стартовый список.",
+      "Попросить клиента отправить то, что у него уже есть.",
+      "Не утверждать, что файлы проверены, если этого нет в CRM.",
     ],
   },
 ];
@@ -190,7 +190,7 @@ function scenario(id: PreparedAiScenarioId, input: PreparedWhatsAppInput): Prepa
   const triggerByScenario: Record<PreparedAiScenarioId, string> = {
     "price-boundary": "Последнее сообщение или CRM-контекст содержит вопрос о цене.",
     "consultation-booking": "Нужно перевести диалог к консультации без выдуманных слотов.",
-    "program-fit": "Нужно собрать вводные для подбора страны, программы и intake.",
+    "program-fit": "Нужно собрать вводные для подбора страны, программы и набора.",
     "documents-next-step": "Нужно дать стартовый список документов без фальшивой проверки.",
   };
   return {
@@ -200,10 +200,10 @@ function scenario(id: PreparedAiScenarioId, input: PreparedWhatsAppInput): Prepa
     trigger: triggerByScenario[id],
     response: responseForScenario(id, input),
     checks: [
-      "Prepared content for first presentation",
-      "Uses current CRM conversation context",
-      "Does not claim live Anthropic generation",
-      "Does not claim WhatsApp delivery",
+      "Подготовленный материал для первой презентации",
+      "Использует текущий контекст диалога из CRM",
+      "Не выдаётся за результат живого запроса к Anthropic",
+      "Не утверждает, что сообщение доставлено в WhatsApp",
     ],
   };
 }
@@ -218,7 +218,7 @@ export function buildPreparedWhatsAppAssistant(input: PreparedWhatsAppInput): Pr
 
   return {
     mode: "prepared_first_presentation",
-    label: "Prepared AI",
+    label: "Подготовленный AI",
     selectedScenarioId: chooseScenario(input),
     promptLibrary: PREPARED_AI_PROMPT_LIBRARY,
     scenarios: scenarioIds.map((id) => scenario(id, input)),

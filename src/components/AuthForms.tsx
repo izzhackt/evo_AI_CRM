@@ -59,7 +59,7 @@ export function LoginForm({ labels }: { labels: Labels }) {
       <p className="text-center text-[13px] text-fg-3">
         <Link
           href="/register"
-          className="inline-flex min-h-11 items-center justify-center text-pretty font-semibold text-accent transition-[color] duration-150 ease-out hover:underline focus:outline-none"
+          className="inline-flex min-h-11 items-center justify-center rounded-ctl px-2 text-pretty font-semibold text-accent transition-[color] duration-150 ease-out hover:underline"
         >
           {labels.noAccount}
         </Link>
@@ -71,7 +71,7 @@ export function LoginForm({ labels }: { labels: Labels }) {
 export function RegisterForm({ labels }: { labels: Labels }) {
   const [error, action, pending] = useActionState(registerAction, null);
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} aria-busy={pending} className="space-y-4">
       <ErrorMsg code={error} id="register-error" labels={labels} />
       <div>
         <label htmlFor="register-name" className={labelCls}>{labels.name}</label>
@@ -122,7 +122,7 @@ export function RegisterForm({ labels }: { labels: Labels }) {
       <p className="text-center text-[13px] text-fg-3">
         <Link
           href="/login"
-          className="inline-flex min-h-11 items-center justify-center text-pretty font-semibold text-accent transition-[color] duration-150 ease-out hover:underline focus:outline-none"
+          className="inline-flex min-h-11 items-center justify-center rounded-ctl px-2 text-pretty font-semibold text-accent transition-[color] duration-150 ease-out hover:underline"
         >
           {labels.haveAccount}
         </Link>

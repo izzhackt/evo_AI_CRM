@@ -2433,3 +2433,52 @@ Validation impact:
   browser checks for its owned routes.
 - No prototype interaction or local success toast may be reported as real
   amoCRM, WAHA, Supabase, AI, telephony or persistence proof.
+
+## 2026-07-24 - Finalize The Unified Frontend Handoff And Quality Gates
+
+Source: owner request to finish the full frontend and make the linked local
+repository plus one master prompt ready before another Claude Design pass.
+
+Affected plan section: `/goal-evo-platform-frontend`, final validation and
+handoff.
+
+Reason:
+
+- The route slices are now merged, but a final cross-product audit found a few
+  gaps that individual route reviews could not close: mobile access to every
+  Student Portal destination, durable labels and focus behavior, honest
+  communication-state vocabulary, and automated accessibility coverage.
+- The original IT-authored brief is useful product context but mixes business
+  needs with unapproved technical assumptions. Claude Design needs one
+  repository-local interpretation rather than an external document whose
+  authority is unclear.
+- The original completion checklist was intentionally blank and must become an
+  evidence ledger that distinguishes implemented frontend behavior from
+  backend/provider work.
+
+Change:
+
+- Complete the remaining responsive, keyboard, focus, live-region and
+  communication-state presentation gaps without widening permissions or
+  inventing provider data.
+- Add an automated axe/Playwright WCAG A/AA regression pass for representative
+  staff and Student Portal routes. Treat it as an automated safety net, not as
+  a substitute for keyboard, visual or screen-reader review.
+- Store an interpreted copy of the IT brief and one autonomous Claude Design
+  master prompt under `docs/design/evo-platform/`.
+- Update the completion checklist and final audit only from verified code,
+  tests and current browser evidence.
+- Keep all backend integration, database consolidation, Lead Agent retirement,
+  provider configuration, deployment and real-message actions outside this
+  finalization slice.
+
+Validation impact:
+
+- Run Node 22 lint, TypeScript/build, scenarios, security checks and the full
+  Playwright suite.
+- Exercise required desktop, tablet and mobile states in the in-app browser,
+  inspect current screenshots and perform explicit keyboard/overlay checks.
+- Record automated accessibility results separately from any manual
+  assistive-technology limitations.
+- Require independent read-only code, product-truth and accessibility review
+  before merge.

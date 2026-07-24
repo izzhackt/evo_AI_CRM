@@ -36,6 +36,7 @@ export function StudentProgress({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={progress}
+          aria-valuetext={`${currentLabel}: ${progress}%`}
           className="h-1.5 overflow-hidden rounded-full bg-surface-3"
         >
           <span className="block h-full rounded-full bg-ok" style={{ width: `${progress}%` }} />
@@ -46,7 +47,24 @@ export function StudentProgress({
 
   return (
     <div className="overflow-x-auto pb-1">
-      <ol aria-label={label} className="grid min-w-[720px] grid-cols-8">
+      <div className="min-w-[720px]">
+        <div className="mb-1.5 flex items-center justify-between gap-3 text-[12px]">
+          <span className="font-medium text-fg-2">{currentLabel}</span>
+          <span className="shrink-0 font-mono font-semibold text-fg">{progress}%</span>
+        </div>
+        <div
+          role="progressbar"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progress}
+          aria-valuetext={`${currentLabel}: ${progress}%`}
+          className="h-1.5 overflow-hidden rounded-full bg-surface-3"
+        >
+          <span className="block h-full rounded-full bg-ok" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+      <ol aria-label={label} className="mt-4 grid min-w-[720px] grid-cols-8">
         {visibleStages.map((stage, index) => {
           const complete = index < currentIndex;
           const current = index === currentIndex;

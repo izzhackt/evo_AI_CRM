@@ -56,6 +56,9 @@ jobs:
       - name: Test security and PostgreSQL authorization boundaries
         run: npm run test:security
 
+      - name: Test frontend state contracts
+        run: npm run test:unit
+
       - name: Lint
         run: npm run lint
 

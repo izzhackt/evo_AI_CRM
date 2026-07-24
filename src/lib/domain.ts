@@ -323,7 +323,15 @@ export type WhatsAppMessage = {
   readonly conversationId: EntityId;
   readonly direction: MessageDirection;
   readonly text: string;
-  readonly status: "sent" | "received" | "failed" | "prepared" | "demo";
+  readonly status:
+    | "sent"
+    | "received"
+    | "delivered"
+    | "read"
+    | "failed"
+    | "unknown"
+    | "prepared"
+    | "demo";
   readonly authorId: EntityId | null;
   readonly providerMessageId: string | null;
   readonly createdAt: DateTimeString;

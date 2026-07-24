@@ -5,7 +5,7 @@ import { listChannels, channelMessages } from "@/lib/queries";
 import { sendChannelMessageAction, createChannelAction } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
 import { AutoRefresh } from "@/components/AutoRefresh";
-import { EmptyState, inputCls, btnCls, cn } from "@/components/ui";
+import { EmptyState, inputCls, btnCls, labelCls, cn } from "@/components/ui";
 import { Icon } from "@/components/icons";
 
 export default async function ChannelPage({ params }: { params: Promise<{ id: string }> }) {
@@ -30,6 +30,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
             <Link
               key={c.id}
               href={`/chat/${c.id}`}
+              aria-current={c.id === channelId ? "page" : undefined}
               className={cn(
                 "block rounded-nav px-3 py-2 text-[13.5px] transition-[background-color,color]",
                 c.id === channelId ? "bg-accent-weak font-semibold text-accent" : "text-fg-2 hover:bg-surface-2 hover:text-fg",
@@ -42,8 +43,14 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
         <details className="border-t border-border p-3">
           <summary className="cursor-pointer text-[12px] font-semibold text-accent">+ {t("newChannel")}</summary>
           <form action={createChannelAction} className="mt-2 space-y-2">
-            <input name="name" required placeholder={t("channelName")} className={inputCls} />
-            <input name="description" placeholder={t("description")} className={inputCls} />
+            <label className={cn(labelCls, "mb-0")}>
+              {t("channelName")}
+              <input name="name" required placeholder={t("channelName")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("description")}
+              <input name="description" placeholder={t("description")} className={cn(inputCls, "mt-1")} />
+            </label>
             <button type="submit" className={cn(btnCls, "w-full")}>{t("add")}</button>
           </form>
         </details>
@@ -61,6 +68,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
               <Link
                 key={item.id}
                 href={`/chat/${item.id}`}
+                aria-current={item.id === channelId ? "page" : undefined}
                 className={cn(
                   "rounded-nav px-3 py-2 text-[13px]",
                   item.id === channelId ? "bg-accent-weak font-semibold text-accent" : "text-fg-2",
@@ -71,8 +79,14 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
             ))}
           </nav>
           <form action={createChannelAction} className="grid gap-2 border-t border-border p-3">
-            <input name="name" required placeholder={t("channelName")} className={inputCls} />
-            <input name="description" placeholder={t("description")} className={inputCls} />
+            <label className={cn(labelCls, "mb-0")}>
+              {t("channelName")}
+              <input name="name" required placeholder={t("channelName")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("description")}
+              <input name="description" placeholder={t("description")} className={cn(inputCls, "mt-1")} />
+            </label>
             <button type="submit" className={cn(btnCls, "w-full")}>{t("add")}</button>
           </form>
         </details>
@@ -103,9 +117,18 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
 
-        <form action={sendChannelMessageAction} className="flex gap-2 border-t border-border p-3">
+        <form action={sendChannelMessageAction} className="flex items-end gap-2 border-t border-border p-3">
           <input type="hidden" name="channel_id" value={channelId} />
-          <input name="text" required autoComplete="off" placeholder={t("messagePlaceholder")} className={inputCls} />
+          <label className={cn(labelCls, "mb-0 min-w-0 flex-1")}>
+            {t("messages")}
+            <input
+              name="text"
+              required
+              autoComplete="off"
+              placeholder={t("messagePlaceholder")}
+              className={cn(inputCls, "mt-1")}
+            />
+          </label>
           <button type="submit" aria-label={t("send")} className={cn(btnCls, "shrink-0 px-3 sm:px-4")}>
             <Icon name="send" size={15} /> <span className="hidden sm:inline">{t("send")}</span>
           </button>

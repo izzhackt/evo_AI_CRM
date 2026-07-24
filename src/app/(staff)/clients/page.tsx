@@ -4,7 +4,7 @@ import { listClients, type ClientRow } from "@/lib/queries";
 import { STAGES } from "@/lib/db";
 import { createClientAction } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
-import { Badge, EmptyState, PageHeader, inputCls, btnCls, cn } from "@/components/ui";
+import { Badge, EmptyState, PageHeader, inputCls, btnCls, labelCls, cn } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { StudentProgress } from "@/components/platform/core/StudentProgress";
 
@@ -66,10 +66,13 @@ export default async function ClientsPage({
       </section>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <form className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative min-w-0 flex-1 sm:max-w-sm">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-3"><Icon name="search" size={16} /></span>
-            <input name="q" defaultValue={q} placeholder={t("search")} className={cn(inputCls, "pl-9")} />
+        <form className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1 sm:max-w-sm">
+            <label htmlFor="client-search" className={labelCls}>{t("search")}</label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-3"><Icon name="search" size={16} /></span>
+              <input id="client-search" name="q" defaultValue={q} placeholder={t("search")} className={cn(inputCls, "pl-9")} />
+            </div>
             {stage && <input type="hidden" name="stage" value={stage} />}
           </div>
           <button type="submit" className={cn(btnCls, "sm:w-auto")}>{t("search")}</button>
@@ -82,12 +85,30 @@ export default async function ClientsPage({
             action={createClientAction}
             className="mt-3 grid w-full gap-2.5 rounded-card border border-border bg-surface p-4 shadow-evo-lg sm:grid-cols-2 lg:absolute lg:right-0 lg:z-20 lg:w-[420px]"
           >
-            <input name="name" required placeholder={t("name")} className={inputCls} />
-            <input name="email" type="email" required placeholder={t("email")} className={inputCls} />
-            <input name="phone" placeholder={t("phone")} className={inputCls} />
-            <input name="target_country" placeholder={t("country")} className={inputCls} />
-            <input name="target_degree" placeholder={t("degree")} className={inputCls} />
-            <input name="source" placeholder={t("source")} className={inputCls} />
+            <label className={cn(labelCls, "mb-0")}>
+              {t("name")}
+              <input name="name" required placeholder={t("name")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("email")}
+              <input name="email" type="email" required placeholder={t("email")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("phone")}
+              <input name="phone" placeholder={t("phone")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("country")}
+              <input name="target_country" placeholder={t("country")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("degree")}
+              <input name="target_degree" placeholder={t("degree")} className={cn(inputCls, "mt-1")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {t("source")}
+              <input name="source" placeholder={t("source")} className={cn(inputCls, "mt-1")} />
+            </label>
             <button type="submit" className={cn(btnCls, "w-full sm:col-span-2")}>{t("add")}</button>
           </form>
         </details>

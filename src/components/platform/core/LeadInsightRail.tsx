@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Badge, Card, btnCls, btnGhostCls, cn, inputCls } from "@/components/ui";
+import { Badge, Card, btnCls, btnGhostCls, cn, inputCls, labelCls } from "@/components/ui";
 import { Icon } from "@/components/icons";
 
 export function LeadInsightRail({
@@ -128,16 +128,25 @@ export function LeadInsightRail({
         <form action={taskAction} className="grid gap-2">
           <input type="hidden" name="lead_id" value={nextTask.leadId} />
           <input type="hidden" name="assignee_id" value={nextTask.assigneeId ?? ""} />
-          <input name="title" required placeholder={labels.nextTask} className={inputCls} />
+          <label className={cn(labelCls, "mb-0")}>
+            {labels.nextTask}
+            <input name="title" required placeholder={labels.nextTask} className={cn(inputCls, "mt-1")} />
+          </label>
           <div className="grid gap-2 sm:grid-cols-2">
-            <input name="due_date" type="date" aria-label={labels.dueDate} className={cn(inputCls, "font-mono")} />
-            <select name="priority" defaultValue="normal" aria-label={labels.priority} className={inputCls}>
-              {labels.priorities.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+            <label className={cn(labelCls, "mb-0")}>
+              {labels.dueDate}
+              <input name="due_date" type="date" className={cn(inputCls, "mt-1 font-mono")} />
+            </label>
+            <label className={cn(labelCls, "mb-0")}>
+              {labels.priority}
+              <select name="priority" defaultValue="normal" className={cn(inputCls, "mt-1")}>
+                {labels.priorities.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
           <button type="submit" className={btnCls}>
             {labels.add}

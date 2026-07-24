@@ -50,7 +50,9 @@ async function openFirstDetail(page: Page, route: string) {
     page.waitForURL(new RegExp(`${route}/\\d+$`)),
     link.press("Enter"),
   ]);
-  await expect(page.getByRole("link", { name: "Назад в очередь" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /(?:Назад|Вернуться) в очередь/ }),
+  ).toBeVisible();
   await expectNoPageOverflow(page);
 }
 

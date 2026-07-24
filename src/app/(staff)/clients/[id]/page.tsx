@@ -5,10 +5,10 @@ import {
   getClient, clientApplications, clientDocuments, clientVisaCase,
   clientPayments, clientTasks, clientUpdates, listStaff, studentPortalSnapshotForUser,
 } from "@/lib/queries";
-import { STAGES, APP_STATUSES, DOC_STATUSES, TASK_COLUMNS, TASK_PRIORITIES, VISA_STATUSES } from "@/lib/db";
+import { STAGES, APP_STATUSES, TASK_COLUMNS, TASK_PRIORITIES, VISA_STATUSES } from "@/lib/db";
 import {
   updateClientAction, addApplicationAction, setApplicationStatusAction,
-  addDocumentAction, setDocumentStatusAction, upsertVisaCaseAction,
+  addDocumentAction, upsertVisaCaseAction,
   addPaymentAction, markPaymentPaidAction, addTaskAction, moveTaskAction, postUpdateAction,
 } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
@@ -333,16 +333,19 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           <Card title={t("documents")}>
           <ul className="divide-y divide-border">
             {docs.map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0">
-                <span className="text-[13.5px] text-fg">{d.name}</span>
-                <form action={setDocumentStatusAction} className="flex w-full items-center gap-1.5 sm:w-auto">
-                  <input type="hidden" name="id" value={d.id} />
-                  <input type="hidden" name="client_id" value={client.id} />
-                  <select name="status" defaultValue={d.status} className={cn(selectCls, "min-w-0 flex-1 sm:flex-none")}>
-                    {DOC_STATUSES.map((s) => <option key={s} value={s}>{t(`doc.${s}`)}</option>)}
-                  </select>
-                  <button type="submit" className={btnGhostCls}>{t("save")}</button>
-                </form>
+              <li key={d.id} className="flex flex-col gap-3 py-3 first:pt-0 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <Link href={`/documents/${d.id}`} className="break-words text-[13.5px] font-semibold text-fg hover:text-accent">
+                    {d.name}
+                  </Link>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <Badge value={d.status} label={t(`doc.${d.status}`)} />
+                    {d.comment && <span className="text-[11.5px] leading-4 text-danger">{d.comment}</span>}
+                  </div>
+                </div>
+                <Link href={`/documents/${d.id}`} className={cn(btnGhostCls, "w-full shrink-0 sm:w-auto")}>
+                  {t("documentDetail")}
+                </Link>
               </li>
             ))}
           </ul>

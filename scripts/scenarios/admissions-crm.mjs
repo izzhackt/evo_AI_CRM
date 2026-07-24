@@ -78,14 +78,42 @@ return [
       const docs = await ctx.get("/documents", cookie);
       assert(financePage.status === 200, `finance status ${financePage.status}`);
       assert(!financePage.text.includes("name=\"title\"") || financePage.text.includes("name=\"amount\""), "finance form did not render for finance");
-      for (const [name, res] of [["applications", apps], ["documents", docs]]) {
-        assert([303, 307, 308].includes(res.status), `${name} status ${res.status}`);
+      const noAccessEvidence = [];
+      for (const [name, res, protectedValues] of [
+        [
+          "applications",
+          apps,
+          ctx.db
+            .prepare("SELECT university, program FROM applications")
+            .all()
+            .flatMap((row) => [row.university, row.program])
+            .filter(Boolean),
+        ],
+        [
+          "documents",
+          docs,
+          ctx.db
+            .prepare("SELECT name FROM documents")
+            .all()
+            .map((row) => row.name)
+            .filter(Boolean),
+        ],
+      ]) {
+        const target = `/access-denied?from=%2F${name}`;
+        const headerRedirect = [303, 307, 308].includes(res.status);
         assert(
-          res.location?.includes("/access-denied") && res.location.includes(`from=%2F${name}`),
-          `${name} did not redirect to its no-access state: ${res.location}`,
+          headerRedirect && res.location?.includes(target),
+          `${name} did not redirect to its no-access state: status ${res.status}, location ${res.location}`,
         );
+        for (const protectedValue of protectedValues) {
+          assert(
+            !res.text.includes(String(protectedValue)),
+            `${name} exposed protected queue content before its no-access redirect`,
+          );
+        }
+        noAccessEvidence.push(`${name} ${res.status} header no-access`);
       }
-      return `finance ${financePage.status}; applications ${apps.status}; documents ${docs.status}`;
+      return `finance ${financePage.status}; ${noAccessEvidence.join("; ")}`;
     },
   },
   {
@@ -347,20 +375,27 @@ return [
     id: "S18",
     capability: "Documents queue",
     scenario: "Documents queue filter and status update flow work.",
-    criteria: "Filtered queue renders, status form updates document to review, and row links back to Student 360.",
+    criteria: "Filtered queue renders, detail review action moves an approved document back to review with a reason, and rows link back to Student 360.",
     async run(ctx) {
-      const doc = ctx.firstDocumentId();
-      const filtered = await ctx.get("/documents?status=required", ctx.cookie(sales));
+      const doc = scalar(
+        ctx,
+        "SELECT id, client_id, status FROM documents WHERE status = 'approved' ORDER BY id LIMIT 1",
+      );
+      assert(doc, "no approved document available for review scenario");
+      const filtered = await ctx.get("/documents?status=approved", ctx.cookie(sales));
       assert(filtered.status === 200, `documents filter status ${filtered.status}`);
       assert(filtered.text.includes("/clients/"), "documents rows do not link to Student 360");
-      await ctx.submit("/documents", ctx.cookie(sales), { names: ["id", "client_id", "status"], includes: [`value="${doc.id}"`] }, {
+      await ctx.submit(`/documents/${doc.id}`, ctx.cookie(sales), {
+        names: ["id", "status", "comment"],
+        includes: [`value="${doc.id}"`, "value=\"review\""],
+      }, {
         id: doc.id,
-        client_id: doc.client_id,
         status: "review",
+        comment: "Scenario review reopened after an internal quality check.",
       });
       const updated = scalar(ctx, "SELECT status FROM documents WHERE id = ?", [doc.id]);
       assert(updated.status === "review", `document status ${updated.status}`);
-      return `document ${doc.id} updated to ${updated.status}; filtered queue status ${filtered.status}`;
+      return `document ${doc.id} reopened as ${updated.status}; filtered queue status ${filtered.status}`;
     },
   },
   {

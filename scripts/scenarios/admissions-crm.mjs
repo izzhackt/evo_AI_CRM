@@ -508,11 +508,24 @@ return [
     id: "S31",
     capability: "Student portal experience",
     scenario: "Client portal renders a sectioned, client-scoped admissions dashboard.",
-    criteria: "The signed-in student sees own stage, target, applications, documents, payments, open tasks, team contacts, and section navigation without another student's data.",
+    criteria: "The signed-in student sees own stage, target, applications, documents, payments, highest-priority next action, team contacts, and section navigation without another student's data.",
     async run(ctx) {
       const cookie = ctx.cookie(client);
       const portal = await ctx.get("/portal", cookie);
       assert(portal.status === 200, `portal status ${portal.status}`);
+      const sectionRoutes = [
+        "/portal/applications",
+        "/portal/documents",
+        "/portal/payments",
+        "/portal/team",
+      ];
+      const sections = [];
+      for (const route of sectionRoutes) {
+        const response = await ctx.get(route, cookie);
+        assert(response.status === 200, `${route} status ${response.status}`);
+        sections.push(response);
+      }
+      const portalText = [portal, ...sections].map((response) => response.text).join("\n");
       const own = scalar(ctx, `
         SELECT c.id, u.name, c.target_country, c.target_degree, m.name AS manager_name, cu.name AS curator_name
         FROM clients c
@@ -528,12 +541,30 @@ return [
         ORDER BY c.id LIMIT 1
       `, [client]);
       assert(own, "seeded client portal record missing");
+      const urgentTask = scalar(ctx, `
+        SELECT title
+        FROM tasks
+        WHERE client_id = ? AND status != 'done' AND priority IN ('urgent', 'high')
+        ORDER BY CASE priority WHEN 'urgent' THEN 0 ELSE 1 END,
+          due_date IS NULL, due_date, created_at DESC
+        LIMIT 1
+      `, [own.id]);
+      const requiredDocument = scalar(ctx, `
+        SELECT name
+        FROM documents
+        WHERE client_id = ? AND status IN ('required', 'rejected')
+        ORDER BY id
+        LIMIT 1
+      `, [own.id]);
+      const expectedNextAction = urgentTask?.title ?? requiredDocument?.name;
+      assert(expectedNextAction, "seeded portal next action missing");
+      assert(portal.text.includes(expectedNextAction), `portal missing next action ${expectedNextAction}`);
       for (const text of [
-        "href=\"#overview\"",
-        "href=\"#applications\"",
-        "href=\"#documents\"",
-        "href=\"#work\"",
-        "href=\"#payments\"",
+        "href=\"/portal\"",
+        "href=\"/portal/applications\"",
+        "href=\"/portal/documents\"",
+        "href=\"/portal/payments\"",
+        "href=\"/portal/team\"",
         own.name,
         own.target_country,
         own.target_degree,
@@ -541,12 +572,11 @@ return [
         own.curator_name,
         "TU München",
         "Мотивационное письмо",
-        "Проверить мотивационное письмо",
         "Консалтинговый пакет",
       ]) {
-        assert(portal.text.includes(text), `portal missing ${text}`);
+        assert(portalText.includes(text), `portal missing ${text}`);
       }
-      assert(!other || !portal.text.includes(other.name), `portal leaked other student ${other.name}`);
+      assert(!other || !portalText.includes(other.name), `portal leaked other student ${other.name}`);
       const staffPortal = await ctx.get("/portal", ctx.cookie(sales));
       assert([303, 307, 308].includes(staffPortal.status), `staff portal status ${staffPortal.status}`);
       assert(staffPortal.location?.includes("/dashboard"), `staff portal redirect ${staffPortal.location}`);

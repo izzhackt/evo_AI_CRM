@@ -53,6 +53,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Test security and PostgreSQL authorization boundaries
+        run: npm run test:security
+
       - name: Lint
         run: npm run lint
 

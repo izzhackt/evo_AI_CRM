@@ -18,20 +18,22 @@ docker run \
   "$postgres_image" >/dev/null
 
 for _ in $(seq 1 60); do
-  if docker exec "$container_name" pg_isready -U postgres -d postgres >/dev/null 2>&1; then
+  if docker exec "$container_name" \
+    pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
 
-docker exec "$container_name" pg_isready -U postgres -d postgres >/dev/null
 docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null
+docker exec "$container_name" \
+  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
   -f /workspace/supabase/tests/bootstrap_supabase.sql
 
 while IFS= read -r migration; do
   docker exec "$container_name" \
-    psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+    psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
     -f "/workspace/$migration"
 done < <(
   cd "$repo_dir"
@@ -41,16 +43,16 @@ done < <(
 # The production migration process may safely retry a migration after an
 # interrupted deploy. Exercise the hardening migration twice before assertions.
 docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
   -f /workspace/supabase/migrations/038_authorization_containment.sql
 docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
   -f /workspace/supabase/migrations/039_private_inbox_media.sql
 
 docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
   -f /workspace/supabase/tests/authorization_policies.sql
 
 docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
   -f /workspace/supabase/tests/authorization_inventory.sql

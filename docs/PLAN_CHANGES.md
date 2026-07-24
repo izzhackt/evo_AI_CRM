@@ -2117,3 +2117,28 @@ Affected plan section: `/goal-evo-preplatform-hardening`, Block F.
   required permissions. New backup destinations and artifacts fail closed to
   `0700`/`0600`; changing live permissions requires a separate authorized
   production configuration action and is not part of this no-deploy block.
+
+## 2026-07-24 - Block G Final Audit Remains Externally Blocked
+
+Date: 2026-07-24, workspace timezone.
+Author: Codex.
+Change type: completion status and refreshed production evidence.
+Affected plan section: `/goal-evo-preplatform-hardening`, Block G.
+
+- Record the durable requirement matrix and exact PR/runtime/recovery
+  provenance in `docs/BLOCK_G_FINAL_AUDIT.md`.
+- Keep the overall goal open with verdict `blocked_external`. Blocks A-F are
+  merged and independently approved, but migration 039 and the Block C Inbox
+  runtime are absent from production; real Supabase restore and authorized
+  WhatsApp/amoCRM acceptance evidence are also missing.
+- Do not preserve the earlier claim that migration 038 is definitely absent.
+  Its formerly public RPC now returns `404`, consistent with the migration's
+  private-schema move, but complete production application remains unproven
+  without authorized database migration-history/admin access.
+- Keep public registration, DNS, CSP enforcement, retention scheduling,
+  monitoring ownership/on-call, provider credentials, dedicated WhatsApp test
+  identities, visible reply approval, and WAHA QR/relink as owner/external
+  gates.
+- Keep RPO/RTO as proposed technical targets pending explicit owner approval.
+  This status entry changes no runtime, policy, schema, provider, DNS,
+  production, or customer data.

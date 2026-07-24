@@ -1,6 +1,6 @@
 # Scenario Evaluation
 
-Generated: 2026-07-24T10:38:55.122Z
+Generated: 2026-07-24T11:13:52.462Z
 
 ## Method
 
@@ -16,7 +16,7 @@ Conditions:
 - No live WhatsApp, telephony, amoCRM, or Anthropic credentials supplied; missing
   provider credentials must surface as explicit blocked/not-configured states.
 - Base URL: `http://127.0.0.1:3130`.
-- Temp DB: `/var/folders/p4/c09jb8gd4qngjbkr1cqfh8rh0000gp/T/evo-crm-scenarios-6934-1784889532920/edu-admin.db` (isolated copy; removed after the run unless
+- Temp DB: `/var/folders/p4/c09jb8gd4qngjbkr1cqfh8rh0000gp/T/evo-crm-scenarios-45849-1784891629911/edu-admin.db` (isolated copy; removed after the run unless
   `EVO_KEEP_SCENARIO_DB=1` is set).
 
 ## Summary
@@ -38,7 +38,7 @@ Conditions:
 | S07 | Admissions Pipeline | Admissions Pipeline renders operational columns and existing lead cards. | GET /sales shows lead statuses, pipeline metrics, and at least one seeded lead card link. | PASS | sales page rendered seeded lead 1 Темирлан Касымов |
 | S08 | Admissions Pipeline | Add lead Server Action creates an EVO admissions lead. | Submitting the real /sales lead form inserts a lead with source, target country, manager, and amount. | PASS | created lead 7 status processing_mp, Canada, 120000 KGS |
 | S09 | Admissions Pipeline | Move lead Server Action updates lead status and activity. | Submitting a lead move form changes status to meeting scheduled and records a status activity. | PASS | lead 1 moved to meeting_scheduled; status activities 1 |
-| S08B | Admissions Pipeline | Active pipeline risk views exclude terminal no-request leads. | A terminal no_request lead without tasks does not inflate active no-task drill-downs. | PASS | terminal no_request lead Terminal No Request-1784889533735-h5z6au excluded; active no-task count 3 |
+| S08B | Admissions Pipeline | Active pipeline risk views exclude terminal no-request leads. | A terminal no_request lead without tasks does not inflate active no-task drill-downs. | PASS | terminal no_request lead Terminal No Request-1784891631254-o69ebl excluded; active no-task count 3 |
 | S10 | Admissions Pipeline | Convert lead Server Action creates Student 360 client and marks contract signed. | Converting an unconverted lead creates a client, links it to the lead, and sets status contract_signed. | PASS | lead 9 converted to client 3 |
 | S11 | Admissions Pipeline | Lead note action persists staff activity. | Submitting note form on lead detail inserts a note activity visible on the lead. | PASS | lead 1 note activity 4 |
 | S12 | Student 360 | Student 360 list filters and add-student action create a profile. | Student list stage filter renders and add-student form creates a client plus linked client user. | PASS | created student client 4 with linked client user |
@@ -55,11 +55,11 @@ Conditions:
 | S23 | Finance | Add payment rejects invalid amount and accepts positive role-safe payment. | Negative amount does not insert a payment; positive finance submission creates pending payment with currency. | PASS | negative rejected; payment 4 2500 USD pending |
 | S24 | Finance | Mark payment paid action persists payment completion. | Submitting mark-paid form updates a pending payment to paid and sets paid_at. | PASS | payment 2 status paid, paid_at 2026-07-24 |
 | S25 | Student portal updates | Staff update becomes visible in the client portal. | Posting an update from Student 360 inserts a client update and the seeded client portal renders it. | PASS | portal rendered update for client 1 |
-| S31 | Student portal experience | Client portal renders a sectioned, client-scoped admissions dashboard. | The signed-in student sees own stage, target, applications, documents, payments, open tasks, team contacts, and section navigation without another student's data. | PASS | portal rendered scoped dashboard for client 1 with navigation, contacts, and open work |
+| S31 | Student portal experience | Client portal renders a sectioned, client-scoped admissions dashboard. | The signed-in student sees own stage, target, applications, documents, payments, highest-priority next action, team contacts, and section navigation without another student's data. | PASS | portal rendered scoped dashboard for client 1 with navigation, contacts, and open work |
 | S26 | Team chat | Chat renders and channel/message actions persist team communication. | Creating a channel redirects to chat detail, and sending a message inserts it for that channel. | PASS | channel 4 created (303); message 5 inserted |
 | S27 | WhatsApp operations | WhatsApp inbox/detail render and missing credentials are visibly blocked. | Conversation creation renders detail, inbox links it, and absent Cloud API credentials show a not-connected state instead of success. | PASS | conversation 3; WhatsApp Cloud credentials absent and inbox shows blocked state |
 | S28 | WhatsApp webhook and settings | Settings save integration token, verify endpoint works, and incoming webhook creates lead/conversation. | Admin settings form saves verify token; GET webhook echoes challenge; POST incoming message creates conversation and linked lead. | PASS | verify ok; inbound conversation 4, lead 10 |
-| S28B | WAHA WhatsApp integration | WAHA settings create a session account, signed webhook imports messages, status events update the account, and retries are idempotent. | Admin can save WAHA config; unsigned WAHA webhook is rejected; signed message creates one account-bound conversation and duplicate delivery is ignored. | PASS | WAHA session crm_9vxhjt; conversation 5; duplicate message ignored; account WORKING |
+| S28B | WAHA WhatsApp integration | WAHA settings create a session account, signed webhook imports messages, status events update the account, and retries are idempotent. | Admin can save WAHA config; unsigned WAHA webhook is rejected; signed message creates one account-bound conversation and duplicate delivery is ignored. | PASS | WAHA session crm_jw1r1c; conversation 5; duplicate message ignored; account WORKING |
 | S28C | Lead-agent CRM sync | Signed lead-agent sync persists receive-only draft review evidence without creating sent outbound WhatsApp. | Bad signatures are rejected; signed sync stores inbound state, amoCRM identity, agent state, and Gemini draft-review text; Operator UI labels the draft as not sent. | PASS | signed sync accepted conversation 6; rejected bad signature; draft visible with 0 outbound rows |
 | S29 | Calls and telephony | Calls page and telephony webhook enforce key handling and insert calls. | Missing telephony provider or key is explicitly blocked without inserting a call; configured provider/key blocks invalid webhook; valid webhook inserts a call and links by lead phone. | PASS | not_configured copy shown; missing key 503; missing provider 503; invalid key 403; calls 4/5 linked to lead 1 |
 | S30 | Reports and prepared AI boundary | Reports render and AI summary endpoint returns not_configured without Anthropic key. | Reports page loads real CRM totals; AI summary API for staff returns explicit not_configured instead of fake success. | PASS | reports 200; AI summary client 1 -> not_configured |

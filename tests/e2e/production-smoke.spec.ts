@@ -171,9 +171,10 @@ test("staff can log in, navigate core pages, and create a real lead", async ({ p
 
 test("student portal renders scoped client dashboard", async ({ page, runtimeErrors }, testInfo) => {
   await login(page, "client@demo.kg", "client123", /\/portal$/);
-  await expect(page.getByText("Мой кабинет").first()).toBeVisible();
-  await expect(page.getByText("Ваш этап поступления")).toBeVisible();
-  await expect(page.getByText("Команда сопровождения")).toBeVisible();
+  await expect(page.locator("#portal-main").getByRole("heading", { name: "Главная" })).toBeVisible();
+  await expect(page.getByText("Ваш прогресс поступления")).toBeVisible();
+  await expect(page.getByText("Следующее действие")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Навигация кабинета" }).first()).toBeVisible();
   await expect(page.locator("body")).not.toContainText("Runtime Error");
   await saveScreenshot(page, testInfo, "student-portal");
   expect(runtimeErrors).toEqual([]);

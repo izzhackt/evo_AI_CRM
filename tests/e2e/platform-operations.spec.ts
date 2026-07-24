@@ -80,7 +80,8 @@ test("visa specialist lands in the visa queue and cannot open finance", async ({
   await expect(page.locator('a[href^="/visa/"]:visible').first()).toBeVisible();
 
   await page.goto("/finance");
-  await expect(page).toHaveURL(/\/visa$/);
+  await expect(page).toHaveURL(/\/access-denied\?from=%2Ffinance$/);
+  await expect(page.locator("#staff-main").getByRole("heading", { name: "Нет доступа к разделу" })).toBeVisible();
   await expectNoPageOverflow(page);
   expect(runtimeErrors).toEqual([]);
 });

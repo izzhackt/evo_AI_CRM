@@ -70,7 +70,7 @@ return [
     id: "S05",
     capability: "Role visibility",
     scenario: "Finance role can use finance overview but not admissions document/application queues.",
-    criteria: "Finance session loads /finance and redirects from /applications and /documents to the finance role home.",
+    criteria: "Finance session loads /finance and receives a server-guarded no-access state for /applications and /documents.",
     async run(ctx) {
       const cookie = ctx.cookie(finance);
       const financePage = await ctx.get("/finance", cookie);
@@ -80,7 +80,10 @@ return [
       assert(!financePage.text.includes("name=\"title\"") || financePage.text.includes("name=\"amount\""), "finance form did not render for finance");
       for (const [name, res] of [["applications", apps], ["documents", docs]]) {
         assert([303, 307, 308].includes(res.status), `${name} status ${res.status}`);
-        assert(res.location?.includes("/finance"), `${name} did not redirect to finance home`);
+        assert(
+          res.location?.includes("/access-denied") && res.location.includes(`from=%2F${name}`),
+          `${name} did not redirect to its no-access state: ${res.location}`,
+        );
       }
       return `finance ${financePage.status}; applications ${apps.status}; documents ${docs.status}`;
     },
@@ -423,12 +426,15 @@ return [
     id: "S22",
     capability: "Finance",
     scenario: "Finance overview shows paid, pending, overdue, and role-safe actions.",
-    criteria: "Finance page renders payment status logic; sales staff is redirected and finance user sees mutation controls.",
+    criteria: "Finance page renders payment status logic; sales staff receives a no-access state and finance staff sees mutation controls.",
     async run(ctx) {
       const salesPage = await ctx.get("/finance", ctx.cookie(sales));
       const financePage = await ctx.get("/finance", ctx.cookie(finance));
       assert([303, 307, 308].includes(salesPage.status) && financePage.status === 200, `finance statuses ${salesPage.status}/${financePage.status}`);
-      assert(salesPage.location?.includes("/sales"), `sales finance access did not return to sales home: ${salesPage.location}`);
+      assert(
+        salesPage.location?.includes("/access-denied") && salesPage.location.includes("from=%2Ffinance"),
+        `sales finance access did not reach no-access state: ${salesPage.location}`,
+      );
       assert(financePage.text.includes("overdue") || financePage.text.includes("pay.overdue") || financePage.text.includes("Проср"), "missing overdue semantics");
       assert(financePage.text.includes("name=\"amount\""), "finance user cannot see add-payment form");
       return "sales finance blocked; finance role mutation form visible";

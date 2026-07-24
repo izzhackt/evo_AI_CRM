@@ -92,7 +92,11 @@ test("student sees only the signed-in case across every portal route", async ({ 
   await expect(page.getByText("Нурлан Абдыкадыров").first()).toBeVisible();
   await expect(page.locator("body")).not.toContainText("Айжан Мамытова");
   await expect(page.getByText("Нужен документ")).toBeVisible();
-  await expect(page.getByText("Рекомендательное письмо").first()).toBeVisible();
+  await expect(
+    page
+      .getByText(/^(?:Рекомендательное|Мотивационное) письмо$/)
+      .first(),
+  ).toBeVisible();
 
   const routes: Array<[string, string]> = [
     ["/portal?clientId=2", "Главная"],

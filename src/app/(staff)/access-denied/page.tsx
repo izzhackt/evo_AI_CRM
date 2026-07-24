@@ -93,6 +93,9 @@ export default async function AccessDeniedPage({
   if (requestedPath === "/transcription-lab" && user.role === "admin") {
     redirect("/transcription-lab");
   }
+  if (!requestedItem && requestedPath !== "/transcription-lab") {
+    redirect(ROLE_HOME_ROUTE[user.role]);
+  }
   const requestedLabel =
     requestedItem
       ? t(requestedItem.labelKey)

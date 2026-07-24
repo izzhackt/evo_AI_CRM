@@ -110,6 +110,10 @@ test("sales role cannot access finance or another user's portal", async ({ page 
 
 test("admin can reach the lab and authenticated transcription handlers enforce limits", async ({ page }) => {
   await login(page, "admin@demo.kg", "admin123");
+  await page.goto("/access-denied");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/access-denied?from=%2Funknown");
+  await expect(page).toHaveURL(/\/dashboard$/);
   await page.goto("/access-denied?from=%2Ffinance");
   await expect(page).toHaveURL(/\/finance$/);
   await page.goto("/transcription-lab");

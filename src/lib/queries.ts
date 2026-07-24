@@ -20,11 +20,36 @@ export type ClientRow = {
   phone: string | null;
   manager_name: string | null;
   curator_name: string | null;
+  overdue_tasks: number;
+  overdue_payments: number;
+  rejected_documents: number;
 };
 
 const CLIENT_SELECT = `
   SELECT c.*, u.name, u.email, u.phone,
-         m.name AS manager_name, cu.name AS curator_name
+         m.name AS manager_name, cu.name AS curator_name,
+         (
+           SELECT COUNT(*)
+           FROM tasks t
+           WHERE t.client_id = c.id
+             AND t.status != 'done'
+             AND t.due_date IS NOT NULL
+             AND t.due_date < date('now')
+         ) AS overdue_tasks,
+         (
+           SELECT COUNT(*)
+           FROM payments p
+           WHERE p.client_id = c.id
+             AND p.status != 'paid'
+             AND p.due_date IS NOT NULL
+             AND p.due_date < date('now')
+         ) AS overdue_payments,
+         (
+           SELECT COUNT(*)
+           FROM documents doc
+           WHERE doc.client_id = c.id
+             AND doc.status = 'rejected'
+         ) AS rejected_documents
   FROM clients c
   JOIN users u ON u.id = c.user_id
   LEFT JOIN users m ON m.id = c.manager_id

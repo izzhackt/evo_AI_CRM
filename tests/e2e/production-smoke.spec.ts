@@ -23,6 +23,10 @@ function slug(value: string): string {
 async function saveScreenshot(page: Page, testInfo: TestInfo, name: string) {
   fs.mkdirSync(screenshotDir, { recursive: true });
   const filePath = path.join(screenshotDir, `${slug(testInfo.project.name)}-${slug(name)}.png`);
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  });
   await page.screenshot({ path: filePath, fullPage: true });
   await testInfo.attach(name, { path: filePath, contentType: "image/png" });
 }
@@ -57,7 +61,7 @@ test("rejects invalid login without server overlay", async ({ page, runtimeError
 
 test("staff can log in, navigate core pages, and create a real lead", async ({ page, runtimeErrors }, testInfo) => {
   await login(page, "admin@demo.kg", "admin123", /\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "Командный центр" })).toBeVisible();
+  await expect(page.locator("#staff-main").getByRole("heading", { name: "Командный центр" })).toBeVisible();
   await expect(page.locator(".provider-status:visible", { hasText: "amoCRM: не проверен" })).toBeVisible();
   await expect(page.locator(".provider-status:visible", { hasText: "WAHA: не проверен" })).toBeVisible();
   await expect(page.locator(".provider-status:visible", { hasText: "AI: только черновики" })).toBeVisible();
@@ -67,7 +71,7 @@ test("staff can log in, navigate core pages, and create a real lead", async ({ p
     await page.getByRole("button", { name: "Закрыть меню" }).click();
   }
   await saveScreenshot(page, testInfo, "dashboard");
-  await page.locator('a[href="/sales?risk=no_task"]').click();
+  await page.locator('a[href="/sales?risk=no_task"]').first().click();
   await expect(page).toHaveURL(/\/sales\?risk=no_task$/);
   await expect(page.locator('select[name="risk"]')).toHaveValue("no_task");
   await saveScreenshot(page, testInfo, "sales-filtered-no-task");
@@ -89,7 +93,7 @@ test("staff can log in, navigate core pages, and create a real lead", async ({ p
 
   for (const [route, heading] of pages) {
     await page.goto(route);
-    await expect(page.getByRole("heading", { name: heading, level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: heading, level: 1 }).first()).toBeVisible();
     await expect(page.locator("body")).not.toContainText("Runtime Error");
     if (route === "/settings") {
       await expect(page.locator('input[name="wa_token"]')).toHaveValue("");
@@ -106,6 +110,13 @@ test("staff can log in, navigate core pages, and create a real lead", async ({ p
   await expect(page.locator("article").filter({ hasText: "Темирлан Касымов" })).toContainText("Звонки: 1");
   await expect(page.locator("article").filter({ hasText: "Темирлан Касымов" })).toContainText("Сообщения: 1");
   await expect(page.locator("article").filter({ hasText: "Темирлан Касымов" })).toContainText("Непрочитано: 1");
+  await expect(page.getByText("Синхронизация не проверена").first()).toBeVisible();
+  const salesView = page.getByRole("navigation", { name: "Вид воронки продаж" });
+  await salesView.getByRole("link", { name: "Список" }).click();
+  await expect(page).toHaveURL(/\/sales\?view=list$/);
+  await expect(page.getByRole("table", { name: "Лиды по этапам продаж" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Вид воронки продаж" }).getByRole("link", { name: "Канбан" }).click();
+  await expect(page).toHaveURL(/\/sales\?view=board$/);
   await saveScreenshot(page, testInfo, "sales-cockpit-board");
   const leadName = `PW Lead ${Date.now()}`;
   const addLeadForm = page.locator("form").filter({ has: page.locator("input[name='amount']") });
@@ -116,10 +127,12 @@ test("staff can log in, navigate core pages, and create a real lead", async ({ p
   await addLeadForm.locator("input[name='target_country']").fill("Canada");
   await addLeadForm.locator("input[name='amount']").fill("120000");
   await addLeadForm.getByRole("button", { name: "Добавить" }).click();
-  await expect(page.getByRole("link", { name: leadName })).toBeVisible();
+  await expect(page.getByRole("link", { name: leadName, exact: true })).toBeVisible();
   await saveScreenshot(page, testInfo, "sales-created-lead");
-  await page.getByRole("link", { name: leadName }).click();
+  await page.getByRole("link", { name: leadName, exact: true }).click();
   await expect(page.getByRole("heading", { name: leadName })).toBeVisible();
+  await expect(page.getByText("актуальность живой синхронизации не проверена")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Создать Student 360" }).first()).toBeVisible();
   await expect(page.getByText("Следующая задача").first()).toBeVisible();
   const taskTitle = `Follow up ${Date.now()}`;
   const taskCard = page.locator("section").filter({ hasText: "Следующая задача" });
@@ -127,18 +140,31 @@ test("staff can log in, navigate core pages, and create a real lead", async ({ p
   await taskCard.getByRole("button", { name: "Добавить" }).click();
   await expect(page.getByText(taskTitle)).toBeVisible();
   const noteText = `Browser note ${Date.now()}`;
-  await page.locator('input[name="text"]').fill(noteText);
-  await page.getByRole("button", { name: "+" }).click();
+  const noteForm = page.locator("form").filter({ has: page.locator('input[name="text"]') });
+  await noteForm.locator('input[name="text"]').fill(noteText);
+  await noteForm.getByRole("button", { name: "Добавить" }).click();
   await expect(page.getByText(noteText)).toBeVisible();
   const stageForm = page.locator("form").filter({ has: page.locator('select[name="status"]') }).first();
   await stageForm.locator('select[name="status"]').selectOption("meeting_scheduled");
   await stageForm.getByRole("button", { name: "Сохранить" }).click();
   await expect(page.locator("body")).toContainText("Назначена встреча");
   await saveScreenshot(page, testInfo, "sales-lead-detail");
+  await page.goto("/clients");
+  await expect(page.getByText("Операционный этап и команда читаются из локальной карточки EVO CRM.")).toBeVisible();
+  await expect(
+    page.locator("span:visible", { hasText: "Просрочено: 1 · Просроченные платежи: 1" }).first(),
+  ).toBeVisible();
+  await saveScreenshot(page, testInfo, "student-360-list");
   await page.goto("/clients/1");
-  await expect(page.getByRole("heading", { name: "Заявки в вузы", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Документы", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Платежи", exact: true })).toBeVisible();
+  await expect(page.getByText("Операционный этап и команда читаются из локальной карточки EVO CRM.")).toBeVisible();
+  await expect(page.getByText("Следующее действие").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Прогресс поступления", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Student 360" }).getByRole("link", { name: "Профиль студента" }),
+  ).toBeVisible();
+  await expect(page.locator("#applications").getByRole("heading", { name: "Заявки в вузы", exact: true })).toBeVisible();
+  await expect(page.locator("#documents").getByRole("heading", { name: "Документы", exact: true })).toBeVisible();
+  await expect(page.locator("#payments").getByRole("heading", { name: "Платежи", exact: true })).toBeVisible();
   await saveScreenshot(page, testInfo, "student-360-detail");
   expect(runtimeErrors).toEqual([]);
 });
@@ -155,7 +181,7 @@ test("student portal renders scoped client dashboard", async ({ page, runtimeErr
 
 test("mobile staff dashboard stays within viewport", async ({ page, runtimeErrors }, testInfo) => {
   await login(page, "sales@demo.kg", "sales123", /\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "Командный центр" })).toBeVisible();
+  await expect(page.locator("#staff-main").getByRole("heading", { name: "Командный центр" })).toBeVisible();
   const mobileMenuOpen = await openMobileStaffMenu(page);
   await expect(page.getByRole("link", { name: "Student 360" })).toBeVisible();
   if (mobileMenuOpen) {
@@ -175,10 +201,72 @@ test("mobile staff dashboard stays within viewport", async ({ page, runtimeError
 test("mobile sales cockpit remains usable without page overflow", async ({ page, runtimeErrors }, testInfo) => {
   await login(page, "sales@demo.kg", "sales123", /\/dashboard$/);
   await page.goto("/sales");
-  await expect(page.getByRole("heading", { name: "Воронка поступления" })).toBeVisible();
+  await expect(page.locator("#staff-main").getByRole("heading", { name: "Воронка поступления" })).toBeVisible();
   await expect(page.getByText("Быстрое добавление")).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(2);
   await saveScreenshot(page, testInfo, "mobile-sales-cockpit");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("wide core staff routes are polished at 1440", async ({ page, runtimeErrors }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The 1440 viewport is covered once from the desktop project.");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await login(page, "admin@demo.kg", "admin123", /\/dashboard$/);
+
+  const routes = [
+    ["/dashboard", "wide-dashboard"],
+    ["/sales", "wide-sales"],
+    ["/sales/1", "wide-lead-360"],
+    ["/clients", "wide-student-360-list"],
+    ["/clients/1", "wide-student-360-detail"],
+  ] as const;
+
+  for (const [route, screenshot] of routes) {
+    await page.goto(route);
+    await expect(page.locator("main")).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow, `${route} should not create horizontal page overflow`).toBeLessThanOrEqual(2);
+    await saveScreenshot(page, testInfo, screenshot);
+  }
+
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("tablet core staff routes stay within the viewport", async ({ page, runtimeErrors }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Tablet viewport is covered once from the desktop project.");
+  await page.setViewportSize({ width: 834, height: 1112 });
+  await login(page, "admin@demo.kg", "admin123", /\/dashboard$/);
+
+  for (const route of ["/dashboard", "/sales", "/sales/1", "/clients", "/clients/1"]) {
+    await page.goto(route);
+    await expect(page.locator("main")).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow, `${route} should not create horizontal page overflow`).toBeLessThanOrEqual(2);
+  }
+
+  await expect(page.getByRole("heading", { name: "Прогресс поступления", exact: true })).toBeVisible();
+  await saveScreenshot(page, testInfo, "tablet-student-360-detail");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("mobile Student 360 list and detail keep real work reachable", async ({ page, runtimeErrors }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Phone layout is covered once from the mobile project.");
+  await login(page, "admin@demo.kg", "admin123", /\/dashboard$/);
+
+  await page.goto("/clients");
+  await expect(page.getByText("Операционный этап и команда читаются из локальной карточки EVO CRM.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Нурлан Абдыкадыров" })).toBeVisible();
+  let overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
+  await saveScreenshot(page, testInfo, "mobile-student-360-list");
+
+  await page.goto("/clients/1");
+  await expect(page.getByRole("navigation", { name: "Student 360" })).toBeVisible();
+  await expect(page.locator("#applications").getByRole("heading", { name: "Заявки в вузы", exact: true })).toBeVisible();
+  await expect(page.locator('form input[name="message"]')).toBeVisible();
+  overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(2);
+  await saveScreenshot(page, testInfo, "mobile-student-360-detail");
   expect(runtimeErrors).toEqual([]);
 });

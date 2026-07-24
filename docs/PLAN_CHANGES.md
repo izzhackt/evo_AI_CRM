@@ -2094,3 +2094,26 @@ the rendered production Compose configuration with safe placeholder values,
 run affected root configuration checks, and require an independent read-only
 launch-control review. No provider success may be claimed because the WAHA
 session requires QR and amoCRM is not configured.
+
+## 2026-07-24 - Block F Recovery Evidence And Owner Approval Gate
+
+Date: 2026-07-24, workspace timezone.
+Author: Codex.
+Change type: implementation detail and discovered production constraint.
+Affected plan section: `/goal-evo-preplatform-hardening`, Block F.
+
+- Keep RPO/RTO as proposed technical targets pending explicit business-owner
+  approval; measured rehearsal time is evidence, not an approved objective.
+- Use SQLite's Online Backup API for live WAL-mode stores and require checksum,
+  integrity, foreign-key, schema/version, and application-table verification.
+- Treat a live WAHA volume archive as protected material/inventory evidence,
+  not proof of a transactionally consistent restorable session. The documented
+  private QR relink flow remains the authoritative recovery fallback.
+- Production inventory found no authorized PostgreSQL password, Supabase
+  Management API token, isolated database/project, or Storage S3 credentials.
+  Real Supabase database and Storage restore rehearsals remain blocked until
+  those inputs exist; a local schema-only simulation is explicitly rejected.
+- Production inventory also found legacy state/config roots with broader than
+  required permissions. New backup destinations and artifacts fail closed to
+  `0700`/`0600`; changing live permissions requires a separate authorized
+  production configuration action and is not part of this no-deploy block.

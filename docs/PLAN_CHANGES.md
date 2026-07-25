@@ -2662,3 +2662,46 @@ Validation impact:
 - Re-run clean install, production and development audit gates, the root CI
   suite and full Playwright suite from the rebased commit.
 - Require a fresh independent review before PR #72 is merged.
+
+## 2026-07-25 - Close Independent Design Review Evidence Gaps
+
+Affected plan section: `/goal-evo-platform-design-polish`.
+
+Reason:
+
+- Independent review of the rebased commit found that the dashboard all-clear
+  state was asserted through imported component helpers rather than through
+  the public browser-visible route required by the plan.
+- The 834px navigation implementation deliberately keeps a 220px labelled
+  sidebar visible instead of using the originally proposed icon-only rail with
+  hover/focus tooltips. Persistent labels reduce discovery and keyboard
+  ambiguity, but this accepted design change was not recorded in the append-only
+  decision log.
+- The closure evidence had no committed dark-theme WhatsApp capture and no
+  fresh captures of the changed dashboard, Student 360 and role-matrix states.
+- The role matrix also exposed a prohibited ARIA name and a keyboard-inaccessible
+  horizontal scroll region once the roles tab was added to automated Axe
+  coverage.
+
+Change:
+
+- Accept the persistent labelled 220px tablet navigation as the F3 outcome.
+  Keep distinct icons, visible labels, focus indication, active state and
+  overflow protection as the behavior contract; no tooltip is required while
+  labels remain permanently visible.
+- Replace private-helper-only dashboard assertions with a browser test that
+  drives a reversible all-clear database state and verifies the rendered
+  operator copy.
+- Give role indicators a valid named semantic role, make the scroll region
+  keyboard focusable, and include `/settings?tab=roles` in the Axe suite.
+- Add stable committed screenshots for the dark WhatsApp state and the changed
+  dashboard, Student 360 and role-matrix states. Continue restoring all other
+  test-regenerated screenshot noise after validation.
+
+Validation impact:
+
+- Run lint and focused desktop/mobile Playwright checks for navigation,
+  dashboard, Student 360, roles, WhatsApp and Axe.
+- Re-run the complete root validation and GitHub CI on the new commit.
+- Require the same independent reviewer to confirm the remediations before
+  merge.

@@ -42,10 +42,14 @@ provider integration.
 
 Current evidence:
 
-- [WhatsApp desktop, dark outbound](implementation-screenshots/communications-admin/01-whatsapp-desktop-1440.png)
+- [WhatsApp desktop, light outbound](implementation-screenshots/communications-admin/01-whatsapp-desktop-1440.png)
+- [WhatsApp desktop, dark outbound](implementation-screenshots/communications-admin/11-whatsapp-dark-desktop-1440.png)
 - [Staff tablet, persistent navigation labels](implementation-screenshots/communications-admin/02-tasks-calendar-tablet-834.png)
 - [WhatsApp desktop empty state](implementation-screenshots/communications-admin/08-whatsapp-empty-state-desktop-1440.png)
 - [WhatsApp mobile conversation](implementation-screenshots/communications-admin/09-whatsapp-conversation-mobile-390.png)
+- [Dashboard browser-rendered all-clear state](implementation-screenshots/core/design-polish-dashboard-all-clear-desktop-1440x1024.png)
+- [Student 360 collapsed add controls](implementation-screenshots/core/design-polish-student-360-desktop-1440x1024.png)
+- [Role matrix semantic access indicators](implementation-screenshots/communications-admin/10-roles-matrix-desktop-1440.png)
 - [Portal desktop case rail](implementation-screenshots/portal/overview-desktop-1440x1024.png)
 
 ## Verification
@@ -59,10 +63,11 @@ Current evidence:
 - Node security tests: 22 passed.
 - PostgreSQL authorization suite: passed; its expected permission-denied
   probes remained denied.
-- Complete Playwright suite: 62 passed, 24 intentionally skipped for
-  non-applicable viewport projects.
+- Complete Playwright suite: 61 passed, 25 intentionally skipped for
+  non-applicable viewport projects (86 total).
 - Automated WCAG A/AA checks passed for the representative staff and portal
-  routes in both configured Playwright projects.
+  routes in both configured Playwright projects, including the role matrix and
+  its keyboard-scroll region.
 - In-app browser review covered login, dashboard, Inbox empty/conversation,
   Student 360, roles and Student Portal.
 - Two independent read-only reviewers checked correctness/product truth and

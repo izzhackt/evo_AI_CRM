@@ -46,7 +46,12 @@ test("core staff routes have no automatically detectable WCAG A/AA violations", 
 }) => {
   await login(page, "admin@demo.kg", "admin123", /\/dashboard$/);
 
-  for (const route of ["/dashboard", "/whatsapp", "/settings"]) {
+  for (const route of [
+    "/dashboard",
+    "/whatsapp",
+    "/settings",
+    "/settings?tab=roles",
+  ]) {
     await page.goto(route);
     await expect(page.locator("main")).toBeVisible();
     await expectNoAutomatedWcagViolations(page);

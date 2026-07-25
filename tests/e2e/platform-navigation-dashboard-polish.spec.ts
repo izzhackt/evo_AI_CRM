@@ -1,11 +1,64 @@
-import { expect, test, type Page } from "@playwright/test";
+import path from "node:path";
 
-import {
-  dashboardAttentionIsClear,
-  orderDashboardAttentionItems,
-  type DashboardAttentionItem,
-} from "../../src/components/platform/core/DashboardAttention";
-import { getDashboardCopy } from "../../src/components/platform/core/DashboardCopy";
+import { expect, test, type Page } from "@playwright/test";
+import Database from "better-sqlite3";
+
+const coreEvidenceDir = path.join(
+  process.cwd(),
+  "docs",
+  "design",
+  "evo-platform",
+  "implementation-screenshots",
+  "core",
+);
+
+type StatusRow = { id: number; status: string };
+type UnreadRow = { id: number; unread: number };
+
+function replaceDashboardStateWithAllClear() {
+  const databasePath =
+    process.env.EVO_PLAYWRIGHT_DB_PATH ??
+    path.join(process.cwd(), "output", "playwright", "runtime", "edu-admin-e2e.db");
+  const database = new Database(databasePath);
+  const previous = {
+    leads: database.prepare("SELECT id, status FROM leads").all() as StatusRow[],
+    tasks: database.prepare("SELECT id, status FROM tasks").all() as StatusRow[],
+    payments: database.prepare("SELECT id, status FROM payments").all() as StatusRow[],
+    documents: database.prepare("SELECT id, status FROM documents").all() as StatusRow[],
+    conversations: database
+      .prepare("SELECT id, unread FROM wa_conversations")
+      .all() as UnreadRow[],
+  };
+  database.transaction(() => {
+    database.prepare("UPDATE leads SET status = 'no_request'").run();
+    database.prepare("UPDATE tasks SET status = 'done'").run();
+    database.prepare("UPDATE payments SET status = 'paid'").run();
+    database.prepare("UPDATE documents SET status = 'approved'").run();
+    database.prepare("UPDATE wa_conversations SET unread = 0").run();
+  })();
+  database.close();
+
+  return () => {
+    const restoreDatabase = new Database(databasePath);
+    restoreDatabase.transaction(() => {
+      const restoreLead = restoreDatabase.prepare("UPDATE leads SET status = ? WHERE id = ?");
+      const restoreTask = restoreDatabase.prepare("UPDATE tasks SET status = ? WHERE id = ?");
+      const restorePayment = restoreDatabase.prepare("UPDATE payments SET status = ? WHERE id = ?");
+      const restoreDocument = restoreDatabase.prepare("UPDATE documents SET status = ? WHERE id = ?");
+      const restoreConversation = restoreDatabase.prepare(
+        "UPDATE wa_conversations SET unread = ? WHERE id = ?",
+      );
+      previous.leads.forEach((row) => restoreLead.run(row.status, row.id));
+      previous.tasks.forEach((row) => restoreTask.run(row.status, row.id));
+      previous.payments.forEach((row) => restorePayment.run(row.status, row.id));
+      previous.documents.forEach((row) => restoreDocument.run(row.status, row.id));
+      previous.conversations.forEach((row) =>
+        restoreConversation.run(row.unread, row.id),
+      );
+    })();
+    restoreDatabase.close();
+  };
+}
 
 async function login(page: Page) {
   await page.goto("/login");
@@ -81,43 +134,35 @@ test("dashboard has one attention label and exposes the action queue", async ({
   }
 });
 
-test("attention queue orders actions first and has truthful all-clear copy", () => {
-  const copy = getDashboardCopy("ru");
-  const items: DashboardAttentionItem[] = [
-    {
-      href: "/tasks",
-      label: "Срочные задачи",
-      value: 0,
-      icon: "check-square",
-      tone: "violet",
-    },
-    {
-      href: "/sales?risk=overdue",
-      label: "Просроченные задачи",
-      value: 3,
-      icon: "alert",
-      tone: "danger",
-    },
-    {
-      href: "/whatsapp",
-      label: "Непрочитано",
-      value: 0,
-      icon: "message-circle",
-      tone: "info",
-    },
-  ];
-
-  expect(orderDashboardAttentionItems(items).map((item) => item.label)).toEqual([
-    "Просроченные задачи",
-    "Срочные задачи",
-    "Непрочитано",
-  ]);
-  expect(dashboardAttentionIsClear(items)).toBe(false);
-  expect(
-    dashboardAttentionIsClear(items.map((item) => ({ ...item, value: 0 }))),
-  ).toBe(true);
-  expect(copy.allClearTitle).toBe("Всё под контролем");
-  expect(copy.allClearHint).toBe(
-    "На сегодня срочных задач, просрочек и непрочитанных нет.",
-  );
+test("dashboard renders truthful all-clear copy when no action requires attention", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "desktop all-clear contract");
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  await login(page);
+  const restore = replaceDashboardStateWithAllClear();
+  try {
+    await page.goto("/dashboard");
+    const attention = page.getByRole("region", { name: "Требует внимания сейчас" });
+    await expect(
+      attention.getByRole("heading", { name: "Всё под контролем" }),
+    ).toBeVisible();
+    await expect(
+      attention.getByText(
+        "На сегодня срочных задач, просрочек и непрочитанных нет.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(attention.locator("ul")).toHaveCount(0);
+    await page.screenshot({
+      path: path.join(
+        coreEvidenceDir,
+        "design-polish-dashboard-all-clear-desktop-1440x1024.png",
+      ),
+      fullPage: false,
+      animations: "disabled",
+    });
+  } finally {
+    restore();
+  }
 });

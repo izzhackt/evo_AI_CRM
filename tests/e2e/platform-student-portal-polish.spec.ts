@@ -1,4 +1,23 @@
+import path from "node:path";
+
 import { expect, test, type Page } from "@playwright/test";
+
+const coreEvidenceDir = path.join(
+  process.cwd(),
+  "docs",
+  "design",
+  "evo-platform",
+  "implementation-screenshots",
+  "core",
+);
+const communicationsEvidenceDir = path.join(
+  process.cwd(),
+  "docs",
+  "design",
+  "evo-platform",
+  "implementation-screenshots",
+  "communications-admin",
+);
 
 async function login(page: Page, email: string, password: string, target: RegExp) {
   await page.goto("/login");
@@ -21,6 +40,7 @@ test.beforeEach(({ browserName }, testInfo) => {
 test("Student 360 presents section links and keeps add forms collapsed until requested", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 1024 });
   await login(page, "admin@demo.kg", "admin123", /\/dashboard$/);
   await page.goto("/clients/1");
 
@@ -49,6 +69,17 @@ test("Student 360 presents section links and keeps add forms collapsed until req
     await expect(disclosure).not.toHaveAttribute("open", "");
   }
 
+  await sectionNavigation.getByRole("link", { name: "Заявки" }).click();
+  await expect(page.locator("#applications")).toBeInViewport();
+  await page.screenshot({
+    path: path.join(
+      coreEvidenceDir,
+      "design-polish-student-360-desktop-1440x1024.png",
+    ),
+    fullPage: false,
+    animations: "disabled",
+  });
+
   const applicationDisclosure = page
     .locator("details")
     .filter({ hasText: "Добавить заявку" });
@@ -60,6 +91,7 @@ test("Student 360 presents section links and keeps add forms collapsed until req
 test("the roles matrix uses semantic icons for allowed access and an explicit denied dash", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 1024 });
   await login(page, "admin@demo.kg", "admin123", /\/dashboard$/);
   await page.goto("/settings?tab=roles");
 
@@ -77,6 +109,14 @@ test("the roles matrix uses semantic icons for allowed access and an explicit de
     await expect(denied.nth(index)).toContainText("—");
     await expect(denied.nth(index).locator("svg")).toHaveCount(0);
   }
+  await page.screenshot({
+    path: path.join(
+      communicationsEvidenceDir,
+      "10-roles-matrix-desktop-1440.png",
+    ),
+    fullPage: false,
+    animations: "disabled",
+  });
 });
 
 test("portal overview fills the desktop rail with real case milestones", async ({

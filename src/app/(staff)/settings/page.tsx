@@ -316,7 +316,12 @@ export default async function SettingsPage({
             description={t("rolesReadOnlyHint")}
             tone="info"
           />
-          <div className="overflow-x-auto rounded-card border border-border bg-surface shadow-evo">
+          <div
+            className="overflow-x-auto rounded-card border border-border bg-surface shadow-evo focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            role="region"
+            aria-label={t("adminRoles")}
+            tabIndex={0}
+          >
             <table className="w-full min-w-[760px] text-left text-[12px]">
               <thead className="border-b border-border bg-surface-2 text-[10.5px] uppercase text-fg-3">
                 <tr>
@@ -339,6 +344,7 @@ export default async function SettingsPage({
                               "inline-grid h-7 w-7 place-items-center rounded-full",
                               allowed ? "bg-ok-weak text-ok" : "bg-surface-2 text-fg-3",
                             )}
+                            role="img"
                             aria-label={allowed ? t("accessAllowed") : t("accessDenied")}
                           >
                             {allowed ? <Icon name="check" size={16} strokeWidth={2.4} /> : <span aria-hidden="true">—</span>}

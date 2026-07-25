@@ -147,6 +147,11 @@ test("normal outgoing messages use dark ink and unverified amoCRM context is sta
   await expect(outgoingBubble).toHaveCSS("color", "rgb(255, 255, 255)");
   await page.getByRole("button", { name: "Сменить тему" }).click();
   await expect(outgoingBubble).toHaveCSS("background-color", "rgb(37, 41, 47)");
+  await page.screenshot({
+    path: path.join(evidenceDir, "11-whatsapp-dark-desktop-1440.png"),
+    fullPage: false,
+    animations: "disabled",
+  });
 
   const syncSummary = page.getByText("amoCRM · синхронизация не проверена", { exact: true });
   await expect(syncSummary).toHaveCount(1);

@@ -1182,6 +1182,71 @@ npm audit --audit-level=moderate
 Future implementation lanes should add real integration and E2E checks to this
 list rather than replacing these gates.
 
+## Dependency Audit Hardening And Frontend Merge Readiness
+
+Active slice: `/goal-evo-dependency-hardening`.
+
+This slice restores a truthful green dependency gate after two advisories were
+published against the already-merged frontend dependency graph. It must merge
+before the independent design-polish PR is rebased and merged.
+
+### Scope
+
+- Update the root CRM and `agent-lead2-inbox` PostCSS resolutions to a current
+  patched release and regenerate both lockfiles under the repository Node 22
+  runtime.
+- Keep `npm audit --omit=dev --audit-level=moderate` blocking for both deployed
+  Next.js applications.
+- Add a repository-owned development-audit verifier that accepts only
+  `GHSA-mh99-v99m-4gvg` and only the known ESLint/minimatch package chain.
+- Give the temporary allowlist an explicit owner, reason, and review deadline.
+- Keep every other direct or transitive advisory blocking, including any new
+  advisory that appears after this plan is written.
+- Do not use `npm audit fix --force`, unsupported transitive major overrides,
+  broad `continue-on-error`, or an unbounded audit exception.
+
+Named write set:
+
+- `docs/EVO_LAUNCH_PLAN.md`, `docs/PLAN_CHANGES.md`: launch contract and
+  append-only decision record.
+- `package.json`, `package-lock.json`,
+  `agent-lead2-inbox/package.json`,
+  `agent-lead2-inbox/package-lock.json`: patched PostCSS resolution and locked
+  dependency graphs.
+- `.github/workflows/evo-platform-ci.yml`: separate blocking production and
+  constrained development audit gates.
+- `scripts/check-npm-audit-allowlist.mjs`,
+  `config/npm-audit-allowlist.json`: real npm audit execution and the
+  time-bounded exception contract.
+
+### Acceptance criteria
+
+- Root CRM and EVO Inbox production audits return zero vulnerabilities.
+- Full development audits may contain only the known
+  `brace-expansion -> minimatch -> ESLint/Next lint plugins` chain recorded in
+  the allowlist.
+- The verifier fails closed on malformed npm output, an expired allowlist, an
+  unknown advisory URL, or an unknown affected package.
+- Root CRM and EVO Inbox install, lint, type-check, test and production build
+  gates pass from their committed lockfiles.
+- The hardening PR passes GitHub CI and receives an independent launch-control
+  `approved` verdict before merge.
+- After the hardening PR merges, PR #72 is rebased onto current `main`, reruns
+  the complete CI workflow, receives an independent freshness/correctness
+  confirmation, and only then merges.
+- No deployment, provider mutation, production database change, live WhatsApp
+  send, or amoCRM write occurs in this slice.
+
+### Current primary sources
+
+- npm audit supports separate omitted dependency classes and severity-based
+  exit thresholds:
+  <https://docs.npmjs.com/cli/v11/commands/npm-audit/>.
+- `brace-expansion` advisory:
+  <https://github.com/advisories/GHSA-mh99-v99m-4gvg>.
+- PostCSS advisory:
+  <https://github.com/advisories/GHSA-r28c-9q8g-f849>.
+
 ## Stop Conditions
 
 Stop and escalate when:

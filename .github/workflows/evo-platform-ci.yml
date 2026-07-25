@@ -94,8 +94,11 @@ jobs:
       - name: Run CRM scenarios
         run: npm run scenarios
 
-      - name: Audit dependencies
-        run: npm audit --audit-level=moderate
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Audit development dependencies against the temporary allowlist
+        run: node scripts/check-npm-audit-allowlist.mjs
 
   inbox:
     name: EVO Inbox
@@ -129,8 +132,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Audit dependencies
-        run: npm audit --audit-level=moderate
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Audit development dependencies against the temporary allowlist
+        run: node ../scripts/check-npm-audit-allowlist.mjs
 
   lead-agent:
     name: EVO Lead Agent

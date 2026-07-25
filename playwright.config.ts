@@ -10,6 +10,7 @@ const e2eDb = process.env.EVO_PLAYWRIGHT_DB_PATH ?? path.join(runtimeDir, "edu-a
 const startsOwnServer = !process.env.PLAYWRIGHT_BASE_URL;
 
 if (startsOwnServer) {
+  process.env.EVO_PLAYWRIGHT_DB_PATH = e2eDb;
   fs.mkdirSync(runtimeDir, { recursive: true });
   for (const suffix of ["", "-wal", "-shm"]) {
     fs.rmSync(`${e2eDb}${suffix}`, { force: true });

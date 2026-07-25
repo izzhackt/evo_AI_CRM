@@ -15,6 +15,17 @@ export type DashboardAttentionItem = {
   tone: AttentionTone;
 };
 
+export function orderDashboardAttentionItems(items: DashboardAttentionItem[]) {
+  return [
+    ...items.filter((item) => item.value !== 0),
+    ...items.filter((item) => item.value === 0),
+  ];
+}
+
+export function dashboardAttentionIsClear(items: DashboardAttentionItem[]) {
+  return items.every((item) => item.value === 0);
+}
+
 const TONE_CLASSES: Record<
   AttentionTone,
   { icon: string; value: string; dot: string }
@@ -51,6 +62,9 @@ export function DashboardAttention({
   locale: Locale;
 }) {
   const localeTag = { ru: "ru-RU", ky: "ky-KG", en: "en-US" }[locale];
+  const orderedItems = orderDashboardAttentionItems(items);
+  const allClear = dashboardAttentionIsClear(orderedItems);
+
   return (
     <section
       aria-labelledby="dashboard-attention-title"
@@ -76,19 +90,41 @@ export function DashboardAttention({
         </span>
       </header>
 
-      <ul className="divide-y divide-border">
-        {items.map((item) => {
+      {allClear ? (
+        <div className="flex min-h-40 items-center gap-3 px-4 py-6 sm:px-5">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ok-weak text-ok">
+            <Icon name="check" size={20} strokeWidth={2.2} />
+          </span>
+          <div>
+            <h3 className="text-[15px] font-bold text-fg">
+              {copy.allClearTitle}
+            </h3>
+            <p className="mt-1 text-[12.5px] leading-5 text-fg-3">
+              {copy.allClearHint}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <ul className="divide-y divide-border">
+          {orderedItems.map((item) => {
           const tone = TONE_CLASSES[item.tone];
+          const quiet = item.value === 0;
           return (
-            <li key={item.href}>
+            <li
+              key={item.href}
+              data-attention-state={quiet ? "quiet" : "action"}
+            >
               <Link
                 href={item.href}
-                className="group flex min-h-16 items-center gap-3 px-4 py-3 transition-[background-color] duration-150 hover:bg-surface-2 motion-reduce:transition-none sm:px-5"
+                className={cn(
+                  "group flex min-h-16 items-center gap-3 px-4 py-3 transition-[background-color] duration-150 hover:bg-surface-2 motion-reduce:transition-none sm:px-5",
+                  quiet && "text-fg-3",
+                )}
               >
                 <span
                   className={cn(
                     "grid h-9 w-9 shrink-0 place-items-center rounded-ctl",
-                    tone.icon,
+                    quiet ? "bg-surface-2 text-fg-3" : tone.icon,
                   )}
                 >
                   <Icon name={item.icon} size={17} />
@@ -98,11 +134,16 @@ export function DashboardAttention({
                     <span
                       className={cn(
                         "h-1.5 w-1.5 shrink-0 rounded-full",
-                        tone.dot,
+                        quiet ? "bg-border-strong" : tone.dot,
                       )}
                       aria-hidden="true"
                     />
-                    <span className="truncate text-[13.5px] font-semibold text-fg">
+                    <span
+                      className={cn(
+                        "truncate text-[13.5px]",
+                        quiet ? "font-medium text-fg-3" : "font-semibold text-fg",
+                      )}
+                    >
                       {item.label}
                     </span>
                   </span>
@@ -110,7 +151,7 @@ export function DashboardAttention({
                 <span
                   className={cn(
                     "inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 font-mono text-[12px] font-semibold",
-                    tone.value,
+                    quiet ? "bg-surface-2 text-fg-3" : tone.value,
                   )}
                 >
                   {item.value.toLocaleString(localeTag)}
@@ -122,9 +163,10 @@ export function DashboardAttention({
                 />
               </Link>
             </li>
-          );
-        })}
-      </ul>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }

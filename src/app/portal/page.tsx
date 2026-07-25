@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PortalIcon } from "@/components/platform/portal/PortalIcon";
 import {
   formatPortalDate,
+  formatPortalMoney,
   nextActionHref,
   PortalContactCard,
   PortalMissingCase,
@@ -29,6 +30,20 @@ export default async function PortalOverviewPage() {
     : null;
   const primaryContact = snapshot.curator ?? snapshot.manager;
   const latestUpdate = snapshot.updates[0];
+  const actionableDocument = snapshot.documents.find((document) =>
+    document.status === "required" || document.status === "rejected"
+  );
+  const nextPayment = [...snapshot.payments]
+    .filter((payment) => payment.status !== "paid")
+    .sort((left, right) => (left.dueDate ?? "9999-12-31").localeCompare(right.dueDate ?? "9999-12-31"))[0];
+  const nextApplication = [...snapshot.applications]
+    .filter((application) =>
+      application.status !== "enrolled" &&
+      application.status !== "rejected" &&
+      Boolean(application.deadline)
+    )
+    .sort((left, right) => (left.deadline ?? "9999-12-31").localeCompare(right.deadline ?? "9999-12-31"))[0];
+  const hasCaseHighlights = Boolean(actionableDocument || nextPayment || nextApplication);
   const progressDegrees = Math.round((snapshot.progressPercent / 100) * 360);
 
   const actionContent = (
@@ -188,6 +203,78 @@ export default async function PortalOverviewPage() {
               <p className={styles.cardMeta}>{copy.noUpdates}</p>
             )}
           </PortalPanel>
+
+          {hasCaseHighlights && (
+            <PortalPanel
+              title={copy.caseHighlights}
+              ariaLabel={copy.caseHighlights}
+              className={styles.caseHighlightsPanel}
+            >
+              <div className={styles.caseHighlightsList}>
+                {actionableDocument && (
+                  <Link
+                    href="/portal/documents"
+                    className={styles.caseHighlightLink}
+                    aria-label={`${copy.documents}: ${actionableDocument.name}`}
+                  >
+                    <span className={styles.caseHighlightIcon}>
+                      <PortalIcon name="documents" size={18} />
+                    </span>
+                    <span className={styles.caseHighlightCopy}>
+                      <span className={styles.caseHighlightLabel}>{copy.documents}</span>
+                      <span className={styles.caseHighlightDetail}>{actionableDocument.name}</span>
+                    </span>
+                    <PortalIcon name="chevron-right" size={17} />
+                  </Link>
+                )}
+
+                {nextPayment && (
+                  <Link
+                    href="/portal/payments"
+                    className={styles.caseHighlightLink}
+                    aria-label={`${copy.payments}: ${nextPayment.title}`}
+                  >
+                    <span className={styles.caseHighlightIcon}>
+                      <PortalIcon name="payments" size={18} />
+                    </span>
+                    <span className={styles.caseHighlightCopy}>
+                      <span className={styles.caseHighlightLabel}>{copy.payments}</span>
+                      <span className={styles.caseHighlightDetail}>{nextPayment.title}</span>
+                      <span className={styles.caseHighlightMeta}>
+                        {formatPortalMoney(nextPayment.amount, nextPayment.currency, locale)}
+                        {nextPayment.dueDate
+                          ? ` · ${copy.due}: ${formatPortalDate(nextPayment.dueDate, locale)}`
+                          : ""}
+                      </span>
+                    </span>
+                    <PortalIcon name="chevron-right" size={17} />
+                  </Link>
+                )}
+
+                {nextApplication && (
+                  <Link
+                    href="/portal/applications"
+                    className={styles.caseHighlightLink}
+                    aria-label={`${copy.applications}: ${nextApplication.university}`}
+                  >
+                    <span className={styles.caseHighlightIcon}>
+                      <PortalIcon name="applications" size={18} />
+                    </span>
+                    <span className={styles.caseHighlightCopy}>
+                      <span className={styles.caseHighlightLabel}>{copy.applications}</span>
+                      <span className={styles.caseHighlightDetail}>{nextApplication.university}</span>
+                      {nextApplication.deadline && (
+                        <span className={styles.caseHighlightMeta}>
+                          {copy.deadline}: {formatPortalDate(nextApplication.deadline, locale)}
+                        </span>
+                      )}
+                    </span>
+                    <PortalIcon name="chevron-right" size={17} />
+                  </Link>
+                )}
+              </div>
+            </PortalPanel>
+          )}
         </aside>
       </div>
     </>

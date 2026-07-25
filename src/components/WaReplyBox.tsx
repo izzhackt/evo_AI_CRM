@@ -5,6 +5,7 @@ import { PreparedAiDrawer } from "@/components/PreparedAiDrawer";
 import type { PreparedAiBundle } from "@/lib/prepared-ai";
 
 type Labels = {
+  label: string;
   placeholder: string;
   send: string;
   aiDraft: string;
@@ -49,7 +50,7 @@ export function WaReplyBox({
       >
         <input type="hidden" name="conversation_id" value={conversationId} />
         <label htmlFor={replyInputId} className="min-w-0 flex-1 text-[12px] font-medium text-fg-2">
-          <span className="mb-1 block">{labels.placeholder}</span>
+          <span className="mb-1 block">{labels.label}</span>
           <input
             id={replyInputId}
             ref={inputRef}

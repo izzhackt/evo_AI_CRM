@@ -1247,6 +1247,93 @@ Named write set:
 - PostCSS advisory:
   <https://github.com/advisories/GHSA-r28c-9q8g-f849>.
 
+## EVO Platform Post-Design Review Polish Slice
+
+Active slice: `/goal-evo-platform-design-polish`.
+
+This slice applies the independent Claude Design review dated 2026-07-25 to
+the already-merged unified frontend. It is a frontend refinement pass, not a
+rebuild. The reviewed baseline is `origin/main` at
+`3dd571bf302bd46dd020e029eb5ab40da5a1a277`.
+
+### Product and technical boundaries
+
+- amoCRM remains canonical for lead/contact identity and sales stage.
+- AI customer replies remain draft-only and require explicit operator send.
+- Provider status remains honest; no WAHA, amoCRM, AI, telephony, storage or
+  payment connection may be presented as verified without a real exercise.
+- Existing roles and server-side authorization are unchanged.
+- This slice changes frontend presentation and frontend regression coverage
+  only. It does not change database schemas, webhook/provider contracts,
+  Compose/Caddy, secrets, deployment or production state.
+
+### Public test seams
+
+The agreed seams for test-first changes are browser-visible behavior and
+accessible DOM on existing routes. Tests should assert what an operator or
+student can see and operate at `1440x1024`, `834x1194` and, where applicable,
+`390x844`; they should not assert private helper implementation.
+
+- WhatsApp: bubble semantics by delivery state, honest context summary,
+  compact mobile source disclosure, useful empty state and non-duplicated
+  composer guidance.
+- Staff navigation: distinct application/visa destinations, discoverable
+  icon-rail labels on hover and keyboard focus, and no horizontal overflow.
+- Dashboard: one attention heading and an action-first queue that handles
+  zero-count/all-clear states.
+- Student 360, permissions and portal: collapsed data-entry affordances,
+  semantic permission indicators, useful desktop density and brand-consistent
+  system copy.
+
+### Implementation waves
+
+1. **P1 isolated refinements:** F1 outgoing WhatsApp bubbles, F2 distinct visa
+   icon and F4 useful Inbox empty state.
+2. **P1 responsive navigation:** F3 tablet icon rail with durable
+   hover/focus-visible labels and explicit active state.
+3. **P2 dashboard and Inbox:** F5 duplicated dashboard eyebrow, F6 zero-first
+   priority queue, F7 repeated unverified-sync values, F8 oversized mobile
+   source banner and F10 duplicated composer label/placeholder.
+4. **P2 structure and polish:** F9 Student 360 anchor/form density, F11
+   permission glyphs, F12 portal desktop lower-zone utility and F13 system
+   update emoji.
+
+### Acceptance
+
+- Three consecutive outgoing messages do not create a red wall; red is
+  reserved for `failed`, and all supported delivery states retain their exact
+  mapping.
+- `/applications` and `/visa` are visually distinct at 834px, every icon-rail
+  destination has an accessible label, and that label becomes visible on
+  hover and keyboard focus.
+- The no-selection Inbox state explains the next action and repeats that AI
+  only creates a draft.
+- Dashboard attention content leads with real actions; when every count is
+  zero it shows the all-clear copy from the design review.
+- At 390px at least two messages are visible without scrolling while provider
+  source detail remains available.
+- Student 360 keeps deep links and mutations available without showing all
+  add forms by default.
+- Portal desktop uses existing data to reduce the empty lower zone and does
+  not invent a provider result.
+- Lint, TypeScript, production build, scenarios, security checks, Playwright
+  and automated accessibility checks pass under Node 22.
+- Fresh screenshots cover affected routes at required viewports, including
+  both light and dark WhatsApp message treatment where supported.
+- An independent reviewer checks the final diff against this contract before
+  the pull request is offered for merge.
+
+### Named write set
+
+- `docs/EVO_LAUNCH_PLAN.md`, `docs/PLAN_CHANGES.md`,
+  `docs/design/evo-platform/COMPLETION_CHECKLIST.md` and frontend screenshot or
+  audit evidence under `docs/design/evo-platform/**`.
+- `src/app/globals.css`, affected routes under `src/app/(staff)/**` and
+  `src/app/portal/**`.
+- Shared presentation components under `src/components/**` and existing
+  presentation/query copy under `src/lib/**` only when needed for F1-F13.
+- Focused public-behavior regression coverage under `tests/**`.
+
 ## Stop Conditions
 
 Stop and escalate when:

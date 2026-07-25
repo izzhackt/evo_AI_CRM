@@ -53,7 +53,7 @@ test("core staff routes have no automatically detectable WCAG A/AA violations", 
   }
 
   await page.goto("/whatsapp/1?mode=first_presentation");
-  await expect(page.getByRole("textbox", { name: "Ответить в WhatsApp…" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Ответ в WhatsApp" })).toBeVisible();
   await expectNoAutomatedWcagViolations(page);
 
   await page.getByRole("button", { name: "Черновик ответа" }).click();

@@ -3,8 +3,8 @@ import { requireStaffRoute } from "@/lib/guards";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { WaList } from "@/components/WaList";
 import { Icon } from "@/components/icons";
-import { ContextBanner } from "@/components/platform/operations/OperationsPrimitives";
 import { PageHeader } from "@/components/ui";
+import { CommunicationsSourceDisclosure } from "./CommunicationsSourceDisclosure";
 
 export default async function WhatsAppPage() {
   await requireStaffRoute("/whatsapp");
@@ -13,18 +13,28 @@ export default async function WhatsAppPage() {
   return (
     <div className="space-y-4" data-testid="whatsapp-page">
       <PageHeader title={`${t("whatsapp")} · ${t("inbox")}`} description={t("aiDraftManualOnly")} />
-      <ContextBanner
+      <CommunicationsSourceDisclosure
         title={t("communicationsSourceTruth")}
         description={t("communicationsSourceTruthHint")}
-        tone="info"
+        mobileSummary={t("communicationsSourceSummary")}
       />
       <div className="flex h-[calc(100vh-310px)] min-h-[500px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
         <AutoRefresh intervalMs={7000} />
         <WaList />
-        <div className="hidden flex-1 flex-col items-center justify-center gap-3 bg-bg text-fg-3 md:flex">
-          <Icon name="message-circle" size={32} />
-          <span className="text-[13px]">{t("inbox")}</span>
-        </div>
+        <section
+          aria-labelledby="whatsapp-empty-state-title"
+          className="hidden flex-1 flex-col items-center justify-center bg-bg px-8 text-center md:flex"
+        >
+          <span className="grid h-14 w-14 place-items-center rounded-card bg-surface-2 text-fg-3">
+            <Icon name="message-circle" size={26} />
+          </span>
+          <h2 id="whatsapp-empty-state-title" className="mt-4 text-[16px] font-bold text-fg">
+            {t("selectConversationTitle")}
+          </h2>
+          <p className="mt-2 max-w-md text-[13px] leading-5 text-fg-3">
+            {t("selectConversationHint")}
+          </p>
+        </section>
       </div>
     </div>
   );

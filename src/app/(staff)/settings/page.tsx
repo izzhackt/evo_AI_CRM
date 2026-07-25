@@ -341,7 +341,7 @@ export default async function SettingsPage({
                             )}
                             aria-label={allowed ? t("accessAllowed") : t("accessDenied")}
                           >
-                            {allowed ? "✓" : "—"}
+                            {allowed ? <Icon name="check" size={16} strokeWidth={2.4} /> : <span aria-hidden="true">—</span>}
                           </span>
                         </td>
                       );

@@ -6,6 +6,7 @@ export type IconName =
   | "funnel"
   | "users"
   | "file-check"
+  | "plane"
   | "folder"
   | "message-circle"
   | "phone"
@@ -32,6 +33,7 @@ export type IconName =
   | "calendar"
   | "clock"
   | "refresh"
+  | "check"
   | "shield"
   | "menu"
   | "x";
@@ -43,6 +45,8 @@ const PATHS: Record<IconName, string> = {
     '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   "file-check":
     '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/>',
+  plane:
+    '<path d="M17.8 19 14 16.1V21l-2-1-2 1v-4.9L6.2 19 5 17.5l5-5V7L3 3V1l9 4 9-4v2l-7 4v5.5l5 5Z"/>',
   folder:
     '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>',
   "message-circle": '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
@@ -75,6 +79,7 @@ const PATHS: Record<IconName, string> = {
   calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 11h18"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   refresh: '<path d="M20 11a8 8 0 1 0 2 5"/><path d="M20 4v7h-7"/>',
+  check: '<path d="m5 12 4 4L19 6"/>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>',
   menu: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>',
   x: '<path d="m18 6-12 12"/><path d="m6 6 12 12"/>',

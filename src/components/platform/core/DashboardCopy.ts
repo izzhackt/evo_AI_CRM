@@ -5,6 +5,8 @@ export type DashboardCopy = {
   attentionEyebrow: string;
   attentionTitle: string;
   attentionHint: string;
+  allClearTitle: string;
+  allClearHint: string;
   localDataLabel: string;
   metricsLabel: string;
   allApplications: string;
@@ -18,6 +20,9 @@ const DASHBOARD_COPY: Record<Locale, DashboardCopy> = {
     attentionTitle: "Требует внимания сейчас",
     attentionHint:
       "Просрочки, работа без следующего шага, документы и непрочитанные диалоги.",
+    allClearTitle: "Всё под контролем",
+    allClearHint:
+      "На сегодня срочных задач, просрочек и непрочитанных нет.",
     localDataLabel: "Локальные данные EVO",
     metricsLabel: "Основные показатели",
     allApplications: "Все заявки",
@@ -29,6 +34,9 @@ const DASHBOARD_COPY: Record<Locale, DashboardCopy> = {
     attentionTitle: "Азыр көңүл бурууну талап кылат",
     attentionHint:
       "Мөөнөтү өткөн иштер, кийинки кадамы жок иштер, документтер жана окулбаган диалогдор.",
+    allClearTitle: "Баары көзөмөлдө",
+    allClearHint:
+      "Бүгүн шашылыш тапшырмалар, мөөнөтү өткөн иштер жана окулбаган билдирүүлөр жок.",
     localDataLabel: "EVOнун жергиликтүү маалыматтары",
     metricsLabel: "Негизги көрсөткүчтөр",
     allApplications: "Бардык арыздар",
@@ -40,6 +48,9 @@ const DASHBOARD_COPY: Record<Locale, DashboardCopy> = {
     attentionTitle: "Needs attention now",
     attentionHint:
       "Overdue work, deals without a next step, documents, and unread conversations.",
+    allClearTitle: "Everything is under control",
+    allClearHint:
+      "There are no urgent tasks, overdue items, or unread conversations today.",
     localDataLabel: "Local EVO data",
     metricsLabel: "Key metrics",
     allApplications: "All applications",

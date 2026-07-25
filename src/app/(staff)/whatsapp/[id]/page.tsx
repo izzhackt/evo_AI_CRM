@@ -3,10 +3,7 @@ import { notFound } from "next/navigation";
 
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { Icon } from "@/components/icons";
-import {
-  ContextBanner,
-  KeyValueGrid,
-} from "@/components/platform/operations/OperationsPrimitives";
+import { KeyValueGrid } from "@/components/platform/operations/OperationsPrimitives";
 import {
   getConversationStatePresentation,
   getDeliveryPresentation,
@@ -22,6 +19,7 @@ import { requireStaffRoute } from "@/lib/guards";
 import { getT } from "@/lib/i18n";
 import { buildPreparedWhatsAppAssistant } from "@/lib/prepared-ai";
 import { getClient, getConversation, getLead, waMessages } from "@/lib/queries";
+import { CommunicationsSourceDisclosure } from "../CommunicationsSourceDisclosure";
 
 type ConversationSearchParams = Promise<{ mode?: string | string[] }>;
 
@@ -112,16 +110,20 @@ export default async function ConversationPage({
   const hasOperationalContext = Boolean(
     conversation.agent_state ||
       conversation.agent_summary ||
-      conversation.agent_handoff_reason ||
+      conversation.agent_handoff_reason,
+  );
+  const hasVerifiedAmoSyncContext = Boolean(
+    conversation.amo_lead_id &&
+      conversation.amo_contact_id &&
       conversation.agent_last_synced_at,
   );
 
   return (
     <div className="space-y-4" data-testid="whatsapp-conversation">
-      <ContextBanner
+      <CommunicationsSourceDisclosure
         title={t("communicationsSourceTruth")}
         description={`${t("communicationsSourceTruthHint")} ${t("aiDraftManualOnly")}`}
-        tone="info"
+        mobileSummary={t("communicationsSourceSummary")}
       />
 
       <div className="flex h-[calc(100vh-270px)] min-h-[520px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
@@ -172,16 +174,16 @@ export default async function ConversationPage({
                 <h2 id="agent-operational-state" className="text-[12px] font-semibold text-fg">
                   {t("agentOperationalState")}
                 </h2>
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
-                    stateClassName(operationalState?.tone ?? "neutral"),
-                  )}
-                >
-                  {operationalState
-                    ? t(operationalState.labelKey)
-                    : t("syncNotVerified")}
-                </span>
+                {operationalState && (
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
+                      stateClassName(operationalState.tone),
+                    )}
+                  >
+                    {t(operationalState.labelKey)}
+                  </span>
+                )}
               </div>
 
               {conversation.agent_summary && (
@@ -224,12 +226,6 @@ export default async function ConversationPage({
                       : t("agentNextVerifyInAmo")}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-fg-3">{t("lastSync")}</dt>
-                  <dd className="mt-0.5 font-mono text-fg">
-                    {conversation.agent_last_synced_at ?? t("syncNotVerified")}
-                  </dd>
-                </div>
                 {operationalState?.labelKey === "agentStateRecorded" &&
                   conversation.agent_state && (
                     <div>
@@ -266,24 +262,32 @@ export default async function ConversationPage({
               {messages.map((message) => {
                 const outgoing = message.direction === "out";
                 const delivery = getDeliveryPresentation(message.direction, message.status);
+                const failed = outgoing && delivery.state === "failed";
                 return (
                   <div
                     key={message.id}
+                    data-whatsapp-message
+                    data-message-direction={message.direction}
                     className={cn("flex", outgoing ? "justify-end" : "justify-start")}
                   >
                     <div
                       className={cn(
-                        "max-w-[88%] px-3 py-2 text-[13px] shadow-evo sm:max-w-[75%]",
-                        outgoing
-                          ? "rounded-2xl rounded-br-sm bg-accent text-on-accent"
-                          : "rounded-2xl rounded-bl-sm bg-surface text-fg",
+                        "max-w-[88%] border px-3 py-2 text-[13px] shadow-evo sm:max-w-[75%]",
+                        !outgoing && "rounded-2xl rounded-bl-sm border-transparent bg-surface text-fg",
+                        outgoing &&
+                          !failed &&
+                          "rounded-2xl rounded-br-sm border-transparent bg-[var(--sidebar)] text-white [[data-theme=dark]_&]:bg-surface-3",
+                        failed &&
+                          "rounded-2xl rounded-br-sm border-danger/30 bg-danger-weak text-danger",
                       )}
                     >
                       <p className="break-words">{message.text}</p>
                       <p
                         className={cn(
                           "mt-1 text-right font-mono text-[9.5px]",
-                          outgoing ? "text-on-accent" : "text-fg-3",
+                          outgoing && !failed && "text-white/70",
+                          failed && "text-danger/80",
+                          !outgoing && "text-fg-3",
                         )}
                       >
                         {message.author_name ? `${message.author_name} · ` : ""}
@@ -291,7 +295,9 @@ export default async function ConversationPage({
                         <span
                           data-delivery-status={delivery.state}
                           aria-label={t(delivery.labelKey)}
+                          className={cn(failed && "inline-flex items-center gap-1")}
                         >
+                          {failed && <Icon name="alert" size={10} />}
                           {t(delivery.labelKey)}
                         </span>
                       </p>
@@ -306,6 +312,7 @@ export default async function ConversationPage({
             conversationId={conversationId}
             sendAction={sendWaMessageAction}
             labels={{
+              label: t("replyLabel"),
               placeholder: t("replyPlaceholder"),
               send: t("send"),
               aiDraft: t("aiDraftReply"),
@@ -340,30 +347,61 @@ export default async function ConversationPage({
                     </Link>
                   ) : "—",
                 },
-                {
-                  label: t("amocrmLeadId"),
-                  value: conversation.amo_lead_id ? (
-                    <code className="font-mono">{conversation.amo_lead_id}</code>
-                  ) : t("syncNotVerified"),
-                },
-                {
-                  label: t("amocrmContactId"),
-                  value: conversation.amo_contact_id ? (
-                    <code className="font-mono">{conversation.amo_contact_id}</code>
-                  ) : t("syncNotVerified"),
-                },
-                {
-                  label: t("agentOperationalState"),
-                  value: operationalState
-                    ? t(operationalState.labelKey)
-                    : t("syncNotVerified"),
-                },
-                {
-                  label: t("lastSync"),
-                  value: conversation.agent_last_synced_at ?? t("syncNotVerified"),
-                },
+                ...(conversation.amo_lead_id
+                  ? [
+                      {
+                        label: t("amocrmLeadId"),
+                        value: (
+                          <code className="font-mono">{conversation.amo_lead_id}</code>
+                        ),
+                      },
+                    ]
+                  : []),
+                ...(conversation.amo_contact_id
+                  ? [
+                      {
+                        label: t("amocrmContactId"),
+                        value: (
+                          <code className="font-mono">{conversation.amo_contact_id}</code>
+                        ),
+                      },
+                    ]
+                  : []),
+                ...(operationalState
+                  ? [
+                      {
+                        label: t("agentOperationalState"),
+                        value: t(operationalState.labelKey),
+                      },
+                    ]
+                  : []),
+                ...(conversation.agent_last_synced_at
+                  ? [
+                      {
+                        label: t("lastSync"),
+                        value: (
+                          <code className="font-mono">
+                            {conversation.agent_last_synced_at}
+                          </code>
+                        ),
+                      },
+                    ]
+                  : []),
               ]}
             />
+            {!hasVerifiedAmoSyncContext && (
+              <section
+                aria-labelledby="amo-sync-unverified-title"
+                className="rounded-ctl border border-info/25 bg-info-weak p-3 text-info"
+              >
+                <h3 id="amo-sync-unverified-title" className="text-[12px] font-bold">
+                  {t("amoSyncNotVerifiedTitle")}
+                </h3>
+                <p className="mt-1 text-[11.5px] leading-4">
+                  {t("amoSyncNotVerifiedHint")}
+                </p>
+              </section>
+            )}
             <p className="rounded-ctl bg-warn-weak p-3 text-[11.5px] leading-5 text-warn">
               {t("offlineNotMonitored")}
             </p>

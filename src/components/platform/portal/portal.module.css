@@ -583,6 +583,80 @@ a.actionCard:hover {
   font-weight: 700;
 }
 
+.caseHighlightsList {
+  display: grid;
+  gap: 9px;
+}
+
+.caseHighlightLink {
+  display: grid;
+  min-width: 0;
+  min-height: 72px;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: var(--portal-subtle);
+  padding: 10px 11px;
+  color: var(--portal-soft);
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.caseHighlightLink:hover {
+  border-color: color-mix(in srgb, var(--portal-accent) 35%, var(--portal-border));
+  background: var(--portal-surface);
+  color: var(--portal-accent);
+}
+
+.caseHighlightLink:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--portal-accent) 30%, transparent);
+  outline-offset: 2px;
+}
+
+.caseHighlightIcon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--portal-info-soft);
+  color: var(--portal-info);
+}
+
+.caseHighlightCopy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.caseHighlightLabel {
+  color: var(--portal-soft);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.caseHighlightDetail {
+  overflow: hidden;
+  color: var(--portal-text);
+  font-size: 12.5px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.caseHighlightMeta {
+  color: var(--portal-soft);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
 .personRow {
   display: flex;
   align-items: center;
@@ -1237,6 +1311,14 @@ a.actionCard:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .caseHighlightsPanel {
+    grid-column: 1 / -1;
+  }
+
+  .caseHighlightsList {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .quickGrid {
     display: grid;
   }
@@ -1305,6 +1387,14 @@ a.actionCard:hover {
   }
 
   .overviewRail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .caseHighlightsPanel {
+    grid-column: auto;
+  }
+
+  .caseHighlightsList {
     grid-template-columns: minmax(0, 1fr);
   }
 

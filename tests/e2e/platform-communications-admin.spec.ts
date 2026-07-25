@@ -93,13 +93,20 @@ test("communications and admin workflows remain truthful and drill down", async 
 
   await page.goto("/whatsapp");
   await expect(page.getByText("Источник данных коммуникаций", { exact: true })).toBeVisible();
-  await expect(page.getByText(/AI создаёт только черновик/)).toBeVisible();
+  await expect(
+    page.getByText(
+      "AI создаёт только черновик. Отправка всегда выполняется сотрудником вручную.",
+      { exact: true },
+    ),
+  ).toBeVisible();
   await page.locator('.staff-topbar__actions a[href="/whatsapp#add"]').click();
   await expect(page.locator("details#add")).toHaveAttribute("open", "");
   await expect(page.getByLabel("Телефон")).toBeFocused();
   await expect(page.getByLabel("Имя и фамилия")).toBeVisible();
   await page.locator("details#add > summary").click();
-  const conversation = page.locator('a[href^="/whatsapp/"]:visible').first();
+  const conversation = page.getByRole("link", {
+    name: /Открыть диалог: Асель Бекова/,
+  });
   await expect(conversation).toBeVisible();
   await expect(conversation).toHaveAttribute("aria-label", /Открыть диалог:/);
   await conversation.click();

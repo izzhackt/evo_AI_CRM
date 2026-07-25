@@ -124,7 +124,6 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={copy.attentionEyebrow}
         title={t("dashboard")}
         description={copy.overviewHint}
         action={

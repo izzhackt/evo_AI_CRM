@@ -12,7 +12,7 @@ const NAV_ICON: Record<string, IconName> = {
   "/clients": "users",
   "/applications": "file-check",
   "/documents": "folder",
-  "/visa": "file-check",
+  "/visa": "plane",
   "/whatsapp": "message-circle",
   "/calls": "phone",
   "/notifications": "bell",
@@ -55,10 +55,18 @@ export function StaffNav({
                     <Link
                       href={item.href}
                       title={item.label}
+                      aria-label={item.label}
                       aria-current={active ? "page" : undefined}
-                      className={cn("staff-nav-link", active && "staff-nav-link--active")}
+                      className={cn(
+                        "staff-nav-link",
+                        active && "staff-nav-link--active",
+                      )}
                     >
-                      <Icon name={NAV_ICON[item.href] ?? "grid"} size={18} className="shrink-0" />
+                      <Icon
+                        name={NAV_ICON[item.href] ?? "grid"}
+                        size={18}
+                        className="shrink-0"
+                      />
                       <span className="staff-nav-link__label">{item.label}</span>
                     </Link>
                   </li>

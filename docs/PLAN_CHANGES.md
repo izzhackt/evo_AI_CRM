@@ -2529,3 +2529,179 @@ Validation impact:
   before merge.
 
 Reviewer notes: pending independent launch-control review.
+
+## 2026-07-25 - Apply The Independent EVO Frontend Design Review
+
+Source: owner-provided Claude Design review handoff, independently grounded in
+the merged repository, final-audit screenshots, EVO logobook, audit and
+completion checklist.
+
+Affected plan section: `/goal-evo-platform-design-polish`.
+
+Reason:
+
+- The unified frontend is complete and coherent, but the independent review
+  found four P1 usability issues and nine P2 consistency/density issues.
+- The findings are implementation-ready and include exact responsive,
+  accessibility, Russian-copy and acceptance requirements, so another
+  discovery or prototype pass would add delay without resolving uncertainty.
+- The requested work is safely bounded to frontend presentation and tests;
+  it does not require a backend contract or provider mutation.
+
+Change:
+
+- Implement the review in four waves: P1 WhatsApp/visa/empty-state, P1 tablet
+  navigation, P2 dashboard/Inbox and P2 Student 360/settings/portal polish.
+- Use existing browser-visible routes and accessible DOM as the test seams.
+  Add focused regression coverage before or with each behavior change and
+  avoid implementation-detail assertions.
+- Preserve amoCRM canonical ownership, AI draft-only behavior, current roles,
+  truthful provider states and every existing server-side access check.
+- Keep database schemas, provider integrations, Lead Agent retirement,
+  Supabase consolidation, deployment and production state outside this slice.
+
+Validation impact:
+
+- Run the complete Node 22 lint, type-check, build, scenarios, security,
+  Playwright and accessibility suites.
+- Verify affected views at 1440x1024, 834x1194 and 390x844; capture fresh
+  visual evidence for changed surfaces and previously source-only PASS routes.
+- Require an independent final diff review against the 13 findings before
+  commit/push/PR handoff.
+
+## 2026-07-25 - Close Newly Published Frontend Dependency Advisories
+
+Affected plan section: `/goal-evo-platform-design-polish`.
+
+Reason:
+
+- The mandatory final `npm audit` gate found two newly published high-severity
+  advisories in the installed frontend toolchain:
+  `GHSA-mh99-v99m-4gvg` for `brace-expansion` and
+  `GHSA-r28c-9q8g-f849` for `postcss`.
+- The vulnerable `brace-expansion` instances are owned by ESLint and by the
+  current `eslint-config-next` plugin bundle through `minimatch` 3. A global
+  package override would be unsafe because the patched `brace-expansion` 5
+  CommonJS export is not API-compatible with the old callable export expected
+  by `minimatch` 3.
+- A trial ESLint 10 lockfile reduced but did not clear the finding:
+  the latest `eslint-plugin-import`, `eslint-plugin-react` and
+  `eslint-plugin-jsx-a11y` releases bundled by Next still declare ESLint 9 peer
+  ranges and still require `minimatch` 3. This is an upstream development-tool
+  blocker, not a production dependency path.
+
+Change:
+
+- Raise the existing `postcss` override to the first patched release.
+- Keep the supported ESLint 9 line until the Next plugin bundle publishes a
+  compatible patched graph. Do not use `npm audit fix --force`, a breaking
+  global override, or hide the residual full-audit result.
+- Expand the named write set only to `package.json` and `package-lock.json`.
+  No application behavior, provider contract, database schema or deployment
+  scope changes.
+
+Validation impact:
+
+- Reinstall from the lockfile under Node 22.23.1 and require a zero-vulnerability
+  production audit (`npm audit --omit=dev`). Record the remaining dev-only
+  upstream advisory separately from application security-test results.
+- Re-run lint, TypeScript, production build, scenarios, security checks and the
+  complete Playwright suite after the dependency change.
+
+## 2026-07-25 - Make Design-Polish E2E Coverage Order-Independent
+
+Affected plan section: `/goal-evo-platform-design-polish`.
+
+Reason:
+
+- The complete Playwright run intentionally shares one disposable database so
+  earlier workflow tests can change demo records. New polish assertions that
+  expected the untouched seed were valid in isolation but failed after those
+  real mutations.
+- Database-level WhatsApp setup also needs the exact same resolved path as the
+  Playwright web server; recomputing a fallback path inside a worker can open an
+  empty SQLite file instead.
+
+Change:
+
+- Extend the named write set to `playwright.config.ts`.
+- Publish the already-resolved disposable database path to Playwright workers.
+- Assert ordering, semantic categories and live record-derived content instead
+  of fixed seed names or counts.
+- Keep every direct database mutation locally reversible with `try/finally`.
+
+Validation impact:
+
+- Re-run affected specs in isolation and then the full two-project Playwright
+  suite from a fresh disposable database.
+
+## 2026-07-25 - Reconcile Design Polish With Merged Dependency Hardening
+
+Affected plan sections: `/goal-evo-dependency-hardening` and
+`/goal-evo-platform-design-polish`.
+
+Reason:
+
+- Dependency hardening merged first as PR #73 at
+  `df9d908a93555ff78d72c6435f7b5737f9b8431a`.
+- The design branch's earlier PostCSS 8.5.18 experiment and lockfile churn are
+  superseded by the independently reviewed PostCSS 8.5.23 hardening.
+
+Change:
+
+- Retain the root manifest and lockfile from merged dependency hardening,
+  including PostCSS 8.5.23.
+- Retain the merged production audit, narrow development allowlist and
+  fail-closed verifier without modification.
+- Preserve all design source, tests, screenshots and closure evidence.
+- Do not change product behavior, provider contracts, database schemas or
+  deployment state while resolving the rebase.
+
+Validation impact:
+
+- Re-run clean install, production and development audit gates, the root CI
+  suite and full Playwright suite from the rebased commit.
+- Require a fresh independent review before PR #72 is merged.
+
+## 2026-07-25 - Close Independent Design Review Evidence Gaps
+
+Affected plan section: `/goal-evo-platform-design-polish`.
+
+Reason:
+
+- Independent review of the rebased commit found that the dashboard all-clear
+  state was asserted through imported component helpers rather than through
+  the public browser-visible route required by the plan.
+- The 834px navigation implementation deliberately keeps a 220px labelled
+  sidebar visible instead of using the originally proposed icon-only rail with
+  hover/focus tooltips. Persistent labels reduce discovery and keyboard
+  ambiguity, but this accepted design change was not recorded in the append-only
+  decision log.
+- The closure evidence had no committed dark-theme WhatsApp capture and no
+  fresh captures of the changed dashboard, Student 360 and role-matrix states.
+- The role matrix also exposed a prohibited ARIA name and a keyboard-inaccessible
+  horizontal scroll region once the roles tab was added to automated Axe
+  coverage.
+
+Change:
+
+- Accept the persistent labelled 220px tablet navigation as the F3 outcome.
+  Keep distinct icons, visible labels, focus indication, active state and
+  overflow protection as the behavior contract; no tooltip is required while
+  labels remain permanently visible.
+- Replace private-helper-only dashboard assertions with a browser test that
+  drives a reversible all-clear database state and verifies the rendered
+  operator copy.
+- Give role indicators a valid named semantic role, make the scroll region
+  keyboard focusable, and include `/settings?tab=roles` in the Axe suite.
+- Add stable committed screenshots for the dark WhatsApp state and the changed
+  dashboard, Student 360 and role-matrix states. Continue restoring all other
+  test-regenerated screenshot noise after validation.
+
+Validation impact:
+
+- Run lint and focused desktop/mobile Playwright checks for navigation,
+  dashboard, Student 360, roles, WhatsApp and Axe.
+- Re-run the complete root validation and GitHub CI on the new commit.
+- Require the same independent reviewer to confirm the remediations before
+  merge.

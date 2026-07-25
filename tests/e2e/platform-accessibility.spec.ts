@@ -46,14 +46,19 @@ test("core staff routes have no automatically detectable WCAG A/AA violations", 
 }) => {
   await login(page, "admin@demo.kg", "admin123", /\/dashboard$/);
 
-  for (const route of ["/dashboard", "/whatsapp", "/settings"]) {
+  for (const route of [
+    "/dashboard",
+    "/whatsapp",
+    "/settings",
+    "/settings?tab=roles",
+  ]) {
     await page.goto(route);
     await expect(page.locator("main")).toBeVisible();
     await expectNoAutomatedWcagViolations(page);
   }
 
   await page.goto("/whatsapp/1?mode=first_presentation");
-  await expect(page.getByRole("textbox", { name: "Ответить в WhatsApp…" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Ответ в WhatsApp" })).toBeVisible();
   await expectNoAutomatedWcagViolations(page);
 
   await page.getByRole("button", { name: "Черновик ответа" }).click();

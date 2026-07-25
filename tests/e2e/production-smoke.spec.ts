@@ -160,7 +160,7 @@ test("staff can log in, navigate core pages, and create a real lead", async ({ p
   await expect(page.getByText("Следующее действие").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Прогресс поступления", exact: true })).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Student 360" }).getByRole("link", { name: "Профиль студента" }),
+    page.getByRole("navigation", { name: "Разделы дела студента" }).getByRole("link", { name: "Профиль студента" }),
   ).toBeVisible();
   await expect(page.locator("#applications").getByRole("heading", { name: "Заявки в вузы", exact: true })).toBeVisible();
   await expect(page.locator("#documents").getByRole("heading", { name: "Документы", exact: true })).toBeVisible();
@@ -263,7 +263,7 @@ test("mobile Student 360 list and detail keep real work reachable", async ({ pag
   await saveScreenshot(page, testInfo, "mobile-student-360-list");
 
   await page.goto("/clients/1");
-  await expect(page.getByRole("navigation", { name: "Student 360" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Разделы дела студента" })).toBeVisible();
   await expect(page.locator("#applications").getByRole("heading", { name: "Заявки в вузы", exact: true })).toBeVisible();
   await expect(page.locator('form input[name="message"]')).toBeVisible();
   overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

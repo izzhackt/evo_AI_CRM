@@ -124,14 +124,19 @@ export function PortalPanel({
   action,
   children,
   className = "",
+  ariaLabel,
 }: {
   title?: string;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  ariaLabel?: string;
 }) {
   return (
-    <section className={`${styles.panel} ${styles.panelPadding} ${className}`}>
+    <section
+      className={`${styles.panel} ${styles.panelPadding} ${className}`}
+      aria-label={ariaLabel}
+    >
       {(title || action) && (
         <div className={styles.panelTitleRow}>
           {title ? <h2 className={styles.panelTitle}>{title}</h2> : <span />}

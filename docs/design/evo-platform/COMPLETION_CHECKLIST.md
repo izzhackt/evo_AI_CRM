@@ -113,9 +113,33 @@ proof of a live integration.
 ## Final evidence
 
 - Final audit: [`FINAL_FRONTEND_AUDIT_2026-07-24.md`](FINAL_FRONTEND_AUDIT_2026-07-24.md)
+- Independent design-review closure:
+  [`DESIGN_REVIEW_CLOSURE_2026-07-25.md`](DESIGN_REVIEW_CLOSURE_2026-07-25.md)
 - Current browser captures:
   [`implementation-screenshots/final-audit/`](implementation-screenshots/final-audit/)
 - Business scenario report: [`../../SCENARIO_EVALUATION.md`](../../SCENARIO_EVALUATION.md)
 - Accessibility coverage: [`../../../tests/e2e/platform-accessibility.spec.ts`](../../../tests/e2e/platform-accessibility.spec.ts)
 - Responsive/product browser coverage:
   [`../../../tests/e2e/`](../../../tests/e2e/)
+
+## 2026-07-25 independent review follow-up
+
+- [x] F1: normal outgoing WhatsApp messages use dark ink; danger red remains
+  reserved for a failed delivery.
+- [x] F2: Applications and Visa have distinct navigation icons.
+- [x] F3: tablet navigation keeps labels permanently visible. This replaces
+  the proposed hover/focus-only tooltip after the accessibility review found
+  that a tooltip-only rail would not be discoverable on touch tablets.
+- [x] F4: the unselected Inbox has an instructional Russian empty state.
+- [x] F5-F6: dashboard attention copy is not repeated, non-zero items lead,
+  and an all-clear state is available.
+- [x] F7-F8: amoCRM sync evidence is stated once and separately from optional
+  agent state; mobile source disclosure is compact and two messages remain
+  visible at 390 × 844.
+- [x] F9-F10: Student 360 labels its in-page sections, add forms start
+  collapsed, and the WhatsApp composer keeps a visible label with the shorter
+  placeholder.
+- [x] F11-F12: role cells use semantic shared icons/dashes, and the portal
+  desktop rail is filled only from existing case records.
+- [x] F13: no system-authored emoji exists in portal updates. The employee-
+  authored chat seed remains unchanged by design.

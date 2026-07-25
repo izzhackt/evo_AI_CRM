@@ -2482,3 +2482,50 @@ Validation impact:
   assistive-technology limitations.
 - Require independent read-only code, product-truth and accessibility review
   before merge.
+
+## 2026-07-25 - Restore A Fail-Closed Dependency Gate Before Frontend Merge
+
+Date: 2026-07-25, workspace timezone.
+Author: Codex.
+Change type: scope, security policy, validation, and merge order.
+Affected plan section: `/goal-evo-dependency-hardening`.
+
+Reason:
+
+- Fresh registry audits now fail on both `origin/main` and PR #72 because
+  PostCSS and `brace-expansion` advisories were published after the last green
+  main build.
+- The PostCSS advisory is present in the deployed dependency graph of both
+  Next.js applications, so updating only Inbox would leave the root CRM
+  production audit red.
+- The remaining `brace-expansion` path is development-only and owned by
+  `minimatch` 3 dependencies inside the current ESLint 9 and Next lint-plugin
+  graph. The patched `brace-expansion` major is not a supported drop-in
+  replacement for that callable API, while `npm audit fix --force` proposes
+  breaking dependency changes.
+
+Decision:
+
+- Expand the user-requested PostCSS patch to both root CRM and EVO Inbox.
+- Keep production dependency audits blocking with no exception.
+- Replace the all-or-nothing full-audit step with a second fail-closed
+  repository verifier. It may accept only
+  `GHSA-mh99-v99m-4gvg`, only through the enumerated ESLint/minimatch chain,
+  and only until the recorded review deadline. Zero advisories also passes.
+- Any new advisory, affected package, malformed audit response, or expired
+  exception fails CI. The known dev advisory remains visible in logs rather
+  than being hidden by `continue-on-error`.
+- Keep this as a separate hardening PR. Rebase and merge design-polish PR #72
+  only after the hardening PR is independently approved and merged.
+
+Validation impact:
+
+- Use Node 22 and committed lockfiles.
+- Run real root and Inbox production audits plus the constrained full-audit
+  verifier.
+- Run root security/unit/lint/type/build/scenario gates and Inbox
+  lint/type/test/build gates.
+- Require the normal GitHub workflow and an independent launch-control review
+  before merge.
+
+Reviewer notes: pending independent launch-control review.

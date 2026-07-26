@@ -2705,3 +2705,80 @@ Validation impact:
 - Re-run the complete root validation and GitHub CI on the new commit.
 - Require the same independent reviewer to confirm the remediations before
   merge.
+
+## 2026-07-25 - Make The Final EVO Platform TZ The Backend Contract
+
+Affected plan section: `/goal-evo-platform-final-tz`.
+
+Reason:
+
+- The unified frontend and its independent design-polish review are complete,
+  while the real backend still spans the main CRM, EVO Inbox, Lead Agent,
+  separate persistence models and more than one WAHA session.
+- Starting backend work before data ownership, role authority, synchronization,
+  retry, audit and retirement gates are written would recreate the duplication
+  the platform is intended to remove.
+- The owner-provided OZO document contains useful first-iteration process
+  context, but the owner explicitly warned that its technical interpretation
+  may be incomplete or incorrect.
+
+Change:
+
+- Create a full Russian-language technical specification as the single
+  implementation contract before any unified-platform backend change.
+- Adopt one Supabase project per environment and one shared platform schema
+  within each environment. Supabase owns EVO operational data; amoCRM remains
+  canonical for lead/contact identity, responsible manager and sales stage.
+- Specify one WhatsApp/WAHA integration and absorb useful Lead Agent behavior
+  into the unified backend. Keep Lead Agent available as a rollback path until
+  a real controlled end-to-end test and reconciliation prove replacement.
+- Keep customer-facing AI draft-only and require an employee to review and send
+  each outbound reply. Any future auto-send mode requires a separate owner
+  decision, risk review and acceptance plan.
+- Treat the merged frontend, its access rules and committed screenshots as the
+  approved interaction baseline. Do not reopen a design-from-zero phase inside
+  the specification.
+
+Validation impact:
+
+- Trace every material requirement to repository evidence, the OZO brief, an
+  ADR, the business process documents or an explicit owner decision.
+- Render and inspect every DOCX page, audit accessibility and independently
+  review the finished specification before merge.
+- Keep backend code, migrations, production providers and real customer data
+  outside this slice.
+
+## 2026-07-26 - Make TZ Provenance And DOCX Verification Reproducible
+
+Affected plan section: `/goal-evo-platform-final-tz`.
+
+Reason:
+
+- Independent launch-control review found that the main requirement tables
+  named a future verification method but did not expose item-level provenance.
+- The committed DOCX builder depended on an already-prepared Codex runtime and
+  did not give another contributor a pinned dependency manifest or one command
+  that performs a real render and accessibility/traceability audit.
+- The builder duplicated a document-card summary outside the canonical
+  Markdown source.
+
+Change:
+
+- Add a source catalog and individually enumerate every `FR`, `INT`, `DATA`,
+  `SEC`, `NFR`, `ACC` and `DEC` ID in a provenance matrix.
+- Add a pinned `python-docx` manifest and a repo-owned verifier that builds the
+  document, uses real LibreOffice and Poppler rendering, checks the DOCX
+  package, requirement coverage, provenance, alt text, table headers, heading
+  hierarchy and hyperlinks, and writes JSON evidence.
+- Keep all substantive content in `docs/specs/EVO_PLATFORM_TZ.md`. The
+  generator may add only the branded cover, footer and Word TOC mechanics.
+- Record the exact hashes, page count, accessibility result and human
+  page-by-page inspection in a committed validation ledger.
+
+Validation impact:
+
+- Prove the workflow from a fresh isolated Python environment created from the
+  committed dependency manifest.
+- Require zero unresolved accessibility findings at every severity.
+- Repeat independent review after these changes; merge remains blocked until
+  the reviewer returns `approved`.

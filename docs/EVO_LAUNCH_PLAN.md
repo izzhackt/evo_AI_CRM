@@ -1347,3 +1347,93 @@ Stop and escalate when:
   waived the launch-control gate.
 - Validation fails for reasons outside the lane's scope and cannot be fixed
   without changing the contract.
+
+## Final EVO Platform Technical Specification
+
+Active slice: `/goal-evo-platform-final-tz`.
+
+This slice turns the completed frontend, the audited repository, the
+owner-supplied OZO technical brief, current production boundaries, business
+process documentation, ADRs and design evidence into the implementation
+contract for the unified EVO Admissions platform. It is a specification and
+review slice only; backend integration starts after owner approval.
+
+### Scope
+
+- Produce one canonical Russian-language specification covering business
+  outcomes, actors, roles, workflows, data ownership, integrations,
+  non-functional requirements, migration, release gates and acceptance tests.
+- Treat the owner-supplied OZO brief as contextual input, not as automatically
+  correct architecture or product truth. Preserve useful process requirements,
+  record corrections, and expose unresolved decisions explicitly.
+- Keep amoCRM canonical for lead/contact identity, responsible manager and
+  sales stage. Keep operational admissions stages separate from the sales
+  pipeline.
+- Define one Supabase project per environment (`development`, `staging`,
+  `production`), with one shared schema per environment for EVO-owned platform
+  data. Do not create separate production Supabase projects for Inbox and CRM.
+- Define one WAHA/WhatsApp ingress, idempotent event handling, durable message
+  history, draft-only AI, manual outbound confirmation and delivery/read audit.
+- Specify how useful Lead Agent responsibilities move into the unified backend.
+  Retirement is allowed only after a controlled real end-to-end proof,
+  reconciliation, rollback window and owner approval.
+- Reuse the accepted EVO frontend and brand evidence as the interaction
+  contract. Figma or prototype files are supporting design evidence, not a
+  substitute for this technical specification.
+- Distinguish verified current behavior, target requirements, assumptions,
+  external blockers and future options throughout the document.
+
+### Named write set
+
+- `docs/EVO_LAUNCH_PLAN.md`, `docs/PLAN_CHANGES.md`: launch contract and
+  append-only decision record.
+- `docs/specs/EVO_PLATFORM_TZ.md`: canonical reviewable specification source.
+- `docs/specs/EVO_PLATFORM_TZ.docx`: editable owner-facing specification.
+- `docs/specs/EVO_PLATFORM_TZ_VALIDATION.md`: reproducible validation and
+  page-inspection ledger.
+- `scripts/generate-evo-platform-tz.py`: deterministic DOCX builder.
+- `scripts/verify-evo-platform-tz.py`,
+  `scripts/requirements-evo-platform-tz.txt`: isolated dependency, real
+  LibreOffice/Poppler render and accessibility/traceability verification
+  contract.
+- Existing brand and implementation screenshots under `docs/company/brand/**`
+  and `docs/design/evo-platform/**` may be read and embedded; they are not
+  modified by this slice.
+
+### Acceptance criteria
+
+- Every `FR`, `NFR`, `INT`, `DATA`, `SEC`, `ACC` and `DEC` ID is listed
+  individually in a provenance matrix that points to repository evidence,
+  official provider documentation, the OZO brief or an explicit owner
+  decision. Every requirement also has an explicit priority and verification
+  method.
+- Data ownership and synchronization rules prevent two independently writable
+  lead/contact/sales-stage sources of truth.
+- Roles and permissions cover both server-side authorization and visible UI,
+  including denial, audit and privileged-action rules.
+- The migration plan keeps the current production path reversible and does not
+  delete Lead Agent before the real WhatsApp-to-amoCRM-to-platform path is
+  proven.
+- The controlled acceptance journey is explicit:
+  `WhatsApp -> amoCRM -> EVO Platform -> AI draft -> manual send ->
+  delivery/read status -> audit history`.
+- Unknown provider states, missing credentials and unverified integrations
+  remain visibly blocked; no mock or configured flag is described as production
+  proof.
+- The DOCX uses the EVO brand, has a real heading hierarchy, marked table
+  headers, meaningful image alt text and no secret or applicant personal data.
+- A fresh Python environment installs the pinned DOCX dependency manifest, the
+  repo-owned verifier builds the DOCX, renders it through real
+  LibreOffice/Poppler, validates item-level traceability and writes structured
+  accessibility evidence. The packaged document renderer is also used for the
+  final owner-facing render.
+- Every final page is visually inspected at original resolution and recorded in
+  `docs/specs/EVO_PLATFORM_TZ_VALIDATION.md`; the automated accessibility audit
+  has zero unresolved high, medium or low findings.
+- All substantive owner-facing content comes from
+  `docs/specs/EVO_PLATFORM_TZ.md`; the generator adds only presentation
+  mechanics such as the branded cover, footer and Word TOC field.
+- An independent reviewer checks the final specification against source
+  evidence, architecture boundaries and acceptance criteria before merge.
+- No production deployment, provider mutation, database migration, live
+  WhatsApp send or amoCRM write occurs in this slice.

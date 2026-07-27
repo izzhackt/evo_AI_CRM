@@ -6,7 +6,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 export default async function LoginPage() {
   const { t, locale } = await getT();
   const labels = Object.fromEntries(
-    ["email", "password", "signIn", "noAccount", "invalidCredentials", "fillAllFields"].map((k) => [k, t(k)])
+    ["email", "password", "signIn", "noAccount", "invalidCredentials", "roleMigrationRequired", "fillAllFields"].map((k) => [k, t(k)])
   );
   return (
     <main className="relative grid min-h-dvh place-items-center bg-bg px-4 py-10">

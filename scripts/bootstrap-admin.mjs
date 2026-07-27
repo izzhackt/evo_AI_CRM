@@ -34,7 +34,8 @@ db.exec(`
     phone TEXT,
     password_hash TEXT NOT NULL,
     name TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'client',
+    role TEXT NOT NULL DEFAULT 'client'
+      CHECK (role IN ('admin', 'sales', 'curator', 'finance', 'client')),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -254,8 +255,27 @@ if (!taskColumns.includes("lead_id")) {
   db.exec("ALTER TABLE tasks ADD COLUMN lead_id INTEGER REFERENCES leads(id)");
 }
 
+db.exec(`
+  CREATE TRIGGER IF NOT EXISTS users_role_insert_guard
+  BEFORE INSERT ON users
+  WHEN NEW.role NOT IN ('admin', 'sales', 'curator', 'finance', 'client')
+  BEGIN
+    SELECT RAISE(ABORT, 'unsupported user role');
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS users_role_update_guard
+  BEFORE UPDATE OF role ON users
+  WHEN NEW.role NOT IN ('admin', 'sales', 'curator', 'finance', 'client')
+  BEGIN
+    SELECT RAISE(ABORT, 'unsupported user role');
+  END;
+`);
+
 const existing = db.prepare("SELECT id, role FROM users WHERE lower(email) = ?").get(email);
 if (existing) {
+  if (existing.role === "visa") {
+    throw new Error("legacy visa role must be reviewed and migrated with scripts/migrate-visa-role.mjs");
+  }
   db.prepare("UPDATE users SET role = 'admin', name = ?, phone = COALESCE(?, phone) WHERE id = ?").run(name, phone, existing.id);
   console.log(`Updated existing admin ${email} in ${dbPath}`);
 } else {

@@ -1,6 +1,17 @@
 import type { LeadStatus } from "./lead-stages";
-
-export const STAFF_ROLES = ["admin", "sales", "curator", "visa", "finance"] as const;
+import {
+  ROLES,
+  STAFF_ROLES,
+  type Role,
+  type StaffRole,
+} from "./roles";
+export {
+  ROLES,
+  STAFF_ROLES,
+  isRole,
+  type Role,
+  type StaffRole,
+} from "./roles";
 export {
   EVO_AMO_PIPELINE_ID,
   LEAD_ACTIVE_STATUSES,
@@ -10,10 +21,6 @@ export {
   isActiveLeadStatus,
 } from "./lead-stages";
 export type { LeadStatus } from "./lead-stages";
-export const ROLES = [...STAFF_ROLES, "client"] as const;
-
-export type StaffRole = (typeof STAFF_ROLES)[number];
-export type Role = (typeof ROLES)[number];
 
 export const STAFF_ROUTE_VALUES = [
   "/dashboard",
@@ -64,7 +71,6 @@ export const ROLE_HOME_ROUTE = {
   admin: APP_ROUTES.staff.dashboard,
   sales: APP_ROUTES.staff.sales,
   curator: APP_ROUTES.staff.clients,
-  visa: APP_ROUTES.staff.visa,
   finance: APP_ROUTES.staff.finance,
   client: APP_ROUTES.portal,
 } satisfies Record<Role, StaffRoute | ClientRoute>;
@@ -89,22 +95,22 @@ export const STAFF_NAV_ITEMS = [
   {
     href: APP_ROUTES.staff.clients,
     labelKey: "clients",
-    allowedRoles: ["admin", "sales", "curator", "visa", "finance"],
+    allowedRoles: ["admin", "sales", "curator", "finance"],
   },
   {
     href: APP_ROUTES.staff.applications,
     labelKey: "applications",
-    allowedRoles: ["admin", "sales", "curator", "visa"],
+    allowedRoles: ["admin", "sales", "curator"],
   },
   {
     href: APP_ROUTES.staff.documents,
     labelKey: "documents",
-    allowedRoles: ["admin", "sales", "curator", "visa"],
+    allowedRoles: ["admin", "sales", "curator"],
   },
   {
     href: APP_ROUTES.staff.visa,
     labelKey: "visa",
-    allowedRoles: ["admin", "curator", "visa"],
+    allowedRoles: ["admin", "curator"],
   },
   {
     href: APP_ROUTES.staff.whatsapp,

@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import { scryptSync, randomBytes } from "crypto";
 import { decryptRuntimeSecret, encryptRuntimeSecret } from "./secret-storage";
+export type { Role } from "./roles";
 export {
   EVO_AMO_PIPELINE_ID,
   LEAD_ACTIVE_STATUSES,
@@ -11,8 +12,6 @@ export {
   isActiveLeadStatus,
 } from "./lead-stages";
 export type { LeadStatus } from "./lead-stages";
-
-export type Role = "admin" | "sales" | "curator" | "visa" | "finance" | "client";
 
 export const STAGES = [
   "lead",
@@ -79,7 +78,8 @@ function init(d: Database.Database) {
       phone TEXT,
       password_hash TEXT NOT NULL,
       name TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'client',
+      role TEXT NOT NULL DEFAULT 'client'
+        CHECK (role IN ('admin', 'sales', 'curator', 'finance', 'client')),
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -374,6 +374,20 @@ function migrate(d: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_wa_conversations_amo_lead_id
       ON wa_conversations(amo_lead_id)
       WHERE amo_lead_id IS NOT NULL;
+
+    CREATE TRIGGER IF NOT EXISTS users_role_insert_guard
+    BEFORE INSERT ON users
+    WHEN NEW.role NOT IN ('admin', 'sales', 'curator', 'finance', 'client')
+    BEGIN
+      SELECT RAISE(ABORT, 'unsupported user role');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS users_role_update_guard
+    BEFORE UPDATE OF role ON users
+    WHEN NEW.role NOT IN ('admin', 'sales', 'curator', 'finance', 'client')
+    BEGIN
+      SELECT RAISE(ABORT, 'unsupported user role');
+    END;
   `);
 }
 
@@ -463,7 +477,6 @@ function seed(d: Database.Database) {
   const admin = insertUser.run("admin@demo.kg", "+996700000001", hashPassword("admin123"), "Айгуль Асанова", "admin");
   const sales = insertUser.run("sales@demo.kg", "+996700000002", hashPassword("sales123"), "Бакыт Жумалиев", "sales");
   const curator = insertUser.run("curator@demo.kg", "+996700000003", hashPassword("curator123"), "Динара Токтогулова", "curator");
-  insertUser.run("visa@demo.kg", "+996700000004", hashPassword("visa123"), "Эркин Сыдыков", "visa");
   insertUser.run("finance@demo.kg", "+996700000005", hashPassword("finance123"), "Гульнара Орозова", "finance");
 
   const clientUser1 = insertUser.run("client@demo.kg", "+996555111222", hashPassword("client123"), "Нурлан Абдыкадыров", "client");

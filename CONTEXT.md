@@ -1,6 +1,16 @@
 # EVO Admissions CRM
 
-EVO Admissions CRM coordinates admissions leads, student operations, and operator follow-up for EVO Admissions. This glossary pins down rollout and identity language used across the CRM and lead-agent work.
+EVO Admissions CRM coordinates admissions leads, student operations, and
+operator follow-up for EVO Admissions. This glossary pins down rollout and
+identity language used across the current CRM/companion runtimes and the target
+unified platform.
+
+The target contract is
+[`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`](docs/EVO_PLATFORM_LONG_RUN_PLAN.md) and
+the superseding architecture decision is
+[`docs/adr/0014-unified-evo-platform-target-architecture.md`](docs/adr/0014-unified-evo-platform-target-architecture.md).
+Companion-era terms below remain as honest descriptions of the runtime that
+exists before controlled migration; they are not the target architecture.
 
 ## Language
 
@@ -13,8 +23,11 @@ A rollout mode where inbound messages may be captured, resolved, and shown to st
 _Avoid_: passive mode, demo mode
 
 **Dedicated Test Number**:
-An EVO-owned WhatsApp number used to prove the live message path without exposing a personal or primary admissions number.
-_Avoid_: personal number, main number
+An EVO-controlled sanitized sender number used to prove the live message path
+into the single production `evo-inbox` number without exposing a personal,
+customer, or primary admissions sender. It is not a second production WAHA
+session.
+_Avoid_: personal number, customer number, second production WAHA session
 
 **Test Lead**:
 A real amoCRM lead created or resolved during rollout validation and clearly marked so staff can identify it as test data.
@@ -45,11 +58,14 @@ The single first-launch WAHA session used by the Companion WAHA CRM App: `evo-in
 _Avoid_: multi-session launch, primary CRM session
 
 **Companion AI Assistant**:
-The Companion WAHA CRM App's own AI reply system for draft replies, optional auto-replies, handoff, and knowledge-base grounding.
+The Companion WAHA CRM App's current AI reply system for draft replies,
+legacy configurable auto-reply surfaces, handoff, and knowledge-base grounding.
+The target platform does not retain automatic customer replies.
 _Avoid_: lead-agent, external bot brain
 
 **Identity Source of Truth**:
-The system that owns the canonical lead and contact identity for admissions follow-up.
+amoCRM, which owns the canonical contact, lead, responsible sales manager, and
+sales stage for admissions follow-up.
 _Avoid_: local source, duplicate identity
 
 **Shadow Record**:
@@ -65,7 +81,10 @@ An AI-generated suggested reply or next-step note that staff may inspect, withou
 _Avoid_: autoreply, bot response
 
 **Draft-Only AI Mode**:
-A Companion AI Assistant mode where staff can generate and edit suggested replies, but the system must not send automatic WhatsApp replies.
+A mode where AI may generate a suggested reply, but a staff member must review,
+edit if needed, and deliberately send it. The target supports Russian or
+English according to the last customer message; uncertain language detection
+requires manual language selection or human handoff.
 _Avoid_: passive bot, silent auto-reply
 
 **Companion First Launch Surface**:
@@ -80,6 +99,47 @@ _Avoid_: receive-only proof, auto-reply proof
 The redesign of all retained Companion WAHA CRM App surfaces around EVO admissions work, rather than a light rename of WACRM.
 _Avoid_: light rebrand, template skin
 
+**Unified EVO Platform**:
+The target staff workspace and Student Portal backed by one logical platform
+data model. A dedicated Supabase production project owns EVO operational data,
+while local/development, persistent staging, and supported preview environments
+remain physically isolated. The existing split CRM, Inbox, and Lead Agent
+runtimes remain current-state facts until a controlled cutover proves the
+replacement.
+_Avoid_: renamed companion app, shared production-and-test database
+
+**Platform Business Role**:
+One of `admin`, `sales`, `curator`, `finance`, or `client/student`. There is no
+separate `visa` business role; `/visa` remains a module managed by the assigned
+Curator (and Admin where authorized).
+_Avoid_: prototype persona, shared administrator login
+
+**Admin Assignment**:
+The Admin-only action that assigns or reassigns a student's Curator. It requires
+a reason and an audit record containing the previous and new assignment.
+Only Admin may invite or block staff accounts.
+_Avoid_: client profile update, silent reassignment
+
+**Sales-to-Curator Handoff**:
+The accountable transfer after the signed-contract condition is confirmed
+through the account-specific amoCRM pipeline/status mapping and Admin assigns a
+Curator. Sales owns the queue and conversation before contract; the assigned
+Curator owns them after handoff. Conversation history remains unified, while
+Sales sees only the permitted non-sensitive summary after handoff.
+_Avoid_: copied conversation, operational status replacing amoCRM sales stage
+
+**Unified Platform Data Store**:
+The target dedicated Supabase production project for EVO-owned operational
+records, with RLS and audit controls. It does not become authoritative for
+amoCRM-owned contact, lead, responsible sales manager, or sales stage.
+_Avoid_: companion-only database, canonical sales CRM
+
+**Unified WAHA Session**:
+The target single private production WAHA session `evo-inbox`, representing one
+WhatsApp account and one webhook owner. The existing sessions are not changed
+or retired until controlled cutover evidence exists.
+_Avoid_: public WAHA port, multi-session production target
+
 **Admissions Inquiry**:
 The pre-contract request from a prospective student or decision-making family member that still needs qualification and a next action.
 _Avoid_: student file, confirmed client, application
@@ -93,7 +153,10 @@ The person seeking admission to a school, university, language course, Foundatio
 _Avoid_: lead, payer, parent
 
 **Student Operational File**:
-The post-agreement EVO CRM record used to manage the applicant's admissions delivery, including applications, documents, visa work, payments, tasks, and support.
+The post-agreement platform record used to manage the applicant's admissions
+delivery, including multiple university applications, documents, Curator-owned
+visa work, payments, tasks, and support. A confirmed contract creates a pending
+case; Student Portal access activates only after Admin assigns the Curator.
 _Avoid_: lead, WhatsApp conversation, amoCRM deal
 
 **Decision Participant**:
@@ -117,7 +180,9 @@ One applicant's attempt to enter one specific university and program for a speci
 _Avoid_: student file, sales lead
 
 **Country Knowledge Document**:
-An owner-approved, separately versioned body of country-specific services, prices, routes, requirements, and handoff guidance used by EVO Inbox retrieval.
+A reviewed, approved, and separately versioned body of country-specific
+services, prices, routes, requirements, and handoff guidance used for retrieval.
+Material containing an external-outcome guarantee is not approved knowledge.
 _Avoid_: system prompt, unreviewed notes, customer transcript
 
 **Owner-Approved Business Claim**:
@@ -135,6 +200,9 @@ _Avoid_: EVO revenue, package price
 **External Outcome**:
 An admission, scholarship, or visa decision made by a university, scholarship body, consulate, migration authority, or other outside organization.
 _Avoid_: internal task result, CRM stage
+
+EVO may commit to completing its own contracted services and obligations, but
+must not guarantee admission, scholarship, visa, or another external decision.
 
 **Manager Handoff**:
 The deliberate transfer from AI-assisted qualification to a responsible EVO employee when the answer is missing, case-specific, sensitive, exceptional, or ready for consultation or application.

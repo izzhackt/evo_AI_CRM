@@ -1,110 +1,163 @@
-# Как устроена EVO Admissions Platform
+# Как устроена EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Status: Active (действующий)
-- Last verified: 2026-07-12
-- Sources: `package.json`, `src/app/`, `docker-compose.prod.yml`,
-  `agent-lead2-inbox/`, `evo-lead-agent/`, `AGENTS.md`
+- Status: Target approved; current production remains split until controlled cutover
+- Last verified against repository: 2026-07-28
+- Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
+- Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 
 ## Главное простыми словами
 
-EVO Admissions Platform — не одна большая программа. Это несколько систем с
-разными обязанностями:
+Целевая EVO Platform — одно рабочее приложение для сотрудников и студентов с
+единым backend и одной логической моделью собственных данных. Однако принятие
+этой архитектуры не означает, что production уже переведён на неё. Пока не
+завершены миграция, реальный end-to-end тест, отдельное разрешение на cutover и
+контролируемое наблюдение, действующие CRM, EVO Inbox и EVO Lead Agent остаются
+раздельными.
 
-- **CRM** помогает сотрудникам вести поступление и операционную работу.
-- **EVO Inbox** даёт отдельное рабочее место для WhatsApp-диалогов.
-- **Lead Agent** обрабатывает автоматизированный путь сообщений основной CRM.
-- **amoCRM** является главным владельцем личности лида/контакта и этапа продаж.
-- **WAHA** технически подключает WhatsApp. Это транспорт, а не CRM и не база
-  знаний.
+amoCRM остаётся каноническим владельцем:
 
-Наличие интеграционного кода ещё не доказывает, что внешний сервис сейчас
-подключён. Реальная работа WAHA, amoCRM, Supabase или AI подтверждается только
-проверкой с действующими учётными данными и записывается в
-[текущем статусе](current-status.md).
+- контакта;
+- лида;
+- ответственного sales manager;
+- sales pipeline и sales stage.
 
-## Карта компонентов
+EVO Platform хранит собственное операционное состояние поступления, но не
+подменяет им sales stage amoCRM.
 
-| Компонент | Что видит команда | Техническая основа | Где находится |
-|---|---|---|---|
-| EVO Admissions CRM | Клиенты, заявки, документы, визы, платежи, задачи, звонки, продажи и WhatsApp-контекст | Next.js, SQLite | корень репозитория; рабочий сервер `/opt/evo-crm` |
-| EVO Inbox | Диалоги, контакты, контекст этапа продаж, настройки, база знаний, AI-черновики и ручная отправка | Next.js, управляемый Supabase | `agent-lead2-inbox/`; рабочий сервер `/opt/evo-inbox` |
-| EVO Lead Agent | У команды нет отдельного публичного интерфейса; это приватный сервис обработки | Python, FastAPI, локальная SQLite-память | `evo-lead-agent/`; сервис Compose основной CRM |
-| amoCRM | Канонический контакт, лид и этап продаж | Внешний облачный сервис | вне репозитория |
-| WAHA | WhatsApp-сессия, приём webhook и отправка сообщения | Приватный контейнер | отдельная сессия для CRM и отдельная для Inbox |
-| Edge proxy | Публичный HTTPS-вход в CRM и Inbox | Caddy, сеть `evo_public_web` | `evo-edge-caddy` на `hermes-vps` |
+## Текущее состояние до cutover
 
-## Два WhatsApp-пути
+Репозиторий всё ещё содержит три runtime-контура:
 
-У платформы есть два разных пути. Их нельзя соединять одной сессией или одним
-webhook без отдельного архитектурного решения.
+| Контур | Текущее назначение | Текущее хранилище |
+|---|---|---|
+| Root CRM | Основная staff CRM и admissions UI | SQLite и собственная auth-модель |
+| EVO Inbox | WhatsApp inbox и ручная работа с AI-черновиками | отдельный Supabase-контур |
+| EVO Lead Agent | приватная обработка WAHA/amoCRM и внутренний sync | Python-сервис и локальное состояние |
 
-### Путь основной CRM и Lead Agent
+Существующая конфигурация также содержит два WhatsApp-пути: `crm_primary` для
+старого CRM/Lead Agent path и `evo-inbox` для Inbox. Это описание текущего кода,
+а не разрешение менять production-сессии. Старый путь нельзя отключать, пока
+новый не доказал отсутствие потерь и дублей и не прошёл rollback gate.
 
-```mermaid
-flowchart LR
-  Customer["Клиент в WhatsApp"] --> Waha["WAHA: crm_primary"]
-  Waha --> Agent["EVO Lead Agent"]
-  Agent --> Amo["amoCRM: контакт, лид, этап"]
-  Agent --> Crm["EVO CRM: локальная теневая копия"]
-  Crm --> Staff["Сотрудник EVO"]
-```
+Актуальный уровень доказательств записывается в
+[current-status.md](current-status.md). Наличие кода или конфигурации не
+засчитывается как доказательство работы реальных WAHA, amoCRM, Supabase или AI.
 
-1. WAHA получает сообщение и отправляет подписанный webhook Lead Agent.
-2. Lead Agent удаляет дубли и находит или создаёт контакт и лид в amoCRM.
-3. После успешного resolution Lead Agent отправляет подписанное внутреннее
-   событие в CRM.
-4. CRM показывает сотруднику теневую копию (shadow record) нужного контекста,
-   но не объявляет
-   её новым владельцем личности лида.
-
-Безопасный режим по умолчанию запрещает автоматические и исходящие ответы.
-
-### Путь EVO Inbox
+## Целевая карта
 
 ```mermaid
 flowchart LR
-  Customer["Клиент в WhatsApp"] --> Waha["WAHA: evo-inbox"]
-  Waha --> Inbox["EVO Inbox webhook"]
-  Inbox --> Store["Supabase: сообщения и настройки"]
-  Inbox --> Amo["amoCRM: контакт, лид и этап продаж"]
-  Store --> Staff["Сотрудник EVO Inbox"]
-  Staff --> Waha
+  Customer["Клиент / студент"] --> Waha["Private WAHA: evo-inbox"]
+  Waha --> Platform["Unified EVO backend"]
+  Platform <--> Amo["amoCRM: contact, lead, responsible, sales stage"]
+  Platform <--> Data["Supabase Platform data"]
+  Staff["Staff UI"] <--> Platform
+  Portal["Student Portal"] <--> Platform
+  Platform --> Draft["AI draft only"]
+  Draft --> Review["Staff review / edit"]
+  Review --> Waha
 ```
 
-1. Отдельная WAHA-сессия `evo-inbox` доставляет сообщения в
-   `/api/waha/webhook` EVO Inbox.
-2. Inbox хранит разговор и рабочее состояние в своём Supabase-проекте.
-3. Для контакта и лида Inbox обращается к amoCRM и хранит только ссылочные ID,
-   то есть идентификаторы канонических записей amoCRM.
-4. Сотрудник может проверить AI-черновик и вручную отправить ответ через WAHA.
+Целевой backend поглощает EVO Inbox и полезную, безопасную логику Lead Agent:
 
-На первом запуске массовые рассылки, широкие автоматизации, flows, Meta Cloud
-API и автоматические AI-ответы намеренно отключены.
+- нормализацию телефона;
+- проверку WAHA HMAC и timestamp;
+- raw persistence до обработки;
+- idempotency по `X-Webhook-Request-Id` и бизнес-ключу
+  `session + payload.id`;
+- буферизацию, durable jobs, retry, dead-letter и reconciliation;
+- resolve/create amoCRM contact и lead через канонический adapter;
+- mapping notes/tasks, handoff и loop prevention;
+- отдельные внутренние UUID, WAHA message IDs и Kommo conversation/message IDs;
+- ACK-аудит и правило «не повторять автоматически неизвестный результат send».
 
-## Почему данные не складываются в одну базу
+Auto-reply и unattended outbound не входят в целевую активную функцию.
 
-Одна физическая база выглядела бы проще, но создала бы спор: какое значение
-правильное, если один и тот же статус изменился в amoCRM и в Inbox. Поэтому у
-каждого вида данных есть один владелец, а другим системам разрешены только
-ссылки или явно обозначенные теневые копии. Полная матрица находится в
-[data-ownership.md](data-ownership.md).
+## Данные и среды
 
-## Production-границы
+Для собственных данных используется один dedicated production-проект
+Supabase. Это не означает одну физическую базу для всех сред:
 
-- EVO-сервисы используют собственные Compose projects и сеть
-  `evo_public_web`.
-- `acadis_*` — отдельный проект. Новые зависимости EVO от сетей Acadis
-  запрещены.
-- WAHA и Lead Agent не должны иметь публично открытые API или dashboard.
-- EVO Inbox не использует базу, webhook или WAHA-сессию основной CRM.
-- Секреты остаются в игнорируемых Git файлах `.env`, секретных файлах VPS,
-  панелях внешних сервисов или зашифрованных настройках приложения.
+- local/dev изолирован;
+- staging persistent и изолирован;
+- preview branches создаются там, где это поддерживается;
+- production data по умолчанию не копируется в preview;
+- schema/config идут как код через `supabase/config.toml` и migrations.
 
-## Где читать дальше
+Каждая exposed table должна иметь RLS. Browser использует только publishable
+key. Secret/service-role ключи и provider secrets остаются только на backend.
+Coarse role может приходить из custom JWT claim, но доступ к конкретной
+организации, студенту, разговору и Storage object проверяется через RLS.
 
-- [Владельцы данных](data-ownership.md)
-- [Текущий статус](current-status.md)
-- [Процесс поступления](../business/admissions-process.md)
-- [Словарь терминов](../../CONTEXT.md)
-- [Архитектурные решения](../adr/)
+Private Storage используется только через поддерживаемый API, authenticated или
+короткоживущие signed downloads. Запрещено писать напрямую в таблицы схемы
+`storage`.
+
+Durable retryable business work идёт через Supabase Queues с идемпотентными
+consumer-ами. Database Webhooks допустимы для асинхронного event push, но не
+заменяют durable очередь. DB-resident secrets могут храниться в Vault при
+закрытом доступе. PITR зависит от выбранного плана; Storage objects требуют
+отдельной backup-процедуры.
+
+## Роли и границы
+
+Первый release использует роли:
+
+- `admin`;
+- `sales`;
+- `curator`;
+- `finance`;
+- `client/student`.
+
+Отдельной роли `visa` нет, хотя module `/visa` остаётся. Только Admin приглашает
+или блокирует staff и назначает или переназначает Curator. Reassignment требует
+причину, before/after и audit. Curator ведёт назначенного студента целиком:
+документы, несколько university applications, visa case, tasks и
+communication.
+
+Sales владеет очередью и диалогом до подтверждённого signed-contract stage в
+account-specific amoCRM mapping. После handoff ответственность переходит
+Curator; единая история сохраняется, а Sales видит только разрешённый
+несекретный summary. Portal активируется лишь после подтверждённого contract и
+Admin assignment Curator.
+
+Finance/Admin подтверждают obligations, payments и refunds вручную, с evidence
+и audit. Student видит понятный overdue notice и next action, но не внутренние
+чувствительные поля.
+
+## AI и отправка сообщений
+
+AI создаёт только draft на RU или EN по языку последнего customer message.
+Неуверенный язык требует ручного выбора или handoff. Кыргызский customer-draft
+contract и автоматическая отправка запрещены.
+
+Draft строится только на approved versioned knowledge. Сотрудник обязательно
+review/edit и нажимает manual send. Перед ответом backend вызывает
+`/api/sendSeen`, отправляет только при WAHA session `WORKING`, сохраняет
+operator, final text hash, provider IDs и ACK progression. Неизвестный результат
+send не повторяется автоматически.
+
+EVO может обещать только исполнение собственных услуг и обязательств. Platform
+не должна гарантировать admission, scholarship, visa или решение внешнего
+органа.
+
+## Что должно произойти до cutover
+
+1. Миграции и RLS проходят clean reset и отрицательные cross-role,
+   cross-student и cross-organization тесты.
+2. SQLite inventory, backup, deterministic mapping, dry-run и staging import
+   дают проверяемые counts, orphans и checksums.
+3. amoCRM adapter обнаруживает и версионирует account-specific mappings; IDs не
+   hardcode-ятся как глобальные.
+4. На выделенном тестовом номере и sanitized test lead проходит реальный путь:
+   WhatsApp receive → amo resolve/link → Platform → AI draft → operator manual
+   send → delivery/read/unknown → audit.
+5. Выполняются backup/restore и rollback rehearsal.
+6. Production mutation получает отдельное явное разрешение и release window.
+7. Старый Lead Agent удаляется только отдельным reviewed PR после минимум 72
+   фактических часов стабильного трафика, reconciliation и zero unexplained
+   loss/duplicates.
+
+До выполнения этих условий target остаётся принятым контрактом, а не
+production-complete заявлением.

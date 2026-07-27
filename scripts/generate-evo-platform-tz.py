@@ -62,10 +62,82 @@ GRAY = "666666"
 MUTED = "72777F"
 LIGHT_GRAY = "F2F4F7"
 LIGHT_RED = "FBEAEC"
-DOCX_ZIP_TIMESTAMP = (2026, 7, 26, 0, 0, 0)
+DOCX_ZIP_TIMESTAMP = (2026, 7, 28, 0, 0, 0)
 WHITE = "FFFFFF"
 BORDER = "D9DDE3"
 CODE_FILL = "F6F7F9"
+
+
+def load_source_metadata() -> dict[str, str]:
+    """Read cover/header fields from the canonical Markdown source."""
+    lines = SOURCE.read_text(encoding="utf-8").splitlines()
+    wanted = {
+        "Идентификатор документа": "document_id",
+        "Версия": "version",
+        "Статус": "status",
+        "Дата": "date",
+        "Базовая версия репозитория": "base_commit",
+    }
+    values: dict[str, str] = {}
+    current_key: str | None = None
+
+    for line in lines[:40]:
+        match = re.match(r"^\*\*(.+?):\*\*\s*(.*)$", line)
+        if match:
+            current_key = wanted.get(match.group(1))
+            if current_key:
+                values[current_key] = match.group(2).strip()
+            continue
+        if current_key and line.strip() and not line.startswith(("#", ">")):
+            values[current_key] = f"{values[current_key]} {line.strip()}".strip()
+        elif not line.strip():
+            current_key = None
+
+    missing = sorted(set(wanted.values()) - values.keys())
+    if missing:
+        raise RuntimeError(f"Missing canonical document metadata: {', '.join(missing)}")
+
+    for key, value in values.items():
+        values[key] = value.replace("`", "")
+
+    month_numbers = {
+        "января": "01",
+        "февраля": "02",
+        "марта": "03",
+        "апреля": "04",
+        "мая": "05",
+        "июня": "06",
+        "июля": "07",
+        "августа": "08",
+        "сентября": "09",
+        "октября": "10",
+        "ноября": "11",
+        "декабря": "12",
+    }
+    date_match = re.fullmatch(r"(\d{1,2})\s+(\S+)\s+(\d{4})\s+года", values["date"])
+    if not date_match or date_match.group(2) not in month_numbers:
+        raise RuntimeError(f"Unsupported canonical date format: {values['date']}")
+    values["short_date"] = (
+        f"{int(date_match.group(1)):02d}."
+        f"{month_numbers[date_match.group(2)]}."
+        f"{date_match.group(3)}"
+    )
+
+    notice_lines: list[str] = []
+    collecting = False
+    for line in lines[:50]:
+        if line.startswith("> **Назначение документа.**"):
+            collecting = True
+        if collecting:
+            if not line.startswith(">"):
+                break
+            notice_lines.append(line.removeprefix("> ").strip())
+    notice = " ".join(notice_lines)
+    notice = re.sub(r"\*\*([^*]+)\*\*", r"\1", notice)
+    if not notice:
+        raise RuntimeError("Missing canonical document purpose notice")
+    values["notice"] = notice
+    return values
 
 
 def rgb(hex_value: str) -> RGBColor:
@@ -284,6 +356,8 @@ def widths_for(headers: Sequence[str]) -> list[int]:
             return [1150, 1800, 4000, 2410]
         if "кто утверждает" in lowered:
             return [1150, 4900, 1900, 1410]
+        if "решение / оставшийся gate" in lowered:
+            return [1150, 1200, 4800, 2210]
         if lowered[0] == "id":
             return [1150, 4650, 1200, 2360]
         if "что хранит evo platform" in lowered:
@@ -405,7 +479,7 @@ def configure_section(section) -> None:
     section.footer_distance = Inches(0.492)
 
 
-def configure_header_footer(section) -> None:
+def configure_header_footer(section, metadata: dict[str, str]) -> None:
     section.different_first_page_header_footer = True
     header = section.header
     p = header.paragraphs[0]
@@ -414,7 +488,9 @@ def configure_header_footer(section) -> None:
     left = p.add_run("EVO Admissions  |  Техническое задание")
     set_run_font(left, size=8.5, color=MUTED, bold=True)
     p.add_run("\t")
-    right = p.add_run("Версия 1.0  ·  26.07.2026")
+    right = p.add_run(
+        f"Версия {metadata['version']}  ·  {metadata['short_date']}"
+    )
     set_run_font(right, size=8.5, color=MUTED)
     p.paragraph_format.tab_stops.add_tab_stop(Inches(CONTENT_WIDTH_IN), WD_ALIGN_PARAGRAPH.RIGHT)
 
@@ -536,7 +612,9 @@ def extract_logo(tmp_dir: Path) -> Path:
     return path
 
 
-def add_cover(document: Document, logo_path: Path) -> None:
+def add_cover(
+    document: Document, logo_path: Path, source_metadata: dict[str, str]
+) -> None:
     for _ in range(2):
         p = document.add_paragraph()
         set_paragraph_spacing(p, after=0)
@@ -570,11 +648,11 @@ def add_cover(document: Document, logo_path: Path) -> None:
     paragraph_bottom_border(rule, color=EVO_RED, size="28")
 
     metadata = [
-        ("Документ", "EVO-PLATFORM-TZ-001"),
-        ("Версия", "1.0"),
-        ("Статус", "Проект для согласования владельцем бизнеса"),
-        ("Дата", "26 июля 2026 года"),
-        ("Базовый commit", "0ecd95d6b248572269bec17d60072a49230e626e"),
+        ("Документ", source_metadata["document_id"]),
+        ("Версия", source_metadata["version"]),
+        ("Статус", source_metadata["status"]),
+        ("Дата", source_metadata["date"]),
+        ("Базовый commit", source_metadata["base_commit"]),
     ]
     for label, value in metadata:
         p = document.add_paragraph()
@@ -594,12 +672,7 @@ def add_cover(document: Document, logo_path: Path) -> None:
     set_paragraph_spacing(notice, before=8, after=0, line=1.15)
     paragraph_shading(notice, LIGHT_RED)
     paragraph_left_border(notice)
-    add_inline(
-        notice,
-        "Это ТЗ является контрактом на последующую реализацию. "
-        "Backend-миграция начинается только после утверждения открытых решений.",
-        size=10.5,
-    )
+    add_inline(notice, source_metadata["notice"], size=10.5)
     document.add_page_break()
 
 
@@ -998,17 +1071,18 @@ def normalize_docx_package(path: Path) -> None:
 
 
 def build() -> Path:
+    source_metadata = load_source_metadata()
     document = Document()
     for section in document.sections:
         configure_section(section)
-        configure_header_footer(section)
+        configure_header_footer(section, source_metadata)
     configure_styles(document)
     set_document_properties(document)
     set_update_fields(document)
 
     with tempfile.TemporaryDirectory(prefix="evo-tz-docx-") as tmp:
         logo = extract_logo(Path(tmp))
-        add_cover(document, logo)
+        add_cover(document, logo, source_metadata)
         add_table_of_contents(document)
         parse_markdown(document)
 

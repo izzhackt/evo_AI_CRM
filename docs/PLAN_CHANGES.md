@@ -2782,3 +2782,195 @@ Validation impact:
 - Require zero unresolved accessibility findings at every severity.
 - Repeat independent review after these changes; merge remains blocked until
   the reviewer returns `approved`.
+
+## 2026-07-28 - Activate Unified EVO Platform Long-Run Contract
+
+Affected plan section: `/goal-evo-platform-long-run`, P0–P10.
+
+Change type: active goal, target architecture, business authority, schema and
+provider boundaries, merge order, acceptance criteria, validation and
+production authorization.
+
+Reason:
+
+- The accepted frontend and the 2026-07-26 specification provide a strong UI
+  and traceability baseline, but they do not prove a unified backend or live
+  provider path.
+- The specification still treated `visa` as a separate first-release role,
+  left already decided business policies open, described one Supabase project
+  per environment too rigidly, and used a proposed 14-day Lead Agent retirement
+  window instead of the fixed minimum 72-hour evidence gate.
+- Current production remains split across root SQLite/custom auth, EVO Inbox
+  Supabase/WAHA, and a frozen EVO Lead Agent. Target documents must not pretend
+  cutover has already happened.
+
+Decision:
+
+- Make `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` the detailed current execution
+  contract and retain `docs/EVO_LAUNCH_PLAN.md` as the root launch-control
+  index and historical record.
+- Use roles `admin`, `sales`, `curator`, `finance` and `client/student`; preserve
+  the `/visa` module without a separate Visa role. Only Admin invites/blocks
+  staff and assigns/reassigns Curator. A reason, before/after values and audit
+  are mandatory for reassignment.
+- Keep one Curator responsible for the complete student case. Sales owns the
+  queue/conversation before confirmed contract; Curator owns it after handoff.
+  The history remains unified and Sales receives only an authorized
+  non-sensitive summary after handoff.
+- Treat the signed-contract signal only through discovered, versioned,
+  account-specific amoCRM mapping. It creates a pending case; Portal activates
+  only after Admin Curator assignment.
+- Make EVO Platform the temporary manual operational finance source. Only
+  Finance/Admin confirm payments/refunds with evidence and audit. Defer
+  Excel/1C integration instead of creating a fake connector.
+- Limit v1 notifications to durable in-app plus individual WhatsApp delivery.
+  Limit private documents to PDF/JPG/PNG at 25 MB, with versions,
+  integrity/malware policy, review/rework history and audited access. Do not
+  auto-delete until Legal/Data Owner fixes retention.
+- Restrict AI to approved versioned knowledge and RU/EN drafts derived from the
+  last customer message. Uncertain language requires manual selection/handoff.
+  Remove Kyrgyz customer-draft generation from the first-release contract.
+  Never guarantee admission, scholarship, visa or another external decision.
+- Keep amoCRM canonical for contact, lead, responsible sales manager and sales
+  stage. Use one dedicated Supabase production project for all platform-owned
+  data while keeping local/dev, persistent staging and preview
+  branches/projects physically isolated and empty of production data by
+  default.
+- Target one private `evo-inbox` WAHA session and one webhook owner. Absorb
+  useful Lead Agent identity, HMAC/idempotency, event persistence, jobs,
+  amoCRM, handoff, retry/dead-letter and reconciliation logic, but never active
+  auto-reply.
+- Execute ordered blocks P0–P10. P0 is docs-only and must merge before code.
+  Permit only one implementation PR at a time. Every PR needs exact local/CI
+  evidence plus an independent, head-SHA-bound launch-control review. The
+  executor does not merge its own PR; an independent merge-controller is the
+  only merger.
+- Require at least 72 actual hours of stable real traffic, zero unexplained
+  loss/duplicates/drift, reconciliation and proven rollback before a separate
+  Lead Agent retirement PR.
+- Keep production deployment/migrations, DNS, WAHA QR/session changes, live
+  customer WhatsApp sends, real amoCRM mutations and service deletion outside
+  this run.
+
+Remaining decisions:
+
+- exact amoCRM account/pipeline/status/custom-field/user mappings;
+- Supabase region/plan/PITR/cost;
+- capacity/SLO/RPO/RTO;
+- retention/privacy/residency/DPA/legal deletion;
+- AI provider/model and permitted-data policy;
+- dedicated sanitized test sender number, `evo-inbox` production
+  QR/session-recovery owner and controlled test-send authority;
+- release window, freeze rules and rollback authority.
+
+Validation impact:
+
+- P0 must rebuild the DOCX deterministically, pass the requirement/provenance,
+  structure, hyperlink and accessibility verifier, render through real
+  LibreOffice/Poppler, and record visual inspection of every page.
+- Later blocks run their changed-scope checks plus the full applicable root,
+  Inbox, Lead Agent, Supabase, Playwright, security, backup/restore and GitHub
+  exact-head gates defined in the long-run plan.
+- Unit/contract tests and configured flags remain narrow evidence; live
+  provider acceptance is `blocked` until a real sanitized test path exists.
+
+## 2026-07-28 - Bind Generated TZ Metadata And Decision Table Geometry
+
+Affected plan section: `/goal-evo-platform-long-run`, P0 documentation
+validation.
+
+Change type: deterministic document-generation correction.
+
+Reason:
+
+- The first P0 regeneration revealed that the branded DOCX cover and running
+  header still duplicated stale version/date/base-SHA values instead of using
+  the canonical Markdown metadata.
+- Page-by-page visual inspection also found an unreadable decision registry:
+  the narrow gate column broke words into fragments and LibreOffice split
+  `DEC-005` across pages without a useful repeated heading.
+- The first evidence renderer used Poppler at 150 DPI. On this runtime that
+  scale corrupted geometry on some PNG rasters even though the source PDF and
+  isolated 144-DPI renders of the same pages were correct, so those 150-DPI
+  PNGs could not be accepted as visual evidence.
+- `NFR-007` still proposed numeric RPO/RTO values even though DEC-010 correctly
+  leaves those targets for an accountable owner decision.
+
+Decision:
+
+- Derive generated cover/header metadata from
+  `docs/specs/EVO_PLATFORM_TZ.md`; do not maintain a second hand-edited copy in
+  the generator.
+- Give the decision/gate column the dominant width and keep status compact so
+  the registry remains readable in the committed rendering workflow.
+- Keep numeric RPO/RTO open under DEC-010. Restore rehearsals report measured
+  results but cannot silently turn them into approved targets.
+- Count PDF pages with Poppler and rasterize every page at fixed 144 DPI
+  (exactly two pixels per PDF point) in its own `pdftoppm -singlefile` process.
+  This makes the evidence scale reproducible and prevents one damaged raster
+  process from contaminating the page-by-page review.
+
+Validation impact:
+
+- Rebuild and verify the DOCX after these corrections.
+- Discard visual evidence from the superseded render and inspect every page of
+  the final render again.
+
+## 2026-07-28 - Align Long-Run Dependency Gates With Current CI Policy
+
+Affected plan section: `/goal-evo-platform-long-run`, validation baseline.
+
+Change type: validation-command correction.
+
+Reason:
+
+- The first P0 draft described a raw full dependency audit even though the
+  repository already has a fail-closed development-advisory policy in
+  `config/npm-audit-allowlist.json` and
+  `scripts/check-npm-audit-allowlist.mjs`.
+- The exact shared CI commands use a blocking production audit at moderate
+  severity plus that constrained allowlist checker. Replacing them with a
+  different raw audit would make local evidence diverge from exact-head CI.
+- `next` and TypeScript are already pinned project dependencies, so validation
+  should invoke their local binaries without package resolution.
+
+Decision:
+
+- Keep `npm audit --omit=dev --audit-level=moderate` blocking for root and
+  Inbox production graphs.
+- Validate the full development graph only through the committed allowlist
+  checker; unapproved, expired or changed advisories remain blocking.
+- Invoke project-local Next typegen and TypeScript binaries.
+
+Validation impact:
+
+- Run the corrected commands locally and verify the exact-head GitHub
+  `EVO platform CI` jobs before accepting the PR.
+
+## 2026-07-28 - Label Legacy Visa-Role Screenshot As Historical Evidence
+
+Affected plan section: `/goal-evo-platform-long-run`, P0 owner-facing TZ
+design evidence.
+
+Change type: evidence-interpretation correction.
+
+Reason:
+
+- The accepted roles-matrix screenshot is useful frontend evidence but reflects
+  the pre-P1 runtime and visibly contains a separate `Визовый отдел` column.
+- Without an adjacent warning, an owner could reasonably read that image as
+  contradicting the fixed no-Visa-role contract even though screenshots are
+  non-normative.
+
+Decision:
+
+- Preserve the accepted screenshot without redesign.
+- Place an explicit visible warning immediately before it: the column is
+  historical current-runtime evidence, the normative section 11 matrix
+  supersedes it, P1 removes the business `visa` role, and `/visa` remains a
+  Curator-owned module.
+
+Validation impact:
+
+- Regenerate the DOCX and restart inspection of every page from the final
+  artifact; superseded visual passes are not evidence.

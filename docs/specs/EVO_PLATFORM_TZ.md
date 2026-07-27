@@ -3,34 +3,38 @@
 ## Единая платформа автоматизации EVO Admissions
 
 **Идентификатор документа:** EVO-PLATFORM-TZ-001
-**Версия:** 1.0
-**Статус:** проект для согласования владельцем бизнеса
-**Дата:** 26 июля 2026 года
-**Базовая версия репозитория:** `0ecd95d6b248572269bec17d60072a49230e626e`
+**Версия:** 1.1
+**Статус:** действующий контракт repository-реализации; production-gates
+остаются отдельными
+**Дата:** 28 июля 2026 года
+**Базовая версия репозитория:** `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 **Язык документа:** русский
 
 > **Назначение документа.** Это ТЗ является контрактом на последующую
 > реализацию единой EVO Admissions Platform. Оно не утверждает, что внешние
-> интеграции уже работают, и не разрешает начинать backend-миграцию до
-> письменного согласования раздела 32.
+> интеграции уже работают. После merge P0 оно разрешает только поэтапную
+> repository-реализацию по `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`; production
+> deployment, migration, provider mutation, live send и удаление сервисов
+> требуют отдельных gates и полномочий.
 
 ## Карточка документа
 
 | Поле | Значение |
 | --- | --- |
 | Заказчик | EVO Admissions |
-| Владелец продукта | Назначается руководством EVO Admissions |
-| Владелец бизнес-процессов | Назначается руководством EVO Admissions |
-| Технический владелец | Назначается руководством EVO Admissions |
+| Владелец продукта | Должность Product Owner EVO Platform |
+| Владелец бизнес-процессов | Должность Business Process Owner |
+| Технический владелец | Должность Technical Owner |
 | Разработчик | Команда реализации EVO Platform |
 | Объект автоматизации | Продажи, коммуникации, поступление, документы, визы, финансы, задачи, отчётность и кабинет студента |
-| Формат согласования | Письменное утверждение версии и открытых решений |
+| Формат согласования | SHA-bound review, должностное решение по открытым gates и audit evidence |
 | Источник бренда | `docs/company/brand/evo-admissions-logobook.pdf` |
 | Принятый preset | `standard_business_brief` |
 
 > **Главная граница.** amoCRM остаётся источником истины для контакта, лида,
-> менеджера и стадии продаж. Supabase хранит собственные операционные данные
-> EVO Platform.
+> ответственного sales manager и стадии продаж. Один dedicated production
+> Supabase project хранит собственные операционные данные EVO Platform;
+> local/dev, staging и preview физически изолированы от production.
 
 ## 1. Как читать это ТЗ
 
@@ -78,19 +82,31 @@ amoCRM, WhatsApp, AI-черновиков, повторов, handoff и ауди
 2. Supabase становится основным хранилищем собственных данных EVO Platform:
    пользователей, ролей, студенческих дел, заявок, документов, виз, финансовых
    обязательств, задач, коммуникаций, AI-черновиков, синхронизации и аудита.
-3. Используется один Supabase-проект на каждую среду: development, staging и
-   production. Inbox и CRM не получают отдельные production-проекты.
-4. Используется один входящий WhatsApp/WAHA-контур и одна активная сессия на
-   первом этапе.
+3. Используется один dedicated production Supabase project. Local/dev,
+   persistent staging и preview branches/projects физически изолированы, имеют
+   ту же migration history и не получают production data по умолчанию. Inbox и
+   CRM не получают отдельные production-проекты.
+4. Используется один входящий WhatsApp/WAHA-контур, одна private session
+   `evo-inbox` и один webhook owner.
 5. Полезная логика EVO Lead Agent переносится в единый backend как модули
    интеграции и фоновой обработки.
-6. EVO Lead Agent не удаляется до реального end-to-end доказательства,
-   сверки данных, окна отката и письменного решения владельца.
+6. EVO Lead Agent не удаляется до реального end-to-end доказательства, сверки,
+   rollback и минимум 72 фактических часов стабильного traffic.
 7. AI создаёт только черновик. Сотрудник проверяет, редактирует и вручную
    отправляет каждое клиентское сообщение.
 8. Продажная воронка и операционный путь студента — разные модели.
 9. Figma, прототипы и скриншоты являются дизайн-доказательствами, но не
    заменяют это ТЗ и не доказывают работу внешнего provider.
+10. Роли v1: Admin, Sales, Curator, Finance и Client/Student. Отдельной Visa
+    role нет; визовый модуль ведёт Curator.
+11. Только Admin приглашает/блокирует staff и назначает/переназначает Curator.
+    Reassignment требует reason, before/after и audit.
+12. Sales владеет разговором до подтверждённого договора; после handoff —
+    Curator. История единая, а Sales видит только разрешённый summary.
+13. EVO Platform временно является manual operational source финансов v1.
+    Payment/refund подтверждают только Finance/Admin с evidence и audit.
+14. EVO гарантирует только собственные услуги и обязательства, а не admission,
+    scholarship, visa или решение внешнего органа.
 
 ## 3. Цели и измеримый результат
 
@@ -125,10 +141,11 @@ amoCRM, WhatsApp, AI-черновиков, повторов, handoff и ауди
 
 ## 4. Источники и порядок приоритета
 
-После утверждения этого документа противоречия разрешаются в следующем порядке:
+После merge P0 противоречия разрешаются в следующем порядке:
 
-1. письменное решение владельца EVO Admissions;
-2. утверждённая версия этого ТЗ и зарегистрированные изменения к нему;
+1. зафиксированные business decisions и отдельные должностные решения по
+   открытым gates;
+2. эта версия ТЗ и зарегистрированные изменения к ней;
 3. ADR, launch-plan и security/runbook репозитория;
 4. production-код, миграции и проверенные интеграционные контракты;
 5. бизнес-процесс и утверждённая база знаний;
@@ -142,7 +159,7 @@ amoCRM, WhatsApp, AI-черновиков, повторов, handoff и ауди
 
 ### 4.1 Проверенный набор источников
 
-- 892 отслеживаемых файла репозитория на базовом коммите;
+- 898 отслеживаемых файлов репозитория на базовом коммите;
 - корневая Next.js EVO CRM и её SQLite-модель;
 - EVO Inbox, миграции Supabase и серверные маршруты;
 - EVO Lead Agent, его FastAPI/SQLite/amoCRM/WAHA контракты;
@@ -150,7 +167,9 @@ amoCRM, WhatsApp, AI-черновиков, повторов, handoff и ауди
 - бизнес-контекст, процесс поступления и матрица владельцев данных;
 - итоговый frontend audit, completion checklist и дизайн-review closure;
 - EVO Admissions logobook;
-- исходный `TZ_Platforma_avtomatizacii_OZO.docx`;
+- сохранённая provenance исходного
+  `TZ_Platforma_avtomatizacii_OZO.docx`; оригинальный binary отсутствует в
+  чистом worktree и в любом случае является context, а не authority;
 - ограниченная read-only проверка открытой amoCRM 23 июля 2026 года.
 
 Операционный screenshot amoCRM с именами сотрудников и реальными показателями
@@ -169,9 +188,13 @@ amoCRM, WhatsApp, AI-черновиков, повторов, handoff и ауди
 | amoCRM | Контакт, лид, ответственный, стадия продаж | Внешний SaaS | Webhook/API могут задержаться или временно быть недоступны |
 | WAHA | Приём и отправка WhatsApp, session/status/ack events | Приватный runtime | Дубли webhook, неизвестный результат send, QR/session failure |
 
-Текущая система имеет две WAHA-сессии и два webhook-пути. Это было безопасной
-границей для параллельной проверки Inbox, но не является целевой архитектурой
-единой платформы.
+Read-only snapshot 28 июля 2026 года подтвердил два healthy WAHA containers и
+два настроенных runtime-пути. Защищённый sessions endpoint вернул `401` без API
+key, поэтому фактические session statuses в этом snapshot не доказаны. Эта
+companion-граница не является целевой архитектурой единой платформы. CRM/Lead
+Agent работают на revision `564332b4`, Inbox — `a09a72fc`; обе revision отстают
+от `main` `a16cd3fb`. Lead Agent frozen, worker/auto-reply/outbound выключены,
+amoCRM readiness false.
 
 ### 5.1 Что уже можно переиспользовать
 
@@ -255,15 +278,36 @@ Student Portal -> Supabase Auth/RLS -> Admissions, Documents, Finance, Messages
 
 | Среда | Назначение | Данные | Внешние provider |
 | --- | --- | --- | --- |
-| Development | Локальная разработка и автоматические тесты | Синтетические/обезличенные | Mocks или sandbox, явно помеченные |
+| Local/Development | Локальная разработка и автоматические тесты | Только синтетические/обезличенные | Реальный sandbox/test provider, когда требуется provider proof; недоступность помечается blocked |
 | Staging | Реальные интеграционные проверки до релиза | Обезличенные либо специально разрешённые тестовые записи | Тестовые аккаунты/номер |
+| Preview | Временная проверка PR, если plan/provider поддерживает branch | Без production data по умолчанию | Только явно разрешённые test provider |
 | Production | Рабочая система EVO Admissions | Реальные данные в утверждённом объёме | Production accounts |
 
-Для каждой среды создаётся отдельный Supabase project с одинаковыми миграциями.
-Внутри одной среды Inbox, CRM, Admissions и Portal используют одну схему
-платформы, а не разные проекты. Schema changes хранятся в Git и применяются
-последовательно через официальный migration workflow. Production secrets и
-service-role key не передаются в браузер.
+Production использует один dedicated Supabase project для всех EVO-owned
+данных. Local/dev, persistent staging и preview реализуются отдельными
+projects/branches по возможностям выбранного plan; у них изолированы
+DB/API/Auth/Storage/Functions и они не копируют production data по умолчанию.
+Во всех средах Inbox, CRM, Admissions и Portal используют одну логическую
+platform model с одинаковой migration history, а не отдельные production DB.
+Schema changes хранятся в Git (`supabase/config.toml`, migrations,
+reset/diff/pull workflow). Browser использует publishable key; secret/service
+role остаются только backend. RLS обязательна для каждой exposed table.
+
+Дополнительные обязательные границы:
+
+- coarse role приходит через versioned custom JWT claim, а organization,
+  record/object scope проверяется RLS и server authorization;
+- Next.js 16 использует `@supabase/ssr`, `proxy.ts`, async `cookies()` и
+  `getClaims()` для server authorization; `getSession()` не считается
+  авторизационным доказательством;
+- Storage private; download только authenticated/signed URL либо server stream;
+  application code не пишет напрямую в storage schema;
+- Realtime channels private и защищены простой RLS;
+- durable retryable work использует Supabase Queues; DB Webhooks допустимы как
+  async push, но не заменяют durable queue;
+- DB-resident secrets используют Vault;
+- PITR включается только после выбора поддерживающего plan; database backup не
+  включает Storage objects, поэтому Storage имеет отдельный backup/restore.
 
 ### 6.4 Границы источников истины
 
@@ -274,13 +318,13 @@ service-role key не передаются в браузер.
 | Операционное дело студента | EVO Platform | Полная рабочая модель и история | Разрешённые сотрудники |
 | Заявка в университет | EVO Platform; решение принадлежит внешнему вузу | Статусы, evidence, deadlines, response | Куратор; внешний result только по evidence |
 | Документ и review | EVO Platform + private Storage | Metadata, versions, checks, decisions | Студент загружает; сотрудник принимает решение |
-| Визовый result | Внешний орган | Case, tasks, received decision evidence | Visa role records evidence |
-| Финансовое обязательство | EVO Platform или утверждённая учётная система | Obligation, invoice/reference, payment evidence, sync state | Finance; источник утверждается |
+| Визовый result | Внешний орган | Case, tasks, received decision evidence | Curator фиксирует evidence; Admin видит/audit |
+| Финансовое обязательство/оплата/refund v1 | EVO Platform manual operations | Obligation, invoice/reference, payment/refund evidence, status/history | Только Finance/Admin с evidence и audit |
 | WhatsApp transport status | WAHA | Durable event, normalized status, unknown state | Только server integration |
 | Разговор и сообщения | EVO Platform | Полная durable history и links | Server ingest; employee manual outbound |
 | AI-черновик | EVO Platform | Prompt/context version, output, evidence, reviewer action | Server creates; employee reviews |
 | Audit event | EVO Platform append-only audit | Actor, action, target, before/after hash, source, time | Server only |
-| Admission/visa decision | Университет/орган | Полученный результат и evidence | Сотрудник фиксирует без переименования в «гарантию» |
+| Admission/visa decision | Университет/орган | Полученный результат и evidence | Curator фиксирует без переименования в «гарантию» |
 
 ## 7. Модель данных
 
@@ -316,9 +360,11 @@ service-role key не передаются в браузер.
 - `amo_contact_id` и `amo_lead_id` уникальны в пределах организации и
   amoCRM-аккаунта.
 - Телефон нормализуется к E.164, но не является единственным первичным ключом.
-- Provider message ID уникален в пределах WAHA session/account.
-- Inbound idempotency key обязательно включает `account_id`, session и
-  provider message ID; глобального ключа только из session/message недостаточно.
+- Внутренний message UUID, WAHA session/message IDs и Kommo
+  `conversation.id`/`message.id` хранятся раздельно.
+- WAHA Provider message ID уникален в пределах WAHA session/account.
+- Inbound dedupe учитывает `X-Webhook-Request-Id` и независимый business key
+  `session + payload.id`; глобального ключа из одного message ID недостаточно.
 - Студенческое дело связывается с amo lead/contact, но не наследует sales stage
   как операционный статус.
 - Каждая заявка, версия документа, оплата и решение имеют собственный ID и
@@ -339,8 +385,13 @@ service-role key не передаются в браузер.
 
 ### 8.1 Правила чтения и записи
 
+- Account, pipeline, status, custom-field и user IDs обнаруживаются из
+  конкретного amoCRM/Kommo account, кешируются и versioned; глобальные hardcoded
+  ID запрещены.
 - Все изменения контакта, ответственного и sales stage сначала отправляются в
   amoCRM.
+- Canonical lead write использует `pipeline_id`, `status_id`,
+  `responsible_user_id` и `custom_fields_values` по versioned mapping.
 - Локальный read model обновляется после подтверждённого API response или
   канонического webhook/reconciliation.
 - Если amoCRM недоступна, платформа не создаёт «успешное» локальное изменение
@@ -349,7 +400,11 @@ service-role key не передаются в браузер.
   таблицы и business approval.
 - Webhook быстро валидируется, сохраняется и подтверждается; тяжёлая обработка
   выполняется асинхронно.
+- Минимум обрабатываются add/update/status/responsible lead events и связанные
+  events, включённые в утверждённую account subscription.
 - Периодическая reconciliation сверяет изменения, пропущенные webhook.
+- Adapter соблюдает максимум 7 requests/second/IP и предпочитает не более 50
+  writes в одном batch.
 
 ### 8.2 Поиск, создание и дубли
 
@@ -384,13 +439,16 @@ EVO Platform. Dashboard/API WAHA не публикуются в internet.
 
 Минимальные события:
 
-- `message` — входящее/исходящее сообщение;
+- `message` — входящее сообщение;
+- `message.any` — reconciliation входящих и собственных API-sent сообщений;
 - `message.ack` — изменение доставки/прочтения;
 - `session.status` — состояние session;
 - при подтверждённой необходимости — message reaction/media events.
 
-Webhook проверяет HMAC по raw body, timestamp и request ID. Повторная доставка
-не должна создавать второе сообщение или повторное business-действие.
+Webhook проверяет HMAC по raw body, timestamp и `X-Webhook-Request-Id`, сохраняет
+raw event до business processing и проверяет business key
+`session + payload.id`. Повторная доставка не должна создавать второе сообщение
+или повторное business-действие.
 
 ### 9.2 Статусы сообщения
 
@@ -401,6 +459,9 @@ Webhook проверяет HMAC по raw body, timestamp и request ID. Повт
 - `prepared` означает запись в outbox, а не отправку provider.
 - `sent` допустим только после подтверждённого ответа send API.
 - `delivered` и `read` приходят из acknowledgement.
+- Raw acknowledgement сохраняет WAHA states
+  `ERROR/PENDING/SERVER/DEVICE/READ/PLAYED`, а normalized status не стирает
+  provider evidence.
 - При timeout/неясном ответе статус — `unknown`; автоматический resend
   запрещён до reconciliation или решения сотрудника.
 - Неизвестный provider code сохраняется как raw event и не переводится в
@@ -415,11 +476,13 @@ Webhook проверяет HMAC по raw body, timestamp и request ID. Повт
 3. Сотрудник пишет текст либо запрашивает AI-черновик.
 4. Сотрудник проверяет и при необходимости редактирует текст.
 5. Сотрудник нажимает «Отправить».
-6. Server фиксирует immutable draft/review evidence и создаёт outbox record с
+6. Server подтверждает, что session находится в `WORKING`, и вызывает
+   `/api/sendSeen` перед reply.
+7. Server фиксирует immutable draft/review evidence и создаёт outbox record с
    idempotency key.
-7. Worker выполняет один controlled send.
-8. Результат и acknowledgement дописываются в историю.
-9. Ошибка или unknown state видимы и требуют безопасного следующего действия.
+8. Worker выполняет один controlled send.
+9. Результат и acknowledgement дописываются в историю.
+10. Ошибка или unknown state видимы и требуют безопасного следующего действия.
 
 ## 10. AI-черновики
 
@@ -429,10 +492,16 @@ AI используется только как помощник сотрудн�
 
 - автоматическая отправка клиенту выключена;
 - draft создаётся только по явному действию сотрудника;
+- draft создаётся на RU или EN по языку последнего customer message. Если
+  уверенное RU/EN определение невозможно, генерация/отправка блокируется до
+  manual language selection либо handoff; Kyrgyz customer-draft не входит в v1;
+- используются только owner-approved, versioned knowledge documents с
+  effective date и provenance;
 - в audit сохраняются provider, model, prompt version, context snapshot,
   knowledge evidence, output, requester, timestamp и итоговая редакция;
-- AI не утверждает цену, срок, наличие, визу, грант, поступление или другой
-  внешний outcome без owner-approved evidence;
+- AI не обещает admission, scholarship, visa или другой внешний outcome. EVO
+  может гарантировать только документированные собственные услуги и
+  обязательства; цена, срок и package facts требуют owner-approved evidence;
 - чувствительные данные отправляются внешнему AI только по утверждённой
   privacy/data-processing политике;
 - unsupported вопрос вызывает handoff, а не уверенный вымысел;
@@ -446,34 +515,34 @@ AI используется только как помощник сотрудн�
 
 | Роль | Основная ответственность | Ограничение |
 | --- | --- | --- |
-| Admin | Пользователи, роли, настройки, интеграции, audit и полный операционный обзор | Доступ к secret value не показывается после сохранения |
-| Sales | Лиды, pipeline, Lead 360, звонки, консультации, WhatsApp и старт дела студента | Не утверждает document/visa/payment evidence вне разрешения |
-| Curator | Student 360, стратегия, заявки, документы, задачи и коммуникации | Не меняет каноническую sales stage напрямую в локальной БД |
-| Visa | Визовая очередь, требования, evidence, задачи и связанные документы | Нет доступа к системным secret и sales administration |
-| Finance | Обязательства, фактические оплаты, debt/stop factor и финансовые отчёты | Нет доступа к содержимому чувствительных документов без необходимости |
+| Admin | Permission bundle для уполномоченных CEO/CTO/администраторов: личные staff accounts, роли, блокировка, Curator assignment, настройки, интеграции и audit | Только личный account; shared credentials запрещены; secret value не показывается после сохранения |
+| Sales | Канонический lead context, консультации, звонки, очередь и WhatsApp до подтверждённого договора | После handoff видит только разрешённый non-sensitive summary; не утверждает document/visa/payment evidence |
+| Curator | Одно назначенное student case целиком: несколько applications, документы, visa, tasks и communications после handoff | Не меняет каноническую sales stage; не подтверждает payment/refund |
+| Finance | Manual obligations, payment/refund evidence, debt/stop factor и финансовые отчёты | Нет доступа к чувствительным документам/сообщениям без object permission |
 | Client / Student | Свой портал, свои задачи, документы, заявки, платежные статусы и сообщения | Только собственное дело; никаких staff/API administration функций |
 
 «ОЗО», «ОП», «руководство» и «оператор Inbox» из исходного документа являются
 бизнес-функциями. В первом запуске они назначаются одной или нескольким
 базовым ролям. Отдельная роль Leadership или настраиваемые custom roles
-добавляются только после утверждения матрицы полномочий.
+добавляются только после отдельного изменения permission contract. Визовая
+работа — модуль Curator, а не отдельная business role.
 
 ### 11.2 Базовая матрица разделов
 
-| Раздел | Admin | Sales | Curator | Visa | Finance | Student |
-| --- | --- | --- | --- | --- | --- | --- |
-| Dashboard | Полный | Свой/командный scope | Свой scope | Свой scope | Финансовый scope | Нет |
-| Sales / Lead 360 | Полный | Чтение и работа | Только связанный контекст | Связанный контекст | Только разрешённый read | Нет |
-| Clients / Student 360 | Полный | Связанные дела | Назначенные дела | Назначенные visa cases | Финансовый read | Только своё дело |
-| Applications | Полный | Read/start handoff | Работа и решения EVO | Read для visa context | Нет по умолчанию | Только свои |
-| Documents | Полный | Read по делу | Review/work | Связанные visa docs | Только payment evidence | Свои upload/resubmit |
-| Visa | Полный | Read | Work/read | Полная работа | Read payment-related | Только свой кейс |
-| WhatsApp | Полный | Assigned/team | Assigned | Нет по умолчанию | Нет по умолчанию | Свои portal messages |
-| Calls | Полный | Работа | Нет по умолчанию | Нет | Нет | Нет |
-| Tasks/Notifications/Chat | Полный | Свой scope | Свой scope | Свой scope | Свой scope | Свои notifications/messages |
-| Reports | Полный | Sales | Admissions при утверждении | Visa при утверждении | Finance | Нет |
-| Finance | Полный | Статус без чувствительных деталей | Статус/stop factor | Статус/stop factor | Полная работа | Свои обязательства |
-| Settings/Integrations/Audit | Полный по политике | Нет | Нет | Нет | Нет | Нет |
+| Раздел | Admin | Sales | Curator | Finance | Student |
+| --- | --- | --- | --- | --- | --- |
+| Dashboard | Полный | Pre-contract/team scope | Назначенные cases | Финансовый scope | Нет |
+| Sales / Lead 360 | Полный | Чтение и работа | Только linked context после handoff | Только разрешённый read | Нет |
+| Clients / Student 360 | Полный | До handoff; после — разрешённый summary | Назначенные дела | Финансовый read | Только своё дело |
+| Applications | Полный | Read/start handoff | Полная работа по assigned case | Нет по умолчанию | Только свои |
+| Documents | Полный | Разрешённый pre-contract read | Review/work assigned case | Только payment evidence | Свои upload/resubmit |
+| Visa | Полный | Разрешённый summary | Полная работа assigned case | Read payment-related | Только свой кейс |
+| WhatsApp | Полный | Pre-contract assigned/team | Post-handoff assigned | Нет по умолчанию | Свои portal messages |
+| Calls | Полный | Работа | Связанные case calls | Нет | Нет |
+| Tasks/Notifications/Chat | Полный | Свой pre-contract scope | Свой case scope | Свой finance scope | Свои уведомления и сообщения |
+| Reports | Полный | Sales | Admissions/visa assigned scope | Finance | Нет |
+| Finance | Полный | Статус без чувствительных деталей | Статус/stop factor | Полная работа | Свои обязательства; просрочка и следующее действие |
+| Settings/Integrations/Audit | Полный по политике | Нет | Нет | Нет | Нет |
 
 ### 11.3 Правила авторизации
 
@@ -483,6 +552,9 @@ AI используется только как помощник сотрудн�
 - Service-role используется только на server и обходит RLS, поэтому каждый
   service route обязан повторно проверять actor, organization, scope и action.
 - Admin не может выдать себе несуществующее business approval.
+- Только Admin приглашает/блокирует staff и назначает/переназначает Curator.
+  Reassignment требует reason, before/after и immutable audit.
+- Curator/manager IDs нельзя менять через broad client update или profile API.
 - Изменение роли, scope, integration config, payment evidence, document
   decision и destructive action всегда попадает в audit.
 - Удалённый или заблокированный сотрудник теряет sessions и доступ.
@@ -513,15 +585,18 @@ AI используется только как помощник сотрудн�
 
 ### 12.3 Переход от продажи к делу студента
 
-1. Sales подтверждает договор или утверждённое business condition.
+1. Подтверждённый account-specific amoCRM pipeline/status mapping фиксирует
+   подписанный договор; глобальный status ID запрещён.
 2. Платформа проверяет linked amo lead/contact и отсутствие существующего
-   student case.
-3. Создаётся student case с отдельным operational stage.
-4. Назначаются manager/curator и admissions route.
-5. Создаётся checklist и первичные задачи.
-6. При утверждённой политике создаётся или активируется portal account.
-7. amoCRM получает ссылку/заметку, но operational stage не подменяет sales
-   stage.
+   active student case.
+3. Создаётся pending student case с отдельным operational stage; разговор и
+   history не копируются.
+4. Admin назначает Curator; actor, reason, before/after и audit обязательны.
+5. Только после contract + Admin assignment активируются Portal и handoff
+   ownership от Sales к Curator.
+6. Создаются admissions route, checklist и первичные задачи.
+7. amoCRM получает разрешённую ссылку/заметку, но operational stage не
+   подменяет sales stage.
 
 ### 12.4 Документ студента
 
@@ -529,7 +604,7 @@ AI используется только как помощник сотрудн�
 2. Student загружает файл в private Storage.
 3. Server проверяет тип, размер, malware/quality rule и создаёт новую version.
 4. AI может сформировать наблюдение, но не решение.
-5. Curator/Visa открывает preview и выбирает approve, correction required или
+5. Curator открывает preview и выбирает approve, correction required или
    reject с причиной.
 6. Student видит status, комментарий и действие resubmit.
 7. Предыдущая version и review history не исчезают.
@@ -543,13 +618,17 @@ enrollment фиксируются как отдельные события с ev
 
 ### 12.6 Визовый кейс
 
-Visa specialist видит очередь, completeness, appointment, submission,
-provider decision, риски и next action. Approval/rejection отображается только
-после фиксации внешнего evidence. Платформа не обещает визу.
+Назначенный Curator видит очередь, completeness, appointment, submission,
+provider decision, риски и next action. Состояния включают минимум
+`not_required`, `not_started`, `docs`, `appointment`, `submitted`, `approved`,
+`rejected`, `closed`. Approval/rejection отображается только после фиксации
+external evidence. Платформа не обещает визу.
 
 ### 12.7 Финансовый stop factor
 
-Finance создаёт обязательство и фиксирует evidence оплаты. Если утверждённое
+Finance создаёт обязательство и фиксирует evidence оплаты/refund; Admin может
+выполнить то же только в пределах permission. Excel/1C import является будущей
+интеграцией, а не fake connector. Если утверждённое
 правило требует оплаты до действия, система создаёт видимую блокировку с
 причиной, ответственным и следующим шагом. Блокировка снимается только по
 подтверждённому событию или audit-решению уполномоченного сотрудника.
@@ -557,8 +636,9 @@ Finance создаёт обязательство и фиксирует evidence
 ### 12.8 Student Portal
 
 Student видит progress, next action, deadlines, documents, applications, visa,
-payments, messages, notifications, EVO team и security profile. Отсутствующий
-provider или storage не изображается успешным действием.
+payments, messages, notifications, EVO team и security profile. Просрочка
+показывается красным понятным notice и next action без чувствительных внутренних
+полей. Отсутствующий provider или storage не изображается успешным действием.
 
 ## 13. Функциональные требования
 
@@ -568,10 +648,10 @@ provider или storage не изображается успешным дейс�
 | --- | --- | --- | --- |
 | FR-001 | Система должна поддерживать отдельные staff и student login flows с безопасной session lifecycle. | MUST | E2E login/logout/expiry |
 | FR-002 | Каждый пользователь должен иметь organization, status, role и object scope. | MUST | DB constraints + auth tests |
-| FR-003 | Staff roles первого запуска: admin, sales, curator, visa, finance; client/student отделён от staff. | MUST | Migration + route matrix |
+| FR-003 | Staff roles v1: admin, sales, curator, finance; client/student отделён от staff. Visa остаётся module Curator. Existing visa users требуют explicit inventory/migration report, без silent coercion. | MUST | Migration report + route matrix |
 | FR-004 | Все защищённые routes/actions/API должны проверять permission server-side. | MUST | Negative authorization suite |
 | FR-005 | RLS должна ограничивать browser access organization и user scope. | MUST | Disposable Postgres tests |
-| FR-006 | Admin должен приглашать, блокировать и деактивировать сотрудника без передачи пароля. | MUST | E2E admin lifecycle |
+| FR-006 | Только Admin приглашает, блокирует и деактивирует staff; каждый использует личный account, shared credentials запрещены. | MUST | E2E admin lifecycle |
 | FR-007 | Изменение роли или scope должно завершать неподходящие active sessions и создавать audit. | MUST | Integration test |
 | FR-008 | Student должен видеть только собственные cases/files/messages. | MUST | Cross-user denial tests |
 | FR-009 | UI должен показывать access denied/read-only/approval required без утечки данных. | MUST | E2E + Axe |
@@ -603,7 +683,7 @@ provider или storage не изображается успешным дейс�
 | FR-025 | Новому WhatsApp-контакту должен создаваться contact и lead только после idempotency check. | MUST | Replay test |
 | FR-026 | Lead list должна фильтровать по stage, owner, source, task risk, sync state и search. | MUST | Browser tests |
 | FR-027 | Каждое действие Sales должно иметь owner, next step и due date при применимости. | SHOULD | Scenario evaluation |
-| FR-028 | Создание student case должно быть отдельным controlled action после утверждённого business condition. | MUST | E2E conversion |
+| FR-028 | Account-specific amoCRM contract mapping создаёт pending student case; Portal/handoff активируются только после Admin Curator assignment. | MUST | E2E conversion |
 | FR-029 | Один amo lead не должен создавать два active student cases без Admin exception. | MUST | Unique constraint |
 | FR-030 | Ссылка из EVO Platform в amoCRM и обратно должна использовать canonical IDs. | SHOULD | Integration acceptance |
 
@@ -618,15 +698,15 @@ provider или storage не изображается успешным дейс�
 | FR-035 | Отправка должна выполняться только через server outbox с idempotency key. | MUST | Outbox integration test |
 | FR-036 | Unknown send result не должен автоматически повторяться. | MUST | Timeout test |
 | FR-037 | Employee должен иметь безопасное manual retry/reconcile действие с предупреждением duplicate risk. | MUST | Failure E2E |
-| FR-038 | Assignment/handoff должен хранить actor, reason, target owner и timestamp. | MUST | Audit test |
-| FR-039 | AI draft создаётся только по явному запросу сотрудника. | MUST | E2E |
+| FR-038 | Sales владеет conversation/queue до contract, Curator после handoff; единая history сохраняется, а assignment/handoff хранит actor, reason, before/after, owner и time. | MUST | Scope + audit test |
+| FR-039 | AI draft создаётся только по явному запросу сотрудника и никогда не отправляется автоматически. | MUST | E2E |
 | FR-040 | Автоматический customer send должен отсутствовать/быть fail-closed. | MUST | Security test + config |
 | FR-041 | Draft должен сохранять provider/model/prompt/context/evidence/requester. | MUST | DB assertion |
 | FR-042 | Employee может редактировать draft; исходный draft остаётся immutable. | MUST | E2E + audit |
 | FR-043 | Отправленное сообщение связывается с review/draft, но хранит фактический текст отправки. | MUST | DB assertion |
-| FR-044 | Unsupported/sensitive question должен предлагать handoff. | MUST | AI eval set |
-| FR-045 | Knowledge documents должны иметь owner, version, approval state и effective date. | MUST | Admin workflow |
-| FR-046 | Media должна храниться private, иметь retention и audited access/deletion. | MUST | Storage/RLS tests |
+| FR-044 | Draft language — RU/EN по последнему customer message; uncertain/non-RU/EN требует manual selection/handoff без invented send. | MUST | AI language eval set |
+| FR-045 | AI использует только approved versioned knowledge с owner, provenance, approval state и effective date. | MUST | Admin workflow |
+| FR-046 | Media private, с audited access/deletion; irreversible auto-delete запрещён до Legal/Data retention decision. | MUST | Storage/RLS tests |
 | FR-047 | Search и filters Inbox не должны раскрывать разговоры вне scope. | MUST | Cross-role tests |
 | FR-048 | Session status и integration health должны быть видимы Admin без открытия WAHA dashboard наружу. | MUST | Admin E2E |
 
@@ -637,9 +717,9 @@ provider или storage не изображается успешным дейс�
 | FR-049 | Student 360 должен показывать profile, linked amo context, operational stage, team, route, timeline и next actions. | MUST | E2E |
 | FR-050 | Operational stage не должен автоматически менять amoCRM sales stage. | MUST | Integration test |
 | FR-051 | Admissions route должна хранить country, level, program direction, intake, language/funding assumptions и approval. | MUST | DB + UI test |
-| FR-052 | Manager и curator assignment должны быть versioned и audited. | MUST | Audit test |
+| FR-052 | Только Admin назначает/переназначает Curator через dedicated action с обязательной reason, before/after и audit; broad client update запрещён. | MUST | Positive/negative audit test |
 | FR-053 | Case update должен иметь author/source/time и быть видим соответствующему student при публикации. | MUST | Portal E2E |
-| FR-054 | Closure требует evidence delivered/open items/storage/ongoing owner. | SHOULD | Business scenario |
+| FR-054 | Только Curator/Admin close/reopen case с обязательной reason и audit; closure учитывает delivered/open items/storage/ongoing owner. | MUST | Authorization + business scenario |
 | FR-055 | Archive не должен удалять историю и документы. | MUST | Retention test |
 
 ### 13.6 Applications and documents
@@ -651,7 +731,7 @@ provider или storage не изображается успешным дейс�
 | FR-058 | External outcome нельзя вводить как гарантированный внутренний result. | MUST | Copy + workflow review |
 | FR-059 | Document checklist должен конфигурироваться по route/program/version. | SHOULD | Admin acceptance |
 | FR-060 | Student должен загружать новую version в конкретный document slot. | MUST | Storage E2E |
-| FR-061 | File validation должна проверять разрешённый type, size, integrity и malware policy. | MUST | Security tests |
+| FR-061 | Private document допускает только PDF/JPG/PNG до 25 MB и проходит size/type/integrity/malware policy. | MUST | Security tests |
 | FR-062 | AI document observation не должно менять decision/status самостоятельно. | MUST | Authorization test |
 | FR-063 | Reviewer должен выбрать approve/correction/reject и обязательную reason при негативном решении. | MUST | E2E |
 | FR-064 | Student должен видеть понятный resubmission path и историю версий. | MUST | Portal E2E |
@@ -662,14 +742,14 @@ provider или storage не изображается успешным дейс�
 
 | ID | Требование | Приоритет | Проверка |
 | --- | --- | --- | --- |
-| FR-067 | Visa case должен иметь country, requirements, completeness, appointment, submission, result evidence и next action. | MUST | E2E |
+| FR-067 | Curator-owned visa case использует минимум not_required/not_started/docs/appointment/submitted/approved/rejected/closed и хранит country, evidence и next action. | MUST | E2E |
 | FR-068 | Visa decision фиксируется только как внешний outcome с evidence. | MUST | Business rule test |
-| FR-069 | Payment obligation должен отделять EVO service fee от third-party costs. | MUST | Data validation |
-| FR-070 | Payment event должен иметь amount/currency/date/source/evidence и actor. | MUST | Finance E2E |
+| FR-069 | EVO Platform v1 является manual operational finance source; obligation отделяет EVO service fee от third-party costs, будущий Excel/1C import не имитируется. | MUST | Data validation |
+| FR-070 | Только Finance/Admin подтверждают payment/refund; event имеет amount/currency/date/source/evidence, actor и audit. | MUST | Positive/negative Finance E2E |
 | FR-071 | Paid/debt/pending нельзя выводить из sales stage без утверждённого mapping. | MUST | Contract test |
 | FR-072 | Stop factor должен содержать reason, owner, blocked action, created/resolved evidence. | MUST | E2E |
 | FR-073 | Снятие блокировки требует provider/finance event либо уполномоченного audit decision. | MUST | Authorization test |
-| FR-074 | Student видит только понятный статус и инструкцию; внутренние финансовые поля скрываются. | MUST | Portal privacy test |
+| FR-074 | Student видит красный понятный overdue notice/status/next action; чувствительные внутренние финансовые поля скрываются. | MUST | Portal privacy test |
 
 ### 13.8 Tasks, notifications, collaboration, reports and administration
 
@@ -677,14 +757,14 @@ provider или storage не изображается успешным дейс�
 | --- | --- | --- | --- |
 | FR-075 | Task должна иметь type, assignee, related entity, priority, due date, status и history. | MUST | E2E |
 | FR-076 | Overdue/urgent tasks должны попадать в role-scoped attention queue. | MUST | Scenario test |
-| FR-077 | Notification должна быть deduplicated, адресной, read/unread и ссылаться на действие. | MUST | Integration test |
+| FR-077 | Notification v1 durable, deduplicated и адресная: in-app + individual WhatsApp с consent; mass/broadcast запрещён. | MUST | Integration test |
 | FR-078 | Team chat не должен заменять audit или canonical case update. | MUST | Product review |
 | FR-079 | Call record должен иметь direction, participant, owner, outcome и linked lead при наличии. | SHOULD | E2E |
 | FR-080 | Reports должны показывать data source, period, formula, freshness и drill-down. | MUST | Report acceptance |
 | FR-081 | Admin должен видеть integration readiness по отдельным prerequisite, а не один зелёный badge. | MUST | E2E |
 | FR-082 | Admin должен видеть immutable audit search/export в пределах permission. | MUST | Security E2E |
 | FR-083 | Config change должен быть versioned, validated и reversible. | MUST | Integration test |
-| FR-084 | Неутверждённые broadcasts, flows и unattended automations должны оставаться выключенными. | MUST | Feature flag test |
+| FR-084 | Broadcasts, mass sends, old flows, auto-reply и unattended outbound отсутствуют либо fail-closed. | MUST | Feature flag + route test |
 
 ### 13.9 Student Portal
 
@@ -702,21 +782,21 @@ provider или storage не изображается успешным дейс�
 | ID | Требование | Приоритет | Проверка |
 | --- | --- | --- | --- |
 | INT-001 | amoCRM Adapter должен использовать утверждённую OAuth-интеграцию и хранить refresh/access token только зашифрованно на server. | MUST | Security review + live preflight |
-| INT-002 | amoCRM account, pipeline, status и custom-field mapping должны быть versioned configuration. | MUST | Config test |
-| INT-003 | amoCRM webhook должен быть сохранён и быстро подтверждён до тяжёлой обработки. | MUST | Latency/replay test |
+| INT-002 | amoCRM account/pipeline/status/custom-field/user IDs discovered per account, cached/versioned; global hardcode запрещён. | MUST | Discovery/config test |
+| INT-003 | amoCRM add/update/status/responsible lead webhooks сохраняются и быстро подтверждаются до async processing. | MUST | Latency/replay test |
 | INT-004 | Пропущенные amoCRM events должны обнаруживаться reconciliation job. | MUST | Drift injection |
-| INT-005 | Canonical write должен иметь idempotency/correlation ID и evidence provider response. | MUST | Contract test |
+| INT-005 | Canonical write использует pipeline_id/status_id/responsible_user_id/custom_fields_values, correlation/evidence; adapter соблюдает <=7 req/s/IP и предпочитает <=50 writes/batch. | MUST | Contract/rate test |
 | INT-006 | Система не должна циклически повторять собственное amoCRM изменение из webhook. | MUST | Loop-prevention test |
 | INT-007 | WAHA должна быть доступна только по private network/server route. | MUST | Network scan |
-| INT-008 | WAHA webhook должен проверять SHA-512 HMAC raw body, допустимый timestamp и replay ID. | MUST | Security tests |
-| INT-009 | WAHA subscription первого запуска должна включать message, message.ack и session.status. | MUST | Live config evidence |
+| INT-008 | WAHA webhook проверяет SHA-512 HMAC raw body, timestamp, X-Webhook-Request-Id, сохраняет raw event и dedupe key session+payload.id. | MUST | Security/replay tests |
+| INT-009 | WAHA subscription v1 включает message, message.any, message.ack и session.status; WAHA/Kommo/internal IDs хранятся отдельно. | MUST | Live config + schema evidence |
 | INT-010 | WAHA retry не должен нарушать platform deduplication. | MUST | Duplicate replay |
-| INT-011 | Send API timeout должен приводить к unknown + reconciliation, а не к слепому resend. | MUST | Failure injection |
-| INT-012 | Supabase schema должна разрабатываться миграциями из Git и воспроизводиться с нуля. | MUST | Clean reset |
-| INT-013 | Development, staging и production должны иметь разные project IDs/secrets и одинаковую migration history. | MUST | CI/environment audit |
-| INT-014 | Browser Supabase client использует только publishable/anon credential; service-role не попадает в bundle/log. | MUST | Secret scan |
-| INT-015 | Storage buckets с документами и media должны быть private и открываться короткоживущими authorized URL или server stream. | MUST | Cross-user denial |
-| INT-016 | AI provider должен подключаться через server adapter с model/prompt/version audit и timeout. | MUST | Contract + eval |
+| INT-011 | Send разрешён только при WAHA WORKING и после sendSeen; timeout даёт unknown + reconciliation без auto-resend. | MUST | Failure injection |
+| INT-012 | Supabase schema воспроизводится из Git через config.toml и migrations/reset/diff/pull; durable work использует Queues, DB Webhooks — только async push. | MUST | Clean reset + queue test |
+| INT-013 | Один production project и изолированные local/dev, persistent staging, preview branches/projects имеют разные secrets, одинаковую migration history и no-prod-data default. | MUST | CI/environment audit |
+| INT-014 | Browser использует только publishable key; secret/service-role не попадает в bundle/log; Next.js 16 server auth использует SSR proxy/getClaims, не getSession trust. | MUST | Secret/auth scan |
+| INT-015 | Storage private, download через authorized signed URL/server stream; direct writes в storage schema запрещены, Storage backup отдельный. | MUST | Cross-user denial + restore |
+| INT-016 | AI server adapter создаёт только RU/EN draft из approved versioned knowledge с model/prompt/context audit и timeout. | MUST | Contract + eval |
 | INT-017 | При недоступности AI ручная работа Inbox/Documents должна продолжаться. | MUST | Degradation test |
 | INT-018 | Email, telephony, payment gateway и другие provider не могут отображаться live до отдельного contract и acceptance. | MUST | Readiness UI |
 | INT-019 | Каждый provider должен иметь readiness checklist, last verified time и actionable blocker. | MUST | Admin E2E |
@@ -738,10 +818,10 @@ provider или storage не изображается успешным дейс�
 | DATA-010 | Файл хранится вне Git/DB blob; metadata, checksum, MIME, size, version и retention — в БД. | MUST | Storage test |
 | DATA-011 | Sensitive fields должны классифицироваться и маскироваться по роли. | MUST | Privacy test |
 | DATA-012 | Logs и analytics не должны содержать raw token, password, passport или полный message body без утверждённой цели. | MUST | Log scan |
-| DATA-013 | Retention/deletion policy должна применяться job и оставлять audit без содержимого удалённого файла. | MUST | Retention E2E |
+| DATA-013 | До Legal/Data decision irreversible auto-delete запрещён; затем retention job сохраняет audit без удалённого содержимого. | MUST | Retention E2E |
 | DATA-014 | Migration должна сверять count, IDs, checksums и orphan links. | MUST | Reconciliation report |
 | DATA-015 | Seed/demo данные должны быть технически отделены от production. | MUST | Deployment test |
-| DATA-016 | Backup должен включать Postgres, Storage metadata/config и необходимые encrypted secrets references. | MUST | Restore rehearsal |
+| DATA-016 | DB backup/PITR и отдельный Storage object backup имеют isolated restore; Vault содержит только нужные encrypted secret references. | MUST | DB + Storage restore rehearsal |
 | DATA-017 | Business export должен быть machine-readable, permission-controlled и audited. | SHOULD | Export acceptance |
 | DATA-018 | Data dictionary должен описывать owner, type, nullable, sensitivity, retention и API exposure. | MUST | Architecture gate |
 
@@ -778,13 +858,13 @@ external reference либо архивирование, но не незамет
 
 | ID | Требование | Цель / правило | Проверка |
 | --- | --- | --- | --- |
-| NFR-001 | Доступность | Предлагаемая цель 99,5% в месяц без учёта согласованных external outages; утвердить до launch | Monitoring report |
+| NFR-001 | Доступность | Numeric SLO фиксируется DEC-010; до этого release blocked, а code/monitoring не изображает цель утверждённой | Monitoring report |
 | NFR-002 | Скорость UI | p95 server read до 2 с, accepted write до 3 с без времени внешнего provider | Load test |
 | NFR-003 | Webhook acknowledgement | Внутренний budget до 1 с после signature + durable persist | Timed integration test |
 | NFR-004 | Event freshness | p95 подтверждённых events видимы UI до 30 с | End-to-end timing |
 | NFR-005 | Capacity | До performance test владелец утверждает staff/case/message/file volume profile; отсутствие profile блокирует release | Approved capacity sheet |
 | NFR-006 | Concurrency | Duplicate и lost update не возникают при параллельных webhook/send/review actions | Concurrency suite |
-| NFR-007 | Recovery | Предлагаемые RPO 24 ч и RTO 4 ч; более строгие значения зависят от Supabase plan и утверждаются отдельно | Restore rehearsal |
+| NFR-007 | Recovery | Numeric RPO/RTO фиксируются только через DEC-010; до решения release blocked, а restore rehearsal сообщает измеренный результат без подмены утверждённой цели | Restore rehearsal |
 | NFR-008 | Observability | Metrics, structured logs, traces/correlation, alerts, queue depth, dead letter и provider health | Ops acceptance |
 | NFR-009 | Accessibility | WCAG 2.2 AA для основных routes; keyboard, focus, labels, contrast, dialog semantics | Axe + manual audit |
 | NFR-010 | Responsive | Staff: 1440x1024 и 834x1194; urgent staff mobile и Portal: 390x844 | Playwright screenshots |
@@ -883,101 +963,89 @@ owner и runbook. Необходимо минимум:
 
 ## 21. Миграция и поэтапный запуск
 
-### Этап 0. Утверждение и инвентаризация
+Детальный merge/validation contract находится в
+`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`. Только один implementation PR может быть
+открыт; plan/schema/migrations идут последовательно. Executor не сливает свой
+PR: exact head должен получить независимый SHA-bound review, а merge выполняет
+отдельный controller.
 
-Работы:
+### P0. Plan/TZ и target architecture
 
-- утвердить ТЗ, владельцев и открытые решения;
-- получить комментарии реальных сотрудников ОЗО/ОП/Finance/Visa и связать
-  каждое решение с разделом ТЗ;
-- утвердить amo fields/pipeline, payment owner, document taxonomy, retention,
-  capacity, RPO/RTO и incident policy;
-- создать новый ADR, который явно заменит companion-era решения об отдельном
-  Supabase/WAHA/runtime.
-- запретить одновременно активных старого и нового amoCRM/WAHA writers после
-  начала cutover.
+Docs-only: исправить это ТЗ и deterministic DOCX, launch plan/change log,
+CONTEXT/platform/design/business docs и добавить superseding ADR. Exit gate:
+real render, inspection каждой страницы, verifier PASS и independent review.
+До merge P0 code changes запрещены.
 
-Exit gate: подписанная версия ТЗ и ноль blocking open decisions для Этапа 1.
+### P1. Текущие role/RBAC/handoff
 
-### Этап 1. Supabase foundation
+Удалить business `visa` role из domain/DB/seed/actions/queries/i18n/tests, но
+сохранить `/visa`. Existing visa users получить explicit migration report, без
+silent coercion. Ввести Admin-only Curator assignment/reassignment с reason и
+audit, Sales-before/Curator-after handoff, limited Sales summary и Portal gate.
+Exit: positive/negative route/action/object-scope tests всех пяти ролей.
 
-Работы:
+### P2. Unified Supabase foundation
 
-- projects development/staging/production;
-- migration baseline, Auth, organization, roles, scopes, RLS;
-- audit, jobs, outbox, idempotency и encrypted configuration;
-- CI clean reset + authorization harness;
-- импорт только обезличенных данных в staging.
+Reconcile Inbox migrations 001–039; platform migrations начать с 040, если
+fresh main не докажет более высокий номер. Добавить единую platform model,
+RLS/Storage policies, audit/outbox/Queues/dead-letter/idempotency/reconciliation.
+Exit: clean reset, disposable PostgreSQL cross-role/student/org denials, browser
+secret scan и isolated backup/restore.
 
-Exit gate: migrations воспроизводимы; cross-role/cross-tenant denial доказан.
+### P3. Root auth и SQLite migration path
 
-### Этап 2. amoCRM canonical adapter
+Read-only inventory/backup, deterministic UUID mapping, dry-run
+counts/orphans/checksums, staging import и временный dual-read comparison.
+Long-term dual-write запрещён. Production cutover требует отдельного
+authorization; merged code остаётся disabled/fail-closed. Exit: reconciliation
+и rollback rehearsal.
 
-Работы:
+### P4. Canonical amoCRM adapter
 
-- OAuth/config/field mapping;
-- read-only sync contacts/leads/users/stages;
-- reconciliation и conflicts;
-- затем controlled canonical writes;
-- Lead 360 показывает реальный sync status.
+Discovery/versioned account mappings, read-only sync, persisted webhook inbox,
+async jobs/outbox, reconciliation/conflicts/loop prevention и затем guarded
+writes. Contract mapping создаёт pending case; Admin assignment активирует
+Portal/handoff. Без sanitized test lead live proof остаётся blocked.
 
-Exit gate: sandbox/test lead создаётся/находится без duplicate, stage/owner
-совпадают с amoCRM, failure не создаёт ложный local success.
+### P5. Unified Inbox/WAHA/Lead Agent absorption
 
-### Этап 3. Миграция operational CRM с SQLite
+Единая conversation/history и role-scoped queues; отдельные internal/WAHA/Kommo
+IDs; HMAC/timestamp/request ID; persist-before-process; ACK/unknown audit;
+draft-only RU/EN и manual send. Broadcast/flow/auto-reply surfaces
+disabled/removed. Старый webhook/session не выключается без cutover authority.
 
-Работы:
+### P6. Admissions, Portal, Documents, Finance, Notifications
 
-- новая Supabase-модель student cases/applications/documents/visa/finance/tasks;
-- mapping и dry-run существующей SQLite;
-- counts, IDs, orphan/checksum report;
-- staging dual-read comparison без долгосрочного dual-write;
-- controlled production cutover с backup и rollback.
+Multiple applications, Curator-owned visa, reasoned close/reopen; private
+versioned documents; manual evidence-based finance; overdue Portal action;
+durable in-app + individual WhatsApp notifications. Exit: two-student
+isolation E2E и staff-to-portal workflows.
 
-Exit gate: согласованная сверка данных и успешный rollback rehearsal.
+### P7. Security, reliability, operations
 
-### Этап 4. Единый Inbox/WAHA и draft-only AI
+Threat model, secrets/redaction/private networks, logs/metrics/alerts,
+audit search/export, production-like load, DB + separate Storage restore,
+RPO/RTO, rollback, accessibility/keyboard/responsive regression.
 
-Работы:
+### P8. Release/cutover candidate
 
-- перенести Inbox conversations/messages/media/drafts/audit в общий project;
-- подключить один private WAHA webhook;
-- перенести useful Lead Agent logic;
-- выполнить receive-only, linking, draft, manual send, ack и failure tests;
-- отключить второй webhook только после доказательства.
+Подготовить reconciliation/snapshot/freeze/rollback, но не выполнять production
+action в этом run. Exit требует реальный controlled path:
+`WhatsApp → amoCRM → Platform → AI draft → manual send → ACK/unknown → audit`.
+Отсутствующий credential/number/QR/authorization — BLOCKED, не mock.
 
-Exit gate: полный controlled end-to-end путь и duplicate/unknown recovery.
+### P9. 72-hour soak и retirement
 
-### Этап 5. Documents, Student Portal and finance gates
+Наблюдать реальный traffic минимум 72 фактических часа с zero unexplained
+loss/duplicates/drift, reconciliation и proven rollback. Только после этого
+отдельный reviewed PR может удалить Lead Agent/legacy path. До evidence P9
+остаётся pending.
 
-Работы:
+### P10. Completion audit
 
-- private Storage, versions, review и retention;
-- portal auth/scope;
-- payment obligations и утверждённые stop-factor rules;
-- real notifications/messages;
-- accessibility и mobile acceptance.
-
-Exit gate: два разных student accounts не видят данные друг друга; upload,
-review, correction и resubmit проходят с audit.
-
-### Этап 6. Lead Agent retirement
-
-Работы:
-
-- reconciliation текущей SQLite/queues/amo links;
-- запрет нового traffic в Lead Agent;
-- archive/export необходимых audit records;
-- наблюдение в стабилизационном окне;
-- удаление Compose/runtime/config/code только отдельным reviewed PR.
-
-Exit gate: все условия раздела 22 выполнены и владелец подписал retirement.
-
-### Этап 7. Оптимизация и будущие функции
-
-Custom roles, advanced reporting, multi-number WAHA, telephony, payment gateway,
-document AI и автоматизации рассматриваются отдельными изменениями ТЗ. Auto-send
-AI не входит в этот этап автоматически.
+Сопоставить каждый FR/NFR/INT/DATA/SEC/ACC с evidence, выполнить full CI,
+provider/restore/security/accessibility gates, закрыть implementation PR.
+Verified, blocked и deferred всегда сообщаются раздельно.
 
 ## 22. Перенос и удаление EVO Lead Agent
 
@@ -987,7 +1055,7 @@ AI не входит в этот этап автоматически.
 | --- | --- |
 | Phone normalization | Shared identity utilities |
 | WAHA HMAC validation | Webhook Gateway |
-| Provider message deduplication | Event Inbox / idempotency_keys |
+| Raw persist-before-process + request/business dedupe | Event Inbox / idempotency_keys |
 | Short message buffering/grouping | Background Jobs |
 | amo contact/lead resolution | amoCRM Adapter |
 | amo notes/tasks | amoCRM Adapter с отдельным mapping |
@@ -1015,8 +1083,10 @@ Lead Agent можно удалить только если одновремен�
 9. timeout/retry не отправил второе сообщение;
 10. reconciliation не выявила потерянные contacts/leads/messages;
 11. backup и rollback проверены;
-12. утверждено стабилизационное окно (предлагается минимум 14 дней);
-13. владелец бизнеса и технический владелец письменно согласовали retirement.
+12. прошло минимум 72 фактических часа стабильного реального traffic с zero
+    unexplained loss/duplicates/drift и наблюдаемыми failure metrics;
+13. proven rollback остаётся доступным, а отдельный exact-SHA retirement PR
+    получил independent review и должностное release approval.
 
 До выполнения всех условий Lead Agent остаётся frozen/isolated fallback и не
 становится параллельным активным webhook owner.
@@ -1026,7 +1096,7 @@ Lead Agent можно удалить только если одновремен�
 | ID | Критерий | Доказательство |
 | --- | --- | --- |
 | ACC-001 | Все MUST требования имеют test/evidence и owner | Traceability report |
-| ACC-002 | Development/staging/production projects разделены, migrations совпадают | Supabase migration list |
+| ACC-002 | Один production project; dev/staging/preview изолированы, без prod data default, migrations совпадают | Supabase branch/migration list |
 | ACC-003 | Production service-role отсутствует в browser bundle/log | Secret scan |
 | ACC-004 | Все staff roles проходят positive и negative route/object tests | Authorization report |
 | ACC-005 | Два student accounts изолированы на DB/API/UI/Storage | Cross-user E2E |
@@ -1038,49 +1108,48 @@ Lead Agent можно удалить только если одновремен�
 | ACC-011 | WAHA acknowledgement обновляет exact delivery state | Provider event evidence |
 | ACC-012 | Timeout создаёт unknown и не auto-resend | Failure injection |
 | ACC-013 | Повтор webhook/outbox не создаёт duplicate | Replay report |
-| ACC-014 | Student case создаётся отдельно от lead и не меняет sales stage | Workflow E2E |
+| ACC-014 | Contract mapping создаёт pending case; Admin Curator assignment активирует Portal/handoff и не меняет sales stage | Workflow E2E |
 | ACC-015 | Application/document/visa/payment имеют независимые histories | Data audit |
 | ACC-016 | Document upload private; чужой доступ запрещён | Storage/RLS evidence |
 | ACC-017 | Correction/resubmit сохраняет обе версии и причины | Portal/staff E2E |
-| ACC-018 | Payment stop factor имеет owner/reason/evidence и controlled resolve | Finance E2E |
+| ACC-018 | Finance/Admin payment/refund и stop factor имеют evidence/audit; Student видит только overdue next action | Finance/Portal E2E |
 | ACC-019 | Critical screens проходят 1440, 834 и 390 viewports без overflow | Screenshot ledger |
 | ACC-020 | WCAG automated tests и manual keyboard/screen-reader spot check пройдены | Accessibility report |
 | ACC-021 | Performance соответствует утверждённому capacity profile | Load report |
 | ACC-022 | Backup восстановлен в isolated environment в пределах RPO/RTO | Restore report |
 | ACC-023 | Alerts и runbooks проверены tabletop/controlled failure | Ops report |
 | ACC-024 | Migration reconciliation не содержит unexplained loss/orphans | Signed reconciliation |
-| ACC-025 | Lead Agent retirement checklist подписан до удаления | Approval record |
+| ACC-025 | Lead Agent removal blocked до real E2E, >=72h soak, zero unexplained loss/duplicates/drift, rollback и separate reviewed PR | Soak + approval record |
 
-## 24. Открытые решения до реализации
+## 24. Реестр решений и оставшиеся gates
 
-На момент подготовки в репозитории не найдены raw-интервью, комментарии
-сотрудников, аннотированные screenshots или утверждённый feedback ledger.
-Исходный OZO DOCX не содержит Word comments. Поэтому эта версия подходит для
-первого согласования, но не может называться окончательно business-approved,
-пока замечания сотрудников не внесены в traceable appendix.
+Закреплённые решения не переоткрываются как вопросы. Только строки со статусом
+**Open** являются оставшимися owner gates; они блокируют затрагиваемую
+production-функцию, но не безопасную repository-реализацию вокруг неё.
+Ответственные указываются должностями, а не обязательными ФИО.
 
-| ID | Решение | Кто утверждает | До этапа |
+| ID | Статус | Решение / оставшийся gate | Должностной owner |
 | --- | --- | --- | --- |
-| DEC-001 | Назначить Product Owner, Business Process Owner, Technical Owner и Data/Privacy Owner по именам | Руководство | 0 |
-| DEC-002 | Передать комментарии ОЗО, Sales, Visa, Finance и руководства; принять/отклонить каждое замечание | Product Owner | 0 |
-| DEC-003 | Утвердить финальную role/action/field/scope matrix и необходимость Leadership role | Руководство + владельцы функций | 0 |
-| DEC-004 | Утвердить источник фактической оплаты: EVO Platform, amoCRM field или отдельная учётная система | Finance Owner | 0 |
-| DEC-005 | Утвердить условия активации Student Portal и правила payment stop factor | Business + Finance | 0 |
-| DEC-006 | Утвердить amoCRM account/pipeline/status/custom fields и manager-assignment rules | Sales Owner | 2 |
-| DEC-007 | Утвердить один production WhatsApp number/session и ответственного за QR/session recovery | Operations Owner | 4 |
-| DEC-008 | Утвердить document taxonomy, допустимые formats/sizes, retention и review reasons | Admissions + Visa | 1 |
-| DEC-009 | Утвердить Supabase region, plan, PITR/backup возможности и cost owner | Technical + Finance | 1 |
-| DEC-010 | Утвердить capacity profile: staff, active cases, messages/day, files/day, storage growth | Product + Technical | 1 |
-| DEC-011 | Утвердить SLA/SLO, RPO/RTO и support/on-call модель | Руководство + Technical | 1 |
-| DEC-012 | Утвердить privacy notice, consent, data residency, retention/deletion и provider DPA | Legal/Data Owner | 1 |
-| DEC-013 | Утвердить AI provider/model, разрешённые данные, knowledge approval и evaluation owner | Business + Data Owner | 4 |
-| DEC-014 | Утвердить channels для email/push/WhatsApp notification и delivery policy | Product Owner | 5 |
-| DEC-015 | Утвердить KPI definitions, formulas, targets и owners | Руководство | 5 |
-| DEC-016 | Устранить конфликт обещания «гарантии» в Malaysia knowledge source с запретом гарантировать external outcome | Business Owner | 0 |
-| DEC-017 | Утвердить migration window, freeze rules и rollback authority | Technical + Operations | 3 |
-| DEC-018 | Утвердить длительность стабилизационного окна перед удалением Lead Agent | Product + Technical | 4 |
-| DEC-019 | Решить, нужны ли telephony, payment gateway, email provider и university submission в следующей версии | Product Owner | 7 |
-| DEC-020 | Определить правила жалоб, возвратов, incident notification и запросов на данные | Business + Legal | 1 |
+| DEC-001 | Fixed | Product, Business Process, Technical и Data/Privacy accountability фиксируется по должностям; ФИО не блокирует repository work | Руководство |
+| DEC-002 | Fixed | Новые комментарии функций вносятся как traceable change; отдельной Visa role/owner нет | Product Owner |
+| DEC-003 | Fixed | Roles v1: Admin, Sales, Curator, Finance, Client/Student; custom/Leadership bundle только отдельным change | Руководство + function owners |
+| DEC-004 | Fixed | EVO Platform — manual operational finance source v1; future Excel/1C — отдельная integration | Finance Owner |
+| DEC-005 | Fixed | Portal активируется после account-specific contract event и Admin Curator assignment | Business + Finance Owners |
+| DEC-006 | Open | Exact amoCRM account/pipeline/status/custom-field/user mappings и assignment mapping | Sales Owner |
+| DEC-007 | Open | Dedicated sanitized test sender number; `evo-inbox` production QR/session recovery owner и controlled test-send authority; второй production WAHA session не создаётся | Operations Owner |
+| DEC-008 | Fixed | Private PDF/JPG/PNG <=25 MB, version/review/integrity/malware/audit; retention отдельно в DEC-012 | Admissions Owner |
+| DEC-009 | Open | Supabase region, plan, PITR availability и cost owner | Technical + Finance Owners |
+| DEC-010 | Open | Capacity baseline и numeric SLO/RPO/RTO; dashboard observation не считается полной company truth | Product + Technical Owners |
+| DEC-011 | Fixed | Structured alerts, runbooks, support ownership, restore/load/rollback rehearsal обязательны; numeric targets следуют DEC-010 | Technical Owner |
+| DEC-012 | Open | Privacy notice, consent, residency, retention/legal deletion и provider DPA; до решения нет irreversible auto-delete | Legal/Data Owner |
+| DEC-013 | Open | AI provider/model, разрешённые data classes и data-processing policy; approved knowledge governance уже fixed | Business + Data Owners |
+| DEC-014 | Fixed | Notifications v1: durable in-app + individual WhatsApp with consent/dedupe; no broadcast/mass send | Product Owner |
+| DEC-015 | Fixed | KPI всегда имеет source/formula/period/freshness/owner; numeric targets меняются отдельно | Руководство |
+| DEC-016 | Fixed | EVO гарантирует только собственные услуги; Malaysia material с external guarantee не approved до новой reviewed version | Business Owner |
+| DEC-017 | Open | Release/migration window, freeze rules и rollback authority | Technical + Operations Owners |
+| DEC-018 | Fixed | Lead Agent retirement только после >=72 фактических часов real soak и полного gate раздела 22 | Product + Technical Owners |
+| DEC-019 | Deferred | Telephony, payment gateway, email provider и university submission не входят в v1 | Product Owner |
+| DEC-020 | Deferred | Жалобы, data requests и legal incident procedure уточняются с DEC-012; безопасный audit/export foundation входит в v1 | Business + Legal Owners |
 
 ## 25. Что не входит в первый production-релиз
 
@@ -1104,7 +1173,7 @@ Lead Agent можно удалить только если одновремен�
 | --- | --- | --- |
 | «Интеллектуальный хаб» вокруг CRM | Единый frontend/backend + amoCRM Adapter + Supabase | amoCRM остаётся master только для sales identity/stage |
 | Student загружает и исправляет документы | FR-059–FR-066, private Storage, versions и review | AI даёт observation, не decision |
-| ОЗО проверяет документы | Curator/Visa permissions, review queue и audit | ОЗО — функция, не техническое имя роли |
+| ОЗО проверяет документы | Curator permissions, review queue и audit | ОЗО — функция, не отдельная technical/Visa role |
 | ОП добавляет лида | FR-019–FR-030 через canonical amoCRM | Локальный duplicate lead запрещён |
 | Финансовый контроль и блокировка | FR-069–FR-074, stop factor | Источник оплаты и unblock rule пока DEC-004/005 |
 | «Оплачено» открывает Portal | Controlled activation policy | Не принимается без утверждённого evidence и business rule |
@@ -1138,6 +1207,11 @@ Lead Agent можно удалить только если одновремен�
 
 ### 27.5 Roles matrix
 
+> **Legacy visual evidence:** screenshot показывает pre-P1 current runtime и
+> содержит колонку «Визовый отдел». Она не разрешает отдельную Visa role и
+> superseded нормативной матрицей раздела 11: P1 удаляет business `visa` role,
+> а `/visa` остаётся модулем назначенного Curator.
+
 ![Матрица ролей EVO Platform с семантическими индикаторами доступа](../design/evo-platform/implementation-screenshots/communications-admin/10-roles-matrix-desktop-1440.png)
 
 ### 27.6 Student Portal
@@ -1152,20 +1226,21 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 
 - Утверждённое ТЗ получает immutable version tag/commit.
 - Любое изменение data owner, role authority, auto-send, retention, provider,
-  migration order или acceptance требует change request.
-- Architecture change фиксируется ADR до реализации.
-- Scope/acceptance/merge-order change добавляется в `docs/PLAN_CHANGES.md`.
+  API/schema, migration order или acceptance требует отдельного plan-amendment
+  PR до соответствующего code change.
+- Architecture change фиксируется superseding ADR до реализации.
+- Scope/acceptance/merge-order change добавляется append-only в
+  `docs/PLAN_CHANGES.md` и сначала merges.
 - Каждая implementation phase разбивается на GitHub Issues и reviewable PR.
 - Production merge не равен deployment; deployment имеет release record,
   migration evidence и rollback point.
 - Срочное исключение имеет owner, reason, expiry и post-incident review.
 
-## 29. Требования к handoff после утверждения
+## 29. Требования к implementation handoff после P0
 
-Команда реализации должна создать:
+После merge P0 команда последовательно поддерживает:
 
-1. Target Architecture ADR, superseding companion-era Supabase/WAHA/runtime
-   decisions.
+1. Target Architecture ADR 0014, superseding companion-era target decisions.
 2. Data dictionary и ERD.
 3. Role/action/field/object-scope matrix.
 4. amoCRM field/status/user mapping.
@@ -1208,19 +1283,24 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 
 ### 31.1 Официальные внешние источники
 
-- [amoCRM Contacts API](https://www.amocrm.ru/developers/content/crm_platform/contacts-api)
-- [amoCRM Leads API](https://www.amocrm.ru/developers/content/crm_platform/leads-api)
-- [amoCRM Webhooks format](https://www.amocrm.ru/developers/content/crm_platform/webhooks-format)
-- [WAHA Events, retries, HMAC and acknowledgement](https://waha.devlike.pro/docs/how-to/events/)
-- [WAHA Receive messages](https://waha.devlike.pro/docs/how-to/receive-messages/)
-- [Supabase Managing environments](https://supabase.com/docs/guides/deployment/managing-environments)
-- [Supabase Database migrations](https://supabase.com/docs/guides/deployment/database-migrations)
+- [Supabase Branching](https://supabase.com/docs/guides/deployment/branching)
 - [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+- [Supabase Storage access control](https://supabase.com/docs/guides/storage/security/access-control)
+- [Supabase Queues](https://supabase.com/docs/guides/queues)
+- [Supabase SSR client](https://supabase.com/docs/guides/auth/server-side/creating-a-client)
+- [Kommo API limitations](https://developers.kommo.com/docs/limitations)
+- [Kommo Webhooks](https://developers.kommo.com/docs/webhooks-general)
+- [WAHA Events, HMAC and acknowledgement](https://waha.devlike.pro/docs/how-to/events/)
+
+Расширенный index официальных RBAC, Webhooks/Vault/backup/Realtime,
+Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
+`docs/EVO_PLATFORM_LONG_RUN_PLAN.md` и ADR 0014.
 
 ### 31.2 Основные источники репозитория
 
 - `AGENTS.md`, `CONTEXT.md`;
-- `docs/EVO_LAUNCH_PLAN.md`, `docs/PLAN_CHANGES.md`;
+- `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, `docs/EVO_LAUNCH_PLAN.md`,
+  `docs/PLAN_CHANGES.md`;
 - `docs/platform/system-overview.md`;
 - `docs/platform/data-ownership.md`;
 - `docs/business/evo-business-context.md`;
@@ -1229,7 +1309,7 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 - `evo-lead-agent/functional-spec.md`;
 - `evo-lead-agent/technical-spec.md`;
 - `agent-lead2-inbox/docs/supabase-managed-store.md`;
-- `docs/adr/0003–0013`;
+- `docs/adr/0003–0014`;
 - `docs/design/evo-platform/COMPLETION_CHECKLIST.md`;
 - `docs/design/evo-platform/FINAL_FRONTEND_AUDIT_2026-07-24.md`;
 - `docs/design/evo-platform/DESIGN_REVIEW_CLOSURE_2026-07-25.md`;
@@ -1247,9 +1327,9 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 | SRC-LEAD | `evo-lead-agent/functional-spec.md`, `evo-lead-agent/technical-spec.md` и текущая integration logic |
 | SRC-UI | Реализованный frontend, `docs/design/evo-platform/IMPLEMENTATION_PLAN.md`, completion checklist и финальные frontend/design audits |
 | SRC-OPS | `docs/BLOCK_G_FINAL_AUDIT.md`, disaster-recovery/release runbooks и доказанные production boundaries |
-| SRC-AMO | Официальные amoCRM Contacts, Leads и Webhooks API из раздела 31.1 |
-| SRC-WAHA | Официальные WAHA Events и Receive messages из раздела 31.1 |
-| SRC-SUPA | Официальные Supabase environments, migrations и RLS guidance из раздела 31.1 |
+| SRC-AMO | Официальные Kommo limitations, webhooks, Chats и lead-write contracts из раздела 31.1 |
+| SRC-WAHA | Официальные WAHA Sessions, Events и Send messages из раздела 31.1 |
+| SRC-SUPA | Официальные Supabase Branching, RLS/RBAC, Storage, Queues, SSR, Vault, Realtime и backup contracts из раздела 31.1 |
 | SRC-SEC | `AGENTS.md`, server authorization code, security migrations/tests и правила хранения secrets |
 | SRC-GAP | Явные противоречия, недостающие владельцы/policies и открытые решения, зафиксированные в `docs/PLAN_CHANGES.md`, production audits и разделе 24 |
 
@@ -1477,17 +1557,20 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 
 ## 32. Согласование
 
-| Роль | ФИО | Решение | Дата | Подпись / ссылка |
-| --- | --- | --- | --- | --- |
-| Владелец продукта |  | Утверждено / с замечаниями / отклонено |  |  |
-| Владелец бизнес-процессов |  | Утверждено / с замечаниями / отклонено |  |  |
-| Ответственный Sales |  | Утверждено / с замечаниями / отклонено |  |  |
-| Ответственный Admissions |  | Утверждено / с замечаниями / отклонено |  |  |
-| Ответственный Visa |  | Утверждено / с замечаниями / отклонено |  |  |
-| Ответственный Finance |  | Утверждено / с замечаниями / отклонено |  |  |
-| Data/Privacy Owner |  | Утверждено / с замечаниями / отклонено |  |  |
-| Технический владелец |  | Утверждено / с замечаниями / отклонено |  |  |
+| Должностная функция | Что подтверждает | Evidence / decision record |
+| --- | --- | --- |
+| Product Owner | scope, роли, queues, Portal и release outcome | SHA-bound review / change record |
+| Business Process Owner | handoff, Curator ownership, guarantee boundary | SHA-bound review / change record |
+| Sales Owner | account-specific amoCRM mappings и pre-contract ownership | DEC-006 evidence |
+| Admissions Owner | applications, documents, visa и case lifecycle | SHA-bound review / change record |
+| Finance Owner | manual finance authority, evidence и overdue copy | SHA-bound review / change record |
+| Legal/Data Owner | privacy, DPA, retention/legal deletion | DEC-012 decision |
+| Technical Owner | architecture, security, RPO/RTO, cutover/rollback | review + DEC-009/010/017 evidence |
+| Operations Owner | sanitized test sender number, `evo-inbox` QR recovery и release window | DEC-007/017 evidence |
 
-**Решение по версии 1.0:** _________________________________________________
+**Решение по версии 1.1:** repository-реализация по P0–P10 разрешена после
+merge P0. Production mutation и provider acceptance разрешаются только
+соответствующим evidence gate.
 
-**Обязательные замечания до реализации:** _________________________________
+**Открытые owner gates:** только DEC-006, DEC-007, DEC-009, DEC-010, DEC-012,
+DEC-013 и DEC-017.

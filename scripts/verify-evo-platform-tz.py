@@ -5,7 +5,11 @@ The verifier uses only real document paths and real renderers:
 
 - python-docx builds and inspects the DOCX package;
 - LibreOffice/soffice converts the DOCX to PDF;
-- Poppler/pdftoppm renders every PDF page to PNG.
+- Poppler/pdfinfo counts pages and pdftoppm renders each PDF page to PNG at a
+  fixed 144 DPI (exactly two pixels per PDF point) in an isolated invocation.
+  This runtime produced geometry artifacts at 150 DPI even when the source PDF
+  and the same 144-DPI page were valid, so 150-DPI images are not acceptable
+  visual evidence.
 
 It writes machine-readable validation and accessibility reports beside the
 rendered pages. Human visual inspection of every generated PNG remains a
@@ -308,6 +312,7 @@ def prepare_render_dir(path: Path) -> Path:
 
 def render_docx(render_dir: Path) -> dict[str, Any]:
     soffice = require_command("soffice", "libreoffice")
+    pdfinfo = require_command("pdfinfo")
     pdftoppm = require_command("pdftoppm")
 
     with tempfile.TemporaryDirectory(prefix="evo-tz-libreoffice-profile-") as profile:
@@ -332,25 +337,45 @@ def render_docx(render_dir: Path) -> dict[str, Any]:
             f"stdout={conversion.stdout!r}, stderr={conversion.stderr!r}"
         )
 
-    run(
-        [
-            pdftoppm,
-            "-png",
-            "-r",
-            "150",
-            str(pdf_path),
-            str(render_dir / "page"),
-        ]
-    )
+    pdf_metadata = run([pdfinfo, str(pdf_path)])
+    page_count_match = re.search(r"^Pages:\s+(\d+)\s*$", pdf_metadata.stdout, re.M)
+    if page_count_match is None:
+        raise RuntimeError(
+            "Poppler pdfinfo did not report a parseable page count. "
+            f"stdout={pdf_metadata.stdout!r}"
+        )
+    expected_pages = int(page_count_match.group(1))
+    page_digits = max(2, len(str(expected_pages)))
+    for page_number in range(1, expected_pages + 1):
+        page_stem = render_dir / f"page-{page_number:0{page_digits}d}"
+        run(
+            [
+                pdftoppm,
+                "-f",
+                str(page_number),
+                "-l",
+                str(page_number),
+                "-singlefile",
+                "-png",
+                "-r",
+                "144",
+                str(pdf_path),
+                str(page_stem),
+            ]
+        )
     page_paths = sorted(
         render_dir.glob("page-*.png"),
         key=lambda path: int(path.stem.rsplit("-", 1)[1]),
     )
-    if not page_paths:
-        raise RuntimeError("Poppler did not render any DOCX pages")
+    if len(page_paths) != expected_pages:
+        raise RuntimeError(
+            "Poppler did not render the expected number of DOCX pages: "
+            f"expected={expected_pages}, actual={len(page_paths)}"
+        )
 
     return {
         "soffice": soffice,
+        "pdfinfo": pdfinfo,
         "pdftoppm": pdftoppm,
         "pdf": str(pdf_path),
         "pages": len(page_paths),

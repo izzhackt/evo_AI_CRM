@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
-import { db, Role } from "./db";
+import { db } from "./db";
+import { isRole, type Role } from "./roles";
 
 const DEV_AUTH_SECRET = "edu-admin-dev-secret-change-in-production";
 const COOKIE = "edu_session";
@@ -72,8 +73,9 @@ export async function currentUser(): Promise<SessionUser | null> {
   if (id == null) return null;
   const row = db()
     .prepare("SELECT id, email, name, role FROM users WHERE id = ?")
-    .get(id) as SessionUser | undefined;
-  return row ?? null;
+    .get(id) as Omit<SessionUser, "role"> & { role: string } | undefined;
+  if (!row || !isRole(row.role)) return null;
+  return { ...row, role: row.role };
 }
 
 export function isStaff(role: Role): boolean {

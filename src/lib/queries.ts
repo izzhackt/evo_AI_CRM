@@ -548,7 +548,12 @@ export function listTasks(assigneeId?: number) {
 }
 
 export function listStaff() {
-  return db().prepare("SELECT id, name, email, role, created_at FROM users WHERE role != 'client' ORDER BY name").all() as {
+  return db().prepare(`
+    SELECT id, name, email, role, created_at
+    FROM users
+    WHERE role IN ('admin', 'sales', 'curator', 'finance')
+    ORDER BY name
+  `).all() as {
     id: number; name: string; email: string; role: string; created_at: string;
   }[];
 }
@@ -661,7 +666,7 @@ export function listOperatorNotifications(
     }
   }
 
-  if (["admin", "sales", "curator", "visa"].includes(role)) {
+  if (["admin", "sales", "curator"].includes(role)) {
     const documents = d.prepare(`
       SELECT doc.id, doc.name, doc.status, doc.updated_at, u.name AS client_name
       FROM documents doc

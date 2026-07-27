@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getT } from "@/lib/i18n";
 import { getLead, leadActivities, listStaff, listConversations } from "@/lib/queries";
 import { LEAD_STATUSES } from "@/lib/db";
-import { updateLeadAction, moveLeadAction, addLeadNoteAction, convertLeadAction, addTaskAction } from "@/lib/actions";
+import { updateLeadAction, moveLeadAction, addLeadNoteAction, addTaskAction } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
 import { btnCls, btnGhostCls, cn, inputCls } from "@/components/ui";
 import { Icon } from "@/components/icons";
@@ -41,6 +41,9 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const leadStatus = Object.fromEntries(
     LEAD_STATUSES.map((status) => [status, t(`lead.${status}`)]),
   ) as Record<string, string>;
+  const manuallyEditableStatuses = LEAD_STATUSES.filter(
+    (status) => status !== "contract_signed",
+  );
 
   return (
     <div className="space-y-5">
@@ -70,12 +73,11 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               </a>
             ) : null}
             {!lead.client_id ? (
-              <form action={convertLeadAction}>
-                <input type="hidden" name="id" value={lead.id} />
-                <button type="submit" className={btnCls}>
+              <span title={t("contractMappingRequired")}>
+                <button type="button" disabled className={cn(btnCls, "cursor-not-allowed opacity-55")}>
                   <Icon name="plus" size={15} /> {t("convertToClient")}
                 </button>
-              </form>
+              </span>
             ) : (
               <Link href={`/clients/${lead.client_id}`} className={btnCls}>
                 {t("converted")}
@@ -84,22 +86,28 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           </>
         }
         moveForm={
-          <form action={moveLeadAction} className="space-y-2">
-            <input type="hidden" name="id" value={lead.id} />
-            <label className="block text-[12px] font-medium text-fg-2">
-              {t("moveTo")}
-              <select name="status" defaultValue={lead.status} className={cn(inputCls, "mt-1 h-10")}>
-                {LEAD_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {t(`lead.${status}`)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="submit" className={cn(btnGhostCls, "h-10 w-full")}>
-              {t("save")}
-            </button>
-          </form>
+          lead.status === "contract_signed" ? (
+            <p className="text-[12px] leading-5 text-fg-3">
+              {t("canonicalAmoStageReadOnly")}
+            </p>
+          ) : (
+            <form action={moveLeadAction} className="space-y-2">
+              <input type="hidden" name="id" value={lead.id} />
+              <label className="block text-[12px] font-medium text-fg-2">
+                {t("moveTo")}
+                <select name="status" defaultValue={lead.status} className={cn(inputCls, "mt-1 h-10")}>
+                  {manuallyEditableStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      {t(`lead.${status}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="submit" className={cn(btnGhostCls, "h-10 w-full")}>
+                {t("save")}
+              </button>
+            </form>
+          )
         }
         metrics={[
           { label: t("manager"), value: lead.manager_name ?? t("notAssigned") },

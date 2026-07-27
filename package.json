@@ -17,7 +17,7 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:security": "npm run test:security:node && npm run test:security:postgres",
-    "test:security:node": "node --experimental-strip-types --test tests/secret-storage.test.mjs tests/transcription-jobs.test.mjs tests/request-limits.test.mjs tests/runtime-hardening.test.mjs tests/disaster-recovery.test.mjs tests/visa-role-migration.test.mjs",
+    "test:security:node": "node --experimental-strip-types --test tests/secret-storage.test.mjs tests/transcription-jobs.test.mjs tests/request-limits.test.mjs tests/runtime-hardening.test.mjs tests/disaster-recovery.test.mjs tests/visa-role-migration.test.mjs tests/student-case-policy.test.mjs",
     "test:security:postgres": "bash agent-lead2-inbox/scripts/test-postgres-authorization.sh",
     "scenarios": "EVO_SECRET_ENCRYPTION_KEY=scenario-evaluation-only-key node scripts/evaluate-scenarios.mjs",
     "bootstrap:admin": "node scripts/bootstrap-admin.mjs",

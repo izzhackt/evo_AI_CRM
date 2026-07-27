@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   readFileSync,
   statSync,
@@ -59,12 +60,12 @@ test("inventory writes a deterministic private report without changing legacy vi
   const report = createInventoryReport({ source, reportPath });
 
   assert.deepEqual(report, {
-    formatVersion: 1,
-    migrationId: "p1a-visa-role-to-curator-v1",
+    formatVersion: 2,
+    migrationId: "p1a-visa-role-to-curator-v2",
     sourceRole: "visa",
     targetRole: "curator",
-    schemaVersion: 2,
     userVersion: 0,
+    databaseStateSha256: "3af4fdbc8a9b954d9fe06c56f7323ef017ff1ff91e858f4a04367fca17225f58",
     visaUserCount: 1,
     userRoleStateSha256: "fb9f938a0ee5f6a3ce7d3af674484e78ed351e688cc34f25a9b33883f202bd17",
     users: [
@@ -79,7 +80,7 @@ test("inventory writes a deterministic private report without changing legacy vi
         ],
       },
     ],
-    inventorySha256: "16c4e728ea960db513026b33db455a950d570afa11189ca148161a94cb77aa65",
+    inventorySha256: "9b85e592dd3302d79c1cdbecd7c83b580815066e244488a914bef3c8fc54fe9f",
   });
   assert.equal(statSync(reportPath).mode & 0o777, 0o600);
 
@@ -151,8 +152,8 @@ test("apply migrates the reviewed inventory transactionally and leaves a private
   assert.equal(apply.status, 0, apply.stderr);
   const receipt = JSON.parse(apply.stdout);
 
-  assert.equal(receipt.formatVersion, 1);
-  assert.equal(receipt.migrationId, "p1a-visa-role-to-curator-v1");
+  assert.equal(receipt.formatVersion, 2);
+  assert.equal(receipt.migrationId, "p1a-visa-role-to-curator-v2");
   assert.equal(receipt.status, "applied");
   assert.equal(receipt.inventorySha256, report.inventorySha256);
   assert.equal(receipt.backupSha256, backup.manifest.sha256);
@@ -184,7 +185,7 @@ test("apply migrates the reviewed inventory transactionally and leaves a private
         )
         .get(),
       {
-        migration_id: "p1a-visa-role-to-curator-v1",
+        migration_id: "p1a-visa-role-to-curator-v2",
         source_role: "visa",
         target_role: "curator",
         migrated_user_count: 1,
@@ -229,9 +230,9 @@ test("inventory CLI prints only sanitized migration evidence", () => {
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout), {
     status: "inventory_ready",
-    migrationId: "p1a-visa-role-to-curator-v1",
+    migrationId: "p1a-visa-role-to-curator-v2",
     visaUserCount: 1,
-    inventorySha256: "16c4e728ea960db513026b33db455a950d570afa11189ca148161a94cb77aa65",
+    inventorySha256: "9b85e592dd3302d79c1cdbecd7c83b580815066e244488a914bef3c8fc54fe9f",
   });
   assert.doesNotMatch(
     `${result.stdout}\n${result.stderr}`,
@@ -284,6 +285,58 @@ test("apply rejects stale inventory without changing any legacy role", async () 
   } finally {
     unchanged.close();
   }
+});
+
+test("apply rejects a backup that predates unrelated operational data", async () => {
+  const root = mkdtempSync(join(tmpdir(), "evo-visa-role-"));
+  chmodSync(root, 0o700);
+  const source = createLegacyDatabase(root);
+  const backup = await createVerifiedBackup({
+    source,
+    destination: join(root, "backups", "pre-migration.db"),
+    store: "main-crm",
+  });
+
+  const changed = new Database(source);
+  try {
+    changed
+      .prepare("UPDATE users SET name = ? WHERE id = ?")
+      .run("Updated unrelated test profile", 20);
+  } finally {
+    changed.close();
+  }
+
+  const reportPath = join(root, "inventory.json");
+  const report = createInventoryReport({ source, reportPath });
+  const receiptPath = join(root, "receipt.json");
+
+  assert.throws(
+    () =>
+      applyVisaRoleMigration({
+        source,
+        reportPath,
+        confirm: report.inventorySha256,
+        backupArtifact: backup.output,
+        backupManifest: backup.manifestPath,
+        receiptPath,
+      }),
+    /verified backup does not match the reviewed inventory/,
+  );
+
+  const unchanged = new Database(source, { readonly: true });
+  try {
+    assert.equal(
+      unchanged.prepare("SELECT role FROM users WHERE id = 10").pluck().get(),
+      "visa",
+    );
+    assert.equal(
+      unchanged.prepare("SELECT name FROM users WHERE id = 20").pluck().get(),
+      "Updated unrelated test profile",
+    );
+  } finally {
+    unchanged.close();
+  }
+  assert.equal(existsSync(receiptPath), false);
 });
 
 test("apply rejects a tampered report before opening the database for writes", async () => {

@@ -22,12 +22,19 @@ authentication boundary and is not included in the staff list.
 `inventory` is read-only. It creates a deterministic report containing user IDs
 and reference counts, but no names, email addresses, phone numbers, passwords
 or customer messages. A separate hash of all `{userId, role}` pairs binds the
-review to the same user-role state without exposing staff identity.
+review to the same user-role state without exposing staff identity. A second
+cryptographic hash binds the report to the complete logical SQLite state:
+normalized schema entries and every value in every table are included, while
+the underlying values are never written to the report or console.
 
 `apply` accepts only the exact reviewed inventory hash and a verified SQLite
-backup. It rechecks the live database inside one immediate transaction. Any
-drift, missing user, invalid backup, checksum mismatch or foreign-key error
-rolls the transaction back.
+backup. It requires the backup's complete logical-state hash to match the
+reviewed inventory, then rechecks the live database inside one immediate
+transaction. Any unrelated operational write, schema drift, missing user,
+invalid backup, checksum mismatch or foreign-key error stops the migration.
+SQLite's [Online Backup API](https://www.sqlite.org/backup.html) provides a
+consistent source snapshot; the additional logical-state binding proves that
+the reviewed database and rollback artifact still describe the same state.
 
 ## Required gate before production use
 
@@ -35,10 +42,16 @@ An authorized maintenance owner must provide all of the following:
 
 1. a separately approved production maintenance window;
 2. the exact deployed Git SHA and target SQLite path;
-3. a private backup directory owned by the operator with mode `0700`;
-4. a verified `main-crm` SQLite online backup and manifest;
-5. a reviewed inventory report and its exact SHA-256 value;
-6. a coordinated application deploy/start and database rollback procedure.
+3. a proven write freeze covering the application, workers and webhook
+   consumers from before backup creation through all post-apply checks;
+4. a private backup directory owned by the operator with mode `0700`;
+5. a verified `main-crm` SQLite online backup and manifest;
+6. a reviewed inventory report and its exact SHA-256 value;
+7. a coordinated application deploy/start and database rollback procedure.
+
+Create the backup only after the write freeze is active. Keep the freeze active
+through inventory, apply and post-apply verification. Do not resume writes if
+the backup or current database fails the complete logical-state comparison.
 
 Do not use `/tmp`, `/var/tmp`, the repository, `/opt/evo-crm` or
 `/opt/evo-inbox` for reports or backups. Do not paste report files into GitHub,
@@ -107,7 +120,7 @@ ORDER BY role;
 SELECT migration_id, source_role, target_role, migrated_user_count,
        inventory_sha256, backup_sha256, applied_at
 FROM staff_role_migrations
-WHERE migration_id = 'p1a-visa-role-to-curator-v1';
+WHERE migration_id = 'p1a-visa-role-to-curator-v2';
 
 PRAGMA integrity_check;
 PRAGMA foreign_key_check;
@@ -116,7 +129,8 @@ PRAGMA foreign_key_check;
 The role query must return no `visa` row. `integrity_check` must return `ok`,
 and `foreign_key_check` must return zero rows. Then verify with dedicated test
 accounts that Admin and Curator can open `/visa`, while Sales, Finance and
-Student cannot open the staff Visa module.
+Student cannot open the staff Visa module. Resume application writes only after
+all checks succeed and the release owner accepts the result.
 
 ## Rollback
 

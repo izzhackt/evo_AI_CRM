@@ -12,7 +12,7 @@ import { dirname, isAbsolute, resolve } from "node:path";
 
 import { verifyBackup } from "./backup-sqlite.mjs";
 
-const MIGRATION_ID = "p1a-visa-role-to-curator-v1";
+const MIGRATION_ID = "p1a-visa-role-to-curator-v2";
 
 function fail(message) {
   throw new Error(message);
@@ -75,6 +75,87 @@ function assertDatabaseIntegrity(database) {
   }
 }
 
+function updateHashFrame(hash, value) {
+  const bytes = Buffer.isBuffer(value) ? value : Buffer.from(String(value), "utf8");
+  hash.update(Buffer.from(`${bytes.length}:`, "utf8"));
+  hash.update(bytes);
+}
+
+function updateSqliteValue(hash, value) {
+  if (value === null) {
+    updateHashFrame(hash, "null");
+    return;
+  }
+  if (Buffer.isBuffer(value)) {
+    updateHashFrame(hash, "blob");
+    updateHashFrame(hash, value);
+    return;
+  }
+  if (typeof value === "bigint") {
+    updateHashFrame(hash, "integer");
+    updateHashFrame(hash, value.toString());
+    return;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) fail("database contains a non-finite numeric value");
+    updateHashFrame(hash, "real");
+    updateHashFrame(hash, Object.is(value, -0) ? "-0" : value.toString());
+    return;
+  }
+  if (typeof value === "string") {
+    updateHashFrame(hash, "text");
+    updateHashFrame(hash, value);
+    return;
+  }
+  fail(`unsupported SQLite value type: ${typeof value}`);
+}
+
+function databaseStateSha256(database) {
+  const stateHash = createHash("sha256");
+  updateHashFrame(stateHash, "evo-sqlite-logical-state-v1");
+
+  const schema = database
+    .prepare(`
+      SELECT type, name, tbl_name, sql
+      FROM sqlite_schema
+      ORDER BY type, name, tbl_name
+    `)
+    .all();
+  for (const entry of schema) {
+    updateHashFrame(stateHash, "schema");
+    updateSqliteValue(stateHash, entry.type);
+    updateSqliteValue(stateHash, entry.name);
+    updateSqliteValue(stateHash, entry.tbl_name);
+    updateSqliteValue(stateHash, entry.sql);
+  }
+
+  for (const { name } of schema.filter(({ type }) => type === "table")) {
+    const statement = database
+      .prepare(`SELECT * FROM ${quoteIdentifier(name)}`)
+      .safeIntegers(true);
+    const columns = statement.columns().map(({ name: column }) => column);
+    const rowDigests = [];
+    for (const row of statement.iterate()) {
+      const rowHash = createHash("sha256");
+      updateHashFrame(rowHash, "evo-sqlite-row-v1");
+      for (const column of columns) {
+        updateHashFrame(rowHash, column);
+        updateSqliteValue(rowHash, row[column]);
+      }
+      rowDigests.push(rowHash.digest());
+    }
+    rowDigests.sort((left, right) => Buffer.compare(left, right));
+
+    updateHashFrame(stateHash, "table");
+    updateHashFrame(stateHash, name);
+    for (const column of columns) updateHashFrame(stateHash, column);
+    updateHashFrame(stateHash, rowDigests.length);
+    for (const digest of rowDigests) updateHashFrame(stateHash, digest);
+  }
+
+  return stateHash.digest("hex");
+}
+
 function userReferenceColumns(database) {
   const tables = database
     .prepare("SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
@@ -122,12 +203,12 @@ function collectInventory(database) {
   }));
 
   return {
-    formatVersion: 1,
+    formatVersion: 2,
     migrationId: MIGRATION_ID,
     sourceRole: "visa",
     targetRole: "curator",
-    schemaVersion: database.pragma("schema_version", { simple: true }),
     userVersion: database.pragma("user_version", { simple: true }),
+    databaseStateSha256: databaseStateSha256(database),
     visaUserCount: users.length,
     userRoleStateSha256: createHash("sha256")
       .update(JSON.stringify(userRoleState))
@@ -169,10 +250,12 @@ function inventoryFromReport(report) {
     fail("inventory report checksum is invalid");
   }
   if (
-    inventory.formatVersion !== 1
+    inventory.formatVersion !== 2
     || inventory.migrationId !== MIGRATION_ID
     || inventory.sourceRole !== "visa"
     || inventory.targetRole !== "curator"
+    || !/^[a-f0-9]{64}$/.test(inventory.databaseStateSha256)
+    || !/^[a-f0-9]{64}$/.test(inventory.userRoleStateSha256)
     || !Array.isArray(inventory.users)
     || inventory.visaUserCount !== inventory.users.length
   ) {
@@ -240,7 +323,7 @@ export function applyVisaRoleMigration({
   try {
     const backupInventory = collectInventory(backupDatabase);
     assertSameInventory(
-      { ...backupInventory, schemaVersion: inventory.schemaVersion },
+      backupInventory,
       inventory,
       "verified backup does not match the reviewed inventory",
     );
@@ -250,7 +333,7 @@ export function applyVisaRoleMigration({
 
   const output = assertPrivateOutput(receiptPath);
   const pendingReceipt = {
-    formatVersion: 1,
+    formatVersion: 2,
     migrationId: MIGRATION_ID,
     status: "pending",
     inventorySha256,
@@ -320,7 +403,7 @@ export function applyVisaRoleMigration({
     });
     const migratedUserCount = migrate.immediate();
     const receipt = {
-      formatVersion: 1,
+      formatVersion: 2,
       migrationId: MIGRATION_ID,
       status: "applied",
       inventorySha256,

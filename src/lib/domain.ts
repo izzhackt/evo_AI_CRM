@@ -1,6 +1,5 @@
 import type { LeadStatus } from "./lead-stages";
 import {
-  ROLES,
   STAFF_ROLES,
   type Role,
   type StaffRole,

@@ -1,105 +1,153 @@
-# Кто владеет данными EVO Admissions
+# Владение данными в EVO Platform
 
-- Owner: ответственные за операционную и техническую работу, EVO Admissions
-- Status: Active (действующий)
-- Last verified: 2026-07-12
-- Sources: `AGENTS.md`, `CONTEXT.md`, `src/lib/db.ts`,
-  `agent-lead2-inbox/docs/supabase-managed-store.md`,
-  `evo-lead-agent/README.md`
+- Owner: технический ответственный EVO Admissions
+- Status: Target contract; current split storage remains until controlled cutover
+- Last verified against repository: 2026-07-28
+- Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 
-## Что означает «владелец данных»
+## Зачем фиксировать владельца
 
-Владелец — система, в которой факт считается правильным и в которой его нужно
-изменять. Другие системы могут показывать копию для удобства, но не должны
-тихо становиться вторым независимым владельцем.
+«Владелец» здесь означает систему, в которой запись считается канонической.
+Копия внешнего ID, shadow field или синхронизированное представление не меняют
+владельца. Это правило предотвращает расхождение sales stage, ответственного
+менеджера и admissions status.
 
-Например, `amo_lead_id` в EVO Inbox помогает открыть правильный лид, но сам
-этап продаж меняется в amoCRM.
+## Канонические владельцы
 
-## Матрица владельцев
+| Данные | Канонический владелец | Что хранит EVO Platform |
+|---|---|---|
+| Contact и его amoCRM identity | amoCRM | `amo_contact_id`, внутренний UUID и безопасные operational links |
+| Lead | amoCRM | `amo_lead_id`, link status и sync metadata |
+| Responsible sales manager | amoCRM | ссылку на account-specific user и version mapping |
+| Sales pipeline и sales stage | amoCRM | ссылку и последнюю подтверждённую sync-версию |
+| Signed-contract signal | account-specific amoCRM status mapping | подтверждённое событие, создавшее pending student case |
+| Staff identity и platform role | Supabase Auth + Platform profiles | account, role claims, organization membership, block/invite audit |
+| Student case и Curator assignment | EVO Platform Supabase | весь operational lifecycle и audited reassignment |
+| University applications | EVO Platform Supabase | несколько параллельных applications одного студента |
+| Documents и review history | EVO Platform Supabase + private Storage | metadata, versions, integrity/malware state, access audit |
+| Visa case | EVO Platform Supabase | Curator-owned operational states и evidence |
+| Tasks и notifications | EVO Platform Supabase | durable state, recipient, consent, dedupe и delivery attempts |
+| Obligations, payments и refunds v1 | EVO Platform Supabase | ручное Finance/Admin confirmation, evidence и audit |
+| Conversation и staff workflow | EVO Platform Supabase | единая история, queue ownership, handoff и access scope |
+| WhatsApp transport/session state | WAHA | отдельные `session`, message ID, ACK и reconciliation records |
+| Kommo Chats identity | Kommo | отдельные `conversation.id` и `message.id`, не смешанные с WAHA IDs |
+| AI output | EVO Platform Supabase | draft, model/policy version, knowledge citations и human final version |
+| Audit/outbox/queue/dead-letter/reconciliation | EVO Platform Supabase | immutable append-style evidence и processing state |
 
-| Вид информации | Владелец / единый источник истины | Что могут хранить другие системы | Правило изменения |
-|---|---|---|---|
-| Проверенный код, архитектура, инструкции и презентации | Ветка `main` в приватном GitHub-репозитории | Локальные рабочие копии | Issue → изменение → проверка → PR → `main` |
-| Задачи, вопросы, решения и их статус | GitHub Issues и связанный PR | Ссылка из документа | Не вести параллельный список задач в Slack или личных заметках |
-| Контакт, лид, ответственный и этап продаж | amoCRM | `amo_contact_id`, `amo_lead_id`, отображаемый контекст этапа продаж | Менять каноническое значение в amoCRM |
-| Профиль студента и операции по поступлению | Основная EVO CRM | Ссылки/выгрузки для согласованного процесса | Клиенты, заявки, документы, визовые кейсы, платежи и задачи меняются в CRM |
-| Диалоги, сообщения, реакции, настройки и база знаний EVO Inbox | Управляемый Supabase проекта EVO Inbox | Заметка amoCRM или ссылка; технические данные WAHA webhook | Менять через EVO Inbox или утверждённый административный процесс |
-| Контакт, лид и этап продаж внутри EVO Inbox | amoCRM | Ссылочный ID и статус синхронизации в Supabase | Не представлять локальную теневую копию как подтверждённый лид amoCRM |
-| WhatsApp-сессия и доставка сообщения | Соответствующая приватная WAHA-сессия | Копия сообщения в CRM/Inbox | `crm_primary` и `evo-inbox` обслуживаются раздельно |
-| Память и состояние обработки Lead Agent | SQLite Lead Agent | Подтверждённые amoCRM ID и теневое состояние в CRM | Не использовать эту SQLite как главную клиентскую базу |
-| Банковские, регистрационные и иные чувствительные исходники компании | Уполномоченный владелец оригинала в EVO; закрытая копия в репозитории — только справочная | Перечень без чувствительных значений в `source-documents.md` | Доступ по рабочей необходимости; не публиковать наружу |
-| Бренд-материалы | Утверждённый оригинал EVO; контролируемая копия в `docs/company/brand/` | Производные изображения и презентации | При изменении обновить источник и зависимые материалы |
-| Учётные данные, API keys, токены и данные WhatsApp-сессии | Панель внешнего сервиса, секретный файл VPS, игнорируемый `.env` или зашифрованные настройки | Только безопасное пустое значение в `.env.example` | Никогда не коммитить реальное значение |
-| Версия на рабочем сервере | Запущенный образ контейнера и Git-коммит на VPS плюс запись о развёртывании | Git-тег или ссылка в записи о выпуске/статусе | Не считать локальную версию доказательством состояния рабочего сервера |
+Operational admissions status никогда не записывается как замена sales stage.
+Canonical amoCRM writes используют `pipeline_id`, `status_id`,
+`responsible_user_id` и `custom_fields_values` только после account discovery.
 
-## Какие данные о поступлении уже моделирует CRM
+## Account-specific amoCRM mapping
 
-В основной SQLite-схеме существуют отдельные сущности для:
+Pipeline, status, custom-field и user IDs уникальны для аккаунта. Adapter
+обязан:
 
-- пользователей и клиентов;
-- заявок в учебные заведения;
-- документов;
-- визовых кейсов;
-- платежей;
-- задач и обновлений;
-- лидов и их активности;
-- звонков, каналов и WhatsApp-разговоров.
+1. обнаружить значения через API;
+2. сохранить versioned mapping с account identity и временем проверки;
+3. блокировать canonical write при отсутствующем или устаревшем mapping;
+4. быстро сохранять webhook, обрабатывать его асинхронно и идемпотентно;
+5. периодически выполнять reconciliation и отмечать conflicts;
+6. соблюдать лимит не более 7 requests/s/IP и предпочитать не более 50 writes
+   в одном batch.
 
-Это объясняет текущую техническую модель, но не разрешает загружать реальные
-персональные данные в Git. Файлы базы в `data/` игнорируются.
+Точный production mapping остаётся release blocker до проверки на выделенном
+sanitized test lead. Глобальные hardcoded stage IDs запрещены.
 
-## Три уровня информации
+## Platform roles и object scope
 
-### 1. Можно хранить в GitHub
+В release v1 есть `admin`, `sales`, `curator`, `finance` и
+`client/student`. Отдельной роли `visa` нет; `/visa` является module.
 
-- код, миграции и безопасные конфигурационные примеры;
-- процесс, handbook для команды, скрипт продаж и презентации;
-- публичные или разрешённые brand assets;
-- обезличенные схемы, решения и runbooks.
+| Роль | Разрешённый scope |
+|---|---|
+| Admin | staff invite/block; role administration; Curator assign/reassign с обязательной причиной, before/after и audit; разрешённые cross-case operations |
+| Sales | conversation и sales queue до contract; после handoff только разрешённый несекретный summary |
+| Curator | только назначенные student cases, applications, documents, visa, tasks и communication |
+| Finance | financial operations и evidence в разрешённом organization scope; без Curator reassignment |
+| Client/student | только собственный portal object scope и безопасные представления |
 
-### 2. Можно хранить только в закрытой запущенной системе (runtime)
+Curator/Admin могут close или reopen student case только с обязательной причиной
+и audit. Admin — permission bundle для личных аккаунтов уполномоченных
+сотрудников; shared credentials запрещены.
 
-- персональные данные клиента;
-- сообщения WhatsApp;
-- анкеты, паспорта, заявления и другие клиентские документы;
-- реальные базы рабочего сервера и их резервные копии.
+## RLS и server authorization
 
-### 3. Секреты
+Все exposed tables включают RLS. Политики проверяют не только role, но и:
 
-- API keys, OAuth tokens и пароли;
-- HMAC secrets;
-- WAHA session data;
-- Supabase service-role key;
-- незашифрованные банковские данные или учётные данные внешних сервисов.
+- organization membership;
+- assignment конкретного Curator;
+- sales/curator handoff state;
+- owner student identity;
+- разрешённый financial или administrative scope.
 
-Секрет не должен попадать в Issue, PR, Markdown, screenshot или log. Если секрет
-попал в Git, одного удаления файла недостаточно: ключ нужно немедленно
-отозвать/заменить и проверить историю.
+Custom JWT claims используются только для coarse role. Backend и Server
+Components повторно проверяют authorization на record/object level. В Next.js
+16 Supabase SSR использует `@supabase/ssr`, `proxy.ts`, асинхронный `cookies()`
+и server authorization через `getClaims()`; `getSession()` не считается
+достаточным доверенным доказательством identity.
 
-## Как не создавать дубликаты
+Browser получает publishable key и безопасную session информацию. Supabase
+secret/service-role, WAHA, amoCRM и AI provider secrets в browser bundle,
+client logs или committed files запрещены.
 
-1. Найдите владельца факта в таблице выше.
-2. Измените факт у владельца.
-3. В остальных системах храните ссылку, ID или явно обозначенную теневую копию.
-4. В документе укажите `Owner`, `Status`, `Last verified` и `Sources`.
-5. Если владельца пока нет, создайте GitHub Issue и назначьте решение; не
-   выбирайте новую master-систему молча.
+## Среды и migrations
 
-## Кто должен отвечать за разделы
+Есть одна логическая Platform data model и один dedicated production Supabase
+project, но среды физически разделены:
 
-Имена владельцев ещё должны быть назначены командой. Минимально нужны роли:
+- local/dev;
+- persistent staging branch/project;
+- preview branches, где поддерживаются;
+- production.
 
-- **Ответственный за бизнес** — услуги, обещания, цены и внешнее
-  позиционирование;
-- **Ответственный за поступление** — реальный процесс поступления и список
-  документов;
-- **Ответственный за продажи** — этапы продаж, квалификация лида, скрипты и
-  работа с возражениями;
-- **Ответственный за операционную работу** — CRM-процесс, качество записей и
-  доступ сотрудников;
-- **Технический ответственный** — код, инфраструктура, интеграции, резервные
-  копии и безопасность.
+Production data по умолчанию не копируется в preview. Источник схемы —
+versioned migrations и `supabase/config.toml`; clean reset, diff/pull discipline
+и parity checks обязательны. Нельзя делать irreversible production migration
+без expand/contract, backup и rollback proof.
 
-До назначения имени роль остаётся временным владельцем, но документ не должен
-считаться окончательно утверждённым без business-проверки.
+## Documents и Storage
+
+Document upload принимает только PDF/JPG/PNG до 25 MB. Объекты private,
+versioned и связаны с metadata; review, rework и resubmit сохраняют историю.
+Integrity и malware policy должны дать явный quarantined/rejected state.
+Download проходит через authenticated access или короткоживущий signed URL и
+пишется в audit.
+
+Прямые записи в таблицы `storage` запрещены. DB backup/PITR не включает Storage
+objects, поэтому для них нужен отдельный backup и isolated restore test.
+Retention и legal deletion period остаются открытым решением; необратимый
+auto-delete запрещён.
+
+## Messaging, queues и audit
+
+WAHA webhook owner сохраняет raw event до обработки, проверяет HMAC/timestamp и
+dedupe-ит:
+
+- `X-Webhook-Request-Id`;
+- бизнес-ключ `session + payload.id`.
+
+Durable work идёт через Supabase Queues. Consumer-ы идемпотентны; исчерпанные
+ошибки переходят в dead-letter и reconciliation. Database Webhooks допустимы
+для асинхронного push, но не являются durable business queue.
+
+`message.any` связывает собственные API-send события, а `message.ack` хранится
+как progression `ERROR`, `PENDING`, `SERVER`, `DEVICE`, `READ`, `PLAYED`.
+Неизвестный send result требует reconciliation и ручного решения, а не
+автоматического retry.
+
+Audit фиксирует actor, action, object, before/after, reason, evidence reference,
+request/idempotency keys и timestamp. Audit export не должен раскрывать secrets,
+PII сверх разрешённого scope или полный customer message без необходимости.
+
+## Current-to-target boundary
+
+До контролируемого cutover root SQLite, отдельный Inbox Supabase и состояние
+Lead Agent остаются текущими runtime sources в своих старых путях. Target
+ownership не даёт права выполнять production migration, dual-write или
+отключать старый webhook.
+
+Переход требует read-only inventory и backup, deterministic UUID mapping,
+dry-run counts/orphans/checksums, staging import, временное dual-read сравнение,
+rollback rehearsal и отдельное разрешение. Постоянный dual-write не является
+целевой архитектурой.

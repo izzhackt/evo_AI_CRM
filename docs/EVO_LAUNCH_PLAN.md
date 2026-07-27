@@ -1,57 +1,84 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-preplatform-hardening` remains open from GitHub `main`
-commit `43e3896e2e5282632cd887a9213103dddf449559`. Blocks A-F are merged,
-independently reviewed, and deployed where authorized. Block G remains
-incomplete because internal closure work and explicit owner/external gates
-remain. Updated 2026-07-24 in the workspace timezone.
+Status: `/goal-evo-platform-long-run` is active from GitHub `main` commit
+`a16cd3fb591128b6d28f7f46c432169a0ff28753`. The active block is P0,
+which is docs-only and must merge before application or migration code changes.
+Updated 2026-07-28 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
-New implementation lanes are blocked until their plan and
-`docs/PLAN_CHANGES.md` amendment is independently reviewed and merged. If
-scope, architecture, acceptance criteria, file ownership, or merge order
-changes, update `docs/PLAN_CHANGES.md` before coding.
+The current detailed contract is
+`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`. New implementation lanes are blocked
+until their plan and `docs/PLAN_CHANGES.md` amendment is independently reviewed
+and merged. If scope, architecture, API/schema, acceptance criteria, file
+ownership or merge order changes, stop the affected code change and merge a
+separate plan amendment first.
 
 ## Current Goal Slice
 
-Active slice: `/goal-evo-preplatform-hardening`.
+Active slice: `/goal-evo-platform-long-run`, Block P0.
 
 ### Goal
 
-Harden the current EVO CRM, EVO Inbox, retained EVO Lead Agent, and production
-boundaries before any unified EVO Platform implementation. amoCRM remains the
-sales identity/status source of truth. AI remains draft-only and automatic
-WhatsApp replies remain disabled.
+Build the unified EVO Platform in ordered, independently reviewed blocks while
+preserving the accepted frontend contract and current production safety.
+amoCRM remains canonical for contact, lead, responsible sales manager and
+sales stage. One Supabase production project becomes the platform-owned
+operational store, with physically isolated dev/staging/preview environments.
+EVO Inbox and useful EVO Lead Agent logic move into one backend and one private
+`evo-inbox` WAHA path. AI remains draft-only with human manual send.
 
-This slice does not build the unified platform, merge databases, retire the
-Lead Agent, redesign the complete role model, add automatic replies, or begin
-the final platform UI.
+P0 changes documentation only. It finalizes the plan/TZ/ADR contract and does
+not modify code, schemas, providers or production state.
 
 ### Reconciled baseline
 
-- PRs #46-#48 merged immutable release controls and durable, server-written
-  Inbox draft/outbound/ACK evidence; unknown delivery outcomes are not retried
-  automatically.
-- PRs #49-#55 merged the plan and Blocks A-F. PRs #56-#59 recorded and refreshed
-  the final-audit evidence and the approved narrow Supabase backup-risk
-  exception.
-- GitHub `main` and this clean worktree resolve to `43e3896e`.
+- GitHub `main` and this clean worktree resolve to `a16cd3fb`; the exact
+  `EVO platform CI` run for that SHA is green and there were no open PRs at the
+  P0 snapshot.
 - Production Inbox runs revision `a09a72fc`, release `2026-07-24.2`.
   Production CRM and Lead Agent run revision `564332b4`, release
   `2026-07-24.1`.
-- Production Supabase migrations 038/039 are registered. Private Inbox
-  readiness proved both Supabase and WAHA ready before and after the authorized
-  Inbox application restart; WAHA itself was not restarted or reconfigured.
+- The root app still uses SQLite/custom auth and local `wa_*` shadow tables;
+  EVO Inbox still uses a separate Supabase model.
 - The retained Lead Agent is frozen with worker, outbound, and automatic reply
-  paths disabled.
-- No real WhatsApp/amoCRM proof exists. Missing inputs remain the amoCRM
-  production URL/token, dedicated test sender/recipient, explicit approval for
-  one controlled manual reply, canonical DNS records, and a QR/relink plan for
-  the older CRM WAHA session.
+  paths disabled; amoCRM readiness remains false.
+- Read-only WAHA session queries returned `401` without a key, so current
+  session state was not re-proved and no secret was read.
+- No real WhatsApp/amoCRM end-to-end proof exists. Missing gates include exact
+  amoCRM mappings/credentials, a dedicated sanitized test lead and number, QR
+  owner, controlled-send authorization and release window.
+- `crm.evoadmissions.com` and `inbox.evoadmissions.com` have no DNS answer.
+  The fallback CRM URL responds.
 - The original checkout's modified Malaysia knowledge-base document and
   untracked presentation archive are owner work outside this goal.
 
-### Ordered blocks
+### Ordered platform blocks
+
+P0–P10, their exact exit evidence, validation commands, protected operations,
+remaining owner decisions and the independent-review/merge-controller protocol
+are defined in `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`.
+
+- P0: plan/TZ/DOCX/ADR and target architecture, docs-only.
+- P1: current-app role/RBAC/handoff correction.
+- P2: unified Supabase foundation.
+- P3: root auth and operational SQLite migration path.
+- P4: canonical amoCRM adapter.
+- P5: unified Inbox/WAHA/Lead Agent capability absorption.
+- P6: Admissions/Portal/Documents/Finance/Notifications.
+- P7: security, reliability and operations.
+- P8: release/cutover candidate and controlled provider gate.
+- P9: at least 72 actual hours of soak, then a separate retirement PR.
+- P10: requirement-to-evidence completion audit.
+
+Only one implementation PR may be open. The executor never merges its own PR;
+the independent merge-controller may merge only an approved exact head. No
+production deployment, migration, DNS, WAHA session mutation, live customer
+send, real amoCRM mutation or service deletion is authorized by this plan.
+
+### Historical pre-platform blocks
+
+The following A–G record is retained as prior hardening history. It is not the
+active merge order; P0–P10 above and the long-run plan now control new work.
 
 Every block starts from refreshed GitHub `main`, has one coherent PR, real
 validation, and a separate launch-control reviewer verdict of `approved`.
@@ -219,13 +246,18 @@ rehearsal. None may be inferred or marked complete from automated tests.
   append-only `PLAN_CHANGES.md` entry.
 - Never print, commit, or copy secrets or customer data into evidence.
 
-## Planned EVO Platform Frontend Slice
+## Historical Completed EVO Platform Frontend Slice
 
-Planned slice: `/goal-evo-platform-frontend`.
+Historical slice: `/goal-evo-platform-frontend`.
 
-This slice may run after its planning-only PR is independently reviewed and
-merged. It does not close or weaken `/goal-evo-preplatform-hardening`; the
-remaining owner/external gates in that goal stay open.
+This section records the then-current runtime and acceptance contract for the
+completed frontend work. Its legacy `visa` role matrix is historical evidence
+only and is superseded for all P1+ implementation by
+`docs/EVO_PLATFORM_LONG_RUN_PLAN.md` and `docs/specs/EVO_PLATFORM_TZ.md`.
+
+This slice ran after its planning-only PR was independently reviewed and
+merged. It did not close or weaken `/goal-evo-preplatform-hardening`; the
+remaining owner/external gates in that goal stayed open.
 
 ### Goal
 
@@ -1348,15 +1380,17 @@ Stop and escalate when:
 - Validation fails for reasons outside the lane's scope and cannot be fixed
   without changing the contract.
 
-## Final EVO Platform Technical Specification
+## Historical Final EVO Platform Technical Specification Slice
 
-Active slice: `/goal-evo-platform-final-tz`.
+Completed predecessor slice: `/goal-evo-platform-final-tz`.
 
 This slice turns the completed frontend, the audited repository, the
 owner-supplied OZO technical brief, current production boundaries, business
 process documentation, ADRs and design evidence into the implementation
-contract for the unified EVO Admissions platform. It is a specification and
-review slice only; backend integration starts after owner approval.
+contract for the unified EVO Admissions platform. P0 now corrects its remaining
+role, ownership, environment, retention and release-gate gaps. Repository
+implementation starts only after P0 merges; production mutations still require
+their own explicit authorization.
 
 ### Scope
 
@@ -1369,9 +1403,10 @@ review slice only; backend integration starts after owner approval.
 - Keep amoCRM canonical for lead/contact identity, responsible manager and
   sales stage. Keep operational admissions stages separate from the sales
   pipeline.
-- Define one Supabase project per environment (`development`, `staging`,
-  `production`), with one shared schema per environment for EVO-owned platform
-  data. Do not create separate production Supabase projects for Inbox and CRM.
+- Define one dedicated Supabase production project for all EVO-owned platform
+  data. Keep local/dev, persistent staging and preview branches/projects
+  physically isolated with the same migrations and no production-data copy by
+  default. Do not create separate production projects for Inbox and CRM.
 - Define one WAHA/WhatsApp ingress, idempotent event handling, durable message
   history, draft-only AI, manual outbound confirmation and delivery/read audit.
 - Specify how useful Lead Agent responsibilities move into the unified backend.

@@ -1,90 +1,99 @@
-# Текущий статус EVO Admissions Platform
+# Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Status: Verified snapshot (проверенный снимок) — требует обновления после
-  доставки интеграционной ветки в `main` или развёртывания на сервере
-- Last verified: 2026-07-13
-- Sources: интеграционный базовый коммит `12107b89`, проверенный PR #32 и
-  post-merge closeout PR #33; актуальные head и расстояние до `main` всегда
-  проверяются через `git`, а состояние PR — через GitHub CLI; также использованы
-  файлы репозитория, DNS-проверка через `dig` и публичные HTTPS-запросы
+- Snapshot date: 2026-07-28
+- Repository baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
+- Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
+- Evidence rule: code/configuration is not real-provider proof
 
-## Как читать этот документ
+## Короткий вывод
 
-Это снимок состояния, а не обещание будущей функции. `В коде` означает, что
-реализация найдена в репозитории. `Проверено публично` означает только указанную
-HTTP-проверку. Внешняя интеграция считается работающей лишь после отдельного
-реального теста с действующими учётными данными.
+Target unified EVO Platform принят как implementation contract, но ещё не
+является production reality. Текущий repository baseline сохраняет root CRM,
+EVO Inbox и EVO Lead Agent как отдельные контуры. Полный реальный путь
+WhatsApp → amoCRM → Platform → AI draft → manual send → ACK → audit ни разу не
+доказан end-to-end, поэтому platform нельзя называть production-complete.
 
-## Общая картина
+## Что подтверждено из репозитория
 
-| Область | Ответственный (Owner) | Статус на 2026-07-13 | Последняя проверка | Источник |
-|---|---|---|---|---|
-| GitHub-репозиторий | Технический ответственный | Приватный `izzhackt/evo_AI_CRM`; основная ветка — `main` | 2026-07-13 | `gh repo view` |
-| Интеграционная основа | Технический ответственный | Ветка `izzhacktcodex/waha-integration` содержит проверенные PR #32 и #33 и остаётся впереди `origin/main`; точные head и число коммитов нужно получать живой командой, а не копировать в этот снимок | 2026-07-13 | `git rev-list --left-right --count origin/main...origin/izzhacktcodex/waha-integration`, `git rev-parse origin/izzhacktcodex/waha-integration` |
-| Документация source of truth | Технический ответственный | Основной source-of-truth slice объединён через PR #32; его post-merge статус закрыт через PR #33; оба PR прошли независимую проверку | 2026-07-13 | `gh pr view 32`, `gh pr view 33` |
-| Доставка изменений в `main` | Технический ответственный | Вся интеграционная ветка требует отдельного review и PR в `main`; `main` пока не содержит весь актуальный контекст платформы | 2026-07-13 | `gh pr list`, `git rev-list` |
-| EVO Admissions CRM | Ответственные за операционную и техническую работу | Приложение и рабочая конфигурация Compose есть в репозитории | 2026-07-12 | `src/app/`, `docker-compose.prod.yml` |
-| EVO Inbox | Ответственные за операционную и техническую работу | Отдельное приложение, схема Supabase, границы WAHA/amoCRM и файлы развёртывания есть в коде | 2026-07-12 | `agent-lead2-inbox/` |
-| EVO Lead Agent | Технический ответственный | FastAPI-сервис и Compose-интеграция есть; исходящие и автоматические ответы безопасно выключены по умолчанию | 2026-07-12 | `evo-lead-agent/`, `.env.example` |
-| Командная база знаний | Ответственные за бизнес и операционную работу | Центральный индекс, обзор платформы, матрица владельцев данных и onboarding объединены с интеграционной веткой через PR #32; бизнес-факты требуют владельцев и регулярной проверки | 2026-07-13 | `docs/README.md`, `docs/business/`, `docs/team/` |
-| Slack | Ответственный за операционную работу | Не используется и не содержит проектную точку правды | 2026-07-12 | Подтверждение владельца проекта |
+| Область | Подтверждённый факт | Граница утверждения |
+|---|---|---|
+| Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables | не Supabase target |
+| EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
+| EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до cutover и 72-hour soak |
+| amoCRM | интеграционный код хранит external IDs и mapping paths | реальные account mappings и readiness требуют provider proof |
+| WAHA | текущая конфигурация содержит legacy `crm_primary` и Inbox `evo-inbox` paths | target — одна `evo-inbox`, но session mutation не выполнена и не разрешена |
+| Public edge | EVO-owned target использует `evo-edge-caddy` и `evo_public_web` | production network/revision проверяется отдельно |
+| Target frontend | уже служит UI contract | UI не доказывает backend, auth, RLS или providers |
 
-## Публичные адреса
+## Принятый target, ещё не cut over
 
-| Адрес | Ответственный (Owner) | Статус | Последняя проверка | Источник |
-|---|---|---|---|---|
-| `crm.evoadmissions.com` | Ответственные за домен и техническую работу | **Каноническая DNS A-запись отсутствует** | 2026-07-12 | `dig +short crm.evoadmissions.com A` вернул пустой результат |
-| `inbox.evoadmissions.com` | Ответственные за домен и техническую работу | **Каноническая DNS A-запись отсутствует** | 2026-07-12 | `dig +short inbox.evoadmissions.com A` вернул пустой результат |
-| `https://evo-crm.72.62.119.112.sslip.io` | Технический ответственный | **Доступен**; перенаправляет на `/login`, итоговый HTTP 200 | 2026-07-12 | Реальный HTTPS `curl -L` |
-| `https://evo-inbox.72.62.119.112.sslip.io` | Технический ответственный | **Доступен**; перенаправляет на `/login`, итоговый HTTP 200 | 2026-07-12 | Реальный HTTPS `curl -L` |
+- один unified backend поглощает EVO Inbox и полезную безопасную логику Lead
+  Agent;
+- amoCRM остаётся source of truth для contact, lead, responsible sales manager и
+  sales stage;
+- один dedicated production Supabase project хранит собственные Platform data,
+  а dev/staging/preview изолированы;
+- одна private production WAHA session `evo-inbox` и один webhook owner;
+- роли v1: Admin, Sales, Curator, Finance, Client/Student; отдельной Visa role
+  нет, module `/visa` остаётся;
+- все exposed tables защищены RLS, private Storage — object policies и audited
+  downloads;
+- AI только создаёт RU/EN draft, staff review/edit/manual-send обязателен;
+- unknown delivery никогда не retry-ится автоматически;
+- legacy Lead Agent удаляется только после реального cutover и минимум 72
+  фактических часов стабильного трафика.
 
-HTTP 200 страницы входа подтверждает доступность web-приложения, но не
-подтверждает отправку WhatsApp, синхронизацию amoCRM, работу Supabase-операций
-или внешний AI-сервис.
+## Реальные доказательства, которых пока нет
 
-## Production-границы, которые должны сохраняться
+- dedicated production Supabase project, clean migrations и полный RLS denial
+  matrix;
+- isolated DB restore и отдельный Storage restore;
+- read-only SQLite inventory, deterministic migration dry-run и staging import;
+- подтверждённые account-specific amoCRM pipeline/status/user/custom-field
+  mappings;
+- sanitized test lead и dedicated test WhatsApp number/QR owner;
+- реальный signed WAHA webhook с raw-persist-before-process, amo resolve/link,
+  draft, operator manual send и ACK/unknown reconciliation;
+- proof, что ни один browser bundle не содержит service-role/provider secret;
+- production-like capacity test и утверждённые SLO/RPO/RTO;
+- cutover/rollback rehearsal, release window и отдельная production
+  authorization;
+- 72-hour traffic soak с zero unexplained loss/duplicates.
 
-| Контур | Ответственный (Owner) | Требуемое состояние | Последняя проверка | Источник |
-|---|---|---|---|---|
-| Основная CRM | Технический ответственный | `/opt/evo-crm`, Compose-проект `evo-crm` | 2026-07-12 | `AGENTS.md`, `docker-compose.prod.yml` |
-| EVO Inbox | Технический ответственный | `/opt/evo-inbox`, Compose-проект `evo-inbox` | 2026-07-12 | `AGENTS.md`, файлы развёртывания Inbox |
-| Публичный proxy-сервер | Технический ответственный | `evo-edge-caddy` в `evo_public_web` | 2026-07-12 | `AGENTS.md`, `agent-lead2-inbox/deploy/` |
-| WAHA основной CRM | Технический ответственный | Приватная сессия `crm_primary`; API не публикуется | 2026-07-12 | `docker-compose.prod.yml`, конфигурация Lead Agent |
-| WAHA EVO Inbox | Технический ответственный | Приватная сессия `evo-inbox`; отдельные webhook и секреты | 2026-07-12 | `AGENTS.md`, конфигурация Inbox |
+## Открытые release decisions
 
-Предыдущая проверка развёртывания на рабочем сервере выявила, что запущенная CRM могла быть
-старее текущего кода и оставаться связанной с `acadis_*` network. Текущий файл
-Compose уже требует `evo_public_web`, но рабочий сервер нужно повторно сверить после
-merge. До этой проверки нельзя считать GitHub и VPS полностью синхронизированными.
+1. Точные amoCRM account/pipeline/status/custom-field/user mappings.
+2. Supabase region, plan, PITR и cost.
+3. Capacity, SLO, RPO и RTO.
+4. Retention, privacy, DPA и legal deletion period.
+5. AI provider и data-handling policy.
+6. Dedicated sanitized test sender number, `evo-inbox` production QR/session
+   recovery owner и controlled test-send authority.
+7. Release window, freeze и rollback authority.
 
-## Что не подтверждено этой проверкой
+Ни одно из этих решений нельзя подменять fake connector, mock provider success
+или «configured = working».
 
-- реальная доставка входящего или исходящего WhatsApp-сообщения;
-- актуальная авторизация и определение контакта, лида и этапа в amoCRM;
-- реальные миграции Supabase, правила доступа RLS и данные учётных записей на
-  рабочем сервере;
-- генерация AI-черновика через действующий Gemini, Anthropic или OpenAI key;
-- соответствие каждого рабочего контейнера конкретному Git-коммиту и
-  контрольной сумме образа;
-- резервное копирование и восстановление всех рабочих хранилищ.
+## Запрещённые действия в текущем run
 
-Отсутствие подтверждения не означает, что функция сломана. Это означает, что
-в этом снимке нет достаточного реального доказательства.
+- production deployment или migration;
+- DNS change;
+- WAHA QR/session/webhook mutation;
+- live customer WhatsApp send;
+- создание или изменение реальных amoCRM contacts/leads;
+- включение auto-reply, outbound automation, broadcast или mass send;
+- отключение или удаление production service, EVO Lead Agent или legacy path.
 
-## Следующие обязательные действия
+Для этих действий текущий результат может подготовить code, runbook и evidence
+gate, но не выполнять mutation.
 
-1. Отдельно проверить всю интеграционную ветку, открыть PR в `main` и объединить
-   его только после зелёных проверок.
-2. Назначить людей, ответственных за бизнес, поступление, продажи,
-   операционную и техническую работу.
-3. Настроить DNS для двух канонических доменов и повторить HTTPS-проверку.
-4. Сверить Git-коммит и образ каждого рабочего сервиса с GitHub и убрать остаточную
-   зависимость CRM от `acadis_*`, если она всё ещё существует на VPS.
-5. По отдельному контролируемому сценарию проверить реальные Supabase, WAHA,
-   amoCRM и AI paths; записать доказательство без секретов и данных клиентов.
-6. Проверить резервное копирование и реальное восстановление, а не только
-   наличие файла резервной копии.
+## Следующий безопасный gate
 
-После каждого merge или развёртывания владелец обновляет этот документ: дату,
-commit, проверенный путь, результат и оставшийся риск.
+После merge документационного P0 можно последовательно реализовывать
+fail-closed code slices. Каждый slice требует отдельный PR, независимый
+SHA-bound review и точные tests. Production cutover остаётся отдельным
+авторизованным событием.
+
+Перед любым production claim нужно обновить этот snapshot реальной проверкой
+exact deployed revision, private network, provider readiness и full E2E.

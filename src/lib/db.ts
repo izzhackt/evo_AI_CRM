@@ -326,6 +326,12 @@ function migrate(d: Database.Database) {
   addColumnIfMissing(d, "wa_conversations", "agent_draft_review_provider", "TEXT");
   addColumnIfMissing(d, "wa_conversations", "agent_draft_review_model", "TEXT");
   addColumnIfMissing(d, "wa_conversations", "agent_last_synced_at", "TEXT");
+  addColumnIfMissing(d, "clients", "case_state", "TEXT NOT NULL DEFAULT 'pending'");
+  addColumnIfMissing(d, "clients", "contract_confirmed_at", "TEXT");
+  addColumnIfMissing(d, "clients", "contract_confirmation_ref", "TEXT");
+  addColumnIfMissing(d, "clients", "portal_activated_at", "TEXT");
+  addColumnIfMissing(d, "clients", "handoff_at", "TEXT");
+  addColumnIfMissing(d, "clients", "closed_at", "TEXT");
   // tasks status values moved from open/done to todo/in_progress/review/done
   d.exec("UPDATE tasks SET status = 'todo' WHERE status = 'open'");
   d.exec(`
@@ -374,6 +380,11 @@ function migrate(d: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_wa_conversations_amo_lead_id
       ON wa_conversations(amo_lead_id)
       WHERE amo_lead_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_clients_case_state
+      ON clients(case_state);
+    CREATE INDEX IF NOT EXISTS idx_clients_curator_case_state
+      ON clients(curator_id, case_state)
+      WHERE curator_id IS NOT NULL;
 
     CREATE TRIGGER IF NOT EXISTS users_role_insert_guard
     BEFORE INSERT ON users
@@ -387,6 +398,151 @@ function migrate(d: Database.Database) {
     WHEN NEW.role NOT IN ('admin', 'sales', 'curator', 'finance', 'client')
     BEGIN
       SELECT RAISE(ABORT, 'unsupported user role');
+    END;
+
+    CREATE TABLE IF NOT EXISTS student_case_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL REFERENCES clients(id),
+      actor_user_id INTEGER NOT NULL REFERENCES users(id),
+      event_type TEXT NOT NULL
+        CHECK (event_type IN ('assigned', 'reassigned', 'closed', 'reopened')),
+      reason TEXT NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 1000),
+      before_curator_id INTEGER REFERENCES users(id),
+      after_curator_id INTEGER REFERENCES users(id),
+      before_case_state TEXT NOT NULL
+        CHECK (before_case_state IN ('pending', 'active', 'closed')),
+      after_case_state TEXT NOT NULL
+        CHECK (after_case_state IN ('pending', 'active', 'closed')),
+      before_workflow_owner TEXT NOT NULL
+        CHECK (before_workflow_owner IN ('sales', 'curator')),
+      after_workflow_owner TEXT NOT NULL
+        CHECK (after_workflow_owner IN ('sales', 'curator')),
+      occurred_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_student_case_audit_client_occurred
+      ON student_case_audit(client_id, occurred_at, id);
+    CREATE INDEX IF NOT EXISTS idx_student_case_audit_actor
+      ON student_case_audit(actor_user_id, occurred_at);
+
+    CREATE TRIGGER IF NOT EXISTS student_case_audit_update_guard
+    BEFORE UPDATE ON student_case_audit
+    BEGIN
+      SELECT RAISE(ABORT, 'student case audit is append-only');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS student_case_audit_delete_guard
+    BEFORE DELETE ON student_case_audit
+    BEGIN
+      SELECT RAISE(ABORT, 'student case audit is append-only');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS student_case_audit_curator_insert_guard
+    BEFORE INSERT ON student_case_audit
+    WHEN (
+      NEW.before_curator_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM users WHERE id = NEW.before_curator_id AND role = 'curator'
+      )
+    ) OR (
+      NEW.after_curator_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM users WHERE id = NEW.after_curator_id AND role = 'curator'
+      )
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'student case audit curator must have curator role');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS clients_case_state_insert_guard
+    BEFORE INSERT ON clients
+    WHEN NEW.case_state NOT IN ('pending', 'active', 'closed')
+    BEGIN
+      SELECT RAISE(ABORT, 'unsupported student case state');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS clients_case_state_update_guard
+    BEFORE UPDATE OF case_state ON clients
+    WHEN NEW.case_state NOT IN ('pending', 'active', 'closed')
+    BEGIN
+      SELECT RAISE(ABORT, 'unsupported student case state');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS clients_case_transition_guard
+    BEFORE UPDATE OF case_state ON clients
+    WHEN OLD.case_state <> NEW.case_state
+      AND NOT (
+        (OLD.case_state = 'pending' AND NEW.case_state = 'active')
+        OR (OLD.case_state = 'active' AND NEW.case_state = 'closed')
+        OR (OLD.case_state = 'closed' AND NEW.case_state = 'active')
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'unsupported student case transition');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS clients_curator_insert_guard
+    BEFORE INSERT ON clients
+    WHEN NEW.curator_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM users WHERE id = NEW.curator_id AND role = 'curator'
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'student case curator must have curator role');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS clients_curator_update_guard
+    BEFORE UPDATE OF curator_id ON clients
+    WHEN NEW.curator_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM users WHERE id = NEW.curator_id AND role = 'curator'
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'student case curator must have curator role');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS users_assigned_curator_role_update_guard
+    BEFORE UPDATE OF role ON users
+    WHEN OLD.role = 'curator'
+      AND NEW.role IN ('admin', 'sales', 'finance', 'client')
+      AND EXISTS (SELECT 1 FROM clients WHERE curator_id = OLD.id)
+    BEGIN
+      SELECT RAISE(ABORT, 'assigned student case curator role cannot be changed');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS clients_active_insert_guard
+    BEFORE INSERT ON clients
+    WHEN NEW.case_state IN ('active', 'closed')
+      AND (
+        NEW.contract_confirmed_at IS NULL
+        OR length(trim(NEW.contract_confirmed_at)) = 0
+        OR NEW.contract_confirmation_ref IS NULL
+        OR length(trim(NEW.contract_confirmation_ref)) = 0
+        OR NEW.curator_id IS NULL
+        OR NEW.portal_activated_at IS NULL
+        OR length(trim(NEW.portal_activated_at)) = 0
+        OR NEW.handoff_at IS NULL
+        OR length(trim(NEW.handoff_at)) = 0
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'active student case requires confirmed contract, curator, portal activation, and handoff');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS clients_active_update_guard
+    BEFORE UPDATE ON clients
+    WHEN NEW.case_state IN ('active', 'closed')
+      AND (
+        NEW.contract_confirmed_at IS NULL
+        OR length(trim(NEW.contract_confirmed_at)) = 0
+        OR NEW.contract_confirmation_ref IS NULL
+        OR length(trim(NEW.contract_confirmation_ref)) = 0
+        OR NEW.curator_id IS NULL
+        OR NEW.portal_activated_at IS NULL
+        OR length(trim(NEW.portal_activated_at)) = 0
+        OR NEW.handoff_at IS NULL
+        OR length(trim(NEW.handoff_at)) = 0
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'active student case requires confirmed contract, curator, portal activation, and handoff');
     END;
   `);
 }
@@ -483,15 +639,21 @@ function seed(d: Database.Database) {
   const clientUser2 = insertUser.run("aizhan@demo.kg", "+996555333444", hashPassword("client123"), "Айжан Мамытова", "client");
 
   const insertClient = d.prepare(
-    "INSERT INTO clients (user_id, stage, manager_id, curator_id, source, target_country, target_degree, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    `INSERT INTO clients (
+      user_id, stage, manager_id, curator_id, source, target_country, target_degree, notes,
+      case_state, contract_confirmed_at, contract_confirmation_ref, portal_activated_at, handoff_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const c1 = insertClient.run(
     clientUser1.lastInsertRowid, "applying", sales.lastInsertRowid, curator.lastInsertRowid,
-    "Instagram", "Германия", "Бакалавриат", "Сильный английский (IELTS 7.0), интересуется Computer Science"
+    "Instagram", "Германия", "Бакалавриат", "Сильный английский (IELTS 7.0), интересуется Computer Science",
+    "active", "2026-07-01T00:00:00.000Z", "synthetic:demo-contract-1",
+    "2026-07-01T00:00:00.000Z", "2026-07-01T00:00:00.000Z"
   );
   const c2 = insertClient.run(
     clientUser2.lastInsertRowid, "consultation", sales.lastInsertRowid, null,
-    "Рекомендация", "США", "Магистратура", "Нужна стипендия, рассматривает Fulbright"
+    "Рекомендация", "США", "Магистратура", "Нужна стипендия, рассматривает Fulbright",
+    "pending", null, null, null, null
   );
 
   const insertApp = d.prepare(

@@ -1,6 +1,7 @@
 import { db, LEAD_ACTIVE_STATUSES, Stage, STAGES } from "./db";
 import { STUDENT_PORTAL_SECTIONS, StudentPortalSnapshot } from "./contracts/student-portal";
 import type { StaffRole } from "./domain";
+import type { StudentCaseAuditEvent, StudentCaseState } from "./student-case-policy";
 
 const ACTIVE_LEAD_STATUS_SQL = LEAD_ACTIVE_STATUSES.map((status) => `'${status}'`).join(", ");
 const ACTIVE_LEAD_SQL = `l.client_id IS NULL AND l.status IN (${ACTIVE_LEAD_STATUS_SQL})`;
@@ -11,6 +12,12 @@ export type ClientRow = {
   stage: Stage;
   manager_id: number | null;
   curator_id: number | null;
+  case_state: StudentCaseState;
+  contract_confirmed_at: string | null;
+  contract_confirmation_ref: string | null;
+  portal_activated_at: string | null;
+  handoff_at: string | null;
+  closed_at: string | null;
   source: string | null;
   target_country: string | null;
   target_degree: string | null;
@@ -197,9 +204,7 @@ function portalNextAction(
   return null;
 }
 
-export function studentPortalSnapshotForUser(userId: number): StudentPortalSnapshot | undefined {
-  const client = getClientByUserId(userId);
-  if (!client) return undefined;
+function buildStudentCaseSnapshot(client: ClientRow): StudentPortalSnapshot {
   const today = new Date().toISOString().slice(0, 10);
   const tasks = db().prepare(`
     SELECT t.id, t.title, t.description, t.due_date, t.status, t.priority, a.name AS assignee_name
@@ -298,6 +303,35 @@ export function studentPortalSnapshotForUser(userId: number): StudentPortalSnaps
     generatedAt: new Date().toISOString(),
   };
   return { ...snapshot, nextAction: portalNextAction(snapshot, today) };
+}
+
+/**
+ * Complete admissions snapshot for an authorized staff client-detail view.
+ *
+ * Authorization and object scope belong at the route/action boundary. Unlike
+ * the student portal query below, this read model intentionally remains
+ * available while a confirmed case is still pending assignment.
+ */
+export function studentCaseSnapshotForUser(
+  userId: number,
+): StudentPortalSnapshot | undefined {
+  const client = getClientByUserId(userId);
+  return client ? buildStudentCaseSnapshot(client) : undefined;
+}
+
+export function studentPortalSnapshotForUser(userId: number): StudentPortalSnapshot | undefined {
+  const client = getClientByUserId(userId);
+  if (
+    !client
+    || !client.contract_confirmed_at?.trim()
+    || !client.contract_confirmation_ref?.trim()
+    || client.curator_id === null
+    || !client.portal_activated_at?.trim()
+    || (client.case_state !== "active" && client.case_state !== "closed")
+  ) {
+    return undefined;
+  }
+  return buildStudentCaseSnapshot(client);
 }
 
 export function clientApplications(clientId: number) {
@@ -556,6 +590,51 @@ export function listStaff() {
   `).all() as {
     id: number; name: string; email: string; role: string; created_at: string;
   }[];
+}
+
+export function listCurators() {
+  return db().prepare(`
+    SELECT id, name, email, role, created_at
+    FROM users
+    WHERE role = 'curator'
+    ORDER BY name
+  `).all() as {
+    id: number; name: string; email: string; role: "curator"; created_at: string;
+  }[];
+}
+
+export type StudentCaseAuditRow = {
+  id: number;
+  client_id: number;
+  actor_user_id: number;
+  event_type: StudentCaseAuditEvent;
+  reason: string;
+  before_curator_id: number | null;
+  after_curator_id: number | null;
+  before_case_state: StudentCaseState;
+  after_case_state: StudentCaseState;
+  before_workflow_owner: "sales" | "curator";
+  after_workflow_owner: "sales" | "curator";
+  occurred_at: string;
+  actor_name: string;
+  before_curator_name: string | null;
+  after_curator_name: string | null;
+};
+
+/** Caller must authorize the staff view before exposing audit reasons. */
+export function studentCaseAudit(clientId: number): StudentCaseAuditRow[] {
+  return db().prepare(`
+    SELECT audit.*,
+           actor.name AS actor_name,
+           before_curator.name AS before_curator_name,
+           after_curator.name AS after_curator_name
+    FROM student_case_audit audit
+    JOIN users actor ON actor.id = audit.actor_user_id
+    LEFT JOIN users before_curator ON before_curator.id = audit.before_curator_id
+    LEFT JOIN users after_curator ON after_curator.id = audit.after_curator_id
+    WHERE audit.client_id = ?
+    ORDER BY audit.occurred_at DESC, audit.id DESC
+  `).all(clientId) as StudentCaseAuditRow[];
 }
 
 export type OperatorNotificationKind =

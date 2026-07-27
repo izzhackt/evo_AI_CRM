@@ -3,13 +3,15 @@ import { notFound } from "next/navigation";
 import { getT } from "@/lib/i18n";
 import {
   getClient, clientApplications, clientDocuments, clientVisaCase,
-  clientPayments, clientTasks, clientUpdates, listStaff, studentPortalSnapshotForUser,
+  clientPayments, clientTasks, clientUpdates, listCurators, listStaff,
+  studentCaseAudit, studentCaseSnapshotForUser,
 } from "@/lib/queries";
 import { STAGES, APP_STATUSES, TASK_COLUMNS, TASK_PRIORITIES, VISA_STATUSES } from "@/lib/db";
 import {
   updateClientAction, addApplicationAction, setApplicationStatusAction,
   addDocumentAction, upsertVisaCaseAction,
   addPaymentAction, markPaymentPaidAction, addTaskAction, moveTaskAction, postUpdateAction,
+  assignCuratorAction, closeStudentCaseAction, reopenStudentCaseAction,
 } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
 import { Badge, Card, EmptyState, StatCard, inputCls, btnCls, btnGhostCls, labelCls, cn } from "@/components/ui";
@@ -38,8 +40,18 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const tasks = clientTasks(clientId);
   const updates = clientUpdates(clientId);
   const staff = listStaff();
-  const snapshot = studentPortalSnapshotForUser(client.user_id);
+  const curators = user.role === "admin" ? listCurators() : [];
+  const snapshot = studentCaseSnapshotForUser(client.user_id);
   if (!snapshot) notFound();
+  const canManageLifecycle =
+    user.role === "admin"
+    || (user.role === "curator" && client.curator_id === user.id);
+  const canViewCaseAudit = canManageLifecycle;
+  const caseAudit = canViewCaseAudit ? studentCaseAudit(clientId) : [];
+  const contractConfirmed = Boolean(
+    client.contract_confirmed_at?.trim()
+    && client.contract_confirmation_ref?.trim(),
+  );
   const activeApps = apps.filter((app) => app.status === "preparing" || app.status === "submitted").length;
   const openDocuments = docs.filter((doc) => doc.status !== "approved").length;
   const pendingPayments = payments.filter((payment) => payment.status !== "paid").length;
@@ -254,31 +266,173 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         </aside>
       </div>
 
+      <section id="case-lifecycle" className="scroll-mt-24">
+        <Card title={t("studentCaseLifecycle")}>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-nav border border-border bg-surface-2 p-3">
+              <p className="text-[11px] text-fg-3">{t("caseState")}</p>
+              <div className="mt-2">
+                <Badge value={client.case_state} label={t(`caseState.${client.case_state}`)} />
+              </div>
+            </div>
+            <div className="rounded-nav border border-border bg-surface-2 p-3">
+              <p className="text-[11px] text-fg-3">{t("contractConfirmation")}</p>
+              <p className="mt-2 text-[13px] font-semibold text-fg">
+                {contractConfirmed ? t("contractConfirmed") : t("contractNotConfirmed")}
+              </p>
+            </div>
+            <div className="rounded-nav border border-border bg-surface-2 p-3">
+              <p className="text-[11px] text-fg-3">{t("handoffAt")}</p>
+              <p className="mt-2 font-mono text-[11px] text-fg-2">{client.handoff_at ?? "—"}</p>
+            </div>
+            <div className="rounded-nav border border-border bg-surface-2 p-3">
+              <p className="text-[11px] text-fg-3">{t("portalActivatedAt")}</p>
+              <p className="mt-2 font-mono text-[11px] text-fg-2">{client.portal_activated_at ?? "—"}</p>
+            </div>
+          </div>
+
+          {user.role === "admin" ? (
+            <form
+              action={assignCuratorAction}
+              data-testid="curator-assignment-form"
+              className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-2"
+            >
+              <input type="hidden" name="client_id" value={client.id} />
+              <div className="sm:col-span-2">
+                <p className="text-[13px] font-semibold text-fg">{t("curatorAssignment")}</p>
+                <p className="mt-1 text-[11px] leading-4 text-fg-3">{t("curatorAssignmentHint")}</p>
+              </div>
+              <label className={labelCls}>
+                {t("curator")}
+                <select
+                  name="curator_id"
+                  required
+                  defaultValue={client.curator_id ?? ""}
+                  className={cn(inputCls, "mt-1")}
+                >
+                  <option value="">{t("notAssigned")}</option>
+                  {curators.map((curator) => (
+                    <option key={curator.id} value={curator.id}>{curator.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className={labelCls}>
+                {t("assignmentReason")}
+                <textarea
+                  name="reason"
+                  required
+                  maxLength={1000}
+                  rows={2}
+                  className={cn(inputCls, "mt-1 resize-y py-2")}
+                />
+              </label>
+              <div className="sm:col-span-2">
+                <button
+                  type="submit"
+                  disabled={!contractConfirmed}
+                  className={cn(btnCls, !contractConfirmed && "cursor-not-allowed opacity-55")}
+                >
+                  {client.curator_id ? t("reassignCurator") : t("assignCurator")}
+                </button>
+              </div>
+            </form>
+          ) : null}
+
+          {canManageLifecycle && client.case_state === "active" ? (
+            <form
+              action={closeStudentCaseAction}
+              data-testid="student-case-close-form"
+              className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_auto] sm:items-end"
+            >
+              <input type="hidden" name="client_id" value={client.id} />
+              <label className={labelCls}>
+                {t("closeCaseReason")}
+                <textarea
+                  name="reason"
+                  required
+                  maxLength={1000}
+                  rows={2}
+                  className={cn(inputCls, "mt-1 resize-y py-2")}
+                />
+              </label>
+              <button type="submit" className={btnGhostCls}>{t("closeStudentCase")}</button>
+            </form>
+          ) : null}
+
+          {canManageLifecycle && client.case_state === "closed" ? (
+            <form
+              action={reopenStudentCaseAction}
+              data-testid="student-case-reopen-form"
+              className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_auto] sm:items-end"
+            >
+              <input type="hidden" name="client_id" value={client.id} />
+              <label className={labelCls}>
+                {t("reopenCaseReason")}
+                <textarea
+                  name="reason"
+                  required
+                  maxLength={1000}
+                  rows={2}
+                  className={cn(inputCls, "mt-1 resize-y py-2")}
+                />
+              </label>
+              <button type="submit" className={btnGhostCls}>{t("reopenStudentCase")}</button>
+            </form>
+          ) : null}
+
+          {canViewCaseAudit ? (
+            <div className="mt-4 rounded-nav border border-border bg-surface-2 p-3">
+              <p className="text-[13px] font-semibold text-fg">{t("studentCaseAudit")}</p>
+              {caseAudit.length === 0 ? (
+                <p className="mt-2 text-[12px] text-fg-3">{t("caseAuditEmpty")}</p>
+              ) : (
+                <ol className="mt-3 space-y-3 border-l border-border pl-3">
+                  {caseAudit.map((event) => (
+                    <li key={event.id}>
+                      <p className="text-[12.5px] font-medium text-fg">
+                        {t(`caseEvent.${event.event_type}`)}
+                      </p>
+                      <p className="mt-1 text-[12px] leading-5 text-fg-2">{event.reason}</p>
+                      <p className="mt-1 text-[11px] text-fg-3">
+                        {event.actor_name} · {event.before_curator_name ?? "—"} → {event.after_curator_name ?? "—"}
+                      </p>
+                      <p className="mt-1 font-mono text-[10.5px] text-fg-3">{event.occurred_at}</p>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          ) : null}
+        </Card>
+      </section>
+
       {/* Profile */}
       <section id="profile" className="scroll-mt-24">
         <Card title={t("client")}>
-        <form action={updateClientAction} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <form
+          action={updateClientAction}
+          data-testid="client-profile-form"
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        >
           <input type="hidden" name="client_id" value={client.id} />
           <label className={labelCls}>
             {t("stage")}
             <select name="stage" defaultValue={client.stage} className={cn(inputCls, "mt-1")}>
-              {STAGES.map((s) => <option key={s} value={s}>{t(`stage.${s}`)}</option>)}
+              {STAGES.filter((stage) => stage !== "archived").map((s) => (
+                <option key={s} value={s}>{t(`stage.${s}`)}</option>
+              ))}
             </select>
           </label>
-          <label className={labelCls}>
-            {t("manager")}
-            <select name="manager_id" defaultValue={client.manager_id ?? ""} className={cn(inputCls, "mt-1")}>
-              <option value="">{t("notAssigned")}</option>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.name} — {t(`role.${s.role}`)}</option>)}
-            </select>
-          </label>
-          <label className={labelCls}>
-            {t("curator")}
-            <select name="curator_id" defaultValue={client.curator_id ?? ""} className={cn(inputCls, "mt-1")}>
-              <option value="">{t("notAssigned")}</option>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.name} — {t(`role.${s.role}`)}</option>)}
-            </select>
-          </label>
+          <div className="rounded-nav border border-border bg-surface-2 p-3">
+            <p className={labelCls}>{t("manager")}</p>
+            <p className="mt-1 text-[13px] font-medium text-fg">{client.manager_name ?? t("notAssigned")}</p>
+            <p className="mt-1 text-[10.5px] leading-4 text-fg-3">{t("managerReadOnlyHint")}</p>
+          </div>
+          <div className="rounded-nav border border-border bg-surface-2 p-3">
+            <p className={labelCls}>{t("curator")}</p>
+            <p className="mt-1 text-[13px] font-medium text-fg">{client.curator_name ?? t("notAssigned")}</p>
+            <p className="mt-1 text-[10.5px] leading-4 text-fg-3">{t("curatorReadOnlyHint")}</p>
+          </div>
           <label className={labelCls}>
             {t("country")}
             <input name="target_country" defaultValue={client.target_country ?? ""} className={cn(inputCls, "mt-1")} />

@@ -217,23 +217,24 @@ return [
   {
     id: "S10",
     capability: "Admissions Pipeline",
-    scenario: "Convert lead Server Action creates Student 360 client and marks contract signed.",
-    criteria: "Converting an unconverted lead creates a client, links it to the lead, and sets status contract_signed.",
+    scenario: "Contract status and Student 360 conversion stay locked until the canonical amoCRM mapping exists.",
+    criteria: "A forged contract_signed move neither changes the lead nor creates a linked client.",
     async run(ctx) {
-      const name = unique("Convert Lead");
+      const name = unique("Contract Locked Lead");
       ctx.db.prepare("INSERT INTO leads (name, phone, email, source, status, manager_id, target_country, amount) VALUES (?, ?, ?, ?, 'meeting_done', ?, ?, ?)")
         .run(name, "+996700900901", `${name.toLowerCase().replaceAll(" ", ".")}@example.com`, "scenario", ctx.user(sales).id, "Germany", 95000);
       const leadId = ctx.db.prepare("SELECT last_insert_rowid() AS id").get().id;
       await ctx.submit(`/sales/${leadId}`, ctx.cookie(sales), {
-        names: ["id"],
+        names: ["id", "status"],
         includes: [`value="${leadId}"`],
-        excludes: ["name=\"status\"", "name=\"name\"", "name=\"phone\"", "name=\"lead_id\""],
+      }, {
+        id: leadId,
+        status: "contract_signed",
       });
       const lead = scalar(ctx, "SELECT status, client_id FROM leads WHERE id = ?", [leadId]);
-      const newClient = scalar(ctx, "SELECT clients.id, users.name, clients.target_country FROM clients JOIN users ON users.id = clients.user_id WHERE clients.id = ?", [lead.client_id]);
-      assert(lead.status === "contract_signed" && lead.client_id, "lead was not converted");
-      assert(newClient?.name === name && newClient.target_country === "Germany", "client was not created from lead");
-      return `lead ${leadId} converted to client ${lead.client_id}`;
+      assert(lead.status === "meeting_done", "forged contract status was accepted");
+      assert(lead.client_id === null, "forged contract status created or linked a client");
+      return `lead ${leadId} remained meeting_done and unlinked after forged contract_signed`;
     },
   },
   {
@@ -295,22 +296,28 @@ return [
   {
     id: "S14",
     capability: "Student 360",
-    scenario: "Update student profile persists stage, manager, curator, and study target changes.",
-    criteria: "Submitting profile form updates the selected client without clearing required profile fields.",
+    scenario: "General profile updates persist allowed fields without changing canonical manager or Curator ownership.",
+    criteria: "Forged ownership fields are ignored while stage and study-target changes persist.",
     async run(ctx) {
       const clientId = ctx.firstClientId();
-      await ctx.submit(`/clients/${clientId}`, ctx.cookie(admin), { names: ["client_id", "stage", "manager_id", "curator_id", "target_country", "target_degree", "notes"] }, {
+      const before = scalar(ctx, "SELECT manager_id, curator_id FROM clients WHERE id = ?", [clientId]);
+      await ctx.submit(`/clients/${clientId}`, ctx.cookie(admin), {
+        names: ["client_id", "stage", "target_country", "target_degree", "notes"],
+        excludes: ["name=\"manager_id\"", "name=\"curator_id\""],
+      }, {
         client_id: clientId,
         stage: "documents",
-        manager_id: ctx.user(sales).id,
-        curator_id: ctx.user("curator@demo.kg").id,
+        manager_id: ctx.user("finance@demo.kg").id,
+        curator_id: ctx.user(admin).id,
         target_country: "United Kingdom",
         target_degree: "Master",
         notes: "Scenario profile update",
       });
       const updated = scalar(ctx, "SELECT stage, manager_id, curator_id, target_country, target_degree, notes FROM clients WHERE id = ?", [clientId]);
       assert(updated.stage === "documents" && updated.target_country === "United Kingdom", "student profile did not update");
-      return `student ${clientId} now ${updated.stage}, ${updated.target_country}, manager ${updated.manager_id}`;
+      assert(updated.manager_id === before.manager_id, "general profile update changed canonical manager ownership");
+      assert(updated.curator_id === before.curator_id, "general profile update changed Curator ownership");
+      return `student ${clientId} updated allowed fields; manager ${updated.manager_id} and Curator ${updated.curator_id} stayed unchanged`;
     },
   },
   {

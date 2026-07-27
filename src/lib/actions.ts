@@ -23,6 +23,15 @@ import { setSession, clearSession, currentUser, isStaff } from "./auth";
 import { ROLE_HOME_ROUTE, isRole } from "./domain";
 import { LOCALES, type Locale } from "./i18n-data";
 import { normalizePhone } from "./phone";
+import {
+  canAssignCurator,
+  canTransitionStudentCase,
+  isStudentCaseState,
+  nextCaseStateForAssignment,
+  normalizeStudentCaseReason,
+  workflowOwnerForState,
+  type StudentCaseState,
+} from "./student-case-policy";
 
 const CURRENCIES = ["KGS", "USD", "EUR"] as const;
 
@@ -50,6 +59,12 @@ function normalizeUrl(value: string | null): string | null {
 async function requireStaff() {
   const user = await currentUser();
   if (!user || !isStaff(user.role)) redirect("/login");
+  return user;
+}
+
+async function requireAdminStaff() {
+  const user = await requireStaff();
+  if (!canAssignCurator(user.role)) redirect("/dashboard");
   return user;
 }
 
@@ -180,13 +195,11 @@ export async function updateClientAction(form: FormData) {
   const id = optNum(form, "client_id");
   const stage = str(form, "stage");
   if (!id) return;
-  if (!(STAGES as readonly string[]).includes(stage)) return;
+  if (stage === "archived" || !(STAGES as readonly string[]).includes(stage)) return;
   db()
-    .prepare("UPDATE clients SET stage = ?, manager_id = ?, curator_id = ?, target_country = ?, target_degree = ?, notes = ? WHERE id = ?")
+    .prepare("UPDATE clients SET stage = ?, target_country = ?, target_degree = ?, notes = ? WHERE id = ?")
     .run(
       stage,
-      optNum(form, "manager_id"),
-      optNum(form, "curator_id"),
       str(form, "target_country") || null,
       str(form, "target_degree") || null,
       str(form, "notes") || null,
@@ -194,6 +207,166 @@ export async function updateClientAction(form: FormData) {
     );
   revalidateStaffCrm(id);
   revalidatePath("/portal");
+}
+
+type StudentCaseMutationRow = {
+  id: number;
+  curator_id: number | null;
+  case_state: string;
+  contract_confirmed_at: string | null;
+  contract_confirmation_ref: string | null;
+  portal_activated_at: string | null;
+  handoff_at: string | null;
+};
+
+function revalidateStudentCase(clientId: number) {
+  revalidateStaffCrm(clientId);
+  revalidatePath("/portal");
+}
+
+export async function assignCuratorAction(form: FormData) {
+  const actor = await requireAdminStaff();
+  const clientId = optNum(form, "client_id");
+  const curatorId = optNum(form, "curator_id");
+  const reason = normalizeStudentCaseReason(form.get("reason"));
+  if (!clientId || !curatorId || !reason) return;
+
+  const d = db();
+  const changed = d.transaction(() => {
+    const current = d.prepare(`
+      SELECT id, curator_id, case_state, contract_confirmed_at,
+             contract_confirmation_ref, portal_activated_at, handoff_at
+      FROM clients
+      WHERE id = ?
+    `).get(clientId) as StudentCaseMutationRow | undefined;
+    const target = d.prepare("SELECT role FROM users WHERE id = ?").get(curatorId) as
+      | { role: string }
+      | undefined;
+    if (
+      !current
+      || target?.role !== "curator"
+      || current.curator_id === curatorId
+      || !isStudentCaseState(current.case_state)
+    ) {
+      return false;
+    }
+
+    const afterState = nextCaseStateForAssignment({
+      caseState: current.case_state,
+      contractConfirmedAt: current.contract_confirmed_at,
+      contractConfirmationRef: current.contract_confirmation_ref,
+    });
+    if (!afterState) return false;
+
+    const occurredAt = new Date().toISOString();
+    const portalActivatedAt = current.portal_activated_at ?? occurredAt;
+    const handoffAt = current.handoff_at ?? occurredAt;
+    d.prepare(`
+      UPDATE clients
+      SET curator_id = ?,
+          case_state = ?,
+          portal_activated_at = ?,
+          handoff_at = ?
+      WHERE id = ?
+    `).run(curatorId, afterState, portalActivatedAt, handoffAt, clientId);
+    d.prepare(`
+      INSERT INTO student_case_audit (
+        client_id, actor_user_id, event_type, reason,
+        before_curator_id, after_curator_id,
+        before_case_state, after_case_state,
+        before_workflow_owner, after_workflow_owner,
+        occurred_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      clientId,
+      actor.id,
+      current.curator_id == null ? "assigned" : "reassigned",
+      reason,
+      current.curator_id,
+      curatorId,
+      current.case_state,
+      afterState,
+      workflowOwnerForState(current.case_state),
+      workflowOwnerForState(afterState),
+      occurredAt,
+    );
+    return true;
+  }).immediate();
+
+  if (changed) revalidateStudentCase(clientId);
+}
+
+async function transitionStudentCase(
+  form: FormData,
+  expectedState: StudentCaseState,
+  afterState: StudentCaseState,
+  eventType: "closed" | "reopened",
+) {
+  const actor = await requireStaff();
+  const clientId = optNum(form, "client_id");
+  const reason = normalizeStudentCaseReason(form.get("reason"));
+  if (!clientId || !reason) return;
+
+  const d = db();
+  const changed = d.transaction(() => {
+    const current = d.prepare(`
+      SELECT id, curator_id, case_state, contract_confirmed_at,
+             contract_confirmation_ref, portal_activated_at, handoff_at
+      FROM clients
+      WHERE id = ?
+    `).get(clientId) as StudentCaseMutationRow | undefined;
+    if (
+      !current
+      || !isStudentCaseState(current.case_state)
+      || current.case_state !== expectedState
+      || !canTransitionStudentCase(
+        actor,
+        { curatorId: current.curator_id },
+      )
+    ) {
+      return false;
+    }
+
+    const occurredAt = new Date().toISOString();
+    d.prepare(`
+      UPDATE clients
+      SET case_state = ?,
+          closed_at = ?
+      WHERE id = ?
+    `).run(afterState, afterState === "closed" ? occurredAt : null, clientId);
+    d.prepare(`
+      INSERT INTO student_case_audit (
+        client_id, actor_user_id, event_type, reason,
+        before_curator_id, after_curator_id,
+        before_case_state, after_case_state,
+        before_workflow_owner, after_workflow_owner,
+        occurred_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      clientId,
+      actor.id,
+      eventType,
+      reason,
+      current.curator_id,
+      current.curator_id,
+      current.case_state,
+      afterState,
+      workflowOwnerForState(current.case_state),
+      workflowOwnerForState(afterState),
+      occurredAt,
+    );
+    return true;
+  }).immediate();
+
+  if (changed) revalidateStudentCase(clientId);
+}
+
+export async function closeStudentCaseAction(form: FormData) {
+  await transitionStudentCase(form, "active", "closed", "closed");
+}
+
+export async function reopenStudentCaseAction(form: FormData) {
+  await transitionStudentCase(form, "closed", "active", "reopened");
 }
 
 // ---------- applications ----------
@@ -358,7 +531,13 @@ export async function moveLeadAction(form: FormData) {
   const user = await requireSalesStaff();
   const id = optNum(form, "id");
   const status = str(form, "status");
-  if (!id || !(LEAD_STATUSES as readonly string[]).includes(status)) return;
+  if (
+    !id
+    || status === "contract_signed"
+    || !(LEAD_STATUSES as readonly string[]).includes(status)
+  ) {
+    return;
+  }
   const d = db();
   d.prepare("UPDATE leads SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, id);
   d.prepare("INSERT INTO lead_activities (lead_id, author_id, type, text) VALUES (?, ?, 'status', ?)")
@@ -392,39 +571,6 @@ export async function addLeadNoteAction(form: FormData) {
   db().prepare("INSERT INTO lead_activities (lead_id, author_id, type, text) VALUES (?, ?, 'note', ?)")
     .run(id, user.id, text);
   revalidatePath(`/sales/${id}`);
-}
-
-export async function convertLeadAction(form: FormData) {
-  await requireSalesStaff();
-  const id = optNum(form, "id");
-  if (!id) return;
-  const d = db();
-  const lead = d.prepare("SELECT * FROM leads WHERE id = ?").get(id) as {
-    id: number; name: string; phone: string | null; email: string | null;
-    source: string | null; manager_id: number | null; target_country: string | null; client_id: number | null;
-  } | undefined;
-  if (!lead || lead.client_id) return;
-
-  const email = lead.email || `lead${lead.id}@noemail.local`;
-  let userId: number | bigint;
-  const existing = d.prepare("SELECT id FROM users WHERE lower(email) = ?").get(email.toLowerCase()) as { id: number } | undefined;
-  if (existing) {
-    userId = existing.id;
-  } else {
-    const tempPassword = Math.random().toString(36).slice(2, 10);
-    userId = d
-      .prepare("INSERT INTO users (email, phone, password_hash, name, role) VALUES (?, ?, ?, ?, 'client')")
-      .run(email.toLowerCase(), lead.phone, hashPassword(tempPassword), lead.name).lastInsertRowid;
-  }
-  const clientRow = d
-    .prepare("INSERT INTO clients (user_id, stage, manager_id, source, target_country) VALUES (?, 'contract', ?, ?, ?)")
-    .run(userId, lead.manager_id, lead.source, lead.target_country);
-  d.prepare("UPDATE leads SET status = 'contract_signed', client_id = ?, updated_at = datetime('now') WHERE id = ?")
-    .run(clientRow.lastInsertRowid, id);
-
-  revalidatePath("/sales");
-  revalidateStaffCrm(Number(clientRow.lastInsertRowid));
-  redirect(`/clients/${clientRow.lastInsertRowid}`);
 }
 
 // ---------- team chat ----------

@@ -7,10 +7,9 @@ import {
 } from "@/components/platform/operations/OperationsPrimitives";
 import { EmptyState, PageHeader, cn, compactActionCls } from "@/components/ui";
 import { requireStaffRoute } from "@/lib/guards";
-import type { StaffRole } from "@/lib/domain";
 import { getT } from "@/lib/i18n";
 import {
-  listOperatorNotifications,
+  listOperatorNotificationsForActor,
   OPERATOR_NOTIFICATION_LIMIT,
   type OperatorNotification,
 } from "@/lib/queries";
@@ -41,8 +40,8 @@ function formatDate(value: string | null, locale: "ru" | "ky" | "en") {
 export default async function NotificationsPage() {
   const user = await requireStaffRoute("/notifications");
   const { t, locale } = await getT();
-  const notificationBatch = listOperatorNotifications(
-    user.role as StaffRole,
+  const notificationBatch = listOperatorNotificationsForActor(
+    { id: user.id, role: user.role },
     OPERATOR_NOTIFICATION_LIMIT + 1,
   );
   const notificationCountCapped =

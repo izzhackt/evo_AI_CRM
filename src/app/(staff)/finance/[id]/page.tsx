@@ -1,10 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getT } from "@/lib/i18n";
-import { getPayment } from "@/lib/queries";
+import { getPaymentForActor } from "@/lib/queries";
 import { markPaymentPaidAction } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
-import { Badge, Card, PageHeader, btnCls, btnGhostCls } from "@/components/ui";
+import { Badge, Card, PageHeader, btnCls } from "@/components/ui";
 import {
   ContextBanner,
   DetailBackLink,
@@ -22,7 +21,7 @@ export default async function PaymentDetailPage({
   const user = await requireStaffRoute("/finance");
   const { t } = await getT();
   const { id } = await params;
-  const payment = getPayment(Number(id));
+  const payment = getPaymentForActor(user, Number(id));
   if (!payment) notFound();
 
   const canMutate = user.role === "admin" || user.role === "finance";
@@ -101,17 +100,12 @@ export default async function PaymentDetailPage({
         </div>
 
         <aside className="space-y-5">
-          <Card title={t("owner")}>
+          <Card title={t("client")}>
             <KeyValueGrid
               items={[
-                { label: t("manager"), value: payment.manager_name ?? t("notAssigned") },
-                { label: t("country"), value: payment.target_country },
-                { label: t("operationalStageNotice"), value: <Badge value={payment.stage} label={t(`stage.${payment.stage}`)} /> },
+                { label: t("client"), value: payment.client_name },
               ]}
             />
-            <Link href={`/clients/${payment.client_id}`} className={`${btnGhostCls} mt-4 w-full`}>
-              {t("openStudent360")}
-            </Link>
           </Card>
 
           <ContextBanner

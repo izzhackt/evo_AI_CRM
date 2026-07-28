@@ -1,20 +1,30 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
+import {
+  canClientCapability,
+  resolveClientAccess,
+  type ClientAccessSubject,
+} from "@/lib/access";
 import { db } from "@/lib/db";
 import {
   ROLE_HOME_ROUTE,
   roleCanAccessStaffRoute,
   type DocumentStatus,
 } from "@/lib/domain";
+import { isStudentCaseState } from "@/lib/student-case-policy";
 
 type DocumentRecord = {
   id: number;
   client_id: number;
   status: string;
   comment: string | null;
+  manager_id: number | null;
+  curator_id: number | null;
+  case_state: string;
+  handoff_at: string | null;
 };
 
 const ALLOWED_TRANSITIONS: Record<DocumentStatus, readonly DocumentStatus[]> = {
@@ -49,9 +59,28 @@ export async function reviewDocumentAction(form: FormData) {
 
   const nextStatus = String(form.get("status") ?? "") as DocumentStatus;
   const row = db()
-    .prepare("SELECT id, client_id, status, comment FROM documents WHERE id = ?")
+    .prepare(`
+      SELECT d.id, d.client_id, d.status, d.comment,
+             c.manager_id, c.curator_id, c.case_state, c.handoff_at
+      FROM documents d
+      JOIN clients c ON c.id = d.client_id
+      WHERE d.id = ?
+    `)
     .get(id) as DocumentRecord | undefined;
-  if (!row) redirect("/documents");
+  if (!row || !isStudentCaseState(row.case_state)) {
+    notFound();
+  }
+
+  const subject: ClientAccessSubject = {
+    id: row.client_id,
+    manager_id: row.manager_id,
+    curator_id: row.curator_id,
+    case_state: row.case_state,
+    handoff_at: row.handoff_at,
+  };
+  if (!canClientCapability(resolveClientAccess(user, subject), "write_documents")) {
+    notFound();
+  }
 
   const currentStatus = row.status as DocumentStatus;
   const allowed = ALLOWED_TRANSITIONS[currentStatus];

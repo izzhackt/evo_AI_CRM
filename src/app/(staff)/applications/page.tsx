@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { getT } from "@/lib/i18n";
-import { allApplications, type ApplicationQueueRow } from "@/lib/queries";
+import {
+  listApplicationsForActor,
+  type ApplicationQueueRow,
+} from "@/lib/queries";
 import { APP_STATUSES } from "@/lib/db";
 import { setApplicationStatusAction } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
@@ -51,13 +54,17 @@ export default async function ApplicationsPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  await requireStaffRoute("/applications");
+  const user = await requireStaffRoute("/applications");
   const { t } = await getT();
   const { status } = await searchParams;
   const selectedStatus =
     status && (APP_STATUSES as readonly string[]).includes(status) ? status : undefined;
-  const applications = allApplications({ status: selectedStatus });
-  const allRows = selectedStatus ? allApplications() : applications;
+  const applications = listApplicationsForActor(user, {
+    status: selectedStatus,
+  });
+  const allRows = selectedStatus
+    ? listApplicationsForActor(user)
+    : applications;
   const today = new Date().toISOString().slice(0, 10);
   const statusCount = (value: string) => allRows.filter((app) => app.status === value).length;
   const overdue = allRows.filter(

@@ -3,6 +3,7 @@ import { createHmac } from "crypto";
 export function createScenarios({ assert, rowCount, scalar, unique }) {
 const admin = "admin@demo.kg";
 const sales = "sales@demo.kg";
+const curator = "curator@demo.kg";
 const finance = "finance@demo.kg";
 const client = "client@demo.kg";
 
@@ -264,17 +265,19 @@ return [
       assert(filtered.status === 200, `filtered clients status ${filtered.status}`);
       const name = unique("Scenario Student");
       const email = `${name.toLowerCase().replaceAll(" ", ".")}@example.com`;
-      await ctx.submit("/clients", ctx.cookie(admin), { names: ["name", "email", "phone", "target_country", "target_degree", "source"] }, {
+      await ctx.submit("/clients", ctx.cookie(admin), { names: ["name", "email", "phone", "target_country", "target_degree", "source", "manager_id"] }, {
         name,
         email,
         phone: "+996555101202",
         target_country: "Italy",
         target_degree: "Bachelor",
         source: "scenario-referral",
+        manager_id: ctx.user(sales).id,
       });
-      const created = scalar(ctx, "SELECT clients.id, clients.stage, users.role FROM clients JOIN users ON users.id = clients.user_id WHERE users.email = ?", [email]);
+      const created = scalar(ctx, "SELECT clients.id, clients.stage, clients.manager_id, users.role FROM clients JOIN users ON users.id = clients.user_id WHERE users.email = ?", [email]);
       assert(created, "client/user not created");
       assert(created.role === "client" && created.stage === "lead", "created student role/stage incorrect");
+      assert(created.manager_id === ctx.user(sales).id, "created student is not owned by Sales");
       return `created student client ${created.id} with linked ${created.role} user`;
     },
   },
@@ -324,9 +327,19 @@ return [
     id: "S15",
     capability: "Applications queue",
     scenario: "Add application action persists admissions application context.",
-    criteria: "Submitting application form on Student 360 inserts university, country, program, degree, deadline, and preparing status.",
+    criteria: "Responsible Sales can add an application to their pre-handoff Student 360; the action persists university, country, program, degree, deadline, and preparing status.",
     async run(ctx) {
-      const clientId = ctx.firstClientId();
+      const preHandoffClient = scalar(
+        ctx,
+        `SELECT c.id
+         FROM clients c
+         WHERE c.manager_id = ? AND c.case_state = 'pending'
+         ORDER BY c.id
+         LIMIT 1`,
+        [ctx.user(sales).id],
+      );
+      assert(preHandoffClient, "no Sales-owned pre-handoff client available for application scenario");
+      const clientId = preHandoffClient.id;
       const university = unique("Scenario University");
       await ctx.submit(`/clients/${clientId}`, ctx.cookie(sales), { names: ["client_id", "university", "country", "program", "degree", "deadline"] }, {
         client_id: clientId,
@@ -345,13 +358,25 @@ return [
     id: "S16",
     capability: "Applications queue",
     scenario: "Applications queue filter and status update flow work.",
-    criteria: "Filtered queue renders, status form updates application to submitted, and row links back to Student 360.",
+    criteria: "Assigned Curator can use the post-handoff filtered queue, update an application to submitted, and follow its Student 360 link.",
     async run(ctx) {
-      const app = ctx.firstApplicationId();
-      const filtered = await ctx.get("/applications?status=preparing", ctx.cookie(sales));
+      const app = scalar(
+        ctx,
+        `SELECT a.id, a.client_id
+         FROM applications a
+         JOIN clients c ON c.id = a.client_id
+         WHERE a.status = 'preparing'
+           AND c.curator_id = ?
+           AND c.case_state IN ('active', 'closed')
+         ORDER BY a.id
+         LIMIT 1`,
+        [ctx.user(curator).id],
+      );
+      assert(app, "no Curator-owned preparing application available for queue scenario");
+      const filtered = await ctx.get("/applications?status=preparing", ctx.cookie(curator));
       assert(filtered.status === 200, `applications filter status ${filtered.status}`);
       assert(filtered.text.includes("/clients/"), "applications rows do not link to Student 360");
-      await ctx.submit("/applications", ctx.cookie(sales), { names: ["id", "client_id", "status"], includes: [`value="${app.id}"`] }, {
+      await ctx.submit("/applications", ctx.cookie(curator), { names: ["id", "client_id", "status"], includes: [`value="${app.id}"`] }, {
         id: app.id,
         client_id: app.client_id,
         status: "submitted",
@@ -365,9 +390,19 @@ return [
     id: "S17",
     capability: "Documents queue",
     scenario: "Add document action persists admissions document request.",
-    criteria: "Submitting document form on Student 360 inserts a required document request.",
+    criteria: "Responsible Sales can add a required document request to their pre-handoff Student 360.",
     async run(ctx) {
-      const clientId = ctx.firstClientId();
+      const preHandoffClient = scalar(
+        ctx,
+        `SELECT c.id
+         FROM clients c
+         WHERE c.manager_id = ? AND c.case_state = 'pending'
+         ORDER BY c.id
+         LIMIT 1`,
+        [ctx.user(sales).id],
+      );
+      assert(preHandoffClient, "no Sales-owned pre-handoff client available for document scenario");
+      const clientId = preHandoffClient.id;
       const name = unique("Scenario Document");
       await ctx.submit(`/clients/${clientId}`, ctx.cookie(sales), { names: ["client_id", "name"], excludes: ["name=\"id\"", "name=\"status\""] }, {
         client_id: clientId,
@@ -382,17 +417,25 @@ return [
     id: "S18",
     capability: "Documents queue",
     scenario: "Documents queue filter and status update flow work.",
-    criteria: "Filtered queue renders, detail review action moves an approved document back to review with a reason, and rows link back to Student 360.",
+    criteria: "Assigned Curator can use the post-handoff filtered queue, reopen an approved document for review with a reason, and follow its Student 360 link.",
     async run(ctx) {
       const doc = scalar(
         ctx,
-        "SELECT id, client_id, status FROM documents WHERE status = 'approved' ORDER BY id LIMIT 1",
+        `SELECT d.id, d.client_id, d.status
+         FROM documents d
+         JOIN clients c ON c.id = d.client_id
+         WHERE d.status = 'approved'
+           AND c.curator_id = ?
+           AND c.case_state IN ('active', 'closed')
+         ORDER BY d.id
+         LIMIT 1`,
+        [ctx.user(curator).id],
       );
-      assert(doc, "no approved document available for review scenario");
-      const filtered = await ctx.get("/documents?status=approved", ctx.cookie(sales));
+      assert(doc, "no Curator-owned approved document available for review scenario");
+      const filtered = await ctx.get("/documents?status=approved", ctx.cookie(curator));
       assert(filtered.status === 200, `documents filter status ${filtered.status}`);
       assert(filtered.text.includes("/clients/"), "documents rows do not link to Student 360");
-      await ctx.submit(`/documents/${doc.id}`, ctx.cookie(sales), {
+      await ctx.submit(`/documents/${doc.id}`, ctx.cookie(curator), {
         names: ["id", "status", "comment"],
         includes: [`value="${doc.id}"`, "value=\"review\""],
       }, {
@@ -428,13 +471,23 @@ return [
     id: "S20",
     capability: "Tasks",
     scenario: "Tasks board metrics/status columns and add-task action are useful.",
-    criteria: "Tasks page renders metrics/columns, and add-task form persists priority, assignee, student link, and due date.",
+    criteria: "Sales task board renders metrics/columns, and Sales can add a task linked to their pre-handoff student with priority, assignee, and due date.",
     async run(ctx) {
       const page = await ctx.get("/tasks", ctx.cookie(sales));
       assert(page.status === 200, `tasks status ${page.status}`);
       for (const col of ["todo", "in_progress", "review", "done"]) assert(page.text.includes(col), `missing ${col}`);
       const title = unique("Scenario Task");
-      const clientId = ctx.firstClientId();
+      const preHandoffClient = scalar(
+        ctx,
+        `SELECT c.id
+         FROM clients c
+         WHERE c.manager_id = ? AND c.case_state = 'pending'
+         ORDER BY c.id
+         LIMIT 1`,
+        [ctx.user(sales).id],
+      );
+      assert(preHandoffClient, "no Sales-owned pre-handoff client available for task scenario");
+      const clientId = preHandoffClient.id;
       await ctx.submit("/tasks", ctx.cookie(sales), { names: ["title", "priority", "description", "assignee_id", "client_id", "due_date"] }, {
         title,
         priority: "urgent",
@@ -452,9 +505,23 @@ return [
     id: "S21",
     capability: "Tasks",
     scenario: "Move task action persists status changes.",
-    criteria: "Submitting a task move form changes status to review.",
+    criteria: "Sales can move a task in their own pre-handoff or personal queue to review.",
     async run(ctx) {
-      const task = ctx.firstTaskId("status != 'done'");
+      const task = scalar(
+        ctx,
+        `SELECT t.id
+         FROM tasks t
+         LEFT JOIN clients c ON c.id = t.client_id
+         WHERE t.status != 'done'
+           AND (
+             (t.client_id IS NOT NULL AND c.manager_id = ? AND c.case_state = 'pending')
+             OR (t.client_id IS NULL AND t.assignee_id = ?)
+           )
+         ORDER BY t.client_id IS NULL, t.id
+         LIMIT 1`,
+        [ctx.user(sales).id, ctx.user(sales).id],
+      );
+      assert(task, "no Sales-accessible task available for move scenario");
       await ctx.submit("/tasks", ctx.cookie(sales), { names: ["id", "status"], includes: [`value="${task.id}"`] }, {
         id: task.id,
         status: "review",
@@ -486,9 +553,41 @@ return [
     id: "S23",
     capability: "Finance",
     scenario: "Add payment rejects invalid amount and accepts positive role-safe payment.",
-    criteria: "Negative amount does not insert a payment; positive finance submission creates pending payment with currency.",
+    criteria: "Finance can select a student with no prior payments; negative amount does not insert, while a positive submission creates the first pending payment with currency.",
     async run(ctx) {
-      const clientId = ctx.firstClientId();
+      let clientWithoutPayment = scalar(
+        ctx,
+        `SELECT c.id
+         FROM clients c
+         LEFT JOIN payments p ON p.client_id = c.id
+         GROUP BY c.id
+         HAVING COUNT(p.id) = 0
+         ORDER BY c.id
+         LIMIT 1`,
+      );
+      if (!clientWithoutPayment) {
+        const fixtureName = unique("Finance First Payment");
+        const fixtureEmail = `${fixtureName.toLowerCase().replaceAll(" ", "-")}@example.test`;
+        const userInsert = ctx.db.prepare(`
+          INSERT INTO users (email, phone, password_hash, name, role)
+          SELECT ?, NULL, password_hash, ?, 'client'
+          FROM users
+          WHERE lower(email) = ?
+        `).run(fixtureEmail, fixtureName, client);
+        assert(userInsert.changes === 1, "could not create zero-payment finance fixture user");
+        const clientInsert = ctx.db.prepare(`
+          INSERT INTO clients (user_id, stage, source, case_state)
+          VALUES (?, 'new', 'scenario', 'pending')
+        `).run(Number(userInsert.lastInsertRowid));
+        clientWithoutPayment = { id: Number(clientInsert.lastInsertRowid) };
+      }
+      const clientId = clientWithoutPayment.id;
+      const financePage = await ctx.get("/finance", ctx.cookie(finance));
+      assert(financePage.status === 200, `finance page status ${financePage.status}`);
+      assert(
+        financePage.text.includes(`value="${clientId}"`),
+        `zero-payment client ${clientId} is missing from the finance selector`,
+      );
       const before = rowCount(ctx, "payments");
       await ctx.submit("/finance", ctx.cookie(finance), { names: ["client_id", "title", "amount", "currency", "due_date"] }, {
         client_id: clientId,

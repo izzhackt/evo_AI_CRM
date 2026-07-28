@@ -12,10 +12,16 @@ import {
   inputCls,
 } from "@/components/ui";
 import { addTaskAction, moveTaskAction } from "@/lib/actions";
+import { canReceiveClientlessTask } from "@/lib/access";
 import { TASK_COLUMNS, TASK_PRIORITIES } from "@/lib/db";
 import { requireStaffRoute } from "@/lib/guards";
 import { getT } from "@/lib/i18n";
-import { listClients, listLeads, listStaff, listTasks } from "@/lib/queries";
+import {
+  listClientsForActor,
+  listLeads,
+  listStaff,
+  listTasksForActor,
+} from "@/lib/queries";
 
 const PRIO_CLS: Record<string, string> = {
   low: "bg-surface-2 text-fg-3",
@@ -31,7 +37,7 @@ const COLUMN_CHIP: Record<string, string> = {
   done: "bg-ok",
 };
 
-type TaskRow = ReturnType<typeof listTasks>[number];
+type TaskRow = ReturnType<typeof listTasksForActor>[number];
 type TaskView = "board" | "list" | "calendar";
 
 function initials(name: string) {
@@ -170,9 +176,28 @@ export default async function TasksPage({
   const view: TaskView =
     params.view === "list" || params.view === "calendar" ? params.view : "board";
   const selectedMonth = monthKey(params.month);
-  const tasks = listTasks(Number.isFinite(assigneeId) ? assigneeId : undefined);
+  const tasks = listTasksForActor(
+    user,
+    Number.isFinite(assigneeId) ? assigneeId : undefined,
+  );
   const staff = listStaff();
-  const clients = listClients();
+  const taskAssignees =
+    user.role === "admin"
+      ? staff
+      : staff.filter((person) =>
+          person.id === user.id
+          || (
+            (user.role === "sales" || user.role === "curator")
+            && person.role === "admin"
+          )
+        );
+  const clientlessTaskAssignees = taskAssignees.filter(canReceiveClientlessTask);
+  const clients =
+    user.role === "finance"
+      ? []
+      : listClientsForActor(user).filter(
+          (client) => client.access_mode !== "sales_post_handoff_summary",
+        );
   const canOpenSales = user.role === "admin" || user.role === "sales";
   const canOpenCalls = canOpenSales;
   const meetingLeads = canOpenSales
@@ -285,7 +310,7 @@ export default async function TasksPage({
             <option value="">
               {t("assignee")}: {t("notAssigned")}
             </option>
-            {staff.map((person) => (
+            {clientlessTaskAssignees.map((person) => (
               <option key={person.id} value={person.id}>
                 {person.name}
               </option>

@@ -8,6 +8,7 @@ import { Icon } from "@/components/icons";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
 import { btnCls } from "@/components/ui";
 import type { Locale } from "@/lib/i18n-data";
+import type { StaffRole } from "@/lib/roles";
 
 type Meta = { title: string; hint?: string };
 type NotificationPreview = {
@@ -110,6 +111,7 @@ export function TopBar({
   notificationCountCapped,
   notificationPreview,
   integrationStatus,
+  role,
 }: {
   titles: Record<string, Meta>;
   locale: Locale;
@@ -122,13 +124,15 @@ export function TopBar({
     amo: ProviderState;
     whatsapp: ProviderState;
   };
+  role: StaffRole;
 }) {
   const pathname = usePathname();
   const base = `/${pathname.split("/")[1] ?? ""}`;
   const meta = titles[base] ?? titles["/dashboard"];
   const showAdd =
     ADD_ROUTES.has(base) &&
-    !(base === "/whatsapp" && pathname !== "/whatsapp");
+    !(base === "/whatsapp" && pathname !== "/whatsapp") &&
+    !(base === "/clients" && role !== "admin" && role !== "sales");
   const statusCopy = STATUS_COPY[locale];
   const amoStatusCopy = statusCopy.amo[integrationStatus.amo];
   const whatsappStatusCopy = statusCopy.whatsapp[integrationStatus.whatsapp];

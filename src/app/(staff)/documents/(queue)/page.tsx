@@ -18,7 +18,10 @@ import { DOC_STATUSES } from "@/lib/db";
 import type { DocumentStatus } from "@/lib/domain";
 import { requireStaffRoute } from "@/lib/guards";
 import { getT } from "@/lib/i18n";
-import { allDocuments, type DocumentQueueRow } from "@/lib/queries";
+import {
+  listDocumentsForActor,
+  type DocumentQueueRow,
+} from "@/lib/queries";
 
 function statusOf(document: DocumentQueueRow): DocumentStatus {
   return (DOC_STATUSES as readonly string[]).includes(document.status)
@@ -31,7 +34,7 @@ export default async function DocumentsPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  await requireStaffRoute("/documents");
+  const user = await requireStaffRoute("/documents");
   const { t, locale } = await getT();
   const copy = getDocumentExperienceCopy(locale);
   const { status } = await searchParams;
@@ -39,8 +42,10 @@ export default async function DocumentsPage({
     status && (DOC_STATUSES as readonly string[]).includes(status)
       ? (status as DocumentStatus)
       : undefined;
-  const documents = allDocuments({ status: selectedStatus });
-  const allRows = selectedStatus ? allDocuments() : documents;
+  const documents = listDocumentsForActor(user, { status: selectedStatus });
+  const allRows = selectedStatus
+    ? listDocumentsForActor(user)
+    : documents;
   const statusCount = (value: string) =>
     allRows.filter((document) => document.status === value).length;
   const needsAttention = allRows.filter(

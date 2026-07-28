@@ -1,6 +1,13 @@
 import { db, LEAD_ACTIVE_STATUSES, Stage, STAGES } from "./db";
 import { STUDENT_PORTAL_SECTIONS, StudentPortalSnapshot } from "./contracts/student-portal";
-import type { StaffRole } from "./domain";
+import {
+  buildFullClientPredicate,
+  buildVisaClientPredicate,
+  buildVisibleClientPredicate,
+  resolveClientAccess,
+  type AccessActor,
+  type ClientAccessMode,
+} from "./access";
 import type { StudentCaseAuditEvent, StudentCaseState } from "./student-case-policy";
 
 const ACTIVE_LEAD_STATUS_SQL = LEAD_ACTIVE_STATUSES.map((status) => `'${status}'`).join(", ");
@@ -676,8 +683,33 @@ function notificationGroup(
  * tables. This is deliberately not an unread-notification store: this
  * workspace has no notification acknowledgement table.
  */
-export function listOperatorNotifications(
-  role: StaffRole,
+function taskScopeForActor(actor: AccessActor, clientAlias = "c") {
+  const clientScope = buildFullClientPredicate(actor, clientAlias);
+  switch (actor.role) {
+    case "admin":
+      return { sql: "1 = 1", params: [] };
+    case "sales":
+      return {
+        sql: `((t.client_id IS NULL AND t.assignee_id = ?) OR (t.client_id IS NOT NULL AND (${clientScope.sql})))`,
+        params: [actor.id, ...clientScope.params],
+      };
+    case "curator":
+      return {
+        sql: `t.client_id IS NOT NULL AND (${clientScope.sql})`,
+        params: clientScope.params,
+      };
+    case "finance":
+      return {
+        sql: "t.client_id IS NULL AND t.assignee_id = ?",
+        params: [actor.id],
+      };
+    default:
+      return { sql: "0 = 1", params: [] };
+  }
+}
+
+export function listOperatorNotificationsForActor(
+  actor: AccessActor,
   limit = OPERATOR_NOTIFICATION_LIMIT,
 ): OperatorNotification[] {
   const d = db();
@@ -685,6 +717,7 @@ export function listOperatorNotifications(
   const today = new Date().toISOString().slice(0, 10);
   const sourceLimit = Math.max(0, limit);
   if (sourceLimit === 0) return items;
+  const taskScope = taskScopeForActor(actor);
 
   const tasks = d.prepare(`
     SELECT t.id, t.title, t.due_date, t.priority,
@@ -694,13 +727,14 @@ export function listOperatorNotifications(
     LEFT JOIN clients c ON c.id = t.client_id
     LEFT JOIN users u ON u.id = c.user_id
     WHERE t.status != 'done'
+      AND (${taskScope.sql})
       AND (
         t.priority IN ('urgent', 'high')
         OR (t.due_date IS NOT NULL AND t.due_date <= date('now', '+7 days'))
       )
     ORDER BY t.due_date IS NULL, t.due_date
     LIMIT ?
-  `).all(sourceLimit) as {
+  `).all(...taskScope.params, sourceLimit) as {
     id: number;
     title: string;
     due_date: string | null;
@@ -721,7 +755,7 @@ export function listOperatorNotifications(
     });
   }
 
-  if (["admin", "sales", "curator"].includes(role)) {
+  if (actor.role === "admin") {
     const conversations = d.prepare(`
       SELECT id, COALESCE(name, phone) AS title, unread, last_message_at
       FROM wa_conversations
@@ -745,16 +779,18 @@ export function listOperatorNotifications(
     }
   }
 
-  if (["admin", "sales", "curator"].includes(role)) {
+  if (["admin", "sales", "curator"].includes(actor.role)) {
+    const clientScope = buildFullClientPredicate(actor, "c");
     const documents = d.prepare(`
       SELECT doc.id, doc.name, doc.status, doc.updated_at, u.name AS client_name
       FROM documents doc
       JOIN clients c ON c.id = doc.client_id
       JOIN users u ON u.id = c.user_id
       WHERE doc.status IN ('uploaded', 'review', 'rejected')
+        AND (${clientScope.sql})
       ORDER BY doc.status = 'rejected' DESC, doc.updated_at DESC
       LIMIT ?
-    `).all(sourceLimit) as {
+    `).all(...clientScope.params, sourceLimit) as {
       id: number; name: string; status: string; updated_at: string; client_name: string;
     }[];
     for (const document of documents) {
@@ -779,9 +815,10 @@ export function listOperatorNotifications(
       WHERE ap.status NOT IN ('enrolled', 'rejected')
         AND ap.deadline IS NOT NULL
         AND ap.deadline <= date('now', '+14 days')
+        AND (${clientScope.sql})
       ORDER BY ap.deadline
       LIMIT ?
-    `).all(sourceLimit) as {
+    `).all(...clientScope.params, sourceLimit) as {
       id: number; university: string; deadline: string; client_name: string;
     }[];
     for (const application of applications) {
@@ -799,7 +836,7 @@ export function listOperatorNotifications(
     }
   }
 
-  if (["admin", "finance"].includes(role)) {
+  if (["admin", "finance"].includes(actor.role)) {
     const payments = d.prepare(`
       SELECT p.id, p.title, p.due_date, u.name AS client_name
       FROM payments p
@@ -876,6 +913,529 @@ export function getPayment(id: number): PaymentQueueRow | undefined {
     LEFT JOIN users m ON m.id = c.manager_id
     WHERE p.id = ?
   `).get(id) as PaymentQueueRow | undefined;
+}
+
+type FullClientAccessMode = Extract<
+  ClientAccessMode,
+  "admin_full" | "sales_full_pre_handoff" | "curator_full"
+>;
+
+export type FullClientAccessRow = ClientRow & {
+  access_mode: FullClientAccessMode;
+};
+
+export type SalesPostHandoffClientSummary = {
+  id: number;
+  name: string;
+  stage: Stage;
+  target_country: string | null;
+  target_degree: string | null;
+  case_state: StudentCaseState;
+  curator_name: string | null;
+  handoff_at: string | null;
+  access_mode: "sales_post_handoff_summary";
+};
+
+export type ActorClientRow = FullClientAccessRow | SalesPostHandoffClientSummary;
+
+type ClientListOptions = {
+  stage?: string;
+  q?: string;
+};
+
+type ClientAccessProbe = {
+  id: number;
+  manager_id: number | null;
+  curator_id: number | null;
+  case_state: StudentCaseState;
+  handoff_at: string | null;
+  name: string;
+  stage: Stage;
+  target_country: string | null;
+  target_degree: string | null;
+  curator_name: string | null;
+};
+
+function fullClientAccessMode(actor: AccessActor): FullClientAccessMode | null {
+  switch (actor.role) {
+    case "admin":
+      return "admin_full";
+    case "sales":
+      return "sales_full_pre_handoff";
+    case "curator":
+      return "curator_full";
+    default:
+      return null;
+  }
+}
+
+function appendClientListFilters(
+  where: string[],
+  params: unknown[],
+  opts: ClientListOptions,
+) {
+  if (opts.stage) {
+    where.push("c.stage = ?");
+    params.push(opts.stage);
+  }
+  if (opts.q) {
+    where.push("(u.name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)");
+    const like = `%${opts.q}%`;
+    params.push(like, like, like);
+  }
+}
+
+/**
+ * Returns only rows the actor can see. Full rows and post-handoff Sales
+ * summaries are selected separately so restricted columns never leave SQLite.
+ */
+export function listClientsForActor(
+  actor: AccessActor,
+  opts: ClientListOptions = {},
+): ActorClientRow[] {
+  const mode = fullClientAccessMode(actor);
+  const fullRows: FullClientAccessRow[] = [];
+
+  if (mode) {
+    const fullScope = buildFullClientPredicate(actor, "c");
+    const where = [`(${fullScope.sql})`];
+    const params: unknown[] = [...fullScope.params];
+    appendClientListFilters(where, params, opts);
+    const fullSelect = CLIENT_SELECT.replace(
+      "SELECT c.*",
+      `SELECT c.*, '${mode}' AS access_mode`,
+    );
+    fullRows.push(
+      ...(db()
+        .prepare(`${fullSelect} WHERE ${where.join(" AND ")} ORDER BY c.created_at DESC`)
+        .all(...params) as FullClientAccessRow[]),
+    );
+  }
+
+  if (actor.role !== "sales") return fullRows;
+
+  const visibleScope = buildVisibleClientPredicate(actor, "c");
+  const fullScope = buildFullClientPredicate(actor, "c");
+  const where = [`(${visibleScope.sql})`, `NOT (${fullScope.sql})`];
+  const params: unknown[] = [...visibleScope.params, ...fullScope.params];
+  if (opts.stage) {
+    where.push("c.stage = ?");
+    params.push(opts.stage);
+  }
+  if (opts.q) {
+    where.push("u.name LIKE ?");
+    params.push(`%${opts.q}%`);
+  }
+
+  const summaryRows = db().prepare(`
+    SELECT c.id, u.name, c.stage, c.target_country, c.target_degree,
+      c.case_state, cu.name AS curator_name, c.handoff_at,
+      'sales_post_handoff_summary' AS access_mode
+    FROM clients c
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users cu ON cu.id = c.curator_id
+    WHERE ${where.join(" AND ")}
+    ORDER BY c.handoff_at DESC, c.id DESC
+  `).all(...params) as SalesPostHandoffClientSummary[];
+
+  return [...fullRows, ...summaryRows];
+}
+
+/**
+ * Loads only a safe access probe first. Sensitive columns are queried only
+ * after the actor has matched the full-access SQL predicate.
+ */
+export function getClientForActor(
+  actor: AccessActor,
+  id: number,
+): ActorClientRow | undefined {
+  const visibleScope = buildVisibleClientPredicate(actor, "c");
+  const probe = db().prepare(`
+    SELECT c.id, c.manager_id, c.curator_id, c.case_state, c.handoff_at,
+      u.name, c.stage, c.target_country, c.target_degree,
+      cu.name AS curator_name
+    FROM clients c
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users cu ON cu.id = c.curator_id
+    WHERE c.id = ? AND (${visibleScope.sql})
+  `).get(id, ...visibleScope.params) as ClientAccessProbe | undefined;
+  if (!probe) return undefined;
+
+  const accessMode = resolveClientAccess(actor, probe);
+  if (accessMode === "sales_post_handoff_summary") {
+    return {
+      id: probe.id,
+      name: probe.name,
+      stage: probe.stage,
+      target_country: probe.target_country,
+      target_degree: probe.target_degree,
+      case_state: probe.case_state,
+      curator_name: probe.curator_name,
+      handoff_at: probe.handoff_at,
+      access_mode: accessMode,
+    };
+  }
+
+  const mode = fullClientAccessMode(actor);
+  if (!mode || accessMode !== mode) return undefined;
+  const fullScope = buildFullClientPredicate(actor, "c");
+  const fullSelect = CLIENT_SELECT.replace(
+    "SELECT c.*",
+    `SELECT c.*, '${mode}' AS access_mode`,
+  );
+  return db()
+    .prepare(`${fullSelect} WHERE c.id = ? AND (${fullScope.sql})`)
+    .get(id, ...fullScope.params) as FullClientAccessRow | undefined;
+}
+
+export type ClientApplicationRow = ReturnType<typeof clientApplications>[number];
+export type ClientDocumentRow = ReturnType<typeof clientDocuments>[number];
+export type ClientVisaRow = NonNullable<ReturnType<typeof clientVisaCase>>;
+export type ClientPaymentRow = ReturnType<typeof clientPayments>[number];
+export type ClientTaskRow = ReturnType<typeof clientTasks>[number];
+export type ClientUpdateRow = ReturnType<typeof clientUpdates>[number];
+
+export function clientApplicationsForActor(
+  actor: AccessActor,
+  clientId: number,
+): ClientApplicationRow[] {
+  const scope = buildFullClientPredicate(actor, "c");
+  return db().prepare(`
+    SELECT ap.*
+    FROM applications ap
+    JOIN clients c ON c.id = ap.client_id
+    WHERE ap.client_id = ? AND (${scope.sql})
+    ORDER BY ap.deadline IS NULL, ap.deadline
+  `).all(clientId, ...scope.params) as ClientApplicationRow[];
+}
+
+export function clientDocumentsForActor(
+  actor: AccessActor,
+  clientId: number,
+): ClientDocumentRow[] {
+  const scope = buildFullClientPredicate(actor, "c");
+  return db().prepare(`
+    SELECT doc.*
+    FROM documents doc
+    JOIN clients c ON c.id = doc.client_id
+    WHERE doc.client_id = ? AND (${scope.sql})
+    ORDER BY doc.id
+  `).all(clientId, ...scope.params) as ClientDocumentRow[];
+}
+
+export function clientVisaCaseForActor(
+  actor: AccessActor,
+  clientId: number,
+): ClientVisaRow | undefined {
+  const scope = buildVisaClientPredicate(actor, "c");
+  return db().prepare(`
+    SELECT v.*
+    FROM visa_cases v
+    JOIN clients c ON c.id = v.client_id
+    WHERE v.client_id = ? AND (${scope.sql})
+  `).get(clientId, ...scope.params) as ClientVisaRow | undefined;
+}
+
+export function clientPaymentsForActor(
+  actor: AccessActor,
+  clientId: number,
+): ClientPaymentRow[] {
+  return db().prepare(`
+    SELECT p.*
+    FROM payments p
+    WHERE p.client_id = ?
+      AND ? IN ('admin', 'finance')
+    ORDER BY p.due_date IS NULL, p.due_date
+  `).all(clientId, actor.role) as ClientPaymentRow[];
+}
+
+export function clientTasksForActor(
+  actor: AccessActor,
+  clientId: number,
+): ClientTaskRow[] {
+  const scope = buildFullClientPredicate(actor, "c");
+  return db().prepare(`
+    SELECT t.*, a.name AS assignee_name
+    FROM tasks t
+    JOIN clients c ON c.id = t.client_id
+    LEFT JOIN users a ON a.id = t.assignee_id
+    WHERE t.client_id = ? AND (${scope.sql})
+    ORDER BY t.status = 'done',
+      CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+      t.due_date IS NULL, t.due_date
+  `).all(clientId, ...scope.params) as ClientTaskRow[];
+}
+
+export function clientUpdatesForActor(
+  actor: AccessActor,
+  clientId: number,
+): ClientUpdateRow[] {
+  const scope = buildFullClientPredicate(actor, "c");
+  return db().prepare(`
+    SELECT up.*, a.name AS author_name
+    FROM updates up
+    JOIN clients c ON c.id = up.client_id
+    LEFT JOIN users a ON a.id = up.author_id
+    WHERE up.client_id = ? AND (${scope.sql})
+    ORDER BY up.created_at DESC
+  `).all(clientId, ...scope.params) as ClientUpdateRow[];
+}
+
+export function studentCaseAuditForActor(
+  actor: AccessActor,
+  clientId: number,
+): StudentCaseAuditRow[] {
+  if (actor.role !== "admin" && actor.role !== "curator") return [];
+  const scope = buildFullClientPredicate(actor, "c");
+  return db().prepare(`
+    SELECT audit.*,
+      audit_actor.name AS actor_name,
+      before_curator.name AS before_curator_name,
+      after_curator.name AS after_curator_name
+    FROM student_case_audit audit
+    JOIN clients c ON c.id = audit.client_id
+    JOIN users audit_actor ON audit_actor.id = audit.actor_user_id
+    LEFT JOIN users before_curator ON before_curator.id = audit.before_curator_id
+    LEFT JOIN users after_curator ON after_curator.id = audit.after_curator_id
+    WHERE audit.client_id = ? AND (${scope.sql})
+    ORDER BY audit.occurred_at DESC, audit.id DESC
+  `).all(clientId, ...scope.params) as StudentCaseAuditRow[];
+}
+
+export function listApplicationsForActor(
+  actor: AccessActor,
+  opts: { status?: string } = {},
+): ApplicationQueueRow[] {
+  const scope = buildFullClientPredicate(actor, "c");
+  const where = [`(${scope.sql})`];
+  const params: unknown[] = [...scope.params];
+  if (opts.status) {
+    where.push("ap.status = ?");
+    params.push(opts.status);
+  }
+  return db().prepare(`
+    SELECT ap.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id) AS document_total,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id AND doc.status != 'approved') AS document_open,
+      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
+      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
+    FROM applications ap
+    JOIN clients c ON c.id = ap.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    WHERE ${where.join(" AND ")}
+    ORDER BY ap.status = 'enrolled', ap.status = 'rejected',
+      ap.deadline IS NULL, ap.deadline, ap.updated_at DESC
+  `).all(...params) as ApplicationQueueRow[];
+}
+
+export function getApplicationForActor(
+  actor: AccessActor,
+  id: number,
+): ApplicationQueueRow | undefined {
+  const scope = buildFullClientPredicate(actor, "c");
+  return db().prepare(`
+    SELECT ap.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id) AS document_total,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id AND doc.status != 'approved') AS document_open,
+      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
+      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
+    FROM applications ap
+    JOIN clients c ON c.id = ap.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    WHERE ap.id = ? AND (${scope.sql})
+  `).get(id, ...scope.params) as ApplicationQueueRow | undefined;
+}
+
+export function listDocumentsForActor(
+  actor: AccessActor,
+  opts: { status?: string } = {},
+): DocumentQueueRow[] {
+  const scope = buildFullClientPredicate(actor, "c");
+  const where = [`(${scope.sql})`];
+  const params: unknown[] = [...scope.params];
+  if (opts.status) {
+    where.push("doc.status = ?");
+    params.push(opts.status);
+  }
+  return db().prepare(`
+    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
+      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id) AS application_total,
+      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
+      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
+      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
+    FROM documents doc
+    JOIN clients c ON c.id = doc.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    WHERE ${where.join(" AND ")}
+    ORDER BY doc.status = 'approved', doc.status = 'rejected', doc.updated_at DESC
+  `).all(...params) as DocumentQueueRow[];
+}
+
+export function getDocumentForActor(
+  actor: AccessActor,
+  id: number,
+): DocumentQueueRow | undefined {
+  const scope = buildFullClientPredicate(actor, "c");
+  return db().prepare(`
+    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
+      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id) AS application_total,
+      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
+      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
+      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
+    FROM documents doc
+    JOIN clients c ON c.id = doc.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    WHERE doc.id = ? AND (${scope.sql})
+  `).get(id, ...scope.params) as DocumentQueueRow | undefined;
+}
+
+export function listVisaCasesForActor(
+  actor: AccessActor,
+  opts: { status?: string } = {},
+): VisaQueueRow[] {
+  const scope = buildVisaClientPredicate(actor, "c");
+  const where = [`(${scope.sql})`];
+  const params: unknown[] = [...scope.params];
+  if (opts.status) {
+    where.push("v.status = ?");
+    params.push(opts.status);
+  }
+  return db().prepare(`
+    SELECT v.*, c.id AS client_id, c.stage, c.target_country, u.name AS client_name,
+      m.name AS manager_name, cu.name AS curator_name,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id) AS document_total,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id AND doc.status != 'approved') AS document_open,
+      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
+      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks
+    FROM visa_cases v
+    JOIN clients c ON c.id = v.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    LEFT JOIN users cu ON cu.id = c.curator_id
+    WHERE ${where.join(" AND ")}
+    ORDER BY v.status = 'approved', v.status = 'rejected',
+      v.appointment_at IS NULL, v.appointment_at, v.updated_at DESC
+  `).all(...params) as VisaQueueRow[];
+}
+
+export function getVisaCaseForActor(
+  actor: AccessActor,
+  id: number,
+): VisaQueueRow | undefined {
+  const scope = buildVisaClientPredicate(actor, "c");
+  return db().prepare(`
+    SELECT v.*, c.id AS client_id, c.stage, c.target_country, u.name AS client_name,
+      m.name AS manager_name, cu.name AS curator_name,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id) AS document_total,
+      (SELECT COUNT(*) FROM documents doc WHERE doc.client_id = c.id AND doc.status != 'approved') AS document_open,
+      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
+      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks
+    FROM visa_cases v
+    JOIN clients c ON c.id = v.client_id
+    JOIN users u ON u.id = c.user_id
+    LEFT JOIN users m ON m.id = c.manager_id
+    LEFT JOIN users cu ON cu.id = c.curator_id
+    WHERE v.id = ? AND (${scope.sql})
+  `).get(id, ...scope.params) as VisaQueueRow | undefined;
+}
+
+export type FinancePaymentRow = {
+  id: number;
+  title: string;
+  amount: number;
+  currency: string;
+  due_date: string | null;
+  paid_at: string | null;
+  status: string;
+  client_name: string;
+  client_id: number;
+};
+
+export type FinanceClientOption = {
+  id: number;
+  name: string;
+};
+
+export function listFinanceClientsForActor(
+  actor: AccessActor,
+): FinanceClientOption[] {
+  return db().prepare(`
+    SELECT c.id, u.name
+    FROM clients c
+    JOIN users u ON u.id = c.user_id
+    WHERE ? IN ('admin', 'finance')
+    ORDER BY u.name, c.id
+  `).all(actor.role) as FinanceClientOption[];
+}
+
+export function listPaymentsForActor(actor: AccessActor): FinancePaymentRow[] {
+  return db().prepare(`
+    SELECT p.id, p.title, p.amount, p.currency, p.due_date, p.paid_at, p.status,
+      u.name AS client_name, c.id AS client_id
+    FROM payments p
+    JOIN clients c ON c.id = p.client_id
+    JOIN users u ON u.id = c.user_id
+    WHERE ? IN ('admin', 'finance')
+    ORDER BY p.status = 'paid', p.due_date IS NULL, p.due_date
+  `).all(actor.role) as FinancePaymentRow[];
+}
+
+export function getPaymentForActor(
+  actor: AccessActor,
+  id: number,
+): FinancePaymentRow | undefined {
+  return db().prepare(`
+    SELECT p.id, p.title, p.amount, p.currency, p.due_date, p.paid_at, p.status,
+      u.name AS client_name, c.id AS client_id
+    FROM payments p
+    JOIN clients c ON c.id = p.client_id
+    JOIN users u ON u.id = c.user_id
+    WHERE p.id = ? AND ? IN ('admin', 'finance')
+  `).get(id, actor.role) as FinancePaymentRow | undefined;
+}
+
+export function listTasksForActor(actor: AccessActor, assigneeId?: number) {
+  const scope = buildFullClientPredicate(actor, "c");
+  const params: unknown[] = [];
+  let accessSql = "0 = 1";
+
+  if (actor.role === "admin") {
+    accessSql = "1 = 1";
+  } else if (actor.role === "sales") {
+    accessSql = `(
+      (t.client_id IS NULL AND t.assignee_id = ?)
+      OR (t.client_id IS NOT NULL AND (${scope.sql}))
+    )`;
+    params.push(actor.id, ...scope.params);
+  } else if (actor.role === "curator") {
+    accessSql = `(t.client_id IS NOT NULL AND (${scope.sql}))`;
+    params.push(...scope.params);
+  } else if (actor.role === "finance") {
+    accessSql = "(t.client_id IS NULL AND t.assignee_id = ?)";
+    params.push(actor.id);
+  }
+
+  if (assigneeId !== undefined) {
+    accessSql = `(${accessSql}) AND t.assignee_id = ?`;
+    params.push(assigneeId);
+  }
+
+  return db().prepare(`
+    SELECT t.*, a.name AS assignee_name, u.name AS client_name, c.id AS client_id,
+      c.stage, c.target_country, l.name AS lead_name, l.status AS lead_status
+    FROM tasks t
+    LEFT JOIN users a ON a.id = t.assignee_id
+    LEFT JOIN clients c ON c.id = t.client_id
+    LEFT JOIN users u ON u.id = c.user_id
+    LEFT JOIN leads l ON l.id = t.lead_id
+    WHERE ${accessSql}
+    ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+      t.due_date IS NULL, t.due_date
+  `).all(...params) as ReturnType<typeof listTasks>;
 }
 
 export type LeadRow = {
@@ -1202,40 +1762,112 @@ export function listOperationalAuditTrail(limit = 60): OperationalAuditRow[] {
   `).all(Math.max(0, limit)) as OperationalAuditRow[];
 }
 
-export function dashboardStats() {
+export function dashboardStatsForActor(actor: AccessActor) {
   const d = db();
-  const totalClients = (d.prepare("SELECT COUNT(*) c FROM clients WHERE stage != 'archived'").get() as { c: number }).c;
-  const activeApps = (d.prepare("SELECT COUNT(*) c FROM applications WHERE status IN ('preparing','submitted')").get() as { c: number }).c;
-  const openTasks = (d.prepare("SELECT COUNT(*) c FROM tasks WHERE status != 'done'").get() as { c: number }).c;
-  const pendingPayments = (d.prepare("SELECT COUNT(*) c FROM payments WHERE status != 'paid'").get() as { c: number }).c;
-  const activeLeads = (d.prepare(`SELECT COUNT(*) c FROM leads l WHERE ${ACTIVE_LEAD_SQL}`).get() as { c: number }).c;
-  const documentsInReview = (d.prepare("SELECT COUNT(*) c FROM documents WHERE status IN ('uploaded','review')").get() as { c: number }).c;
-  const overduePayments = (d.prepare("SELECT COUNT(*) c FROM payments WHERE status != 'paid' AND due_date IS NOT NULL AND due_date < date('now')").get() as { c: number }).c;
-  const urgentTasks = (d.prepare("SELECT COUNT(*) c FROM tasks WHERE status != 'done' AND priority IN ('high','urgent')").get() as { c: number }).c;
-  const byStage = d.prepare("SELECT stage, COUNT(*) c FROM clients GROUP BY stage").all() as { stage: Stage; c: number }[];
-  const byLeadStatus = d.prepare("SELECT status, COUNT(*) c FROM leads GROUP BY status").all() as { status: string; c: number }[];
-  const byApplicationStatus = d.prepare("SELECT status, COUNT(*) c FROM applications GROUP BY status").all() as { status: string; c: number }[];
-  const byDocumentStatus = d.prepare("SELECT status, COUNT(*) c FROM documents GROUP BY status").all() as { status: string; c: number }[];
-  const byTaskStatus = d.prepare("SELECT status, COUNT(*) c FROM tasks GROUP BY status").all() as { status: string; c: number }[];
-  const byPaymentStatus = d.prepare(`
-    SELECT CASE
-      WHEN status != 'paid' AND due_date IS NOT NULL AND due_date < date('now') THEN 'overdue'
-      ELSE status
-    END AS status, COUNT(*) c
-    FROM payments
-    GROUP BY CASE
-      WHEN status != 'paid' AND due_date IS NOT NULL AND due_date < date('now') THEN 'overdue'
-      ELSE status
-    END
-  `).all() as { status: string; c: number }[];
+  const clientScope = buildFullClientPredicate(actor, "c");
+  const taskScope = taskScopeForActor(actor);
+  const canReadLeadOperations = actor.role === "admin" || actor.role === "sales";
+  const canReadFinanceProjection = actor.role === "admin" || actor.role === "finance";
+  const count = (sql: string, params: Array<string | number> = []) =>
+    (d.prepare(sql).get(...params) as { c: number }).c;
+
+  const totalClients = count(
+    `SELECT COUNT(*) c FROM clients c
+     WHERE c.stage != 'archived' AND (${clientScope.sql})`,
+    clientScope.params,
+  );
+  const activeApps = count(
+    `SELECT COUNT(*) c
+     FROM applications ap
+     JOIN clients c ON c.id = ap.client_id
+     WHERE ap.status IN ('preparing','submitted') AND (${clientScope.sql})`,
+    clientScope.params,
+  );
+  const openTasks = count(
+    `SELECT COUNT(*) c
+     FROM tasks t
+     LEFT JOIN clients c ON c.id = t.client_id
+     WHERE t.status != 'done' AND (${taskScope.sql})`,
+    taskScope.params,
+  );
+  const pendingPayments = canReadFinanceProjection
+    ? count("SELECT COUNT(*) c FROM payments WHERE status != 'paid'")
+    : 0;
+  const activeLeads = canReadLeadOperations
+    ? count(`SELECT COUNT(*) c FROM leads l WHERE ${ACTIVE_LEAD_SQL}`)
+    : 0;
+  const documentsInReview = count(
+    `SELECT COUNT(*) c
+     FROM documents doc
+     JOIN clients c ON c.id = doc.client_id
+     WHERE doc.status IN ('uploaded','review') AND (${clientScope.sql})`,
+    clientScope.params,
+  );
+  const overduePayments = canReadFinanceProjection
+    ? count("SELECT COUNT(*) c FROM payments WHERE status != 'paid' AND due_date IS NOT NULL AND due_date < date('now')")
+    : 0;
+  const urgentTasks = count(
+    `SELECT COUNT(*) c
+     FROM tasks t
+     LEFT JOIN clients c ON c.id = t.client_id
+     WHERE t.status != 'done'
+       AND t.priority IN ('high','urgent')
+       AND (${taskScope.sql})`,
+    taskScope.params,
+  );
+  const byStage = d.prepare(`
+    SELECT c.stage, COUNT(*) c
+    FROM clients c
+    WHERE ${clientScope.sql}
+    GROUP BY c.stage
+  `).all(...clientScope.params) as { stage: Stage; c: number }[];
+  const byLeadStatus = canReadLeadOperations
+    ? d.prepare("SELECT status, COUNT(*) c FROM leads GROUP BY status").all() as { status: string; c: number }[]
+    : [];
+  const byApplicationStatus = d.prepare(`
+    SELECT ap.status, COUNT(*) c
+    FROM applications ap
+    JOIN clients c ON c.id = ap.client_id
+    WHERE ${clientScope.sql}
+    GROUP BY ap.status
+  `).all(...clientScope.params) as { status: string; c: number }[];
+  const byDocumentStatus = d.prepare(`
+    SELECT doc.status, COUNT(*) c
+    FROM documents doc
+    JOIN clients c ON c.id = doc.client_id
+    WHERE ${clientScope.sql}
+    GROUP BY doc.status
+  `).all(...clientScope.params) as { status: string; c: number }[];
+  const byTaskStatus = d.prepare(`
+    SELECT t.status, COUNT(*) c
+    FROM tasks t
+    LEFT JOIN clients c ON c.id = t.client_id
+    WHERE ${taskScope.sql}
+    GROUP BY t.status
+  `).all(...taskScope.params) as { status: string; c: number }[];
+  const byPaymentStatus = canReadFinanceProjection
+    ? d.prepare(`
+      SELECT CASE
+        WHEN status != 'paid' AND due_date IS NOT NULL AND due_date < date('now') THEN 'overdue'
+        ELSE status
+      END AS status, COUNT(*) c
+      FROM payments
+      GROUP BY CASE
+        WHEN status != 'paid' AND due_date IS NOT NULL AND due_date < date('now') THEN 'overdue'
+        ELSE status
+      END
+    `).all() as { status: string; c: number }[]
+    : [];
   const deadlines = d.prepare(`
     SELECT ap.university, ap.deadline, ap.status, u.name AS client_name, c.id AS client_id
     FROM applications ap
     JOIN clients c ON c.id = ap.client_id
     JOIN users u ON u.id = c.user_id
-    WHERE ap.deadline IS NOT NULL AND ap.status IN ('preparing','submitted')
+    WHERE ap.deadline IS NOT NULL
+      AND ap.status IN ('preparing','submitted')
+      AND (${clientScope.sql})
     ORDER BY ap.deadline LIMIT 8
-  `).all() as { university: string; deadline: string; status: string; client_name: string; client_id: number }[];
+  `).all(...clientScope.params) as { university: string; deadline: string; status: string; client_name: string; client_id: number }[];
   return {
     totalClients,
     activeApps,

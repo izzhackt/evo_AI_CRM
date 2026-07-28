@@ -10,7 +10,7 @@ import { EvoWordmark } from "@/components/platform/EvoWordmark";
 import { STAFF_NAV_ITEMS, isStaffRole } from "@/lib/domain";
 import type { Locale } from "@/lib/i18n-data";
 import {
-  listOperatorNotifications,
+  listOperatorNotificationsForActor,
   OPERATOR_NOTIFICATION_LIMIT,
 } from "@/lib/queries";
 
@@ -76,8 +76,8 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   if (!isStaffRole(role)) redirect("/portal");
   const { t, locale } = await getT();
   const shellCopy = SHELL_COPY[locale];
-  const notificationBatch = listOperatorNotifications(
-    role,
+  const notificationBatch = listOperatorNotificationsForActor(
+    { id: user.id, role },
     OPERATOR_NOTIFICATION_LIMIT + 1,
   );
   const notificationCountCapped =
@@ -156,6 +156,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
           <TopBar
             titles={titles}
             locale={locale}
+            role={role}
             addLabel={t("add")}
             themeLabel={t("toggleTheme")}
             notificationCount={notifications.length}

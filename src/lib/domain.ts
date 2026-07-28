@@ -94,7 +94,7 @@ export const STAFF_NAV_ITEMS = [
   {
     href: APP_ROUTES.staff.clients,
     labelKey: "clients",
-    allowedRoles: ["admin", "sales", "curator", "finance"],
+    allowedRoles: ["admin", "sales", "curator"],
   },
   {
     href: APP_ROUTES.staff.applications,

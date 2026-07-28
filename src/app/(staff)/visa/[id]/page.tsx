@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getT } from "@/lib/i18n";
-import { getVisaCase } from "@/lib/queries";
+import { getVisaCaseForActor } from "@/lib/queries";
 import { VISA_STATUSES } from "@/lib/db";
 import { upsertVisaCaseAction } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
@@ -19,10 +19,10 @@ export default async function VisaDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireStaffRoute("/visa");
+  const user = await requireStaffRoute("/visa");
   const { t } = await getT();
   const { id } = await params;
-  const visaCase = getVisaCase(Number(id));
+  const visaCase = getVisaCaseForActor(user, Number(id));
   if (!visaCase) notFound();
 
   const workflowValues =

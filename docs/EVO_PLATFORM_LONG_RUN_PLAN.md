@@ -7,12 +7,13 @@ Initial kickoff baseline: GitHub `origin/main` at
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 `docs/PLAN_CHANGES.md`, and superseding ADRs
 
-Execution checkpoint: P0 and all P1 sub-blocks are merged through PR #80.
-GitHub `origin/main` is green at
-`d3edcda6649cb7b90b789c57c658ec1fc4a20618`. The active change is the
-docs-only P2 Supabase-foundation decomposition amendment. P2A repository
-changes and migration work are blocked until this amendment is independently
-reviewed and merged.
+Execution checkpoint: P0, all P1 sub-blocks, the P2 Supabase-foundation
+decomposition and P2A canonical migration authority are merged through PR
+#82. GitHub `origin/main` is green at
+`8ad755b5039390f418dbe12924a806f069f93b53`. The active change is this
+docs-only P2 checkpoint-freshness amendment. P2B remains pending and unchanged
+until this amendment is independently reviewed and merged; P2C-P2I remain
+sequentially blocked behind their preceding P2 gate.
 
 ## 1. Outcome and truth boundary
 
@@ -41,7 +42,7 @@ path, cutover, rollback evidence and 72-hour soak are real.
 
 As of the version date:
 
-- GitHub `main` is green at `d3edcda6649cb7b90b789c57c658ec1fc4a20618`;
+- GitHub `main` is green at `8ad755b5039390f418dbe12924a806f069f93b53`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -213,7 +214,7 @@ deployment surfaces are sequential.
 | --- | --- | --- | --- |
 | P0 | Final plan, corrected TZ/DOCX, target ADR and architecture docs | Deterministic DOCX, every page inspected, independent review | Merged in PR #75 |
 | P1 | Current-app role/RBAC/handoff correction | Positive/negative route, action and object-scope tests; explicit visa-user migration report | P1A-P1D merged in PRs #76-#80 |
-| P2 | Unified Supabase foundation and reconciled migrations | Canonical history, clean local Supabase reset, RLS/secret negative matrix, separate isolated DB and Storage-object restore | Docs-only decomposition amendment active |
+| P2 | Unified Supabase foundation and reconciled migrations | Canonical history, clean local Supabase reset, RLS/secret negative matrix, separate isolated DB and Storage-object restore | P2A merged in PR #82; checkpoint amendment active; P2B pending |
 | P3 | Root auth and operational SQLite migration path | Read-only inventory, deterministic mapping, dry-run reconciliation, staging comparison, rollback rehearsal | Pending |
 | P4 | Canonical amoCRM adapter | Versioned discovery, read-only sync, webhook/outbox/reconciliation; live proof only with sanitized test lead | Pending |
 | P5 | Unified Inbox/WAHA/Lead Agent capability absorption | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no old cutover yet | Pending |

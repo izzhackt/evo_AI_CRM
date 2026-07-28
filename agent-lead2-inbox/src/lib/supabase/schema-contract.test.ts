@@ -45,6 +45,10 @@ const platformIdentityMigration = readFileSync(
   join(migrationsDir, '041_platform_identity_rbac_audit.sql'),
   'utf8'
 )
+const platformAdmissionsMigration = readFileSync(
+  join(migrationsDir, '042_platform_student_admissions.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -60,9 +64,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves P2B containment and adds only the reviewed P2C identity boundary', () => {
+  it('preserves containment and advances through the reviewed P2D boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '041_platform_identity_rbac_audit.sql'
+      '042_platform_student_admissions.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -98,6 +102,61 @@ describe('Supabase companion schema contract', () => {
     expect(supabaseConfig).not.toMatch(
       /schemas\s*=.*(?:platform_private|pgmq_public)/
     )
+  })
+
+  it('adds the student admissions domain without widening browser writes', () => {
+    const admissionsTables = [
+      'student_cases',
+      'student_case_assignment_events',
+      'student_case_lifecycle_events',
+      'student_case_updates',
+      'university_applications',
+      'university_application_events',
+      'visa_cases',
+      'visa_case_events',
+      'case_tasks',
+      'case_task_events',
+    ]
+
+    for (const table of admissionsTables) {
+      expect(platformAdmissionsMigration).toMatch(
+        new RegExp(`CREATE\\s+TABLE\\s+platform\\.${table}\\b`, 'i')
+      )
+      expect(platformAdmissionsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform\\.${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+      expect(platformAdmissionsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+
+    expect(platformAdmissionsMigration).toMatch(
+      /CREATE\s+TYPE\s+platform\.visa_status\s+AS\s+ENUM\s*\(\s*'not_required',\s*'not_started',\s*'docs',\s*'appointment',\s*'submitted',\s*'approved',\s*'rejected',\s*'closed'\s*\)/i
+    )
+    expect(platformAdmissionsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.assign_student_case_curator[\s\S]*SECURITY\s+DEFINER/i
+    )
+    expect(platformAdmissionsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.sales_handoff_summaries\s*\(\s*\)[\s\S]*SECURITY\s+DEFINER/i
+    )
+    expect(platformAdmissionsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.student_portal_cases\s*\(\s*\)[\s\S]*SECURITY\s+DEFINER/i
+    )
+    const admissionsPolicies = platformAdmissionsMigration
+      .split(';')
+      .filter((statement) => /CREATE\s+POLICY/i.test(statement))
+
+    expect(admissionsPolicies).toHaveLength(admissionsTables.length)
+    for (const policy of admissionsPolicies) {
+      expect(policy).toMatch(/\bFOR\s+SELECT\b/i)
+      expect(policy).not.toMatch(/\bFOR\s+(?:INSERT|UPDATE|DELETE|ALL)\b/i)
+    }
   })
 
   it('makes legacy secret-bearing tables service-only without broad grants', () => {

@@ -194,13 +194,28 @@ Owns:
 - tasks and lifecycle events;
 - reasoned case close/reopen.
 
+The detailed P2D enforcement and evidence contract is
+`docs/platform/p2d-admissions-rls.md`. Migration 042 adds ten FORCE-RLS domain
+tables, immutable v2 role bundles, rotating student-case scopes, replay-safe
+operation RPCs and fixed post-handoff Sales/activated Student projections.
+Base-table RLS remains a staff-full boundary; reduced audiences do not receive
+base-table grants as a substitute for column security.
+
+Pending creation is a narrow service-only ingest operation backed by explicit
+signed-contract evidence. It does not discover or invent the account-specific
+amoCRM contract mapping. Initial Admin assignment activates handoff and Portal
+state; reassignment rotates scope without reviving the previous Curator.
+Application and visa states that represent external decisions require evidence.
+
 Exit:
 
 - two-organization/two-student isolation;
 - Sales pre-contract and Curator post-handoff scope;
 - former Sales safe-summary boundary;
 - Admin-only assignment/reassignment;
-- invalid lifecycle transition and missing-reason denials.
+- invalid lifecycle transition and missing-reason denials;
+- same-request replay and mismatched-replay denials;
+- no direct `service_role` domain-table DML.
 
 ### P2E — document metadata, finance and notifications
 

@@ -109,6 +109,14 @@ membership, bundle и scope; смена authority увеличивает version
 закрывает старый token. Direct `service_role` DML не является target backend
 API: каждый backend capability получает отдельный reviewed function grant.
 
+P2D добавляет student/admissions domain поверх этой live-authority модели:
+pending/active/closed cases, Admin-only Curator assignment and handoff,
+immutable scope rotation, multiple applications, Curator-owned visa, tasks и
+append-only events. Base tables остаются staff-full; post-handoff Sales и
+activated Student используют отдельные fixed-column projections. Migration 042
+доказывается только на disposable local Supabase/PostgreSQL и не означает
+amoCRM, managed Supabase или production Portal cutover.
+
 Каждая exposed table должна иметь RLS. Browser использует только publishable
 key. Secret/service-role ключи и provider secrets остаются только на backend.
 Coarse role может приходить из custom JWT claim, но доступ к конкретной

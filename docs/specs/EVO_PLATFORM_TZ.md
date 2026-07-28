@@ -3,11 +3,12 @@
 ## Единая платформа автоматизации EVO Admissions
 
 **Идентификатор документа:** EVO-PLATFORM-TZ-001
-**Версия:** 1.1
+**Версия:** 1.2
 **Статус:** действующий контракт repository-реализации; production-gates
 остаются отдельными
 **Дата:** 28 июля 2026 года
 **Базовая версия репозитория:** `a16cd3fb591128b6d28f7f46c432169a0ff28753`
+**Текущий execution checkpoint:** `d3edcda6649cb7b90b789c57c658ec1fc4a20618`
 **Язык документа:** русский
 
 > **Назначение документа.** Это ТЗ является контрактом на последующую
@@ -30,6 +31,7 @@
 | Формат согласования | SHA-bound review, должностное решение по открытым gates и audit evidence |
 | Источник бренда | `docs/company/brand/evo-admissions-logobook.pdf` |
 | Принятый preset | `standard_business_brief` |
+| Текущий checkpoint | P0 и P1A–P1D merged; P2 docs-only decomposition до schema work |
 
 > **Главная граница.** amoCRM остаётся источником истины для контакта, лида,
 > ответственного sales manager и стадии продаж. Один dedicated production
@@ -97,8 +99,9 @@ amoCRM, WhatsApp, AI-черновиков, повторов, handoff и ауди
 8. Продажная воронка и операционный путь студента — разные модели.
 9. Figma, прототипы и скриншоты являются дизайн-доказательствами, но не
    заменяют это ТЗ и не доказывают работу внешнего provider.
-10. Роли v1: Admin, Sales, Curator, Finance и Client/Student. Отдельной Visa
-    role нет; визовый модуль ведёт Curator.
+10. Роли v1: Admin, Sales, Curator, Finance и Client/Student. Target machine
+    role для Client/Student — `student`; текущий root `client` ждёт explicit P3
+    mapping. Отдельной Visa role нет; визовый модуль ведёт Curator.
 11. Только Admin приглашает/блокирует staff и назначает/переназначает Curator.
     Reassignment требует reason, before/after и audit.
 12. Sales владеет разговором до подтверждённого договора; после handoff —
@@ -293,6 +296,22 @@ Schema changes хранятся в Git (`supabase/config.toml`, migrations,
 reset/diff/pull workflow). Browser использует publishable key; secret/service
 role остаются только backend. RLS обязательна для каждой exposed table.
 
+P2 устанавливает следующую schema/migration boundary:
+
+| Schema/область | Назначение | Exposure |
+| --- | --- | --- |
+| root `supabase/` | единственный source config и immutable migrations; P2A переносит legacy 001–039 byte-for-byte без 040 | repository authority |
+| `public` | legacy Inbox compatibility до controlled P3/P5 cutover | временно exposed только для проверенных consumers с RLS |
+| `platform` | новая identity/operational/audit-facing model | Data API с explicit grants и RLS на каждой table |
+| `platform_private` | backend-only helpers и secret references | не входит в Data API; browser grants отсутствуют |
+| `auth`/`storage`/`vault`/`pgmq` | provider-owned schemas | не переименуются и не используются как Platform domain |
+
+Merged migrations не редактируются; correction получает следующий свободный
+номер. P2B ожидаемо начинается с 040 только после P2A checksum/reset proof.
+Legacy `owner/admin/agent/viewer` не маппятся автоматически на Platform roles.
+Legacy signup может сохранять старый Inbox behavior, но не создаёт Platform
+organization membership.
+
 Дополнительные обязательные границы:
 
 - coarse role приходит через versioned custom JWT claim, а organization,
@@ -329,6 +348,11 @@ role остаются только backend. RLS обязательна для к
 ## 7. Модель данных
 
 ### 7.1 Обязательные группы сущностей
+
+Группы 1–12 ниже создаются в `platform`, кроме явно backend-only helpers,
+которые относятся к `platform_private`. Legacy Inbox tables из 001–039
+остаются в `public` до P3/P5 cutover и не становятся Platform identity по
+переименованию.
 
 1. **Организация и доступ:** organizations, profiles, roles, permissions,
    role_permissions, user_scopes, invitations, sessions.
@@ -521,6 +545,10 @@ AI используется только как помощник сотрудн�
 | Finance | Manual obligations, payment/refund evidence, debt/stop factor и финансовые отчёты | Нет доступа к чувствительным документам/сообщениям без object permission |
 | Client / Student | Свой портал, свои задачи, документы, заявки, платежные статусы и сообщения | Только собственное дело; никаких staff/API administration функций |
 
+Target machine identifier для Client / Student — `student`. Текущая root role
+`client` остаётся legacy до explicit P3 identity mapping и не создаёт Platform
+membership автоматически.
+
 «ОЗО», «ОП», «руководство» и «оператор Inbox» из исходного документа являются
 бизнес-функциями. В первом запуске они назначаются одной или нескольким
 базовым ролям. Отдельная роль Leadership или настраиваемые custom roles
@@ -648,7 +676,7 @@ payments, messages, notifications, EVO team и security profile. Просроч�
 | --- | --- | --- | --- |
 | FR-001 | Система должна поддерживать отдельные staff и student login flows с безопасной session lifecycle. | MUST | E2E login/logout/expiry |
 | FR-002 | Каждый пользователь должен иметь organization, status, role и object scope. | MUST | DB constraints + auth tests |
-| FR-003 | Staff roles v1: admin, sales, curator, finance; client/student отделён от staff. Visa остаётся module Curator. Existing visa users требуют explicit inventory/migration report, без silent coercion. | MUST | Migration report + route matrix |
+| FR-003 | Staff roles v1: admin, sales, curator, finance; target client-facing role `student` отделена от staff и показывается как Client/Student. Current root `client` maps only through explicit P3 identity migration. Visa остаётся module Curator. Existing visa users требуют explicit inventory/migration report, без silent coercion. | MUST | Migration report + route matrix |
 | FR-004 | Все защищённые routes/actions/API должны проверять permission server-side. | MUST | Negative authorization suite |
 | FR-005 | RLS должна ограничивать browser access organization и user scope. | MUST | Disposable Postgres tests |
 | FR-006 | Только Admin приглашает, блокирует и деактивирует staff; каждый использует личный account, shared credentials запрещены. | MUST | E2E admin lifecycle |
@@ -792,10 +820,10 @@ payments, messages, notifications, EVO team и security profile. Просроч�
 | INT-009 | WAHA subscription v1 включает message, message.any, message.ack и session.status; WAHA/Kommo/internal IDs хранятся отдельно. | MUST | Live config + schema evidence |
 | INT-010 | WAHA retry не должен нарушать platform deduplication. | MUST | Duplicate replay |
 | INT-011 | Send разрешён только при WAHA WORKING и после sendSeen; timeout даёт unknown + reconciliation без auto-resend. | MUST | Failure injection |
-| INT-012 | Supabase schema воспроизводится из Git через config.toml и migrations/reset/diff/pull; durable work использует Queues, DB Webhooks — только async push. | MUST | Clean reset + queue test |
-| INT-013 | Один production project и изолированные local/dev, persistent staging, preview branches/projects имеют разные secrets, одинаковую migration history и no-prod-data default. | MUST | CI/environment audit |
-| INT-014 | Browser использует только publishable key; secret/service-role не попадает в bundle/log; Next.js 16 server auth использует SSR proxy/getClaims, не getSession trust. | MUST | Secret/auth scan |
-| INT-015 | Storage private, download через authorized signed URL/server stream; direct writes в storage schema запрещены, Storage backup отдельный. | MUST | Cross-user denial + restore |
+| INT-012 | Root `supabase/` — единственный source: P2A переносит 001–039 byte/checksum-identically без 040; merged migrations immutable; durable work использует real local Queues/PGMQ, DB Webhooks — только async push. | MUST | Clean reset + checksum + queue test |
+| INT-013 | Один production project и изолированные local/dev, persistent staging, preview branches/projects имеют разные secrets, одинаковую migration history и no-prod-data default; local proof не подменяет remote ledger/PITR proof. | MUST | CI/environment audit |
+| INT-014 | Browser использует только publishable key; secret/service-role не попадает в bundle/log; `platform_private`/queue internals не имеют browser grants; Next.js 16 server auth использует SSR proxy/getClaims, не getSession trust. | MUST | Secret/auth/grant scan |
+| INT-015 | New Platform Storage private, download через authorized signed URL/server stream; direct writes в storage schema запрещены, DB и Storage-object restore доказываются отдельно; legacy bucket flip требует отдельного gate. | MUST | Cross-user denial + two restores |
 | INT-016 | AI server adapter создаёт только RU/EN draft из approved versioned knowledge с model/prompt/context audit и timeout. | MUST | Contract + eval |
 | INT-017 | При недоступности AI ручная работа Inbox/Documents должна продолжаться. | MUST | Degradation test |
 | INT-018 | Email, telephony, payment gateway и другие provider не могут отображаться live до отдельного contract и acceptance. | MUST | Readiness UI |
@@ -842,7 +870,7 @@ external reference либо архивирование, но не незамет
 | SEC-007 | Все input boundaries валидируют schema, length, type и authorization. | MUST | Fuzz/negative tests |
 | SEC-008 | File upload проверяет extension, MIME/content, size, malware policy и unsafe filename. | MUST | Upload security suite |
 | SEC-009 | Private file URL должен истекать и быть связан с текущей авторизацией. | MUST | Expiry/cross-user tests |
-| SEC-010 | RLS включается для browser-exposed tables; отсутствие policy означает deny. | MUST | Postgres harness |
+| SEC-010 | `platform` имеет explicit grants и RLS на каждой browser-exposed table; отсутствие policy означает deny; `platform_private` и queue internals не доступны browser roles. | MUST | Postgres grant/RLS harness |
 | SEC-011 | Privileged service routes повторно проверяют organization, actor, role, scope и action. | MUST | Authorization tests |
 | SEC-012 | Audit access ограничен; audit export тоже фиксируется. | MUST | Role test |
 | SEC-013 | Sensitive action использует CSRF/origin protection и не выполняется GET-запросом. | MUST | Security test |
@@ -986,11 +1014,23 @@ Exit: positive/negative route/action/object-scope tests всех пяти рол
 
 ### P2. Unified Supabase foundation
 
-Reconcile Inbox migrations 001–039; platform migrations начать с 040, если
-fresh main не докажет более высокий номер. Добавить единую platform model,
-RLS/Storage policies, audit/outbox/Queues/dead-letter/idempotency/reconciliation.
-Exit: clean reset, disposable PostgreSQL cross-role/student/org denials, browser
-secret scan и isolated backup/restore.
+P2 идёт только последовательно:
+
+| Sub-block | Scope | Exit |
+| --- | --- | --- |
+| P2A | root config/CLI; byte-identical 001–039; checksums/tests; без 040 | clean local reset/list и identical legacy inventory |
+| P2B | expected 040: schemas/grants и verified legacy secret containment | Inbox compatibility + browser negative grants |
+| P2C | organizations/profiles/memberships/five roles/scopes/base audit | five-role и cross-org RLS matrix |
+| P2D | cases/assignments/handoff/applications/visa/tasks | two-org/two-student lifecycle denials |
+| P2E | document metadata/finance/notifications | Curator/Finance/Student negative matrix; no upload claim |
+| P2F | conversations/provider mappings/raw events/knowledge/AI drafts | transcript isolation и server-write boundaries; no provider claim |
+| P2G | real local Queues/outbox/idempotency/dead-letter/reconciliation | visibility/retry/dedupe; unknown never auto-requeued |
+| P2H | real local private Platform Storage API/policies | MIME/25 MB, cross-user denial, audited access |
+| P2I | whole-P2 reset/grants/secrets and recovery evidence | isolated DB restore + separate Storage-object restore |
+
+P2 additive: no legacy rename/drop, root-auth cutover, real-secret copy,
+legacy bucket flip, remote apply или production mutation. Detailed contract:
+`docs/platform/p2-supabase-foundation.md`.
 
 ### P3. Root auth и SQLite migration path
 
@@ -1096,10 +1136,10 @@ Lead Agent можно удалить только если одновремен�
 | ID | Критерий | Доказательство |
 | --- | --- | --- |
 | ACC-001 | Все MUST требования имеют test/evidence и owner | Traceability report |
-| ACC-002 | Один production project; dev/staging/preview изолированы, без prod data default, migrations совпадают | Supabase branch/migration list |
+| ACC-002 | Root 001–039 history byte/checksum-identical; один production project и dev/staging/preview изолированы без prod data default; local proof и remote-ledger/PITR proof разделены | Checksum + local/remote migration evidence |
 | ACC-003 | Production service-role отсутствует в browser bundle/log | Secret scan |
 | ACC-004 | Все staff roles проходят positive и negative route/object tests | Authorization report |
-| ACC-005 | Два student accounts изолированы на DB/API/UI/Storage | Cross-user E2E |
+| ACC-005 | Два student accounts и две organizations изолированы на DB/API/UI/Storage; legacy role/signup не создаёт Platform scope | Cross-user/cross-org E2E |
 | ACC-006 | Реальный test WhatsApp event проходит HMAC, persist и dedup | Signed evidence |
 | ACC-007 | amo contact/lead resolution не создаёт duplicate | amoCRM comparison |
 | ACC-008 | Stage/manager совпадают с amoCRM | Linked record evidence |
@@ -1110,13 +1150,13 @@ Lead Agent можно удалить только если одновремен�
 | ACC-013 | Повтор webhook/outbox не создаёт duplicate | Replay report |
 | ACC-014 | Contract mapping создаёт pending case; Admin Curator assignment активирует Portal/handoff и не меняет sales stage | Workflow E2E |
 | ACC-015 | Application/document/visa/payment имеют независимые histories | Data audit |
-| ACC-016 | Document upload private; чужой доступ запрещён | Storage/RLS evidence |
+| ACC-016 | Document upload проходит real private Storage API; чужой student/org доступ запрещён; legacy public buckets не считаются этим proof | Storage/RLS evidence |
 | ACC-017 | Correction/resubmit сохраняет обе версии и причины | Portal/staff E2E |
 | ACC-018 | Finance/Admin payment/refund и stop factor имеют evidence/audit; Student видит только overdue next action | Finance/Portal E2E |
 | ACC-019 | Critical screens проходят 1440, 834 и 390 viewports без overflow | Screenshot ledger |
 | ACC-020 | WCAG automated tests и manual keyboard/screen-reader spot check пройдены | Accessibility report |
 | ACC-021 | Performance соответствует утверждённому capacity profile | Load report |
-| ACC-022 | Backup восстановлен в isolated environment в пределах RPO/RTO | Restore report |
+| ACC-022 | DB backup и отдельный Storage-object backup восстановлены в isolated environment; numeric RPO/RTO ждут DEC-010 | Two restore reports |
 | ACC-023 | Alerts и runbooks проверены tabletop/controlled failure | Ops report |
 | ACC-024 | Migration reconciliation не содержит unexplained loss/orphans | Signed reconciliation |
 | ACC-025 | Lead Agent removal blocked до real E2E, >=72h soak, zero unexplained loss/duplicates/drift, rollback и separate reviewed PR | Soak + approval record |
@@ -1132,7 +1172,7 @@ production-функцию, но не безопасную repository-реали�
 | --- | --- | --- | --- |
 | DEC-001 | Fixed | Product, Business Process, Technical и Data/Privacy accountability фиксируется по должностям; ФИО не блокирует repository work | Руководство |
 | DEC-002 | Fixed | Новые комментарии функций вносятся как traceable change; отдельной Visa role/owner нет | Product Owner |
-| DEC-003 | Fixed | Roles v1: Admin, Sales, Curator, Finance, Client/Student; custom/Leadership bundle только отдельным change | Руководство + function owners |
+| DEC-003 | Fixed | Roles v1: Admin, Sales, Curator, Finance, Client/Student; target machine role `student`, current root `client` only through explicit P3 mapping; custom/Leadership bundle только отдельным change | Руководство + function owners |
 | DEC-004 | Fixed | EVO Platform — manual operational finance source v1; future Excel/1C — отдельная integration | Finance Owner |
 | DEC-005 | Fixed | Portal активируется после account-specific contract event и Admin Curator assignment | Business + Finance Owners |
 | DEC-006 | Open | Exact amoCRM account/pipeline/status/custom-field/user mappings и assignment mapping | Sales Owner |
@@ -1240,7 +1280,7 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 
 После merge P0 команда последовательно поддерживает:
 
-1. Target Architecture ADR 0014, superseding companion-era target decisions.
+1. Target Architecture ADR 0014 и refining Supabase boundary ADR 0015.
 2. Data dictionary и ERD.
 3. Role/action/field/object-scope matrix.
 4. amoCRM field/status/user mapping.
@@ -1294,7 +1334,7 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 
 Расширенный index официальных RBAC, Webhooks/Vault/backup/Realtime,
 Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
-`docs/EVO_PLATFORM_LONG_RUN_PLAN.md` и ADR 0014.
+`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, ADR 0014 и ADR 0015.
 
 ### 31.2 Основные источники репозитория
 
@@ -1309,7 +1349,7 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 - `evo-lead-agent/functional-spec.md`;
 - `evo-lead-agent/technical-spec.md`;
 - `agent-lead2-inbox/docs/supabase-managed-store.md`;
-- `docs/adr/0003–0014`;
+- `docs/adr/0003–0015`;
 - `docs/design/evo-platform/COMPLETION_CHECKLIST.md`;
 - `docs/design/evo-platform/FINAL_FRONTEND_AUDIT_2026-07-24.md`;
 - `docs/design/evo-platform/DESIGN_REVIEW_CLOSURE_2026-07-25.md`;

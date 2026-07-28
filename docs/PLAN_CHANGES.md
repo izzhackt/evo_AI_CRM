@@ -3171,3 +3171,76 @@ Validation impact:
   for manager selection.
 - Prove one static summary row per case with no message-derived ordering and
   zero provider invocations from a stale post-handoff action.
+
+## 2026-07-28 - Decompose The Canonical Supabase Foundation
+
+Affected plan section: `/goal-evo-platform-long-run`, P2 unified Supabase
+foundation.
+
+Change type: architecture refinement, migration ownership, execution order and
+acceptance amendment.
+
+Reason:
+
+- The previous P2 paragraph combined repository migration reconciliation,
+  namespace creation, identity/RBAC, the complete operational model, real
+  Queues/Storage behavior and restore evidence in one block.
+- The repository currently has one contiguous legacy Inbox history,
+  migrations 001–039, under the companion path and no root
+  `supabase/config.toml`.
+- New Platform roles cannot safely inherit the legacy Inbox
+  `owner/admin/agent/viewer` model, and a legacy signup side effect must not
+  create Platform membership.
+- Local schema/RLS evidence cannot prove managed-project migration parity,
+  branching, PITR or production restore. Database restore evidence also cannot
+  stand in for Storage-object restore.
+- Existing public `avatars` and `flow-media` compatibility cannot be changed
+  silently while adding new private Platform document/media storage.
+
+Decision:
+
+- Add ADR 0015 as a refinement of ADR 0014. Root `supabase/` becomes the sole
+  repository migration authority in P2A.
+- Move 001–039 byte-for-byte, record checksums and add the pinned project-local
+  CLI/config/test harness in P2A. P2A creates no migration 040.
+- Keep `public` for legacy Inbox compatibility, create `platform` as the
+  explicitly granted/RLS-protected exposed schema, and keep
+  `platform_private` backend-only and outside the Data API.
+- Give browser roles no direct `platform_private` or `pgmq_public` access.
+- Do not implicitly map legacy roles to Platform
+  `admin/sales/curator/finance/student`, and do not create Platform membership
+  from the legacy signup trigger.
+- Use `student` as the target machine role for the user-facing Client/Student
+  class. The current root `client` identifier remains legacy and maps only
+  through the explicit P3 identity migration.
+- Execute P2 sequentially as P2A canonical history, P2B namespaces/grants and
+  verified legacy containment, P2C identity/RBAC/audit, P2D
+  cases/admissions/visa/tasks, P2E document metadata/finance/notifications,
+  P2F communications/provider/AI contracts, P2G real local Queues, P2H real
+  local Storage and P2I whole-foundation/restore evidence.
+- Treat merged migrations as immutable. Corrections use the next free forward
+  migration. Starting with the expected 040, changes remain additive: no
+  legacy table rename/drop, root-auth cutover, real-secret copy, legacy bucket
+  flip or production migration.
+
+Validation impact:
+
+- P2A must prove byte/checksum identity for 001–039, a clean local Supabase
+  reset/migration list and equivalent legacy schema/RLS inventory.
+- P2B must verify current Inbox consumers before containing the proven
+  browser-readable ciphertext/secret-bearing columns and backend-only secret
+  writes; it must not overclaim plaintext credential exposure.
+- P2C–P2F require cross-role, cross-organization and two-student negative
+  matrices appropriate to each domain slice.
+- P2G and P2H require real local Supabase Queues/PGMQ and Storage API behavior;
+  handcrafted mocks are insufficient.
+- P2I requires a separate isolated database restore and Storage-object
+  restore, plus clean reset, RLS/grant inventory and browser-secret scanning.
+- `real-provider-proof: not-required` remains truthful for the docs/schema
+  blocks. Managed migration-ledger parity, remote branching, plan/PITR and
+  managed restore remain blocked until region/plan, credentials and production
+  authority exist.
+- Rollback for this amendment is a docs-only revert. P2A is a reversible
+  repository path move before remote apply. From the first new migration
+  onward, rollback is a separately reviewed forward migration; restoring
+  public secret grants is not an automatic rollback.

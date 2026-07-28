@@ -1,10 +1,11 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-long-run` is active. P0 and P1A-P1C are merged
-through PR #78; GitHub `main` is green at
-`a41f7eec9e8d877e5a09362265d7e811e1f36d0f`. The active block is the
-docs-only P1D plan amendment. P1D runtime changes must not begin before this
-amendment is independently reviewed and merged.
+Status: `/goal-evo-platform-long-run` is active. P0 and P1A-P1D are merged
+through PR #80; GitHub `main` is green at
+`d3edcda6649cb7b90b789c57c658ec1fc4a20618`. The active block is the
+docs-only P2 Supabase-foundation decomposition amendment. P2A repository
+changes and every migration change must wait for this amendment to be
+independently reviewed and merged.
 Updated 2026-07-28 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
@@ -18,7 +19,7 @@ separate plan amendment first.
 ## Current Goal Slice
 
 Active slice: `/goal-evo-platform-long-run`, Block
-`EVO-P1D-ROOT-WHATSAPP-AUTH-2026-07-28`, plan amendment only.
+`EVO-P2-SUPABASE-DECOMPOSITION-2026-07-28`, plan amendment only.
 
 ### Goal
 
@@ -30,10 +31,10 @@ operational store, with physically isolated dev/staging/preview environments.
 EVO Inbox and useful EVO Lead Agent logic move into one backend and one private
 `evo-inbox` WAHA path. AI remains draft-only with human manual send.
 
-This amendment changes documentation only. It defines the temporary
-current-root `/whatsapp` object-scope contract and closes the local
-lead-owner-input path that could otherwise bypass it, without changing code,
-schema, providers or production state.
+This amendment changes documentation only. It fixes the canonical Supabase
+schema and migration boundary, decomposes P2 into sequential P2A–P2I gates and
+updates the owner-facing TZ/DOCX. It changes no code, SQL, Supabase project,
+provider or production state.
 
 ### Reconciled baseline
 
@@ -44,10 +45,12 @@ checkpoint is:
 - P1A no-Visa-role migration merged in PR #76.
 - P1B Admin-only Curator assignment/lifecycle merged in PR #77.
 - P1C current-app object scope merged in PR #78.
+- P1D current-root WhatsApp object-scope containment merged in PR #80.
 - Post-merge `main` CI is green at
-  `a41f7eec9e8d877e5a09362265d7e811e1f36d0f`; no implementation PR is open.
-- Root `/whatsapp` remains a coarse role-gated SQLite `wa_*` shadow surface.
-  Its object-scope hardening is P1D; unified communications remain P5.
+  `d3edcda6649cb7b90b789c57c658ec1fc4a20618`; no implementation PR is open.
+- Root `/whatsapp` remains a SQLite `wa_*` shadow surface with P1D
+  authorization containment. It is not the unified communications backend;
+  that remains P5.
 
 - At the P0 snapshot, GitHub `main` and the clean P0 worktree resolved to
   `a16cd3fb`; the exact `EVO platform CI` run for that SHA was green and there
@@ -76,9 +79,9 @@ remaining owner decisions and the independent-review/merge-controller protocol
 are defined in `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`.
 
 - P0: plan/TZ/DOCX/ADR and target architecture, docs-only.
-- P1: current-app role/RBAC/handoff correction. P1A-P1C are merged; P1D
-  hardens the temporary root WhatsApp surface after this amendment merges.
-- P2: unified Supabase foundation.
+- P1: current-app role/RBAC/handoff correction. P1A-P1D are merged.
+- P2: unified Supabase foundation, executed sequentially as P2A–P2I after this
+  docs-only amendment merges.
 - P3: root auth and operational SQLite migration path.
 - P4: canonical amoCRM adapter.
 - P5: unified Inbox/WAHA/Lead Agent capability absorption.
@@ -93,13 +96,13 @@ the independent merge-controller may merge only an approved exact head. No
 production deployment, migration, DNS, WAHA session mutation, live customer
 send, real amoCRM mutation or service deletion is authorized by this plan.
 
-### P1D plan amendment: current-root WhatsApp object scope
+### Completed P1D contract: current-root WhatsApp object scope
 
 P1D applies only to the root CRM's current SQLite/custom-auth `/whatsapp`
 surface. It is authorization containment before P2-P5, not a substitute for the
 unified Supabase/Inbox/WAHA target.
 
-The implementation after this amendment merges must:
+The merged implementation:
 
 - scope list/detail/message reads in SQL to Admin, responsible Sales before
   handoff, assigned Curator after handoff, and a safe summary-only projection
@@ -128,6 +131,57 @@ not change the WAHA session/webhook, Lead Agent, EVO Inbox Supabase model,
 message transport, ACK/outbox/retry/reconciliation behavior, provider
 configuration or production state. Full details and the actor matrix are in
 `docs/platform/p1d-root-whatsapp-scope.md`.
+
+### P2 plan amendment: canonical Supabase foundation
+
+ADR 0014 remains the unified target decision. ADR 0015 refines its Supabase
+implementation boundary:
+
+- root `supabase/` becomes the sole migration authority in P2A;
+- legacy migrations 001–039 move byte-for-byte with a checksum manifest and no
+  migration 040 in P2A;
+- `public` remains the legacy Inbox compatibility schema;
+- `platform` is the new exposed schema with explicit grants and RLS on every
+  table;
+- `platform_private` is backend-only and absent from the Data API;
+- browser roles have no `platform_private` or `pgmq_public` access;
+- legacy Inbox `owner/admin/agent/viewer` roles never map implicitly to
+  Platform `admin/sales/curator/finance/student`;
+- target machine role `student` is displayed as Client/Student; the current
+  root `client` identifier maps only through the explicit P3 identity migration;
+- the legacy signup trigger may keep legacy Inbox behavior but grants no
+  Platform membership.
+
+P2 has the following strict dependency order:
+
+1. P2A establishes the canonical root config/history/test harness without a
+   new migration.
+2. P2B begins at the next free migration number, expected 040, and establishes
+   schemas/grants plus verified legacy secret-bearing-column containment while
+   preserving current Inbox compatibility.
+3. P2C adds Platform identity, RBAC and base audit.
+4. P2D adds cases, assignments/handoff, applications, visa and tasks.
+5. P2E adds document metadata, finance and durable notification state.
+6. P2F adds communications/provider mappings, raw events, approved knowledge
+   and draft-only AI records without a live-provider claim.
+7. P2G proves retryable work through real local Supabase Queues/PGMQ, including
+   idempotency, dead-letter and reconciliation.
+8. P2H proves new private Platform buckets/policies through the real local
+   Supabase Storage API.
+9. P2I runs the whole-foundation reset/RLS/grant/secret suite and proves an
+   isolated database restore plus a separate Storage-object restore.
+
+Merged migrations are immutable; defects use the next free forward migration.
+P2 is additive and does not rename/drop legacy tables, cut root auth over,
+copy real secrets, silently privatize legacy `avatars`/`flow-media`, or apply a
+production migration. A handcrafted queue or Storage mock is not service
+proof. Local service evidence does not prove remote migration-ledger parity,
+managed branching, production configuration, paid-plan PITR or managed
+restore; those remain blocked by region/plan, credentials and production
+authority.
+
+Detailed ownership, negative matrices, rollback and provider boundaries are in
+`docs/platform/p2-supabase-foundation.md`.
 
 ### Historical pre-platform blocks
 
@@ -260,7 +314,10 @@ owner, CSP enforcement, RPO/RTO, provider acceptance inputs/approval, and the
 deferred real Supabase database-plus-Storage backup and isolated restore
 rehearsal. None may be inferred or marked complete from automated tests.
 
-### Write boundaries and merge order
+### Historical write boundaries and merge order
+
+The ownership list below applied to the pre-platform A–G hardening program. It
+does not authorize current P2 work; P2A–P2I and the long-run contract control.
 
 - Plan-only PR: `docs/EVO_LAUNCH_PLAN.md` and append-only
   `docs/PLAN_CHANGES.md`.

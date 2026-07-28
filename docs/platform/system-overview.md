@@ -4,6 +4,7 @@
 - Status: Target approved; current production remains split until controlled cutover
 - Last verified against repository: 2026-07-28
 - Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
+- Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 
 ## Главное простыми словами
@@ -83,7 +84,21 @@ Supabase. Это не означает одну физическую базу д
 - staging persistent и изолирован;
 - preview branches создаются там, где это поддерживается;
 - production data по умолчанию не копируется в preview;
-- schema/config идут как код через `supabase/config.toml` и migrations.
+- schema/config идут как код через root `supabase/config.toml` и одну
+  immutable migration history.
+
+P2 вводит явную границу:
+
+| Schema | Назначение | Browser/Data API |
+| --- | --- | --- |
+| `public` | legacy Inbox 001–039 до P3/P5 cutover | временная совместимость, только с RLS |
+| `platform` | новая EVO operational model | exposed с explicit grants и RLS на каждой table |
+| `platform_private` | backend-only helpers/secret references | не exposed; browser access отсутствует |
+
+P2A переносит 001–039 byte-for-byte в root `supabase/` и не создаёт 040.
+P2B начинает следующую migration только после checksum/reset proof. Legacy
+`owner/admin/agent/viewer` не получают автоматического соответствия Platform
+ролям, а legacy signup не создаёт Platform membership.
 
 Каждая exposed table должна иметь RLS. Browser использует только publishable
 key. Secret/service-role ключи и provider secrets остаются только на backend.
@@ -108,7 +123,10 @@ consumer-ами. Database Webhooks допустимы для асинхронн�
 - `sales`;
 - `curator`;
 - `finance`;
-- `client/student`.
+- `student` (user-facing label: Client/Student).
+
+The current root `client` role is a legacy identifier. It remains unchanged
+until P3 and receives no implicit Platform membership or role mapping.
 
 Отдельной роли `visa` нет, хотя module `/visa` остаётся. Только Admin приглашает
 или блокирует staff и назначает или переназначает Curator. Reassignment требует
@@ -144,18 +162,24 @@ EVO может обещать только исполнение собствен
 
 ## Что должно произойти до cutover
 
-1. Миграции и RLS проходят clean reset и отрицательные cross-role,
+1. P2A–P2I последовательно доказывают canonical 001–039 history,
+   namespace/grant containment, identity/RBAC, domain slices, real local
+   Queues, real local Storage и whole-foundation evidence.
+2. Миграции и RLS проходят clean reset и отрицательные cross-role,
    cross-student и cross-organization тесты.
-2. SQLite inventory, backup, deterministic mapping, dry-run и staging import
+3. Database restore и Storage-object restore доказываются отдельно.
+4. Local Supabase proof не выдаётся за managed project parity, PITR или
+   production readiness; эти пункты ждут region/plan, credentials и отдельного
+   разрешения.
+5. SQLite inventory, backup, deterministic mapping, dry-run и staging import
    дают проверяемые counts, orphans и checksums.
-3. amoCRM adapter обнаруживает и версионирует account-specific mappings; IDs не
+6. amoCRM adapter обнаруживает и версионирует account-specific mappings; IDs не
    hardcode-ятся как глобальные.
-4. На выделенном тестовом номере и sanitized test lead проходит реальный путь:
+7. На выделенном тестовом номере и sanitized test lead проходит реальный путь:
    WhatsApp receive → amo resolve/link → Platform → AI draft → operator manual
    send → delivery/read/unknown → audit.
-5. Выполняются backup/restore и rollback rehearsal.
-6. Production mutation получает отдельное явное разрешение и release window.
-7. Старый Lead Agent удаляется только отдельным reviewed PR после минимум 72
+8. Production mutation получает отдельное явное разрешение и release window.
+9. Старый Lead Agent удаляется только отдельным reviewed PR после минимум 72
    фактических часов стабильного трафика, reconciliation и zero unexplained
    loss/duplicates.
 

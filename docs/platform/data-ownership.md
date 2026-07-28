@@ -4,6 +4,7 @@
 - Status: Target contract; current split storage remains until controlled cutover
 - Last verified against repository: 2026-07-28
 - Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
+- Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 
 ## Зачем фиксировать владельца
 
@@ -56,8 +57,10 @@ sanitized test lead. Глобальные hardcoded stage IDs запрещены
 
 ## Platform roles и object scope
 
-В release v1 есть `admin`, `sales`, `curator`, `finance` и
-`client/student`. Отдельной роли `visa` нет; `/visa` является module.
+В release v1 есть `admin`, `sales`, `curator`, `finance` и `student`;
+Client/Student — user-facing label последней роли. Текущий root identifier
+`client` остаётся legacy до explicit P3 mapping и не создаёт Platform
+membership автоматически. Отдельной роли `visa` нет; `/visa` является module.
 
 | Роль | Разрешённый scope |
 |---|---|
@@ -65,7 +68,7 @@ sanitized test lead. Глобальные hardcoded stage IDs запрещены
 | Sales | conversation и sales queue до contract; после handoff только разрешённый несекретный summary |
 | Curator | только назначенные student cases, applications, documents, visa, tasks и communication |
 | Finance | financial operations и evidence в разрешённом organization scope; без Curator reassignment |
-| Client/student | только собственный portal object scope и безопасные представления |
+| Student (Client/Student UI) | только собственный portal object scope и безопасные представления |
 
 Curator/Admin могут close или reopen student case только с обязательной причиной
 и audit. Admin — permission bundle для личных аккаунтов уполномоченных
@@ -91,6 +94,18 @@ Browser получает publishable key и безопасную session инф�
 secret/service-role, WAHA, amoCRM и AI provider secrets в browser bundle,
 client logs или committed files запрещены.
 
+Schema ownership во время P2:
+
+- `public` — legacy Inbox compatibility для 001–039;
+- `platform` — exposed Platform schema с explicit grants и RLS на каждой
+  table;
+- `platform_private` — backend-only, вне Data API и без browser grants;
+- `auth`, `storage`, `vault`, `pgmq`/`pgmq_public` — provider-owned.
+
+Browser также не получает direct access к `pgmq_public`. Legacy
+`owner/admin/agent/viewer` не маппятся автоматически на Platform роли, а
+legacy signup не создаёт Platform organization membership.
+
 ## Среды и migrations
 
 Есть одна логическая Platform data model и один dedicated production Supabase
@@ -101,10 +116,16 @@ project, но среды физически разделены:
 - preview branches, где поддерживаются;
 - production.
 
-Production data по умолчанию не копируется в preview. Источник схемы —
-versioned migrations и `supabase/config.toml`; clean reset, diff/pull discipline
-и parity checks обязательны. Нельзя делать irreversible production migration
-без expand/contract, backup и rollback proof.
+Production data по умолчанию не копируется в preview. P2A делает root
+`supabase/` единственным источником schema/config, переносит 001–039
+byte-for-byte, фиксирует checksums и не создаёт 040. P2B начинает со следующего
+проверенного свободного номера. Merged migrations immutable; исправление —
+новая forward migration. Clean reset, diff/pull discipline и parity checks
+обязательны.
+
+Local reset/migration list не доказывает managed project ledger, branch
+configuration или production parity. Нельзя делать irreversible production
+migration без expand/contract, backup, rollback proof и отдельного разрешения.
 
 ## Documents и Storage
 
@@ -119,6 +140,10 @@ objects, поэтому для них нужен отдельный backup и is
 Retention и legal deletion period остаются открытым решением; необратимый
 auto-delete запрещён.
 
+P2H создаёт новые private Platform buckets через реальный local Storage API.
+P2B не меняет молча legacy public `avatars`/`flow-media`; их compatibility и
+future cutover проверяются отдельно. `chat-media` уже private после legacy 039.
+
 ## Messaging, queues и audit
 
 WAHA webhook owner сохраняет raw event до обработки, проверяет HMAC/timestamp и
@@ -130,6 +155,10 @@ dedupe-ит:
 Durable work идёт через Supabase Queues. Consumer-ы идемпотентны; исчерпанные
 ошибки переходят в dead-letter и reconciliation. Database Webhooks допустимы
 для асинхронного push, но не являются durable business queue.
+
+P2G проверяет реальный local Supabase Queues/PGMQ contract: `read()` с
+visibility timeout, concurrency, retry budget и dedupe. Handcrafted mock и
+at-most-once `pop()` не являются доказательством durable retryable work.
 
 `message.any` связывает собственные API-send события, а `message.ack` хранится
 как progression `ERROR`, `PENDING`, `SERVER`, `DEVICE`, `READ`, `PLAYED`.
@@ -146,6 +175,10 @@ PII сверх разрешённого scope или полный customer messa
 Lead Agent остаются текущими runtime sources в своих старых путях. Target
 ownership не даёт права выполнять production migration, dual-write или
 отключать старый webhook.
+
+P2 добавляет новые schemas/tables без rename/drop legacy objects, root-auth
+cutover, real-secret copy или legacy bucket flip. Root auth/SQLite migration
+остаётся P3, а Inbox/Lead Agent/WAHA cutover — P5.
 
 Переход требует read-only inventory и backup, deterministic UUID mapping,
 dry-run counts/orphans/checksums, staging import, временное dual-read сравнение,

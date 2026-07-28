@@ -2,8 +2,10 @@
 
 - Owner: технический ответственный EVO Admissions
 - Snapshot date: 2026-07-28
-- Repository baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
+- Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
+- Current execution checkpoint: `d3edcda6649cb7b90b789c57c658ec1fc4a20618`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
+- Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Evidence rule: code/configuration is not real-provider proof
 
 ## Короткий вывод
@@ -18,7 +20,8 @@ WhatsApp → amoCRM → Platform → AI draft → manual send → ACK → audit 
 
 | Область | Подтверждённый факт | Граница утверждения |
 |---|---|---|
-| Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables | не Supabase target |
+| P0/P1 repository work | P0 и P1A–P1D merged в PR #75–#80; exact-main CI зелёный на current checkpoint | это не Supabase/provider/cutover proof |
+| Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до cutover и 72-hour soak |
 | amoCRM | интеграционный код хранит external IDs и mapping paths | реальные account mappings и readiness требуют provider proof |
@@ -34,9 +37,15 @@ WhatsApp → amoCRM → Platform → AI draft → manual send → ACK → audit 
   sales stage;
 - один dedicated production Supabase project хранит собственные Platform data,
   а dev/staging/preview изолированы;
+- root `supabase/` становится единственным migration source; 001–039
+  переносятся byte-for-byte в P2A без новой 040;
+- `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
+  schema, `platform_private` — backend-only вне Data API;
+- legacy Inbox roles/signup не создают Platform business authority;
 - одна private production WAHA session `evo-inbox` и один webhook owner;
-- роли v1: Admin, Sales, Curator, Finance, Client/Student; отдельной Visa role
-  нет, module `/visa` остаётся;
+- роли v1: Admin, Sales, Curator, Finance и target machine role `student`
+  (user-facing Client/Student); текущий root `client` ждёт explicit P3 mapping;
+  отдельной Visa role нет, module `/visa` остаётся;
 - все exposed tables защищены RLS, private Storage — object policies и audited
   downloads;
 - AI только создаёт RU/EN draft, staff review/edit/manual-send обязателен;
@@ -44,18 +53,27 @@ WhatsApp → amoCRM → Platform → AI draft → manual send → ACK → audit 
 - legacy Lead Agent удаляется только после реального cutover и минимум 72
   фактических часов стабильного трафика.
 
-## Реальные доказательства, которых пока нет
+## Локальные P2 доказательства, которых пока нет
 
-- dedicated production Supabase project, clean migrations и полный RLS denial
+- byte/checksum-identical root history 001–039 и clean local migration reset;
+- explicit schema grants и полный five-role/cross-org/two-student RLS denial
   matrix;
-- isolated DB restore и отдельный Storage restore;
+- verified containment legacy secret-bearing projections без поломки Inbox;
+- real local Supabase Queues/PGMQ retry/dedupe behavior;
+- real local private Storage API/policy behavior;
+- isolated database restore и отдельный Storage-object restore;
+- proof, что ни один browser bundle не содержит service-role/provider secret.
+
+## Внешние и release доказательства, которых пока нет
+
+- linked managed Supabase project, remote migration-ledger parity, branch
+  isolation, production plan/PITR и managed restore;
 - read-only SQLite inventory, deterministic migration dry-run и staging import;
 - подтверждённые account-specific amoCRM pipeline/status/user/custom-field
   mappings;
 - sanitized test lead и dedicated test WhatsApp number/QR owner;
 - реальный signed WAHA webhook с raw-persist-before-process, amo resolve/link,
   draft, operator manual send и ACK/unknown reconciliation;
-- proof, что ни один browser bundle не содержит service-role/provider secret;
 - production-like capacity test и утверждённые SLO/RPO/RTO;
 - cutover/rollback rehearsal, release window и отдельная production
   authorization;
@@ -90,10 +108,12 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-После merge документационного P0 можно последовательно реализовывать
-fail-closed code slices. Каждый slice требует отдельный PR, независимый
-SHA-bound review и точные tests. Production cutover остаётся отдельным
-авторизованным событием.
+После merge текущего docs-only P2 amendment следующий gate — P2A: сделать root
+`supabase/` canonical, перенести 001–039 byte-identically, закрепить CLI/config,
+checksums и test harness без migration 040 и без remote/production mutation.
+Затем P2B–P2I идут строго последовательно. Каждый slice требует отдельный PR,
+независимый SHA-bound review и точные tests. Production cutover остаётся
+отдельным авторизованным событием.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой
 exact deployed revision, private network, provider readiness и full E2E.

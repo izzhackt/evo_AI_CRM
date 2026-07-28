@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getT } from "@/lib/i18n";
 import {
   listClientsForActor,
+  listStaff,
   type ClientRow,
 } from "@/lib/queries";
 import { STAGES } from "@/lib/db";
@@ -41,6 +42,11 @@ export default async function ClientsPage({
   const { t } = await getT();
   const { stage, q } = await searchParams;
   const clients = listClientsForActor(user, { stage, q });
+  const canCreateClient = user.role === "admin" || user.role === "sales";
+  const salesManagers =
+    user.role === "admin"
+      ? listStaff().filter((person) => person.role === "sales")
+      : [];
   const qs = (s?: string) => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
@@ -80,41 +86,54 @@ export default async function ClientsPage({
           </div>
           <button type="submit" className={cn(btnCls, "sm:w-auto")}>{t("search")}</button>
         </form>
-        <details id="add" className="group relative w-full scroll-mt-24 lg:w-auto">
-          <summary className={cn(btnCls, "w-full cursor-pointer list-none lg:w-auto")}>
-            <Icon name="plus" size={16} /> {t("addClient")}
-          </summary>
-          <form
-            action={createClientAction}
-            className="mt-3 grid w-full gap-2.5 rounded-card border border-border bg-surface p-4 shadow-evo-lg sm:grid-cols-2 lg:absolute lg:right-0 lg:z-20 lg:w-[420px]"
-          >
-            <label className={cn(labelCls, "mb-0")}>
-              {t("name")}
-              <input name="name" required placeholder={t("name")} className={cn(inputCls, "mt-1")} />
-            </label>
-            <label className={cn(labelCls, "mb-0")}>
-              {t("email")}
-              <input name="email" type="email" required placeholder={t("email")} className={cn(inputCls, "mt-1")} />
-            </label>
-            <label className={cn(labelCls, "mb-0")}>
-              {t("phone")}
-              <input name="phone" placeholder={t("phone")} className={cn(inputCls, "mt-1")} />
-            </label>
-            <label className={cn(labelCls, "mb-0")}>
-              {t("country")}
-              <input name="target_country" placeholder={t("country")} className={cn(inputCls, "mt-1")} />
-            </label>
-            <label className={cn(labelCls, "mb-0")}>
-              {t("degree")}
-              <input name="target_degree" placeholder={t("degree")} className={cn(inputCls, "mt-1")} />
-            </label>
-            <label className={cn(labelCls, "mb-0")}>
-              {t("source")}
-              <input name="source" placeholder={t("source")} className={cn(inputCls, "mt-1")} />
-            </label>
-            <button type="submit" className={cn(btnCls, "w-full sm:col-span-2")}>{t("add")}</button>
-          </form>
-        </details>
+        {canCreateClient && (
+          <details id="add" className="group relative w-full scroll-mt-24 lg:w-auto">
+            <summary className={cn(btnCls, "w-full cursor-pointer list-none lg:w-auto")}>
+              <Icon name="plus" size={16} /> {t("addClient")}
+            </summary>
+            <form
+              action={createClientAction}
+              className="mt-3 grid w-full gap-2.5 rounded-card border border-border bg-surface p-4 shadow-evo-lg sm:grid-cols-2 lg:absolute lg:right-0 lg:z-20 lg:w-[420px]"
+            >
+              <label className={cn(labelCls, "mb-0")}>
+                {t("name")}
+                <input name="name" required placeholder={t("name")} className={cn(inputCls, "mt-1")} />
+              </label>
+              <label className={cn(labelCls, "mb-0")}>
+                {t("email")}
+                <input name="email" type="email" required placeholder={t("email")} className={cn(inputCls, "mt-1")} />
+              </label>
+              <label className={cn(labelCls, "mb-0")}>
+                {t("phone")}
+                <input name="phone" placeholder={t("phone")} className={cn(inputCls, "mt-1")} />
+              </label>
+              <label className={cn(labelCls, "mb-0")}>
+                {t("country")}
+                <input name="target_country" placeholder={t("country")} className={cn(inputCls, "mt-1")} />
+              </label>
+              <label className={cn(labelCls, "mb-0")}>
+                {t("degree")}
+                <input name="target_degree" placeholder={t("degree")} className={cn(inputCls, "mt-1")} />
+              </label>
+              <label className={cn(labelCls, "mb-0")}>
+                {t("source")}
+                <input name="source" placeholder={t("source")} className={cn(inputCls, "mt-1")} />
+              </label>
+              {user.role === "admin" && (
+                <label className={cn(labelCls, "mb-0 sm:col-span-2")}>
+                  {t("manager")}
+                  <select name="manager_id" required defaultValue="" className={cn(inputCls, "mt-1")}>
+                    <option value="" disabled>{t("notAssigned")}</option>
+                    {salesManagers.map((manager) => (
+                      <option key={manager.id} value={manager.id}>{manager.name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <button type="submit" className={cn(btnCls, "w-full sm:col-span-2")}>{t("add")}</button>
+            </form>
+          </details>
+        )}
       </div>
 
       <nav aria-label={t("stage")} className="overflow-x-auto pb-1">

@@ -233,25 +233,53 @@ export async function setLocaleAction(form: FormData) {
 // ---------- clients ----------
 
 export async function createClientAction(form: FormData) {
-  await requireStaff();
+  const actor = await requireStaff();
+  if (actor.role !== "admin" && actor.role !== "sales") notFound();
   const name = str(form, "name");
   const email = str(form, "email").toLowerCase();
   const phone = str(form, "phone");
   if (!name || !email) return;
 
   const d = db();
-  if (d.prepare("SELECT id FROM users WHERE lower(email) = ?").get(email)) return;
+  const managerId = actor.role === "sales" ? actor.id : optNum(form, "manager_id");
+  if (!managerId) return;
 
-  const tempPassword = Math.random().toString(36).slice(2, 10);
-  const user = d
-    .prepare("INSERT INTO users (email, phone, password_hash, name, role) VALUES (?, ?, ?, ?, 'client')")
-    .run(email, phone || null, hashPassword(tempPassword), name);
-  const client = d
-    .prepare("INSERT INTO clients (user_id, stage, source, target_country, target_degree) VALUES (?, 'lead', ?, ?, ?)")
-    .run(user.lastInsertRowid, str(form, "source") || null, str(form, "target_country") || null, str(form, "target_degree") || null);
+  const createClient = d.transaction(() => {
+    const manager = d
+      .prepare("SELECT id FROM users WHERE id = ? AND role = 'sales'")
+      .get(managerId) as { id: number } | undefined;
+    if (!manager) notFound();
+    if (d.prepare("SELECT id FROM users WHERE lower(email) = ?").get(email)) return null;
 
-  revalidateStaffCrm(Number(client.lastInsertRowid));
-  redirect(`/clients/${client.lastInsertRowid}`);
+    const tempPassword = Math.random().toString(36).slice(2, 10);
+    const user = d
+      .prepare("INSERT INTO users (email, phone, password_hash, name, role) VALUES (?, ?, ?, ?, 'client')")
+      .run(email, phone || null, hashPassword(tempPassword), name);
+    const client = d
+      .prepare(`
+        INSERT INTO clients (
+          user_id,
+          stage,
+          manager_id,
+          source,
+          target_country,
+          target_degree
+        ) VALUES (?, 'lead', ?, ?, ?, ?)
+      `)
+      .run(
+        user.lastInsertRowid,
+        managerId,
+        str(form, "source") || null,
+        str(form, "target_country") || null,
+        str(form, "target_degree") || null,
+      );
+    return Number(client.lastInsertRowid);
+  });
+  const clientId = createClient();
+  if (!clientId) return;
+
+  revalidateStaffCrm(clientId);
+  redirect(`/clients/${clientId}`);
 }
 
 export async function updateClientAction(form: FormData) {

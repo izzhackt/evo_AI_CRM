@@ -265,17 +265,19 @@ return [
       assert(filtered.status === 200, `filtered clients status ${filtered.status}`);
       const name = unique("Scenario Student");
       const email = `${name.toLowerCase().replaceAll(" ", ".")}@example.com`;
-      await ctx.submit("/clients", ctx.cookie(admin), { names: ["name", "email", "phone", "target_country", "target_degree", "source"] }, {
+      await ctx.submit("/clients", ctx.cookie(admin), { names: ["name", "email", "phone", "target_country", "target_degree", "source", "manager_id"] }, {
         name,
         email,
         phone: "+996555101202",
         target_country: "Italy",
         target_degree: "Bachelor",
         source: "scenario-referral",
+        manager_id: ctx.user(sales).id,
       });
-      const created = scalar(ctx, "SELECT clients.id, clients.stage, users.role FROM clients JOIN users ON users.id = clients.user_id WHERE users.email = ?", [email]);
+      const created = scalar(ctx, "SELECT clients.id, clients.stage, clients.manager_id, users.role FROM clients JOIN users ON users.id = clients.user_id WHERE users.email = ?", [email]);
       assert(created, "client/user not created");
       assert(created.role === "client" && created.stage === "lead", "created student role/stage incorrect");
+      assert(created.manager_id === ctx.user(sales).id, "created student is not owned by Sales");
       return `created student client ${created.id} with linked ${created.role} user`;
     },
   },

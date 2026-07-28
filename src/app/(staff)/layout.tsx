@@ -156,6 +156,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
           <TopBar
             titles={titles}
             locale={locale}
+            role={role}
             addLabel={t("add")}
             themeLabel={t("toggleTheme")}
             notificationCount={notifications.length}

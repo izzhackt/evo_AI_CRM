@@ -11,6 +11,9 @@ const OTHER_SALES_EMAIL = "p1c.other.sales@example.test";
 const PENDING_APPLICATION = "P1C Pending Scope University";
 const FORGED_FINANCE_TASK = "P1C denied Finance clientless task";
 const FORGED_CLIENT_ASSIGNEE_TASK = "P1C denied client assignee task";
+const SALES_CREATED_CLIENT_EMAIL = "p1c.sales.created@example.test";
+const CURATOR_DENIED_CLIENT_EMAIL = "p1c.curator.denied@example.test";
+const FINANCE_DENIED_CLIENT_EMAIL = "p1c.finance.denied@example.test";
 
 function desktopOnly(testInfo: TestInfo) {
   test.skip(testInfo.project.name !== "desktop-chromium", "stateful object-scope coverage runs once");
@@ -52,6 +55,26 @@ function prepareObjectScopeFixtures() {
 function cleanupObjectScopeFixtures() {
   const database = openDatabase();
   try {
+    database.prepare(`
+      DELETE FROM clients
+      WHERE user_id IN (
+        SELECT id
+        FROM users
+        WHERE lower(email) IN (?, ?, ?)
+      )
+    `).run(
+      SALES_CREATED_CLIENT_EMAIL,
+      CURATOR_DENIED_CLIENT_EMAIL,
+      FINANCE_DENIED_CLIENT_EMAIL,
+    );
+    database.prepare(`
+      DELETE FROM users
+      WHERE lower(email) IN (?, ?, ?)
+    `).run(
+      SALES_CREATED_CLIENT_EMAIL,
+      CURATOR_DENIED_CLIENT_EMAIL,
+      FINANCE_DENIED_CLIENT_EMAIL,
+    );
     database
       .prepare("DELETE FROM tasks WHERE title IN (?, ?)")
       .run(FORGED_FINANCE_TASK, FORGED_CLIENT_ASSIGNEE_TASK);
@@ -323,6 +346,119 @@ test.describe("P1C staff object scope", () => {
           .get(personalTask!.id),
       ).toBe(personalTask!.status);
       rejectedTaskVerification.close();
+    } finally {
+      cleanupObjectScopeFixtures();
+    }
+  });
+
+  test("Sales creates an owned pending case and can read the result", async ({
+    context,
+    page,
+  }, testInfo) => {
+    desktopOnly(testInfo);
+    await login(context, page, "sales@demo.kg", "sales123", /\/sales$/);
+    cleanupObjectScopeFixtures();
+
+    try {
+      await page.goto("/clients");
+      await page.locator("details#add > summary").click();
+      const form = page.locator("details#add form");
+      await form.locator('input[name="name"]').fill("P1C Sales Created Student");
+      await form.locator('input[name="email"]').fill(SALES_CREATED_CLIENT_EMAIL);
+
+      const [response] = await Promise.all([
+        page.waitForResponse((candidate) => candidate.request().method() === "POST"),
+        page.waitForURL(/\/clients\/\d+$/),
+        form.getByRole("button", { name: "Добавить" }).click(),
+      ]);
+      expect(response.status()).toBe(303);
+
+      const verification = openDatabase();
+      const created = verification.prepare(`
+        SELECT
+          c.id,
+          c.manager_id,
+          c.curator_id,
+          c.case_state,
+          manager.id AS expected_manager_id
+        FROM clients c
+        JOIN users student ON student.id = c.user_id
+        JOIN users manager ON lower(manager.email) = 'sales@demo.kg'
+        WHERE lower(student.email) = ?
+      `).get(SALES_CREATED_CLIENT_EMAIL) as {
+        id: number;
+        manager_id: number | null;
+        curator_id: number | null;
+        case_state: string;
+        expected_manager_id: number;
+      } | undefined;
+      verification.close();
+
+      expect(created).toBeTruthy();
+      expect(created?.manager_id).toBe(created?.expected_manager_id);
+      expect(created?.curator_id).toBeNull();
+      expect(created?.case_state).toBe("pending");
+      expect(page.url()).toContain(`/clients/${created?.id}`);
+      await expect(page.getByText("P1C Sales Created Student", { exact: true }).first()).toBeVisible();
+    } finally {
+      cleanupObjectScopeFixtures();
+    }
+  });
+
+  test("Curator and Finance cannot replay student-case creation", async ({
+    context,
+    page,
+  }, testInfo) => {
+    desktopOnly(testInfo);
+    await login(context, page, "sales@demo.kg", "sales123", /\/sales$/);
+    cleanupObjectScopeFixtures();
+
+    const attempts = [
+      {
+        email: "curator@demo.kg",
+        password: "curator123",
+        target: /\/clients$/,
+        clientEmail: CURATOR_DENIED_CLIENT_EMAIL,
+      },
+      {
+        email: "finance@demo.kg",
+        password: "finance123",
+        target: /\/finance$/,
+        clientEmail: FINANCE_DENIED_CLIENT_EMAIL,
+      },
+    ] as const;
+
+    try {
+      for (const attempt of attempts) {
+        await login(context, page, "sales@demo.kg", "sales123", /\/sales$/);
+        await page.goto("/clients");
+        await page.locator("details#add > summary").click();
+        const form = page.locator("details#add form");
+        await form.locator('input[name="name"]').fill(`Denied ${attempt.email}`);
+        await form.locator('input[name="email"]').fill(attempt.clientEmail);
+
+        const attacker = await context.newPage();
+        await login(context, attacker, attempt.email, attempt.password, attempt.target);
+        const [response] = await Promise.all([
+          page.waitForResponse((candidate) => candidate.request().method() === "POST"),
+          form.getByRole("button", { name: "Добавить" }).click(),
+        ]);
+        expect(response.status()).toBe(404);
+        await attacker.close();
+
+        const verification = openDatabase();
+        expect(
+          verification
+            .prepare("SELECT COUNT(*) FROM users WHERE lower(email) = ?")
+            .pluck()
+            .get(attempt.clientEmail),
+        ).toBe(0);
+        verification.close();
+      }
+
+      await login(context, page, "curator@demo.kg", "curator123", /\/clients$/);
+      await expect(page.locator("details#add")).toHaveCount(0);
+      await expect(page.locator('a[href="/clients#add"]')).toHaveCount(0);
     } finally {
       cleanupObjectScopeFixtures();
     }

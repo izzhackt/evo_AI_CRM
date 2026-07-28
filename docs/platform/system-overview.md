@@ -2,7 +2,7 @@
 
 - Owner: технический ответственный EVO Admissions
 - Status: Target approved; current production remains split until controlled cutover
-- Last verified against repository: 2026-07-28
+- Last verified against repository: 2026-07-29
 - Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
@@ -118,10 +118,11 @@ activated Student используют отдельные fixed-column projectio
 amoCRM, managed Supabase или production Portal cutover.
 
 P2E начинается после migration 042 и добавляет migration 043 для document
-metadata, manual finance и notification intent. Это repository-candidate
-database/RLS contract: migration, exact API/grants, disposable PostgreSQL и
-real local Supabase boundary tests реализованы; independent review и
-exact-head CI ещё pending.
+metadata, manual finance и notification intent. PR #88 controller-merged этот
+database/RLS contract как
+`aac1cba851e89070a7eb54baab4eddf921e3447c`; post-merge exact-main CI
+[30402311903](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30402311903)
+зелёный.
 Документы на этом шаге — checklist, versions, validation/review и
 integrity/malware evidence state без binary Storage или scanner proof.
 Notification — одна durable запись для одного Student-получателя в in-app или
@@ -129,6 +130,33 @@ individual WhatsApp channel с Student-only consent/dedupe; staff consent
 fail-closed, а Queue или подтверждённая доставка здесь не заявляются.
 Подробная граница:
 [`p2e-documents-finance-notifications.md`](p2e-documents-finance-notifications.md).
+
+P2F candidate начинается с этого exact checkpoint и добавляет migration 044:
+unified conversations/messages, five-role handoff scope, отдельные внутренние,
+WAHA, Kommo и amoCRM identifiers, private raw-persist-before-process evidence,
+dedupe/reconciliation state, approved versioned knowledge и draft-only AI.
+Frozen artifact содержит 6,881 lines и 194,076 bytes; SHA-256
+`8d52b476981faed4a42a9c13ff2813a718bde6ad4aea1b315c4d61be9fd1ebc8`,
+exact inventory — 10 exposed + 2 private tables и 19 functions.
+Former Sales получает только fixed safe summary; Finance не получает transcript
+или raw provider data, Student видит только safe self history. RU/EN draft
+требует human review/edit/manual-send evidence; uncertain language идёт в
+manual selection/handoff, а Kyrgyz customer draft запрещён. Полный candidate
+contract:
+[`p2f-communications-contracts.md`](p2f-communications-contracts.md).
+
+Private provider row хранит provider/account/request references, WAHA session
+или provider conversation reference, event type/time, raw event variant,
+supplied verification result, private verification headers/evidence reference,
+raw payload и его SHA-256. WAHA `message.ack` сохраняет variant, включая
+unknown code; `message.any` требует `NULL`. Non-WAHA raw events не получают
+вымышленный semantic dedupe, а normalized reconciliation effect имеет отдельный
+canonical key. Browser получает только разрешённые normalized fields и
+projections. P2F не доказывает, что real HMAC/timestamp verification
+выполнилась. Такой migration/RLS row доказывает database state и authorization,
+но не реальный webhook, AI generation, WAHA/Kommo/amoCRM call, provider send
+или ACK. Queue/outbox/worker/retry/dead-letter behavior относится к P2G,
+private media/Storage/scanner — к P2H.
 
 Каждая exposed table должна иметь RLS. Browser использует только publishable
 key. Secret/service-role ключи и provider secrets остаются только на backend.
@@ -186,15 +214,22 @@ fixed self history, а Finance не видит sensitive document metadata.
 
 ## AI и отправка сообщений
 
-AI создаёт только draft на RU или EN по языку последнего customer message.
-Неуверенный язык требует ручного выбора или handoff. Кыргызский customer-draft
-contract и автоматическая отправка запрещены.
+AI contract создаёт только draft на RU или EN по языку последнего customer
+message. Неуверенный или иной язык требует ручного выбора или handoff.
+Кыргызский customer-draft contract и автоматическая отправка запрещены.
 
-Draft строится только на approved versioned knowledge. Сотрудник обязательно
-review/edit и нажимает manual send. Перед ответом backend вызывает
-`/api/sendSeen`, отправляет только при WAHA session `WORKING`, сохраняет
-operator, final text hash, provider IDs и ACK progression. Неизвестный результат
-send не повторяется автоматически.
+Draft строится только после explicit staff request, связан с exact source
+message и approved versioned knowledge citations. P2F сохраняет provider/model,
+prompt-policy version и immutable source context + SHA вместе с original
+generated text; human reviewed text и append-only transition evidence остаются
+отдельными. Manual authorization фиксирует operator, exact final text и его
+SHA-256. Сотрудник обязательно review/edit и нажимает manual send. Запись
+такого решения не означает, что сообщение отправлено.
+
+В будущем transport backend перед ответом вызывает `/api/sendSeen`, отправляет
+только при WAHA session `WORKING` и связывает trusted provider/ACK evidence.
+Этот Queue/provider path не входит в P2F и требует отдельного P2G и
+real-provider proof. Неизвестный результат send не повторяется автоматически.
 
 EVO может обещать только исполнение собственных услуг и обязательств. Platform
 не должна гарантировать admission, scholarship, visa или решение внешнего

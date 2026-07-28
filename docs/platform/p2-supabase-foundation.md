@@ -1,7 +1,7 @@
 # P2 canonical Supabase foundation
 
 - Status: implementation contract; no production application
-- Date: 2026-07-28
+- Date: 2026-07-29
 - Block family: P2A–P2I
 - Parent contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 - Architecture: ADR 0014, refined by ADR 0015
@@ -219,11 +219,15 @@ Exit:
 
 ### P2E — document metadata, finance and notifications
 
-The detailed repository-candidate contract is
+The detailed merged contract is
 `docs/platform/p2e-documents-finance-notifications.md`. Migration 043 follows
 the immutable 042 boundary and its exact API/grant inventory, disposable
 PostgreSQL matrix and real local Supabase boundary evidence are recorded there.
-Independent review and exact-head CI remain pending.
+PR #88 is controller-merged as
+`aac1cba851e89070a7eb54baab4eddf921e3447c`; post-merge exact-main CI
+[run 30402311903](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30402311903)
+is green. This closes the repository P2E gate, not binary Storage, Queue,
+provider or production proof.
 
 Owns:
 
@@ -251,19 +255,39 @@ Exit:
 - singular Student-recipient consent/dedupe, staff denial and replay behavior;
 - no mass/broadcast notification representation;
 - no claim that binary Storage/scanner works before P2H or that Queue/provider
-  delivery works before P2F/P2G.
+  delivery works before P2G and later real-provider evidence.
 
 ### P2F — communications, providers and AI data contracts
+
+The detailed repository-candidate contract is
+`docs/platform/p2f-communications-contracts.md`. P2F starts from the merged P2E
+checkpoint `aac1cba851e89070a7eb54baab4eddf921e3447c` and adds only the
+forward migration 044 communications/data boundary. The frozen candidate is
+`044_platform_communications_contracts.sql`: 6,881 lines, 194,076 bytes,
+SHA-256
+`8d52b476981faed4a42a9c13ff2813a718bde6ad4aea1b315c4d61be9fd1ebc8`.
+Its exact inventory is ten exposed and two private tables plus 19 `platform`
+functions; the detailed contract records their names and proof boundary. It
+neither changes migrations 001–043 nor exercises a provider.
 
 Owns:
 
 - unified conversations, participants and messages;
-- queue ownership and handoff-safe projections;
+- five-role queue ownership, handoff history and fixed safe projections;
 - separate internal UUID, WAHA session/message IDs, Kommo
   conversation/message IDs and amoCRM lead/contact IDs;
-- raw webhook event records and provider reconciliation state;
-- approved versioned knowledge and RU/EN draft records;
-- human review/edit/manual-send audit fields.
+- private raw webhook payload/evidence persisted before normalized processing,
+  WAHA request/semantic-event deduplication and canonical reconciliation-effect
+  deduplication without invented non-WAHA semantic keys;
+- approved versioned knowledge and immutable RU/EN draft evidence;
+- uncertain-language manual selection/handoff plus human
+  review/edit/manual-send evidence.
+
+Raw provider payload is backend-only and is not a transcript or browser
+projection. P2F can represent normalized message/ACK/reconciliation state, but
+that state is not proof that WAHA, Kommo, amoCRM or an AI provider was called.
+An operator-approved manual-send record is not proof that a message was
+enqueued, sent or delivered.
 
 Exit:
 
@@ -271,7 +295,10 @@ Exit:
 - former Sales summary cannot reveal transcript or provider identifiers;
 - raw/provider event writes and protected audit fields are server-only;
 - uncertain-language draft state requires manual selection/handoff;
-- no auto-reply, unattended outbound, live-provider or delivery claim.
+- no Kyrgyz customer draft, auto-reply, unattended outbound, broadcast or
+  unknown-result automatic retry;
+- no Queue/worker/outbox proof before P2G, no private Storage proof before P2H
+  and no live-provider, managed-Supabase or production claim.
 
 ### P2G — durable work and reconciliation
 

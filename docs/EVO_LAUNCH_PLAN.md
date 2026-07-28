@@ -1,11 +1,12 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-long-run` is active. P0 and P1A-P1D are merged
-through PR #80; GitHub `main` is green at
-`d3edcda6649cb7b90b789c57c658ec1fc4a20618`. The active block is the
-docs-only P2 Supabase-foundation decomposition amendment. P2A repository
-changes and every migration change must wait for this amendment to be
-independently reviewed and merged.
+Status: `/goal-evo-platform-long-run` is active. P0, P1A-P1D, the P2
+Supabase-foundation decomposition and P2A canonical migration authority are
+merged through PR #82; GitHub `main` is green at
+`8ad755b5039390f418dbe12924a806f069f93b53`. The active block is this
+docs-only P2 checkpoint-freshness amendment until it is merged. At that merge
+commit, P2B becomes the active implementation block under its already-approved
+contract and must be rebased, revalidated and independently reviewed.
 Updated 2026-07-28 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
@@ -18,8 +19,9 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active slice: `/goal-evo-platform-long-run`, Block
-`EVO-P2-SUPABASE-DECOMPOSITION-2026-07-28`, plan amendment only.
+Pre-merge slice: `/goal-evo-platform-long-run`, Block
+`EVO-P2-CHECKPOINT-FRESHNESS-2026-07-28`, plan amendment only. Post-merge
+slice: P2B namespace/grant and verified legacy secret-path containment.
 
 ### Goal
 
@@ -31,10 +33,12 @@ operational store, with physically isolated dev/staging/preview environments.
 EVO Inbox and useful EVO Lead Agent logic move into one backend and one private
 `evo-inbox` WAHA path. AI remains draft-only with human manual send.
 
-This amendment changes documentation only. It fixes the canonical Supabase
-schema and migration boundary, decomposes P2 into sequential P2A–P2I gates and
-updates the owner-facing TZ/DOCX. It changes no code, SQL, Supabase project,
-provider or production state.
+This amendment changes documentation only. It records that the P2
+decomposition and P2A authority blocks have passed their independent
+launch-control gates, supersedes the stale pre-P2A checkpoint and makes P2B
+the next pending implementation block. It changes no architecture, scope,
+acceptance criterion, code, SQL, Supabase project, provider or production
+state.
 
 ### Reconciled baseline
 
@@ -46,8 +50,13 @@ checkpoint is:
 - P1B Admin-only Curator assignment/lifecycle merged in PR #77.
 - P1C current-app object scope merged in PR #78.
 - P1D current-root WhatsApp object-scope containment merged in PR #80.
-- Post-merge `main` CI is green at
-  `d3edcda6649cb7b90b789c57c658ec1fc4a20618`; no implementation PR is open.
+- P2 Supabase-foundation decomposition merged in PR #81.
+- P2A canonical migration authority merged in PR #82.
+- Exact current `main` CI is green at
+  `8ad755b5039390f418dbe12924a806f069f93b53`. Before this amendment merges,
+  it is the only active PR. Its merge advances the checkpoint to P2B; the
+  preserved P2B work must then be rebased and returned as the only
+  implementation PR.
 - Root `/whatsapp` remains a SQLite `wa_*` shadow surface with P1D
   authorization containment. It is not the unified communications backend;
   that remains P5.
@@ -80,8 +89,8 @@ are defined in `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`.
 
 - P0: plan/TZ/DOCX/ADR and target architecture, docs-only.
 - P1: current-app role/RBAC/handoff correction. P1A-P1D are merged.
-- P2: unified Supabase foundation, executed sequentially as P2A–P2I after this
-  docs-only amendment merges.
+- P2: unified Supabase foundation. P2A is merged; P2B–P2I execute
+  sequentially after this docs-only amendment merges.
 - P3: root auth and operational SQLite migration path.
 - P4: canonical amoCRM adapter.
 - P5: unified Inbox/WAHA/Lead Agent capability absorption.

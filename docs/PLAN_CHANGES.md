@@ -3244,3 +3244,52 @@ Validation impact:
   repository path move before remote apply. From the first new migration
   onward, rollback is a separately reviewed forward migration; restoring
   public secret grants is not an automatic rollback.
+
+## 2026-07-28 - Advance The P2 Checkpoint After Canonical Authority
+
+Affected plan section: `/goal-evo-platform-long-run`, current execution
+checkpoint and P2 sequential merge gate.
+
+Change type: docs-only plan-freshness correction; no architecture, scope, API,
+schema, file-ownership or acceptance-criteria change.
+
+Reason:
+
+- The P2 decomposition amendment merged as PR #81 and P2A canonical migration
+  authority merged as PR #82.
+- Exact new `main` is
+  `8ad755b5039390f418dbe12924a806f069f93b53`, and its push CI is green.
+- The two active plan headers still described the already-merged P2
+  decomposition as active and P2A as blocked.
+- The independent merge-controller therefore rejected P2B PR #83 at plan
+  freshness before evaluating code correctness. Its branch and implementation
+  head remain preserved for rebase after this amendment.
+
+Decision:
+
+- Record P2 decomposition and P2A as completed launch-control gates.
+- Make this narrow checkpoint-freshness amendment the only active block until
+  it is independently reviewed and controller-merged.
+- Make the checkpoint self-advancing: at this amendment's merge commit, P2B
+  becomes the active block under the already-approved contract. No additional
+  docs-only PR is required solely to restate that transition.
+- Keep P2B as the next implementation block with the already-approved
+  contract: migration 040 owns `platform`/`platform_private` namespace and
+  grant containment plus verified legacy secret-path containment.
+- Preserve the sequential P2A-P2I order and all existing provider,
+  production-mutation, rollback, RLS, Storage, Queues and restore boundaries.
+- Do not treat the earlier P2B CI or review as reusable merge authority. After
+  this amendment merges, rebase P2B onto fresh `main`, rerun exact-head
+  validation and obtain a new SHA-bound independent review.
+
+Validation impact:
+
+- This amendment must remain limited to the current-checkpoint surfaces in the
+  two active plan files and this append-only entry.
+- Run documentation link/format checks, `git diff --check`, repository
+  secret/PII guardrails and exact-head GitHub CI.
+- Require a fresh independent launch-control review and controller-only merge
+  for this docs-only block.
+- P2B remains unmerged and makes no production, managed Supabase, provider,
+  WhatsApp, WAHA, amoCRM, DNS or customer-data mutation while the freshness
+  prerequisite is processed.

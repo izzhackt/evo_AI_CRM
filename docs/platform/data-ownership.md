@@ -196,10 +196,12 @@ transaction history и внутренних stop-factor полей.
 
 ## Messaging, queues и audit
 
-P2E notification intent всегда адресован одному membership и одному channel.
-Individual WhatsApp intent требует consent snapshot и dedupe; модель не имеет
-audience list, segment, broadcast или mass-send объекта. Это durable database
-intent, а не provider delivery. Phone/provider resolution относится к P2F, а
+P2E notification intent всегда адресован одному Student membership и одному
+channel. Только Student управляет своим individual WhatsApp consent; staff-роли
+не могут создавать неиспользуемые consent records. Individual WhatsApp intent
+требует consent snapshot и dedupe; модель не имеет audience list, segment,
+broadcast или mass-send объекта. Это durable database intent, а не provider
+delivery. Phone/provider resolution относится к P2F, а
 Queue/outbox/retry/dead-letter/reconciliation — к P2G.
 
 WAHA webhook owner сохраняет raw event до обработки, проверяет HMAC/timestamp и

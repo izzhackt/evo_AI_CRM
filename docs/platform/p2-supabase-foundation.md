@@ -236,8 +236,9 @@ Owns:
   payment/refund evidence and Finance/Admin-only confirmation;
 - computed overdue state plus reduced Sales/Curator/Student projections that
   expose no internal finance evidence and never infer state from amoCRM stage;
-- durable singular-recipient in-app state and individual WhatsApp intent with
-  consent/dedupe, but no Queue, provider or delivery claim;
+- durable singular Student-recipient in-app state and individual WhatsApp
+  intent with Student-only consent/dedupe, but no Queue, provider or delivery
+  claim;
 - immutable v3 role bundles that extend rather than mutate the v2 authority
   introduced by migration 042.
 
@@ -247,7 +248,7 @@ Exit:
 - fixed, non-sensitive Sales and Student document projections;
 - Finance/Admin-only confirmation and evidence requirement;
 - strict amount/refund arithmetic and Student-safe computed overdue projection;
-- singular-recipient consent/dedupe and replay behavior;
+- singular Student-recipient consent/dedupe, staff denial and replay behavior;
 - no mass/broadcast notification representation;
 - no claim that binary Storage/scanner works before P2H or that Queue/provider
   delivery works before P2F/P2G.

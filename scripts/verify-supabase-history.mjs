@@ -36,8 +36,8 @@ const immutablePlatformMigrations = Object.freeze([
   }),
   Object.freeze({
     name: requiredP2EMigration,
-    bytes: 175818,
-    sha256: "0aff95600e068481f5ef5b5acd052c380c5b3620fc2b03bb18bc9151b2e3c8d2",
+    bytes: 175788,
+    sha256: "561c1f07beff9e05a2c6a326060c3df831f16c2174b039b1b848b176901b0713",
   }),
 ]);
 const immutableMigrationCount =

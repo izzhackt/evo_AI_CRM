@@ -881,6 +881,7 @@ BEGIN
   expected(role_name, permission_key) AS (
     SELECT 'admin', permission_key
     FROM p2e_permission
+    WHERE permission_key <> 'notification.consent.self'
     UNION ALL
     SELECT *
     FROM (
@@ -889,21 +890,18 @@ BEGIN
         ('sales', 'finance.read.summary'),
         ('sales', 'notification.create'),
         ('sales', 'notification.read.self'),
-        ('sales', 'notification.consent.self'),
         ('curator', 'document.read.full'),
         ('curator', 'document.manage'),
         ('curator', 'document.review'),
         ('curator', 'finance.read.summary'),
         ('curator', 'notification.create'),
         ('curator', 'notification.read.self'),
-        ('curator', 'notification.consent.self'),
         ('finance', 'finance.read.full'),
         ('finance', 'finance.manage'),
         ('finance', 'finance.event.confirm'),
         ('finance', 'finance.stop.manage'),
         ('finance', 'notification.create'),
         ('finance', 'notification.read.self'),
-        ('finance', 'notification.consent.self'),
         ('student', 'document.read.self'),
         ('student', 'finance.read.self'),
         ('student', 'notification.read.self'),

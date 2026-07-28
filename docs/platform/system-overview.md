@@ -124,9 +124,10 @@ real local Supabase boundary tests реализованы; independent review и
 exact-head CI ещё pending.
 Документы на этом шаге — checklist, versions, validation/review и
 integrity/malware evidence state без binary Storage или scanner proof.
-Notification — одна durable запись для одного получателя в in-app или
-individual WhatsApp channel с consent/dedupe, а не Queue или подтверждённая
-доставка. Подробная граница:
+Notification — одна durable запись для одного Student-получателя в in-app или
+individual WhatsApp channel с Student-only consent/dedupe; staff consent
+fail-closed, а Queue или подтверждённая доставка здесь не заявляются.
+Подробная граница:
 [`p2e-documents-finance-notifications.md`](p2e-documents-finance-notifications.md).
 
 Каждая exposed table должна иметь RLS. Browser использует только publishable

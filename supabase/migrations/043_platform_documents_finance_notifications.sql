@@ -1661,15 +1661,17 @@ FROM platform.role_bundle_versions AS bundle
 CROSS JOIN platform.permission_definitions AS permission
 WHERE bundle.version = 3
   AND (
-    bundle.role = 'admin'
+    (
+      bundle.role = 'admin'
+      AND permission.permission_key <> 'notification.consent.self'
+    )
     OR (
       bundle.role = 'sales'
       AND permission.permission_key IN (
         'document.read.sales',
         'finance.read.summary',
         'notification.create',
-        'notification.read.self',
-        'notification.consent.self'
+        'notification.read.self'
       )
     )
     OR (
@@ -1680,8 +1682,7 @@ WHERE bundle.version = 3
         'document.review',
         'finance.read.summary',
         'notification.create',
-        'notification.read.self',
-        'notification.consent.self'
+        'notification.read.self'
       )
     )
     OR (
@@ -1692,8 +1693,7 @@ WHERE bundle.version = 3
         'finance.event.confirm',
         'finance.stop.manage',
         'notification.create',
-        'notification.read.self',
-        'notification.consent.self'
+        'notification.read.self'
       )
     )
     OR (

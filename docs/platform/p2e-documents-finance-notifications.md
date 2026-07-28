@@ -138,10 +138,12 @@ one deduplication key. P2E supports durable in-app state and an individual
 WhatsApp intent. The schema has no audience array, segment, topic, group,
 broadcast or “all users” representation.
 
-An individual WhatsApp intent requires a current consent record and an
-evidence-bearing consent snapshot. Revocation prevents new eligible WhatsApp
-intents. Deduplication is scoped at least by organization, recipient, channel
-and business event so the same request cannot create a second intent.
+An individual WhatsApp intent requires a current Student-recipient consent
+record and an evidence-bearing consent snapshot. Only the Student membership
+may manage this consent in P2E; staff roles cannot create unused parallel
+consent state. Revocation prevents new eligible WhatsApp intents.
+Deduplication is scoped at least by organization, recipient, channel and
+business event so the same request cannot create a second intent.
 
 The recipient may read only their own in-app notification projection and
 acknowledge its read state through a narrow mutation path. Creation is
@@ -205,7 +207,7 @@ document metadata/validation bridges and no direct table DML.
 
 | Evidence | Current status | Completion evidence to add |
 | --- | --- | --- |
-| Migration 043 filename and SHA-256 | Passed locally | `043_platform_documents_finance_notifications.sql`; 175,818 bytes; SHA-256 `0aff95600e068481f5ef5b5acd052c380c5b3620fc2b03bb18bc9151b2e3c8d2` |
+| Migration 043 filename and SHA-256 | Passed locally | `043_platform_documents_finance_notifications.sql`; 175,788 bytes; SHA-256 `561c1f07beff9e05a2c6a326060c3df831f16c2174b039b1b848b176901b0713` |
 | Immutable v3 bundle upgrade | Passed locally | Every P2D membership, including inactive/blocked, advances once; v1/v2 remain immutable; stale v2 claims fail |
 | Exact RPC signatures and grants | Passed locally | 18 public functions; fixed signature grants; authenticated/service direct table DML denied |
 | Disposable PostgreSQL 001–043 | Passed locally | Full harness exit 0; two-organization/two-student document, finance, notification, replay and inventory suites |
@@ -231,7 +233,8 @@ Auth/PostgREST matrix proves:
 - Finance/Admin-only confirmation, strict payment/refund arithmetic and
   evidence requirements;
 - computed overdue values and safe Sales/Curator/Student projections;
-- singular-recipient notification intent, consent and deduplication;
+- singular Student-recipient notification intent, Student-only consent and
+  deduplication;
 - no broadcast representation, direct browser DML or cross-tenant reference;
 - no change to migration 042 and no binary-upload, scanner, Queue or provider
   success claim.

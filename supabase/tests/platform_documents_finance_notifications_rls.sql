@@ -787,6 +787,70 @@ SELECT (
 \gset
 RESET ROLE;
 
+SET request.jwt.claims TO :'admin_a_claims';
+SET ROLE authenticated;
+\set ON_ERROR_STOP off
+SELECT platform.set_own_notification_consent(
+  :'org_a_id',
+  'granted',
+  'synthetic:notification-policy:v1',
+  'synthetic:notification-consent:admin-denied',
+  '43000000-0000-4000-8000-000000000320'
+);
+\set consent_admin_denied_state :SQLSTATE
+\set ON_ERROR_STOP on
+RESET ROLE;
+
+SET request.jwt.claims TO :'sales_a_claims';
+SET ROLE authenticated;
+\set ON_ERROR_STOP off
+SELECT platform.set_own_notification_consent(
+  :'org_a_id',
+  'granted',
+  'synthetic:notification-policy:v1',
+  'synthetic:notification-consent:sales-denied',
+  '43000000-0000-4000-8000-000000000321'
+);
+\set consent_sales_denied_state :SQLSTATE
+\set ON_ERROR_STOP on
+RESET ROLE;
+
+SET request.jwt.claims TO :'curator_a_claims';
+SET ROLE authenticated;
+\set ON_ERROR_STOP off
+SELECT platform.set_own_notification_consent(
+  :'org_a_id',
+  'granted',
+  'synthetic:notification-policy:v1',
+  'synthetic:notification-consent:curator-denied',
+  '43000000-0000-4000-8000-000000000322'
+);
+\set consent_curator_denied_state :SQLSTATE
+\set ON_ERROR_STOP on
+RESET ROLE;
+
+SET request.jwt.claims TO :'finance_a_claims';
+SET ROLE authenticated;
+\set ON_ERROR_STOP off
+SELECT platform.set_own_notification_consent(
+  :'org_a_id',
+  'granted',
+  'synthetic:notification-policy:v1',
+  'synthetic:notification-consent:finance-denied',
+  '43000000-0000-4000-8000-000000000323'
+);
+\set consent_finance_denied_state :SQLSTATE
+\set ON_ERROR_STOP on
+RESET ROLE;
+
+SELECT pg_temp.assert_true(
+  :'consent_admin_denied_state' <> '00000'
+    AND :'consent_sales_denied_state' <> '00000'
+    AND :'consent_curator_denied_state' <> '00000'
+    AND :'consent_finance_denied_state' <> '00000',
+  'only the Student recipient may manage individual WhatsApp consent'
+);
+
 SET request.jwt.claims TO :'curator_a_claims';
 SET ROLE authenticated;
 SELECT (
@@ -2118,6 +2182,14 @@ SELECT pg_temp.assert_true(
     FROM platform.notification_consent_events
     WHERE organization_id = :'org_a_id'
       AND membership_id = :'student_a_membership_id'
+  ) AND NOT EXISTS (
+    SELECT 1
+    FROM platform.notification_consents AS consent
+    JOIN platform.organization_memberships AS membership
+      ON membership.organization_id = consent.organization_id
+      AND membership.id = consent.membership_id
+    WHERE consent.organization_id = :'org_a_id'
+      AND membership."current_role" <> 'student'
   ) AND (
     SELECT count(*) = 1
     FROM platform.notifications

@@ -16,7 +16,11 @@ import {
 import { isActiveLeadStatus, LEAD_STAGE_DEFINITIONS } from "@/lib/db";
 import { requireStaffRoute } from "@/lib/guards";
 import { getT } from "@/lib/i18n";
-import { dashboardStats, listLeads, salesCockpitStats } from "@/lib/queries";
+import {
+  dashboardStatsForActor,
+  listLeads,
+  salesCockpitStats,
+} from "@/lib/queries";
 
 const FUNNEL_BAR: Record<string, string> = {
   processing_mp: "bg-info",
@@ -27,14 +31,31 @@ const FUNNEL_BAR: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  await requireStaffRoute("/dashboard");
+  const user = await requireStaffRoute("/dashboard");
   const { t, locale } = await getT();
   const num = (value: number) =>
     value.toLocaleString({ ru: "ru-RU", ky: "ky-KG", en: "en-US" }[locale]);
   const copy = getDashboardCopy(locale);
-  const stats = dashboardStats();
-  const cockpit = salesCockpitStats();
-  const leads = listLeads();
+  const actor = { id: user.id, role: user.role };
+  const stats = dashboardStatsForActor(actor);
+  const canReadLeadOperations = user.role === "admin" || user.role === "sales";
+  const cockpit = canReadLeadOperations
+    ? salesCockpitStats()
+    : {
+        dealsWithoutTasks: 0,
+        overdueLeadTasks: 0,
+        managerRows: [],
+        sourceRows: [],
+        channelActivity: {
+          incomingCalls: 0,
+          outgoingCalls: 0,
+          incomingMessages: 0,
+          outgoingMessages: 0,
+          unreadConversations: 0,
+          avgResponseMinutes: null,
+        },
+      };
+  const leads = canReadLeadOperations ? listLeads() : [];
 
   const pipelineAmount = leads
     .filter((lead) => !lead.client_id && isActiveLeadStatus(lead.status))

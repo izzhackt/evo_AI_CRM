@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { getT } from "@/lib/i18n";
-import { allVisaCases, listClients, type VisaQueueRow } from "@/lib/queries";
+import {
+  listClientsForActor,
+  listVisaCasesForActor,
+  type VisaQueueRow,
+} from "@/lib/queries";
 import { VISA_STATUSES } from "@/lib/db";
 import { upsertVisaCaseAction } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
@@ -50,14 +54,16 @@ export default async function VisaPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  await requireStaffRoute("/visa");
+  const user = await requireStaffRoute("/visa");
   const { t } = await getT();
   const { status } = await searchParams;
   const selectedStatus =
     status && (VISA_STATUSES as readonly string[]).includes(status) ? status : undefined;
-  const cases = allVisaCases({ status: selectedStatus });
-  const allRows = selectedStatus ? allVisaCases() : cases;
-  const clients = listClients();
+  const cases = listVisaCasesForActor(user, { status: selectedStatus });
+  const allRows = selectedStatus ? listVisaCasesForActor(user) : cases;
+  const clients = listClientsForActor(user).filter(
+    (client) => client.access_mode !== "sales_post_handoff_summary",
+  );
   const clientIdsWithCase = new Set(allRows.map((visaCase) => visaCase.client_id));
   const availableClients = clients.filter((client) => !clientIdsWithCase.has(client.id));
   const statusCount = (value: string) => allRows.filter((visaCase) => visaCase.status === value).length;

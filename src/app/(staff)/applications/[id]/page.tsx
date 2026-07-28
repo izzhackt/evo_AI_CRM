@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getT } from "@/lib/i18n";
-import { getApplication } from "@/lib/queries";
+import { getApplicationForActor } from "@/lib/queries";
 import { APP_STATUSES } from "@/lib/db";
 import { setApplicationStatusAction } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
@@ -19,10 +19,10 @@ export default async function ApplicationDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireStaffRoute("/applications");
+  const user = await requireStaffRoute("/applications");
   const { t } = await getT();
   const { id } = await params;
-  const application = getApplication(Number(id));
+  const application = getApplicationForActor(user, Number(id));
   if (!application) notFound();
 
   const today = new Date().toISOString().slice(0, 10);

@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import {
@@ -19,7 +19,14 @@ import {
 } from "./db";
 import { getDefaultWhatsAppAccount, sendWhatsApp, upsertWahaAccount } from "./whatsapp";
 import { createAmoCrmAdapter, getAmoCrmLocalStatus, normalizeAmoCrmAccountBaseUrl } from "./amocrm";
-import { setSession, clearSession, currentUser, isStaff } from "./auth";
+import { setSession, clearSession, currentUser, isStaff, type SessionUser } from "./auth";
+import {
+  canClientCapability,
+  canMutateClientlessTask,
+  resolveClientAccess,
+  type ClientAccessSubject,
+  type ClientCapability,
+} from "./access";
 import { ROLE_HOME_ROUTE, isRole } from "./domain";
 import { LOCALES, type Locale } from "./i18n-data";
 import { normalizePhone } from "./phone";
@@ -98,6 +105,55 @@ async function requireVisaOperationsStaff() {
     redirect(ROLE_HOME_ROUTE[user.role]);
   }
   return user;
+}
+
+function assertClientCapability(
+  actor: SessionUser,
+  clientId: number,
+  capability: ClientCapability,
+): ClientAccessSubject {
+  const row = db()
+    .prepare(`
+      SELECT id, manager_id, curator_id, case_state, handoff_at
+      FROM clients
+      WHERE id = ?
+    `)
+    .get(clientId) as
+      | {
+          id: number;
+          manager_id: number | null;
+          curator_id: number | null;
+          case_state: string;
+          handoff_at: string | null;
+        }
+      | undefined;
+
+  if (!row || !isStudentCaseState(row.case_state)) {
+    notFound();
+  }
+
+  const subject: ClientAccessSubject = {
+    ...row,
+    case_state: row.case_state,
+  };
+  if (!canClientCapability(resolveClientAccess(actor, subject), capability)) {
+    notFound();
+  }
+  return subject;
+}
+
+function assertTaskMutationCapability(
+  actor: SessionUser,
+  task: {
+    client_id: number | null;
+    assignee_id: number | null;
+  },
+) {
+  if (task.client_id) {
+    assertClientCapability(actor, task.client_id, "write_tasks");
+    return;
+  }
+  if (!canMutateClientlessTask(actor, task.assignee_id)) notFound();
 }
 
 function revalidateStaffCrm(clientId?: number | null) {
@@ -191,11 +247,12 @@ export async function createClientAction(form: FormData) {
 }
 
 export async function updateClientAction(form: FormData) {
-  await requireStaff();
+  const actor = await requireStaff();
   const id = optNum(form, "client_id");
   const stage = str(form, "stage");
   if (!id) return;
   if (stage === "archived" || !(STAGES as readonly string[]).includes(stage)) return;
+  assertClientCapability(actor, id, "write_profile");
   db()
     .prepare("UPDATE clients SET stage = ?, target_country = ?, target_degree = ?, notes = ? WHERE id = ?")
     .run(
@@ -372,10 +429,11 @@ export async function reopenStudentCaseAction(form: FormData) {
 // ---------- applications ----------
 
 export async function addApplicationAction(form: FormData) {
-  await requireAdmissionsStaff();
+  const actor = await requireAdmissionsStaff();
   const clientId = optNum(form, "client_id");
   const university = str(form, "university");
   if (!clientId || !university) return;
+  assertClientCapability(actor, clientId, "write_applications");
   db()
     .prepare("INSERT INTO applications (client_id, university, country, program, degree, deadline) VALUES (?, ?, ?, ?, ?, ?)")
     .run(clientId, university, str(form, "country") || null, str(form, "program") || null, str(form, "degree") || null, str(form, "deadline") || null);
@@ -383,13 +441,14 @@ export async function addApplicationAction(form: FormData) {
 }
 
 export async function setApplicationStatusAction(form: FormData) {
-  await requireAdmissionsStaff();
+  const actor = await requireAdmissionsStaff();
   const id = optNum(form, "id");
   const status = str(form, "status");
   if (!id || !(APP_STATUSES as readonly string[]).includes(status)) return;
   const d = db();
   const row = d.prepare("SELECT client_id FROM applications WHERE id = ?").get(id) as { client_id: number } | undefined;
-  if (!row) return;
+  if (!row) notFound();
+  assertClientCapability(actor, row.client_id, "write_applications");
   d
     .prepare("UPDATE applications SET status = ?, updated_at = datetime('now') WHERE id = ?")
     .run(status, id);
@@ -400,22 +459,24 @@ export async function setApplicationStatusAction(form: FormData) {
 // ---------- documents ----------
 
 export async function addDocumentAction(form: FormData) {
-  await requireAdmissionsStaff();
+  const actor = await requireAdmissionsStaff();
   const clientId = optNum(form, "client_id");
   const name = str(form, "name");
   if (!clientId || !name) return;
+  assertClientCapability(actor, clientId, "write_documents");
   db().prepare("INSERT INTO documents (client_id, name) VALUES (?, ?)").run(clientId, name);
   revalidateStaffCrm(clientId);
 }
 
 export async function setDocumentStatusAction(form: FormData) {
-  await requireAdmissionsStaff();
+  const actor = await requireAdmissionsStaff();
   const id = optNum(form, "id");
   const status = str(form, "status");
   if (!id || !(DOC_STATUSES as readonly string[]).includes(status)) return;
   const d = db();
   const row = d.prepare("SELECT client_id FROM documents WHERE id = ?").get(id) as { client_id: number } | undefined;
-  if (!row) return;
+  if (!row) notFound();
+  assertClientCapability(actor, row.client_id, "write_documents");
   d
     .prepare("UPDATE documents SET status = ?, updated_at = datetime('now') WHERE id = ?")
     .run(status, id);
@@ -426,11 +487,12 @@ export async function setDocumentStatusAction(form: FormData) {
 // ---------- visa ----------
 
 export async function upsertVisaCaseAction(form: FormData) {
-  await requireVisaOperationsStaff();
+  const actor = await requireVisaOperationsStaff();
   const clientId = optNum(form, "client_id");
   if (!clientId) return;
   const status = str(form, "status");
   if (!(VISA_STATUSES as readonly string[]).includes(status)) return;
+  assertClientCapability(actor, clientId, "write_visa");
   const d = db();
   const existing = d.prepare("SELECT id FROM visa_cases WHERE client_id = ?").get(clientId) as { id: number } | undefined;
   if (existing) {
@@ -449,13 +511,14 @@ export async function upsertVisaCaseAction(form: FormData) {
 // ---------- payments ----------
 
 export async function addPaymentAction(form: FormData) {
-  await requireFinanceStaff();
+  const actor = await requireFinanceStaff();
   const clientId = optNum(form, "client_id");
   const title = str(form, "title");
   const amount = parseFloat(str(form, "amount"));
   const currency = str(form, "currency") || "KGS";
   if (!clientId || !title || !Number.isFinite(amount) || amount <= 0) return;
   if (!(CURRENCIES as readonly string[]).includes(currency)) return;
+  assertClientCapability(actor, clientId, "write_finance");
   db()
     .prepare("INSERT INTO payments (client_id, title, amount, currency, due_date) VALUES (?, ?, ?, ?, ?)")
     .run(clientId, title, amount, currency, str(form, "due_date") || null);
@@ -463,12 +526,13 @@ export async function addPaymentAction(form: FormData) {
 }
 
 export async function markPaymentPaidAction(form: FormData) {
-  await requireFinanceStaff();
+  const actor = await requireFinanceStaff();
   const id = optNum(form, "id");
   if (!id) return;
   const d = db();
   const row = d.prepare("SELECT client_id FROM payments WHERE id = ?").get(id) as { client_id: number } | undefined;
-  if (!row) return;
+  if (!row) notFound();
+  assertClientCapability(actor, row.client_id, "write_finance");
   d
     .prepare("UPDATE payments SET status = 'paid', paid_at = date('now') WHERE id = ?")
     .run(id);
@@ -486,6 +550,7 @@ export async function addTaskAction(form: FormData) {
   const priority = str(form, "priority") || "normal";
   if (!title) return;
   if (!(TASK_PRIORITIES as readonly string[]).includes(priority)) return;
+  if (clientId) assertClientCapability(user, clientId, "write_tasks");
   db()
     .prepare("INSERT INTO tasks (title, description, lead_id, client_id, assignee_id, due_date, priority, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 'todo', ?)")
     .run(
@@ -497,12 +562,17 @@ export async function addTaskAction(form: FormData) {
 }
 
 export async function completeTaskAction(form: FormData) {
-  await requireStaff();
+  const actor = await requireStaff();
   const id = optNum(form, "id");
   if (!id) return;
   const d = db();
-  const row = d.prepare("SELECT client_id, lead_id FROM tasks WHERE id = ?").get(id) as { client_id: number | null; lead_id: number | null } | undefined;
-  if (!row) return;
+  const row = d.prepare("SELECT client_id, lead_id, assignee_id FROM tasks WHERE id = ?").get(id) as {
+    client_id: number | null;
+    lead_id: number | null;
+    assignee_id: number | null;
+  } | undefined;
+  if (!row) notFound();
+  assertTaskMutationCapability(actor, row);
   d.prepare("UPDATE tasks SET status = 'done' WHERE id = ?").run(id);
   revalidateStaffCrm(row.client_id);
   revalidateLeadTask(row.lead_id);
@@ -600,13 +670,18 @@ export async function sendChannelMessageAction(form: FormData) {
 // ---------- tasks (kanban) ----------
 
 export async function moveTaskAction(form: FormData) {
-  await requireStaff();
+  const actor = await requireStaff();
   const id = optNum(form, "id");
   const status = str(form, "status");
   if (!id || !(TASK_COLUMNS as readonly string[]).includes(status)) return;
   const d = db();
-  const row = d.prepare("SELECT client_id, lead_id FROM tasks WHERE id = ?").get(id) as { client_id: number | null; lead_id: number | null } | undefined;
-  if (!row) return;
+  const row = d.prepare("SELECT client_id, lead_id, assignee_id FROM tasks WHERE id = ?").get(id) as {
+    client_id: number | null;
+    lead_id: number | null;
+    assignee_id: number | null;
+  } | undefined;
+  if (!row) notFound();
+  assertTaskMutationCapability(actor, row);
   d.prepare("UPDATE tasks SET status = ? WHERE id = ?").run(status, id);
   revalidateStaffCrm(row.client_id);
   revalidateLeadTask(row.lead_id);
@@ -857,6 +932,7 @@ export async function postUpdateAction(form: FormData) {
   const clientId = optNum(form, "client_id");
   const message = str(form, "message");
   if (!clientId || !message) return;
+  assertClientCapability(user, clientId, "write_updates");
   db()
     .prepare("INSERT INTO updates (client_id, author_id, message) VALUES (?, ?, ?)")
     .run(clientId, user.id, message);

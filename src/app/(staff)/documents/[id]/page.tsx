@@ -25,7 +25,7 @@ import { DOC_STATUSES } from "@/lib/db";
 import type { DocumentStatus } from "@/lib/domain";
 import { requireStaffRoute } from "@/lib/guards";
 import { getT } from "@/lib/i18n";
-import { getDocument } from "@/lib/queries";
+import { getDocumentForActor } from "@/lib/queries";
 
 type DocumentUpdate = "approved" | "required" | "rejected" | "review";
 type DocumentError =
@@ -62,13 +62,13 @@ export default async function DocumentDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ updated?: string; error?: string }>;
 }) {
-  await requireStaffRoute("/documents");
+  const user = await requireStaffRoute("/documents");
+  const { id } = await params;
+  const document = getDocumentForActor(user, Number(id));
+  if (!document) notFound();
   const { t, locale } = await getT();
   const copy = getDocumentExperienceCopy(locale);
-  const { id } = await params;
   const { updated, error } = await searchParams;
-  const document = getDocument(Number(id));
-  if (!document) notFound();
 
   const status = statusOf(document.status);
   const correctionRequested =

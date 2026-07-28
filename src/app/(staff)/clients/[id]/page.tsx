@@ -2,9 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getT } from "@/lib/i18n";
 import {
-  getClient, clientApplications, clientDocuments, clientVisaCase,
-  clientPayments, clientTasks, clientUpdates, listCurators, listStaff,
-  studentCaseAudit, studentCaseSnapshotForUser,
+  getClientForActor,
+  clientApplicationsForActor,
+  clientDocumentsForActor,
+  clientVisaCaseForActor,
+  clientPaymentsForActor,
+  clientTasksForActor,
+  clientUpdatesForActor,
+  listCurators,
+  listStaff,
+  studentCaseAuditForActor,
+  studentCaseSnapshotForUser,
 } from "@/lib/queries";
 import { STAGES, APP_STATUSES, TASK_COLUMNS, TASK_PRIORITIES, VISA_STATUSES } from "@/lib/db";
 import {
@@ -27,18 +35,71 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const user = await requireStaffRoute("/clients");
   const { id } = await params;
   const clientId = parseInt(id, 10);
-  const client = getClient(clientId);
+  const client = getClientForActor(user, clientId);
   if (!client) notFound();
 
   const { t, locale } = await getT();
+  if (client.access_mode === "sales_post_handoff_summary") {
+    return (
+      <div data-testid="sales-handoff-summary" className="space-y-5">
+        <header className="rounded-card border border-border bg-surface p-4 shadow-evo sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <span className="grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full bg-accent-weak text-[20px] font-semibold text-accent">
+              {initials(client.name)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-fg-3">{t("student360")}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2.5">
+                <h1 className="text-[22px] font-bold leading-tight text-fg">{client.name}</h1>
+                <Badge value={client.stage} label={t(`stage.${client.stage}`)} />
+              </div>
+            </div>
+            <Link href="/clients" className={btnGhostCls}>{t("clients")}</Link>
+          </div>
+        </header>
+
+        <section
+          aria-labelledby="sales-handoff-summary-title"
+          className="rounded-card border border-info/20 bg-info-weak p-4 text-info shadow-evo sm:p-5"
+        >
+          <h2 id="sales-handoff-summary-title" className="text-[15px] font-bold">
+            {t("salesHandoffSummaryTitle")}
+          </h2>
+          <p className="mt-2 max-w-3xl text-[13px] leading-5 text-fg-2">
+            {t("salesHandoffSummaryHint")}
+          </p>
+        </section>
+
+        <section className="rounded-card border border-border bg-surface p-4 shadow-evo sm:p-5">
+          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              [t("client"), `#${client.id}`],
+              [t("stage"), t(`stage.${client.stage}`)],
+              [t("country"), client.target_country ?? "—"],
+              [t("degree"), client.target_degree ?? "—"],
+              [t("caseState"), t(`caseState.${client.case_state}`)],
+              [t("curator"), client.curator_name ?? t("notAssigned")],
+              [t("handoffAt"), client.handoff_at ?? "—"],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-ctl bg-surface-2 p-3">
+                <dt className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-fg-3">{label}</dt>
+                <dd className="mt-1 break-words text-[13px] font-semibold text-fg">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      </div>
+    );
+  }
+
   const num = (value: number) =>
     value.toLocaleString({ ru: "ru-RU", ky: "ky-KG", en: "en-US" }[locale]);
-  const apps = clientApplications(clientId);
-  const docs = clientDocuments(clientId);
-  const visa = clientVisaCase(clientId);
-  const payments = clientPayments(clientId);
-  const tasks = clientTasks(clientId);
-  const updates = clientUpdates(clientId);
+  const apps = clientApplicationsForActor(user, clientId);
+  const docs = clientDocumentsForActor(user, clientId);
+  const visa = clientVisaCaseForActor(user, clientId);
+  const payments = clientPaymentsForActor(user, clientId);
+  const tasks = clientTasksForActor(user, clientId);
+  const updates = clientUpdatesForActor(user, clientId);
   const staff = listStaff();
   const curators = user.role === "admin" ? listCurators() : [];
   const snapshot = studentCaseSnapshotForUser(client.user_id);
@@ -47,7 +108,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     user.role === "admin"
     || (user.role === "curator" && client.curator_id === user.id);
   const canViewCaseAudit = canManageLifecycle;
-  const caseAudit = canViewCaseAudit ? studentCaseAudit(clientId) : [];
+  const caseAudit = canViewCaseAudit ? studentCaseAuditForActor(user, clientId) : [];
   const contractConfirmed = Boolean(
     client.contract_confirmed_at?.trim()
     && client.contract_confirmation_ref?.trim(),
@@ -87,7 +148,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           : null;
 
   return (
-    <div className="space-y-5">
+    <div data-testid="client-full-detail" className="space-y-5">
       <header className="rounded-card border border-border bg-surface p-4 shadow-evo sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <span className="grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full bg-accent-weak text-[20px] font-semibold text-accent">

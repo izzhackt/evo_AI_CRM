@@ -63,8 +63,8 @@ test("finance role is denied documents, portal data, AI, and transcription", asy
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ clientId: 1 }),
   });
-  expect(summary.status).toBe(400);
-  expect(JSON.parse(summary.body)).toEqual({ error: "not_configured" });
+  expect(summary.status).toBe(401);
+  expect(JSON.parse(summary.body)).toEqual({ error: "unauthorized" });
 
   const draft = await browserFetch(page, "/api/ai/draft", {
     method: "POST",

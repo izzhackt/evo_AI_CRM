@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { getT } from "@/lib/i18n";
-import { allPayments, listClients } from "@/lib/queries";
+import {
+  listFinanceClientsForActor,
+  listPaymentsForActor,
+} from "@/lib/queries";
 import { addPaymentAction, markPaymentPaidAction } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
 import { Badge, Card, EmptyState, inputCls, btnCls, btnGhostCls, cn, labelCls } from "@/components/ui";
@@ -14,8 +17,8 @@ const num = (n: number) => n.toLocaleString("ru-RU");
 export default async function FinancePage() {
   const user = await requireStaffRoute("/finance");
   const { t } = await getT();
-  const payments = allPayments();
-  const clients = listClients();
+  const payments = listPaymentsForActor(user);
+  const clients = listFinanceClientsForActor(user);
   const canMutatePayments = user.role === "admin" || user.role === "finance";
   const today = new Date().toISOString().slice(0, 10);
   const overduePayments = payments.filter(
@@ -110,9 +113,9 @@ export default async function FinancePage() {
                       <Link href={`/finance/${payment.id}`} className="font-bold text-fg hover:text-accent">
                         {payment.title}
                       </Link>
-                      <Link href={`/clients/${payment.client_id}`} className="mt-1 block text-[12.5px] font-medium text-fg-2 hover:text-accent">
+                      <p className="mt-1 text-[12.5px] font-medium text-fg-2">
                         {payment.client_name}
-                      </Link>
+                      </p>
                     </div>
                     <Badge value={visibleStatus} label={t(`pay.${visibleStatus}`)} />
                   </div>
@@ -164,12 +167,9 @@ export default async function FinancePage() {
                     return (
                       <tr key={payment.id} className="transition-[background-color] hover:bg-surface-2">
                         <td className="px-5 py-3">
-                          <Link href={`/clients/${payment.client_id}`} className="font-semibold text-fg hover:text-accent">
+                          <span className="font-semibold text-fg">
                             {payment.client_name}
-                          </Link>
-                          <div className="mt-1 text-[12px] text-fg-3">
-                            {[payment.target_country, payment.manager_name].filter(Boolean).join(" · ") || t("notAssigned")}
-                          </div>
+                          </span>
                         </td>
                         <td className="px-4 py-3">
                           <Link href={`/finance/${payment.id}`} className="font-semibold text-fg hover:text-accent">

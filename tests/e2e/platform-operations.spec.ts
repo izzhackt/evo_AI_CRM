@@ -197,22 +197,28 @@ test("legacy visa account fails closed until the explicit migration runs", async
   }
 });
 
-test("sales cannot forge a visa mutation through Student 360", async ({
+test("a replayed Sales session cannot forge a Curator visa mutation", async ({
   page,
   runtimeErrors,
 }) => {
   const forgedCountry = "FORGED-VISA-COUNTRY";
-  await login(page, "sales@demo.kg", "sales123", /\/sales$/);
+  await login(page, "curator@demo.kg", "curator123", /\/clients$/);
   await page.goto("/clients/1");
 
   const visaForm = page.locator('form:has(input[name="appointment_at"])').first();
   await expect(visaForm).toBeVisible();
   await visaForm.locator('input[name="country"]').fill(forgedCountry);
   await visaForm.locator('select[name="status"]').selectOption("approved");
-  await Promise.all([
-    page.waitForURL(/\/sales$/),
+
+  const attackerPage = await page.context().newPage();
+  await page.context().clearCookies();
+  await login(attackerPage, "sales@demo.kg", "sales123", /\/sales$/);
+  const [forgedResponse] = await Promise.all([
+    page.waitForResponse((response) => response.request().method() === "POST"),
     visaForm.getByRole("button", { name: "Сохранить" }).click(),
   ]);
+  expect(forgedResponse.status()).toBe(303);
+  await attackerPage.close();
 
   await page.context().clearCookies();
   await login(page, "admin@demo.kg", "admin123", /\/dashboard$/);

@@ -49,9 +49,9 @@ checkpoint is:
 - Root `/whatsapp` remains a coarse role-gated SQLite `wa_*` shadow surface.
   Its object-scope hardening is P1D; unified communications remain P5.
 
-- GitHub `main` and this clean worktree resolve to `a16cd3fb`; the exact
-  `EVO platform CI` run for that SHA is green and there were no open PRs at the
-  P0 snapshot.
+- At the P0 snapshot, GitHub `main` and the clean P0 worktree resolved to
+  `a16cd3fb`; the exact `EVO platform CI` run for that SHA was green and there
+  were no open PRs.
 - Production Inbox runs revision `a09a72fc`, release `2026-07-24.2`.
   Production CRM and Lead Agent run revision `564332b4`, release
   `2026-07-24.1`.

@@ -3002,9 +3002,11 @@ Decision:
 
 - Add P1D as a sequential current-app authorization sub-block before P2.
 - Limit P1D to the existing root SQLite/custom-auth `/whatsapp` path.
-- Admin has full access. Responsible Sales has full access to a linked lead or
-  pending case. Assigned Curator has full access after handoff for active/closed
-  cases. Former responsible Sales receives only the safe case summary.
+- Admin has full access. Responsible Sales has full access only to a proven
+  lead-only row whose conversation has no case link, whose lead resolves and
+  whose lead also has no case link, or to a valid directly linked pending case.
+  Assigned Curator has full access after handoff for active/closed cases. Former
+  responsible Sales receives only the safe case summary.
 - Unrelated staff, Finance, Student, broken links, ownerless links and unlinked
   rows fail closed for non-Admin actors.
 - Manual conversation creation is Admin-only until P4/P5 can prove canonical

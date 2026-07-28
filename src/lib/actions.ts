@@ -23,7 +23,9 @@ import { setSession, clearSession, currentUser, isStaff, type SessionUser } from
 import {
   canClientCapability,
   canMutateClientlessTask,
+  canReceiveClientTask,
   resolveClientAccess,
+  type AccessActor,
   type ClientAccessSubject,
   type ClientCapability,
 } from "./access";
@@ -156,12 +158,13 @@ function assertTaskMutationCapability(
   if (!canMutateClientlessTask(actor, task.assignee_id)) notFound();
 }
 
-function assertStaffTaskAssignee(assigneeId: number | null) {
-  if (!assigneeId) return;
+function assertStaffTaskAssignee(assigneeId: number | null): AccessActor | null {
+  if (!assigneeId) return null;
   const assignee = db()
-    .prepare("SELECT role FROM users WHERE id = ?")
-    .get(assigneeId) as { role: string } | undefined;
+    .prepare("SELECT id, role FROM users WHERE id = ?")
+    .get(assigneeId) as AccessActor | undefined;
   if (!assignee || !isRole(assignee.role) || !isStaff(assignee.role)) notFound();
+  return assignee;
 }
 
 function revalidateStaffCrm(clientId?: number | null) {
@@ -587,9 +590,10 @@ export async function addTaskAction(form: FormData) {
   const priority = str(form, "priority") || "normal";
   if (!title) return;
   if (!(TASK_PRIORITIES as readonly string[]).includes(priority)) return;
-  assertStaffTaskAssignee(assigneeId);
+  const assignee = assertStaffTaskAssignee(assigneeId);
   if (clientId) {
-    assertClientCapability(user, clientId, "write_tasks");
+    const client = assertClientCapability(user, clientId, "write_tasks");
+    if (assignee && !canReceiveClientTask(assignee, client)) notFound();
   } else if (!canMutateClientlessTask(user, assigneeId)) {
     notFound();
   }

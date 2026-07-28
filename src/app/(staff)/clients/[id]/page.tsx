@@ -22,6 +22,7 @@ import {
   assignCuratorAction, closeStudentCaseAction, reopenStudentCaseAction,
 } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
+import { canReceiveClientTask } from "@/lib/access";
 import { Badge, Card, EmptyState, StatCard, inputCls, btnCls, btnGhostCls, labelCls, cn } from "@/components/ui";
 import { AiSummary } from "@/components/AiSummary";
 import { StudentProgress } from "@/components/platform/core/StudentProgress";
@@ -100,7 +101,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const payments = clientPaymentsForActor(user, clientId);
   const tasks = clientTasksForActor(user, clientId);
   const updates = clientUpdatesForActor(user, clientId);
-  const staff = listStaff();
+  const taskAssignees = listStaff().filter((person) =>
+    canReceiveClientTask(person, client)
+  );
   const curators = user.role === "admin" ? listCurators() : [];
   const snapshot = studentCaseSnapshotForUser(client.user_id);
   if (!snapshot) notFound();
@@ -687,7 +690,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 {t("assignee")}
                 <select name="assignee_id" className={cn(inputCls, "mt-1")}>
                   <option value="">{t("notAssigned")}</option>
-                  {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {taskAssignees.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </label>
               <label className={cn(labelCls, "mb-0")}>

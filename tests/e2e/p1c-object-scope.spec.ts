@@ -11,6 +11,8 @@ const OTHER_SALES_EMAIL = "p1c.other.sales@example.test";
 const PENDING_APPLICATION = "P1C Pending Scope University";
 const FORGED_FINANCE_TASK = "P1C denied Finance clientless task";
 const FORGED_CLIENT_ASSIGNEE_TASK = "P1C denied client assignee task";
+const FORGED_FINANCE_CLIENT_TASK = "P1C denied Finance client task";
+const FORGED_UNRELATED_SALES_CLIENT_TASK = "P1C denied unrelated Sales client task";
 const SALES_CREATED_CLIENT_EMAIL = "p1c.sales.created@example.test";
 const CURATOR_DENIED_CLIENT_EMAIL = "p1c.curator.denied@example.test";
 const FINANCE_DENIED_CLIENT_EMAIL = "p1c.finance.denied@example.test";
@@ -76,8 +78,13 @@ function cleanupObjectScopeFixtures() {
       FINANCE_DENIED_CLIENT_EMAIL,
     );
     database
-      .prepare("DELETE FROM tasks WHERE title IN (?, ?)")
-      .run(FORGED_FINANCE_TASK, FORGED_CLIENT_ASSIGNEE_TASK);
+      .prepare("DELETE FROM tasks WHERE title IN (?, ?, ?, ?)")
+      .run(
+        FORGED_FINANCE_TASK,
+        FORGED_CLIENT_ASSIGNEE_TASK,
+        FORGED_FINANCE_CLIENT_TASK,
+        FORGED_UNRELATED_SALES_CLIENT_TASK,
+      );
     database.prepare("UPDATE applications SET status = 'submitted' WHERE id = 1").run();
     database.prepare("DELETE FROM applications WHERE university = ?").run(PENDING_APPLICATION);
     database.prepare("DELETE FROM users WHERE lower(email) = ?").run(OTHER_CURATOR_EMAIL);
@@ -484,7 +491,16 @@ test.describe("P1C staff object scope", () => {
       await page.locator("details#add > summary").click();
       const form = page.locator("details#add form");
       await form.locator('input[name="title"]').fill(FORGED_FINANCE_TASK);
-      await form.locator('select[name="assignee_id"]').selectOption(String(adminId));
+      const assignee = form.locator('select[name="assignee_id"]');
+      await assignee.evaluate((element, value) => {
+        const select = element as HTMLSelectElement;
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = "Forged Admin assignee";
+        select.append(option);
+        select.value = value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }, String(adminId));
 
       const [response] = await Promise.all([
         page.waitForResponse((candidate) => candidate.request().method() === "POST"),
@@ -550,6 +566,108 @@ test.describe("P1C staff object scope", () => {
           .get(FORGED_CLIENT_ASSIGNEE_TASK),
       ).toBe(0);
       verification.close();
+    } finally {
+      cleanupObjectScopeFixtures();
+    }
+  });
+
+  test("client-bound task creation rejects Finance and unrelated staff assignees", async ({
+    context,
+    page,
+  }, testInfo) => {
+    desktopOnly(testInfo);
+    await login(context, page, "sales@demo.kg", "sales123", /\/sales$/);
+    cleanupObjectScopeFixtures();
+    prepareObjectScopeFixtures();
+
+    const setup = openDatabase();
+    const clientId = setup.prepare(`
+      SELECT c.id
+      FROM clients c
+      JOIN users manager ON manager.id = c.manager_id
+      WHERE lower(manager.email) = 'sales@demo.kg'
+        AND c.case_state = 'pending'
+      ORDER BY c.id
+      LIMIT 1
+    `).pluck().get() as number;
+    const financeId = setup
+      .prepare("SELECT id FROM users WHERE lower(email) = 'finance@demo.kg'")
+      .pluck()
+      .get() as number;
+    const adminId = setup
+      .prepare("SELECT id FROM users WHERE lower(email) = 'admin@demo.kg'")
+      .pluck()
+      .get() as number;
+    const unrelatedSalesId = setup
+      .prepare("SELECT id FROM users WHERE lower(email) = ?")
+      .pluck()
+      .get(OTHER_SALES_EMAIL) as number;
+    setup.close();
+
+    const attempts = [
+      {
+        title: FORGED_FINANCE_CLIENT_TASK,
+        assigneeId: financeId,
+        label: "Finance",
+      },
+      {
+        title: FORGED_UNRELATED_SALES_CLIENT_TASK,
+        assigneeId: unrelatedSalesId,
+        label: "Unrelated Sales",
+      },
+    ];
+
+    try {
+      for (const attempt of attempts) {
+        await page.goto(`/clients/${clientId}`);
+        const taskDetails = page.locator("section#tasks details");
+        await taskDetails.locator("summary").click();
+        const form = taskDetails.locator("form");
+        await form.locator('input[name="title"]').fill(attempt.title);
+        const assignee = form.locator('select[name="assignee_id"]');
+        await assignee.evaluate((element, value) => {
+          const select = element as HTMLSelectElement;
+          let option = [...select.options].find((candidate) => candidate.value === value);
+          if (!option) {
+            option = document.createElement("option");
+            option.value = value;
+            option.textContent = "Forged out-of-scope assignee";
+            select.append(option);
+          }
+          select.value = value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+        }, String(attempt.assigneeId));
+
+        const [response] = await Promise.all([
+          page.waitForResponse((candidate) => candidate.request().method() === "POST"),
+          form.getByRole("button", { name: "Добавить" }).click(),
+        ]);
+        expect(response.status(), attempt.label).toBe(404);
+
+        const verification = openDatabase();
+        expect(
+          verification
+            .prepare("SELECT COUNT(*) FROM tasks WHERE title = ?")
+            .pluck()
+            .get(attempt.title),
+          attempt.label,
+        ).toBe(0);
+        verification.close();
+
+        await page.goto(`/clients/${clientId}`);
+        await expect(
+          page.locator(`section#tasks select[name="assignee_id"] option[value="${attempt.assigneeId}"]`),
+          attempt.label,
+        ).toHaveCount(0);
+      }
+
+      await page.goto("/tasks");
+      const taskDetails = page.locator("details#add");
+      await taskDetails.locator("summary").click();
+      const globalAssignee = taskDetails.locator('select[name="assignee_id"]');
+      await expect(globalAssignee.locator(`option[value="${adminId}"]`)).toHaveCount(1);
+      await expect(globalAssignee.locator(`option[value="${financeId}"]`)).toHaveCount(0);
+      await expect(globalAssignee.locator(`option[value="${unrelatedSalesId}"]`)).toHaveCount(0);
     } finally {
       cleanupObjectScopeFixtures();
     }

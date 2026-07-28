@@ -180,9 +180,22 @@ export default async function TasksPage({
     Number.isFinite(assigneeId) ? assigneeId : undefined,
   );
   const staff = listStaff();
-  const clients = listClientsForActor(user).filter(
-    (client) => client.access_mode !== "sales_post_handoff_summary",
-  );
+  const taskAssignees =
+    user.role === "admin"
+      ? staff
+      : staff.filter((person) =>
+          person.id === user.id
+          || (
+            (user.role === "sales" || user.role === "curator")
+            && person.role === "admin"
+          )
+        );
+  const clients =
+    user.role === "finance"
+      ? []
+      : listClientsForActor(user).filter(
+          (client) => client.access_mode !== "sales_post_handoff_summary",
+        );
   const canOpenSales = user.role === "admin" || user.role === "sales";
   const canOpenCalls = canOpenSales;
   const meetingLeads = canOpenSales
@@ -295,7 +308,7 @@ export default async function TasksPage({
             <option value="">
               {t("assignee")}: {t("notAssigned")}
             </option>
-            {staff.map((person) => (
+            {taskAssignees.map((person) => (
               <option key={person.id} value={person.id}>
                 {person.name}
               </option>

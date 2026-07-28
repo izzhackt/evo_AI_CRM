@@ -144,6 +144,16 @@ export function canMutateClientlessTask(
   );
 }
 
+export function canReceiveClientTask(
+  assignee: AccessActor,
+  client: ClientAccessSubject,
+): boolean {
+  return canClientCapability(
+    resolveClientAccess(assignee, client),
+    "write_tasks",
+  );
+}
+
 export function buildVisibleClientPredicate(
   actor: AccessActor,
   alias = "c",

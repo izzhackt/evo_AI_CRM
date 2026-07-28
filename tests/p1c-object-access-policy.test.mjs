@@ -8,6 +8,7 @@ import {
   buildVisaClientPredicate,
   canClientCapability,
   canMutateClientlessTask,
+  canReceiveClientTask,
   resolveClientAccess,
 } from "../src/lib/access.ts";
 
@@ -199,6 +200,50 @@ test("clientless task mutations stay Admin-wide or assignee-scoped", () => {
   );
   assert.equal(
     canMutateClientlessTask({ id: 99, role: "unknown" }, 99),
+    false,
+  );
+});
+
+test("client task assignees must hold task access to that exact case", () => {
+  assert.equal(
+    canReceiveClientTask({ id: 1, role: "admin" }, pendingCase),
+    true,
+  );
+  assert.equal(
+    canReceiveClientTask({ id: 11, role: "sales" }, pendingCase),
+    true,
+  );
+  assert.equal(
+    canReceiveClientTask({ id: 12, role: "sales" }, pendingCase),
+    false,
+  );
+  assert.equal(
+    canReceiveClientTask({ id: 22, role: "curator" }, pendingCase),
+    false,
+  );
+  assert.equal(
+    canReceiveClientTask({ id: 33, role: "finance" }, pendingCase),
+    false,
+  );
+
+  assert.equal(
+    canReceiveClientTask({ id: 1, role: "admin" }, activeCase),
+    true,
+  );
+  assert.equal(
+    canReceiveClientTask({ id: 11, role: "sales" }, activeCase),
+    false,
+  );
+  assert.equal(
+    canReceiveClientTask({ id: 22, role: "curator" }, activeCase),
+    true,
+  );
+  assert.equal(
+    canReceiveClientTask({ id: 23, role: "curator" }, activeCase),
+    false,
+  );
+  assert.equal(
+    canReceiveClientTask({ id: 33, role: "finance" }, activeCase),
     false,
   );
 });

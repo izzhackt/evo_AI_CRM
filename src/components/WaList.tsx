@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getT } from "@/lib/i18n";
-import { listConversations } from "@/lib/queries";
+import { listConversationsForActor } from "@/lib/queries";
 import { createConversationAction } from "@/lib/actions";
+import type { WhatsAppAccessActor } from "@/lib/whatsapp-policy";
 import { EmptyState, inputCls, btnCls, cn } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import {
@@ -23,51 +24,60 @@ function stateClassName(tone: OperationalTone) {
   }[tone];
 }
 
-export async function WaList({ activeId }: { activeId?: number }) {
+export async function WaList({
+  actor,
+  activeId,
+}: {
+  actor: WhatsAppAccessActor;
+  activeId?: number;
+}) {
   const { t } = await getT();
-  const conversations = listConversations();
+  const { full: conversations, summaries } = listConversationsForActor(actor);
+  const hasRows = conversations.length > 0 || summaries.length > 0;
 
   return (
     <aside className="flex w-full flex-col border-border md:w-[336px] md:shrink-0 md:border-r">
       <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
         <span className="text-[14px] font-semibold text-fg">{t("inbox")}</span>
-        <details id="add" className="relative scroll-mt-24">
-          <summary className={cn(btnCls, "h-9 cursor-pointer list-none px-3")}>
-            <Icon name="plus" size={15} /> {t("newConversation")}
-          </summary>
-          <form
-            action={createConversationAction}
-            className="absolute right-0 z-20 mt-2 w-72 space-y-2 rounded-card border border-border bg-surface p-4 shadow-evo-lg"
-          >
-            <label htmlFor="wa-new-phone" className="sr-only">
-              {t("phone")}
-            </label>
-            <input
-              id="wa-new-phone"
-              name="phone"
-              required
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder="+996 ___ ___ ___"
-              className={inputCls}
-            />
-            <label htmlFor="wa-new-name" className="sr-only">
-              {t("name")}
-            </label>
-            <input
-              id="wa-new-name"
-              name="name"
-              autoComplete="name"
-              placeholder={t("name")}
-              className={inputCls}
-            />
-            <button type="submit" className={cn(btnCls, "w-full")}>{t("add")}</button>
-          </form>
-        </details>
+        {actor.role === "admin" && (
+          <details id="add" className="relative scroll-mt-24">
+            <summary className={cn(btnCls, "h-9 cursor-pointer list-none px-3")}>
+              <Icon name="plus" size={15} /> {t("newConversation")}
+            </summary>
+            <form
+              action={createConversationAction}
+              className="absolute right-0 z-20 mt-2 w-72 space-y-2 rounded-card border border-border bg-surface p-4 shadow-evo-lg"
+            >
+              <label htmlFor="wa-new-phone" className="sr-only">
+                {t("phone")}
+              </label>
+              <input
+                id="wa-new-phone"
+                name="phone"
+                required
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="+996 ___ ___ ___"
+                className={inputCls}
+              />
+              <label htmlFor="wa-new-name" className="sr-only">
+                {t("name")}
+              </label>
+              <input
+                id="wa-new-name"
+                name="name"
+                autoComplete="name"
+                placeholder={t("name")}
+                className={inputCls}
+              />
+              <button type="submit" className={cn(btnCls, "w-full")}>{t("add")}</button>
+            </form>
+          </details>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {conversations.length === 0 ? (
+        {!hasRows ? (
           <EmptyState text={t("noResults")} />
         ) : (
           <ul>
@@ -126,6 +136,94 @@ export async function WaList({ activeId }: { activeId?: number }) {
                       )}
                     </div>
                   </Link>
+                </li>
+              );
+            })}
+            {summaries.map((summary) => {
+              const caseState = t(`caseState.${summary.case_state}`);
+              const fields = [
+                {
+                  key: "case-id",
+                  label: t("client"),
+                  value: `#${summary.id}`,
+                },
+                {
+                  key: "student-name",
+                  label: t("name"),
+                  value: summary.name,
+                },
+                {
+                  key: "target-country",
+                  label: t("country"),
+                  value: summary.target_country ?? "—",
+                },
+                {
+                  key: "target-degree",
+                  label: t("degree"),
+                  value: summary.target_degree ?? "—",
+                },
+                {
+                  key: "case-state",
+                  label: t("caseState"),
+                  value: caseState,
+                },
+                {
+                  key: "curator-name",
+                  label: t("curator"),
+                  value: summary.curator_name ?? t("notAssigned"),
+                },
+                {
+                  key: "handoff-at",
+                  label: t("handoffAt"),
+                  value: summary.handoff_at ?? "—",
+                },
+              ] as const;
+
+              return (
+                <li
+                  key={`case-${summary.id}`}
+                  data-testid="whatsapp-handoff-summary"
+                  data-case-id={summary.id}
+                  className="border-b border-border bg-info-weak px-4 py-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-info-weak text-[12px] font-semibold text-info"
+                    >
+                      {initials(summary.name)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13.5px] font-semibold text-fg">
+                        {summary.name}
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-info">
+                        {t("salesHandoffSummaryTitle")}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-info-weak px-2 py-0.5 text-[10px] font-semibold text-info">
+                      {caseState}
+                    </span>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-2">
+                    {fields.map((field) => (
+                      <div
+                        key={field.key}
+                        data-summary-field={field.key}
+                        className={cn(
+                          "min-w-0 rounded-ctl bg-surface px-2.5 py-2",
+                          field.key === "handoff-at" && "col-span-2",
+                        )}
+                      >
+                        <dt className="truncate text-[9.5px] font-bold uppercase tracking-[0.04em] text-fg-3">
+                          {field.label}
+                        </dt>
+                        <dd className="mt-0.5 truncate text-[11.5px] font-semibold text-fg">
+                          {field.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
                 </li>
               );
             })}

@@ -9,6 +9,12 @@ import {
   type ClientAccessMode,
 } from "./access";
 import type { StudentCaseAuditEvent, StudentCaseState } from "./student-case-policy";
+import {
+  canWhatsAppCapability,
+  resolveWhatsAppConversationAccess,
+  type WhatsAppConversationAccessMode,
+  type WhatsAppConversationAccessSubject,
+} from "./whatsapp-policy";
 
 const ACTIVE_LEAD_STATUS_SQL = LEAD_ACTIVE_STATUSES.map((status) => `'${status}'`).join(", ");
 const ACTIVE_LEAD_SQL = `l.client_id IS NULL AND l.status IN (${ACTIVE_LEAD_STATUS_SQL})`;
@@ -1438,6 +1444,178 @@ export function listTasksForActor(actor: AccessActor, assigneeId?: number) {
   `).all(...params) as ReturnType<typeof listTasks>;
 }
 
+type WhatsAppAccessProbeRow = {
+  conversation_id: number;
+  conversation_client_id: number | null;
+  conversation_lead_id: number | null;
+  resolved_client_id: number | null;
+  client_manager_id: number | null;
+  client_manager_role: string | null;
+  client_curator_id: number | null;
+  client_curator_role: string | null;
+  client_case_state: string | null;
+  resolved_lead_id: number | null;
+  lead_manager_id: number | null;
+  lead_manager_role: string | null;
+  lead_client_id: number | null;
+};
+
+const WHATSAPP_ACCESS_PROBE_SELECT = `
+  SELECT
+    conversation.id AS conversation_id,
+    conversation.client_id AS conversation_client_id,
+    conversation.lead_id AS conversation_lead_id,
+    client.id AS resolved_client_id,
+    client.manager_id AS client_manager_id,
+    client_manager.role AS client_manager_role,
+    client.curator_id AS client_curator_id,
+    client_curator.role AS client_curator_role,
+    client.case_state AS client_case_state,
+    lead.id AS resolved_lead_id,
+    lead.manager_id AS lead_manager_id,
+    lead_manager.role AS lead_manager_role,
+    lead.client_id AS lead_client_id
+  FROM wa_conversations conversation
+  LEFT JOIN clients client ON client.id = conversation.client_id
+  LEFT JOIN leads lead ON lead.id = conversation.lead_id
+  LEFT JOIN users client_manager ON client_manager.id = client.manager_id
+  LEFT JOIN users client_curator ON client_curator.id = client.curator_id
+  LEFT JOIN users lead_manager ON lead_manager.id = lead.manager_id
+`;
+
+function whatsappAccessProbes(
+  whereSql = "",
+  params: Array<string | number> = [],
+): WhatsAppAccessProbeRow[] {
+  return db().prepare(`
+    ${WHATSAPP_ACCESS_PROBE_SELECT}
+    ${whereSql}
+  `).all(...params) as WhatsAppAccessProbeRow[];
+}
+
+function whatsappFullAccessScope(actor: AccessActor): {
+  sql: string;
+  params: number[];
+} {
+  if (actor.role === "admin") {
+    return { sql: "1 = 1", params: [] };
+  }
+
+  const consistentDirectLink = `(
+    conversation.lead_id IS NULL
+    OR (
+      lead.id IS NOT NULL
+      AND (lead.client_id IS NULL OR lead.client_id = client.id)
+    )
+  )`;
+
+  if (actor.role === "sales") {
+    return {
+      sql: `(
+        (
+          conversation.client_id IS NULL
+          AND conversation.lead_id IS NOT NULL
+          AND lead.id IS NOT NULL
+          AND lead.client_id IS NULL
+          AND lead.manager_id = ?
+          AND lead_manager.role = 'sales'
+        )
+        OR
+        (
+          conversation.client_id IS NOT NULL
+          AND client.id IS NOT NULL
+          AND client.case_state = 'pending'
+          AND client.manager_id = ?
+          AND client_manager.role = 'sales'
+          AND ${consistentDirectLink}
+        )
+      )`,
+      params: [actor.id, actor.id],
+    };
+  }
+
+  if (actor.role === "curator") {
+    return {
+      sql: `(
+        conversation.client_id IS NOT NULL
+        AND client.id IS NOT NULL
+        AND client.case_state IN ('active', 'closed')
+        AND client.curator_id = ?
+        AND client_curator.role = 'curator'
+        AND ${consistentDirectLink}
+      )`,
+      params: [actor.id],
+    };
+  }
+
+  return { sql: "0 = 1", params: [] };
+}
+
+function whatsappFullAccessProbesForActor(
+  actor: AccessActor,
+  extraPredicate = "",
+  extraParams: Array<string | number> = [],
+): WhatsAppAccessProbeRow[] {
+  const scope = whatsappFullAccessScope(actor);
+  const extraSql = extraPredicate ? ` AND (${extraPredicate})` : "";
+  return whatsappAccessProbes(
+    `WHERE (${scope.sql})${extraSql}`,
+    [...scope.params, ...extraParams],
+  );
+}
+
+function whatsappAccessSubject(
+  probe: WhatsAppAccessProbeRow,
+): WhatsAppConversationAccessSubject {
+  return {
+    conversationClientId: probe.conversation_client_id,
+    conversationLeadId: probe.conversation_lead_id,
+    resolvedClient: probe.resolved_client_id === null
+      ? null
+      : {
+          id: probe.resolved_client_id,
+          manager_id: probe.client_manager_id,
+          manager_role: probe.client_manager_role,
+          curator_id: probe.client_curator_id,
+          curator_role: probe.client_curator_role,
+          case_state: probe.client_case_state ?? "",
+        },
+    resolvedLead: probe.resolved_lead_id === null
+      ? null
+      : {
+          id: probe.resolved_lead_id,
+          manager_id: probe.lead_manager_id,
+          manager_role: probe.lead_manager_role,
+          client_id: probe.lead_client_id,
+        },
+  };
+}
+
+function whatsappAccessMode(
+  actor: AccessActor,
+  probe: WhatsAppAccessProbeRow,
+): WhatsAppConversationAccessMode {
+  return resolveWhatsAppConversationAccess(
+    actor,
+    whatsappAccessSubject(probe),
+  );
+}
+
+function fullConversationIdsForActor(
+  actor: AccessActor,
+  probes: WhatsAppAccessProbeRow[],
+): number[] {
+  return probes
+    .filter((probe) =>
+      canWhatsAppCapability(whatsappAccessMode(actor, probe), "read_full")
+    )
+    .map((probe) => probe.conversation_id);
+}
+
+function sqlPlaceholders(values: readonly unknown[]): string {
+  return values.map(() => "?").join(", ");
+}
+
 export type LeadRow = {
   id: number; name: string; phone: string | null; email: string | null;
   source: string | null; status: string; amount: number | null; currency: string;
@@ -1446,65 +1624,164 @@ export type LeadRow = {
   open_tasks: number; overdue_tasks: number; next_task_due_date: string | null;
   next_task_title: string | null; last_activity_at: string | null; last_call_at: string | null;
   last_wa_at: string | null; last_touch_at: string | null; last_channel: string | null;
-  call_count: number; wa_message_count: number; unread_messages: number;
+  call_count: number; wa_message_count: number | null; unread_messages: number | null;
 };
 
-export function listLeads(): LeadRow[] {
+type LeadBaseRow = Omit<
+  LeadRow,
+  | "last_wa_at"
+  | "last_touch_at"
+  | "last_channel"
+  | "wa_message_count"
+  | "unread_messages"
+>;
+
+type LeadWhatsAppMetrics = {
+  last_wa_at: string | null;
+  wa_message_count: number;
+  unread_messages: number;
+};
+
+function leadBaseRows(id?: number): LeadBaseRow[] {
+  const where = id === undefined ? "" : "WHERE l.id = ?";
+  const params = id === undefined ? [] : [id];
   return db().prepare(`
-    WITH lead_context AS (
-      SELECT l.*, m.name AS manager_name,
-        (SELECT COUNT(*) FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))) AS open_tasks,
-        (SELECT COUNT(*) FROM tasks t WHERE t.status != 'done' AND t.due_date IS NOT NULL AND t.due_date < date('now') AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))) AS overdue_tasks,
-        (SELECT t.due_date FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id)) ORDER BY t.due_date IS NULL, t.due_date LIMIT 1) AS next_task_due_date,
-        (SELECT t.title FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id)) ORDER BY t.due_date IS NULL, t.due_date LIMIT 1) AS next_task_title,
-        (SELECT MAX(a.created_at) FROM lead_activities a WHERE a.lead_id = l.id) AS last_activity_at,
-        (SELECT MAX(c.started_at) FROM calls c WHERE c.lead_id = l.id) AS last_call_at,
-        (SELECT MAX(w.last_message_at) FROM wa_conversations w WHERE w.lead_id = l.id) AS last_wa_at,
-        (SELECT COUNT(*) FROM calls c WHERE c.lead_id = l.id) AS call_count,
-        (SELECT COUNT(*) FROM wa_messages wm JOIN wa_conversations w ON w.id = wm.conversation_id WHERE w.lead_id = l.id) AS wa_message_count,
-        (SELECT COALESCE(SUM(w.unread), 0) FROM wa_conversations w WHERE w.lead_id = l.id) AS unread_messages
-      FROM leads l LEFT JOIN users m ON m.id = l.manager_id
-    )
-    SELECT *,
-      NULLIF(MAX(COALESCE(last_activity_at, ''), COALESCE(last_call_at, ''), COALESCE(last_wa_at, ''), COALESCE(updated_at, '')), '') AS last_touch_at,
-      CASE
-        WHEN COALESCE(last_wa_at, '') >= COALESCE(last_call_at, '') AND COALESCE(last_wa_at, '') >= COALESCE(last_activity_at, '') THEN 'WhatsApp'
-        WHEN COALESCE(last_call_at, '') >= COALESCE(last_activity_at, '') THEN 'Call'
-        WHEN last_activity_at IS NOT NULL THEN 'CRM'
-        ELSE NULL
-      END AS last_channel
-    FROM lead_context
-    ORDER BY updated_at DESC
-  `).all() as LeadRow[];
+    SELECT l.*, m.name AS manager_name,
+      (SELECT COUNT(*) FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))) AS open_tasks,
+      (SELECT COUNT(*) FROM tasks t WHERE t.status != 'done' AND t.due_date IS NOT NULL AND t.due_date < date('now') AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))) AS overdue_tasks,
+      (SELECT t.due_date FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id)) ORDER BY t.due_date IS NULL, t.due_date LIMIT 1) AS next_task_due_date,
+      (SELECT t.title FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id)) ORDER BY t.due_date IS NULL, t.due_date LIMIT 1) AS next_task_title,
+      (SELECT MAX(a.created_at) FROM lead_activities a WHERE a.lead_id = l.id) AS last_activity_at,
+      (SELECT MAX(c.started_at) FROM calls c WHERE c.lead_id = l.id) AS last_call_at,
+      (SELECT COUNT(*) FROM calls c WHERE c.lead_id = l.id) AS call_count
+    FROM leads l
+    LEFT JOIN users m ON m.id = l.manager_id
+    ${where}
+    ORDER BY l.updated_at DESC
+  `).all(...params) as LeadBaseRow[];
 }
 
-export function getLead(id: number): LeadRow | undefined {
-  return db().prepare(`
-    WITH lead_context AS (
-      SELECT l.*, m.name AS manager_name,
-        (SELECT COUNT(*) FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))) AS open_tasks,
-        (SELECT COUNT(*) FROM tasks t WHERE t.status != 'done' AND t.due_date IS NOT NULL AND t.due_date < date('now') AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))) AS overdue_tasks,
-        (SELECT t.due_date FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id)) ORDER BY t.due_date IS NULL, t.due_date LIMIT 1) AS next_task_due_date,
-        (SELECT t.title FROM tasks t WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id)) ORDER BY t.due_date IS NULL, t.due_date LIMIT 1) AS next_task_title,
-        (SELECT MAX(a.created_at) FROM lead_activities a WHERE a.lead_id = l.id) AS last_activity_at,
-        (SELECT MAX(c.started_at) FROM calls c WHERE c.lead_id = l.id) AS last_call_at,
-        (SELECT MAX(w.last_message_at) FROM wa_conversations w WHERE w.lead_id = l.id) AS last_wa_at,
-        (SELECT COUNT(*) FROM calls c WHERE c.lead_id = l.id) AS call_count,
-        (SELECT COUNT(*) FROM wa_messages wm JOIN wa_conversations w ON w.id = wm.conversation_id WHERE w.lead_id = l.id) AS wa_message_count,
-        (SELECT COALESCE(SUM(w.unread), 0) FROM wa_conversations w WHERE w.lead_id = l.id) AS unread_messages
-      FROM leads l LEFT JOIN users m ON m.id = l.manager_id
-      WHERE l.id = ?
+function leadWhatsAppMetricContext(
+  actor: AccessActor,
+  leadIds: number[],
+): Map<number, LeadWhatsAppMetrics> {
+  const metricsByLeadId = new Map<number, LeadWhatsAppMetrics>();
+  if (leadIds.length === 0) return metricsByLeadId;
+
+  const probes = whatsappFullAccessProbesForActor(
+    actor,
+    `conversation.lead_id IN (${sqlPlaceholders(leadIds)})`,
+    leadIds,
+  );
+  const fullConversationIds = fullConversationIdsForActor(actor, probes);
+  if (fullConversationIds.length === 0) return metricsByLeadId;
+
+  const conversationMetrics = db().prepare(`
+    SELECT lead_id, MAX(last_message_at) AS last_wa_at,
+      COALESCE(SUM(unread), 0) AS unread_messages
+    FROM wa_conversations
+    WHERE id IN (${sqlPlaceholders(fullConversationIds)})
+      AND lead_id IS NOT NULL
+    GROUP BY lead_id
+  `).all(...fullConversationIds) as {
+    lead_id: number;
+    last_wa_at: string | null;
+    unread_messages: number;
+  }[];
+  const messageMetrics = db().prepare(`
+    SELECT conversation.lead_id, COUNT(*) AS wa_message_count
+    FROM wa_messages message
+    JOIN wa_conversations conversation
+      ON conversation.id = message.conversation_id
+    WHERE conversation.id IN (${sqlPlaceholders(fullConversationIds)})
+      AND conversation.lead_id IS NOT NULL
+    GROUP BY conversation.lead_id
+  `).all(...fullConversationIds) as {
+    lead_id: number;
+    wa_message_count: number;
+  }[];
+  const messageCountByLeadId = new Map(
+    messageMetrics.map((row) => [row.lead_id, row.wa_message_count]),
+  );
+
+  for (const row of conversationMetrics) {
+    metricsByLeadId.set(row.lead_id, {
+      last_wa_at: row.last_wa_at,
+      wa_message_count: messageCountByLeadId.get(row.lead_id) ?? 0,
+      unread_messages: row.unread_messages,
+    });
+  }
+  return metricsByLeadId;
+}
+
+function latestTimestamp(
+  ...values: Array<string | null>
+): string | null {
+  const present = values.filter((value): value is string => value !== null);
+  return present.length === 0 ? null : present.sort().at(-1) ?? null;
+}
+
+function lastLeadChannel(
+  row: LeadBaseRow,
+  lastWaAt: string | null,
+): string | null {
+  if (
+    lastWaAt !== null
+    && (row.last_call_at === null || lastWaAt >= row.last_call_at)
+    && (row.last_activity_at === null || lastWaAt >= row.last_activity_at)
+  ) {
+    return "WhatsApp";
+  }
+  if (
+    row.last_call_at !== null
+    && (
+      row.last_activity_at === null
+      || row.last_call_at >= row.last_activity_at
     )
-    SELECT *,
-      NULLIF(MAX(COALESCE(last_activity_at, ''), COALESCE(last_call_at, ''), COALESCE(last_wa_at, ''), COALESCE(updated_at, '')), '') AS last_touch_at,
-      CASE
-        WHEN COALESCE(last_wa_at, '') >= COALESCE(last_call_at, '') AND COALESCE(last_wa_at, '') >= COALESCE(last_activity_at, '') THEN 'WhatsApp'
-        WHEN COALESCE(last_call_at, '') >= COALESCE(last_activity_at, '') THEN 'Call'
-        WHEN last_activity_at IS NOT NULL THEN 'CRM'
-        ELSE NULL
-      END AS last_channel
-    FROM lead_context
-  `).get(id) as LeadRow | undefined;
+  ) {
+    return "Call";
+  }
+  return row.last_activity_at === null ? null : "CRM";
+}
+
+function mergeLeadWhatsAppMetrics(
+  baseRows: LeadBaseRow[],
+  actor: AccessActor,
+): LeadRow[] {
+  const metricsByLeadId = leadWhatsAppMetricContext(
+    actor,
+    baseRows.map((row) => row.id),
+  );
+
+  return baseRows.map((row) => {
+    const metrics = metricsByLeadId.get(row.id);
+    const denied = actor.role !== "admin" && metrics === undefined;
+    const lastWaAt = metrics?.last_wa_at ?? null;
+    return {
+      ...row,
+      last_wa_at: denied ? null : lastWaAt,
+      last_touch_at: latestTimestamp(
+        row.last_activity_at,
+        row.last_call_at,
+        denied ? null : lastWaAt,
+        row.updated_at,
+      ),
+      last_channel: lastLeadChannel(row, denied ? null : lastWaAt),
+      wa_message_count: denied ? null : metrics?.wa_message_count ?? 0,
+      unread_messages: denied ? null : metrics?.unread_messages ?? 0,
+    };
+  });
+}
+
+export function listLeadsForActor(actor: AccessActor): LeadRow[] {
+  return mergeLeadWhatsAppMetrics(leadBaseRows(), actor);
+}
+
+export function getLeadForActor(
+  actor: AccessActor,
+  id: number,
+): LeadRow | undefined {
+  return mergeLeadWhatsAppMetrics(leadBaseRows(id), actor)[0];
 }
 
 export function leadActivities(leadId: number) {
@@ -1550,7 +1827,7 @@ export function salesReport(period: SalesReportPeriod = "all") {
   return { byManager, byMonth: byMonth.reverse(), bySource };
 }
 
-export function salesCockpitStats() {
+export function salesCockpitStatsForActor(actor: AccessActor) {
   const d = db();
   const dealWithoutTaskWhere = `
     ${ACTIVE_LEAD_SQL} AND NOT EXISTS (
@@ -1577,8 +1854,7 @@ export function salesCockpitStats() {
         SELECT 1 FROM tasks t
         WHERE t.status != 'done' AND (t.lead_id = l.id OR (l.client_id IS NOT NULL AND t.client_id = l.client_id))
       ) THEN 1 ELSE 0 END) AS no_task,
-      (SELECT COUNT(*) FROM calls c WHERE c.manager_id = u.id) AS calls,
-      (SELECT COUNT(*) FROM wa_messages wm WHERE wm.author_id = u.id) AS messages
+      (SELECT COUNT(*) FROM calls c WHERE c.manager_id = u.id) AS calls
     FROM users u
     LEFT JOIN leads l ON l.manager_id = u.id
     WHERE u.role IN ('sales', 'admin')
@@ -1586,7 +1862,15 @@ export function salesCockpitStats() {
     HAVING deals > 0 OR signed > 0
     ORDER BY no_task DESC, deals DESC
     LIMIT 6
-  `).all() as { id: number; name: string; deals: number; value: number; signed: number; no_task: number; calls: number; messages: number }[];
+  `).all() as {
+    id: number;
+    name: string;
+    deals: number;
+    value: number;
+    signed: number;
+    no_task: number;
+    calls: number;
+  }[];
   const sourceRows = d.prepare(`
     SELECT COALESCE(NULLIF(TRIM(source), ''), '—') AS source,
       COUNT(*) AS deals,
@@ -1597,33 +1881,106 @@ export function salesCockpitStats() {
     ORDER BY deals DESC, value DESC
     LIMIT 6
   `).all() as { source: string; deals: number; value: number; signed: number }[];
-  const avgResponseMinutes = (d.prepare(`
-    SELECT AVG((julianday((
-      SELECT MIN(out_msg.created_at)
-      FROM wa_messages out_msg
-      WHERE out_msg.conversation_id = in_msg.conversation_id
-        AND out_msg.direction = 'out'
-        AND out_msg.created_at > in_msg.created_at
-    )) - julianday(in_msg.created_at)) * 24 * 60) AS minutes
-    FROM wa_messages in_msg
-    WHERE in_msg.direction = 'in'
-      AND EXISTS (
-        SELECT 1
+
+  const fullConversationIds = fullConversationIdsForActor(
+    actor,
+    whatsappFullAccessProbesForActor(actor),
+  );
+  const canReadWhatsAppMetrics =
+    actor.role === "admin" || fullConversationIds.length > 0;
+  let incomingMessages: number | null = null;
+  let outgoingMessages: number | null = null;
+  let unreadConversations: number | null = null;
+  let avgResponseMinutes: number | null = null;
+  const messagesByAuthor = new Map<number, number>();
+
+  if (canReadWhatsAppMetrics && fullConversationIds.length === 0) {
+    incomingMessages = 0;
+    outgoingMessages = 0;
+    unreadConversations = 0;
+  } else if (fullConversationIds.length > 0) {
+    const placeholders = sqlPlaceholders(fullConversationIds);
+    const messageCounts = d.prepare(`
+      SELECT
+        COALESCE(SUM(CASE WHEN direction = 'in' THEN 1 ELSE 0 END), 0)
+          AS incoming_messages,
+        COALESCE(SUM(CASE WHEN direction = 'out' THEN 1 ELSE 0 END), 0)
+          AS outgoing_messages
+      FROM wa_messages
+      WHERE conversation_id IN (${placeholders})
+    `).get(...fullConversationIds) as {
+      incoming_messages: number;
+      outgoing_messages: number;
+    };
+    incomingMessages = messageCounts.incoming_messages;
+    outgoingMessages = messageCounts.outgoing_messages;
+    unreadConversations = (d.prepare(`
+      SELECT COALESCE(SUM(unread), 0) AS unread_conversations
+      FROM wa_conversations
+      WHERE id IN (${placeholders})
+    `).get(...fullConversationIds) as {
+      unread_conversations: number;
+    }).unread_conversations;
+
+    const responseMinutes = (d.prepare(`
+      SELECT AVG((julianday((
+        SELECT MIN(out_msg.created_at)
         FROM wa_messages out_msg
         WHERE out_msg.conversation_id = in_msg.conversation_id
           AND out_msg.direction = 'out'
           AND out_msg.created_at > in_msg.created_at
-      )
-  `).get() as { minutes: number | null }).minutes;
+      )) - julianday(in_msg.created_at)) * 24 * 60) AS minutes
+      FROM wa_messages in_msg
+      WHERE in_msg.direction = 'in'
+        AND in_msg.conversation_id IN (${placeholders})
+        AND EXISTS (
+          SELECT 1
+          FROM wa_messages out_msg
+          WHERE out_msg.conversation_id = in_msg.conversation_id
+            AND out_msg.direction = 'out'
+            AND out_msg.created_at > in_msg.created_at
+        )
+    `).get(...fullConversationIds) as { minutes: number | null }).minutes;
+    avgResponseMinutes = responseMinutes === null
+      ? null
+      : Math.max(0, Math.round(responseMinutes));
+
+    const authorRows = d.prepare(`
+      SELECT author_id, COUNT(*) AS message_count
+      FROM wa_messages
+      WHERE conversation_id IN (${placeholders})
+        AND author_id IS NOT NULL
+      GROUP BY author_id
+    `).all(...fullConversationIds) as {
+      author_id: number;
+      message_count: number;
+    }[];
+    for (const row of authorRows) {
+      messagesByAuthor.set(row.author_id, row.message_count);
+    }
+  }
+
+  const scopedManagerRows = managerRows.map((row) => ({
+    ...row,
+    messages: canReadWhatsAppMetrics
+      ? messagesByAuthor.get(row.id) ?? 0
+      : null,
+  }));
   const channelActivity = {
     incomingCalls: (d.prepare("SELECT COUNT(*) c FROM calls WHERE direction = 'in'").get() as { c: number }).c,
     outgoingCalls: (d.prepare("SELECT COUNT(*) c FROM calls WHERE direction = 'out'").get() as { c: number }).c,
-    incomingMessages: (d.prepare("SELECT COUNT(*) c FROM wa_messages WHERE direction = 'in'").get() as { c: number }).c,
-    outgoingMessages: (d.prepare("SELECT COUNT(*) c FROM wa_messages WHERE direction = 'out'").get() as { c: number }).c,
-    unreadConversations: (d.prepare("SELECT COALESCE(SUM(unread), 0) c FROM wa_conversations").get() as { c: number }).c,
-    avgResponseMinutes: avgResponseMinutes === null ? null : Math.max(0, Math.round(avgResponseMinutes)),
+    incomingMessages,
+    outgoingMessages,
+    unreadConversations,
+    avgResponseMinutes,
   };
-  return { dealsWithoutTasks, overdueLeadTasks, managerRows, sourceRows, channelActivity };
+  return {
+    dealsWithoutTasks,
+    overdueLeadTasks,
+    managerRows: scopedManagerRows,
+    sourceRows,
+    channelActivity,
+  };
 }
 
 export function listChannels() {
@@ -1645,49 +2002,179 @@ export function channelMessages(channelId: number, limit = 100) {
   }[];
 }
 
-export function listConversations() {
+export type FullWhatsAppConversationRow = {
+  id: number;
+  phone: string;
+  name: string | null;
+  lead_id: number | null;
+  client_id: number | null;
+  unread: number;
+  last_text: string | null;
+  last_message_at: string | null;
+  wa_account_id: number | null;
+  account_name: string | null;
+  account_provider: string | null;
+  amo_lead_id: number | null;
+  amo_contact_id: number | null;
+  agent_state: string | null;
+  agent_summary: string | null;
+  agent_handoff_reason: string | null;
+  agent_draft_review_text: string | null;
+  agent_draft_review_status: string | null;
+  agent_draft_review_provider: string | null;
+  agent_draft_review_model: string | null;
+  agent_last_synced_at: string | null;
+};
+
+export type WhatsAppCaseSummaryRow = {
+  id: number;
+  name: string;
+  target_country: string | null;
+  target_degree: string | null;
+  case_state: StudentCaseState;
+  curator_name: string | null;
+  handoff_at: string | null;
+};
+
+export type WhatsAppMessageRow = {
+  id: number;
+  direction: string;
+  text: string;
+  status: string;
+  created_at: string;
+  author_name: string | null;
+};
+
+function fullWhatsAppConversationRows(
+  conversationIds: number[],
+): FullWhatsAppConversationRow[] {
+  if (conversationIds.length === 0) return [];
   return db().prepare(`
-    SELECT c.*, a.name AS account_name, a.provider AS account_provider,
-      (SELECT text FROM wa_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_text
-    FROM wa_conversations c
-    LEFT JOIN wa_accounts a ON a.id = c.wa_account_id
-    ORDER BY c.last_message_at DESC
-  `).all() as {
-    id: number; phone: string; name: string | null; lead_id: number | null;
-    client_id: number | null; unread: number; last_text: string | null; last_message_at: string | null;
-    wa_account_id: number | null; account_name: string | null; account_provider: string | null;
-    amo_lead_id: number | null; amo_contact_id: number | null; agent_state: string | null;
-    agent_summary: string | null; agent_handoff_reason: string | null; agent_draft_review_text: string | null;
-    agent_draft_review_status: string | null; agent_draft_review_provider: string | null;
-    agent_draft_review_model: string | null; agent_last_synced_at: string | null;
-  }[];
+    SELECT conversation.*, account.name AS account_name,
+      account.provider AS account_provider,
+      (
+        SELECT message.text
+        FROM wa_messages message
+        WHERE message.conversation_id = conversation.id
+        ORDER BY message.created_at DESC, message.id DESC
+        LIMIT 1
+      ) AS last_text
+    FROM wa_conversations conversation
+    LEFT JOIN wa_accounts account
+      ON account.id = conversation.wa_account_id
+    WHERE conversation.id IN (${sqlPlaceholders(conversationIds)})
+    ORDER BY conversation.last_message_at DESC, conversation.id DESC
+  `).all(...conversationIds) as FullWhatsAppConversationRow[];
 }
 
-export function getConversation(id: number) {
+function whatsAppCaseSummaryRowsForActor(
+  actor: AccessActor,
+): WhatsAppCaseSummaryRow[] {
+  if (actor.role !== "sales") return [];
   return db().prepare(`
-    SELECT c.*, a.name AS account_name, a.provider AS account_provider
-    FROM wa_conversations c
-    LEFT JOIN wa_accounts a ON a.id = c.wa_account_id
-    WHERE c.id = ?
-  `).get(id) as {
-    id: number; phone: string; name: string | null; lead_id: number | null; client_id: number | null;
-    wa_account_id: number | null; account_name: string | null; account_provider: string | null;
-    amo_lead_id: number | null; amo_contact_id: number | null; agent_state: string | null;
-    agent_summary: string | null; agent_handoff_reason: string | null; agent_draft_review_text: string | null;
-    agent_draft_review_status: string | null; agent_draft_review_provider: string | null;
-    agent_draft_review_model: string | null; agent_last_synced_at: string | null;
-  } | undefined;
+    SELECT
+      client.id,
+      student.name,
+      client.target_country,
+      client.target_degree,
+      client.case_state,
+      curator.name AS curator_name,
+      client.handoff_at
+    FROM clients client
+    JOIN users student ON student.id = client.user_id
+    JOIN users manager
+      ON manager.id = client.manager_id
+      AND manager.role = 'sales'
+    JOIN users curator
+      ON curator.id = client.curator_id
+      AND curator.role = 'curator'
+    WHERE client.manager_id = ?
+      AND client.case_state IN ('active', 'closed')
+      AND EXISTS (
+        SELECT 1
+        FROM wa_conversations conversation
+        LEFT JOIN leads lead ON lead.id = conversation.lead_id
+        WHERE conversation.client_id = client.id
+          AND (
+            conversation.lead_id IS NULL
+            OR (
+              lead.id IS NOT NULL
+              AND (lead.client_id IS NULL OR lead.client_id = client.id)
+            )
+          )
+      )
+    ORDER BY client.id
+  `).all(actor.id) as WhatsAppCaseSummaryRow[];
 }
 
-export function waMessages(conversationId: number) {
+export function listConversationsForActor(
+  actor: AccessActor,
+): {
+  full: FullWhatsAppConversationRow[];
+  summaries: WhatsAppCaseSummaryRow[];
+} {
+  const probes = whatsappFullAccessProbesForActor(actor);
+  const fullConversationIds = fullConversationIdsForActor(actor, probes);
+
+  return {
+    full: fullWhatsAppConversationRows(fullConversationIds),
+    summaries: whatsAppCaseSummaryRowsForActor(actor),
+  };
+}
+
+export function getConversationForActor(
+  actor: AccessActor,
+  id: number,
+): FullWhatsAppConversationRow | undefined {
+  const probe = whatsappFullAccessProbesForActor(
+    actor,
+    "conversation.id = ?",
+    [id],
+  )[0];
+  if (
+    probe === undefined
+    || !canWhatsAppCapability(whatsappAccessMode(actor, probe), "read_full")
+  ) {
+    return undefined;
+  }
+  return fullWhatsAppConversationRows([probe.conversation_id])[0];
+}
+
+export function waMessagesForActor(
+  actor: AccessActor,
+  conversationId: number,
+): WhatsAppMessageRow[] {
+  const probe = whatsappFullAccessProbesForActor(
+    actor,
+    "conversation.id = ?",
+    [conversationId],
+  )[0];
+  if (
+    probe === undefined
+    || !canWhatsAppCapability(whatsappAccessMode(actor, probe), "read_full")
+  ) {
+    return [];
+  }
   return db().prepare(`
-    SELECT m.*, u.name AS author_name
-    FROM wa_messages m LEFT JOIN users u ON u.id = m.author_id
-    WHERE m.conversation_id = ? ORDER BY m.created_at
-  `).all(conversationId) as {
-    id: number; direction: string; text: string; status: string;
-    created_at: string; author_name: string | null;
-  }[];
+    SELECT message.*, author.name AS author_name
+    FROM wa_messages message
+    LEFT JOIN users author ON author.id = message.author_id
+    WHERE message.conversation_id = ?
+    ORDER BY message.created_at, message.id
+  `).all(probe.conversation_id) as WhatsAppMessageRow[];
+}
+
+export function getConversationForLeadForActor(
+  actor: AccessActor,
+  leadId: number,
+): FullWhatsAppConversationRow | undefined {
+  const probes = whatsappFullAccessProbesForActor(
+    actor,
+    "conversation.lead_id = ?",
+    [leadId],
+  );
+  const fullConversationIds = fullConversationIdsForActor(actor, probes);
+  return fullWhatsAppConversationRows(fullConversationIds)[0];
 }
 
 export function listCalls() {

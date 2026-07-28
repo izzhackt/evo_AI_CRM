@@ -18,7 +18,7 @@ import { requireStaffRoute } from "@/lib/guards";
 import { getT } from "@/lib/i18n";
 import {
   listClientsForActor,
-  listLeads,
+  listLeadsForActor,
   listStaff,
   listTasksForActor,
 } from "@/lib/queries";
@@ -169,9 +169,8 @@ export default async function TasksPage({
 }: {
   searchParams: Promise<{ assignee?: string; view?: string; month?: string }>;
 }) {
+  const [{ t, locale }, params] = await Promise.all([getT(), searchParams]);
   const user = await requireStaffRoute("/tasks");
-  const { t, locale } = await getT();
-  const params = await searchParams;
   const assigneeId = params.assignee ? Number.parseInt(params.assignee, 10) : undefined;
   const view: TaskView =
     params.view === "list" || params.view === "calendar" ? params.view : "board";
@@ -201,7 +200,7 @@ export default async function TasksPage({
   const canOpenSales = user.role === "admin" || user.role === "sales";
   const canOpenCalls = canOpenSales;
   const meetingLeads = canOpenSales
-    ? listLeads().filter((lead) => ["meeting_scheduled", "meeting_done"].includes(lead.status))
+    ? listLeadsForActor(user).filter((lead) => ["meeting_scheduled", "meeting_done"].includes(lead.status))
     : [];
   const openTasks = tasks.filter((task) => task.status !== "done").length;
   const urgentTasks = tasks.filter(

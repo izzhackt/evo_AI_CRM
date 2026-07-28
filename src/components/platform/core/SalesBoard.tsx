@@ -157,12 +157,14 @@ export function SalesBoard({
                               <span className="sr-only">{t("calls")}: </span>
                               {lead.call_count}
                             </span>
-                            <span className="inline-flex items-center gap-1">
-                              <Icon name="message-circle" size={12} />
-                              <span className="sr-only">{t("messages")}: </span>
-                              {lead.wa_message_count}
-                            </span>
-                            {lead.unread_messages > 0 && (
+                            {lead.wa_message_count !== null && (
+                              <span className="inline-flex items-center gap-1">
+                                <Icon name="message-circle" size={12} />
+                                <span className="sr-only">{t("messages")}: </span>
+                                {lead.wa_message_count}
+                              </span>
+                            )}
+                            {lead.unread_messages !== null && lead.unread_messages > 0 && (
                               <span className="inline-flex items-center rounded-full bg-info-weak px-1.5 py-0.5 font-sans text-[10.5px] font-semibold text-info">
                                 {t("unread")}: {lead.unread_messages}
                               </span>

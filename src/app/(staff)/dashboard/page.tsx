@@ -18,8 +18,8 @@ import { requireStaffRoute } from "@/lib/guards";
 import { getT } from "@/lib/i18n";
 import {
   dashboardStatsForActor,
-  listLeads,
-  salesCockpitStats,
+  listLeadsForActor,
+  salesCockpitStatsForActor,
 } from "@/lib/queries";
 
 const FUNNEL_BAR: Record<string, string> = {
@@ -31,8 +31,8 @@ const FUNNEL_BAR: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const user = await requireStaffRoute("/dashboard");
   const { t, locale } = await getT();
+  const user = await requireStaffRoute("/dashboard");
   const num = (value: number) =>
     value.toLocaleString({ ru: "ru-RU", ky: "ky-KG", en: "en-US" }[locale]);
   const copy = getDashboardCopy(locale);
@@ -40,7 +40,7 @@ export default async function DashboardPage() {
   const stats = dashboardStatsForActor(actor);
   const canReadLeadOperations = user.role === "admin" || user.role === "sales";
   const cockpit = canReadLeadOperations
-    ? salesCockpitStats()
+    ? salesCockpitStatsForActor(actor)
     : {
         dealsWithoutTasks: 0,
         overdueLeadTasks: 0,
@@ -55,7 +55,7 @@ export default async function DashboardPage() {
           avgResponseMinutes: null,
         },
       };
-  const leads = canReadLeadOperations ? listLeads() : [];
+  const leads = canReadLeadOperations ? listLeadsForActor(actor) : [];
 
   const pipelineAmount = leads
     .filter((lead) => !lead.client_id && isActiveLeadStatus(lead.status))
@@ -107,16 +107,20 @@ export default async function DashboardPage() {
       icon: "check-square" as const,
       tone: "violet" as const,
     },
-    {
-      href: "/whatsapp",
-      label: t("unread"),
-      value: cockpit.channelActivity.unreadConversations,
-      icon: "message-circle" as const,
-      tone: "info" as const,
-    },
+    ...(cockpit.channelActivity.unreadConversations === null
+      ? []
+      : [{
+          href: "/whatsapp",
+          label: t("unread"),
+          value: cockpit.channelActivity.unreadConversations,
+          icon: "message-circle" as const,
+          tone: "info" as const,
+        }]),
   ];
 
   const channel = cockpit.channelActivity;
+  const privateMetric = (value: number | null) =>
+    value === null ? "—" : num(value);
   const avgResponse =
     channel.avgResponseMinutes === null
       ? "—"
@@ -132,14 +136,14 @@ export default async function DashboardPage() {
     },
     {
       label: `${t("incoming")} · ${t("messages")}`,
-      value: num(channel.incomingMessages),
+      value: privateMetric(channel.incomingMessages),
     },
     {
       label: `${t("outgoing")} · ${t("messages")}`,
-      value: num(channel.outgoingMessages),
+      value: privateMetric(channel.outgoingMessages),
     },
     { label: t("responseTime"), value: avgResponse },
-    { label: t("unread"), value: num(channel.unreadConversations) },
+    { label: t("unread"), value: privateMetric(channel.unreadConversations) },
   ];
 
   return (
@@ -364,7 +368,7 @@ export default async function DashboardPage() {
                       {num(manager.calls)}
                     </td>
                     <td className="px-3 py-2.5 text-right font-mono text-fg-2">
-                      {num(manager.messages)}
+                      {privateMetric(manager.messages)}
                     </td>
                     <td className="px-5 py-2.5 text-right font-mono font-semibold text-fg">
                       {num(Number(manager.value))}

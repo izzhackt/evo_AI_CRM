@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getT } from "@/lib/i18n";
-import { getLead, leadActivities, listStaff, listConversations } from "@/lib/queries";
+import {
+  getConversationForLeadForActor,
+  getLeadForActor,
+  leadActivities,
+  listStaff,
+} from "@/lib/queries";
 import { LEAD_STATUSES } from "@/lib/db";
 import { updateLeadAction, moveLeadAction, addLeadNoteAction, addTaskAction } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
@@ -13,18 +18,20 @@ import { LeadInsightRail } from "@/components/platform/core/LeadInsightRail";
 import { LeadProfileForm } from "@/components/platform/core/LeadProfileForm";
 
 export default async function LeadPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireStaffRoute("/sales");
-  const { id } = await params;
-  const leadId = parseInt(id, 10);
-  const lead = getLead(leadId);
+  const [{ id }, { t, locale }] = await Promise.all([params, getT()]);
+  if (!/^[1-9]\d*$/.test(id)) notFound();
+  const leadId = Number(id);
+  if (!Number.isSafeInteger(leadId)) notFound();
+  const user = await requireStaffRoute("/sales");
+  const lead = getLeadForActor(user, leadId);
   if (!lead) notFound();
 
-  const { t, locale } = await getT();
   const num = (value: number) =>
     value.toLocaleString({ ru: "ru-RU", ky: "ky-KG", en: "en-US" }[locale]);
   const activities = leadActivities(leadId);
   const staff = listStaff();
-  const conversation = listConversations().find((c) => c.lead_id === leadId);
+  const eligibleSalesManagers = staff.filter((person) => person.role === "sales");
+  const conversation = getConversationForLeadForActor(user, leadId);
   const metaParts = [
     lead.phone,
     lead.email,
@@ -114,9 +121,15 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           { label: t("source"), value: lead.source ?? "—" },
           { label: t("lastTouch"), value: lastTouchMeta, tone: "accent" },
           {
-            label: `${t("calls")} / ${t("messages")}`,
-            value: `${lead.call_count} / ${lead.wa_message_count}`,
-            meta: lead.unread_messages > 0 ? `${t("unread")}: ${lead.unread_messages}` : undefined,
+            label: lead.wa_message_count === null
+              ? t("calls")
+              : `${t("calls")} / ${t("messages")}`,
+            value: lead.wa_message_count === null
+              ? String(lead.call_count)
+              : `${lead.call_count} / ${lead.wa_message_count}`,
+            meta: lead.unread_messages !== null && lead.unread_messages > 0
+              ? `${t("unread")}: ${lead.unread_messages}`
+              : undefined,
           },
         ]}
       />
@@ -126,7 +139,8 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           <LeadProfileForm
             action={updateLeadAction}
             lead={lead}
-            staff={staff}
+            staff={eligibleSalesManagers}
+            canAssignManager={user.role === "admin"}
             labels={{
               title: t("lead360"),
               name: t("leadName"),

@@ -131,7 +131,7 @@ export function TopBar({
   const meta = titles[base] ?? titles["/dashboard"];
   const showAdd =
     ADD_ROUTES.has(base) &&
-    !(base === "/whatsapp" && pathname !== "/whatsapp") &&
+    !(base === "/whatsapp" && (pathname !== "/whatsapp" || role !== "admin")) &&
     !(base === "/clients" && role !== "admin" && role !== "sales");
   const statusCopy = STATUS_COPY[locale];
   const amoStatusCopy = statusCopy.amo[integrationStatus.amo];

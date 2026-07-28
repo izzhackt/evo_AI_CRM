@@ -12,10 +12,12 @@ export function SalesQuickAdd({
   staff,
   t,
   copy,
+  canAssignManager,
 }: {
   staff: StaffOption[];
   t: (key: string) => string;
   copy: SalesCopy;
+  canAssignManager: boolean;
 }) {
   return (
     <section
@@ -99,17 +101,19 @@ export function SalesQuickAdd({
             className={inputCls}
           />
         </label>
-        <label>
-          <span className={labelCls}>{t("manager")}</span>
-          <select name="manager_id" defaultValue="" className={inputCls}>
-            <option value="">{t("notAssigned")}</option>
-            {staff.map((person) => (
-              <option key={person.id} value={person.id}>
-                {person.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {canAssignManager && (
+          <label>
+            <span className={labelCls}>{t("manager")}</span>
+            <select name="manager_id" defaultValue="" className={inputCls}>
+              <option value="">{t("notAssigned")}</option>
+              {staff.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <button
           type="submit"
           className={cn(btnCls, "mt-auto w-full")}

@@ -153,22 +153,27 @@ return [
     id: "S08",
     capability: "Admissions Pipeline",
     scenario: "Add lead Server Action creates an EVO admissions lead.",
-    criteria: "Submitting the real /sales lead form inserts a lead with source, target country, manager, and amount.",
+    criteria: "Submitting the real Sales /sales lead form inserts a lead with source, target country, amount, and the authenticated Sales owner.",
     async run(ctx) {
       const name = unique("Scenario Lead");
-      await ctx.submit("/sales", ctx.cookie(sales), { names: ["name", "phone", "email", "source", "target_country", "amount", "manager_id"] }, {
+      await ctx.submit("/sales", ctx.cookie(sales), { names: ["name", "phone", "email", "source", "target_country", "amount"] }, {
         name,
         phone: "+996700800801",
         email: `${name.toLowerCase().replaceAll(" ", ".")}@example.com`,
         source: "scenario-web",
         target_country: "Canada",
         amount: "120000",
-        manager_id: ctx.user(sales).id,
       });
-      const row = scalar(ctx, "SELECT id, status, target_country, amount FROM leads WHERE name = ?", [name]);
+      const row = scalar(ctx, "SELECT id, status, target_country, amount, manager_id FROM leads WHERE name = ?", [name]);
       assert(row, "lead was not inserted");
-      assert(row.status === "processing_mp" && row.target_country === "Canada" && row.amount === 120000, "lead fields incorrect");
-      return `created lead ${row.id} status ${row.status}, ${row.target_country}, ${row.amount} KGS`;
+      assert(
+        row.status === "processing_mp"
+          && row.target_country === "Canada"
+          && row.amount === 120000
+          && row.manager_id === ctx.user(sales).id,
+        "lead fields or authenticated owner incorrect",
+      );
+      return `created lead ${row.id} status ${row.status}, ${row.target_country}, ${row.amount} KGS; owner forced to Sales ${row.manager_id}`;
     },
   },
   {
@@ -751,25 +756,31 @@ return [
   {
     id: "S27",
     capability: "WhatsApp operations",
-    scenario: "WhatsApp inbox/detail render and missing credentials are visibly blocked.",
-    criteria: "Conversation creation renders detail, inbox links it, and absent Cloud API credentials show a not-connected state instead of success.",
+    scenario: "Manual WhatsApp creation is Admin-only and missing credentials are visibly blocked.",
+    criteria: "Sales has no manual-create form; Admin can create an unlinked conversation and see its detail while Sales cannot see its link; absent Cloud API credentials show a not-connected state instead of success.",
     async run(ctx) {
+      const salesInboxBefore = await ctx.get("/whatsapp", ctx.cookie(sales));
+      assert(salesInboxBefore.status === 200, `Sales inbox status ${salesInboxBefore.status}`);
+      assert(!salesInboxBefore.text.includes('name="phone"'), "Sales inbox exposed manual conversation creation");
+
       const phone = `+996700${Math.floor(100000 + Math.random() * 899999)}`;
-      await ctx.submit("/whatsapp", ctx.cookie(sales), { names: ["phone", "name"] }, {
+      await ctx.submit("/whatsapp", ctx.cookie(admin), { names: ["phone", "name"] }, {
         phone,
         name: "Scenario WhatsApp",
       });
       const conv = scalar(ctx, "SELECT id FROM wa_conversations WHERE phone = ?", [phone]);
       assert(conv, "conversation not created");
-      const detail = await ctx.get(`/whatsapp/${conv.id}`, ctx.cookie(sales));
-      assert(detail.status === 200, `conversation detail status ${detail.status}`);
-      const inbox = await ctx.get("/whatsapp", ctx.cookie(sales));
-      assert(inbox.status === 200 && inbox.text.includes(`/whatsapp/${conv.id}`), "inbox did not link new conversation");
+      const detail = await ctx.get(`/whatsapp/${conv.id}`, ctx.cookie(admin));
+      assert(detail.status === 200 && detail.text.includes("Scenario WhatsApp"), `Admin conversation detail status ${detail.status}`);
+      const inbox = await ctx.get("/whatsapp", ctx.cookie(admin));
+      assert(inbox.status === 200 && inbox.text.includes(`/whatsapp/${conv.id}`), "Admin inbox did not link new conversation");
+      const salesInbox = await ctx.get("/whatsapp", ctx.cookie(sales));
+      assert(!salesInbox.text.includes(`/whatsapp/${conv.id}`), "Sales inbox leaked unlinked Admin-only conversation");
       const waToken = scalar(ctx, "SELECT value FROM settings WHERE key = 'wa_token'");
       const waPhone = scalar(ctx, "SELECT value FROM settings WHERE key = 'wa_phone_id'");
       assert(!waToken?.value && !waPhone?.value, "scenario expected missing WhatsApp credentials");
       assert(inbox.text.includes("⚠") || inbox.text.includes("demo") || inbox.text.includes("не"), "missing not-connected WhatsApp notice");
-      return `conversation ${conv.id}; WhatsApp Cloud credentials absent and inbox shows blocked state`;
+      return `Admin-only conversation ${conv.id}; Sales create/link denied; WhatsApp Cloud credentials absent and inbox shows blocked state`;
     },
   },
   {
@@ -1022,7 +1033,7 @@ return [
       assert(inboundRows === 1, `expected one received inbound row, got ${inboundRows}`);
       assert(outboundRows === 0, `expected no outbound rows, got ${outboundRows}`);
 
-      const page = await ctx.get(`/whatsapp/${conv.id}`, ctx.cookie(sales));
+      const page = await ctx.get(`/whatsapp/${conv.id}`, ctx.cookie(admin));
       assert(page.status === 200, `operator conversation page ${page.status}`);
       assert(page.text.includes("Черновик на проверку"), "Operator UI did not label draft review");
       assert(page.text.includes("не отправлено"), "Operator UI did not mark draft as not sent");

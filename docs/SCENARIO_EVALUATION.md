@@ -1,6 +1,6 @@
 # Scenario Evaluation
 
-Generated: 2026-07-28T00:03:07.251Z
+Generated: 2026-07-28T07:43:07.966Z
 
 ## Method
 
@@ -16,7 +16,7 @@ Conditions:
 - No live WhatsApp, telephony, amoCRM, or Anthropic credentials supplied; missing
   provider credentials must surface as explicit blocked/not-configured states.
 - Base URL: `http://127.0.0.1:3130`.
-- Temp DB: `/var/folders/p4/c09jb8gd4qngjbkr1cqfh8rh0000gp/T/evo-crm-scenarios-28640-1785196984732/edu-admin.db` (isolated copy; removed after the run unless
+- Temp DB: `/var/folders/p4/c09jb8gd4qngjbkr1cqfh8rh0000gp/T/evo-crm-scenarios-82824-1785224585592/edu-admin.db` (isolated copy; removed after the run unless
   `EVO_KEEP_SCENARIO_DB=1` is set).
 
 ## Summary
@@ -36,9 +36,9 @@ Conditions:
 | S05 | Role visibility | Finance role can use finance overview but not admissions document/application queues. | Finance session loads /finance and receives a server-guarded no-access state for /applications and /documents. | PASS | finance 200; applications 307 header no-access; documents 307 header no-access |
 | S06 | Command Center | Command Center metrics, charts, and queue links are admissions-specific. | Dashboard renders stats from all CRM queues with links to sales, applications, documents, tasks, finance, and clients. | PASS | dashboard links all core queues; client count evidence 2 |
 | S07 | Admissions Pipeline | Admissions Pipeline renders operational columns and existing lead cards. | GET /sales shows lead statuses, pipeline metrics, and at least one seeded lead card link. | PASS | sales page rendered seeded lead 1 Темирлан Касымов |
-| S08 | Admissions Pipeline | Add lead Server Action creates an EVO admissions lead. | Submitting the real /sales lead form inserts a lead with source, target country, manager, and amount. | PASS | created lead 7 status processing_mp, Canada, 120000 KGS |
+| S08 | Admissions Pipeline | Add lead Server Action creates an EVO admissions lead. | Submitting the real Sales /sales lead form inserts a lead with source, target country, amount, and the authenticated Sales owner. | PASS | created lead 7 status processing_mp, Canada, 120000 KGS; owner forced to Sales 2 |
 | S09 | Admissions Pipeline | Move lead Server Action updates lead status and activity. | Submitting a lead move form changes status to meeting scheduled and records a status activity. | PASS | lead 1 moved to meeting_scheduled; status activities 1 |
-| S08B | Admissions Pipeline | Active pipeline risk views exclude terminal no-request leads. | A terminal no_request lead without tasks does not inflate active no-task drill-downs. | PASS | terminal no_request lead Terminal No Request-1785196985989-h1gbem excluded; active no-task count 3 |
+| S08B | Admissions Pipeline | Active pipeline risk views exclude terminal no-request leads. | A terminal no_request lead without tasks does not inflate active no-task drill-downs. | PASS | terminal no_request lead Terminal No Request-1785224586513-h5zupa excluded; active no-task count 3 |
 | S10 | Admissions Pipeline | Contract status and Student 360 conversion stay locked until the canonical amoCRM mapping exists. | A forged contract_signed move neither changes the lead nor creates a linked client. | PASS | lead 9 remained meeting_done and unlinked after forged contract_signed |
 | S11 | Admissions Pipeline | Lead note action persists staff activity. | Submitting note form on lead detail inserts a note activity visible on the lead. | PASS | lead 1 note activity 4 |
 | S12 | Student 360 | Student 360 list filters and add-student action create a profile. | Student list stage filter renders and add-student form creates a client plus linked client user. | PASS | created student client 3 with linked client user |
@@ -57,9 +57,9 @@ Conditions:
 | S25 | Student portal updates | Staff update becomes visible in the client portal. | Posting an update from Student 360 inserts a client update and the seeded client portal renders it. | PASS | portal rendered update for client 1 |
 | S31 | Student portal experience | Client portal renders a sectioned, client-scoped admissions dashboard. | The signed-in student sees own stage, target, applications, documents, payments, highest-priority next action, team contacts, and section navigation without another student's data. | PASS | portal rendered scoped dashboard for client 1 with navigation, contacts, and open work |
 | S26 | Team chat | Chat renders and channel/message actions persist team communication. | Creating a channel redirects to chat detail, and sending a message inserts it for that channel. | PASS | channel 4 created (303); message 5 inserted |
-| S27 | WhatsApp operations | WhatsApp inbox/detail render and missing credentials are visibly blocked. | Conversation creation renders detail, inbox links it, and absent Cloud API credentials show a not-connected state instead of success. | PASS | conversation 3; WhatsApp Cloud credentials absent and inbox shows blocked state |
+| S27 | WhatsApp operations | Manual WhatsApp creation is Admin-only and missing credentials are visibly blocked. | Sales has no manual-create form; Admin can create an unlinked conversation and see its detail while Sales cannot see its link; absent Cloud API credentials show a not-connected state instead of success. | PASS | Admin-only conversation 3; Sales create/link denied; WhatsApp Cloud credentials absent and inbox shows blocked state |
 | S28 | WhatsApp webhook and settings | Settings save integration token, verify endpoint works, and incoming webhook creates lead/conversation. | Admin settings form saves verify token; GET webhook echoes challenge; POST incoming message creates conversation and linked lead. | PASS | verify ok; inbound conversation 4, lead 10 |
-| S28B | WAHA WhatsApp integration | WAHA settings create a session account, signed webhook imports messages, status events update the account, retries are idempotent, and provider errors stay visible. | Admin can save WAHA config; unsigned WAHA webhook is rejected; signed message creates one account-bound conversation; duplicate delivery is ignored; a stored provider failure renders as blocked in the staff shell and settings overview. | PASS | WAHA session crm_6s6t8b; conversation 5; duplicate message ignored; account WORKING; provider failure rendered blocked in shell and settings |
+| S28B | WAHA WhatsApp integration | WAHA settings create a session account, signed webhook imports messages, status events update the account, retries are idempotent, and provider errors stay visible. | Admin can save WAHA config; unsigned WAHA webhook is rejected; signed message creates one account-bound conversation; duplicate delivery is ignored; a stored provider failure renders as blocked in the staff shell and settings overview. | PASS | WAHA session crm_qiv3c8; conversation 5; duplicate message ignored; account WORKING; provider failure rendered blocked in shell and settings |
 | S28C | Lead-agent CRM sync | Signed lead-agent sync persists receive-only draft review evidence without creating sent outbound WhatsApp. | Bad signatures are rejected; signed sync stores inbound state, amoCRM identity, agent state, and Gemini draft-review text; Operator UI labels the draft as not sent. | PASS | signed sync accepted conversation 6; rejected bad signature; draft visible with 0 outbound rows |
 | S29 | Calls and telephony | Calls page and telephony webhook enforce key handling and insert calls. | Missing telephony provider or key is explicitly blocked without inserting a call; configured provider/key blocks invalid webhook; valid webhook inserts a call and links by lead phone. | PASS | user-facing unavailable state shown; missing key 503; missing provider 503; invalid key 403; calls 4/5 linked to lead 1 |
 | S30 | Reports and prepared AI boundary | Reports render and AI summary endpoint returns not_configured without Anthropic key. | Reports page loads real CRM totals; AI summary API for staff returns explicit not_configured instead of fake success. | PASS | reports 200; AI summary client 1 -> not_configured |

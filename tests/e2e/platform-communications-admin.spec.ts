@@ -287,7 +287,8 @@ test("server role checks remain hard while finance reports stay aggregate-only",
   await expect(page.locator('main a[href="/calls"]')).toHaveCount(0);
   await expect(page.locator('main a[href^="/sales/"]')).toHaveCount(0);
   await page.goto("/whatsapp");
-  await page.locator('a[href^="/whatsapp/"]:visible').first().click();
   await expect(page.locator('main a[href^="/sales/"]')).toHaveCount(0);
+  await expect(page.locator('.staff-topbar__actions a[href="/whatsapp#add"]')).toHaveCount(0);
+  await expect(page.locator("details#add")).toHaveCount(0);
   expect(runtimeErrors).toEqual([]);
 });

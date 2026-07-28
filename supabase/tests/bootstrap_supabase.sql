@@ -6,6 +6,12 @@ CREATE ROLE service_role NOLOGIN BYPASSRLS;
 
 GRANT anon, authenticated, service_role TO postgres;
 
+-- Adversarial drift fixture for migration 040: IF NOT EXISTS alone would keep
+-- authenticated as schema owner, allowing that role to re-grant itself CREATE.
+-- The migration must converge both namespaces back to the trusted owner.
+CREATE SCHEMA platform AUTHORIZATION authenticated;
+CREATE SCHEMA platform_private AUTHORIZATION authenticated;
+
 CREATE SCHEMA auth;
 CREATE TABLE auth.users (
   id UUID PRIMARY KEY,

@@ -9,9 +9,18 @@ const expectedSource = Object.freeze({
   path: "agent-lead2-inbox/supabase/migrations",
   range: "001-039",
 });
-const immutableMigrationCount = 39;
+const importedMigrationCount = 39;
 const requiredP2BMigration =
   "040_platform_namespaces_and_secret_containment.sql";
+const immutablePlatformMigrations = Object.freeze([
+  Object.freeze({
+    name: requiredP2BMigration,
+    bytes: 10495,
+    sha256: "d06d9fcd485d90458e513543f0895b0ac00b775b496eb604d35bc0f6bf5c6abb",
+  }),
+]);
+const immutableMigrationCount =
+  importedMigrationCount + immutablePlatformMigrations.length;
 const testRoot = process.env.EVO_SUPABASE_HISTORY_TEST_ROOT;
 const isTestFixture = Boolean(testRoot) && process.env.NODE_ENV === "test";
 const repositoryRoot = isTestFixture
@@ -81,9 +90,9 @@ async function loadManifest() {
   if (!Array.isArray(manifest.files)) {
     fail("manifest files must be an array");
   }
-  if (manifest.files.length !== immutableMigrationCount) {
+  if (manifest.files.length !== importedMigrationCount) {
     fail(
-      `manifest must contain exactly ${immutableMigrationCount} immutable migrations; found ${manifest.files.length}`,
+      `manifest must contain exactly ${importedMigrationCount} imported migrations; found ${manifest.files.length}`,
     );
   }
 
@@ -165,7 +174,7 @@ function validateManifestEntries(files) {
 }
 
 function validateCanonicalSequence(names) {
-  if (names.length < immutableMigrationCount + 1) {
+  if (names.length < immutableMigrationCount) {
     fail(`canonical migration history must include required ${requiredP2BMigration}`);
   }
 
@@ -186,7 +195,7 @@ function validateCanonicalSequence(names) {
     }
   });
 
-  if (names[immutableMigrationCount] !== requiredP2BMigration) {
+  if (names[importedMigrationCount] !== requiredP2BMigration) {
     fail(`required migration 040 must be ${requiredP2BMigration}`);
   }
 }
@@ -265,7 +274,11 @@ async function main() {
   }
 
   const manifest = await loadManifest();
-  const expectedNames = validateManifestEntries(manifest.files);
+  const importedNames = validateManifestEntries(manifest.files);
+  const expectedNames = [
+    ...importedNames,
+    ...immutablePlatformMigrations.map((migration) => migration.name),
+  ];
   const actualNames = await listCanonicalMigrations();
 
   validateCanonicalSequence(actualNames);
@@ -274,7 +287,7 @@ async function main() {
     expectedNames,
   );
   await assertLegacyPathIsPointerOnly();
-  for (const file of manifest.files) {
+  for (const file of [...manifest.files, ...immutablePlatformMigrations]) {
     await verifyFile(file);
   }
 
@@ -282,7 +295,7 @@ async function main() {
     `${JSON.stringify({
       ok: true,
       checked: immutableMigrationCount,
-      range: expectedSource.range,
+      range: `001-${String(immutableMigrationCount).padStart(3, "0")}`,
       current: actualNames[actualNames.length - 1].slice(0, 3),
       total: actualNames.length,
     })}\n`,

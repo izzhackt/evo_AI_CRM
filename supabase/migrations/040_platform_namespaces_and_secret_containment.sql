@@ -10,12 +10,77 @@
 -- authorize the human actor first, then perform these reads and writes through
 -- a server-side service-role client.
 --
--- Idempotent: schemas use IF NOT EXISTS; grants, revokes, default privileges,
--- and policy drops may be applied repeatedly.
+-- Idempotent: schemas use IF NOT EXISTS and converge to the trusted migration
+-- owner; grants, revokes, default privileges, and policy drops may be applied
+-- repeatedly.
 -- ============================================================
 
 CREATE SCHEMA IF NOT EXISTS platform AUTHORIZATION postgres;
 CREATE SCHEMA IF NOT EXISTS platform_private AUTHORIZATION postgres;
+
+-- Refuse to silently adopt objects created under an unexpected owner. Later
+-- Platform migrations run as postgres, so a non-postgres-owned relation,
+-- routine, or type here is drift that must be inspected before continuing.
+DO $$
+DECLARE
+  unexpected_object TEXT;
+BEGIN
+  SELECT string_agg(
+    format('%I.%I (%s, owner=%I)', schema_name, object_name, object_kind, owner_name),
+    ', '
+    ORDER BY schema_name, object_kind, object_name
+  )
+  INTO unexpected_object
+  FROM (
+    SELECT
+      namespace.nspname AS schema_name,
+      relation.relname AS object_name,
+      'relation'::TEXT AS object_kind,
+      pg_get_userbyid(relation.relowner) AS owner_name
+    FROM pg_class AS relation
+    JOIN pg_namespace AS namespace
+      ON namespace.oid = relation.relnamespace
+    WHERE namespace.nspname IN ('platform', 'platform_private')
+
+    UNION ALL
+
+    SELECT
+      namespace.nspname,
+      routine.proname,
+      'routine'::TEXT,
+      pg_get_userbyid(routine.proowner)
+    FROM pg_proc AS routine
+    JOIN pg_namespace AS namespace
+      ON namespace.oid = routine.pronamespace
+    WHERE namespace.nspname IN ('platform', 'platform_private')
+
+    UNION ALL
+
+    SELECT
+      namespace.nspname,
+      type_entry.typname,
+      'type'::TEXT,
+      pg_get_userbyid(type_entry.typowner)
+    FROM pg_type AS type_entry
+    JOIN pg_namespace AS namespace
+      ON namespace.oid = type_entry.typnamespace
+    WHERE namespace.nspname IN ('platform', 'platform_private')
+  ) AS schema_object
+  WHERE owner_name <> 'postgres';
+
+  IF unexpected_object IS NOT NULL THEN
+    RAISE EXCEPTION
+      'Platform schema owner drift contains non-postgres objects: %',
+      unexpected_object;
+  END IF;
+END
+$$;
+
+-- IF NOT EXISTS preserves the owner of a pre-existing schema. Normalize both
+-- owners before granting anything so a browser role cannot retain schema-owner
+-- authority and later re-grant itself CREATE after the explicit REVOKEs below.
+ALTER SCHEMA platform OWNER TO postgres;
+ALTER SCHEMA platform_private OWNER TO postgres;
 
 -- PostgreSQL's built-in defaults grant EXECUTE on new functions and USAGE on
 -- new types to PUBLIC. A per-schema default ACL cannot subtract a global

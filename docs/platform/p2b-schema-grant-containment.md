@@ -2,7 +2,7 @@
 
 - Block: P2B
 - Date: 2026-07-28
-- Starting main: `8ad755b5039390f418dbe12924a806f069f93b53`
+- Starting main: `7420736b02f251162cf709e3cc4029262d94f1c5`
 - Plan: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 - Detailed contract: `docs/platform/p2-supabase-foundation.md`
 - Provider proof: not required for this repository/disposable-local block
@@ -58,12 +58,13 @@ was used in these checks.
 
 ### Immutable and forward migration history
 
-The checksum manifest remains authoritative for the byte-identical 001–039
-baseline. The verifier now requires the exact migration 040 filename and
-accepts only contiguous later migrations:
+The imported-history checksum manifest remains authoritative for the
+byte-identical 001–039 baseline. The verifier separately pins migration 040 by
+exact filename, byte count and SHA-256, and accepts only contiguous later
+migrations. A same-length 040 rewrite is a tested failure:
 
 ```json
-{"ok":true,"checked":39,"range":"001-039","current":"040","total":40}
+{"ok":true,"checked":40,"range":"001-040","current":"040","total":40}
 ```
 
 The old Inbox migration path remains pointer-only. Local reset derives the
@@ -72,9 +73,15 @@ future 041+ migrations must remain contiguous.
 
 ### Disposable PostgreSQL authorization
 
-The PostgreSQL harness applies 001–040, reapplies 038, 039 and 040 to exercise
-idempotency, and proves:
+Before the ordinary migration sequence, the PostgreSQL harness creates the two
+target schemas under the browser role and proves that migration 040 refuses to
+adopt a browser-owned object. It then removes that test object, applies
+001–040, reapplies 038, 039 and 040 to exercise safe convergence/idempotency,
+and proves:
 
+- empty pre-existing schemas converge to the trusted `postgres` owner;
+- non-`postgres` relations, routines or types fail the migration before grants
+  change;
 - `anon` cannot resolve `platform`, `platform_private` or `pgmq_public`;
 - `authenticated` can resolve `platform` but cannot create objects there;
 - browser roles cannot access `platform_private` or queue API objects;

@@ -19,6 +19,10 @@ const SOURCE = Object.freeze({
 const FIXTURE_SQL = "select 1;\n";
 const FIXTURE_SHA256 = "4a45092ccf992ea92250053a80b931b787924ba61648f420555511b84f10ab6c";
 const REQUIRED_040 = "040_platform_namespaces_and_secret_containment.sql";
+const required040Path = new URL(
+  `../supabase/migrations/${REQUIRED_040}`,
+  import.meta.url,
+);
 
 async function createValidFixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), "evo-supabase-history-"));
@@ -59,7 +63,7 @@ async function createValidFixture(t) {
   );
   await writeFile(
     path.join(migrationsDirectory, REQUIRED_040),
-    FIXTURE_SQL,
+    await readFile(required040Path, "utf8"),
   );
 
   return root;
@@ -96,11 +100,28 @@ test("accepts immutable 001-039 plus required migration 040", async (t) => {
   assert.equal(stderr, "");
   assert.deepEqual(JSON.parse(stdout), {
     ok: true,
-    checked: 39,
-    range: "001-039",
+    checked: 40,
+    range: "001-040",
     current: "040",
     total: 40,
   });
+});
+
+test("rejects a same-length rewrite of immutable migration 040", async (t) => {
+  const root = await createValidFixture(t);
+  const migrationPath = path.join(
+    root,
+    "supabase",
+    "migrations",
+    REQUIRED_040,
+  );
+  const original = await readFile(migrationPath, "utf8");
+  const rewritten = original.replace("Establishes", "establishes");
+  assert.notEqual(rewritten, original);
+  assert.equal(Buffer.byteLength(rewritten), Buffer.byteLength(original));
+  await writeFile(migrationPath, rewritten);
+
+  await expectVerifierFailure(root, /040_.+ SHA-256 changed/);
 });
 
 test("exposes platform without exposing private or queue schemas", async () => {
@@ -163,7 +184,10 @@ test("requires the exact migration 040 and contiguous later migrations", async (
   );
 
   await unlink(path.join(migrationsDirectory, "040_wrong_name.sql"));
-  await writeFile(path.join(migrationsDirectory, REQUIRED_040), FIXTURE_SQL);
+  await writeFile(
+    path.join(migrationsDirectory, REQUIRED_040),
+    await readFile(required040Path, "utf8"),
+  );
   await writeFile(
     path.join(migrationsDirectory, "042_gap.sql"),
     FIXTURE_SQL,
@@ -183,8 +207,8 @@ test("requires the exact migration 040 and contiguous later migrations", async (
   assert.equal(stderr, "");
   assert.deepEqual(JSON.parse(stdout), {
     ok: true,
-    checked: 39,
-    range: "001-039",
+    checked: 40,
+    range: "001-040",
     current: "041",
     total: 41,
   });

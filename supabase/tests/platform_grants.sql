@@ -5,12 +5,33 @@
 DO $$
 DECLARE
   platform_relation_count INTEGER;
+  platform_owner NAME;
+  platform_private_owner NAME;
 BEGIN
   IF to_regnamespace('platform') IS NULL THEN
     RAISE EXCEPTION 'platform schema is missing';
   END IF;
   IF to_regnamespace('platform_private') IS NULL THEN
     RAISE EXCEPTION 'platform_private schema is missing';
+  END IF;
+
+  SELECT pg_get_userbyid(nspowner)
+  INTO platform_owner
+  FROM pg_namespace
+  WHERE nspname = 'platform';
+
+  SELECT pg_get_userbyid(nspowner)
+  INTO platform_private_owner
+  FROM pg_namespace
+  WHERE nspname = 'platform_private';
+
+  IF platform_owner <> 'postgres'
+    OR platform_private_owner <> 'postgres'
+  THEN
+    RAISE EXCEPTION
+      'Platform schemas must converge to postgres ownership; found platform=%, platform_private=%',
+      platform_owner,
+      platform_private_owner;
   END IF;
 
   SELECT count(*)

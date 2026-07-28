@@ -74,6 +74,13 @@ Curator/Admin могут close или reopen student case только с обя
 и audit. Admin — permission bundle для личных аккаунтов уполномоченных
 сотрудников; shared credentials запрещены.
 
+Migration 042 реализует эту границу локально в Supabase/PostgreSQL: pending
+case создаётся только узким service RPC после подтверждённого contract signal;
+Admin assignment активирует handoff/Portal и ротирует object scope; после
+handoff Sales получает только фиксированный summary, а Student — только
+self-only Portal projections. Это database contract, а не доказательство
+реального amoCRM mapping, production import или Portal cutover.
+
 ## RLS и server authorization
 
 Все exposed tables включают RLS. Политики проверяют не только role, но и:

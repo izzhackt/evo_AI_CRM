@@ -86,6 +86,17 @@ while IFS= read -r migration; do
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
       -f /workspace/supabase/migrations/040_platform_namespaces_and_secret_containment.sql
   fi
+
+  # P2C owns an exact ten-table identity/RBAC boundary. Run that acceptance
+  # suite at migration 041 before later Platform domain tables are added. The
+  # synthetic live memberships it leaves behind also prove that 042 upgrades
+  # existing active, inactive and blocked authority rather than only clean
+  # databases.
+  if [[ "$(basename "$migration")" == 041_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+      -f /workspace/supabase/tests/platform_identity_rbac.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
@@ -101,4 +112,8 @@ docker exec "$container_name" \
 
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
-  -f /workspace/supabase/tests/platform_identity_rbac.sql
+  -f /workspace/supabase/tests/platform_admissions_rls.sql
+
+docker exec "$container_name" \
+  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+  -f /workspace/supabase/tests/platform_inventory.sql

@@ -18,6 +18,8 @@ const requiredP2DMigration =
   "042_platform_student_admissions.sql";
 const requiredP2EMigration =
   "043_platform_documents_finance_notifications.sql";
+const requiredP2FMigration =
+  "044_platform_communications_contracts.sql";
 const immutablePlatformMigrations = Object.freeze([
   Object.freeze({
     name: requiredP2BMigration,
@@ -38,6 +40,11 @@ const immutablePlatformMigrations = Object.freeze([
     name: requiredP2EMigration,
     bytes: 175788,
     sha256: "561c1f07beff9e05a2c6a326060c3df831f16c2174b039b1b848b176901b0713",
+  }),
+  Object.freeze({
+    name: requiredP2FMigration,
+    bytes: 194076,
+    sha256: "8d52b476981faed4a42a9c13ff2813a718bde6ad4aea1b315c4d61be9fd1ebc8",
   }),
 ]);
 const immutableMigrationCount =
@@ -196,7 +203,7 @@ function validateManifestEntries(files) {
 
 function validateCanonicalSequence(names) {
   if (names.length < immutableMigrationCount) {
-    fail(`canonical migration history must include required ${requiredP2EMigration}`);
+    fail(`canonical migration history must include required ${requiredP2FMigration}`);
   }
 
   names.forEach((name, index) => {
@@ -227,6 +234,9 @@ function validateCanonicalSequence(names) {
   }
   if (names[importedMigrationCount + 3] !== requiredP2EMigration) {
     fail(`required migration 043 must be ${requiredP2EMigration}`);
+  }
+  if (names[importedMigrationCount + 4] !== requiredP2FMigration) {
+    fail(`required migration 044 must be ${requiredP2FMigration}`);
   }
 }
 

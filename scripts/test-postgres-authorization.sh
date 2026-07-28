@@ -110,6 +110,31 @@ while IFS= read -r migration; do
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
       -f /workspace/supabase/tests/platform_inventory.sql
   fi
+
+  # P2E owns the exact migration-043 documents/finance/notifications boundary
+  # and leaves the two-organization/two-student fixtures plus immutable v3
+  # memberships that P2F must upgrade. Run both suites before migration 044.
+  if [[ "$(basename "$migration")" == 043_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+      -f /workspace/supabase/tests/platform_documents_finance_notifications_rls.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+      -f /workspace/supabase/tests/platform_documents_finance_notifications_inventory.sql
+  fi
+
+  # P2F owns the exact migration-044 communications/provider/draft-only AI
+  # boundary. Run its stateful RLS suite and catalog inventory at that boundary
+  # so a later migration cannot accidentally satisfy or mask a missing 044
+  # contract.
+  if [[ "$(basename "$migration")" == 044_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+      -f /workspace/supabase/tests/platform_communications_rls.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+      -f /workspace/supabase/tests/platform_communications_inventory.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
@@ -122,14 +147,3 @@ docker exec "$container_name" \
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
   -f /workspace/supabase/tests/authorization_inventory.sql
-
-# P2E consumes the P2D fixtures after the full migration loop so migration 043
-# can prove its v2-to-v3 authority upgrade before exercising the additive
-# documents, finance, and notification contracts and final catalog surface.
-docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
-  -f /workspace/supabase/tests/platform_documents_finance_notifications_rls.sql
-
-docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
-  -f /workspace/supabase/tests/platform_documents_finance_notifications_inventory.sql

@@ -2,7 +2,7 @@
 
 - Owner: технический ответственный EVO Admissions
 - Status: Target contract; current split storage remains until controlled cutover
-- Last verified against repository: 2026-07-28
+- Last verified against repository: 2026-07-29
 - Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 
@@ -30,13 +30,14 @@
 | Visa case | EVO Platform Supabase | Curator-owned operational states и evidence |
 | Tasks | EVO Platform Supabase | assignment, priority, due/status и lifecycle history |
 | Notification intent v1 | EVO Platform Supabase | один recipient, in-app/individual-WhatsApp channel, consent snapshot и dedupe |
-| WhatsApp provider delivery/ACK | WAHA + Platform после P2F/P2G | provider IDs, Queue/outbox attempts, ACK и reconciliation |
+| WhatsApp provider delivery/ACK | WAHA | наблюдаемое provider evidence, ACK progression и reconciliation state; Platform record не создаёт provider truth |
 | Obligations, payments и refunds v1 | EVO Platform Supabase | ручное Finance/Admin confirmation, evidence и audit |
-| Conversation и staff workflow | EVO Platform Supabase | единая история, queue ownership, handoff и access scope |
+| Conversation и staff workflow | EVO Platform Supabase | единая история, role queue ownership, handoff и access scope |
 | WhatsApp transport/session state | WAHA | отдельные `session`, message ID, ACK и reconciliation records |
 | Kommo Chats identity | Kommo | отдельные `conversation.id` и `message.id`, не смешанные с WAHA IDs |
-| AI output | EVO Platform Supabase | draft, model/policy version, knowledge citations и human final version |
-| Audit/outbox/queue/dead-letter/reconciliation | EVO Platform Supabase | immutable append-style evidence и processing state |
+| AI draft evidence | EVO Platform Supabase | explicit request/source message, provider/model/prompt-policy references, source context + SHA, approved-knowledge citations, original generated text, review evidence и exact human final text + SHA |
+| Communications audit/reconciliation state | EVO Platform Supabase после P2F | immutable append-style evidence; не доказательство Queue или provider delivery |
+| Outbox/queue/dead-letter processing | EVO Platform Supabase после P2G | durable work, attempts, retry budget, dead-letter и manual reconciliation |
 
 Operational admissions status никогда не записывается как замена sales stage.
 Canonical amoCRM writes используют `pipeline_id`, `status_id`,
@@ -85,15 +86,28 @@ self-only Portal projections. Это database contract, а не доказате
 реального amoCRM mapping, production import или Portal cutover.
 
 P2E начинается строго после migration 042 и добавляет additive migration 043.
-Его repository-candidate contract не расширяет base-table grants для сокращённых
+Его merged contract не расширяет base-table grants для сокращённых
 аудиторий: Admin и текущий Curator получают полный document workflow в своём
 scope; Sales до handoff — только фиксированный checklist; Student — только
 fixed self history; Finance не получает sensitive document access. В finance
 Admin/Finance подтверждают evidence-bearing events, а Sales, текущий Curator и
 Student используют отдельные безопасные projections. Полный контракт:
 [`p2e-documents-finance-notifications.md`](p2e-documents-finance-notifications.md).
-Migration, exact API/grants и local authorization tests реализованы;
-independent review и exact-head CI ещё pending.
+PR #88 merged migration 043 as
+`aac1cba851e89070a7eb54baab4eddf921e3447c`; exact-main CI
+[30402311903](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30402311903)
+зелёный. Это repository evidence, а не Storage, provider или production proof.
+
+P2F candidate начинается от этого checkpoint и добавляет additive migration
+044 для unified communications/provider identity/draft-only AI data
+contracts. Frozen artifact содержит 6,881 lines и 194,076 bytes; SHA-256
+`8d52b476981faed4a42a9c13ff2813a718bde6ad4aea1b315c4d61be9fd1ebc8`.
+Внутренние UUID, WAHA session/message IDs, Kommo
+conversation/message IDs и amoCRM contact/lead IDs остаются отдельными
+namespaces. Private raw payload/evidence сохраняется до normalized processing;
+browser получает только разрешённые transcript/safe-summary projections.
+Подробная граница:
+[`p2f-communications-contracts.md`](p2f-communications-contracts.md).
 
 ## RLS и server authorization
 
@@ -201,27 +215,56 @@ channel. Только Student управляет своим individual WhatsApp 
 не могут создавать неиспользуемые consent records. Individual WhatsApp intent
 требует consent snapshot и dedupe; модель не имеет audience list, segment,
 broadcast или mass-send объекта. Это durable database intent, а не provider
-delivery. Phone/provider resolution относится к P2F, а
-Queue/outbox/retry/dead-letter/reconciliation — к P2G.
+delivery.
 
-WAHA webhook owner сохраняет raw event до обработки, проверяет HMAC/timestamp и
-dedupe-ит:
+P2F candidate добавляет единую conversation/message history и five-role
+handoff scope. Sales владеет transcript до contract handoff, текущий Curator —
+после; former Sales получает только фиксированный несекретный summary. Admin
+ограничен своей organization, Finance по умолчанию не видит transcript/raw
+provider data, Student видит только безопасную self history. Cross-org,
+cross-student, previous-Curator и post-handoff Sales transcript access
+запрещены.
+
+WAHA webhook owner должен проверить HMAC/timestamp и сохранить private raw
+event до normalized processing. P2F хранит supplied verification evidence, но
+не доказывает выполнение real runtime validation. Дедупликация использует:
 
 - `X-Webhook-Request-Id`;
-- бизнес-ключ `session + payload.id`.
+- для WAHA semantic key из provider account, session, event type, `payload.id`
+  и raw event variant, если он обязателен.
 
-Durable work идёт через Supabase Queues. Consumer-ы идемпотентны; исчерпанные
-ошибки переходят в dead-letter и reconciliation. Database Webhooks допустимы
-для асинхронного push, но не являются durable business queue.
+WAHA `message.ack` сохраняет raw ACK variant, включая неизвестный code;
+`message.any` требует `NULL` variant. Kommo/amoCRM в P2F не получают
+вымышленный semantic raw-event dedupe. Отдельный canonical reconciliation key
+дедуплицирует normalized effect, а `unknown_result` — single-use manual-send
+authorization.
+
+Raw payload, verification evidence и processing diagnostics остаются в
+backend-only boundary. Принятый database row не доказывает, что webhook был
+реальным или provider event был успешно обработан. Replay одного ключа не
+создаёт второе message/action, а конфликтующий replay fail-closed.
+
+Approved versioned knowledge — единственный разрешённый AI context. P2F хранит
+immutable original draft/evidence отдельно от human edit/final text. Customer
+draft разрешён только на RU/EN; uncertain или другой язык требует manual
+selection/handoff. Кыргызский customer draft, auto-reply, unattended outbound,
+broadcast и mass send запрещены. Review/manual-send evidence не доказывает
+provider send.
+
+Durable work относится к P2G и идёт через Supabase Queues. Consumer-ы
+идемпотентны; исчерпанные ошибки переходят в dead-letter и reconciliation.
+Database Webhooks допустимы для асинхронного push, но не являются durable
+business queue.
 
 P2G проверяет реальный local Supabase Queues/PGMQ contract: `read()` с
 visibility timeout, concurrency, retry budget и dedupe. Handcrafted mock и
 at-most-once `pop()` не являются доказательством durable retryable work.
 
-`message.any` связывает собственные API-send события, а `message.ack` хранится
-как progression `ERROR`, `PENDING`, `SERVER`, `DEVICE`, `READ`, `PLAYED`.
-Неизвестный send result требует reconciliation и ручного решения, а не
-автоматического retry.
+`message.any` может связать собственные API-send события, а `message.ack` —
+дать evidence для progression `ERROR`, `PENDING`, `SERVER`, `DEVICE`, `READ`,
+`PLAYED`. P2F лишь хранит соответствующее состояние/provenance; реальный
+provider и Queue behavior остаются недоказанными. Неизвестный send result
+требует reconciliation и ручного решения, а не автоматического retry.
 
 Audit фиксирует actor, action, object, before/after, reason, evidence reference,
 request/idempotency keys и timestamp. Audit export не должен раскрывать secrets,

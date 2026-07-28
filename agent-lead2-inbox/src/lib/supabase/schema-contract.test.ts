@@ -56,6 +56,10 @@ const platformDocumentsFinanceNotificationsMigration = readFileSync(
   ),
   'utf8'
 )
+const platformCommunicationsMigration = readFileSync(
+  join(migrationsDir, '044_platform_communications_contracts.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -71,9 +75,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves containment and advances through the reviewed P2E boundary', () => {
+  it('preserves containment and advances through the P2F candidate boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '043_platform_documents_finance_notifications.sql'
+      '044_platform_communications_contracts.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -224,6 +228,157 @@ describe('Supabase companion schema contract', () => {
     )
     expect(platformDocumentsFinanceNotificationsMigration).not.toMatch(
       /\b(?:CREATE|ALTER|DROP)\s+(?:TABLE|POLICY|SCHEMA)\s+storage\b/i
+    )
+  })
+
+  it('adds P2F communication and draft evidence without claiming provider delivery', () => {
+    const platformTables = [
+      'communication_conversations',
+      'conversation_handoff_events',
+      'conversation_participants',
+      'communication_messages',
+      'approved_knowledge_versions',
+      'ai_draft_requests',
+      'ai_drafts',
+      'ai_draft_knowledge_citations',
+      'ai_draft_events',
+      'manual_send_authorizations',
+    ]
+    const privateTables = [
+      'provider_webhook_events',
+      'provider_reconciliation_events',
+    ]
+    const platformFunctions = [
+      'create_communication_conversation',
+      'record_communication_message',
+      'append_provider_reconciliation_event',
+      'link_communication_conversation_case',
+      'record_conversation_participant',
+      'persist_provider_webhook_event',
+      'publish_approved_knowledge_version',
+      'retire_approved_knowledge_version',
+      'request_ai_draft',
+      'record_ai_draft',
+      'complete_ai_draft_generation',
+      'resolve_ai_draft_language',
+      'review_ai_draft',
+      'authorize_manual_send',
+      'staff_communication_queue',
+      'staff_conversation_messages',
+      'former_sales_case_summaries',
+      'student_portal_messages',
+      'approved_knowledge_catalog',
+    ]
+    const createdTables = [
+      ...platformCommunicationsMigration.matchAll(
+        /CREATE\s+TABLE\s+((?:platform|platform_private)\.[a-z_]+)/gi
+      ),
+    ].map((match) => match[1].toLowerCase())
+    const createdFunctions = [
+      ...platformCommunicationsMigration.matchAll(
+        /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.([a-z_]+)/gi
+      ),
+    ].map((match) => match[1].toLowerCase())
+
+    expect(createdTables).toEqual([
+      'platform_private.provider_webhook_events',
+      ...platformTables.map((table) => `platform.${table}`),
+      'platform_private.provider_reconciliation_events',
+    ])
+    expect(createdFunctions).toEqual(platformFunctions)
+
+    for (const table of platformTables) {
+      expect(platformCommunicationsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform\\.${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+      expect(platformCommunicationsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+
+    for (const table of privateTables) {
+      expect(platformCommunicationsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+      expect(platformCommunicationsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+TABLE\s+platform_private\.provider_webhook_events[\s\S]*provider_account_ref\s+TEXT\s+NOT\s+NULL[\s\S]*provider_conversation_ref\s+TEXT[\s\S]*provider_event_variant_ref\s+TEXT[\s\S]*provider_request_id\s+TEXT\s+NOT\s+NULL[\s\S]*waha_session_name\s+TEXT[\s\S]*payload_id\s+TEXT\s+NOT\s+NULL[\s\S]*event_type\s+TEXT\s+NOT\s+NULL[\s\S]*provider_occurred_at\s+TIMESTAMPTZ\s+NOT\s+NULL[\s\S]*verification_status\s+platform\.webhook_verification_status\s+NOT\s+NULL[\s\S]*raw_payload\s+JSONB\s+NOT\s+NULL[\s\S]*verification_headers\s+JSONB\s+NOT\s+NULL[\s\S]*verification_evidence_ref\s+TEXT\s+NOT\s+NULL[\s\S]*payload_sha256\s+TEXT\s+NOT\s+NULL/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CONSTRAINT\s+provider_webhook_events_variant_shape_check\s+CHECK[\s\S]*provider\s*=\s*'waha'[\s\S]*event_type\s*=\s*'message\.ack'[\s\S]*provider_event_variant_ref\s+IS\s+NOT\s+NULL[\s\S]*event_type\s*=\s*'message\.any'[\s\S]*provider_event_variant_ref\s+IS\s+NULL/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+UNIQUE\s+INDEX\s+provider_webhook_events_waha_business_key[\s\S]*organization_id,\s*provider_account_ref,\s*waha_session_name,\s*event_type,\s*payload_id,\s*COALESCE\s*\(\s*provider_event_variant_ref,\s*''\s*\)[\s\S]*WHERE\s+provider\s*=\s*'waha'/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CONSTRAINT\s+provider_webhook_events_provider_request_key\s+UNIQUE\s*\(\s*organization_id,\s*provider,\s*provider_account_ref,\s*provider_request_id\s*\)/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.persist_provider_webhook_event\s*\(\s*p_organization_id\s+UUID,\s*p_provider\s+platform\.communication_provider,\s*p_provider_account_ref\s+TEXT,\s*p_provider_conversation_ref\s+TEXT,\s*p_provider_event_variant_ref\s+TEXT,\s*p_provider_request_id\s+TEXT,\s*p_waha_session_name\s+TEXT,\s*p_payload_id\s+TEXT,\s*p_event_type\s+TEXT,\s*p_provider_occurred_at\s+TIMESTAMPTZ,\s*p_verification_status\s+platform\.webhook_verification_status,\s*p_raw_payload\s+JSONB,\s*p_verification_headers\s+JSONB,\s*p_verification_evidence_ref\s+TEXT,\s*p_payload_sha256\s+TEXT,\s*p_request_id\s+UUID\s*\)\s*RETURNS\s+JSONB[\s\S]*?IF\s+\(SELECT\s+auth\.jwt\(\)\s*->>\s*'role'\)\s+IS\s+DISTINCT\s+FROM\s+'service_role'/i
+    )
+    expect(platformCommunicationsMigration).not.toMatch(
+      /CREATE\s+UNIQUE\s+INDEX\s+provider_webhook_events_non_waha_business_key/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+UNIQUE\s+INDEX\s+provider_reconciliation_events_source_effect_key[\s\S]*organization_id,\s*source_webhook_event_id,\s*observation_kind,\s*conversation_id,\s*communication_message_id,\s*ack_state[\s\S]*NULLS\s+NOT\s+DISTINCT[\s\S]*WHERE\s+source_webhook_event_id\s+IS\s+NOT\s+NULL/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+UNIQUE\s+INDEX\s+provider_reconciliation_events_unknown_authorization_key[\s\S]*organization_id,\s*manual_send_authorization_id[\s\S]*WHERE\s+observation_kind\s*=\s*'unknown_result'/i
+    )
+
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+TABLE\s+platform\.communication_conversations[\s\S]*waha_session_name\s+TEXT\s+NOT\s+NULL[\s\S]*kommo_conversation_id\s+TEXT[\s\S]*amocrm_lead_id\s+BIGINT\s+NOT\s+NULL[\s\S]*amocrm_contact_id\s+BIGINT\s+NOT\s+NULL/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+TABLE\s+platform\.communication_messages[\s\S]*waha_session_name\s+TEXT[\s\S]*waha_message_id\s+TEXT[\s\S]*kommo_conversation_id\s+TEXT[\s\S]*kommo_message_id\s+TEXT[\s\S]*amocrm_lead_id\s+BIGINT\s+NOT\s+NULL[\s\S]*amocrm_contact_id\s+BIGINT\s+NOT\s+NULL/i
+    )
+
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+TYPE\s+platform\.ai_draft_language\s+AS\s+ENUM\s*\(\s*'ru',\s*'en'\s*\)/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+TYPE\s+platform\.communication_message_language\s+AS\s+ENUM\s*\(\s*'ru',\s*'en',\s*'undetermined'\s*\)/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+TYPE\s+platform\.ai_language_detection_status\s+AS\s+ENUM\s*\(\s*'confident',\s*'uncertain'\s*\)/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+TABLE\s+platform\.ai_draft_requests[\s\S]*source_message_id\s+UUID\s+NOT\s+NULL[\s\S]*requested_by_profile_id\s+UUID\s+NOT\s+NULL[\s\S]*requested_by_membership_id\s+UUID\s+NOT\s+NULL[\s\S]*request_id\s+UUID\s+NOT\s+NULL\s+UNIQUE/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+TABLE\s+platform\.ai_drafts[\s\S]*provider_ref\s+TEXT[\s\S]*model_ref\s+TEXT[\s\S]*prompt_policy_version\s+TEXT[\s\S]*source_context\s+JSONB\s+NOT\s+NULL[\s\S]*source_context_sha256\s+TEXT\s+NOT\s+NULL[\s\S]*generated_text\s+TEXT[\s\S]*reviewed_text\s+TEXT/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+TABLE\s+platform\.ai_draft_knowledge_citations[\s\S]*knowledge_version_id\s+UUID\s+NOT\s+NULL/i
+    )
+    expect(platformCommunicationsMigration).toMatch(
+      /CREATE\s+TABLE\s+platform\.manual_send_authorizations[\s\S]*final_text\s+TEXT\s+NOT\s+NULL[\s\S]*final_text_sha256\s+TEXT\s+NOT\s+NULL[\s\S]*authorized_by_membership_id\s+UUID\s+NOT\s+NULL/i
+    )
+
+    expect(platformCommunicationsMigration).not.toMatch(
+      /CREATE\s+TABLE\s+(?:platform\.)?[a-z_]*(?:outbox|broadcast|campaign|queue_job)[a-z_]*\b/i
+    )
+    expect(platformCommunicationsMigration).not.toMatch(
+      /\b(?:CREATE|ALTER|DROP)\s+(?:TABLE|POLICY|SCHEMA)\s+(?:storage|pgmq)\b/i
+    )
+    expect(platformCommunicationsMigration).not.toMatch(
+      /\bdelivery_status\s+(?:TEXT|platform\.)/i
     )
   })
 

@@ -1,13 +1,14 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-07-28
+- Snapshot date: 2026-07-29
 - Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 - P2A starting checkpoint: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
 - P2B starting checkpoint: `8ad755b5039390f418dbe12924a806f069f93b53`
 - P2C starting checkpoint: `0d38a8bb36fa423de14467f798141fac199ab047`
 - P2D starting checkpoint: `f9bda9cd0554d225211fb9e3d0b1969be262a838`
 - P2E starting checkpoint: `a58e5fa5ca24be0d0a30374b6a6e1202c79b7604`
+- P2F starting checkpoint: `aac1cba851e89070a7eb54baab4eddf921e3447c`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Evidence rule: code/configuration is not real-provider proof
@@ -24,12 +25,13 @@ WhatsApp → amoCRM → Platform → AI draft → manual send → ACK → audit 
 
 | Область | Подтверждённый факт | Граница утверждения |
 |---|---|---|
-| P0/P1/P2 contract | P0, P1A–P1D, P2 decomposition и P2A–P2D merged в PR #75–#82 и #85–#87 | это не provider/cutover proof |
+| P0/P1/P2 contract | P0, P1A–P1D, P2 decomposition и P2A–P2E merged в PR #75–#82 и #85–#88 | это не provider/cutover proof |
 | P2A repository baseline | PR #82 controller-merged как `8ad755b5039390f418dbe12924a806f069f93b53`; root `supabase/` — единственный migration source; 001–039 перенесены byte-identically, checksum manifest и local reset проверяют history | exact-main push CI `30362128826` зелёный; managed Supabase не связан |
 | P2B schema/grants | PR #85 controller-merged как `0d38a8bb36fa423de14467f798141fac199ab047`; migration 040 создаёт только `platform`/`platform_private`, закрывает browser secret grants и переводит активные AI/API-key consumers на account-scoped backend stores | exact-main push CI [run 30387286021](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30387286021) зелёный; доказан repository/disposable PostgreSQL/local PostgREST, remote migration не применялась |
 | P2C identity/RBAC | PR #86 controller-merged как `f9bda9cd0554d225211fb9e3d0b1969be262a838`; migration 041 добавляет organizations, Auth-linked profiles, ровно пять Platform roles, live versioned authorization, record scopes, append-only audit и узкие audited RPC | exact-main push CI [run 30392676403](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30392676403) зелёный; managed/production migration не выполнялась |
 | P2D admissions/RLS | PR #87 controller-merged как `a58e5fa5ca24be0d0a30374b6a6e1202c79b7604`; pinned migration 042 добавляет десять FORCE-RLS admissions tables, immutable v2 bundles, pending case, Admin assignment/handoff, scope rotation, multi-application, visa/task state, safe Sales/Student projections и replay-safe audited RPC | exact-main push CI [run 30397295986](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30397295986) зелёный; clean disposable PostgreSQL 001–042 и local Auth/PostgREST matrix доказаны, но real amoCRM mapping, managed/production migration и Portal cutover не доказаны |
-| P2E documents/finance/notifications candidate | migration 043 добавляет 16 FORCE-RLS relations, 18 exact-signature RPC/projections, metadata-only document workflow, manual evidence-backed finance, singular-recipient notification intent и immutable v3 bundles | disposable PostgreSQL full matrix, real local Supabase reset/Auth/PostgREST boundary и full repository gate зелёные; independent review и exact-head CI ещё pending; binary Storage/scanner, Queue/provider delivery, managed apply и production не доказаны |
+| P2E documents/finance/notifications | PR #88 controller-merged как `aac1cba851e89070a7eb54baab4eddf921e3447c`; migration 043 добавляет 16 FORCE-RLS relations, 18 exact-signature RPC/projections, metadata-only document workflow, manual evidence-backed finance, singular-recipient notification intent и immutable v3 bundles | post-merge exact-main CI [30402311903](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30402311903) зелёный; binary Storage/scanner, Queue/provider delivery, managed apply и production не доказаны |
+| P2F communications/provider/AI candidate | migration `044_platform_communications_contracts.sql` заморожена: 6,881 lines, 194,076 bytes, SHA-256 `8d52b476981faed4a42a9c13ff2813a718bde6ad4aea1b315c4d61be9fd1ebc8`; exact inventory — 10 exposed + 2 private tables и 19 functions; full disposable PostgreSQL/RLS harness зелёный локально | это database/RLS candidate: Kyrgyz customer draft, auto-reply, unattended outbound, broadcast и unknown auto-retry отсутствуют; independent review/exact-head CI/merge ещё впереди; Queue/Storage, live-provider/delivery, managed apply и production не доказаны |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до cutover и 72-hour soak |
@@ -46,8 +48,10 @@ P2C evidence contract:
 [`p2c-identity-rbac-audit.md`](p2c-identity-rbac-audit.md).
 Текущий P2D evidence contract:
 [`p2d-admissions-rls.md`](p2d-admissions-rls.md).
-P2E candidate contract and pending evidence ledger:
+P2E merged contract and evidence ledger:
 [`p2e-documents-finance-notifications.md`](p2e-documents-finance-notifications.md).
+P2F candidate communications contract:
+[`p2f-communications-contracts.md`](p2f-communications-contracts.md).
 
 ## Принятый target, ещё не cut over
 
@@ -58,9 +62,11 @@ P2E candidate contract and pending evidence ledger:
 - один dedicated production Supabase project хранит собственные Platform data,
   а dev/staging/preview изолированы;
 - root `supabase/` — единственный repository migration source; P2A сохраняет
-  001–039 byte-for-byte, P2B добавляет migration 040, P2C — migration 041, а
-  merged P2D — pinned forward-only migration 042; текущий P2E candidate —
-  pinned forward-only migration 043 с локально зелёными migration/RLS tests;
+  001–039 byte-for-byte, P2B добавляет migration 040, P2C — migration 041,
+  merged P2D — pinned forward-only migration 042, а merged P2E — pinned
+  forward-only migration 043; текущий frozen P2F candidate добавляет exact
+  checksum-pinned migration 044 для communications/provider/AI database
+  contracts;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;
@@ -75,9 +81,10 @@ P2E candidate contract and pending evidence ledger:
 - legacy Lead Agent удаляется только после реального cutover и минимум 72
   фактических часов стабильного трафика.
 
-## Локальные P2 доказательства P2E и следующих блоков, которых пока нет
+## P2F и следующие доказательства, которых пока нет
 
-- independent P2E SHA-bound review, exact-head CI и post-merge exact-main CI;
+- independent SHA-bound review frozen migration 044, exact-head CI, controller
+  merge и post-merge exact-main CI;
 - real local Supabase Queues/PGMQ retry/dedupe behavior;
 - real local private Storage API/policy behavior;
 - isolated database restore и отдельный Storage-object restore;
@@ -127,12 +134,13 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — завершить independent SHA-bound review, exact-head CI и
-controller merge P2E candidate. После зелёного post-merge
-exact-main CI начинается P2F. P2F–P2I идут строго последовательно; binary
-Storage/scanner относится к P2H, а Queue/provider delivery не доказывается
-P2E. Каждый slice требует отдельный PR и точные tests. Production cutover
-остаётся отдельным авторизованным событием.
+Текущий gate — проверить frozen migration 044 и exact P2F
+schema/API/authorization matrix независимым SHA-bound review и exact-head CI,
+затем выполнить controller merge и post-merge exact-main CI. P2F–P2I идут
+строго последовательно; Queue/outbox/worker/retry/dead-letter proof относится
+к P2G, binary Storage/scanner — к P2H, а live provider/delivery не
+доказывается P2F. Каждый slice требует отдельный PR и точные tests. Production
+cutover остаётся отдельным авторизованным событием.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой
 exact deployed revision, private network, provider readiness и full E2E.

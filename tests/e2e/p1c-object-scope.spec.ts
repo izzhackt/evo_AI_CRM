@@ -9,6 +9,8 @@ const databasePath =
 const OTHER_CURATOR_EMAIL = "p1c.other.curator@example.test";
 const OTHER_SALES_EMAIL = "p1c.other.sales@example.test";
 const PENDING_APPLICATION = "P1C Pending Scope University";
+const FORGED_FINANCE_TASK = "P1C denied Finance clientless task";
+const FORGED_CLIENT_ASSIGNEE_TASK = "P1C denied client assignee task";
 
 function desktopOnly(testInfo: TestInfo) {
   test.skip(testInfo.project.name !== "desktop-chromium", "stateful object-scope coverage runs once");
@@ -50,6 +52,9 @@ function prepareObjectScopeFixtures() {
 function cleanupObjectScopeFixtures() {
   const database = openDatabase();
   try {
+    database
+      .prepare("DELETE FROM tasks WHERE title IN (?, ?)")
+      .run(FORGED_FINANCE_TASK, FORGED_CLIENT_ASSIGNEE_TASK);
     database.prepare("UPDATE applications SET status = 'submitted' WHERE id = 1").run();
     database.prepare("DELETE FROM applications WHERE university = ?").run(PENDING_APPLICATION);
     database.prepare("DELETE FROM users WHERE lower(email) = ?").run(OTHER_CURATOR_EMAIL);
@@ -318,6 +323,97 @@ test.describe("P1C staff object scope", () => {
           .get(personalTask!.id),
       ).toBe(personalTask!.status);
       rejectedTaskVerification.close();
+    } finally {
+      cleanupObjectScopeFixtures();
+    }
+  });
+
+  test("clientless task creation cannot assign another staff member", async ({
+    context,
+    page,
+  }, testInfo) => {
+    desktopOnly(testInfo);
+    await login(context, page, "finance@demo.kg", "finance123", /\/finance$/);
+    cleanupObjectScopeFixtures();
+
+    const setup = openDatabase();
+    const adminId = setup
+      .prepare("SELECT id FROM users WHERE lower(email) = 'admin@demo.kg'")
+      .pluck()
+      .get() as number;
+    setup.close();
+
+    try {
+      await page.goto("/tasks");
+      await page.locator("details#add > summary").click();
+      const form = page.locator("details#add form");
+      await form.locator('input[name="title"]').fill(FORGED_FINANCE_TASK);
+      await form.locator('select[name="assignee_id"]').selectOption(String(adminId));
+
+      const [response] = await Promise.all([
+        page.waitForResponse((candidate) => candidate.request().method() === "POST"),
+        form.getByRole("button", { name: "Добавить" }).click(),
+      ]);
+      expect(response.status()).toBe(404);
+
+      const verification = openDatabase();
+      expect(
+        verification
+          .prepare("SELECT COUNT(*) FROM tasks WHERE title = ?")
+          .pluck()
+          .get(FORGED_FINANCE_TASK),
+      ).toBe(0);
+      verification.close();
+    } finally {
+      cleanupObjectScopeFixtures();
+    }
+  });
+
+  test("task creation rejects a forged client assignee", async ({
+    context,
+    page,
+  }, testInfo) => {
+    desktopOnly(testInfo);
+    await login(context, page, "admin@demo.kg", "admin123", /\/dashboard$/);
+    cleanupObjectScopeFixtures();
+
+    const setup = openDatabase();
+    const clientUserId = setup
+      .prepare("SELECT id FROM users WHERE role = 'client' ORDER BY id LIMIT 1")
+      .pluck()
+      .get() as number;
+    setup.close();
+
+    try {
+      await page.goto("/tasks");
+      await page.locator("details#add > summary").click();
+      const form = page.locator("details#add form");
+      await form.locator('input[name="title"]').fill(FORGED_CLIENT_ASSIGNEE_TASK);
+      const assignee = form.locator('select[name="assignee_id"]');
+      await assignee.evaluate((element, value) => {
+        const select = element as HTMLSelectElement;
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = "Forged client assignee";
+        select.append(option);
+        select.value = value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }, String(clientUserId));
+
+      const [response] = await Promise.all([
+        page.waitForResponse((candidate) => candidate.request().method() === "POST"),
+        form.getByRole("button", { name: "Добавить" }).click(),
+      ]);
+      expect(response.status()).toBe(404);
+
+      const verification = openDatabase();
+      expect(
+        verification
+          .prepare("SELECT COUNT(*) FROM tasks WHERE title = ?")
+          .pluck()
+          .get(FORGED_CLIENT_ASSIGNEE_TASK),
+      ).toBe(0);
+      verification.close();
     } finally {
       cleanupObjectScopeFixtures();
     }

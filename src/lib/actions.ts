@@ -156,6 +156,14 @@ function assertTaskMutationCapability(
   if (!canMutateClientlessTask(actor, task.assignee_id)) notFound();
 }
 
+function assertStaffTaskAssignee(assigneeId: number | null) {
+  if (!assigneeId) return;
+  const assignee = db()
+    .prepare("SELECT role FROM users WHERE id = ?")
+    .get(assigneeId) as { role: string } | undefined;
+  if (!assignee || !isRole(assignee.role) || !isStaff(assignee.role)) notFound();
+}
+
 function revalidateStaffCrm(clientId?: number | null) {
   revalidatePath("/dashboard");
   revalidatePath("/sales");
@@ -547,14 +555,20 @@ export async function addTaskAction(form: FormData) {
   const title = str(form, "title");
   const clientId = optNum(form, "client_id");
   const leadId = optNum(form, "lead_id");
+  const assigneeId = optNum(form, "assignee_id");
   const priority = str(form, "priority") || "normal";
   if (!title) return;
   if (!(TASK_PRIORITIES as readonly string[]).includes(priority)) return;
-  if (clientId) assertClientCapability(user, clientId, "write_tasks");
+  assertStaffTaskAssignee(assigneeId);
+  if (clientId) {
+    assertClientCapability(user, clientId, "write_tasks");
+  } else if (!canMutateClientlessTask(user, assigneeId)) {
+    notFound();
+  }
   db()
     .prepare("INSERT INTO tasks (title, description, lead_id, client_id, assignee_id, due_date, priority, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 'todo', ?)")
     .run(
-      title, str(form, "description") || null, leadId, clientId, optNum(form, "assignee_id"),
+      title, str(form, "description") || null, leadId, clientId, assigneeId,
       str(form, "due_date") || null, priority, user.id
     );
   revalidateStaffCrm(clientId);

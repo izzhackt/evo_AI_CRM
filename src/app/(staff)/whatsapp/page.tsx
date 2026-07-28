@@ -7,8 +7,8 @@ import { PageHeader } from "@/components/ui";
 import { CommunicationsSourceDisclosure } from "./CommunicationsSourceDisclosure";
 
 export default async function WhatsAppPage() {
-  await requireStaffRoute("/whatsapp");
   const { t } = await getT();
+  const actor = await requireStaffRoute("/whatsapp");
 
   return (
     <div className="space-y-4" data-testid="whatsapp-page">
@@ -20,7 +20,7 @@ export default async function WhatsAppPage() {
       />
       <div className="flex h-[calc(100vh-310px)] min-h-[500px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
         <AutoRefresh intervalMs={7000} />
-        <WaList />
+        <WaList actor={actor} />
         <section
           aria-labelledby="whatsapp-empty-state-title"
           className="hidden flex-1 flex-col items-center justify-center bg-bg px-8 text-center md:flex"

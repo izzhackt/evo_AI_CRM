@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { generateText } from "@/lib/ai";
-import { getConversation, waMessages, getLead } from "@/lib/queries";
+import {
+  getConversationForActor,
+  getLeadForActor,
+  waMessagesForActor,
+} from "@/lib/queries";
 import { positiveInteger, readJsonObject } from "@/lib/request";
 import { roleCanAccessStaffRoute } from "@/lib/domain";
 
@@ -15,11 +19,11 @@ export async function POST(req: NextRequest) {
   const body = await readJsonObject(req);
   const conversationId = positiveInteger(body?.conversationId);
   if (!conversationId) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
-  const conv = getConversation(conversationId);
+  const conv = getConversationForActor(user, conversationId);
   if (!conv) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
-  const messages = waMessages(conv.id).slice(-15);
-  const lead = conv.lead_id ? getLead(conv.lead_id) : undefined;
+  const messages = waMessagesForActor(user, conv.id).slice(-15);
+  const lead = conv.lead_id ? getLeadForActor(user, conv.lead_id) : undefined;
 
   const history = messages
     .map((m) => `${m.direction === "in" ? "Клиент" : "Менеджер"}: ${m.text}`)

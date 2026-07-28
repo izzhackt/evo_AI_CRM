@@ -12,13 +12,22 @@ import {
 } from "@/components/platform/communications/whatsapp-state";
 import { WaList } from "@/components/WaList";
 import { WaReplyBox } from "@/components/WaReplyBox";
-import { EmptyState, cn } from "@/components/ui";
-import { getIntegrationStatus, sendWaMessageAction } from "@/lib/actions";
+import { EmptyState, btnGhostCls, cn } from "@/components/ui";
+import {
+  getIntegrationStatus,
+  markConversationReadAction,
+  sendWaMessageAction,
+} from "@/lib/actions";
 import { isPreparedAiAllowed } from "@/lib/contracts";
 import { requireStaffRoute } from "@/lib/guards";
 import { getT } from "@/lib/i18n";
 import { buildPreparedWhatsAppAssistant } from "@/lib/prepared-ai";
-import { getClient, getConversation, getLead, waMessages } from "@/lib/queries";
+import {
+  getClientForActor,
+  getConversationForActor,
+  getLeadForActor,
+  waMessagesForActor,
+} from "@/lib/queries";
 import { CommunicationsSourceDisclosure } from "../CommunicationsSourceDisclosure";
 
 type ConversationSearchParams = Promise<{ mode?: string | string[] }>;
@@ -53,19 +62,28 @@ export default async function ConversationPage({
   params: Promise<{ id: string }>;
   searchParams: ConversationSearchParams;
 }) {
+  const [{ id }, query, { t }] = await Promise.all([
+    params,
+    searchParams,
+    getT(),
+  ]);
+  if (!/^[1-9]\d*$/.test(id)) notFound();
+  const conversationId = Number(id);
+  if (!Number.isSafeInteger(conversationId)) notFound();
+
   const user = await requireStaffRoute("/whatsapp");
-  const { id } = await params;
-  const query = await searchParams;
-  const conversationId = Number.parseInt(id, 10);
-  const conversation = getConversation(conversationId);
+  const conversation = getConversationForActor(user, conversationId);
   if (!conversation) notFound();
 
-  const { t } = await getT();
-  const messages = waMessages(conversationId);
-  const integrations = await getIntegrationStatus();
+  const messages = waMessagesForActor(user, conversationId);
   const canOpenSales = user.role === "admin" || user.role === "sales";
-  const lead = conversation.lead_id ? getLead(conversation.lead_id) : undefined;
-  const client = conversation.client_id ? getClient(conversation.client_id) : undefined;
+  const lead = conversation.lead_id
+    ? getLeadForActor(user, conversation.lead_id)
+    : undefined;
+  const client = conversation.client_id
+    ? getClientForActor(user, conversation.client_id)
+    : undefined;
+  const integrations = await getIntegrationStatus();
   const presentationMode =
     firstValue(query.mode) === "first_presentation"
       ? "first_presentation"
@@ -105,8 +123,10 @@ export default async function ConversationPage({
     .join(" · ");
   const operationalState = getConversationStatePresentation(conversation.agent_state);
   const handoffReasonKey = getHandoffReasonLabelKey(conversation.agent_handoff_reason);
+  const clientManagerName =
+    client && "manager_name" in client ? client.manager_name : null;
   const operationalOwner =
-    lead?.manager_name ?? client?.manager_name ?? t("operationalOwnerNotRecorded");
+    lead?.manager_name ?? clientManagerName ?? t("operationalOwnerNotRecorded");
   const hasOperationalContext = Boolean(
     conversation.agent_state ||
       conversation.agent_summary ||
@@ -129,7 +149,7 @@ export default async function ConversationPage({
       <div className="flex h-[calc(100vh-270px)] min-h-[520px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
         <AutoRefresh />
         <div className="hidden md:flex">
-          <WaList activeId={conversationId} />
+          <WaList actor={user} activeId={conversationId} />
         </div>
 
         <section className="flex min-w-0 flex-1 flex-col">
@@ -162,6 +182,17 @@ export default async function ConversationPage({
               <Icon name={whatsappStatus.icon} size={12} />
               {whatsappStatus.label}
             </span>
+            {conversation.unread > 0 && (
+              <form
+                action={markConversationReadAction}
+                data-testid="mark-conversation-read-form"
+              >
+                <input type="hidden" name="id" value={conversationId} />
+                <button type="submit" className={btnGhostCls}>
+                  {t("markRead")}
+                </button>
+              </form>
+            )}
           </header>
 
           {hasOperationalContext && (

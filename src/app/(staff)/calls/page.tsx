@@ -19,7 +19,7 @@ import {
 import { getIntegrationStatus, logCallAction } from "@/lib/actions";
 import { requireStaffRoute } from "@/lib/guards";
 import { getT } from "@/lib/i18n";
-import { listCalls, listLeads } from "@/lib/queries";
+import { listCalls, listLeadsForActor } from "@/lib/queries";
 
 function fmtDuration(seconds: number): string {
   if (!seconds) return "—";
@@ -33,11 +33,10 @@ export default async function CallsPage({
 }: {
   searchParams: Promise<{ direction?: string; status?: string }>;
 }) {
+  const [{ t }, params] = await Promise.all([getT(), searchParams]);
   const user = await requireStaffRoute("/calls");
-  const { t } = await getT();
-  const params = await searchParams;
   const allCalls = listCalls();
-  const leads = listLeads();
+  const leads = listLeadsForActor(user);
   const integrations = await getIntegrationStatus();
   const direction = params.direction === "in" || params.direction === "out" ? params.direction : "";
   const status = ["answered", "missed", "busy"].includes(params.status ?? "") ? params.status ?? "" : "";

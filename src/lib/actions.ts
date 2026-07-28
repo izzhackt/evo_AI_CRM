@@ -42,6 +42,10 @@ import {
   workflowOwnerForState,
   type StudentCaseState,
 } from "./student-case-policy";
+import {
+  canCreateManualWhatsAppConversation,
+} from "./whatsapp-policy";
+import { getConversationForActor } from "./queries";
 
 const CURRENCIES = ["KGS", "USD", "EUR"] as const;
 
@@ -54,6 +58,15 @@ function optNum(form: FormData, key: string): number | null {
   if (!v) return null;
   const n = parseInt(v, 10);
   return Number.isFinite(n) ? n : null;
+}
+
+function validatedLocalSalesManagerId(managerId: number | null): number | null {
+  if (managerId === null) return null;
+  const manager = db()
+    .prepare("SELECT id FROM users WHERE id = ? AND role = 'sales'")
+    .get(managerId) as { id: number } | undefined;
+  if (!manager) notFound();
+  return manager.id;
 }
 
 function normalizeUrl(value: string | null): string | null {
@@ -632,12 +645,15 @@ export async function addLeadAction(form: FormData) {
   const user = await requireSalesStaff();
   const name = str(form, "name");
   if (!name) return;
+  const managerId = user.role === "sales"
+    ? user.id
+    : validatedLocalSalesManagerId(optNum(form, "manager_id"));
   db()
     .prepare("INSERT INTO leads (name, phone, email, source, amount, currency, manager_id, target_country, notes, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
     .run(
       name, normalizePhone(str(form, "phone")) || null, str(form, "email") || null, str(form, "source") || null,
       str(form, "amount") ? parseFloat(str(form, "amount")) : null, str(form, "currency") || "KGS",
-      optNum(form, "manager_id") ?? user.id, str(form, "target_country") || null, str(form, "notes") || null,
+      managerId, str(form, "target_country") || null, str(form, "notes") || null,
       LEAD_STATUSES[0]
   );
   revalidatePath("/sales");
@@ -666,14 +682,23 @@ export async function moveLeadAction(form: FormData) {
 }
 
 export async function updateLeadAction(form: FormData) {
-  await requireSalesStaff();
+  const user = await requireSalesStaff();
   const id = optNum(form, "id");
   if (!id) return;
-  db()
+  const d = db();
+  const current = d
+    .prepare("SELECT manager_id FROM leads WHERE id = ?")
+    .get(id) as { manager_id: number | null } | undefined;
+  if (!current) notFound();
+  if (user.role === "sales" && current.manager_id !== user.id) notFound();
+  const managerId = user.role === "sales"
+    ? current.manager_id
+    : validatedLocalSalesManagerId(optNum(form, "manager_id"));
+  d
     .prepare("UPDATE leads SET name = ?, phone = ?, email = ?, source = ?, amount = ?, manager_id = ?, target_country = ?, notes = ?, updated_at = datetime('now') WHERE id = ?")
     .run(
       str(form, "name"), str(form, "phone") || null, str(form, "email") || null, str(form, "source") || null,
-      str(form, "amount") ? parseFloat(str(form, "amount")) : null, optNum(form, "manager_id"),
+      str(form, "amount") ? parseFloat(str(form, "amount")) : null, managerId,
       str(form, "target_country") || null, str(form, "notes") || null, id
     );
   revalidatePath(`/sales/${id}`);
@@ -742,11 +767,11 @@ export async function sendWaMessageAction(form: FormData) {
   const conversationId = optNum(form, "conversation_id");
   const text = str(form, "text");
   if (!conversationId || !text) return;
-  const d = db();
-  const conv = d.prepare("SELECT * FROM wa_conversations WHERE id = ?").get(conversationId) as { phone: string; wa_account_id: number | null } | undefined;
-  if (!conv) return;
+  const conv = getConversationForActor(user, conversationId);
+  if (!conv) notFound();
 
   const result = await sendWhatsApp(conv.phone, text, conv.wa_account_id);
+  const d = db();
   d.prepare("INSERT INTO wa_messages (conversation_id, direction, text, status, author_id, wa_id) VALUES (?, 'out', ?, ?, ?, ?)")
     .run(conversationId, text, result.status, user.id, result.waId ?? null);
   d.prepare("UPDATE wa_conversations SET last_message_at = datetime('now'), unread = 0 WHERE id = ?").run(conversationId);
@@ -755,7 +780,8 @@ export async function sendWaMessageAction(form: FormData) {
 }
 
 export async function createConversationAction(form: FormData) {
-  await requireWhatsAppStaff();
+  const user = await requireWhatsAppStaff();
+  if (!canCreateManualWhatsAppConversation(user)) notFound();
   const phone = normalizePhone(str(form, "phone"));
   if (!phone) return;
   const d = db();
@@ -772,9 +798,10 @@ export async function createConversationAction(form: FormData) {
 }
 
 export async function markConversationReadAction(form: FormData) {
-  await requireWhatsAppStaff();
+  const user = await requireWhatsAppStaff();
   const id = optNum(form, "id");
   if (!id) return;
+  if (!getConversationForActor(user, id)) notFound();
   db().prepare("UPDATE wa_conversations SET unread = 0 WHERE id = ?").run(id);
   revalidatePath("/whatsapp");
 }

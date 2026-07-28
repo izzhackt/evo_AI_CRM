@@ -138,6 +138,7 @@ test("normal outgoing messages use dark ink and unverified amoCRM context is sta
   await openConversation(page, "Асель Бекова");
 
   const outgoingBubble = page
+    .locator("[data-whatsapp-message]")
     .getByText(
       "Добрый день! Отличный выбор. Приглашаем на бесплатную консультацию — расскажем про стипендии и подготовку к SAT. Когда вам удобно?",
       { exact: true },

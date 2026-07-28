@@ -9,6 +9,7 @@ export function LeadProfileForm({
   action,
   lead,
   staff,
+  canAssignManager,
   labels,
 }: {
   action: (form: FormData) => void | Promise<void>;
@@ -24,6 +25,7 @@ export function LeadProfileForm({
     notes: string | null;
   };
   staff: StaffOption[];
+  canAssignManager: boolean;
   labels: {
     title: string;
     name: string;
@@ -66,17 +68,19 @@ export function LeadProfileForm({
           {labels.amount}
           <input name="amount" type="number" defaultValue={lead.amount ?? ""} className={cn(inputCls, "mt-1 font-mono")} />
         </label>
-        <label className={cn(labelCls, "sm:col-span-2")}>
-          {labels.manager}
-          <select name="manager_id" defaultValue={lead.manager_id ?? ""} className={cn(inputCls, "mt-1")}>
-            <option value="">{labels.notAssigned}</option>
-            {staff.map((person) => (
-              <option key={person.id} value={person.id}>
-                {person.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {canAssignManager && (
+          <label className={cn(labelCls, "sm:col-span-2")}>
+            {labels.manager}
+            <select name="manager_id" defaultValue={lead.manager_id ?? ""} className={cn(inputCls, "mt-1")}>
+              <option value="">{labels.notAssigned}</option>
+              {staff.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className={cn(labelCls, "sm:col-span-2")}>
           {labels.notes}
           <textarea name="notes" defaultValue={lead.notes ?? ""} rows={4} className={cn(inputCls, "mt-1 h-28 resize-y py-2")} />

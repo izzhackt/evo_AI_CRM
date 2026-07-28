@@ -8,8 +8,9 @@ const outputRoot = path.join(process.cwd(), "output", "playwright");
 const runtimeDir = path.join(outputRoot, "runtime");
 const e2eDb = process.env.EVO_PLAYWRIGHT_DB_PATH ?? path.join(runtimeDir, "edu-admin-e2e.db");
 const startsOwnServer = !process.env.PLAYWRIGHT_BASE_URL;
+const isTestWorker = process.env.TEST_WORKER_INDEX !== undefined;
 
-if (startsOwnServer) {
+if (startsOwnServer && !isTestWorker) {
   process.env.EVO_PLAYWRIGHT_DB_PATH = e2eDb;
   fs.mkdirSync(runtimeDir, { recursive: true });
   for (const suffix of ["", "-wal", "-shm"]) {

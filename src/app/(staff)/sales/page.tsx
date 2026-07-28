@@ -27,7 +27,7 @@ import {
 } from "@/lib/db";
 import { requireStaffRoute } from "@/lib/guards";
 import { getT } from "@/lib/i18n";
-import { listLeads, listStaff } from "@/lib/queries";
+import { listLeadsForActor, listStaff } from "@/lib/queries";
 
 type SalesSearchParams = {
   manager?: string;
@@ -55,14 +55,15 @@ export default async function SalesPage({
 }: {
   searchParams: Promise<SalesSearchParams>;
 }) {
-  await requireStaffRoute("/sales");
   const { t, locale } = await getT();
   const copy = getSalesCopy(locale);
   const params = await searchParams;
+  const user = await requireStaffRoute("/sales");
   const { manager, source, risk, status } = params;
   const view: SalesView = params.view === "list" ? "list" : "board";
-  const leads = listLeads();
+  const leads = listLeadsForActor(user);
   const staff = listStaff();
+  const eligibleSalesManagers = staff.filter((person) => person.role === "sales");
   const parsedManagerId = manager ? Number.parseInt(manager, 10) : null;
   const managerId =
     parsedManagerId !== null && Number.isFinite(parsedManagerId)
@@ -277,7 +278,12 @@ export default async function SalesPage({
         </div>
       </form>
 
-      <SalesQuickAdd staff={staff} t={t} copy={copy} />
+      <SalesQuickAdd
+        staff={eligibleSalesManagers}
+        t={t}
+        copy={copy}
+        canAssignManager={user.role === "admin"}
+      />
 
       <section aria-labelledby="sales-stages-title" className="min-w-0 space-y-3">
         <header className="flex flex-wrap items-end justify-between gap-2">

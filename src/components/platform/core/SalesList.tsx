@@ -84,11 +84,13 @@ export function SalesList({
                     <span className="sr-only">{t("calls")}: </span>
                     {lead.call_count}
                   </span>
-                  <span className="inline-flex items-center gap-1">
-                    <Icon name="message-circle" size={11} />
-                    <span className="sr-only">{t("messages")}: </span>
-                    {lead.wa_message_count}
-                  </span>
+                  {lead.wa_message_count !== null && (
+                    <span className="inline-flex items-center gap-1">
+                      <Icon name="message-circle" size={11} />
+                      <span className="sr-only">{t("messages")}: </span>
+                      {lead.wa_message_count}
+                    </span>
+                  )}
                 </div>
               </td>
               <td className="px-3 py-3">

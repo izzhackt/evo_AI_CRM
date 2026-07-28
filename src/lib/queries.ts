@@ -1405,12 +1405,15 @@ export function listTasksForActor(actor: AccessActor, assigneeId?: number) {
 
   if (actor.role === "admin") {
     accessSql = "1 = 1";
-  } else if (actor.role === "sales" || actor.role === "curator") {
+  } else if (actor.role === "sales") {
     accessSql = `(
       (t.client_id IS NULL AND t.assignee_id = ?)
       OR (t.client_id IS NOT NULL AND (${scope.sql}))
     )`;
     params.push(actor.id, ...scope.params);
+  } else if (actor.role === "curator") {
+    accessSql = `(t.client_id IS NOT NULL AND (${scope.sql}))`;
+    params.push(...scope.params);
   } else if (actor.role === "finance") {
     accessSql = "(t.client_id IS NULL AND t.assignee_id = ?)";
     params.push(actor.id);

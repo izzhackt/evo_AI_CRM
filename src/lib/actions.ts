@@ -23,6 +23,7 @@ import { setSession, clearSession, currentUser, isStaff, type SessionUser } from
 import {
   canClientCapability,
   canMutateClientlessTask,
+  canReceiveClientlessTask,
   canReceiveClientTask,
   resolveClientAccess,
   type AccessActor,
@@ -594,8 +595,9 @@ export async function addTaskAction(form: FormData) {
   if (clientId) {
     const client = assertClientCapability(user, clientId, "write_tasks");
     if (assignee && !canReceiveClientTask(assignee, client)) notFound();
-  } else if (!canMutateClientlessTask(user, assigneeId)) {
-    notFound();
+  } else {
+    if (assignee && !canReceiveClientlessTask(assignee)) notFound();
+    if (!canMutateClientlessTask(user, assigneeId)) notFound();
   }
   db()
     .prepare("INSERT INTO tasks (title, description, lead_id, client_id, assignee_id, due_date, priority, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 'todo', ?)")

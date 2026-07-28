@@ -144,6 +144,14 @@ export function canMutateClientlessTask(
   );
 }
 
+export function canReceiveClientlessTask(assignee: AccessActor): boolean {
+  return (
+    assignee.role === "admin"
+    || assignee.role === "sales"
+    || assignee.role === "finance"
+  );
+}
+
 export function canReceiveClientTask(
   assignee: AccessActor,
   client: ClientAccessSubject,

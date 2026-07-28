@@ -12,6 +12,7 @@ import {
   inputCls,
 } from "@/components/ui";
 import { addTaskAction, moveTaskAction } from "@/lib/actions";
+import { canReceiveClientlessTask } from "@/lib/access";
 import { TASK_COLUMNS, TASK_PRIORITIES } from "@/lib/db";
 import { requireStaffRoute } from "@/lib/guards";
 import { getT } from "@/lib/i18n";
@@ -190,6 +191,7 @@ export default async function TasksPage({
             && person.role === "admin"
           )
         );
+  const clientlessTaskAssignees = taskAssignees.filter(canReceiveClientlessTask);
   const clients =
     user.role === "finance"
       ? []
@@ -308,7 +310,7 @@ export default async function TasksPage({
             <option value="">
               {t("assignee")}: {t("notAssigned")}
             </option>
-            {taskAssignees.map((person) => (
+            {clientlessTaskAssignees.map((person) => (
               <option key={person.id} value={person.id}>
                 {person.name}
               </option>

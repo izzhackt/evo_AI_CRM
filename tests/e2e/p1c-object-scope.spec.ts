@@ -10,6 +10,8 @@ const OTHER_CURATOR_EMAIL = "p1c.other.curator@example.test";
 const OTHER_SALES_EMAIL = "p1c.other.sales@example.test";
 const PENDING_APPLICATION = "P1C Pending Scope University";
 const FORGED_FINANCE_TASK = "P1C denied Finance clientless task";
+const FORGED_CURATOR_CLIENTLESS_TASK = "P1C denied Curator clientless task";
+const LEGACY_CURATOR_CLIENTLESS_TASK = "P1C legacy Curator clientless task";
 const FORGED_CLIENT_ASSIGNEE_TASK = "P1C denied client assignee task";
 const FORGED_FINANCE_CLIENT_TASK = "P1C denied Finance client task";
 const FORGED_UNRELATED_SALES_CLIENT_TASK = "P1C denied unrelated Sales client task";
@@ -78,9 +80,11 @@ function cleanupObjectScopeFixtures() {
       FINANCE_DENIED_CLIENT_EMAIL,
     );
     database
-      .prepare("DELETE FROM tasks WHERE title IN (?, ?, ?, ?)")
+      .prepare("DELETE FROM tasks WHERE title IN (?, ?, ?, ?, ?, ?)")
       .run(
         FORGED_FINANCE_TASK,
+        FORGED_CURATOR_CLIENTLESS_TASK,
+        LEGACY_CURATOR_CLIENTLESS_TASK,
         FORGED_CLIENT_ASSIGNEE_TASK,
         FORGED_FINANCE_CLIENT_TASK,
         FORGED_UNRELATED_SALES_CLIENT_TASK,
@@ -516,6 +520,97 @@ test.describe("P1C staff object scope", () => {
           .get(FORGED_FINANCE_TASK),
       ).toBe(0);
       verification.close();
+    } finally {
+      cleanupObjectScopeFixtures();
+    }
+  });
+
+  test("Admin cannot create an unreachable clientless Curator assignment", async ({
+    context,
+    page,
+  }, testInfo) => {
+    desktopOnly(testInfo);
+    await login(context, page, "admin@demo.kg", "admin123", /\/dashboard$/);
+    cleanupObjectScopeFixtures();
+
+    const setup = openDatabase();
+    const curatorId = setup
+      .prepare("SELECT id FROM users WHERE lower(email) = 'curator@demo.kg'")
+      .pluck()
+      .get() as number;
+    setup.close();
+
+    try {
+      await page.goto("/tasks");
+      await page.locator("details#add > summary").click();
+      const form = page.locator("details#add form");
+      const assignee = form.locator('select[name="assignee_id"]');
+      await expect(
+        assignee.locator(`option[value="${curatorId}"]`),
+      ).toHaveCount(0);
+
+      await form.locator('input[name="title"]').fill(FORGED_CURATOR_CLIENTLESS_TASK);
+      await assignee.evaluate((element, value) => {
+        const select = element as HTMLSelectElement;
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = "Forged Curator assignee";
+        select.append(option);
+        select.value = value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }, String(curatorId));
+
+      const [response] = await Promise.all([
+        page.waitForResponse((candidate) => candidate.request().method() === "POST"),
+        form.getByRole("button", { name: "Добавить" }).click(),
+      ]);
+      expect(response.status()).toBe(404);
+
+      const verification = openDatabase();
+      expect(
+        verification
+          .prepare("SELECT COUNT(*) FROM tasks WHERE title = ?")
+          .pluck()
+          .get(FORGED_CURATOR_CLIENTLESS_TASK),
+      ).toBe(0);
+      verification.close();
+    } finally {
+      cleanupObjectScopeFixtures();
+    }
+  });
+
+  test("Curator does not see an unreachable legacy clientless task", async ({
+    context,
+    page,
+  }, testInfo) => {
+    desktopOnly(testInfo);
+    await login(context, page, "admin@demo.kg", "admin123", /\/dashboard$/);
+    cleanupObjectScopeFixtures();
+
+    const setup = openDatabase();
+    try {
+      const curatorId = setup
+        .prepare("SELECT id FROM users WHERE lower(email) = 'curator@demo.kg'")
+        .pluck()
+        .get() as number;
+      const adminId = setup
+        .prepare("SELECT id FROM users WHERE lower(email) = 'admin@demo.kg'")
+        .pluck()
+        .get() as number;
+      setup
+        .prepare(`
+          INSERT INTO tasks (title, assignee_id, status, created_by)
+          VALUES (?, ?, 'todo', ?)
+        `)
+        .run(LEGACY_CURATOR_CLIENTLESS_TASK, curatorId, adminId);
+    } finally {
+      setup.close();
+    }
+
+    try {
+      await login(context, page, "curator@demo.kg", "curator123", /\/clients$/);
+      await page.goto("/tasks");
+      await expect(page.locator("body")).not.toContainText(LEGACY_CURATOR_CLIENTLESS_TASK);
     } finally {
       cleanupObjectScopeFixtures();
     }

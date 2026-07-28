@@ -1,8 +1,10 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-long-run` is active from GitHub `main` commit
-`a16cd3fb591128b6d28f7f46c432169a0ff28753`. The active block is P0,
-which is docs-only and must merge before application or migration code changes.
+Status: `/goal-evo-platform-long-run` is active. P0 and P1A-P1C are merged
+through PR #78; GitHub `main` is green at
+`a41f7eec9e8d877e5a09362265d7e811e1f36d0f`. The active block is the
+docs-only P1D plan amendment. P1D runtime changes must not begin before this
+amendment is independently reviewed and merged.
 Updated 2026-07-28 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
@@ -15,7 +17,8 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active slice: `/goal-evo-platform-long-run`, Block P0.
+Active slice: `/goal-evo-platform-long-run`, Block
+`EVO-P1D-ROOT-WHATSAPP-AUTH-2026-07-28`, plan amendment only.
 
 ### Goal
 
@@ -27,14 +30,28 @@ operational store, with physically isolated dev/staging/preview environments.
 EVO Inbox and useful EVO Lead Agent logic move into one backend and one private
 `evo-inbox` WAHA path. AI remains draft-only with human manual send.
 
-P0 changes documentation only. It finalizes the plan/TZ/ADR contract and does
-not modify code, schemas, providers or production state.
+This amendment changes documentation only. It defines the temporary
+current-root `/whatsapp` object-scope contract and closes the local
+lead-owner-input path that could otherwise bypass it, without changing code,
+schema, providers or production state.
 
 ### Reconciled baseline
 
-- GitHub `main` and this clean worktree resolve to `a16cd3fb`; the exact
-  `EVO platform CI` run for that SHA is green and there were no open PRs at the
-  P0 snapshot.
+The first bullets below retain the P0 snapshot. The current sequential
+checkpoint is:
+
+- P0 plan/TZ/architecture merged in PR #75.
+- P1A no-Visa-role migration merged in PR #76.
+- P1B Admin-only Curator assignment/lifecycle merged in PR #77.
+- P1C current-app object scope merged in PR #78.
+- Post-merge `main` CI is green at
+  `a41f7eec9e8d877e5a09362265d7e811e1f36d0f`; no implementation PR is open.
+- Root `/whatsapp` remains a coarse role-gated SQLite `wa_*` shadow surface.
+  Its object-scope hardening is P1D; unified communications remain P5.
+
+- At the P0 snapshot, GitHub `main` and the clean P0 worktree resolved to
+  `a16cd3fb`; the exact `EVO platform CI` run for that SHA was green and there
+  were no open PRs.
 - Production Inbox runs revision `a09a72fc`, release `2026-07-24.2`.
   Production CRM and Lead Agent run revision `564332b4`, release
   `2026-07-24.1`.
@@ -59,7 +76,8 @@ remaining owner decisions and the independent-review/merge-controller protocol
 are defined in `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`.
 
 - P0: plan/TZ/DOCX/ADR and target architecture, docs-only.
-- P1: current-app role/RBAC/handoff correction.
+- P1: current-app role/RBAC/handoff correction. P1A-P1C are merged; P1D
+  hardens the temporary root WhatsApp surface after this amendment merges.
 - P2: unified Supabase foundation.
 - P3: root auth and operational SQLite migration path.
 - P4: canonical amoCRM adapter.
@@ -74,6 +92,42 @@ Only one implementation PR may be open. The executor never merges its own PR;
 the independent merge-controller may merge only an approved exact head. No
 production deployment, migration, DNS, WAHA session mutation, live customer
 send, real amoCRM mutation or service deletion is authorized by this plan.
+
+### P1D plan amendment: current-root WhatsApp object scope
+
+P1D applies only to the root CRM's current SQLite/custom-auth `/whatsapp`
+surface. It is authorization containment before P2-P5, not a substitute for the
+unified Supabase/Inbox/WAHA target.
+
+The implementation after this amendment merges must:
+
+- scope list/detail/message reads in SQL to Admin, responsible Sales before
+  handoff, assigned Curator after handoff, and a safe summary-only projection
+  for the former responsible Sales user;
+- deny Finance, Student, unrelated staff, broken links and unlinked rows for
+  every non-Admin actor;
+- grant lead-only Sales access only when both the conversation and the resolved
+  lead have no case link; indirect lead-to-case and conflicting case links are
+  Admin-only until reconciliation;
+- keep post-handoff Sales away from transcript, phone/message previews,
+  provider/amoCRM/WAHA identifiers, draft/reason metadata and send/read/draft
+  actions;
+- enforce the same object policy in direct routes, lead-page lookups, replayed
+  Server Actions and `/api/ai/draft` before protected reads, mutation, AI or
+  WhatsApp provider access;
+- suppress WhatsApp-derived unread/count/recency/response aggregates at the
+  shared query boundary for Sales, dashboard, calls and tasks whenever the
+  actor lacks full conversation access;
+- make manual conversation creation Admin-only until P4/P5 can prove canonical
+  ownership during resolution/linking;
+- preserve the accepted frontend structure while hiding inbox and shared
+  TopBar controls that cannot succeed for the current actor.
+
+P1D has no database migration and no real-provider proof requirement. It must
+not change the WAHA session/webhook, Lead Agent, EVO Inbox Supabase model,
+message transport, ACK/outbox/retry/reconciliation behavior, provider
+configuration or production state. Full details and the actor matrix are in
+`docs/platform/p1d-root-whatsapp-scope.md`.
 
 ### Historical pre-platform blocks
 

@@ -2974,3 +2974,200 @@ Validation impact:
 
 - Regenerate the DOCX and restart inspection of every page from the final
   artifact; superseded visual passes are not evidence.
+
+## 2026-07-28 - Add P1D Current-Root WhatsApp Object-Scope Gate
+
+Affected plan section: `/goal-evo-platform-long-run`, P1 current-app
+role/RBAC/handoff correction.
+
+Change type: execution-order, authorization-scope and acceptance amendment.
+
+Reason:
+
+- P1A-P1C are merged through PR #78, but root `/whatsapp` still uses local
+  SQLite `wa_*` shadow tables with only coarse Admin/Sales/Curator route checks.
+- Conversation list/detail/message queries, send/read/create actions and
+  `/api/ai/draft` do not yet apply responsible Sales, assigned Curator or
+  post-handoff object scope.
+- The target P5 unified communications block is intentionally broader: one
+  Supabase model, Inbox/Lead Agent absorption, one WAHA owner, raw persistence,
+  identifiers, ACK/outbox/reconciliation and manual-send audit. Mixing that
+  provider/data redesign into a current-app authorization fix would create a
+  mega-PR and weaken rollback evidence.
+- Manual creation in the current root form cannot prove a non-Admin owner
+  without the later amoCRM resolution/linking path, so allowing Sales or
+  Curator to create an unlinked row would contradict fail-closed scope.
+
+Decision:
+
+- Add P1D as a sequential current-app authorization sub-block before P2.
+- Limit P1D to the existing root SQLite/custom-auth `/whatsapp` path.
+- Admin has full access. Responsible Sales has full access only to a proven
+  lead-only row whose conversation has no case link, whose lead resolves and
+  whose lead also has no case link, or to a valid directly linked pending case.
+  Assigned Curator has full access after handoff for active/closed cases. Former
+  responsible Sales receives only the safe case summary.
+- Unrelated staff, Finance, Student, broken links, ownerless links and unlinked
+  rows fail closed for non-Admin actors.
+- Manual conversation creation is Admin-only until P4/P5 can prove canonical
+  ownership during resolution/linking.
+- Apply one actor/object policy to SQL reads, direct routes, lead-page lookup,
+  replayed send/read/create actions and `/api/ai/draft`, with denial before
+  protected reads, mutation, AI or WhatsApp provider access.
+- Keep P1D schema-free and provider-free. Do not change WAHA session/webhook,
+  Inbox Supabase, Lead Agent, transport, ACK/outbox/retry/reconciliation or
+  production state.
+- Block runtime implementation until this docs-only amendment is independently
+  reviewed and merged.
+
+Validation impact:
+
+- The amendment PR is docs-only and requires plan/decision hash verification,
+  `git diff --check`, secret/PII review, changed-scope documentation checks,
+  exact-head CI and an independent launch-control verdict.
+- The later implementation PR must prove the full actor/state/link matrix with
+  positive and negative production-path tests, direct-route and Server Action
+  replay denial, unchanged SQLite state on denial, and AI denial before the
+  provider boundary.
+- Real-provider proof is not required for P1D and must not be inferred from
+  configuration, mocks or local authorization tests.
+
+## 2026-07-28 - Fail Closed On Indirect Or Conflicting WhatsApp Case Links
+
+Affected plan section: `/goal-evo-platform-long-run`, P1D current-root
+WhatsApp object scope.
+
+Change type: authorization-edge clarification before implementation.
+
+Reason:
+
+- Root conversations are normally created with `lead_id` and no
+  `wa_conversations.client_id`.
+- A lead can later acquire `leads.client_id` when it becomes associated with a
+  student case. If the conversation link is not updated, treating it as
+  lead-only would preserve Sales transcript/send access after handoff.
+- Direct and lead-derived case links can also disagree. Guessing which one is
+  current would weaken the fail-closed boundary and hide reconciliation debt.
+
+Decision:
+
+- Lead-only Sales access requires all three facts:
+  `wa_conversations.client_id IS NULL`, `lead_id` resolves, and the resolved
+  `leads.client_id IS NULL`.
+- Every non-null raw `wa_conversations.client_id` and `lead_id` that participates
+  in resolution must resolve; a dangling raw link remains Admin-only even when
+  the other direct link is valid.
+- When the lead already points to a case but the conversation does not, the
+  direct and indirect case links conflict, either required link is broken, or
+  the applicable owner is absent, only Admin has access until reconciliation.
+- When direct and lead-derived case links are both present and consistent, the
+  direct student-case lifecycle and handoff rule governs.
+- P1D does not repair association data or infer canonical ownership. P4/P5
+  remain responsible for provider-backed resolution and reconciliation.
+
+Validation impact:
+
+- Add positive proof for a true lead-only row where both case links are absent.
+- Add negative list/detail/action/API tests for indirect lead-to-case rows and
+  conflicting direct/lead case links, including unchanged SQLite state and no
+  AI/WhatsApp provider invocation.
+- Recompute plan/decision hashes and repeat exact-head CI plus independent
+  launch-control review before merge.
+
+## 2026-07-28 - Close Derived WhatsApp Metric And Create-Control Leaks
+
+Affected plan section: `/goal-evo-platform-long-run`, P1D current-root
+WhatsApp object scope.
+
+Change type: authorization-surface completion before implementation.
+
+Reason:
+
+- Root lead and dashboard queries derive WhatsApp last-touch, message-count,
+  unread, response-time and aggregate values from globally visible
+  conversations.
+- Those fields reveal protected communication state even when transcript access
+  is summary-only or denied.
+- The shared TopBar also exposes a manual-conversation shortcut outside the
+  inbox component, while P1D makes creation Admin-only.
+
+Decision:
+
+- Apply the P1D full-conversation predicate to every WhatsApp-derived shared
+  lead/cockpit metric, including queries called by Sales, dashboard, calls and
+  tasks. Summary-only and denied actors receive no protected recency, count,
+  unread, response-time or aggregate value, even when a caller would not render
+  it.
+- Treat derived metrics as protected conversation data, not harmless
+  analytics; they cannot be loaded globally and redacted later.
+- Hide every manual-create entry point, including the shared TopBar shortcut,
+  from non-Admin actors while retaining the server-side Admin guard.
+- Keep the change inside current-root authorization containment. Unified
+  reporting and communications analytics remain later-platform work.
+- For P1D evidence, `production-path tests` means local integration tests that
+  exercise production code paths with synthetic data only and perform no
+  production or provider mutation.
+
+Validation impact:
+
+- Add local integration assertions through production code paths for `/sales`,
+  `/sales/[id]` and `/dashboard` proving protected metrics disappear
+  immediately at handoff or denial, plus query-level evidence that `/calls` and
+  `/tasks` do not load global WhatsApp fields through shared lead queries.
+- Test both inbox-local and TopBar create controls for Admin-positive and
+  non-Admin-negative behavior.
+- Retain direct Server Action replay tests because hidden controls alone are
+  not authorization.
+
+## 2026-07-28 - Protect P1D Lead Ownership Inputs
+
+Affected plan section: `/goal-evo-platform-long-run`, P1D current-root
+WhatsApp object scope.
+
+Change type: authorization-bypass closure before implementation.
+
+Reason:
+
+- P1D's temporary lead-only conversation rule uses the local shadow
+  `leads.manager_id` to identify the responsible Sales user.
+- The current `addLeadAction` and `updateLeadAction` accept a caller-supplied
+  `manager_id`, and the manager selector is visible to Sales.
+- Without an ownership-mutation guard, an unrelated Sales user could assign the
+  lead to themselves and manufacture the predicate that unlocks transcript,
+  draft and manual-send access.
+
+Decision:
+
+- Treat local lead ownership as authorization input for the P1D containment
+  period.
+- Ignore caller-supplied `manager_id` when Sales creates a local lead and force
+  the authenticated Sales actor as owner.
+- Permit a Sales profile update only for an already-owned lead and preserve the
+  stored owner even when the request contains a forged `manager_id`.
+- Allow only Admin to select or reassign the temporary local owner; validate
+  that a selected non-null owner resolves to an active `sales` account.
+- Hide manager selection from Sales while keeping the server-side guard
+  authoritative.
+- Do not treat this local shadow update as a canonical amoCRM
+  `responsible_user_id` write. P4 remains responsible for account-specific
+  mapping, canonical writes and reconciliation.
+- Return at most one static post-handoff summary per case and sort it only by
+  allowlisted case fields. Conversation multiplicity and message recency must
+  not leak through duplicate rows or ordering.
+- Re-authenticate and re-resolve object scope at the final server boundary so a
+  stale page or captured action from before handoff cannot invoke AI, WhatsApp
+  or a protected database mutation.
+- Limit the P1D provider claim to authorization-before-invocation. WAHA
+  `WORKING` readiness, removal of unsafe account-routing fallback and delivery
+  correctness remain P5 gates.
+
+Validation impact:
+
+- Add negative local integration coverage for forged owner values during Sales
+  create/update and for an unrelated Sales takeover attempt.
+- Prove denied takeover leaves the lead and conversation access unchanged, and
+  an allowed Sales profile update preserves the existing owner.
+- Add Admin-positive validated-owner coverage and Sales-negative UI coverage
+  for manager selection.
+- Prove one static summary row per case with no message-derived ordering and
+  zero provider invocations from a stale post-handoff action.

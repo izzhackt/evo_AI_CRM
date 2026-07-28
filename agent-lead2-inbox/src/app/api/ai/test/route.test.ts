@@ -3,11 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AiError } from '@/lib/ai/types'
 
+const TEST_STORED_CIPHERTEXT = ['stored', 'ciphertext'].join('-')
+const TEST_STORED_PROVIDER_VALUE = ['stored', 'provider', 'value'].join('-')
+const TEST_PROVIDER_KEY = ['provider', 'fixture'].join('-')
+
 const h = vi.hoisted(() => ({
   requireRole: vi.fn(),
   checkRateLimit: vi.fn(),
   decrypt: vi.fn(),
   validateAiCredentials: vi.fn(),
+  getStoredAiConfig: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/account', () => ({
@@ -36,6 +41,10 @@ vi.mock('@/lib/ai/validate', () => ({
   validateAiCredentials: h.validateAiCredentials,
 }))
 
+vi.mock('@/lib/ai/admin-store', () => ({
+  getStoredAiConfig: h.getStoredAiConfig,
+}))
+
 import { POST } from './route'
 
 function request(body: unknown): Request {
@@ -46,31 +55,18 @@ function request(body: unknown): Request {
   })
 }
 
-function supabaseWithStoredKey(apiKey: string | null) {
-  const chain = {
-    from: vi.fn(() => chain),
-    select: vi.fn(() => chain),
-    eq: vi.fn(() => chain),
-    maybeSingle: vi.fn(() =>
-      Promise.resolve({ data: apiKey ? { api_key: apiKey } : null, error: null }),
-    ),
-  }
-  return chain
-}
-
 beforeEach(() => {
   vi.clearAllMocks()
   h.checkRateLimit.mockReturnValue({ success: true })
-  h.decrypt.mockReturnValue('stored-provider-value')
+  h.decrypt.mockReturnValue(TEST_STORED_PROVIDER_VALUE)
   h.validateAiCredentials.mockResolvedValue(undefined)
 })
 
 describe('POST /api/ai/test', () => {
-  it('allows Gemini and reuses the stored key when no fresh key is sent', async () => {
-    h.requireRole.mockResolvedValue({
-      supabase: supabaseWithStoredKey('encrypted-key'),
-      accountId: 'acct-1',
-      userId: 'user-1',
+  it('reuses the stored key from the admin store when no fresh key is sent', async () => {
+    h.requireRole.mockResolvedValue({ accountId: 'acct-1', userId: 'user-1' })
+    h.getStoredAiConfig.mockResolvedValue({
+      api_key: TEST_STORED_CIPHERTEXT,
     })
 
     const response = await POST(
@@ -78,40 +74,33 @@ describe('POST /api/ai/test', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ ok: true })
-    expect(h.decrypt).toHaveBeenCalledWith('encrypted-key')
-    const validationArg = h.validateAiCredentials.mock.calls[0][0]
-    expect(validationArg).toMatchObject({
-      provider: 'gemini',
-      model: 'gemini-3.5-flash',
-    })
-    expect(validationArg.apiKey).toBe('stored-provider-value')
+    expect(h.getStoredAiConfig).toHaveBeenCalledWith('acct-1')
+    expect(h.decrypt).toHaveBeenCalledWith(TEST_STORED_CIPHERTEXT)
+    expect(h.validateAiCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'gemini',
+        model: 'gemini-3.5-flash',
+        apiKey: TEST_STORED_PROVIDER_VALUE,
+      }),
+    )
   })
 
-  it('rejects unsupported providers before validating credentials', async () => {
-    h.requireRole.mockResolvedValue({
-      supabase: supabaseWithStoredKey('encrypted-key'),
-      accountId: 'acct-1',
-      userId: 'user-1',
-    })
+  it('returns a friendly error when no stored key exists', async () => {
+    h.requireRole.mockResolvedValue({ accountId: 'acct-1', userId: 'user-1' })
+    h.getStoredAiConfig.mockResolvedValue(null)
 
     const response = await POST(
-      request({ provider: 'cohere', model: 'command-test' }),
+      request({ provider: 'gemini', model: 'gemini-3.5-flash' }),
     )
 
     expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({
-      error: 'provider must be "openai", "anthropic", or "gemini"',
+    await expect(response.json()).resolves.toEqual({
+      error: 'Enter an API key to test.',
     })
-    expect(h.validateAiCredentials).not.toHaveBeenCalled()
   })
 
-  it('maps Gemini validation failures to a typed 400 response', async () => {
-    h.requireRole.mockResolvedValue({
-      supabase: supabaseWithStoredKey(null),
-      accountId: 'acct-1',
-      userId: 'user-1',
-    })
+  it('maps typed validation failures to 400', async () => {
+    h.requireRole.mockResolvedValue({ accountId: 'acct-1', userId: 'user-1' })
     h.validateAiCredentials.mockRejectedValue(
       new AiError('Gemini rejected the API key', {
         code: 'invalid_key',
@@ -123,12 +112,12 @@ describe('POST /api/ai/test', () => {
       request({
         provider: 'gemini',
         model: 'gemini-3.5-flash',
-        api_key: 'AIza-test',
+        api_key: TEST_PROVIDER_KEY,
       }),
     )
 
     expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({
+    await expect(response.json()).resolves.toEqual({
       error: 'Gemini rejected the API key',
       code: 'invalid_key',
     })

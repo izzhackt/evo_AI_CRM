@@ -11,7 +11,7 @@ project_id = "evo-platform-local"
 [api]
 enabled = true
 port = 45421
-schemas = ["public", "graphql_public"]
+schemas = ["public", "platform", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
@@ -35,8 +35,8 @@ max_client_conn = 100
 enabled = true
 schema_paths = []
 
-# P2A verifies schema history only. No seed file or customer-like fixture data
-# is loaded by either `supabase start` or `supabase db reset`.
+# Local verification loads no seed file or customer-like fixture data during
+# either `supabase start` or `supabase db reset`.
 [db.seed]
 enabled = false
 sql_paths = []

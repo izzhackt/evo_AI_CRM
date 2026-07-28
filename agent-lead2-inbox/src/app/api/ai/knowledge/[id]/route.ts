@@ -5,7 +5,7 @@ import {
   toErrorResponse,
 } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
-import { loadEmbeddingsConfig } from '@/lib/ai/config'
+import { loadEmbeddingsConfigForAccount } from '@/lib/ai/config'
 import { ingestDocument } from '@/lib/ai/knowledge'
 import { AiError } from '@/lib/ai/types'
 
@@ -81,10 +81,7 @@ export async function PATCH(request: Request, { params }: Params) {
         provider: embeddingsProvider,
         key: embeddingsApiKey,
         corrupt,
-      } = await loadEmbeddingsConfig(
-        supabase,
-        accountId,
-      )
+      } = await loadEmbeddingsConfigForAccount(accountId)
       try {
         await ingestDocument(
           supabase,

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
-import { loadEmbeddingsConfig } from '@/lib/ai/config'
+import { loadEmbeddingsConfigForAccount } from '@/lib/ai/config'
 import { ingestDocument } from '@/lib/ai/knowledge'
 import { AiError } from '@/lib/ai/types'
 
@@ -35,10 +35,7 @@ export async function POST() {
       provider: embeddingsProvider,
       key: embeddingsApiKey,
       corrupt,
-    } = await loadEmbeddingsConfig(
-      supabase,
-      accountId,
-    )
+    } = await loadEmbeddingsConfigForAccount(accountId)
     // The whole point of Reindex is usually to backfill embeddings — so
     // if a key is configured but can't be decrypted, don't quietly do a
     // lexical-only pass and report success. Stop and tell the admin.

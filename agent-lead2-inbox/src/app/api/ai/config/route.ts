@@ -9,6 +9,12 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit'
+import {
+  deleteAiConfig,
+  getAiConfigSummary,
+  getStoredAiConfig,
+  upsertAiConfig,
+} from '@/lib/ai/admin-store'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { validateAiCredentials } from '@/lib/ai/validate'
 import { embedTexts } from '@/lib/ai/embeddings'
@@ -87,26 +93,8 @@ function resolveEmbeddingsCredential(args: {
  */
 export async function GET() {
   try {
-    const { supabase, accountId } = await getCurrentAccount()
-
-    const { data, error } = await supabase
-      .from('ai_configs')
-      // `api_key` is selected only to derive `has_key` — it is stripped
-      // out below and never returned to the client.
-      .select(
-        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, api_key, embeddings_provider, embeddings_api_key'
-      )
-      .eq('account_id', accountId)
-      .maybeSingle()
-
-    if (error) {
-      console.error('[ai/config GET] fetch error:', error)
-      return NextResponse.json(
-        { error: 'Failed to load AI configuration' },
-        { status: 500 }
-      )
-    }
-
+    const { accountId } = await getCurrentAccount()
+    const data = await getAiConfigSummary(accountId)
     if (!data) return NextResponse.json({ configured: false })
     // The keys are selected only to derive the has_* flags; neither is
     // returned to the client.
@@ -136,7 +124,7 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const { supabase, accountId, userId } = await requireRole('admin')
+    const { accountId, userId } = await requireRole('admin')
 
     const limit = checkRateLimit(`ai-config:${userId}`, RATE_LIMITS.adminAction)
     if (!limit.success) return rateLimitResponse(limit)
@@ -183,11 +171,7 @@ export async function POST(request: Request) {
     const clearEmbeddingsKey = body.embeddings_api_key === null
 
     // Reuse the stored key when the form didn't send a fresh one.
-    const { data: existing } = await supabase
-      .from('ai_configs')
-      .select('id, provider, model, api_key, embeddings_provider, embeddings_api_key')
-      .eq('account_id', accountId)
-      .maybeSingle()
+    const existing = await getStoredAiConfig(accountId)
 
     const existingEmbeddingsProvider = isEmbeddingsProvider(
       existing?.embeddings_provider,
@@ -308,26 +292,26 @@ export async function POST(request: Request) {
     }
 
     if (existing) {
-      const { error: upErr } = await supabase
-        .from('ai_configs')
-        .update(encryptedKey ? { ...shared, api_key: encryptedKey } : shared)
-        .eq('account_id', accountId)
-      if (upErr) {
-        console.error('[ai/config POST] update error:', upErr)
+      const { error } = await upsertAiConfig(
+        accountId,
+        userId,
+        existing.id,
+        encryptedKey ? { ...shared, api_key: encryptedKey } : shared,
+      )
+      if (error) {
+        console.error('[ai/config POST] update error:', error)
         return NextResponse.json(
           { error: 'Failed to save AI configuration' },
           { status: 500 }
         )
       }
     } else {
-      const { error: insErr } = await supabase.from('ai_configs').insert({
-        account_id: accountId,
-        created_by: userId,
+      const { error } = await upsertAiConfig(accountId, userId, null, {
         api_key: encryptedKey, // guaranteed non-null: rawKey required when no existing row
         ...shared,
       })
-      if (insErr) {
-        console.error('[ai/config POST] insert error:', insErr)
+      if (error) {
+        console.error('[ai/config POST] insert error:', error)
         return NextResponse.json(
           { error: 'Failed to save AI configuration' },
           { status: 500 }
@@ -349,11 +333,8 @@ export async function POST(request: Request) {
  */
 export async function DELETE() {
   try {
-    const { supabase, accountId } = await requireRole('admin')
-    const { error } = await supabase
-      .from('ai_configs')
-      .delete()
-      .eq('account_id', accountId)
+    const { accountId } = await requireRole('admin')
+    const { error } = await deleteAiConfig(accountId)
     if (error) {
       console.error('[ai/config DELETE] error:', error)
       return NextResponse.json(

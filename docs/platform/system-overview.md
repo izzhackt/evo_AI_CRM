@@ -95,10 +95,11 @@ P2 вводит явную границу:
 | `platform` | новая EVO operational model | exposed с explicit grants и RLS на каждой table |
 | `platform_private` | backend-only helpers/secret references | не exposed; browser access отсутствует |
 
-P2A переносит 001–039 byte-for-byte в root `supabase/` и не создаёт 040.
-P2B начинает следующую migration только после checksum/reset proof. Legacy
-`owner/admin/agent/viewer` не получают автоматического соответствия Platform
-ролям, а legacy signup не создаёт Platform membership.
+P2A переносит 001–039 byte-for-byte в root `supabase/`. После
+checksum/reset proof P2B добавляет forward-only migration 040: создаёт только
+namespace/grant boundary и закрывает legacy secret-bearing tables от browser
+roles. Legacy `owner/admin/agent/viewer` не получают автоматического
+соответствия Platform ролям, а legacy signup не создаёт Platform membership.
 
 Каждая exposed table должна иметь RLS. Browser использует только publishable
 key. Secret/service-role ключи и provider secrets остаются только на backend.

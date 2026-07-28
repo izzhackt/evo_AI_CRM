@@ -2,10 +2,10 @@
 
 > **P2 authority notice (2026-07-28).** This file preserves the legacy Inbox
 > 001–039 history and its dated validation evidence. ADR 0015 and
-> `docs/platform/p2-supabase-foundation.md` define the target boundary. After
-> P2A merges, root `supabase/` is the sole migration source and this companion
-> path is non-authoritative. Nothing in this notice authorizes a remote link,
-> push or production migration.
+> `docs/platform/p2-supabase-foundation.md` define the target boundary. P2A
+> moved the byte-identical history to root `supabase/`, which is now the sole
+> migration source; this companion path is a pointer only. Nothing in this
+> notice authorizes a remote link, push or production migration.
 
 Issue #11 prepared EVO Inbox Companion for a managed Supabase Cloud project.
 Issues #13 and #14 now use those tables for WAHA and amoCRM configuration while
@@ -112,12 +112,12 @@ If the CLI or Docker is missing, record the exact blocker. Do not claim local
 migration success without the CLI applying the migrations to a real local
 Supabase stack.
 
-## Canonical workflow after P2A
+## Canonical P2A workflow
 
-After P2A merges, run the pinned project-local CLI from repository root. Exact
-scripts are introduced and tested by P2A; root `supabase/config.toml`,
-`supabase/migrations/` and the root SQL test harness are the only authorities.
-The old companion migration directory contains only a pointer.
+Run the pinned project-local CLI from repository root. Root
+`supabase/config.toml`, `supabase/migrations/` and the root SQL test harness are
+the only authorities. The old companion Supabase directory contains only a
+pointer.
 
 P2A acceptance requires:
 
@@ -313,3 +313,29 @@ supabase start
 supabase db reset --local
 supabase gen types --local --lang typescript --schema public > src/types/supabase.generated.ts
 ```
+
+### P2A replacement evidence — 2026-07-28
+
+The historical issue #11 blocker above no longer applies to local validation.
+P2A pins the project-local Supabase CLI at `2.110.0` and provides repository
+scripts that:
+
+- verify the deterministic SHA-256 manifest against all 39 canonical SQL files;
+- run the relocated disposable PostgreSQL authorization matrix; and
+- start only an isolated local Supabase database, reset it without seed data,
+  verify local/applied migration versions 001–039, suppress ephemeral local
+  credentials, and stop only the `evo-platform-local` Docker project.
+
+From the repository root with Node `22.23.1`:
+
+```bash
+npm ci
+npm run test:supabase:history
+npm run test:security:postgres
+npm run test:supabase:local
+```
+
+These checks prove only the repository and disposable local database boundary.
+The managed project remains deliberately unlinked. Remote ledger parity,
+project version, region, plan, PITR and managed restore still require separate
+credentials and authorization.

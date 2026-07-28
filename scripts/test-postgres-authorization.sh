@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-container_name="evo-inbox-authz-$RANDOM-$$"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+container_name="evo-platform-authz-$RANDOM-$$"
 postgres_image="${POSTGRES_TEST_IMAGE:-pgvector/pgvector:pg15}"
 
 cleanup() {
@@ -14,7 +14,7 @@ docker run \
   --detach \
   --name "$container_name" \
   --env POSTGRES_PASSWORD=postgres \
-  --mount "type=bind,src=$repo_dir,dst=/workspace,readonly" \
+  --mount "type=bind,src=$repo_root,dst=/workspace,readonly" \
   "$postgres_image" >/dev/null
 
 for _ in $(seq 1 60); do
@@ -36,7 +36,7 @@ while IFS= read -r migration; do
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
     -f "/workspace/$migration"
 done < <(
-  cd "$repo_dir"
+  cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
 )
 

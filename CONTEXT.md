@@ -157,7 +157,7 @@ amoCRM-owned contact, lead, responsible sales manager, or sales stage.
 _Avoid_: companion-only database, canonical sales CRM
 
 **Canonical Supabase Migration Source**:
-The root `supabase/` directory that P2A establishes as the only repository
+The root `supabase/` directory established by P2A as the only repository
 authority for the byte-identical legacy 001–039 chain and every later Platform
 migration. The old companion path becomes a pointer, never a second writable
 copy. Merged migrations are immutable; corrections use a new number.

@@ -1,9 +1,12 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-const migrationsDir = join(process.cwd(), 'supabase', 'migrations')
+const migrationsDir = fileURLToPath(
+  new URL('../../../../supabase/migrations/', import.meta.url)
+)
 const migrationFiles = readdirSync(migrationsDir)
   .filter((file) => file.endsWith('.sql'))
   .sort()

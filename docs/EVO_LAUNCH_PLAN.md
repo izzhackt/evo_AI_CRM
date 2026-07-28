@@ -277,7 +277,7 @@ real validation, and receives a separate launch-control reviewer verdict.
 
 1. **CI enforcement for PostgreSQL authorization**
    - Require the existing real-role harness
-     `agent-lead2-inbox/scripts/test-postgres-authorization.sh` through the
+     `scripts/test-postgres-authorization.sh` through the
      repository-root `npm run test:security` gate in GitHub Actions.
    - Provision only safe ephemeral/disposable PostgreSQL for CI. Do not connect
      the harness to production or require committed/runtime secrets.

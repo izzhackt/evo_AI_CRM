@@ -1,0 +1,205 @@
+{
+  "algorithm": "sha256",
+  "source": {
+    "commit": "1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5",
+    "path": "agent-lead2-inbox/supabase/migrations",
+    "range": "001-039"
+  },
+  "files": [
+    {
+      "name": "001_initial_schema.sql",
+      "sha256": "eaa32aa8de4f7337b7a4f523979b7bd7e9d5c8f0124714736ceabf4cf24100b5",
+      "bytes": 18490
+    },
+    {
+      "name": "002_pipelines_enhancements.sql",
+      "sha256": "ea4349df33f976094f213d50b32725d250ba8ceca82a89268b35e34c866d26e9",
+      "bytes": 1252
+    },
+    {
+      "name": "003_broadcast_recipient_wamid.sql",
+      "sha256": "d873ac192c657d7679b37c3cd2c33fe76d80c0fbb6d974b04e2aa9ac8b4d4736",
+      "bytes": 3651
+    },
+    {
+      "name": "004_contact_delete_set_null.sql",
+      "sha256": "f4bd7e04030761367cc9b99305d9298c6a01f803ff55e45dd1a00145433cecdf",
+      "bytes": 2314
+    },
+    {
+      "name": "005_broadcast_counts_incremental.sql",
+      "sha256": "1315889a482c391dbb795ab9355113b252e38b500f07cd359e8560de0873ded6",
+      "bytes": 5075
+    },
+    {
+      "name": "006_automations.sql",
+      "sha256": "19cbe939352e198792be1d6a3bd77c56947aba7a39cd7f833834905124a4fc70",
+      "bytes": 6399
+    },
+    {
+      "name": "007_automations_increment_counter.sql",
+      "sha256": "b7296c7b7a15a9c8a94a0df773040d2fc1431bb8a92ba7a018395fecb51bf24e",
+      "bytes": 1473
+    },
+    {
+      "name": "008_profile_avatars_storage.sql",
+      "sha256": "1ef15ebcc7effee5aad52ea99ea9191ce8fc9e0462b5dc329ffe449f652c8832",
+      "bytes": 2075
+    },
+    {
+      "name": "009_message_actions.sql",
+      "sha256": "166bf37af9ae7731168b469b9063a9b20297c0a09fa6126b1afd282950c791e7",
+      "bytes": 4552
+    },
+    {
+      "name": "010_flows.sql",
+      "sha256": "ec7ee3332bc130ea191a8545399be6d1e0e04f3d730d016c003da4277f6c2ed3",
+      "bytes": 11800
+    },
+    {
+      "name": "011_profile_beta_features.sql",
+      "sha256": "94cf5e2bccaf869773145eb25aeafb66059fa670c02db6440457dad7fc46cb2d",
+      "bytes": 1941
+    },
+    {
+      "name": "012_flows_increment_counter.sql",
+      "sha256": "0c06dad55199804952ff82f4c10ba714f8fd4b449fa099174a20eca85a4c561d",
+      "bytes": 1499
+    },
+    {
+      "name": "013_whatsapp_config_phone_number_id_unique.sql",
+      "sha256": "c7d3e5f3cb2d8dd3c5e268096a95426c48210c7ab15e91e59ceefac3f037c332",
+      "bytes": 3064
+    },
+    {
+      "name": "014_message_templates_meta_integration.sql",
+      "sha256": "e04edd361ae09745aa59218ec51f5791e0329dee6260936c16e5c3ecf23c6667",
+      "bytes": 7547
+    },
+    {
+      "name": "015_whatsapp_config_registration.sql",
+      "sha256": "fdc54058896ae61cafafb0876b268375dcaff6f647776362e6d20f548fab4905",
+      "bytes": 2138
+    },
+    {
+      "name": "016_flow_media.sql",
+      "sha256": "50eeee0c19235b8838f28378385d1f7a08f6303078494db109b045caa2d8c3f6",
+      "bytes": 4111
+    },
+    {
+      "name": "017_account_sharing.sql",
+      "sha256": "36fe14a10ad8dd0afe329f6a470b12c040c4c89951f5435c1d1b32c370597ed7",
+      "bytes": 36526
+    },
+    {
+      "name": "018_account_member_rpcs.sql",
+      "sha256": "c6abc7cc7ff845c6931e3f8f6ed1e3676cb9e8e2192bae2eb23cee8b8d161def",
+      "bytes": 9241
+    },
+    {
+      "name": "019_invitation_rpcs.sql",
+      "sha256": "605a64136f0e8a27bf2c80f4c91e486b19fc7c857f0e1884463659f5603be2a5",
+      "bytes": 9314
+    },
+    {
+      "name": "020_account_sharing_followups.sql",
+      "sha256": "b1cc4dbc056fd429d35413d56fb67a6702af33852e3e75670fe5f6d1cbf42f6e",
+      "bytes": 5278
+    },
+    {
+      "name": "021_account_default_currency.sql",
+      "sha256": "cd5d485664d91b734b60f673c1246bd01185843475815226f00e14126b57bbe7",
+      "bytes": 1426
+    },
+    {
+      "name": "022_contact_phone_dedup.sql",
+      "sha256": "8ec2f2f840dbc74fe60e811522619c6af0e6392610a9883ab01e8ffd045b2adf",
+      "bytes": 5310
+    },
+    {
+      "name": "023_chat_media.sql",
+      "sha256": "b1a87ad3c940ea23b0d31e95ac59eafd5f7b16452daa5c6f321c8a70b604c3f3",
+      "bytes": 4669
+    },
+    {
+      "name": "024_member_presence.sql",
+      "sha256": "d68f3b24b02d3dad841e79980d27c42686caad2da8a8e96d6a0b9bdfd41e4118",
+      "bytes": 3716
+    },
+    {
+      "name": "025_filter_contacts_by_tags.sql",
+      "sha256": "4ed7d01be52e096e7e67fca842b4f187e11402f1bb80f2dab05ccc5500ea5a26",
+      "bytes": 2903
+    },
+    {
+      "name": "026_api_keys.sql",
+      "sha256": "51121a46dfabae36ad2a122c4b3ac8c616fa6dd666da828070053d447571aac8",
+      "bytes": 4233
+    },
+    {
+      "name": "027_notifications.sql",
+      "sha256": "8bc2eb85f0de71d80d7f2dbfdc185586f6ea3bc1579f44bb705cd3a0f15d80cd",
+      "bytes": 4795
+    },
+    {
+      "name": "028_webhook_endpoints.sql",
+      "sha256": "25021bd4eef60cac4ba3208f248e07b3843a81da7d559f4d428242aefcf8c9ff",
+      "bytes": 5120
+    },
+    {
+      "name": "029_ai_reply.sql",
+      "sha256": "93739f63399eb43fc54933abd9b2d38525d4d80e2161e55e1741e56f1eb9a997",
+      "bytes": 6155
+    },
+    {
+      "name": "030_ai_knowledge.sql",
+      "sha256": "173e1314a8c41014569ec431915bb578d7cd1626c56b6d7f1d59fa45b9dd8212",
+      "bytes": 9762
+    },
+    {
+      "name": "031_evo_companion_shadow_store.sql",
+      "sha256": "30014b33d696ba09a95fa1cea264a12b34bed05d98b9172318fb31b0155cb75b",
+      "bytes": 8347
+    },
+    {
+      "name": "032_waha_inbound_message_idempotency.sql",
+      "sha256": "2c731f86073fea5a6d9393838ae9da957246937a3c357a00bf22ce67eb7d58d4",
+      "bytes": 1316
+    },
+    {
+      "name": "033_waha_manual_outbound_status.sql",
+      "sha256": "1e9570dde6658c40f54b03bbe47791d918a9d308bd1e87479adf0c3fd6266d50",
+      "bytes": 746
+    },
+    {
+      "name": "034_ai_gemini_provider.sql",
+      "sha256": "e0d38ee6ce277384d1a6ce1cdeb0e52496ce4a8dd04dfccbf420139ae5adcc76",
+      "bytes": 693
+    },
+    {
+      "name": "035_ai_embeddings_provider_and_scale.sql",
+      "sha256": "c9e6b78f8ebd35c818fbe5f6919cb8b63853ec4cc7594593fa5f2f8d6f7d2624",
+      "bytes": 1361
+    },
+    {
+      "name": "036_reliable_amocrm_sync_buffer.sql",
+      "sha256": "f224401b9f5d14decec55733a8c149c10a0bfe7c9807a10a143d80b626fe692e",
+      "bytes": 3314
+    },
+    {
+      "name": "037_operator_drafts_and_waha_outbox.sql",
+      "sha256": "d1cd458b2cf4fb15b1e90d83ca3b598ecb79b33362bb6b3005eea9eb0098b196",
+      "bytes": 14048
+    },
+    {
+      "name": "038_authorization_containment.sql",
+      "sha256": "64c7d648e3cebd890212e021cc7774e2f427756a70af0bda083e1ddbc977499c",
+      "bytes": 10977
+    },
+    {
+      "name": "039_private_inbox_media.sql",
+      "sha256": "a9297f27628a8ea7d2cd27e31b9cf396d9ea9a782aa668c4df330c6cfdc3c796",
+      "bytes": 4126
+    }
+  ]
+}

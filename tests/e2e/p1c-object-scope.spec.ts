@@ -7,6 +7,7 @@ const databasePath =
   ?? path.join(process.cwd(), "output", "playwright", "runtime", "edu-admin-e2e.db");
 
 const OTHER_CURATOR_EMAIL = "p1c.other.curator@example.test";
+const OTHER_SALES_EMAIL = "p1c.other.sales@example.test";
 const PENDING_APPLICATION = "P1C Pending Scope University";
 
 function desktopOnly(testInfo: TestInfo) {
@@ -22,12 +23,19 @@ function prepareObjectScopeFixtures() {
   try {
     database.prepare("DELETE FROM applications WHERE university = ?").run(PENDING_APPLICATION);
     database.prepare("DELETE FROM users WHERE lower(email) = ?").run(OTHER_CURATOR_EMAIL);
+    database.prepare("DELETE FROM users WHERE lower(email) = ?").run(OTHER_SALES_EMAIL);
     database.prepare(`
       INSERT INTO users (email, phone, password_hash, name, role)
       SELECT ?, NULL, password_hash, 'P1C Other Curator', 'curator'
       FROM users
       WHERE lower(email) = 'curator@demo.kg'
     `).run(OTHER_CURATOR_EMAIL);
+    database.prepare(`
+      INSERT INTO users (email, phone, password_hash, name, role)
+      SELECT ?, NULL, password_hash, 'P1C Other Sales', 'sales'
+      FROM users
+      WHERE lower(email) = 'sales@demo.kg'
+    `).run(OTHER_SALES_EMAIL);
     const application = database.prepare(`
       INSERT INTO applications (
         client_id, university, country, program, degree, deadline, status
@@ -45,6 +53,7 @@ function cleanupObjectScopeFixtures() {
     database.prepare("UPDATE applications SET status = 'submitted' WHERE id = 1").run();
     database.prepare("DELETE FROM applications WHERE university = ?").run(PENDING_APPLICATION);
     database.prepare("DELETE FROM users WHERE lower(email) = ?").run(OTHER_CURATOR_EMAIL);
+    database.prepare("DELETE FROM users WHERE lower(email) = ?").run(OTHER_SALES_EMAIL);
   } finally {
     database.close();
   }
@@ -65,6 +74,19 @@ async function login(
     page.waitForURL(target),
     page.getByRole("button", { name: "Войти" }).click(),
   ]);
+}
+
+async function browserFetch(page: Page, url: string, init?: RequestInit) {
+  return page.evaluate(
+    async ({ requestUrl, requestInit }) => {
+      const response = await fetch(requestUrl, requestInit);
+      return {
+        status: response.status,
+        body: await response.text(),
+      };
+    },
+    { requestUrl: url, requestInit: init },
+  );
 }
 
 test.describe("P1C staff object scope", () => {
@@ -170,6 +192,40 @@ test.describe("P1C staff object scope", () => {
       await page.goto("/documents");
       await expect(page.locator("body")).not.toContainText("Мотивационное письмо");
       expect((await page.goto("/documents/1"))?.status()).toBe(404);
+    } finally {
+      cleanupObjectScopeFixtures();
+    }
+  });
+
+  test("AI summary rejects post-handoff and unrelated staff before the provider boundary", async ({
+    context,
+    page,
+  }, testInfo) => {
+    desktopOnly(testInfo);
+    await login(context, page, "admin@demo.kg", "admin123", /\/dashboard$/);
+    prepareObjectScopeFixtures();
+
+    const requestSummary = () => browserFetch(page, "/api/ai/summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId: 1 }),
+    });
+
+    try {
+      await login(context, page, "sales@demo.kg", "sales123", /\/sales$/);
+      let response = await requestSummary();
+      expect(response.status).toBe(404);
+      expect(JSON.parse(response.body)).toEqual({ error: "not_found" });
+
+      await login(context, page, OTHER_SALES_EMAIL, "sales123", /\/sales$/);
+      response = await requestSummary();
+      expect(response.status).toBe(404);
+      expect(JSON.parse(response.body)).toEqual({ error: "not_found" });
+
+      await login(context, page, OTHER_CURATOR_EMAIL, "curator123", /\/clients$/);
+      response = await requestSummary();
+      expect(response.status).toBe(404);
+      expect(JSON.parse(response.body)).toEqual({ error: "not_found" });
     } finally {
       cleanupObjectScopeFixtures();
     }

@@ -134,9 +134,10 @@ shadow surface before unified communications. Admin sees all. Responsible Sales
 has full access to a linked lead or pending case; after handoff that Sales user
 sees only a safe case summary. The assigned Curator has full access to the
 active/closed case conversation. Unrelated staff, Finance, Student and
-unlinked/broken-link/ownerless non-Admin access fail closed. This is
-containment, not proof of EVO Inbox, WAHA, amoCRM or unified-history
-integration.
+unlinked/indirect-case/conflicting-link/broken-link/ownerless non-Admin access
+fail closed. Lead-only Sales access requires both the conversation and lead to
+have no case link. This is containment, not proof of EVO Inbox, WAHA, amoCRM or
+unified-history integration.
 _Avoid_: unified Inbox, provider proof, canonical conversation ownership
 
 **Unified Platform Data Store**:

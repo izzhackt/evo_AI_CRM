@@ -3029,3 +3029,90 @@ Validation impact:
   provider boundary.
 - Real-provider proof is not required for P1D and must not be inferred from
   configuration, mocks or local authorization tests.
+
+## 2026-07-28 - Fail Closed On Indirect Or Conflicting WhatsApp Case Links
+
+Affected plan section: `/goal-evo-platform-long-run`, P1D current-root
+WhatsApp object scope.
+
+Change type: authorization-edge clarification before implementation.
+
+Reason:
+
+- Root conversations are normally created with `lead_id` and no
+  `wa_conversations.client_id`.
+- A lead can later acquire `leads.client_id` when it becomes associated with a
+  student case. If the conversation link is not updated, treating it as
+  lead-only would preserve Sales transcript/send access after handoff.
+- Direct and lead-derived case links can also disagree. Guessing which one is
+  current would weaken the fail-closed boundary and hide reconciliation debt.
+
+Decision:
+
+- Lead-only Sales access requires all three facts:
+  `wa_conversations.client_id IS NULL`, `lead_id` resolves, and the resolved
+  `leads.client_id IS NULL`.
+- Every non-null raw `wa_conversations.client_id` and `lead_id` that participates
+  in resolution must resolve; a dangling raw link remains Admin-only even when
+  the other direct link is valid.
+- When the lead already points to a case but the conversation does not, the
+  direct and indirect case links conflict, either required link is broken, or
+  the applicable owner is absent, only Admin has access until reconciliation.
+- When direct and lead-derived case links are both present and consistent, the
+  direct student-case lifecycle and handoff rule governs.
+- P1D does not repair association data or infer canonical ownership. P4/P5
+  remain responsible for provider-backed resolution and reconciliation.
+
+Validation impact:
+
+- Add positive proof for a true lead-only row where both case links are absent.
+- Add negative list/detail/action/API tests for indirect lead-to-case rows and
+  conflicting direct/lead case links, including unchanged SQLite state and no
+  AI/WhatsApp provider invocation.
+- Recompute plan/decision hashes and repeat exact-head CI plus independent
+  launch-control review before merge.
+
+## 2026-07-28 - Close Derived WhatsApp Metric And Create-Control Leaks
+
+Affected plan section: `/goal-evo-platform-long-run`, P1D current-root
+WhatsApp object scope.
+
+Change type: authorization-surface completion before implementation.
+
+Reason:
+
+- Root lead and dashboard queries derive WhatsApp last-touch, message-count,
+  unread, response-time and aggregate values from globally visible
+  conversations.
+- Those fields reveal protected communication state even when transcript access
+  is summary-only or denied.
+- The shared TopBar also exposes a manual-conversation shortcut outside the
+  inbox component, while P1D makes creation Admin-only.
+
+Decision:
+
+- Apply the P1D full-conversation predicate to every WhatsApp-derived shared
+  lead/cockpit metric, including queries called by Sales, dashboard, calls and
+  tasks. Summary-only and denied actors receive no protected recency, count,
+  unread, response-time or aggregate value, even when a caller would not render
+  it.
+- Treat derived metrics as protected conversation data, not harmless
+  analytics; they cannot be loaded globally and redacted later.
+- Hide every manual-create entry point, including the shared TopBar shortcut,
+  from non-Admin actors while retaining the server-side Admin guard.
+- Keep the change inside current-root authorization containment. Unified
+  reporting and communications analytics remain later-platform work.
+- For P1D evidence, `production-path tests` means local integration tests that
+  exercise production code paths with synthetic data only and perform no
+  production or provider mutation.
+
+Validation impact:
+
+- Add local integration assertions through production code paths for `/sales`,
+  `/sales/[id]` and `/dashboard` proving protected metrics disappear
+  immediately at handoff or denial, plus query-level evidence that `/calls` and
+  `/tasks` do not load global WhatsApp fields through shared lead queries.
+- Test both inbox-local and TopBar create controls for Admin-positive and
+  non-Admin-negative behavior.
+- Retain direct Server Action replay tests because hidden controls alone are
+  not authorization.

@@ -105,16 +105,22 @@ The implementation after this amendment merges must:
   for the former responsible Sales user;
 - deny Finance, Student, unrelated staff, broken links and unlinked rows for
   every non-Admin actor;
+- grant lead-only Sales access only when both the conversation and the resolved
+  lead have no case link; indirect lead-to-case and conflicting case links are
+  Admin-only until reconciliation;
 - keep post-handoff Sales away from transcript, phone/message previews,
   provider/amoCRM/WAHA identifiers, draft/reason metadata and send/read/draft
   actions;
 - enforce the same object policy in direct routes, lead-page lookups, replayed
   Server Actions and `/api/ai/draft` before protected reads, mutation, AI or
   WhatsApp provider access;
+- suppress WhatsApp-derived unread/count/recency/response aggregates at the
+  shared query boundary for Sales, dashboard, calls and tasks whenever the
+  actor lacks full conversation access;
 - make manual conversation creation Admin-only until P4/P5 can prove canonical
   ownership during resolution/linking;
-- preserve the accepted frontend structure while hiding controls that cannot
-  succeed for the current actor.
+- preserve the accepted frontend structure while hiding inbox and shared
+  TopBar controls that cannot succeed for the current actor.
 
 P1D has no database migration and no real-provider proof requirement. It must
 not change the WAHA session/webhook, Lead Agent, EVO Inbox Supabase model,

@@ -31,25 +31,36 @@ the target communications backend.
 - The detail page can expose phone, transcript, amoCRM identifiers, agent
   metadata and reply controls to unrelated staff.
 - Lead detail finds a conversation through the same unscoped global list.
+- Lead/dashboard queries derive global WhatsApp recency, message-count, unread
+  and response metrics without the conversation policy.
+- The shared TopBar exposes a manual-create shortcut to non-Admin actors.
 
 ## Scope resolution
 
 P1D resolves a conversation without trusting caller-provided ownership:
 
-1. **Linked student case.** If `wa_conversations.client_id` resolves, the
-   student-case lifecycle and assignment are authoritative for this temporary
-   root scope:
+1. **Directly linked student case.** If `wa_conversations.client_id` resolves,
+   the student-case lifecycle and assignment are authoritative for this
+   temporary root scope only when `lead_id IS NULL`, or when a non-null
+   `lead_id` resolves and its `leads.client_id` is either null or points to the
+   same case:
    - Admin has full access;
    - the responsible Sales user has full access while the case is `pending`;
    - the assigned Curator has full access while the case is `active` or
      `closed`;
    - the former responsible Sales user has summary-only access after handoff;
    - every other actor has no access.
-2. **Lead only.** When no client resolves and `lead_id` resolves, Admin and the
-   lead's responsible Sales user have full access.
-3. **Unlinked, broken or ownerless.** Admin alone has access.
-4. **Both links.** The student-case rule takes precedence so a stale lead link
-   cannot restore Sales transcript/send access after handoff.
+2. **Proven lead only.** The lead's responsible Sales user has full access only
+   when `wa_conversations.client_id IS NULL`, `lead_id` resolves and that lead's
+   own `client_id IS NULL`.
+3. **Indirect, broken, conflicting or ownerless.** Admin alone has access when
+   a lead already points to a case but the conversation does not, when the
+   conversation and lead point to different cases, when either required link is
+   broken, or when the applicable owner is missing. P1D does not guess or
+   repair the association.
+4. **Both consistent links.** The directly linked student-case rule takes
+   precedence so a stale lead ownership path cannot restore Sales
+   transcript/send access after handoff.
 
 The root links remain non-canonical shadow data. P4/P5 later replace this
 temporary rule with canonical amoCRM resolution and the unified communications
@@ -60,12 +71,12 @@ model.
 | Actor and state | Queue and detail | Protected content | Actions |
 | --- | --- | --- | --- |
 | Admin | All rows, full detail | Full current-root conversation and provider metadata | Draft, manual send, mark read and manual create through existing guards |
-| Responsible Sales, lead-only or pending case | Own full queue/detail | Full transcript and linked pre-contract context | Draft, manual send and mark read; no manual create |
+| Responsible Sales, proven lead-only or directly linked pending case | Own full queue/detail | Full transcript and linked pre-contract context | Draft, manual send and mark read; no manual create |
 | Same Sales, active/closed handed-off case | Safe summary row/view only | No transcript, phone, message preview, unread state, provider IDs, amoCRM IDs, agent draft/reason metadata or deep links | No draft, send, mark read or create |
 | Assigned Curator, active/closed case | Assigned full queue/detail | Full transcript and assigned student link; no unrelated Sales deep link | Draft, manual send and mark read; no manual create |
 | Unrelated Sales or Curator | None | None | None |
 | Finance or Student | No `/whatsapp` access | None | None |
-| Unlinked, broken-link or ownerless row | Admin only | Admin only | Admin only |
+| Unlinked, indirect-case, conflicting-link, broken-link or ownerless row | Admin only | Admin only | Admin only |
 
 ## Safe Sales post-handoff projection
 
@@ -91,11 +102,15 @@ The same fail-closed policy must protect:
 - `/whatsapp` list and `/whatsapp/[id]` direct route;
 - list, detail and message queries;
 - the conversation lookup on `/sales/[id]`;
+- WhatsApp-derived recency, message-count, unread, response-time and aggregate
+  fields loaded by shared lead/cockpit queries across `/sales`, `/sales/[id]`,
+  `/dashboard`, `/calls` and `/tasks`; non-full actors receive no protected
+  conversation-derived metric, even when a caller does not render the field;
 - `sendWaMessageAction`;
 - `markConversationReadAction`;
 - `createConversationAction`, which becomes Admin-only in P1D;
 - `/api/ai/draft`, before message/lead reads or the AI provider boundary;
-- list/detail/reply UI controls and deep links.
+- list/detail/reply UI controls, TopBar create shortcuts and deep links.
 
 Full-access actions must re-authenticate and resolve the object inside the
 server boundary. A hidden control is not authorization. Denials use a generic
@@ -114,10 +129,18 @@ Tests use synthetic local records only and cover:
 - different Curator denial;
 - Finance and Student route/API/action denial;
 - unlinked, ownerless and broken-link Admin-only behavior;
+- a valid direct case with a non-null unresolved `lead_id` remaining
+  Admin-only;
+- lead-only proof where both conversation and lead case links are absent;
+- indirect lead-to-case and conflicting direct/lead case links failing closed
+  for every non-Admin actor;
 - direct URL and forged-ID access;
 - Server Action replay denial with unchanged SQLite rows;
 - `/api/ai/draft` denial before protected reads or provider invocation;
 - absence of restricted fields and controls from the Sales summary projection;
+- absence of conversation-derived unread/count/recency/response metrics for
+  summary-only or denied actors across every shared-query caller;
+- Admin-only manual-create controls in both the inbox and shared TopBar;
 - preservation of allowed client-bound Curator access.
 
 Required validation is the root security/unit/lint/typegen/typecheck/build,

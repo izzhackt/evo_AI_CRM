@@ -239,23 +239,29 @@ live provider.
 
 Conversation scope uses the existing links in this order:
 
-1. When `client_id` resolves, the student-case assignment and lifecycle govern.
-   A pending case belongs to its responsible Sales user. An active or closed
-   case belongs to its assigned Curator, while the former responsible Sales user
+1. When `wa_conversations.client_id` resolves, the student-case assignment and
+   lifecycle govern only when `lead_id IS NULL`, or when a non-null `lead_id`
+   resolves and its `leads.client_id` is null or points to the same case. A
+   pending case belongs to its responsible Sales user. An active or closed case
+   belongs to its assigned Curator, while the former responsible Sales user
    receives only the safe post-handoff summary.
-2. When there is no client but `lead_id` resolves, only Admin and the lead's
-   responsible Sales user receive full access.
-3. Missing, broken or ownerless links fail closed for every non-Admin actor.
-   If both links exist, the client/handoff rule takes precedence.
+2. Lead-only Sales access requires `wa_conversations.client_id IS NULL`, a
+   resolved `lead_id`, and `leads.client_id IS NULL`.
+3. If the lead already points to a case while the conversation does not, the
+   direct and indirect case links conflict, a required link is broken, or an
+   owner is missing, every non-Admin actor fails closed until reconciliation.
+   The implementation does not guess or repair association data.
+4. When direct and lead-derived case links are both present and consistent, the
+   student-case/handoff rule takes precedence.
 
 | Actor and state | Queue/detail | Transcript and sensitive provider fields | Draft/send/read | Manual conversation create |
 | --- | --- | --- | --- | --- |
 | Admin | All conversations, full detail | Full current-root data | Allowed through existing manual/provider guards | Allowed |
-| Responsible Sales, linked lead or pending case | Own queue and full detail | Full | Allowed through existing manual/provider guards | Denied in P1D |
+| Responsible Sales, proven lead-only or directly linked pending case | Own queue and full detail | Full | Allowed through existing manual/provider guards | Denied in P1D |
 | Same Sales after handoff | Safe summary only | No transcript, phone, message preview, amoCRM IDs, WAHA IDs, agent draft/reason fields or deep links | Denied | Denied |
 | Assigned Curator, active/closed case | Assigned queue and full detail | Full current-root data; no unrelated Sales deep link | Allowed through existing manual/provider guards | Denied |
 | Other Sales/Curator, Finance or Student | None | None | Denied | Denied |
-| Unlinked/broken-link/ownerless conversation | Admin only | Admin only | Admin only | Admin only |
+| Unlinked, indirect-case, conflicting-link, broken-link or ownerless conversation | Admin only | Admin only | Admin only | Admin only |
 
 The Sales post-handoff projection may contain only case ID, student display
 name, target country/degree, case state, assigned Curator display name and
@@ -263,15 +269,24 @@ handoff timestamp. It must be selected as a safe SQL projection; restricted
 conversation/message/provider fields must not be loaded and filtered later.
 
 The list, direct detail route, message query, lead-page conversation lookup,
-`sendWaMessageAction`, `markConversationReadAction`,
-`createConversationAction`, and `/api/ai/draft` must enforce the same
-actor/object policy. Denials are generic and occur before any message read,
-database mutation, AI call or WhatsApp provider call. UI controls that cannot
-succeed for the current access mode are not rendered.
+WhatsApp-derived shared lead/cockpit metrics used by Sales, dashboard, calls
+and tasks, `sendWaMessageAction`,
+`markConversationReadAction`, `createConversationAction`, and `/api/ai/draft`
+must enforce the same actor/object policy. Recency, message-count, unread,
+response-time and aggregate fields must not become a covert conversation-data
+channel for summary-only or denied actors. Denials are generic and occur before
+any message read, database mutation, AI call or WhatsApp provider call. UI
+controls, including shared TopBar create shortcuts, that cannot succeed for the
+current actor are not rendered.
 
-P1D acceptance requires positive and negative production-path tests for Admin,
-responsible/unrelated Sales, assigned/unassigned Curator, Finance and Student;
-pre/post-handoff transitions; linked, broken-link and unlinked conversations;
+P1D acceptance requires positive and negative local integration tests that
+exercise production code paths with synthetic data only and no
+production/provider mutation. They cover Admin, responsible/unrelated Sales,
+assigned/unassigned Curator, Finance and Student; pre/post-handoff transitions;
+linked, broken-link and unlinked conversations; a valid direct case with a
+non-null unresolved `lead_id`; proven lead-only rows; indirect lead-to-case
+links; conflicting direct/lead case links; derived lead/dashboard metric
+suppression; Admin-only TopBar create controls; shared-query non-read evidence;
 direct routes; replayed Server Actions; and AI denial before the provider
 boundary. Denied actions must leave SQLite unchanged. Authorized provider
 success is outside this block and must not be mocked into a provider claim.

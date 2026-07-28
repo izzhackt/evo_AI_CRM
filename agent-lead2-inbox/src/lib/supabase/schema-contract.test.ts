@@ -41,6 +41,10 @@ const platformGrantMigration = readFileSync(
   join(migrationsDir, '040_platform_namespaces_and_secret_containment.sql'),
   'utf8'
 )
+const platformIdentityMigration = readFileSync(
+  join(migrationsDir, '041_platform_identity_rbac_audit.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -56,9 +60,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('exposes only the reviewed P2B Platform schema boundary', () => {
+  it('preserves P2B containment and adds only the reviewed P2C identity boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '040_platform_namespaces_and_secret_containment.sql'
+      '041_platform_identity_rbac_audit.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -72,6 +76,21 @@ describe('Supabase companion schema contract', () => {
     )
     expect(platformGrantMigration).toMatch(
       /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+SCHEMA\s+platform_private\s+FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role/i
+    )
+    expect(platformIdentityMigration).toMatch(
+      /CREATE\s+TYPE\s+platform\.business_role\s+AS\s+ENUM\s*\(\s*'admin',\s*'sales',\s*'curator',\s*'finance',\s*'student'\s*\)/i
+    )
+    expect(platformIdentityMigration).toMatch(
+      /CREATE\s+TABLE\s+platform\.organization_memberships/i
+    )
+    expect(platformIdentityMigration).toMatch(
+      /ALTER\s+TABLE\s+platform\.organization_memberships\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/i
+    )
+    expect(platformIdentityMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform_private\.custom_access_token_hook\s*\(\s*event\s+JSONB\s*\)[\s\S]*SECURITY\s+INVOKER/i
+    )
+    expect(platformIdentityMigration).toMatch(
+      /RETURN\s+jsonb_build_object\s*\(\s*'claims',\s*claims\s*\)/i
     )
     expect(supabaseConfig).toMatch(
       /schemas\s*=\s*\["public",\s*"platform",\s*"graphql_public"\]/

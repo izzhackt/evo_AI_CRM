@@ -101,6 +101,14 @@ namespace/grant boundary и закрывает legacy secret-bearing tables от
 roles. Legacy `owner/admin/agent/viewer` не получают автоматического
 соответствия Platform ролям, а legacy signup не создаёт Platform membership.
 
+P2C добавляет organizations, auth-linked profiles, одну активную membership,
+immutable versioned permission bundles, typed record scopes и append-only
+audit. Auth Hook выдаёт только coarse `platform_role` и
+`platform_access_version`. RLS заново сверяет их с live profile, organization,
+membership, bundle и scope; смена authority увеличивает version и немедленно
+закрывает старый token. Direct `service_role` DML не является target backend
+API: каждый backend capability получает отдельный reviewed function grant.
+
 Каждая exposed table должна иметь RLS. Browser использует только publishable
 key. Secret/service-role ключи и provider secrets остаются только на backend.
 Coarse role может приходить из custom JWT claim, но доступ к конкретной

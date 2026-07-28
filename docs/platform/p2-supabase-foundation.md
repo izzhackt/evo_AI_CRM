@@ -165,6 +165,14 @@ class. P2 does not map legacy `owner/admin/agent/viewer` roles or the current
 root `client` identifier. Legacy account signup does not confer Platform
 membership; root identity mapping remains P3.
 
+The detailed P2C enforcement and evidence contract is
+`docs/platform/p2c-identity-rbac-audit.md`. Coarse role/version claims are
+issued by a custom access-token hook, but every RLS decision also checks the
+live profile, organization, membership, published permission bundle and current
+access version. Administrative mutations additionally require a live
+organization scope. P2C removes broad future-object `service_role` defaults;
+backend capabilities receive only reviewed signature-specific grants.
+
 Exit:
 
 - positive Admin/Sales/Curator/Finance/Student matrix;

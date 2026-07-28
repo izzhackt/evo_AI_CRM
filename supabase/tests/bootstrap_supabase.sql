@@ -3,8 +3,9 @@
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
 CREATE ROLE service_role NOLOGIN BYPASSRLS;
+CREATE ROLE supabase_auth_admin NOLOGIN;
 
-GRANT anon, authenticated, service_role TO postgres;
+GRANT anon, authenticated, service_role, supabase_auth_admin TO postgres;
 
 -- Adversarial drift fixture for migration 040: IF NOT EXISTS alone would keep
 -- authenticated as schema owner, allowing that role to re-grant itself CREATE.
@@ -29,6 +30,18 @@ AS $$
   SELECT (
     NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
   )::UUID
+$$;
+
+CREATE OR REPLACE FUNCTION auth.jwt()
+RETURNS JSONB
+LANGUAGE SQL
+STABLE
+SET search_path = ''
+AS $$
+  SELECT COALESCE(
+    NULLIF(current_setting('request.jwt.claims', true), '')::JSONB,
+    '{}'::JSONB
+  )
 $$;
 
 CREATE SCHEMA storage;
@@ -60,7 +73,8 @@ $$;
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE PUBLICATION supabase_realtime;
 
-GRANT USAGE ON SCHEMA public, auth, storage TO anon, authenticated, service_role;
+GRANT USAGE ON SCHEMA public, auth, storage
+  TO anon, authenticated, service_role, supabase_auth_admin;
 
 -- Model a provider-owned Supabase Queues API surface that exists before the
 -- application migrations run. Migration 040 must remove browser access without

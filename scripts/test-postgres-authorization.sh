@@ -64,22 +64,32 @@ while IFS= read -r migration; do
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
     -f "/workspace/$migration"
+
+  # Preserve the P2B namespace/grant acceptance test at its exact migration
+  # boundary. Later Platform migrations intentionally add relations, so this
+  # proof must run immediately after 040 rather than against the final schema.
+  if [[ "$(basename "$migration")" == 040_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+      -f /workspace/supabase/tests/platform_grants.sql
+
+    # Exercise the retained 038/039 hardening migrations and an interrupted
+    # 040 deploy retry while 040 is still the schema tip. Re-running 040 after
+    # P2C would incorrectly restore P2B's temporary broad service_role defaults.
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+      -f /workspace/supabase/migrations/038_authorization_containment.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+      -f /workspace/supabase/migrations/039_private_inbox_media.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+      -f /workspace/supabase/migrations/040_platform_namespaces_and_secret_containment.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
 )
-
-# Exercise the retained 038/039 hardening migrations after 040, then rerun 040.
-# This catches both legacy regressions and an interrupted-deploy retry.
-docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
-  -f /workspace/supabase/migrations/038_authorization_containment.sql
-docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
-  -f /workspace/supabase/migrations/039_private_inbox_media.sql
-docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
-  -f /workspace/supabase/migrations/040_platform_namespaces_and_secret_containment.sql
 
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
@@ -87,8 +97,8 @@ docker exec "$container_name" \
 
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
-  -f /workspace/supabase/tests/platform_grants.sql
+  -f /workspace/supabase/tests/authorization_inventory.sql
 
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
-  -f /workspace/supabase/tests/authorization_inventory.sql
+  -f /workspace/supabase/tests/platform_identity_rbac.sql

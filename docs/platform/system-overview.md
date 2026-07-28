@@ -117,6 +117,19 @@ activated Student используют отдельные fixed-column projectio
 доказывается только на disposable local Supabase/PostgreSQL и не означает
 amoCRM, managed Supabase или production Portal cutover.
 
+P2E начинается после migration 042 и добавляет migration 043 для document
+metadata, manual finance и notification intent. Это repository-candidate
+database/RLS contract: migration, exact API/grants, disposable PostgreSQL и
+real local Supabase boundary tests реализованы; independent review и
+exact-head CI ещё pending.
+Документы на этом шаге — checklist, versions, validation/review и
+integrity/malware evidence state без binary Storage или scanner proof.
+Notification — одна durable запись для одного Student-получателя в in-app или
+individual WhatsApp channel с Student-only consent/dedupe; staff consent
+fail-closed, а Queue или подтверждённая доставка здесь не заявляются.
+Подробная граница:
+[`p2e-documents-finance-notifications.md`](p2e-documents-finance-notifications.md).
+
 Каждая exposed table должна иметь RLS. Browser использует только publishable
 key. Secret/service-role ключи и provider secrets остаются только на backend.
 Coarse role может приходить из custom JWT claim, но доступ к конкретной
@@ -158,8 +171,18 @@ Curator; единая история сохраняется, а Sales видит
 Admin assignment Curator.
 
 Finance/Admin подтверждают obligations, payments и refunds вручную, с evidence
-и audit. Student видит понятный overdue notice и next action, но не внутренние
-чувствительные поля.
+и audit. Подтверждённые суммы используют integer minor units; payment не может
+превысить остаток, а refund — подтверждённую невозвращённую часть exact
+payment. Overdue вычисляется из obligation/payment/refund/due time и никогда не
+выводится из amoCRM stage. Sales и текущий Curator получают только безопасный
+operational status в своём scope. Student видит только свои безопасные
+obligation label/category, amount/currency, due time, derived status, понятный
+overdue notice и next action, но не evidence, actor IDs, transaction-event
+history или внутренние stop-factor поля.
+
+В document workflow Admin и текущий Curator имеют полный доступ в разрешённом
+case scope. Sales до handoff видит только фиксированный checklist, Student —
+fixed self history, а Finance не видит sensitive document metadata.
 
 ## AI и отправка сообщений
 

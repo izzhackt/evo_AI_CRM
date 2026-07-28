@@ -49,6 +49,13 @@ const platformAdmissionsMigration = readFileSync(
   join(migrationsDir, '042_platform_student_admissions.sql'),
   'utf8'
 )
+const platformDocumentsFinanceNotificationsMigration = readFileSync(
+  join(
+    migrationsDir,
+    '043_platform_documents_finance_notifications.sql'
+  ),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -64,9 +71,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves containment and advances through the reviewed P2D boundary', () => {
+  it('preserves containment and advances through the reviewed P2E boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '042_platform_student_admissions.sql'
+      '043_platform_documents_finance_notifications.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -157,6 +164,67 @@ describe('Supabase companion schema contract', () => {
       expect(policy).toMatch(/\bFOR\s+SELECT\b/i)
       expect(policy).not.toMatch(/\bFOR\s+(?:INSERT|UPDATE|DELETE|ALL)\b/i)
     }
+  })
+
+  it('adds P2E metadata and intent contracts without provider-success claims', () => {
+    const p2eTables = [
+      'document_requirements',
+      'document_slots',
+      'document_versions',
+      'document_validation_events',
+      'document_reviews',
+      'document_access_events',
+      'payment_obligations',
+      'payment_events',
+      'payment_evidence',
+      'stop_factors',
+      'stop_factor_events',
+      'notification_consents',
+      'notification_consent_events',
+      'notifications',
+      'notification_delivery_intents',
+      'notification_events',
+    ]
+
+    for (const table of p2eTables) {
+      expect(platformDocumentsFinanceNotificationsMigration).toMatch(
+        new RegExp(`CREATE\\s+TABLE\\s+platform\\.${table}\\b`, 'i')
+      )
+      expect(platformDocumentsFinanceNotificationsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform\\.${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+      expect(platformDocumentsFinanceNotificationsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+
+    expect(platformDocumentsFinanceNotificationsMigration).toMatch(
+      /CREATE\s+TYPE\s+platform\.notification_channel\s+AS\s+ENUM\s*\(\s*'in_app',\s*'individual_whatsapp'\s*\)/i
+    )
+    expect(platformDocumentsFinanceNotificationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.record_document_version_metadata[\s\S]*SECURITY\s+DEFINER[\s\S]*GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.record_document_version_metadata[\s\S]*TO\s+service_role/i
+    )
+    expect(platformDocumentsFinanceNotificationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.record_payment_event[\s\S]*referenced_payment_event_id[\s\S]*SECURITY\s+DEFINER/i
+    )
+    expect(platformDocumentsFinanceNotificationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.student_portal_finance\s*\(\s*\)[\s\S]*SECURITY\s+DEFINER\s+SET\s+search_path\s*=\s*''/i
+    )
+    expect(platformDocumentsFinanceNotificationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.my_notifications\s*\(\s*\)[\s\S]*SECURITY\s+DEFINER\s+SET\s+search_path\s*=\s*''/i
+    )
+    expect(platformDocumentsFinanceNotificationsMigration).not.toMatch(
+      /\b(provider_message_id|provider_ack|recipient_ids|broadcast_id|campaign_id)\b/i
+    )
+    expect(platformDocumentsFinanceNotificationsMigration).not.toMatch(
+      /\b(?:CREATE|ALTER|DROP)\s+(?:TABLE|POLICY|SCHEMA)\s+storage\b/i
+    )
   })
 
   it('makes legacy secret-bearing tables service-only without broad grants', () => {

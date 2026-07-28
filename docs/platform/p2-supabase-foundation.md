@@ -219,22 +219,39 @@ Exit:
 
 ### P2E — document metadata, finance and notifications
 
+The detailed repository-candidate contract is
+`docs/platform/p2e-documents-finance-notifications.md`. Migration 043 follows
+the immutable 042 boundary and its exact API/grant inventory, disposable
+PostgreSQL matrix and real local Supabase boundary evidence are recorded there.
+Independent review and exact-head CI remain pending.
+
 Owns:
 
-- document/version/review/rework metadata and integrity/malware state;
-- evidence references without claiming file upload yet;
-- obligations, payments and refunds with Finance/Admin confirmation;
-- Student-safe overdue state without internal finance fields;
-- durable in-app notification state and individual WhatsApp delivery intent
-  with consent/dedupe fields.
+- metadata-only document checklist/version/validation/review/rework history,
+  with evidence-backed integrity/malware state and no binary-upload claim;
+- full document workflow for Admin/current Curator, a fixed pre-handoff Sales
+  checklist and a fixed Student self-history projection; Finance receives no
+  sensitive document access;
+- manual EVO service-fee and third-party-cost obligations, strict
+  payment/refund evidence and Finance/Admin-only confirmation;
+- computed overdue state plus reduced Sales/Curator/Student projections that
+  expose no internal finance evidence and never infer state from amoCRM stage;
+- durable singular Student-recipient in-app state and individual WhatsApp
+  intent with Student-only consent/dedupe, but no Queue, provider or delivery
+  claim;
+- immutable v3 role bundles that extend rather than mutate the v2 authority
+  introduced by migration 042.
 
 Exit:
 
 - Curator/Admin document workflow and cross-student denial;
+- fixed, non-sensitive Sales and Student document projections;
 - Finance/Admin-only confirmation and evidence requirement;
-- Student-safe finance projection;
+- strict amount/refund arithmetic and Student-safe computed overdue projection;
+- singular Student-recipient consent/dedupe, staff denial and replay behavior;
 - no mass/broadcast notification representation;
-- no claim that binary Storage upload works before P2H.
+- no claim that binary Storage/scanner works before P2H or that Queue/provider
+  delivery works before P2F/P2G.
 
 ### P2F — communications, providers and AI data contracts
 

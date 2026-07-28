@@ -89,8 +89,8 @@ are defined in `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`.
 
 - P0: plan/TZ/DOCX/ADR and target architecture, docs-only.
 - P1: current-app role/RBAC/handoff correction. P1A-P1D are merged.
-- P2: unified Supabase foundation, executed sequentially as P2A–P2I after this
-  docs-only amendment merges.
+- P2: unified Supabase foundation. P2A is merged; P2B–P2I execute
+  sequentially after this docs-only amendment merges.
 - P3: root auth and operational SQLite migration path.
 - P4: canonical amoCRM adapter.
 - P5: unified Inbox/WAHA/Lead Agent capability absorption.

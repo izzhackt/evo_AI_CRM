@@ -34,6 +34,10 @@ the target communications backend.
 - Lead/dashboard queries derive global WhatsApp recency, message-count, unread
   and response metrics without the conversation policy.
 - The shared TopBar exposes a manual-create shortcut to non-Admin actors.
+- `addLeadAction` and `updateLeadAction` accept caller-controlled `manager_id`;
+  an unrelated Sales user can currently reassign a local shadow lead to
+  themselves and manufacture the ownership predicate that would unlock its
+  conversation.
 
 ## Scope resolution
 
@@ -56,11 +60,27 @@ P1D resolves a conversation without trusting caller-provided ownership:
 3. **Indirect, broken, conflicting or ownerless.** Admin alone has access when
    a lead already points to a case but the conversation does not, when the
    conversation and lead point to different cases, when either required link is
-   broken, or when the applicable owner is missing. P1D does not guess or
-   repair the association.
+   broken, when the applicable owner is missing, or when a resolved case has an
+   invalid lifecycle state. P1D does not guess or repair the association.
 4. **Both consistent links.** The directly linked student-case rule takes
    precedence so a stale lead ownership path cannot restore Sales
    transcript/send access after handoff.
+
+The local shadow owner is authorization input, not a trusted form field:
+
+- a Sales-created local lead ignores a submitted `manager_id` and is always
+  assigned to the authenticated Sales actor;
+- a Sales profile update is allowed only when the lead is already assigned to
+  that actor and preserves the stored `manager_id`, including against a forged
+  field value;
+- only Admin may select or reassign the temporary local owner, and a selected
+  non-null owner must resolve to an active `sales` account;
+- manager selection is not rendered to Sales, but the server-side checks remain
+  authoritative.
+
+This containment does not write or claim the canonical amoCRM
+`responsible_user_id`. Account mapping, canonical writes and reconciliation
+remain P4 work.
 
 The root links remain non-canonical shadow data. P4/P5 later replace this
 temporary rule with canonical amoCRM resolution and the unified communications
@@ -93,7 +113,11 @@ The summary projection may select only:
 The query must not first load a full conversation and then remove fields in
 application code. It must not select phone, message text/preview, unread state,
 conversation/provider identifiers, amoCRM identifiers, WAHA identifiers,
-agent summary, handoff reason, draft-review fields or message rows.
+agent summary, handoff reason, draft-review fields or message rows. It returns
+at most one static summary row per case and may order rows only by the seven
+allowlisted case fields. Duplicate rows, conversation multiplicity and ordering
+by message/last-conversation activity are prohibited because they disclose
+conversation count or recency.
 
 ## Required implementation surfaces
 
@@ -109,11 +133,15 @@ The same fail-closed policy must protect:
 - `sendWaMessageAction`;
 - `markConversationReadAction`;
 - `createConversationAction`, which becomes Admin-only in P1D;
+- `addLeadAction` and `updateLeadAction`, including forged `manager_id` values,
+  current-owner preconditions and the Sales-visible manager selector;
 - `/api/ai/draft`, before message/lead reads or the AI provider boundary;
 - list/detail/reply UI controls, TopBar create shortcuts and deep links.
 
 Full-access actions must re-authenticate and resolve the object inside the
-server boundary. A hidden control is not authorization. Denials use a generic
+server boundary immediately before protected reads or side effects. A stale
+page or captured action from before handoff must not reuse prior authorization.
+A hidden control is not authorization. Denials use a generic
 not-found/forbidden result that does not disclose whether another actor's
 conversation exists.
 
@@ -134,13 +162,21 @@ Tests use synthetic local records only and cover:
 - lead-only proof where both conversation and lead case links are absent;
 - indirect lead-to-case and conflicting direct/lead case links failing closed
   for every non-Admin actor;
+- a resolved case with an invalid lifecycle state remaining Admin-only;
 - direct URL and forged-ID access;
 - Server Action replay denial with unchanged SQLite rows;
 - `/api/ai/draft` denial before protected reads or provider invocation;
 - absence of restricted fields and controls from the Sales summary projection;
+- exactly one static Sales summary per case, with ordering based only on
+  allowlisted case fields;
 - absence of conversation-derived unread/count/recency/response metrics for
   summary-only or denied actors across every shared-query caller;
 - Admin-only manual-create controls in both the inbox and shared TopBar;
+- Sales lead creation forcing the authenticated owner despite a forged
+  `manager_id`;
+- Sales profile update preserving the stored owner, an unrelated Sales takeover
+  attempt leaving the lead unchanged, and manager selection hidden from Sales;
+- Admin-positive assignment to a validated eligible local owner;
 - preservation of allowed client-bound Curator access.
 
 Required validation is the root security/unit/lint/typegen/typecheck/build,
@@ -149,7 +185,9 @@ GitHub CI and an independent launch-control review.
 
 `real-provider-proof: not-required`. Authorized WhatsApp send success is not an
 acceptance criterion for this authorization block and must not be simulated
-into a live-provider claim.
+into a live-provider claim. P1D proves authorization before provider invocation
+only; it does not prove WAHA `WORKING` readiness, safe account fallback or
+delivery correctness. Those remain P5 provider gates.
 
 ## Explicit exclusions
 

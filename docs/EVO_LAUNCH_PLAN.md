@@ -31,8 +31,9 @@ EVO Inbox and useful EVO Lead Agent logic move into one backend and one private
 `evo-inbox` WAHA path. AI remains draft-only with human manual send.
 
 This amendment changes documentation only. It defines the temporary
-current-root `/whatsapp` object-scope contract without changing code, schema,
-providers or production state.
+current-root `/whatsapp` object-scope contract and closes the local
+lead-owner-input path that could otherwise bypass it, without changing code,
+schema, providers or production state.
 
 ### Reconciled baseline
 

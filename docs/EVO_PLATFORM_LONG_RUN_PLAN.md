@@ -249,10 +249,21 @@ Conversation scope uses the existing links in this order:
    resolved `lead_id`, and `leads.client_id IS NULL`.
 3. If the lead already points to a case while the conversation does not, the
    direct and indirect case links conflict, a required link is broken, or an
-   owner is missing, every non-Admin actor fails closed until reconciliation.
-   The implementation does not guess or repair association data.
+   owner is missing, or a resolved case has an invalid lifecycle state, every
+   non-Admin actor fails closed until reconciliation. The implementation does
+   not guess or repair association data.
 4. When direct and lead-derived case links are both present and consistent, the
    student-case/handoff rule takes precedence.
+
+Because this temporary rule trusts the local shadow `leads.manager_id`, that
+field is protected as authorization input in P1D. A Sales-created local lead
+ignores any submitted `manager_id` and is assigned to the authenticated Sales
+actor. A Sales profile update is allowed only for a lead already assigned to
+that actor and preserves the existing `manager_id`, even when a forged value is
+submitted. Only Admin may select or reassign the temporary local owner, and the
+selected non-null owner must resolve to an active `sales` account. These local
+controls do not claim or perform a canonical amoCRM `responsible_user_id`
+write; P4 owns that adapter and reconciliation boundary.
 
 | Actor and state | Queue/detail | Transcript and sensitive provider fields | Draft/send/read | Manual conversation create |
 | --- | --- | --- | --- | --- |
@@ -267,6 +278,9 @@ The Sales post-handoff projection may contain only case ID, student display
 name, target country/degree, case state, assigned Curator display name and
 handoff timestamp. It must be selected as a safe SQL projection; restricted
 conversation/message/provider fields must not be loaded and filtered later.
+It returns at most one static row per case and may be ordered only by those
+allowlisted case fields; conversation count, multiplicity and message recency
+must not leak through duplicate rows or ordering.
 
 The list, direct detail route, message query, lead-page conversation lookup,
 WhatsApp-derived shared lead/cockpit metrics used by Sales, dashboard, calls
@@ -277,7 +291,12 @@ response-time and aggregate fields must not become a covert conversation-data
 channel for summary-only or denied actors. Denials are generic and occur before
 any message read, database mutation, AI call or WhatsApp provider call. UI
 controls, including shared TopBar create shortcuts, that cannot succeed for the
-current actor are not rendered.
+current actor are not rendered. The same block hardens `addLeadAction`,
+`updateLeadAction` and their manager selectors so caller-controlled local
+ownership cannot manufacture conversation access. Server Actions and the AI
+route re-authenticate and re-resolve the current object immediately before the
+protected read or side-effect boundary; a stale page captured before handoff
+cannot reuse prior authorization.
 
 P1D acceptance requires positive and negative local integration tests that
 exercise production code paths with synthetic data only and no
@@ -285,11 +304,16 @@ production/provider mutation. They cover Admin, responsible/unrelated Sales,
 assigned/unassigned Curator, Finance and Student; pre/post-handoff transitions;
 linked, broken-link and unlinked conversations; a valid direct case with a
 non-null unresolved `lead_id`; proven lead-only rows; indirect lead-to-case
-links; conflicting direct/lead case links; derived lead/dashboard metric
-suppression; Admin-only TopBar create controls; shared-query non-read evidence;
-direct routes; replayed Server Actions; and AI denial before the provider
-boundary. Denied actions must leave SQLite unchanged. Authorized provider
-success is outside this block and must not be mocked into a provider claim.
+links; conflicting direct/lead case links; invalid case lifecycle state;
+derived lead/dashboard metric suppression; Admin-only TopBar create controls;
+shared-query non-read evidence;
+direct routes; replayed Server Actions; forged Sales lead creation/update owner
+values; an unrelated Sales takeover attempt; and AI denial before the provider
+boundary. Denied actions must leave SQLite unchanged, while an allowed Sales
+profile update must preserve its pre-existing owner. Authorized provider success
+is outside this block and must not be mocked into a provider claim. P1D proves
+authorization before invocation only; WAHA `WORKING` readiness, account-routing
+fallback removal and delivery correctness remain P5 provider gates.
 
 P1D changes no schema and performs no live send, provider mutation, WAHA
 session/webhook change, Supabase bridge, unified history, ACK/outbox/retry,

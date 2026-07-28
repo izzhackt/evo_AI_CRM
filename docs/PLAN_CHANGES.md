@@ -3116,3 +3116,56 @@ Validation impact:
   non-Admin-negative behavior.
 - Retain direct Server Action replay tests because hidden controls alone are
   not authorization.
+
+## 2026-07-28 - Protect P1D Lead Ownership Inputs
+
+Affected plan section: `/goal-evo-platform-long-run`, P1D current-root
+WhatsApp object scope.
+
+Change type: authorization-bypass closure before implementation.
+
+Reason:
+
+- P1D's temporary lead-only conversation rule uses the local shadow
+  `leads.manager_id` to identify the responsible Sales user.
+- The current `addLeadAction` and `updateLeadAction` accept a caller-supplied
+  `manager_id`, and the manager selector is visible to Sales.
+- Without an ownership-mutation guard, an unrelated Sales user could assign the
+  lead to themselves and manufacture the predicate that unlocks transcript,
+  draft and manual-send access.
+
+Decision:
+
+- Treat local lead ownership as authorization input for the P1D containment
+  period.
+- Ignore caller-supplied `manager_id` when Sales creates a local lead and force
+  the authenticated Sales actor as owner.
+- Permit a Sales profile update only for an already-owned lead and preserve the
+  stored owner even when the request contains a forged `manager_id`.
+- Allow only Admin to select or reassign the temporary local owner; validate
+  that a selected non-null owner resolves to an active `sales` account.
+- Hide manager selection from Sales while keeping the server-side guard
+  authoritative.
+- Do not treat this local shadow update as a canonical amoCRM
+  `responsible_user_id` write. P4 remains responsible for account-specific
+  mapping, canonical writes and reconciliation.
+- Return at most one static post-handoff summary per case and sort it only by
+  allowlisted case fields. Conversation multiplicity and message recency must
+  not leak through duplicate rows or ordering.
+- Re-authenticate and re-resolve object scope at the final server boundary so a
+  stale page or captured action from before handoff cannot invoke AI, WhatsApp
+  or a protected database mutation.
+- Limit the P1D provider claim to authorization-before-invocation. WAHA
+  `WORKING` readiness, removal of unsafe account-routing fallback and delivery
+  correctness remain P5 gates.
+
+Validation impact:
+
+- Add negative local integration coverage for forged owner values during Sales
+  create/update and for an unrelated Sales takeover attempt.
+- Prove denied takeover leaves the lead and conversation access unchanged, and
+  an allowed Sales profile update preserves the existing owner.
+- Add Admin-positive validated-owner coverage and Sales-negative UI coverage
+  for manager selection.
+- Prove one static summary row per case with no message-derived ordering and
+  zero provider invocations from a stale post-handoff action.

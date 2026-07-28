@@ -1,0 +1,83 @@
+# For detailed configuration reference documentation, visit:
+# https://supabase.com/docs/guides/local-development/cli/config
+
+# Distinguishes this disposable local stack from every other Supabase project
+# on the same Docker host.
+project_id = "evo-platform-local"
+
+# EVO reserves 45420-45429 for this repository's local Supabase test stack.
+# The final digit mirrors Supabase's generated default ports while avoiding the
+# 5432x block already used by an unrelated local project.
+[api]
+enabled = true
+port = 45421
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[api.tls]
+enabled = false
+
+[db]
+port = 45422
+shadow_port = 45420
+health_timeout = "2m"
+major_version = 17
+
+[db.pooler]
+enabled = false
+port = 45429
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+# P2A verifies schema history only. No seed file or customer-like fixture data
+# is loaded by either `supabase start` or `supabase db reset`.
+[db.seed]
+enabled = false
+sql_paths = []
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 45423
+api_url = "http://127.0.0.1"
+
+[local_smtp]
+enabled = true
+port = 45424
+smtp_port = 45425
+pop3_port = 45426
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[storage.s3_protocol]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["https://127.0.0.1:3000"]
+jwt_expiry = 3600
+enable_signup = true
+enable_anonymous_sign_ins = false
+enable_manual_linking = false
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+inspector_port = 45428
+deno_version = 2
+
+[analytics]
+enabled = true
+port = 45427
+backend = "postgres"

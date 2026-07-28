@@ -33,9 +33,11 @@ Disabled runtime paths fail closed with `410` and
 missing configuration state.
 
 Managed Supabase schema, environment, RLS, and validation workflow notes live in
-`docs/supabase-managed-store.md`. This repo keeps the companion migrations with
-the app and stores only companion data plus amoCRM shadow identifiers in
-Supabase; amoCRM remains the canonical identity and sales-state system.
+`docs/supabase-managed-store.md`. The repository-root `../supabase/` tree is
+the only migration authority; this app keeps only a pointer at its former
+Supabase path. The retained legacy schema stores companion data plus amoCRM
+shadow identifiers; amoCRM remains the canonical identity and sales-state
+system.
 
 WAHA is the active first-launch WhatsApp transport boundary. Account admins save
 the WAHA base URL, session name, API key, and webhook HMAC secret through the

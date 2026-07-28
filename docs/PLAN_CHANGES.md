@@ -2974,3 +2974,58 @@ Validation impact:
 
 - Regenerate the DOCX and restart inspection of every page from the final
   artifact; superseded visual passes are not evidence.
+
+## 2026-07-28 - Add P1D Current-Root WhatsApp Object-Scope Gate
+
+Affected plan section: `/goal-evo-platform-long-run`, P1 current-app
+role/RBAC/handoff correction.
+
+Change type: execution-order, authorization-scope and acceptance amendment.
+
+Reason:
+
+- P1A-P1C are merged through PR #78, but root `/whatsapp` still uses local
+  SQLite `wa_*` shadow tables with only coarse Admin/Sales/Curator route checks.
+- Conversation list/detail/message queries, send/read/create actions and
+  `/api/ai/draft` do not yet apply responsible Sales, assigned Curator or
+  post-handoff object scope.
+- The target P5 unified communications block is intentionally broader: one
+  Supabase model, Inbox/Lead Agent absorption, one WAHA owner, raw persistence,
+  identifiers, ACK/outbox/reconciliation and manual-send audit. Mixing that
+  provider/data redesign into a current-app authorization fix would create a
+  mega-PR and weaken rollback evidence.
+- Manual creation in the current root form cannot prove a non-Admin owner
+  without the later amoCRM resolution/linking path, so allowing Sales or
+  Curator to create an unlinked row would contradict fail-closed scope.
+
+Decision:
+
+- Add P1D as a sequential current-app authorization sub-block before P2.
+- Limit P1D to the existing root SQLite/custom-auth `/whatsapp` path.
+- Admin has full access. Responsible Sales has full access to a linked lead or
+  pending case. Assigned Curator has full access after handoff for active/closed
+  cases. Former responsible Sales receives only the safe case summary.
+- Unrelated staff, Finance, Student, broken links, ownerless links and unlinked
+  rows fail closed for non-Admin actors.
+- Manual conversation creation is Admin-only until P4/P5 can prove canonical
+  ownership during resolution/linking.
+- Apply one actor/object policy to SQL reads, direct routes, lead-page lookup,
+  replayed send/read/create actions and `/api/ai/draft`, with denial before
+  protected reads, mutation, AI or WhatsApp provider access.
+- Keep P1D schema-free and provider-free. Do not change WAHA session/webhook,
+  Inbox Supabase, Lead Agent, transport, ACK/outbox/retry/reconciliation or
+  production state.
+- Block runtime implementation until this docs-only amendment is independently
+  reviewed and merged.
+
+Validation impact:
+
+- The amendment PR is docs-only and requires plan/decision hash verification,
+  `git diff --check`, secret/PII review, changed-scope documentation checks,
+  exact-head CI and an independent launch-control verdict.
+- The later implementation PR must prove the full actor/state/link matrix with
+  positive and negative production-path tests, direct-route and Server Action
+  replay denial, unchanged SQLite state on denial, and AI denial before the
+  provider boundary.
+- Real-provider proof is not required for P1D and must not be inferred from
+  configuration, mocks or local authorization tests.

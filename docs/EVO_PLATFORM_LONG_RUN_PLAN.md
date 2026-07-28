@@ -2,10 +2,15 @@
 
 Status: active repository implementation contract
 Version date: 2026-07-28 (Asia/Bishkek)
-Baseline: GitHub `origin/main` at
+Initial kickoff baseline: GitHub `origin/main` at
 `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 `docs/PLAN_CHANGES.md`, and superseding ADRs
+
+Execution checkpoint: P0 and P1A-P1C are merged through PR #78. GitHub
+`origin/main` is green at `a41f7eec9e8d877e5a09362265d7e811e1f36d0f`.
+The active change is the docs-only P1D plan amendment. P1D runtime changes are
+blocked until that amendment is independently reviewed and merged.
 
 ## 1. Outcome and truth boundary
 
@@ -34,7 +39,7 @@ path, cutover, rollback evidence and 72-hour soak are real.
 
 As of the version date:
 
-- GitHub `main` is green at `a16cd3fb591128b6d28f7f46c432169a0ff28753`;
+- GitHub `main` is green at `a41f7eec9e8d877e5a09362265d7e811e1f36d0f`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables;
 - EVO Inbox still owns a separate Supabase model and its `evo-inbox` WAHA path;
@@ -183,10 +188,10 @@ Primary sources:
 Only one implementation PR may be open. Shared plan, schema, migration and
 deployment surfaces are sequential.
 
-| Block | Scope | Exit evidence | Status at plan creation |
+| Block | Scope | Exit evidence | Current execution status |
 | --- | --- | --- | --- |
-| P0 | Final plan, corrected TZ/DOCX, target ADR and architecture docs | Deterministic DOCX, every page inspected, independent review | Active |
-| P1 | Current-app role/RBAC/handoff correction | Positive/negative route, action and object-scope tests; explicit visa-user migration report | Pending P0 merge |
+| P0 | Final plan, corrected TZ/DOCX, target ADR and architecture docs | Deterministic DOCX, every page inspected, independent review | Merged in PR #75 |
+| P1 | Current-app role/RBAC/handoff correction | Positive/negative route, action and object-scope tests; explicit visa-user migration report | P1A-P1C merged in PRs #76-#78; P1D plan amendment active |
 | P2 | Unified Supabase foundation and reconciled migrations | Clean reset, disposable PostgreSQL/RLS matrix, secret scan, isolated backup/restore | Pending |
 | P3 | Root auth and operational SQLite migration path | Read-only inventory, deterministic mapping, dry-run reconciliation, staging comparison, rollback rehearsal | Pending |
 | P4 | Canonical amoCRM adapter | Versioned discovery, read-only sync, webhook/outbox/reconciliation; live proof only with sanitized test lead | Pending |
@@ -213,6 +218,69 @@ must be reported and explicitly migrated to Curator; silent coercion is
 forbidden. Replace broad client manager/curator mutation with an Admin-only
 reasoned, before/after audited action. Enforce Sales-before-contract,
 Curator-after-handoff, limited Sales summary and portal activation gating.
+
+P1 is delivered as sequential sub-blocks:
+
+| Sub-block | Contract | Status |
+| --- | --- | --- |
+| P1A | Remove the business `visa` role with explicit migration/reporting | Merged in PR #76 |
+| P1B | Admin-only Curator assignment and audited case lifecycle/handoff | Merged in PR #77 |
+| P1C | Current-app case/task object scope and post-handoff projections | Merged in PR #78 |
+| P1D | Harden current-root WhatsApp conversation object scope | Docs-only amendment active; runtime blocked |
+
+#### P1D — current-root WhatsApp object scope
+
+Block-ID: `EVO-P1D-ROOT-WHATSAPP-AUTH-2026-07-28`.
+
+P1D is a temporary authorization-hardening block for the root CRM's existing
+SQLite/custom-auth `/whatsapp` path and local `wa_*` shadow tables. It does not
+make that path the target unified communications backend and does not prove a
+live provider.
+
+Conversation scope uses the existing links in this order:
+
+1. When `client_id` resolves, the student-case assignment and lifecycle govern.
+   A pending case belongs to its responsible Sales user. An active or closed
+   case belongs to its assigned Curator, while the former responsible Sales user
+   receives only the safe post-handoff summary.
+2. When there is no client but `lead_id` resolves, only Admin and the lead's
+   responsible Sales user receive full access.
+3. Missing, broken or ownerless links fail closed for every non-Admin actor.
+   If both links exist, the client/handoff rule takes precedence.
+
+| Actor and state | Queue/detail | Transcript and sensitive provider fields | Draft/send/read | Manual conversation create |
+| --- | --- | --- | --- | --- |
+| Admin | All conversations, full detail | Full current-root data | Allowed through existing manual/provider guards | Allowed |
+| Responsible Sales, linked lead or pending case | Own queue and full detail | Full | Allowed through existing manual/provider guards | Denied in P1D |
+| Same Sales after handoff | Safe summary only | No transcript, phone, message preview, amoCRM IDs, WAHA IDs, agent draft/reason fields or deep links | Denied | Denied |
+| Assigned Curator, active/closed case | Assigned queue and full detail | Full current-root data; no unrelated Sales deep link | Allowed through existing manual/provider guards | Denied |
+| Other Sales/Curator, Finance or Student | None | None | Denied | Denied |
+| Unlinked/broken-link/ownerless conversation | Admin only | Admin only | Admin only | Admin only |
+
+The Sales post-handoff projection may contain only case ID, student display
+name, target country/degree, case state, assigned Curator display name and
+handoff timestamp. It must be selected as a safe SQL projection; restricted
+conversation/message/provider fields must not be loaded and filtered later.
+
+The list, direct detail route, message query, lead-page conversation lookup,
+`sendWaMessageAction`, `markConversationReadAction`,
+`createConversationAction`, and `/api/ai/draft` must enforce the same
+actor/object policy. Denials are generic and occur before any message read,
+database mutation, AI call or WhatsApp provider call. UI controls that cannot
+succeed for the current access mode are not rendered.
+
+P1D acceptance requires positive and negative production-path tests for Admin,
+responsible/unrelated Sales, assigned/unassigned Curator, Finance and Student;
+pre/post-handoff transitions; linked, broken-link and unlinked conversations;
+direct routes; replayed Server Actions; and AI denial before the provider
+boundary. Denied actions must leave SQLite unchanged. Authorized provider
+success is outside this block and must not be mocked into a provider claim.
+
+P1D changes no schema and performs no live send, provider mutation, WAHA
+session/webhook change, Supabase bridge, unified history, ACK/outbox/retry,
+reconciliation or Lead Agent absorption. Those remain P4/P5 work. Rollback is a
+code-only revert. The detailed amendment is
+`docs/platform/p1d-root-whatsapp-scope.md`.
 
 ### P2 — unified Supabase foundation
 

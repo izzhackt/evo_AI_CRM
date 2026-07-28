@@ -128,6 +128,17 @@ Curator owns them after handoff. Conversation history remains unified, while
 Sales sees only the permitted non-sensitive summary after handoff.
 _Avoid_: copied conversation, operational status replacing amoCRM sales stage
 
+**Root WhatsApp Interim Scope**:
+The temporary authorization rule for the root CRM's existing SQLite `wa_*`
+shadow surface before unified communications. Admin sees all. Responsible Sales
+has full access to a linked lead or pending case; after handoff that Sales user
+sees only a safe case summary. The assigned Curator has full access to the
+active/closed case conversation. Unrelated staff, Finance, Student and
+unlinked/broken-link/ownerless non-Admin access fail closed. This is
+containment, not proof
+of EVO Inbox, WAHA, amoCRM or unified-history integration.
+_Avoid_: unified Inbox, provider proof, canonical conversation ownership
+
 **Unified Platform Data Store**:
 The target dedicated Supabase production project for EVO-owned operational
 records, with RLS and audit controls. It does not become authoritative for

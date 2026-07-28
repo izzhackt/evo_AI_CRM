@@ -4,8 +4,9 @@ Status: `/goal-evo-platform-long-run` is active. P0, P1A-P1D, the P2
 Supabase-foundation decomposition and P2A canonical migration authority are
 merged through PR #82; GitHub `main` is green at
 `8ad755b5039390f418dbe12924a806f069f93b53`. The active block is this
-docs-only P2 checkpoint-freshness amendment. P2B remains pending and unchanged
-until this amendment is independently reviewed and merged.
+docs-only P2 checkpoint-freshness amendment until it is merged. At that merge
+commit, P2B becomes the active implementation block under its already-approved
+contract and must be rebased, revalidated and independently reviewed.
 Updated 2026-07-28 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
@@ -18,8 +19,9 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active slice: `/goal-evo-platform-long-run`, Block
-`EVO-P2-CHECKPOINT-FRESHNESS-2026-07-28`, plan amendment only.
+Pre-merge slice: `/goal-evo-platform-long-run`, Block
+`EVO-P2-CHECKPOINT-FRESHNESS-2026-07-28`, plan amendment only. Post-merge
+slice: P2B namespace/grant and verified legacy secret-path containment.
 
 ### Goal
 
@@ -51,8 +53,10 @@ checkpoint is:
 - P2 Supabase-foundation decomposition merged in PR #81.
 - P2A canonical migration authority merged in PR #82.
 - Exact current `main` CI is green at
-  `8ad755b5039390f418dbe12924a806f069f93b53`; this docs-only checkpoint
-  amendment is the only active implementation PR.
+  `8ad755b5039390f418dbe12924a806f069f93b53`. Before this amendment merges,
+  it is the only active PR. Its merge advances the checkpoint to P2B; the
+  preserved P2B work must then be rebased and returned as the only
+  implementation PR.
 - Root `/whatsapp` remains a SQLite `wa_*` shadow surface with P1D
   authorization containment. It is not the unified communications backend;
   that remains P5.

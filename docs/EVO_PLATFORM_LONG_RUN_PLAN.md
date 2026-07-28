@@ -11,9 +11,10 @@ Execution checkpoint: P0, all P1 sub-blocks, the P2 Supabase-foundation
 decomposition and P2A canonical migration authority are merged through PR
 #82. GitHub `origin/main` is green at
 `8ad755b5039390f418dbe12924a806f069f93b53`. The active change is this
-docs-only P2 checkpoint-freshness amendment. P2B remains pending and unchanged
-until this amendment is independently reviewed and merged; P2C-P2I remain
-sequentially blocked behind their preceding P2 gate.
+docs-only P2 checkpoint-freshness amendment until it is merged. At that merge
+commit, P2B becomes the active implementation block under the existing
+contract and must be rebased, revalidated and independently reviewed; P2C-P2I
+remain sequentially blocked behind their preceding P2 gate.
 
 ## 1. Outcome and truth boundary
 
@@ -214,7 +215,7 @@ deployment surfaces are sequential.
 | --- | --- | --- | --- |
 | P0 | Final plan, corrected TZ/DOCX, target ADR and architecture docs | Deterministic DOCX, every page inspected, independent review | Merged in PR #75 |
 | P1 | Current-app role/RBAC/handoff correction | Positive/negative route, action and object-scope tests; explicit visa-user migration report | P1A-P1D merged in PRs #76-#80 |
-| P2 | Unified Supabase foundation and reconciled migrations | Canonical history, clean local Supabase reset, RLS/secret negative matrix, separate isolated DB and Storage-object restore | P2A merged in PR #82; checkpoint amendment active; P2B pending |
+| P2 | Unified Supabase foundation and reconciled migrations | Canonical history, clean local Supabase reset, RLS/secret negative matrix, separate isolated DB and Storage-object restore | P2A merged in PR #82; P2B becomes active when this checkpoint amendment merges |
 | P3 | Root auth and operational SQLite migration path | Read-only inventory, deterministic mapping, dry-run reconciliation, staging comparison, rollback rehearsal | Pending |
 | P4 | Canonical amoCRM adapter | Versioned discovery, read-only sync, webhook/outbox/reconciliation; live proof only with sanitized test lead | Pending |
 | P5 | Unified Inbox/WAHA/Lead Agent capability absorption | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no old cutover yet | Pending |

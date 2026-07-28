@@ -3270,7 +3270,10 @@ Decision:
 - Record P2 decomposition and P2A as completed launch-control gates.
 - Make this narrow checkpoint-freshness amendment the only active block until
   it is independently reviewed and controller-merged.
-- Keep P2B as the next pending implementation block with the already-approved
+- Make the checkpoint self-advancing: at this amendment's merge commit, P2B
+  becomes the active block under the already-approved contract. No additional
+  docs-only PR is required solely to restate that transition.
+- Keep P2B as the next implementation block with the already-approved
   contract: migration 040 owns `platform`/`platform_private` namespace and
   grant containment plus verified legacy secret-path containment.
 - Preserve the sequential P2A-P2I order and all existing provider,

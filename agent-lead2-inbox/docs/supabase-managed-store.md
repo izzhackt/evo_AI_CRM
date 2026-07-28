@@ -1,5 +1,12 @@
 # Managed Supabase Companion Store
 
+> **P2 authority notice (2026-07-28).** This file preserves the legacy Inbox
+> 001–039 history and its dated validation evidence. ADR 0015 and
+> `docs/platform/p2-supabase-foundation.md` define the target boundary. After
+> P2A merges, root `supabase/` is the sole migration source and this companion
+> path is non-authoritative. Nothing in this notice authorizes a remote link,
+> push or production migration.
+
 Issue #11 prepared EVO Inbox Companion for a managed Supabase Cloud project.
 Issues #13 and #14 now use those tables for WAHA and amoCRM configuration while
 keeping this document focused on schema, environment, RLS, and validation
@@ -66,9 +73,11 @@ requires a running local stack, and `gen types` can generate TypeScript types
 from linked or local databases. They also state that RLS should be enabled for
 tables in exposed schemas and that service/secret keys bypass RLS.
 
-## Managed Cloud Workflow
+## Legacy Managed Cloud Workflow
 
-Run from `agent-lead2-inbox/`.
+The commands below describe the companion-era path before P2A. They are
+retained as history, not as the target migration entry point. Do not run them
+for new Platform work.
 
 ```bash
 supabase login
@@ -89,7 +98,7 @@ Do not run `supabase db push` against production unless an explicit production
 migration window has been approved. This issue does not deploy or mutate a live
 Supabase project by default.
 
-## Local Validation Workflow
+## Legacy Local Validation Workflow
 
 If no managed credentials are available but Docker is available:
 
@@ -103,7 +112,33 @@ If the CLI or Docker is missing, record the exact blocker. Do not claim local
 migration success without the CLI applying the migrations to a real local
 Supabase stack.
 
+## Canonical workflow after P2A
+
+After P2A merges, run the pinned project-local CLI from repository root. Exact
+scripts are introduced and tested by P2A; root `supabase/config.toml`,
+`supabase/migrations/` and the root SQL test harness are the only authorities.
+The old companion migration directory contains only a pointer.
+
+P2A acceptance requires:
+
+- byte-for-byte and SHA-256 identity for legacy 001–039;
+- a clean local reset and contiguous local migration list ending at 039;
+- equivalent legacy schema/RLS/grant inventory;
+- no migration 040 and no remote project mutation.
+
+P2B then starts at the next verified free number, expected 040. Remote ledger
+parity is checked only with authorized credentials and is not inferred from a
+local reset.
+
 ## RLS And Service-Role Boundary
+
+This section documents the legacy `public` Inbox model. Its
+`owner/admin/agent/viewer` roles do not map implicitly to Platform
+`admin/sales/curator/finance/student`, and legacy signup creates no Platform
+membership. The target machine role `student` is displayed as Client/Student;
+the current root `client` identifier maps only through the explicit P3
+identity migration. New Platform authorization lives in the `platform` schema
+under ADR 0015.
 
 Client and SSR session paths use the anon/publishable key and rely on RLS:
 
@@ -145,9 +180,10 @@ claiming database-enforced success.
 ## Draft Audit And Manual-Outbox Migration
 
 Migration `037_operator_drafts_and_waha_outbox.sql` is a required database-first
-release gate. It must be applied and verified on the intended Supabase project
-before deploying application code that returns audited AI drafts or persists
-manual sends.
+legacy companion release gate. This paragraph records that migration's
+historical dependency; it is not evidence that the intended production project
+has applied it, nor current authorization to push it. Any future apply must use
+the canonical P2 history and its separate environment gate.
 
 The migration adds:
 

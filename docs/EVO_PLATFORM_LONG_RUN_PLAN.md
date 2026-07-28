@@ -7,10 +7,12 @@ Initial kickoff baseline: GitHub `origin/main` at
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 `docs/PLAN_CHANGES.md`, and superseding ADRs
 
-Execution checkpoint: P0 and P1A-P1C are merged through PR #78. GitHub
-`origin/main` is green at `a41f7eec9e8d877e5a09362265d7e811e1f36d0f`.
-The active change is the docs-only P1D plan amendment. P1D runtime changes are
-blocked until that amendment is independently reviewed and merged.
+Execution checkpoint: P0 and all P1 sub-blocks are merged through PR #80.
+GitHub `origin/main` is green at
+`d3edcda6649cb7b90b789c57c658ec1fc4a20618`. The active change is the
+docs-only P2 Supabase-foundation decomposition amendment. P2A repository
+changes and migration work are blocked until this amendment is independently
+reviewed and merged.
 
 ## 1. Outcome and truth boundary
 
@@ -39,9 +41,10 @@ path, cutover, rollback evidence and 72-hour soak are real.
 
 As of the version date:
 
-- GitHub `main` is green at `a41f7eec9e8d877e5a09362265d7e811e1f36d0f`;
+- GitHub `main` is green at `d3edcda6649cb7b90b789c57c658ec1fc4a20618`;
 - the root application still uses SQLite and its own authentication model;
-- root `/whatsapp` still uses local `wa_*` shadow tables;
+- root `/whatsapp` still uses local `wa_*` shadow tables, now with the
+  provider-free P1D object-scope containment merged;
 - EVO Inbox still owns a separate Supabase model and its `evo-inbox` WAHA path;
 - EVO Lead Agent is deployed but frozen: worker, auto-reply and outbound are
   disabled, while amoCRM readiness is false;
@@ -60,9 +63,11 @@ silently change production.
 
 ### 3.1 Roles, ownership and handoff
 
-- First-release roles are `admin`, `sales`, `curator`, `finance` and
-  `client/student`. There is no separate `visa` role; the `/visa` module and
-  visa entities remain.
+- First-release authority classes are `admin`, `sales`, `curator`, `finance`
+  and Client/Student. The target Platform machine role for the last class is
+  `student`; the current root `client` role remains a legacy identifier until
+  an explicit P3 identity mapping. There is no separate `visa` role; the
+  `/visa` module and visa entities remain.
 - Admin is a permission bundle for individually identified authorized staff.
   Shared credentials are forbidden. Only Admin invites or blocks staff and
   assigns or reassigns a Curator.
@@ -112,10 +117,26 @@ silently change production.
 
 ### 4.1 Supabase and Next.js
 
-- Migrations are code under `supabase/`, with `supabase/config.toml`, clean
-  reset/diff/pull discipline and one ordered history.
-- Inbox migrations 001–039 are reconciled; new platform migrations begin at
-  040 unless refreshed `main` proves a later applied number.
+- Root `supabase/` is the sole repository migration authority, with
+  `supabase/config.toml`, clean reset/diff/pull discipline and one ordered
+  history. P2A moves the current Inbox migrations 001–039 there byte-for-byte,
+  records their checksums and creates no migration 040.
+- Merged migrations are immutable. P2B begins with the next available number,
+  expected to be 040 after P2A verification; a later defect receives a new
+  forward migration and never rewrites merged history.
+- `public` remains the legacy Inbox compatibility schema for migrations
+  001–039 until controlled P3/P5 cutover. `platform` is the new Data
+  API/browser-exposed schema and receives explicit least-privilege grants plus
+  RLS on every table. `platform_private` is backend-only and is never exposed
+  through the Data API.
+- During coexistence the Data API may expose `public` and `platform`, never
+  `platform_private`. Browser roles receive no direct access to
+  `platform_private` or `pgmq_public`; queue operations use narrowly granted
+  service-only paths with negative tests.
+- Legacy Inbox roles `owner`, `admin`, `agent` and `viewer` are not mapped
+  implicitly to Platform roles. The legacy signup trigger may continue to
+  create legacy `public.accounts`/`public.profiles`, but it must not create a
+  Platform organization membership or business role.
 - Every exposed table has RLS. Browser code receives only the publishable key;
   secret/service-role credentials stay server-side.
 - Custom JWT claims provide coarse role; organization, case, conversation and
@@ -191,8 +212,8 @@ deployment surfaces are sequential.
 | Block | Scope | Exit evidence | Current execution status |
 | --- | --- | --- | --- |
 | P0 | Final plan, corrected TZ/DOCX, target ADR and architecture docs | Deterministic DOCX, every page inspected, independent review | Merged in PR #75 |
-| P1 | Current-app role/RBAC/handoff correction | Positive/negative route, action and object-scope tests; explicit visa-user migration report | P1A-P1C merged in PRs #76-#78; P1D plan amendment active |
-| P2 | Unified Supabase foundation and reconciled migrations | Clean reset, disposable PostgreSQL/RLS matrix, secret scan, isolated backup/restore | Pending |
+| P1 | Current-app role/RBAC/handoff correction | Positive/negative route, action and object-scope tests; explicit visa-user migration report | P1A-P1D merged in PRs #76-#80 |
+| P2 | Unified Supabase foundation and reconciled migrations | Canonical history, clean local Supabase reset, RLS/secret negative matrix, separate isolated DB and Storage-object restore | Docs-only decomposition amendment active |
 | P3 | Root auth and operational SQLite migration path | Read-only inventory, deterministic mapping, dry-run reconciliation, staging comparison, rollback rehearsal | Pending |
 | P4 | Canonical amoCRM adapter | Versioned discovery, read-only sync, webhook/outbox/reconciliation; live proof only with sanitized test lead | Pending |
 | P5 | Unified Inbox/WAHA/Lead Agent capability absorption | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no old cutover yet | Pending |
@@ -226,7 +247,7 @@ P1 is delivered as sequential sub-blocks:
 | P1A | Remove the business `visa` role with explicit migration/reporting | Merged in PR #76 |
 | P1B | Admin-only Curator assignment and audited case lifecycle/handoff | Merged in PR #77 |
 | P1C | Current-app case/task object scope and post-handoff projections | Merged in PR #78 |
-| P1D | Harden current-root WhatsApp conversation object scope | Docs-only amendment active; runtime blocked |
+| P1D | Harden current-root WhatsApp conversation object scope | Merged in PR #80 |
 
 #### P1D — current-root WhatsApp object scope
 
@@ -323,11 +344,27 @@ code-only revert. The detailed amendment is
 
 ### P2 — unified Supabase foundation
 
-Create the platform schema for organizations/profiles/roles/scopes, cases and
-assignments, applications, documents, visa, finance, tasks, notifications,
-communications and provider mappings, audit/outbox/queues/dead-letter,
-idempotency and reconciliation. Add private Storage policies and cross-role,
-cross-student and cross-organization denials.
+P2 is sequential and additive. Its detailed contract is
+`docs/platform/p2-supabase-foundation.md`.
+
+| Sub-block | Contract | Required exit |
+| --- | --- | --- |
+| P2A | Make root `supabase/` canonical; move 001–039 byte-identically; add pinned local CLI/config, checksum manifest and relocated tests; create no 040 | Clean local reset and migration list, byte/checksum identity, equivalent legacy schema/RLS inventory |
+| P2B | Begin at the next free number (expected 040); establish `platform`/`platform_private`, explicit/default grants and verified legacy secret-bearing-column containment without flipping legacy buckets | Current Inbox compatibility, safe projections/server paths and browser negative-grant matrix |
+| P2C | Add organizations, profiles, memberships, five business roles/scopes and base append-style audit | Admin/Sales/Curator/Finance/Student positive matrix and cross-role/cross-organization denials |
+| P2D | Add cases, assignment/handoff history, applications, visa and tasks | Two-organization/two-student lifecycle and object-scope denials |
+| P2E | Add document metadata/version/review, finance/evidence and durable notification state | Curator/Finance/Student negative matrix; no file-upload claim yet |
+| P2F | Add conversations/messages, participants, distinct WAHA/Kommo/amo mappings, raw events, approved knowledge and draft-only AI records | Transcript/handoff isolation and append/server-write boundaries; no live-provider claim |
+| P2G | Add real Supabase Queues/PGMQ, outbox, idempotency, dead-letter and reconciliation/conflict state | Local service retry/visibility/dedupe/concurrency evidence; unknown delivery never re-enqueued automatically |
+| P2H | Add new private Platform document/media buckets and policies through the real local Supabase Storage API | MIME/25 MB and cross-student/cross-organization denial; audited authorized access |
+| P2I | Run whole-foundation evidence and repair only through the next free forward migration if needed | Clean reset, RLS/grant/secret inventory, browser secret scan, isolated DB restore and separate Storage-object restore |
+
+P2 does not rename or drop legacy Inbox tables, cut root authentication over,
+copy real secrets into Vault, change legacy public bucket behavior or apply any
+production migration. New Platform tables are additive. P2B must verify actual
+current Inbox consumers before revoking a legacy table grant. `avatars` and
+`flow-media` remain explicit compatibility decisions; new private Platform
+buckets are introduced only in P2H.
 
 ### P3 — root auth and operational migration
 
@@ -467,9 +504,17 @@ uv run pytest
 ### Supabase and documents
 
 - clean migration reset and disposable PostgreSQL/RLS tests;
+- P2A byte/checksum proof for the immutable 001–039 history;
+- real local Supabase Queues and Storage API evidence where those services are
+  in scope; handcrafted mocks do not prove their contracts;
 - migration-specific negative and rollback checks;
 - isolated database and separate Storage backup/restore when touched;
 - deterministic DOCX build, verifier, real render and inspection of every page.
+
+Local Supabase proof is required for P2. It does not prove a linked managed
+project, remote migration-ledger parity, production branch configuration, paid
+plan/PITR availability or managed restore. Those claims remain blocked until
+the region/plan, credentials and separate production authority exist.
 
 For every PR, verify GitHub `EVO platform CI` jobs `Changed range`, `Main CRM`,
 `EVO Inbox` and `EVO Lead Agent` for the exact head SHA. CI does not replace

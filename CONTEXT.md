@@ -9,6 +9,8 @@ The target contract is
 [`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`](docs/EVO_PLATFORM_LONG_RUN_PLAN.md) and
 the superseding architecture decision is
 [`docs/adr/0014-unified-evo-platform-target-architecture.md`](docs/adr/0014-unified-evo-platform-target-architecture.md).
+Its canonical Supabase schema/migration boundary is refined by
+[`docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`](docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md).
 Companion-era terms below remain as honest descriptions of the runtime that
 exists before controlled migration; they are not the target architecture.
 
@@ -109,10 +111,12 @@ replacement.
 _Avoid_: renamed companion app, shared production-and-test database
 
 **Platform Business Role**:
-One of `admin`, `sales`, `curator`, `finance`, or `client/student`. There is no
-separate `visa` business role; `/visa` remains a module managed by the assigned
-Curator (and Admin where authorized).
-_Avoid_: prototype persona, shared administrator login
+One of `admin`, `sales`, `curator`, `finance`, or `student`. “Client/Student”
+is the user-facing label for `student`; the current root `client` identifier is
+legacy and receives only an explicit P3 identity mapping. There is no separate
+`visa` business role; `/visa` remains a module managed by the assigned Curator
+(and Admin where authorized).
+_Avoid_: prototype persona, shared administrator login, implicit client mapping
 
 **Admin Assignment**:
 The Admin-only action that assigns or reassigns a student's Curator. It requires
@@ -151,6 +155,27 @@ The target dedicated Supabase production project for EVO-owned operational
 records, with RLS and audit controls. It does not become authoritative for
 amoCRM-owned contact, lead, responsible sales manager, or sales stage.
 _Avoid_: companion-only database, canonical sales CRM
+
+**Canonical Supabase Migration Source**:
+The root `supabase/` directory that P2A establishes as the only repository
+authority for the byte-identical legacy 001–039 chain and every later Platform
+migration. The old companion path becomes a pointer, never a second writable
+copy. Merged migrations are immutable; corrections use a new number.
+_Avoid_: duplicated migration tree, edited applied migration
+
+**Platform Schema Boundary**:
+`public` is the temporary legacy Inbox compatibility schema. `platform` is the
+new browser-exposed Platform schema with explicit grants and RLS on every
+table. `platform_private` is backend-only and absent from the Data API.
+Browser actors also have no direct queue-internal access.
+_Avoid_: all new tables in public, browser-accessible private helpers
+
+**Legacy Inbox Role**:
+One of the companion-era `owner`, `admin`, `agent`, or `viewer` roles. It has
+no implicit mapping to a Platform Business Role. A legacy signup may create
+legacy Inbox account/profile rows but does not create Platform organization
+membership or business authority.
+_Avoid_: automatic role migration, signup-implies-Platform-access
 
 **Unified WAHA Session**:
 The target single private production WAHA session `evo-inbox`, representing one

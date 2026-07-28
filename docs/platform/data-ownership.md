@@ -25,9 +25,12 @@
 | Staff identity и platform role | Supabase Auth + Platform profiles | account, role claims, organization membership, block/invite audit |
 | Student case и Curator assignment | EVO Platform Supabase | весь operational lifecycle и audited reassignment |
 | University applications | EVO Platform Supabase | несколько параллельных applications одного студента |
-| Documents и review history | EVO Platform Supabase + private Storage | metadata, versions, integrity/malware state, access audit |
+| Document metadata и review history | EVO Platform Supabase | checklist, versions, validation, integrity/malware evidence state и review/rework history |
+| Document binary objects | private Platform Storage после P2H | private objects, object-policy enforcement, download/access audit и separate backup |
 | Visa case | EVO Platform Supabase | Curator-owned operational states и evidence |
-| Tasks и notifications | EVO Platform Supabase | durable state, recipient, consent, dedupe и delivery attempts |
+| Tasks | EVO Platform Supabase | assignment, priority, due/status и lifecycle history |
+| Notification intent v1 | EVO Platform Supabase | один recipient, in-app/individual-WhatsApp channel, consent snapshot и dedupe |
+| WhatsApp provider delivery/ACK | WAHA + Platform после P2F/P2G | provider IDs, Queue/outbox attempts, ACK и reconciliation |
 | Obligations, payments и refunds v1 | EVO Platform Supabase | ручное Finance/Admin confirmation, evidence и audit |
 | Conversation и staff workflow | EVO Platform Supabase | единая история, queue ownership, handoff и access scope |
 | WhatsApp transport/session state | WAHA | отдельные `session`, message ID, ACK и reconciliation records |
@@ -80,6 +83,17 @@ Admin assignment активирует handoff/Portal и ротирует object 
 handoff Sales получает только фиксированный summary, а Student — только
 self-only Portal projections. Это database contract, а не доказательство
 реального amoCRM mapping, production import или Portal cutover.
+
+P2E начинается строго после migration 042 и добавляет additive migration 043.
+Его repository-candidate contract не расширяет base-table grants для сокращённых
+аудиторий: Admin и текущий Curator получают полный document workflow в своём
+scope; Sales до handoff — только фиксированный checklist; Student — только
+fixed self history; Finance не получает sensitive document access. В finance
+Admin/Finance подтверждают evidence-bearing events, а Sales, текущий Curator и
+Student используют отдельные безопасные projections. Полный контракт:
+[`p2e-documents-finance-notifications.md`](p2e-documents-finance-notifications.md).
+Migration, exact API/grants и local authorization tests реализованы;
+independent review и exact-head CI ещё pending.
 
 ## RLS и server authorization
 
@@ -149,6 +163,12 @@ Integrity и malware policy должны дать явный quarantined/rejecte
 Download проходит через authenticated access или короткоживущий signed URL и
 пишется в audit.
 
+P2E покрывает только checklist, declared metadata, versions, validation,
+review/rework и evidence-backed integrity/malware state. Declared type/size или
+synthetic state transition не доказывает содержимое файла, успешный upload,
+scanner result, preview или download. Реальный binary/object contract и
+access-аудит доказывает P2H.
+
 Прямые записи в таблицы `storage` запрещены. DB backup/PITR не включает Storage
 objects, поэтому для них нужен отдельный backup и isolated restore test.
 Retention и legal deletion period остаются открытым решением; необратимый
@@ -158,7 +178,29 @@ P2H создаёт новые private Platform buckets через реальны
 P2B не меняет молча legacy public `avatars`/`flow-media`; их compatibility и
 future cutover проверяются отдельно. `chat-media` уже private после legacy 039.
 
+## Manual finance
+
+EVO Platform является manual operational finance source v1 и отдельно хранит
+EVO service fee и third-party study cost. Только Finance/Admin подтверждают
+obligation, payment, refund или stop factor. Сумма хранится целым числом в
+минимальной единице одной currency; payment не может превысить остаток, а
+refund обязан ссылаться на exact confirmed payment и не может превысить его
+невернутую часть. Actor, effective time, source, evidence и request key
+обязательны; подтверждённая история не редактируется и не удаляется.
+
+Outstanding/overdue вычисляются из obligation, confirmed payments, valid
+refunds, due time и current time. Они не берутся из amoCRM stage. Sales и
+Curator видят только разрешённый operational status/next action в своём case
+scope; Student — только self overdue notice и next action без amount, evidence,
+transaction history и внутренних stop-factor полей.
+
 ## Messaging, queues и audit
+
+P2E notification intent всегда адресован одному membership и одному channel.
+Individual WhatsApp intent требует consent snapshot и dedupe; модель не имеет
+audience list, segment, broadcast или mass-send объекта. Это durable database
+intent, а не provider delivery. Phone/provider resolution относится к P2F, а
+Queue/outbox/retry/dead-letter/reconciliation — к P2G.
 
 WAHA webhook owner сохраняет raw event до обработки, проверяет HMAC/timestamp и
 dedupe-ит:

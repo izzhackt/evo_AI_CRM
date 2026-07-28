@@ -9,7 +9,18 @@ const expectedSource = Object.freeze({
   path: "agent-lead2-inbox/supabase/migrations",
   range: "001-039",
 });
-const expectedMigrationCount = 39;
+const importedMigrationCount = 39;
+const requiredP2BMigration =
+  "040_platform_namespaces_and_secret_containment.sql";
+const immutablePlatformMigrations = Object.freeze([
+  Object.freeze({
+    name: requiredP2BMigration,
+    bytes: 10495,
+    sha256: "d06d9fcd485d90458e513543f0895b0ac00b775b496eb604d35bc0f6bf5c6abb",
+  }),
+]);
+const immutableMigrationCount =
+  importedMigrationCount + immutablePlatformMigrations.length;
 const testRoot = process.env.EVO_SUPABASE_HISTORY_TEST_ROOT;
 const isTestFixture = Boolean(testRoot) && process.env.NODE_ENV === "test";
 const repositoryRoot = isTestFixture
@@ -79,9 +90,9 @@ async function loadManifest() {
   if (!Array.isArray(manifest.files)) {
     fail("manifest files must be an array");
   }
-  if (manifest.files.length !== expectedMigrationCount) {
+  if (manifest.files.length !== importedMigrationCount) {
     fail(
-      `manifest must contain exactly ${expectedMigrationCount} migrations; found ${manifest.files.length}`,
+      `manifest must contain exactly ${importedMigrationCount} imported migrations; found ${manifest.files.length}`,
     );
   }
 
@@ -150,9 +161,6 @@ function validateManifestEntries(files) {
     }
     const expectedNumber = index + 1;
     const actualNumber = Number.parseInt(match[1], 10);
-    if (actualNumber >= 40) {
-      fail(`migration 040 or later is not allowed in the P2A baseline: ${name}`);
-    }
     if (actualNumber !== expectedNumber) {
       fail(
         `migration sequence must be contiguous 001-039; expected ${String(
@@ -163,6 +171,33 @@ function validateManifestEntries(files) {
   });
 
   return names;
+}
+
+function validateCanonicalSequence(names) {
+  if (names.length < immutableMigrationCount) {
+    fail(`canonical migration history must include required ${requiredP2BMigration}`);
+  }
+
+  names.forEach((name, index) => {
+    const match = /^(\d{3})_.+\.sql$/.exec(name);
+    if (!match) {
+      fail(`migration name must start with a three-digit number: ${name}`);
+    }
+
+    const expectedNumber = index + 1;
+    const actualNumber = Number.parseInt(match[1], 10);
+    if (actualNumber !== expectedNumber) {
+      fail(
+        `canonical migration sequence must be contiguous; expected ${String(
+          expectedNumber,
+        ).padStart(3, "0")}, found ${match[1]}`,
+      );
+    }
+  });
+
+  if (names[importedMigrationCount] !== requiredP2BMigration) {
+    fail(`required migration 040 must be ${requiredP2BMigration}`);
+  }
 }
 
 function assertSameNames(actualNames, expectedNames) {
@@ -239,33 +274,30 @@ async function main() {
   }
 
   const manifest = await loadManifest();
-  const expectedNames = validateManifestEntries(manifest.files);
+  const importedNames = validateManifestEntries(manifest.files);
+  const expectedNames = [
+    ...importedNames,
+    ...immutablePlatformMigrations.map((migration) => migration.name),
+  ];
   const actualNames = await listCanonicalMigrations();
 
-  const forbidden = actualNames.find((name) => {
-    const match = /^(\d+)_/.exec(name);
-    return match && Number.parseInt(match[1], 10) >= 40;
-  });
-  if (forbidden) {
-    fail(`migration 040 or later is not allowed in the P2A baseline: ${forbidden}`);
-  }
-  if (actualNames.length !== expectedMigrationCount) {
-    fail(
-      `canonical supabase/migrations must contain exactly ${expectedMigrationCount} SQL files; found ${actualNames.length}`,
-    );
-  }
-
-  assertSameNames(actualNames, expectedNames);
+  validateCanonicalSequence(actualNames);
+  assertSameNames(
+    actualNames.slice(0, immutableMigrationCount),
+    expectedNames,
+  );
   await assertLegacyPathIsPointerOnly();
-  for (const file of manifest.files) {
+  for (const file of [...manifest.files, ...immutablePlatformMigrations]) {
     await verifyFile(file);
   }
 
   process.stdout.write(
     `${JSON.stringify({
       ok: true,
-      checked: expectedMigrationCount,
-      range: expectedSource.range,
+      checked: immutableMigrationCount,
+      range: `001-${String(immutableMigrationCount).padStart(3, "0")}`,
+      current: actualNames[actualNames.length - 1].slice(0, 3),
+      total: actualNames.length,
     })}\n`,
   );
 }

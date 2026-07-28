@@ -5,6 +5,7 @@ import {
   IntegrationsAdminConfigurationError,
   integrationsAdminClient,
 } from '@/lib/integrations/admin-client'
+import { getAiConfigSummary } from '@/lib/ai/admin-store'
 import {
   getIntegrationSecrets,
   getIntegrationSetting,
@@ -133,31 +134,24 @@ async function loadAmoCrmSyncCounts(
   }
 }
 
-async function loadAiState(
-  supabase: Awaited<ReturnType<typeof requireRole>>['supabase'],
-  accountId: string,
-): Promise<AiReadinessState> {
-  const { data, error } = await supabase
-    .from('ai_configs')
-    .select('provider, is_active, api_key')
-    .eq('account_id', accountId)
-    .maybeSingle()
+async function loadAiState(accountId: string): Promise<AiReadinessState> {
+  try {
+    const data = await getAiConfigSummary(accountId)
+    if (!data) return { configured: false, active: false, hasKey: false }
 
-  if (error) {
+    return {
+      configured: true,
+      active: data.is_active === true,
+      hasKey: Boolean(data.api_key),
+      provider: typeof data.provider === 'string' ? data.provider : null,
+    }
+  } catch {
     return {
       configured: false,
       active: false,
       hasKey: false,
       message: 'Failed to load AI assistant configuration.',
     }
-  }
-  if (!data) return { configured: false, active: false, hasKey: false }
-
-  return {
-    configured: true,
-    active: data.is_active === true,
-    hasKey: Boolean(data.api_key),
-    provider: typeof data.provider === 'string' ? data.provider : null,
   }
 }
 
@@ -190,7 +184,7 @@ export async function GET() {
       }
     }
 
-    const ai = await loadAiState(ctx.supabase, ctx.accountId)
+    const ai = await loadAiState(ctx.accountId)
     const result = buildProductionPreflight({
       env: process.env,
       waha,

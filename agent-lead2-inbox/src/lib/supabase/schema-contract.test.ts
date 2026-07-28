@@ -37,6 +37,14 @@ const outboundAuditMigration = readFileSync(
   join(migrationsDir, '037_operator_drafts_and_waha_outbox.sql'),
   'utf8'
 )
+const platformGrantMigration = readFileSync(
+  join(migrationsDir, '040_platform_namespaces_and_secret_containment.sql'),
+  'utf8'
+)
+const supabaseConfig = readFileSync(
+  fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
+  'utf8'
+)
 
 function expectRlsEnabled(table: string) {
   expect(allMigrationsSql).toMatch(
@@ -48,6 +56,58 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
+  it('exposes only the reviewed P2B Platform schema boundary', () => {
+    expect(migrationFiles.at(-1)).toBe(
+      '040_platform_namespaces_and_secret_containment.sql'
+    )
+    expect(platformGrantMigration).toMatch(
+      /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
+    )
+    expect(platformGrantMigration).toMatch(
+      /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform_private\s+AUTHORIZATION\s+postgres/i
+    )
+    expect(platformGrantMigration).not.toMatch(/CREATE\s+TABLE/i)
+    expect(platformGrantMigration).toMatch(
+      /GRANT\s+USAGE\s+ON\s+SCHEMA\s+platform\s+TO\s+authenticated,\s*service_role/i
+    )
+    expect(platformGrantMigration).toMatch(
+      /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+SCHEMA\s+platform_private\s+FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role/i
+    )
+    expect(supabaseConfig).toMatch(
+      /schemas\s*=\s*\["public",\s*"platform",\s*"graphql_public"\]/
+    )
+    expect(supabaseConfig).not.toMatch(
+      /schemas\s*=.*(?:platform_private|pgmq_public)/
+    )
+  })
+
+  it('makes legacy secret-bearing tables service-only without broad grants', () => {
+    for (const table of [
+      'whatsapp_config',
+      'ai_configs',
+      'webhook_endpoints',
+      'api_keys',
+      'integration_secrets',
+    ]) {
+      expect(platformGrantMigration).toMatch(
+        new RegExp(`public\\.${table}`, 'i')
+      )
+    }
+
+    expect(platformGrantMigration).toMatch(
+      /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+TABLE[\s\S]*public\.whatsapp_config[\s\S]*public\.integration_secrets[\s\S]*FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role/i
+    )
+    expect(platformGrantMigration).toMatch(
+      /GRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s*DELETE\s+ON\s+TABLE[\s\S]*public\.whatsapp_config[\s\S]*public\.integration_secrets[\s\S]*TO\s+service_role/i
+    )
+    expect(platformGrantMigration).not.toMatch(
+      /GRANT\s+ALL\s+PRIVILEGES\s+ON\s+TABLE/i
+    )
+    expect(platformGrantMigration).toMatch(
+      /DROP\s+POLICY\s+IF\s+EXISTS\s+integration_secrets_insert\s+ON\s+public\.integration_secrets/i
+    )
+  })
+
   it('preserves the tables required for issue #11 companion data', () => {
     const requiredTables = [
       'profiles',

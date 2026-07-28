@@ -1,24 +1,25 @@
-import { describe, it, expect, vi } from 'vitest'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { StoredAiConfigRow } from './admin-store'
 
 // decrypt is identity in tests so we don't depend on real ciphertext.
-vi.mock('@/lib/whatsapp/encryption', () => ({
-  decrypt: (v: string) => `plain:${v}`,
+const { decrypt, getStoredAiConfig } = vi.hoisted(() => ({
+  decrypt: vi.fn((value: string) => `plain:${value}`),
+  getStoredAiConfig: vi.fn(),
 }))
 
-import { loadAiConfig, loadEmbeddingsConfig } from './config'
+vi.mock('@/lib/whatsapp/encryption', () => ({
+  decrypt,
+}))
 
-function dbReturning(row: Record<string, unknown> | null): SupabaseClient {
-  const chain = {
-    from: () => chain,
-    select: () => chain,
-    eq: () => chain,
-    maybeSingle: () => Promise.resolve({ data: row, error: null }),
-  }
-  return chain as unknown as SupabaseClient
-}
+vi.mock('./admin-store', () => ({
+  getStoredAiConfig,
+}))
 
-const ROW = {
+import { loadAiConfigForAccount, loadEmbeddingsConfigForAccount } from './config'
+
+const ROW: StoredAiConfigRow = {
+  id: 'cfg-1',
   provider: 'openai',
   model: 'gpt-x',
   api_key: 'enc-key',
@@ -30,13 +31,21 @@ const ROW = {
   embeddings_api_key: null,
 }
 
-describe('loadAiConfig requireActive', () => {
+beforeEach(() => {
+  getStoredAiConfig.mockReset()
+  decrypt.mockReset()
+  decrypt.mockImplementation((value: string) => `plain:${value}`)
+})
+
+describe('loadAiConfigForAccount requireActive', () => {
   it('returns null for an inactive config by default', async () => {
-    expect(await loadAiConfig(dbReturning(ROW), 'acct')).toBeNull()
+    getStoredAiConfig.mockResolvedValue(ROW)
+    expect(await loadAiConfigForAccount('acct')).toBeNull()
   })
 
   it('returns the config when requireActive is false (Playground path)', async () => {
-    const config = await loadAiConfig(dbReturning(ROW), 'acct', {
+    getStoredAiConfig.mockResolvedValue(ROW)
+    const config = await loadAiConfigForAccount('acct', {
       requireActive: false,
     })
     expect(config).not.toBeNull()
@@ -45,16 +54,14 @@ describe('loadAiConfig requireActive', () => {
   })
 
   it('uses the main Gemini key for Gemini embeddings when no override key is set', async () => {
-    const config = await loadAiConfig(
-      dbReturning({
-        ...ROW,
-        provider: 'gemini',
-        model: 'gemini-3.5-flash',
-        is_active: true,
-        embeddings_provider: 'gemini',
-      }),
-      'acct',
-    )
+    getStoredAiConfig.mockResolvedValue({
+      ...ROW,
+      provider: 'gemini',
+      model: 'gemini-3.5-flash',
+      is_active: true,
+      embeddings_provider: 'gemini',
+    })
+    const config = await loadAiConfigForAccount('acct')
 
     expect(config).toMatchObject({
       provider: 'gemini',
@@ -64,15 +71,13 @@ describe('loadAiConfig requireActive', () => {
   })
 
   it('keeps semantic retrieval disabled in keyword mode even when an old key exists', async () => {
-    const config = await loadAiConfig(
-      dbReturning({
-        ...ROW,
-        is_active: true,
-        embeddings_provider: 'keyword',
-        embeddings_api_key: 'enc-embeddings',
-      }),
-      'acct',
-    )
+    getStoredAiConfig.mockResolvedValue({
+      ...ROW,
+      is_active: true,
+      embeddings_provider: 'keyword',
+      embeddings_api_key: 'enc-embeddings',
+    })
+    const config = await loadAiConfigForAccount('acct')
 
     expect(config).toMatchObject({
       embeddingsProvider: 'keyword',
@@ -81,15 +86,13 @@ describe('loadAiConfig requireActive', () => {
   })
 
   it('loads a Gemini config row', async () => {
-    const config = await loadAiConfig(
-      dbReturning({
-        ...ROW,
-        provider: 'gemini',
-        model: 'gemini-3.5-flash',
-        is_active: true,
-      }),
-      'acct'
-    )
+    getStoredAiConfig.mockResolvedValue({
+      ...ROW,
+      provider: 'gemini',
+      model: 'gemini-3.5-flash',
+      is_active: true,
+    })
+    const config = await loadAiConfigForAccount('acct')
 
     expect(config).toMatchObject({
       provider: 'gemini',
@@ -99,41 +102,33 @@ describe('loadAiConfig requireActive', () => {
   })
 
   it('forces auto-reply off even if a stored row enables it', async () => {
-    const config = await loadAiConfig(
-      dbReturning({
-        ...ROW,
-        auto_reply_enabled: true,
-        auto_reply_max_per_conversation: 20,
-      }),
-      'acct',
-      { requireActive: false }
-    )
+    getStoredAiConfig.mockResolvedValue({
+      ...ROW,
+      auto_reply_enabled: true,
+      auto_reply_max_per_conversation: 20,
+    })
+    const config = await loadAiConfigForAccount('acct', { requireActive: false })
 
     expect(config!.autoReplyEnabled).toBe(false)
     expect(config!.autoReplyMaxPerConversation).toBe(1)
   })
 
   it('returns null when there is no row', async () => {
-    expect(
-      await loadAiConfig(dbReturning(null), 'acct', { requireActive: false })
-    ).toBeNull()
+    getStoredAiConfig.mockResolvedValue(null)
+    expect(await loadAiConfigForAccount('acct', { requireActive: false })).toBeNull()
   })
 })
 
-describe('loadEmbeddingsConfig', () => {
+describe('loadEmbeddingsConfigForAccount', () => {
   it('loads Gemini embeddings from the primary Gemini key independent of active status', async () => {
-    await expect(
-      loadEmbeddingsConfig(
-        dbReturning({
-          ...ROW,
-          provider: 'gemini',
-          api_key: 'enc-gemini',
-          embeddings_provider: 'gemini',
-          embeddings_api_key: null,
-        }),
-        'acct',
-      ),
-    ).resolves.toEqual({
+    getStoredAiConfig.mockResolvedValue({
+      ...ROW,
+      provider: 'gemini',
+      api_key: 'enc-gemini',
+      embeddings_provider: 'gemini',
+      embeddings_api_key: null,
+    })
+    await expect(loadEmbeddingsConfigForAccount('acct')).resolves.toEqual({
       provider: 'gemini',
       key: 'plain:enc-gemini',
       corrupt: false,
@@ -141,26 +136,45 @@ describe('loadEmbeddingsConfig', () => {
   })
 
   it('loads OpenAI embeddings from the override key when the chat provider differs', async () => {
-    await expect(
-      loadEmbeddingsConfig(
-        dbReturning({
-          ...ROW,
-          provider: 'gemini',
-          api_key: 'enc-gemini',
-          embeddings_provider: 'openai',
-          embeddings_api_key: 'enc-openai-embed',
-        }),
-        'acct',
-      ),
-    ).resolves.toEqual({
+    getStoredAiConfig.mockResolvedValue({
+      ...ROW,
+      provider: 'gemini',
+      api_key: 'enc-gemini',
+      embeddings_provider: 'openai',
+      embeddings_api_key: 'enc-openai-embed',
+    })
+    await expect(loadEmbeddingsConfigForAccount('acct')).resolves.toEqual({
       provider: 'openai',
       key: 'plain:enc-openai-embed',
       corrupt: false,
     })
   })
 
+  it('marks corrupt primary provider ciphertext as corrupt instead of throwing', async () => {
+    getStoredAiConfig.mockResolvedValue({
+      ...ROW,
+      provider: 'gemini',
+      api_key: 'bad-primary',
+      embeddings_provider: 'gemini',
+    })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    decrypt.mockImplementation((value: string) => {
+      if (value === 'bad-primary') throw new Error('decrypt failed')
+      return `plain:${value}`
+    })
+
+    await expect(loadEmbeddingsConfigForAccount('acct')).resolves.toEqual({
+      provider: 'gemini',
+      key: null,
+      corrupt: true,
+    })
+    expect(errorSpy).toHaveBeenCalledOnce()
+    errorSpy.mockRestore()
+  })
+
   it('returns a keyword config when no AI config row exists', async () => {
-    await expect(loadEmbeddingsConfig(dbReturning(null), 'acct')).resolves.toEqual({
+    getStoredAiConfig.mockResolvedValue(null)
+    await expect(loadEmbeddingsConfigForAccount('acct')).resolves.toEqual({
       provider: 'keyword',
       key: null,
       corrupt: false,

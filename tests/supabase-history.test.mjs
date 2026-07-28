@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const repositoryRoot = new URL("../", import.meta.url);
 const verifierPath = new URL("../scripts/verify-supabase-history.mjs", import.meta.url);
+const supabaseConfigPath = new URL("../supabase/config.toml", import.meta.url);
 
 const SOURCE = Object.freeze({
   commit: "1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5",
@@ -17,6 +18,11 @@ const SOURCE = Object.freeze({
 });
 const FIXTURE_SQL = "select 1;\n";
 const FIXTURE_SHA256 = "4a45092ccf992ea92250053a80b931b787924ba61648f420555511b84f10ab6c";
+const REQUIRED_040 = "040_platform_namespaces_and_secret_containment.sql";
+const required040Path = new URL(
+  `../supabase/migrations/${REQUIRED_040}`,
+  import.meta.url,
+);
 
 async function createValidFixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), "evo-supabase-history-"));
@@ -55,6 +61,10 @@ async function createValidFixture(t) {
       2,
     )}\n`,
   );
+  await writeFile(
+    path.join(migrationsDirectory, REQUIRED_040),
+    await readFile(required040Path, "utf8"),
+  );
 
   return root;
 }
@@ -82,7 +92,7 @@ async function expectVerifierFailure(root, pattern) {
   );
 }
 
-test("accepts the exact canonical 001-039 history with only a legacy pointer", async (t) => {
+test("accepts immutable 001-039 plus required migration 040", async (t) => {
   const root = await createValidFixture(t);
 
   const { stdout, stderr } = await runVerifier(root);
@@ -90,9 +100,55 @@ test("accepts the exact canonical 001-039 history with only a legacy pointer", a
   assert.equal(stderr, "");
   assert.deepEqual(JSON.parse(stdout), {
     ok: true,
-    checked: 39,
-    range: "001-039",
+    checked: 40,
+    range: "001-040",
+    current: "040",
+    total: 40,
   });
+});
+
+test("rejects a same-length rewrite of immutable migration 040", async (t) => {
+  const root = await createValidFixture(t);
+  const migrationPath = path.join(
+    root,
+    "supabase",
+    "migrations",
+    REQUIRED_040,
+  );
+  const original = await readFile(migrationPath, "utf8");
+  const rewritten = original.replace("Establishes", "establishes");
+  assert.notEqual(rewritten, original);
+  assert.equal(Buffer.byteLength(rewritten), Buffer.byteLength(original));
+  await writeFile(migrationPath, rewritten);
+
+  await expectVerifierFailure(root, /040_.+ SHA-256 changed/);
+});
+
+test("exposes platform without exposing private or queue schemas", async () => {
+  const config = await readFile(supabaseConfigPath, "utf8");
+  const schemasMatch = config.match(/^schemas\s*=\s*(\[[^\n]+\])$/m);
+  const searchPathMatch = config.match(
+    /^extra_search_path\s*=\s*(\[[^\n]+\])$/m,
+  );
+
+  assert.ok(schemasMatch, "config.toml must declare api.schemas");
+  assert.ok(
+    searchPathMatch,
+    "config.toml must declare api.extra_search_path",
+  );
+
+  const exposedSchemas = JSON.parse(schemasMatch[1]);
+  const extraSearchPath = JSON.parse(searchPathMatch[1]);
+
+  assert.deepEqual(exposedSchemas, [
+    "public",
+    "platform",
+    "graphql_public",
+  ]);
+  assert.equal(exposedSchemas.includes("platform_private"), false);
+  assert.equal(exposedSchemas.includes("pgmq_public"), false);
+  assert.equal(extraSearchPath.includes("platform_private"), false);
+  assert.equal(extraSearchPath.includes("pgmq_public"), false);
 });
 
 test("rejects byte or SHA-256 drift in a canonical migration", async (t) => {
@@ -111,22 +167,51 @@ test("rejects byte or SHA-256 drift in a canonical migration", async (t) => {
   await expectVerifierFailure(root, /019_fixture_019\.sql byte count changed/);
 });
 
-test("rejects a non-contiguous manifest and any migration 040 or later", async (t) => {
+test("requires the exact migration 040 and contiguous later migrations", async (t) => {
   const root = await createValidFixture(t);
-  const manifestPath = path.join(root, "supabase", "migration-history.json");
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const migrationsDirectory = path.join(root, "supabase", "migrations");
 
-  manifest.files[38].name = "040_fixture_040.sql";
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   await unlink(
-    path.join(root, "supabase", "migrations", "039_fixture_039.sql"),
+    path.join(migrationsDirectory, REQUIRED_040),
   );
   await writeFile(
-    path.join(root, "supabase", "migrations", "040_fixture_040.sql"),
+    path.join(migrationsDirectory, "040_wrong_name.sql"),
+    FIXTURE_SQL,
+  );
+  await expectVerifierFailure(
+    root,
+    /required migration 040 must be 040_platform_namespaces_and_secret_containment\.sql/,
+  );
+
+  await unlink(path.join(migrationsDirectory, "040_wrong_name.sql"));
+  await writeFile(
+    path.join(migrationsDirectory, REQUIRED_040),
+    await readFile(required040Path, "utf8"),
+  );
+  await writeFile(
+    path.join(migrationsDirectory, "042_gap.sql"),
+    FIXTURE_SQL,
+  );
+  await expectVerifierFailure(
+    root,
+    /canonical migration sequence must be contiguous; expected 041, found 042/,
+  );
+
+  await unlink(path.join(migrationsDirectory, "042_gap.sql"));
+  await writeFile(
+    path.join(migrationsDirectory, "041_future.sql"),
     FIXTURE_SQL,
   );
 
-  await expectVerifierFailure(root, /migration 040 or later is not allowed/);
+  const { stdout, stderr } = await runVerifier(root);
+  assert.equal(stderr, "");
+  assert.deepEqual(JSON.parse(stdout), {
+    ok: true,
+    checked: 40,
+    range: "001-040",
+    current: "041",
+    total: 41,
+  });
 });
 
 test("rejects nondeterministic or incorrect provenance metadata", async (t) => {

@@ -118,10 +118,10 @@ project, но среды физически разделены:
 
 Production data по умолчанию не копируется в preview. P2A делает root
 `supabase/` единственным источником schema/config, переносит 001–039
-byte-for-byte, фиксирует checksums и не создаёт 040. P2B начинает со следующего
-проверенного свободного номера. Merged migrations immutable; исправление —
-новая forward migration. Clean reset, diff/pull discipline и parity checks
-обязательны.
+byte-for-byte и фиксирует checksums. После этого proof P2B добавляет migration
+040 для namespace/default-grant и legacy secret containment. Merged migrations
+immutable; исправление — новая forward migration. Clean reset, diff/pull
+discipline и parity checks обязательны.
 
 Local reset/migration list не доказывает managed project ledger, branch
 configuration или production parity. Нельзя делать irreversible production

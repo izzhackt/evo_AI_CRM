@@ -10,9 +10,13 @@ import {
 describe('first-launch disabled route map', () => {
   it.each([
     ['/api/whatsapp/send', 'meta_transport'],
+    ['/api/whatsapp/media/example-media-id', 'meta_transport'],
+    ['/api/whatsapp/react', 'meta_transport'],
     ['/api/v1/messages', 'meta_transport'],
     ['/api/whatsapp/webhook', 'meta_transport'],
     ['/api/whatsapp/templates/sync', 'meta_templates'],
+    ['/api/whatsapp/templates/submit', 'meta_templates'],
+    ['/api/whatsapp/templates/example-template-id', 'meta_templates'],
   ])('blocks Meta transport or template path %s', (pathname, feature) => {
     expect(resolveFirstLaunchDisabledPath(pathname)).toEqual({
       feature,

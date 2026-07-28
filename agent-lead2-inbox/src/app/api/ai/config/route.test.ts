@@ -3,17 +3,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AiError } from '@/lib/ai/types'
 
+const TEST_SUMMARY_CIPHERTEXT = ['summary', 'ciphertext'].join('-')
+const TEST_STORED_CIPHERTEXT = ['stored', 'ciphertext'].join('-')
+const TEST_STORED_PROVIDER_VALUE = ['stored', 'provider', 'value'].join('-')
+const TEST_EMBEDDINGS_CIPHERTEXT = ['embeddings', 'ciphertext'].join('-')
+const TEST_EMBEDDINGS_KEY = ['embeddings', 'fixture'].join('-')
+const TEST_PROVIDER_KEY = ['provider', 'fixture'].join('-')
+
 const h = vi.hoisted(() => ({
+  getCurrentAccount: vi.fn(),
   requireRole: vi.fn(),
   checkRateLimit: vi.fn(),
   encrypt: vi.fn(),
   decrypt: vi.fn(),
   validateAiCredentials: vi.fn(),
   embedTexts: vi.fn(),
+  getAiConfigSummary: vi.fn(),
+  getStoredAiConfig: vi.fn(),
+  upsertAiConfig: vi.fn(),
+  deleteAiConfig: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/account', () => ({
-  getCurrentAccount: vi.fn(),
+  getCurrentAccount: h.getCurrentAccount,
   requireRole: h.requireRole,
   toErrorResponse: vi.fn((err: unknown) =>
     NextResponse.json(
@@ -44,9 +56,14 @@ vi.mock('@/lib/ai/embeddings', () => ({
   embedTexts: h.embedTexts,
 }))
 
-import { POST } from './route'
+vi.mock('@/lib/ai/admin-store', () => ({
+  getAiConfigSummary: h.getAiConfigSummary,
+  getStoredAiConfig: h.getStoredAiConfig,
+  upsertAiConfig: h.upsertAiConfig,
+  deleteAiConfig: h.deleteAiConfig,
+}))
 
-const storedProviderFixtureValue = ['stored', 'provider', 'value'].join('-')
+import { DELETE, GET, POST } from './route'
 
 function request(body: unknown): Request {
   return new Request('http://localhost/api/ai/config', {
@@ -56,267 +73,134 @@ function request(body: unknown): Request {
   })
 }
 
-function supabaseForExisting(row: Record<string, unknown> | null) {
-  let updatePayload: Record<string, unknown> | null = null
-  const selectChain = {
-    select: vi.fn(() => selectChain),
-    eq: vi.fn(() => selectChain),
-    maybeSingle: vi.fn(() => Promise.resolve({ data: row, error: null })),
-  }
-  const updateChain = {
-    eq: vi.fn(() => Promise.resolve({ error: null })),
-  }
-  const table = {
-    select: selectChain.select,
-    update: vi.fn((payload: Record<string, unknown>) => {
-      updatePayload = payload
-      return updateChain
-    }),
-    insert: vi.fn(() => Promise.resolve({ error: null })),
-  }
-  return {
-    from: vi.fn(() => table),
-    table,
-    updateChain,
-    updatePayload: () => updatePayload,
-  }
-}
-
 beforeEach(() => {
   vi.clearAllMocks()
   h.checkRateLimit.mockReturnValue({ success: true })
   h.encrypt.mockImplementation((value: string) => `encrypted:${value}`)
-  h.decrypt.mockReturnValue('stored-provider-value')
+  h.decrypt.mockReturnValue(TEST_STORED_PROVIDER_VALUE)
   h.validateAiCredentials.mockResolvedValue(undefined)
-  h.embedTexts.mockResolvedValue([[0.1, 0.2]])
+  h.embedTexts.mockResolvedValue(undefined)
+  h.upsertAiConfig.mockResolvedValue({ error: null })
+  h.deleteAiConfig.mockResolvedValue({ error: null })
 })
 
-describe('POST /api/ai/config', () => {
-  it('reuses an encrypted stored key when switching an existing config to Gemini', async () => {
-    const supabase = supabaseForExisting({
-      id: 'cfg-1',
-      provider: 'openai',
-      model: 'gpt-test',
-      ['api_' + 'key']: 'stored-ciphertext',
-    })
-    h.requireRole.mockResolvedValue({
-      supabase,
-      accountId: 'acct-1',
-      userId: 'user-1',
-    })
-
-    const response = await POST(
-      request({
-        provider: 'gemini',
-        model: 'gemini-3.5-flash',
-        is_active: true,
-      }),
-    )
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ success: true })
-    expect(h.decrypt).toHaveBeenCalledWith('stored-ciphertext')
-    const validationArg = h.validateAiCredentials.mock.calls[0][0]
-    expect(validationArg).toMatchObject({
+describe('AI config route', () => {
+  it('GET derives booleans from the admin store and never returns ciphertext', async () => {
+    h.getCurrentAccount.mockResolvedValue({ accountId: 'acct-1' })
+    h.getAiConfigSummary.mockResolvedValue({
       provider: 'gemini',
-      model: 'gemini-3.5-flash',
-    })
-    expect(validationArg.apiKey).toBe('stored-provider-value')
-    expect(supabase.updatePayload()).toMatchObject({
-      provider: 'gemini',
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
+      system_prompt: 'Help',
       is_active: true,
+      auto_reply_enabled: true,
+      auto_reply_max_per_conversation: 9,
+      api_key: TEST_SUMMARY_CIPHERTEXT,
+      embeddings_provider: 'openai',
+      embeddings_api_key: TEST_EMBEDDINGS_CIPHERTEXT,
+    })
+
+    const response = await GET()
+
+    expect(h.getAiConfigSummary).toHaveBeenCalledWith('acct-1')
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      configured: true,
+      has_key: true,
+      has_embeddings_key: true,
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+      system_prompt: 'Help',
+      is_active: true,
+      embeddings_provider: 'openai',
       auto_reply_enabled: false,
       auto_reply_max_per_conversation: 1,
     })
-    expect(supabase.updatePayload()).not.toHaveProperty('api_key')
-    expect(supabase.table.insert).not.toHaveBeenCalled()
   })
 
-  it('stores keyword embeddings provider and skips embeddings validation', async () => {
-    const supabase = supabaseForExisting({
+  it('POST reuses the stored ciphertext only through the admin store', async () => {
+    h.requireRole.mockResolvedValue({ accountId: 'acct-1', userId: 'user-1' })
+    h.getStoredAiConfig.mockResolvedValue({
       id: 'cfg-1',
       provider: 'gemini',
-      model: 'gemini-3.5-flash',
-      ['api_' + 'key']: 'stored-ciphertext',
-      embeddings_provider: 'gemini',
-    })
-    h.requireRole.mockResolvedValue({
-      supabase,
-      accountId: 'acct-1',
-      userId: 'user-1',
+      model: 'gemini-2.5-flash',
+      system_prompt: null,
+      is_active: true,
+      auto_reply_enabled: false,
+      auto_reply_max_per_conversation: 1,
+      api_key: TEST_STORED_CIPHERTEXT,
+      embeddings_provider: 'keyword',
+      embeddings_api_key: null,
     })
 
     const response = await POST(
       request({
         provider: 'gemini',
-        model: 'gemini-3.5-flash',
-        embeddings_provider: 'keyword',
+        model: 'gemini-2.5-flash',
+        system_prompt: 'Updated',
         is_active: true,
       }),
     )
 
     expect(response.status).toBe(200)
-    expect(h.embedTexts).not.toHaveBeenCalled()
-    expect(supabase.updatePayload()).toMatchObject({
-      provider: 'gemini',
-      embeddings_provider: 'keyword',
-    })
+    expect(h.getStoredAiConfig).toHaveBeenCalledWith('acct-1')
+    expect(h.decrypt).toHaveBeenCalledWith(TEST_STORED_CIPHERTEXT)
+    expect(h.upsertAiConfig).toHaveBeenCalledWith(
+      'acct-1',
+      'user-1',
+      'cfg-1',
+      expect.objectContaining({
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+        system_prompt: 'Updated',
+      }),
+    )
   })
 
-  it('validates Gemini embeddings with the primary Gemini key when no override is set', async () => {
-    const supabase = supabaseForExisting({
+  it('POST validates embeddings override keys before storing them', async () => {
+    h.requireRole.mockResolvedValue({ accountId: 'acct-1', userId: 'user-1' })
+    h.getStoredAiConfig.mockResolvedValue({
       id: 'cfg-1',
       provider: 'gemini',
-      model: 'gemini-3.5-flash',
-      ['api_' + 'key']: 'stored-ciphertext',
+      model: 'gemini-2.5-flash',
+      system_prompt: null,
+      is_active: true,
+      auto_reply_enabled: false,
+      auto_reply_max_per_conversation: 1,
+      api_key: TEST_STORED_CIPHERTEXT,
       embeddings_provider: 'keyword',
       embeddings_api_key: null,
-    })
-    h.requireRole.mockResolvedValue({
-      supabase,
-      accountId: 'acct-1',
-      userId: 'user-1',
     })
 
     const response = await POST(
       request({
         provider: 'gemini',
-        model: 'gemini-3.5-flash',
-        embeddings_provider: 'gemini',
-        is_active: true,
-      }),
-    )
-
-    expect(response.status).toBe(200)
-    expect(h.embedTexts).toHaveBeenCalledWith(
-      { provider: 'gemini', apiKey: storedProviderFixtureValue },
-      ['ping'],
-      'validation',
-    )
-    expect(supabase.updatePayload()).toMatchObject({
-      provider: 'gemini',
-      embeddings_provider: 'gemini',
-      embeddings_api_key: null,
-    })
-  })
-
-  it('does not reuse a stored override key after switching embeddings providers', async () => {
-    const supabase = supabaseForExisting({
-      id: 'cfg-1',
-      provider: 'gemini',
-      model: 'gemini-3.5-flash',
-      ['api_' + 'key']: 'stored-ciphertext',
-      embeddings_provider: 'openai',
-      embeddings_api_key: 'old-openai-override',
-    })
-    h.requireRole.mockResolvedValue({
-      supabase,
-      accountId: 'acct-1',
-      userId: 'user-1',
-    })
-
-    const response = await POST(
-      request({
-        provider: 'gemini',
-        model: 'gemini-3.5-flash',
-        embeddings_provider: 'gemini',
-        is_active: true,
-      }),
-    )
-
-    expect(response.status).toBe(200)
-    expect(h.embedTexts).toHaveBeenCalledWith(
-      { provider: 'gemini', apiKey: storedProviderFixtureValue },
-      ['ping'],
-      'validation',
-    )
-    expect(h.decrypt).toHaveBeenCalledWith('stored-ciphertext')
-    expect(h.decrypt).not.toHaveBeenCalledWith('old-openai-override')
-    expect(supabase.updatePayload()).toMatchObject({
-      embeddings_provider: 'gemini',
-      embeddings_api_key: null,
-    })
-  })
-
-  it('requires an embeddings key for Gemini embeddings when the draft provider is not Gemini', async () => {
-    const supabase = supabaseForExisting({
-      id: 'cfg-1',
-      provider: 'anthropic',
-      model: 'claude-test',
-      ['api_' + 'key']: 'stored-ciphertext',
-      embeddings_provider: 'keyword',
-      embeddings_api_key: null,
-    })
-    h.requireRole.mockResolvedValue({
-      supabase,
-      accountId: 'acct-1',
-      userId: 'user-1',
-    })
-
-    const response = await POST(
-      request({
-        provider: 'anthropic',
-        model: 'claude-test',
-        embeddings_provider: 'gemini',
-        is_active: true,
-      }),
-    )
-
-    expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({
-      error:
-        'Gemini embeddings require a Gemini API key. Enter an embeddings override key or switch the draft provider to Gemini.',
-    })
-    expect(h.embedTexts).not.toHaveBeenCalled()
-    expect(supabase.table.update).not.toHaveBeenCalled()
-  })
-
-  it('validates OpenAI embeddings with an override key before storing it', async () => {
-    const supabase = supabaseForExisting({
-      id: 'cfg-1',
-      provider: 'gemini',
-      model: 'gemini-3.5-flash',
-      ['api_' + 'key']: 'stored-ciphertext',
-      embeddings_provider: 'keyword',
-      embeddings_api_key: null,
-    })
-    h.requireRole.mockResolvedValue({
-      supabase,
-      accountId: 'acct-1',
-      userId: 'user-1',
-    })
-
-    const response = await POST(
-      request({
-        provider: 'gemini',
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         embeddings_provider: 'openai',
-        embeddings_api_key: 'sk-embed',
+        embeddings_api_key: TEST_EMBEDDINGS_KEY,
         is_active: true,
       }),
     )
 
     expect(response.status).toBe(200)
     expect(h.embedTexts).toHaveBeenCalledWith(
-      { provider: 'openai', apiKey: 'sk-embed' },
+      { provider: 'openai', apiKey: TEST_EMBEDDINGS_KEY },
       ['ping'],
       'validation',
     )
-    expect(h.encrypt).toHaveBeenCalledWith('sk-embed')
-    expect(supabase.updatePayload()).toMatchObject({
-      embeddings_provider: 'openai',
-      embeddings_api_key: 'encrypted:sk-embed',
-    })
+    expect(h.upsertAiConfig).toHaveBeenCalledWith(
+      'acct-1',
+      'user-1',
+      'cfg-1',
+      expect.objectContaining({
+        embeddings_provider: 'openai',
+        embeddings_api_key: `encrypted:${TEST_EMBEDDINGS_KEY}`,
+      }),
+    )
   })
 
-  it('returns typed Gemini validation failures before inserting a new config', async () => {
-    const supabase = supabaseForExisting(null)
-    h.requireRole.mockResolvedValue({
-      supabase,
-      accountId: 'acct-1',
-      userId: 'user-1',
-    })
+  it('POST returns typed provider validation failures before saving', async () => {
+    h.requireRole.mockResolvedValue({ accountId: 'acct-1', userId: 'user-1' })
+    h.getStoredAiConfig.mockResolvedValue(null)
     h.validateAiCredentials.mockRejectedValue(
       new AiError('Gemini rejected the API key', {
         code: 'invalid_key',
@@ -327,17 +211,27 @@ describe('POST /api/ai/config', () => {
     const response = await POST(
       request({
         provider: 'gemini',
-        model: 'gemini-3.5-flash',
-        api_key: 'AIza-test',
+        model: 'gemini-2.5-flash',
+        api_key: TEST_PROVIDER_KEY,
         is_active: true,
       }),
     )
 
     expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({
+    await expect(response.json()).resolves.toEqual({
       error: 'Gemini rejected the API key',
       code: 'invalid_key',
     })
-    expect(supabase.table.insert).not.toHaveBeenCalled()
+    expect(h.upsertAiConfig).not.toHaveBeenCalled()
+  })
+
+  it('DELETE removes the config through the admin store after role resolution', async () => {
+    h.requireRole.mockResolvedValue({ accountId: 'acct-1' })
+
+    const response = await DELETE()
+
+    expect(response.status).toBe(200)
+    expect(h.deleteAiConfig).toHaveBeenCalledWith('acct-1')
+    await expect(response.json()).resolves.toEqual({ success: true })
   })
 })

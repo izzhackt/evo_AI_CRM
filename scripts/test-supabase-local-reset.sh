@@ -10,10 +10,11 @@ readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly SUPABASE_CLI="${REPO_ROOT}/node_modules/.bin/supabase"
 readonly SUPABASE_PROJECT_ID="evo-platform-local"
 readonly EXPECTED_CLI_VERSION="2.110.0"
-readonly EXPECTED_MIGRATION_COUNT=39
 readonly MIGRATIONS_DIR="${REPO_ROOT}/supabase/migrations"
-readonly EXCLUDED_SERVICES="gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
-readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2a.XXXXXX")"
+readonly POSTGREST_CONTAINER="supabase_rest_${SUPABASE_PROJECT_ID}"
+readonly EXCLUDED_SERVICES="gotrue,realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
+readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2b.XXXXXX")"
+readonly CANONICAL_VERSIONS_FILE="${TEMP_DIR}/canonical-versions.txt"
 
 cleanup() {
   local exit_code=$?
@@ -71,12 +72,18 @@ actual_cli_version="$("${SUPABASE_CLI}" --version)"
 [[ -d "${MIGRATIONS_DIR}" ]] \
   || fail "Canonical migration directory is missing: ${MIGRATIONS_DIR}"
 
+if ! node "${REPO_ROOT}/scripts/verify-supabase-history.mjs" \
+  >"${TEMP_DIR}/history-verification.json" \
+  2>"${TEMP_DIR}/history-verification.log"; then
+  show_safe_failure_log "${TEMP_DIR}/history-verification.log"
+  fail "Canonical migration history verification failed."
+fi
+
 migration_files=("${MIGRATIONS_DIR}"/*.sql)
 [[ -e "${migration_files[0]}" ]] \
   || fail "No canonical SQL migrations were found."
-[[ "${#migration_files[@]}" -eq "${EXPECTED_MIGRATION_COUNT}" ]] \
-  || fail "Expected ${EXPECTED_MIGRATION_COUNT} migrations; found ${#migration_files[@]}."
 
+: >"${CANONICAL_VERSIONS_FILE}"
 for index in "${!migration_files[@]}"; do
   expected_version="$(printf '%03d' "$((index + 1))")"
   migration_name="$(basename "${migration_files[${index}]}")"
@@ -86,7 +93,13 @@ for index in "${!migration_files[@]}"; do
     || fail "Invalid canonical migration filename: ${migration_name}"
   [[ "${migration_version}" == "${expected_version}" ]] \
     || fail "Migration history is not contiguous: expected ${expected_version}, found ${migration_version}."
+  printf '%s\n' "${migration_version}" >>"${CANONICAL_VERSIONS_FILE}"
 done
+
+expected_migration_count="${#migration_files[@]}"
+expected_last_migration="$(
+  tail -n 1 "${CANONICAL_VERSIONS_FILE}"
+)"
 
 [[ ! -e "${REPO_ROOT}/supabase/.temp/project-ref" ]] \
   || fail "Refusing to run while this worktree contains a linked Supabase project ref."
@@ -144,6 +157,49 @@ if ! "${SUPABASE_CLI}" \
   fail "Local Supabase reset failed."
 fi
 
+if ! postgrest_environment="$(
+  docker inspect \
+    --format '{{range .Config.Env}}{{println .}}{{end}}' \
+    "${POSTGREST_CONTAINER}"
+)"; then
+  fail "Unable to inspect the disposable local PostgREST container."
+fi
+
+postgrest_schemas="$(
+  sed -n 's/^PGRST_DB_SCHEMAS=//p' <<<"${postgrest_environment}"
+)"
+postgrest_search_path="$(
+  sed -n 's/^PGRST_DB_EXTRA_SEARCH_PATH=//p' <<<"${postgrest_environment}"
+)"
+
+if ! node - "${postgrest_schemas}" "${postgrest_search_path}" <<'NODE'
+const [schemasText, searchPathText] = process.argv.slice(2);
+const split = (value) =>
+  value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+const schemas = split(schemasText);
+const searchPath = split(searchPathText);
+const expectedSchemas = ["public", "platform", "graphql_public"];
+
+if (JSON.stringify(schemas) !== JSON.stringify(expectedSchemas)) {
+  throw new Error(
+    `PostgREST schemas must be ${expectedSchemas.join(",")}; found ${schemas.join(",")}`,
+  );
+}
+
+for (const forbidden of ["platform_private", "pgmq_public"]) {
+  if (schemas.includes(forbidden) || searchPath.includes(forbidden)) {
+    throw new Error(`PostgREST unexpectedly exposes ${forbidden}`);
+  }
+}
+NODE
+then
+  fail "Disposable local PostgREST schema exposure does not match P2B."
+fi
+
 if ! "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   --output-format json \
@@ -154,22 +210,23 @@ if ! "${SUPABASE_CLI}" \
   fail "Unable to read the local migration history."
 fi
 
-node - "${TEMP_DIR}/migration-list.json" "${EXPECTED_MIGRATION_COUNT}" <<'NODE'
+node - \
+  "${TEMP_DIR}/migration-list.json" \
+  "${CANONICAL_VERSIONS_FILE}" <<'NODE'
 const fs = require("node:fs");
 
-const [jsonPath, expectedCountText] = process.argv.slice(2);
-const expectedCount = Number(expectedCountText);
+const [jsonPath, expectedVersionsPath] = process.argv.slice(2);
 const payload = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
 const migrations = payload.migrations;
+const expected = fs
+  .readFileSync(expectedVersionsPath, "utf8")
+  .trim()
+  .split("\n");
 
 if (!Array.isArray(migrations)) {
   throw new Error("Supabase CLI did not return a migrations array.");
 }
 
-const expected = Array.from(
-  { length: expectedCount },
-  (_, index) => String(index + 1).padStart(3, "0"),
-);
 const local = migrations.map((row) => row.local).filter(Boolean);
 const applied = migrations.map((row) => row.remote).filter(Boolean);
 
@@ -182,12 +239,14 @@ for (const [label, actual] of [
     actual.some((version, index) => version !== expected[index])
   ) {
     throw new Error(
-      `${label} migration history must be contiguous from 001 through 039; found ${actual.join(", ")}`,
+      `${label} migration history must match canonical ${expected.join(", ")}; found ${actual.join(", ")}`,
     );
   }
 }
 NODE
 
 printf 'Supabase CLI %s reset the disposable local database successfully.\n' "${actual_cli_version}"
-printf 'Verified %s contiguous canonical/applied migrations ending at 039; no seed data was loaded.\n' \
-  "${EXPECTED_MIGRATION_COUNT}"
+printf 'Verified %s contiguous canonical/applied migrations ending at %s; no seed data was loaded.\n' \
+  "${expected_migration_count}" \
+  "${expected_last_migration}"
+printf 'Verified local PostgREST exposes platform but excludes platform_private and pgmq_public.\n'

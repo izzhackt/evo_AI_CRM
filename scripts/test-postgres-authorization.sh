@@ -40,18 +40,25 @@ done < <(
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
 )
 
-# The production migration process may safely retry a migration after an
-# interrupted deploy. Exercise the hardening migration twice before assertions.
+# Exercise the retained 038/039 hardening migrations after 040, then rerun 040.
+# This catches both legacy regressions and an interrupted-deploy retry.
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
   -f /workspace/supabase/migrations/038_authorization_containment.sql
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
   -f /workspace/supabase/migrations/039_private_inbox_media.sql
+docker exec "$container_name" \
+  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+  -f /workspace/supabase/migrations/040_platform_namespaces_and_secret_containment.sql
 
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
   -f /workspace/supabase/tests/authorization_policies.sql
+
+docker exec "$container_name" \
+  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+  -f /workspace/supabase/tests/platform_grants.sql
 
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \

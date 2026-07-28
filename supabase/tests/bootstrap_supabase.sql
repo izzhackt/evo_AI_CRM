@@ -56,6 +56,28 @@ CREATE PUBLICATION supabase_realtime;
 
 GRANT USAGE ON SCHEMA public, auth, storage TO anon, authenticated, service_role;
 
+-- Model a provider-owned Supabase Queues API surface that exists before the
+-- application migrations run. Migration 040 must remove browser access without
+-- taking service_role access away from provider workers.
+CREATE SCHEMA pgmq_public;
+CREATE TABLE pgmq_public.queue_probe (
+  id BIGINT PRIMARY KEY
+);
+CREATE SEQUENCE pgmq_public.queue_probe_sequence;
+CREATE FUNCTION pgmq_public.queue_probe()
+RETURNS INTEGER
+LANGUAGE SQL
+AS $$
+  SELECT 1
+$$;
+GRANT USAGE ON SCHEMA pgmq_public TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE pgmq_public.queue_probe
+  TO anon, authenticated, service_role;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE pgmq_public.queue_probe_sequence
+  TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION pgmq_public.queue_probe()
+  TO anon, authenticated, service_role;
+
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public

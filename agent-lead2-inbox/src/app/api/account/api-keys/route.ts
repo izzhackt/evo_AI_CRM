@@ -5,11 +5,12 @@
 //   POST — mint a new key.
 //
 // These are the *dashboard* endpoints for managing keys, so they
-// authenticate the normal way (cookie session) and go through the
-// RLS client. Listing is open to any member (viewer+) — the roster
-// is not secret; the secret (the key itself) is never in it. Minting
-// is admin+ (a key hands out capabilities), enforced by both
-// `requireRole('admin')` here and the `api_keys_insert` RLS policy.
+// authenticate the normal way (cookie session), resolve the caller's
+// account, and then use an account-scoped service-role store. Listing
+// is open to any member (viewer+) because the roster is not secret; the
+// secret (the key itself) is never stored in the list response. Minting
+// is admin+ because a new key hands out capabilities, enforced before
+// the account-scoped insert runs.
 //
 // IMPORTANT: the plaintext key is returned exactly ONCE, in the POST
 // response. We persist only its SHA-256 hash, so neither GET nor any
@@ -24,6 +25,10 @@ import {
   requireRole,
   toErrorResponse,
 } from '@/lib/auth/account';
+import {
+  createAccountApiKey,
+  listAccountApiKeys,
+} from '@/lib/api-keys/admin-store';
 import { generateApiKey } from '@/lib/api-keys/keys';
 import { normalizeScopes } from '@/lib/api-keys/scopes';
 import {
@@ -37,22 +42,13 @@ const MAX_NAME_LEN = 80;
 // invite-link clamp. NULL/absent = never expires.
 const MAX_EXPIRY_DAYS = 365;
 
-// Columns safe to expose. `key_hash` is deliberately excluded — it
-// never leaves the server.
-const SAFE_COLUMNS =
-  'id, name, key_prefix, scopes, last_used_at, expires_at, revoked_at, created_at';
-
 export async function GET() {
   try {
-    // Any member can view the roster (RLS allows it); we just need a
-    // resolved account context.
+    // Any member can view the roster once the caller's account context
+    // has been resolved.
     const ctx = await getCurrentAccount();
 
-    const { data, error } = await ctx.supabase
-      .from('api_keys')
-      .select(SAFE_COLUMNS)
-      .eq('account_id', ctx.accountId)
-      .order('created_at', { ascending: false });
+    const { data, error } = await listAccountApiKeys(ctx.accountId);
 
     if (error) {
       console.error('[GET /api/account/api-keys] fetch error:', error);
@@ -123,19 +119,15 @@ export async function POST(request: Request) {
 
     const { plaintext, hash, prefix } = generateApiKey();
 
-    const { data, error } = await ctx.supabase
-      .from('api_keys')
-      .insert({
-        account_id: ctx.accountId,
-        created_by: ctx.userId,
-        name: rawName,
-        key_prefix: prefix,
-        key_hash: hash,
-        scopes,
-        expires_at: expiresAt,
-      })
-      .select(SAFE_COLUMNS)
-      .single();
+    const { data, error } = await createAccountApiKey({
+      accountId: ctx.accountId,
+      userId: ctx.userId,
+      name: rawName,
+      keyPrefix: prefix,
+      keyHash: hash,
+      scopes,
+      expiresAt,
+    });
 
     if (error || !data) {
       console.error('[POST /api/account/api-keys] insert error:', error);

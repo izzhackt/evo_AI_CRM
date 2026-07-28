@@ -7,7 +7,7 @@ const h = vi.hoisted(() => ({
   requireRole: vi.fn(),
   checkRateLimit: vi.fn(),
   integrationsAdminClient: vi.fn(),
-  loadAiConfig: vi.fn(),
+  loadAiConfigForAccount: vi.fn(),
   buildConversationContext: vi.fn(),
   retrieveKnowledgeWithEvidence: vi.fn(),
   recordAiDraftAudit: vi.fn(),
@@ -33,7 +33,9 @@ vi.mock('@/lib/rate-limit', () => ({
   ),
 }))
 
-vi.mock('@/lib/ai/config', () => ({ loadAiConfig: h.loadAiConfig }))
+vi.mock('@/lib/ai/config', () => ({
+  loadAiConfigForAccount: h.loadAiConfigForAccount,
+}))
 vi.mock('@/lib/ai/context', () => ({
   buildConversationContext: h.buildConversationContext,
 }))
@@ -86,7 +88,7 @@ function supabaseForConversation(row: { id: string } | null) {
 
 beforeEach(() => {
   h.checkRateLimit.mockReturnValue({ success: true })
-  h.loadAiConfig.mockResolvedValue(aiConfig())
+  h.loadAiConfigForAccount.mockResolvedValue(aiConfig())
   h.buildConversationContext.mockResolvedValue([
     { role: 'user', content: 'Do you help with universities in Italy?' },
   ])
@@ -108,7 +110,7 @@ beforeEach(() => {
 
 describe('POST /api/ai/draft', () => {
   it('returns an explicit missing-config error before generating', async () => {
-    h.loadAiConfig.mockResolvedValue(null)
+    h.loadAiConfigForAccount.mockResolvedValue(null)
 
     const response = await POST(request({ conversation_id: 'conv-1' }))
     const json = await response.json()

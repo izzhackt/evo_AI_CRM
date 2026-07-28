@@ -5,6 +5,7 @@
 - Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 - P2A starting checkpoint: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
 - P2B starting checkpoint: `8ad755b5039390f418dbe12924a806f069f93b53`
+- P2C starting checkpoint: `0d38a8bb36fa423de14467f798141fac199ab047`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Evidence rule: code/configuration is not real-provider proof
@@ -21,9 +22,10 @@ WhatsApp → amoCRM → Platform → AI draft → manual send → ACK → audit 
 
 | Область | Подтверждённый факт | Граница утверждения |
 |---|---|---|
-| P0/P1/P2 contract | P0, P1A–P1D и P2 decomposition merged в PR #75–#81 | это не provider/cutover proof |
+| P0/P1/P2 contract | P0, P1A–P1D, P2 decomposition и P2A/P2B merged в PR #75–#82 и #85 | это не provider/cutover proof |
 | P2A repository baseline | PR #82 controller-merged как `8ad755b5039390f418dbe12924a806f069f93b53`; root `supabase/` — единственный migration source; 001–039 перенесены byte-identically, checksum manifest и local reset проверяют history | exact-main push CI `30362128826` зелёный; managed Supabase не связан |
-| P2B schema/grants | migration 040 создаёт только `platform`/`platform_private`, закрывает browser secret grants и переводит активные AI/API-key consumers на account-scoped backend stores | доказан repository/disposable PostgreSQL/local PostgREST; remote migration не применялась |
+| P2B schema/grants | PR #85 controller-merged как `0d38a8bb36fa423de14467f798141fac199ab047`; migration 040 создаёт только `platform`/`platform_private`, закрывает browser secret grants и переводит активные AI/API-key consumers на account-scoped backend stores | exact-main push CI [run 30387286021](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30387286021) зелёный; доказан repository/disposable PostgreSQL/local PostgREST, remote migration не применялась |
+| P2C identity/RBAC candidate | текущая branch-кандидатура добавляет migration 041: organizations, Auth-linked profiles, ровно пять Platform roles, live versioned authorization, record scopes, append-only audit и узкие audited RPC | real local Auth/PostgREST reset, disposable PostgreSQL/RLS и unchanged-app gates зелёные; PR ещё не controller-merged, managed/production migration не выполнялась |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до cutover и 72-hour soak |
@@ -36,6 +38,8 @@ WhatsApp → amoCRM → Platform → AI draft → manual send → ACK → audit 
 [`p2a-supabase-repository-baseline.md`](p2a-supabase-repository-baseline.md).
 Доказательства P2B:
 [`p2b-schema-grant-containment.md`](p2b-schema-grant-containment.md).
+Текущий P2C evidence contract:
+[`p2c-identity-rbac-audit.md`](p2c-identity-rbac-audit.md).
 
 ## Принятый target, ещё не cut over
 
@@ -46,7 +50,8 @@ WhatsApp → amoCRM → Platform → AI draft → manual send → ACK → audit 
 - один dedicated production Supabase project хранит собственные Platform data,
   а dev/staging/preview изолированы;
 - root `supabase/` — единственный repository migration source; P2A сохраняет
-  001–039 byte-for-byte, а P2B добавляет forward-only migration 040;
+  001–039 byte-for-byte, P2B добавляет migration 040, а текущий P2C candidate —
+  forward-only migration 041;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;
@@ -61,10 +66,10 @@ WhatsApp → amoCRM → Platform → AI draft → manual send → ACK → audit 
 - legacy Lead Agent удаляется только после реального cutover и минимум 72
   фактических часов стабильного трафика.
 
-## Локальные P2 доказательства после P2B, которых пока нет
+## Локальные P2 доказательства после P2C, которых пока нет
 
-- explicit schema grants и полный five-role/cross-org/two-student RLS denial
-  matrix для будущих Platform domain tables;
+- admissions, documents, finance и communications domain-table grants с полным
+  five-role/cross-org/two-student RLS denial matrix;
 - real local Supabase Queues/PGMQ retry/dedupe behavior;
 - real local private Storage API/policy behavior;
 - isolated database restore и отдельный Storage-object restore;
@@ -114,9 +119,9 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-После merge P2B следующий gate — P2C: создать Platform organizations,
-identity links, business roles/scopes и append-only audit, затем доказать
-полный cross-role/cross-org denial matrix. P2C–P2I идут строго
+После controller merge P2C следующий gate — P2D: добавить student/admissions
+domain slice, Admin-only Curator assignment, contract handoff и portal gating
+с cross-role/cross-org/two-student denial matrix. P2D–P2I идут строго
 последовательно. Каждый slice требует отдельный PR, независимый SHA-bound
 review и точные tests. Production cutover остаётся отдельным авторизованным
 событием.

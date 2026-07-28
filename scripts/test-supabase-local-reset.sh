@@ -5,6 +5,7 @@ set -Eeuo pipefail
 export LC_ALL=C
 export DO_NOT_TRACK=1
 export SUPABASE_TELEMETRY_DISABLED=1
+umask 077
 
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly SUPABASE_CLI="${REPO_ROOT}/node_modules/.bin/supabase"
@@ -12,9 +13,13 @@ readonly SUPABASE_PROJECT_ID="evo-platform-local"
 readonly EXPECTED_CLI_VERSION="2.110.0"
 readonly MIGRATIONS_DIR="${REPO_ROOT}/supabase/migrations"
 readonly POSTGREST_CONTAINER="supabase_rest_${SUPABASE_PROJECT_ID}"
-readonly EXCLUDED_SERVICES="gotrue,realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
-readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2b.XXXXXX")"
+readonly DATABASE_CONTAINER="supabase_db_${SUPABASE_PROJECT_ID}"
+readonly EXCLUDED_SERVICES="realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
+readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2c.XXXXXX")"
 readonly CANONICAL_VERSIONS_FILE="${TEMP_DIR}/canonical-versions.txt"
+readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
+lock_acquired=false
+stack_owned=false
 
 cleanup() {
   local exit_code=$?
@@ -24,13 +29,18 @@ cleanup() {
 
   # The project ID is explicit: never use `supabase stop --all`, and never stop
   # an unrelated local Supabase stack.
-  if [[ -x "${SUPABASE_CLI}" ]]; then
+  if [[ "${stack_owned}" == true && -x "${SUPABASE_CLI}" ]]; then
     "${SUPABASE_CLI}" \
       --workdir "${REPO_ROOT}" \
       stop \
       --project-id "${SUPABASE_PROJECT_ID}" \
       --no-backup \
       >"${TEMP_DIR}/stop.log" 2>&1
+  fi
+
+  if [[ "${lock_acquired}" == true ]]; then
+    rm -f -- "${LOCK_DIR}/pid"
+    rmdir -- "${LOCK_DIR}" 2>/dev/null
   fi
 
   rm -rf -- "${TEMP_DIR}"
@@ -126,6 +136,13 @@ docker_endpoint="$(
 
 docker info >/dev/null 2>&1 \
   || fail "The local Docker engine is not running."
+
+if ! mkdir -- "${LOCK_DIR}" 2>/dev/null; then
+  fail "Another evo-platform-local reset owns ${LOCK_DIR}; refusing to stop its stack."
+fi
+lock_acquired=true
+printf '%s\n' "$$" >"${LOCK_DIR}/pid"
+stack_owned=true
 
 # Remove only a stale stack with this exact project ID so the run begins from
 # clean volumes. Output is suppressed because Supabase may print local secrets.
@@ -245,8 +262,27 @@ for (const [label, actual] of [
 }
 NODE
 
+if ! "${SUPABASE_CLI}" \
+  --workdir "${REPO_ROOT}" \
+  status \
+  --output json \
+  >"${TEMP_DIR}/status.json" 2>"${TEMP_DIR}/status.log"; then
+  fail "Unable to read disposable local Supabase status; credential-bearing output was withheld."
+fi
+
+if ! node \
+  "${REPO_ROOT}/scripts/test-supabase-auth-hook.mjs" \
+  "${TEMP_DIR}/status.json" \
+  "${DATABASE_CONTAINER}"; then
+  fail "Local Supabase Auth/PostgREST hook smoke failed."
+fi
+
+[[ ! -e "${TEMP_DIR}/status.json" ]] \
+  || fail "Auth smoke did not delete the credential-bearing local status file."
+
 printf 'Supabase CLI %s reset the disposable local database successfully.\n' "${actual_cli_version}"
 printf 'Verified %s contiguous canonical/applied migrations ending at %s; no seed data was loaded.\n' \
   "${expected_migration_count}" \
   "${expected_last_migration}"
 printf 'Verified local PostgREST exposes platform but excludes platform_private and pgmq_public.\n'
+printf 'Verified real local Auth hook claims, refresh invalidation and PostgREST RLS with synthetic users.\n'

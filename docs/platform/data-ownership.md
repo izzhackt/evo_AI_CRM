@@ -90,6 +90,13 @@ Components повторно проверяют authorization на record/object 
 и server authorization через `getClaims()`; `getSession()` не считается
 достаточным доверенным доказательством identity.
 
+P2C claims `platform_role` и `platform_access_version` действительны только
+вместе с live active profile, organization, membership, published
+role-matched permission bundle и record scope. Любое изменение authority
+увеличивает server-owned access version; старый token после этого должен
+получить zero rows до refresh. `service_role` не получает blanket direct DML к
+Platform business tables: backend использует только узкие audited RPC grants.
+
 Browser получает publishable key и безопасную session информацию. Supabase
 secret/service-role, WAHA, amoCRM и AI provider secrets в browser bundle,
 client logs или committed files запрещены.

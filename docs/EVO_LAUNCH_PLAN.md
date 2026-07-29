@@ -1,11 +1,13 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-long-run` is active. Historical P1 containment is
-complete. Reusable greenfield P2A-P2H foundation is merged through current
-checkpoint `b10d72863230aba646bcc8f2acafdc76c27b3fe1`; P2I restore duties move
-to P7 and do not block the thin slice. This docs-only amendment is the active
-gate; P3 thin messaging behind the accepted unified frontend starts only after
-its merge. Updated 2026-07-30 in the workspace timezone.
+Status: `/goal-evo-platform-business-workflows` is active. Historical P1
+containment and reusable greenfield P2A-P2H foundation are merged. The
+greenfield/UI boundary merged in PR #93 at checkpoint
+`26115344909261a39bbe591f3b835cda4b7e5068`; P2I restore duties remain in P7.
+`BW0` is the active docs-only business-workflow amendment. P3 thin messaging
+behind the accepted unified frontend remains the first implementation block
+after BW0; BW1 starts only after P3C and the single-PR gate are clear. Updated
+2026-07-30 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 The current detailed contract is
@@ -17,10 +19,10 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active slice: `/goal-evo-platform-long-run`, Block
-`EVO-GREENFIELD-UI-PLAN-2026-07-30`, docs-only greenfield/UI/data-boundary
-amendment. Post-merge slice: P3 implementation behind the existing unified
-frontend.
+Active slice: `/goal-evo-platform-business-workflows`, Block
+`EVO-BW0-BUSINESS-WORKFLOW-PLAN-2026-07-30`, docs-only workflow amendment.
+Post-merge slice: P3 implementation behind the existing unified frontend;
+BW1 follows P3C through the same repositories, authorization and audit seams.
 
 ### Goal
 
@@ -33,10 +35,13 @@ The existing unified frontend from PRs #64/#71/#72 is the sole product UI
 contract and must be wired through repository/session seams, not replaced or
 paralleled. AI remains draft-only with human manual send.
 
-This amendment changes documentation only. It records that P1 is historical
-legacy containment, P2A-P2H are reusable greenfield foundation, P2I restore
-duties move to P7, and the next product slice is thin messaging rather than
-broad backend parity. It changes no code, SQL, provider or production state.
+This amendment changes documentation only. It converts the verified Ultimate
+EVO discovery into a normalized OP lifecycle, common OZO/admissions lifecycle,
+versioned country overlays, Student Profile, checklist/template/contract-draft,
+catalog/import, Q&A decision-backlog and Lead Manager knowledge/prompt
+contracts. It separates confirmed requirements from reversible assumptions and
+defines BW1-BW7 dependencies without changing code, SQL, provider or production
+state.
 
 ### Reconciled baseline
 
@@ -52,8 +57,8 @@ checkpoint is:
 - P2A canonical migration authority merged in PR #82.
 - P2B-P2H merged sequentially on `main`; this amendment recognizes them as
   reusable greenfield foundation rather than the active product slice.
-- Exact current checkpoint for this amendment is
-  `b10d72863230aba646bcc8f2acafdc76c27b3fe1`.
+- PR #93 merged the greenfield/UI boundary and exact current checkpoint for
+  this amendment is `26115344909261a39bbe591f3b835cda4b7e5068`.
 - Root `/whatsapp` remains a SQLite `wa_*` shadow surface with P1D
   authorization containment. It is not the unified communications backend;
   the greenfield application seam starts in P3 and real provider completion
@@ -78,23 +83,72 @@ checkpoint is:
 
 ### Immediate execution order
 
-1. Keep the current unified frontend and design language as the only UI.
-2. P3A wires `/login` and the staff shell through Supabase-native verified
-   sessions and five-role authorization.
-3. P3B wires `/whatsapp` and `/whatsapp/[id]` through Supabase conversation
-   repositories; P3C adds draft review/manual-send/outbox/audit state with
-   provider calls fail-closed.
-4. Limit reused product capability to operator messaging only.
-5. Defer real amoCRM proof to P4, real WAHA/AI/ACK proof to P5, and broad
-   Student 360, broader CRM parity and restore duties to later
-   gated phases.
+0. Merge BW0 as a docs-only launch-control gate. It does not authorize
+   application code.
+1. Keep P3A-P3C as the first implementation sequence under the sole accepted
+   frontend: P3A Supabase-native verified sessions/RBAC; P3B real conversation
+   repositories for `/whatsapp` and `/whatsapp/[id]`; P3C
+   draft-review/manual-send/outbox/audit state with provider calls fail-closed.
+2. Start BW1 only after P3C is merged and no other implementation PR is open.
+3. Deliver BW1-BW7 sequentially; inspect open PR/migration ownership before
+   each block and never duplicate P3/P4/P5 platform/provider seams.
+4. Defer real amoCRM proof to P4 and real WAHA/AI/ACK proof to P5. Workflow
+   blocks may consume their contracts but cannot claim provider success.
+
+### Business-workflow scope
+
+- OP active stages: new, contacting, qualified, meeting scheduled, meeting
+  completed, potential and contract signed. No-answer/no-show are follow-up
+  outcomes; event/collaboration values are source/deal metadata; closure
+  requires an explicit result and reason. amoCRM mappings remain
+  account-specific and canonical.
+- OZO uses one common admissions lifecycle with independent application,
+  document, visa, finance, housing, insurance and travel statuses. China,
+  Italy, Czech/Poland, UAE/Turkey and Malaysia are versioned overlays, not
+  separate applications.
+- Student Profile uses a minimized country-neutral core plus versioned
+  country-specific requirements. Sensitive documents use the private document
+  path only.
+- Requirements/checklists, prompt/knowledge, Q&A decisions, catalogs/imports,
+  document templates and generated contracts are versioned, source-aware and
+  approval-gated. Generated contracts remain drafts until authorized staff
+  approval.
+- University import is blocked while the linked Notion workspace is
+  inaccessible. Colleges and Accounting/Bema remain discovery gaps rather than
+  invented modules.
+- AI remains RU/EN draft-only with human review/edit/manual send. Kyrgyz or
+  uncertain language requires manual language selection.
+- Linked Google Docs/Sheets/Drive/PDF/Notion inputs are discovery/import
+  sources, never the runtime database or a public dependency. No customer PII,
+  folder names or documents may enter Git, fixtures or logs.
+
+### Business-workflow acceptance
+
+- BW1 proves versioned source/provenance and normalized domain contracts
+  without PII.
+- BW2 proves OP/OZO actions through real repositories, RLS, permissions and
+  audit behind the existing frontend, with no localStorage or demo fallback.
+- BW3 proves Student Profile and country checklists across staff and portal,
+  including cross-student denial and historical overlay-version retention.
+- BW4 proves approved prompt/knowledge and decision lifecycle, draft-only
+  messaging, RU/EN and the manual-language failure path.
+- BW5 performs no real catalog import until authorized source access exists;
+  staging/validation/rejection must not auto-publish.
+- BW6 proves typed approved-field contract generation, draft/approval
+  separation, immutable versions and audit.
+- BW7 proves the complete local/staging Supabase workflow through the accepted
+  frontend. It does not imply production/provider readiness without real
+  authorized service exercise.
 
 ### Merge-order boundary
 
-Business-workflow specifics from the later OP/OZO/Student Profile/country
-overlay discovery require a separate sequential docs-only amendment rebased on
-this contract. That later amendment must reuse the same Supabase foundation and
-existing frontend and must not open a competing plan PR.
+BW0 is that required separate sequential business-workflow amendment, rebased
+on merged PR #93. It changes no implementation ownership. P3 owns common
+session/repository seams, P4 owns amoCRM adapter behavior, P5 owns real
+WAHA/AI/ACK proof, and P7 owns whole-foundation restore/reliability evidence.
+BW1-BW7 consume those seams and cannot open while another implementation PR is
+active. Shared migrations are selected only after fetching current main and
+checking open ownership; merged migrations are immutable.
 - `crm.evoadmissions.com` and `inbox.evoadmissions.com` have no DNS answer.
   The fallback CRM URL responds.
 - The original checkout's modified Malaysia knowledge-base document and

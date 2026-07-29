@@ -7,14 +7,15 @@ Initial kickoff baseline: GitHub `origin/main` at
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 `docs/PLAN_CHANGES.md`, and superseding ADRs including ADR 0016
 
-Execution checkpoint: historical P1 containment is complete, and reusable
-greenfield P2A-P2H foundation work is merged through current `origin/main`
-checkpoint `b10d72863230aba646bcc8f2acafdc76c27b3fe1`. Former P2I restore duties
-move to P7 and do not block the first thin vertical slice. This docs-only
-greenfield/UI amendment is the active gate. After it is independently reviewed
-and merged, P3 becomes active: one thin messaging slice behind the accepted
-unified frontend, followed by bounded amoCRM/WAHA/AI proof and broader Student
-360 later.
+Execution checkpoint: historical P1 containment and reusable greenfield
+P2A-P2H foundation work are merged. The greenfield/UI boundary is merged
+through PR #93 at current `origin/main` checkpoint
+`26115344909261a39bbe591f3b835cda4b7e5068`; former P2I restore duties remain
+in P7. `BW0` is the active docs-only gate that adds the business-workflow
+contract discovered from the Ultimate EVO document. After BW0 is independently
+reviewed and merged, P3 remains the next implementation block: one thin
+messaging slice behind the accepted unified frontend. Business-workflow
+implementation starts only after P3C merges and the single-PR gate is free.
 
 ## 1. Outcome and truth boundary
 
@@ -61,7 +62,7 @@ and rollback proof are real. No fixed-duration soak is required by contract.
 As of the version date:
 
 - GitHub `main` checkpoint for this amendment is
-  `b10d72863230aba646bcc8f2acafdc76c27b3fe1`;
+  `26115344909261a39bbe591f3b835cda4b7e5068`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -85,8 +86,10 @@ do not silently change production.
 After this amendment merges, implementation priority is intentionally narrow:
 
 1. P3 thin messaging slice behind the existing unified frontend.
-2. Bounded amoCRM/WAHA/AI proof for that slice.
-3. Broader Student 360 and non-messaging operational domains later.
+2. BW1 business-workflow/domain contracts after P3C, using the same
+   Supabase-native repositories, authorization and audit seams.
+3. Bounded amoCRM/WAHA/AI proof and the later BW2-BW7 workflow slices,
+   one independently reviewed PR at a time.
 
 This contract explicitly defers broad infra perfection, broad restore proof,
 and broad backend parity work that do not change thin-slice product truth.
@@ -144,6 +147,87 @@ and broad backend parity work that do not change thin-slice product truth.
   raw-event persistence, buffering/jobs, amoCRM resolution, notes/tasks
   mapping, handoff, retry/dead-letter and reconciliation. Active auto-reply
   logic must not be absorbed.
+
+### 3.4 Business workflow contract
+
+Source boundary:
+
+- Discovery input is the Ultimate EVO Google Doc and its accessible subtabs:
+  <https://docs.google.com/document/d/1-ZrRawX2gdCmwz-vq8vYEBXnzSDVC-10wUeCuPhwlaA/edit>.
+  It was reviewed read-only on 2026-07-30. GitHub remains runtime and
+  implementation authority.
+- Linked Drive/Sheets/PDF/Notion resources are source-aware import inputs, not
+  Platform databases or public runtime dependencies. Source URL, source
+  version/revision when available, review status, reviewer role and reviewed-at
+  timestamp must be preserved. Customer rows, student folder names and
+  sensitive documents must not enter Git, fixtures or logs.
+- The linked China checklist is a 21-page operational source. It may seed a
+  draft country overlay only with owner-review metadata and must not be
+  represented as current legal, university or consular authority.
+- The linked university Notion catalog requires AbdyldaYT workspace sign-in.
+  University import is blocked until authorized access and verified records
+  exist. Colleges has no confirmed source data and remains empty.
+
+Confirmed requirements:
+
+- OP is the sales lifecycle governed by amoCRM. Canonical active stages are
+  `new`, `contacting`, `qualified`, `meeting_scheduled`, `meeting_completed`,
+  `potential` and `contract_signed`. `no_answer` and
+  `meeting_not_attended` are active follow-up outcomes, not terminal lifecycle
+  states. Event/collaboration labels are sources or deal types. Closure uses
+  explicit won/lost state plus a reason; legacy columns are mapped per account
+  and are not copied blindly into Platform enums.
+- A confirmed contract creates the audited OP-to-OZO handoff. The handoff
+  records approved commercial fields, unresolved questions, promises already
+  made, next step, due date and responsible role. Contract confirmation is not
+  inferred from chat text.
+- OZO uses one common admissions lifecycle:
+  `intake`, `profile_and_route`, `documents`, `applications`, `decisions`,
+  `visa_and_predeparture`, `arrival_and_adaptation`, `completed` or `closed`.
+  University applications, document slots, visa, finance, housing, insurance
+  and travel keep their own statuses; country-specific amoCRM columns do not
+  become separate hardcoded applications.
+- China, Italy, Czech/Poland, UAE/Turkey and Malaysia are versioned country
+  overlays of requirements, templates, rules and checklist items. Each overlay
+  records source provenance and approval state and can be retired without
+  rewriting historical student cases.
+- Student Profile has a country-neutral minimum core: preferred/legal display
+  names where required, contact and communication language, date of birth only
+  where required, citizenship/residency, current education, target
+  country/level/program/intake, academic/language summary, budget band,
+  decision participants, consent and next step. Sensitive identifiers or files
+  are collected only when a versioned requirement needs them and through the
+  private document path.
+- Document requirements create case-specific checklist slots with owner, due
+  date, status, correction reason and evidence. A checklist item never proves a
+  document valid merely because a file exists.
+- Contract templates use only approved, typed fields. Generated contracts and
+  post-contract reports are versioned drafts until authorized staff approval;
+  generation and approval are audited.
+- Q&A is a versioned decision backlog with question, answer, owner role,
+  status, source/evidence, affected requirement and effective version.
+  Unanswered questions remain visibly unresolved and cannot be converted into
+  silent defaults.
+- Lead Manager system prompt, business context and country knowledge are
+  separately versioned and approved. AI produces RU/EN drafts only; Kyrgyz or
+  uncertain language requires manual language selection. Staff review/edit and
+  manual send remain mandatory.
+- Finance remains the already-approved obligations/payments/refunds evidence
+  surface. Empty Accounting/Bema input does not authorize a general ledger,
+  tax or bookkeeping subsystem.
+
+Reversible assumptions pending owner evidence:
+
+- Empty OP real-flow slots #1-#4 are represented by the normalized v1 sales
+  lifecycle above, not by invented employee-specific automation.
+- Empty OZO real-flow slots #1-#5 are represented by the common admissions
+  lifecycle and country overlays above.
+- Country overlay changes affect new checklist instantiation by default;
+  existing cases retain their applied version unless an authorized, audited
+  rebase is requested.
+- A source import begins as reviewable staging with validation errors and
+  provenance; it never writes directly into approved catalog/knowledge or
+  student cases.
 
 ## 4. Target technical contract
 
@@ -247,7 +331,8 @@ deployment surfaces are sequential.
 | P0 | Final plan, corrected TZ/DOCX, target ADR and architecture docs | Deterministic DOCX, every page inspected, independent review | Merged in PR #75 |
 | P1 | Current-app role/RBAC/handoff correction | Positive/negative route, action and object-scope tests; explicit visa-user migration report | P1A-P1D merged in PRs #76-#80 |
 | P2 | Reusable Supabase-native foundation | Canonical history, local RLS/queue/Storage evidence, private document contract | P2A-P2H merged; former P2I restore duties transferred to P7 |
-| P3 | Thin Supabase-native messaging slice behind the accepted frontend | Supabase Auth/RBAC, repository seams, real local persistence, conversation list/thread, draft/manual-send state and focused UI E2E | Pending this docs-amendment merge |
+| BW0 | Business-workflow plan amendment | Confirmed/assumed requirements, dependency/file ownership, acceptance and source boundaries; deterministic TZ/DOCX evidence | Active docs-only gate |
+| P3 | Thin Supabase-native messaging slice behind the accepted frontend | Supabase Auth/RBAC, repository seams, real local persistence, conversation list/thread, draft/manual-send state and focused UI E2E | Pending BW0 merge; remains first implementation |
 | P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | Pending |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no legacy cutover yet | Pending |
 | P6 | Admissions, Portal, Documents, Finance, Notifications | Two-student isolation E2E and complete staff-to-portal workflows | Pending |
@@ -255,6 +340,25 @@ deployment surfaces are sequential.
 | P8 | Release/cutover candidate | Frozen snapshot/reconciliation/runbooks and real controlled end-to-end evidence; no production action in this run | Pending |
 | P9 | Bounded cutover evidence and separate Lead Agent retirement PR | Zero unexplained loss/duplicate/drift in the evidence window plus proven rollback and health | Evidence-gated |
 | P10 | Completion audit | Every FR/NFR/SEC/ACC mapped to evidence, full CI/provider proof, no open implementation PR | Pending |
+
+Business workflow is delivered only after the BW0 plan gate and P3C:
+
+| Block | Contract | Dependency and exit evidence |
+| --- | --- | --- |
+| BW1 | Workflow/domain contracts and source registry without PII | P3C merged; next-free forward migration only if schema is required; clean reset, RLS/grant tests, provenance/version tests |
+| BW2 | OP/OZO repositories/actions behind existing Sales, Client and Application screens | BW1; amoCRM remains external sales authority; no localStorage/demo fallback; positive/negative authorization and audit E2E |
+| BW3 | Student Profile and country requirement/checklist workflow | BW2; private Storage foundation; minimization, version retention, cross-student denial and staff/portal E2E |
+| BW4 | Approved knowledge, prompt lifecycle, decision backlog and handoff | BW3 and P3/P5 messaging seams as applicable; draft-only/manual-send proof, RU/EN and manual-language failure path |
+| BW5 | University/college catalog and reviewable import boundary | BW4; source access required for real import; provenance, validation/rejection and no-direct-approval tests |
+| BW6 | Contract draft generation and post-contract checklist/report | BW5; approved typed fields only; authorization, immutable version and audit proof |
+| BW7 | Latest-main integration and end-to-end workflow proof | BW1-BW6; real local/staging Supabase path through the accepted frontend, no production/provider claim without real exercise |
+
+BW1-BW7 must not edit a migration number/schema file owned by another open PR.
+Before every block, fetch `origin/main`, inspect open PRs and select the next
+free migration only after dependency merge. P3 owns common Supabase
+session/repository seams; P4 owns amoCRM adapter behavior; P5 owns real
+WAHA/AI/ACK provider proof. Business workflow blocks consume those seams and
+must not duplicate them.
 
 ### P0 — plan and target architecture
 

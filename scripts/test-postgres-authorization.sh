@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 container_name="evo-platform-authz-$RANDOM-$$"
-postgres_image="${POSTGRES_TEST_IMAGE:-public.ecr.aws/supabase/postgres:17.6.1.143}"
+postgres_image="$("$repo_root/scripts/resolve-postgres-test-image.sh")"
 test_database="evo_platform_authorization"
 p2b_drift_log="$(mktemp -t evo-p2b-owner-drift.XXXXXX)"
 

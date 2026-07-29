@@ -26,14 +26,14 @@ WhatsApp → amoCRM → Platform → AI draft → manual send → ACK → audit 
 
 | Область | Подтверждённый факт | Граница утверждения |
 |---|---|---|
-| P0/P1/P2 contract | P0, P1A–P1D, P2 decomposition и P2A–P2F merged в PR #75–#82 и #85–#89 | это не provider/cutover proof |
+| P0/P1/P2 contract | P0, P1A–P1D, P2 decomposition и P2A–P2G merged в PR #75–#82 и #85–#90 | это не provider/cutover proof |
 | P2A repository baseline | PR #82 controller-merged как `8ad755b5039390f418dbe12924a806f069f93b53`; root `supabase/` — единственный migration source; 001–039 перенесены byte-identically, checksum manifest и local reset проверяют history | exact-main push CI `30362128826` зелёный; managed Supabase не связан |
 | P2B schema/grants | PR #85 controller-merged как `0d38a8bb36fa423de14467f798141fac199ab047`; migration 040 создаёт только `platform`/`platform_private`, закрывает browser secret grants и переводит активные AI/API-key consumers на account-scoped backend stores | exact-main push CI [run 30387286021](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30387286021) зелёный; доказан repository/disposable PostgreSQL/local PostgREST, remote migration не применялась |
 | P2C identity/RBAC | PR #86 controller-merged как `f9bda9cd0554d225211fb9e3d0b1969be262a838`; migration 041 добавляет organizations, Auth-linked profiles, ровно пять Platform roles, live versioned authorization, record scopes, append-only audit и узкие audited RPC | exact-main push CI [run 30392676403](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30392676403) зелёный; managed/production migration не выполнялась |
 | P2D admissions/RLS | PR #87 controller-merged как `a58e5fa5ca24be0d0a30374b6a6e1202c79b7604`; pinned migration 042 добавляет десять FORCE-RLS admissions tables, immutable v2 bundles, pending case, Admin assignment/handoff, scope rotation, multi-application, visa/task state, safe Sales/Student projections и replay-safe audited RPC | exact-main push CI [run 30397295986](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30397295986) зелёный; clean disposable PostgreSQL 001–042 и local Auth/PostgREST matrix доказаны, но real amoCRM mapping, managed/production migration и Portal cutover не доказаны |
 | P2E documents/finance/notifications | PR #88 controller-merged как `aac1cba851e89070a7eb54baab4eddf921e3447c`; migration 043 добавляет 16 FORCE-RLS relations, 18 exact-signature RPC/projections, metadata-only document workflow, manual evidence-backed finance, singular-recipient notification intent и immutable v3 bundles | post-merge exact-main CI [30402311903](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30402311903) зелёный; binary Storage/scanner, Queue/provider delivery, managed apply и production не доказаны |
 | P2F communications/provider/AI | PR #89 controller-merged как `8567455f281fa157fb088970db1c2a2397850843`; pinned migration 044 содержит 10 exposed + 2 private tables и 19 functions для unified history/provider evidence/draft-only AI/manual authorization | post-merge exact-main CI [30407638837](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30407638837) зелёный для Main CRM, EVO Inbox и EVO Lead Agent; Queue/Storage, live-provider/delivery, managed apply и production не доказаны |
-| P2G durable work candidate | frozen migration `045_platform_durable_work_queues.sql`: 3,425 lines, 91,620 bytes, SHA-256 `a657c32c3dadec369b54157914a229b112c58beb395ee4a2ae99025d804723a2`; 5 private + 2 FORCE-RLS Admin-review tables, 16 functions, two fixed pointer-only PGMQ queues | disposable Supabase PG17 log `f4efe1bc…` and local CLI reset log `1575a5e8…` are green, including concurrency/rollback/VT/same-message retry/DLQ/dedupe and manual-send crash→unknown/no-DLQ; independent review, exact-head CI and merge are still pending; no provider/managed/production proof |
+| P2G durable work | PR #90 controller-merged как `a9bd811eda00d39a09997647fa8c2f98e87a1c3d`; frozen migration `045_platform_durable_work_queues.sql`: 3,425 lines, 91,620 bytes, SHA-256 `a657c32c3dadec369b54157914a229b112c58beb395ee4a2ae99025d804723a2`; 5 private + 2 FORCE-RLS Admin-review tables, 16 functions, two fixed pointer-only PGMQ queues | disposable Supabase PG17 log `f4efe1bc…`, local CLI reset `1575a5e8…`, independent SHA-bound review и exact-head PR CI зелёные; post-merge Main CRM дважды был остановлен до tests внешним ECR rate limit, поэтому текущий remediation добавляет immutable official-mirror fallback; no provider/managed/production proof |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до cutover и 72-hour soak |
@@ -54,7 +54,7 @@ P2E merged contract and evidence ledger:
 [`p2e-documents-finance-notifications.md`](p2e-documents-finance-notifications.md).
 P2F merged communications contract:
 [`p2f-communications-contracts.md`](p2f-communications-contracts.md).
-P2G candidate Queue contract:
+P2G merged Queue contract:
 [`p2g-durable-work-queues.md`](p2g-durable-work-queues.md).
 
 ## Принятый target, ещё не cut over
@@ -69,8 +69,8 @@ P2G candidate Queue contract:
   001–039 byte-for-byte, P2B добавляет migration 040, P2C — migration 041,
   merged P2D — pinned forward-only migration 042, merged P2E — migration 043,
   merged P2F — exact checksum-pinned migration 044 для
-  communications/provider/AI database contracts, а frozen P2G candidate —
-  migration 045 для real local PGMQ work/retry/reconciliation;
+  communications/provider/AI database contracts, а merged P2G — migration
+  045 для real local PGMQ work/retry/reconciliation;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;
@@ -85,11 +85,9 @@ P2G candidate Queue contract:
 - legacy Lead Agent удаляется только после реального cutover и минимум 72
   фактических часов стабильного трафика.
 
-## P2F и следующие доказательства, которых пока нет
+## P2H и следующие доказательства, которых пока нет
 
-- independent SHA-bound review frozen migration 044, exact-head CI, controller
-  merge и post-merge exact-main CI;
-- real local Supabase Queues/PGMQ retry/dedupe behavior;
+- green exact-main Main CRM gate после registry-fallback remediation;
 - real local private Storage API/policy behavior;
 - isolated database restore и отдельный Storage-object restore;
 - proof, что ни один browser bundle не содержит service-role/provider secret.
@@ -138,14 +136,15 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — замороженный P2G candidate: real local Supabase Queues/PGMQ,
-durable outbox/attempt/idempotency/dead-letter/reconciliation state и
-отрицательная RLS/ACL matrix уже зелёные локально. Unknown delivery и
-истёкший ambiguous manual-send lease немедленно покидают active queue и
-остаются только в manual-review state; они не могут автоматически попасть в
-retry или dead-letter consumer. Теперь P2G требует независимый SHA-bound
-review, exact-head CI, controller merge и post-merge exact-main CI.
-Binary Storage/scanner относится к следующему P2H, а live provider/delivery не
+P2G schema/retry evidence, independent review, exact-head CI и controller merge
+завершены. Его post-merge Main CRM job дважды остановил внешний
+`public.ecr.aws` rate limit до запуска PostgreSQL harness в
+[run 30411476319](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30411476319/attempts/2);
+Inbox и Lead Agent прошли. Текущий gate — minimal CI remediation: тот же
+immutable Supabase PostgreSQL digest получает bounded fallback между
+официальными ECR, GHCR и Docker Hub mirrors, после чего exact-main gate должен
+стать зелёным.
+Следующий продуктовый block — P2H private Storage; live provider/delivery не
 доказывается P2G. Production cutover остаётся отдельным авторизованным событием.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой

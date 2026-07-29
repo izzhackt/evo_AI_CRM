@@ -159,6 +159,16 @@ The migration-specific gates are green:
   same Queue runtime: log SHA-256
   `1575a5e8b01668bc485cc400fdbedb25b89be00a05ef1c6f6ba8cdef2c9c6eb2`.
 
+The disposable PostgreSQL harness pins the multi-architecture Supabase
+PostgreSQL 17.6.1.143 index at digest
+`sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453`.
+It tries the official public ECR, GHCR and Docker Hub mirrors once each, in
+that order, without changing content. This bounded fallback follows the
+[current Supabase CLI registry strategy](https://github.com/supabase/cli/blob/88ce7fcaf14e042ffb112190d597ca7e5573818d/apps/cli/src/legacy/shared/legacy-docker-registry.ts)
+and prevents one public registry throttle from bypassing or weakening the
+authorization gate. An explicit `POSTGRES_TEST_IMAGE` override remains a
+single fail-closed candidate.
+
 Both gates used only synthetic `example.invalid` identities and disposable
 local containers/stacks. Independent SHA-bound review, exact-head CI and the
 full repository gates remain required before controller merge.

@@ -25,9 +25,10 @@ The block does not:
 - define document deletion or retention while DEC-012 remains open;
 - prove Storage-object restore, which belongs to P2I.
 
-The root application remains fail-closed until P3 supplies its Supabase SSR and
-repository boundary. P2H is a real local platform-foundation proof, not a
-frontend or production-provider claim.
+The legacy root SQLite/custom-auth CRM remains a separate reference system and
+is not a migration source or target dependency for P2H. P2H is a real local
+greenfield Platform-foundation proof, not a frontend or production-provider
+claim.
 
 ## Bucket contract
 

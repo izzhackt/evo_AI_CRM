@@ -64,6 +64,10 @@ const platformQueuesMigration = readFileSync(
   join(migrationsDir, '045_platform_durable_work_queues.sql'),
   'utf8'
 )
+const platformDocumentStorageMigration = readFileSync(
+  join(migrationsDir, '046_platform_private_document_storage.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -79,9 +83,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves containment and advances through the P2G candidate boundary', () => {
+  it('preserves containment and advances through the P2H candidate boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '045_platform_durable_work_queues.sql'
+      '046_platform_private_document_storage.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -116,6 +120,131 @@ describe('Supabase companion schema contract', () => {
     )
     expect(supabaseConfig).not.toMatch(
       /schemas\s*=.*(?:platform_private|pgmq_public)/
+    )
+  })
+
+  it('declares one private Platform document bucket and service-only download signing', () => {
+    const bucketDeclarations = Array.from(
+      supabaseConfig.matchAll(/^\[storage\.buckets\.([^\]]+)\]$/gm),
+      (match) => match[1]
+    )
+
+    expect(bucketDeclarations).toEqual(['platform-documents'])
+    expect(supabaseConfig).toMatch(
+      /\[storage\.buckets\.platform-documents\]\s*public\s*=\s*false\s*file_size_limit\s*=\s*"25MiB"\s*allowed_mime_types\s*=\s*\["application\/pdf",\s*"image\/jpeg",\s*"image\/png"\]/m
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /CREATE\s+TABLE\s+platform_private\.document_upload_reservations/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /CREATE\s+TABLE\s+platform_private\.document_storage_bindings/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /CREATE\s+TABLE\s+platform_private\.document_upload_finalizations/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /CREATE\s+TABLE\s+platform_private\.document_download_grants/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /CREATE\s+TABLE\s+platform_private\.document_download_consumptions/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.reserve_document_upload\s*\(\s*p_organization_id\s+UUID,\s*p_document_slot_id\s+UUID,\s*p_original_filename\s+TEXT,\s*p_declared_mime_type\s+TEXT,\s*p_byte_size\s+BIGINT,\s*p_sha256_hex\s+TEXT,\s*p_request_id\s+UUID\s*\)/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.finalize_document_upload\s*\(\s*p_organization_id\s+UUID,\s*p_upload_reservation_id\s+UUID,\s*p_request_id\s+UUID\s*\)[\s\S]*service_role is required to finalize a document upload[\s\S]*FROM\s+storage\.objects[\s\S]*object_row\.created_at\s*>\s*reservation\.expires_at[\s\S]*UPDATE\s+platform\.document_slots[\s\S]*INSERT\s+INTO\s+platform_private\.document_upload_finalizations/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /SELECT\s+COALESCE\s*\(\s*MAX\s*\(\s*version\.version_no\s*\),\s*0\s*\)\s*\+\s*1[\s\S]*FROM\s+platform\.document_versions\s+AS\s+version/i
+    )
+    expect(platformDocumentStorageMigration).not.toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.reserve_document_upload[\s\S]*?UPDATE\s+platform\.document_slots[\s\S]*?CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.finalize_document_upload/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.grant_document_download\s*\(\s*p_organization_id\s+UUID,\s*p_document_version_id\s+UUID,\s*p_access_purpose\s+TEXT,\s*p_expires_in_seconds\s+INTEGER,\s*p_request_id\s+UUID\s*\)/i
+    )
+    const downloadGrantFunction =
+      platformDocumentStorageMigration.match(
+        /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.grant_document_download[\s\S]*?END\s*\$\$;/i
+      )?.[0] ?? ''
+    expect(downloadGrantFunction).toMatch(
+      /SELECT\s+\*\s+INTO\s+case_row\s+FROM\s+platform\.student_cases\s+AS\s+student_case[\s\S]*?FOR\s+UPDATE;[\s\S]*?SELECT\s+\*\s+INTO\s+version_row\s+FROM\s+platform\.document_versions\s+AS\s+version[\s\S]*?version\.student_case_id\s*=\s*case_row\.id[\s\S]*?FOR\s+UPDATE;[\s\S]*?Re-evaluate record scope after both locks/i
+    )
+    expect(downloadGrantFunction).not.toMatch(
+      /FOR\s+UPDATE\s+OF\s+version,\s*student_case/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /char_length\s*\(\s*btrim\s*\(\s*p_original_filename\s*\)\s*\)\s*>\s*255[\s\S]*octet_length\s*\(\s*btrim\s*\(\s*p_original_filename\s*\)\s*\)\s*>\s*1024/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /char_length\s*\(\s*btrim\s*\(\s*p_access_purpose\s*\)\s*\)\s*>\s*255[\s\S]*octet_length\s*\(\s*btrim\s*\(\s*p_access_purpose\s*\)\s*\)\s*>\s*1024/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /VALIDATE\s+CONSTRAINT\s+document_versions_original_filename_size_check[\s\S]*VALIDATE\s+CONSTRAINT\s+document_access_events_purpose_size_check/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /actor_hourly_limit\s+CONSTANT\s+INTEGER\s*:=\s*60[\s\S]*slot_hourly_limit\s+CONSTANT\s+INTEGER\s*:=\s*12[\s\S]*'A document upload is already in progress'[\s\S]*ERRCODE\s*=\s*'PT409'[\s\S]*'Document upload request limit reached'[\s\S]*ERRCODE\s*=\s*'PT429'/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /reservation\.expires_at\s*>\s*reservation_created_at[\s\S]*FROM\s+platform_private\.document_upload_finalizations\s+AS\s+finalization[\s\S]*finalization\.upload_reservation_id\s*=\s*reservation\.id/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /actor_hourly_limit\s+CONSTANT\s+INTEGER\s*:=\s*120[\s\S]*'A document download grant is already active'[\s\S]*ERRCODE\s*=\s*'PT409'[\s\S]*'Document download request limit reached'[\s\S]*ERRCODE\s*=\s*'PT429'/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /'evo:p2h:upload-actor:'[\s\S]*p_organization_id::TEXT[\s\S]*actor\.actor_auth_user_id::TEXT/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /'evo:p2h:download-actor:'[\s\S]*p_organization_id::TEXT[\s\S]*actor\.actor_auth_user_id::TEXT/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /WHERE\s+reservation\.organization_id\s*=\s*p_organization_id\s+AND\s+reservation\.uploader_auth_user_id\s*=\s*actor\.actor_auth_user_id[\s\S]*reservation\.created_at\s*>/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /WHERE\s+download_grant\.organization_id\s*=\s*p_organization_id\s+AND\s+download_grant\.grantee_auth_user_id\s*=\s*actor\.actor_auth_user_id[\s\S]*download_grant\.created_at\s*>/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /require_domain_actor\s*\(\s*p_organization_id,\s*'document\.upload'\s*\)[\s\S]*FROM\s+platform\.document_slots\s+AS\s+slot[\s\S]*'Document is unavailable'[\s\S]*ERRCODE\s*=\s*'42501'/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /require_domain_actor\s*\(\s*p_organization_id,\s*'document\.download'\s*\)[\s\S]*FROM\s+platform\.document_versions\s+AS\s+version[\s\S]*'Document is unavailable'[\s\S]*ERRCODE\s*=\s*'42501'/i
+    )
+    const reservedUploadPolicyHelper =
+      platformDocumentStorageMigration.match(
+        /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+private\.platform_can_upload_reserved_document[\s\S]*?\n\$\$;/i
+      )?.[0] ?? ''
+    expect(reservedUploadPolicyHelper).not.toMatch(
+      /slot\.current_version_id\s*=\s*reservation\.document_version_id/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /result\s*:=\s*jsonb_build_object\s*\(\s*'document_download_grant_id',\s*grant_id,\s*'expires_at',\s*grant_expires_at,\s*'signed_url',\s*NULL,\s*'storage_api_service_sign_required',\s*TRUE\s*\);/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.consume_document_download_grant\s*\(\s*p_document_download_grant_id\s+UUID,\s*p_request_id\s+UUID\s*\)[\s\S]*REVOKE\s+ALL\s+ON\s+FUNCTION\s+platform\.consume_document_download_grant\s*\(\s*UUID,\s*UUID\s*\)\s+FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role,\s*supabase_auth_admin[\s\S]*GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.consume_document_download_grant\s*\(\s*UUID,\s*UUID\s*\)\s+TO\s+service_role/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /'max_signed_url_expires_in_seconds',\s*remaining_seconds[\s\S]*'signed_url',\s*NULL[\s\S]*'storage_api_service_sign_required',\s*TRUE/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /CREATE\s+POLICY\s+"Platform document reserved upload"[\s\S]*FOR\s+INSERT\s+TO\s+authenticated[\s\S]*bucket_id\s*=\s*'platform-documents'[\s\S]*storage\.allow_only_operation\s*\(\s*'storage\.object\.upload'\s*\)/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /DROP\s+POLICY\s+IF\s+EXISTS\s+"Platform document audited single sign"\s+ON\s+storage\.objects/i
+    )
+    expect(platformDocumentStorageMigration).not.toMatch(
+      /CREATE\s+POLICY\s+[^;]*\s+ON\s+storage\.objects[^;]*\s+FOR\s+SELECT\b[^;]*;/i
+    )
+    expect(platformDocumentStorageMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.document_storage_backup_inventory\s*\(\s*\)\s*RETURNS\s+TABLE\s*\(\s*organization_id\s+UUID,\s*document_version_id\s+UUID,\s*student_case_id\s+UUID,\s*document_slot_id\s+UUID,\s*bucket_id\s+TEXT,\s*object_name\s+TEXT,\s*storage_object_id\s+UUID,\s*binding_present\s+BOOLEAN,\s*storage_object_present\s+BOOLEAN,\s*expected_byte_size\s+BIGINT,\s*expected_sha256_hex\s+TEXT,\s*storage_reported_byte_size\s+BIGINT,\s*inventory_state\s+TEXT,\s*binding_created_at\s+TIMESTAMPTZ\s*\)[\s\S]*GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.document_storage_backup_inventory\s*\(\s*\)\s+TO\s+service_role/i
+    )
+    expect(platformDocumentStorageMigration).not.toMatch(
+      /\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+storage\.(?:buckets|objects)\b/i
+    )
+    expect(platformDocumentStorageMigration).not.toMatch(
+      /document_storage_backup_inventory[\s\S]*RETURNS\s+TABLE\s*\([^)]*(?:original_filename|signed_url|token)/i
+    )
+    expect(platformDocumentStorageMigration).not.toMatch(
+      /CREATE\s+POLICY[\s\S]*FOR\s+(?:UPDATE|DELETE)[\s\S]*platform-documents/i
     )
   })
 

@@ -128,7 +128,9 @@ CREATE TABLE storage.buckets (
 CREATE TABLE storage.objects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   bucket_id TEXT NOT NULL REFERENCES storage.buckets(id),
-  name TEXT NOT NULL
+  name TEXT NOT NULL,
+  metadata JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp()
 );
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
@@ -141,6 +143,48 @@ AS $$
   SELECT (string_to_array(name, '/'))[
     1:GREATEST(array_length(string_to_array(name, '/'), 1) - 1, 0)
   ]
+$$;
+
+-- Provider-compatible operation context used by current Supabase Storage RLS.
+-- Storage API sets storage.operation for each request; direct SQL gets NULL.
+CREATE OR REPLACE FUNCTION storage.operation()
+RETURNS TEXT
+LANGUAGE plpgsql
+STABLE
+AS $$
+BEGIN
+  RETURN current_setting('storage.operation', true);
+END
+$$;
+
+CREATE OR REPLACE FUNCTION storage.allow_only_operation(
+  expected_operation TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+AS $$
+  WITH current_operation AS (
+    SELECT storage.operation() AS raw_operation
+  ),
+  normalized AS (
+    SELECT
+      CASE
+        WHEN raw_operation LIKE 'storage.%' THEN substr(raw_operation, 9)
+        ELSE raw_operation
+      END AS current_operation,
+      CASE
+        WHEN expected_operation LIKE 'storage.%'
+          THEN substr(expected_operation, 9)
+        ELSE expected_operation
+      END AS requested_operation
+    FROM current_operation
+  )
+  SELECT CASE
+    WHEN requested_operation IS NULL OR requested_operation = '' THEN FALSE
+    ELSE COALESCE(current_operation = requested_operation, FALSE)
+  END
+  FROM normalized
 $$;
 
 CREATE EXTENSION IF NOT EXISTS vector;

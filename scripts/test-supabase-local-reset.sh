@@ -14,9 +14,11 @@ readonly EXPECTED_CLI_VERSION="2.110.0"
 readonly MIGRATIONS_DIR="${REPO_ROOT}/supabase/migrations"
 readonly POSTGREST_CONTAINER="supabase_rest_${SUPABASE_PROJECT_ID}"
 readonly DATABASE_CONTAINER="supabase_db_${SUPABASE_PROJECT_ID}"
-readonly EXCLUDED_SERVICES="realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
-readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2c.XXXXXX")"
+readonly EXCLUDED_SERVICES="realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
+readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2h.XXXXXX")"
 readonly CANONICAL_VERSIONS_FILE="${TEMP_DIR}/canonical-versions.txt"
+# Keep the established cross-checkout namespace: older repository revisions
+# use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
 lock_acquired=false
 stack_owned=false
@@ -67,6 +69,22 @@ show_safe_failure_log() {
       | tail -n 80 \
       >&2
   fi
+}
+
+show_safe_database_deadlock_log() {
+  local database_log="${TEMP_DIR}/database.log"
+  local deadlock_log="${TEMP_DIR}/database-deadlock.log"
+
+  if ! docker logs "${DATABASE_CONTAINER}" >"${database_log}" 2>&1; then
+    return
+  fi
+
+  awk '
+    /deadlock detected/ { capture = 1 }
+    capture && $0 ~ /deadlock detected|DETAIL:|HINT:|CONTEXT:/ { print }
+  ' "${database_log}" >"${deadlock_log}"
+
+  show_safe_failure_log "${deadlock_log}"
 }
 
 [[ -x "${SUPABASE_CLI}" ]] \
@@ -174,6 +192,16 @@ if ! "${SUPABASE_CLI}" \
   fail "Local Supabase reset failed."
 fi
 
+if ! "${SUPABASE_CLI}" \
+  --workdir "${REPO_ROOT}" \
+  seed buckets \
+  --local \
+  >"${TEMP_DIR}/seed-buckets.log" 2>&1; then
+  # Bucket seeding can include local API coordinates. Keep its raw output in
+  # the mode-0700 temporary directory and report only the bounded stage.
+  fail "Declarative local Storage bucket seeding failed; output was withheld."
+fi
+
 if ! postgrest_environment="$(
   docker inspect \
     --format '{{range .Config.Env}}{{println .}}{{end}}' \
@@ -262,23 +290,50 @@ for (const [label, actual] of [
 }
 NODE
 
+readonly AUTH_STATUS_FILE="${TEMP_DIR}/auth-status.json"
+: >"${AUTH_STATUS_FILE}"
+chmod 600 "${AUTH_STATUS_FILE}"
+
 if ! "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   status \
   --output json \
-  >"${TEMP_DIR}/status.json" 2>"${TEMP_DIR}/status.log"; then
+  >"${AUTH_STATUS_FILE}" 2>"${TEMP_DIR}/auth-status.log"; then
   fail "Unable to read disposable local Supabase status; credential-bearing output was withheld."
 fi
 
 if ! node \
   "${REPO_ROOT}/scripts/test-supabase-auth-hook.mjs" \
-  "${TEMP_DIR}/status.json" \
+  "${AUTH_STATUS_FILE}" \
   "${DATABASE_CONTAINER}"; then
   fail "Local Supabase Auth/PostgREST hook smoke failed."
 fi
 
-[[ ! -e "${TEMP_DIR}/status.json" ]] \
+[[ ! -e "${AUTH_STATUS_FILE}" ]] \
   || fail "Auth smoke did not delete the credential-bearing local status file."
+
+readonly STORAGE_STATUS_FILE="${TEMP_DIR}/storage-status.json"
+: >"${STORAGE_STATUS_FILE}"
+chmod 600 "${STORAGE_STATUS_FILE}"
+
+if ! "${SUPABASE_CLI}" \
+  --workdir "${REPO_ROOT}" \
+  status \
+  --output json \
+  >"${STORAGE_STATUS_FILE}" 2>"${TEMP_DIR}/storage-status.log"; then
+  fail "Unable to read disposable local Storage status; credential-bearing output was withheld."
+fi
+
+if ! node \
+  "${REPO_ROOT}/scripts/test-p2h-storage-api.mjs" \
+  "${STORAGE_STATUS_FILE}" \
+  "${DATABASE_CONTAINER}"; then
+  show_safe_database_deadlock_log
+  fail "Real local private Storage API/policy gate failed."
+fi
+
+[[ ! -e "${STORAGE_STATUS_FILE}" ]] \
+  || fail "Storage gate did not delete the credential-bearing local status file."
 
 if ! bash \
   "${REPO_ROOT}/scripts/test-p2g-queues-runtime.sh" \
@@ -288,9 +343,11 @@ if ! bash \
 fi
 
 printf 'Supabase CLI %s reset the disposable local database successfully.\n' "${actual_cli_version}"
-printf 'Verified %s contiguous canonical/applied migrations ending at %s; no seed data was loaded.\n' \
+printf 'Verified %s contiguous canonical/applied migrations ending at %s; no application seed or production data was loaded.\n' \
   "${expected_migration_count}" \
   "${expected_last_migration}"
 printf 'Verified local PostgREST exposes platform but excludes platform_private and pgmq_public.\n'
 printf 'Verified real local Auth hook claims, refresh invalidation and PostgREST RLS with synthetic users.\n'
+printf 'Verified real local private Storage API policy, exact size/MIME, reservation, attestation, service-only one-time signing grant and object hash contract with synthetic users.\n'
+printf 'Storage evidence is local API/policy proof only; it does not prove a malware provider, managed Supabase or production.\n'
 printf 'Verified real local PGMQ claims, visibility, retries, terminal unknown handling and dead-letter evidence.\n'

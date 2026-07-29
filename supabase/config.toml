@@ -62,6 +62,11 @@ file_size_limit = "50MiB"
 [storage.s3_protocol]
 enabled = true
 
+[storage.buckets.platform-documents]
+public = false
+file_size_limit = "25MiB"
+allowed_mime_types = ["application/pdf", "image/jpeg", "image/png"]
+
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:3000"

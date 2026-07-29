@@ -3,12 +3,12 @@
 ## Единая платформа автоматизации EVO Admissions
 
 **Идентификатор документа:** EVO-PLATFORM-TZ-001
-**Версия:** 1.3
+**Версия:** 1.4
 **Статус:** действующий контракт repository-реализации; production-gates
 остаются отдельными
 **Дата:** 30 июля 2026 года
-**Базовая версия репозитория:** `b10d72863230aba646bcc8f2acafdc76c27b3fe1`
-**Текущий execution checkpoint:** `b10d72863230aba646bcc8f2acafdc76c27b3fe1`
+**Базовая версия репозитория:** `26115344909261a39bbe591f3b835cda4b7e5068`
+**Текущий execution checkpoint:** `26115344909261a39bbe591f3b835cda4b7e5068`
 **Язык документа:** русский
 
 > **Назначение документа.** Это ТЗ является контрактом на последующую
@@ -27,11 +27,11 @@
 | Владелец бизнес-процессов | Должность Business Process Owner |
 | Технический владелец | Должность Technical Owner |
 | Разработчик | Команда реализации EVO Platform |
-| Объект автоматизации | Greenfield Supabase-native EVO Platform behind the accepted unified frontend; first delivery slice focuses on operator messaging, canonical amoCRM context, AI draft/manual send, audit and minimal integration health |
+| Объект автоматизации | Greenfield Supabase-native EVO Platform behind the accepted unified frontend; first delivery slice focuses on operator messaging, followed by normalized OP/OZO workflows, versioned country overlays and Student 360 |
 | Формат согласования | SHA-bound review, должностное решение по открытым gates и audit evidence |
 | Источник бренда | `docs/company/brand/evo-admissions-logobook.pdf` |
 | Принятый preset | `standard_business_brief` |
-| Текущий checkpoint | P0 и P1A–P1D merged; reusable P2A–P2H foundation merged through `b10d72863230aba646bcc8f2acafdc76c27b3fe1`; former P2I recovery duties moved to P7; this docs amendment gates the thin Supabase-native messaging slice |
+| Текущий checkpoint | P0 и P1A–P1D merged; reusable P2A–P2H foundation and greenfield/UI boundary PR #93 merged through `26115344909261a39bbe591f3b835cda4b7e5068`; BW0 gates the business-workflow lane while P3 remains the first implementation |
 
 > **Главная граница.** amoCRM остаётся источником истины для контакта, лида,
 > ответственного sales manager и стадии продаж. Один dedicated production
@@ -186,6 +186,11 @@ unrelated settings исключены из первого delivery slice.
   `TZ_Platforma_avtomatizacii_OZO.docx`; оригинальный binary отсутствует в
   чистом worktree и в любом случае является context, а не authority;
 - ограниченная read-only проверка открытой amoCRM 23 июля 2026 года.
+- read-only проверка 39 tabs Ultimate EVO Google Doc 30 июля 2026 года,
+  accessible 21-page China checklist и только metadata linked admissions
+  Sheet/Drive; student rows/folder names/files не читались и не копировались;
+- blocked university Notion catalog: доступ требует sign-in в workspace
+  AbdyldaYT, поэтому records не выдуманы и import не считается доступным.
 
 Операционный screenshot amoCRM с именами сотрудников и реальными показателями
 не включён в документ, чтобы не распространять персональные и внутренние
@@ -837,6 +842,31 @@ sub-block существующего unified frontend; это не перено�
 | FR-089 | Student должен управлять profile/security в утверждённом объёме без изменения canonical staff fields. | MUST | Authorization test |
 | FR-090 | Portal desktop/tablet/mobile должны сохранять функциональную полноту и доступность. | MUST | Responsive + Axe |
 
+### 13.10 OP/OZO business workflows
+
+| ID | Требование | Приоритет | Проверка |
+| --- | --- | --- | --- |
+| FR-091 | OP должен использовать небольшой canonical lifecycle `new`, `contacting`, `qualified`, `meeting_scheduled`, `meeting_completed`, `potential`, `contract_signed`; account-specific amoCRM mapping остаётся внешним authority. | MUST | Mapping contract + lifecycle tests |
+| FR-092 | `no_answer` и `meeting_not_attended` должны быть follow-up outcomes, event/collaboration values — source/deal metadata, а closure — отдельный result с обязательной reason. | MUST | Transition/validation tests |
+| FR-093 | Подтверждённый договор должен создавать audited OP→OZO handoff из approved commercial fields, unresolved questions, promises, next step, deadline и responsible role; chat text не подтверждает договор автоматически. | MUST | Authorization + audit E2E |
+| FR-094 | OZO должен использовать один common admissions lifecycle: intake, profile/route, documents, applications, decisions, visa/predeparture, arrival/adaptation, completed/closed. | MUST | Domain transition tests |
+| FR-095 | Application, document, visa, finance, housing, insurance и travel должны иметь независимые статусы и не сводиться в один country pipeline stage. | MUST | Multi-workstream E2E |
+| FR-096 | China, Italy, Czech/Poland, UAE/Turkey и Malaysia должны быть versioned country overlays с source URL/version/review status/reviewer role/reviewed-at. | MUST | Provenance/version tests |
+| FR-097 | Existing case сохраняет applied overlay version; обновление применяется к новым checklist по умолчанию, а rebase требует отдельного authorized audited action. | MUST | Historical version test |
+| FR-098 | Student Profile должен иметь minimized country-neutral core и versioned country requirements; unnecessary sensitive fields запрещены. | MUST | Data-minimization review |
+| FR-099 | Sensitive identifiers/files собираются только по approved requirement через private document path, а не через обычный chat, Git, fixtures или logs. | MUST | Security/PII guard |
+| FR-100 | Country requirements должны создавать case-specific checklist slots с owner, due date, status, correction reason и evidence; наличие файла не означает validation. | MUST | Checklist/review E2E |
+| FR-101 | Templates и generated contracts используют только typed approved fields; output остаётся versioned draft до authorized staff approval и audit. | MUST | Generation/approval tests |
+| FR-102 | Post-contract checklist/report должен фиксировать delivered/open items, evidence, owner и next action без неподтверждённых claims. | MUST | Workflow E2E |
+| FR-103 | Q&A должен быть versioned decision backlog с answer, owner role, status, evidence/source, affected requirement и effective version; unanswered entries остаются unresolved. | MUST | Decision lifecycle tests |
+| FR-104 | System prompt, business context и country knowledge должны version/approve/retire независимо и иметь citations в AI draft. | MUST | Knowledge/prompt contract test |
+| FR-105 | AI создаёт только RU/EN draft; Kyrgyz или uncertain language требует manual language selection, human review/edit и manual send. | MUST | Language failure-path E2E |
+| FR-106 | University/college import проходит через reviewable staging, validation и approval; source record не пишет напрямую в approved catalog/student case. | MUST | Import isolation tests |
+| FR-107 | University import остаётся blocked пока Notion workspace недоступен; empty colleges не заполняются fake records. | MUST | Blocked-source acceptance |
+| FR-108 | Sheets/Drive/PDF/Notion остаются discovery/import sources, не runtime database/public dependency; customer PII не попадает в repository evidence. | MUST | Architecture + PII audit |
+| FR-109 | Accounting/Bema не создаёт новый ledger; Finance v1 остаётся obligations/payments/refunds/evidence/audit. | MUST | Scope and route review |
+| FR-110 | Все OP/OZO/Profile/checklist/catalog/contract flows используют существующий unified frontend и real Supabase repositories/actions/RLS/audit без parallel UI, localStorage или demo fallback. | MUST | Existing-route real-backend E2E |
+
 ## 14. Требования к интеграциям
 
 | ID | Требование | Приоритет | Проверка |
@@ -1103,6 +1133,28 @@ Exit P3: local thin-slice E2E behind the accepted frontend, real local Supabase
 authorization/persistence, fail-closed provider states и code rollback. Real
 amoCRM mapping belongs to P4; real WAHA receive/send/ACK and AI-provider proof,
 bounded reconciliation and provider rollback readiness belong to P5/P8.
+
+### BW0-BW7. Business-workflow lane
+
+BW0 — docs-only plan gate. Он не разрешает application code. P3A-P3C остаются
+первой implementation sequence; BW1 начинается только после P3C и при
+отсутствии другого implementation PR.
+
+1. BW1 — normalized workflow/domain/source contracts без PII.
+2. BW2 — OP/OZO repositories/actions за существующими screens.
+3. BW3 — Student Profile и versioned country checklists.
+4. BW4 — approved prompt/knowledge, Q&A decision backlog и handoff.
+5. BW5 — university/college catalog и reviewable import boundary; real import
+   blocked без authorized source access.
+6. BW6 — generated contract draft и post-contract checklist/report с approval
+   и audit.
+7. BW7 — latest-main integration и полный real local/staging Supabase E2E через
+   accepted frontend.
+
+P3 владеет common session/repository seams, P4 — amoCRM adapter, P5 — real
+WAHA/AI/ACK proof, P7 — restore/reliability. BW blocks используют эти seams и
+не дублируют их. Shared migration number выбирается только после проверки
+latest `origin/main` и open PR ownership.
 
 ### P4. Canonical amoCRM adapter
 
@@ -1472,6 +1524,7 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | SRC-SUPA | Официальные Supabase Branching, RLS/RBAC, Storage, Queues, SSR, Vault, Realtime и backup contracts из раздела 31.1 |
 | SRC-SEC | `AGENTS.md`, server authorization code, security migrations/tests и правила хранения secrets |
 | SRC-GAP | Явные противоречия, недостающие владельцы/policies и открытые решения, зафиксированные в `docs/PLAN_CHANGES.md`, production audits и разделе 24 |
+| SRC-ULTIMATE | Ultimate EVO Google Doc и accessible linked workflow/checklist metadata, проверенные read-only 2026-07-30; Drive/Sheets customer rows/files исключены |
 
 ### 31.4 Поэлементная матрица происхождения требований
 
@@ -1572,6 +1625,26 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | FR-088 | SRC-OZO; SRC-BIZ; SRC-UI; SRC-SEC |
 | FR-089 | SRC-OZO; SRC-BIZ; SRC-UI; SRC-SEC |
 | FR-090 | SRC-OZO; SRC-BIZ; SRC-UI; SRC-SEC |
+| FR-091 | SRC-ULTIMATE; SRC-OWNER; SRC-AMO; SRC-BIZ |
+| FR-092 | SRC-ULTIMATE; SRC-OWNER; SRC-AMO; SRC-BIZ |
+| FR-093 | SRC-ULTIMATE; SRC-OWNER; SRC-ARCH; SRC-SEC |
+| FR-094 | SRC-ULTIMATE; SRC-OWNER; SRC-OZO; SRC-BIZ |
+| FR-095 | SRC-ULTIMATE; SRC-OWNER; SRC-OZO; SRC-ARCH |
+| FR-096 | SRC-ULTIMATE; SRC-OWNER; SRC-BIZ; SRC-SEC |
+| FR-097 | SRC-ULTIMATE; SRC-OWNER; SRC-SUPA; SRC-SEC |
+| FR-098 | SRC-ULTIMATE; SRC-OWNER; SRC-OZO; SRC-SEC |
+| FR-099 | SRC-ULTIMATE; SRC-OWNER; SRC-SUPA; SRC-SEC |
+| FR-100 | SRC-ULTIMATE; SRC-OWNER; SRC-OZO; SRC-SUPA |
+| FR-101 | SRC-ULTIMATE; SRC-OWNER; SRC-BIZ; SRC-SEC |
+| FR-102 | SRC-ULTIMATE; SRC-OWNER; SRC-OZO; SRC-BIZ |
+| FR-103 | SRC-ULTIMATE; SRC-OWNER; SRC-GAP; SRC-SEC |
+| FR-104 | SRC-ULTIMATE; SRC-OWNER; SRC-LEAD; SRC-SEC |
+| FR-105 | SRC-ULTIMATE; SRC-OWNER; SRC-LEAD; SRC-INBOX |
+| FR-106 | SRC-ULTIMATE; SRC-OWNER; SRC-SUPA; SRC-SEC |
+| FR-107 | SRC-ULTIMATE; SRC-GAP; SRC-SEC |
+| FR-108 | SRC-ULTIMATE; SRC-OWNER; SRC-ARCH; SRC-SEC |
+| FR-109 | SRC-ULTIMATE; SRC-OWNER; SRC-BIZ; SRC-GAP |
+| FR-110 | SRC-ULTIMATE; SRC-OWNER; SRC-UI; SRC-SUPA |
 | INT-001 | SRC-OWNER; SRC-ARCH; SRC-AMO; SRC-LEAD |
 | INT-002 | SRC-OWNER; SRC-ARCH; SRC-AMO; SRC-LEAD |
 | INT-003 | SRC-OWNER; SRC-ARCH; SRC-AMO; SRC-LEAD |
@@ -1708,7 +1781,7 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | Technical Owner | architecture, security, bounded cutover/rollback и later RPO/RTO targets | review + DEC-009/010/017 evidence |
 | Operations Owner | sanitized test sender number, `evo-inbox` QR recovery, bounded evidence window и release window | DEC-007/017 evidence |
 
-**Решение по версии 1.3:** repository-реализация по текущему phased contract
+**Решение по версии 1.4:** repository-реализация по текущему phased contract
 разрешена после merge соответствующих docs amendments. Production mutation и
 provider acceptance разрешаются только соответствующим evidence gate.
 

@@ -11,7 +11,8 @@
 - P2F starting checkpoint: `aac1cba851e89070a7eb54baab4eddf921e3447c`
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
-- Current amendment checkpoint: `b10d72863230aba646bcc8f2acafdc76c27b3fe1`
+- Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
+- Current BW0 amendment checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -29,8 +30,10 @@ AI draft → manual send → ACK → audit ни разу не доказан end
 platform нельзя называть production-complete.
 
 Приоритет реализации смещён: P1 остаётся историческим legacy containment,
-P2A–P2H считаются reusable foundation, а следующий продуктовый block — P3 thin
-messaging slice behind the existing unified frontend. P2I restore duties moved
+P2A–P2H считаются reusable foundation, PR #93 фиксирует sole accepted frontend
+и greenfield data boundary, а BW0 сейчас добавляет business-workflow contract.
+Следующий implementation block остаётся P3 thin messaging slice; BW1 может
+начаться только после P3C и свободного single-PR gate. P2I restore duties moved
 to P7 and no longer block the thin slice.
 
 ## Что подтверждено из репозитория
@@ -46,6 +49,8 @@ to P7 and no longer block the thin slice.
 | P2F communications/provider/AI | PR #89 controller-merged как `8567455f281fa157fb088970db1c2a2397850843`; pinned migration 044 содержит 10 exposed + 2 private tables и 19 functions для unified history/provider evidence/draft-only AI/manual authorization | post-merge exact-main CI [30407638837](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30407638837) зелёный для Main CRM, EVO Inbox и EVO Lead Agent; Queue/Storage, live-provider/delivery, managed apply и production не доказаны |
 | P2G durable work | PR #90 controller-merged как `a9bd811eda00d39a09997647fa8c2f98e87a1c3d`; frozen migration `045_platform_durable_work_queues.sql`: 3,425 lines, 91,620 bytes, SHA-256 `a657c32c3dadec369b54157914a229b112c58beb395ee4a2ae99025d804723a2`; 5 private + 2 FORCE-RLS Admin-review tables, 16 functions, two fixed pointer-only PGMQ queues | disposable Supabase PG17 log `f4efe1bc…`, local CLI reset `1575a5e8…`, independent SHA-bound review и exact-head PR CI зелёные; post-merge Main CRM дважды был остановлен до tests внешним ECR rate limit, поэтому текущий remediation добавляет immutable official-mirror fallback; no provider/managed/production proof |
 | P2H private documents | PR #92 controller-merged как `b10d72863230aba646bcc8f2acafdc76c27b3fe1`; migration 046 — 79,701 bytes, SHA-256 `0bfcbd0f478b4714e347dced2f8220be3c9d28a65807e5485aef1c474983b58f`; private `platform-documents`, reservation/finalization, one-time audited download grants and exact denial matrices | real disposable local Auth/PostgREST/Storage/PGMQ proved; exact-main CI `30490070719` green; managed/production Supabase, malware provider and DB plus Storage restore remain unproved |
+| Greenfield/UI boundary | PR #93 controller-merged как `26115344909261a39bbe591f3b835cda4b7e5068`; root frontend из PR #64/#71/#72 — sole UI, Platform Supabase-native без SQLite/root-auth import, dual-read/write или automatic legacy import | exact-main CI green; это plan boundary, не runtime/provider proof |
+| BW0 business workflows | Ultimate EVO tabs и non-PII linked-source metadata reviewed 2026-07-30; normalized OP/OZO, country overlay, Student Profile, checklist/template/contract, decision backlog и knowledge/prompt contracts сформированы | docs-only amendment; implementation, source import и provider proof ещё не выполнялись |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до bounded cutover evidence and rollback gate |
@@ -150,12 +155,14 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Следующий продуктовый gate — P3 thin messaging slice behind the existing
+Текущий gate — BW0 docs-only workflow amendment. После его merge следующий
+продуктовый gate — P3 thin messaging slice behind the existing
 frontend. P3A заменяет session/auth seam для `/login` и staff shell; P3B
 подключает существующие `/whatsapp` list/thread к Supabase repositories; P3C
 подключает approved-knowledge/draft-review/manual-send/outbox/audit state с
-fail-closed provider health. Реальный amoCRM adapter остаётся P4, реальный
-WAHA/AI/ACK proof — P5. Broader Student 360 and restore duties are later gates.
+fail-closed provider health. BW1 starts only after P3C. Реальный amoCRM adapter
+остаётся P4, реальный WAHA/AI/ACK proof — P5. BW2-BW7 и restore duties идут
+позже через те же seams.
 Production cutover remains a separate authorized event with bounded
 reconciliation/health/rollback evidence.
 

@@ -5,7 +5,7 @@
 Timezone: `Asia/Bishkek`
 
 Base commit до docs-only amendment:
-`b10d72863230aba646bcc8f2acafdc76c27b3fe1`
+`26115344909261a39bbe591f3b835cda4b7e5068`
 
 Канонический источник: `docs/specs/EVO_PLATFORM_TZ.md`
 
@@ -14,8 +14,10 @@ Owner-facing документ: `docs/specs/EVO_PLATFORM_TZ.docx`
 Контекст проверки: docs-only amendment фиксирует greenfield Supabase-native
 Platform, существующий unified frontend как единственный UI-контракт, отсутствие
 автоматического импорта legacy SQLite/root-auth и ускоренный thin messaging
-slice. Product/runtime code, remote apply и production mutation в этот блок не
-входят.
+slice, а также добавляет business-workflow lane OP/OZO, country overlays,
+Student Profile, checklists/templates/contract drafts, decision backlog и
+approved knowledge/prompt lifecycle. Product/runtime code, remote apply и
+production mutation в этот блок не входят.
 
 ## 1. Воспроизводимая сборка
 
@@ -40,26 +42,26 @@ python scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
 
 - Python: `3.12.13`;
 - `python-docx`: `1.2.0`;
-- requirements: `211`;
-- поэлементные traceability rows: `211`;
-- source codes: `13`;
+- requirements: `231`;
+- поэлементные traceability rows: `231`;
+- source codes: `14`;
 - design-evidence images: `6`;
 - official external links: `8`;
-- DOCX structure: `583` paragraphs, `30` tables, `7` inline shapes,
+- DOCX structure: `597` paragraphs, `31` tables, `7` inline shapes,
   `7` drawings с alt text, `8` external hyperlinks;
 - две последовательные сборки DOCX побайтно совпали;
-- LibreOffice → PDF → Poppler PNG: `64` страницы;
+- LibreOffice → PDF → Poppler PNG: `67` страниц;
 - accessibility audit: `0 high / 0 medium / 0 low`;
 - итог:
-  `PASS requirements=211 traceability=211 pages=64 a11y=0/0/0`.
+  `PASS requirements=231 traceability=231 pages=67 a11y=0/0/0`.
 
 Machine-readable evidence находится во временном каталоге:
-`/private/tmp/evo-platform-tz-render-final.RLiTx4`:
+`/private/tmp/evo-platform-tz-render-bw0.qKfkIs`:
 
 - `validation.json`;
 - `accessibility-report.json`;
 - `EVO_PLATFORM_TZ.pdf`;
-- `page-01.png` … `page-64.png`.
+- `page-01.png` … `page-67.png`.
 
 Временные PDF/PNG не коммитятся. Markdown, generator, verifier и закреплённая
 зависимость позволяют воспроизвести evidence.
@@ -68,9 +70,10 @@ Machine-readable evidence находится во временном катал�
 
 | Файл | Размер | SHA-256 |
 |---|---:|---|
-| `docs/specs/EVO_PLATFORM_TZ.md` | `133300` bytes | `69fc757ee15f4f55e51f67411938cc9c20c12f6aac0859c20ab55285c9323675` |
-| `docs/specs/EVO_PLATFORM_TZ.docx` | `1780618` bytes | `f3a4e00199731365404c1bacc9f27afdceffe3b9f8cfe76d7fbccb05f8a78de6` |
+| `docs/specs/EVO_PLATFORM_TZ.md` | `141144` bytes | `9d46f28ebc8c4ae82eff30c13539df4a7df9cc5e84d86e773218ddeeeafd8776` |
+| `docs/specs/EVO_PLATFORM_TZ.docx` | `1784739` bytes | `621e10d0f00425532a8439e14f0c9b4516d27d85c1a04c32bc09b6d6c09fe0d6` |
 | `scripts/generate-evo-platform-tz.py` | `39198` bytes | `ebd0d431ca456fc42492d3e5ab815bde4bc980d295f8db01ffa7ced63b9eb14f` |
+| `scripts/verify-evo-platform-tz.py` | `15754` bytes | `b4228980f03a9add719fd0c2c22dc09917c36121774d3fb6160b14c365c5fd40` |
 
 `validation.json` подтверждает одинаковый DOCX SHA-256 для первой и второй
 сборки.
@@ -80,7 +83,7 @@ Machine-readable evidence находится во временном катал�
 Verifier проверяет:
 
 - полноту и уникальность FR/INT/DATA/SEC/NFR/ACC identifiers;
-- точное соответствие `211` requirements и `211` provenance rows;
+- точное соответствие `231` requirements и `231` provenance rows;
 - наличие всех `13` source codes;
 - локальные изображения, alt text и hyperlinks;
 - отсутствие незаполненных шаблонных полей;
@@ -95,7 +98,7 @@ FR/INT/DATA/SEC/NFR/ACC ID между Markdown и PDF text layer. Diff пуст�
 
 ## 4. Ручная визуальная проверка
 
-Все страницы `1–64` проверены в PNG финального fixed render:
+Все страницы `1–67` проверены в PNG финального fixed render:
 
 - cover, headers, footers и последовательность page numbers корректны;
 - страница `2` содержит намеренный Word TOC placeholder до обновления field в
@@ -116,14 +119,14 @@ area. Generator исправлен безопасными явными page brea
 heading spacing; переполнявшиеся разделы 13.6/13.7, 27.x и 28–32 разделены без
 изменения содержания.
 
-Финальный повторный render подтвердил FR-001–FR-090 и все остальные ID.
-Дополнительно PDF bbox geometry проверена для всех страниц: на страницах 2–64
+Финальный повторный render подтвердил FR-001–FR-110 и все остальные ID.
+Дополнительно PDF bbox geometry проверена для всех страниц: на страницах 2–67
 присутствует точный running header, нет текста левее `55 pt`, и ниже `730 pt`
-находится только ожидаемый footer. Проблемные страницы 26–28 и 49–64
-просмотрены отдельно в original resolution; остальные страницы проверены в
-фиксированных contact sheets, сохраняющих белые поля и границы каждой страницы.
-Финальный повторный verifier после последнего generator-comment change создал
-побайтно идентичные 64 PNG по сравнению с визуально проверенным render.
+находится только ожидаемый footer. Страницы 1–67 просмотрены в фиксированных
+contact sheets, сохраняющих белые поля и границы каждой страницы; страница 8 и
+provenance continuation page 64 дополнительно проверены в original resolution.
+Workflow tables 29–30 и BW execution lane 39–40 также проверены на читаемость.
+Обрезания, наложения, пропавших строк и сломанных glyphs не обнаружено.
 
 Итог ручной проверки: `PASS`.
 
@@ -131,8 +134,9 @@ heading spacing; переполнявшиеся разделы 13.6/13.7, 27.x �
 
 Эта проверка доказывает целостность, воспроизводимость, traceability,
 структурную доступность и визуальную корректность текущего ТЗ и plan amendment.
-После merge она разрешает начать P3 thin Supabase-native messaging slice за
-существующим root frontend.
+После merge она фиксирует BW0 business-workflow contract. P3 thin
+Supabase-native messaging slice остаётся первым implementation block за
+существующим root frontend; BW1 начинается только после P3C.
 
 Она не доказывает:
 

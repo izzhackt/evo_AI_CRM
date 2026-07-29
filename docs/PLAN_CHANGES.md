@@ -3358,3 +3358,117 @@ Validation impact:
 - Update the canonical TZ/DOCX/validation and architecture/status documents,
   but do not change runtime code, migrations, production configuration or
   provider state as part of this amendment.
+
+## 2026-07-30 - Add The Business-Workflow Execution Lane
+
+Date: 2026-07-30, Asia/Bishkek workspace timezone.
+
+Author: Codex.
+
+Block-ID: `EVO-BW0-BUSINESS-WORKFLOW-PLAN-2026-07-30`.
+
+Change type: business workflow, source authority, lifecycle normalization,
+implementation order, dependency/file ownership, acceptance criteria and
+reversible assumptions.
+
+Affected plan section: `/goal-evo-platform-business-workflows`, the active
+launch-control slice after merged PR #93.
+
+Reason:
+
+- PR #93 merged the greenfield Supabase-native data boundary, existing
+  unified-frontend-only UI contract, narrow operator-messaging donor scope and
+  bounded cutover gate at exact `main`
+  `26115344909261a39bbe591f3b835cda4b7e5068`.
+- The Ultimate EVO Google Doc contains current OP/OZO country funnels,
+  post-contract checklist/template needs, Lead Manager prompt/knowledge/handoff
+  material and unresolved operational questions. Its employee OP #1-#4 and OZO
+  #1-#5 real-flow slots, Student Profile, colleges and Accounting/Bema inputs
+  are empty.
+- The business discovery must become a reviewable repository contract before
+  application code, without turning Drive/Sheets/Notion into runtime authority,
+  copying customer PII or creating country-specific hardcoded applications.
+
+Verified source boundary:
+
+- The Ultimate EVO document was inspected read-only on 2026-07-30:
+  <https://docs.google.com/document/d/1-ZrRawX2gdCmwz-vq8vYEBXnzSDVC-10wUeCuPhwlaA/edit>.
+- The linked China checklist is an accessible 21-page source with document
+  requirements and linked examples/templates. It is operational input pending
+  owner review, not proof of current legal/university/consular validity:
+  <https://drive.google.com/file/d/1EKZOzQKli3Ub2tVxsX1qlpRj21kAJ6C9/view>.
+- The linked admissions Sheet was inspected only for workbook and tab metadata
+  (Dubai, Italy 2026, Italy 2027, Poland, China and Czech 2026). Student rows
+  were not read or copied. The linked Drive folder was confirmed accessible
+  without enumerating student folder names or files.
+- The linked university Notion database is blocked behind AbdyldaYT workspace
+  sign-in. No university records were inferred. Colleges has no confirmed data.
+
+Decision:
+
+- Keep the Claude Design-derived root frontend from PRs #64/#71/#72 as the
+  sole UI contract. Do not create a new design system, parallel admin UI,
+  fallback Inbox UI or localStorage/demo data plane.
+- Keep Platform greenfield and Supabase-native from day one: no SQLite/root-auth
+  migration, legacy account/data import, dual-read/dual-write or automatic
+  legacy import.
+- Keep amoCRM canonical for contact, lead, responsible sales manager and sales
+  stage. Normalize OP into a small active lifecycle; treat no-answer/no-show as
+  follow-up outcomes, event/collaboration values as source/deal metadata and
+  closure as an explicit result plus reason.
+- Model OZO as one common admissions lifecycle with independent application,
+  document, visa, finance, housing, insurance and travel statuses. Model China,
+  Italy, Czech/Poland, UAE/Turkey and Malaysia as versioned overlays with
+  source/review metadata.
+- Add a minimized country-neutral Student Profile plus versioned
+  country-specific requirements. Collect sensitive fields/files only when an
+  approved requirement needs them and only through the private document path.
+- Version and approval-gate checklists, templates, generated contract drafts,
+  post-contract reports, prompts, knowledge, Q&A decisions and catalog imports.
+  Generated contracts remain drafts until authorized staff approval.
+- Keep Lead Manager AI RU/EN draft-only with human review/edit/manual send.
+  Kyrgyz or uncertain language fails to manual language selection.
+- Keep Finance limited to already-approved obligations, payments, refunds,
+  evidence and audit. Empty Accounting/Bema input does not authorize a general
+  accounting system.
+- Keep P3A-P3C as the first implementation sequence after BW0. Start BW1 only
+  after P3C merges and the single-PR gate is clear. P3 owns common
+  session/repository seams, P4 amoCRM adapters, P5 real WAHA/AI/ACK proof and P7
+  restore/reliability evidence. BW1-BW7 consume rather than duplicate them.
+
+Reversible assumptions:
+
+- Empty employee real-flow slots use the normalized OP and common OZO v1
+  lifecycles until owner evidence supersedes them.
+- Country overlay updates apply to newly instantiated checklists by default;
+  existing cases retain their applied version unless an authorized audited
+  rebase is requested.
+- Source imports enter reviewable staging and never directly publish approved
+  catalog, knowledge or student-case records.
+
+Implementation and acceptance impact:
+
+- BW1 adds workflow/domain/source contracts without PII.
+- BW2 connects OP/OZO to existing frontend screens through real
+  repositories/actions, RLS, permissions and audit.
+- BW3 adds Student Profile and versioned country checklist workflows.
+- BW4 adds approved prompt/knowledge, decision backlog and handoff.
+- BW5 adds catalog/import boundaries; real import remains blocked without
+  authorized source access.
+- BW6 adds draft contract generation and post-contract checklist/report with
+  typed approved fields, approval and audit.
+- BW7 rebases on latest main and proves the complete real local/staging
+  Supabase workflow through the accepted frontend. Provider or production
+  success requires separate real authorized evidence.
+
+Validation impact:
+
+- This PR remains docs-only and changes no TypeScript runtime, migration,
+  provider, production, customer data or secret.
+- Run `git diff --check`, deterministic TZ DOCX generation, canonical TZ
+  verifier/render, visual inspection of every rendered page, repository
+  secret/PII guardrails and exact-head GitHub CI.
+- Require a separate independent SHA-bound launch-control review. Only the
+  automation controller may merge.
+
+Reviewer notes: pending independent SHA-bound review.

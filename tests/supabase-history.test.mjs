@@ -23,6 +23,7 @@ const REQUIRED_041 = "041_platform_identity_rbac_audit.sql";
 const REQUIRED_042 = "042_platform_student_admissions.sql";
 const REQUIRED_043 = "043_platform_documents_finance_notifications.sql";
 const REQUIRED_044 = "044_platform_communications_contracts.sql";
+const REQUIRED_045 = "045_platform_durable_work_queues.sql";
 const required040Path = new URL(
   `../supabase/migrations/${REQUIRED_040}`,
   import.meta.url,
@@ -41,6 +42,10 @@ const required043Path = new URL(
 );
 const required044Path = new URL(
   `../supabase/migrations/${REQUIRED_044}`,
+  import.meta.url,
+);
+const required045Path = new URL(
+  `../supabase/migrations/${REQUIRED_045}`,
   import.meta.url,
 );
 
@@ -101,6 +106,10 @@ async function createValidFixture(t) {
     path.join(migrationsDirectory, REQUIRED_044),
     await readFile(required044Path, "utf8"),
   );
+  await writeFile(
+    path.join(migrationsDirectory, REQUIRED_045),
+    await readFile(required045Path, "utf8"),
+  );
 
   return root;
 }
@@ -128,7 +137,7 @@ async function expectVerifierFailure(root, pattern) {
   );
 }
 
-test("accepts immutable 001-039 plus required migrations 040-044", async (t) => {
+test("accepts immutable 001-039 plus required migrations 040-045", async (t) => {
   const root = await createValidFixture(t);
 
   const { stdout, stderr } = await runVerifier(root);
@@ -136,10 +145,10 @@ test("accepts immutable 001-039 plus required migrations 040-044", async (t) => 
   assert.equal(stderr, "");
   assert.deepEqual(JSON.parse(stdout), {
     ok: true,
-    checked: 44,
-    range: "001-044",
-    current: "044",
-    total: 44,
+    checked: 45,
+    range: "001-045",
+    current: "045",
+    total: 45,
   });
 });
 
@@ -228,6 +237,23 @@ test("rejects a same-length rewrite of immutable migration 044", async (t) => {
   await expectVerifierFailure(root, /044_.+ SHA-256 changed/);
 });
 
+test("rejects a same-length rewrite of immutable migration 045", async (t) => {
+  const root = await createValidFixture(t);
+  const migrationPath = path.join(
+    root,
+    "supabase",
+    "migrations",
+    REQUIRED_045,
+  );
+  const original = await readFile(migrationPath, "utf8");
+  const rewritten = original.replace("durable, bounded", "Durable, bounded");
+  assert.notEqual(rewritten, original);
+  assert.equal(Buffer.byteLength(rewritten), Buffer.byteLength(original));
+  await writeFile(migrationPath, rewritten);
+
+  await expectVerifierFailure(root, /045_.+ SHA-256 changed/);
+});
+
 test("exposes platform without exposing private or queue schemas", async () => {
   const config = await readFile(supabaseConfigPath, "utf8");
   const schemasMatch = config.match(/^schemas\s*=\s*(\[[^\n]+\])$/m);
@@ -280,7 +306,7 @@ test("rejects byte or SHA-256 drift in a canonical migration", async (t) => {
   await expectVerifierFailure(root, /019_fixture_019\.sql byte count changed/);
 });
 
-test("requires exact migrations 040-044 and contiguous later migrations", async (t) => {
+test("requires exact migrations 040-045 and contiguous later migrations", async (t) => {
   const root = await createValidFixture(t);
   const migrationsDirectory = path.join(root, "supabase", "migrations");
 
@@ -361,18 +387,33 @@ test("requires exact migrations 040-044 and contiguous later migrations", async 
     path.join(migrationsDirectory, REQUIRED_044),
     await readFile(required044Path, "utf8"),
   );
+  await unlink(path.join(migrationsDirectory, REQUIRED_045));
   await writeFile(
-    path.join(migrationsDirectory, "046_gap.sql"),
+    path.join(migrationsDirectory, "045_wrong_name.sql"),
     FIXTURE_SQL,
   );
   await expectVerifierFailure(
     root,
-    /canonical migration sequence must be contiguous; expected 045, found 046/,
+    /required migration 045 must be 045_platform_durable_work_queues\.sql/,
   );
 
-  await unlink(path.join(migrationsDirectory, "046_gap.sql"));
+  await unlink(path.join(migrationsDirectory, "045_wrong_name.sql"));
   await writeFile(
-    path.join(migrationsDirectory, "045_future.sql"),
+    path.join(migrationsDirectory, REQUIRED_045),
+    await readFile(required045Path, "utf8"),
+  );
+  await writeFile(
+    path.join(migrationsDirectory, "047_gap.sql"),
+    FIXTURE_SQL,
+  );
+  await expectVerifierFailure(
+    root,
+    /canonical migration sequence must be contiguous; expected 046, found 047/,
+  );
+
+  await unlink(path.join(migrationsDirectory, "047_gap.sql"));
+  await writeFile(
+    path.join(migrationsDirectory, "046_future.sql"),
     FIXTURE_SQL,
   );
 
@@ -380,10 +421,10 @@ test("requires exact migrations 040-044 and contiguous later migrations", async 
   assert.equal(stderr, "");
   assert.deepEqual(JSON.parse(stdout), {
     ok: true,
-    checked: 44,
-    range: "001-044",
-    current: "045",
-    total: 45,
+    checked: 45,
+    range: "001-045",
+    current: "046",
+    total: 46,
   });
 });
 

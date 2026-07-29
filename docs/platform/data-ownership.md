@@ -98,9 +98,12 @@ PR #88 merged migration 043 as
 [30402311903](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30402311903)
 зелёный. Это repository evidence, а не Storage, provider или production proof.
 
-P2F candidate начинается от этого checkpoint и добавляет additive migration
-044 для unified communications/provider identity/draft-only AI data
-contracts. Frozen artifact содержит 6,881 lines и 194,076 bytes; SHA-256
+P2F начинается от этого checkpoint и добавляет additive migration 044 для
+unified communications/provider identity/draft-only AI data contracts. PR #89
+controller-merged его как `8567455f281fa157fb088970db1c2a2397850843`;
+post-merge exact-main CI
+[30407638837](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30407638837)
+зелёный. Pinned artifact содержит 6,881 lines и 194,076 bytes; SHA-256
 `8d52b476981faed4a42a9c13ff2813a718bde6ad4aea1b315c4d61be9fd1ebc8`.
 Внутренние UUID, WAHA session/message IDs, Kommo
 conversation/message IDs и amoCRM contact/lead IDs остаются отдельными
@@ -108,6 +111,16 @@ namespaces. Private raw payload/evidence сохраняется до normalized 
 browser получает только разрешённые transcript/safe-summary projections.
 Подробная граница:
 [`p2f-communications-contracts.md`](p2f-communications-contracts.md).
+
+P2G candidate начинается от merged P2F checkpoint и добавляет только migration
+045. Private work/attempt/event/idempotency/dead-letter ledgers ссылаются на
+P2F source rows по UUID; PGMQ payload не содержит customer text, raw provider
+payload, verification headers или secrets. Две exposed review relations дают
+только Admin своей organization фиксированную reconciliation projection и
+reason-required resolution. Manual-send authorization одноразовая,
+`max_attempts = 1`; explicit unknown и истёкший ambiguous worker lease
+архивируют active message и никогда не попадают в retry/DLQ. Полный контракт:
+[`p2g-durable-work-queues.md`](p2g-durable-work-queues.md).
 
 ## RLS и server authorization
 
@@ -251,8 +264,9 @@ selection/handoff. Кыргызский customer draft, auto-reply, unattended o
 broadcast и mass send запрещены. Review/manual-send evidence не доказывает
 provider send.
 
-Durable work относится к P2G и идёт через Supabase Queues. Consumer-ы
-идемпотентны; исчерпанные ошибки переходят в dead-letter и reconciliation.
+Durable work P2G идёт через две fixed Supabase Queues. Consumer-ы
+идемпотентны; исчерпанные обычные ошибки переходят в dead-letter, тогда как
+unknown/ambiguous manual send остаётся только в reconciliation/manual review.
 Database Webhooks допустимы для асинхронного push, но не являются durable
 business queue.
 

@@ -131,19 +131,36 @@ fail-closed, а Queue или подтверждённая доставка зд�
 Подробная граница:
 [`p2e-documents-finance-notifications.md`](p2e-documents-finance-notifications.md).
 
-P2F candidate начинается с этого exact checkpoint и добавляет migration 044:
+P2F начинается с этого exact checkpoint и добавляет migration 044:
 unified conversations/messages, five-role handoff scope, отдельные внутренние,
 WAHA, Kommo и amoCRM identifiers, private raw-persist-before-process evidence,
 dedupe/reconciliation state, approved versioned knowledge и draft-only AI.
-Frozen artifact содержит 6,881 lines и 194,076 bytes; SHA-256
+PR #89 controller-merged этот database/RLS contract как
+`8567455f281fa157fb088970db1c2a2397850843`; post-merge exact-main CI
+[30407638837](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30407638837)
+зелёный. Pinned artifact содержит 6,881 lines и 194,076 bytes; SHA-256
 `8d52b476981faed4a42a9c13ff2813a718bde6ad4aea1b315c4d61be9fd1ebc8`,
 exact inventory — 10 exposed + 2 private tables и 19 functions.
 Former Sales получает только fixed safe summary; Finance не получает transcript
 или raw provider data, Student видит только safe self history. RU/EN draft
 требует human review/edit/manual-send evidence; uncertain language идёт в
-manual selection/handoff, а Kyrgyz customer draft запрещён. Полный candidate
+manual selection/handoff, а Kyrgyz customer draft запрещён. Полный merged
 contract:
 [`p2f-communications-contracts.md`](p2f-communications-contracts.md).
+
+P2G candidate добавляет forward migration 045 и настоящий local
+Supabase Queues/PGMQ contract. `platform_work_v1` и
+`platform_dead_letter_v1` принимают только pointer body
+`{v, work_item_id, kind}`; direct `pgmq`/`pgmq_public` grants закрыты, а
+service worker использует только fixed RPC. Retryable work сохраняет тот же
+PGMQ message через `read()`/visibility timeout/`set_vt()`, exhausted work
+создаёт immutable dead-letter evidence. Manual WhatsApp work всегда
+single-attempt: явный unknown или истёкший worker lease архивирует active
+message и открывает reconciliation/Admin review без retry/DLQ. Exact artifact:
+3,425 lines, 91,620 bytes, SHA-256
+`a657c32c3dadec369b54157914a229b112c58beb395ee4a2ae99025d804723a2`.
+Подробная граница:
+[`p2g-durable-work-queues.md`](p2g-durable-work-queues.md).
 
 Private provider row хранит provider/account/request references, WAHA session
 или provider conversation reference, event type/time, raw event variant,
@@ -155,8 +172,8 @@ canonical key. Browser получает только разрешённые norm
 projections. P2F не доказывает, что real HMAC/timestamp verification
 выполнилась. Такой migration/RLS row доказывает database state и authorization,
 но не реальный webhook, AI generation, WAHA/Kommo/amoCRM call, provider send
-или ACK. Queue/outbox/worker/retry/dead-letter behavior относится к P2G,
-private media/Storage/scanner — к P2H.
+или ACK. P2G доказывает local Queue/outbox/worker/retry/dead-letter mechanics,
+но не provider delivery; private media/Storage/scanner относится к P2H.
 
 Каждая exposed table должна иметь RLS. Browser использует только publishable
 key. Secret/service-role ключи и provider secrets остаются только на backend.

@@ -259,16 +259,21 @@ Exit:
 
 ### P2F — communications, providers and AI data contracts
 
-The detailed repository-candidate contract is
+The detailed merged repository contract is
 `docs/platform/p2f-communications-contracts.md`. P2F starts from the merged P2E
 checkpoint `aac1cba851e89070a7eb54baab4eddf921e3447c` and adds only the
-forward migration 044 communications/data boundary. The frozen candidate is
+forward migration 044 communications/data boundary. PR #89 was
+controller-merged as `8567455f281fa157fb088970db1c2a2397850843`; the pinned
+artifact is
 `044_platform_communications_contracts.sql`: 6,881 lines, 194,076 bytes,
 SHA-256
 `8d52b476981faed4a42a9c13ff2813a718bde6ad4aea1b315c4d61be9fd1ebc8`.
 Its exact inventory is ten exposed and two private tables plus 19 `platform`
-functions; the detailed contract records their names and proof boundary. It
-neither changes migrations 001–043 nor exercises a provider.
+functions; the detailed contract records their names and proof boundary.
+Post-merge exact-main CI run
+[30407638837](https://github.com/izzhackt/evo_AI_CRM/actions/runs/30407638837)
+passed Main CRM, EVO Inbox and EVO Lead Agent. This neither changes migrations
+001–043 nor proves a provider call.
 
 Owns:
 
@@ -302,6 +307,15 @@ Exit:
 
 ### P2G — durable work and reconciliation
 
+The detailed candidate contract is
+`docs/platform/p2g-durable-work-queues.md`. It starts from merged P2F
+checkpoint `8567455f281fa157fb088970db1c2a2397850843` and adds only forward
+migration `045_platform_durable_work_queues.sql`: 3,425 lines, 91,620 bytes,
+SHA-256
+`a657c32c3dadec369b54157914a229b112c58beb395ee4a2ae99025d804723a2`.
+The exact inventory is five backend-only work tables, two FORCE-RLS Admin
+review tables, ten enums and 16 functions.
+
 Owns:
 
 - real Supabase Queues/PGMQ queues;
@@ -310,6 +324,13 @@ Owns:
 - visibility timeout, retry budget, dead-letter state;
 - reconciliation/conflict records and operator action;
 - unknown-delivery terminal/manual-review behavior.
+
+The two fixed PGMQ queues carry only `{v, work_item_id, kind}`. Browser roles
+and `service_role` have no direct `pgmq`/`pgmq_public` access; backend workers
+use only hard-coded reviewed RPCs. Manual-send work has exactly one attempt.
+Both an explicit unknown provider result and a worker lease that expires before
+recording a result archive the active message and open reconciliation/Admin
+review without retry or DLQ.
 
 Exit:
 
@@ -321,6 +342,12 @@ Exit:
 
 PGMQ `read()` with a visibility timeout is the retryable consumption primitive.
 At-most-once `pop()` is not used for durable retry work.
+
+The disposable Supabase PostgreSQL 17 gate and project-local Supabase CLI reset
+both apply all 45 contiguous migrations and exercise real PGMQ concurrency,
+rollback, visibility expiry/read count, same-message `set_vt()` retry, archive,
+dead-letter, dedupe and terminal unknown/crash behavior. These are local Queue
+proofs, not WAHA/amoCRM/AI provider, managed Supabase or production proofs.
 
 ### P2H — private Platform Storage
 

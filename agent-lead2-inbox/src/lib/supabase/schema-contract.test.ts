@@ -60,6 +60,10 @@ const platformCommunicationsMigration = readFileSync(
   join(migrationsDir, '044_platform_communications_contracts.sql'),
   'utf8'
 )
+const platformQueuesMigration = readFileSync(
+  join(migrationsDir, '045_platform_durable_work_queues.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -75,9 +79,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves containment and advances through the P2F candidate boundary', () => {
+  it('preserves containment and advances through the P2G candidate boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '044_platform_communications_contracts.sql'
+      '045_platform_durable_work_queues.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -379,6 +383,68 @@ describe('Supabase companion schema contract', () => {
     )
     expect(platformCommunicationsMigration).not.toMatch(
       /\bdelivery_status\s+(?:TEXT|platform\.)/i
+    )
+  })
+
+  it('adds real PGMQ work without browser queue access or unknown-result retry', () => {
+    for (const table of [
+      'durable_work_items',
+      'durable_work_attempts',
+      'durable_work_events',
+      'durable_work_dead_letters',
+      'durable_work_idempotency',
+    ]) {
+      expect(platformQueuesMigration).toMatch(
+        new RegExp(
+          `CREATE\\s+TABLE\\s+platform_private\\.${table}\\b`,
+          'i'
+        )
+      )
+    }
+
+    for (const table of ['work_review_cases', 'work_review_events']) {
+      expect(platformQueuesMigration).toMatch(
+        new RegExp(`CREATE\\s+TABLE\\s+platform\\.${table}\\b`, 'i')
+      )
+      expect(platformQueuesMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+
+    expect(platformQueuesMigration).toMatch(
+      /CREATE\s+EXTENSION\s+IF\s+NOT\s+EXISTS\s+pgmq/i
+    )
+    expect(platformQueuesMigration).toMatch(
+      /SELECT\s+pgmq\.create\s*\(\s*'platform_work_v1'\s*\)/i
+    )
+    expect(platformQueuesMigration).toMatch(
+      /SELECT\s+pgmq\.create\s*\(\s*'platform_dead_letter_v1'\s*\)/i
+    )
+    expect(platformQueuesMigration).toMatch(
+      /CREATE\s+TYPE\s+platform\.durable_work_kind\s+AS\s+ENUM\s*\(\s*'provider_webhook_process',\s*'ai_draft_generate',\s*'manual_whatsapp_send'\s*\)/i
+    )
+    expect(platformQueuesMigration).toMatch(
+      /FROM\s+pgmq\.read\s*\(\s*'platform_work_v1'/i
+    )
+    expect(platformQueuesMigration).not.toMatch(/\bpgmq\.pop\s*\(/i)
+    expect(platformQueuesMigration).toMatch(
+      /jsonb_build_object\s*\(\s*'v',\s*1,\s*'work_item_id',\s*created_work_item_id,\s*'kind',\s*p_kind\s*\)/i
+    )
+    expect(platformQueuesMigration).toMatch(
+      /p_kind\s*=\s*'manual_whatsapp_send'[\s\S]*p_max_attempts\s*<>\s*1/i
+    )
+    expect(platformQueuesMigration).toMatch(
+      /p2g_open_unknown_review[\s\S]*worker_lease_expired_before_result/i
+    )
+    expect(platformQueuesMigration).toMatch(
+      /REVOKE\s+ALL\s+ON\s+SCHEMA\s+pgmq[\s\S]*service_role/i
+    )
+    expect(platformQueuesMigration).not.toMatch(/confirmed_external_send/i)
+    expect(platformQueuesMigration).not.toMatch(
+      /\b(auto[_-]?reply|broadcast|mass[_-]?send|campaign)\b/i
     )
   })
 

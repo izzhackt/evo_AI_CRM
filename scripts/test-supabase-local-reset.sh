@@ -280,9 +280,17 @@ fi
 [[ ! -e "${TEMP_DIR}/status.json" ]] \
   || fail "Auth smoke did not delete the credential-bearing local status file."
 
+if ! bash \
+  "${REPO_ROOT}/scripts/test-p2g-queues-runtime.sh" \
+  "${DATABASE_CONTAINER}" \
+  "postgres"; then
+  fail "Real local PGMQ visibility/retry/dead-letter gate failed."
+fi
+
 printf 'Supabase CLI %s reset the disposable local database successfully.\n' "${actual_cli_version}"
 printf 'Verified %s contiguous canonical/applied migrations ending at %s; no seed data was loaded.\n' \
   "${expected_migration_count}" \
   "${expected_last_migration}"
 printf 'Verified local PostgREST exposes platform but excludes platform_private and pgmq_public.\n'
 printf 'Verified real local Auth hook claims, refresh invalidation and PostgREST RLS with synthetic users.\n'
+printf 'Verified real local PGMQ claims, visibility, retries, terminal unknown handling and dead-letter evidence.\n'

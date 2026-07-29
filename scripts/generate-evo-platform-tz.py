@@ -847,16 +847,35 @@ MAJOR_PAGE_BREAK_PREFIXES = (
 
 
 def add_heading(document: Document, text: str, level: int) -> None:
+    needs_safe_page_break = (
+        level == 1
+        and text.startswith(("28.", "30.", "31.", "32."))
+    ) or (
+        level == 2
+        and (
+            text.startswith(("13.6 ", "13.7 ", "31.2 ", "31.3 ", "31.4 "))
+            or (text.startswith("27.") and not text.startswith("27.1 "))
+        )
+    )
+    if needs_safe_page_break:
+        # LibreOffice can place a heading above the printable area when
+        # page_break_before follows a large table or inline screenshot/caption.
+        # An explicit break paragraph plus guarded spacing keeps the following
+        # section inside the page margins in both DOCX and PDF output.
+        page_break = document.add_page_break()
+        set_paragraph_spacing(page_break, after=36, line=1.0)
     style = f"Heading {level}"
     p = document.add_paragraph(style=style)
+    if needs_safe_page_break:
+        # Keep the body heading below the running header even when LibreOffice
+        # places the page-break paragraph itself at the previous page boundary.
+        p.paragraph_format.space_before = Pt(36)
     if level == 1 and text.startswith(MAJOR_PAGE_BREAK_PREFIXES):
         p.paragraph_format.page_break_before = True
     if level == 2 and text.startswith("13.8 "):
         # LibreOffice can drop middle rows when this table begins in the last
         # available lines of a page. Keep the section and its table together
         # on a fresh page so every FR-075..FR-084 row survives PDF rendering.
-        p.paragraph_format.page_break_before = True
-    if level == 2 and text.startswith("27.") and not text.startswith("27.1 "):
         p.paragraph_format.page_break_before = True
     add_inline(
         p,

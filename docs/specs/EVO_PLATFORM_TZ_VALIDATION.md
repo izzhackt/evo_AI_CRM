@@ -45,21 +45,21 @@ python scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
 - source codes: `13`;
 - design-evidence images: `6`;
 - official external links: `8`;
-- DOCX structure: `569` paragraphs, `30` tables, `7` inline shapes,
+- DOCX structure: `583` paragraphs, `30` tables, `7` inline shapes,
   `7` drawings с alt text, `8` external hyperlinks;
 - две последовательные сборки DOCX побайтно совпали;
-- LibreOffice → PDF → Poppler PNG: `61` страница;
+- LibreOffice → PDF → Poppler PNG: `64` страницы;
 - accessibility audit: `0 high / 0 medium / 0 low`;
 - итог:
-  `PASS requirements=211 traceability=211 pages=61 a11y=0/0/0`.
+  `PASS requirements=211 traceability=211 pages=64 a11y=0/0/0`.
 
 Machine-readable evidence находится во временном каталоге:
-`/private/tmp/evo-platform-tz-render.8q29FK`:
+`/private/tmp/evo-platform-tz-render-final.RLiTx4`:
 
 - `validation.json`;
 - `accessibility-report.json`;
 - `EVO_PLATFORM_TZ.pdf`;
-- `page-01.png` … `page-61.png`.
+- `page-01.png` … `page-64.png`.
 
 Временные PDF/PNG не коммитятся. Markdown, generator, verifier и закреплённая
 зависимость позволяют воспроизвести evidence.
@@ -69,8 +69,8 @@ Machine-readable evidence находится во временном катал�
 | Файл | Размер | SHA-256 |
 |---|---:|---|
 | `docs/specs/EVO_PLATFORM_TZ.md` | `133300` bytes | `69fc757ee15f4f55e51f67411938cc9c20c12f6aac0859c20ab55285c9323675` |
-| `docs/specs/EVO_PLATFORM_TZ.docx` | `1780505` bytes | `7d9d4adc21dfbb76f053a086fd81066dce96ee0d33730d019c3017618db561d2` |
-| `scripts/generate-evo-platform-tz.py` | `38335` bytes | `6f0bc2b0f3e1e00d3777d0c082acb12f2c9ea291f143ff0b3f52887a7c7365f9` |
+| `docs/specs/EVO_PLATFORM_TZ.docx` | `1780618` bytes | `f3a4e00199731365404c1bacc9f27afdceffe3b9f8cfe76d7fbccb05f8a78de6` |
+| `scripts/generate-evo-platform-tz.py` | `39198` bytes | `ebd0d431ca456fc42492d3e5ab815bde4bc980d295f8db01ffa7ced63b9eb14f` |
 
 `validation.json` подтверждает одинаковый DOCX SHA-256 для первой и второй
 сборки.
@@ -95,7 +95,7 @@ FR/INT/DATA/SEC/NFR/ACC ID между Markdown и PDF text layer. Diff пуст�
 
 ## 4. Ручная визуальная проверка
 
-Все страницы `1–61` проверены в PNG:
+Все страницы `1–64` проверены в PNG финального fixed render:
 
 - cover, headers, footers и последовательность page numbers корректны;
 - страница `2` содержит намеренный Word TOC placeholder до обновления field в
@@ -107,11 +107,23 @@ FR/INT/DATA/SEC/NFR/ACC ID между Markdown и PDF text layer. Diff пуст�
 - clipping, overflow, missing content, raster corruption и illegible rows не
   обнаружены.
 
-Во время проверки был найден реальный pagination defect: LibreOffice терял
-FR-076–FR-082, когда таблица раздела 13.8 начиналась в последних строках
-предыдущей страницы. Generator исправлен так, чтобы раздел 13.8 начинался с
-новой страницы. Повторный render и PDF-ID comparison подтвердили наличие
-FR-075–FR-084 целиком.
+Во время первой проверки был найден реальный pagination defect: LibreOffice
+терял FR-076–FR-082, когда таблица раздела 13.8 начиналась в последних строках
+предыдущей страницы. После первого review merge-controller дополнительно
+обнаружил визуальное обрезание continuation pages: таблица 13.6 теряла видимые
+префиксы `FR-`, а некоторые screenshot/heading pages начинались выше printable
+area. Generator исправлен безопасными явными page breaks и достаточным
+heading spacing; переполнявшиеся разделы 13.6/13.7, 27.x и 28–32 разделены без
+изменения содержания.
+
+Финальный повторный render подтвердил FR-001–FR-090 и все остальные ID.
+Дополнительно PDF bbox geometry проверена для всех страниц: на страницах 2–64
+присутствует точный running header, нет текста левее `55 pt`, и ниже `730 pt`
+находится только ожидаемый footer. Проблемные страницы 26–28 и 49–64
+просмотрены отдельно в original resolution; остальные страницы проверены в
+фиксированных contact sheets, сохраняющих белые поля и границы каждой страницы.
+Финальный повторный verifier после последнего generator-comment change создал
+побайтно идентичные 64 PNG по сравнению с визуально проверенным render.
 
 Итог ручной проверки: `PASS`.
 

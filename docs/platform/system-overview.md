@@ -1,8 +1,9 @@
 # Как устроена EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Status: Target approved; current production remains split until controlled cutover
-- Last verified against repository: 2026-07-29
+- Status: Target approved; greenfield Platform not deployed; legacy CRM remains
+  separate and messaging provider ownership awaits controlled cutover
+- Last verified against repository: 2026-07-30
 - Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
@@ -10,11 +11,13 @@
 ## Главное простыми словами
 
 Целевая EVO Platform — одно рабочее приложение для сотрудников и студентов с
-единым backend и одной логической моделью собственных данных. Однако принятие
-этой архитектуры не означает, что production уже переведён на неё. Пока не
-завершены миграция, реальный end-to-end тест, отдельное разрешение на cutover и
-контролируемое наблюдение, действующие CRM, EVO Inbox и EVO Lead Agent остаются
-раздельными.
+единым greenfield Supabase-native backend и одной логической моделью
+собственных данных. Однако принятие этой архитектуры не означает, что
+production уже переведён на неё. Legacy root CRM остаётся отдельной системой
+без автоматического импорта или замены. Пока не завершены bounded cutover
+evidence, реальный end-to-end путь, отдельное разрешение на provider cutover и
+rollback proof, EVO Inbox и EVO Lead Agent сохраняют текущую messaging
+ownership.
 
 amoCRM остаётся каноническим владельцем:
 
@@ -41,6 +44,10 @@ EVO Platform хранит собственное операционное сос
 а не разрешение менять production-сессии. Старый путь нельзя отключать, пока
 новый не доказал отсутствие потерь и дублей и не прошёл rollback gate.
 
+Unified frontend from PRs #64/#71/#72 remains the only product UI contract.
+Thin-slice work must wire that existing UI through repository/session seams,
+not by reviving parallel Inbox UI surfaces.
+
 Актуальный уровень доказательств записывается в
 [current-status.md](current-status.md). Наличие кода или конфигурации не
 засчитывается как доказательство работы реальных WAHA, amoCRM, Supabase или AI.
@@ -60,7 +67,8 @@ flowchart LR
   Review --> Waha
 ```
 
-Целевой backend поглощает EVO Inbox и полезную, безопасную логику Lead Agent:
+Целевой backend поглощает только нужную операторскую messaging-возможность EVO
+Inbox и полезную, безопасную логику Lead Agent:
 
 - нормализацию телефона;
 - проверку WAHA HMAC и timestamp;
@@ -74,6 +82,8 @@ flowchart LR
 - ACK-аудит и правило «не повторять автоматически неизвестный результат send».
 
 Auto-reply и unattended outbound не входят в целевую активную функцию.
+Inbox dashboards, pipelines, deals, leads, broadcasts, flows, campaigns,
+generic analytics and unrelated settings не входят в первый thin slice.
 
 ## Данные и среды
 
@@ -254,26 +264,28 @@ EVO может обещать только исполнение собствен
 
 ## Что должно произойти до cutover
 
-1. P2A–P2I последовательно доказывают canonical 001–039 history,
-   namespace/grant containment, identity/RBAC, domain slices, real local
-   Queues, real local Storage и whole-foundation evidence.
+1. P2A–P2H последовательно доказывают reusable greenfield foundation:
+   canonical 001–039 history, namespace/grant containment, identity/RBAC,
+   domain slices, real local Queues и real local Storage contracts.
 2. Миграции и RLS проходят clean reset и отрицательные cross-role,
    cross-student и cross-organization тесты.
-3. Database restore и Storage-object restore доказываются отдельно.
+3. Database restore и Storage-object restore остаются отдельной обязанностью,
+   но moved to P7 and do not block the thin messaging slice.
 4. Local Supabase proof не выдаётся за managed project parity, PITR или
    production readiness; эти пункты ждут region/plan, credentials и отдельного
    разрешения.
-5. SQLite inventory, backup, deterministic mapping, dry-run и staging import
-   дают проверяемые counts, orphans и checksums.
+5. Legacy SQLite inventory остаётся historical reference; greenfield Platform
+   path does not require SQLite import, account migration, dual-read or
+   dual-write.
 6. amoCRM adapter обнаруживает и версионирует account-specific mappings; IDs не
    hardcode-ятся как глобальные.
 7. На выделенном тестовом номере и sanitized test lead проходит реальный путь:
    WhatsApp receive → amo resolve/link → Platform → AI draft → operator manual
    send → delivery/read/unknown → audit.
 8. Production mutation получает отдельное явное разрешение и release window.
-9. Старый Lead Agent удаляется только отдельным reviewed PR после минимум 72
-   фактических часов стабильного трафика, reconciliation и zero unexplained
-   loss/duplicates.
+9. Старый Lead Agent удаляется только отдельным reviewed PR после bounded
+   reconciliation evidence window with zero unexplained loss/duplicates,
+   health checks and rollback proof.
 
 До выполнения этих условий target остаётся принятым контрактом, а не
 production-complete заявлением.

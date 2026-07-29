@@ -1,136 +1,137 @@
 # EVO Platform ТЗ — журнал валидации
 
-Дата проверки: 28.07.2026
-Основание даты: host-проверка и явная проверка с `TZ=Asia/Bishkek` вернули
-`Tuesday 2026-07-28 15:30:25 +0600 +06`.
-Исходный commit до подготовки P2 plan amendment:
-`d3edcda6649cb7b90b789c57c658ec1fc4a20618`
+Дата проверки: 30.07.2026
+
+Timezone: `Asia/Bishkek`
+
+Base commit до docs-only amendment:
+`b10d72863230aba646bcc8f2acafdc76c27b3fe1`
+
 Канонический источник: `docs/specs/EVO_PLATFORM_TZ.md`
+
 Owner-facing документ: `docs/specs/EVO_PLATFORM_TZ.docx`
-Контекст проверки: docs-only контракт декомпозиции P2 и уточнение единственной
-Supabase migration/schema authority; SQL, remote apply и production mutation в
-этот блок не входят.
+
+Контекст проверки: docs-only amendment фиксирует greenfield Supabase-native
+Platform, существующий unified frontend как единственный UI-контракт, отсутствие
+автоматического импорта legacy SQLite/root-auth и ускоренный thin messaging
+slice. Product/runtime code, remote apply и production mutation в этот блок не
+входят.
 
 ## 1. Воспроизводимая сборка
 
-DOCX собирается только из канонического Markdown командой:
+DOCX собирается только из канонического Markdown:
 
 ```bash
 python scripts/generate-evo-platform-tz.py
 ```
 
-Зависимость закреплена в `scripts/requirements-evo-platform-tz.txt`:
-
-```text
-python-docx==1.2.0
-```
-
-Полная проверка из изолированного Python-окружения выполнялась так:
+Полная сборка, повторная сборка, структура, accessibility и реальный
+LibreOffice/Poppler render проверяются командой:
 
 ```bash
-tz_venv="$(mktemp -d /private/tmp/evo-tz-venv.XXXXXX)"
-tz_render="$(mktemp -d /private/tmp/evo-platform-tz-repro.XXXXXX)"
-python3 -m venv "$tz_venv"
-"$tz_venv/bin/python" -m pip install \
-  --disable-pip-version-check \
-  -r scripts/requirements-evo-platform-tz.txt
-"$tz_venv/bin/python" scripts/verify-evo-platform-tz.py \
-  --render-dir "$tz_render"
+render_dir="$(mktemp -d /private/tmp/evo-platform-tz-render.XXXXXX)"
+python scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
 ```
 
-Результат финального изолированного прогона:
+Закреплённая document-зависимость:
+`python-docx==1.2.0` в `scripts/requirements-evo-platform-tz.txt`.
 
-- Python: `3.13.0`;
+Финальный прогон:
+
+- Python: `3.12.13`;
 - `python-docx`: `1.2.0`;
-- требования в основном ТЗ: `211`;
-- строки поэлементной provenance-матрицы: `211`;
-- официальный каталог source codes: `13`;
-- локальные design-evidence изображения: `6`;
-- официальные внешние ссылки: `8`;
-- DOCX: `540` paragraphs, `29` tables, `7` drawings с alt text,
-  `8` external hyperlinks;
-- две последовательные сборки DOCX дали одинаковый SHA-256:
-  `dcebd83284d5f55eaab2979196221bdbeab22e38e895da4dd1ff31eca7400e6e`;
-- рендер LibreOffice → PDF → Poppler PNG при фиксированных `144 DPI`:
-  `58` страниц;
-- все `58` PNG, отдельно созданные bundled document renderer версии
-  `26.727.11326` при `144 DPI`, побайтно совпали с PNG verifier;
-- автоматический DOCX accessibility audit: `0 high / 0 medium / 0 low`;
-- итог: `PASS requirements=211 traceability=211 pages=58 a11y=0/0/0`.
+- requirements: `211`;
+- поэлементные traceability rows: `211`;
+- source codes: `13`;
+- design-evidence images: `6`;
+- official external links: `8`;
+- DOCX structure: `569` paragraphs, `30` tables, `7` inline shapes,
+  `7` drawings с alt text, `8` external hyperlinks;
+- две последовательные сборки DOCX побайтно совпали;
+- LibreOffice → PDF → Poppler PNG: `61` страница;
+- accessibility audit: `0 high / 0 medium / 0 low`;
+- итог:
+  `PASS requirements=211 traceability=211 pages=61 a11y=0/0/0`.
 
-Verifier преобразует каждую PDF-страницу отдельно. Это исключает наблюдавшееся
-в одном раннем неэталонном batch-render артефактное повреждение PNG и делает
-сравнение страниц детерминированным.
+Machine-readable evidence находится во временном каталоге:
+`/private/tmp/evo-platform-tz-render.8q29FK`:
 
-Машиночитаемые evidence-файлы прогона записаны как `validation.json` и
-`accessibility-report.json` в отдельный временный render directory. Временные
-PDF/PNG не коммитятся: исходный Markdown, генератор, verifier и закреплённая
-зависимость позволяют воспроизвести их заново.
+- `validation.json`;
+- `accessibility-report.json`;
+- `EVO_PLATFORM_TZ.pdf`;
+- `page-01.png` … `page-61.png`.
 
-## 2. Контрольные суммы
+Временные PDF/PNG не коммитятся. Markdown, generator, verifier и закреплённая
+зависимость позволяют воспроизвести evidence.
 
-На момент финальной проверки:
+## 2. Контрольные суммы и размеры
 
-| Файл | SHA-256 |
-|---|---|
-| `docs/specs/EVO_PLATFORM_TZ.md` | `768a18ad67c770cf5437ea4daa6c8d06e37d8fa5e65a90bdd06c4a2ead84cdaf` |
-| `docs/specs/EVO_PLATFORM_TZ.docx` | `dcebd83284d5f55eaab2979196221bdbeab22e38e895da4dd1ff31eca7400e6e` |
+| Файл | Размер | SHA-256 |
+|---|---:|---|
+| `docs/specs/EVO_PLATFORM_TZ.md` | `133300` bytes | `69fc757ee15f4f55e51f67411938cc9c20c12f6aac0859c20ab55285c9323675` |
+| `docs/specs/EVO_PLATFORM_TZ.docx` | `1780505` bytes | `7d9d4adc21dfbb76f053a086fd81066dce96ee0d33730d019c3017618db561d2` |
+| `scripts/generate-evo-platform-tz.py` | `38335` bytes | `6f0bc2b0f3e1e00d3777d0c082acb12f2c9ea291f143ff0b3f52887a7c7365f9` |
 
-## 3. Что проверяет автоматический verifier
+`validation.json` подтверждает одинаковый DOCX SHA-256 для первой и второй
+сборки.
 
-`scripts/verify-evo-platform-tz.py` fail-closed проверяет:
+## 3. Автоматические проверки
 
-1. сборку DOCX из текущего Markdown и её bit-for-bit воспроизводимость;
-2. полный и непрерывный набор `FR`, `INT`, `DATA`, `SEC`, `NFR`, `ACC`, `DEC`;
-3. ровно одну provenance-строку для каждого из 211 ID;
-4. отсутствие неизвестных и неиспользуемых source codes;
-5. существование всех локальных design-evidence изображений;
-6. наличие всех обязательных official external links;
-7. целостность ZIP/XML структуры DOCX;
-8. alt text у каждого drawing object;
-9. повторяемую строку заголовка и непустые header cells каждой таблицы;
-10. непрерывную heading hierarchy;
-11. обязательные core properties;
-12. реальный LibreOffice render в PDF;
-13. реальный Poppler render каждой PDF-страницы в отдельном процессе;
-14. отсутствие high, medium и low accessibility findings.
+Verifier проверяет:
+
+- полноту и уникальность FR/INT/DATA/SEC/NFR/ACC identifiers;
+- точное соответствие `211` requirements и `211` provenance rows;
+- наличие всех `13` source codes;
+- локальные изображения, alt text и hyperlinks;
+- отсутствие незаполненных шаблонных полей;
+- deterministic DOCX rebuild;
+- открытие DOCX библиотекой `python-docx`;
+- реальный PDF render и отдельный PNG каждой страницы;
+- accessibility findings.
+
+После render дополнительно выполнено сравнение количества каждого
+FR/INT/DATA/SEC/NFR/ACC ID между Markdown и PDF text layer. Diff пустой:
+визуальный документ содержит все ID с тем же количеством вхождений.
 
 ## 4. Ручная визуальная проверка
 
-Все страницы `1–58` проверены в PNG при original resolution.
+Все страницы `1–61` проверены в PNG:
 
-- страницы `1–29` проверены независимым visual reviewer;
-- страницы `30–58` проверены вторым независимым visual reviewer;
-- основной executor дополнительно проверил страницы `1–58` по
-  original-resolution contact sheets;
-- после final terminology correction изменились только страницы
-  `4–7`, `17–21` и `38`; они повторно проверены по отдельности двумя
-  независимыми reviewers и основным executor, а остальные `48` страниц
-  побайтно совпали с уже проверенным render;
-- таблицы требований, decisions и provenance не обрезаны;
-- переносы текста остаются внутри ячеек;
-- headers/footers, повторяющиеся table headers и номера страниц
-  последовательны;
+- cover, headers, footers и последовательность page numbers корректны;
+- страница `2` содержит намеренный Word TOC placeholder до обновления field в
+  Word;
+- все таблицы помещаются в printable area, строки и повторяемые headers читаемы;
 - все шесть UI screenshots пропорциональны и не искажены;
+- страницы с длинной provenance-таблицей дополнительно просмотрены отдельно в
+  original resolution;
 - clipping, overflow, missing content, raster corruption и illegible rows не
-  обнаружены;
-- страница `2` содержит обновляемое Word TOC field, поэтому до обновления полей
-  в Word показывает намеренный placeholder;
-- на странице `46` явно виден warning, что screenshot с исторической ролью
-  «Визовый отдел» является pre-P1 evidence, а не нормативной role matrix.
+  обнаружены.
+
+Во время проверки был найден реальный pagination defect: LibreOffice терял
+FR-076–FR-082, когда таблица раздела 13.8 начиналась в последних строках
+предыдущей страницы. Generator исправлен так, чтобы раздел 13.8 начинался с
+новой страницы. Повторный render и PDF-ID comparison подтвердили наличие
+FR-075–FR-084 целиком.
 
 Итог ручной проверки: `PASS`.
 
 ## 5. Граница доказательства
 
-Эта проверка доказывает полноту, воспроизводимость, traceability, структурную
-доступность и визуальную целостность обновлённого ТЗ. Она разрешает начать
-P2A только после merge этого docs-only plan amendment в соответствии с
-`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`; она не является доказательством
-реализации Supabase foundation.
+Эта проверка доказывает целостность, воспроизводимость, traceability,
+структурную доступность и визуальную корректность текущего ТЗ и plan amendment.
+После merge она разрешает начать P3 thin Supabase-native messaging slice за
+существующим root frontend.
 
-Проверка **не** доказывает live amoCRM, WAHA, Supabase, AI, telephony, payment,
-production deployment, controlled cutover или 72-часовой soak. Соответствующие
-provider/release gates остаются `BLOCKED` или `PENDING`, пока не появятся
-реальные credentials, test identity/number, production authority, evidence и
-фактически прошедшее время.
+Она не доказывает:
+
+- подключение текущего P2 foundation к frontend;
+- Supabase SSR auth/RBAC или repository adapters;
+- live amoCRM, WAHA, AI или Storage provider behavior;
+- production deployment/cutover;
+- real receive → identity link → persistence → draft → manual send → ACK/audit;
+- bounded production reconciliation window или retirement legacy services.
+
+Для этого docs-only блока `real-provider-proof: not-required`. Реальные
+provider/release gates остаются `BLOCKED` или `PENDING` до credentials,
+sanitized test identity/number, production authority и фактического controlled
+evidence.

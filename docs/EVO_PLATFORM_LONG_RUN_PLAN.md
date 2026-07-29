@@ -1,49 +1,67 @@
 # EVO Platform Long-Run Execution Contract
 
 Status: active repository implementation contract
-Version date: 2026-07-28 (Asia/Bishkek)
+Version date: 2026-07-30 (Asia/Bishkek)
 Initial kickoff baseline: GitHub `origin/main` at
 `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
-`docs/PLAN_CHANGES.md`, and superseding ADRs
+`docs/PLAN_CHANGES.md`, and superseding ADRs including ADR 0016
 
-Execution checkpoint: P0, all P1 sub-blocks, the P2 Supabase-foundation
-decomposition and P2A canonical migration authority are merged through PR
-#82. GitHub `origin/main` is green at
-`8ad755b5039390f418dbe12924a806f069f93b53`. The active change is this
-docs-only P2 checkpoint-freshness amendment until it is merged. At that merge
-commit, P2B becomes the active implementation block under the existing
-contract and must be rebased, revalidated and independently reviewed; P2C-P2I
-remain sequentially blocked behind their preceding P2 gate.
+Execution checkpoint: historical P1 containment is complete, and reusable
+greenfield P2A-P2H foundation work is merged through current `origin/main`
+checkpoint `b10d72863230aba646bcc8f2acafdc76c27b3fe1`. Former P2I restore duties
+move to P7 and do not block the first thin vertical slice. This docs-only
+greenfield/UI amendment is the active gate. After it is independently reviewed
+and merged, P3 becomes active: one thin messaging slice behind the accepted
+unified frontend, followed by bounded amoCRM/WAHA/AI proof and broader Student
+360 later.
 
 ## 1. Outcome and truth boundary
 
-The target is one EVO Platform that preserves the accepted frontend contract
-while replacing the current split backend deliberately and reversibly:
+The target is one greenfield EVO Platform that preserves the accepted frontend
+contract while consolidating only Platform-owned backend capabilities
+deliberately and reversibly:
 
 - amoCRM remains canonical for contact, lead, responsible sales manager and
   sales stage;
 - one dedicated Supabase production project stores EVO-owned operational data;
 - local/dev, persistent staging and preview branches/projects remain physically
   isolated from production, with no production-data copy by default;
-- EVO Inbox and useful EVO Lead Agent capabilities move into one backend and
-  one logical data model;
+- the Platform backend is greenfield and Supabase-native: no legacy SQLite
+  data import, no legacy account import, no root-auth migration, and no
+  dual-read or dual-write bridge;
+- the current root CRM SQLite plane remains a separate legacy system; it is not
+  imported, replaced or integrated without a later explicit scoped decision;
+- EVO Inbox and EVO Lead Agent remain deployed messaging references until a
+  bounded controlled provider cutover is explicitly authorized;
+- only the necessary operator messaging capability from EVO Inbox is reused:
+  conversation list/thread, necessary contact/student context, WAHA
+  receive/send, ACK/delivery, AI draft, staff manual send, approved knowledge,
+  audit, and minimal health/settings;
+- Inbox CRM/dashboard/pipeline/deal/lead/broadcast/flow/campaign/unrelated
+  analytics/settings surfaces are not part of the Platform thin slice;
+- useful EVO Lead Agent capabilities move into one backend and one logical data
+  model only through explicit adapters and repository/session seams;
 - one private WAHA session/number, `evo-inbox`, and one EVO Platform webhook
   owner serve the final production path;
 - staff and Student Portal use real server authorization, RLS, object scope and
   durable audit;
 - AI creates reviewable RU/EN drafts only. A human edits and manually sends.
 
-The accepted frontend is a UI contract, not evidence that Supabase, amoCRM,
-WAHA, AI, Storage, notification delivery or production cutover works. The
-platform must not be called production-complete until the controlled provider
-path, cutover, rollback evidence and 72-hour soak are real.
+The accepted frontend is the sole product UI contract. It must be wired through
+repository/session seams under the existing unified frontend shipped in PRs
+#64, #71 and #72; it must not be replaced with a parallel UI or a fallback
+Inbox UI. The platform must not be called production-complete until the
+controlled provider path, bounded cutover evidence, reconciliation showing
+zero unexplained loss or duplicates across the evidence window, health checks,
+and rollback proof are real. No fixed-duration soak is required by contract.
 
 ## 2. Current verified baseline
 
 As of the version date:
 
-- GitHub `main` is green at `8ad755b5039390f418dbe12924a806f069f93b53`;
+- GitHub `main` checkpoint for this amendment is
+  `b10d72863230aba646bcc8f2acafdc76c27b3fe1`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -58,8 +76,20 @@ As of the version date:
 - no full WhatsApp → amoCRM → Platform → AI draft → manual send → ACK → audit
   path has ever been proved.
 
-These facts describe the present system. Target-architecture documents do not
-silently change production.
+These facts describe the present system. P1 work remains historical legacy
+containment, not the future Platform data plane. Target-architecture documents
+do not silently change production.
+
+## 2A. Current planning priority
+
+After this amendment merges, implementation priority is intentionally narrow:
+
+1. P3 thin messaging slice behind the existing unified frontend.
+2. Bounded amoCRM/WAHA/AI proof for that slice.
+3. Broader Student 360 and non-messaging operational domains later.
+
+This contract explicitly defers broad infra perfection, broad restore proof,
+and broad backend parity work that do not change thin-slice product truth.
 
 ## 3. Non-negotiable business contract
 
@@ -67,9 +97,9 @@ silently change production.
 
 - First-release authority classes are `admin`, `sales`, `curator`, `finance`
   and Client/Student. The target Platform machine role for the last class is
-  `student`; the current root `client` role remains a legacy identifier until
-  an explicit P3 identity mapping. There is no separate `visa` role; the
-  `/visa` module and visa entities remain.
+  `student`; the current root `client` role remains a legacy reference and is
+  not imported or mapped without a later explicit scoped decision. There is no
+  separate `visa` role; the `/visa` module and visa entities remain.
 - Admin is a permission bundle for individually identified authorized staff.
   Shared credentials are forbidden. Only Admin invites or blocks staff and
   assigns or reassigns a Curator.
@@ -127,7 +157,8 @@ silently change production.
   expected to be 040 after P2A verification; a later defect receives a new
   forward migration and never rewrites merged history.
 - `public` remains the legacy Inbox compatibility schema for migrations
-  001–039 until controlled P3/P5 cutover. `platform` is the new Data
+  001–039 until a separately authorized legacy Inbox retirement. P3 does not
+  import or cut over that legacy data plane. `platform` is the new Data
   API/browser-exposed schema and receives explicit least-privilege grants plus
   RLS on every table. `platform_private` is backend-only and is never exposed
   through the Data API.
@@ -215,14 +246,14 @@ deployment surfaces are sequential.
 | --- | --- | --- | --- |
 | P0 | Final plan, corrected TZ/DOCX, target ADR and architecture docs | Deterministic DOCX, every page inspected, independent review | Merged in PR #75 |
 | P1 | Current-app role/RBAC/handoff correction | Positive/negative route, action and object-scope tests; explicit visa-user migration report | P1A-P1D merged in PRs #76-#80 |
-| P2 | Unified Supabase foundation and reconciled migrations | Canonical history, clean local Supabase reset, RLS/secret negative matrix, separate isolated DB and Storage-object restore | P2A merged in PR #82; P2B becomes active when this checkpoint amendment merges |
-| P3 | Root auth and operational SQLite migration path | Read-only inventory, deterministic mapping, dry-run reconciliation, staging comparison, rollback rehearsal | Pending |
-| P4 | Canonical amoCRM adapter | Versioned discovery, read-only sync, webhook/outbox/reconciliation; live proof only with sanitized test lead | Pending |
-| P5 | Unified Inbox/WAHA/Lead Agent capability absorption | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no old cutover yet | Pending |
+| P2 | Reusable Supabase-native foundation | Canonical history, local RLS/queue/Storage evidence, private document contract | P2A-P2H merged; former P2I restore duties transferred to P7 |
+| P3 | Thin Supabase-native messaging slice behind the accepted frontend | Supabase Auth/RBAC, repository seams, real local persistence, conversation list/thread, draft/manual-send state and focused UI E2E | Pending this docs-amendment merge |
+| P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | Pending |
+| P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no legacy cutover yet | Pending |
 | P6 | Admissions, Portal, Documents, Finance, Notifications | Two-student isolation E2E and complete staff-to-portal workflows | Pending |
 | P7 | Security, reliability and operations | Threat model, load evidence, backup plus Storage restore, RPO/RTO and rollback rehearsal, accessibility | Pending |
 | P8 | Release/cutover candidate | Frozen snapshot/reconciliation/runbooks and real controlled end-to-end evidence; no production action in this run | Pending |
-| P9 | 72-hour soak and separate Lead Agent retirement PR | At least 72 actual hours, zero unexplained loss/duplicate/drift and proven rollback | Time-gated |
+| P9 | Bounded cutover evidence and separate Lead Agent retirement PR | Zero unexplained loss/duplicate/drift in the evidence window plus proven rollback and health | Evidence-gated |
 | P10 | Completion audit | Every FR/NFR/SEC/ACC mapped to evidence, full CI/provider proof, no open implementation PR | Pending |
 
 ### P0 — plan and target architecture
@@ -359,7 +390,7 @@ P2 is sequential and additive. Its detailed contract is
 | P2F | Add conversations/messages, participants, distinct WAHA/Kommo/amo mappings, raw events, approved knowledge and draft-only AI records | Transcript/handoff isolation and append/server-write boundaries; no live-provider claim |
 | P2G | Add real Supabase Queues/PGMQ, outbox, idempotency, dead-letter and reconciliation/conflict state | Local service retry/visibility/dedupe/concurrency evidence; unknown delivery never re-enqueued automatically |
 | P2H | Add new private Platform document/media buckets and policies through the real local Supabase Storage API | MIME/25 MB and cross-student/cross-organization denial; audited authorized access |
-| P2I | Run whole-foundation evidence and repair only through the next free forward migration if needed | Clean reset, RLS/grant/secret inventory, browser secret scan, isolated DB restore and separate Storage-object restore |
+| P2I | Superseded in this lane; restore duties transfer to later reliability work | Later reliability work owns clean reset, RLS/grant/secret inventory, browser secret scan, isolated DB restore and separate Storage-object restore |
 
 P2 does not rename or drop legacy Inbox tables, cut root authentication over,
 copy real secrets into Vault, change legacy public bucket behavior or apply any
@@ -368,28 +399,57 @@ current Inbox consumers before revoking a legacy table grant. `avatars` and
 `flow-media` remain explicit compatibility decisions; new private Platform
 buckets are introduced only in P2H.
 
-### P3 — root auth and operational migration
+### P3 — thin Supabase-native messaging slice
 
-Inventory and back up SQLite read-only first. Produce deterministic UUID
-mapping, counts, orphan and checksum reports, staging import and temporary
-dual-read comparison. Do not create long-term dual-write. Merge cutover code
-disabled/fail-closed; production cutover remains separately authorized.
+Keep the accepted root frontend from PRs #64, #71 and #72 and replace only its
+legacy data/session seams for the bounded messaging path:
+
+- use Supabase Auth through server-verified claims and five-role authorization;
+- implement Supabase-native repositories/actions for `/login`, the staff shell,
+  `/whatsapp` and `/whatsapp/[id]`;
+- persist conversation/message/draft/manual-send/audit state in the greenfield
+  Platform schemas;
+- preserve the existing screen structure, design language, responsive behavior
+  and accessibility contract;
+- fail closed for missing membership, object scope or provider readiness.
+
+P3 imports no legacy SQLite records or accounts, maps no legacy root identity,
+and creates no dual-read or dual-write bridge. Existing non-messaging screens
+remain the accepted future UI contract but must not present prototype state as
+authoritative live data.
+
+P3 is delivered sequentially to keep each PR reviewable:
+
+| Sub-block | Contract | Required exit |
+| --- | --- | --- |
+| P3A | Supabase SSR/server session, verified claims, organization membership/RBAC, `/login` and staff-shell authorization behind the existing UI | Positive/negative login, expiry, blocked-user, role and cross-organization tests; no legacy-account import |
+| P3B | Supabase conversation list/thread repositories and actions behind existing `/whatsapp` pages | Real local Supabase reads with two-organization/object-scope denials and browser E2E; synthetic records labelled non-provider evidence |
+| P3C | Approved-knowledge selection, draft review/edit, manual-send authorization/outbox/audit and fail-closed integration health behind existing components | Local persistence/idempotency/audit E2E; no provider invocation or success claim when WAHA/AI is unconfigured |
+
+P3 proves the greenfield application seam and local product workflow. Real
+amoCRM mapping is P4 evidence; real WAHA receive/send/ACK and AI-provider proof
+are P5 evidence.
 
 ### P4 — canonical amoCRM adapter
 
-Discover and version account-specific mappings. Begin read-only; then add
+Discover and version account-specific mappings. Begin with the contact/lead,
+responsible Sales and stage context needed by the messaging thread; then add
 persisted webhook intake, idempotency, asynchronous work, reconciliation,
 conflicts and loop prevention. Guard canonical writes. A confirmed contract
 mapping creates a pending case; Admin Curator assignment activates handoff and
-Portal.
+Portal. Without credentials and a sanitized test lead, only disabled,
+fail-closed adapter slices may merge and no live-provider claim is allowed.
 
 ### P5 — unified communications
 
-Unify Inbox history and role-scoped Sales/Curator queues, retaining distinct
-internal, WAHA and Kommo identifiers. Implement one target webhook owner,
-draft-only RU/EN AI and manual-send audit. Remove or disable broadcast, flow and
-auto-reply surfaces. Do not switch the old webhook/session without controlled
-proof and separate production authorization.
+Absorb only the agent-facing messaging capability: conversation list/thread,
+necessary operator context, WAHA receive/send, ACK/delivery, approved-knowledge
+retrieval, draft-only RU/EN AI, human review/edit/manual send, audit and minimal
+messaging health/settings. Keep distinct internal, WAHA and Kommo identifiers
+and role-scoped Sales/Curator queues. Broadcasts, flows, campaigns, standalone
+Inbox CRM/dashboard/pipeline/deal/lead surfaces, unrelated analytics/settings
+and auto-reply remain excluded. Do not switch the old webhook/session without
+controlled proof and separate production authorization.
 
 ### P6 — operations and portal
 
@@ -415,14 +475,15 @@ real path is:
 Missing credentials, test number, QR owner, dedicated test lead, production
 authorization or release window are `BLOCKED`, never mocked.
 
-### P9 — soak and retirement
+### P9 — bounded cutover evidence and retirement
 
-Observe real traffic for at least 72 actual hours with loss, duplicate, drift,
-webhook, outbox, conflict, unknown-delivery and rollback monitoring. Only after
-all evidence exists may a separate reviewed PR remove `evo-lead-agent/`,
-Compose/env/volume references, the `crm_primary` legacy path/session, internal
-sync route and obsolete secrets/runbooks. This block cannot be completed in a
-single overnight run.
+Across the explicitly approved controlled evidence window, reconcile every
+receive/send/ACK outcome and prove zero unexplained loss or duplicates, healthy
+webhook/outbox processing and a working rollback. Only after that evidence and
+separate production authority exist may a separate reviewed PR remove
+`evo-lead-agent/`, Compose/env/volume references, the `crm_primary` legacy
+path/session, internal sync route and obsolete secrets/runbooks. Elapsed time
+alone is neither required proof nor sufficient proof.
 
 ### P10 — completion audit
 
@@ -532,7 +593,7 @@ full local Playwright or live provider proof.
 - no irreversible migration without expand/contract, backup and rollback;
 - no production deployment, migration, DNS, WAHA session mutation, live
   customer send, real amoCRM record mutation or service deletion in this run;
-- no Lead Agent removal before the real 72-hour gate.
+- no Lead Agent removal before bounded cutover evidence, health and rollback gates.
 
 ## 9. Remaining owner decisions
 

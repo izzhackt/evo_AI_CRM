@@ -1,13 +1,11 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-long-run` is active. P0, P1A-P1D, the P2
-Supabase-foundation decomposition and P2A canonical migration authority are
-merged through PR #82; GitHub `main` is green at
-`8ad755b5039390f418dbe12924a806f069f93b53`. The active block is this
-docs-only P2 checkpoint-freshness amendment until it is merged. At that merge
-commit, P2B becomes the active implementation block under its already-approved
-contract and must be rebased, revalidated and independently reviewed.
-Updated 2026-07-28 in the workspace timezone.
+Status: `/goal-evo-platform-long-run` is active. Historical P1 containment is
+complete. Reusable greenfield P2A-P2H foundation is merged through current
+checkpoint `b10d72863230aba646bcc8f2acafdc76c27b3fe1`; P2I restore duties move
+to P7 and do not block the thin slice. This docs-only amendment is the active
+gate; P3 thin messaging behind the accepted unified frontend starts only after
+its merge. Updated 2026-07-30 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 The current detailed contract is
@@ -19,26 +17,26 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Pre-merge slice: `/goal-evo-platform-long-run`, Block
-`EVO-P2-CHECKPOINT-FRESHNESS-2026-07-28`, plan amendment only. Post-merge
-slice: P2B namespace/grant and verified legacy secret-path containment.
+Active slice: `/goal-evo-platform-long-run`, Block
+`EVO-GREENFIELD-UI-PLAN-2026-07-30`, docs-only greenfield/UI/data-boundary
+amendment. Post-merge slice: P3 implementation behind the existing unified
+frontend.
 
 ### Goal
 
 Build the unified EVO Platform in ordered, independently reviewed blocks while
 preserving the accepted frontend contract and current production safety.
 amoCRM remains canonical for contact, lead, responsible sales manager and
-sales stage. One Supabase production project becomes the platform-owned
+sales stage. One greenfield Supabase-native backend becomes the platform-owned
 operational store, with physically isolated dev/staging/preview environments.
-EVO Inbox and useful EVO Lead Agent logic move into one backend and one private
-`evo-inbox` WAHA path. AI remains draft-only with human manual send.
+The existing unified frontend from PRs #64/#71/#72 is the sole product UI
+contract and must be wired through repository/session seams, not replaced or
+paralleled. AI remains draft-only with human manual send.
 
-This amendment changes documentation only. It records that the P2
-decomposition and P2A authority blocks have passed their independent
-launch-control gates, supersedes the stale pre-P2A checkpoint and makes P2B
-the next pending implementation block. It changes no architecture, scope,
-acceptance criterion, code, SQL, Supabase project, provider or production
-state.
+This amendment changes documentation only. It records that P1 is historical
+legacy containment, P2A-P2H are reusable greenfield foundation, P2I restore
+duties move to P7, and the next product slice is thin messaging rather than
+broad backend parity. It changes no code, SQL, provider or production state.
 
 ### Reconciled baseline
 
@@ -52,14 +50,14 @@ checkpoint is:
 - P1D current-root WhatsApp object-scope containment merged in PR #80.
 - P2 Supabase-foundation decomposition merged in PR #81.
 - P2A canonical migration authority merged in PR #82.
-- Exact current `main` CI is green at
-  `8ad755b5039390f418dbe12924a806f069f93b53`. Before this amendment merges,
-  it is the only active PR. Its merge advances the checkpoint to P2B; the
-  preserved P2B work must then be rebased and returned as the only
-  implementation PR.
+- P2B-P2H merged sequentially on `main`; this amendment recognizes them as
+  reusable greenfield foundation rather than the active product slice.
+- Exact current checkpoint for this amendment is
+  `b10d72863230aba646bcc8f2acafdc76c27b3fe1`.
 - Root `/whatsapp` remains a SQLite `wa_*` shadow surface with P1D
   authorization containment. It is not the unified communications backend;
-  that remains P5.
+  the greenfield application seam starts in P3 and real provider completion
+  remains P5.
 
 - At the P0 snapshot, GitHub `main` and the clean P0 worktree resolved to
   `a16cd3fb`; the exact `EVO platform CI` run for that SHA was green and there
@@ -75,7 +73,28 @@ checkpoint is:
   session state was not re-proved and no secret was read.
 - No real WhatsApp/amoCRM end-to-end proof exists. Missing gates include exact
   amoCRM mappings/credentials, a dedicated sanitized test lead and number, QR
-  owner, controlled-send authorization and release window.
+  owner, controlled-send authorization, release window, reconciliation window
+  and rollback evidence.
+
+### Immediate execution order
+
+1. Keep the current unified frontend and design language as the only UI.
+2. P3A wires `/login` and the staff shell through Supabase-native verified
+   sessions and five-role authorization.
+3. P3B wires `/whatsapp` and `/whatsapp/[id]` through Supabase conversation
+   repositories; P3C adds draft review/manual-send/outbox/audit state with
+   provider calls fail-closed.
+4. Limit reused product capability to operator messaging only.
+5. Defer real amoCRM proof to P4, real WAHA/AI/ACK proof to P5, and broad
+   Student 360, broader CRM parity and restore duties to later
+   gated phases.
+
+### Merge-order boundary
+
+Business-workflow specifics from the later OP/OZO/Student Profile/country
+overlay discovery require a separate sequential docs-only amendment rebased on
+this contract. That later amendment must reuse the same Supabase foundation and
+existing frontend and must not open a competing plan PR.
 - `crm.evoadmissions.com` and `inbox.evoadmissions.com` have no DNS answer.
   The fallback CRM URL responds.
 - The original checkout's modified Malaysia knowledge-base document and
@@ -89,15 +108,16 @@ are defined in `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`.
 
 - P0: plan/TZ/DOCX/ADR and target architecture, docs-only.
 - P1: current-app role/RBAC/handoff correction. P1A-P1D are merged.
-- P2: unified Supabase foundation. P2A is merged; P2B–P2I execute
-  sequentially after this docs-only amendment merges.
-- P3: root auth and operational SQLite migration path.
+- P2: unified Supabase foundation. P2A is merged; P2B–P2H are reusable
+  foundation and former P2I restore duties move to a later reliability lane.
+- P3: thin messaging slice behind the existing unified frontend.
 - P4: canonical amoCRM adapter.
 - P5: unified Inbox/WAHA/Lead Agent capability absorption.
 - P6: Admissions/Portal/Documents/Finance/Notifications.
 - P7: security, reliability and operations.
 - P8: release/cutover candidate and controlled provider gate.
-- P9: at least 72 actual hours of soak, then a separate retirement PR.
+- P9: bounded cutover reconciliation and rollback evidence, then a separate
+  reviewed retirement PR.
 - P10: requirement-to-evidence completion audit.
 
 Only one implementation PR may be open. The executor never merges its own PR;
@@ -157,7 +177,8 @@ implementation boundary:
 - legacy Inbox `owner/admin/agent/viewer` roles never map implicitly to
   Platform `admin/sales/curator/finance/student`;
 - target machine role `student` is displayed as Client/Student; the current
-  root `client` identifier maps only through the explicit P3 identity migration;
+  root `client` identifier is not imported or mapped into Platform without a
+  later explicit scoped decision;
 - the legacy signup trigger may keep legacy Inbox behavior but grants no
   Platform membership.
 
@@ -177,8 +198,8 @@ P2 has the following strict dependency order:
    idempotency, dead-letter and reconciliation.
 8. P2H proves new private Platform buckets/policies through the real local
    Supabase Storage API.
-9. P2I runs the whole-foundation reset/RLS/grant/secret suite and proves an
-   isolated database restore plus a separate Storage-object restore.
+9. Former P2I whole-foundation reset/RLS/grant/secret and separate database/
+   Storage restore duties are transferred to P7 and do not block P3.
 
 Merged migrations are immutable; defects use the next free forward migration.
 P2 is additive and does not rename/drop legacy tables, cut root auth over,
@@ -326,7 +347,8 @@ rehearsal. None may be inferred or marked complete from automated tests.
 ### Historical write boundaries and merge order
 
 The ownership list below applied to the pre-platform A–G hardening program. It
-does not authorize current P2 work; P2A–P2I and the long-run contract control.
+does not authorize current P2 work; P2A–P2H, later reliability work and the
+long-run contract control.
 
 - Plan-only PR: `docs/EVO_LAUNCH_PLAN.md` and append-only
   `docs/PLAN_CHANGES.md`.

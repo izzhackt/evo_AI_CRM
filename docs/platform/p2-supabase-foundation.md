@@ -1,28 +1,31 @@
 # P2 canonical Supabase foundation
 
 - Status: implementation contract; no production application
-- Date: 2026-07-29
-- Block family: P2A–P2I
+- Date: 2026-07-30
+- Block family: P2A–P2H reusable foundation
 - Parent contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
-- Architecture: ADR 0014, refined by ADR 0015
+- Architecture: ADR 0014/0015, with greenfield/UI conflicts superseded by ADR
+  0016
 - Starting checkpoint: `d3edcda6649cb7b90b789c57c658ec1fc4a20618`
 
 ## Purpose and truth boundary
 
-P2 creates the repository and database foundation for one EVO Platform data
-model. It does not migrate root SQLite data or auth, prove live amoCRM/WAHA/AI,
-apply a production migration, or cut over the existing Inbox and Lead Agent.
+P2 creates the reusable repository and database foundation for one greenfield
+EVO Platform data model. It does not migrate root SQLite data or auth, import
+legacy accounts, prove live amoCRM/WAHA/AI, apply a production migration, or
+cut over the existing Inbox and Lead Agent.
 
-The accepted frontend remains the UI contract. Passing P2 proves local
+The accepted frontend remains the sole UI contract. Passing P2 proves local
 migration reproducibility, database authorization and the scoped local
 Supabase service contracts described below. It does not make the Platform
-production-complete.
+production-complete, and it does not authorize a parallel UI or a legacy
+bridge.
 
 ## Canonical schemas
 
 | Schema | P2 responsibility | Exposure |
 | --- | --- | --- |
-| `public` | Preserve legacy Inbox objects from 001–039 until P3/P5 cutover | Temporary Data API compatibility only; RLS and proven consumer inventory required |
+| `public` | Preserve legacy Inbox objects from 001–039 until later controlled cutover | Temporary Data API compatibility only; RLS and proven consumer inventory required |
 | `platform` | New Platform organizations, identity links, admissions operations, communications and audited state | Data API exposed; explicit grants; RLS on every table |
 | `platform_private` | Backend-only helpers, internal processing and references to secrets stored through supported facilities | Not exposed; no browser grants |
 | `auth` | Supabase Auth provider schema | Provider-owned |
@@ -80,7 +83,10 @@ P2G Queues/outbox/reconciliation
 P2H private Storage
         |
         v
-P2I whole-foundation and restore evidence
+P3 thin messaging slice
+        |
+        v
+Later reliability lane restore evidence
 ```
 
 ## Sequential blocks
@@ -163,7 +169,8 @@ Owns:
 `student` is the target machine identifier for the user-facing Client/Student
 class. P2 does not map legacy `owner/admin/agent/viewer` roles or the current
 root `client` identifier. Legacy account signup does not confer Platform
-membership; root identity mapping remains P3.
+membership. P3 creates greenfield Supabase-native identities and imports or
+maps no legacy root account without a later explicit scoped decision.
 
 The detailed P2C enforcement and evidence contract is
 `docs/platform/p2c-identity-rbac-audit.md`. Coarse role/version claims are
@@ -307,7 +314,7 @@ Exit:
 
 ### P2G — durable work and reconciliation
 
-The detailed candidate contract is
+The merged contract is
 `docs/platform/p2g-durable-work-queues.md`. It starts from merged P2F
 checkpoint `8567455f281fa157fb088970db1c2a2397850843` and adds only forward
 migration `045_platform_durable_work_queues.sql`: 3,425 lines, 91,620 bytes,
@@ -351,8 +358,10 @@ proofs, not WAHA/amoCRM/AI provider, managed Supabase or production proofs.
 
 ### P2H — private Platform Storage
 
-Owns new private Platform buckets and policies through the real local Supabase
-Storage API. Application SQL never writes `storage` tables directly.
+PR #92 merged migration 046 and the detailed contract in
+`docs/platform/p2h-private-document-storage.md`. It owns new private Platform
+buckets and policies through the real local Supabase Storage API. Application
+SQL never writes `storage` tables directly.
 
 Exit:
 
@@ -364,11 +373,11 @@ Exit:
 - legacy `avatars`/`flow-media` compatibility is unchanged.
 
 ### P2I — whole-foundation evidence
+Moved to the later reliability lane. Former P2I duties remain required work,
+but they do not block the first thin messaging slice behind the existing
+frontend.
 
-Owns no planned schema by default. If evidence finds a defect, the fix uses the
-next free migration and receives a fresh exact-head review.
-
-Exit:
+The later reliability lane still owns:
 
 - clean local reset from 001 through the final P2 migration;
 - full RLS/policy/grant/function inventory;
@@ -398,7 +407,7 @@ Exit:
 | Migration reproducibility | Project-local CLI, clean local reset and checksum ledger | Does not prove remote managed ledger |
 | RLS/grants | Executed disposable PostgreSQL/local Supabase positive and negative tests | SQL text matching alone is insufficient |
 | Queues | Real local Supabase Queues/PGMQ service contract | Handcrafted queue mock is insufficient; no production traffic |
-| Storage | Real local Storage API/policy behavior and object restore | DB backup does not include Storage objects |
+| Storage | Real local Storage API/policy behavior and redacted object inventory | DB backup does not include Storage objects; isolated object restore remains P7 work |
 | Branch isolation | Official contract plus local configuration | Managed preview/staging behavior remains unproved without linked projects |
 | PITR | Runbook placeholder only | Region/plan/cost decision and managed restore are blocked |
 | Provider integrations | Data contracts only | No live amoCRM, WAHA, AI or customer-message proof |

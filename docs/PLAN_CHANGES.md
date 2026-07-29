@@ -3293,3 +3293,68 @@ Validation impact:
 - P2B remains unmerged and makes no production, managed Supabase, provider,
   WhatsApp, WAHA, amoCRM, DNS or customer-data mutation while the freshness
   prerequisite is processed.
+
+## 2026-07-30 - Greenfield Platform UI And Data Boundary
+
+Affected plan section: `/goal-evo-platform-long-run`, checkpoint, execution
+order, backend boundary and thin-slice definition.
+
+Change type: architecture and sequencing amendment.
+
+Reason:
+
+- The repository now contains merged unified frontend work from PRs #64, #71
+  and #72 that already defines the intended product UI and route language.
+- The previous plan still implied too much coupling to root SQLite/root auth,
+  broad Inbox parity, P2I restore as a thin-slice blocker, and fixed-hour
+  retirement/observation language.
+- Current reality remains split across root SQLite/custom auth, EVO Inbox
+  Supabase/WAHA and EVO Lead Agent. The next product step needs a narrower
+  contract: one greenfield Supabase-native messaging slice behind the existing
+  frontend, not broad backend parity or a parallel UI.
+
+Decision:
+
+- Treat the Platform backend as greenfield and Supabase-native: no legacy
+  SQLite data import, no legacy account import, no root-auth migration, and no
+  dual-read or dual-write bridge.
+- Keep the current deployed root CRM as a separate legacy system with no
+  automatic import, replacement or integration. Keep Inbox and Lead Agent as
+  deployed messaging references until an explicitly authorized bounded
+  provider cutover.
+- Treat P1A-P1D as historical legacy containment only. Treat merged P2A-P2H as
+  reusable greenfield foundation. Move former P2I restore duties to P7; they
+  remain required later but do not block the thin slice.
+- Keep the merged unified frontend from PRs #64/#71/#72 as the sole product UI
+  contract. Wire it through repository/session seams rather than replacing it
+  or reviving a parallel Inbox UI.
+- Reuse only Inbox operator messaging capability: conversation list/thread,
+  necessary contact/student context, WAHA receive/send, ACK/delivery, AI
+  draft, staff manual send, approved knowledge, audit and minimal
+  health/settings.
+- Exclude Inbox CRM/dashboard/pipeline/deal/lead/broadcast/flow/campaign and
+  unrelated analytics/settings surfaces from the Platform thin slice.
+- Replace the fixed-duration current-authority requirement with bounded
+  controlled-cutover evidence: zero unexplained loss or duplicates in the
+  evidence window, health checks and rollback proof.
+- Set the current amendment checkpoint to `b10d72863230aba646bcc8f2acafdc76c27b3fe1`
+  and prioritize P3 thin messaging slice first, bounded amoCRM/WAHA/AI proof
+  second, broader Student 360 later.
+- Deliver P3 as sequential reviewable seams: P3A Supabase SSR/session/RBAC,
+  P3B existing `/whatsapp` list/thread repositories, and P3C approved
+  knowledge/draft-review/manual-send/outbox/audit state. Provider calls remain
+  fail-closed; real amoCRM proof is P4 and real WAHA/AI/ACK proof is P5.
+- OP/OZO/Student Profile/country overlay workflow specifics require a later
+  sequential docs-only amendment rebased on this contract. That later work must
+  reuse the same Supabase foundation and existing frontend and must not open a
+  competing plan PR.
+
+Validation impact:
+
+- Keep historical plan-change entries intact and append this amendment only.
+- Update the active plan/context docs to reflect the greenfield data boundary,
+  unified-frontend-only UI contract, thin messaging scope and revised cutover
+  evidence gate.
+- Update the canonical TZ/DOCX/validation and architecture/status documents,
+  but do not change runtime code, migrations, production configuration or
+  provider state as part of this amendment.

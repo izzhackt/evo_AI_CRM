@@ -1,9 +1,12 @@
 # P2H — private document Storage
 
-- Status: repository candidate; independent review and exact-head CI pending
+- Status: merged local greenfield foundation proof; no managed/production proof
 - Date: 2026-07-29
 - Starting database boundary: migration 045
 - Additive migration: 046
+- Merged PR: #92
+- Merge commit: `b10d72863230aba646bcc8f2acafdc76c27b3fe1`
+- Exact-main CI: `30490070719` — success
 - Parent contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 - Foundation contract: `docs/platform/p2-supabase-foundation.md`
 
@@ -23,7 +26,7 @@ The block does not:
 - enable Platform message attachments;
 - change legacy `avatars`, `flow-media` or `chat-media` compatibility;
 - define document deletion or retention while DEC-012 remains open;
-- prove Storage-object restore, which belongs to P2I.
+- prove Storage-object restore, which is transferred to P7 reliability work.
 
 The legacy root SQLite/custom-auth CRM remains a separate reference system and
 is not a migration source or target dependency for P2H. P2H is a real local
@@ -117,7 +120,7 @@ boundaries. The migration validates those table constraints against historical
 rows and aborts rather than silently accepting incompatible evidence.
 
 These thresholds are safe initial controls, not production capacity claims.
-P2I/P7 must tune them from sanitized staging telemetry and define archival or
+P7 must tune them from sanitized staging telemetry and define archival or
 partitioning only after the retention decision is approved; no audit or
 document evidence is auto-deleted in P2H.
 
@@ -242,19 +245,22 @@ Database backup or PITR does not include Storage object bytes. P2H produces a
 redacted object inventory that can detect missing or inconsistent objects; it
 does not claim a recoverable backup.
 
-P2I must separately copy the synthetic objects to an isolated target, restore
-them and compare object hashes before the Storage backup/restore requirement is
-closed.
+P7 reliability work must separately copy synthetic objects to an isolated
+target, restore them and compare object hashes before the Storage
+backup/restore requirement is closed.
 
-## Evidence to freeze before merge
+## Frozen merge evidence
 
-The PR evidence must record:
+PR #92 records:
 
-- exact migration 046 byte count and SHA-256;
-- disposable PostgreSQL RLS/inventory results;
-- real local Supabase reset and Storage API result;
-- root, Inbox and retained Lead Agent full gates;
-- exact-head `EVO platform CI` jobs;
-- independent SHA-bound reviewer verdict;
+- migration 046: 79,701 bytes; SHA-256
+  `0bfcbd0f478b4714e347dced2f8220be3c9d28a65807e5485aef1c474983b58f`;
+- disposable PostgreSQL RLS/inventory passed;
+- real local Supabase reset and Storage API matrix passed;
+- root, Inbox and retained Lead Agent full gates passed on the reviewed head;
+- exact-head `EVO platform CI` run `30487333997` passed and exact-main run
+  `30490070719` passed;
+- independent SHA-bound reviewer approved head
+  `8e4f749aab3adf173e85abb308088431be74eaff`;
 - `real-provider-proof: not-required`, with real local Supabase service proof
   stated separately from managed-production/provider proof.

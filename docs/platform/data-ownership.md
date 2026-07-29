@@ -1,8 +1,18 @@
 # Владение данными в EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Status: Target contract; current split storage remains until controlled cutover
-- Last verified against repository: 2026-07-29
+- Status: Target contract; legacy storage remains separate and no legacy-data
+  cutover is authorized
+
+## 2026-07-30 greenfield amendment
+
+Platform data ownership is greenfield and Supabase-native. The target does not
+import root SQLite data or accounts, does not migrate root auth into Platform,
+and does not rely on dual-read or dual-write between legacy and Platform data
+planes. Legacy root storage remains a separate reference unless a later
+explicitly scoped import or integration decision is approved. Inbox/Lead Agent
+messaging provider ownership has its own bounded cutover gate.
+- Last verified against repository: 2026-07-30
 - Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 
@@ -63,8 +73,8 @@ sanitized test lead. Глобальные hardcoded stage IDs запрещены
 
 В release v1 есть `admin`, `sales`, `curator`, `finance` и `student`;
 Client/Student — user-facing label последней роли. Текущий root identifier
-`client` остаётся legacy до explicit P3 mapping и не создаёт Platform
-membership автоматически. Отдельной роли `visa` нет; `/visa` является module.
+`client` остаётся legacy, не импортируется и не маппится без отдельного
+будущего scoped decision. Отдельной роли `visa` нет; `/visa` является module.
 
 | Роль | Разрешённый scope |
 |---|---|
@@ -286,16 +296,18 @@ PII сверх разрешённого scope или полный customer messa
 
 ## Current-to-target boundary
 
-До контролируемого cutover root SQLite, отдельный Inbox Supabase и состояние
-Lead Agent остаются текущими runtime sources в своих старых путях. Target
-ownership не даёт права выполнять production migration, dual-write или
-отключать старый webhook.
+Root SQLite remains a separate legacy source and is not part of the Platform
+cutover contract. До контролируемого provider cutover отдельный Inbox Supabase
+и состояние Lead Agent остаются текущими runtime sources в своих messaging
+paths. Target ownership не даёт права выполнять production migration,
+dual-write, dual-read или отключать старый webhook.
 
 P2 добавляет новые schemas/tables без rename/drop legacy objects, root-auth
 cutover, real-secret copy или legacy bucket flip. Root auth/SQLite migration
-остаётся P3, а Inbox/Lead Agent/WAHA cutover — P5.
+не входит в greenfield Platform path, а Inbox/Lead Agent/WAHA cutover остаётся
+отдельным bounded event.
 
-Переход требует read-only inventory и backup, deterministic UUID mapping,
-dry-run counts/orphans/checksums, staging import, временное dual-read сравнение,
-rollback rehearsal и отдельное разрешение. Постоянный dual-write не является
-целевой архитектурой.
+Переход требует bounded reconciliation, health and rollback proof и отдельное
+разрешение. Greenfield Platform не использует dual-write или dual-read bridge
+с legacy SQLite/Inbox data planes; controlled evidence сверяет provider events
+и новые Platform records без импорта legacy данных.

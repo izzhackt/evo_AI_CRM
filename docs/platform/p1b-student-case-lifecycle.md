@@ -1,7 +1,8 @@
 # P1B: student case lifecycle and Curator handoff
 
 - Block: `EVO-P1B-CASE-LIFECYCLE-2026-07-28`
-- Scope: local SQLite transition model before the P2/P3 Supabase migration
+- Scope: historical local SQLite containment before the separate greenfield
+  Platform path
 - Provider boundary: no amoCRM, Supabase, WAHA, AI, or production mutation
 - Production state: not deployed by this block
 
@@ -100,4 +101,4 @@ gating, and append-only behavior with synthetic fixtures. They do not prove:
 - the complete WhatsApp-to-audit path.
 
 Those proofs remain gates for P2–P8. Lead Agent retirement remains prohibited
-until the separate P9 cutover and at least 72 actual hours of stable traffic.
+until the separate bounded P9 cutover evidence, health and rollback gate.

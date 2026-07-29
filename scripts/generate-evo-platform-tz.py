@@ -843,7 +843,6 @@ MAJOR_PAGE_BREAK_PREFIXES = (
     "6.",
     "13.",
     "27.",
-    "32.",
 )
 
 
@@ -851,6 +850,11 @@ def add_heading(document: Document, text: str, level: int) -> None:
     style = f"Heading {level}"
     p = document.add_paragraph(style=style)
     if level == 1 and text.startswith(MAJOR_PAGE_BREAK_PREFIXES):
+        p.paragraph_format.page_break_before = True
+    if level == 2 and text.startswith("13.8 "):
+        # LibreOffice can drop middle rows when this table begins in the last
+        # available lines of a page. Keep the section and its table together
+        # on a fresh page so every FR-075..FR-084 row survives PDF rendering.
         p.paragraph_format.page_break_before = True
     if level == 2 and text.startswith("27.") and not text.startswith("27.1 "):
         p.paragraph_format.page_break_before = True

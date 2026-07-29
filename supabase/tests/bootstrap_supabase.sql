@@ -1,11 +1,84 @@
 \set ON_ERROR_STOP on
 
-CREATE ROLE anon NOLOGIN;
-CREATE ROLE authenticated NOLOGIN;
-CREATE ROLE service_role NOLOGIN BYPASSRLS;
-CREATE ROLE supabase_auth_admin NOLOGIN;
+DO $bootstrap_roles$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    CREATE ROLE service_role NOLOGIN BYPASSRLS;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN
+    CREATE ROLE supabase_auth_admin NOLOGIN;
+  END IF;
+END
+$bootstrap_roles$;
 
-GRANT anon, authenticated, service_role, supabase_auth_admin TO postgres;
+-- The pinned Supabase Postgres image creates these cluster roles before this
+-- clean test database exists. Fail closed if their security attributes drift.
+DO $validate_bootstrap_roles$
+DECLARE
+  role_name TEXT;
+BEGIN
+  FOREACH role_name IN ARRAY ARRAY[
+    'anon',
+    'authenticated',
+    'service_role'
+  ]
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_roles
+      WHERE rolname = role_name
+        AND NOT rolcanlogin
+    ) THEN
+      RAISE EXCEPTION 'Required Supabase role % is missing or can log in', role_name;
+    END IF;
+  END LOOP;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_roles
+    WHERE rolname = 'supabase_auth_admin'
+  ) THEN
+    RAISE EXCEPTION 'Required Supabase role supabase_auth_admin is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_roles
+    WHERE rolname = 'service_role'
+      AND rolbypassrls
+  ) THEN
+    RAISE EXCEPTION 'Required Supabase service_role must bypass RLS';
+  END IF;
+
+  IF NOT pg_has_role('postgres', 'supabase_admin', 'SET') THEN
+    RAISE EXCEPTION 'Disposable migration actor cannot administer provider-owned extensions';
+  END IF;
+END
+$validate_bootstrap_roles$;
+
+DO $validate_bootstrap_memberships$
+DECLARE
+  role_name TEXT;
+BEGIN
+  FOREACH role_name IN ARRAY ARRAY[
+    'anon',
+    'authenticated',
+    'service_role',
+    'supabase_auth_admin'
+  ]
+  LOOP
+    IF NOT pg_has_role('postgres', role_name, 'SET') THEN
+      RAISE EXCEPTION 'postgres cannot SET ROLE % in the authorization harness', role_name;
+    END IF;
+  END LOOP;
+END
+$validate_bootstrap_memberships$;
 
 -- Adversarial drift fixture for migration 040: IF NOT EXISTS alone would keep
 -- authenticated as schema owner, allowing that role to re-grant itself CREATE.

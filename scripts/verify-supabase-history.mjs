@@ -20,6 +20,8 @@ const requiredP2EMigration =
   "043_platform_documents_finance_notifications.sql";
 const requiredP2FMigration =
   "044_platform_communications_contracts.sql";
+const requiredP2GMigration =
+  "045_platform_durable_work_queues.sql";
 const immutablePlatformMigrations = Object.freeze([
   Object.freeze({
     name: requiredP2BMigration,
@@ -45,6 +47,11 @@ const immutablePlatformMigrations = Object.freeze([
     name: requiredP2FMigration,
     bytes: 194076,
     sha256: "8d52b476981faed4a42a9c13ff2813a718bde6ad4aea1b315c4d61be9fd1ebc8",
+  }),
+  Object.freeze({
+    name: requiredP2GMigration,
+    bytes: 91620,
+    sha256: "a657c32c3dadec369b54157914a229b112c58beb395ee4a2ae99025d804723a2",
   }),
 ]);
 const immutableMigrationCount =
@@ -237,6 +244,9 @@ function validateCanonicalSequence(names) {
   }
   if (names[importedMigrationCount + 4] !== requiredP2FMigration) {
     fail(`required migration 044 must be ${requiredP2FMigration}`);
+  }
+  if (names[importedMigrationCount + 5] !== requiredP2GMigration) {
+    fail(`required migration 045 must be ${requiredP2GMigration}`);
   }
 }
 

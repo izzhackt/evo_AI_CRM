@@ -105,17 +105,18 @@ _Avoid_: light rebrand, template skin
 The target staff workspace and Student Portal backed by one logical platform
 data model. A dedicated Supabase production project owns EVO operational data,
 while local/development, persistent staging, and supported preview environments
-remain physically isolated. The existing split CRM, Inbox, and Lead Agent
-runtimes remain current-state facts until a controlled cutover proves the
-replacement.
+remain physically isolated. The legacy root CRM remains a separate system and
+is neither replaced nor migrated by this contract. Existing Inbox and Lead
+Agent messaging ownership remains current-state fact until a controlled
+provider cutover proves the new path.
 _Avoid_: renamed companion app, shared production-and-test database
 
 **Platform Business Role**:
 One of `admin`, `sales`, `curator`, `finance`, or `student`. “Client/Student”
 is the user-facing label for `student`; the current root `client` identifier is
-legacy and receives only an explicit P3 identity mapping. There is no separate
-`visa` business role; `/visa` remains a module managed by the assigned Curator
-(and Admin where authorized).
+legacy and is not imported or mapped into Platform without a later explicit
+scoped decision. There is no separate `visa` business role; `/visa` remains a
+module managed by the assigned Curator (and Admin where authorized).
 _Avoid_: prototype persona, shared administrator login, implicit client mapping
 
 **Admin Assignment**:
@@ -150,10 +151,19 @@ This is containment, not proof of EVO Inbox, WAHA, amoCRM or unified-history
 integration.
 _Avoid_: unified Inbox, provider proof, canonical conversation ownership
 
+**Unified Frontend Contract**:
+The merged unified frontend shipped in PRs #64, #71 and #72. It is the sole
+product UI contract for the Platform path. Platform work must wire this UI
+through repository/session seams rather than replace it or introduce a parallel
+Inbox-derived UI.
+_Avoid_: second operator UI, replacement prototype, dual frontend
+
 **Unified Platform Data Store**:
 The target dedicated Supabase production project for EVO-owned operational
 records, with RLS and audit controls. It does not become authoritative for
 amoCRM-owned contact, lead, responsible sales manager, or sales stage.
+It is greenfield: no legacy SQLite data import, no legacy account import, no
+root-auth migration, and no dual-read or dual-write bridge.
 _Avoid_: companion-only database, canonical sales CRM
 
 **Canonical Supabase Migration Source**:
@@ -176,6 +186,14 @@ no implicit mapping to a Platform Business Role. A legacy signup may create
 legacy Inbox account/profile rows but does not create Platform organization
 membership or business authority.
 _Avoid_: automatic role migration, signup-implies-Platform-access
+
+**Thin Messaging Slice**:
+The first bounded Platform product slice behind the unified frontend:
+conversation list/thread, necessary contact/student context, WAHA receive/send,
+ACK/delivery, AI draft, staff manual send, approved knowledge, audit, and
+minimal health/settings. It excludes generic CRM dashboards, pipelines, deals,
+lead management, broadcasts, flows, campaigns and unrelated analytics.
+_Avoid_: duplicate CRM, broad Inbox parity, auto-reply
 
 **Unified WAHA Session**:
 The target single private production WAHA session `evo-inbox`, representing one

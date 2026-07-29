@@ -1,10 +1,11 @@
 # ADR 0015: Establish the canonical Supabase schema and migration boundary
 
-- Status: Accepted for repository implementation; not applied to production
+- Status: Accepted foundation decision; identity-migration and P2I prerequisite
+  details superseded by ADR 0016; not applied to production
 - Date: 2026-07-28
 - Decision owners: technical owner and Data/Privacy accountability role
 - Refines: ADR 0014
-- Supersedes: none
+- Superseded in conflict by: ADR 0016
 - Execution contract: `docs/platform/p2-supabase-foundation.md`
 
 ## Context
@@ -59,13 +60,15 @@ implicitly to Platform roles. The legacy signup trigger may continue to create
 legacy `public.accounts` and `public.profiles`, but it does not create a
 Platform organization membership or business role. The target fifth machine
 role is `student`, displayed to users as Client/Student. The current root
-`client` role maps only through the explicit P3 identity migration. Root auth
-migration and identity cutover remain P3 work.
+`client` role is not imported or mapped into Platform without a later explicit
+scoped decision. Root-auth migration is not part of the greenfield Platform
+path.
 
 ### Sequential implementation
 
-P2 is delivered as P2A–P2I in the order defined by
-`docs/platform/p2-supabase-foundation.md`. New tables are additive. P2 does not
+P2A–P2H were delivered in the order defined by
+`docs/platform/p2-supabase-foundation.md`; former P2I recovery duties moved to
+P7 under ADR 0016. New tables are additive. P2 does not
 rename or drop legacy tables, copy real secrets, change production, cut root
 auth over, or silently flip legacy public buckets. New private Platform
 document/media buckets arrive only in P2H.

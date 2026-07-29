@@ -1,6 +1,7 @@
 # ADR 0014: Unify EVO Platform backend and operational data
 
-- Status: Accepted for target implementation; not deployed
+- Status: Accepted historical target; migration and fixed-duration retirement
+  details superseded by ADR 0016; not deployed
 - Date: 2026-07-28
 - Decision owners: CEO/CTO authorization bundle and technical owner
 - Supersedes for target architecture: ADR 0002, ADR 0006, ADR 0008, ADR 0009
@@ -136,7 +137,11 @@ AI uses only approved versioned knowledge. EVO may promise only delivery of its
 own services and obligations; it cannot guarantee admission, scholarship, visa
 or another external authority's decision.
 
-## Migration and cutover boundary
+## Historical migration and cutover boundary
+
+The SQLite import/identity bridge and fixed-duration retirement details in this
+section are superseded by ADR 0016. They remain below only as historical
+decision context and are not current implementation authority.
 
 The target is implemented incrementally and fail-closed:
 
@@ -149,9 +154,11 @@ The target is implemented incrementally and fail-closed:
 - expand/contract migration, isolated restore and rollback rehearsal before
   production mutation.
 
-EVO Lead Agent removal requires a separate reviewed PR after at least 72 actual
-hours of stable real traffic, zero unexplained loss/duplicates, reconciliation,
-full real E2E and proven rollback. This ADR does not authorize early removal.
+The historical decision required a separate reviewed PR after at least 72
+actual hours of stable real traffic, zero unexplained loss/duplicates,
+reconciliation, full real E2E and proven rollback. ADR 0016 replaces the
+fixed-duration condition with bounded controlled evidence, health and rollback;
+this ADR still does not authorize early removal.
 
 ## Prohibited actions under this implementation run
 
@@ -200,7 +207,8 @@ Costs and risks:
 - strict RLS and private Storage policy surface;
 - staged webhook ownership transfer and rollback;
 - separate Storage backup alongside DB backup/PITR;
-- real sanitized test sender number, sanitized lead and elapsed 72-hour soak.
+- real sanitized test sender number and sanitized lead; the historical elapsed
+  soak condition is superseded by ADR 0016.
 
 ## Open release decisions
 

@@ -1,18 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requestId } from "@/lib/request-id";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
+import { isConnectedPlatformPage } from "@/lib/platform-route-contract";
 import {
   SupabaseConfigurationError,
 } from "@/lib/supabase/config";
 import { createSupabaseServerClientFromCookies } from "@/lib/supabase/server";
-
-const PLATFORM_PAGE_ALLOWLIST = new Set([
-  "/",
-  "/login",
-  "/register",
-  "/platform-pending",
-  "/whatsapp",
-]);
 
 // All other routes belong to the separate legacy CRM or to later Platform
 // blocks. In Platform runtime they stay unreachable until a reviewed adapter
@@ -103,7 +96,7 @@ export async function proxy(request: NextRequest) {
   if (path === "/api/health") {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
-  if (!PLATFORM_PAGE_ALLOWLIST.has(path)) {
+  if (!isConnectedPlatformPage(path)) {
     return blockedPlatformRoute(request, id);
   }
 

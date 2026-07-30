@@ -72,6 +72,10 @@ const platformCurrentActorAuthorityMigration = readFileSync(
   join(migrationsDir, '047_platform_current_actor_authority.sql'),
   'utf8'
 )
+const platformCommunicationsReadAuthorityMigration = readFileSync(
+  join(migrationsDir, '048_platform_communications_read_authority.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -87,9 +91,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves containment and advances through the P3A candidate boundary', () => {
+  it('preserves containment and advances through the P3B read boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '047_platform_current_actor_authority.sql'
+      '048_platform_communications_read_authority.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -130,6 +134,15 @@ describe('Supabase companion schema contract', () => {
     )
     expect(platformCurrentActorAuthorityMigration).toMatch(
       /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.current_actor_authority\s*\(\s*\)\s+TO\s+authenticated/i
+    )
+    expect(platformCommunicationsReadAuthorityMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform_private\.require_domain_actor_read\s*\(\s*p_organization_id\s+UUID,\s*p_permission_key\s+TEXT\s*\)[\s\S]*STABLE[\s\S]*SECURITY\s+DEFINER/i
+    )
+    expect(platformCommunicationsReadAuthorityMigration).toMatch(
+      /REVOKE\s+ALL\s+ON\s+FUNCTION\s+platform_private\.require_domain_actor_read\s*\(\s*UUID,\s*TEXT\s*\)\s+FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role,\s*supabase_auth_admin/i
+    )
+    expect(platformCommunicationsReadAuthorityMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.staff_communication_queue\s*\(\s*UUID\s*\),\s*platform\.staff_conversation_messages\s*\(\s*UUID,\s*UUID\s*\)\s+TO\s+authenticated/i
     )
     expect(supabaseConfig).not.toMatch(
       /schemas\s*=.*(?:platform_private|pgmq_public)/

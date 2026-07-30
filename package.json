@@ -12,7 +12,7 @@
     "prestart": "node scripts/check-node-runtime.mjs",
     "start": "next start",
     "lint": "eslint",
-    "test:unit": "node --experimental-strip-types --test tests/prepared-ai-drawer-state.test.mjs tests/role-contract.test.mjs tests/supabase-history.test.mjs tests/platform-auth-config.test.mjs",
+    "test:unit": "node --experimental-strip-types --test tests/prepared-ai-drawer-state.test.mjs tests/role-contract.test.mjs tests/supabase-history.test.mjs tests/platform-auth-config.test.mjs tests/platform-communications.test.mjs",
     "test:a11y": "playwright test tests/e2e/platform-accessibility.spec.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",

@@ -1,4 +1,9 @@
-import { createHmac, randomBytes, randomUUID } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  randomUUID,
+} from "node:crypto";
 import { readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
@@ -117,6 +122,25 @@ const runSql = (sql, stage) => {
 
   assert(result.status === 0, stage);
   return result.stdout.trim();
+};
+
+const serviceFunctionResult = (expression, stage) => {
+  const result = runSql(
+    `
+      BEGIN;
+      SET LOCAL request.jwt.claims = '{"role":"service_role"}';
+      SET LOCAL ROLE service_role;
+      SELECT (${expression})::text;
+      COMMIT;
+    `,
+    stage,
+  );
+
+  try {
+    return JSON.parse(result);
+  } catch {
+    fail(`${stage}-result`);
+  }
 };
 
 const requestJson = async (
@@ -629,6 +653,180 @@ const routineArgumentNames = (routineName) => {
   return names;
 };
 
+const reloadAndAssertCommunicationsReadRpcs = async () => {
+  const routineMetadata = JSON.parse(
+    runSql(
+      `
+        WITH routines AS (
+          SELECT
+            routine.oid,
+            routine.proname,
+            routine.provolatile,
+            routine.prosecdef,
+            routine.proacl,
+            routine.proowner
+          FROM pg_proc AS routine
+          JOIN pg_namespace AS namespace
+            ON namespace.oid = routine.pronamespace
+          WHERE routine.prokind = 'f'
+            AND ((
+            namespace.nspname = 'platform_private'
+            AND routine.proname = 'require_domain_actor_read'
+          ) OR (
+            namespace.nspname = 'platform'
+            AND routine.proname IN (
+              'staff_communication_queue',
+              'staff_conversation_messages'
+            )
+          ))
+        )
+        SELECT jsonb_build_object(
+          'volatility',
+          (
+            SELECT jsonb_object_agg(
+              routine.proname,
+              routine.provolatile
+            )
+            FROM routines AS routine
+          ),
+          'read_helper_security_definer',
+          (
+            SELECT routine.prosecdef
+            FROM routines AS routine
+            WHERE routine.proname = 'require_domain_actor_read'
+          ),
+          'read_helper_public_execute',
+          EXISTS (
+            SELECT 1
+            FROM routines AS routine
+            CROSS JOIN LATERAL aclexplode(
+              COALESCE(
+                routine.proacl,
+                acldefault('f', routine.proowner)
+              )
+            ) AS privilege
+            WHERE routine.proname = 'require_domain_actor_read'
+              AND privilege.grantee = 0
+              AND privilege.privilege_type = 'EXECUTE'
+          ),
+          'read_helper_anon_execute',
+          has_function_privilege(
+            'anon',
+            'platform_private.require_domain_actor_read(uuid,text)',
+            'EXECUTE'
+          ),
+          'read_helper_authenticated_execute',
+          has_function_privilege(
+            'authenticated',
+            'platform_private.require_domain_actor_read(uuid,text)',
+            'EXECUTE'
+          ),
+          'read_helper_service_execute',
+          has_function_privilege(
+            'service_role',
+            'platform_private.require_domain_actor_read(uuid,text)',
+            'EXECUTE'
+          ),
+          'read_helper_auth_admin_execute',
+          has_function_privilege(
+            'supabase_auth_admin',
+            'platform_private.require_domain_actor_read(uuid,text)',
+            'EXECUTE'
+          ),
+          'queue_authenticated_execute',
+          has_function_privilege(
+            'authenticated',
+            'platform.staff_communication_queue(uuid)',
+            'EXECUTE'
+          ),
+          'messages_authenticated_execute',
+          has_function_privilege(
+            'authenticated',
+            'platform.staff_conversation_messages(uuid,uuid)',
+            'EXECUTE'
+          ),
+          'read_rpcs_public_execute',
+          EXISTS (
+            SELECT 1
+            FROM routines AS routine
+            CROSS JOIN LATERAL aclexplode(
+              COALESCE(
+                routine.proacl,
+                acldefault('f', routine.proowner)
+              )
+            ) AS privilege
+            WHERE routine.proname IN (
+                'staff_communication_queue',
+                'staff_conversation_messages'
+              )
+              AND privilege.grantee = 0
+              AND privilege.privilege_type = 'EXECUTE'
+          ),
+          'read_rpcs_anon_execute',
+          has_function_privilege(
+            'anon',
+            'platform.staff_communication_queue(uuid)',
+            'EXECUTE'
+          ) OR has_function_privilege(
+            'anon',
+            'platform.staff_conversation_messages(uuid,uuid)',
+            'EXECUTE'
+          ),
+          'read_rpcs_service_execute',
+          has_function_privilege(
+            'service_role',
+            'platform.staff_communication_queue(uuid)',
+            'EXECUTE'
+          ) OR has_function_privilege(
+            'service_role',
+            'platform.staff_conversation_messages(uuid,uuid)',
+            'EXECUTE'
+          ),
+          'read_rpcs_auth_admin_execute',
+          has_function_privilege(
+            'supabase_auth_admin',
+            'platform.staff_communication_queue(uuid)',
+            'EXECUTE'
+          ) OR has_function_privilege(
+            'supabase_auth_admin',
+            'platform.staff_conversation_messages(uuid,uuid)',
+            'EXECUTE'
+          )
+        )::text;
+      `,
+      "communications-read-rpc-volatility",
+    ),
+  );
+  const volatility = routineMetadata.volatility;
+  assert(
+    volatility.require_domain_actor_read === "s" &&
+    volatility.staff_communication_queue === "s" &&
+      volatility.staff_conversation_messages === "s",
+    "communications-read-rpc-volatility",
+  );
+  assert(
+    routineMetadata.read_helper_security_definer === true &&
+      routineMetadata.read_helper_public_execute === false &&
+      routineMetadata.read_helper_anon_execute === false &&
+      routineMetadata.read_helper_authenticated_execute === false &&
+      routineMetadata.read_helper_service_execute === false &&
+      routineMetadata.read_helper_auth_admin_execute === false,
+    "communications-read-helper-containment",
+  );
+  assert(
+    routineMetadata.queue_authenticated_execute === true &&
+      routineMetadata.messages_authenticated_execute === true &&
+      routineMetadata.read_rpcs_public_execute === false &&
+      routineMetadata.read_rpcs_anon_execute === false &&
+      routineMetadata.read_rpcs_service_execute === false &&
+      routineMetadata.read_rpcs_auth_admin_execute === false,
+    "communications-read-rpc-authenticated-grants",
+  );
+
+  runSql("NOTIFY pgrst, 'reload schema';", "postgrest-schema-reload");
+  await new Promise((resolve) => setTimeout(resolve, 500));
+};
+
 const rpc = async (adminIdentity, routineName, orderedValues) => {
   const argumentNames = routineArgumentNames(routineName);
   assert(
@@ -668,6 +866,206 @@ const provisionMembership = async (adminIdentity, organizationId, identity, role
     randomUUID(),
   ]);
   return membershipFor(identity);
+};
+
+const persistSyntheticFixtureEvent = ({
+  organizationId,
+  fixtureKey,
+  wahaSessionName,
+  payloadId,
+  occurredAt,
+  bodyText = null,
+}) => {
+  const rawPayload = JSON.stringify({
+    fixture_kind: "synthetic_non_provider",
+    provider_called: false,
+    fixture_key: fixtureKey,
+    payload_id: payloadId,
+    body_text: bodyText,
+  });
+  const payloadSha256 = createHash("sha256")
+    .update(rawPayload)
+    .digest("hex");
+  const stage = `synthetic-event-${fixtureKey}`;
+  const result = serviceFunctionResult(
+    `platform.persist_provider_webhook_event(
+      ${sqlUuid(organizationId, `${stage}-organization`)},
+      'waha',
+      ${sqlText(`synthetic-local-fixture-account-${fixtureKey}`)},
+      NULL::text,
+      NULL::text,
+      ${sqlText(`synthetic-local-fixture-request-${fixtureKey}`)},
+      ${sqlText(wahaSessionName)},
+      ${sqlText(payloadId)},
+      'message.any',
+      ${sqlText(occurredAt)}::timestamptz,
+      'verified',
+      ${sqlText(rawPayload)}::jsonb,
+      ${sqlText(
+        JSON.stringify({
+          fixture_kind: "synthetic_non_provider",
+          provider_called: false,
+        }),
+      )}::jsonb,
+      'synthetic-local-fixture:not-provider-evidence',
+      ${sqlText(payloadSha256)},
+      ${sqlUuid(randomUUID(), `${stage}-request`)}
+    )`,
+    stage,
+  );
+
+  const eventId = result?.provider_webhook_event_id;
+  sqlUuid(eventId, `${stage}-id`);
+  return eventId;
+};
+
+const createSyntheticConversationFixture = ({
+  organizationId,
+  responsibleSalesMembershipId,
+  fixtureKey,
+  subject,
+  accountSeed,
+  occurredAt,
+  messages,
+}) => {
+  const wahaSessionName = `synthetic-local-fixture-${fixtureKey}`;
+  const kommoConversationId =
+    `synthetic-local-fixture-${fixtureKey}-conversation`;
+  const sourcePayloadId =
+    messages[0]?.providerMessageId ??
+    `synthetic-local-fixture-${fixtureKey}-conversation-source`;
+  const sourceEventId = persistSyntheticFixtureEvent({
+    organizationId,
+    fixtureKey: `${fixtureKey}-source`,
+    wahaSessionName,
+    payloadId: sourcePayloadId,
+    occurredAt,
+    bodyText: messages[0]?.bodyText ?? null,
+  });
+  const stage = `synthetic-conversation-${fixtureKey}`;
+  const conversationResult = serviceFunctionResult(
+    `platform.create_communication_conversation(
+      ${sqlUuid(organizationId, `${stage}-organization`)},
+      NULL::uuid,
+      ${sqlUuid(
+        responsibleSalesMembershipId,
+        `${stage}-responsible-sales`,
+      )},
+      ${sqlText(subject)},
+      ${sqlText(wahaSessionName)},
+      ${accountSeed},
+      ${sqlText(kommoConversationId)},
+      ${accountSeed + 10_000},
+      ${accountSeed + 20_000},
+      ${accountSeed + 30_000},
+      ${sqlUuid(sourceEventId, `${stage}-source-event`)},
+      ${sqlUuid(randomUUID(), `${stage}-request`)}
+    )`,
+    stage,
+  );
+  const conversationId =
+    conversationResult?.communication_conversation_id;
+  sqlUuid(conversationId, `${stage}-id`);
+
+  const participantStage = `synthetic-participant-${fixtureKey}`;
+  const participantResult = serviceFunctionResult(
+    `platform.record_conversation_participant(
+      ${sqlUuid(organizationId, `${participantStage}-organization`)},
+      ${sqlUuid(conversationId, `${participantStage}-conversation`)},
+      'customer',
+      NULL::uuid,
+      ${sqlText(`synthetic-local-fixture-${fixtureKey}-customer`)},
+      ${sqlUuid(sourceEventId, `${participantStage}-source-event`)},
+      ${sqlUuid(randomUUID(), `${participantStage}-request`)}
+    )`,
+    participantStage,
+  );
+  sqlUuid(
+    participantResult?.conversation_participant_id,
+    `${participantStage}-id`,
+  );
+
+  const messageBodies = [];
+  messages.forEach((message, index) => {
+    const messageFixtureKey = `${fixtureKey}-message-${index + 1}`;
+    const messageEventId =
+      index === 0
+        ? sourceEventId
+        : persistSyntheticFixtureEvent({
+            organizationId,
+            fixtureKey: messageFixtureKey,
+            wahaSessionName,
+            payloadId: message.providerMessageId,
+            occurredAt: message.occurredAt,
+            bodyText: message.bodyText,
+          });
+    const messageStage = `synthetic-message-${messageFixtureKey}`;
+    const messageResult = serviceFunctionResult(
+      `platform.record_communication_message(
+        ${sqlUuid(organizationId, `${messageStage}-organization`)},
+        ${sqlUuid(conversationId, `${messageStage}-conversation`)},
+        'inbound',
+        ${sqlText(message.bodyText)},
+        'ru',
+        FALSE,
+        ${sqlText(wahaSessionName)},
+        ${sqlText(message.providerMessageId)},
+        ${accountSeed},
+        ${sqlText(kommoConversationId)},
+        ${sqlText(
+          `synthetic-local-fixture-${fixtureKey}-kommo-message-${index + 1}`,
+        )},
+        ${accountSeed + 10_000},
+        ${accountSeed + 20_000},
+        ${accountSeed + 30_000},
+        ${sqlUuid(messageEventId, `${messageStage}-source-event`)},
+        NULL::uuid,
+        ${sqlUuid(randomUUID(), `${messageStage}-request`)}
+      )`,
+      messageStage,
+    );
+    sqlUuid(
+      messageResult?.communication_message_id,
+      `${messageStage}-id`,
+    );
+    messageBodies.push(message.bodyText);
+  });
+
+  return {
+    id: conversationId,
+    subject,
+    messages: messageBodies,
+  };
+};
+
+const authenticatedPlatformRpcRows = async (
+  identity,
+  routineName,
+  body,
+  stage,
+) => {
+  const search = new URLSearchParams(
+    Object.entries(body).map(([name, value]) => [name, String(value)]),
+  );
+  const response = await requestJson(
+    `/rest/v1/rpc/${routineName}?${search}`,
+    {
+      token: identity.accessToken,
+      schema: true,
+      stage,
+    },
+  );
+  if (response.status < 200 || response.status >= 300) {
+    const safeCode =
+      typeof response.payload?.code === "string" &&
+      /^[A-Z0-9_]{1,32}$/.test(response.payload.code)
+        ? response.payload.code
+        : "NO_CODE";
+    fail(`${stage}-http-${response.status}-${safeCode}`);
+  }
+  const payload = response.payload;
+  assert(Array.isArray(payload), `${stage}-rows`);
+  return payload;
 };
 
 const visibleMemberships = async (identity, stage) => {
@@ -737,12 +1135,15 @@ const main = async () => {
   const identities = {
     adminA: syntheticIdentity("admin-a"),
     sales: syntheticIdentity("sales"),
+    responsibleSales: syntheticIdentity("responsible-sales"),
+    salesScoped: syntheticIdentity("sales-scoped"),
     curator: syntheticIdentity("curator"),
     finance: syntheticIdentity("finance"),
     student: syntheticIdentity("student"),
     blocked: syntheticIdentity("blocked"),
     noMembership: syntheticIdentity("no-membership"),
     adminB: syntheticIdentity("admin-b"),
+    salesB: syntheticIdentity("sales-b"),
   };
 
   await assertPublicSignupDisabled();
@@ -799,6 +1200,128 @@ const main = async () => {
     await signIn(identity, role);
   }
 
+  const responsibleSalesMembership = await provisionMembership(
+    identities.adminA,
+    adminAMembership.organization_id,
+    identities.responsibleSales,
+    "sales",
+  );
+  const salesScopedMembership = await provisionMembership(
+    identities.adminA,
+    adminAMembership.organization_id,
+    identities.salesScoped,
+    "sales",
+  );
+  const salesBMembership = await provisionMembership(
+    identities.adminB,
+    adminBMembership.organization_id,
+    identities.salesB,
+    "sales",
+  );
+  for (const identity of [
+    identities.responsibleSales,
+    identities.salesScoped,
+    identities.salesB,
+  ]) {
+    await signIn(identity, "sales");
+  }
+
+  const orgAConversation = createSyntheticConversationFixture({
+    organizationId: adminAMembership.organization_id,
+    responsibleSalesMembershipId: responsibleSalesMembership.id,
+    fixtureKey: "org-a-primary",
+    subject: "[SYNTHETIC-NON-PROVIDER] Org A admissions inquiry",
+    accountSeed: 91_001,
+    occurredAt: "2026-07-30T09:00:00+06:00",
+    messages: [
+      {
+        providerMessageId:
+          "synthetic-local-fixture-org-a-primary-message-1",
+        bodyText:
+          "Первое входящее синтетическое сообщение. Внешний провайдер не вызывался.",
+        occurredAt: "2026-07-30T09:00:00+06:00",
+      },
+      {
+        providerMessageId:
+          "synthetic-local-fixture-org-a-primary-message-2",
+        bodyText:
+          "Второе входящее синтетическое сообщение. Порядок сохранён в Supabase.",
+        occurredAt: "2026-07-30T09:01:00+06:00",
+      },
+    ],
+  });
+  const orgAScopedConversation = createSyntheticConversationFixture({
+    organizationId: adminAMembership.organization_id,
+    responsibleSalesMembershipId: responsibleSalesMembership.id,
+    fixtureKey: "org-a-other-sales-scope",
+    subject: "[SYNTHETIC-NON-PROVIDER] Org A scoped sales inquiry",
+    accountSeed: 91_002,
+    occurredAt: "2026-07-30T09:02:00+06:00",
+    messages: [],
+  });
+  const orgBConversation = createSyntheticConversationFixture({
+    organizationId: adminBMembership.organization_id,
+    responsibleSalesMembershipId: salesBMembership.id,
+    fixtureKey: "org-b",
+    subject: "[SYNTHETIC-NON-PROVIDER] Org B admissions inquiry",
+    accountSeed: 92_001,
+    occurredAt: "2026-07-30T09:03:00+06:00",
+    messages: [],
+  });
+  await refresh(identities.responsibleSales, "sales");
+  await refresh(identities.salesB, "sales");
+  await reloadAndAssertCommunicationsReadRpcs();
+
+  const adminConversationRows = await authenticatedPlatformRpcRows(
+    identities.adminA,
+    "staff_communication_queue",
+    { p_organization_id: adminAMembership.organization_id },
+    "admin-synthetic-conversation-queue",
+  );
+  const adminConversationIds = new Set(
+    adminConversationRows.map((row) => row.conversation_id),
+  );
+  assert(
+    adminConversationIds.has(orgAConversation.id) &&
+      adminConversationIds.has(orgAScopedConversation.id) &&
+      !adminConversationIds.has(orgBConversation.id),
+    "admin-synthetic-conversation-queue-scope",
+  );
+
+  const adminMessageRows = await authenticatedPlatformRpcRows(
+    identities.adminA,
+    "staff_conversation_messages",
+    {
+      p_organization_id: adminAMembership.organization_id,
+      p_conversation_id: orgAConversation.id,
+    },
+    "admin-synthetic-conversation-messages",
+  );
+  assert(
+    adminMessageRows.length === orgAConversation.messages.length &&
+      adminMessageRows.every(
+        (row, index) =>
+          row.direction === "inbound" &&
+          row.body_text === orgAConversation.messages[index],
+      ),
+    "admin-synthetic-conversation-message-order",
+  );
+
+  const salesScopedConversationRows = await authenticatedPlatformRpcRows(
+    identities.salesScoped,
+    "staff_communication_queue",
+    { p_organization_id: adminAMembership.organization_id },
+    "sales-scoped-synthetic-conversation-queue",
+  );
+  assert(
+    salesScopedConversationRows.every(
+      (row) =>
+        row.conversation_id !== orgAConversation.id &&
+        row.conversation_id !== orgAScopedConversation.id,
+    ),
+    "sales-scoped-synthetic-conversation-denial",
+  );
+
   const blockedMembership = await provisionMembership(
     identities.adminA,
     adminAMembership.organization_id,
@@ -820,6 +1343,31 @@ const main = async () => {
     await assertOwnOrganizationOnly(
       identity,
       adminAMembership.organization_id,
+      membership.id,
+    );
+    await assertDirectMutationDenied(identity, membership);
+  }
+
+  for (const [identity, membership, organizationId] of [
+    [
+      identities.responsibleSales,
+      responsibleSalesMembership,
+      adminAMembership.organization_id,
+    ],
+    [
+      identities.salesScoped,
+      salesScopedMembership,
+      adminAMembership.organization_id,
+    ],
+    [
+      identities.salesB,
+      salesBMembership,
+      adminBMembership.organization_id,
+    ],
+  ]) {
+    await assertOwnOrganizationOnly(
+      identity,
+      organizationId,
       membership.id,
     );
     await assertDirectMutationDenied(identity, membership);
@@ -944,6 +1492,10 @@ const main = async () => {
             email: identities.curator.email,
             password: identities.curator.password,
           },
+          salesScoped: {
+            email: identities.salesScoped.email,
+            password: identities.salesScoped.password,
+          },
           finance: {
             email: identities.finance.email,
             password: identities.finance.password,
@@ -961,13 +1513,18 @@ const main = async () => {
             password: identities.noMembership.password,
           },
         },
+        conversations: {
+          orgA: orgAConversation,
+          orgB: orgBConversation,
+          sameOrgOutsideSalesScope: orgAScopedConversation,
+        },
       }),
       { mode: 0o600 },
     );
   }
 
   console.log(
-    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; 8 admin-provisioned synthetic users, 5 roles, 2 organizations, expired/stale-token and blocked-claim invalidation.",
+    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; 11 admin-provisioned synthetic users, 5 roles, 2 organizations, expired/stale-token and blocked-claim invalidation; local conversation fixtures contain no provider proof.",
   );
 };
 

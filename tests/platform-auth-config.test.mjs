@@ -7,6 +7,7 @@ import {
   SupabaseConfigurationError,
 } from "../src/lib/supabase/config.ts";
 import { isSupabaseAuthCookieName } from "../src/lib/supabase/auth-cookies.ts";
+import { isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
 import { isUiContractFixtureMode } from "../src/lib/runtime-mode.ts";
 
 const scenarioRunnerSource = readFileSync(
@@ -117,6 +118,24 @@ test("legacy scenario fixtures use only the non-production Next server", () => {
     scenarioRunnerSource,
     /EVO_UI_CONTRACT_FIXTURES:\s*"1"/,
   );
+});
+
+test("proxy admits only the exact connected conversation route shape", () => {
+  const id = "a120b6db-2e3e-4a84-8873-073f4d2d33c3";
+  for (const path of ["/", "/login", "/platform-pending", "/whatsapp"]) {
+    assert.equal(isConnectedPlatformPage(path), true, path);
+  }
+  assert.equal(isConnectedPlatformPage(`/whatsapp/${id}`), true);
+
+  for (const path of [
+    "/whatsapp/not-a-uuid",
+    `/whatsapp/${id}/messages`,
+    `/legacy/whatsapp/${id}`,
+    "/dashboard",
+    "/api/waha/qr",
+  ]) {
+    assert.equal(isConnectedPlatformPage(path), false, path);
+  }
 });
 
 test("logout fallback matches only Supabase auth-token cookies", () => {

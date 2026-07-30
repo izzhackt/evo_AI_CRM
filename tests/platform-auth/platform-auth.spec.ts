@@ -3,14 +3,25 @@ import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 type Identity = Readonly<{ email: string; password: string }>;
+type ConversationFixture = Readonly<{
+  id: string;
+  subject: string;
+  messages: readonly string[];
+}>;
 type Fixture = Readonly<{
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
+    salesScoped: Identity;
     finance: Identity;
     student: Identity;
     blocked: Identity;
     noMembership: Identity;
+  }>;
+  conversations: Readonly<{
+    orgA: ConversationFixture;
+    orgB: ConversationFixture;
+    sameOrgOutsideSalesScope: ConversationFixture;
   }>;
 }>;
 
@@ -28,6 +39,20 @@ async function login(page: Page, identity: Identity) {
   await page.locator("#login-email").fill(identity.email);
   await page.locator("#login-password").fill(identity.password);
   await page.getByRole("button", { name: "Войти" }).click();
+}
+
+function escapePathForRegex(pathname: string) {
+  return pathname.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function expectDeniedConversationRoute(page: Page, pathname: string) {
+  await page.goto(pathname);
+  await expect(page).toHaveURL(new RegExp(`${escapePathForRegex(pathname)}$`));
+  await expect(page.getByRole("heading", { name: "404" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "This page could not be found." }),
+  ).toBeVisible();
+  await expect(page.getByTestId("platform-conversation-thread")).toHaveCount(0);
 }
 
 test("self-registration is disabled before any account write", async ({
@@ -77,13 +102,83 @@ test("route-level auth failures surface an explicit login error", async ({
   );
 });
 
-test("active messaging staff reaches only the Supabase-backed shell", async ({
+test("admin opens ordered synthetic inbound messages through Supabase RLS", async ({
   page,
 }) => {
   await login(page, fixture.identities.admin);
   await expect(page).toHaveURL(/\/whatsapp$/);
-  await expect(page.getByTestId("platform-authenticated-empty-state")).toBeVisible();
-  await expect(page.getByText("Сообщения пока не подключены")).toBeVisible();
+
+  const list = page.getByTestId("platform-conversation-list");
+  await expect(list).toBeVisible();
+  await expect(
+    list.getByText(fixture.conversations.orgA.subject, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    list.getByText(fixture.conversations.orgB.subject, { exact: true }),
+  ).toHaveCount(0);
+
+  await list
+    .locator(`a[href="/whatsapp/${fixture.conversations.orgA.id}"]`)
+    .click();
+  await expect(page).toHaveURL(
+    new RegExp(`/whatsapp/${fixture.conversations.orgA.id}$`),
+  );
+
+  const thread = page.getByTestId("platform-conversation-thread");
+  await expect(thread).toBeVisible();
+  await expect(thread).toHaveAttribute("data-provider-proof", "not-proved");
+  const disclosure = page.getByTestId("platform-synthetic-data-disclosure");
+  await expect(disclosure).toContainText("Синтетические локальные данные");
+  await expect(disclosure).toContainText("не получена от клиента");
+  await expect(disclosure).toContainText(
+    "не подтверждает работу внешних провайдеров",
+  );
+
+  const inboundMessages = thread.locator(
+    '[data-message-direction="inbound"]',
+  );
+  await expect(inboundMessages).toHaveCount(
+    fixture.conversations.orgA.messages.length,
+  );
+  for (const [index, body] of fixture.conversations.orgA.messages.entries()) {
+    await expect(inboundMessages.nth(index)).toContainText(body);
+  }
+
+  await expectDeniedConversationRoute(
+    page,
+    `/whatsapp/${fixture.conversations.orgB.id}`,
+  );
+});
+
+test("same-organization Sales cannot open another Sales scope", async ({
+  page,
+}) => {
+  await login(page, fixture.identities.salesScoped);
+  await expect(page).toHaveURL(/\/whatsapp$/);
+
+  const list = page.getByTestId("platform-conversation-list");
+  await expect(list).toBeVisible();
+  await expect(
+    list.getByText(fixture.conversations.sameOrgOutsideSalesScope.subject, {
+      exact: true,
+    }),
+  ).toHaveCount(0);
+
+  await expectDeniedConversationRoute(
+    page,
+    `/whatsapp/${fixture.conversations.sameOrgOutsideSalesScope.id}`,
+  );
+});
+
+test("active messaging staff reaches only the Supabase-backed surface", async ({
+  page,
+}) => {
+  await login(page, fixture.identities.admin);
+  await expect(page).toHaveURL(/\/whatsapp$/);
+  await expect(page.getByTestId("platform-conversation-list")).toBeVisible();
+  await expect(
+    page.getByText(fixture.conversations.orgA.subject, { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText(/локальных таблиц CRM wa_/i)).toHaveCount(0);
 
   for (const legacyRoute of [
@@ -101,7 +196,6 @@ test("active messaging staff reaches only the Supabase-backed shell", async ({
     "/finance",
     "/settings",
     "/portal",
-    "/whatsapp/legacy-thread",
   ]) {
     await page.goto(legacyRoute);
     const destination = new URL(page.url());

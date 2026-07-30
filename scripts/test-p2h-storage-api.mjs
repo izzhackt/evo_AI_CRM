@@ -419,16 +419,22 @@ const syntheticIdentity = (label) => ({
 });
 
 const signUp = async (identity) => {
-  const payload = await authRequest(
-    "/auth/v1/signup",
-    {
-      email: identity.email,
-      password: identity.password,
-    },
-    `${identity.label}-signup`,
+  const payload = requireSuccess(
+    await requestJson("/auth/v1/admin/users", {
+      method: "POST",
+      token: serviceRoleKey,
+      apiKey: serviceRoleKey,
+      body: {
+        email: identity.email,
+        password: identity.password,
+        email_confirm: true,
+      },
+      stage: `${identity.label}-admin-create`,
+    }),
+    `${identity.label}-admin-create`,
   );
-  assert(typeof payload.user?.id === "string", `${identity.label}-signup-user`);
-  identity.userId = payload.user.id;
+  assert(typeof payload.id === "string", `${identity.label}-admin-create-user`);
+  identity.userId = payload.id;
 };
 
 const signIn = async (identity, expectedRole) => {

@@ -72,7 +72,7 @@ enabled = true
 site_url = "http://127.0.0.1:3000"
 additional_redirect_urls = ["https://127.0.0.1:3000"]
 jwt_expiry = 3600
-enable_signup = true
+enable_signup = false
 enable_anonymous_sign_ins = false
 enable_manual_linking = false
 

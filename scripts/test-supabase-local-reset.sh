@@ -9,6 +9,7 @@ umask 077
 
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly SUPABASE_CLI="${REPO_ROOT}/node_modules/.bin/supabase"
+readonly PLAYWRIGHT_CLI="${REPO_ROOT}/node_modules/.bin/playwright"
 readonly SUPABASE_PROJECT_ID="evo-platform-local"
 readonly EXPECTED_CLI_VERSION="2.110.0"
 readonly MIGRATIONS_DIR="${REPO_ROOT}/supabase/migrations"
@@ -291,8 +292,12 @@ for (const [label, actual] of [
 NODE
 
 readonly AUTH_STATUS_FILE="${TEMP_DIR}/auth-status.json"
+readonly PLATFORM_AUTH_BROWSER_FIXTURE="${TEMP_DIR}/platform-auth-browser.json"
+readonly LEGACY_DB_SENTINEL="${TEMP_DIR}/legacy-must-not-exist.db"
 : >"${AUTH_STATUS_FILE}"
+: >"${PLATFORM_AUTH_BROWSER_FIXTURE}"
 chmod 600 "${AUTH_STATUS_FILE}"
+chmod 600 "${PLATFORM_AUTH_BROWSER_FIXTURE}"
 
 if ! "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
@@ -305,12 +310,25 @@ fi
 if ! node \
   "${REPO_ROOT}/scripts/test-supabase-auth-hook.mjs" \
   "${AUTH_STATUS_FILE}" \
-  "${DATABASE_CONTAINER}"; then
+  "${DATABASE_CONTAINER}" \
+  "${PLATFORM_AUTH_BROWSER_FIXTURE}"; then
   fail "Local Supabase Auth/PostgREST hook smoke failed."
 fi
 
 [[ ! -e "${AUTH_STATUS_FILE}" ]] \
   || fail "Auth smoke did not delete the credential-bearing local status file."
+
+if ! EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts"; then
+  fail "Real browser Platform Auth/staff-shell gate failed."
+fi
+
+rm -f -- "${PLATFORM_AUTH_BROWSER_FIXTURE}"
+[[ ! -e "${LEGACY_DB_SENTINEL}" ]] \
+  || fail "Platform Auth browser gate touched the forbidden legacy SQLite sentinel."
 
 readonly STORAGE_STATUS_FILE="${TEMP_DIR}/storage-status.json"
 : >"${STORAGE_STATUS_FILE}"
@@ -348,6 +366,7 @@ printf 'Verified %s contiguous canonical/applied migrations ending at %s; no app
   "${expected_last_migration}"
 printf 'Verified local PostgREST exposes platform but excludes platform_private and pgmq_public.\n'
 printf 'Verified real local Auth hook claims, refresh invalidation and PostgREST RLS with synthetic users.\n'
+printf 'Verified real browser Supabase login/logout, invite-only signup, staff/student routing, representative legacy page/API/non-GET denial and no SQLite sentinel access.\n'
 printf 'Verified real local private Storage API policy, exact size/MIME, reservation, attestation, service-only one-time signing grant and object hash contract with synthetic users.\n'
 printf 'Storage evidence is local API/policy proof only; it does not prove a malware provider, managed Supabase or production.\n'
 printf 'Verified real local PGMQ claims, visibility, retries, terminal unknown handling and dead-letter evidence.\n'

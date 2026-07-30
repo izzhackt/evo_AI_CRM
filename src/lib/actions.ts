@@ -20,6 +20,13 @@ import {
 import { getDefaultWhatsAppAccount, sendWhatsApp, upsertWahaAccount } from "./whatsapp";
 import { createAmoCrmAdapter, getAmoCrmLocalStatus, normalizeAmoCrmAccountBaseUrl } from "./amocrm";
 import { setSession, clearSession, currentUser, isStaff, type SessionUser } from "./auth";
+import { resolvePlatformActor } from "./platform-auth";
+import { platformHomeRoute } from "./platform-guards";
+import { isUiContractFixtureMode } from "./runtime-mode";
+import {
+  clearSupabaseAuthCookies,
+  createSupabaseServerContext,
+} from "./supabase/server";
 import {
   canClientCapability,
   canMutateClientlessTask,
@@ -198,22 +205,62 @@ function revalidateLeadTask(leadId?: number | null) {
 
 // ---------- auth ----------
 
+type PlatformAuthClient = Awaited<
+  ReturnType<typeof createSupabaseServerContext>
+>["client"];
+
+async function clearPlatformAuthSession(
+  client?: PlatformAuthClient,
+): Promise<void> {
+  try {
+    if (client) await client.auth.signOut({ scope: "local" });
+  } finally {
+    await clearSupabaseAuthCookies();
+    await clearSession();
+  }
+}
+
 export async function loginAction(_prev: string | null, form: FormData): Promise<string | null> {
   const email = str(form, "email").toLowerCase();
   const password = str(form, "password");
   if (!email || !password) return "fillAllFields";
 
-  const row = db()
-    .prepare("SELECT id, password_hash, role FROM users WHERE lower(email) = ?")
-    .get(email) as { id: number; password_hash: string; role: string } | undefined;
-  if (!row || !verifyPassword(password, row.password_hash)) return "invalidCredentials";
-  if (!isRole(row.role)) return "roleMigrationRequired";
+  if (isUiContractFixtureMode()) {
+    const row = db()
+      .prepare("SELECT id, password_hash, role FROM users WHERE lower(email) = ?")
+      .get(email) as { id: number; password_hash: string; role: string } | undefined;
+    if (!row || !verifyPassword(password, row.password_hash)) return "invalidCredentials";
+    if (!isRole(row.role)) return "roleMigrationRequired";
 
-  await setSession(row.id);
-  redirect(ROLE_HOME_ROUTE[row.role]);
+    await setSession(row.id);
+    redirect(ROLE_HOME_ROUTE[row.role]);
+  }
+
+  let context: Awaited<ReturnType<typeof createSupabaseServerContext>>;
+  try {
+    context = await createSupabaseServerContext();
+    const { error } = await context.client.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) return "invalidCredentials";
+  } catch {
+    return "platformUnavailable";
+  }
+
+  const result = await resolvePlatformActor(context.client, true);
+  if (result.status !== "authenticated") {
+    await clearPlatformAuthSession(context.client);
+    return "accessNotProvisioned";
+  }
+
+  await clearSession();
+  redirect(platformHomeRoute(result.actor.platformRole));
 }
 
 export async function registerAction(_prev: string | null, form: FormData): Promise<string | null> {
+  if (!isUiContractFixtureMode()) return "invitationRequired";
+
   const name = str(form, "name");
   const email = str(form, "email").toLowerCase();
   const phone = str(form, "phone");
@@ -235,7 +282,17 @@ export async function registerAction(_prev: string | null, form: FormData): Prom
 }
 
 export async function logoutAction() {
-  await clearSession();
+  if (!isUiContractFixtureMode()) {
+    let client: PlatformAuthClient | undefined;
+    try {
+      ({ client } = await createSupabaseServerContext());
+    } catch {
+      // The local cookie fallback below does not depend on provider access.
+    }
+    await clearPlatformAuthSession(client);
+  } else {
+    await clearSession();
+  }
   redirect("/login");
 }
 
@@ -942,6 +999,25 @@ export async function saveSettingsAction(form: FormData) {
 }
 
 export async function getIntegrationStatus() {
+  if (!isUiContractFixtureMode()) {
+    return {
+      whatsapp: false,
+      whatsappState: "not_configured" as const,
+      telephony: false,
+      ai: false,
+      amocrm: {
+        status: "not_configured" as const,
+        missing: [
+          "accountBaseUrl",
+          "clientId",
+          "clientSecret",
+          "redirectUri",
+          "refreshToken",
+        ] as const,
+      },
+    };
+  }
+
   const telephonyProvider = getSetting("tel_provider")?.trim();
   const telephonyApiKey = getSetting("tel_api_key")?.trim();
   const whatsappProvider = getSetting("wa_provider")?.trim() || "meta";

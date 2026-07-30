@@ -103,7 +103,7 @@ async function waitForServer(baseUrl, processHandle) {
   let lastError = "";
   while (Date.now() < deadline) {
     if (processHandle.exitCode != null) {
-      throw new Error(`next start exited early with code ${processHandle.exitCode}: ${lastError}`);
+      throw new Error(`scenario server exited early with code ${processHandle.exitCode}: ${lastError}`);
     }
     try {
       const res = await fetch(`${baseUrl}/login`, { redirect: "manual" });
@@ -119,15 +119,20 @@ async function waitForServer(baseUrl, processHandle) {
 
 function startServer(port, dbPath) {
   const logs = [];
-  const standaloneServer = path.join(repoRoot, ".next", "standalone", "server.js");
-  const args = existsSync(standaloneServer)
-    ? [standaloneServer]
-    : ["node_modules/next/dist/bin/next", "start", "-p", String(port), "-H", "127.0.0.1"];
+  const args = [
+    "node_modules/next/dist/bin/next",
+    "dev",
+    "-p",
+    String(port),
+    "-H",
+    "127.0.0.1",
+  ];
   const proc = spawn(process.execPath, args, {
     cwd: repoRoot,
     env: {
       ...process.env,
       AUTH_SECRET: authSecret,
+      EVO_UI_CONTRACT_FIXTURES: "1",
       EVO_DB_PATH: dbPath,
       HOSTNAME: "127.0.0.1",
       NEXT_TELEMETRY_DISABLED: "1",
@@ -386,7 +391,9 @@ criterion before execution and records concrete evidence after execution.
 
 Conditions:
 
-- Built Next.js production app served through \`next start\`.
+- Non-production Next.js UI-contract fixture server on loopback. The separate
+  \`next build\` gate validates the production build; these fixture scenarios
+  are not production-runtime or provider proof.
 - Fixed \`AUTH_SECRET\` for signed seeded-session cookies.
 - Isolated SQLite copy from \`data/edu-admin.db\` via \`EVO_DB_PATH\`.
 - Real App Router pages, Server Action form posts, and API route handlers.
@@ -412,9 +419,6 @@ ${rows.join("\n")}
 }
 
 async function run() {
-  if (!existsSync(path.join(repoRoot, ".next"))) {
-    throw new Error("production build not found: run `node node_modules/next/dist/bin/next build` first");
-  }
   const selected = only.size ? scenarios.filter((scenario) => only.has(scenario.id)) : scenarios;
   assert(selected.length > 0, `no scenarios matched ${[...only].join(",")}`);
 

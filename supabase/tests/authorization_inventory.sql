@@ -73,7 +73,7 @@ LEFT JOIN pg_depend d
   ON d.classid = 'pg_proc'::regclass
   AND d.objid = p.oid
   AND d.deptype = 'e'
-WHERE n.nspname IN ('public', 'private')
+WHERE n.nspname IN ('public', 'private', 'platform')
   AND d.objid IS NULL
 ORDER BY function_name, arguments;
 
@@ -96,3 +96,5 @@ FROM pg_policies
 WHERE schemaname = 'storage'
   AND tablename = 'objects'
 ORDER BY policyname;
+
+\ir platform_current_actor_authority.sql

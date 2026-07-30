@@ -1,5 +1,5 @@
-import { randomBytes, randomUUID } from "node:crypto";
-import { readFileSync, unlinkSync } from "node:fs";
+import { createHmac, randomBytes, randomUUID } from "node:crypto";
+import { readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 process.on("uncaughtException", () => {
@@ -28,6 +28,7 @@ const assert = (condition, stage) => {
 
 const statusPath = process.argv[2];
 const databaseContainer = process.argv[3];
+const browserFixturePath = process.argv[4];
 
 if (!statusPath || !databaseContainer) {
   fail("arguments");
@@ -35,11 +36,15 @@ if (!statusPath || !databaseContainer) {
 
 let apiUrl;
 let publishableKey;
+let serviceRoleKey;
+let jwtSecret;
 
 try {
   const status = JSON.parse(readFileSync(statusPath, "utf8"));
   apiUrl = status.API_URL;
   publishableKey = status.PUBLISHABLE_KEY;
+  serviceRoleKey = status.SERVICE_ROLE_KEY;
+  jwtSecret = status.JWT_SECRET;
 } finally {
   // The status payload also contains local-only privileged credentials. It is
   // mode 0600 (the caller sets umask 077), is never logged, and is removed
@@ -56,6 +61,14 @@ assert(
   typeof publishableKey === "string" &&
     publishableKey.startsWith("sb_publishable_"),
   "publishable-key",
+);
+assert(
+  typeof serviceRoleKey === "string" && serviceRoleKey.split(".").length === 3,
+  "service-role-key",
+);
+assert(
+  typeof jwtSecret === "string" && jwtSecret.length >= 32,
+  "jwt-secret",
 );
 assert(
   /^supabase_db_evo-platform-local$/.test(databaseContainer),
@@ -108,10 +121,17 @@ const runSql = (sql, stage) => {
 
 const requestJson = async (
   path,
-  { method = "GET", token, body, schema = false, stage },
+  {
+    method = "GET",
+    token,
+    apiKey = publishableKey,
+    body,
+    schema = false,
+    stage,
+  },
 ) => {
   const headers = {
-    apikey: publishableKey,
+    apikey: apiKey,
     Accept: "application/json",
   };
 
@@ -228,6 +248,17 @@ const decodeClaims = (accessToken, stage) => {
   return claims;
 };
 
+const signLocalJwt = (payload) => {
+  const header = Buffer.from(
+    JSON.stringify({ alg: "HS256", typ: "JWT" }),
+  ).toString("base64url");
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = createHmac("sha256", jwtSecret)
+    .update(`${header}.${body}`)
+    .digest("base64url");
+  return `${header}.${body}.${signature}`;
+};
+
 const syntheticIdentity = (label) => ({
   label,
   userId: null,
@@ -238,29 +269,38 @@ const syntheticIdentity = (label) => ({
 });
 
 const signUp = async (identity) => {
-  const payload = await authRequest(
-    "/auth/v1/signup",
-    {
-      email: identity.email,
-      password: identity.password,
-    },
-    `${identity.label}-signup`,
+  const payload = requireSuccess(
+    await requestJson("/auth/v1/admin/users", {
+      method: "POST",
+      token: serviceRoleKey,
+      apiKey: serviceRoleKey,
+      body: {
+        email: identity.email,
+        password: identity.password,
+        email_confirm: true,
+      },
+      stage: `${identity.label}-admin-create`,
+    }),
+    `${identity.label}-admin-create`,
   );
 
-  assert(typeof payload.user?.id === "string", `${identity.label}-signup-user`);
-  identity.userId = payload.user.id;
+  assert(typeof payload.id === "string", `${identity.label}-admin-create-user`);
+  identity.userId = payload.id;
+};
 
-  if (payload.access_token) {
-    const claims = decodeClaims(
-      payload.access_token,
-      `${identity.label}-signup-claims`,
-    );
-    assert(
-      !Object.hasOwn(claims, "platform_role") &&
-        !Object.hasOwn(claims, "platform_access_version"),
-      `${identity.label}-signup-platform-claims`,
-    );
-  }
+const assertPublicSignupDisabled = async () => {
+  const result = await requestJson("/auth/v1/signup", {
+    method: "POST",
+    body: {
+      email: `${randomUUID()}@example.invalid`,
+      password: `Evo-${randomBytes(24).toString("base64url")}!9a`,
+    },
+    stage: "public-signup-disabled",
+  });
+  assert(
+    result.status >= 400 && result.status < 500,
+    "public-signup-disabled",
+  );
 };
 
 const signIn = async (identity, expectedRole) => {
@@ -705,6 +745,7 @@ const main = async () => {
     adminB: syntheticIdentity("admin-b"),
   };
 
+  await assertPublicSignupDisabled();
   await Promise.all(Object.values(identities).map(signUp));
 
   const adminAMembership = bootstrapOrganization(
@@ -718,6 +759,28 @@ const main = async () => {
 
   await signIn(identities.adminA, "admin");
   await signIn(identities.adminB, "admin");
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const expiredResult = await requestJson(
+    "/rest/v1/rpc/current_actor_authority",
+    {
+      method: "POST",
+      token: signLocalJwt({
+        aud: "authenticated",
+        exp: nowSeconds - 60,
+        iat: nowSeconds - 120,
+        iss: "supabase",
+        role: "authenticated",
+        sub: identities.adminA.userId,
+        platform_role: "admin",
+        platform_access_version: 1,
+      }),
+      body: {},
+      schema: true,
+      stage: "expired-token",
+    },
+  );
+  assert(expiredResult.status === 401, "expired-token");
   await waitForPlatformApi(identities.adminA, adminAMembership.id);
 
   const roleMembers = {};
@@ -862,8 +925,49 @@ const main = async () => {
   );
   assert(legacySideEffects === 0, "legacy-signup-side-effects");
 
+  if (browserFixturePath) {
+    assert(
+      (statSync(browserFixturePath).mode & 0o777) === 0o600,
+      "browser-fixture-mode",
+    );
+    writeFileSync(
+      browserFixturePath,
+      JSON.stringify({
+        apiUrl,
+        publishableKey,
+        identities: {
+          admin: {
+            email: identities.adminA.email,
+            password: identities.adminA.password,
+          },
+          curator: {
+            email: identities.curator.email,
+            password: identities.curator.password,
+          },
+          finance: {
+            email: identities.finance.email,
+            password: identities.finance.password,
+          },
+          student: {
+            email: identities.student.email,
+            password: identities.student.password,
+          },
+          blocked: {
+            email: identities.blocked.email,
+            password: identities.blocked.password,
+          },
+          noMembership: {
+            email: identities.noMembership.email,
+            password: identities.noMembership.password,
+          },
+        },
+      }),
+      { mode: 0o600 },
+    );
+  }
+
   console.log(
-    "Local Supabase Auth/PostgREST smoke passed: 8 synthetic users, 5 roles, 2 organizations, stale-token and blocked-claim invalidation.",
+    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; 8 admin-provisioned synthetic users, 5 roles, 2 organizations, expired/stale-token and blocked-claim invalidation.",
   );
 };
 

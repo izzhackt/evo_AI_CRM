@@ -56,6 +56,7 @@ export default defineConfig({
         env: {
           ...process.env,
           AUTH_SECRET: "playwright-e2e-secret",
+          EVO_UI_CONTRACT_FIXTURES: "1",
           EVO_DB_PATH: e2eDb,
           PATH: `/Users/iskhak.tazhibaev/.hermes/node/bin:${process.env.PATH ?? ""}`,
         },

@@ -9,9 +9,12 @@ import { Icon } from "@/components/icons";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
 import { STAFF_NAV_ITEMS, isStaffRole } from "@/lib/domain";
 import type { Locale } from "@/lib/i18n-data";
+import { requirePlatformStaffActor } from "@/lib/platform-guards";
+import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 import {
   listOperatorNotificationsForActor,
   OPERATOR_NOTIFICATION_LIMIT,
+  type OperatorNotification,
 } from "@/lib/queries";
 
 const NAV_GROUP_DEFS = [
@@ -70,23 +73,37 @@ function initials(name: string) {
 }
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
-  const user = await currentUser();
-  if (!user) redirect("/login");
-  const role = user.role;
-  if (!isStaffRole(role)) redirect("/portal");
+  const fixtureMode = isUiContractFixtureMode();
+  const legacyUser = fixtureMode ? await currentUser() : null;
+  if (fixtureMode && !legacyUser) redirect("/login");
+
+  const platformActor = fixtureMode ? null : await requirePlatformStaffActor();
+  const roleCandidate = legacyUser?.role ?? platformActor?.role;
+  if (!roleCandidate || !isStaffRole(roleCandidate)) {
+    redirect(fixtureMode ? "/portal" : "/platform-pending?from=%2Fportal");
+  }
+  const role = roleCandidate;
+  const user = {
+    name: legacyUser?.name ?? platformActor?.displayName ?? "EVO",
+    role,
+  };
   const { t, locale } = await getT();
   const shellCopy = SHELL_COPY[locale];
-  const notificationBatch = listOperatorNotificationsForActor(
-    { id: user.id, role },
-    OPERATOR_NOTIFICATION_LIMIT + 1,
-  );
+  const notificationBatch: OperatorNotification[] =
+    fixtureMode && legacyUser
+      ? listOperatorNotificationsForActor(
+          { id: legacyUser.id, role },
+          OPERATOR_NOTIFICATION_LIMIT + 1,
+        )
+      : [];
   const notificationCountCapped =
     notificationBatch.length > OPERATOR_NOTIFICATION_LIMIT;
   const notifications = notificationBatch.slice(0, OPERATOR_NOTIFICATION_LIMIT);
-  const integrations = await getIntegrationStatus();
+  const integrations = fixtureMode ? await getIntegrationStatus() : null;
 
   const allowed = new Map(
     STAFF_NAV_ITEMS
+      .filter((item) => fixtureMode || item.href === "/whatsapp")
       .filter((item) => (item.allowedRoles as readonly string[]).includes(role))
       .map((item) => [item.href as string, t(item.labelKey)] as const),
   );
@@ -125,7 +142,11 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       </a>
       <div className="staff-shell">
         <aside className="staff-sidebar">
-          <Link href="/dashboard" aria-label={t("appName")} className="staff-brand">
+          <Link
+            href={fixtureMode ? "/dashboard" : "/whatsapp"}
+            aria-label={t("appName")}
+            className="staff-brand"
+          >
             <EvoWordmark inverted />
           </Link>
 
@@ -157,19 +178,20 @@ export default async function StaffLayout({ children }: { children: React.ReactN
             titles={titles}
             locale={locale}
             role={role}
+            homeHref={fixtureMode ? "/dashboard" : "/whatsapp"}
             addLabel={t("add")}
             themeLabel={t("toggleTheme")}
             notificationCount={notifications.length}
             notificationCountCapped={notificationCountCapped}
             integrationStatus={{
               amo:
-                integrations.amocrm.status === "configured"
+                integrations?.amocrm.status === "configured"
                   ? "configured_not_verified"
-                  : integrations.amocrm.status,
+                  : (integrations?.amocrm.status ?? "not_configured"),
               whatsapp:
-                integrations.whatsappState === "configured"
+                integrations?.whatsappState === "configured"
                   ? "configured_not_verified"
-                  : integrations.whatsappState,
+                  : (integrations?.whatsappState ?? "not_configured"),
             }}
             notificationPreview={notifications.slice(0, 3).map((item) => ({
               id: item.id,

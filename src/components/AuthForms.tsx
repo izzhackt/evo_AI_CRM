@@ -21,8 +21,16 @@ function ErrorMsg({ code, id, labels }: { code: string | null; id: string; label
   );
 }
 
-export function LoginForm({ labels }: { labels: Labels }) {
-  const [error, action, pending] = useActionState(loginAction, null);
+export function LoginForm({
+  labels,
+  showRegistrationLink,
+  initialError = null,
+}: {
+  labels: Labels;
+  showRegistrationLink: boolean;
+  initialError?: string | null;
+}) {
+  const [error, action, pending] = useActionState(loginAction, initialError);
   return (
     <form action={action} aria-labelledby="login-title" aria-busy={pending} className="space-y-5">
       <ErrorMsg code={error} id="login-error" labels={labels} />
@@ -56,14 +64,16 @@ export function LoginForm({ labels }: { labels: Labels }) {
       <button type="submit" disabled={pending} className={`${btnCls} w-full`}>
         {labels.signIn}
       </button>
-      <p className="text-center text-[13px] text-fg-3">
-        <Link
-          href="/register"
-          className="inline-flex min-h-11 items-center justify-center rounded-ctl px-2 text-pretty font-semibold text-accent transition-[color] duration-150 ease-out hover:underline"
-        >
-          {labels.noAccount}
-        </Link>
-      </p>
+      {showRegistrationLink && (
+        <p className="text-center text-[13px] text-fg-3">
+          <Link
+            href="/register"
+            className="inline-flex min-h-11 items-center justify-center rounded-ctl px-2 text-pretty font-semibold text-accent transition-[color] duration-150 ease-out hover:underline"
+          >
+            {labels.noAccount}
+          </Link>
+        </p>
+      )}
     </form>
   );
 }

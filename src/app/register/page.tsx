@@ -1,12 +1,16 @@
+import Link from "next/link";
 import { getT } from "@/lib/i18n";
 import { RegisterForm } from "@/components/AuthForms";
 import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { btnGhostCls } from "@/components/ui";
+import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 
 export default async function RegisterPage() {
   const { t, locale } = await getT();
+  const fixtureMode = isUiContractFixtureMode();
   const labels = Object.fromEntries(
-    ["name", "email", "phone", "password", "signUp", "haveAccount", "emailTaken", "fillAllFields"].map((k) => [k, t(k)])
+    ["name", "email", "phone", "password", "signUp", "haveAccount", "emailTaken", "invitationRequired", "fillAllFields"].map((k) => [k, t(k)])
   );
   return (
     <main className="relative grid min-h-dvh place-items-center bg-bg px-4 py-10">
@@ -23,10 +27,23 @@ export default async function RegisterPage() {
       </div>
 
       <div className="page-in w-full max-w-[392px] rounded-[20px] border border-border bg-surface p-7 shadow-evo-lg">
-        <h1 className="text-[22px] font-bold leading-tight text-fg">{t("register")}</h1>
-        <p className="mt-1.5 text-[13px] leading-6 text-fg-3">{t("registerIntro")}</p>
+        <h1 className="text-[22px] font-bold leading-tight text-fg">
+          {fixtureMode ? t("register") : t("inviteOnlyTitle")}
+        </h1>
+        <p className="mt-1.5 text-[13px] leading-6 text-fg-3">
+          {fixtureMode ? t("registerIntro") : t("inviteOnlyHint")}
+        </p>
         <div className="mt-6">
-          <RegisterForm labels={labels} />
+          {fixtureMode ? (
+            <RegisterForm labels={labels} />
+          ) : (
+            <Link
+              href="/login"
+              className={`${btnGhostCls} flex w-full items-center justify-center`}
+            >
+              {t("backToLogin")}
+            </Link>
+          )}
         </div>
       </div>
     </main>

@@ -68,6 +68,10 @@ const platformDocumentStorageMigration = readFileSync(
   join(migrationsDir, '046_platform_private_document_storage.sql'),
   'utf8'
 )
+const platformCurrentActorAuthorityMigration = readFileSync(
+  join(migrationsDir, '047_platform_current_actor_authority.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -83,9 +87,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves containment and advances through the P2H candidate boundary', () => {
+  it('preserves containment and advances through the P3A candidate boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '046_platform_private_document_storage.sql'
+      '047_platform_current_actor_authority.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -117,6 +121,15 @@ describe('Supabase companion schema contract', () => {
     )
     expect(supabaseConfig).toMatch(
       /schemas\s*=\s*\["public",\s*"platform",\s*"graphql_public"\]/
+    )
+    expect(platformCurrentActorAuthorityMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.current_actor_authority\s*\(\s*\)/i
+    )
+    expect(platformCurrentActorAuthorityMigration).toMatch(
+      /REVOKE\s+ALL\s+ON\s+FUNCTION\s+platform\.current_actor_authority\s*\(\s*\)\s+FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role,\s*supabase_auth_admin/i
+    )
+    expect(platformCurrentActorAuthorityMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.current_actor_authority\s*\(\s*\)\s+TO\s+authenticated/i
     )
     expect(supabaseConfig).not.toMatch(
       /schemas\s*=.*(?:platform_private|pgmq_public)/

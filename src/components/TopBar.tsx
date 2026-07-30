@@ -112,6 +112,7 @@ export function TopBar({
   notificationPreview,
   integrationStatus,
   role,
+  homeHref = "/dashboard",
 }: {
   titles: Record<string, Meta>;
   locale: Locale;
@@ -125,6 +126,7 @@ export function TopBar({
     whatsapp: ProviderState;
   };
   role: StaffRole;
+  homeHref?: string;
 }) {
   const pathname = usePathname();
   const base = `/${pathname.split("/")[1] ?? ""}`;
@@ -144,7 +146,7 @@ export function TopBar({
   return (
     <header className="staff-topbar">
       <div className="staff-topbar__row">
-        <Link href="/dashboard" aria-label="EVO Admissions" className="staff-topbar__mobile-brand">
+        <Link href={homeHref} aria-label="EVO Admissions" className="staff-topbar__mobile-brand">
           <EvoWordmark />
         </Link>
 

@@ -1,15 +1,91 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requestId } from "@/lib/request-id";
+import { isUiContractFixtureMode } from "@/lib/runtime-mode";
+import {
+  SupabaseConfigurationError,
+} from "@/lib/supabase/config";
+import { createSupabaseServerClientFromCookies } from "@/lib/supabase/server";
 
-export function proxy(request: NextRequest) {
+const PLATFORM_PAGE_ALLOWLIST = new Set([
+  "/",
+  "/login",
+  "/register",
+  "/platform-pending",
+  "/whatsapp",
+]);
+
+// All other routes belong to the separate legacy CRM or to later Platform
+// blocks. In Platform runtime they stay unreachable until a reviewed adapter
+// replaces them; the retained legacy deployment continues on its own revision.
+
+function nextResponse(requestHeaders: Headers) {
+  return NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+}
+
+function setResponseHeaders(response: NextResponse, id: string) {
+  response.headers.set("x-request-id", id);
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
+}
+
+function blockedPlatformRoute(
+  request: NextRequest,
+  id: string,
+) {
+  const path = request.nextUrl.pathname;
+  if (path.startsWith("/api/") || !["GET", "HEAD"].includes(request.method)) {
+    return setResponseHeaders(
+      NextResponse.json(
+        { error: "platform_route_not_connected", request_id: id },
+        { status: 403 },
+      ),
+      id,
+    );
+  }
+
+  const target = request.nextUrl.clone();
+  target.pathname = "/platform-pending";
+  target.search = "";
+  target.searchParams.set("from", path);
+  const response = NextResponse.redirect(target);
+  response.headers.set("x-request-id", id);
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
+}
+
+async function refreshPlatformAuth(
+  request: NextRequest,
+  requestHeaders: Headers,
+  id: string,
+) {
+  let response = nextResponse(requestHeaders);
+  const client = createSupabaseServerClientFromCookies({
+    getAll() {
+      return request.cookies.getAll();
+    },
+    setAll(cookiesToSet) {
+      for (const { name, value } of cookiesToSet) {
+        request.cookies.set(name, value);
+      }
+      response = nextResponse(requestHeaders);
+      for (const { name, value, options } of cookiesToSet) {
+        response.cookies.set(name, value, options);
+      }
+    },
+  });
+
+  // Optimistic refresh only. Pages and actions independently call getClaims()
+  // and the live authority RPC before authorizing access or mutation.
+  await client.auth.getClaims();
+  return setResponseHeaders(response, id);
+}
+
+export async function proxy(request: NextRequest) {
   const id = requestId(request.headers.get("x-request-id"));
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-request-id", id);
-
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
-  response.headers.set("x-request-id", id);
 
   console.info(JSON.stringify({
     event: "http_request",
@@ -18,7 +94,45 @@ export function proxy(request: NextRequest) {
     path: request.nextUrl.pathname,
     service: "evo-crm",
   }));
-  return response;
+
+  if (isUiContractFixtureMode()) {
+    return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+
+  const path = request.nextUrl.pathname;
+  if (path === "/api/health") {
+    return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+  if (!PLATFORM_PAGE_ALLOWLIST.has(path)) {
+    return blockedPlatformRoute(request, id);
+  }
+
+  try {
+    return await refreshPlatformAuth(request, requestHeaders, id);
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: "platform_auth_refresh_unavailable",
+      request_id: id,
+      code:
+        error instanceof SupabaseConfigurationError
+          ? error.code
+          : "provider_unavailable",
+      service: "evo-crm",
+    }));
+
+    if (path === "/login" || path === "/register") {
+      return setResponseHeaders(nextResponse(requestHeaders), id);
+    }
+
+    const target = request.nextUrl.clone();
+    target.pathname = "/login";
+    target.search = "";
+    target.searchParams.set("error", "platform_unavailable");
+    const response = NextResponse.redirect(target);
+    response.headers.set("x-request-id", id);
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
+  }
 }
 
 export const config = {

@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "./db";
 import { isRole, type Role } from "./roles";
+import { isUiContractFixtureMode } from "./runtime-mode";
 
 const DEV_AUTH_SECRET = "edu-admin-dev-secret-change-in-production";
 const COOKIE = "edu_session";
@@ -50,6 +51,9 @@ function parseToken(token: string): number | null {
 }
 
 export async function setSession(userId: number) {
+  if (!isUiContractFixtureMode()) {
+    throw new Error("Legacy SQLite sessions are disabled for EVO Platform");
+  }
   const store = await cookies();
   store.set(COOKIE, makeToken(userId), {
     httpOnly: true,
@@ -66,6 +70,7 @@ export async function clearSession() {
 }
 
 export async function currentUser(): Promise<SessionUser | null> {
+  if (!isUiContractFixtureMode()) return null;
   const store = await cookies();
   const token = store.get(COOKIE)?.value;
   if (!token) return null;

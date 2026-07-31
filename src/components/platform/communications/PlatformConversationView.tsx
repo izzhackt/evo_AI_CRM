@@ -95,6 +95,7 @@ export async function PlatformConversationView({
     platformRequestRework: t("platformRequestRework"),
     platformHandoffDraft: t("platformHandoffDraft"),
     platformManualSendTitle: t("platformManualSendTitle"),
+    platformManualSendMessage: t("platformManualSendMessage"),
     platformManualSendReason: t("platformManualSendReason"),
     platformAuthorizeManualSend: t("platformAuthorizeManualSend"),
     platformManualOnlyHint: t("platformManualOnlyHint"),

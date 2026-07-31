@@ -421,7 +421,11 @@ export function PlatformMessagingWorkflowPanel({
             <h3 className="text-[12px] font-bold text-fg">
               {labels.platformManualSendTitle}
             </h3>
+            <label htmlFor="platform-manual-send-text" className={labelCls}>
+              {labels.platformManualSendMessage}
+            </label>
             <textarea
+              id="platform-manual-send-text"
               name="finalText"
               required
               minLength={1}

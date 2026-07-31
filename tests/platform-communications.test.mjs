@@ -485,3 +485,22 @@ test("manual messaging actions stay server-only and use authenticated RPCs", () 
   assert.doesNotMatch(actionsSource, /SUPABASE_SERVICE_ROLE_KEY|service_role/i);
   assert.doesNotMatch(actionsSource, /better-sqlite3|@anthropic-ai|waha.*send/i);
 });
+
+test("manual-send text keeps an explicit accessible label", () => {
+  const panelSource = readFileSync(
+    new URL(
+      "../src/components/platform/communications/PlatformMessagingWorkflowPanel.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(
+    panelSource,
+    /<label htmlFor="platform-manual-send-text"[^>]*>[\s\S]*?platformManualSendMessage[\s\S]*?<\/label>/,
+  );
+  assert.match(
+    panelSource,
+    /<textarea[\s\S]*?id="platform-manual-send-text"[\s\S]*?name="finalText"/,
+  );
+});

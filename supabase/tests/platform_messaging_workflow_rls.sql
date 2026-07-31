@@ -293,6 +293,18 @@ RESET ROLE;
 
 SET request.jwt.claims TO :'org_b_new_curator_after_reassignment_claims';
 SET ROLE authenticated;
+SELECT pg_temp.assert_true(
+  (
+    SELECT ai_readiness = 'ready'
+      AND ai_readiness_evidence_kind = 'local_non_provider'
+      AND NOT ai_readiness_fresh
+    FROM platform.staff_conversation_workflow(
+      :'org_b_id',
+      :'conversation_org_b_id'
+    )
+  ),
+  'Fresh local-only AI health must not be projected as provider-fresh'
+);
 \set ON_ERROR_STOP off
 SELECT platform.request_ai_draft_with_knowledge(
   :'org_b_id',
@@ -555,6 +567,18 @@ RESET ROLE;
 
 SET request.jwt.claims TO :'org_b_new_curator_after_reassignment_claims';
 SET ROLE authenticated;
+SELECT pg_temp.assert_true(
+  (
+    SELECT waha_readiness = 'ready'
+      AND waha_readiness_evidence_kind = 'local_non_provider'
+      AND NOT waha_readiness_fresh
+    FROM platform.staff_conversation_workflow(
+      :'org_b_id',
+      :'conversation_org_b_id'
+    )
+  ),
+  'Fresh local-only WAHA health must not be projected as provider-fresh'
+);
 \set ON_ERROR_STOP off
 SELECT platform.request_manual_whatsapp_send_with_authorization(
   :'org_b_id',

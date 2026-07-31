@@ -1622,11 +1622,13 @@ BEGIN
     knowledge.content_sha256,
     ai.readiness,
     ai.evidence_kind,
-    platform_private.p3c_health_is_fresh(ai.observed_at),
+    ai.evidence_kind = 'provider_observed'
+      AND platform_private.p3c_health_is_fresh(ai.observed_at),
     ai.observed_at,
     waha.readiness,
     waha.evidence_kind,
-    platform_private.p3c_health_is_fresh(waha.observed_at),
+    waha.evidence_kind = 'provider_observed'
+      AND platform_private.p3c_health_is_fresh(waha.observed_at),
     waha.observed_at,
     draft_request.id,
     draft_request.requested_at,

@@ -3472,3 +3472,33 @@ Validation impact:
   automation controller may merge.
 
 Reviewer notes: pending independent SHA-bound review.
+
+## 2026-08-01 — Local passport-to-Sheet operator automation
+
+Change type: operator tooling and sensitive-document processing boundary.
+
+Affected plan section: `Passport-to-Sheet Automation`.
+
+Decision: add a standalone macOS CLI under `tools/passport-sheet-automation`.
+Use Google Drive/Sheets APIs for controlled reads and verified writes, Apple
+Vision for local OCR, MRZ checksums plus student-name matching as the acceptance
+gate, bounded parallel extraction, and centralized compare-before-write updates.
+The tool is review-only unless `--apply` is passed. Passport files, OAuth tokens,
+and extracted values remain temporary/local and are never committed or printed.
+EMGS and visa milestone updates remain outside this block so the existing browser
+operator is not disturbed.
+
+Reason: parallel OCR provides the speed-up; parallel browser control or parallel
+Sheet writes would create row-mixing and overwrite risk. Official APIs avoid
+copying the other Codex task's authenticated Chrome session.
+
+Validation: compile Swift OCR; run Python tests and compilation; execute the real
+CLI preflight and report missing credentials exactly; perform one-row live review
+and apply only after valid OAuth credentials are supplied and authorized.
+
+Review amendment: the public Sheets values API exposes no conditional compare-
+and-swap parameter. Therefore parallel operation is extraction/review-only.
+`--apply` additionally requires `--exclusive-writer`, re-checks every X value
+against the initial snapshot before the first write and again immediately before
+each write, and aborts on any drift. Apply must not overlap the browser operator.
+Review-only continues across row failures; apply is fail-closed before writes.

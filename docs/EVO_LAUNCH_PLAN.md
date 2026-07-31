@@ -1668,3 +1668,29 @@ their own explicit authorization.
   evidence, architecture boundaries and acceptance criteria before merge.
 - No production deployment, provider mutation, database migration, live
   WhatsApp send or amoCRM write occurs in this slice.
+
+## Passport-to-Sheet Automation
+
+Goal: provide an operator-run macOS CLI that reads EVO student rows and Drive
+folder links, extracts passport numbers locally, and safely fills column X.
+
+Acceptance criteria:
+
+- Authenticate through Google Desktop OAuth with Drive-read and Sheets-write
+  scopes; keep credentials and tokens in ignored local files.
+- Keep downloaded passports in per-run temporary directories and delete them
+  when processing ends.
+- Run local Apple Vision OCR with bounded parallelism; no passport image or OCR
+  text is sent to an external AI provider.
+- Accept a number only when its TD3 MRZ check digit is valid and MRZ identity
+  matches the student row; ambiguous rows remain unchanged.
+- Default to review-only. Require explicit `--apply --exclusive-writer` for
+  writes; applying while another person/program writes column X is prohibited.
+- Serialize X writes, refuse conflicting values, and re-read every written cell.
+- Never print passport numbers or OCR text in normal output.
+- Compile the OCR helper, run deterministic validation tests, and run the real
+  Google preflight; missing OAuth material must fail clearly.
+
+Review-only runs report and continue past row-level problems. Apply runs stop
+before any write on missing/ambiguous evidence or fresh column-X drift. A
+different existing X value always stops the apply. EMGS is outside this block.

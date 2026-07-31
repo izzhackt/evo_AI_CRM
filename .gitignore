@@ -54,3 +54,8 @@ data/
 
 # Private company originals. Keep the tracked README and safe manifest only.
 /docs/company/private-source-documents/*.pdf
+
+# Passport automation OAuth material
+/tools/passport-sheet-automation/.private/
+/tools/passport-sheet-automation/credentials.json
+**/__pycache__/

@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 
--- Catalog-only P2F inventory. Assertions inspect the disposable database
--- after migration 044. They prove schema, authorization and immutable-ledger
+-- Catalog-only P3C inventory. Assertions inspect the disposable database
+-- after migration 050. They prove schema, authorization and immutable-ledger
 -- contracts only; no WAHA, Kommo, amoCRM, AI provider or Queue is contacted.
 
 DO $$
@@ -313,6 +313,7 @@ DECLARE
     'conversation_participants_source_fkey',
     'manual_send_authorizations_draft_fkey',
     'manual_send_authorizations_membership_fkey',
+    'manual_send_authorizations_source_message_fkey',
     'provider_reconciliation_events_conversation_fkey',
     'provider_reconciliation_events_manual_authorization_fkey',
     'provider_reconciliation_events_message_fkey',
@@ -322,6 +323,7 @@ DECLARE
     'ai_draft_knowledge_citations_draft_knowledge_key',
     'ai_draft_knowledge_citations_draft_order_key',
     'ai_draft_requests_source_key',
+    'ai_drafts_authorization_source_key',
     'ai_drafts_source_open_key',
     'communication_conversations_amocrm_lead_key',
     'communication_conversations_case_queue_idx',
@@ -333,6 +335,7 @@ DECLARE
     'communication_messages_manual_authorization_key',
     'communication_messages_waha_key',
     'manual_send_authorizations_draft_key',
+    'manual_send_authorizations_source_idx',
     'provider_reconciliation_events_source_effect_key',
     'provider_reconciliation_events_unknown_authorization_key',
     'provider_webhook_events_provider_request_key',
@@ -850,6 +853,7 @@ BEGIN
       ),
       ('platform', 'ai_draft_events', 'event_type'),
       ('platform', 'ai_draft_events', 'content_text'),
+      ('platform', 'manual_send_authorizations', 'source_message_id'),
       ('platform', 'manual_send_authorizations', 'final_text'),
       ('platform', 'manual_send_authorizations', 'final_text_sha256'),
       (
@@ -1252,7 +1256,7 @@ DECLARE
     'platform.former_sales_case_summaries(uuid)',
     'platform.publish_approved_knowledge_version(uuid,text,text,bigint,text,text,text,text,uuid)',
     'platform.request_ai_draft_with_knowledge(uuid,uuid,uuid,platform.ai_draft_language,uuid,text,uuid)',
-    'platform.request_manual_whatsapp_send_with_authorization(uuid,uuid,text,text,text,uuid)',
+    'platform.request_manual_whatsapp_send_with_authorization(uuid,uuid,uuid,uuid,text,text,text,uuid)',
     'platform.resolve_ai_draft_language(uuid,uuid,platform.ai_draft_language,boolean,text,uuid)',
     'platform.retire_approved_knowledge_version(uuid,uuid,text,uuid)',
     'platform.review_ai_draft(uuid,uuid,platform.ai_draft_review_decision,text,text,uuid)',
@@ -1261,9 +1265,10 @@ DECLARE
     'platform.staff_conversation_workflow(uuid,uuid)',
     'platform.student_portal_messages(uuid)'
   ];
-  superseded_authenticated_api CONSTANT TEXT[] := ARRAY[
+  absent_authenticated_api CONSTANT TEXT[] := ARRAY[
     'platform.authorize_manual_send(uuid,uuid,text,text,uuid)',
-    'platform.request_ai_draft(uuid,uuid,uuid,platform.ai_draft_language,text,uuid)'
+    'platform.request_ai_draft(uuid,uuid,uuid,platform.ai_draft_language,text,uuid)',
+    'platform.request_manual_whatsapp_send_with_authorization(uuid,uuid,text,text,text,uuid)'
   ];
   service_api CONSTANT TEXT[] := ARRAY[
     'platform.append_provider_reconciliation_event(uuid,uuid,uuid,uuid,uuid,platform.provider_observation_kind,platform.waha_ack_state,text,uuid)',
@@ -1280,6 +1285,13 @@ DECLARE
     'private.platform_can_read_approved_knowledge(uuid)',
     'private.platform_can_read_communication_full(uuid,uuid)'
   ];
+  sealed_helper_api CONSTANT TEXT[] := ARRAY[
+    'platform_private.guard_p3c_current_inbound_cycle()',
+    'platform_private.guard_p3c_health_observed_at()',
+    'platform_private.p3c_enqueue_authenticated_work(uuid,platform.durable_work_kind,uuid,uuid,text,integer,uuid,platform.durable_work_operation,uuid,uuid,text)',
+    'platform_private.p3c_health_is_fresh(timestamp with time zone)',
+    'platform_private.require_ready_messaging_integration(uuid,platform.messaging_integration_target)'
+  ];
   signature TEXT;
   routine_oid OID;
   routine RECORD;
@@ -1291,9 +1303,8 @@ DECLARE
 BEGIN
   SELECT string_agg(api_signature, ', ' ORDER BY api_signature)
   INTO missing
-  FROM unnest(
-    authenticated_api || superseded_authenticated_api || service_api
-  ) AS api(api_signature)
+  FROM unnest(authenticated_api || service_api || sealed_helper_api)
+    AS api(api_signature)
   WHERE to_regprocedure(api_signature) IS NULL;
 
   IF missing IS NOT NULL THEN
@@ -1427,40 +1438,39 @@ BEGIN
     END IF;
   END LOOP;
 
-  FOREACH signature IN ARRAY superseded_authenticated_api LOOP
-    routine_oid := to_regprocedure(signature);
-    IF has_function_privilege(
-      'authenticated',
-      routine_oid,
-      'EXECUTE'
-    ) OR has_function_privilege(
-      'anon',
-      routine_oid,
-      'EXECUTE'
-    ) OR has_function_privilege(
-      'service_role',
-      routine_oid,
-      'EXECUTE'
-    ) OR has_function_privilege(
-      'supabase_auth_admin',
-      routine_oid,
-      'EXECUTE'
-    ) OR EXISTS (
-      SELECT 1
-      FROM pg_proc AS privilege_routine
-      CROSS JOIN LATERAL aclexplode(
-        COALESCE(
-          privilege_routine.proacl,
-          acldefault('f', privilege_routine.proowner)
-        )
-      ) AS privilege
-      WHERE privilege_routine.oid = routine_oid
-        AND privilege.grantee = 0
-        AND privilege.privilege_type = 'EXECUTE'
-    ) THEN
+  FOREACH signature IN ARRAY absent_authenticated_api LOOP
+    IF to_regprocedure(signature) IS NOT NULL THEN
       RAISE EXCEPTION
-        'Superseded P3C API must not remain externally executable: %',
+        'Superseded P3C API signature must be absent: %',
         signature;
+    END IF;
+  END LOOP;
+
+  FOREACH signature IN ARRAY sealed_helper_api LOOP
+    routine_oid := to_regprocedure(signature);
+    IF has_function_privilege('anon', routine_oid, 'EXECUTE')
+      OR has_function_privilege('authenticated', routine_oid, 'EXECUTE')
+      OR has_function_privilege('service_role', routine_oid, 'EXECUTE')
+      OR has_function_privilege(
+        'supabase_auth_admin',
+        routine_oid,
+        'EXECUTE'
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_proc AS privilege_routine
+        CROSS JOIN LATERAL aclexplode(
+          COALESCE(
+            privilege_routine.proacl,
+            acldefault('f', privilege_routine.proowner)
+          )
+        ) AS privilege
+        WHERE privilege_routine.oid = routine_oid
+          AND privilege.grantee = 0
+          AND privilege.privilege_type = 'EXECUTE'
+      )
+    THEN
+      RAISE EXCEPTION 'P3C private helper ACL drifted: %', signature;
     END IF;
   END LOOP;
 
@@ -1637,13 +1647,11 @@ BEGIN
             'selected_knowledge_content_sha256:text',
             'ai_readiness:platform.messaging_integration_readiness',
             'ai_readiness_evidence_kind:platform.messaging_integration_evidence_kind',
-            'ai_readiness_reason:text',
-            'ai_readiness_evidence_ref:text',
+            'ai_readiness_fresh:boolean',
             'ai_readiness_observed_at:timestamp with time zone',
             'waha_readiness:platform.messaging_integration_readiness',
             'waha_readiness_evidence_kind:platform.messaging_integration_evidence_kind',
-            'waha_readiness_reason:text',
-            'waha_readiness_evidence_ref:text',
+            'waha_readiness_fresh:boolean',
             'waha_readiness_observed_at:timestamp with time zone',
             'latest_ai_draft_request_id:uuid',
             'latest_ai_draft_request_created_at:timestamp with time zone',
@@ -1750,3 +1758,137 @@ END
 $$;
 
 \echo 'P2F exact RPC, ACL, trigger and projection inventory passed'
+
+DO $$
+DECLARE
+  constraint_definition TEXT;
+  normalized_source TEXT;
+  violation TEXT;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns AS column_row
+    WHERE column_row.table_schema = 'platform'
+      AND column_row.table_name = 'manual_send_authorizations'
+      AND column_row.column_name = 'source_message_id'
+      AND column_row.is_nullable = 'NO'
+      AND column_row.udt_name = 'uuid'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns AS column_row
+    WHERE column_row.table_schema = 'platform'
+      AND column_row.table_name = 'manual_send_authorizations'
+      AND column_row.column_name = 'ai_draft_id'
+      AND column_row.is_nullable = 'YES'
+      AND column_row.udt_name = 'uuid'
+  ) THEN
+    RAISE EXCEPTION
+      'P3C direct manual-send source/optional-draft column contract drifted';
+  END IF;
+
+  SELECT pg_get_constraintdef(constraint_row.oid)
+  INTO constraint_definition
+  FROM pg_constraint AS constraint_row
+  JOIN pg_class AS relation
+    ON relation.oid = constraint_row.conrelid
+  JOIN pg_namespace AS namespace
+    ON namespace.oid = relation.relnamespace
+  WHERE namespace.nspname = 'platform'
+    AND relation.relname = 'manual_send_authorizations'
+    AND constraint_row.conname = 'manual_send_authorizations_draft_fkey';
+
+  IF constraint_definition NOT LIKE
+      '%(organization_id, ai_draft_id, conversation_id, source_message_id)%'
+    OR constraint_definition NOT LIKE
+      '%platform.ai_drafts(organization_id, id, conversation_id, source_message_id)%'
+  THEN
+    RAISE EXCEPTION
+      'P3C optional draft is not foreign-key-bound to the exact source cycle';
+  END IF;
+
+  SELECT pg_get_constraintdef(constraint_row.oid)
+  INTO constraint_definition
+  FROM pg_constraint AS constraint_row
+  JOIN pg_class AS relation
+    ON relation.oid = constraint_row.conrelid
+  JOIN pg_namespace AS namespace
+    ON namespace.oid = relation.relnamespace
+  WHERE namespace.nspname = 'platform_private'
+    AND relation.relname = 'durable_work_items'
+    AND constraint_row.conname =
+      'durable_work_items_manual_send_single_attempt_check';
+
+  IF constraint_definition NOT LIKE
+      '%manual_whatsapp_send%max_attempts = 1%'
+  THEN
+    RAISE EXCEPTION
+      'P3C manual outbox single-attempt constraint drifted';
+  END IF;
+
+  SELECT string_agg(trigger_row.tgname, ', ' ORDER BY trigger_row.tgname)
+  INTO violation
+  FROM pg_trigger AS trigger_row
+  JOIN pg_class AS relation
+    ON relation.oid = trigger_row.tgrelid
+  JOIN pg_namespace AS namespace
+    ON namespace.oid = relation.relnamespace
+  WHERE NOT trigger_row.tgisinternal
+    AND (
+      (
+        namespace.nspname = 'platform'
+        AND relation.relname = 'ai_drafts'
+        AND trigger_row.tgname = 'ai_drafts_current_inbound_cycle_guard'
+      )
+      OR (
+        namespace.nspname = 'platform'
+        AND relation.relname = 'manual_send_authorizations'
+        AND trigger_row.tgname =
+          'manual_send_authorizations_current_inbound_cycle_guard'
+      )
+      OR (
+        namespace.nspname = 'platform_private'
+        AND relation.relname = 'messaging_integration_health_events'
+        AND trigger_row.tgname =
+          'messaging_integration_health_events_observed_at_guard'
+      )
+    );
+
+  IF violation IS DISTINCT FROM
+      'ai_drafts_current_inbound_cycle_guard, manual_send_authorizations_current_inbound_cycle_guard, messaging_integration_health_events_observed_at_guard'
+  THEN
+    RAISE EXCEPTION 'P3C current-cycle/health trigger inventory drifted: %',
+      violation;
+  END IF;
+
+  SELECT lower(regexp_replace(routine_row.prosrc, '\s+', ' ', 'g'))
+  INTO normalized_source
+  FROM pg_proc AS routine_row
+  WHERE routine_row.oid = to_regprocedure(
+    'platform_private.p3c_health_is_fresh(timestamp with time zone)'
+  );
+
+  IF normalized_source NOT LIKE '%interval ''5 minutes''%'
+    OR normalized_source NOT LIKE '%interval ''1 minute''%'
+  THEN
+    RAISE EXCEPTION 'P3C provider-readiness TTL/skew contract drifted';
+  END IF;
+
+  SELECT lower(regexp_replace(routine_row.prosrc, '\s+', ' ', 'g'))
+  INTO normalized_source
+  FROM pg_proc AS routine_row
+  WHERE routine_row.oid = to_regprocedure(
+    'platform.request_manual_whatsapp_send_with_authorization(uuid,uuid,uuid,uuid,text,text,text,uuid)'
+  );
+
+  IF normalized_source NOT LIKE '%array_to_json%'
+    OR normalized_source NOT LIKE '%evo-platform-work-v1%'
+    OR normalized_source NOT LIKE '%staff-authored%'
+    OR normalized_source NOT LIKE '%source_message_id%'
+  THEN
+    RAISE EXCEPTION
+      'P3C stable direct-manual business/source/outbox contract drifted';
+  END IF;
+END
+$$;
+
+\echo 'P3C controller hardening inventory passed'

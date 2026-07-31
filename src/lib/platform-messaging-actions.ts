@@ -148,7 +148,8 @@ function validateAiDraftRequestResult(
     canonicalUuid(value.ai_draft_request_id) !== null &&
     value.requested_language === expected.requestedLanguage &&
     value.ai_readiness === "ready" &&
-    value.ai_readiness_evidence_kind === "provider_observed"
+    value.ai_readiness_evidence_kind === "provider_observed" &&
+    value.ai_readiness_fresh === true
   );
 }
 
@@ -188,23 +189,29 @@ function validateManualSendResult(
     organizationId: string;
     conversationId: string;
     membershipId: string;
-    aiDraftId: string;
+    sourceMessageId: string;
+    aiDraftId: string | null;
     businessKeySha256: string;
   }>,
 ): boolean {
   if (!validOutboxPointer(value)) return false;
+  const actualAiDraftId =
+    value.ai_draft_id === null ? null : canonicalUuid(value.ai_draft_id);
   return (
+    (value.ai_draft_id === null || actualAiDraftId !== null) &&
     canonicalUuid(value.organization_id) === expected.organizationId &&
     canonicalUuid(value.communication_conversation_id) ===
       expected.conversationId &&
-    canonicalUuid(value.ai_draft_id) === expected.aiDraftId &&
+    canonicalUuid(value.source_message_id) === expected.sourceMessageId &&
+    actualAiDraftId === expected.aiDraftId &&
     canonicalUuid(value.manual_send_authorization_id) !== null &&
     canonicalUuid(value.authorized_by_membership_id) ===
       expected.membershipId &&
     value.state === "manual_send_authorized" &&
     value.business_key_sha256 === expected.businessKeySha256 &&
     value.waha_readiness === "ready" &&
-    value.waha_readiness_evidence_kind === "provider_observed"
+    value.waha_readiness_evidence_kind === "provider_observed" &&
+    value.waha_readiness_fresh === true
   );
 }
 
@@ -343,10 +350,7 @@ export async function reviewPlatformAiDraftAction(
   }
   // Keep the identity check, but let the idempotent RPC decide whether this is
   // a first review or an exact replay after the state already advanced.
-  if (
-    workflow === null ||
-    workflow.draft?.aiDraftId !== aiDraftId
-  ) {
+  if (workflow === null || workflow.draft?.aiDraftId !== aiDraftId) {
     return invalid(operation);
   }
 
@@ -407,14 +411,17 @@ export async function authorizePlatformManualSendAction(
   const organizationId = canonicalUuid(actor.organizationId);
   const membershipId = canonicalUuid(actor.membershipId);
   const conversationId = canonicalUuid(input.conversationId);
-  const aiDraftId = canonicalUuid(input.aiDraftId);
+  const sourceMessageId = canonicalUuid(input.sourceMessageId);
+  const aiDraftId =
+    input.aiDraftId === null ? null : canonicalUuid(input.aiDraftId);
   const finalText = normalizePlatformMessageText(input.finalText);
   const reason = normalizePlatformMutationReason(input.reason);
   if (
     organizationId === null ||
     membershipId === null ||
     conversationId === null ||
-    aiDraftId === null ||
+    sourceMessageId === null ||
+    (input.aiDraftId !== null && aiDraftId === null) ||
     finalText === null ||
     reason === null
   ) {
@@ -431,7 +438,8 @@ export async function authorizePlatformManualSendAction(
   // pre-rejecting on that state would break recovery after a lost response.
   if (
     workflow === null ||
-    workflow.draft?.aiDraftId !== aiDraftId
+    workflow.latestInbound?.id !== sourceMessageId ||
+    (aiDraftId !== null && workflow.draft?.aiDraftId !== aiDraftId)
   ) {
     return invalid(operation);
   }
@@ -439,12 +447,21 @@ export async function authorizePlatformManualSendAction(
   const businessKeySha256 = derivePlatformBusinessKey([
     "manual_whatsapp_send",
     organizationId,
-    aiDraftId,
+    conversationId,
+    sourceMessageId,
+    aiDraftId ?? "staff-authored",
   ]);
   const requestId = derivePlatformSemanticRequestId(
     operation,
     organizationId,
-    [membershipId, conversationId, aiDraftId, finalText, reason],
+    [
+      membershipId,
+      conversationId,
+      sourceMessageId,
+      aiDraftId ?? "staff-authored",
+      finalText,
+      reason,
+    ],
   );
 
   try {
@@ -453,6 +470,8 @@ export async function authorizePlatformManualSendAction(
       .schema("platform")
       .rpc("request_manual_whatsapp_send_with_authorization", {
         p_organization_id: organizationId,
+        p_conversation_id: conversationId,
+        p_source_message_id: sourceMessageId,
         p_ai_draft_id: aiDraftId,
         p_final_text: finalText,
         p_reason: reason,
@@ -470,6 +489,7 @@ export async function authorizePlatformManualSendAction(
         organizationId,
         conversationId,
         membershipId,
+        sourceMessageId,
         aiDraftId,
         businessKeySha256,
       })

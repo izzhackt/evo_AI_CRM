@@ -228,13 +228,11 @@ function validWorkflowRow(overrides = {}) {
     selected_knowledge_content_sha256: "a".repeat(64),
     ai_readiness: "ready",
     ai_readiness_evidence_kind: "provider_observed",
-    ai_readiness_reason: "Provider check succeeded",
-    ai_readiness_evidence_ref: "anthropic:health:2026-07-31",
+    ai_readiness_fresh: true,
     ai_readiness_observed_at: "2026-07-31T07:55:00Z",
     waha_readiness: "ready",
     waha_readiness_evidence_kind: "local_non_provider",
-    waha_readiness_reason: "Local configuration is present",
-    waha_readiness_evidence_ref: "config:waha",
+    waha_readiness_fresh: false,
     waha_readiness_observed_at: "2026-07-31T07:54:00Z",
     latest_ai_draft_request_id: DRAFT_REQUEST_ID,
     latest_ai_draft_request_created_at: "2026-07-31T08:01:00Z",
@@ -329,13 +327,11 @@ test("accepts configured-but-unverified integration health from SQL", () => {
     validWorkflowRow({
       ai_readiness: "configured_unverified",
       ai_readiness_evidence_kind: "configuration_check",
-      ai_readiness_reason: "Configured from dashboard settings",
-      ai_readiness_evidence_ref: "settings:ai-provider",
+      ai_readiness_fresh: false,
       ai_readiness_observed_at: "2026-07-30T07:55:00Z",
       waha_readiness: "configured_unverified",
       waha_readiness_evidence_kind: "local_non_provider",
-      waha_readiness_reason: "Local WAHA secret is present",
-      waha_readiness_evidence_ref: "settings:waha",
+      waha_readiness_fresh: false,
       waha_readiness_observed_at: "2026-07-30T07:54:00Z",
     }),
     CONVERSATION_ID,
@@ -362,6 +358,52 @@ test("accepts configured-but-unverified integration health from SQL", () => {
   assert.equal(workflow.health.canAuthorizeManualSend, false);
 });
 
+test("keeps staff-written manual send available when AI is unavailable", () => {
+  const workflow = normalizePlatformConversationWorkflow(
+    validWorkflowRow({
+      selected_knowledge_version_id: null,
+      selected_knowledge_key: null,
+      selected_knowledge_version: null,
+      selected_knowledge_title: null,
+      selected_knowledge_content_sha256: null,
+      ai_readiness: "configured_unverified",
+      ai_readiness_evidence_kind: "configuration_check",
+      ai_readiness_fresh: false,
+      latest_ai_draft_request_id: null,
+      latest_ai_draft_request_created_at: null,
+      latest_ai_draft_request_reason: null,
+      latest_ai_draft_requested_language: null,
+      waha_readiness: "ready",
+      waha_readiness_evidence_kind: "provider_observed",
+      waha_readiness_fresh: true,
+    }),
+    CONVERSATION_ID,
+  );
+
+  assert.equal(workflow.draft, null);
+  assert.equal(workflow.integrations.aiProvider.providerProved, false);
+  assert.equal(workflow.integrations.waha.providerProved, true);
+  assert.equal(workflow.health.canRequestAiDraft, false);
+  assert.equal(workflow.health.canAuthorizeManualSend, true);
+});
+
+test("downgrades expired provider observations without exposing private evidence", () => {
+  const workflow = normalizePlatformConversationWorkflow(
+    validWorkflowRow({
+      ai_readiness: "configured_unverified",
+      ai_readiness_evidence_kind: "provider_observed",
+      ai_readiness_fresh: false,
+    }),
+    CONVERSATION_ID,
+  );
+
+  assert.equal(workflow.integrations.aiProvider.readiness, "configured_unverified");
+  assert.equal(workflow.integrations.aiProvider.fresh, false);
+  assert.equal(workflow.integrations.aiProvider.providerProved, false);
+  assert.equal("reason" in workflow.integrations.aiProvider, false);
+  assert.equal("evidenceRef" in workflow.integrations.aiProvider, false);
+});
+
 test("surfaces a failed AI generation outbox as operator attention", () => {
   const workflow = normalizePlatformConversationWorkflow(
     validWorkflowRow({
@@ -386,13 +428,11 @@ test("treats a fully-null left-joined health group as unconfigured", () => {
     validWorkflowRow({
       ai_readiness: null,
       ai_readiness_evidence_kind: null,
-      ai_readiness_reason: null,
-      ai_readiness_evidence_ref: null,
+      ai_readiness_fresh: null,
       ai_readiness_observed_at: null,
       waha_readiness: null,
       waha_readiness_evidence_kind: null,
-      waha_readiness_reason: null,
-      waha_readiness_evidence_ref: null,
+      waha_readiness_fresh: null,
       waha_readiness_observed_at: null,
     }),
     CONVERSATION_ID,
@@ -401,9 +441,8 @@ test("treats a fully-null left-joined health group as unconfigured", () => {
   assert.deepEqual(workflow.integrations.aiProvider, {
     readiness: "unconfigured",
     evidenceKind: "none",
+    fresh: false,
     providerProved: false,
-    reason: null,
-    evidenceRef: null,
     observedAt: null,
   });
   assert.deepEqual(
@@ -474,10 +513,12 @@ test("manual messaging actions stay server-only and use authenticated RPCs", () 
     /\.rpc\("request_manual_whatsapp_send_with_authorization"/,
   );
   assert.match(actionsSource, /revalidatePath\("\/whatsapp"\)/);
-  assert.doesNotMatch(
+  assert.match(
     actionsSource,
     /latestInbound\?\.\s*id\s*!==\s*sourceMessageId/,
   );
+  assert.match(actionsSource, /p_conversation_id:\s*conversationId/);
+  assert.match(actionsSource, /p_source_message_id:\s*sourceMessageId/);
   assert.doesNotMatch(
     actionsSource,
     /workflow\.health\.can(?:RequestAiDraft|ReviewAiDraft|AuthorizeManualSend)/,
@@ -502,5 +543,13 @@ test("manual-send text keeps an explicit accessible label", () => {
   assert.match(
     panelSource,
     /<textarea[\s\S]*?id="platform-manual-send-text"[\s\S]*?name="finalText"/,
+  );
+  assert.match(
+    panelSource,
+    /latestInboundMessageId !== null && !workflow\.manualSend/,
+  );
+  assert.match(
+    panelSource,
+    /draft\?\.aiDraftId && draft\.state === "ready_for_manual_send"/,
   );
 });

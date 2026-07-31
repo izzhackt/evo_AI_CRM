@@ -45,7 +45,9 @@ function integrationEvidenceLabel(
   labels: Labels,
 ) {
   if (integration.evidenceKind === "provider_observed") {
-    return labels.platformEvidenceProviderObserved;
+    return integration.fresh
+      ? labels.platformEvidenceProviderObserved
+      : labels.platformEvidenceExpired;
   }
   if (integration.evidenceKind === "local_non_provider") {
     return labels.platformEvidenceLocalNonProvider;
@@ -188,13 +190,19 @@ export function PlatformMessagingWorkflowPanel({
 
   function authorizeManualSend(formData: FormData) {
     const draft = workflow.draft;
-    if (!draft?.aiDraftId) return;
+    const sourceMessageId = latestInboundMessageId;
+    if (sourceMessageId === null) return;
+    const aiDraftId =
+      draft?.aiDraftId && draft.state === "ready_for_manual_send"
+        ? draft.aiDraftId
+        : null;
 
     startTransition(async () => {
       applyResult(
         await authorizePlatformManualSendAction({
           conversationId,
-          aiDraftId: draft.aiDraftId!,
+          sourceMessageId,
+          aiDraftId,
           finalText: String(formData.get("finalText") ?? ""),
           reason: String(formData.get("reason") ?? ""),
         }),
@@ -414,9 +422,7 @@ export function PlatformMessagingWorkflowPanel({
         </form>
       )}
 
-      {draft?.aiDraftId &&
-        draft.state === "ready_for_manual_send" &&
-        !workflow.manualSend && (
+      {latestInboundMessageId !== null && !workflow.manualSend && (
           <form action={authorizeManualSend} className="mt-3 space-y-2">
             <h3 className="text-[12px] font-bold text-fg">
               {labels.platformManualSendTitle}
@@ -430,9 +436,14 @@ export function PlatformMessagingWorkflowPanel({
               required
               minLength={1}
               maxLength={5000}
-              defaultValue={draft.reviewedText ?? ""}
+              defaultValue={
+                draft?.state === "ready_for_manual_send"
+                  ? (draft.reviewedText ?? "")
+                  : ""
+              }
               disabled={!workflow.health.canAuthorizeManualSend || pending}
               className={`${inputCls} min-h-28 resize-y py-2`}
+              data-testid="platform-manual-send-text"
             />
             <label htmlFor="platform-manual-send-reason" className={labelCls}>
               {labels.platformManualSendReason}
@@ -445,6 +456,7 @@ export function PlatformMessagingWorkflowPanel({
               maxLength={500}
               disabled={!workflow.health.canAuthorizeManualSend || pending}
               className={inputCls}
+              data-testid="platform-manual-send-reason"
             />
             <p className="text-[10.5px] leading-4 text-fg-3">
               {labels.platformManualOnlyHint}

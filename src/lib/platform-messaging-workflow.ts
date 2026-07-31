@@ -47,9 +47,8 @@ export type PlatformWorkflowIntegration = Readonly<{
     | "configuration_check"
     | "local_non_provider"
     | "provider_observed";
+  fresh: boolean;
   providerProved: boolean;
-  reason: string | null;
-  evidenceRef: string | null;
   observedAt: string | null;
 }>;
 
@@ -188,7 +187,8 @@ export type ReviewPlatformAiDraftInput = Readonly<{
 
 export type AuthorizePlatformManualSendInput = Readonly<{
   conversationId: string;
-  aiDraftId: string;
+  sourceMessageId: string;
+  aiDraftId: string | null;
   finalText: string;
   reason: string;
 }>;
@@ -309,8 +309,7 @@ function isMessagingActor(actor: PlatformActor): boolean {
 function normalizeIntegration(
   readinessValue: unknown,
   evidenceValue: unknown,
-  reasonValue: unknown,
-  evidenceRefValue: unknown,
+  freshValue: unknown,
   observedAtValue: unknown,
 ): PlatformWorkflowIntegration {
   // The projection uses LEFT JOINs, so an organization with no recorded
@@ -318,16 +317,14 @@ function normalizeIntegration(
   if (
     readinessValue === null &&
     evidenceValue === null &&
-    reasonValue === null &&
-    evidenceRefValue === null &&
+    freshValue === null &&
     observedAtValue === null
   ) {
     return {
       readiness: "unconfigured",
       evidenceKind: "none",
+      fresh: false,
       providerProved: false,
-      reason: null,
-      evidenceRef: null,
       observedAt: null,
     };
   }
@@ -350,27 +347,22 @@ function normalizeIntegration(
     return invalidShape();
   }
 
-  const reason = parseOptionalText(reasonValue, MAX_REASON_LENGTH);
-  const evidenceRef = parseOptionalText(evidenceRefValue, 1_000);
+  if (typeof freshValue !== "boolean") return invalidShape();
   const observedAt = parseOptionalTimestamp(observedAtValue);
-  if (
-    reason === undefined ||
-    evidenceRef === undefined ||
-    observedAt === undefined
-  ) {
+  if (observedAt === undefined) {
     return invalidShape();
   }
 
   const hasEvidence = evidenceValue !== null;
-  if (
-    hasEvidence !== (observedAt !== null) ||
-    hasEvidence !== (evidenceRef !== null)
-  ) {
+  if (hasEvidence !== (observedAt !== null)) {
     return invalidShape();
   }
+  if (freshValue && evidenceValue !== "provider_observed") return invalidShape();
 
   const providerProved =
-    readinessValue === "ready" && evidenceValue === "provider_observed";
+    readinessValue === "ready" &&
+    evidenceValue === "provider_observed" &&
+    freshValue;
   const readiness =
     (readinessValue === "ready" || readinessValue === "configured_unverified") &&
     !providerProved
@@ -380,9 +372,8 @@ function normalizeIntegration(
   return {
     readiness,
     evidenceKind: evidenceValue ?? "none",
+    fresh: freshValue,
     providerProved,
-    reason,
-    evidenceRef,
     observedAt,
   };
 }
@@ -764,6 +755,7 @@ function parseOutbox(
 }
 
 function deriveWorkflowHealth(
+  latestInbound: PlatformConversationWorkflow["latestInbound"],
   draft: PlatformAiDraftWorkflow | null,
   selectedKnowledge: PlatformWorkflowKnowledgeSelection | null,
   manualSend: PlatformManualSendWorkflow | null,
@@ -810,9 +802,7 @@ function deriveWorkflowHealth(
     canRequestAiDraft: draft === null && aiProvider.providerProved,
     canReviewAiDraft: draft?.state === "review_required",
     canAuthorizeManualSend:
-      draft?.state === "ready_for_manual_send" &&
-      manualSend === null &&
-      waha.providerProved,
+      latestInbound !== null && manualSend === null && waha.providerProved,
     canRetryStaging: persistedNotStaged,
   };
 }
@@ -840,15 +830,13 @@ export function normalizePlatformConversationWorkflow(
   const aiProvider = normalizeIntegration(
     value.ai_readiness,
     value.ai_readiness_evidence_kind,
-    value.ai_readiness_reason,
-    value.ai_readiness_evidence_ref,
+    value.ai_readiness_fresh,
     value.ai_readiness_observed_at,
   );
   const waha = normalizeIntegration(
     value.waha_readiness,
     value.waha_readiness_evidence_kind,
-    value.waha_readiness_reason,
-    value.waha_readiness_evidence_ref,
+    value.waha_readiness_fresh,
     value.waha_readiness_observed_at,
   );
   const latestAuditAction = parseOptionalText(value.latest_audit_action, 250);
@@ -869,6 +857,7 @@ export function normalizePlatformConversationWorkflow(
     manualSend,
     outbox,
     health: deriveWorkflowHealth(
+      latestInbound,
       draft,
       selectedKnowledge,
       manualSend,

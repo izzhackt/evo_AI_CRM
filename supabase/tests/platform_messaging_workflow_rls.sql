@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- P3C runs after migration 049 against the synthetic P2F fixture rows that
+-- P3C runs after migration 050 against the synthetic P2F fixture rows that
 -- were intentionally persisted by the earlier exact-boundary acceptance
 -- suite. Re-resolve every identity from durable rows because each test file
 -- executes in a fresh psql session.
@@ -18,66 +18,8 @@ BEGIN
 END
 $$;
 
-CREATE OR REPLACE FUNCTION pg_temp.assert_legacy_ai_request_denied(
-  p_organization_id UUID,
-  p_conversation_id UUID,
-  p_source_message_id UUID
-)
-RETURNS VOID
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  BEGIN
-    PERFORM platform.request_ai_draft(
-      p_organization_id,
-      p_conversation_id,
-      p_source_message_id,
-      'en',
-      'Superseded direct AI request must be denied',
-      gen_random_uuid()
-    );
-  EXCEPTION
-    WHEN insufficient_privilege THEN
-      RETURN;
-  END;
-
-  RAISE EXCEPTION
-    'P3C assertion failed: superseded request_ai_draft remained executable';
-END
-$$;
-
-CREATE OR REPLACE FUNCTION pg_temp.assert_legacy_manual_authorization_denied(
-  p_organization_id UUID,
-  p_ai_draft_id UUID
-)
-RETURNS VOID
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  BEGIN
-    PERFORM platform.authorize_manual_send(
-      p_organization_id,
-      p_ai_draft_id,
-      'Superseded direct manual authorization must be denied.',
-      'Superseded direct manual authorization must be denied',
-      gen_random_uuid()
-    );
-  EXCEPTION
-    WHEN insufficient_privilege THEN
-      RETURN;
-  END;
-
-  RAISE EXCEPTION
-    'P3C assertion failed: superseded authorize_manual_send remained executable';
-END
-$$;
-
 GRANT EXECUTE ON FUNCTION pg_temp.assert_true(BOOLEAN, TEXT)
   TO authenticated;
-GRANT EXECUTE ON FUNCTION
-  pg_temp.assert_legacy_ai_request_denied(UUID, UUID, UUID),
-  pg_temp.assert_legacy_manual_authorization_denied(UUID, UUID)
-TO authenticated;
 GRANT EXECUTE ON FUNCTION pg_temp.assert_true(BOOLEAN, TEXT)
   TO service_role;
 
@@ -209,8 +151,10 @@ SELECT pg_temp.assert_true(
   (
     SELECT ai_readiness = 'unconfigured'
       AND ai_readiness_evidence_kind IS NULL
+      AND NOT ai_readiness_fresh
       AND waha_readiness = 'unconfigured'
       AND waha_readiness_evidence_kind IS NULL
+      AND NOT waha_readiness_fresh
     FROM platform.staff_conversation_workflow(
       :'org_b_id',
       :'conversation_org_b_id'
@@ -239,6 +183,67 @@ SELECT platform.request_ai_draft_with_knowledge(
   '44000000-0000-4000-8000-000000000603'
 );
 \set p3c_ai_unconfigured_state :SQLSTATE
+\set ON_ERROR_STOP on
+RESET ROLE;
+
+\set ON_ERROR_STOP off
+INSERT INTO platform_private.messaging_integration_health_events (
+  organization_id,
+  target,
+  readiness,
+  evidence_kind,
+  reason,
+  evidence_ref,
+  request_id,
+  observed_at
+)
+VALUES (
+  :'org_b_id',
+  'ai',
+  'ready',
+  'provider_observed',
+  'Synthetic future observation must be rejected',
+  'synthetic:health:ai:future-rejected',
+  '44000000-0000-4000-8000-000000000631',
+  statement_timestamp() + INTERVAL '2 minutes'
+);
+\set p3c_future_health_state :SQLSTATE
+\set ON_ERROR_STOP on
+
+INSERT INTO platform_private.messaging_integration_health_events (
+  organization_id,
+  target,
+  readiness,
+  evidence_kind,
+  reason,
+  evidence_ref,
+  request_id,
+  observed_at
+)
+VALUES (
+  :'org_b_id',
+  'ai',
+  'ready',
+  'provider_observed',
+  'Synthetic stale provider-observed AI readiness',
+  'synthetic:health:ai:stale',
+  '44000000-0000-4000-8000-000000000632',
+  statement_timestamp() - INTERVAL '6 minutes'
+);
+
+SET request.jwt.claims TO :'org_b_new_curator_after_reassignment_claims';
+SET ROLE authenticated;
+\set ON_ERROR_STOP off
+SELECT platform.request_ai_draft_with_knowledge(
+  :'org_b_id',
+  :'conversation_org_b_id',
+  :'message_org_b_id',
+  'en',
+  :'org_b_knowledge_v1_id',
+  'Stale provider-observed AI health must fail closed',
+  '44000000-0000-4000-8000-000000000633'
+);
+\set p3c_ai_stale_state :SQLSTATE
 \set ON_ERROR_STOP on
 RESET ROLE;
 
@@ -419,17 +424,28 @@ SELECT
   (:'p3c_org_b_draft_first'::JSONB ->> 'ai_draft_id') AS p3c_org_b_draft_id
 \gset
 
+SELECT encode(
+  sha256(
+    convert_to(
+      array_to_json(
+        ARRAY[
+          'evo-platform-work-v1',
+          'manual_whatsapp_send',
+          :'org_b_id',
+          :'conversation_org_b_id',
+          :'message_org_b_id',
+          :'p3c_org_b_draft_id'
+        ]
+      )::TEXT,
+      'UTF8'
+    )
+  ),
+  'hex'
+) AS p3c_org_b_ai_manual_business_key
+\gset
+
 SET request.jwt.claims TO :'org_b_new_curator_after_reassignment_claims';
 SET ROLE authenticated;
-SELECT pg_temp.assert_legacy_ai_request_denied(
-  :'org_b_id',
-  :'conversation_org_b_id',
-  :'message_org_b_id'
-);
-SELECT pg_temp.assert_legacy_manual_authorization_denied(
-  :'org_b_id',
-  :'p3c_org_b_draft_id'
-);
 SELECT platform.review_ai_draft(
   :'org_b_id',
   :'p3c_org_b_draft_id',
@@ -442,13 +458,53 @@ SELECT platform.review_ai_draft(
 \set ON_ERROR_STOP off
 SELECT platform.request_manual_whatsapp_send_with_authorization(
   :'org_b_id',
+  :'conversation_org_b_id',
+  :'message_org_b_id',
   :'p3c_org_b_draft_id',
   'Synthetic org B reviewed reply.',
   'Unconfigured WAHA health must fail closed',
-  repeat('f', 64),
+  :'p3c_org_b_ai_manual_business_key',
   '44000000-0000-4000-8000-000000000613'
 );
 \set p3c_waha_unconfigured_state :SQLSTATE
+\set ON_ERROR_STOP on
+RESET ROLE;
+
+INSERT INTO platform_private.messaging_integration_health_events (
+  organization_id,
+  target,
+  readiness,
+  evidence_kind,
+  reason,
+  evidence_ref,
+  request_id,
+  observed_at
+)
+VALUES (
+  :'org_b_id',
+  'waha',
+  'ready',
+  'provider_observed',
+  'Synthetic stale provider-observed WAHA readiness',
+  'synthetic:health:waha:stale',
+  '44000000-0000-4000-8000-000000000634',
+  statement_timestamp() - INTERVAL '6 minutes'
+);
+
+SET request.jwt.claims TO :'org_b_new_curator_after_reassignment_claims';
+SET ROLE authenticated;
+\set ON_ERROR_STOP off
+SELECT platform.request_manual_whatsapp_send_with_authorization(
+  :'org_b_id',
+  :'conversation_org_b_id',
+  :'message_org_b_id',
+  :'p3c_org_b_draft_id',
+  'Synthetic org B reviewed reply.',
+  'Stale provider-observed WAHA health must fail closed',
+  :'p3c_org_b_ai_manual_business_key',
+  '44000000-0000-4000-8000-000000000635'
+);
+\set p3c_waha_stale_state :SQLSTATE
 \set ON_ERROR_STOP on
 RESET ROLE;
 
@@ -471,10 +527,12 @@ SET ROLE authenticated;
 \set ON_ERROR_STOP off
 SELECT platform.request_manual_whatsapp_send_with_authorization(
   :'org_b_id',
+  :'conversation_org_b_id',
+  :'message_org_b_id',
   :'p3c_org_b_draft_id',
   'Synthetic org B reviewed reply.',
   'Configured-unverified WAHA health must still fail closed',
-  repeat('f', 64),
+  :'p3c_org_b_ai_manual_business_key',
   '44000000-0000-4000-8000-000000000615'
 );
 \set p3c_waha_configured_unverified_state :SQLSTATE
@@ -500,10 +558,12 @@ SET ROLE authenticated;
 \set ON_ERROR_STOP off
 SELECT platform.request_manual_whatsapp_send_with_authorization(
   :'org_b_id',
+  :'conversation_org_b_id',
+  :'message_org_b_id',
   :'p3c_org_b_draft_id',
   'Synthetic org B reviewed reply.',
   'Local-only ready WAHA health must still fail closed',
-  repeat('f', 64),
+  :'p3c_org_b_ai_manual_business_key',
   '44000000-0000-4000-8000-000000000617'
 );
 \set p3c_waha_local_ready_state :SQLSTATE
@@ -528,19 +588,23 @@ SET request.jwt.claims TO :'org_b_new_curator_after_reassignment_claims';
 SET ROLE authenticated;
 SELECT platform.request_manual_whatsapp_send_with_authorization(
   :'org_b_id',
+  :'conversation_org_b_id',
+  :'message_org_b_id',
   :'p3c_org_b_draft_id',
   'Synthetic org B reviewed reply.',
   'Authorize and enqueue org B manual send',
-  repeat('f', 64),
+  :'p3c_org_b_ai_manual_business_key',
   '44000000-0000-4000-8000-000000000619'
 )::TEXT AS p3c_org_b_manual_send_first
 \gset
 SELECT platform.request_manual_whatsapp_send_with_authorization(
   :'org_b_id',
+  :'conversation_org_b_id',
+  :'message_org_b_id',
   :'p3c_org_b_draft_id',
   'Synthetic org B reviewed reply.',
   'Authorize and enqueue org B manual send',
-  repeat('f', 64),
+  :'p3c_org_b_ai_manual_business_key',
   '44000000-0000-4000-8000-000000000619'
 )::TEXT AS p3c_org_b_manual_send_replay
 \gset
@@ -550,8 +614,10 @@ SELECT pg_temp.assert_true(
       AND selected_knowledge_version_id = :'org_b_knowledge_v1_id'
       AND ai_readiness = 'ready'
       AND ai_readiness_evidence_kind = 'provider_observed'
+      AND ai_readiness_fresh
       AND waha_readiness = 'ready'
       AND waha_readiness_evidence_kind = 'provider_observed'
+      AND waha_readiness_fresh
       AND latest_ai_draft_request_id = :'p3c_org_b_ai_request_id'
       AND latest_ai_draft_requested_language = 'en'
       AND latest_ai_draft_detection_status = 'confident'
@@ -578,6 +644,241 @@ SELECT pg_temp.assert_true(
 );
 RESET ROLE;
 
+-- A newer inbound message starts a new workflow cycle. Every AI/request/manual
+-- state from the previous message must disappear from the staff projection,
+-- and a new request must not authorize the old draft.
+INSERT INTO platform.communication_messages (
+  id,
+  organization_id,
+  conversation_id,
+  student_case_id,
+  sender_participant_id,
+  direction,
+  body_text,
+  language,
+  student_visible,
+  waha_session_name,
+  waha_message_id,
+  kommo_account_id,
+  kommo_conversation_id,
+  kommo_message_id,
+  amocrm_account_id,
+  amocrm_lead_id,
+  amocrm_contact_id,
+  source_webhook_event_id,
+  manual_send_authorization_id,
+  created_at
+)
+SELECT
+  '44000000-0000-4000-8000-000000000640',
+  message.organization_id,
+  message.conversation_id,
+  message.student_case_id,
+  message.sender_participant_id,
+  'inbound',
+  'Synthetic org B newer inbound cycle.',
+  'en',
+  FALSE,
+  message.waha_session_name,
+  message.waha_message_id || '-p3c-new-cycle',
+  message.kommo_account_id,
+  message.kommo_conversation_id,
+  message.kommo_message_id || '-p3c-new-cycle',
+  message.amocrm_account_id,
+  message.amocrm_lead_id,
+  message.amocrm_contact_id,
+  message.source_webhook_event_id,
+  NULL,
+  statement_timestamp() + INTERVAL '1 second'
+FROM platform.communication_messages AS message
+WHERE message.organization_id = :'org_b_id'
+  AND message.id = :'message_org_b_id';
+
+SELECT
+  '44000000-0000-4000-8000-000000000640'::UUID
+    AS p3c_org_b_new_message_id
+\gset
+
+SELECT encode(
+  sha256(
+    convert_to(
+      array_to_json(
+        ARRAY[
+          'evo-platform-work-v1',
+          'manual_whatsapp_send',
+          :'org_b_id',
+          :'conversation_org_b_id',
+          :'p3c_org_b_new_message_id',
+          'staff-authored'
+        ]
+      )::TEXT,
+      'UTF8'
+    )
+  ),
+  'hex'
+) AS p3c_org_b_direct_manual_business_key
+\gset
+
+SET request.jwt.claims TO :'org_b_new_curator_after_reassignment_claims';
+SET ROLE authenticated;
+SELECT pg_temp.assert_true(
+  (
+    SELECT latest_inbound_message_id = :'p3c_org_b_new_message_id'
+      AND selected_knowledge_version_id IS NULL
+      AND latest_ai_draft_request_id IS NULL
+      AND latest_ai_draft_id IS NULL
+      AND latest_manual_send_authorization_id IS NULL
+      AND latest_outbox_work_item_id IS NULL
+      AND latest_audit_action IS NULL
+    FROM platform.staff_conversation_workflow(
+      :'org_b_id',
+      :'conversation_org_b_id'
+    )
+  ),
+  'new inbound cycle must hide stale AI/manual/outbox/audit state'
+);
+
+\set ON_ERROR_STOP off
+SELECT platform.request_manual_whatsapp_send_with_authorization(
+  :'org_b_id',
+  :'conversation_org_b_id',
+  :'message_org_b_id',
+  :'p3c_org_b_draft_id',
+  'Synthetic stale draft must not send.',
+  'Old draft cannot authorize after newer inbound',
+  :'p3c_org_b_ai_manual_business_key',
+  '44000000-0000-4000-8000-000000000641'
+);
+\set p3c_stale_inbound_draft_state :SQLSTATE
+\set ON_ERROR_STOP on
+RESET ROLE;
+
+-- Cross-organization callers must be rejected even with a correctly shaped
+-- current-cycle request.
+SET request.jwt.claims TO :'curator_a_claims';
+SET ROLE authenticated;
+\set ON_ERROR_STOP off
+SELECT platform.request_manual_whatsapp_send_with_authorization(
+  :'org_b_id',
+  :'conversation_org_b_id',
+  :'p3c_org_b_new_message_id',
+  NULL,
+  'Synthetic cross-organization message.',
+  'Cross-org direct manual send must fail',
+  :'p3c_org_b_direct_manual_business_key',
+  '44000000-0000-4000-8000-000000000642'
+);
+\set p3c_direct_cross_org_state :SQLSTATE
+\set ON_ERROR_STOP on
+RESET ROLE;
+
+-- Closed conversations cannot be authorized. Keep the state change in a
+-- transaction and roll it back after capturing the expected denial.
+BEGIN;
+UPDATE platform.communication_conversations
+SET status = 'closed'
+WHERE organization_id = :'org_b_id'
+  AND id = :'conversation_org_b_id';
+
+SET request.jwt.claims TO :'org_b_new_curator_after_reassignment_claims';
+SET ROLE authenticated;
+\set ON_ERROR_STOP off
+SELECT platform.request_manual_whatsapp_send_with_authorization(
+  :'org_b_id',
+  :'conversation_org_b_id',
+  :'p3c_org_b_new_message_id',
+  NULL,
+  'Synthetic closed-conversation message.',
+  'Closed direct manual send must fail',
+  :'p3c_org_b_direct_manual_business_key',
+  '44000000-0000-4000-8000-000000000643'
+);
+\set p3c_direct_closed_state :SQLSTATE
+\set ON_ERROR_STOP on
+ROLLBACK;
+RESET ROLE;
+
+SET request.jwt.claims TO :'org_b_new_curator_after_reassignment_claims';
+SET ROLE authenticated;
+\set ON_ERROR_STOP off
+SELECT platform.request_manual_whatsapp_send_with_authorization(
+  :'org_b_id',
+  :'conversation_org_b_id',
+  :'p3c_org_b_new_message_id',
+  NULL,
+  'Synthetic staff-authored direct reply.',
+  'Mismatched business key must fail',
+  repeat('f', 64),
+  '44000000-0000-4000-8000-000000000644'
+);
+\set p3c_direct_business_key_state :SQLSTATE
+\set ON_ERROR_STOP on
+
+SELECT platform.request_manual_whatsapp_send_with_authorization(
+  :'org_b_id',
+  :'conversation_org_b_id',
+  :'p3c_org_b_new_message_id',
+  NULL,
+  'Synthetic staff-authored direct reply.',
+  'Authorize direct staff-written current-cycle reply',
+  :'p3c_org_b_direct_manual_business_key',
+  '44000000-0000-4000-8000-000000000645'
+)::TEXT AS p3c_org_b_direct_send_first
+\gset
+SELECT platform.request_manual_whatsapp_send_with_authorization(
+  :'org_b_id',
+  :'conversation_org_b_id',
+  :'p3c_org_b_new_message_id',
+  NULL,
+  'Synthetic staff-authored direct reply.',
+  'Authorize direct staff-written current-cycle reply',
+  :'p3c_org_b_direct_manual_business_key',
+  '44000000-0000-4000-8000-000000000645'
+)::TEXT AS p3c_org_b_direct_send_replay
+\gset
+
+\set ON_ERROR_STOP off
+SELECT platform.request_manual_whatsapp_send_with_authorization(
+  :'org_b_id',
+  :'conversation_org_b_id',
+  :'p3c_org_b_new_message_id',
+  NULL,
+  'Changed text must not replay.',
+  'Authorize direct staff-written current-cycle reply',
+  :'p3c_org_b_direct_manual_business_key',
+  '44000000-0000-4000-8000-000000000645'
+);
+\set p3c_direct_changed_replay_state :SQLSTATE
+\set ON_ERROR_STOP on
+
+SELECT pg_temp.assert_true(
+  (
+    SELECT latest_inbound_message_id = :'p3c_org_b_new_message_id'
+      AND selected_knowledge_version_id IS NULL
+      AND latest_ai_draft_request_id IS NULL
+      AND latest_ai_draft_id IS NULL
+      AND latest_manual_send_authorization_id = (
+        :'p3c_org_b_direct_send_first'::JSONB
+          ->> 'manual_send_authorization_id'
+      )::UUID
+      AND latest_outbox_work_item_id = (
+        :'p3c_org_b_direct_send_first'::JSONB
+          ->> 'work_item_id'
+      )::UUID
+      AND latest_outbox_kind = 'manual_whatsapp_send'
+      AND latest_outbox_work_state = 'queued'
+      AND latest_outbox_attempt_count = 0
+      AND latest_outbox_max_attempts = 1
+      AND latest_audit_action = 'communication.manual.send.request'
+    FROM platform.staff_conversation_workflow(
+      :'org_b_id',
+      :'conversation_org_b_id'
+    )
+  ),
+  'direct staff-written manual send did not bind to current cycle/outbox/audit'
+);
+RESET ROLE;
+
 SET request.jwt.claims TO :'org_b_sales_after_assignment_claims';
 SET ROLE authenticated;
 \set ON_ERROR_STOP off
@@ -590,14 +891,17 @@ SELECT count(*) FROM platform.staff_conversation_workflow(
 RESET ROLE;
 
 SELECT pg_temp.assert_true(
-  :'p3c_health_record_user_state' <> '00000'
+  :'p3c_future_health_state' = '22023'
+    AND :'p3c_health_record_user_state' <> '00000'
     AND :'p3c_ai_unconfigured_state' <> '00000'
+    AND :'p3c_ai_stale_state' = '55000'
     AND :'p3c_ai_configured_unverified_state' <> '00000'
     AND :'p3c_ai_local_ready_state' <> '00000'
     AND :'p3c_ai_cross_org_state' <> '00000'
     AND :'p3c_org_b_ai_request_id' =
       (:'p3c_org_b_ai_request_replay'::JSONB ->> 'ai_draft_request_id')
     AND :'p3c_waha_unconfigured_state' <> '00000'
+    AND :'p3c_waha_stale_state' = '55000'
     AND :'p3c_waha_configured_unverified_state' <> '00000'
     AND :'p3c_waha_local_ready_state' <> '00000'
     AND (
@@ -605,6 +909,22 @@ SELECT pg_temp.assert_true(
     ) = (
       :'p3c_org_b_manual_send_replay'::JSONB ->> 'work_item_id'
     )
+    AND :'p3c_stale_inbound_draft_state' = '55000'
+    AND :'p3c_direct_cross_org_state' = '42501'
+    AND :'p3c_direct_closed_state' = '55000'
+    AND :'p3c_direct_business_key_state' = '22023'
+    AND :'p3c_direct_changed_replay_state' = '22023'
+    AND (
+      :'p3c_org_b_direct_send_first'::JSONB ->> 'work_item_id'
+    ) = (
+      :'p3c_org_b_direct_send_replay'::JSONB ->> 'work_item_id'
+    )
+    AND (
+      :'p3c_org_b_direct_send_first'::JSONB ->> 'ai_draft_id'
+    ) IS NULL
+    AND (
+      :'p3c_org_b_direct_send_first'::JSONB ->> 'source_message_id'
+    ) = :'p3c_org_b_new_message_id'
     AND :'p3c_workflow_former_sales_state' <> '00000',
   'P3C readiness/idempotency/workflow contract failed'
 );

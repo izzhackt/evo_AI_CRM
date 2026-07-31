@@ -24,6 +24,9 @@ type Fixture = Readonly<{
   conversations: Readonly<{
     orgA: ConversationFixture;
     orgB: ConversationFixture;
+    orgAManual: ConversationFixture;
+    orgBAiRequest: ConversationFixture;
+    orgBAiReview: ConversationFixture;
     sameOrgOutsideSalesScope: ConversationFixture;
   }>;
   p3c: Readonly<{
@@ -48,6 +51,28 @@ type Fixture = Readonly<{
       knowledgeTitle: string;
       knowledgeVersion: string;
       staleSalesAccessToken: string;
+    }>;
+    mutations: Readonly<{
+      manualAiUnavailable: Readonly<{
+        organizationId: string;
+        conversationId: string;
+        sourceMessageId: string;
+        aiReadiness: string;
+        wahaReadiness: string;
+      }>;
+      aiRequest: Readonly<{
+        organizationId: string;
+        conversationId: string;
+        sourceMessageId: string;
+        knowledgeVersionId: string;
+      }>;
+      aiReview: Readonly<{
+        organizationId: string;
+        conversationId: string;
+        sourceMessageId: string;
+        aiDraftId: string;
+        generatedText: string;
+      }>;
     }>;
   }>;
 }>;
@@ -116,6 +141,18 @@ async function openOrgAConversation(page: Page, identity: Identity) {
   );
 }
 
+async function openConversation(
+  page: Page,
+  identity: Identity,
+  conversationId: string,
+) {
+  await login(page, identity);
+  await expect(page).toHaveURL(/\/whatsapp$/);
+  await page.goto(`/whatsapp/${conversationId}`);
+  await expect(page).toHaveURL(new RegExp(`/whatsapp/${conversationId}$`));
+  await expect(page.getByTestId("platform-messaging-workflow")).toBeVisible();
+}
+
 async function assertPersistedP3cWorkflow(page: Page) {
   const thread = page.getByTestId("platform-conversation-thread");
   await expect(thread).toBeVisible();
@@ -131,7 +168,13 @@ async function assertPersistedP3cWorkflow(page: Page) {
     health.locator(
       `[data-integration-readiness="${fixture.p3c.orgA.aiReadiness}"][data-provider-proof="not-proved"]`,
     ),
-  ).toHaveCount(2);
+  ).toHaveCount(1);
+  await expect(
+    health.locator(
+      `[data-integration-readiness="${fixture.p3c.orgA.wahaReadiness}"][data-provider-proof="proved"]`,
+    ),
+  ).toHaveCount(1);
+  await expect(workflow).not.toContainText("synthetic:health:");
 
   await expect(page.getByTestId("platform-workflow-audit")).toContainText(
     fixture.p3c.orgA.latestAuditAction,
@@ -409,4 +452,144 @@ test("stale sales workflow claims fail closed at the live platform RPC seam", as
     fixture.p3c.orgA.conversationId,
   );
   expect([401, 403]).toContain(result.status);
+});
+
+test("staff writes and persists a manual reply while AI is unavailable", async ({
+  page,
+}) => {
+  const target = fixture.p3c.mutations.manualAiUnavailable;
+  const finalText = "Ручной синтетический ответ сотрудника без AI.";
+  await openConversation(page, fixture.identities.admin, target.conversationId);
+
+  const health = page.getByTestId("platform-workflow-health");
+  await expect(
+    health.locator(
+      `[data-integration-readiness="${target.aiReadiness}"][data-provider-proof="not-proved"]`,
+    ),
+  ).toHaveCount(1);
+  await expect(
+    health.locator(
+      `[data-integration-readiness="${target.wahaReadiness}"][data-provider-proof="proved"]`,
+    ),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("platform-request-draft")).toBeDisabled();
+  await expect(page.getByTestId("platform-manual-send")).toBeEnabled();
+
+  await page.getByTestId("platform-manual-send-text").fill(finalText);
+  await page
+    .getByTestId("platform-manual-send-reason")
+    .fill("Manual reply required while AI health is unavailable");
+  await page.getByTestId("platform-manual-send").click();
+
+  await expect(page.locator('[data-action-status="completed"]')).toBeVisible();
+  await expect(page.getByText(finalText, { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByTestId("platform-outbox-state")
+      .locator(
+        '[data-outbox-kind="manual_whatsapp_send"][data-outbox-state="queued"]',
+      ),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("platform-workflow-audit")).toContainText(
+    "communication.manual.send.request",
+  );
+
+  await page.reload();
+  await expect(page.getByText(finalText, { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByTestId("platform-outbox-state")
+      .locator('[data-outbox-kind="manual_whatsapp_send"]'),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("platform-manual-send")).toHaveCount(0);
+});
+
+test("staff submits an approved-knowledge AI draft request through the real form", async ({
+  page,
+}) => {
+  const target = fixture.p3c.mutations.aiRequest;
+  await openConversation(
+    page,
+    fixture.identities.crossOrgAdmin,
+    target.conversationId,
+  );
+
+  await expect(page.getByTestId("platform-messaging-workflow")).toHaveAttribute(
+    "data-provider-proof",
+    "proved",
+  );
+  await page
+    .getByTestId("platform-knowledge-select")
+    .selectOption(target.knowledgeVersionId);
+  await page.locator("#platform-draft-language").selectOption("en");
+  await page
+    .locator("#platform-draft-reason")
+    .fill("Prepare a grounded synthetic draft for browser mutation proof");
+  await page.getByTestId("platform-request-draft").click();
+
+  await expect(page.locator('[data-action-status="completed"]')).toBeVisible();
+  await expect(page.getByTestId("platform-draft-awaiting")).toBeVisible();
+  await expect(page.getByTestId("platform-selected-knowledge")).toBeVisible();
+  await expect(
+    page
+      .getByTestId("platform-outbox-state")
+      .locator(
+        '[data-outbox-kind="ai_draft_generate"][data-outbox-state="queued"]',
+      ),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("platform-workflow-audit")).toContainText(
+    "ai.draft.request.knowledge",
+  );
+});
+
+test("staff reviews an AI draft then authorizes the edited final text", async ({
+  page,
+}) => {
+  const target = fixture.p3c.mutations.aiReview;
+  const reviewedText = "Staff-edited synthetic draft after human review.";
+  const finalText = "Final staff-controlled synthetic message for manual send.";
+  await openConversation(
+    page,
+    fixture.identities.crossOrgAdmin,
+    target.conversationId,
+  );
+
+  await expect(page.getByTestId("platform-draft-editor")).toHaveValue(
+    target.generatedText,
+  );
+  await page.getByTestId("platform-draft-editor").fill(reviewedText);
+  await page
+    .locator("#platform-review-reason")
+    .fill("Human review edited and approved the synthetic draft");
+  await page.getByTestId("platform-review-approve").click();
+
+  await expect(page.getByTestId("platform-manual-send-text")).toHaveValue(
+    reviewedText,
+  );
+  await page.getByTestId("platform-manual-send-text").fill(finalText);
+  await page
+    .getByTestId("platform-manual-send-reason")
+    .fill("Human authorized the exact final text for the controlled outbox");
+  await page.getByTestId("platform-manual-send").click();
+
+  await expect(page.locator('[data-action-status="completed"]')).toBeVisible();
+  await expect(page.getByText(finalText, { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByTestId("platform-outbox-state")
+      .locator(
+        '[data-outbox-kind="manual_whatsapp_send"][data-outbox-state="queued"]',
+      ),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("platform-workflow-audit")).toContainText(
+    "communication.manual.send.request",
+  );
+
+  await page.reload();
+  await expect(page.getByText(finalText, { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByTestId("platform-outbox-state")
+      .locator('[data-outbox-kind="manual_whatsapp_send"]'),
+  ).toHaveCount(1);
 });

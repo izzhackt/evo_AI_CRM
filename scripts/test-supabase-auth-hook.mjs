@@ -1041,7 +1041,7 @@ const createSyntheticConversationFixture = ({
         ${sqlUuid(conversationId, `${messageStage}-conversation`)},
         'inbound',
         ${sqlText(message.bodyText)},
-        'ru',
+        ${sqlText(message.language ?? "ru")},
         FALSE,
         ${sqlText(wahaSessionName)},
         ${sqlText(message.providerMessageId)},
@@ -1357,13 +1357,31 @@ const main = async () => {
       },
     ],
   });
+  const orgAManualConversation = createSyntheticConversationFixture({
+    organizationId: adminAMembership.organization_id,
+    studentCaseId: orgAStudentCaseId,
+    responsibleSalesMembershipId: responsibleSalesMembership.id,
+    fixtureKey: "org-a-manual-ai-unavailable",
+    subject: "[SYNTHETIC-NON-PROVIDER] Org A manual reply while AI unavailable",
+    accountSeed: 91_003,
+    occurredAt: "2026-07-30T09:02:00+06:00",
+    messages: [
+      {
+        providerMessageId:
+          "synthetic-local-fixture-org-a-manual-message-1",
+        bodyText:
+          "Нужен ответ сотрудника без AI. Это синтетическое сообщение.",
+        occurredAt: "2026-07-30T09:02:00+06:00",
+      },
+    ],
+  });
   const orgAScopedConversation = createSyntheticConversationFixture({
     organizationId: adminAMembership.organization_id,
     responsibleSalesMembershipId: responsibleSalesMembership.id,
     fixtureKey: "org-a-other-sales-scope",
     subject: "[SYNTHETIC-NON-PROVIDER] Org A scoped sales inquiry",
     accountSeed: 91_002,
-    occurredAt: "2026-07-30T09:02:00+06:00",
+    occurredAt: "2026-07-30T09:03:00+06:00",
     messages: [],
   });
   const orgBConversation = createSyntheticConversationFixture({
@@ -1372,8 +1390,42 @@ const main = async () => {
     fixtureKey: "org-b",
     subject: "[SYNTHETIC-NON-PROVIDER] Org B admissions inquiry",
     accountSeed: 92_001,
-    occurredAt: "2026-07-30T09:03:00+06:00",
+    occurredAt: "2026-07-30T09:04:00+06:00",
     messages: [],
+  });
+  const orgBAiRequestConversation = createSyntheticConversationFixture({
+    organizationId: adminBMembership.organization_id,
+    responsibleSalesMembershipId: salesBMembership.id,
+    fixtureKey: "org-b-ai-request",
+    subject: "[SYNTHETIC-NON-PROVIDER] Org B AI request mutation",
+    accountSeed: 92_002,
+    occurredAt: "2026-07-30T09:05:00+06:00",
+    messages: [
+      {
+        providerMessageId:
+          "synthetic-local-fixture-org-b-ai-request-message-1",
+        bodyText: "Please prepare a synthetic admissions draft.",
+        language: "en",
+        occurredAt: "2026-07-30T09:05:00+06:00",
+      },
+    ],
+  });
+  const orgBAiReviewConversation = createSyntheticConversationFixture({
+    organizationId: adminBMembership.organization_id,
+    responsibleSalesMembershipId: salesBMembership.id,
+    fixtureKey: "org-b-ai-review",
+    subject: "[SYNTHETIC-NON-PROVIDER] Org B AI review mutation",
+    accountSeed: 92_003,
+    occurredAt: "2026-07-30T09:06:00+06:00",
+    messages: [
+      {
+        providerMessageId:
+          "synthetic-local-fixture-org-b-ai-review-message-1",
+        bodyText: "Please review this synthetic draft before a manual send.",
+        language: "en",
+        occurredAt: "2026-07-30T09:06:00+06:00",
+      },
+    ],
   });
   await refresh(identities.responsibleSales, "sales");
   await refresh(identities.salesB, "sales");
@@ -1423,6 +1475,51 @@ const main = async () => {
   const orgAWorkflowInitial = orgAWorkflowInitialRows[0];
   const orgALatestInboundMessageId = orgAWorkflowInitial.latest_inbound_message_id;
   sqlUuid(orgALatestInboundMessageId, "p3c-org-a-latest-inbound-message-id");
+  const orgAManualWorkflowRows = await workflowRows(
+    identities.adminA,
+    orgAManualConversation.id,
+    "p3c-org-a-manual-initial-workflow",
+  );
+  assert(
+    orgAManualWorkflowRows.length === 1,
+    "p3c-org-a-manual-initial-workflow-row",
+  );
+  const orgAManualLatestInboundMessageId =
+    orgAManualWorkflowRows[0].latest_inbound_message_id;
+  sqlUuid(
+    orgAManualLatestInboundMessageId,
+    "p3c-org-a-manual-latest-inbound-message-id",
+  );
+  const orgBAiRequestWorkflowRows = await workflowRows(
+    identities.adminB,
+    orgBAiRequestConversation.id,
+    "p3c-org-b-ai-request-initial-workflow",
+  );
+  assert(
+    orgBAiRequestWorkflowRows.length === 1,
+    "p3c-org-b-ai-request-initial-workflow-row",
+  );
+  const orgBAiRequestLatestInboundMessageId =
+    orgBAiRequestWorkflowRows[0].latest_inbound_message_id;
+  sqlUuid(
+    orgBAiRequestLatestInboundMessageId,
+    "p3c-org-b-ai-request-latest-inbound-message-id",
+  );
+  const orgBAiReviewWorkflowRows = await workflowRows(
+    identities.adminB,
+    orgBAiReviewConversation.id,
+    "p3c-org-b-ai-review-initial-workflow",
+  );
+  assert(
+    orgBAiReviewWorkflowRows.length === 1,
+    "p3c-org-b-ai-review-initial-workflow-row",
+  );
+  const orgBAiReviewLatestInboundMessageId =
+    orgBAiReviewWorkflowRows[0].latest_inbound_message_id;
+  sqlUuid(
+    orgBAiReviewLatestInboundMessageId,
+    "p3c-org-b-ai-review-latest-inbound-message-id",
+  );
 
   const orgAKnowledgeVersionFirst = authenticatedFunctionResult(
     decodeClaims(identities.adminA.accessToken, "p3c-org-a-admin-claims"),
@@ -1445,6 +1542,27 @@ const main = async () => {
   const orgAKnowledgeVersionId =
     orgAKnowledgeVersionFirst?.approved_knowledge_version_id;
   sqlUuid(orgAKnowledgeVersionId, "p3c-org-a-knowledge-version-id");
+  const orgBKnowledgeVersionFirst = authenticatedFunctionResult(
+    decodeClaims(identities.adminB.accessToken, "p3c-org-b-admin-claims"),
+    `platform.publish_approved_knowledge_version(
+      ${sqlUuid(adminBMembership.organization_id, "p3c-org-b-knowledge-org")},
+      'synthetic.orgb.admissions.general',
+      'Synthetic org B admissions knowledge',
+      1,
+      'Synthetic org B approved knowledge v1.',
+      encode(
+        sha256(convert_to('Synthetic org B approved knowledge v1.', 'UTF8')),
+        'hex'
+      ),
+      'synthetic:provenance:knowledge:org-b:v1',
+      'Publish org B knowledge for local mutation workflow proof',
+      ${sqlUuid(randomUUID(), "p3c-org-b-knowledge-request")}
+    )`,
+    "p3c-org-b-knowledge-publish",
+  );
+  const orgBKnowledgeVersionId =
+    orgBKnowledgeVersionFirst?.approved_knowledge_version_id;
+  sqlUuid(orgBKnowledgeVersionId, "p3c-org-b-knowledge-version-id");
 
   const recordHealthEvent = ({
     organizationId,
@@ -1487,6 +1605,26 @@ const main = async () => {
       "Synthetic provider-observed WAHA readiness used only to create local workflow rows",
     evidenceRef: "synthetic:health:waha:provider-ready:org-a",
     stage: "p3c-org-a-waha-provider-ready",
+  });
+  recordHealthEvent({
+    organizationId: adminBMembership.organization_id,
+    target: "ai",
+    readiness: "ready",
+    evidenceKind: "provider_observed",
+    reason:
+      "Synthetic provider-observed AI readiness used only for local browser mutation contracts",
+    evidenceRef: "synthetic:health:ai:provider-ready:org-b",
+    stage: "p3c-org-b-ai-provider-ready",
+  });
+  recordHealthEvent({
+    organizationId: adminBMembership.organization_id,
+    target: "waha",
+    readiness: "ready",
+    evidenceKind: "provider_observed",
+    reason:
+      "Synthetic provider-observed WAHA readiness used only for local browser mutation contracts",
+    evidenceRef: "synthetic:health:waha:provider-ready:org-b",
+    stage: "p3c-org-b-waha-provider-ready",
   });
 
   const orgAAiRequest = authenticatedFunctionResult(
@@ -1571,6 +1709,19 @@ const main = async () => {
     "p3c-org-a-ai-review",
   );
 
+  const orgAManualBusinessKey = createHash("sha256")
+    .update(
+      JSON.stringify([
+        "evo-platform-work-v1",
+        "manual_whatsapp_send",
+        adminAMembership.organization_id,
+        orgAConversation.id,
+        orgALatestInboundMessageId,
+        orgAAiDraftId,
+      ]),
+      "utf8",
+    )
+    .digest("hex");
   const orgAManualSend = authenticatedFunctionResult(
     decodeClaims(
       identities.curator.accessToken,
@@ -1578,10 +1729,15 @@ const main = async () => {
     ),
     `platform.request_manual_whatsapp_send_with_authorization(
       ${sqlUuid(adminAMembership.organization_id, "p3c-org-a-manual-org")},
+      ${sqlUuid(orgAConversation.id, "p3c-org-a-manual-conversation")},
+      ${sqlUuid(
+        orgALatestInboundMessageId,
+        "p3c-org-a-manual-source-message",
+      )},
       ${sqlUuid(orgAAiDraftId, "p3c-org-a-manual-draft")},
       'Synthetic local reviewed reply for org A.',
       'Authorize and enqueue the synthetic local manual send',
-      ${sqlText("f".repeat(64))},
+      ${sqlText(orgAManualBusinessKey)},
       ${sqlUuid(randomUUID(), "p3c-org-a-manual-send-id")}
     )`,
     "p3c-org-a-manual-send",
@@ -1594,6 +1750,78 @@ const main = async () => {
     "p3c-org-a-manual-send-authorization-id",
   );
   sqlUuid(orgAOutboxWorkItemId, "p3c-org-a-outbox-work-item-id");
+
+  const orgBAiReviewRequest = authenticatedFunctionResult(
+    decodeClaims(
+      identities.adminB.accessToken,
+      "p3c-org-b-admin-claims-for-review-request",
+    ),
+    `platform.request_ai_draft_with_knowledge(
+      ${sqlUuid(adminBMembership.organization_id, "p3c-org-b-review-request-org")},
+      ${sqlUuid(orgBAiReviewConversation.id, "p3c-org-b-review-request-conversation")},
+      ${sqlUuid(
+        orgBAiReviewLatestInboundMessageId,
+        "p3c-org-b-review-request-source-message",
+      )},
+      'en',
+      ${sqlUuid(orgBKnowledgeVersionId, "p3c-org-b-review-request-knowledge")},
+      'Prepare the synthetic draft that browser E2E will review',
+      ${sqlUuid(randomUUID(), "p3c-org-b-review-request-id")}
+    )`,
+    "p3c-org-b-ai-review-request",
+  );
+  const orgBAiReviewDraftRequestId =
+    orgBAiReviewRequest?.ai_draft_request_id;
+  sqlUuid(
+    orgBAiReviewDraftRequestId,
+    "p3c-org-b-ai-review-draft-request-id",
+  );
+  const orgBAiReviewSourceContext = JSON.stringify({
+    source_message_id: orgBAiReviewLatestInboundMessageId,
+    knowledge_version_ids: [orgBKnowledgeVersionId],
+    fixture_kind: "synthetic_non_provider",
+  });
+  serviceFunctionResult(
+    `platform.record_ai_draft(
+      ${sqlUuid(adminBMembership.organization_id, "p3c-org-b-review-draft-org")},
+      ${sqlUuid(orgBAiReviewConversation.id, "p3c-org-b-review-draft-conversation")},
+      ${sqlUuid(
+        orgBAiReviewLatestInboundMessageId,
+        "p3c-org-b-review-draft-source-message",
+      )},
+      'confident',
+      'en',
+      ${sqlUuid(orgBKnowledgeVersionId, "p3c-org-b-review-draft-knowledge")},
+      'Synthetic local draft awaiting browser review.',
+      'synthetic:ai-provider:not-real',
+      'synthetic:model:not-real',
+      'synthetic:prompt-policy:v1',
+      ${sqlText(orgBAiReviewSourceContext)}::jsonb,
+      encode(
+        sha256(
+          convert_to(
+            (${sqlText(orgBAiReviewSourceContext)}::jsonb)::text,
+            'UTF8'
+          )
+        ),
+        'hex'
+      ),
+      ${sqlUuid(randomUUID(), "p3c-org-b-review-draft-record-request")}
+    )`,
+    "p3c-org-b-ai-review-draft-record",
+  );
+  const orgBAiReviewReadyRows = await workflowRows(
+    identities.adminB,
+    orgBAiReviewConversation.id,
+    "p3c-org-b-ai-review-ready-workflow",
+  );
+  assert(
+    orgBAiReviewReadyRows.length === 1,
+    "p3c-org-b-ai-review-ready-workflow-row",
+  );
+  const orgBAiReviewDraftId =
+    orgBAiReviewReadyRows[0].latest_ai_draft_id;
+  sqlUuid(orgBAiReviewDraftId, "p3c-org-b-ai-review-draft-id");
 
   recordHealthEvent({
     organizationId: adminAMembership.organization_id,
@@ -1608,12 +1836,12 @@ const main = async () => {
   recordHealthEvent({
     organizationId: adminAMembership.organization_id,
     target: "waha",
-    readiness: "configured_unverified",
-    evidenceKind: "local_non_provider",
+    readiness: "ready",
+    evidenceKind: "provider_observed",
     reason:
-      "Latest local synthetic WAHA evidence is non-provider only and must not count as proved",
-    evidenceRef: "synthetic:health:waha:local-non-provider:org-a",
-    stage: "p3c-org-a-waha-local-non-provider",
+      "Synthetic provider-observed WAHA readiness used only for the AI-unavailable manual-send browser contract",
+    evidenceRef: "synthetic:health:waha:provider-ready:org-a-browser",
+    stage: "p3c-org-a-waha-provider-ready-browser",
   });
 
   const orgAWorkflowFinalRows = await workflowRows(
@@ -1633,13 +1861,22 @@ const main = async () => {
   );
   assert(
     orgAWorkflowFinal.ai_readiness === "configured_unverified" &&
-      orgAWorkflowFinal.ai_readiness_evidence_kind === "local_non_provider",
+      orgAWorkflowFinal.ai_readiness_evidence_kind === "local_non_provider" &&
+      orgAWorkflowFinal.ai_readiness_fresh === false,
     "p3c-org-a-final-workflow-ai-health",
   );
   assert(
-    orgAWorkflowFinal.waha_readiness === "configured_unverified" &&
-      orgAWorkflowFinal.waha_readiness_evidence_kind === "local_non_provider",
+    orgAWorkflowFinal.waha_readiness === "ready" &&
+      orgAWorkflowFinal.waha_readiness_evidence_kind === "provider_observed" &&
+      orgAWorkflowFinal.waha_readiness_fresh === true,
     "p3c-org-a-final-workflow-waha-health",
+  );
+  assert(
+    !("ai_readiness_reason" in orgAWorkflowFinal) &&
+      !("ai_readiness_evidence_ref" in orgAWorkflowFinal) &&
+      !("waha_readiness_reason" in orgAWorkflowFinal) &&
+      !("waha_readiness_evidence_ref" in orgAWorkflowFinal),
+    "p3c-public-workflow-hides-private-health-evidence",
   );
   assert(
     orgAWorkflowFinal.latest_ai_draft_request_id === orgAAiDraftRequestId &&
@@ -1896,6 +2133,9 @@ const main = async () => {
         conversations: {
           orgA: orgAConversation,
           orgB: orgBConversation,
+          orgAManual: orgAManualConversation,
+          orgBAiRequest: orgBAiRequestConversation,
+          orgBAiReview: orgBAiReviewConversation,
           sameOrgOutsideSalesScope: orgAScopedConversation,
         },
         p3c: {
@@ -1914,12 +2154,34 @@ const main = async () => {
             latestAuditAction: "communication.manual.send.request",
             aiReadiness: "configured_unverified",
             aiEvidenceKind: "local_non_provider",
-            wahaReadiness: "configured_unverified",
-            wahaEvidenceKind: "local_non_provider",
+            wahaReadiness: "ready",
+            wahaEvidenceKind: "provider_observed",
             reviewedText: "Synthetic local reviewed reply for org A.",
             knowledgeTitle: "Synthetic org A admissions knowledge",
             knowledgeVersion: "1",
             staleSalesAccessToken: staleResponsibleSalesAccessToken,
+          },
+          mutations: {
+            manualAiUnavailable: {
+              organizationId: adminAMembership.organization_id,
+              conversationId: orgAManualConversation.id,
+              sourceMessageId: orgAManualLatestInboundMessageId,
+              aiReadiness: "configured_unverified",
+              wahaReadiness: "ready",
+            },
+            aiRequest: {
+              organizationId: adminBMembership.organization_id,
+              conversationId: orgBAiRequestConversation.id,
+              sourceMessageId: orgBAiRequestLatestInboundMessageId,
+              knowledgeVersionId: orgBKnowledgeVersionId,
+            },
+            aiReview: {
+              organizationId: adminBMembership.organization_id,
+              conversationId: orgBAiReviewConversation.id,
+              sourceMessageId: orgBAiReviewLatestInboundMessageId,
+              aiDraftId: orgBAiReviewDraftId,
+              generatedText: "Synthetic local draft awaiting browser review.",
+            },
           },
         },
       }),
@@ -1928,7 +2190,7 @@ const main = async () => {
   }
 
   console.log(
-    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; 11 admin-provisioned synthetic users, 5 roles, 2 organizations, expired/stale-token and blocked-claim invalidation; final local workflow health contains no provider proof.",
+    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; 11 admin-provisioned synthetic users, 5 roles, 2 organizations, expired/stale-token and blocked-claim invalidation; synthetic readiness rows are contract fixtures only and are not live provider proof.",
   );
 };
 

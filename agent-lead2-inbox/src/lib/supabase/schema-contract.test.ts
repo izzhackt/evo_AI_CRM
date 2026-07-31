@@ -91,9 +91,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves containment and advances through the P3B read boundary', () => {
+  it('preserves containment and advances through the P3C messaging boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '048_platform_communications_read_authority.sql'
+      '049_platform_messaging_workflow.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i

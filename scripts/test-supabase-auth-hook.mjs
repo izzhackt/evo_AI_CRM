@@ -1041,7 +1041,7 @@ const createSyntheticConversationFixture = ({
         ${sqlUuid(conversationId, `${messageStage}-conversation`)},
         'inbound',
         ${sqlText(message.bodyText)},
-        ${sqlText(message.language ?? "ru")},
+        ${sqlText(message.language ?? "ru")}::platform.communication_message_language,
         FALSE,
         ${sqlText(wahaSessionName)},
         ${sqlText(message.providerMessageId)},

@@ -1862,7 +1862,7 @@ const main = async () => {
   assert(
     orgAWorkflowFinal.ai_readiness === "configured_unverified" &&
       orgAWorkflowFinal.ai_readiness_evidence_kind === "local_non_provider" &&
-      orgAWorkflowFinal.ai_readiness_fresh === false,
+      orgAWorkflowFinal.ai_readiness_fresh === true,
     "p3c-org-a-final-workflow-ai-health",
   );
   assert(

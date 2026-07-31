@@ -330,6 +330,29 @@ rm -f -- "${PLATFORM_AUTH_BROWSER_FIXTURE}"
 [[ ! -e "${LEGACY_DB_SENTINEL}" ]] \
   || fail "Platform Auth browser gate touched the forbidden legacy SQLite sentinel."
 
+# The browser workflow intentionally leaves one AI job and one manual-send job
+# queued so the UI can prove real outbox persistence. Reset the disposable
+# database before the independent Storage and empty-queue runtime gates.
+if ! "${SUPABASE_CLI}" \
+  --workdir "${REPO_ROOT}" \
+  --output-format json \
+  db reset \
+  --local \
+  --no-seed \
+  >"${TEMP_DIR}/post-browser-reset.json" \
+  2>"${TEMP_DIR}/post-browser-reset.log"; then
+  show_safe_failure_log "${TEMP_DIR}/post-browser-reset.log"
+  fail "Post-browser disposable Supabase reset failed."
+fi
+
+if ! "${SUPABASE_CLI}" \
+  --workdir "${REPO_ROOT}" \
+  seed buckets \
+  --local \
+  >"${TEMP_DIR}/post-browser-seed-buckets.log" 2>&1; then
+  fail "Post-browser local Storage bucket seeding failed; output was withheld."
+fi
+
 readonly STORAGE_STATUS_FILE="${TEMP_DIR}/storage-status.json"
 : >"${STORAGE_STATUS_FILE}"
 chmod 600 "${STORAGE_STATUS_FILE}"

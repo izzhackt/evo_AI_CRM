@@ -76,6 +76,13 @@ const platformCommunicationsReadAuthorityMigration = readFileSync(
   join(migrationsDir, '048_platform_communications_read_authority.sql'),
   'utf8'
 )
+const platformMessagingControllerHardeningMigration = readFileSync(
+  join(
+    migrationsDir,
+    '050_platform_messaging_workflow_controller_hardening.sql'
+  ),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -91,9 +98,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves containment and advances through the P3B read boundary', () => {
+  it('preserves containment and advances through the P3C messaging boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '048_platform_communications_read_authority.sql'
+      '050_platform_messaging_workflow_controller_hardening.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -146,6 +153,37 @@ describe('Supabase companion schema contract', () => {
     )
     expect(supabaseConfig).not.toMatch(
       /schemas\s*=.*(?:platform_private|pgmq_public)/
+    )
+  })
+
+  it('hardens P3C manual messaging, cycle binding, and public health projection', () => {
+    expect(platformMessagingControllerHardeningMigration).toMatch(
+      /ALTER\s+TABLE\s+platform\.manual_send_authorizations[\s\S]*ADD\s+COLUMN\s+source_message_id\s+UUID[\s\S]*ALTER\s+COLUMN\s+ai_draft_id\s+DROP\s+NOT\s+NULL/i
+    )
+    expect(platformMessagingControllerHardeningMigration).toMatch(
+      /DROP\s+FUNCTION\s+platform\.request_manual_whatsapp_send_with_authorization\s*\(\s*UUID,\s*UUID,\s*TEXT,\s*TEXT,\s*TEXT,\s*UUID\s*\)/i
+    )
+    expect(platformMessagingControllerHardeningMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.request_manual_whatsapp_send_with_authorization\s*\(\s*p_organization_id\s+UUID,\s*p_conversation_id\s+UUID,\s*p_source_message_id\s+UUID,\s*p_ai_draft_id\s+UUID/i
+    )
+    expect(platformMessagingControllerHardeningMigration).toMatch(
+      /INTERVAL\s+'5 minutes'/i
+    )
+    expect(platformMessagingControllerHardeningMigration).toMatch(
+      /INTERVAL\s+'1 minute'/i
+    )
+
+    const publicWorkflowSignature =
+      platformMessagingControllerHardeningMigration.match(
+        /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.staff_conversation_workflow[\s\S]*?RETURNS\s+TABLE\s*\(([\s\S]*?)\)\s*LANGUAGE/i
+      )?.[1] ?? ''
+    expect(publicWorkflowSignature).toMatch(/ai_readiness_fresh\s+BOOLEAN/i)
+    expect(publicWorkflowSignature).toMatch(/waha_readiness_fresh\s+BOOLEAN/i)
+    expect(publicWorkflowSignature).not.toMatch(
+      /readiness_(?:reason|evidence_ref)/i
+    )
+    expect(platformMessagingControllerHardeningMigration).toMatch(
+      /p_max_attempts\s*<>\s*1/i
     )
   })
 

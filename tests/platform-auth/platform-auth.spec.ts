@@ -9,9 +9,12 @@ type ConversationFixture = Readonly<{
   messages: readonly string[];
 }>;
 type Fixture = Readonly<{
+  apiUrl: string;
+  publishableKey: string;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
+    crossOrgAdmin: Identity;
     salesScoped: Identity;
     finance: Identity;
     student: Identity;
@@ -21,7 +24,56 @@ type Fixture = Readonly<{
   conversations: Readonly<{
     orgA: ConversationFixture;
     orgB: ConversationFixture;
+    orgAManual: ConversationFixture;
+    orgBAiRequest: ConversationFixture;
+    orgBAiReview: ConversationFixture;
     sameOrgOutsideSalesScope: ConversationFixture;
+  }>;
+  p3c: Readonly<{
+    orgA: Readonly<{
+      organizationId: string;
+      conversationId: string;
+      selectedKnowledgeVersionId: string;
+      aiDraftRequestId: string;
+      aiDraftId: string;
+      manualSendAuthorizationId: string;
+      outboxWorkItemId: string;
+      outboxKind: string;
+      outboxState: string;
+      outboxAttemptCount: number;
+      outboxMaxAttempts: number;
+      latestAuditAction: string;
+      aiReadiness: string;
+      aiEvidenceKind: string;
+      wahaReadiness: string;
+      wahaEvidenceKind: string;
+      reviewedText: string;
+      knowledgeTitle: string;
+      knowledgeVersion: string;
+      staleSalesAccessToken: string;
+    }>;
+    mutations: Readonly<{
+      manualAiUnavailable: Readonly<{
+        organizationId: string;
+        conversationId: string;
+        sourceMessageId: string;
+        aiReadiness: string;
+        wahaReadiness: string;
+      }>;
+      aiRequest: Readonly<{
+        organizationId: string;
+        conversationId: string;
+        sourceMessageId: string;
+        knowledgeVersionId: string;
+      }>;
+      aiReview: Readonly<{
+        organizationId: string;
+        conversationId: string;
+        sourceMessageId: string;
+        aiDraftId: string;
+        generatedText: string;
+      }>;
+    }>;
   }>;
 }>;
 
@@ -53,6 +105,98 @@ async function expectDeniedConversationRoute(page: Page, pathname: string) {
     page.getByRole("heading", { name: "This page could not be found." }),
   ).toBeVisible();
   await expect(page.getByTestId("platform-conversation-thread")).toHaveCount(0);
+}
+
+async function workflowRpc(
+  token: string,
+  conversationId: string,
+) {
+  const response = await fetch(`${fixture.apiUrl}/rest/v1/rpc/staff_conversation_workflow`, {
+    method: "POST",
+    headers: {
+      apikey: fixture.publishableKey,
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "Accept-Profile": "platform",
+      "Content-Profile": "platform",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      p_organization_id: fixture.p3c.orgA.organizationId,
+      p_conversation_id: conversationId,
+    }),
+  });
+  const text = await response.text();
+  let payload: unknown = null;
+  if (text) payload = JSON.parse(text);
+  return { status: response.status, payload };
+}
+
+async function openOrgAConversation(page: Page, identity: Identity) {
+  await login(page, identity);
+  await expect(page).toHaveURL(/\/whatsapp$/);
+  await page.goto(`/whatsapp/${fixture.p3c.orgA.conversationId}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/whatsapp/${fixture.p3c.orgA.conversationId}$`),
+  );
+}
+
+async function openConversation(
+  page: Page,
+  identity: Identity,
+  conversationId: string,
+) {
+  await login(page, identity);
+  await expect(page).toHaveURL(/\/whatsapp$/);
+  await page.goto(`/whatsapp/${conversationId}`);
+  await expect(page).toHaveURL(new RegExp(`/whatsapp/${conversationId}$`));
+  await expect(page.getByTestId("platform-messaging-workflow")).toBeVisible();
+}
+
+async function assertPersistedP3cWorkflow(page: Page) {
+  const thread = page.getByTestId("platform-conversation-thread");
+  await expect(thread).toBeVisible();
+  await expect(thread).toHaveAttribute("data-provider-proof", "not-proved");
+
+  const workflow = page.getByTestId("platform-messaging-workflow");
+  await expect(workflow).toBeVisible();
+  await expect(workflow).toHaveAttribute("data-provider-proof", "not-proved");
+
+  const health = page.getByTestId("platform-workflow-health");
+  await expect(health).toBeVisible();
+  await expect(
+    health.locator(
+      `[data-integration-readiness="${fixture.p3c.orgA.aiReadiness}"][data-provider-proof="not-proved"]`,
+    ),
+  ).toHaveCount(1);
+  await expect(
+    health.locator(
+      `[data-integration-readiness="${fixture.p3c.orgA.wahaReadiness}"][data-provider-proof="proved"]`,
+    ),
+  ).toHaveCount(1);
+  await expect(workflow).not.toContainText("synthetic:health:");
+
+  await expect(page.getByTestId("platform-workflow-audit")).toContainText(
+    fixture.p3c.orgA.latestAuditAction,
+  );
+  await expect(
+    workflow.getByText(fixture.p3c.orgA.reviewedText, { exact: true }),
+  ).toBeVisible();
+  await expect(workflow).toContainText(fixture.p3c.orgA.knowledgeTitle);
+
+  const outbox = page.getByTestId("platform-outbox-state");
+  await expect(outbox).toBeVisible();
+  await expect(
+    outbox.locator(
+      `[data-outbox-kind="${fixture.p3c.orgA.outboxKind}"][data-outbox-state="${fixture.p3c.orgA.outboxState}"]`,
+    ),
+  ).toHaveCount(1);
+
+  await expect(page.getByTestId("platform-knowledge-select")).toHaveCount(0);
+  await expect(page.getByTestId("platform-request-draft")).toHaveCount(0);
+  await expect(page.getByTestId("platform-draft-editor")).toHaveCount(0);
+  await expect(page.getByTestId("platform-review-approve")).toHaveCount(0);
+  await expect(page.getByTestId("platform-manual-send")).toHaveCount(0);
 }
 
 test("self-registration is disabled before any account write", async ({
@@ -148,6 +292,20 @@ test("admin opens ordered synthetic inbound messages through Supabase RLS", asyn
     page,
     `/whatsapp/${fixture.conversations.orgB.id}`,
   );
+});
+
+test("admin reads the persisted local P3C workflow without proving providers", async ({
+  page,
+}) => {
+  await openOrgAConversation(page, fixture.identities.admin);
+  await assertPersistedP3cWorkflow(page);
+});
+
+test("assigned Curator reads the same persisted local P3C workflow", async ({
+  page,
+}) => {
+  await openOrgAConversation(page, fixture.identities.curator);
+  await assertPersistedP3cWorkflow(page);
 });
 
 test("same-organization Sales cannot open another Sales scope", async ({
@@ -271,4 +429,167 @@ test("staff and student role destinations remain separated", async ({
     }
     await context.close();
   }
+});
+
+test("cross-organization admin is denied the org A P3C workflow route", async ({
+  page,
+}) => {
+  await login(page, fixture.identities.crossOrgAdmin);
+  await expect(page).toHaveURL(/\/whatsapp$/);
+  const list = page.getByTestId("platform-conversation-list");
+  await expect(
+    list.getByText(fixture.conversations.orgA.subject, { exact: true }),
+  ).toHaveCount(0);
+  await expectDeniedConversationRoute(
+    page,
+    `/whatsapp/${fixture.p3c.orgA.conversationId}`,
+  );
+});
+
+test("stale sales workflow claims fail closed at the live platform RPC seam", async () => {
+  const result = await workflowRpc(
+    fixture.p3c.orgA.staleSalesAccessToken,
+    fixture.p3c.orgA.conversationId,
+  );
+  expect([401, 403]).toContain(result.status);
+});
+
+test("staff writes and persists a manual reply while AI is unavailable", async ({
+  page,
+}) => {
+  const target = fixture.p3c.mutations.manualAiUnavailable;
+  const finalText = "Ручной синтетический ответ сотрудника без AI.";
+  await openConversation(page, fixture.identities.admin, target.conversationId);
+
+  const health = page.getByTestId("platform-workflow-health");
+  await expect(
+    health.locator(
+      `[data-integration-readiness="${target.aiReadiness}"][data-provider-proof="not-proved"]`,
+    ),
+  ).toHaveCount(1);
+  await expect(
+    health.locator(
+      `[data-integration-readiness="${target.wahaReadiness}"][data-provider-proof="proved"]`,
+    ),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("platform-request-draft")).toBeDisabled();
+  await expect(page.getByTestId("platform-manual-send")).toBeEnabled();
+
+  await page.getByTestId("platform-manual-send-text").fill(finalText);
+  await page
+    .getByTestId("platform-manual-send-reason")
+    .fill("Manual reply required while AI health is unavailable");
+  await page.getByTestId("platform-manual-send").click();
+
+  await expect(page.locator('[data-action-status="completed"]')).toBeVisible();
+  await expect(page.getByText(finalText, { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByTestId("platform-outbox-state")
+      .locator(
+        '[data-outbox-kind="manual_whatsapp_send"][data-outbox-state="queued"]',
+      ),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("platform-workflow-audit")).toContainText(
+    "communication.manual.send.request",
+  );
+
+  await page.reload();
+  await expect(page.getByText(finalText, { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByTestId("platform-outbox-state")
+      .locator('[data-outbox-kind="manual_whatsapp_send"]'),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("platform-manual-send")).toHaveCount(0);
+});
+
+test("staff submits an approved-knowledge AI draft request through the real form", async ({
+  page,
+}) => {
+  const target = fixture.p3c.mutations.aiRequest;
+  await openConversation(
+    page,
+    fixture.identities.crossOrgAdmin,
+    target.conversationId,
+  );
+
+  await expect(page.getByTestId("platform-messaging-workflow")).toHaveAttribute(
+    "data-provider-proof",
+    "proved",
+  );
+  await page
+    .getByTestId("platform-knowledge-select")
+    .selectOption(target.knowledgeVersionId);
+  await page.locator("#platform-draft-language").selectOption("en");
+  await page
+    .locator("#platform-draft-reason")
+    .fill("Prepare a grounded synthetic draft for browser mutation proof");
+  await page.getByTestId("platform-request-draft").click();
+
+  await expect(page.locator('[data-action-status="completed"]')).toBeVisible();
+  await expect(page.getByTestId("platform-draft-awaiting")).toBeVisible();
+  await expect(page.getByTestId("platform-selected-knowledge")).toBeVisible();
+  await expect(
+    page
+      .getByTestId("platform-outbox-state")
+      .locator(
+        '[data-outbox-kind="ai_draft_generate"][data-outbox-state="queued"]',
+      ),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("platform-workflow-audit")).toContainText(
+    "ai.draft.request.knowledge",
+  );
+});
+
+test("staff reviews an AI draft then authorizes the edited final text", async ({
+  page,
+}) => {
+  const target = fixture.p3c.mutations.aiReview;
+  const reviewedText = "Staff-edited synthetic draft after human review.";
+  const finalText = "Final staff-controlled synthetic message for manual send.";
+  await openConversation(
+    page,
+    fixture.identities.crossOrgAdmin,
+    target.conversationId,
+  );
+
+  await expect(page.getByTestId("platform-draft-editor")).toHaveValue(
+    target.generatedText,
+  );
+  await page.getByTestId("platform-draft-editor").fill(reviewedText);
+  await page
+    .locator("#platform-review-reason")
+    .fill("Human review edited and approved the synthetic draft");
+  await page.getByTestId("platform-review-approve").click();
+
+  await expect(page.getByTestId("platform-manual-send-text")).toHaveValue(
+    reviewedText,
+  );
+  await page.getByTestId("platform-manual-send-text").fill(finalText);
+  await page
+    .getByTestId("platform-manual-send-reason")
+    .fill("Human authorized the exact final text for the controlled outbox");
+  await page.getByTestId("platform-manual-send").click();
+
+  await expect(page.locator('[data-action-status="completed"]')).toBeVisible();
+  await expect(page.getByText(finalText, { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByTestId("platform-outbox-state")
+      .locator(
+        '[data-outbox-kind="manual_whatsapp_send"][data-outbox-state="queued"]',
+      ),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("platform-workflow-audit")).toContainText(
+    "communication.manual.send.request",
+  );
+
+  await page.reload();
+  await expect(page.getByText(finalText, { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByTestId("platform-outbox-state")
+      .locator('[data-outbox-kind="manual_whatsapp_send"]'),
+  ).toHaveCount(1);
 });

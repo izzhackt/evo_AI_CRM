@@ -244,6 +244,15 @@ docker exec -i "${DATABASE_CONTAINER}" \
 BEGIN;
 SET CONSTRAINTS ALL DEFERRED;
 
+SELECT EXISTS (
+  SELECT 1
+  FROM information_schema.columns
+  WHERE table_schema = 'platform'
+    AND table_name = 'manual_send_authorizations'
+    AND column_name = 'source_message_id'
+) AS has_p3c_source_message_column
+\gset
+
 INSERT INTO platform.organizations (id, name)
 VALUES (
   '45990000-0000-4000-8000-000000000001',
@@ -667,6 +676,34 @@ VALUES (
   'Synthetic runtime approval'
 );
 
+\if :has_p3c_source_message_column
+INSERT INTO platform.manual_send_authorizations (
+  id,
+  organization_id,
+  conversation_id,
+  source_message_id,
+  ai_draft_id,
+  final_text,
+  final_text_sha256,
+  authorized_by_profile_id,
+  authorized_by_membership_id,
+  reason,
+  request_id
+)
+VALUES (
+  '45993000-0000-4000-8000-000000000011',
+  '45990000-0000-4000-8000-000000000001',
+  '45993000-0000-4000-8000-000000000005',
+  '45993000-0000-4000-8000-000000000007',
+  '45993000-0000-4000-8000-000000000010',
+  'Synthetic reviewed text.',
+  repeat('c', 64),
+  '45993000-0000-4000-8000-000000000002',
+  '45993000-0000-4000-8000-000000000003',
+  'Synthetic manual authorization',
+  '45993000-0000-4000-8000-000000000111'
+);
+\else
 INSERT INTO platform.manual_send_authorizations (
   id,
   organization_id,
@@ -691,6 +728,7 @@ VALUES (
   'Synthetic manual authorization',
   '45993000-0000-4000-8000-000000000111'
 );
+\endif
 
 INSERT INTO platform.communication_messages (
   id,
@@ -797,6 +835,34 @@ VALUES (
   'Synthetic crash ambiguity approval'
 );
 
+\if :has_p3c_source_message_column
+INSERT INTO platform.manual_send_authorizations (
+  id,
+  organization_id,
+  conversation_id,
+  source_message_id,
+  ai_draft_id,
+  final_text,
+  final_text_sha256,
+  authorized_by_profile_id,
+  authorized_by_membership_id,
+  reason,
+  request_id
+)
+VALUES (
+  '45993000-0000-4000-8000-000000000034',
+  '45990000-0000-4000-8000-000000000001',
+  '45993000-0000-4000-8000-000000000005',
+  '45993000-0000-4000-8000-000000000031',
+  '45993000-0000-4000-8000-000000000033',
+  'Synthetic crash ambiguity reviewed text.',
+  repeat('f', 64),
+  '45993000-0000-4000-8000-000000000002',
+  '45993000-0000-4000-8000-000000000003',
+  'Synthetic crash ambiguity authorization',
+  '45993000-0000-4000-8000-000000000134'
+);
+\else
 INSERT INTO platform.manual_send_authorizations (
   id,
   organization_id,
@@ -821,6 +887,7 @@ VALUES (
   'Synthetic crash ambiguity authorization',
   '45993000-0000-4000-8000-000000000134'
 );
+\endif
 
 COMMIT;
 SQL

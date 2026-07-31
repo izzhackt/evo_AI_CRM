@@ -8,6 +8,10 @@ import {
   listPlatformConversations,
 } from "@/lib/platform-communications";
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
+import {
+  getPlatformConversationWorkflow,
+  listApprovedPlatformKnowledge,
+} from "@/lib/platform-messaging-workflow";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 
 import { CommunicationsSourceDisclosure } from "../CommunicationsSourceDisclosure";
@@ -40,11 +44,13 @@ export default async function ConversationPage({
   ]);
   if (!isPlatformConversationId(id)) notFound();
 
-  const [conversations, thread] = await Promise.all([
+  const [conversations, thread, workflow, knowledge] = await Promise.all([
     listPlatformConversations(actor),
     getPlatformConversationThread(actor, id),
+    getPlatformConversationWorkflow(actor, id),
+    listApprovedPlatformKnowledge(actor),
   ]);
-  if (!thread) notFound();
+  if (!thread || !workflow) notFound();
 
   return (
     <div className="space-y-4" data-testid="whatsapp-conversation">
@@ -57,6 +63,8 @@ export default async function ConversationPage({
         conversations={conversations}
         conversation={thread.conversation}
         messages={thread.messages}
+        workflow={workflow}
+        knowledge={knowledge}
       />
     </div>
   );

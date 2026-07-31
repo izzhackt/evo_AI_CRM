@@ -11,10 +11,22 @@ import {
   normalizePlatformConversationSummary,
   parsePlatformRouteUuid,
 } from "../src/lib/platform-communications.ts";
+import {
+  derivePlatformBusinessKey,
+  derivePlatformSemanticRequestId,
+  normalizePlatformConversationWorkflow,
+  normalizePlatformKnowledgeCatalogItem,
+  normalizePlatformMessageText,
+  normalizePlatformMutationReason,
+  PlatformMessagingWorkflowError,
+} from "../src/lib/platform-messaging-workflow.ts";
 
 const CONVERSATION_ID = "A120B6DB-2E3E-4A84-8873-073F4D2D33C3";
 const MESSAGE_ID = "7be22cc5-0316-4bbc-9d91-e3d1d5775ddb";
 const STUDENT_CASE_ID = "eec32b28-a106-4421-8802-7a50bcb416ef";
+const KNOWLEDGE_VERSION_ID = "b47254eb-c856-456d-9cb7-2888c3ae59a6";
+const DRAFT_REQUEST_ID = "61318db8-645a-4c0d-9cf6-09ca68efda50";
+const OUTBOX_WORK_ITEM_ID = "2240b9e7-9387-44f9-b120-08743098226e";
 
 const PLATFORM_COMMUNICATIONS_RUNTIME_FILES = [
   "../src/app/(staff)/whatsapp/page.tsx",
@@ -200,4 +212,276 @@ test("rejects finance and student actors before any repository read", async () =
     () => getPlatformConversationThread(actor("student"), "not-a-uuid"),
     PlatformCommunicationsRepositoryError,
   );
+});
+
+function validWorkflowRow(overrides = {}) {
+  return {
+    conversation_id: CONVERSATION_ID,
+    latest_inbound_message_id: MESSAGE_ID,
+    latest_inbound_body_text: "Какие документы нужны?",
+    latest_inbound_language: "ru",
+    latest_inbound_created_at: "2026-07-31T08:00:00Z",
+    selected_knowledge_version_id: KNOWLEDGE_VERSION_ID,
+    selected_knowledge_key: "admissions.documents",
+    selected_knowledge_version: "12",
+    selected_knowledge_title: "Required admissions documents",
+    selected_knowledge_content_sha256: "a".repeat(64),
+    ai_readiness: "ready",
+    ai_readiness_evidence_kind: "provider_observed",
+    ai_readiness_reason: "Provider check succeeded",
+    ai_readiness_evidence_ref: "anthropic:health:2026-07-31",
+    ai_readiness_observed_at: "2026-07-31T07:55:00Z",
+    waha_readiness: "ready",
+    waha_readiness_evidence_kind: "local_non_provider",
+    waha_readiness_reason: "Local configuration is present",
+    waha_readiness_evidence_ref: "config:waha",
+    waha_readiness_observed_at: "2026-07-31T07:54:00Z",
+    latest_ai_draft_request_id: DRAFT_REQUEST_ID,
+    latest_ai_draft_request_created_at: "2026-07-31T08:01:00Z",
+    latest_ai_draft_request_reason: "Prepare a grounded draft",
+    latest_ai_draft_requested_language: null,
+    latest_ai_draft_id: null,
+    latest_ai_draft_state: null,
+    latest_ai_draft_detection_status: null,
+    latest_ai_draft_selected_language: null,
+    latest_ai_draft_generated_text: null,
+    latest_ai_draft_reviewed_text: null,
+    latest_ai_draft_created_at: null,
+    latest_ai_draft_updated_at: null,
+    latest_ai_draft_failure_outcome: null,
+    latest_manual_send_authorization_id: null,
+    latest_manual_send_final_text: null,
+    latest_manual_send_authorized_at: null,
+    latest_outbox_work_item_id: null,
+    latest_outbox_kind: null,
+    latest_outbox_work_state: null,
+    latest_outbox_attempt_count: null,
+    latest_outbox_max_attempts: null,
+    latest_outbox_available_at: null,
+    latest_outbox_updated_at: null,
+    latest_outbox_work_review_case_id: null,
+    latest_outbox_work_review_status: null,
+    latest_outbox_observation_kind: null,
+    latest_outbox_observed_at: null,
+    latest_audit_action: "ai.draft.request.knowledge",
+    latest_audit_at: "2026-07-31T08:01:00Z",
+    ...overrides,
+  };
+}
+
+test("normalizes approved knowledge without losing bigint precision", () => {
+  const item = normalizePlatformKnowledgeCatalogItem({
+    knowledge_version_id: KNOWLEDGE_VERSION_ID,
+    knowledge_key: " admissions.documents ",
+    title: " Required documents ",
+    version: "9223372036854775807",
+    content_text: "Bring a passport and transcript.",
+    content_sha256: "b".repeat(64),
+    provenance_ref: "policy/admissions/documents",
+    approved_at: "2026-07-31T07:00:00Z",
+  });
+
+  assert.equal(item.id, KNOWLEDGE_VERSION_ID);
+  assert.equal(item.key, "admissions.documents");
+  assert.equal(item.version, "9223372036854775807");
+  assert.throws(
+    () =>
+      normalizePlatformKnowledgeCatalogItem({
+        knowledge_version_id: KNOWLEDGE_VERSION_ID,
+        knowledge_key: "admissions.documents",
+        title: "Required documents",
+        version: Number.MAX_SAFE_INTEGER + 1,
+        content_text: "Bring a passport.",
+        content_sha256: "b".repeat(64),
+        provenance_ref: "policy/admissions/documents",
+        approved_at: "2026-07-31T07:00:00Z",
+      }),
+    PlatformMessagingWorkflowError,
+  );
+});
+
+test("keeps provider proof distinct from local integration evidence", () => {
+  const workflow = normalizePlatformConversationWorkflow(
+    validWorkflowRow(),
+    CONVERSATION_ID,
+  );
+
+  assert.equal(workflow.integrations.aiProvider.readiness, "ready");
+  assert.equal(workflow.integrations.aiProvider.providerProved, true);
+  assert.equal(
+    workflow.integrations.aiProvider.evidenceKind,
+    "provider_observed",
+  );
+  assert.equal(
+    workflow.integrations.waha.readiness,
+    "configured_unverified",
+  );
+  assert.equal(workflow.integrations.waha.providerProved, false);
+  assert.equal(workflow.draft?.state, "requested");
+  assert.equal(workflow.health.draftPersisted, true);
+  assert.equal(workflow.health.draftStaged, true);
+  assert.equal(workflow.health.status, "in_progress");
+  assert.equal(workflow.latestAuditAction, "ai.draft.request.knowledge");
+});
+
+test("accepts configured-but-unverified integration health from SQL", () => {
+  const workflow = normalizePlatformConversationWorkflow(
+    validWorkflowRow({
+      ai_readiness: "configured_unverified",
+      ai_readiness_evidence_kind: "configuration_check",
+      ai_readiness_reason: "Configured from dashboard settings",
+      ai_readiness_evidence_ref: "settings:ai-provider",
+      ai_readiness_observed_at: "2026-07-30T07:55:00Z",
+      waha_readiness: "configured_unverified",
+      waha_readiness_evidence_kind: "local_non_provider",
+      waha_readiness_reason: "Local WAHA secret is present",
+      waha_readiness_evidence_ref: "settings:waha",
+      waha_readiness_observed_at: "2026-07-30T07:54:00Z",
+    }),
+    CONVERSATION_ID,
+  );
+
+  assert.equal(
+    workflow.integrations.aiProvider.readiness,
+    "configured_unverified",
+  );
+  assert.equal(
+    workflow.integrations.aiProvider.evidenceKind,
+    "configuration_check",
+  );
+  assert.equal(workflow.integrations.aiProvider.providerProved, false);
+  assert.equal(
+    workflow.integrations.waha.readiness,
+    "configured_unverified",
+  );
+  assert.equal(
+    workflow.integrations.waha.evidenceKind,
+    "local_non_provider",
+  );
+  assert.equal(workflow.health.canRequestAiDraft, false);
+  assert.equal(workflow.health.canAuthorizeManualSend, false);
+});
+
+test("surfaces a failed AI generation outbox as operator attention", () => {
+  const workflow = normalizePlatformConversationWorkflow(
+    validWorkflowRow({
+      latest_outbox_work_item_id: OUTBOX_WORK_ITEM_ID,
+      latest_outbox_kind: "ai_draft_generate",
+      latest_outbox_work_state: "dead_lettered",
+      latest_outbox_attempt_count: 1,
+      latest_outbox_max_attempts: 1,
+      latest_outbox_available_at: "2026-07-31T08:01:00Z",
+      latest_outbox_updated_at: "2026-07-31T08:02:00Z",
+    }),
+    CONVERSATION_ID,
+  );
+
+  assert.equal(workflow.outbox[0]?.kind, "ai_draft_generate");
+  assert.equal(workflow.outbox[0]?.state, "dead_lettered");
+  assert.equal(workflow.health.status, "attention_required");
+});
+
+test("treats a fully-null left-joined health group as unconfigured", () => {
+  const workflow = normalizePlatformConversationWorkflow(
+    validWorkflowRow({
+      ai_readiness: null,
+      ai_readiness_evidence_kind: null,
+      ai_readiness_reason: null,
+      ai_readiness_evidence_ref: null,
+      ai_readiness_observed_at: null,
+      waha_readiness: null,
+      waha_readiness_evidence_kind: null,
+      waha_readiness_reason: null,
+      waha_readiness_evidence_ref: null,
+      waha_readiness_observed_at: null,
+    }),
+    CONVERSATION_ID,
+  );
+
+  assert.deepEqual(workflow.integrations.aiProvider, {
+    readiness: "unconfigured",
+    evidenceKind: "none",
+    providerProved: false,
+    reason: null,
+    evidenceRef: null,
+    observedAt: null,
+  });
+  assert.deepEqual(
+    workflow.integrations.waha,
+    workflow.integrations.aiProvider,
+  );
+});
+
+test("derives stable server request IDs and work business keys", () => {
+  const organizationId = "fc0a2c8d-91bb-4323-9dd2-f4057067012d";
+  const parts = [CONVERSATION_ID.toLowerCase(), DRAFT_REQUEST_ID];
+  const first = derivePlatformSemanticRequestId(
+    "review_ai_draft",
+    organizationId,
+    parts,
+  );
+  const replay = derivePlatformSemanticRequestId(
+    "review_ai_draft",
+    organizationId,
+    parts,
+  );
+  const changed = derivePlatformSemanticRequestId(
+    "review_ai_draft",
+    organizationId,
+    [...parts, "changed"],
+  );
+  const businessKey = derivePlatformBusinessKey([
+    "manual_whatsapp_send",
+    organizationId,
+    DRAFT_REQUEST_ID,
+  ]);
+
+  assert.equal(first, replay);
+  assert.notEqual(first, changed);
+  assert.match(
+    first,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+  assert.match(businessKey, /^[0-9a-f]{64}$/);
+});
+
+test("normalizes staff reasons and final message text at action boundaries", () => {
+  assert.equal(normalizePlatformMutationReason("  retry safely  "), "retry safely");
+  assert.equal(normalizePlatformMutationReason("no"), null);
+  assert.equal(normalizePlatformMutationReason("x".repeat(501)), null);
+  assert.equal(
+    normalizePlatformMessageText("  Отправить после проверки.  "),
+    "Отправить после проверки.",
+  );
+  assert.equal(normalizePlatformMessageText("x".repeat(5_001)), null);
+});
+
+test("manual messaging actions stay server-only and use authenticated RPCs", () => {
+  const actionsSource = readFileSync(
+    new URL("../src/lib/platform-messaging-actions.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(actionsSource, /^"use server";/);
+  assert.equal(
+    actionsSource.match(/await requirePlatformMessagingActor\(\)/g)?.length,
+    3,
+  );
+  assert.match(actionsSource, /\.rpc\("request_ai_draft_with_knowledge"/);
+  assert.match(actionsSource, /\.rpc\("review_ai_draft"/);
+  assert.match(
+    actionsSource,
+    /\.rpc\("request_manual_whatsapp_send_with_authorization"/,
+  );
+  assert.match(actionsSource, /revalidatePath\("\/whatsapp"\)/);
+  assert.doesNotMatch(
+    actionsSource,
+    /latestInbound\?\.\s*id\s*!==\s*sourceMessageId/,
+  );
+  assert.doesNotMatch(
+    actionsSource,
+    /workflow\.health\.can(?:RequestAiDraft|ReviewAiDraft|AuthorizeManualSend)/,
+  );
+  assert.doesNotMatch(actionsSource, /SUPABASE_SERVICE_ROLE_KEY|service_role/i);
+  assert.doesNotMatch(actionsSource, /better-sqlite3|@anthropic-ai|waha.*send/i);
 });

@@ -1,5 +1,5 @@
 import { AutoRefresh } from "@/components/AutoRefresh";
-import { Icon } from "@/components/icons";
+import { PlatformMessagingWorkflowPanel } from "@/components/platform/communications/PlatformMessagingWorkflowPanel";
 import { PlatformWaList } from "@/components/platform/communications/PlatformWaList";
 import { EmptyState, cn } from "@/components/ui";
 import { getT } from "@/lib/i18n";
@@ -7,6 +7,10 @@ import type {
   PlatformConversationMessage,
   PlatformConversationSummary,
 } from "@/lib/platform-communications";
+import type {
+  PlatformConversationWorkflow,
+  PlatformKnowledgeCatalogItem,
+} from "@/lib/platform-messaging-workflow";
 
 function initials(value: string) {
   return value
@@ -40,13 +44,76 @@ export async function PlatformConversationView({
   conversations,
   conversation,
   messages,
+  workflow,
+  knowledge,
 }: {
   conversations: readonly PlatformConversationSummary[];
   conversation: PlatformConversationSummary;
   messages: readonly PlatformConversationMessage[];
+  workflow: PlatformConversationWorkflow;
+  knowledge: readonly PlatformKnowledgeCatalogItem[];
 }) {
   const { t, locale } = await getT();
   const synthetic = isSyntheticSubject(conversation.subject);
+  const latestInboundMessage =
+    [...messages].reverse().find((message) => message.direction === "inbound") ??
+    null;
+  const defaultLanguage =
+    latestInboundMessage?.language === "ru" ||
+    latestInboundMessage?.language === "en"
+      ? latestInboundMessage.language
+      : null;
+  const workflowLabels = {
+    platformWorkflowTitle: t("platformWorkflowTitle"),
+    platformWorkflowHint: t("platformWorkflowHint"),
+    platformAiHealth: t("platformAiHealth"),
+    platformWahaHealth: t("platformWahaHealth"),
+    platformHealthUnconfigured: t("platformHealthUnconfigured"),
+    platformHealthConfiguredUnverified: t(
+      "platformHealthConfiguredUnverified",
+    ),
+    platformHealthReady: t("platformHealthReady"),
+    platformHealthBlocked: t("platformHealthBlocked"),
+    platformEvidenceLocalNonProvider: t(
+      "platformEvidenceLocalNonProvider",
+    ),
+    platformEvidenceProviderObserved: t("platformEvidenceProviderObserved"),
+    platformEvidenceConfigurationOnly: t(
+      "platformEvidenceConfigurationOnly",
+    ),
+    platformProviderStateNotProved: t("platformProviderStateNotProved"),
+    platformKnowledgeLabel: t("platformKnowledgeLabel"),
+    platformKnowledgeEmpty: t("platformKnowledgeEmpty"),
+    platformDraftLanguage: t("platformDraftLanguage"),
+    platformDraftReason: t("platformDraftReason"),
+    platformRequestDraft: t("platformRequestDraft"),
+    platformDraftAwaitingGeneration: t("platformDraftAwaitingGeneration"),
+    platformDraftReviewTitle: t("platformDraftReviewTitle"),
+    platformDraftEditor: t("platformDraftEditor"),
+    platformReviewReason: t("platformReviewReason"),
+    platformApproveDraft: t("platformApproveDraft"),
+    platformRequestRework: t("platformRequestRework"),
+    platformHandoffDraft: t("platformHandoffDraft"),
+    platformManualSendTitle: t("platformManualSendTitle"),
+    platformManualSendReason: t("platformManualSendReason"),
+    platformAuthorizeManualSend: t("platformAuthorizeManualSend"),
+    platformManualOnlyHint: t("platformManualOnlyHint"),
+    platformOutboxTitle: t("platformOutboxTitle"),
+    platformOutboxNotStaged: t("platformOutboxNotStaged"),
+    platformOutboxQueued: t("platformOutboxQueued"),
+    platformOutboxRetryWait: t("platformOutboxRetryWait"),
+    platformOutboxSucceeded: t("platformOutboxSucceeded"),
+    platformOutboxDeadLettered: t("platformOutboxDeadLettered"),
+    platformOutboxUnknownReview: t("platformOutboxUnknownReview"),
+    platformOutboxConflictReview: t("platformOutboxConflictReview"),
+    platformActionCompleted: t("platformActionCompleted"),
+    platformActionPersistedNotStaged: t(
+      "platformActionPersistedNotStaged",
+    ),
+    platformActionInvalid: t("platformActionInvalid"),
+    platformActionUnavailable: t("platformActionUnavailable"),
+    platformAuditLatest: t("platformAuditLatest"),
+  };
 
   return (
     <div
@@ -145,28 +212,14 @@ export async function PlatformConversationView({
           )}
         </div>
 
-        <footer className="border-t border-border bg-surface p-3">
-          <div className="flex items-center gap-3 rounded-ctl border border-border bg-surface-2 px-3 py-2.5">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ctl bg-warn-weak text-warn">
-              <Icon name="shield" size={16} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-semibold text-fg">
-                {t("platformReadOnlyComposer")}
-              </p>
-              <p className="mt-0.5 text-[11px] leading-4 text-fg-3">
-                {t("platformReadOnlyComposerHint")}
-              </p>
-            </div>
-            <button
-              type="button"
-              disabled
-              className="h-9 rounded-ctl bg-surface-3 px-3 text-[12px] font-semibold text-fg-3"
-            >
-              {t("send")}
-            </button>
-          </div>
-        </footer>
+        <PlatformMessagingWorkflowPanel
+          conversationId={conversation.id}
+          latestInboundMessageId={latestInboundMessage?.id ?? null}
+          defaultLanguage={defaultLanguage}
+          initialWorkflow={workflow}
+          knowledge={knowledge}
+          labels={workflowLabels}
+        />
       </section>
 
       <aside className="hidden w-[280px] shrink-0 flex-col overflow-y-auto border-l border-border bg-surface xl:flex">

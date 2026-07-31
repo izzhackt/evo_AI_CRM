@@ -486,6 +486,18 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_document_storage_inventory.sql
   fi
+
+  # P3C owns the additive migration-049 messaging workflow seam. Keep its
+  # catalog and stateful authorization checks at the exact 049 boundary so the
+  # immutable P2F suite remains an honest migration-044 proof.
+  if [[ "$(basename "$migration")" == 049_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_messaging_workflow_rls.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_messaging_workflow_inventory.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

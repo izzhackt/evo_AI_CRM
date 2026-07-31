@@ -9,9 +9,12 @@ type ConversationFixture = Readonly<{
   messages: readonly string[];
 }>;
 type Fixture = Readonly<{
+  apiUrl: string;
+  publishableKey: string;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
+    crossOrgAdmin: Identity;
     salesScoped: Identity;
     finance: Identity;
     student: Identity;
@@ -22,6 +25,30 @@ type Fixture = Readonly<{
     orgA: ConversationFixture;
     orgB: ConversationFixture;
     sameOrgOutsideSalesScope: ConversationFixture;
+  }>;
+  p3c: Readonly<{
+    orgA: Readonly<{
+      organizationId: string;
+      conversationId: string;
+      selectedKnowledgeVersionId: string;
+      aiDraftRequestId: string;
+      aiDraftId: string;
+      manualSendAuthorizationId: string;
+      outboxWorkItemId: string;
+      outboxKind: string;
+      outboxState: string;
+      outboxAttemptCount: number;
+      outboxMaxAttempts: number;
+      latestAuditAction: string;
+      aiReadiness: string;
+      aiEvidenceKind: string;
+      wahaReadiness: string;
+      wahaEvidenceKind: string;
+      reviewedText: string;
+      knowledgeTitle: string;
+      knowledgeVersion: string;
+      staleSalesAccessToken: string;
+    }>;
   }>;
 }>;
 
@@ -53,6 +80,80 @@ async function expectDeniedConversationRoute(page: Page, pathname: string) {
     page.getByRole("heading", { name: "This page could not be found." }),
   ).toBeVisible();
   await expect(page.getByTestId("platform-conversation-thread")).toHaveCount(0);
+}
+
+async function workflowRpc(
+  token: string,
+  conversationId: string,
+) {
+  const response = await fetch(`${fixture.apiUrl}/rest/v1/rpc/staff_conversation_workflow`, {
+    method: "POST",
+    headers: {
+      apikey: fixture.publishableKey,
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "Accept-Profile": "platform",
+      "Content-Profile": "platform",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      p_organization_id: fixture.p3c.orgA.organizationId,
+      p_conversation_id: conversationId,
+    }),
+  });
+  const text = await response.text();
+  let payload: unknown = null;
+  if (text) payload = JSON.parse(text);
+  return { status: response.status, payload };
+}
+
+async function openOrgAConversation(page: Page, identity: Identity) {
+  await login(page, identity);
+  await expect(page).toHaveURL(/\/whatsapp$/);
+  await page.goto(`/whatsapp/${fixture.p3c.orgA.conversationId}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/whatsapp/${fixture.p3c.orgA.conversationId}$`),
+  );
+}
+
+async function assertPersistedP3cWorkflow(page: Page) {
+  const thread = page.getByTestId("platform-conversation-thread");
+  await expect(thread).toBeVisible();
+  await expect(thread).toHaveAttribute("data-provider-proof", "not-proved");
+
+  const workflow = page.getByTestId("platform-messaging-workflow");
+  await expect(workflow).toBeVisible();
+  await expect(workflow).toHaveAttribute("data-provider-proof", "not-proved");
+
+  const health = page.getByTestId("platform-workflow-health");
+  await expect(health).toBeVisible();
+  await expect(
+    health.locator(
+      `[data-integration-readiness="${fixture.p3c.orgA.aiReadiness}"][data-provider-proof="not-proved"]`,
+    ),
+  ).toHaveCount(2);
+
+  await expect(page.getByTestId("platform-workflow-audit")).toContainText(
+    fixture.p3c.orgA.latestAuditAction,
+  );
+  await expect(
+    workflow.getByText(fixture.p3c.orgA.reviewedText, { exact: true }),
+  ).toBeVisible();
+  await expect(workflow).toContainText(fixture.p3c.orgA.knowledgeTitle);
+
+  const outbox = page.getByTestId("platform-outbox-state");
+  await expect(outbox).toBeVisible();
+  await expect(
+    outbox.locator(
+      `[data-outbox-kind="${fixture.p3c.orgA.outboxKind}"][data-outbox-state="${fixture.p3c.orgA.outboxState}"]`,
+    ),
+  ).toHaveCount(1);
+
+  await expect(page.getByTestId("platform-knowledge-select")).toHaveCount(0);
+  await expect(page.getByTestId("platform-request-draft")).toHaveCount(0);
+  await expect(page.getByTestId("platform-draft-editor")).toHaveCount(0);
+  await expect(page.getByTestId("platform-review-approve")).toHaveCount(0);
+  await expect(page.getByTestId("platform-manual-send")).toHaveCount(0);
 }
 
 test("self-registration is disabled before any account write", async ({
@@ -148,6 +249,20 @@ test("admin opens ordered synthetic inbound messages through Supabase RLS", asyn
     page,
     `/whatsapp/${fixture.conversations.orgB.id}`,
   );
+});
+
+test("admin reads the persisted local P3C workflow without proving providers", async ({
+  page,
+}) => {
+  await openOrgAConversation(page, fixture.identities.admin);
+  await assertPersistedP3cWorkflow(page);
+});
+
+test("assigned Curator reads the same persisted local P3C workflow", async ({
+  page,
+}) => {
+  await openOrgAConversation(page, fixture.identities.curator);
+  await assertPersistedP3cWorkflow(page);
 });
 
 test("same-organization Sales cannot open another Sales scope", async ({
@@ -271,4 +386,27 @@ test("staff and student role destinations remain separated", async ({
     }
     await context.close();
   }
+});
+
+test("cross-organization admin is denied the org A P3C workflow route", async ({
+  page,
+}) => {
+  await login(page, fixture.identities.crossOrgAdmin);
+  await expect(page).toHaveURL(/\/whatsapp$/);
+  const list = page.getByTestId("platform-conversation-list");
+  await expect(
+    list.getByText(fixture.conversations.orgA.subject, { exact: true }),
+  ).toHaveCount(0);
+  await expectDeniedConversationRoute(
+    page,
+    `/whatsapp/${fixture.p3c.orgA.conversationId}`,
+  );
+});
+
+test("stale sales workflow claims fail closed at the live platform RPC seam", async () => {
+  const result = await workflowRpc(
+    fixture.p3c.orgA.staleSalesAccessToken,
+    fixture.p3c.orgA.conversationId,
+  );
+  expect([401, 403]).toContain(result.status);
 });

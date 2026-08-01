@@ -1,0 +1,665 @@
+import type { PlatformActor } from "./platform-auth";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+const TIMESTAMPTZ_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
+const WORKFLOW_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
+const JSON_KEY_PATTERN = /^[a-z][a-z0-9_.-]{0,63}$/;
+const SAFE_REPOSITORY_ERROR_MESSAGE =
+  "Platform admissions data is unavailable.";
+
+export const PLATFORM_APPLICATION_STATUSES = [
+  "preparation",
+  "ready",
+  "submitted",
+  "under_review",
+  "offer",
+  "rejected",
+  "enrolled",
+  "withdrawn",
+  "closed",
+] as const;
+
+export const PLATFORM_APPLICATION_EVIDENCE_STATUSES = new Set<
+  PlatformApplicationStatus
+>(["submitted", "under_review", "offer", "rejected", "enrolled"]);
+
+export type PlatformApplicationStatus =
+  (typeof PLATFORM_APPLICATION_STATUSES)[number];
+export type PlatformStudentCaseState = "pending" | "active" | "closed";
+export type PlatformRouteApprovalStatus = "draft" | "approved" | "rework";
+
+export type PlatformOpWorkflowContract = Readonly<{
+  organizationId: string;
+  workflowContractId: string;
+  workflowContractVersionId: string;
+  contractKey: "wf_op";
+  workflowKind: "op";
+  version: number;
+  status: "approved";
+  stageKeys: readonly string[];
+  followUpOutcomeKeys: readonly string[];
+  closureResultKeys: readonly string[];
+  terminalStageKeys: readonly string[];
+  approvedAt: string;
+  createdAt: string;
+}>;
+
+export type PlatformStudentCaseQueueRow = Readonly<{
+  organizationId: string;
+  studentCaseId: string;
+  studentDisplayName: string;
+  targetCountry: string;
+  targetDegree: string;
+  programDirection: string | null;
+  intake: string | null;
+  languageAssumption: string | null;
+  fundingAssumption: string | null;
+  routeApprovalStatus: PlatformRouteApprovalStatus;
+  operationalStage: string;
+  state: PlatformStudentCaseState;
+  createdAt: string;
+  updatedAt: string;
+  handoffAt: string | null;
+  nextAction: string | null;
+  responsibleSalesDisplayName: string;
+  currentCuratorDisplayName: string | null;
+  appliedOzoWorkflowContractVersionId: string | null;
+  overdueTaskCount: number;
+  overdueObligationCount: number;
+  rejectedDocumentCount: number;
+}>;
+
+export type PlatformStudentCaseSnapshot = PlatformStudentCaseQueueRow &
+  Readonly<{
+    handoff: Readonly<{
+      studentCaseOpHandoffId: string;
+      opWorkflowContractVersionId: string;
+      approvedCommercialFields: Readonly<
+        Record<string, string | number | boolean | null>
+      >;
+      unresolvedQuestions: readonly string[];
+      promises: readonly string[];
+      nextStep: string;
+      dueAt: string;
+      responsibleRole: "admin" | "sales" | "curator";
+      createdAt: string;
+    }> | null;
+  }>;
+
+export type PlatformSalesHandoffSummary = Readonly<{
+  studentCaseId: string;
+  studentDisplayName: string;
+  targetCountry: string;
+  targetDegree: string;
+  state: "active" | "closed";
+  assignedCuratorDisplayName: string;
+  handoffAt: string;
+}>;
+
+export type PlatformApplicationQueueRow = Readonly<{
+  organizationId: string;
+  universityApplicationId: string;
+  studentCaseId: string;
+  studentDisplayName: string;
+  targetCountry: string;
+  targetDegree: string;
+  programDirection: string | null;
+  intake: string | null;
+  institutionName: string;
+  programName: string;
+  status: PlatformApplicationStatus;
+  latestEvidenceReference: string | null;
+  createdAt: string;
+  updatedAt: string;
+  responsibleSalesDisplayName: string;
+  currentCuratorDisplayName: string | null;
+  documentCount: number;
+  openDocumentCount: number;
+  taskCount: number;
+  openTaskCount: number;
+  paymentObligationCount: number;
+  outstandingPaymentObligationCount: number;
+}>;
+
+export type PlatformStudentCaseView =
+  | Readonly<{ access: "full"; studentCase: PlatformStudentCaseSnapshot }>
+  | Readonly<{
+      access: "sales_summary";
+      studentCase: PlatformSalesHandoffSummary;
+    }>;
+
+export class PlatformAdmissionsRepositoryError extends Error {
+  constructor() {
+    super(SAFE_REPOSITORY_ERROR_MESSAGE);
+    this.name = "PlatformAdmissionsRepositoryError";
+  }
+}
+
+function invalidShape(): never {
+  throw new PlatformAdmissionsRepositoryError();
+}
+
+function failClosed(error: unknown): never {
+  if (error instanceof PlatformAdmissionsRepositoryError) throw error;
+  return invalidShape();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function parsePlatformAdmissionsUuid(value: unknown): string | null {
+  if (typeof value !== "string" || !UUID_PATTERN.test(value)) return null;
+  const normalized = value.toLowerCase();
+  return normalized === NIL_UUID ? null : normalized;
+}
+
+function requiredUuid(value: unknown): string {
+  return parsePlatformAdmissionsUuid(value) ?? invalidShape();
+}
+
+function optionalUuid(value: unknown): string | null {
+  if (value === null) return null;
+  return requiredUuid(value);
+}
+
+function requiredText(value: unknown, maxLength = 500): string {
+  if (typeof value !== "string") return invalidShape();
+  const normalized = value.trim();
+  if (
+    normalized.length === 0 ||
+    normalized.length > maxLength ||
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(normalized)
+  ) {
+    return invalidShape();
+  }
+  return normalized;
+}
+
+function optionalText(value: unknown, maxLength = 500): string | null {
+  return value === null ? null : requiredText(value, maxLength);
+}
+
+function requiredTimestamp(value: unknown): string {
+  if (
+    typeof value !== "string" ||
+    !TIMESTAMPTZ_PATTERN.test(value) ||
+    !Number.isFinite(Date.parse(value))
+  ) {
+    return invalidShape();
+  }
+  return value;
+}
+
+function optionalTimestamp(value: unknown): string | null {
+  return value === null ? null : requiredTimestamp(value);
+}
+
+function nonNegativeCount(value: unknown): number {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value)
+        ? Number(value)
+        : Number.NaN;
+  if (!Number.isSafeInteger(parsed) || parsed < 0) return invalidShape();
+  return parsed;
+}
+
+function positiveInteger(value: unknown): number {
+  const parsed = nonNegativeCount(value);
+  return parsed > 0 ? parsed : invalidShape();
+}
+
+function oneOf<const T extends readonly string[]>(
+  value: unknown,
+  allowed: T,
+): T[number] {
+  if (typeof value !== "string" || !allowed.includes(value)) {
+    return invalidShape();
+  }
+  return value as T[number];
+}
+
+function workflowKeys(value: unknown, allowEmpty: boolean): readonly string[] {
+  if (!Array.isArray(value) || (!allowEmpty && value.length === 0)) {
+    return invalidShape();
+  }
+  const seen = new Set<string>();
+  return value.map((item) => {
+    if (
+      typeof item !== "string" ||
+      !WORKFLOW_KEY_PATTERN.test(item) ||
+      seen.has(item)
+    ) {
+      return invalidShape();
+    }
+    seen.add(item);
+    return item;
+  });
+}
+
+function boundedScalarObject(
+  value: unknown,
+): Readonly<Record<string, string | number | boolean | null>> {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length > 32 ||
+    new TextEncoder().encode(JSON.stringify(value)).length > 8192
+  ) {
+    return invalidShape();
+  }
+  const normalized: Record<string, string | number | boolean | null> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (!JSON_KEY_PATTERN.test(key)) return invalidShape();
+    if (
+      item !== null &&
+      typeof item !== "string" &&
+      typeof item !== "number" &&
+      typeof item !== "boolean"
+    ) {
+      return invalidShape();
+    }
+    if (
+      new TextEncoder().encode(JSON.stringify(item)).length > 1024 ||
+      (typeof item === "number" && !Number.isFinite(item))
+    ) {
+      return invalidShape();
+    }
+    normalized[key] = item;
+  }
+  return normalized;
+}
+
+function boundedTextArray(value: unknown): readonly string[] {
+  if (
+    !Array.isArray(value) ||
+    value.length > 20 ||
+    new TextEncoder().encode(JSON.stringify(value)).length > 8192
+  ) {
+    return invalidShape();
+  }
+  return value.map((item) => requiredText(item, 1000));
+}
+
+function requireAdmissionsOrganization(actor: PlatformActor): string {
+  if (
+    actor.platformRole !== "admin" &&
+    actor.platformRole !== "sales" &&
+    actor.platformRole !== "curator"
+  ) {
+    return invalidShape();
+  }
+  return requiredUuid(actor.organizationId);
+}
+
+async function getPlatformClient() {
+  if (typeof window !== "undefined") return invalidShape();
+  const { createSupabaseServerClient } = await import("./supabase/server");
+  return createSupabaseServerClient();
+}
+
+export function normalizePlatformOpWorkflowContract(
+  value: unknown,
+  expectedOrganizationId?: string,
+): PlatformOpWorkflowContract {
+  if (!isRecord(value)) return invalidShape();
+  const organizationId = requiredUuid(value.organization_id);
+  if (expectedOrganizationId && organizationId !== expectedOrganizationId) {
+    return invalidShape();
+  }
+  const contractKey = oneOf(value.contract_key, ["wf_op"] as const);
+  const workflowKind = oneOf(value.workflow_kind, ["op"] as const);
+  const status = oneOf(value.status, ["approved"] as const);
+  return {
+    organizationId,
+    workflowContractId: requiredUuid(value.workflow_contract_id),
+    workflowContractVersionId: requiredUuid(value.workflow_contract_version_id),
+    contractKey,
+    workflowKind,
+    version: positiveInteger(value.version),
+    status,
+    stageKeys: workflowKeys(value.stage_keys, false),
+    followUpOutcomeKeys: workflowKeys(value.follow_up_outcome_keys, true),
+    closureResultKeys: workflowKeys(value.closure_result_keys, true),
+    terminalStageKeys: workflowKeys(value.terminal_stage_keys, true),
+    approvedAt: requiredTimestamp(value.approved_at),
+    createdAt: requiredTimestamp(value.created_at),
+  };
+}
+
+export function normalizePlatformStudentCaseQueueRow(
+  value: unknown,
+  expectedOrganizationId?: string,
+): PlatformStudentCaseQueueRow {
+  if (!isRecord(value)) return invalidShape();
+  const organizationId = requiredUuid(value.organization_id);
+  if (expectedOrganizationId && organizationId !== expectedOrganizationId) {
+    return invalidShape();
+  }
+  return {
+    organizationId,
+    studentCaseId: requiredUuid(value.student_case_id),
+    studentDisplayName: requiredText(value.student_display_name, 200),
+    targetCountry: requiredText(value.target_country, 200),
+    targetDegree: requiredText(value.target_degree, 200),
+    programDirection: optionalText(value.program_direction, 300),
+    intake: optionalText(value.intake, 200),
+    languageAssumption: optionalText(value.language_assumption, 200),
+    fundingAssumption: optionalText(value.funding_assumption, 300),
+    routeApprovalStatus: oneOf(value.route_approval_status, [
+      "draft",
+      "approved",
+      "rework",
+    ] as const),
+    operationalStage: requiredText(value.operational_stage, 200),
+    state: oneOf(value.state, ["pending", "active", "closed"] as const),
+    createdAt: requiredTimestamp(value.created_at),
+    updatedAt: requiredTimestamp(value.updated_at),
+    handoffAt: optionalTimestamp(value.handoff_at),
+    nextAction: optionalText(value.next_action, 1000),
+    responsibleSalesDisplayName: requiredText(
+      value.responsible_sales_display_name,
+      200,
+    ),
+    currentCuratorDisplayName: optionalText(
+      value.current_curator_display_name,
+      200,
+    ),
+    appliedOzoWorkflowContractVersionId: optionalUuid(
+      value.applied_ozo_workflow_contract_version_id,
+    ),
+    overdueTaskCount: nonNegativeCount(value.overdue_task_count),
+    overdueObligationCount: nonNegativeCount(value.overdue_obligation_count),
+    rejectedDocumentCount: nonNegativeCount(value.rejected_document_count),
+  };
+}
+
+export function normalizePlatformStudentCaseSnapshot(
+  value: unknown,
+  expectedOrganizationId?: string,
+): PlatformStudentCaseSnapshot {
+  if (!isRecord(value)) return invalidShape();
+  const rawHandoffValues = [
+    value.student_case_op_handoff_id,
+    value.op_workflow_contract_version_id,
+    value.approved_commercial_fields,
+    value.unresolved_questions,
+    value.promises,
+    value.handoff_next_step,
+    value.handoff_due_at,
+    value.handoff_responsible_role,
+    value.handoff_created_at,
+  ];
+  const emptyHandoff = rawHandoffValues.every((item) => item === null);
+  if (!emptyHandoff && rawHandoffValues.some((item) => item === null)) {
+    return invalidShape();
+  }
+  return {
+    ...normalizePlatformStudentCaseQueueRow(value, expectedOrganizationId),
+    handoff: emptyHandoff
+      ? null
+      : {
+          studentCaseOpHandoffId: requiredUuid(
+            value.student_case_op_handoff_id,
+          ),
+          opWorkflowContractVersionId: requiredUuid(
+            value.op_workflow_contract_version_id,
+          ),
+          approvedCommercialFields: boundedScalarObject(
+            value.approved_commercial_fields,
+          ),
+          unresolvedQuestions: boundedTextArray(value.unresolved_questions),
+          promises: boundedTextArray(value.promises),
+          nextStep: requiredText(value.handoff_next_step, 1000),
+          dueAt: requiredTimestamp(value.handoff_due_at),
+          responsibleRole: oneOf(value.handoff_responsible_role, [
+            "admin",
+            "sales",
+            "curator",
+          ] as const),
+          createdAt: requiredTimestamp(value.handoff_created_at),
+        },
+  };
+}
+
+export function normalizePlatformSalesHandoffSummary(
+  value: unknown,
+): PlatformSalesHandoffSummary {
+  if (!isRecord(value)) return invalidShape();
+  return {
+    studentCaseId: requiredUuid(value.case_id),
+    studentDisplayName: requiredText(value.student_display_name, 200),
+    targetCountry: requiredText(value.target_country, 200),
+    targetDegree: requiredText(value.target_degree, 200),
+    state: oneOf(value.case_state, ["active", "closed"] as const),
+    assignedCuratorDisplayName: requiredText(
+      value.assigned_curator_display_name,
+      200,
+    ),
+    handoffAt: requiredTimestamp(value.handoff_at),
+  };
+}
+
+export function normalizePlatformApplicationQueueRow(
+  value: unknown,
+  expectedOrganizationId?: string,
+): PlatformApplicationQueueRow {
+  if (!isRecord(value)) return invalidShape();
+  const organizationId = requiredUuid(value.organization_id);
+  if (expectedOrganizationId && organizationId !== expectedOrganizationId) {
+    return invalidShape();
+  }
+  return {
+    organizationId,
+    universityApplicationId: requiredUuid(value.university_application_id),
+    studentCaseId: requiredUuid(value.student_case_id),
+    studentDisplayName: requiredText(value.student_display_name, 200),
+    targetCountry: requiredText(value.target_country, 200),
+    targetDegree: requiredText(value.target_degree, 200),
+    programDirection: optionalText(value.program_direction, 300),
+    intake: optionalText(value.intake, 200),
+    institutionName: requiredText(value.institution_name, 300),
+    programName: requiredText(value.program_name, 300),
+    status: oneOf(value.status, PLATFORM_APPLICATION_STATUSES),
+    latestEvidenceReference: optionalText(
+      value.latest_evidence_reference,
+      1000,
+    ),
+    createdAt: requiredTimestamp(value.created_at),
+    updatedAt: requiredTimestamp(value.updated_at),
+    responsibleSalesDisplayName: requiredText(
+      value.responsible_sales_display_name,
+      200,
+    ),
+    currentCuratorDisplayName: optionalText(
+      value.current_curator_display_name,
+      200,
+    ),
+    documentCount: nonNegativeCount(value.document_count),
+    openDocumentCount: nonNegativeCount(value.open_document_count),
+    taskCount: nonNegativeCount(value.task_count),
+    openTaskCount: nonNegativeCount(value.open_task_count),
+    paymentObligationCount: nonNegativeCount(
+      value.payment_obligation_count,
+    ),
+    outstandingPaymentObligationCount: nonNegativeCount(
+      value.outstanding_payment_obligation_count,
+    ),
+  };
+}
+
+function normalizeRows<T>(
+  value: unknown,
+  normalize: (row: unknown) => T,
+  key: (row: T) => string,
+): readonly T[] {
+  if (!Array.isArray(value)) return invalidShape();
+  const seen = new Set<string>();
+  return value.map((raw) => {
+    const row = normalize(raw);
+    const id = key(row);
+    if (seen.has(id)) return invalidShape();
+    seen.add(id);
+    return row;
+  });
+}
+
+export async function getPlatformOpWorkflowContract(
+  actor: PlatformActor,
+): Promise<PlatformOpWorkflowContract | null> {
+  try {
+    const organizationId = requireAdmissionsOrganization(actor);
+    if (actor.platformRole !== "admin" && actor.platformRole !== "sales") {
+      return invalidShape();
+    }
+    const client = await getPlatformClient();
+    const response = await client
+      .schema("platform")
+      .rpc("staff_op_workflow_contract", undefined, { get: true });
+    if (response.error || !Array.isArray(response.data)) return invalidShape();
+    if (response.data.length === 0) return null;
+    if (response.data.length !== 1) return invalidShape();
+    return normalizePlatformOpWorkflowContract(
+      response.data[0],
+      organizationId,
+    );
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+export async function listPlatformStudentCases(actor: PlatformActor): Promise<
+  Readonly<{
+    cases: readonly PlatformStudentCaseQueueRow[];
+    handoffSummaries: readonly PlatformSalesHandoffSummary[];
+  }>
+> {
+  try {
+    const organizationId = requireAdmissionsOrganization(actor);
+    const client = await getPlatformClient();
+    const queuePromise = client
+      .schema("platform")
+      .rpc("staff_student_case_queue", undefined, { get: true });
+    const summaryPromise =
+      actor.platformRole === "sales"
+        ? client
+            .schema("platform")
+            .rpc("sales_handoff_summaries", undefined, { get: true })
+        : Promise.resolve({ data: [], error: null });
+    const [queueResponse, summaryResponse] = await Promise.all([
+      queuePromise,
+      summaryPromise,
+    ]);
+    if (queueResponse.error || summaryResponse.error) return invalidShape();
+    return {
+      cases: normalizeRows(
+        queueResponse.data,
+        (row) => normalizePlatformStudentCaseQueueRow(row, organizationId),
+        (row) => row.studentCaseId,
+      ),
+      handoffSummaries: normalizeRows(
+        summaryResponse.data,
+        normalizePlatformSalesHandoffSummary,
+        (row) => row.studentCaseId,
+      ),
+    };
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+export async function getPlatformStudentCaseView(
+  actor: PlatformActor,
+  id: string,
+): Promise<PlatformStudentCaseView | null> {
+  try {
+    const organizationId = requireAdmissionsOrganization(actor);
+    const studentCaseId = parsePlatformAdmissionsUuid(id);
+    if (studentCaseId === null) return null;
+    const client = await getPlatformClient();
+    const response = await client
+      .schema("platform")
+      .rpc(
+        "staff_student_case_snapshot",
+        { p_student_case_id: studentCaseId },
+        { get: true },
+      );
+    if (response.error || !Array.isArray(response.data)) return invalidShape();
+    if (response.data.length > 1) return invalidShape();
+    if (response.data.length === 1) {
+      return {
+        access: "full",
+        studentCase: normalizePlatformStudentCaseSnapshot(
+          response.data[0],
+          organizationId,
+        ),
+      };
+    }
+    if (actor.platformRole !== "sales") return null;
+    const summaries = await client
+      .schema("platform")
+      .rpc("sales_handoff_summaries", undefined, { get: true });
+    if (summaries.error) return invalidShape();
+    const rows = normalizeRows(
+      summaries.data,
+      normalizePlatformSalesHandoffSummary,
+      (row) => row.studentCaseId,
+    );
+    const summary = rows.find((row) => row.studentCaseId === studentCaseId);
+    return summary ? { access: "sales_summary", studentCase: summary } : null;
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+export async function listPlatformApplications(
+  actor: PlatformActor,
+): Promise<readonly PlatformApplicationQueueRow[]> {
+  try {
+    const organizationId = requireAdmissionsOrganization(actor);
+    const client = await getPlatformClient();
+    const response = await client
+      .schema("platform")
+      .rpc("staff_application_queue", undefined, { get: true });
+    if (response.error) return invalidShape();
+    return normalizeRows(
+      response.data,
+      (row) => normalizePlatformApplicationQueueRow(row, organizationId),
+      (row) => row.universityApplicationId,
+    );
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+export async function getPlatformApplication(
+  actor: PlatformActor,
+  id: string,
+): Promise<PlatformApplicationQueueRow | null> {
+  try {
+    const organizationId = requireAdmissionsOrganization(actor);
+    const universityApplicationId = parsePlatformAdmissionsUuid(id);
+    if (universityApplicationId === null) return null;
+    const client = await getPlatformClient();
+    const response = await client
+      .schema("platform")
+      .rpc(
+        "staff_application_snapshot",
+        { p_university_application_id: universityApplicationId },
+        { get: true },
+      );
+    if (response.error || !Array.isArray(response.data)) return invalidShape();
+    if (response.data.length === 0) return null;
+    if (response.data.length !== 1) return invalidShape();
+    return normalizePlatformApplicationQueueRow(
+      response.data[0],
+      organizationId,
+    );
+  } catch (error) {
+    return failClosed(error);
+  }
+}

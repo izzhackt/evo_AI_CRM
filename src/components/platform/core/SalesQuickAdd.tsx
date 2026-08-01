@@ -1,6 +1,5 @@
 import { Icon } from "@/components/icons";
 import { btnCls, cn, inputCls, labelCls } from "@/components/ui";
-import { addLeadAction } from "@/lib/actions";
 import type { SalesCopy } from "./SalesCopy";
 
 type StaffOption = {
@@ -8,17 +7,27 @@ type StaffOption = {
   name: string;
 };
 
+type AddLeadAction = (formData: FormData) => void | Promise<void>;
+
 export function SalesQuickAdd({
   staff,
   t,
   copy,
   canAssignManager,
+  action,
+  blocked = false,
+  blockedHint,
 }: {
   staff: StaffOption[];
   t: (key: string) => string;
   copy: SalesCopy;
   canAssignManager: boolean;
+  action?: AddLeadAction;
+  blocked?: boolean;
+  blockedHint?: string;
 }) {
+  const writeBlocked = blocked || !action;
+
   return (
     <section
       id="add"
@@ -34,13 +43,15 @@ export function SalesQuickAdd({
             {t("quickAddLead")}
           </h2>
           <p id="sales-add-hint" className="mt-0.5 text-[12px] leading-5 text-fg-3">
-            {copy.quickAddHint}
+            {writeBlocked
+              ? (blockedHint ?? t("amocrmBlocked"))
+              : copy.quickAddHint}
           </p>
         </div>
       </header>
 
       <form
-        action={addLeadAction}
+        action={action}
         aria-describedby="sales-add-hint"
         className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
       >
@@ -49,6 +60,7 @@ export function SalesQuickAdd({
           <input
             name="name"
             required
+            disabled={writeBlocked}
             autoComplete="name"
             placeholder={t("leadName")}
             className={inputCls}
@@ -59,6 +71,7 @@ export function SalesQuickAdd({
           <input
             name="phone"
             type="tel"
+            disabled={writeBlocked}
             autoComplete="tel"
             placeholder={t("phone")}
             className={inputCls}
@@ -69,6 +82,7 @@ export function SalesQuickAdd({
           <input
             name="email"
             type="email"
+            disabled={writeBlocked}
             autoComplete="email"
             placeholder={t("email")}
             className={inputCls}
@@ -78,6 +92,7 @@ export function SalesQuickAdd({
           <span className={labelCls}>{t("source")}</span>
           <input
             name="source"
+            disabled={writeBlocked}
             placeholder={t("source")}
             className={inputCls}
           />
@@ -86,6 +101,7 @@ export function SalesQuickAdd({
           <span className={labelCls}>{t("country")}</span>
           <input
             name="target_country"
+            disabled={writeBlocked}
             placeholder={t("country")}
             className={inputCls}
           />
@@ -95,6 +111,7 @@ export function SalesQuickAdd({
           <input
             name="amount"
             type="number"
+            disabled={writeBlocked}
             min="0"
             inputMode="numeric"
             placeholder={t("leadAmount")}
@@ -104,7 +121,12 @@ export function SalesQuickAdd({
         {canAssignManager && (
           <label>
             <span className={labelCls}>{t("manager")}</span>
-            <select name="manager_id" defaultValue="" className={inputCls}>
+            <select
+              name="manager_id"
+              defaultValue=""
+              disabled={writeBlocked}
+              className={inputCls}
+            >
               <option value="">{t("notAssigned")}</option>
               {staff.map((person) => (
                 <option key={person.id} value={person.id}>
@@ -116,7 +138,12 @@ export function SalesQuickAdd({
         )}
         <button
           type="submit"
-          className={cn(btnCls, "mt-auto w-full")}
+          disabled={writeBlocked}
+          className={cn(
+            btnCls,
+            "mt-auto w-full",
+            writeBlocked && "cursor-not-allowed opacity-60",
+          )}
         >
           <Icon name="plus" size={16} />
           {t("add")}

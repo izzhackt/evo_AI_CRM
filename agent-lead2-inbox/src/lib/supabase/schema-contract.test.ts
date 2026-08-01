@@ -90,6 +90,10 @@ const platformBusinessWorkflowContractsMigration = readFileSync(
   ),
   'utf8'
 )
+const platformWorkflowCaseBindingsMigration = readFileSync(
+  join(migrationsDir, '052_platform_workflow_case_bindings.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -105,9 +109,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves containment and advances through the BW1 workflow-contract boundary', () => {
+  it('preserves containment and advances through the BW2 workflow-case boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '051_platform_business_workflow_contracts.sql'
+      '052_platform_workflow_case_bindings.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -149,6 +153,33 @@ describe('Supabase companion schema contract', () => {
     }
     expect(platformBusinessWorkflowContractsMigration).not.toMatch(
       /ALTER\s+TABLE\s+platform\.student_cases/i
+    )
+    expect(platformWorkflowCaseBindingsMigration).toMatch(
+      /ALTER\s+TABLE\s+platform\.student_cases[\s\S]*ADD\s+COLUMN\s+applied_ozo_workflow_contract_version_id\s+UUID/i
+    )
+    expect(platformWorkflowCaseBindingsMigration).toMatch(
+      /CREATE\s+TABLE\s+platform\.student_case_op_handoffs/i
+    )
+    expect(platformWorkflowCaseBindingsMigration).toMatch(
+      /ALTER\s+TABLE\s+platform\.student_case_op_handoffs\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/i
+    )
+    for (const rpc of [
+      'create_pending_student_case_with_handoff',
+      'staff_op_workflow_contract',
+      'staff_student_case_queue',
+      'staff_student_case_snapshot',
+      'staff_application_queue',
+      'staff_application_snapshot',
+    ]) {
+      expect(platformWorkflowCaseBindingsMigration).toMatch(
+        new RegExp(
+          `CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+platform\\.${rpc}\\s*\\(`,
+          'i'
+        )
+      )
+    }
+    expect(platformWorkflowCaseBindingsMigration).not.toMatch(
+      /CREATE\s+TABLE\s+platform\.(?:leads?|contacts?|sales_pipeline)/i
     )
     expect(platformIdentityMigration).toMatch(
       /ALTER\s+TABLE\s+platform\.organization_memberships\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/i

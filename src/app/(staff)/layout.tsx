@@ -1,21 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { currentUser } from "@/lib/auth";
-import { getT } from "@/lib/i18n";
-import { getIntegrationStatus, logoutAction } from "@/lib/actions";
+import type { ComponentType } from "react";
+
+import { Icon } from "@/components/icons";
 import { MobileStaffNav, StaffNav, type MobileNavCopy, type NavGroup } from "@/components/StaffNav";
 import { TopBar } from "@/components/TopBar";
-import { Icon } from "@/components/icons";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
 import { STAFF_NAV_ITEMS, isStaffRole } from "@/lib/domain";
+import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
-import { requirePlatformStaffActor } from "@/lib/platform-guards";
+import type { StaffRole } from "@/lib/roles";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
-import {
-  listOperatorNotificationsForActor,
-  OPERATOR_NOTIFICATION_LIMIT,
-  type OperatorNotification,
-} from "@/lib/queries";
 
 const NAV_GROUP_DEFS = [
   { key: "navOperations", hrefs: ["/dashboard", "/sales", "/clients", "/applications", "/documents", "/visa"] },
@@ -23,6 +18,13 @@ const NAV_GROUP_DEFS = [
   { key: "navAnalytics", hrefs: ["/tasks", "/reports", "/finance"] },
   { key: "navSystem", hrefs: ["/settings"] },
 ] as const;
+
+const CONNECTED_STAFF_ROUTES = new Set([
+  "/sales",
+  "/clients",
+  "/applications",
+  "/whatsapp",
+]);
 
 const SHELL_COPY: Record<
   Locale,
@@ -61,58 +63,139 @@ const SHELL_COPY: Record<
   },
 };
 
+type ShellNotification = {
+  id: string;
+  title: string;
+  subject: string | null;
+  href: string;
+};
+
+type ShellProvider = {
+  user: {
+    name: string;
+    role: StaffRole;
+  };
+  homeHref: string;
+  availableRoutes: ReadonlySet<string> | null;
+  logout: () => Promise<void>;
+  LanguageSwitcher: ComponentType<{ current: Locale }>;
+  notifications: ShellNotification[];
+  notificationCountCapped: boolean;
+  integrationStatus: {
+    amo: "not_configured" | "configured_not_verified" | "blocked";
+    whatsapp: "not_configured" | "configured_not_verified" | "blocked";
+  };
+  connectedRoutesOnly: boolean;
+};
+
 function initials(name: string) {
   return (
     name
       .trim()
       .split(/\s+/)
       .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? "")
+      .map((word) => word[0]?.toUpperCase() ?? "")
       .join("") || "EV"
   );
 }
 
-export default async function StaffLayout({ children }: { children: React.ReactNode }) {
-  const fixtureMode = isUiContractFixtureMode();
-  const legacyUser = fixtureMode ? await currentUser() : null;
-  if (fixtureMode && !legacyUser) redirect("/login");
+async function loadFixtureShellProvider(): Promise<ShellProvider> {
+  const [auth, actions, queries, language] = await Promise.all([
+    import("@/lib/auth"),
+    import("@/lib/actions"),
+    import("@/lib/queries"),
+    import("@/components/LangSwitcher"),
+  ]);
+  const user = await auth.currentUser();
+  if (!user) redirect("/login");
+  if (!isStaffRole(user.role)) redirect("/portal");
 
-  const platformActor = fixtureMode ? null : await requirePlatformStaffActor();
-  const roleCandidate = legacyUser?.role ?? platformActor?.role;
-  if (!roleCandidate || !isStaffRole(roleCandidate)) {
-    redirect(fixtureMode ? "/portal" : "/platform-pending?from=%2Fportal");
-  }
-  const role = roleCandidate;
-  const user = {
-    name: legacyUser?.name ?? platformActor?.displayName ?? "EVO",
-    role,
+  const notificationBatch = queries.listOperatorNotificationsForActor(
+    { id: user.id, role: user.role },
+    queries.OPERATOR_NOTIFICATION_LIMIT + 1,
+  );
+  const integrations = await actions.getIntegrationStatus();
+
+  return {
+    user: { name: user.name, role: user.role },
+    homeHref: "/dashboard",
+    availableRoutes: null,
+    logout: actions.logoutAction,
+    LanguageSwitcher: language.LangSwitcher,
+    notifications: notificationBatch.slice(0, queries.OPERATOR_NOTIFICATION_LIMIT),
+    notificationCountCapped:
+      notificationBatch.length > queries.OPERATOR_NOTIFICATION_LIMIT,
+    integrationStatus: {
+      amo:
+        integrations.amocrm.status === "configured"
+          ? "configured_not_verified"
+          : integrations.amocrm.status,
+      whatsapp:
+        integrations.whatsappState === "configured"
+          ? "configured_not_verified"
+          : integrations.whatsappState,
+    },
+    connectedRoutesOnly: false,
   };
-  const { t, locale } = await getT();
-  const shellCopy = SHELL_COPY[locale];
-  const notificationBatch: OperatorNotification[] =
-    fixtureMode && legacyUser
-      ? listOperatorNotificationsForActor(
-          { id: legacyUser.id, role },
-          OPERATOR_NOTIFICATION_LIMIT + 1,
-        )
-      : [];
-  const notificationCountCapped =
-    notificationBatch.length > OPERATOR_NOTIFICATION_LIMIT;
-  const notifications = notificationBatch.slice(0, OPERATOR_NOTIFICATION_LIMIT);
-  const integrations = fixtureMode ? await getIntegrationStatus() : null;
+}
 
+async function loadConnectedShellProvider(): Promise<ShellProvider> {
+  const [guards, actions, language] = await Promise.all([
+    import("@/lib/platform-guards"),
+    import("@/lib/platform-admissions-actions"),
+    import("@/components/platform/PlatformLangSwitcher"),
+  ]);
+  const actor = await guards.requirePlatformStaffActor();
+  if (!isStaffRole(actor.role)) {
+    redirect("/platform-pending?from=%2Fportal");
+  }
+
+  return {
+    user: { name: actor.displayName, role: actor.role },
+    homeHref: guards.platformHomeRoute(actor.platformRole),
+    availableRoutes: CONNECTED_STAFF_ROUTES,
+    logout: actions.logoutPlatformAction,
+    LanguageSwitcher: language.PlatformLangSwitcher,
+    notifications: [],
+    notificationCountCapped: false,
+    integrationStatus: {
+      amo: "blocked",
+      whatsapp: "blocked",
+    },
+    connectedRoutesOnly: true,
+  };
+}
+
+export default async function StaffLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const fixtureMode = isUiContractFixtureMode();
+  const [provider, { t, locale }] = await Promise.all([
+    fixtureMode ? loadFixtureShellProvider() : loadConnectedShellProvider(),
+    getT(),
+  ]);
+  const shellCopy = SHELL_COPY[locale];
   const allowed = new Map(
     STAFF_NAV_ITEMS
-      .filter((item) => fixtureMode || item.href === "/whatsapp")
-      .filter((item) => (item.allowedRoles as readonly string[]).includes(role))
+      .filter(
+        (item) =>
+          !provider.availableRoutes || provider.availableRoutes.has(item.href),
+      )
+      .filter((item) =>
+        (item.allowedRoles as readonly string[]).includes(provider.user.role),
+      )
       .map((item) => [item.href as string, t(item.labelKey)] as const),
   );
   const groups: NavGroup[] = NAV_GROUP_DEFS
-    .map((g) => ({
-      label: t(g.key),
-      items: g.hrefs.filter((h) => allowed.has(h)).map((h) => ({ href: h, label: allowed.get(h)! })),
+    .map((group) => ({
+      label: t(group.key),
+      items: group.hrefs
+        .filter((href) => allowed.has(href))
+        .map((href) => ({ href, label: allowed.get(href)! })),
     }))
-    .filter((g) => g.items.length > 0);
+    .filter((group) => group.items.length > 0);
 
   const titles: Record<string, { title: string; hint?: string }> = {
     "/access-denied": {
@@ -134,6 +217,24 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     "/finance": { title: t("financeOverview"), hint: t("financeOverviewHint") },
     "/settings": { title: t("settings"), hint: t("adminOnly") },
   };
+  const LanguageSwitcher = provider.LanguageSwitcher;
+  const account = (
+    <div className="mobile-menu-account">
+      <span className="staff-account__avatar">
+        {initials(provider.user.name)}
+      </span>
+      <div className="staff-account__copy">
+        <div>{provider.user.name}</div>
+        <span>{t(`role.${provider.user.role}`)}</span>
+      </div>
+      <form action={provider.logout}>
+        <button type="submit" className="mobile-menu-account__logout">
+          <Icon name="log-out" size={18} />
+          <span>{t("logout")}</span>
+        </button>
+      </form>
+    </div>
+  );
 
   return (
     <>
@@ -143,7 +244,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       <div className="staff-shell">
         <aside className="staff-sidebar">
           <Link
-            href={fixtureMode ? "/dashboard" : "/whatsapp"}
+            href={provider.homeHref}
             aria-label={t("appName")}
             className="staff-brand"
           >
@@ -154,13 +255,13 @@ export default async function StaffLayout({ children }: { children: React.ReactN
 
           <div className="staff-account">
             <span className="staff-account__avatar">
-              {initials(user.name)}
+              {initials(provider.user.name)}
             </span>
             <div className="staff-account__copy">
-              <div>{user.name}</div>
-              <span>{t(`role.${user.role}`)}</span>
+              <div>{provider.user.name}</div>
+              <span>{t(`role.${provider.user.role}`)}</span>
             </div>
-            <form action={logoutAction}>
+            <form action={provider.logout}>
               <button
                 type="submit"
                 aria-label={t("logout")}
@@ -177,28 +278,16 @@ export default async function StaffLayout({ children }: { children: React.ReactN
           <TopBar
             titles={titles}
             locale={locale}
-            role={role}
-            homeHref={fixtureMode ? "/dashboard" : "/whatsapp"}
+            role={provider.user.role}
+            homeHref={provider.homeHref}
             addLabel={t("add")}
             themeLabel={t("toggleTheme")}
-            notificationCount={notifications.length}
-            notificationCountCapped={notificationCountCapped}
-            integrationStatus={{
-              amo:
-                integrations?.amocrm.status === "configured"
-                  ? "configured_not_verified"
-                  : (integrations?.amocrm.status ?? "not_configured"),
-              whatsapp:
-                integrations?.whatsappState === "configured"
-                  ? "configured_not_verified"
-                  : (integrations?.whatsappState ?? "not_configured"),
-            }}
-            notificationPreview={notifications.slice(0, 3).map((item) => ({
-              id: item.id,
-              title: item.title,
-              subject: item.subject,
-              href: item.href,
-            }))}
+            languageSwitcher={<LanguageSwitcher current={locale} />}
+            notificationCount={provider.notifications.length}
+            notificationCountCapped={provider.notificationCountCapped}
+            integrationStatus={provider.integrationStatus}
+            notificationPreview={provider.notifications.slice(0, 3)}
+            connectedRoutesOnly={provider.connectedRoutesOnly}
           />
           <main
             id="staff-main"
@@ -209,25 +298,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
           </main>
         </div>
 
-        <MobileStaffNav
-          groups={groups}
-          copy={shellCopy}
-          footer={
-            <div className="mobile-menu-account">
-              <span className="staff-account__avatar">{initials(user.name)}</span>
-              <div className="staff-account__copy">
-                <div>{user.name}</div>
-                <span>{t(`role.${user.role}`)}</span>
-              </div>
-              <form action={logoutAction}>
-                <button type="submit" className="mobile-menu-account__logout">
-                  <Icon name="log-out" size={18} />
-                  <span>{t("logout")}</span>
-                </button>
-              </form>
-            </div>
-          }
-        />
+        <MobileStaffNav groups={groups} copy={shellCopy} footer={account} />
       </div>
     </>
   );

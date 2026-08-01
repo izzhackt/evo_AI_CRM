@@ -498,6 +498,19 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_messaging_workflow_inventory.sql
   fi
+
+  # BW1 owns the additive migration-051 workflow/domain/source contract. Run
+  # both the catalog/grant inventory and the stateful tenant/RBAC/versioning
+  # suite at that exact boundary so later workflow repositories cannot mask a
+  # missing source-provenance or fail-closed authorization contract.
+  if [[ "$(basename "$migration")" == 051_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_business_workflow_contracts_inventory.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_business_workflow_contracts_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

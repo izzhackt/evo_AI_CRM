@@ -83,6 +83,13 @@ const platformMessagingControllerHardeningMigration = readFileSync(
   ),
   'utf8'
 )
+const platformBusinessWorkflowContractsMigration = readFileSync(
+  join(
+    migrationsDir,
+    '051_platform_business_workflow_contracts.sql'
+  ),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -98,9 +105,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves containment and advances through the P3C messaging boundary', () => {
+  it('preserves containment and advances through the BW1 workflow-contract boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '050_platform_messaging_workflow_controller_hardening.sql'
+      '051_platform_business_workflow_contracts.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -120,6 +127,28 @@ describe('Supabase companion schema contract', () => {
     )
     expect(platformIdentityMigration).toMatch(
       /CREATE\s+TABLE\s+platform\.organization_memberships/i
+    )
+    for (const table of [
+      'source_registry',
+      'workflow_contracts',
+      'workflow_contract_versions',
+      'workflow_contract_version_sources',
+    ]) {
+      expect(platformBusinessWorkflowContractsMigration).toMatch(
+        new RegExp(
+          `CREATE\\s+TABLE(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+platform\\.${table}`,
+          'i'
+        )
+      )
+      expect(platformBusinessWorkflowContractsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+    expect(platformBusinessWorkflowContractsMigration).not.toMatch(
+      /ALTER\s+TABLE\s+platform\.student_cases/i
     )
     expect(platformIdentityMigration).toMatch(
       /ALTER\s+TABLE\s+platform\.organization_memberships\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/i

@@ -21,13 +21,13 @@ import {
   inputCls,
 } from "@/components/ui";
 import {
-  EVO_AMO_PIPELINE_ID,
   isActiveLeadStatus,
   LEAD_STATUSES,
-} from "@/lib/db";
-import { requireStaffRoute } from "@/lib/guards";
-import { getT } from "@/lib/i18n";
-import { listLeadsForActor, listStaff } from "@/lib/queries";
+} from "@/lib/lead-stages";
+import { isStaffRole } from "@/lib/domain";
+import { getT, type Locale } from "@/lib/i18n";
+import type { StaffRole } from "@/lib/roles";
+import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 
 type SalesSearchParams = {
   manager?: string;
@@ -36,6 +36,102 @@ type SalesSearchParams = {
   status?: string;
   view?: string;
 };
+
+type SalesLead = Parameters<typeof SalesBoard>[0]["leads"][number];
+type AddLeadAction = (formData: FormData) => void | Promise<void>;
+
+type SalesProvider = {
+  connected: boolean;
+  role: StaffRole;
+  leads: SalesLead[];
+  staff: { id: number; name: string; role: string }[];
+  addLeadAction?: AddLeadAction;
+  workflowVersion: number | null;
+  fixturePipelineId: number | null;
+};
+
+const CONNECTED_COPY: Record<
+  Locale,
+  {
+    sourceBody: string;
+    workflowApproved: string;
+    workflowMissing: string;
+    writeBlocked: string;
+    pipelineLabel: string;
+  }
+> = {
+  ru: {
+    sourceBody:
+      "amoCRM остаётся источником контактов, сделок, ответственного менеджера и этапа продаж. Подключение заблокировано, поэтому живые сделки не загружены и локальные подмены не используются.",
+    workflowApproved: "Утверждённый контракт OP",
+    workflowMissing: "Рабочий контракт OP не утверждён.",
+    writeBlocked:
+      "Создание лидов заблокировано до проверенного подключения amoCRM. Локальная запись и тестовые лиды отключены.",
+    pipelineLabel: "amoCRM · не подключено",
+  },
+  ky: {
+    sourceBody:
+      "amoCRM байланыштардын, бүтүмдөрдүн, жооптуу менеджердин жана сатуу этабынын негизги булагы бойдон калат. Туташуу бөгөттөлгөндүктөн жандуу бүтүмдөр жүктөлгөн жок жана жергиликтүү алмаштыруу колдонулган жок.",
+    workflowApproved: "Бекитилген OP келишими",
+    workflowMissing: "Бекитилген OP келишими жарыяланган эмес.",
+    writeBlocked:
+      "Лид түзүү amoCRM текшерилгенче бөгөттөлгөн. Жергиликтүү жазуу жана тесттик лиддер өчүрүлгөн.",
+    pipelineLabel: "amoCRM · туташкан эмес",
+  },
+  en: {
+    sourceBody:
+      "amoCRM remains the source of truth for contacts, deals, the responsible manager, and sales stage. The connection is blocked, so live deals are not loaded and no local substitute is used.",
+    workflowApproved: "Approved OP contract",
+    workflowMissing: "No approved OP contract is published.",
+    writeBlocked:
+      "Lead creation is blocked until amoCRM is verified. Local writes and test leads are disabled.",
+    pipelineLabel: "amoCRM · not connected",
+  },
+};
+
+async function loadFixtureSalesProvider(): Promise<SalesProvider> {
+  const [guards, queries, actions, leadStages] = await Promise.all([
+    import("@/lib/guards"),
+    import("@/lib/queries"),
+    import("@/lib/actions"),
+    import("@/lib/lead-stages"),
+  ]);
+  const actor = await guards.requireStaffRoute("/sales");
+  if (!isStaffRole(actor.role)) {
+    throw new Error("Fixture sales route received a non-staff actor.");
+  }
+
+  return {
+    connected: false,
+    role: actor.role,
+    leads: queries.listLeadsForActor(actor),
+    staff: queries.listStaff(),
+    addLeadAction: actions.addLeadAction,
+    workflowVersion: null,
+    fixturePipelineId: leadStages.EVO_AMO_PIPELINE_ID,
+  };
+}
+
+async function loadConnectedSalesProvider(): Promise<SalesProvider> {
+  const [guards, admissions] = await Promise.all([
+    import("@/lib/platform-guards"),
+    import("@/lib/platform-admissions"),
+  ]);
+  const actor = await guards.requirePlatformSalesActor();
+  const workflow = await admissions.getPlatformOpWorkflowContract(actor);
+  if (actor.platformRole !== "admin" && actor.platformRole !== "sales") {
+    throw new Error("Platform sales route received a non-sales actor.");
+  }
+
+  return {
+    connected: true,
+    role: actor.platformRole,
+    leads: [],
+    staff: [],
+    workflowVersion: workflow?.version ?? null,
+    fixturePipelineId: null,
+  };
+}
 
 function salesViewHref(
   nextView: SalesView,
@@ -58,12 +154,16 @@ export default async function SalesPage({
   const { t, locale } = await getT();
   const copy = getSalesCopy(locale);
   const params = await searchParams;
-  const user = await requireStaffRoute("/sales");
+  const provider = isUiContractFixtureMode()
+    ? await loadFixtureSalesProvider()
+    : await loadConnectedSalesProvider();
   const { manager, source, risk, status } = params;
   const view: SalesView = params.view === "list" ? "list" : "board";
-  const leads = listLeadsForActor(user);
-  const staff = listStaff();
-  const eligibleSalesManagers = staff.filter((person) => person.role === "sales");
+  const leads = provider.leads;
+  const staff = provider.staff;
+  const eligibleSalesManagers = staff.filter(
+    (person) => person.role === "sales",
+  );
   const parsedManagerId = manager ? Number.parseInt(manager, 10) : null;
   const managerId =
     parsedManagerId !== null && Number.isFinite(parsedManagerId)
@@ -126,12 +226,22 @@ export default async function SalesPage({
   const boardHref = salesViewHref("board", activeFilters);
   const listHref = salesViewHref("list", activeFilters);
   const clearHref = view === "list" ? "/sales?view=list" : "/sales";
+  const connectedCopy = CONNECTED_COPY[locale];
+  const workflowStatus = provider.workflowVersion
+    ? `${connectedCopy.workflowApproved} v${provider.workflowVersion}.`
+    : connectedCopy.workflowMissing;
+  const sourceBody = provider.connected
+    ? `${connectedCopy.sourceBody} ${workflowStatus}`
+    : t("leadReadModelHint");
 
   return (
-    <div className="min-w-0 space-y-5">
+    <div
+      className="min-w-0 space-y-5"
+      data-testid={provider.connected ? "platform-sales-page" : undefined}
+    >
       <PageHeader
         title={t("admissionsPipeline")}
-        description={copy.overviewHint}
+        description={provider.connected ? connectedCopy.sourceBody : copy.overviewHint}
         action={
           <div className="flex flex-wrap items-center gap-2">
             <SalesViewSwitch
@@ -151,8 +261,8 @@ export default async function SalesPage({
       <SalesSourceTruth
         copy={copy}
         title={t("leadSourceTruthTitle")}
-        body={t("leadReadModelHint")}
-        syncLabel={t("syncNotVerified")}
+        body={sourceBody}
+        syncLabel={provider.connected ? t("amocrmBlocked") : t("syncNotVerified")}
       />
 
       <section aria-label={t("salesCockpit")}>
@@ -273,7 +383,9 @@ export default async function SalesPage({
             {t("clearFilter")}
           </Link>
           <span className="ml-auto inline-flex min-h-9 items-center rounded-full bg-surface-2 px-3 font-mono text-[11.5px] font-medium text-fg-3">
-            amoCRM #{EVO_AMO_PIPELINE_ID}
+            {provider.connected
+              ? connectedCopy.pipelineLabel
+              : `amoCRM #${provider.fixturePipelineId}`}
           </span>
         </div>
       </form>
@@ -282,7 +394,10 @@ export default async function SalesPage({
         staff={eligibleSalesManagers}
         t={t}
         copy={copy}
-        canAssignManager={user.role === "admin"}
+        canAssignManager={provider.role === "admin"}
+        action={provider.addLeadAction}
+        blocked={provider.connected}
+        blockedHint={provider.connected ? connectedCopy.writeBlocked : undefined}
       />
 
       <section aria-labelledby="sales-stages-title" className="min-w-0 space-y-3">

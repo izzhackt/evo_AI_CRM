@@ -1,48 +1,320 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getT } from "@/lib/i18n";
-import {
-  getClientForActor,
-  clientApplicationsForActor,
-  clientDocumentsForActor,
-  clientVisaCaseForActor,
-  clientPaymentsForActor,
-  clientTasksForActor,
-  clientUpdatesForActor,
-  listCurators,
-  listStaff,
-  studentCaseAuditForActor,
-  studentCaseSnapshotForUser,
-} from "@/lib/queries";
-import { STAGES, APP_STATUSES, TASK_COLUMNS, TASK_PRIORITIES, VISA_STATUSES } from "@/lib/db";
-import {
-  updateClientAction, addApplicationAction, setApplicationStatusAction,
-  addDocumentAction, upsertVisaCaseAction,
-  addPaymentAction, markPaymentPaidAction, addTaskAction, moveTaskAction, postUpdateAction,
-  assignCuratorAction, closeStudentCaseAction, reopenStudentCaseAction,
-} from "@/lib/actions";
-import { requireStaffRoute } from "@/lib/guards";
-import { canReceiveClientTask } from "@/lib/access";
+import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 import { Badge, Card, EmptyState, StatCard, inputCls, btnCls, btnGhostCls, labelCls, cn } from "@/components/ui";
 import { AiSummary } from "@/components/AiSummary";
 import { StudentProgress } from "@/components/platform/core/StudentProgress";
 const selectCls = "rounded-nav border border-border-strong bg-surface-2 px-2 py-1.5 text-[12px] text-fg focus-visible:border-accent";
 
+type EntityId = number | string;
+type ServerFormAction = (formData: FormData) => void | Promise<void>;
+type PresentationActor = Readonly<{ id: EntityId; role: string }>;
+type PresentationContact = Readonly<{
+  name: string;
+  email: string;
+  phone: string | null;
+}>;
+type PresentationClientSummary = Readonly<{
+  access_mode: "sales_post_handoff_summary";
+  id: EntityId;
+  name: string;
+  stage: string;
+  target_country: string | null;
+  target_degree: string | null;
+  case_state: string;
+  curator_name: string | null;
+  handoff_at: string | null;
+}>;
+type PresentationClientFull = Readonly<{
+  access_mode: "full";
+  id: EntityId;
+  name: string;
+  email: string;
+  phone: string | null;
+  stage: string;
+  target_country: string | null;
+  target_degree: string | null;
+  case_state: string;
+  contract_confirmed_at: string | null;
+  contract_confirmation_ref: string | null;
+  portal_activated_at: string | null;
+  handoff_at: string | null;
+  curator_id: EntityId | null;
+  curator_name: string | null;
+  manager_name: string | null;
+  notes: string | null;
+}>;
+type PresentationApplication = Readonly<{
+  id: EntityId;
+  university: string;
+  country: string | null;
+  program: string | null;
+  deadline: string | null;
+  status: string;
+}>;
+type PresentationDocument = Readonly<{
+  id: EntityId;
+  name: string;
+  status: string;
+  comment: string | null;
+}>;
+type PresentationVisa = Readonly<{
+  country: string;
+  status: string;
+  appointment_at: string | null;
+  notes: string | null;
+}>;
+type PresentationPayment = Readonly<{
+  id: EntityId;
+  title: string;
+  amount: number;
+  currency: string;
+  due_date: string | null;
+  status: string;
+}>;
+type PresentationTask = Readonly<{
+  id: EntityId;
+  title: string;
+  due_date: string | null;
+  status: string;
+  priority: string;
+  assignee_name: string | null;
+}>;
+type PresentationUpdate = Readonly<{
+  id: EntityId;
+  message: string;
+  author_name: string | null;
+  created_at: string;
+}>;
+type PresentationAuditEvent = Readonly<{
+  id: EntityId;
+  event_type: string;
+  reason: string;
+  actor_name: string;
+  before_curator_name: string | null;
+  after_curator_name: string | null;
+  occurred_at: string;
+}>;
+type PresentationSnapshot = Readonly<{
+  stageTimeline: readonly Readonly<{ stage: string; labelKey: string }>[];
+  nextAction: Readonly<{
+    labelKey: string;
+    detail: string;
+    dueDate: string | null;
+  }> | null;
+  manager: PresentationContact | null;
+  curator: PresentationContact | null;
+  documents: readonly Readonly<{ name: string; status: string }>[];
+  payments: readonly Readonly<{ title: string; status: string }>[];
+  visa: Readonly<{ country: string; status: string }> | null;
+}>;
+type PresentationActions = Readonly<{
+  updateClient?: ServerFormAction;
+  addApplication?: ServerFormAction;
+  setApplicationStatus?: ServerFormAction;
+  addDocument?: ServerFormAction;
+  upsertVisa?: ServerFormAction;
+  addPayment?: ServerFormAction;
+  markPaymentPaid?: ServerFormAction;
+  addTask?: ServerFormAction;
+  moveTask?: ServerFormAction;
+  postUpdate?: ServerFormAction;
+  assignCurator?: ServerFormAction;
+  closeCase?: ServerFormAction;
+  reopenCase?: ServerFormAction;
+  changePlatformState?: ServerFormAction;
+}>;
+
+export type ClientPagePresentationData =
+  | Readonly<{
+      access: "summary";
+      client: PresentationClientSummary;
+      testId?: string;
+    }>
+  | Readonly<{
+      access: "full";
+      actor: PresentationActor;
+      client: PresentationClientFull;
+      applications: readonly PresentationApplication[];
+      documents: readonly PresentationDocument[];
+      visa: PresentationVisa | null;
+      payments: readonly PresentationPayment[];
+      tasks: readonly PresentationTask[];
+      updates: readonly PresentationUpdate[];
+      taskAssignees: readonly Readonly<{ id: EntityId; name: string }>[];
+      curators: readonly Readonly<{ id: EntityId; name: string }>[];
+      audit: readonly PresentationAuditEvent[];
+      snapshot: PresentationSnapshot;
+      stageItems: Array<{ key: string; label: string }>;
+      applicationStatuses: readonly string[];
+      taskColumns: readonly string[];
+      taskPriorities: readonly string[];
+      visaStatuses: readonly string[];
+      actions: PresentationActions;
+      canManageLifecycle: boolean;
+      canViewCaseAudit: boolean;
+      canMutatePayments: boolean;
+      canUseAiSummary: boolean;
+      sourceHint: string;
+      metrics?: Readonly<{
+        activeApplications: number;
+        openDocuments: number;
+        openTasks: number;
+        pendingPayments: number;
+        nextDeadline: string;
+      }>;
+      blocker?: Readonly<{ label: string; detail: string; href: string }> | null;
+      result?: "saved" | "invalid" | "unavailable";
+      lifecycleRequestId?: string;
+      warning?: Readonly<{ title: string; description: string }>;
+      connected: boolean;
+      testId?: string;
+    }>;
+
 function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
 }
 
-export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
+async function loadFixtureClientPageData(id: string): Promise<ClientPagePresentationData | null> {
+  const [{ requireStaffRoute }, queries, dbValues, actions, access] = await Promise.all([
+    import("@/lib/guards"),
+    import("@/lib/queries"),
+    import("@/lib/db"),
+    import("@/lib/actions"),
+    import("@/lib/access"),
+  ]);
   const user = await requireStaffRoute("/clients");
-  const { id } = await params;
   const clientId = parseInt(id, 10);
-  const client = getClientForActor(user, clientId);
-  if (!client) notFound();
+  const sourceClient = queries.getClientForActor(user, clientId);
+  if (!sourceClient) return null;
+
+  if (sourceClient.access_mode === "sales_post_handoff_summary") {
+    return {
+      access: "summary",
+      client: {
+        access_mode: sourceClient.access_mode,
+        id: sourceClient.id,
+        name: sourceClient.name,
+        stage: sourceClient.stage,
+        target_country: sourceClient.target_country,
+        target_degree: sourceClient.target_degree,
+        case_state: sourceClient.case_state,
+        curator_name: sourceClient.curator_name,
+        handoff_at: sourceClient.handoff_at,
+      },
+      testId: "sales-handoff-summary",
+    };
+  }
+
+  const snapshot = queries.studentCaseSnapshotForUser(sourceClient.user_id);
+  if (!snapshot) return null;
+  const applications = queries.clientApplicationsForActor(user, clientId);
+  const documents = queries.clientDocumentsForActor(user, clientId);
+  const visa = queries.clientVisaCaseForActor(user, clientId) ?? null;
+  const payments = queries.clientPaymentsForActor(user, clientId);
+  const tasks = queries.clientTasksForActor(user, clientId);
+  const updates = queries.clientUpdatesForActor(user, clientId);
+  const canManageLifecycle =
+    user.role === "admin" || (user.role === "curator" && sourceClient.curator_id === user.id);
+
+  return {
+    access: "full",
+    actor: { id: user.id, role: user.role },
+    client: {
+      access_mode: "full",
+      id: sourceClient.id,
+      name: sourceClient.name,
+      email: sourceClient.email,
+      phone: sourceClient.phone,
+      stage: sourceClient.stage,
+      target_country: sourceClient.target_country,
+      target_degree: sourceClient.target_degree,
+      case_state: sourceClient.case_state,
+      contract_confirmed_at: sourceClient.contract_confirmed_at,
+      contract_confirmation_ref: sourceClient.contract_confirmation_ref,
+      portal_activated_at: sourceClient.portal_activated_at,
+      handoff_at: sourceClient.handoff_at,
+      curator_id: sourceClient.curator_id,
+      curator_name: sourceClient.curator_name,
+      manager_name: sourceClient.manager_name,
+      notes: sourceClient.notes,
+    },
+    applications,
+    documents,
+    visa,
+    payments,
+    tasks,
+    updates,
+    taskAssignees: queries.listStaff().filter((person) =>
+      access.canReceiveClientTask(person, sourceClient),
+    ),
+    curators: user.role === "admin" ? queries.listCurators() : [],
+    audit: canManageLifecycle
+      ? queries.studentCaseAuditForActor(user, clientId)
+      : [],
+    snapshot: {
+      stageTimeline: snapshot.stageTimeline,
+      nextAction: snapshot.nextAction,
+      manager: snapshot.manager,
+      curator: snapshot.curator,
+      documents: snapshot.documents,
+      payments: snapshot.payments,
+      visa: snapshot.visa,
+    },
+    stageItems: dbValues.STAGES.map((stage) => ({ key: stage, label: "" })),
+    applicationStatuses: dbValues.APP_STATUSES,
+    taskColumns: dbValues.TASK_COLUMNS,
+    taskPriorities: dbValues.TASK_PRIORITIES,
+    visaStatuses: dbValues.VISA_STATUSES,
+    actions: {
+      updateClient: actions.updateClientAction,
+      addApplication: actions.addApplicationAction,
+      setApplicationStatus: actions.setApplicationStatusAction,
+      addDocument: actions.addDocumentAction,
+      upsertVisa: actions.upsertVisaCaseAction,
+      addPayment: actions.addPaymentAction,
+      markPaymentPaid: actions.markPaymentPaidAction,
+      addTask: actions.addTaskAction,
+      moveTask: actions.moveTaskAction,
+      postUpdate: actions.postUpdateAction,
+      assignCurator: actions.assignCuratorAction,
+      closeCase: actions.closeStudentCaseAction,
+      reopenCase: actions.reopenStudentCaseAction,
+    },
+    canManageLifecycle,
+    canViewCaseAudit: canManageLifecycle,
+    canMutatePayments: user.role === "admin" || user.role === "finance",
+    canUseAiSummary: true,
+    sourceHint: "",
+    connected: false,
+    testId: "client-full-detail",
+  };
+}
+
+export default async function ClientPageContent({
+  params,
+  searchParams = Promise.resolve({}),
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ result?: string; retry_request_id?: string }>;
+}) {
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  const data = isUiContractFixtureMode()
+    ? await loadFixtureClientPageData(id)
+    : await (await import("./PlatformClientPage")).loadPlatformClientPageData(id, query);
+  if (!data) notFound();
 
   const { t, locale } = await getT();
-  if (client.access_mode === "sales_post_handoff_summary") {
+  const stageLabel = (stage: string) =>
+    data.access === "full"
+      ? data.stageItems.find((item) => item.key === stage)?.label || t(`stage.${stage}`)
+      : t(`stage.${stage}`);
+
+  if (data.access === "summary") {
+    const client = data.client;
     return (
-      <div data-testid="sales-handoff-summary" className="space-y-5">
+      <div data-testid={data.testId} className="space-y-5">
         <header className="rounded-card border border-border bg-surface p-4 shadow-evo sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <span className="grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full bg-accent-weak text-[20px] font-semibold text-accent">
@@ -52,7 +324,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-fg-3">{t("student360")}</p>
               <div className="mt-1 flex flex-wrap items-center gap-2.5">
                 <h1 className="text-[22px] font-bold leading-tight text-fg">{client.name}</h1>
-                <Badge value={client.stage} label={t(`stage.${client.stage}`)} />
+                <Badge value={client.stage} label={stageLabel(client.stage)} />
               </div>
             </div>
             <Link href="/clients" className={btnGhostCls}>{t("clients")}</Link>
@@ -75,7 +347,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
               [t("client"), `#${client.id}`],
-              [t("stage"), t(`stage.${client.stage}`)],
+              [t("stage"), stageLabel(client.stage)],
               [t("country"), client.target_country ?? "—"],
               [t("degree"), client.target_degree ?? "—"],
               [t("caseState"), t(`caseState.${client.case_state}`)],
@@ -93,38 +365,48 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     );
   }
 
+  const client = data.client;
+  const {
+    actor: user,
+    applications: apps,
+    documents: docs,
+    visa,
+    payments,
+    tasks,
+    updates,
+    taskAssignees,
+    curators,
+    audit: caseAudit,
+    snapshot,
+    applicationStatuses: APP_STATUSES,
+    taskColumns: TASK_COLUMNS,
+    taskPriorities: TASK_PRIORITIES,
+    visaStatuses: VISA_STATUSES,
+    actions,
+    canManageLifecycle,
+    canViewCaseAudit,
+    canMutatePayments,
+  } = data;
   const num = (value: number) =>
     value.toLocaleString({ ru: "ru-RU", ky: "ky-KG", en: "en-US" }[locale]);
-  const apps = clientApplicationsForActor(user, clientId);
-  const docs = clientDocumentsForActor(user, clientId);
-  const visa = clientVisaCaseForActor(user, clientId);
-  const payments = clientPaymentsForActor(user, clientId);
-  const tasks = clientTasksForActor(user, clientId);
-  const updates = clientUpdatesForActor(user, clientId);
-  const taskAssignees = listStaff().filter((person) =>
-    canReceiveClientTask(person, client)
-  );
-  const curators = user.role === "admin" ? listCurators() : [];
-  const snapshot = studentCaseSnapshotForUser(client.user_id);
-  if (!snapshot) notFound();
-  const canManageLifecycle =
-    user.role === "admin"
-    || (user.role === "curator" && client.curator_id === user.id);
-  const canViewCaseAudit = canManageLifecycle;
-  const caseAudit = canViewCaseAudit ? studentCaseAuditForActor(user, clientId) : [];
   const contractConfirmed = Boolean(
     client.contract_confirmed_at?.trim()
     && client.contract_confirmation_ref?.trim(),
   );
-  const activeApps = apps.filter((app) => app.status === "preparing" || app.status === "submitted").length;
-  const openDocuments = docs.filter((doc) => doc.status !== "approved").length;
-  const pendingPayments = payments.filter((payment) => payment.status !== "paid").length;
-  const openTasks = tasks.filter((task) => task.status !== "done").length;
-  const nextDeadline = apps.find((app) => app.deadline && app.status !== "enrolled" && app.status !== "rejected")?.deadline ?? "—";
-  const canMutatePayments = user?.role === "admin" || user?.role === "finance";
-  const stageItems = snapshot.stageTimeline.map((item) => ({
-    key: item.stage,
-    label: t(item.labelKey),
+  const activeApps = data.metrics?.activeApplications
+    ?? apps.filter((app) => app.status === "preparing" || app.status === "submitted").length;
+  const openDocuments = data.metrics?.openDocuments
+    ?? docs.filter((doc) => doc.status !== "approved").length;
+  const pendingPayments = data.metrics?.pendingPayments
+    ?? payments.filter((payment) => payment.status !== "paid").length;
+  const openTasks = data.metrics?.openTasks
+    ?? tasks.filter((task) => task.status !== "done").length;
+  const nextDeadline = data.metrics?.nextDeadline
+    ?? apps.find((app) => app.deadline && app.status !== "enrolled" && app.status !== "rejected")?.deadline
+    ?? "—";
+  const stageItems = data.stageItems.map((item) => ({
+    key: item.key,
+    label: item.label || t(`stage.${item.key}`),
   }));
   const nextActionHref = snapshot.nextAction?.labelKey === "portalNextTask"
     ? "#tasks"
@@ -140,7 +422,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const rejectedDocument = snapshot.documents.find((document) => document.status === "rejected");
   const overduePayment = snapshot.payments.find((payment) => payment.status === "overdue");
   const rejectedVisa = snapshot.visa?.status === "rejected" ? snapshot.visa : null;
-  const blocker = rejectedDocument
+  const blocker = data.blocker ?? (rejectedDocument
     ? { label: t("documents"), detail: rejectedDocument.name, href: "#documents" }
     : overduePayment
       ? { label: t("payments"), detail: overduePayment.title, href: "#payments" }
@@ -148,10 +430,30 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         ? { label: t("visaCase"), detail: rejectedVisa.country, href: "#visa" }
         : !snapshot.manager && !snapshot.curator
           ? { label: t("portalTeam"), detail: t("notAssigned"), href: "#profile" }
-          : null;
+          : null);
+  const closeCaseAction = actions.changePlatformState ?? actions.closeCase;
+  const reopenCaseAction = actions.changePlatformState ?? actions.reopenCase;
+  const lifecycleIdName = actions.changePlatformState ? "student_case_id" : "client_id";
 
   return (
-    <div data-testid="client-full-detail" className="space-y-5">
+    <div data-testid={data.testId} className="space-y-5">
+      {data.result && (
+        <section
+          className={cn(
+            "rounded-card border p-4 text-[13px] shadow-evo",
+            data.result === "saved"
+              ? "border-info/20 bg-info-weak text-info"
+              : "border-danger/25 bg-danger-weak text-danger",
+          )}
+          role="status"
+        >
+          {data.result === "saved"
+            ? "Изменение сохранено через аудируемую операцию EVO Platform."
+            : data.result === "invalid"
+              ? "Проверьте причину и доступность действия для вашей роли."
+              : "Сервер не подтвердил запись. Данные не считаются изменёнными."}
+        </section>
+      )}
       <header className="rounded-card border border-border bg-surface p-4 shadow-evo sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <span className="grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full bg-accent-weak text-[20px] font-semibold text-accent">
@@ -161,7 +463,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-fg-3">{t("student360")}</p>
             <div className="mt-1 flex flex-wrap items-center gap-2.5">
               <h1 className="text-[22px] font-bold leading-tight text-fg">{client.name}</h1>
-              <Badge value={client.stage} label={t(`stage.${client.stage}`)} />
+              <Badge value={client.stage} label={stageLabel(client.stage)} />
             </div>
             <div className="mt-1.5 break-words font-mono text-[12.5px] text-fg-3">
               {client.email}{client.phone ? `  ·  ${client.phone}` : ""}
@@ -184,9 +486,18 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           <h2 id="student-source-title" className="text-[12px] font-bold uppercase tracking-[0.06em]">
             {t("operationalContext")}
           </h2>
-          <p className="mt-1 max-w-4xl text-[12.5px] leading-5 text-fg-2">{t("studentRecordSourceHint")}</p>
+          <p className="mt-1 max-w-4xl text-[12.5px] leading-5 text-fg-2">
+            {data.sourceHint || t("studentRecordSourceHint")}
+          </p>
         </div>
       </section>
+
+      {data.warning && (
+        <section className="rounded-card border border-warn/25 bg-warn-weak p-4 text-warn shadow-evo">
+          <h2 className="text-[14px] font-bold">{data.warning.title}</h2>
+          <p className="mt-1 text-[12.5px] leading-5 text-fg-2">{data.warning.description}</p>
+        </section>
+      )}
 
       <div className="space-y-2">
         <p id="student-sections-label" className="text-[11px] font-bold uppercase tracking-[0.08em] text-fg-3">
@@ -268,7 +579,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               stages={stageItems}
               currentStage={client.stage}
               label={t("portalProgress")}
-              currentLabel={t(`stage.${client.stage}`)}
+              currentLabel={stageLabel(client.stage)}
             />
           </section>
 
@@ -320,6 +631,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             )}
           </div>
 
+          {data.canUseAiSummary && typeof client.id === "number" && (
           <div className="rounded-card border border-border bg-surface p-4 shadow-evo">
             <p className="mb-3 text-[11px] leading-4 text-fg-3">{t("studentAiSummaryHint")}</p>
             <AiSummary
@@ -327,6 +639,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               labels={{ button: t("aiSummary"), thinking: t("aiThinking"), notConfigured: t("aiNotConfigured") }}
             />
           </div>
+          )}
         </aside>
       </div>
 
@@ -355,9 +668,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             </div>
           </div>
 
-          {user.role === "admin" ? (
+          {user.role === "admin" && actions.assignCurator ? (
             <form
-              action={assignCuratorAction}
+              action={actions.assignCurator}
               data-testid="curator-assignment-form"
               className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-2"
             >
@@ -402,13 +715,19 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             </form>
           ) : null}
 
-          {canManageLifecycle && client.case_state === "active" ? (
+          {canManageLifecycle && client.case_state === "active" && closeCaseAction ? (
             <form
-              action={closeStudentCaseAction}
+              action={closeCaseAction}
               data-testid="student-case-close-form"
               className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_auto] sm:items-end"
             >
-              <input type="hidden" name="client_id" value={client.id} />
+              <input type="hidden" name={lifecycleIdName} value={client.id} />
+              {actions.changePlatformState && (
+                <>
+                  <input type="hidden" name="request_id" value={data.lifecycleRequestId} />
+                  <input type="hidden" name="new_state" value="closed" />
+                </>
+              )}
               <label className={labelCls}>
                 {t("closeCaseReason")}
                 <textarea
@@ -423,13 +742,19 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             </form>
           ) : null}
 
-          {canManageLifecycle && client.case_state === "closed" ? (
+          {canManageLifecycle && client.case_state === "closed" && reopenCaseAction ? (
             <form
-              action={reopenStudentCaseAction}
+              action={reopenCaseAction}
               data-testid="student-case-reopen-form"
               className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_auto] sm:items-end"
             >
-              <input type="hidden" name="client_id" value={client.id} />
+              <input type="hidden" name={lifecycleIdName} value={client.id} />
+              {actions.changePlatformState && (
+                <>
+                  <input type="hidden" name="request_id" value={data.lifecycleRequestId} />
+                  <input type="hidden" name="new_state" value="active" />
+                </>
+              )}
               <label className={labelCls}>
                 {t("reopenCaseReason")}
                 <textarea
@@ -473,8 +798,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       {/* Profile */}
       <section id="profile" className="scroll-mt-24">
         <Card title={t("client")}>
+        {actions.updateClient ? (
         <form
-          action={updateClientAction}
+          action={actions.updateClient}
           data-testid="client-profile-form"
           className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
         >
@@ -482,8 +808,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           <label className={labelCls}>
             {t("stage")}
             <select name="stage" defaultValue={client.stage} className={cn(inputCls, "mt-1")}>
-              {STAGES.filter((stage) => stage !== "archived").map((s) => (
-                <option key={s} value={s}>{t(`stage.${s}`)}</option>
+              {stageItems.filter((stage) => stage.key !== "archived").map((stage) => (
+                <option key={stage.key} value={stage.key}>{stage.label}</option>
               ))}
             </select>
           </label>
@@ -511,6 +837,23 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           </label>
           <div><button type="submit" className={btnCls}>{t("save")}</button></div>
         </form>
+        ) : (
+          <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              [t("stage"), stageLabel(client.stage)],
+              [t("manager"), client.manager_name ?? t("notAssigned")],
+              [t("curator"), client.curator_name ?? t("notAssigned")],
+              [t("country"), client.target_country ?? "—"],
+              [t("degree"), client.target_degree ?? "—"],
+              [t("notes"), client.notes ?? "—"],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-nav border border-border bg-surface-2 p-3">
+                <dt className={labelCls}>{label}</dt>
+                <dd className="mt-1 text-[13px] font-medium text-fg">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
         </Card>
       </section>
 
@@ -527,7 +870,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                     {[a.program, a.country, a.deadline ? `${t("deadline")}: ${a.deadline}` : null].filter(Boolean).join(" · ")}
                   </div>
                 </div>
-                <form action={setApplicationStatusAction} className="flex w-full items-end gap-1.5 sm:w-auto">
+                {actions.setApplicationStatus ? (
+                <form action={actions.setApplicationStatus} className="flex w-full items-end gap-1.5 sm:w-auto">
                   <input type="hidden" name="id" value={a.id} />
                   <input type="hidden" name="client_id" value={client.id} />
                   <label className={cn(labelCls, "mb-0 min-w-0 flex-1 sm:min-w-36")}>
@@ -538,15 +882,22 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                   </label>
                   <button type="submit" className={btnGhostCls}>{t("save")}</button>
                 </form>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Badge value={a.status} label={a.status} />
+                    <Link href={`/applications/${a.id}`} className={btnGhostCls}>{t("open")}</Link>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
           {apps.length === 0 && <EmptyState text={t("noResults")} />}
+          {actions.addApplication ? (
           <details className="mt-3 border-t border-border pt-3">
             <summary className={cn(btnGhostCls, "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>
               + {t("addApplication")}
             </summary>
-            <form action={addApplicationAction} className="mt-3 grid gap-2 sm:grid-cols-2">
+            <form action={actions.addApplication} className="mt-3 grid gap-2 sm:grid-cols-2">
               <input type="hidden" name="client_id" value={client.id} />
               <label className={cn(labelCls, "mb-0")}>
                 {t("university")}
@@ -571,6 +922,11 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               <button type="submit" className={cn(btnCls, "sm:col-span-2")}>+ {t("addApplication")}</button>
             </form>
           </details>
+          ) : (
+            <div className="mt-3 border-t border-border pt-3">
+              <Link href="/applications#add" className={btnGhostCls}>+ {t("addApplication")}</Link>
+            </div>
+          )}
           </Card>
         </section>
 
@@ -596,11 +952,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             ))}
           </ul>
           {docs.length === 0 && <EmptyState text={t("noResults")} />}
+          {actions.addDocument && (
           <details className="mt-3 border-t border-border pt-3">
             <summary className={cn(btnGhostCls, "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>
               + {t("addDocument")}
             </summary>
-            <form action={addDocumentAction} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+            <form action={actions.addDocument} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
               <input type="hidden" name="client_id" value={client.id} />
               <label className={cn(labelCls, "mb-0 min-w-0 flex-1")}>
                 {t("document")}
@@ -609,13 +966,15 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               <button type="submit" className={btnCls}>+ {t("addDocument")}</button>
             </form>
           </details>
+          )}
           </Card>
         </section>
 
         {/* Visa */}
         <section id="visa" className="min-w-0 scroll-mt-24">
           <Card title={t("visaCase")}>
-          <form action={upsertVisaCaseAction} className="grid gap-3 sm:grid-cols-2">
+          {actions.upsertVisa ? (
+          <form action={actions.upsertVisa} className="grid gap-3 sm:grid-cols-2">
             <input type="hidden" name="client_id" value={client.id} />
             <label className={labelCls}>
               {t("country")}
@@ -639,6 +998,23 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               <button type="submit" className={btnCls}>{visa ? t("save") : `+ ${t("addVisaCase")}`}</button>
             </div>
           </form>
+          ) : visa ? (
+            <dl className="grid gap-3 sm:grid-cols-2">
+              {[
+                [t("country"), visa.country],
+                [t("status"), visa.status],
+                [t("appointment"), visa.appointment_at ?? "—"],
+                [t("notes"), visa.notes ?? "—"],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-nav bg-surface-2 p-3">
+                  <dt className={labelCls}>{label}</dt>
+                  <dd className="mt-1 text-[13px] text-fg">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <EmptyState text={t("noResults")} />
+          )}
           </Card>
         </section>
 
@@ -656,7 +1032,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                       .join(" · ")}
                   </div>
                 </div>
-                <form action={moveTaskAction} className="flex w-full items-end gap-1.5 sm:w-auto">
+                {actions.moveTask && (
+                <form action={actions.moveTask} className="flex w-full items-end gap-1.5 sm:w-auto">
                   <input type="hidden" name="id" value={task.id} />
                   <label className={cn(labelCls, "mb-0 min-w-0 flex-1 sm:min-w-32")}>
                     {t("status")}
@@ -666,15 +1043,17 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                   </label>
                   <button type="submit" className={btnGhostCls}>{t("save")}</button>
                 </form>
+                )}
               </li>
             ))}
           </ul>
           {tasks.length === 0 && <EmptyState text={t("noStudentTasks")} />}
+          {actions.addTask && (
           <details className="mt-3 border-t border-border pt-3">
             <summary className={cn(btnGhostCls, "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>
               + {t("addTask")}
             </summary>
-            <form action={addTaskAction} className="mt-3 grid gap-2 sm:grid-cols-2">
+            <form action={actions.addTask} className="mt-3 grid gap-2 sm:grid-cols-2">
               <input type="hidden" name="client_id" value={client.id} />
               <label className={cn(labelCls, "mb-0 sm:col-span-2")}>
                 {t("title")}
@@ -700,6 +1079,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               <button type="submit" className={btnCls}>+ {t("addTask")}</button>
             </form>
           </details>
+          )}
           </Card>
         </section>
 
@@ -718,8 +1098,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge value={p.status} label={t(`pay.${p.status}`)} />
-                  {canMutatePayments && p.status !== "paid" && (
-                    <form action={markPaymentPaidAction}>
+                  {canMutatePayments && actions.markPaymentPaid && p.status !== "paid" && (
+                    <form action={actions.markPaymentPaid}>
                       <input type="hidden" name="id" value={p.id} />
                       <input type="hidden" name="client_id" value={client.id} />
                       <button type="submit" className={btnGhostCls}>{t("markPaid")}</button>
@@ -730,12 +1110,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             ))}
           </ul>
           {payments.length === 0 && <EmptyState text={t("noResults")} />}
-          {canMutatePayments && (
+          {canMutatePayments && actions.addPayment && (
             <details className="mt-3 border-t border-border pt-3">
               <summary className={cn(btnGhostCls, "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>
                 + {t("addPayment")}
               </summary>
-              <form action={addPaymentAction} className="mt-3 grid gap-2 sm:grid-cols-2">
+              <form action={actions.addPayment} className="mt-3 grid gap-2 sm:grid-cols-2">
                 <input type="hidden" name="client_id" value={client.id} />
                 <label className={cn(labelCls, "mb-0 sm:col-span-2")}>
                   {t("payment")}
@@ -768,7 +1148,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       {/* Updates */}
       <section id="updates" className="scroll-mt-24">
         <Card title={t("updates")}>
-        <form action={postUpdateAction} className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">
+        {actions.postUpdate && (
+        <form action={actions.postUpdate} className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">
           <input type="hidden" name="client_id" value={client.id} />
           <label className={cn(labelCls, "mb-0 min-w-0 flex-1")}>
             {t("updates")}
@@ -776,6 +1157,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           </label>
           <button type="submit" className={btnCls}>{t("send")}</button>
         </form>
+        )}
         {updates.length === 0 ? (
           <EmptyState text={t("noUpdates")} />
         ) : (

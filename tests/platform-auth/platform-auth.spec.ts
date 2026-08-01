@@ -399,14 +399,38 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
   await login(page, fixture.identities.admin);
   await expect(page).toHaveURL(/\/sales$/);
   await expect(page.getByTestId("platform-sales-page")).toBeVisible();
+  await expect(
+    page.getByRole("navigation", {
+      name: /Вид воронки продаж|Сатуу воронкасынын көрүнүшү|Sales pipeline view/,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", {
+      name: /Основная навигация|Негизги навигация|Primary navigation/,
+    }).first(),
+  ).toBeVisible();
   await expect(page.getByText("Рабочий контракт OP не утверждён")).toBeVisible();
 
   await page.goto("/clients");
-  await expect(page.getByTestId("platform-clients-page")).toBeVisible();
-  await expect(page.getByText("Synthetic Org A Student", { exact: true })).toBeVisible();
+  const clientsPage = page.getByTestId("platform-clients-page");
+  await expect(clientsPage).toBeVisible();
+  await expect(
+    clientsPage.getByRole("heading", { name: "Student 360" }),
+  ).toBeVisible();
+  await expect(
+    clientsPage.getByText("Synthetic Org A Student", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("progressbar", { name: /Synthetic Org A Student/ }).first(),
+  ).toBeVisible();
 
   await page.goto("/applications");
   await expect(page.getByTestId("platform-applications-page")).toBeVisible();
+  await expect(
+    page.getByRole("navigation", {
+      name: /Статусы заявок|Арыз статустары|Application statuses/,
+    }),
+  ).toBeVisible();
   await expect(page.getByText("Заявок по выбранному фильтру нет.")).toBeVisible();
 
   await page.goto("/whatsapp");
@@ -520,11 +544,14 @@ test("admin creates a preparation application with one RLS-visible audit event",
 
   await expect(page).toHaveURL(/\/applications\?result=saved$/);
   await expect(page.getByText("Заявка сохранена", { exact: true })).toBeVisible();
-  const applicationLink = page.locator('a[href^="/applications/"]', {
+  const applicationLink = page.locator('a[href^="/applications/"]:visible', {
     hasText: institutionName,
   });
   await expect(applicationLink).toHaveCount(1);
-  await expect(applicationLink).toContainText(programName);
+  const applicationRecord = applicationLink
+    .locator("xpath=ancestor::tr | ancestor::article")
+    .first();
+  await expect(applicationRecord).toContainText(programName);
   const applicationHref = await applicationLink.getAttribute("href");
   const applicationId = applicationHref?.match(
     /^\/applications\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i,
@@ -540,7 +567,7 @@ test("admin creates a preparation application with one RLS-visible audit event",
   await expect(
     page.getByRole("heading", { name: institutionName, exact: true }),
   ).toBeVisible();
-  await expect(page.getByText(programName, { exact: false })).toBeVisible();
+  await expect(page.getByText(programName, { exact: true })).toBeVisible();
 
   const adminToken = await localAccessToken(fixture.identities.admin);
   const audit = await applicationCreateAudit(

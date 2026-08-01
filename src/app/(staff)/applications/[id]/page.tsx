@@ -1,18 +1,21 @@
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 
+import {
+  ApplicationDetailPresenter,
+  type ApplicationDetailSearchParams,
+} from "../ApplicationsPresenter";
+
 export default async function ApplicationDetailPage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ result?: string; retry_request_id?: string }>;
+  searchParams: Promise<ApplicationDetailSearchParams>;
 }) {
-  if (isUiContractFixtureMode()) {
-    const { default: LegacyApplicationPage } = await import(
-      "./LegacyApplicationPage"
-    );
-    return <LegacyApplicationPage params={props.params} />;
-  }
+  const model = isUiContractFixtureMode()
+    ? await (
+        await import("./LegacyApplicationPage")
+      ).loadLegacyApplicationDetail(props)
+    : await (
+        await import("./PlatformApplicationPage")
+      ).loadPlatformApplicationDetail(props);
 
-  const { default: PlatformApplicationPage } = await import(
-    "./PlatformApplicationPage"
-  );
-  return <PlatformApplicationPage {...props} />;
+  return <ApplicationDetailPresenter model={model} />;
 }

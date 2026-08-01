@@ -1,22 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import Link from "next/link";
-
-import {
-  ContextBanner,
-  QueueMetrics,
-} from "@/components/platform/operations/OperationsPrimitives";
-import {
-  Badge,
-  EmptyState,
-  PageHeader,
-  btnCls,
-  btnGhostCls,
-  cn,
-  filterBarCls,
-  inputCls,
-  labelCls,
-} from "@/components/ui";
+import { getT } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n-data";
 import { createPlatformUniversityApplicationAction } from "@/lib/platform-admissions-actions";
 import {
   PLATFORM_APPLICATION_STATUSES,
@@ -27,62 +12,168 @@ import {
 } from "@/lib/platform-admissions";
 import { requirePlatformApplicationsActor } from "@/lib/platform-guards";
 
-const STATUS_COPY: Record<PlatformApplicationStatus, string> = {
-  preparation: "Подготовка",
-  ready: "Готова к подаче",
-  submitted: "Подана",
-  under_review: "На рассмотрении",
-  offer: "Получен offer",
-  rejected: "Отказ",
-  enrolled: "Зачислен",
-  withdrawn: "Отозвана",
-  closed: "Закрыта",
+import {
+  createApplicationsPresenterCopy,
+  type ApplicationQueuePresenterRow,
+  type ApplicationsQueuePresenterModel,
+  type ApplicationsSearchParams,
+  type PresenterBanner,
+} from "./ApplicationsPresenter";
+
+const STATUS_COPY: Record<
+  Locale,
+  Record<PlatformApplicationStatus, string>
+> = {
+  ru: {
+    preparation: "Подготовка",
+    ready: "Готова к подаче",
+    submitted: "Подана",
+    under_review: "На рассмотрении",
+    offer: "Получен offer",
+    rejected: "Отказ",
+    enrolled: "Зачислен",
+    withdrawn: "Отозвана",
+    closed: "Закрыта",
+  },
+  ky: {
+    preparation: "Даярдоо",
+    ready: "Тапшырууга даяр",
+    submitted: "Тапшырылды",
+    under_review: "Каралууда",
+    offer: "Сунуш алынды",
+    rejected: "Баш тартылды",
+    enrolled: "Катталды",
+    withdrawn: "Кайтарылып алынды",
+    closed: "Жабылды",
+  },
+  en: {
+    preparation: "Preparation",
+    ready: "Ready to submit",
+    submitted: "Submitted",
+    under_review: "Under review",
+    offer: "Offer received",
+    rejected: "Rejected",
+    enrolled: "Enrolled",
+    withdrawn: "Withdrawn",
+    closed: "Closed",
+  },
 };
 
-function resultBanner(result: string | undefined) {
+const CREATE_COPY: Record<
+  Locale,
+  {
+    summaryLabel: string;
+    emptyTitle: string;
+    emptyDescription: string;
+    evidenceLabel: string;
+    evidenceHint: string;
+    submitLabel: string;
+  }
+> = {
+  ru: {
+    summaryLabel: "Добавить университетскую заявку",
+    emptyTitle: "Нет доступного студенческого кейса",
+    emptyDescription:
+      "Сначала нужен подтверждённый и доступный вашей роли кейс. Локальный клиент не создаётся.",
+    evidenceLabel: "Evidence для внешнего статуса",
+    evidenceHint:
+      "Обязательно для submitted, under_review, offer, rejected и enrolled.",
+    submitLabel: "Создать с аудитом",
+  },
+  ky: {
+    summaryLabel: "Университетке арыз кошуу",
+    emptyTitle: "Жеткиликтүү студенттик иш жок",
+    emptyDescription:
+      "Адегенде ролуңузга жеткиликтүү ырасталган иш керек. Локалдык кардар түзүлбөйт.",
+    evidenceLabel: "Тышкы статус үчүн далил",
+    evidenceHint:
+      "submitted, under_review, offer, rejected жана enrolled үчүн милдеттүү.",
+    submitLabel: "Аудит менен түзүү",
+  },
+  en: {
+    summaryLabel: "Add university application",
+    emptyTitle: "No accessible student case",
+    emptyDescription:
+      "A confirmed case within your role scope is required first. No local client is created.",
+    evidenceLabel: "Evidence for an external status",
+    evidenceHint:
+      "Required for submitted, under_review, offer, rejected, and enrolled.",
+    submitLabel: "Create with audit",
+  },
+};
+
+function resultBanner(
+  result: string | undefined,
+  locale: Locale,
+): PresenterBanner | undefined {
   if (result === "saved") {
-    return (
-      <ContextBanner
-        tone="info"
-        title="Заявка сохранена"
-        description="Операция подтверждена EVO Platform и записана в аудит."
-      />
-    );
+    return locale === "ru"
+      ? {
+          tone: "info",
+          title: "Заявка сохранена",
+          description:
+            "Операция подтверждена EVO Platform и записана в аудит.",
+        }
+      : locale === "ky"
+        ? {
+            tone: "info",
+            title: "Арыз сакталды",
+            description:
+              "Операция EVO Platform тарабынан ырасталып, аудитке жазылды.",
+          }
+        : {
+            tone: "info",
+            title: "Application saved",
+            description:
+              "EVO Platform confirmed the operation and recorded its audit evidence.",
+          };
   }
   if (result === "invalid") {
-    return (
-      <ContextBanner
-        tone="danger"
-        title="Проверьте данные заявки"
-        description="Для внешних статусов обязательна ссылка или идентификатор подтверждающего evidence."
-      />
-    );
+    return {
+      tone: "danger",
+      title:
+        locale === "ru"
+          ? "Проверьте данные заявки"
+          : locale === "ky"
+            ? "Арыздын маалыматын текшериңиз"
+            : "Check the application data",
+      description:
+        locale === "ru"
+          ? "Для внешних статусов обязательна ссылка или идентификатор подтверждающего evidence."
+          : locale === "ky"
+            ? "Тышкы статус үчүн текшерилүүчү далилдин шилтемеси же идентификатору милдеттүү."
+            : "External statuses require a verifiable evidence link or identifier.",
+    };
   }
   if (result === "unavailable") {
-    return (
-      <ContextBanner
-        tone="danger"
-        title="Заявка не сохранена"
-        description="Сервер не подтвердил запись. Повторите после проверки доступа и соединения."
-      />
-    );
+    return {
+      tone: "danger",
+      title:
+        locale === "ru"
+          ? "Заявка не сохранена"
+          : locale === "ky"
+            ? "Арыз сакталган жок"
+            : "Application not saved",
+      description:
+        locale === "ru"
+          ? "Сервер не подтвердил запись. Повторите после проверки доступа и соединения."
+          : locale === "ky"
+            ? "Сервер жазууну ырастаган жок. Кирүү укугун жана байланышты текшерип кайталаңыз."
+            : "The server did not confirm the write. Check access and connectivity before retrying.",
+    };
   }
-  return null;
+  return undefined;
 }
 
-export default async function PlatformApplicationsPage({
+export async function loadPlatformApplicationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    status?: string;
-    result?: string;
-    student_case_id?: string;
-    retry_request_id?: string;
-  }>;
-}) {
-  const [actor, query] = await Promise.all([
+  searchParams: Promise<ApplicationsSearchParams>;
+}): Promise<ApplicationsQueuePresenterModel> {
+  const [actor, query, { t, locale }] = await Promise.all([
     requirePlatformApplicationsActor(),
     searchParams,
+    getT(),
   ]);
   const [applications, studentCases] = await Promise.all([
     listPlatformApplications(actor),
@@ -93,201 +184,81 @@ export default async function PlatformApplicationsPage({
   ).includes(query.status ?? "")
     ? (query.status as PlatformApplicationStatus)
     : undefined;
-  const visibleApplications = selectedStatus
-    ? applications.filter((item) => item.status === selectedStatus)
-    : applications;
-  const selectedCase = studentCases.cases.some(
-    (item) => item.studentCaseId === query.student_case_id,
+  const statusOptions = PLATFORM_APPLICATION_STATUSES.map((value) => ({
+    value,
+    label: STATUS_COPY[locale][value],
+  }));
+  const present = (
+    application: (typeof applications)[number],
+  ): ApplicationQueuePresenterRow => ({
+    id: application.universityApplicationId,
+    studentCaseId: application.studentCaseId,
+    studentDisplayName: application.studentDisplayName,
+    caseStage: null,
+    institutionName: application.institutionName,
+    programName: application.programName,
+    degree: application.targetDegree,
+    country: application.targetCountry,
+    status: application.status,
+    statusLabel: STATUS_COPY[locale][application.status],
+    deadline: null,
+    documentCount: application.documentCount,
+    openDocumentCount: application.openDocumentCount,
+    openTaskCount: application.openTaskCount,
+    pendingPaymentCount: application.outstandingPaymentObligationCount,
+    needsAttention:
+      application.openDocumentCount > 0 ||
+      application.openTaskCount > 0 ||
+      application.outstandingPaymentObligationCount > 0,
+    readyForDecision: ["submitted", "under_review", "offer"].includes(
+      application.status,
+    ),
+    statusHiddenFields: [],
+  });
+  const rows = applications
+    .filter(
+      (application) =>
+        !selectedStatus || application.status === selectedStatus,
+    )
+    .map(present);
+  const selectedStudentCaseId = studentCases.cases.some(
+    (studentCase) => studentCase.studentCaseId === query.student_case_id,
   )
     ? query.student_case_id
     : studentCases.cases[0]?.studentCaseId;
-  const createRequestId =
-    parsePlatformAdmissionsUuid(query.retry_request_id) ?? randomUUID();
 
-  return (
-    <div className="space-y-5" data-testid="platform-applications-page">
-      <PageHeader
-        eyebrow="OZO · admissions"
-        title="Заявки в университеты"
-        description="У одного студента может быть несколько параллельных заявок. Внешнее решение фиксируется только с подтверждением."
-      />
-      {resultBanner(query.result)}
-
-      <QueueMetrics
-        items={[
-          { label: "Всего доступно", value: applications.length, tone: "accent" },
-          {
-            label: "В подготовке",
-            value: applications.filter((item) =>
-              ["preparation", "ready"].includes(item.status),
-            ).length,
-            tone: "warn",
-          },
-          {
-            label: "На рассмотрении",
-            value: applications.filter((item) =>
-              ["submitted", "under_review"].includes(item.status),
-            ).length,
-            tone: "info",
-          },
-          {
-            label: "Требуют задач",
-            value: applications.filter((item) => item.openTaskCount > 0).length,
-            tone: "danger",
-          },
-        ]}
-      />
-
-      <form className={cn(filterBarCls, "sm:grid-cols-[1fr_auto]")}>
-        <label className="sr-only" htmlFor="platform-application-status-filter">
-          Статус заявки
-        </label>
-        <select
-          id="platform-application-status-filter"
-          name="status"
-          defaultValue={selectedStatus ?? ""}
-          className={inputCls}
-        >
-          <option value="">Все статусы</option>
-          {PLATFORM_APPLICATION_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {STATUS_COPY[status]}
-            </option>
-          ))}
-        </select>
-        <button type="submit" className={btnGhostCls}>
-          Применить
-        </button>
-      </form>
-
-      {visibleApplications.length === 0 ? (
-        <div className="rounded-card border border-border bg-surface shadow-evo">
-          <EmptyState text="Заявок по выбранному фильтру нет." />
-        </div>
-      ) : (
-        <ul role="list" className="grid gap-3 lg:grid-cols-2">
-          {visibleApplications.map((application) => (
-            <li key={application.universityApplicationId}>
-              <Link
-                href={`/applications/${application.universityApplicationId}`}
-                className="block h-full rounded-card border border-border bg-surface p-4 shadow-evo hover:border-border-strong"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <span>
-                    <strong className="block text-[14px] text-fg">
-                      {application.institutionName}
-                    </strong>
-                    <span className="mt-1 block text-[12px] text-fg-2">
-                      {application.programName}
-                    </span>
-                  </span>
-                  <Badge
-                    value={application.status}
-                    label={STATUS_COPY[application.status]}
-                  />
-                </div>
-                <p className="mt-3 text-[12px] text-fg-2">
-                  {application.studentDisplayName} · {application.targetCountry}
-                </p>
-                <p className="mt-2 text-[11.5px] text-fg-3">
-                  Открытые задачи: {application.openTaskCount} · Документы в работе: {application.openDocumentCount}
-                </p>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <details id="add" className="rounded-card border border-border bg-surface shadow-evo">
-        <summary className="cursor-pointer px-5 py-4 text-[13px] font-bold text-fg">
-          Добавить университетскую заявку
-        </summary>
-        <div className="border-t border-border p-5">
-          {studentCases.cases.length === 0 ? (
-            <ContextBanner
-              tone="warning"
-              title="Нет доступного студенческого кейса"
-              description="Сначала нужен подтверждённый и доступный вашей роли кейс. Локальный клиент не создаётся."
-            />
-          ) : (
-            <form
-              action={createPlatformUniversityApplicationAction}
-              className="grid gap-4 lg:grid-cols-2"
-            >
-              <input type="hidden" name="request_id" value={createRequestId} />
-              <label className={labelCls}>
-                Студент
-                <select
-                  name="student_case_id"
-                  required
-                  defaultValue={selectedCase}
-                  className={`${inputCls} mt-1`}
-                >
-                  {studentCases.cases.map((studentCase) => (
-                    <option key={studentCase.studentCaseId} value={studentCase.studentCaseId}>
-                      {studentCase.studentDisplayName} · {studentCase.targetCountry}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className={labelCls}>
-                Начальный статус
-                <select name="status" defaultValue="preparation" className={`${inputCls} mt-1`}>
-                  {PLATFORM_APPLICATION_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {STATUS_COPY[status]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className={labelCls}>
-                Университет
-                <input
-                  name="institution_name"
-                  required
-                  maxLength={300}
-                  className={`${inputCls} mt-1`}
-                />
-              </label>
-              <label className={labelCls}>
-                Программа
-                <input
-                  name="program_name"
-                  required
-                  maxLength={300}
-                  className={`${inputCls} mt-1`}
-                />
-              </label>
-              <label className={cn(labelCls, "lg:col-span-2")}>
-                Evidence для внешнего статуса
-                <input
-                  name="evidence_reference"
-                  maxLength={1000}
-                  placeholder="Ссылка или проверяемый идентификатор"
-                  className={`${inputCls} mt-1`}
-                />
-                <span className="mt-1 block text-[11px] font-normal text-fg-3">
-                  Обязательно для submitted, under_review, offer, rejected и enrolled.
-                </span>
-              </label>
-              <label className={cn(labelCls, "lg:col-span-2")}>
-                Примечание
-                <textarea
-                  name="note"
-                  maxLength={1000}
-                  rows={3}
-                  className={`${inputCls} mt-1 h-auto py-3`}
-                />
-              </label>
-              <div className="lg:col-span-2">
-                <button type="submit" className={btnCls}>
-                  Создать с аудитом
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-      </details>
-    </div>
-  );
+  return {
+    testId: "platform-applications-page",
+    copy: createApplicationsPresenterCopy(t),
+    operationalNotice: {
+      title: t("operationalStageNotice"),
+      description: t("operationalStageHint"),
+      tone: "info",
+    },
+    resultBanner: resultBanner(query.result, locale),
+    rows,
+    allRows: applications.map(present),
+    selectedStatus,
+    statusOptions,
+    emptyText:
+      locale === "ru"
+        ? "Заявок по выбранному фильтру нет."
+        : t("noApplications"),
+    filteredEmptyText:
+      locale === "ru"
+        ? "Заявок по выбранному фильтру нет."
+        : t("noFilteredApplications"),
+    create: {
+      action: createPlatformUniversityApplicationAction,
+      requestId:
+        parsePlatformAdmissionsUuid(query.retry_request_id) ?? randomUUID(),
+      selectedStudentCaseId,
+      studentCases: studentCases.cases.map((studentCase) => ({
+        id: studentCase.studentCaseId,
+        label: `${studentCase.studentDisplayName} · ${studentCase.targetCountry}`,
+      })),
+      statusOptions,
+      copy: CREATE_COPY[locale],
+    },
+  };
 }

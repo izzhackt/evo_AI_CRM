@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -226,11 +226,20 @@ test("connected Platform runtime modules do not statically import SQLite or lega
   const files = [
     "src/lib/platform-admissions.ts",
     "src/lib/platform-admissions-actions.ts",
-    "src/app/(staff)/PlatformStaffLayout.tsx",
-    "src/app/(staff)/sales/PlatformSalesPage.tsx",
+    "src/app/(staff)/layout.tsx",
+    "src/app/(staff)/sales/page.tsx",
+    "src/app/(staff)/sales/SalesPageContent.tsx",
+    "src/components/platform/core/SalesQuickAdd.tsx",
+    "src/app/(staff)/clients/page.tsx",
+    "src/app/(staff)/clients/ClientsPageContent.tsx",
     "src/app/(staff)/clients/PlatformClientsPage.tsx",
+    "src/app/(staff)/clients/[id]/page.tsx",
+    "src/app/(staff)/clients/[id]/ClientPageContent.tsx",
     "src/app/(staff)/clients/[id]/PlatformClientPage.tsx",
+    "src/app/(staff)/applications/page.tsx",
+    "src/app/(staff)/applications/ApplicationsPresenter.tsx",
     "src/app/(staff)/applications/PlatformApplicationsPage.tsx",
+    "src/app/(staff)/applications/[id]/page.tsx",
     "src/app/(staff)/applications/[id]/PlatformApplicationPage.tsx",
     "src/components/TopBar.tsx",
     "src/components/platform/PlatformLangSwitcher.tsx",
@@ -240,8 +249,82 @@ test("connected Platform runtime modules do not statically import SQLite or lega
     assert.doesNotMatch(source, /from\s+["']@\/lib\/(?:db|auth|queries|actions)["']/);
     assert.doesNotMatch(source, /from\s+["']\.\/(?:db|auth|queries|actions)["']/);
     assert.doesNotMatch(source, /better-sqlite3|edu_session/);
-    assert.doesNotMatch(source, /@\/components\/LangSwitcher/);
+    assert.doesNotMatch(
+      source,
+      /from\s+["']@\/components\/LangSwitcher["']/,
+    );
   }
+});
+
+test("normal staff routes keep one accepted renderer instead of parallel Platform and Legacy UIs", () => {
+  for (const removedUi of [
+    "src/app/(staff)/LegacyStaffLayout.tsx",
+    "src/app/(staff)/PlatformStaffLayout.tsx",
+    "src/app/(staff)/sales/LegacySalesPage.tsx",
+    "src/app/(staff)/sales/PlatformSalesPage.tsx",
+    "src/app/(staff)/clients/LegacyClientsPage.tsx",
+    "src/app/(staff)/clients/[id]/LegacyClientPage.tsx",
+  ]) {
+    assert.equal(
+      existsSync(new URL(`../${removedUi}`, import.meta.url)),
+      false,
+      `${removedUi} must not remain as a parallel UI entry point`,
+    );
+  }
+
+  const layout = readFileSync(
+    new URL("../src/app/(staff)/layout.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(layout, /import\(["']\.\/(?:Legacy|Platform)StaffLayout["']\)/);
+
+  const salesRoute = readFileSync(
+    new URL("../src/app/(staff)/sales/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(salesRoute, /SalesPageContent/);
+  assert.doesNotMatch(salesRoute, /(?:Legacy|Platform)SalesPage/);
+
+  const clientsRoute = readFileSync(
+    new URL("../src/app/(staff)/clients/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const clientRoute = readFileSync(
+    new URL("../src/app/(staff)/clients\/\[id\]\/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(clientsRoute, /ClientsPageContent/);
+  assert.match(clientRoute, /ClientPageContent/);
+  assert.doesNotMatch(clientsRoute, /(?:Legacy|Platform)ClientsPage/);
+  assert.doesNotMatch(clientRoute, /(?:Legacy|Platform)ClientPage/);
+
+  const applicationsRoute = readFileSync(
+    new URL("../src/app/(staff)/applications/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const applicationRoute = readFileSync(
+    new URL("../src/app/(staff)/applications\/\[id\]\/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(applicationsRoute, /ApplicationsQueuePresenter/);
+  assert.match(applicationRoute, /ApplicationDetailPresenter/);
+  assert.doesNotMatch(applicationsRoute, /<(?:Legacy|Platform)ApplicationsPage/);
+  assert.doesNotMatch(applicationRoute, /<(?:Legacy|Platform)ApplicationPage/);
+});
+
+test("sales handoff summary keeps sales stage labels distinct from case state labels", () => {
+  const clientPageSource = readFileSync(
+    new URL("../src/app/(staff)/clients/[id]/ClientPageContent.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    clientPageSource,
+    /const stageLabel = \(stage: string\) =>[\s\S]*: t\(`stage\.\$\{stage\}`\);/,
+  );
+  assert.doesNotMatch(
+    clientPageSource,
+    /const stageLabel = \(stage: string\) =>[\s\S]*: t\(`caseState\.\$\{stage\}`\);/,
+  );
 });
 
 test("mutation forms preserve a validated render-time request id across uncertain results", () => {

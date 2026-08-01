@@ -1,22 +1,43 @@
 import Link from "next/link";
 import { getT } from "@/lib/i18n";
-import {
-  listClientsForActor,
-  listStaff,
-  type ClientRow,
-} from "@/lib/queries";
-import { STAGES } from "@/lib/db";
-import { createClientAction } from "@/lib/actions";
-import { requireStaffRoute } from "@/lib/guards";
+import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 import { Badge, EmptyState, PageHeader, inputCls, btnCls, labelCls, cn } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { StudentProgress } from "@/components/platform/core/StudentProgress";
+
+type SearchParams = { stage?: string; q?: string; state?: string };
+type ServerFormAction = (formData: FormData) => void | Promise<void>;
+type SalesManager = Readonly<{ id: number; name: string }>;
+type FullClientRow = Readonly<{
+  access_mode: "full";
+  id: number | string;
+  name: string;
+  email: string;
+  stage: string;
+  target_country: string | null;
+  target_degree: string | null;
+  manager_name: string | null;
+  curator_name: string | null;
+  overdue_tasks: number;
+  overdue_payments: number;
+  rejected_documents: number;
+}>;
+type SalesSummaryRow = Readonly<{
+  access_mode: "sales_post_handoff_summary";
+  id: number | string;
+  name: string;
+  stage: string;
+  target_country: string | null;
+  target_degree: string | null;
+  curator_name: string | null;
+}>;
+type ClientPresentationRow = FullClientRow | SalesSummaryRow;
 
 function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
 }
 
-function riskPresentation(client: ClientRow, t: (key: string) => string) {
+function riskPresentation(client: FullClientRow, t: (key: string) => string) {
   const signals = [
     client.overdue_tasks > 0 ? `${t("overdueTasks")}: ${client.overdue_tasks}` : null,
     client.overdue_payments > 0 ? `${t("overduePayments")}: ${client.overdue_payments}` : null,
@@ -33,33 +54,186 @@ function riskPresentation(client: ClientRow, t: (key: string) => string) {
   return { label: t("studentRiskNotRecorded"), tone: "neutral" as const };
 }
 
-export default async function ClientsPage({
+export default async function ClientsPageContent({
   searchParams,
 }: {
-  searchParams: Promise<{ stage?: string; q?: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
-  const user = await requireStaffRoute("/clients");
   const { t } = await getT();
-  const { stage, q } = await searchParams;
-  const clients = listClientsForActor(user, { stage, q });
-  const canCreateClient = user.role === "admin" || user.role === "sales";
-  const salesManagers =
-    user.role === "admin"
-      ? listStaff().filter((person) => person.role === "sales")
+  const params = await searchParams;
+
+  if (isUiContractFixtureMode()) {
+    const [{ requireStaffRoute }, queries, { STAGES }, actions] = await Promise.all([
+      import("@/lib/guards"),
+      import("@/lib/queries"),
+      import("@/lib/db"),
+      import("@/lib/actions"),
+    ]);
+    const user = await requireStaffRoute("/clients");
+    const clients = queries.listClientsForActor(user, {
+      stage: params.stage,
+      q: params.q,
+    }).map((client): ClientPresentationRow =>
+      client.access_mode === "sales_post_handoff_summary"
+        ? {
+            access_mode: client.access_mode,
+            id: client.id,
+            name: client.name,
+            stage: client.stage,
+            target_country: client.target_country,
+            target_degree: client.target_degree,
+            curator_name: client.curator_name,
+          }
+        : {
+            access_mode: "full",
+            id: client.id,
+            name: client.name,
+            email: client.email,
+            stage: client.stage,
+            target_country: client.target_country,
+            target_degree: client.target_degree,
+            manager_name: client.manager_name,
+            curator_name: client.curator_name,
+            overdue_tasks: client.overdue_tasks,
+            overdue_payments: client.overdue_payments,
+            rejected_documents: client.rejected_documents,
+          },
+    );
+    const salesManagers = user.role === "admin"
+      ? queries.listStaff().filter((person) => person.role === "sales")
       : [];
+
+    return (
+      <ClientsPresentation
+        t={t}
+        clients={clients}
+        q={params.q}
+        selectedStage={params.stage}
+        filterParam="stage"
+        stageItems={STAGES.map((stage) => ({ key: stage, label: t(`stage.${stage}`) }))}
+        canCreateClient={user.role === "admin" || user.role === "sales"}
+        isAdmin={user.role === "admin"}
+        salesManagers={salesManagers}
+        createClientAction={actions.createClientAction}
+        description={t("student360Hint")}
+        sourceHint={t("studentRecordSourceHint")}
+      />
+    );
+  }
+
+  const { cases, handoffSummaries } =
+    await (await import("./PlatformClientsPage")).loadPlatformClientsPageData();
+  const query = params.q?.trim().toLocaleLowerCase("ru-RU") ?? "";
+  const selectedState = ["pending", "active", "closed"].includes(params.state ?? "")
+    ? params.state
+    : undefined;
+  const matchesQuery = (values: readonly (string | null)[]) =>
+    !query || values.some((value) => value?.toLocaleLowerCase("ru-RU").includes(query));
+  const fullRows: ClientPresentationRow[] = cases
+    .filter((client) => !selectedState || client.state === selectedState)
+    .filter((client) => matchesQuery([
+      client.studentDisplayName,
+      client.targetCountry,
+      client.targetDegree,
+      client.programDirection,
+    ]))
+    .map((client) => ({
+      access_mode: "full",
+      id: client.studentCaseId,
+      name: client.studentDisplayName,
+      email: "",
+      stage: client.state,
+      target_country: client.targetCountry,
+      target_degree: client.targetDegree,
+      manager_name: client.responsibleSalesDisplayName,
+      curator_name: client.currentCuratorDisplayName,
+      overdue_tasks: client.overdueTaskCount,
+      overdue_payments: client.overdueObligationCount,
+      rejected_documents: client.rejectedDocumentCount,
+    }));
+  const summaryRows: ClientPresentationRow[] = handoffSummaries
+    .filter((client) => !selectedState || client.state === selectedState)
+    .filter((client) => matchesQuery([
+      client.studentDisplayName,
+      client.targetCountry,
+      client.targetDegree,
+    ]))
+    .map((client) => ({
+      access_mode: "sales_post_handoff_summary",
+      id: client.studentCaseId,
+      name: client.studentDisplayName,
+      stage: client.state,
+      target_country: client.targetCountry,
+      target_degree: client.targetDegree,
+      curator_name: client.assignedCuratorDisplayName,
+    }));
+  const stateItems = [
+    { key: "pending", label: t("caseState.pending") },
+    { key: "active", label: t("caseState.active") },
+    { key: "closed", label: t("caseState.closed") },
+  ];
+
+  return (
+    <ClientsPresentation
+      t={t}
+      clients={[...fullRows, ...summaryRows]}
+      q={params.q}
+      selectedStage={selectedState}
+      filterParam="state"
+      stageItems={stateItems}
+      canCreateClient={false}
+      isAdmin={false}
+      salesManagers={[]}
+      description="Операционные студенческие кейсы после договора, доступные вашей роли."
+      sourceHint="Операционный этап и команда читаются из аудируемого кейса EVO Platform. Этап продаж ведётся отдельно."
+      testId="platform-clients-page"
+    />
+  );
+}
+
+function ClientsPresentation({
+  t,
+  clients,
+  q,
+  selectedStage: stage,
+  filterParam,
+  stageItems,
+  canCreateClient,
+  isAdmin,
+  salesManagers,
+  createClientAction,
+  description,
+  sourceHint,
+  testId,
+}: Readonly<{
+  t: (key: string) => string;
+  clients: readonly ClientPresentationRow[];
+  q?: string;
+  selectedStage?: string;
+  filterParam: "stage" | "state";
+  stageItems: Array<{ key: string; label: string }>;
+  canCreateClient: boolean;
+  isAdmin: boolean;
+  salesManagers: readonly SalesManager[];
+  createClientAction?: ServerFormAction;
+  description: string;
+  sourceHint: string;
+  testId?: string;
+}>) {
   const qs = (s?: string) => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
-    if (s) p.set("stage", s);
+    if (s) p.set(filterParam, s);
     const str = p.toString();
     return str ? `/clients?${str}` : "/clients";
   };
   const pillBase = "inline-flex min-h-9 items-center rounded-full px-3 text-[12.5px] font-medium transition-[background-color,color] duration-150";
-  const stageItems = STAGES.map((stageItem) => ({ key: stageItem, label: t(`stage.${stageItem}`) }));
+  const stageLabel = (value: string) =>
+    stageItems.find((item) => item.key === value)?.label ?? value;
 
   return (
-    <div className="space-y-5">
-      <PageHeader title={t("student360")} description={t("student360Hint")} />
+    <div className="space-y-5" data-testid={testId}>
+      <PageHeader title={t("student360")} description={description} />
 
       <section
         aria-labelledby="student-source-title"
@@ -70,7 +244,7 @@ export default async function ClientsPage({
           <h2 id="student-source-title" className="text-[12px] font-bold uppercase tracking-[0.06em]">
             {t("operationalContext")}
           </h2>
-          <p className="mt-1 max-w-4xl text-[12.5px] leading-5 text-fg-2">{t("studentRecordSourceHint")}</p>
+          <p className="mt-1 max-w-4xl text-[12.5px] leading-5 text-fg-2">{sourceHint}</p>
         </div>
       </section>
 
@@ -86,7 +260,7 @@ export default async function ClientsPage({
           </div>
           <button type="submit" className={cn(btnCls, "sm:w-auto")}>{t("search")}</button>
         </form>
-        {canCreateClient && (
+        {canCreateClient && createClientAction && (
           <details id="add" className="group relative w-full scroll-mt-24 lg:w-auto">
             <summary className={cn(btnCls, "w-full cursor-pointer list-none lg:w-auto")}>
               <Icon name="plus" size={16} /> {t("addClient")}
@@ -119,7 +293,7 @@ export default async function ClientsPage({
                 {t("source")}
                 <input name="source" placeholder={t("source")} className={cn(inputCls, "mt-1")} />
               </label>
-              {user.role === "admin" && (
+              {isAdmin && (
                 <label className={cn(labelCls, "mb-0 sm:col-span-2")}>
                   {t("manager")}
                   <select name="manager_id" required defaultValue="" className={cn(inputCls, "mt-1")}>
@@ -141,9 +315,9 @@ export default async function ClientsPage({
           <Link href={qs()} aria-current={!stage ? "page" : undefined} className={cn(pillBase, !stage ? "bg-accent text-on-accent" : "bg-surface-2 text-fg-2 hover:text-fg")}>
             {t("allStages")}
           </Link>
-          {STAGES.map((s) => (
+          {stageItems.map(({ key: s, label }) => (
             <Link key={s} href={qs(s)} aria-current={stage === s ? "page" : undefined} className={cn(pillBase, stage === s ? "bg-accent text-on-accent" : "bg-surface-2 text-fg-2 hover:text-fg")}>
-              {t(`stage.${s}`)}
+              {label}
             </Link>
           ))}
         </div>
@@ -180,7 +354,7 @@ export default async function ClientsPage({
                     </span>
                   </Link>
                 </td>
-                <td className="px-4 py-3"><Badge value={c.stage} label={t(`stage.${c.stage}`)} /></td>
+                <td className="px-4 py-3"><Badge value={c.stage} label={stageLabel(c.stage)} /></td>
                 <td className="px-4 py-3 text-fg-2">
                   {[c.target_country, c.target_degree].filter(Boolean).join(" · ") || "—"}
                 </td>
@@ -199,7 +373,7 @@ export default async function ClientsPage({
                     compact
                     stages={stageItems}
                     currentStage={c.stage}
-                    currentLabel={t(`stage.${c.stage}`)}
+                    currentLabel={stageLabel(c.stage)}
                     label={`${t("portalProgress")}: ${c.name}`}
                   />
                 </td>
@@ -242,7 +416,7 @@ export default async function ClientsPage({
                       || (summary ? t("salesSummaryAccess") : c.email)}
                   </p>
                 </div>
-                <Badge value={c.stage} label={t(`stage.${c.stage}`)} />
+                <Badge value={c.stage} label={stageLabel(c.stage)} />
               </div>
 
               <div className="mt-4">
@@ -250,7 +424,7 @@ export default async function ClientsPage({
                   compact
                   stages={stageItems}
                   currentStage={c.stage}
-                  currentLabel={t(`stage.${c.stage}`)}
+                  currentLabel={stageLabel(c.stage)}
                   label={`${t("portalProgress")}: ${c.name}`}
                 />
               </div>

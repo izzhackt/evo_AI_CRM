@@ -511,6 +511,18 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_business_workflow_contracts_rls.sql
   fi
+
+  # BW2 owns migration 052's workflow-to-case binding and fixed staff
+  # repository projections. Prove its catalog/ACL posture before exercising
+  # the stateful case/handoff/application authorization and replay contract.
+  if [[ "$(basename "$migration")" == 052_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_workflow_case_bindings_inventory.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_workflow_case_bindings_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

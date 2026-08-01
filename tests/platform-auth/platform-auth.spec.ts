@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
@@ -32,6 +33,7 @@ type Fixture = Readonly<{
   p3c: Readonly<{
     orgA: Readonly<{
       organizationId: string;
+      studentCaseId: string;
       conversationId: string;
       selectedKnowledgeVersionId: string;
       aiDraftRequestId: string;
@@ -93,6 +95,73 @@ async function login(page: Page, identity: Identity) {
   await page.getByRole("button", { name: "Войти" }).click();
 }
 
+function expectedStaffHome(identity: Identity): RegExp {
+  if (identity === fixture.identities.curator) return /\/clients$/;
+  if (
+    identity === fixture.identities.finance ||
+    identity === fixture.identities.student
+  ) {
+    return /\/platform-pending$/;
+  }
+  return /\/sales$/;
+}
+
+async function loginToMessaging(page: Page, identity: Identity) {
+  await login(page, identity);
+  await expect(page).toHaveURL(expectedStaffHome(identity));
+  await page.goto("/whatsapp");
+  await expect(page).toHaveURL(/\/whatsapp$/);
+}
+
+async function localAccessToken(identity: Identity): Promise<string> {
+  const response = await fetch(
+    `${fixture.apiUrl}/auth/v1/token?grant_type=password`,
+    {
+      method: "POST",
+      headers: {
+        apikey: fixture.publishableKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(identity),
+    },
+  );
+  expect(response.status).toBe(200);
+  const payload = (await response.json()) as { access_token?: unknown };
+  if (typeof payload.access_token !== "string" || !payload.access_token) {
+    throw new Error("Local Auth did not return an admin access token");
+  }
+  return payload.access_token;
+}
+
+async function applicationCreateAudit(
+  token: string,
+  applicationId: string,
+  requestId: string,
+) {
+  const query = new URLSearchParams({
+    select:
+      "organization_id,action,resource_type,resource_id,request_id",
+    organization_id: `eq.${fixture.p3c.orgA.organizationId}`,
+    action: "eq.application.create",
+    resource_type: "eq.university_application",
+    resource_id: `eq.${applicationId}`,
+    request_id: `eq.${requestId}`,
+  });
+  const response = await fetch(
+    `${fixture.apiUrl}/rest/v1/audit_events?${query.toString()}`,
+    {
+      headers: {
+        apikey: fixture.publishableKey,
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Accept-Profile": "platform",
+      },
+    },
+  );
+  expect(response.status).toBe(200);
+  return (await response.json()) as unknown;
+}
+
 function escapePathForRegex(pathname: string) {
   return pathname.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -133,8 +202,7 @@ async function workflowRpc(
 }
 
 async function openOrgAConversation(page: Page, identity: Identity) {
-  await login(page, identity);
-  await expect(page).toHaveURL(/\/whatsapp$/);
+  await loginToMessaging(page, identity);
   await page.goto(`/whatsapp/${fixture.p3c.orgA.conversationId}`);
   await expect(page).toHaveURL(
     new RegExp(`/whatsapp/${fixture.p3c.orgA.conversationId}$`),
@@ -146,8 +214,7 @@ async function openConversation(
   identity: Identity,
   conversationId: string,
 ) {
-  await login(page, identity);
-  await expect(page).toHaveURL(/\/whatsapp$/);
+  await loginToMessaging(page, identity);
   await page.goto(`/whatsapp/${conversationId}`);
   await expect(page).toHaveURL(new RegExp(`/whatsapp/${conversationId}$`));
   await expect(page.getByTestId("platform-messaging-workflow")).toBeVisible();
@@ -249,8 +316,7 @@ test("route-level auth failures surface an explicit login error", async ({
 test("admin opens ordered synthetic inbound messages through Supabase RLS", async ({
   page,
 }) => {
-  await login(page, fixture.identities.admin);
-  await expect(page).toHaveURL(/\/whatsapp$/);
+  await loginToMessaging(page, fixture.identities.admin);
 
   const list = page.getByTestId("platform-conversation-list");
   await expect(list).toBeVisible();
@@ -311,8 +377,7 @@ test("assigned Curator reads the same persisted local P3C workflow", async ({
 test("same-organization Sales cannot open another Sales scope", async ({
   page,
 }) => {
-  await login(page, fixture.identities.salesScoped);
-  await expect(page).toHaveURL(/\/whatsapp$/);
+  await loginToMessaging(page, fixture.identities.salesScoped);
 
   const list = page.getByTestId("platform-conversation-list");
   await expect(list).toBeVisible();
@@ -328,10 +393,23 @@ test("same-organization Sales cannot open another Sales scope", async ({
   );
 });
 
-test("active messaging staff reaches only the Supabase-backed surface", async ({
+test("active staff reaches only connected Supabase-backed surfaces", async ({
   page,
 }) => {
   await login(page, fixture.identities.admin);
+  await expect(page).toHaveURL(/\/sales$/);
+  await expect(page.getByTestId("platform-sales-page")).toBeVisible();
+  await expect(page.getByText("Рабочий контракт OP не утверждён")).toBeVisible();
+
+  await page.goto("/clients");
+  await expect(page.getByTestId("platform-clients-page")).toBeVisible();
+  await expect(page.getByText("Synthetic Org A Student", { exact: true })).toBeVisible();
+
+  await page.goto("/applications");
+  await expect(page.getByTestId("platform-applications-page")).toBeVisible();
+  await expect(page.getByText("Заявок по выбранному фильтру нет.")).toBeVisible();
+
+  await page.goto("/whatsapp");
   await expect(page).toHaveURL(/\/whatsapp$/);
   await expect(page.getByTestId("platform-conversation-list")).toBeVisible();
   await expect(
@@ -341,9 +419,6 @@ test("active messaging staff reaches only the Supabase-backed surface", async ({
 
   for (const legacyRoute of [
     "/dashboard",
-    "/sales",
-    "/clients",
-    "/applications",
     "/documents",
     "/visa",
     "/calls",
@@ -411,11 +486,84 @@ test("active messaging staff reaches only the Supabase-backed surface", async ({
   await expect(page).toHaveURL(/\/login$/);
 });
 
+test("admin creates a preparation application with one RLS-visible audit event", async ({
+  page,
+}) => {
+  const runId = randomUUID();
+  const institutionName = `Synthetic BW2 University ${runId.slice(0, 8)}`;
+  const programName = `Synthetic admissions program ${runId.slice(9, 17)}`;
+
+  await login(page, fixture.identities.admin);
+  await expect(page).toHaveURL(/\/sales$/);
+  await page.goto("/applications");
+  await expect(page.getByTestId("platform-applications-page")).toBeVisible();
+
+  await page.locator("#add > summary").click();
+  const form = page.locator("#add form");
+  const requestId = await form.locator('input[name="request_id"]').inputValue();
+  expect(requestId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  await form
+    .locator('select[name="student_case_id"]')
+    .selectOption(fixture.p3c.orgA.studentCaseId);
+  await expect(form.locator('select[name="student_case_id"]')).toHaveValue(
+    fixture.p3c.orgA.studentCaseId,
+  );
+  await form.locator('select[name="status"]').selectOption("preparation");
+  await form.locator('input[name="institution_name"]').fill(institutionName);
+  await form.locator('input[name="program_name"]').fill(programName);
+  await form
+    .locator('textarea[name="note"]')
+    .fill("Synthetic local BW2 application proof; no provider was called.");
+  await form.getByRole("button", { name: "Создать с аудитом" }).click();
+
+  await expect(page).toHaveURL(/\/applications\?result=saved$/);
+  await expect(page.getByText("Заявка сохранена", { exact: true })).toBeVisible();
+  const applicationLink = page.locator('a[href^="/applications/"]', {
+    hasText: institutionName,
+  });
+  await expect(applicationLink).toHaveCount(1);
+  await expect(applicationLink).toContainText(programName);
+  const applicationHref = await applicationLink.getAttribute("href");
+  const applicationId = applicationHref?.match(
+    /^\/applications\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i,
+  )?.[1];
+  expect(applicationId).toBeTruthy();
+  if (!applicationId) {
+    throw new Error("Created application link did not contain a UUID");
+  }
+
+  await applicationLink.click();
+  await expect(page).toHaveURL(new RegExp(`/applications/${applicationId}$`));
+  await expect(page.getByTestId("platform-application-detail-page")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: institutionName, exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(programName, { exact: false })).toBeVisible();
+
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const audit = await applicationCreateAudit(
+    adminToken,
+    applicationId,
+    requestId,
+  );
+  expect(audit).toEqual([
+    {
+      organization_id: fixture.p3c.orgA.organizationId,
+      action: "application.create",
+      resource_type: "university_application",
+      resource_id: applicationId,
+      request_id: requestId,
+    },
+  ]);
+});
+
 test("staff and student role destinations remain separated", async ({
   browser,
 }) => {
   for (const [identity, expectedPath] of [
-    [fixture.identities.curator, /\/whatsapp$/],
+    [fixture.identities.curator, /\/clients$/],
     [fixture.identities.finance, /\/platform-pending$/],
     [fixture.identities.student, /\/platform-pending$/],
   ] as const) {
@@ -423,6 +571,19 @@ test("staff and student role destinations remain separated", async ({
     const page = await context.newPage();
     await login(page, identity);
     await expect(page).toHaveURL(expectedPath);
+    if (identity === fixture.identities.curator) {
+      await expect(page.getByTestId("platform-clients-page")).toBeVisible();
+      await page.goto("/sales");
+      await expect(page).toHaveURL(/\/platform-pending\?from=%2Fsales$/);
+    }
+    if (identity === fixture.identities.finance) {
+      for (const route of ["/clients", "/applications"]) {
+        await page.goto(route);
+        const destination = new URL(page.url());
+        expect(destination.pathname, route).toBe("/platform-pending");
+        expect(destination.searchParams.get("from"), route).toBe(route);
+      }
+    }
     if (expectedPath.source.includes("platform-pending")) {
       await expect(page.getByTestId("platform-pending")).toBeVisible();
       await expect(page.getByRole("link", { name: "Открыть сообщения" })).toHaveCount(0);
@@ -434,8 +595,7 @@ test("staff and student role destinations remain separated", async ({
 test("cross-organization admin is denied the org A P3C workflow route", async ({
   page,
 }) => {
-  await login(page, fixture.identities.crossOrgAdmin);
-  await expect(page).toHaveURL(/\/whatsapp$/);
+  await loginToMessaging(page, fixture.identities.crossOrgAdmin);
   const list = page.getByTestId("platform-conversation-list");
   await expect(
     list.getByText(fixture.conversations.orgA.subject, { exact: true }),

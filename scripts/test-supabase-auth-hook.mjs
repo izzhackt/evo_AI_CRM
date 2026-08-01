@@ -2141,6 +2141,7 @@ const main = async () => {
         p3c: {
           orgA: {
             organizationId: adminAMembership.organization_id,
+            studentCaseId: orgAStudentCaseId,
             conversationId: orgAConversation.id,
             selectedKnowledgeVersionId: orgAKnowledgeVersionId,
             aiDraftRequestId: orgAAiDraftRequestId,

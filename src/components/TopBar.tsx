@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LangSwitcher } from "@/components/LangSwitcher";
+import type { ReactNode } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Icon } from "@/components/icons";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
@@ -113,6 +113,8 @@ export function TopBar({
   integrationStatus,
   role,
   homeHref = "/dashboard",
+  connectedRoutesOnly = false,
+  languageSwitcher,
 }: {
   titles: Record<string, Meta>;
   locale: Locale;
@@ -127,11 +129,14 @@ export function TopBar({
   };
   role: StaffRole;
   homeHref?: string;
+  connectedRoutesOnly?: boolean;
+  languageSwitcher: ReactNode;
 }) {
   const pathname = usePathname();
   const base = `/${pathname.split("/")[1] ?? ""}`;
   const meta = titles[base] ?? titles["/dashboard"];
   const showAdd =
+    !connectedRoutesOnly &&
     ADD_ROUTES.has(base) &&
     !(base === "/whatsapp" && (pathname !== "/whatsapp" || role !== "admin")) &&
     !(base === "/clients" && role !== "admin" && role !== "sales");
@@ -176,7 +181,7 @@ export function TopBar({
         </div>
 
         <div className="staff-topbar__actions">
-          <details className="notification-menu">
+          {!connectedRoutesOnly && <details className="notification-menu">
             <summary
               className="notification-menu__trigger"
               aria-label={`${notificationCopy.label}: ${notificationCountLabel} ${notificationCopy.count}`}
@@ -212,9 +217,9 @@ export function TopBar({
                 <Icon name="chevron-right" size={15} />
               </Link>
             </div>
-          </details>
+          </details>}
           <div className="staff-topbar__language">
-            <LangSwitcher current={locale} />
+            {languageSwitcher}
           </div>
           <ThemeToggle label={themeLabel} />
           {showAdd && (
@@ -257,7 +262,7 @@ export function TopBar({
           </span>
         </div>
         <div className="staff-topbar__mobile-language">
-          <LangSwitcher current={locale} />
+          {languageSwitcher}
         </div>
       </div>
     </header>

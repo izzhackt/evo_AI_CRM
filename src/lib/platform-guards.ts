@@ -6,9 +6,9 @@ import {
 } from "./platform-auth";
 
 export function platformHomeRoute(role: PlatformRole): string {
-  return role === "admin" || role === "sales" || role === "curator"
-    ? "/whatsapp"
-    : "/platform-pending";
+  if (role === "admin" || role === "sales") return "/sales";
+  if (role === "curator") return "/clients";
+  return "/platform-pending";
 }
 
 export async function requirePlatformActor(): Promise<PlatformActor> {
@@ -32,6 +32,32 @@ export async function requirePlatformMessagingActor(): Promise<PlatformActor> {
   const actor = await requirePlatformStaffActor();
   if (actor.platformRole === "finance") {
     redirect("/platform-pending?from=%2Fwhatsapp");
+  }
+  return actor;
+}
+
+export async function requirePlatformAdmissionsActor(
+  route: "/clients" | "/applications" = "/clients",
+): Promise<PlatformActor> {
+  const actor = await requirePlatformStaffActor();
+  if (actor.platformRole === "finance") {
+    redirect(`/platform-pending?from=${encodeURIComponent(route)}`);
+  }
+  return actor;
+}
+
+export function requirePlatformClientsActor(): Promise<PlatformActor> {
+  return requirePlatformAdmissionsActor("/clients");
+}
+
+export function requirePlatformApplicationsActor(): Promise<PlatformActor> {
+  return requirePlatformAdmissionsActor("/applications");
+}
+
+export async function requirePlatformSalesActor(): Promise<PlatformActor> {
+  const actor = await requirePlatformStaffActor();
+  if (actor.platformRole !== "admin" && actor.platformRole !== "sales") {
+    redirect("/platform-pending?from=%2Fsales");
   }
   return actor;
 }

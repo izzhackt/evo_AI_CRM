@@ -7,6 +7,15 @@ const PLATFORM_PAGE_ALLOWLIST = new Set([
   "/clients",
   "/applications",
   "/whatsapp",
+  "/portal",
+  "/portal/applications",
+  "/portal/documents",
+  "/portal/messages",
+  "/portal/notifications",
+  "/portal/payments",
+  "/portal/profile",
+  "/portal/team",
+  "/portal/visa",
 ]);
 const PLATFORM_CONVERSATION_PATH =
   /^\/whatsapp\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -14,6 +23,23 @@ const PLATFORM_CLIENT_PATH =
   /^\/clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_APPLICATION_PATH =
   /^\/applications\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function platformHomeRoute(role: PlatformRole): string {
+  if (role === "admin" || role === "sales") return "/sales";
+  if (role === "curator") return "/clients";
+  if (role === "student") return "/portal";
+  return "/platform-pending";
+}
+
+export function platformStudentPortalRedirect(
+  role: PlatformRole,
+): string | null {
+  return role === "student" ? null : platformHomeRoute(role);
+}
+
+export function platformStaffRedirect(role: PlatformRole): string | null {
+  return role === "student" ? "/portal" : null;
+}
 
 /**
  * Only routes backed by the greenfield Platform data plane may pass proxy.
@@ -29,3 +55,4 @@ export function isConnectedPlatformPage(path: string): boolean {
     PLATFORM_APPLICATION_PATH.test(path)
   );
 }
+import type { PlatformRole } from "./platform-auth";

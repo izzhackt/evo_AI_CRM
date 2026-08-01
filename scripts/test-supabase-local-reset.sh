@@ -342,7 +342,20 @@ if ! "${SUPABASE_CLI}" \
   >"${TEMP_DIR}/post-browser-reset.json" \
   2>"${TEMP_DIR}/post-browser-reset.log"; then
   show_safe_failure_log "${TEMP_DIR}/post-browser-reset.log"
-  fail "Post-browser disposable Supabase reset failed."
+  # Supabase CLI can return non-zero while the named disposable stack is still
+  # completing its container restart. Retry the same clean reset once; never
+  # continue to Storage/Queues unless a reset command itself succeeds.
+  if ! "${SUPABASE_CLI}" \
+    --workdir "${REPO_ROOT}" \
+    --output-format json \
+    db reset \
+    --local \
+    --no-seed \
+    >"${TEMP_DIR}/post-browser-reset-retry.json" \
+    2>"${TEMP_DIR}/post-browser-reset-retry.log"; then
+    show_safe_failure_log "${TEMP_DIR}/post-browser-reset-retry.log"
+    fail "Post-browser disposable Supabase reset failed after one bounded retry."
+  fi
 fi
 
 if ! "${SUPABASE_CLI}" \

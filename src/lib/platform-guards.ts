@@ -2,14 +2,18 @@ import { redirect } from "next/navigation";
 import {
   resolvePlatformActor,
   type PlatformActor,
-  type PlatformRole,
 } from "./platform-auth";
+import {
+  platformHomeRoute,
+  platformStaffRedirect,
+  platformStudentPortalRedirect,
+} from "./platform-route-contract";
 
-export function platformHomeRoute(role: PlatformRole): string {
-  if (role === "admin" || role === "sales") return "/sales";
-  if (role === "curator") return "/clients";
-  return "/platform-pending";
-}
+export {
+  platformHomeRoute,
+  platformStaffRedirect,
+  platformStudentPortalRedirect,
+};
 
 export async function requirePlatformActor(): Promise<PlatformActor> {
   const result = await resolvePlatformActor();
@@ -22,9 +26,15 @@ export async function requirePlatformActor(): Promise<PlatformActor> {
 
 export async function requirePlatformStaffActor(): Promise<PlatformActor> {
   const actor = await requirePlatformActor();
-  if (actor.platformRole === "student") {
-    redirect("/platform-pending?from=%2Fportal");
-  }
+  const destination = platformStaffRedirect(actor.platformRole);
+  if (destination) redirect(destination);
+  return actor;
+}
+
+export async function requirePlatformStudentPortalActor(): Promise<PlatformActor> {
+  const actor = await requirePlatformActor();
+  const destination = platformStudentPortalRedirect(actor.platformRole);
+  if (destination) redirect(destination);
   return actor;
 }
 

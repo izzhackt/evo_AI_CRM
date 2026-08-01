@@ -12,7 +12,7 @@ type ServerFormAction = (formData: FormData) => void | Promise<void>;
 type PresentationActor = Readonly<{ id: EntityId; role: string }>;
 type PresentationContact = Readonly<{
   name: string;
-  email: string;
+  email: string | null;
   phone: string | null;
 }>;
 type PresentationClientSummary = Readonly<{
@@ -58,6 +58,33 @@ type PresentationDocument = Readonly<{
   name: string;
   status: string;
   comment: string | null;
+  connected?: boolean;
+}>;
+type PresentationStudentProfile = Readonly<{
+  revision: number;
+  preferredDisplayName: string | null;
+  legalDisplayName: string | null;
+  communicationLanguage: "ru" | "en" | null;
+  dateOfBirth: string | null;
+  citizenshipCountry: string | null;
+  residencyCountry: string | null;
+  currentEducationSummary: string | null;
+  academicSummary: string | null;
+  languageSummary: string | null;
+  budgetBand: string | null;
+  decisionParticipantLabels: readonly string[];
+  consentStatus: string;
+  consentEvidenceRef: string | null;
+  nextStep: string | null;
+  appliedCountryRequirementVersionId: string | null;
+  checklistVersion: number | null;
+  requiredProfileFields: readonly string[];
+}>;
+type PresentationCountryRequirementVersion = Readonly<{
+  id: string;
+  checklistVersion: number;
+  status: "draft" | "approved" | "retired";
+  sourceCount: number;
 }>;
 type PresentationVisa = Readonly<{
   country: string;
@@ -124,6 +151,8 @@ type PresentationActions = Readonly<{
   closeCase?: ServerFormAction;
   reopenCase?: ServerFormAction;
   changePlatformState?: ServerFormAction;
+  updateStudentProfile?: ServerFormAction;
+  applyCountryRequirementVersion?: ServerFormAction;
 }>;
 
 export type ClientPagePresentationData =
@@ -168,6 +197,12 @@ export type ClientPagePresentationData =
       result?: "saved" | "invalid" | "unavailable";
       lifecycleRequestId?: string;
       warning?: Readonly<{ title: string; description: string }>;
+      studentProfile?: PresentationStudentProfile;
+      countryRequirementVersions?: readonly PresentationCountryRequirementVersion[];
+      canEditStudentProfile?: boolean;
+      canApplyCountryRequirements?: boolean;
+      profileRequestId?: string;
+      checklistRequestId?: string;
       connected: boolean;
       testId?: string;
     }>;
@@ -386,7 +421,108 @@ export default async function ClientPageContent({
     canManageLifecycle,
     canViewCaseAudit,
     canMutatePayments,
+    studentProfile,
+    countryRequirementVersions = [],
+    canEditStudentProfile = false,
+    canApplyCountryRequirements = false,
+    profileRequestId,
+    checklistRequestId,
   } = data;
+  const profileLabels = {
+    ru: {
+      title: "Профиль студента",
+      preferredName: "Предпочитаемое имя",
+      legalName: "Имя по документам",
+      language: "Язык общения",
+      birthDate: "Дата рождения",
+      citizenship: "Гражданство",
+      residence: "Страна проживания",
+      education: "Текущее образование",
+      academic: "Академический профиль",
+      languageSummary: "Языковая подготовка",
+      budget: "Бюджетный диапазон",
+      participants: "Участники решения",
+      consent: "Статус согласия",
+      consentEvidence: "Ссылка на подтверждение согласия",
+      nextStep: "Следующий шаг",
+      reason: "Причина изменения",
+      checklist: "Версия странового чек-листа",
+      noChecklist: "Не назначена",
+      requiredFields: "Обязательные поля профиля",
+      provenance: "Подтверждённых источников",
+      applyChecklist: "Применить утверждённую версию",
+      saveProfile: "Сохранить профиль",
+    },
+    ky: {
+      title: "Студенттин профили",
+      preferredName: "Колдонулуучу аты",
+      legalName: "Документтеги аты",
+      language: "Байланыш тили",
+      birthDate: "Туулган күнү",
+      citizenship: "Жарандыгы",
+      residence: "Жашаган өлкөсү",
+      education: "Учурдагы билими",
+      academic: "Академиялык профили",
+      languageSummary: "Тилдик даярдыгы",
+      budget: "Бюджет аралыгы",
+      participants: "Чечимге катышуучулар",
+      consent: "Макулдук абалы",
+      consentEvidence: "Макулдукту ырастоо шилтемеси",
+      nextStep: "Кийинки кадам",
+      reason: "Өзгөртүүнүн себеби",
+      checklist: "Өлкө чек-листинин версиясы",
+      noChecklist: "Дайындалган эмес",
+      requiredFields: "Профилдин милдеттүү талаалары",
+      provenance: "Текшерилген булактар",
+      applyChecklist: "Бекитилген версияны колдонуу",
+      saveProfile: "Профилди сактоо",
+    },
+    en: {
+      title: "Student profile",
+      preferredName: "Preferred name",
+      legalName: "Legal name",
+      language: "Communication language",
+      birthDate: "Date of birth",
+      citizenship: "Citizenship",
+      residence: "Country of residence",
+      education: "Current education",
+      academic: "Academic profile",
+      languageSummary: "Language preparation",
+      budget: "Budget band",
+      participants: "Decision participants",
+      consent: "Consent status",
+      consentEvidence: "Consent evidence reference",
+      nextStep: "Next step",
+      reason: "Reason for change",
+      checklist: "Country checklist version",
+      noChecklist: "Not assigned",
+      requiredFields: "Required profile fields",
+      provenance: "Verified sources",
+      applyChecklist: "Apply approved version",
+      saveProfile: "Save profile",
+    },
+  }[locale];
+  const profileFieldLabels: Readonly<Record<string, string>> = {
+    preferred_display_name: profileLabels.preferredName,
+    legal_display_name: profileLabels.legalName,
+    communication_language: profileLabels.language,
+    date_of_birth: profileLabels.birthDate,
+    citizenship_country: profileLabels.citizenship,
+    residency_country: profileLabels.residence,
+    current_education_summary: profileLabels.education,
+    academic_summary: profileLabels.academic,
+    language_summary: profileLabels.languageSummary,
+    budget_band: profileLabels.budget,
+    decision_participant_labels: profileLabels.participants,
+    consent_status: profileLabels.consent,
+    consent_evidence_ref: profileLabels.consentEvidence,
+    next_step: profileLabels.nextStep,
+  };
+  const appliedCountryVersion = studentProfile?.appliedCountryRequirementVersionId
+    ? countryRequirementVersions.find(
+        (version) => version.id === studentProfile.appliedCountryRequirementVersionId,
+      ) ?? null
+    : null;
   const num = (value: number) =>
     value.toLocaleString({ ru: "ru-RU", ky: "ky-KG", en: "en-US" }[locale]);
   const contractConfirmed = Boolean(
@@ -797,8 +933,254 @@ export default async function ClientPageContent({
 
       {/* Profile */}
       <section id="profile" className="scroll-mt-24">
-        <Card title={t("client")}>
-        {actions.updateClient ? (
+        <Card title={studentProfile ? profileLabels.title : t("client")}>
+        {studentProfile ? (
+          <div className="space-y-4">
+            {canEditStudentProfile && actions.updateStudentProfile ? (
+              <form
+                action={actions.updateStudentProfile}
+                data-testid="platform-student-profile-form"
+                className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+              >
+                <input type="hidden" name="student_case_id" value={client.id} />
+                <input type="hidden" name="expected_revision" value={studentProfile.revision} />
+                {profileRequestId && <input type="hidden" name="request_id" value={profileRequestId} />}
+                <label className={labelCls}>
+                  {profileLabels.preferredName}
+                  <input
+                    name="preferred_display_name"
+                    required
+                    maxLength={160}
+                    defaultValue={studentProfile.preferredDisplayName ?? ""}
+                    className={cn(inputCls, "mt-1")}
+                  />
+                </label>
+                {studentProfile.requiredProfileFields.includes("legal_display_name") && (
+                  <label className={labelCls}>
+                    {profileLabels.legalName}
+                    <input
+                      name="legal_display_name"
+                      required
+                      maxLength={200}
+                      defaultValue={studentProfile.legalDisplayName ?? ""}
+                      className={cn(inputCls, "mt-1")}
+                    />
+                  </label>
+                )}
+                <label className={labelCls}>
+                  {profileLabels.language}
+                  <select
+                    name="communication_language"
+                    required
+                    defaultValue={studentProfile.communicationLanguage ?? ""}
+                    className={cn(inputCls, "mt-1")}
+                  >
+                    <option value="">—</option>
+                    <option value="ru">RU</option>
+                    <option value="en">EN</option>
+                  </select>
+                </label>
+                {studentProfile.requiredProfileFields.includes("date_of_birth") && (
+                  <label className={labelCls}>
+                    {profileLabels.birthDate}
+                    <input
+                      name="date_of_birth"
+                      type="date"
+                      required
+                      defaultValue={studentProfile.dateOfBirth ?? ""}
+                      className={cn(inputCls, "mt-1 font-mono")}
+                    />
+                  </label>
+                )}
+                <label className={labelCls}>
+                  {profileLabels.citizenship}
+                  <input
+                    name="citizenship_country"
+                    required
+                    maxLength={120}
+                    defaultValue={studentProfile.citizenshipCountry ?? ""}
+                    className={cn(inputCls, "mt-1")}
+                  />
+                </label>
+                <label className={labelCls}>
+                  {profileLabels.residence}
+                  <input
+                    name="residency_country"
+                    required
+                    maxLength={120}
+                    defaultValue={studentProfile.residencyCountry ?? ""}
+                    className={cn(inputCls, "mt-1")}
+                  />
+                </label>
+                <label className={labelCls}>
+                  {profileLabels.budget}
+                  <input
+                    name="budget_band"
+                    required
+                    maxLength={120}
+                    defaultValue={studentProfile.budgetBand ?? ""}
+                    className={cn(inputCls, "mt-1")}
+                  />
+                </label>
+                <label className={labelCls}>
+                  {profileLabels.consent}
+                  <select
+                    name="consent_status"
+                    defaultValue={studentProfile.consentStatus}
+                    className={cn(inputCls, "mt-1")}
+                  >
+                    <option value="not_recorded">not_recorded</option>
+                    <option value="granted">granted</option>
+                    <option value="withdrawn">withdrawn</option>
+                  </select>
+                </label>
+                <label className={labelCls}>
+                  {profileLabels.consentEvidence}
+                  <input
+                    name="consent_evidence_ref"
+                    required={studentProfile.requiredProfileFields.includes("consent_evidence_ref")}
+                    maxLength={512}
+                    defaultValue={studentProfile.consentEvidenceRef ?? ""}
+                    className={cn(inputCls, "mt-1")}
+                  />
+                </label>
+                <label className={cn(labelCls, "sm:col-span-2 lg:col-span-3")}>
+                  {profileLabels.education}
+                  <textarea
+                    name="current_education_summary"
+                    required
+                    maxLength={2000}
+                    defaultValue={studentProfile.currentEducationSummary ?? ""}
+                    rows={2}
+                    className={cn(inputCls, "mt-1 resize-y py-2")}
+                  />
+                </label>
+                <label className={cn(labelCls, "sm:col-span-2 lg:col-span-3")}>
+                  {profileLabels.academic}
+                  <textarea
+                    name="academic_summary"
+                    required
+                    maxLength={2000}
+                    defaultValue={studentProfile.academicSummary ?? ""}
+                    rows={2}
+                    className={cn(inputCls, "mt-1 resize-y py-2")}
+                  />
+                </label>
+                <label className={cn(labelCls, "sm:col-span-2 lg:col-span-3")}>
+                  {profileLabels.languageSummary}
+                  <textarea
+                    name="language_summary"
+                    required
+                    maxLength={2000}
+                    defaultValue={studentProfile.languageSummary ?? ""}
+                    rows={2}
+                    className={cn(inputCls, "mt-1 resize-y py-2")}
+                  />
+                </label>
+                <label className={cn(labelCls, "sm:col-span-2 lg:col-span-3")}>
+                  {profileLabels.participants}
+                  <input
+                    name="decision_participant_labels"
+                    required={studentProfile.requiredProfileFields.includes("decision_participant_labels")}
+                    maxLength={2400}
+                    defaultValue={studentProfile.decisionParticipantLabels.join(", ")}
+                    className={cn(inputCls, "mt-1")}
+                  />
+                </label>
+                <label className={cn(labelCls, "sm:col-span-2 lg:col-span-3")}>
+                  {profileLabels.nextStep}
+                  <textarea
+                    name="profile_next_step"
+                    required
+                    maxLength={1000}
+                    defaultValue={studentProfile.nextStep ?? ""}
+                    rows={2}
+                    className={cn(inputCls, "mt-1 resize-y py-2")}
+                  />
+                </label>
+                <label className={cn(labelCls, "sm:col-span-2 lg:col-span-3")}>
+                  {profileLabels.reason}
+                  <input name="reason" required minLength={3} maxLength={500} className={cn(inputCls, "mt-1")} />
+                </label>
+                <div>
+                  <button type="submit" className={btnCls}>{profileLabels.saveProfile}</button>
+                </div>
+              </form>
+            ) : (
+              <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  [profileLabels.preferredName, studentProfile.preferredDisplayName],
+                  [profileLabels.legalName, studentProfile.legalDisplayName],
+                  [profileLabels.language, studentProfile.communicationLanguage?.toUpperCase() ?? null],
+                  [profileLabels.birthDate, studentProfile.dateOfBirth],
+                  [profileLabels.citizenship, studentProfile.citizenshipCountry],
+                  [profileLabels.residence, studentProfile.residencyCountry],
+                  [profileLabels.education, studentProfile.currentEducationSummary],
+                  [profileLabels.academic, studentProfile.academicSummary],
+                  [profileLabels.languageSummary, studentProfile.languageSummary],
+                  [profileLabels.budget, studentProfile.budgetBand],
+                  [profileLabels.participants, studentProfile.decisionParticipantLabels.join(", ")],
+                  [profileLabels.consent, studentProfile.consentStatus],
+                  [profileLabels.nextStep, studentProfile.nextStep],
+                ].filter((entry): entry is [string, string] => Boolean(entry[1])).map(([label, value]) => (
+                  <div key={label} className="rounded-nav border border-border bg-surface-2 p-3">
+                    <dt className={labelCls}>{label}</dt>
+                    <dd className="mt-1 whitespace-pre-wrap text-[13px] font-medium text-fg">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+
+            <div className="border-t border-border pt-4" data-testid="platform-country-checklist">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className={labelCls}>{profileLabels.checklist}</p>
+                  <p className="mt-1 text-[13.5px] font-semibold text-fg">
+                    {studentProfile.checklistVersion === null
+                      ? profileLabels.noChecklist
+                      : `v${studentProfile.checklistVersion}`}
+                  </p>
+                  <p className="mt-2 text-[11.5px] text-fg-3">
+                    {profileLabels.requiredFields}: {studentProfile.requiredProfileFields
+                      .map((field) => profileFieldLabels[field] ?? field)
+                      .join(", ") || "—"}
+                  </p>
+                  {appliedCountryVersion && (
+                    <p className="mt-1 text-[11.5px] text-fg-3">
+                      {profileLabels.provenance}: {appliedCountryVersion.sourceCount}
+                    </p>
+                  )}
+                </div>
+                {canApplyCountryRequirements
+                  && !studentProfile.appliedCountryRequirementVersionId
+                  && actions.applyCountryRequirementVersion && (
+                  <form action={actions.applyCountryRequirementVersion} className="flex w-full flex-col gap-2 sm:max-w-sm">
+                    <input type="hidden" name="student_case_id" value={client.id} />
+                    {checklistRequestId && <input type="hidden" name="request_id" value={checklistRequestId} />}
+                    <label className={labelCls}>
+                      {profileLabels.applyChecklist}
+                      <select name="country_requirement_version_id" required className={cn(inputCls, "mt-1")}>
+                        <option value="">—</option>
+                        {countryRequirementVersions
+                          .filter((version) => version.status === "approved")
+                          .map((version) => (
+                            <option key={version.id} value={version.id}>
+                              v{version.checklistVersion} · {profileLabels.provenance}: {version.sourceCount}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className={labelCls}>
+                      {profileLabels.reason}
+                      <input name="reason" required minLength={3} maxLength={500} className={cn(inputCls, "mt-1")} />
+                    </label>
+                    <button type="submit" className={btnGhostCls}>{profileLabels.applyChecklist}</button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : actions.updateClient ? (
         <form
           action={actions.updateClient}
           data-testid="client-profile-form"
@@ -937,17 +1319,23 @@ export default async function ClientPageContent({
             {docs.map((d) => (
               <li key={d.id} className="flex flex-col gap-3 py-3 first:pt-0 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <Link href={`/documents/${d.id}`} className="break-words text-[13.5px] font-semibold text-fg hover:text-accent">
-                    {d.name}
-                  </Link>
+                  {d.connected === false ? (
+                    <span className="break-words text-[13.5px] font-semibold text-fg">{d.name}</span>
+                  ) : (
+                    <Link href={`/documents/${d.id}`} className="break-words text-[13.5px] font-semibold text-fg hover:text-accent">
+                      {d.name}
+                    </Link>
+                  )}
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <Badge value={d.status} label={t(`doc.${d.status}`)} />
                     {d.comment && <span className="text-[11.5px] leading-4 text-danger">{d.comment}</span>}
                   </div>
                 </div>
-                <Link href={`/documents/${d.id}`} className={cn(btnGhostCls, "w-full shrink-0 sm:w-auto")}>
-                  {t("documentDetail")}
-                </Link>
+                {d.connected !== false && (
+                  <Link href={`/documents/${d.id}`} className={cn(btnGhostCls, "w-full shrink-0 sm:w-auto")}>
+                    {t("documentDetail")}
+                  </Link>
+                )}
               </li>
             ))}
           </ul>

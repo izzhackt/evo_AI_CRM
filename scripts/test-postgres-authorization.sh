@@ -523,6 +523,18 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_workflow_case_bindings_rls.sql
   fi
+
+  # BW3 owns migration 053's minimized Student Profile and immutable country
+  # requirement binding. Test at this exact boundary so later migrations cannot
+  # mask grant, RLS, version-retention or cross-student authorization drift.
+  if [[ "$(basename "$migration")" == 053_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_profile_requirements_inventory.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_profile_requirements_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

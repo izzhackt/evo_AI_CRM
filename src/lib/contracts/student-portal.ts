@@ -1,15 +1,22 @@
 import type {
-  ClientProfile,
+  ApplicationStatus,
   ClientStage,
+  CurrencyCode,
   DateTimeString,
-  EntityId,
-  Payment,
-  StudentDocument,
-  Task,
-  UniversityApplication,
-  UserIdentity,
-  VisaCase,
+  DocumentStatus,
+  IsoDateString,
+  PaymentStatus,
+  TaskPriority,
+  TaskStatus,
+  VisaStatus,
 } from "../domain";
+
+/**
+ * The accepted portal used numeric SQLite identifiers before the Platform
+ * cutover. Platform snapshots always use UUID strings, while this union keeps
+ * the legacy, non-portal read model type-safe until it is retired separately.
+ */
+export type StudentPortalEntityId = string | number;
 
 export const STUDENT_PORTAL_SECTIONS = [
   "overview",
@@ -32,14 +39,18 @@ export type StudentPortalStageItem = {
 };
 
 export type StudentPortalUpdate = {
-  readonly id: EntityId;
+  readonly id: StudentPortalEntityId;
   readonly message: string;
   readonly authorName: string | null;
   readonly createdAt: DateTimeString;
   readonly isRead: boolean;
 };
 
-export type StudentPortalContact = Pick<UserIdentity, "id" | "name" | "email" | "phone"> & {
+export type StudentPortalContact = {
+  readonly id: StudentPortalEntityId;
+  readonly name: string;
+  readonly email: string;
+  readonly phone: string | null;
   readonly role: string;
 };
 
@@ -50,30 +61,94 @@ export type StudentPortalNextAction = {
   readonly severity: "normal" | "warning" | "urgent";
 };
 
-export type StudentPortalApplication = Pick<
-  UniversityApplication,
-  "id" | "university" | "country" | "program" | "degree" | "deadline" | "status" | "notes"
->;
+export type StudentPortalApplication = {
+  readonly id: StudentPortalEntityId;
+  readonly university: string;
+  readonly country: string | null;
+  readonly program: string | null;
+  readonly degree: string | null;
+  readonly deadline: IsoDateString | null;
+  readonly status: ApplicationStatus;
+  readonly notes: string | null;
+};
 
-export type StudentPortalDocument = Pick<StudentDocument, "id" | "name" | "status" | "comment" | "updatedAt">;
+export type StudentPortalDocument = {
+  readonly id: StudentPortalEntityId;
+  readonly name: string;
+  readonly status: DocumentStatus;
+  readonly comment: string | null;
+  readonly updatedAt: DateTimeString | null;
+};
 
-export type StudentPortalVisaCase = Pick<VisaCase, "id" | "country" | "status" | "appointmentAt" | "notes">;
+export type StudentPortalVisaCase = {
+  readonly id: StudentPortalEntityId;
+  readonly country: string;
+  readonly status: VisaStatus;
+  readonly appointmentAt: DateTimeString | null;
+  readonly notes: string | null;
+};
 
-export type StudentPortalPayment = Pick<Payment, "id" | "title" | "amount" | "currency" | "dueDate" | "paidAt" | "status">;
+export type StudentPortalPayment = {
+  readonly id: StudentPortalEntityId;
+  readonly title: string;
+  readonly amount: number;
+  readonly currency: CurrencyCode;
+  readonly dueDate: IsoDateString | null;
+  readonly paidAt: IsoDateString | null;
+  readonly status: PaymentStatus;
+};
 
-export type StudentPortalTask = Pick<
-  Task,
-  "id" | "title" | "description" | "dueDate" | "status" | "priority"
-> & {
+export type StudentPortalTask = {
+  readonly id: StudentPortalEntityId;
+  readonly title: string;
+  readonly description: string | null;
+  readonly dueDate: IsoDateString | null;
+  readonly status: TaskStatus;
+  readonly priority: TaskPriority;
   readonly assigneeName: string | null;
 };
 
+/**
+ * Student-visible, data-minimized profile fields. Internal evidence references,
+ * policy/checklist version identifiers and workflow-only metadata are
+ * validated by the repository but deliberately not exposed to the page.
+ */
+export type StudentPortalProfileSummary = {
+  readonly revision: number;
+  readonly preferredDisplayName: string | null;
+  readonly legalDisplayName: string | null;
+  readonly communicationLanguage: string | null;
+  readonly dateOfBirth: IsoDateString | null;
+  readonly citizenshipCountry: string | null;
+  readonly residencyCountry: string | null;
+  readonly currentEducationSummary: string | null;
+  readonly academicSummary: string | null;
+  readonly languageSummary: string | null;
+  readonly budgetBand: string | null;
+  readonly decisionParticipantLabels: readonly string[];
+  readonly consentStatus: string;
+  readonly nextStep: string | null;
+  readonly programDirection: string | null;
+  readonly intake: string | null;
+  readonly requiredFields: readonly string[];
+};
+
 export type StudentPortalSnapshot = {
-  readonly student: Pick<UserIdentity, "id" | "name" | "email" | "phone">;
-  readonly client: Pick<
-    ClientProfile,
-    "id" | "stage" | "targetCountry" | "targetDegree" | "managerId" | "curatorId"
-  >;
+  readonly student: {
+    readonly id: StudentPortalEntityId;
+    readonly name: string;
+    readonly email: string | null;
+    readonly phone: string | null;
+  };
+  readonly client: {
+    readonly id: StudentPortalEntityId;
+    readonly stage: ClientStage;
+    readonly targetCountry: string | null;
+    readonly targetDegree: string | null;
+    readonly managerId: StudentPortalEntityId | null;
+    readonly curatorId: StudentPortalEntityId | null;
+  };
+  readonly profile?: StudentPortalProfileSummary;
   readonly visibleSections: readonly StudentPortalSection[];
   readonly stageTimeline: readonly StudentPortalStageItem[];
   readonly progressPercent: number;
@@ -96,15 +171,20 @@ export type StudentPortalResult =
     }
   | {
       readonly status: "not_found";
-      readonly userId: EntityId;
+      readonly userId: StudentPortalEntityId;
     }
   | {
       readonly status: "forbidden";
-      readonly userId: EntityId;
+      readonly userId: StudentPortalEntityId;
       readonly reason: "not_client" | "session_missing";
     };
 
 export type StudentPortalContract = {
-  readonly getSnapshotForUser: (userId: EntityId) => Promise<StudentPortalResult>;
-  readonly markUpdateRead: (userId: EntityId, updateId: EntityId) => Promise<StudentPortalResult>;
+  readonly getSnapshotForUser: (
+    userId: StudentPortalEntityId,
+  ) => Promise<StudentPortalResult>;
+  readonly markUpdateRead: (
+    userId: StudentPortalEntityId,
+    updateId: StudentPortalEntityId,
+  ) => Promise<StudentPortalResult>;
 };

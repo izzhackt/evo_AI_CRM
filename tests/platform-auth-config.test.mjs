@@ -7,7 +7,12 @@ import {
   SupabaseConfigurationError,
 } from "../src/lib/supabase/config.ts";
 import { isSupabaseAuthCookieName } from "../src/lib/supabase/auth-cookies.ts";
-import { isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
+import {
+  isConnectedPlatformPage,
+  platformHomeRoute,
+  platformStaffRedirect,
+  platformStudentPortalRedirect,
+} from "../src/lib/platform-route-contract.ts";
 import { isUiContractFixtureMode } from "../src/lib/runtime-mode.ts";
 
 const scenarioRunnerSource = readFileSync(
@@ -136,6 +141,48 @@ test("proxy admits only the exact connected conversation route shape", () => {
   ]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
   }
+});
+
+test("proxy admits every accepted portal page and rejects portal descendants", () => {
+  const portalPages = [
+    "/portal",
+    "/portal/applications",
+    "/portal/documents",
+    "/portal/messages",
+    "/portal/notifications",
+    "/portal/payments",
+    "/portal/profile",
+    "/portal/team",
+    "/portal/visa",
+  ];
+  for (const path of portalPages) {
+    assert.equal(isConnectedPlatformPage(path), true, path);
+  }
+
+  for (const path of [
+    "/portal/",
+    "/portal/profile/edit",
+    "/portal/applications/not-a-uuid",
+    "/portal/api",
+    "/api/portal/profile",
+    "/legacy/portal",
+  ]) {
+    assert.equal(isConnectedPlatformPage(path), false, path);
+  }
+});
+
+test("student home and guard redirects keep roles on their connected surface", () => {
+  assert.equal(platformHomeRoute("student"), "/portal");
+  assert.equal(platformStaffRedirect("student"), "/portal");
+  assert.equal(platformStaffRedirect("admin"), null);
+  assert.equal(platformStudentPortalRedirect("student"), null);
+  assert.equal(platformStudentPortalRedirect("admin"), "/sales");
+  assert.equal(platformStudentPortalRedirect("sales"), "/sales");
+  assert.equal(platformStudentPortalRedirect("curator"), "/clients");
+  assert.equal(
+    platformStudentPortalRedirect("finance"),
+    "/platform-pending",
+  );
 });
 
 test("logout fallback matches only Supabase auth-token cookies", () => {

@@ -5,8 +5,8 @@ import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "re
 import { usePathname } from "next/navigation";
 
 import type { StudentPortalSnapshot } from "@/lib/contracts/student-portal";
-import type { Locale } from "@/lib/i18n-data";
-import type { SessionUser } from "@/lib/auth";
+import { LOCALES, type Locale } from "@/lib/i18n-data";
+import { setPlatformLocaleAction } from "@/lib/platform-admissions-actions";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
 
 import { PortalIcon } from "./PortalIcon";
@@ -14,7 +14,6 @@ import {
   PortalSideNavigation,
   type PortalNavigationItem,
 } from "./PortalNavigation";
-import { PortalLanguageSwitcher } from "./PortalLanguageSwitcher";
 import { getPortalCopy } from "./portal-copy";
 import styles from "./portal.module.css";
 
@@ -29,6 +28,37 @@ function initials(name: string) {
 
 function isActive(pathname: string, href: string) {
   return href === "/portal" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function PortalPlatformLanguageSwitcher({
+  current,
+  label,
+}: {
+  current: Locale;
+  label: string;
+}) {
+  return (
+    <form
+      action={setPlatformLocaleAction}
+      aria-label={label}
+      className={styles.languageForm}
+    >
+      {LOCALES.map((locale) => (
+        <button
+          key={locale}
+          type="submit"
+          name="locale"
+          value={locale}
+          aria-pressed={locale === current}
+          className={`${styles.languageButton} ${
+            locale === current ? styles.languageButtonActive : ""
+          }`}
+        >
+          {locale}
+        </button>
+      ))}
+    </form>
+  );
 }
 
 function PortalMobileNavigation({
@@ -198,7 +228,7 @@ export function PortalShell({
   locale,
   children,
 }: {
-  user: SessionUser;
+  user: Readonly<{ name: string }>;
   snapshot: StudentPortalSnapshot | undefined;
   locale: Locale;
   children: ReactNode;
@@ -248,7 +278,7 @@ export function PortalShell({
             <div className={styles.portalLabel}>{copy.portalName}</div>
             <div className={styles.topbarActions}>
               <div className={styles.topbarLanguage}>
-                <PortalLanguageSwitcher current={locale} label={copy.language} />
+                <PortalPlatformLanguageSwitcher current={locale} label={copy.language} />
               </div>
               <Link
                 href="/portal/notifications"

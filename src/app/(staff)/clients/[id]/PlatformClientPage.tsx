@@ -2,10 +2,19 @@ import { randomUUID } from "node:crypto";
 
 import { changePlatformStudentCaseStateAction } from "@/lib/platform-admissions-actions";
 import {
+  applyPlatformCountryRequirementVersionAction,
+  updatePlatformStudentProfileAction,
+} from "@/lib/platform-student-profile-actions";
+import {
   getPlatformStudentCaseView,
   listPlatformApplications,
   parsePlatformAdmissionsUuid,
 } from "@/lib/platform-admissions";
+import {
+  getPlatformStudentProfile,
+  listPlatformCountryRequirementVersions,
+  listPlatformStudentCaseDocuments,
+} from "@/lib/platform-student-profile";
 import { requirePlatformClientsActor } from "@/lib/platform-guards";
 
 import type { ClientPagePresentationData } from "./ClientPageContent";
@@ -51,7 +60,16 @@ export async function loadPlatformClientPageData(
   }
 
   const studentCase = view.studentCase;
-  const applications = (await listPlatformApplications(actor))
+  const [applicationRows, profileSnapshot, documentRows, countryRequirementVersions] =
+    await Promise.all([
+      listPlatformApplications(actor),
+      getPlatformStudentProfile(actor, studentCase.studentCaseId),
+      listPlatformStudentCaseDocuments(actor, studentCase.studentCaseId),
+      listPlatformCountryRequirementVersions(actor, studentCase.studentCaseId),
+    ]);
+  const appliedCountryRequirement =
+    countryRequirementVersions.find((version) => version.isApplied) ?? null;
+  const applications = applicationRows
     .filter((application) => application.studentCaseId === studentCase.studentCaseId)
     .map((application) => ({
       id: application.universityApplicationId,
@@ -61,8 +79,21 @@ export async function loadPlatformClientPageData(
       deadline: null,
       status: application.status,
     }));
-  const lifecycleRequestId =
-    parsePlatformAdmissionsUuid(query.retry_request_id) ?? randomUUID();
+  const documents = documentRows.map((document) => ({
+    id: document.documentSlotId,
+    name: document.requirementLabel,
+    status: document.slotStatus === "submitted"
+      ? "uploaded"
+      : document.slotStatus === "correction_required"
+          ? "rejected"
+          : document.slotStatus,
+    comment: document.reworkReason ?? document.nextAction ?? document.instructions,
+    connected: false,
+  }));
+  const retryRequestId = parsePlatformAdmissionsUuid(query.retry_request_id);
+  const profileRequestId = retryRequestId ?? randomUUID();
+  const checklistRequestId = retryRequestId ?? randomUUID();
+  const lifecycleRequestId = retryRequestId ?? randomUUID();
   const riskSignals = [
     studentCase.overdueTaskCount > 0
       ? `Просроченные задачи: ${studentCase.overdueTaskCount}`
@@ -108,7 +139,7 @@ export async function loadPlatformClientPageData(
       notes,
     },
     applications,
-    documents: [],
+    documents,
     visa: null,
     payments: [],
     tasks: [],
@@ -141,7 +172,10 @@ export async function loadPlatformClientPageData(
             phone: null,
           }
         : null,
-      documents: [],
+      documents: documents.map((document) => ({
+        name: document.name,
+        status: document.status,
+      })),
       payments: [],
       visa: null,
     },
@@ -154,11 +188,57 @@ export async function loadPlatformClientPageData(
     taskColumns: [],
     taskPriorities: [],
     visaStatuses: [],
-    actions: { changePlatformState: changePlatformStudentCaseStateAction },
+    actions: {
+      changePlatformState: changePlatformStudentCaseStateAction,
+      updateStudentProfile: updatePlatformStudentProfileAction,
+      applyCountryRequirementVersion: applyPlatformCountryRequirementVersionAction,
+    },
     canManageLifecycle,
     canViewCaseAudit: false,
     canMutatePayments: false,
     canUseAiSummary: false,
+    studentProfile: {
+      revision: profileSnapshot?.profileRevision ?? 0,
+      preferredDisplayName: profileSnapshot?.preferredDisplayName ?? null,
+      legalDisplayName: profileSnapshot?.legalDisplayName ?? null,
+      communicationLanguage: profileSnapshot?.communicationLanguage ?? null,
+      dateOfBirth: profileSnapshot?.dateOfBirth ?? null,
+      citizenshipCountry: profileSnapshot?.citizenshipCountry ?? null,
+      residencyCountry: profileSnapshot?.residencyCountry ?? null,
+      currentEducationSummary: profileSnapshot?.currentEducationSummary ?? null,
+      academicSummary: profileSnapshot?.academicSummary ?? null,
+      languageSummary: profileSnapshot?.languageSummary ?? null,
+      budgetBand: profileSnapshot?.budgetBand ?? null,
+      decisionParticipantLabels: profileSnapshot?.decisionParticipantLabels ?? [],
+      consentStatus: profileSnapshot?.consentStatus ?? "not_recorded",
+      consentEvidenceRef: profileSnapshot?.consentEvidenceRef ?? null,
+      nextStep: profileSnapshot?.profileNextStep ?? null,
+      appliedCountryRequirementVersionId:
+        profileSnapshot?.appliedCountryRequirementVersionId
+        ?? appliedCountryRequirement?.countryRequirementVersionId
+        ?? null,
+      checklistVersion:
+        profileSnapshot?.checklistVersion ?? appliedCountryRequirement?.version ?? null,
+      requiredProfileFields:
+        profileSnapshot?.requiredProfileFields
+        ?? appliedCountryRequirement?.requiredProfileFields
+        ?? [],
+    },
+    countryRequirementVersions: countryRequirementVersions.map((version) => ({
+      id: version.countryRequirementVersionId,
+      checklistVersion: version.version,
+      status: version.status,
+      sourceCount: version.sourceCount,
+    })),
+    canEditStudentProfile: Boolean(appliedCountryRequirement)
+      && (
+        actor.platformRole === "admin"
+        || actor.platformRole === "sales"
+        || actor.platformRole === "curator"
+      ),
+    canApplyCountryRequirements: actor.platformRole === "admin",
+    profileRequestId,
+    checklistRequestId,
     sourceHint:
       "Операционный этап и команда читаются из аудируемого кейса EVO Platform. Этап продаж ведётся отдельно.",
     metrics: {
@@ -167,7 +247,7 @@ export async function loadPlatformClientPageData(
         && application.status !== "withdrawn"
         && application.status !== "closed",
       ).length,
-      openDocuments: studentCase.rejectedDocumentCount,
+      openDocuments: documents.filter((document) => document.status !== "approved").length,
       openTasks: studentCase.overdueTaskCount,
       pendingPayments: studentCase.overdueObligationCount,
       nextDeadline: studentCase.handoff?.dueAt ?? "—",
@@ -183,7 +263,13 @@ export async function loadPlatformClientPageData(
           description:
             "Переходы по утверждённому OZO-контракту остаются заблокированы до явной привязки версии.",
         }
-      : undefined,
+      : !appliedCountryRequirement
+        ? {
+            title: "Страновой чек-лист ещё не назначен",
+            description:
+              "Администратор должен применить утверждённую версию с проверенными источниками до сбора дополнительных персональных данных.",
+          }
+        : undefined,
     connected: true,
     testId: "platform-client-detail-page",
   };

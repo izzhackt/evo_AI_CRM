@@ -94,6 +94,10 @@ const platformWorkflowCaseBindingsMigration = readFileSync(
   join(migrationsDir, '052_platform_workflow_case_bindings.sql'),
   'utf8'
 )
+const platformStudentProfileRequirementsMigration = readFileSync(
+  join(migrationsDir, '053_platform_student_profile_requirements.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -109,9 +113,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves containment and advances through the BW2 workflow-case boundary', () => {
+  it('preserves containment and advances through the BW3 profile boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '052_platform_workflow_case_bindings.sql'
+      '053_platform_student_profile_requirements.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -180,6 +184,49 @@ describe('Supabase companion schema contract', () => {
     }
     expect(platformWorkflowCaseBindingsMigration).not.toMatch(
       /CREATE\s+TABLE\s+platform\.(?:leads?|contacts?|sales_pipeline)/i
+    )
+    for (const table of [
+      'student_profiles',
+      'country_requirement_versions',
+      'country_requirement_version_sources',
+    ]) {
+      expect(platformStudentProfileRequirementsMigration).toMatch(
+        new RegExp(`CREATE\\s+TABLE\\s+platform\\.${table}`, 'i')
+      )
+      expect(platformStudentProfileRequirementsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+    expect(platformStudentProfileRequirementsMigration).toMatch(
+      /ALTER\s+TABLE\s+platform\.student_cases[\s\S]*ADD\s+COLUMN\s+applied_country_requirement_version_id\s+UUID/i
+    )
+    for (const rpc of [
+      'create_country_requirement_version',
+      'link_country_requirement_version_source',
+      'approve_country_requirement_version',
+      'retire_country_requirement_version',
+      'apply_country_requirement_version',
+      'upsert_student_profile',
+      'staff_student_profile_snapshot',
+      'staff_student_case_documents',
+      'staff_country_requirement_versions_for_case',
+      'student_portal_profile',
+    ]) {
+      expect(platformStudentProfileRequirementsMigration).toMatch(
+        new RegExp(
+          `CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+platform\\.${rpc}\\s*\\(`,
+          'i'
+        )
+      )
+    }
+    expect(platformStudentProfileRequirementsMigration).toMatch(
+      /CREATE\s+TRIGGER\s+document_requirements_approved_manifest_guard[\s\S]*BEFORE\s+INSERT\s+OR\s+UPDATE\s+OR\s+DELETE\s+ON\s+platform\.document_requirements/i
+    )
+    expect(platformStudentProfileRequirementsMigration).not.toMatch(
+      /CREATE\s+TABLE\s+platform\.(?:checklists?|documents?)(?:\s|\()/i
     )
     expect(platformIdentityMigration).toMatch(
       /ALTER\s+TABLE\s+platform\.organization_memberships\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/i

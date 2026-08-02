@@ -6,8 +6,11 @@ import { redirect } from "next/navigation";
 import { requirePlatformClientsActor } from "./platform-guards";
 import {
   PLATFORM_PROFILE_CONSENT_STATUSES,
+  isPlatformStudentProfileCommunicationLanguage,
+  parsePlatformStudentProfileDecisionParticipants,
   parsePlatformStudentProfileUuid,
   type PlatformProfileConsentStatus,
+  type PlatformStudentProfileCommunicationLanguage,
 } from "./platform-student-profile";
 import { createSupabaseServerClient } from "./supabase/server";
 
@@ -21,7 +24,7 @@ type StudentProfileMutation = Readonly<{
   preferredDisplayName: string;
   legalDisplayName: string | null;
   dateOfBirth: string | null;
-  communicationLanguage: "ru" | "en" | null;
+  communicationLanguage: PlatformStudentProfileCommunicationLanguage | null;
   citizenship: string;
   residency: string;
   currentEducationSummary: string;
@@ -110,25 +113,6 @@ function optionalDate(form: FormData, key: string): string | null | undefined {
   return candidate;
 }
 
-function decisionLabels(form: FormData): readonly string[] | null {
-  const candidate = value(form, "decision_participant_labels");
-  if (!candidate) return [];
-  const labels = candidate.split(",").map((label) => label.trim());
-  if (
-    labels.length > 20 ||
-    labels.some(
-      (label) =>
-        label.length === 0 ||
-        label.length > 120 ||
-        CONTROL_CHARACTER_PATTERN.test(label),
-    ) ||
-    new Set(labels.map((label) => label.toLocaleLowerCase("en-US"))).size !== labels.length
-  ) {
-    return null;
-  }
-  return labels;
-}
-
 function isRecord(candidate: unknown): candidate is Record<string, unknown> {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
@@ -154,7 +138,7 @@ function parseStudentProfileForm(form: FormData): StudentProfileMutation | null 
   const legalDisplayName = optionalBoundedText(form, "legal_display_name", 200);
   const dateOfBirth = optionalDate(form, "date_of_birth");
   const rawLanguage = value(form, "communication_language");
-  const communicationLanguage = rawLanguage === "ru" || rawLanguage === "en"
+  const communicationLanguage = isPlatformStudentProfileCommunicationLanguage(rawLanguage)
     ? rawLanguage
     : null;
   const citizenship = boundedText(form, "citizenship_country", 1, 120);
@@ -168,7 +152,9 @@ function parseStudentProfileForm(form: FormData): StudentProfileMutation | null 
   const academicSummary = boundedText(form, "academic_summary", 1, 2000);
   const languageSummary = boundedText(form, "language_summary", 1, 2000);
   const budgetBand = boundedText(form, "budget_band", 1, 120);
-  const parsedDecisionLabels = decisionLabels(form);
+  const parsedDecisionLabels = parsePlatformStudentProfileDecisionParticipants(
+    value(form, "decision_participant_labels"),
+  );
   const rawConsentStatus = value(form, "consent_status");
   const consentStatus = (PLATFORM_PROFILE_CONSENT_STATUSES as readonly string[])
     .includes(rawConsentStatus)

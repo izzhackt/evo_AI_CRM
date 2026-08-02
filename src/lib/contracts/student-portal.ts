@@ -117,7 +117,7 @@ export type StudentPortalProfileSummary = {
   readonly revision: number;
   readonly preferredDisplayName: string | null;
   readonly legalDisplayName: string | null;
-  readonly communicationLanguage: string | null;
+  readonly communicationLanguage: PlatformStudentProfileCommunicationLanguage | null;
   readonly dateOfBirth: IsoDateString | null;
   readonly citizenshipCountry: string | null;
   readonly residencyCountry: string | null;
@@ -188,3 +188,4 @@ export type StudentPortalContract = {
     updateId: StudentPortalEntityId,
   ) => Promise<StudentPortalResult>;
 };
+import type { PlatformStudentProfileCommunicationLanguage } from "../platform-student-profile";

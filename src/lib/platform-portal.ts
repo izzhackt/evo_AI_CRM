@@ -1,4 +1,9 @@
 import type { PlatformActor } from "./platform-auth";
+import type { PlatformStudentProfileCommunicationLanguage } from "./platform-student-profile";
+
+const PORTAL_PROFILE_COMMUNICATION_LANGUAGES = ["ru", "en"] as const;
+const PORTAL_PROFILE_MAX_DECISION_PARTICIPANTS = 12;
+const PORTAL_PROFILE_MAX_DECISION_PARTICIPANT_LENGTH = 120;
 import type {
   StudentPortalApplication,
   StudentPortalDocument,
@@ -85,7 +90,7 @@ type PortalProfile = Readonly<{
   profileRevision: number;
   preferredDisplayName: string | null;
   legalDisplayName: string | null;
-  communicationLanguage: string | null;
+  communicationLanguage: PlatformStudentProfileCommunicationLanguage;
   dateOfBirth: string | null;
   citizenshipCountry: string | null;
   residencyCountry: string | null;
@@ -246,10 +251,16 @@ function oneOf<const T extends readonly string[]>(
 
 function textArray(
   value: unknown,
-  options: Readonly<{ fieldKeys?: boolean }> = {},
+  options: Readonly<{
+    fieldKeys?: boolean;
+    maximumItems?: number;
+    maximumItemLength?: number;
+  }> = {},
 ): readonly string[] {
-  if (!Array.isArray(value) || value.length > 32) return invalidShape();
-  const normalized = value.map((item) => requiredText(item, 200));
+  const maximumItems = options.maximumItems ?? 32;
+  const maximumItemLength = options.maximumItemLength ?? 200;
+  if (!Array.isArray(value) || value.length > maximumItems) return invalidShape();
+  const normalized = value.map((item) => requiredText(item, maximumItemLength));
   if (
     new Set(normalized).size !== normalized.length ||
     (options.fieldKeys &&
@@ -379,7 +390,10 @@ function normalizeProfile(value: unknown): PortalProfile {
     profileRevision: positiveInteger(value.profile_revision),
     preferredDisplayName: optionalText(value.preferred_display_name, 200),
     legalDisplayName: optionalText(value.legal_display_name, 200),
-    communicationLanguage: requiredText(value.communication_language, 100),
+    communicationLanguage: oneOf(
+      value.communication_language,
+      PORTAL_PROFILE_COMMUNICATION_LANGUAGES,
+    ),
     dateOfBirth: optionalDate(value.date_of_birth),
     citizenshipCountry: requiredText(value.citizenship_country, 200),
     residencyCountry: requiredText(value.residency_country, 200),
@@ -390,7 +404,10 @@ function normalizeProfile(value: unknown): PortalProfile {
     academicSummary: requiredText(value.academic_summary, 4000),
     languageSummary: requiredText(value.language_summary, 2000),
     budgetBand: requiredText(value.budget_band, 200),
-    decisionParticipantLabels: textArray(value.decision_participant_labels),
+    decisionParticipantLabels: textArray(value.decision_participant_labels, {
+      maximumItems: PORTAL_PROFILE_MAX_DECISION_PARTICIPANTS,
+      maximumItemLength: PORTAL_PROFILE_MAX_DECISION_PARTICIPANT_LENGTH,
+    }),
     consentStatus: oneOf(value.consent_status, [
       "not_recorded",
       "granted",

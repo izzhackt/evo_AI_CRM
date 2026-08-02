@@ -3,12 +3,14 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS,
   PlatformStudentProfileRepositoryError,
   listPlatformCountryRequirementVersions,
   listPlatformStudentCaseDocuments,
   normalizePlatformCountryRequirementVersion,
   normalizePlatformStudentCaseDocument,
   normalizePlatformStudentProfileSnapshot,
+  parsePlatformStudentProfileDecisionParticipants,
   parsePlatformStudentProfileUuid,
 } from "../src/lib/platform-student-profile.ts";
 
@@ -152,6 +154,35 @@ test("persisted profile snapshots cannot masquerade as an empty profile seed", (
       applied_country_requirement_version_id: null,
       checklist_version: null,
       required_profile_fields: [],
+    })),
+    PlatformStudentProfileRepositoryError,
+  );
+});
+
+test("student profile language and decision participants share the database bound", () => {
+  const twelveLabels = Array.from(
+    { length: PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS },
+    (_, index) => `participant-${String(index + 1).padStart(2, "0")}`,
+  );
+  assert.deepEqual(
+    parsePlatformStudentProfileDecisionParticipants(twelveLabels.join(", ")),
+    twelveLabels,
+  );
+  assert.equal(
+    parsePlatformStudentProfileDecisionParticipants(
+      [...twelveLabels, "participant-13"].join(", "),
+    ),
+    null,
+  );
+  assert.throws(
+    () => normalizePlatformStudentProfileSnapshot(profileRow({
+      communication_language: "ky",
+    })),
+    PlatformStudentProfileRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformStudentProfileSnapshot(profileRow({
+      decision_participant_labels: [...twelveLabels, "participant-13"],
     })),
     PlatformStudentProfileRepositoryError,
   );

@@ -1,5 +1,54 @@
 import type { PlatformActor } from "./platform-auth";
 
+const CONTROL_CHARACTER_PATTERN =
+  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+
+export const PLATFORM_STUDENT_PROFILE_COMMUNICATION_LANGUAGES = [
+  "ru",
+  "en",
+] as const;
+
+export type PlatformStudentProfileCommunicationLanguage =
+  (typeof PLATFORM_STUDENT_PROFILE_COMMUNICATION_LANGUAGES)[number];
+
+export const PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS = 12;
+export const PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANT_LENGTH = 120;
+export const PLATFORM_STUDENT_PROFILE_DECISION_PARTICIPANTS_INPUT_MAX_LENGTH =
+  PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS
+    * PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANT_LENGTH
+  + (PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS - 1) * 2;
+export const PLATFORM_STUDENT_PROFILE_DECISION_PARTICIPANTS_INPUT_PATTERN =
+  `[^,]+(?:,[^,]+){0,${PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS - 1}}`;
+
+export function isPlatformStudentProfileCommunicationLanguage(
+  value: string,
+): value is PlatformStudentProfileCommunicationLanguage {
+  return (PLATFORM_STUDENT_PROFILE_COMMUNICATION_LANGUAGES as readonly string[])
+    .includes(value);
+}
+
+export function parsePlatformStudentProfileDecisionParticipants(
+  value: string,
+): readonly string[] | null {
+  const candidate = value.trim();
+  if (!candidate) return [];
+  const labels = candidate.split(",").map((label) => label.trim());
+  if (
+    labels.length > PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS
+    || labels.some(
+      (label) =>
+        label.length === 0
+        || label.length > PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANT_LENGTH
+        || CONTROL_CHARACTER_PATTERN.test(label),
+    )
+    || new Set(labels.map((label) => label.toLocaleLowerCase("en-US"))).size
+      !== labels.length
+  ) {
+    return null;
+  }
+  return labels;
+}
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
@@ -42,7 +91,7 @@ export type PlatformStudentProfileSnapshot = Readonly<{
   profileRevision: number;
   preferredDisplayName: string;
   legalDisplayName: string | null;
-  communicationLanguage: "ru" | "en";
+  communicationLanguage: PlatformStudentProfileCommunicationLanguage;
   dateOfBirth: string | null;
   citizenshipCountry: string;
   residencyCountry: string;
@@ -253,7 +302,10 @@ export function normalizePlatformStudentProfileSnapshot(
     profileRevision,
     preferredDisplayName: requiredText(value.preferred_display_name, 160),
     legalDisplayName: optionalText(value.legal_display_name, 200),
-    communicationLanguage: oneOf(value.communication_language, ["ru", "en"] as const),
+    communicationLanguage: oneOf(
+      value.communication_language,
+      PLATFORM_STUDENT_PROFILE_COMMUNICATION_LANGUAGES,
+    ),
     dateOfBirth: optionalDate(value.date_of_birth),
     citizenshipCountry: requiredText(value.citizenship_country, 120),
     residencyCountry: requiredText(value.residency_country, 120),
@@ -261,7 +313,11 @@ export function normalizePlatformStudentProfileSnapshot(
     academicSummary: requiredText(value.academic_summary, 2000),
     languageSummary: requiredText(value.language_summary, 2000),
     budgetBand: requiredText(value.budget_band, 120),
-    decisionParticipantLabels: textArray(value.decision_participant_labels, 20, 120),
+    decisionParticipantLabels: textArray(
+      value.decision_participant_labels,
+      PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS,
+      PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANT_LENGTH,
+    ),
     consentStatus,
     consentEvidenceRef,
     profileNextStep: requiredText(value.profile_next_step, 1000),

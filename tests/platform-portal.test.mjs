@@ -317,6 +317,26 @@ test("normalization keeps UUIDs as strings and exposes only truthful portal data
   assert.equal(snapshot.updates[0].isRead, true);
 });
 
+test("portal profile rejects unsupported language and oversized participant lists", () => {
+  assert.throws(
+    () => normalizePlatformStudentPortalSnapshot(snapshotInput({
+      profile: profileRow({ communication_language: "ky" }),
+    })),
+    PlatformPortalRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformStudentPortalSnapshot(snapshotInput({
+      profile: profileRow({
+        decision_participant_labels: Array.from(
+          { length: 13 },
+          (_, index) => `participant-${index + 1}`,
+        ),
+      }),
+    })),
+    PlatformPortalRepositoryError,
+  );
+});
+
 test("explicit profile next action never receives a fabricated deadline", () => {
   const snapshot = normalizePlatformStudentPortalSnapshot(
     snapshotInput({

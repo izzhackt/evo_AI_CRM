@@ -5,6 +5,11 @@ import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 import { Badge, Card, EmptyState, StatCard, inputCls, btnCls, btnGhostCls, labelCls, cn } from "@/components/ui";
 import { AiSummary } from "@/components/AiSummary";
 import { StudentProgress } from "@/components/platform/core/StudentProgress";
+import {
+  PLATFORM_STUDENT_PROFILE_DECISION_PARTICIPANTS_INPUT_MAX_LENGTH,
+  PLATFORM_STUDENT_PROFILE_DECISION_PARTICIPANTS_INPUT_PATTERN,
+  PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS,
+} from "@/lib/platform-student-profile";
 const selectCls = "rounded-nav border border-border-strong bg-surface-2 px-2 py-1.5 text-[12px] text-fg focus-visible:border-accent";
 
 type EntityId = number | string;
@@ -460,6 +465,7 @@ export default async function ClientPageContent({
       languageSummary: "Языковая подготовка",
       budget: "Бюджетный диапазон",
       participants: "Участники решения",
+      participantsHint: `До ${PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS} значений через запятую`,
       consent: "Статус согласия",
       consentEvidence: "Ссылка на подтверждение согласия",
       nextStep: "Следующий шаг",
@@ -489,6 +495,7 @@ export default async function ClientPageContent({
       languageSummary: "Тилдик даярдыгы",
       budget: "Бюджет аралыгы",
       participants: "Чечимге катышуучулар",
+      participantsHint: `Үтүр менен бөлүнгөн ${PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS} мааниге чейин`,
       consent: "Макулдук абалы",
       consentEvidence: "Макулдукту ырастоо шилтемеси",
       nextStep: "Кийинки кадам",
@@ -518,6 +525,7 @@ export default async function ClientPageContent({
       languageSummary: "Language preparation",
       budget: "Budget band",
       participants: "Decision participants",
+      participantsHint: `Up to ${PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS} comma-separated values`,
       consent: "Consent status",
       consentEvidence: "Consent evidence reference",
       nextStep: "Next step",
@@ -1168,10 +1176,18 @@ export default async function ClientPageContent({
                   <input
                     name="decision_participant_labels"
                     required={studentProfile.requiredProfileFields.includes("decision_participant_labels")}
-                    maxLength={2400}
+                    maxLength={PLATFORM_STUDENT_PROFILE_DECISION_PARTICIPANTS_INPUT_MAX_LENGTH}
+                    pattern={PLATFORM_STUDENT_PROFILE_DECISION_PARTICIPANTS_INPUT_PATTERN}
+                    aria-describedby="platform-decision-participants-hint"
                     defaultValue={studentProfile.decisionParticipantLabels.join(", ")}
                     className={cn(inputCls, "mt-1")}
                   />
+                  <span
+                    id="platform-decision-participants-hint"
+                    className="mt-1 block text-[11px] font-normal text-fg-3"
+                  >
+                    {profileLabels.participantsHint}
+                  </span>
                 </label>
                 <label className={cn(labelCls, "sm:col-span-2 lg:col-span-3")}>
                   {profileLabels.nextStep}

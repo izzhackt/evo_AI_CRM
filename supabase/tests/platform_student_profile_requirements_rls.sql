@@ -531,12 +531,50 @@ SELECT platform.upsert_student_profile(
   'ru', 'Synthetic Citizenship', 'Synthetic Residency',
   'Synthetic current education', 'Synthetic academic summary',
   'Synthetic language summary', 'synthetic_budget_standard',
-  ARRAY['self']::TEXT[], 'not_recorded', NULL,
+  ARRAY[
+    'participant-01', 'participant-02', 'participant-03', 'participant-04',
+    'participant-05', 'participant-06', 'participant-07', 'participant-08',
+    'participant-09', 'participant-10', 'participant-11', 'participant-12'
+  ]::TEXT[], 'not_recorded', NULL,
   'Complete synthetic checklist',
   'sensitive values must be gated',
   '53000000-0000-4000-8000-000000000635'
 );
 \set bw3_sensitive_gate_state :SQLSTATE
+\set ON_ERROR_STOP on
+
+-- The public authenticated boundary is the same RU/EN and twelve-participant
+-- contract as the accepted form and both staff/portal readers.
+\set ON_ERROR_STOP off
+SELECT platform.upsert_student_profile(
+  :'bw3_org_a', :'bw3_case_one_id', 0,
+  'Synthetic Preferred One', NULL, NULL,
+  'ky', 'Synthetic Citizenship', 'Synthetic Residency',
+  'Synthetic current education', 'Synthetic academic summary',
+  'Synthetic language summary', 'synthetic_budget_standard',
+  ARRAY['self']::TEXT[], 'not_recorded', NULL,
+  'Complete synthetic checklist',
+  'unsupported communication language must fail at RPC boundary',
+  '53000000-0000-4000-8000-000000000658'
+);
+\set bw3_unsupported_language_state :SQLSTATE
+SELECT platform.upsert_student_profile(
+  :'bw3_org_a', :'bw3_case_one_id', 0,
+  'Synthetic Preferred One', NULL, NULL,
+  'ru', 'Synthetic Citizenship', 'Synthetic Residency',
+  'Synthetic current education', 'Synthetic academic summary',
+  'Synthetic language summary', 'synthetic_budget_standard',
+  ARRAY[
+    'participant-01', 'participant-02', 'participant-03', 'participant-04',
+    'participant-05', 'participant-06', 'participant-07', 'participant-08',
+    'participant-09', 'participant-10', 'participant-11', 'participant-12',
+    'participant-13'
+  ]::TEXT[], 'not_recorded', NULL,
+  'Complete synthetic checklist',
+  'thirteen decision participants must fail at RPC boundary',
+  '53000000-0000-4000-8000-000000000659'
+);
+\set bw3_thirteen_participants_state :SQLSTATE
 \set ON_ERROR_STOP on
 
 SELECT platform.upsert_student_profile(
@@ -545,7 +583,11 @@ SELECT platform.upsert_student_profile(
   'ru', 'Synthetic Citizenship', 'Synthetic Residency',
   'Synthetic current education', 'Synthetic academic summary',
   'Synthetic language summary', 'synthetic_budget_standard',
-  ARRAY['self']::TEXT[], 'not_recorded', NULL,
+  ARRAY[
+    'participant-01', 'participant-02', 'participant-03', 'participant-04',
+    'participant-05', 'participant-06', 'participant-07', 'participant-08',
+    'participant-09', 'participant-10', 'participant-11', 'participant-12'
+  ]::TEXT[], 'not_recorded', NULL,
   'Complete synthetic checklist',
   'create minimized synthetic profile one',
   '53000000-0000-4000-8000-000000000636'
@@ -556,7 +598,11 @@ SELECT platform.upsert_student_profile(
   'ru', 'Synthetic Citizenship', 'Synthetic Residency',
   'Synthetic current education', 'Synthetic academic summary',
   'Synthetic language summary', 'synthetic_budget_standard',
-  ARRAY['self']::TEXT[], 'not_recorded', NULL,
+  ARRAY[
+    'participant-01', 'participant-02', 'participant-03', 'participant-04',
+    'participant-05', 'participant-06', 'participant-07', 'participant-08',
+    'participant-09', 'participant-10', 'participant-11', 'participant-12'
+  ]::TEXT[], 'not_recorded', NULL,
   'Complete synthetic checklist',
   'create minimized synthetic profile one',
   '53000000-0000-4000-8000-000000000636'
@@ -583,7 +629,11 @@ SELECT platform.upsert_student_profile(
   'ru', 'Synthetic Citizenship', 'Synthetic Residency',
   'Synthetic current education', 'Synthetic academic summary',
   'Synthetic language summary', 'synthetic_budget_updated',
-  ARRAY['self']::TEXT[], 'not_recorded', NULL,
+  ARRAY[
+    'participant-01', 'participant-02', 'participant-03', 'participant-04',
+    'participant-05', 'participant-06', 'participant-07', 'participant-08',
+    'participant-09', 'participant-10', 'participant-11', 'participant-12'
+  ]::TEXT[], 'not_recorded', NULL,
   'Complete synthetic checklist',
   'revise synthetic budget band',
   '53000000-0000-4000-8000-000000000637'
@@ -625,11 +675,18 @@ RESET ROLE;
 
 SELECT pg_temp.assert_true(
   :'bw3_sensitive_gate_state' = '22023'
+    AND :'bw3_unsupported_language_state' = '22023'
+    AND :'bw3_thirteen_participants_state' = '22023'
     AND :'bw3_profile_changed_replay_state' = '22023'
     AND :'bw3_stale_revision_state' = '40001'
     AND :'bw3_profile_one_create'::JSONB = :'bw3_profile_one_replay'::JSONB
     AND (:'bw3_profile_one_update'::JSONB ->> 'revision')::BIGINT = 2
     AND (:'bw3_profile_two_create'::JSONB ->> 'revision')::BIGINT = 1
+    AND (
+      SELECT cardinality(decision_participant_labels) = 12
+      FROM platform.student_profiles
+      WHERE student_case_id = :'bw3_case_one_id'
+    )
     AND :'bw3_sales_pending_profile_read' = '1'
     AND :'bw3_sales_pending_document_read' = '2',
   'profile gate, replay, revision or pending Sales access failed'

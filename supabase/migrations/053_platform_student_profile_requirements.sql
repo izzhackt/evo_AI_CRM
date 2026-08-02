@@ -111,7 +111,7 @@ CREATE TABLE platform.student_profiles (
     )
   ),
   communication_language TEXT NOT NULL CHECK (
-    communication_language ~ '^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$'
+    communication_language IN ('ru', 'en')
   ),
   date_of_birth DATE CHECK (
     date_of_birth IS NULL
@@ -1624,7 +1624,7 @@ BEGIN
     OR preferred_name IS NULL
     OR length(preferred_name) NOT BETWEEN 1 AND 160
     OR communication_language_value IS NULL
-    OR communication_language_value !~ '^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$'
+    OR communication_language_value NOT IN ('ru', 'en')
     OR citizenship_value IS NULL
     OR length(citizenship_value) NOT BETWEEN 1 AND 120
     OR residency_value IS NULL

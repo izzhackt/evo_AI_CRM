@@ -661,6 +661,24 @@ test("admin Student 360 renders the persisted BW3 profile, provenance, and read-
   await expect(
     profileForm.locator('input[name="decision_participant_labels"]'),
   ).toHaveValue(fixture.bw3.orgA.profile.decisionParticipantLabels.join(", "));
+  const participantInput = profileForm.locator(
+    'input[name="decision_participant_labels"]',
+  );
+  const twelveParticipants = Array.from(
+    { length: 12 },
+    (_, index) => `participant-${index + 1}`,
+  );
+  await participantInput.fill(twelveParticipants.join(", "));
+  expect(
+    await participantInput.evaluate((input: HTMLInputElement) => input.checkValidity()),
+  ).toBe(true);
+  await participantInput.fill([...twelveParticipants, "participant-13"].join(", "));
+  expect(
+    await participantInput.evaluate((input: HTMLInputElement) => input.checkValidity()),
+  ).toBe(false);
+  await participantInput.fill(
+    fixture.bw3.orgA.profile.decisionParticipantLabels.join(", "),
+  );
   await expect(
     profileForm.locator('textarea[name="profile_next_step"]'),
   ).toHaveValue(fixture.bw3.orgA.profile.nextStep);

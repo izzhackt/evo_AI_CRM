@@ -1,12 +1,13 @@
 # P2 canonical Supabase foundation
 
 - Status: implementation contract; no production application
-- Date: 2026-07-30
-- Block family: P2A–P2H reusable foundation
+- Date: 2026-08-02
+- Block family: P2A–P2H merged reusable foundation; P2R0/P2R1 bounded local
+  proof reliability remediation
 - Parent contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 - Architecture: ADR 0014/0015, with greenfield/UI conflicts superseded by ADR
   0016
-- Starting checkpoint: `d3edcda6649cb7b90b789c57c658ec1fc4a20618`
+- Current checkpoint: `124ed41e1ba7f25d0f1affca336ce222e0a187d4`
 
 ## Purpose and truth boundary
 
@@ -88,6 +89,11 @@ P3 thin messaging slice
         v
 Later reliability lane restore evidence
 ```
+
+This dependency flow records the original foundation sequence. P3A-P3C and
+BW1-BW4 are now merged. Before BW5, P2R0/P2R1 add only a bounded reliability
+repair to the local proof path; they do not reopen the historical sequence or
+take P7 restore ownership.
 
 ## Sequential blocks
 
@@ -372,7 +378,37 @@ Exit:
 - separate backup inventory for Storage objects;
 - legacy `avatars`/`flow-media` compatibility is unchanged.
 
-### P2I — whole-foundation evidence
+### P2R0/P2R1 — local proof reliability remediation
+
+P2R0 is a docs-only launch-control gate. P2R1 is the single bounded
+implementation block after it merges. The migration number is expected to be
+055 and must be re-verified against fresh `origin/main` and open migration
+ownership before commit.
+
+P2R1 owns only:
+
+- process-group deadlines that terminate timed-out local validation children;
+- cleanup by the exact `com.supabase.cli.project=evo-platform-local` label,
+  with no broad Docker prune and an explicit zero-resource postcondition;
+- a GET-only local Auth admin readiness probe that retries only network and
+  transient 502/503/504 responses before synthetic test-user creation;
+- deterministic PGMQ test leases: normal finish paths retain a safe lease,
+  while explicit crash/expiry probes remain short;
+- a next-free forward migration that makes document finalization and review
+  acquire organization and document locks in one compatible order.
+
+Exit requires the real local `npm run test:supabase:local` path under Node
+22.23.1, clean Auth/RLS/Storage/PGMQ evidence, exact-label resource and
+singleton-lock cleanup, preserved Inbox containers/volumes, disposable
+PostgreSQL authorization tests, unit/security/lint/typecheck/build/scenario/
+E2E/accessibility checks and a scoped secret scan. A previous migration is
+never edited.
+
+This block does not prove or authorize managed Supabase, malware scanning,
+database or Storage restore, production apply, provider behavior, customer
+traffic or cutover. Whole-foundation restore evidence remains P7 work.
+
+### Former P2I — whole-foundation evidence
 Moved to the later reliability lane. Former P2I duties remain required work,
 but they do not block the first thin messaging slice behind the existing
 frontend.

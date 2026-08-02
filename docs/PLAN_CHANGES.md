@@ -3472,3 +3472,61 @@ Validation impact:
   automation controller may merge.
 
 Reviewer notes: pending independent SHA-bound review.
+
+## 2026-08-02 - Restore Plan Freshness And Gate Local Supabase Reliability
+
+Date: 2026-08-02, Asia/Almaty workspace timezone.
+
+Author: Codex.
+
+Block-ID: `EVO-P2R0-LOCAL-SUPABASE-RELIABILITY-PLAN-2026-08-02`.
+
+Change type: checkpoint freshness, implementation order, schema-correction
+boundary, local validation acceptance and reliability evidence.
+
+Affected plan section: `/goal-evo-platform-local-reliability`, current
+checkpoint, P2/P3/BW sequencing and local proof exit criteria.
+
+Reason:
+
+- `origin/main` now contains BW0, P3A-P3C and BW1-BW4 through PR #103 at
+  `124ed41e1ba7f25d0f1affca336ce222e0a187d4`, while the top-level contract still
+  described BW0/P3 as pending.
+- PR #99 was dependency/security maintenance and is not a new product lane.
+- Re-running the real local Supabase gate exposed bounded validation defects:
+  transient Auth 502 during cold readiness, timed-out descendant processes,
+  disposable-project cleanup ambiguity, normal PGMQ finish leases that were
+  too short, and incompatible document finalization/review lock order.
+- Those changes affect validation acceptance and add a forward schema
+  correction, so launch-control requires a docs-only amendment before code.
+
+Decision:
+
+- Add P2R0 as a docs-only checkpoint and acceptance gate. It changes no
+  runtime, migration, provider, customer data or production state.
+- Add P2R1 as one bounded implementation PR after P2R0 merges. It may own only
+  process-group deadlines, exact `evo-platform-local` label cleanup,
+  transient-only GET readiness for local Auth, deterministic PGMQ test leases
+  and the next-free forward document finalization/review lock-order correction.
+- Expect migration 055 from the current checkpoint, but re-verify the number
+  against fresh `origin/main` and open migration ownership before commit.
+- Keep merged migration history immutable. P2R1 must not edit migration 046 or
+  claim managed Supabase, malware provider, database/Storage restore,
+  production apply, live provider behavior or cutover.
+- Resume BW5 only after P2R1 is independently approved, controller-merged and
+  exact-main CI is green. P4, P5 and P7 ownership remains unchanged.
+
+Validation impact:
+
+- P2R0 remains docs-only and requires `git diff --check`, deterministic TZ DOCX
+  generation/verifier/render, visual inspection of every page, scoped
+  secret/PII checks, independent exact-head review and GitHub CI.
+- P2R1 requires the real local `npm run test:supabase:local` gate under Node
+  22.23.1, zero exact-label EVO validation resources after cleanup, preserved
+  Inbox containers/volumes, disposable PostgreSQL authorization tests,
+  unit/security/lint/type/build/scenario/E2E/accessibility checks and scoped
+  secret scanning.
+- Local evidence is not managed Supabase, live-provider, backup/restore or
+  production evidence.
+
+Reviewer notes: exact-head independent review required before merge.

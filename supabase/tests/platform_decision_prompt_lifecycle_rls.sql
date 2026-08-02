@@ -476,9 +476,25 @@ SELECT platform.staff_conversation_bw4_workspace(
 \gset
 RESET ROLE;
 
--- Raw prompt content stays backend-private. Only Admin can publish or inspect
--- it through the explicit catalog RPC; staff projections expose hashes and
--- provenance metadata, never the raw sentinel.
+-- Raw prompt content stays backend-private. Anonymous and non-Admin callers
+-- cannot execute the Admin catalog; an authorized Admin receives metadata,
+-- never the stored prompt-policy or business-context body.
+SET request.jwt.claims TO '{"role":"anon"}';
+SET ROLE anon;
+\set ON_ERROR_STOP off
+SELECT platform.admin_ai_prompt_artifact_catalog(:'bw4_org_b');
+\set bw4_anon_prompt_catalog_state :SQLSTATE
+\set ON_ERROR_STOP on
+RESET ROLE;
+
+SET request.jwt.claims TO :'bw4_sales_a_claims';
+SET ROLE authenticated;
+\set ON_ERROR_STOP off
+SELECT platform.admin_ai_prompt_artifact_catalog(:'bw4_org_a');
+\set bw4_non_admin_prompt_catalog_state :SQLSTATE
+\set ON_ERROR_STOP on
+RESET ROLE;
+
 SET request.jwt.claims TO :'bw4_admin_b_claims';
 SET ROLE authenticated;
 SELECT platform.publish_ai_prompt_artifact_version(
@@ -812,10 +828,91 @@ SELECT pg_temp.assert_true(
     AND :'bw4_student_workspace_state' = '42501'
     AND :'bw4_direct_insert_state' = '42501'
     AND :'bw4_service_raw_prompt_state' = '42501'
+    AND :'bw4_anon_prompt_catalog_state' = '42501'
+    AND :'bw4_non_admin_prompt_catalog_state' = '42501'
     AND position(
       'BW4_RAW_PROMPT_SENTINEL_MUST_NOT_LEAK'
       IN :'bw4_prompt_catalog'
-    ) > 0
+    ) = 0
+    AND :'bw4_prompt_catalog'::JSONB ->> 'organization_id' = :'bw4_org_b'
+    AND :'bw4_prompt_catalog'::JSONB ->> 'artifact_key' =
+      'lead_manager.default'
+    AND jsonb_array_length(
+      :'bw4_prompt_catalog'::JSONB -> 'artifacts'
+    ) = 2
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(
+        :'bw4_prompt_catalog'::JSONB -> 'artifacts'
+      ) AS artifact(value)
+      CROSS JOIN LATERAL jsonb_object_keys(artifact.value) AS field(key)
+      WHERE field.key NOT IN (
+        'prompt_artifact_version_id',
+        'artifact_kind',
+        'artifact_key',
+        'title',
+        'version',
+        'status',
+        'content_sha256',
+        'provenance_ref',
+        'approved_at',
+        'retired_at',
+        'created_at'
+      )
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(
+        :'bw4_prompt_catalog'::JSONB -> 'artifacts'
+      ) AS artifact(value)
+      WHERE NOT (
+        artifact.value ? 'prompt_artifact_version_id'
+        AND artifact.value ? 'artifact_kind'
+        AND artifact.value ? 'artifact_key'
+        AND artifact.value ? 'title'
+        AND artifact.value ? 'version'
+        AND artifact.value ? 'status'
+        AND artifact.value ? 'content_sha256'
+        AND artifact.value ? 'provenance_ref'
+        AND artifact.value ? 'approved_at'
+        AND artifact.value ? 'retired_at'
+        AND artifact.value ? 'created_at'
+        AND artifact.value ->> 'artifact_key' = 'lead_manager.default'
+        AND artifact.value ->> 'status' = 'approved'
+        AND artifact.value ->> 'content_sha256' ~ '^[0-9a-f]{64}$'
+      )
+    )
+    AND (
+      SELECT array_agg(
+        artifact.value ->> 'artifact_kind'
+        ORDER BY artifact.value ->> 'artifact_kind'
+      )
+      FROM jsonb_array_elements(
+        :'bw4_prompt_catalog'::JSONB -> 'artifacts'
+      ) AS artifact(value)
+    ) = ARRAY['business_context', 'prompt_policy']::TEXT[]
+    AND EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(
+        :'bw4_prompt_catalog'::JSONB -> 'artifacts'
+      ) AS artifact(value)
+      WHERE artifact.value ->> 'prompt_artifact_version_id' =
+        :'bw4_prompt_policy_id'
+        AND artifact.value ->> 'artifact_kind' = 'prompt_policy'
+        AND artifact.value ->> 'title' =
+          'Synthetic Lead Manager Prompt Policy v1'
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(
+        :'bw4_prompt_catalog'::JSONB -> 'artifacts'
+      ) AS artifact(value)
+      WHERE artifact.value ->> 'prompt_artifact_version_id' =
+        :'bw4_business_context_id'
+        AND artifact.value ->> 'artifact_kind' = 'business_context'
+        AND artifact.value ->> 'title' =
+          'Synthetic EVO Business Context v1'
+    )
     AND position(
       'BW4_RAW_PROMPT_SENTINEL_MUST_NOT_LEAK'
       IN :'bw4_workspace_b'
@@ -843,6 +940,238 @@ SELECT pg_temp.assert_true(
         ) LIKE '%BW4_RAW_PROMPT_SENTINEL_MUST_NOT_LEAK%'
     ),
   'BW4 lifecycle, authorization, prompt pin, or raw-content boundary failed'
+);
+
+-- The repository deliberately accepts at most 100 decisions per conversation
+-- and 100 immutable versions per decision. Exercise those exact database
+-- boundaries through the authenticated RPCs so a valid 101st row can never
+-- make the whole workspace projection fail closed in the application.
+CREATE OR REPLACE FUNCTION pg_temp.seed_bw4_decision_entry_boundary(
+  p_organization_id UUID,
+  p_conversation_id UUID,
+  p_student_case_id UUID
+)
+RETURNS INTEGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  item INTEGER;
+BEGIN
+  FOR item IN 2..100 LOOP
+    PERFORM platform.create_decision_backlog_entry(
+      p_organization_id,
+      p_conversation_id,
+      p_student_case_id,
+      format('Bounded decision %s', item),
+      'admin',
+      'general',
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      format('Create bounded decision %s', item),
+      (
+        '54000000-0000-4000-8100-'
+        || lpad(item::TEXT, 12, '0')
+      )::UUID
+    );
+  END LOOP;
+  RETURN 99;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.seed_bw4_decision_version_boundary(
+  p_organization_id UUID,
+  p_conversation_id UUID,
+  p_decision_backlog_id UUID,
+  p_source_registry_id UUID
+)
+RETURNS INTEGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  item INTEGER;
+BEGIN
+  FOR item IN 2..100 LOOP
+    PERFORM platform.transition_decision_backlog_entry(
+      p_organization_id,
+      p_conversation_id,
+      p_decision_backlog_id,
+      item - 1,
+      (
+        CASE WHEN item % 2 = 0 THEN 'answered' ELSE 'unresolved' END
+      )::platform.decision_backlog_status,
+      'Bounded decision 100',
+      CASE
+        WHEN item % 2 = 0 THEN 'Synthetic bounded answer.'
+        ELSE NULL
+      END,
+      'admin',
+      'general',
+      NULL,
+      NULL,
+      CASE WHEN item % 2 = 0 THEN p_source_registry_id ELSE NULL END,
+      CASE
+        WHEN item % 2 = 0 THEN 'synthetic:evidence:bw4:boundary'
+        ELSE NULL
+      END,
+      format('Append bounded decision version %s', item),
+      (
+        '54000000-0000-4000-8200-'
+        || lpad(item::TEXT, 12, '0')
+      )::UUID
+    );
+  END LOOP;
+  RETURN 99;
+END
+$$;
+
+GRANT EXECUTE ON FUNCTION
+  pg_temp.seed_bw4_decision_entry_boundary(UUID, UUID, UUID),
+  pg_temp.seed_bw4_decision_version_boundary(UUID, UUID, UUID, UUID)
+TO authenticated;
+
+SET request.jwt.claims TO :'bw4_admin_a_claims';
+SET ROLE authenticated;
+SELECT pg_temp.seed_bw4_decision_entry_boundary(
+  :'bw4_org_a', :'bw4_conversation_a', :'bw4_case_a'
+) AS bw4_bounded_entries_seeded
+\gset
+RESET ROLE;
+
+SELECT backlog.id AS bw4_bounded_decision_id
+FROM platform.decision_backlogs AS backlog
+JOIN platform.decision_backlog_versions AS version
+  ON version.organization_id = backlog.organization_id
+  AND version.decision_backlog_id = backlog.id
+  AND version.effective_version = 1
+WHERE backlog.organization_id = :'bw4_org_a'
+  AND backlog.conversation_id = :'bw4_conversation_a'
+  AND version.question = 'Bounded decision 100'
+\gset
+
+SET request.jwt.claims TO :'bw4_admin_a_claims';
+SET ROLE authenticated;
+SELECT platform.create_decision_backlog_entry(
+  :'bw4_org_a', :'bw4_conversation_a', :'bw4_case_a',
+  'Bounded decision 100',
+  'admin', 'general', NULL, NULL, NULL, NULL,
+  'Create bounded decision 100',
+  '54000000-0000-4000-8100-000000000100'
+)::TEXT AS bw4_bounded_entry_replay
+\gset
+
+\set ON_ERROR_STOP off
+SELECT platform.create_decision_backlog_entry(
+  :'bw4_org_a', :'bw4_conversation_a', :'bw4_case_a',
+  'Bounded decision 101 must fail',
+  'admin', 'general', NULL, NULL, NULL, NULL,
+  'Reject bounded decision 101',
+  '54000000-0000-4000-8101-000000000101'
+);
+\set bw4_entry_101_state :SQLSTATE
+\set ON_ERROR_STOP on
+
+SELECT pg_temp.seed_bw4_decision_version_boundary(
+  :'bw4_org_a',
+  :'bw4_conversation_a',
+  :'bw4_bounded_decision_id',
+  :'bw4_reviewed_source'
+) AS bw4_bounded_versions_seeded
+\gset
+
+SELECT platform.transition_decision_backlog_entry(
+  :'bw4_org_a',
+  :'bw4_conversation_a',
+  :'bw4_bounded_decision_id',
+  99,
+  'answered',
+  'Bounded decision 100',
+  'Synthetic bounded answer.',
+  'admin',
+  'general',
+  NULL,
+  NULL,
+  :'bw4_reviewed_source',
+  'synthetic:evidence:bw4:boundary',
+  'Append bounded decision version 100',
+  '54000000-0000-4000-8200-000000000100'
+)::TEXT AS bw4_bounded_version_replay
+\gset
+
+\set ON_ERROR_STOP off
+SELECT platform.transition_decision_backlog_entry(
+  :'bw4_org_a',
+  :'bw4_conversation_a',
+  :'bw4_bounded_decision_id',
+  100,
+  'unresolved',
+  'Bounded decision 100',
+  NULL,
+  'admin',
+  'general',
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  'Reject bounded decision version 101',
+  '54000000-0000-4000-8201-000000000101'
+);
+\set bw4_version_101_state :SQLSTATE
+\set ON_ERROR_STOP on
+
+SELECT platform.staff_conversation_bw4_workspace(
+  :'bw4_org_a', :'bw4_conversation_a'
+)::TEXT AS bw4_workspace_at_boundary
+\gset
+RESET ROLE;
+
+SELECT pg_temp.assert_true(
+  :'bw4_bounded_entries_seeded' = '99'
+    AND :'bw4_bounded_versions_seeded' = '99'
+    AND :'bw4_entry_101_state' = '22023'
+    AND :'bw4_version_101_state' = '22023'
+    AND (
+      :'bw4_bounded_entry_replay'::JSONB ->> 'decision_backlog_id'
+    ) = :'bw4_bounded_decision_id'
+    AND (
+      :'bw4_bounded_version_replay'::JSONB ->> 'effective_version'
+    ) = '100'
+    AND jsonb_array_length(
+      :'bw4_workspace_at_boundary'::JSONB -> 'decisions'
+    ) = 100
+    AND EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(
+        :'bw4_workspace_at_boundary'::JSONB -> 'decisions'
+      ) AS decision(value)
+      WHERE decision.value ->> 'decision_backlog_id' =
+          :'bw4_bounded_decision_id'
+        AND decision.value ->> 'current_effective_version' = '100'
+        AND jsonb_array_length(decision.value -> 'versions') = 100
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(
+        :'bw4_workspace_at_boundary'::JSONB -> 'decisions'
+      ) AS decision(value)
+      CROSS JOIN LATERAL jsonb_array_elements(
+        decision.value -> 'versions'
+      ) AS version(value)
+      WHERE version.value ->> 'status' = 'unresolved'
+    )
+    AND :'bw4_workspace_at_boundary'::JSONB -> 'handoff' =
+      :'bw4_workspace_a'::JSONB -> 'handoff'
+    AND :'bw4_workspace_at_boundary'::JSONB -> 'reviewed_sources' =
+      :'bw4_workspace_a'::JSONB -> 'reviewed_sources'
+    AND :'bw4_workspace_at_boundary'::JSONB -> 'active_prompt_artifacts' =
+      :'bw4_workspace_a'::JSONB -> 'active_prompt_artifacts'
+    AND :'bw4_workspace_at_boundary'::JSONB -> 'allowed_owner_roles' =
+      :'bw4_workspace_a'::JSONB -> 'allowed_owner_roles'
+    AND (
+      :'bw4_workspace_at_boundary'::JSONB ->> 'can_manage_decisions'
+    )::BOOLEAN,
+  '100-entry/version boundary hid decisions, evidence, handoff, or controls'
 );
 
 \echo 'BW4 decision and prompt lifecycle RLS acceptance passed'

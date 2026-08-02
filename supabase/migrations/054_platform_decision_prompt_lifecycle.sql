@@ -251,7 +251,7 @@ CREATE TABLE platform.decision_backlog_versions (
   organization_id UUID NOT NULL,
   conversation_id UUID NOT NULL,
   decision_backlog_id UUID NOT NULL,
-  effective_version BIGINT NOT NULL CHECK (effective_version > 0),
+  effective_version BIGINT NOT NULL,
   question TEXT NOT NULL CHECK (
     btrim(question) <> '' AND char_length(question) <= 2000
   ),
@@ -278,6 +278,8 @@ CREATE TABLE platform.decision_backlog_versions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
   CONSTRAINT decision_backlog_versions_organization_id_id_key
     UNIQUE (organization_id, id),
+  CONSTRAINT decision_backlog_versions_effective_version_check
+    CHECK (effective_version BETWEEN 1 AND 100),
   CONSTRAINT decision_backlog_versions_backlog_version_key
     UNIQUE (organization_id, decision_backlog_id, effective_version),
   CONSTRAINT decision_backlog_versions_backlog_fkey
@@ -661,6 +663,7 @@ $$;
 CREATE OR REPLACE FUNCTION platform_private.guard_decision_backlog_version()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+VOLATILE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
@@ -674,7 +677,8 @@ BEGIN
   FROM platform.decision_backlogs AS backlog
   WHERE backlog.organization_id = NEW.organization_id
     AND backlog.id = NEW.decision_backlog_id
-    AND backlog.conversation_id = NEW.conversation_id;
+    AND backlog.conversation_id = NEW.conversation_id
+  FOR UPDATE;
 
   IF backlog_row.id IS NULL THEN
     RAISE EXCEPTION 'Decision backlog is unavailable'
@@ -686,6 +690,11 @@ BEGIN
   FROM platform.decision_backlog_versions AS version
   WHERE version.organization_id = NEW.organization_id
     AND version.decision_backlog_id = NEW.decision_backlog_id;
+
+  IF COALESCE(prior_version, 0) >= 100 THEN
+    RAISE EXCEPTION 'Decision backlog version limit is 100'
+      USING ERRCODE = '22023';
+  END IF;
 
   IF NEW.effective_version <> COALESCE(prior_version, 0) + 1 THEN
     RAISE EXCEPTION 'Decision effective version is not the next version'
@@ -729,6 +738,46 @@ BEGIN
 END
 $$;
 
+CREATE OR REPLACE FUNCTION platform_private.guard_decision_backlog_insert()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  locked_conversation_id UUID;
+  existing_backlog_count BIGINT;
+BEGIN
+  -- Every writer takes the same parent-row lock before counting. This keeps
+  -- the 100-entry API bound true even when two inserts race concurrently.
+  SELECT conversation.id
+  INTO locked_conversation_id
+  FROM platform.communication_conversations AS conversation
+  WHERE conversation.organization_id = NEW.organization_id
+    AND conversation.id = NEW.conversation_id
+  FOR UPDATE;
+
+  IF locked_conversation_id IS NULL THEN
+    RAISE EXCEPTION 'Decision conversation is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT COUNT(*)
+  INTO existing_backlog_count
+  FROM platform.decision_backlogs AS backlog
+  WHERE backlog.organization_id = NEW.organization_id
+    AND backlog.conversation_id = NEW.conversation_id;
+
+  IF existing_backlog_count >= 100 THEN
+    RAISE EXCEPTION 'Decision backlog entry limit is 100 per conversation'
+      USING ERRCODE = '22023';
+  END IF;
+
+  RETURN NEW;
+END
+$$;
+
 CREATE TRIGGER ai_prompt_artifact_versions_transition_guard
   BEFORE UPDATE OR DELETE
   ON platform_private.ai_prompt_artifact_versions
@@ -759,6 +808,11 @@ CREATE TRIGGER ai_drafts_prompt_pin_guard
   ON platform.ai_drafts
   FOR EACH ROW
   EXECUTE FUNCTION platform_private.guard_ai_draft_prompt_pins();
+CREATE TRIGGER decision_backlogs_insert_guard
+  BEFORE INSERT
+  ON platform.decision_backlogs
+  FOR EACH ROW
+  EXECUTE FUNCTION platform_private.guard_decision_backlog_insert();
 CREATE TRIGGER decision_backlogs_append_only
   BEFORE UPDATE OR DELETE
   ON platform.decision_backlogs
@@ -797,6 +851,7 @@ REVOKE ALL ON FUNCTION
     UUID,
     platform.student_profile_field
   ),
+  platform_private.guard_decision_backlog_insert(),
   platform_private.guard_decision_backlog_version()
 FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
@@ -1440,7 +1495,6 @@ BEGIN
         'title', artifact.title,
         'version', artifact.version,
         'status', artifact.status,
-        'content_text', artifact.content_text,
         'content_sha256', artifact.content_sha256,
         'provenance_ref', artifact.provenance_ref,
         'approved_at', artifact.approved_at,
@@ -1875,6 +1929,10 @@ BEGIN
   IF current_version.effective_version <> p_expected_effective_version THEN
     RAISE EXCEPTION 'Decision expected effective version does not match'
       USING ERRCODE = '40001';
+  END IF;
+  IF current_version.effective_version >= 100 THEN
+    RAISE EXCEPTION 'Decision backlog version limit is 100'
+      USING ERRCODE = '22023';
   END IF;
   IF NOT (
     (current_version.status = 'unresolved' AND p_new_status IN ('answered', 'retired'))

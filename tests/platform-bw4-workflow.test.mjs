@@ -151,6 +151,10 @@ function clone(value) {
   return structuredClone(value);
 }
 
+function boundedUuid(prefix, value) {
+  return `${prefix}-0000-4000-8000-${String(value).padStart(12, "0")}`;
+}
+
 function validCreateForm(overrides = {}) {
   const values = {
     conversation_id: CONVERSATION_ID,
@@ -219,6 +223,41 @@ test("normalizes the complete metadata-only BW4 workspace and derives controls",
   assert.equal(workspace.decisions[0].canAnswer, true);
   assert.equal(workspace.decisions[0].canReopen, false);
   assert.equal(workspace.decisions[0].canRetire, true);
+});
+
+test("keeps the BW4 workspace usable at the enforced 100 by 100 decision boundary", () => {
+  const decisions = Array.from({ length: 100 }, (_, decisionIndex) => {
+    const versionCount = decisionIndex === 0 ? 100 : 1;
+    return {
+      decision_backlog_id: boundedUuid("d1000000", decisionIndex + 1),
+      current_effective_version: String(versionCount),
+      versions: Array.from({ length: versionCount }, (_, versionIndex) =>
+        decisionVersion({
+          decision_backlog_version_id: boundedUuid(
+            "e1000000",
+            decisionIndex * 1000 + versionIndex + 1,
+          ),
+          effective_version: String(versionIndex + 1),
+        }),
+      ),
+    };
+  });
+
+  const workspace = normalizePlatformConversationBw4Workspace(
+    workspaceRow({ decisions }),
+  );
+
+  assert.equal(workspace.decisions.length, 100);
+  assert.equal(workspace.decisions[0].versions.length, 100);
+  assert.equal(workspace.decisions[0].currentEffectiveVersion, "100");
+  assert.equal(workspace.decisions[0].canAnswer, true);
+  assert.equal(workspace.canCreateDecision, true);
+  assert.equal(workspace.handoff?.handoffId, HANDOFF_ID);
+  assert.equal(workspace.reviewedSources[0].sourceRegistryId, SOURCE_ID);
+  assert.equal(
+    workspace.activePromptArtifacts.promptPolicy?.promptArtifactVersionId,
+    PROMPT_ID,
+  );
 });
 
 test("keeps a pre-contract conversation usable while limiting it to general decisions", () => {

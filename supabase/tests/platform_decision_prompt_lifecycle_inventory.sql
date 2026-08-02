@@ -170,6 +170,15 @@ BEGIN
     RAISE EXCEPTION 'Raw prompt content leaked into the public selection table';
   END IF;
 
+  IF position(
+    'content_text' IN pg_get_functiondef(
+      'platform.admin_ai_prompt_artifact_catalog(uuid)'::REGPROCEDURE
+    )
+  ) > 0 THEN
+    RAISE EXCEPTION
+      'Admin prompt artifact catalog must remain metadata-only';
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1
     FROM information_schema.columns
@@ -267,11 +276,37 @@ BEGIN
   ) OR NOT EXISTS (
     SELECT 1
     FROM pg_trigger
+    WHERE tgrelid = 'platform.decision_backlogs'::REGCLASS
+      AND tgname = 'decision_backlogs_insert_guard'
+      AND NOT tgisinternal
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_trigger
+    WHERE tgrelid = 'platform.decision_backlog_versions'::REGCLASS
+      AND tgname = 'decision_backlog_versions_insert_guard'
+      AND NOT tgisinternal
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_trigger
     WHERE tgrelid = 'platform.ai_drafts'::REGCLASS
       AND tgname = 'ai_drafts_prompt_pin_guard'
       AND NOT tgisinternal
   ) THEN
     RAISE EXCEPTION 'BW4 immutable-history trigger inventory drifted';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint AS constraint_row
+    WHERE constraint_row.conrelid =
+        'platform.decision_backlog_versions'::REGCLASS
+      AND constraint_row.conname =
+        'decision_backlog_versions_effective_version_check'
+      AND constraint_row.contype = 'c'
+      AND pg_get_constraintdef(constraint_row.oid) LIKE
+        '%effective_version%1%100%'
+  ) THEN
+    RAISE EXCEPTION 'BW4 decision version bound drifted';
   END IF;
 
   IF (

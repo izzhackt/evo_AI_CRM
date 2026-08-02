@@ -15,6 +15,9 @@ readonly EXPECTED_CLI_VERSION="2.110.0"
 readonly MIGRATIONS_DIR="${REPO_ROOT}/supabase/migrations"
 readonly POSTGREST_CONTAINER="supabase_rest_${SUPABASE_PROJECT_ID}"
 readonly DATABASE_CONTAINER="supabase_db_${SUPABASE_PROJECT_ID}"
+readonly AUTH_CONTAINER="supabase_auth_${SUPABASE_PROJECT_ID}"
+readonly STORAGE_CONTAINER="supabase_storage_${SUPABASE_PROJECT_ID}"
+readonly KONG_CONTAINER="supabase_kong_${SUPABASE_PROJECT_ID}"
 readonly EXCLUDED_SERVICES="realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
 readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2h.XXXXXX")"
 readonly CANONICAL_VERSIONS_FILE="${TEMP_DIR}/canonical-versions.txt"
@@ -86,6 +89,53 @@ show_safe_database_deadlock_log() {
   ' "${database_log}" >"${deadlock_log}"
 
   show_safe_failure_log "${deadlock_log}"
+}
+
+wait_for_local_stack_readiness() {
+  local deadline=$((SECONDS + 90))
+  local status_file="${TEMP_DIR}/reset-readiness-status.json"
+  local status_log="${TEMP_DIR}/reset-readiness-status.log"
+  local container_name
+  local container_state
+  local containers_ready
+
+  : >"${status_file}"
+  chmod 600 "${status_file}"
+  while (( SECONDS < deadline )); do
+    containers_ready=true
+    for container_name in \
+      "${DATABASE_CONTAINER}" \
+      "${POSTGREST_CONTAINER}" \
+      "${AUTH_CONTAINER}" \
+      "${STORAGE_CONTAINER}" \
+      "${KONG_CONTAINER}"; do
+      container_state="$(
+        docker inspect \
+          --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+          "${container_name}" \
+          2>/dev/null \
+          || true
+      )"
+      if [[ "${container_state}" != healthy && "${container_state}" != running ]]; then
+        containers_ready=false
+        break
+      fi
+    done
+
+    if [[ "${containers_ready}" == true ]] && "${SUPABASE_CLI}" \
+      --workdir "${REPO_ROOT}" \
+      status \
+      --output json \
+      >"${status_file}" 2>"${status_log}"; then
+      rm -f -- "${status_file}"
+      return 0
+    fi
+    sleep 2
+  done
+
+  rm -f -- "${status_file}"
+  show_safe_failure_log "${status_log}"
+  return 1
 }
 
 [[ -x "${SUPABASE_CLI}" ]] \
@@ -342,7 +392,26 @@ if ! "${SUPABASE_CLI}" \
   >"${TEMP_DIR}/post-browser-reset.json" \
   2>"${TEMP_DIR}/post-browser-reset.log"; then
   show_safe_failure_log "${TEMP_DIR}/post-browser-reset.log"
-  fail "Post-browser disposable Supabase reset failed."
+  show_safe_database_deadlock_log
+  # Supabase CLI can return non-zero while the named disposable stack is still
+  # completing its container restart. Wait for the exact disposable stack to
+  # become healthy, then retry the same clean reset once. Never continue to
+  # Storage/Queues unless a reset command itself succeeds.
+  if ! wait_for_local_stack_readiness; then
+    fail "Disposable Supabase stack did not become healthy before reset retry."
+  fi
+  if ! "${SUPABASE_CLI}" \
+    --workdir "${REPO_ROOT}" \
+    --output-format json \
+    db reset \
+    --local \
+    --no-seed \
+    >"${TEMP_DIR}/post-browser-reset-retry.json" \
+    2>"${TEMP_DIR}/post-browser-reset-retry.log"; then
+    show_safe_failure_log "${TEMP_DIR}/post-browser-reset-retry.log"
+    show_safe_database_deadlock_log
+    fail "Post-browser disposable Supabase reset failed after one bounded retry."
+  fi
 fi
 
 if ! "${SUPABASE_CLI}" \

@@ -1,26 +1,32 @@
-import { cache } from "react";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
-import { currentUser } from "./auth";
 import { getT } from "./i18n";
-import { studentPortalSnapshotForUser } from "./queries";
+import { requirePlatformStudentPortalActor } from "./platform-guards";
+import { getPlatformStudentPortalSnapshot } from "./platform-portal";
+import { isUiContractFixtureMode } from "./runtime-mode";
 
 /**
- * Resolves the authenticated student and only that student's portal snapshot.
+ * Request-memoized page facade for every accepted /portal page.
  *
- * The user id always comes from the signed HTTP-only session cookie. Portal
- * routes never accept a client id from params or search input, which keeps a
- * student from selecting another student's record.
+ * Identity comes only from the verified Supabase actor. The repository calls
+ * RLS-scoped, argument-free RPCs, so a route cannot select another student's
+ * case by URL, query string or legacy numeric identifier.
  */
 export const getPortalPageData = cache(async () => {
-  const user = await currentUser();
-  if (!user) redirect("/login");
-  if (user.role !== "client") redirect("/dashboard");
+  if (isUiContractFixtureMode()) {
+    const { getFixturePortalPageData } = await import("./portal-fixture");
+    return getFixturePortalPageData();
+  }
+
+  const actor = await requirePlatformStudentPortalActor();
+  const snapshot = await getPlatformStudentPortalSnapshot(actor);
+  if (!snapshot) redirect("/platform-pending?from=/portal");
 
   const { t, locale } = await getT();
   return {
-    user,
-    snapshot: studentPortalSnapshotForUser(user.id),
+    user: { name: snapshot.student.name },
+    snapshot,
     t,
     locale,
   };

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 type Identity = Readonly<{ email: string; password: string }>;
@@ -19,6 +19,7 @@ type Fixture = Readonly<{
     salesScoped: Identity;
     finance: Identity;
     student: Identity;
+    studentNoCase: Identity;
     blocked: Identity;
     noMembership: Identity;
   }>;
@@ -77,6 +78,56 @@ type Fixture = Readonly<{
       }>;
     }>;
   }>;
+  bw3: Readonly<{
+    orgA: Readonly<{
+      organizationId: string;
+      studentCaseId: string;
+      studentProfileId: string;
+      studentIdentityProfileId: string;
+      sourceRegistryId: string;
+      countryRequirementSourceLinkId: string;
+      countryRequirementVersionId: string;
+      documentRequirementId: string;
+      documentSlotId: string;
+      appliedDocumentSlotCount: number;
+      profileRevision: number;
+      checklist: Readonly<{
+        targetCountry: string;
+        targetDegree: string;
+        programDirection: string;
+        version: number;
+        sourceCount: number;
+        requiredProfileFields: readonly string[];
+      }>;
+      profile: Readonly<{
+        preferredDisplayName: string;
+        legalDisplayName: string | null;
+        dateOfBirth: string | null;
+        communicationLanguage: string;
+        citizenshipCountry: string;
+        residencyCountry: string | null;
+        currentEducationSummary: string | null;
+        academicSummary: string;
+        languageSummary: string;
+        budgetBand: string;
+        decisionParticipantLabels: readonly string[];
+        consentStatus: string;
+        consentEvidenceRef: string | null;
+        nextStep: string;
+      }>;
+      document: Readonly<{
+        requirementKey: string;
+        label: string;
+        instructions: string;
+        status: string;
+      }>;
+    }>;
+    noCaseStudent: Readonly<{
+      membershipId: string;
+      profileId: string;
+      displayName: string;
+    }>;
+  }>;
 }>;
 
 const fixturePath = process.env.EVO_PLATFORM_AUTH_FIXTURE_PATH;
@@ -87,6 +138,17 @@ if ((statSync(fixturePath).mode & 0o777) !== 0o600) {
   throw new Error("Platform Auth fixture must use mode 0600");
 }
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as Fixture;
+const configuredLegacyDatabaseSentinel =
+  process.env.EVO_PLATFORM_LEGACY_DB_SENTINEL;
+if (
+  !configuredLegacyDatabaseSentinel ||
+  !path.isAbsolute(configuredLegacyDatabaseSentinel)
+) {
+  throw new Error(
+    "EVO_PLATFORM_LEGACY_DB_SENTINEL must be an absolute path",
+  );
+}
+const legacyDatabaseSentinel = configuredLegacyDatabaseSentinel;
 
 async function login(page: Page, identity: Identity) {
   await page.goto("/login");
@@ -97,11 +159,10 @@ async function login(page: Page, identity: Identity) {
 
 function expectedStaffHome(identity: Identity): RegExp {
   if (identity === fixture.identities.curator) return /\/clients$/;
-  if (
-    identity === fixture.identities.finance ||
-    identity === fixture.identities.student
-  ) {
-    return /\/platform-pending$/;
+  if (identity === fixture.identities.finance) return /\/platform-pending$/;
+  if (identity === fixture.identities.student) return /\/portal$/;
+  if (identity === fixture.identities.studentNoCase) {
+    return /\/platform-pending(?:\?.*)?$/;
   }
   return /\/sales$/;
 }
@@ -199,6 +260,36 @@ async function workflowRpc(
   let payload: unknown = null;
   if (text) payload = JSON.parse(text);
   return { status: response.status, payload };
+}
+
+async function platformRpc(
+  token: string,
+  routineName: string,
+  body: Readonly<Record<string, unknown>>,
+) {
+  const response = await fetch(
+    `${fixture.apiUrl}/rest/v1/rpc/${routineName}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: fixture.publishableKey,
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Accept-Profile": "platform",
+        "Content-Profile": "platform",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    },
+  );
+  const text = await response.text();
+  let payload: unknown = null;
+  if (text) payload = JSON.parse(text);
+  return { status: response.status, payload };
+}
+
+function expectLegacyDatabaseUntouched() {
+  expect(existsSync(legacyDatabaseSentinel)).toBe(false);
 }
 
 async function openOrgAConversation(page: Page, identity: Identity) {
@@ -452,7 +543,6 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
     "/reports",
     "/finance",
     "/settings",
-    "/portal",
   ]) {
     await page.goto(legacyRoute);
     const destination = new URL(page.url());
@@ -508,6 +598,304 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
     .toEqual([]);
   await page.goto("/whatsapp");
   await expect(page).toHaveURL(/\/login$/);
+});
+
+test("admin Student 360 renders the persisted BW3 profile, provenance, and read-only requirement", async ({
+  page,
+}) => {
+  test.slow();
+  expectLegacyDatabaseUntouched();
+
+  await login(page, fixture.identities.admin);
+  await expect(page).toHaveURL(/\/sales$/);
+  const clientPath = `/clients/${fixture.bw3.orgA.studentCaseId}`;
+  await page.goto(clientPath);
+  await expect(page).toHaveURL(
+    new RegExp(`${escapePathForRegex(clientPath)}$`),
+  );
+
+  const student360 = page.getByTestId("platform-client-detail-page");
+  await expect(student360).toBeVisible();
+  await expect(
+    student360.locator("p").filter({ hasText: /^Student 360$/ }),
+  ).toBeVisible();
+
+  const profileForm = student360.getByTestId("platform-student-profile-form");
+  await expect(profileForm).toBeVisible();
+  await expect(
+    profileForm.locator('input[name="student_case_id"]'),
+  ).toHaveValue(fixture.bw3.orgA.studentCaseId);
+  await expect(
+    profileForm.locator('input[name="expected_revision"]'),
+  ).toHaveValue(String(fixture.bw3.orgA.profileRevision));
+  await expect(
+    profileForm.locator('input[name="preferred_display_name"]'),
+  ).toHaveValue(fixture.bw3.orgA.profile.preferredDisplayName);
+  await expect(
+    profileForm.locator('select[name="communication_language"]'),
+  ).toHaveValue(fixture.bw3.orgA.profile.communicationLanguage);
+  await expect(
+    profileForm.locator('input[name="citizenship_country"]'),
+  ).toHaveValue(fixture.bw3.orgA.profile.citizenshipCountry);
+  await expect(
+    profileForm.locator('input[name="residency_country"]'),
+  ).toHaveValue(fixture.bw3.orgA.profile.residencyCountry ?? "");
+  await expect(
+    profileForm.locator('input[name="budget_band"]'),
+  ).toHaveValue(fixture.bw3.orgA.profile.budgetBand);
+  await expect(
+    profileForm.locator('select[name="consent_status"]'),
+  ).toHaveValue(fixture.bw3.orgA.profile.consentStatus);
+  await expect(
+    profileForm.locator('input[name="consent_evidence_ref"]'),
+  ).toHaveValue(fixture.bw3.orgA.profile.consentEvidenceRef ?? "");
+  await expect(
+    profileForm.locator('textarea[name="current_education_summary"]'),
+  ).toHaveValue(fixture.bw3.orgA.profile.currentEducationSummary ?? "");
+  await expect(
+    profileForm.locator('textarea[name="academic_summary"]'),
+  ).toHaveValue(fixture.bw3.orgA.profile.academicSummary);
+  await expect(
+    profileForm.locator('textarea[name="language_summary"]'),
+  ).toHaveValue(fixture.bw3.orgA.profile.languageSummary);
+  await expect(
+    profileForm.locator('input[name="decision_participant_labels"]'),
+  ).toHaveValue(fixture.bw3.orgA.profile.decisionParticipantLabels.join(", "));
+  const participantInput = profileForm.locator(
+    'input[name="decision_participant_labels"]',
+  );
+  const twelveParticipants = Array.from(
+    { length: 12 },
+    (_, index) => `participant-${index + 1}`,
+  );
+  await participantInput.fill(twelveParticipants.join(", "));
+  expect(
+    await participantInput.evaluate((input: HTMLInputElement) => input.checkValidity()),
+  ).toBe(true);
+  await participantInput.fill([...twelveParticipants, "participant-13"].join(", "));
+  expect(
+    await participantInput.evaluate((input: HTMLInputElement) => input.checkValidity()),
+  ).toBe(false);
+  await participantInput.fill(
+    fixture.bw3.orgA.profile.decisionParticipantLabels.join(", "),
+  );
+  await expect(
+    profileForm.locator('textarea[name="profile_next_step"]'),
+  ).toHaveValue(fixture.bw3.orgA.profile.nextStep);
+  await expect(
+    profileForm.locator('input[name="legal_display_name"]'),
+  ).toHaveCount(0);
+  await expect(
+    profileForm.locator('input[name="date_of_birth"]'),
+  ).toHaveCount(0);
+
+  const checklist = student360.getByTestId("platform-country-checklist");
+  await expect(checklist).toBeVisible();
+  await expect(
+    checklist.getByText(`v${fixture.bw3.orgA.checklist.version}`, {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    checklist.getByText(
+      `Подтверждённых источников: ${fixture.bw3.orgA.checklist.sourceCount}`,
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    checklist.locator('select[name="country_requirement_version_id"]'),
+  ).toHaveCount(0);
+  for (const requiredFieldLabel of [
+    "Предпочитаемое имя",
+    "Язык общения",
+    "Гражданство",
+    "Академический профиль",
+    "Языковая подготовка",
+    "Бюджетный диапазон",
+    "Следующий шаг",
+  ]) {
+    await expect(checklist).toContainText(requiredFieldLabel);
+  }
+
+  const documents = student360.locator("section#documents");
+  await expect(documents).toBeVisible();
+  await expect(documents.locator("li")).toHaveCount(
+    fixture.bw3.orgA.appliedDocumentSlotCount,
+  );
+  await expect(
+    documents.getByText(fixture.bw3.orgA.document.label, { exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    documents.getByText(fixture.bw3.orgA.document.instructions, {
+      exact: true,
+    }),
+  ).toHaveCount(1);
+  await expect(documents.getByText("Требуется", { exact: true })).toHaveCount(1);
+  await expect(documents.locator('a[href^="/documents/"]')).toHaveCount(0);
+  await expect(documents.locator('input[type="file"]')).toHaveCount(0);
+  await expect(
+    documents.getByRole("button", {
+      name: /загрузить|отправить файл|добавить документ/i,
+    }),
+  ).toHaveCount(0);
+
+  expectLegacyDatabaseUntouched();
+});
+
+test("student portal renders the persisted BW3 profile and one requirement without legacy SQLite", async ({
+  page,
+}) => {
+  test.slow();
+  expectLegacyDatabaseUntouched();
+  expect(fixture.bw3.orgA.studentProfileId).not.toBe(
+    fixture.bw3.orgA.studentIdentityProfileId,
+  );
+  await login(page, fixture.identities.student);
+  await expect(page).toHaveURL(/\/portal$/);
+
+  for (const [route, heading] of [
+    ["/portal", "Главная"],
+    ["/portal/profile", "Профиль"],
+    ["/portal/documents", "Документы"],
+    ["/portal/applications", "Заявки"],
+    ["/portal/payments", "Оплаты"],
+    ["/portal/visa", "Виза"],
+    ["/portal/messages", "Сообщения"],
+    ["/portal/team", "Моя команда"],
+  ] as const) {
+    await page.goto(route);
+    await expect(page).toHaveURL(new RegExp(`${escapePathForRegex(route)}$`));
+    await expect(
+      page.locator("#portal-main").getByRole("heading", {
+        level: 1,
+        name: heading,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("navigation", { name: "Навигация кабинета" })
+        .first(),
+    ).toBeVisible();
+  }
+
+  await page.goto("/portal/profile");
+  for (const expectedValue of [
+    fixture.bw3.orgA.profile.preferredDisplayName,
+    fixture.bw3.orgA.profile.citizenshipCountry,
+    fixture.bw3.orgA.profile.residencyCountry,
+    fixture.bw3.orgA.profile.currentEducationSummary,
+    fixture.bw3.orgA.profile.academicSummary,
+    fixture.bw3.orgA.profile.languageSummary,
+    fixture.bw3.orgA.profile.budgetBand,
+    fixture.bw3.orgA.profile.nextStep,
+    fixture.bw3.orgA.checklist.targetCountry,
+    fixture.bw3.orgA.checklist.targetDegree,
+    fixture.bw3.orgA.checklist.programDirection,
+  ]) {
+    if (!expectedValue) continue;
+    await expect(
+      page.getByText(expectedValue, { exact: true }).first(),
+    ).toBeVisible();
+  }
+
+  await page.goto("/portal/documents");
+  const documentList = page.locator('section[aria-label="Документы"]');
+  await expect(documentList.locator("article")).toHaveCount(
+    fixture.bw3.orgA.appliedDocumentSlotCount,
+  );
+  await expect(
+    documentList.getByText(fixture.bw3.orgA.document.label, { exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    documentList.getByText("Требуется", { exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByText("Загрузка в кабинете пока недоступна", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "В этой версии кабинета нет защищённой загрузки или повторной отправки файлов. Не передавайте паспорт и другие чувствительные документы через обычный чат — уточните у куратора согласованный безопасный канал.",
+      { exact: true },
+    ).first(),
+  ).toBeVisible();
+  await expect(page.locator('input[type="file"]')).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /загрузить|отправить файл/i }),
+  ).toHaveCount(0);
+
+  for (const route of ["/portal/profile", "/portal/documents"] as const) {
+    await page.goto(
+      `${route}?clientId=${encodeURIComponent(
+        fixture.bw3.noCaseStudent.profileId,
+      )}&studentCaseId=${encodeURIComponent(
+        fixture.bw3.noCaseStudent.membershipId,
+      )}`,
+    );
+    expect(new URL(page.url()).pathname).toBe(route);
+    await expect(page.locator("#portal-main")).not.toContainText(
+      fixture.bw3.noCaseStudent.displayName,
+    );
+    if (route === "/portal/profile") {
+      await expect(
+        page.getByText(fixture.bw3.orgA.profile.preferredDisplayName, {
+          exact: true,
+        }).first(),
+      ).toBeVisible();
+    } else {
+      await expect(
+        page.getByText(fixture.bw3.orgA.document.label, { exact: true }),
+      ).toHaveCount(1);
+    }
+  }
+  expectLegacyDatabaseUntouched();
+});
+
+test("BW3 RPCs deny cross-student reads and non-Admin checklist binding", async () => {
+  const [studentToken, financeToken, salesToken, curatorToken] = await Promise.all([
+    localAccessToken(fixture.identities.studentNoCase),
+    localAccessToken(fixture.identities.finance),
+    localAccessToken(fixture.identities.salesScoped),
+    localAccessToken(fixture.identities.curator),
+  ]);
+
+  for (const routineName of [
+    "staff_student_profile_snapshot",
+    "staff_student_case_documents",
+  ] as const) {
+    const result = await platformRpc(studentToken, routineName, {
+      p_student_case_id: fixture.bw3.orgA.studentCaseId,
+    });
+    expect(result.status, routineName).toBe(200);
+    expect(result.payload, routineName).toEqual([]);
+  }
+
+  const financeProfile = await platformRpc(
+    financeToken,
+    "staff_student_profile_snapshot",
+    { p_student_case_id: fixture.bw3.orgA.studentCaseId },
+  );
+  expect(financeProfile.status).toBe(200);
+  expect(financeProfile.payload).toEqual([]);
+
+  for (const [label, token] of [
+    ["sales", salesToken],
+    ["curator", curatorToken],
+  ] as const) {
+    const result = await platformRpc(
+      token,
+      "apply_country_requirement_version",
+      {
+        p_organization_id: fixture.bw3.orgA.organizationId,
+        p_student_case_id: fixture.bw3.orgA.studentCaseId,
+        p_country_requirement_version_id:
+          fixture.bw3.orgA.countryRequirementVersionId,
+        p_reason: `${label} direct RPC must remain denied`,
+        p_request_id: randomUUID(),
+      },
+    );
+    expect(result.status, label).toBe(403);
+  }
 });
 
 test("admin creates a preparation application with one RLS-visible audit event", async ({
@@ -586,18 +974,23 @@ test("admin creates a preparation application with one RLS-visible audit event",
   ]);
 });
 
-test("staff and student role destinations remain separated", async ({
+test("staff cannot stay on the student portal and a Student without a case fails closed", async ({
   browser,
 }) => {
   for (const [identity, expectedPath] of [
-    [fixture.identities.curator, /\/clients$/],
-    [fixture.identities.finance, /\/platform-pending$/],
-    [fixture.identities.student, /\/platform-pending$/],
+    [fixture.identities.admin, "/sales"],
+    [fixture.identities.curator, "/clients"],
+    [fixture.identities.finance, "/platform-pending"],
   ] as const) {
     const context = await browser.newContext();
     const page = await context.newPage();
     await login(page, identity);
-    await expect(page).toHaveURL(expectedPath);
+    await expect.poll(() => new URL(page.url()).pathname).toBe(expectedPath);
+    await page.goto("/portal");
+    await expect.poll(() => new URL(page.url()).pathname).toBe(expectedPath);
+    await expect(
+      page.getByRole("navigation", { name: "Навигация кабинета" }),
+    ).toHaveCount(0);
     if (identity === fixture.identities.curator) {
       await expect(page.getByTestId("platform-clients-page")).toBeVisible();
       await page.goto("/sales");
@@ -611,12 +1004,24 @@ test("staff and student role destinations remain separated", async ({
         expect(destination.searchParams.get("from"), route).toBe(route);
       }
     }
-    if (expectedPath.source.includes("platform-pending")) {
+    if (expectedPath === "/platform-pending") {
       await expect(page.getByTestId("platform-pending")).toBeVisible();
       await expect(page.getByRole("link", { name: "Открыть сообщения" })).toHaveCount(0);
     }
     await context.close();
   }
+
+  const noCaseContext = await browser.newContext();
+  const noCasePage = await noCaseContext.newPage();
+  await login(noCasePage, fixture.identities.studentNoCase);
+  await expect
+    .poll(() => new URL(noCasePage.url()).pathname)
+    .toBe("/platform-pending");
+  await expect(noCasePage.getByTestId("platform-pending")).toBeVisible();
+  await expect(
+    noCasePage.getByRole("link", { name: "Открыть сообщения" }),
+  ).toHaveCount(0);
+  await noCaseContext.close();
 });
 
 test("cross-organization admin is denied the org A P3C workflow route", async ({

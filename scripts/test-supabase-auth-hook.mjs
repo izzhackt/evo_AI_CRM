@@ -474,6 +474,7 @@ const membershipFor = (identity) => {
     `
       SELECT jsonb_build_object(
         'id', membership.id,
+        'profile_id', membership.profile_id,
         'organization_id', membership.organization_id,
         'role', membership.${sqlIdentifier(membershipRoleColumn)},
         'status', membership.status
@@ -1082,8 +1083,9 @@ const authenticatedPlatformRpcRows = async (
   const search = new URLSearchParams(
     Object.entries(body).map(([name, value]) => [name, String(value)]),
   );
+  const query = search.toString();
   const response = await requestJson(
-    `/rest/v1/rpc/${routineName}?${search}`,
+    `/rest/v1/rpc/${routineName}${query ? `?${query}` : ""}`,
     {
       token: identity.accessToken,
       schema: true,
@@ -1193,6 +1195,7 @@ const main = async () => {
     curator: syntheticIdentity("curator"),
     finance: syntheticIdentity("finance"),
     student: syntheticIdentity("student"),
+    studentNoCase: syntheticIdentity("student-no-case"),
     blocked: syntheticIdentity("blocked"),
     noMembership: syntheticIdentity("no-membership"),
     adminB: syntheticIdentity("admin-b"),
@@ -1253,6 +1256,15 @@ const main = async () => {
     await signIn(identity, role);
   }
 
+  const noCaseStudentMembership = await provisionMembership(
+    identities.adminA,
+    adminAMembership.organization_id,
+    identities.studentNoCase,
+    "student",
+  );
+  sqlUuid(noCaseStudentMembership.profile_id, "student-no-case-profile-id");
+  await signIn(identities.studentNoCase, "student");
+
   const responsibleSalesMembership = await provisionMembership(
     identities.adminA,
     adminAMembership.organization_id,
@@ -1295,7 +1307,7 @@ const main = async () => {
       'Synthetic Org A Student',
       'Malaysia',
       'Bachelor',
-      'Synthetic admissions workflow',
+      NULL,
       '2027',
       'ru',
       'self-funded',
@@ -1328,9 +1340,328 @@ const main = async () => {
       orgACuratorAssignment?.case_state === "active",
     "p3c-org-a-curator-assignment-result",
   );
+  const orgARouteCompletion = authenticatedFunctionResult(
+    decodeClaims(
+      identities.adminA.accessToken,
+      "bw3-org-a-admin-claims-for-route-completion",
+    ),
+    `platform.set_student_case_route(
+      ${sqlUuid(adminAMembership.organization_id, "bw3-org-a-route-org")},
+      ${sqlUuid(orgAStudentCaseId, "bw3-org-a-route-case")},
+      'Malaysia',
+      'Bachelor',
+      'Synthetic admissions workflow',
+      '2027',
+      'ru',
+      'self-funded',
+      'draft',
+      'profile_and_route',
+      'Prepare the synthetic route before checklist binding',
+      'Complete the previously nullable synthetic program direction',
+      ${sqlUuid(randomUUID(), "bw3-org-a-route-request")}
+    )`,
+    "bw3-org-a-route-completion",
+  );
+  assert(
+    orgARouteCompletion?.student_case_id === orgAStudentCaseId &&
+      orgARouteCompletion?.program_direction ===
+        "Synthetic admissions workflow" &&
+      orgARouteCompletion?.route_approval_status === "draft",
+    "bw3-org-a-route-completion-result",
+  );
   await refresh(identities.responsibleSales, "sales");
   await refresh(identities.curator, "curator");
   await refresh(identities.student, "student");
+  await refresh(identities.studentNoCase, "student");
+
+  const bw3Checklist = {
+    targetCountry: "Malaysia",
+    targetDegree: "Bachelor",
+    programDirection: "Synthetic admissions workflow",
+    version: 1,
+    sourceCount: 1,
+    requiredProfileFields: [
+      "academic_summary",
+      "budget_band",
+      "citizenship_country",
+      "communication_language",
+      "language_summary",
+      "next_step",
+      "preferred_display_name",
+    ],
+  };
+  const bw3Profile = {
+    preferredDisplayName: "Synthetic Portal Student",
+    legalDisplayName: null,
+    dateOfBirth: null,
+    communicationLanguage: "ru",
+    citizenshipCountry: "Synthetic Republic",
+    residencyCountry: "Synthetic Residency",
+    currentEducationSummary: "Synthetic current education summary",
+    academicSummary: "Synthetic academic summary without source records",
+    languageSummary: "Synthetic language summary: English B2",
+    budgetBand: "Synthetic self-funded budget band",
+    decisionParticipantLabels: [],
+    consentStatus: "not_recorded",
+    consentEvidenceRef: null,
+    nextStep: "Review the synthetic checklist item with the Curator",
+  };
+  const bw3Document = {
+    requirementKey: "synthetic_academic_transcript",
+    label: "Synthetic academic transcript",
+    instructions:
+      "Use the approved private document channel; this fixture contains no file.",
+    status: "required",
+  };
+  const bw3SourceKey = `src_${createHash("sha256")
+    .update("evo-bw3-synthetic-country-requirement-source")
+    .digest("hex")}`;
+  const bw3SourceRegistryId = await rpc(
+    identities.adminA,
+    "register_workflow_source",
+    [
+      adminAMembership.organization_id,
+      bw3SourceKey,
+      "repository_contract",
+      `https://github.com/izzhackt/evo_AI_CRM/commit/${"f".repeat(40)}`,
+      "synthetic_bw3_v1",
+      "Register the synthetic repository contract used by the BW3 local fixture",
+      randomUUID(),
+    ],
+  );
+  sqlUuid(bw3SourceRegistryId, "bw3-source-registry-id");
+  const reviewedBw3SourceRegistryId = await rpc(
+    identities.adminA,
+    "review_workflow_source",
+    [
+      adminAMembership.organization_id,
+      bw3SourceRegistryId,
+      "reviewed",
+      "Approve the synthetic repository contract as local fixture provenance",
+      randomUUID(),
+    ],
+  );
+  assert(
+    reviewedBw3SourceRegistryId === bw3SourceRegistryId,
+    "bw3-reviewed-source-id",
+  );
+
+  const bw3DocumentRequirement = await rpc(
+    identities.adminA,
+    "create_document_requirement",
+    [
+      adminAMembership.organization_id,
+      bw3Checklist.targetCountry,
+      bw3Checklist.targetDegree,
+      bw3Checklist.programDirection,
+      bw3Checklist.version,
+      bw3Document.requirementKey,
+      bw3Document.label,
+      bw3Document.instructions,
+      randomUUID(),
+    ],
+  );
+  const bw3DocumentRequirementId =
+    bw3DocumentRequirement?.document_requirement_id;
+  sqlUuid(bw3DocumentRequirementId, "bw3-document-requirement-id");
+
+  const bw3CountryRequirementVersionId = await rpc(
+    identities.adminA,
+    "create_country_requirement_version",
+    [
+      adminAMembership.organization_id,
+      bw3Checklist.targetCountry,
+      bw3Checklist.targetDegree,
+      bw3Checklist.programDirection,
+      bw3Checklist.version,
+      bw3Checklist.requiredProfileFields,
+      "Create the synthetic BW3 country requirement version",
+      randomUUID(),
+    ],
+  );
+  sqlUuid(
+    bw3CountryRequirementVersionId,
+    "bw3-country-requirement-version-id",
+  );
+  const bw3CountryRequirementSourceLinkId = await rpc(
+    identities.adminA,
+    "link_country_requirement_version_source",
+    [
+      adminAMembership.organization_id,
+      bw3CountryRequirementVersionId,
+      bw3SourceRegistryId,
+      "Link reviewed synthetic provenance to the BW3 requirement version",
+      randomUUID(),
+    ],
+  );
+  sqlUuid(
+    bw3CountryRequirementSourceLinkId,
+    "bw3-country-requirement-source-link-id",
+  );
+  const approvedBw3CountryRequirementVersionId = await rpc(
+    identities.adminA,
+    "approve_country_requirement_version",
+    [
+      adminAMembership.organization_id,
+      bw3CountryRequirementVersionId,
+      "Approve the reviewed synthetic BW3 requirement version",
+      randomUUID(),
+    ],
+  );
+  assert(
+    approvedBw3CountryRequirementVersionId === bw3CountryRequirementVersionId,
+    "bw3-approved-country-requirement-version-id",
+  );
+
+  const bw3Application = await rpc(
+    identities.adminA,
+    "apply_country_requirement_version",
+    [
+      adminAMembership.organization_id,
+      orgAStudentCaseId,
+      bw3CountryRequirementVersionId,
+      "Apply the approved synthetic BW3 version to the active student case",
+      randomUUID(),
+    ],
+  );
+  assert(
+    bw3Application?.student_case_id === orgAStudentCaseId &&
+      bw3Application?.country_requirement_version_id ===
+        bw3CountryRequirementVersionId &&
+      bw3Application?.version === bw3Checklist.version &&
+      bw3Application?.document_slot_count === 1,
+    "bw3-country-requirement-application",
+  );
+
+  const bw3ProfileResult = await rpc(
+    identities.adminA,
+    "upsert_student_profile",
+    [
+      adminAMembership.organization_id,
+      orgAStudentCaseId,
+      0,
+      bw3Profile.preferredDisplayName,
+      bw3Profile.legalDisplayName,
+      bw3Profile.dateOfBirth,
+      bw3Profile.communicationLanguage,
+      bw3Profile.citizenshipCountry,
+      bw3Profile.residencyCountry,
+      bw3Profile.currentEducationSummary,
+      bw3Profile.academicSummary,
+      bw3Profile.languageSummary,
+      bw3Profile.budgetBand,
+      bw3Profile.decisionParticipantLabels,
+      bw3Profile.consentStatus,
+      bw3Profile.consentEvidenceRef,
+      bw3Profile.nextStep,
+      "Persist the minimized synthetic BW3 Student Profile",
+      randomUUID(),
+    ],
+  );
+  assert(
+    bw3ProfileResult?.student_case_id === orgAStudentCaseId &&
+      bw3ProfileResult?.revision === 1 &&
+      bw3ProfileResult?.applied_country_requirement_version_id ===
+        bw3CountryRequirementVersionId,
+    "bw3-student-profile-upsert",
+  );
+  const bw3StudentProfileId = bw3ProfileResult.id;
+  sqlUuid(bw3StudentProfileId, "bw3-student-profile-id");
+  sqlUuid(roleMembers.student.profile_id, "bw3-student-identity-profile-id");
+  assert(
+    bw3StudentProfileId !== roleMembers.student.profile_id,
+    "bw3-domain-and-identity-profile-ids-distinct",
+  );
+
+  const bw3PortalProfileRows = await authenticatedPlatformRpcRows(
+    identities.student,
+    "student_portal_profile",
+    {},
+    "bw3-student-portal-profile",
+  );
+  assert(
+    bw3PortalProfileRows.length === 1 &&
+      bw3PortalProfileRows[0].case_id === orgAStudentCaseId &&
+      bw3PortalProfileRows[0].student_profile_id === bw3StudentProfileId &&
+      bw3PortalProfileRows[0].preferred_display_name ===
+        bw3Profile.preferredDisplayName &&
+      bw3PortalProfileRows[0].citizenship_country ===
+        bw3Profile.citizenshipCountry &&
+      bw3PortalProfileRows[0].residency_country ===
+        bw3Profile.residencyCountry &&
+      bw3PortalProfileRows[0].current_education_summary ===
+        bw3Profile.currentEducationSummary &&
+      bw3PortalProfileRows[0].academic_summary ===
+        bw3Profile.academicSummary &&
+      bw3PortalProfileRows[0].language_summary ===
+        bw3Profile.languageSummary &&
+      bw3PortalProfileRows[0].budget_band === bw3Profile.budgetBand &&
+      bw3PortalProfileRows[0].profile_next_step === bw3Profile.nextStep &&
+      bw3PortalProfileRows[0].applied_country_requirement_version_id ===
+        bw3CountryRequirementVersionId &&
+      bw3PortalProfileRows[0].checklist_version === bw3Checklist.version &&
+      JSON.stringify(bw3PortalProfileRows[0].required_profile_fields) ===
+        JSON.stringify(bw3Checklist.requiredProfileFields),
+    "bw3-student-portal-profile-values",
+  );
+
+  const bw3CountryVersionRows = await authenticatedPlatformRpcRows(
+    identities.adminA,
+    "staff_country_requirement_versions_for_case",
+    { p_student_case_id: orgAStudentCaseId },
+    "bw3-staff-country-requirement-versions",
+  );
+  assert(
+    bw3CountryVersionRows.length === 1 &&
+      bw3CountryVersionRows[0].case_id === orgAStudentCaseId &&
+      bw3CountryVersionRows[0].country_requirement_version_id ===
+        bw3CountryRequirementVersionId &&
+      bw3CountryVersionRows[0].target_country === bw3Checklist.targetCountry &&
+      bw3CountryVersionRows[0].target_degree === bw3Checklist.targetDegree &&
+      bw3CountryVersionRows[0].program_direction ===
+        bw3Checklist.programDirection &&
+      bw3CountryVersionRows[0].version === bw3Checklist.version &&
+      bw3CountryVersionRows[0].status === "approved" &&
+      bw3CountryVersionRows[0].source_count === bw3Checklist.sourceCount &&
+      bw3CountryVersionRows[0].is_applied === true &&
+      JSON.stringify(bw3CountryVersionRows[0].required_profile_fields) ===
+        JSON.stringify(bw3Checklist.requiredProfileFields),
+    "bw3-staff-country-requirement-version-values",
+  );
+
+  const bw3DocumentRows = await authenticatedPlatformRpcRows(
+    identities.adminA,
+    "staff_student_case_documents",
+    { p_student_case_id: orgAStudentCaseId },
+    "bw3-staff-student-case-documents",
+  );
+  assert(
+    bw3DocumentRows.length === 1 &&
+      bw3DocumentRows[0].case_id === orgAStudentCaseId &&
+      bw3DocumentRows[0].document_requirement_id ===
+        bw3DocumentRequirementId &&
+      bw3DocumentRows[0].requirement_key === bw3Document.requirementKey &&
+      bw3DocumentRows[0].requirement_label === bw3Document.label &&
+      bw3DocumentRows[0].instructions === bw3Document.instructions &&
+      bw3DocumentRows[0].checklist_version === bw3Checklist.version &&
+      bw3DocumentRows[0].slot_status === bw3Document.status &&
+      bw3DocumentRows[0].document_version_id === null &&
+      bw3DocumentRows[0].original_filename === null &&
+      bw3DocumentRows[0].submitted_at === null,
+    "bw3-student-case-document-values",
+  );
+  const bw3DocumentSlotId = bw3DocumentRows[0].document_slot_id;
+  sqlUuid(bw3DocumentSlotId, "bw3-document-slot-id");
+  const noCasePortalRows = await authenticatedPlatformRpcRows(
+    identities.studentNoCase,
+    "student_portal_profile",
+    {},
+    "bw3-student-no-case-portal-profile",
+  );
+  assert(
+    noCasePortalRows.length === 0,
+    "bw3-student-no-case-portal-profile-empty",
+  );
 
   const orgAConversation = createSyntheticConversationFixture({
     organizationId: adminAMembership.organization_id,
@@ -1945,6 +2276,11 @@ const main = async () => {
 
   for (const [identity, membership, organizationId] of [
     [
+      identities.studentNoCase,
+      noCaseStudentMembership,
+      adminAMembership.organization_id,
+    ],
+    [
       identities.responsibleSales,
       responsibleSalesMembership,
       adminAMembership.organization_id,
@@ -2121,6 +2457,10 @@ const main = async () => {
             email: identities.student.email,
             password: identities.student.password,
           },
+          studentNoCase: {
+            email: identities.studentNoCase.email,
+            password: identities.studentNoCase.password,
+          },
           blocked: {
             email: identities.blocked.email,
             password: identities.blocked.password,
@@ -2185,13 +2525,37 @@ const main = async () => {
             },
           },
         },
+        bw3: {
+          orgA: {
+            organizationId: adminAMembership.organization_id,
+            studentCaseId: orgAStudentCaseId,
+            studentProfileId: bw3StudentProfileId,
+            studentIdentityProfileId: roleMembers.student.profile_id,
+            sourceRegistryId: bw3SourceRegistryId,
+            countryRequirementSourceLinkId:
+              bw3CountryRequirementSourceLinkId,
+            countryRequirementVersionId: bw3CountryRequirementVersionId,
+            documentRequirementId: bw3DocumentRequirementId,
+            documentSlotId: bw3DocumentSlotId,
+            appliedDocumentSlotCount: bw3Application.document_slot_count,
+            profileRevision: bw3ProfileResult.revision,
+            checklist: bw3Checklist,
+            profile: bw3Profile,
+            document: bw3Document,
+          },
+          noCaseStudent: {
+            membershipId: noCaseStudentMembership.id,
+            profileId: noCaseStudentMembership.profile_id,
+            displayName: "Synthetic student-no-case",
+          },
+        },
       }),
       { mode: 0o600 },
     );
   }
 
   console.log(
-    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; 11 admin-provisioned synthetic users, 5 roles, 2 organizations, expired/stale-token and blocked-claim invalidation; synthetic readiness rows are contract fixtures only and are not live provider proof.",
+    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; 12 admin-provisioned synthetic users, 5 roles, 2 organizations, expired/stale-token and blocked-claim invalidation; synthetic readiness rows are contract fixtures only and are not live provider proof.",
   );
 };
 

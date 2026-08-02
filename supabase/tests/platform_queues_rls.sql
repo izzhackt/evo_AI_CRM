@@ -686,7 +686,7 @@ FROM platform_private.durable_work_items
 \gset
 
 SELECT platform.claim_durable_work(
-  1,
+  30,
   'worker-conflict',
   '45000000-0000-4000-8000-000000000308'
 )::TEXT AS conflict_claim
@@ -752,7 +752,7 @@ SELECT platform.enqueue_ai_draft_work(
 \gset
 
 SELECT platform.claim_durable_work(
-  1,
+  30,
   'worker-ai-first',
   '45000000-0000-4000-8000-000000000314'
 )::TEXT AS ai_claim_first
@@ -806,7 +806,7 @@ SELECT platform.claim_durable_work(
 
 SELECT pg_sleep(2);
 SELECT platform.claim_durable_work(
-  1,
+  30,
   'worker-ai-second',
   '45000000-0000-4000-8000-000000000319'
 )::TEXT AS ai_claim_second
@@ -862,7 +862,7 @@ SELECT platform.enqueue_manual_whatsapp_send(
 \gset
 
 SELECT platform.claim_durable_work(
-  1,
+  30,
   'worker-manual',
   '45000000-0000-4000-8000-000000000323'
 )::TEXT AS manual_claim
@@ -917,7 +917,7 @@ SELECT platform.enqueue_verified_webhook_work(
 \gset
 
 SELECT platform.claim_durable_work(
-  1,
+  30,
   'worker-dlq',
   '45000000-0000-4000-8000-000000000328'
 )::TEXT AS dlq_claim
@@ -1047,11 +1047,11 @@ SELECT pg_temp.assert_true(
       (:'conflict_claim_while_leased'::JSONB ->> 'claimed')::BOOLEAN,
       FALSE
     ) = FALSE
-    AND :'finish_webhook_unknown_state' <> '00000'
-    AND :'finish_ai_unknown_state' <> '00000'
+    AND :'finish_webhook_unknown_state' = '22023'
+    AND :'finish_ai_unknown_state' = '22023'
     AND :'extend_ai_wrong_attempt_state' <> '00000'
     AND :'enqueue_manual_multiple_attempts_state' <> '00000'
-    AND :'finish_manual_conflict_state' <> '00000'
+    AND :'finish_manual_conflict_state' = '22023'
     AND COALESCE(
       (:'conflict_claim_after_finish'::JSONB ->> 'claimed')::BOOLEAN,
       FALSE

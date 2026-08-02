@@ -1,7 +1,7 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-07-30
+- Snapshot date: 2026-08-02
 - Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 - P2A starting checkpoint: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
 - P2B starting checkpoint: `8ad755b5039390f418dbe12924a806f069f93b53`
@@ -12,7 +12,8 @@
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current BW0 amendment checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
+- Current merged checkpoint: `124ed41e1ba7f25d0f1affca336ce222e0a187d4`
+- Active plan block: `EVO-P2R0-LOCAL-SUPABASE-RELIABILITY-PLAN-2026-08-02`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -29,12 +30,11 @@ dual-read или dual-write. Полный реальный путь WhatsApp →
 AI draft → manual send → ACK → audit ни разу не доказан end-to-end, поэтому
 platform нельзя называть production-complete.
 
-Приоритет реализации смещён: P1 остаётся историческим legacy containment,
-P2A–P2H считаются reusable foundation, PR #93 фиксирует sole accepted frontend
-и greenfield data boundary, а BW0 сейчас добавляет business-workflow contract.
-Следующий implementation block остаётся P3 thin messaging slice; BW1 может
-начаться только после P3C и свободного single-PR gate. P2I restore duties moved
-to P7 and no longer block the thin slice.
+P1 остаётся историческим legacy containment. P2A-P2H, greenfield/UI boundary,
+BW0, P3A-P3C и BW1-BW4 merged через PR #103. P2R0 теперь является отдельным
+docs-only gate перед узким P2R1 repair для local Supabase proof path; после
+controller merge и exact-main CI работа возвращается к BW5. Former P2I restore
+duties остаются в P7 и не входят в P2R1.
 
 ## Что подтверждено из репозитория
 
@@ -50,14 +50,15 @@ to P7 and no longer block the thin slice.
 | P2G durable work | PR #90 controller-merged как `a9bd811eda00d39a09997647fa8c2f98e87a1c3d`; frozen migration `045_platform_durable_work_queues.sql`: 3,425 lines, 91,620 bytes, SHA-256 `a657c32c3dadec369b54157914a229b112c58beb395ee4a2ae99025d804723a2`; 5 private + 2 FORCE-RLS Admin-review tables, 16 functions, two fixed pointer-only PGMQ queues | disposable Supabase PG17 log `f4efe1bc…`, local CLI reset `1575a5e8…`, independent SHA-bound review и exact-head PR CI зелёные; post-merge Main CRM дважды был остановлен до tests внешним ECR rate limit, поэтому текущий remediation добавляет immutable official-mirror fallback; no provider/managed/production proof |
 | P2H private documents | PR #92 controller-merged как `b10d72863230aba646bcc8f2acafdc76c27b3fe1`; migration 046 — 79,701 bytes, SHA-256 `0bfcbd0f478b4714e347dced2f8220be3c9d28a65807e5485aef1c474983b58f`; private `platform-documents`, reservation/finalization, one-time audited download grants and exact denial matrices | real disposable local Auth/PostgREST/Storage/PGMQ proved; exact-main CI `30490070719` green; managed/production Supabase, malware provider and DB plus Storage restore remain unproved |
 | Greenfield/UI boundary | PR #93 controller-merged как `26115344909261a39bbe591f3b835cda4b7e5068`; root frontend из PR #64/#71/#72 — sole UI, Platform Supabase-native без SQLite/root-auth import, dual-read/write или automatic legacy import | exact-main CI green; это plan boundary, не runtime/provider proof |
-| BW0 business workflows | Ultimate EVO tabs и non-PII linked-source metadata reviewed 2026-07-30; normalized OP/OZO, country overlay, Student Profile, checklist/template/contract, decision backlog и knowledge/prompt contracts сформированы | docs-only amendment; implementation, source import и provider proof ещё не выполнялись |
+| BW0/P3/BW1-BW4 | PR #94 merged workflow plan; PRs #95-#97 merged Supabase-native auth, conversation and guarded manual-send seams; PRs #100-#103 merged provenance, OP/OZO, Student Profile/checklists and prompt/decision lifecycle | local repository/RLS/browser evidence only; no live amoCRM/WAHA/AI/ACK or production proof |
+| P2R0/P2R1 | P2R0 records a bounded local reliability remediation before code; P2R1 may change only deadlines, exact disposable cleanup, local Auth readiness, PGMQ test leases and forward document lock order | docs-only until P2R0 merges; managed Supabase, restore, providers and production remain excluded |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до bounded cutover evidence and rollback gate |
 | amoCRM | интеграционный код хранит external IDs и mapping paths | реальные account mappings и readiness требуют provider proof |
 | WAHA | текущая конфигурация содержит legacy `crm_primary` и Inbox `evo-inbox` paths | target — одна `evo-inbox`, но session mutation не выполнена и не разрешена |
 | Public edge | EVO-owned target использует `evo-edge-caddy` и `evo_public_web` | production network/revision проверяется отдельно |
-| Target frontend | PRs #64/#71/#72 — sole product UI contract | текущие messaging pages всё ещё используют legacy auth/query/action seams; UI не доказывает backend, auth, RLS или providers |
+| Target frontend | PRs #64/#71/#72 — sole product UI contract; P3A-P3C wired its bounded messaging path to greenfield Supabase auth/repositories/actions | local wiring does not prove live providers, managed Supabase or production readiness |
 
 Подробные local-only доказательства P2A:
 [`p2a-supabase-repository-baseline.md`](p2a-supabase-repository-baseline.md).
@@ -155,14 +156,12 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — BW0 docs-only workflow amendment. После его merge следующий
-продуктовый gate — P3 thin messaging slice behind the existing
-frontend. P3A заменяет session/auth seam для `/login` и staff shell; P3B
-подключает существующие `/whatsapp` list/thread к Supabase repositories; P3C
-подключает approved-knowledge/draft-review/manual-send/outbox/audit state с
-fail-closed provider health. BW1 starts only after P3C. Реальный amoCRM adapter
-остаётся P4, реальный WAHA/AI/ACK proof — P5. BW2-BW7 и restore duties идут
-позже через те же seams.
+Текущий gate — P2R0 docs-only reliability amendment. После его controller
+merge P2R1 должен доказать стабильный реальный local Supabase
+Auth/RLS/Storage/PGMQ gate, exact cleanup и forward-only document lock-order
+repair, не затрагивая production или providers. После зелёного exact-main CI
+следующий product block — BW5. Реальный amoCRM adapter остаётся P4, реальный
+WAHA/AI/ACK proof — P5, а restore duties — P7.
 Production cutover remains a separate authorized event with bounded
 reconciliation/health/rollback evidence.
 

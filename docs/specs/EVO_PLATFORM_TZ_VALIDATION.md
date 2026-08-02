@@ -1,23 +1,25 @@
 # EVO Platform ТЗ — журнал валидации
 
-Дата проверки: 30.07.2026
+Дата проверки: 02.08.2026
 
-Timezone: `Asia/Bishkek`
+Timezone: `Asia/Almaty`
 
 Base commit до docs-only amendment:
-`26115344909261a39bbe591f3b835cda4b7e5068`
+`124ed41e1ba7f25d0f1affca336ce222e0a187d4`
 
 Канонический источник: `docs/specs/EVO_PLATFORM_TZ.md`
 
 Owner-facing документ: `docs/specs/EVO_PLATFORM_TZ.docx`
 
-Контекст проверки: docs-only amendment фиксирует greenfield Supabase-native
-Platform, существующий unified frontend как единственный UI-контракт, отсутствие
-автоматического импорта legacy SQLite/root-auth и ускоренный thin messaging
-slice, а также добавляет business-workflow lane OP/OZO, country overlays,
-Student Profile, checklists/templates/contract drafts, decision backlog и
-approved knowledge/prompt lifecycle. Product/runtime code, remote apply и
-production mutation в этот блок не входят.
+Контекст проверки: docs-only P2R0 amendment восстанавливает plan freshness
+после merged sequence through PR #103, фиксирует завершённые P3A–P3C и BW1–BW4
+и вводит узкий последовательный P2R1 gate для надёжности локального Supabase
+proof. P2R1 не
+расширяет product scope: process-group deadlines, точная очистка только
+одноразовых EVO validation resources, transient-only Auth readiness, стабильные
+PGMQ leases и next-free forward migration для document lock ordering.
+Product/runtime code, новая migration, remote apply, provider invocation,
+backup/restore proof и production mutation в P2R0 не входят.
 
 ## 1. Воспроизводимая сборка
 
@@ -47,7 +49,7 @@ python scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
 - source codes: `14`;
 - design-evidence images: `6`;
 - official external links: `8`;
-- DOCX structure: `597` paragraphs, `31` tables, `7` inline shapes,
+- DOCX structure: `598` paragraphs, `31` tables, `7` inline shapes,
   `7` drawings с alt text, `8` external hyperlinks;
 - две последовательные сборки DOCX побайтно совпали;
 - LibreOffice → PDF → Poppler PNG: `67` страниц;
@@ -56,7 +58,7 @@ python scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
   `PASS requirements=231 traceability=231 pages=67 a11y=0/0/0`.
 
 Machine-readable evidence находится во временном каталоге:
-`/private/tmp/evo-platform-tz-render-bw0.qKfkIs`:
+`/private/tmp/evo-platform-tz-render-p2r0-finalfix.qa1VYi`:
 
 - `validation.json`;
 - `accessibility-report.json`;
@@ -66,12 +68,16 @@ Machine-readable evidence находится во временном катал�
 Временные PDF/PNG не коммитятся. Markdown, generator, verifier и закреплённая
 зависимость позволяют воспроизвести evidence.
 
+Финальный clean rerun завершился `PASS`. Его `66` неизменившихся PNG-страниц
+побайтно совпали с ранее полностью просмотренным render; единственная
+изменившаяся страница `38` дополнительно проверена в original resolution.
+
 ## 2. Контрольные суммы и размеры
 
 | Файл | Размер | SHA-256 |
 |---|---:|---|
-| `docs/specs/EVO_PLATFORM_TZ.md` | `141144` bytes | `9d46f28ebc8c4ae82eff30c13539df4a7df9cc5e84d86e773218ddeeeafd8776` |
-| `docs/specs/EVO_PLATFORM_TZ.docx` | `1784739` bytes | `621e10d0f00425532a8439e14f0c9b4516d27d85c1a04c32bc09b6d6c09fe0d6` |
+| `docs/specs/EVO_PLATFORM_TZ.md` | `141790` bytes | `98ad80f73d48ed07fdaf6c8d820d95541fe2afd01fc96dfd722ea8c8c36953f1` |
+| `docs/specs/EVO_PLATFORM_TZ.docx` | `1785132` bytes | `e59e2fabff92fc7607b2e97632beb3bdafc8e4946604474c6771fa50dc14a784` |
 | `scripts/generate-evo-platform-tz.py` | `39198` bytes | `ebd0d431ca456fc42492d3e5ab815bde4bc980d295f8db01ffa7ced63b9eb14f` |
 | `scripts/verify-evo-platform-tz.py` | `15754` bytes | `b4228980f03a9add719fd0c2c22dc09917c36121774d3fb6160b14c365c5fd40` |
 
@@ -84,7 +90,7 @@ Verifier проверяет:
 
 - полноту и уникальность FR/INT/DATA/SEC/NFR/ACC identifiers;
 - точное соответствие `231` requirements и `231` provenance rows;
-- наличие всех `13` source codes;
+- наличие всех `14` source codes;
 - локальные изображения, alt text и hyperlinks;
 - отсутствие незаполненных шаблонных полей;
 - deterministic DOCX rebuild;
@@ -123,9 +129,10 @@ heading spacing; переполнявшиеся разделы 13.6/13.7, 27.x �
 Дополнительно PDF bbox geometry проверена для всех страниц: на страницах 2–67
 присутствует точный running header, нет текста левее `55 pt`, и ниже `730 pt`
 находится только ожидаемый footer. Страницы 1–67 просмотрены в фиксированных
-contact sheets, сохраняющих белые поля и границы каждой страницы; страница 8 и
-provenance continuation page 64 дополнительно проверены в original resolution.
-Workflow tables 29–30 и BW execution lane 39–40 также проверены на читаемость.
+contact sheets, сохраняющих белые поля и границы каждой страницы; страницы
+37–40 с изменённым execution contract, provenance continuation page 64 и
+финальная signoff page 67 дополнительно проверены в original resolution.
+P2R1 table 38–39 и BW execution lane 40 также проверены на читаемость.
 Обрезания, наложения, пропавших строк и сломанных glyphs не обнаружено.
 
 Итог ручной проверки: `PASS`.
@@ -134,14 +141,14 @@ Workflow tables 29–30 и BW execution lane 39–40 также проверен
 
 Эта проверка доказывает целостность, воспроизводимость, traceability,
 структурную доступность и визуальную корректность текущего ТЗ и plan amendment.
-После merge она фиксирует BW0 business-workflow contract. P3 thin
-Supabase-native messaging slice остаётся первым implementation block за
-существующим root frontend; BW1 начинается только после P3C.
+После merge она фиксирует P2R0 reliability plan gate: P3A–P3C и BW1–BW4 уже
+считаются merged history, P2R1 идёт следующим отдельным implementation block,
+а BW5 начинается только после его exact-head review и controller merge.
 
 Она не доказывает:
 
-- подключение текущего P2 foundation к frontend;
-- Supabase SSR auth/RBAC или repository adapters;
+- выполнение или merge P2R1 implementation diff;
+- managed Supabase behavior и отдельный backup/restore proof;
 - live amoCRM, WAHA, AI или Storage provider behavior;
 - production deployment/cutover;
 - real receive → identity link → persistence → draft → manual send → ACK/audit;

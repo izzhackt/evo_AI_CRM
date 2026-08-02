@@ -3,12 +3,12 @@
 ## Единая платформа автоматизации EVO Admissions
 
 **Идентификатор документа:** EVO-PLATFORM-TZ-001
-**Версия:** 1.4
+**Версия:** 1.5
 **Статус:** действующий контракт repository-реализации; production-gates
 остаются отдельными
-**Дата:** 30 июля 2026 года
-**Базовая версия репозитория:** `26115344909261a39bbe591f3b835cda4b7e5068`
-**Текущий execution checkpoint:** `26115344909261a39bbe591f3b835cda4b7e5068`
+**Дата:** 2 августа 2026 года
+**Базовая версия репозитория:** `124ed41e1ba7f25d0f1affca336ce222e0a187d4`
+**Текущий execution checkpoint:** `124ed41e1ba7f25d0f1affca336ce222e0a187d4`
 **Язык документа:** русский
 
 > **Назначение документа.** Это ТЗ является контрактом на последующую
@@ -31,7 +31,7 @@
 | Формат согласования | SHA-bound review, должностное решение по открытым gates и audit evidence |
 | Источник бренда | `docs/company/brand/evo-admissions-logobook.pdf` |
 | Принятый preset | `standard_business_brief` |
-| Текущий checkpoint | P0 и P1A–P1D merged; reusable P2A–P2H foundation and greenfield/UI boundary PR #93 merged through `26115344909261a39bbe591f3b835cda4b7e5068`; BW0 gates the business-workflow lane while P3 remains the first implementation |
+| Текущий checkpoint | P0, P1A–P1D, reusable P2A–P2H, greenfield/UI boundary, BW0, P3A–P3C и BW1–BW4 merged through PR #103 at `124ed41e1ba7f25d0f1affca336ce222e0a187d4`; P2R0 gates bounded local reliability repair P2R1 before BW5 |
 
 > **Главная граница.** amoCRM остаётся источником истины для контакта, лида,
 > ответственного sales manager и стадии продаж. Один dedicated production
@@ -1090,11 +1090,17 @@ P2 идёт только последовательно:
 | P2F | conversations/provider mappings/raw events/knowledge/AI drafts | transcript isolation и server-write boundaries; no provider claim |
 | P2G | real local Queues/outbox/idempotency/dead-letter/reconciliation | visibility/retry/dedupe; unknown never auto-requeued |
 | P2H | real local private Platform Storage API/policies | MIME/25 MB, cross-user denial, audited access |
+| P2R1 | bounded local proof reliability repair: process-group deadlines, exact disposable cleanup, transient-only Auth readiness, stable PGMQ leases and next-free forward document lock order | real `npm run test:supabase:local` exits zero; exact-label resources/lock absent; Inbox state preserved; local auth/security, lint, typecheck, build, scenarios, E2E/a11y and scoped secret checks pass |
 | Former P2I | transferred to P7 reliability work; not a thin-slice blocker | clean reset/grants/secrets plus isolated DB restore and separate Storage-object restore remain required before release |
 
 P2 additive: no legacy rename/drop, root-auth cutover, real-secret copy,
 legacy bucket flip, remote apply или production mutation. Detailed contract:
 `docs/platform/p2-supabase-foundation.md`.
+
+P2R0 is docs-only. P2R1 does not add product scope and does not prove managed
+Supabase, providers, malware scanning, backup/restore or production. Its
+migration number is expected to be 055 and must be re-verified on fresh
+`origin/main`; merged migrations remain immutable.
 
 ### P3. Thin Supabase-native messaging slice
 
@@ -1136,9 +1142,9 @@ bounded reconciliation and provider rollback readiness belong to P5/P8.
 
 ### BW0-BW7. Business-workflow lane
 
-BW0 — docs-only plan gate. Он не разрешает application code. P3A-P3C остаются
-первой implementation sequence; BW1 начинается только после P3C и при
-отсутствии другого implementation PR.
+BW0, P3A-P3C и BW1-BW4 merged through PR #103. P2R0/P2R1 now form the
+sequential reliability gate before BW5; they do not reopen completed workflow
+blocks or authorize provider/production work.
 
 1. BW1 — normalized workflow/domain/source contracts без PII.
 2. BW2 — OP/OZO repositories/actions за существующими screens.
@@ -1190,8 +1196,9 @@ messaging proof is complete.
 Threat model, secrets/redaction/private networks, logs/metrics/alerts,
 audit search/export, production-like load, DB + separate Storage restore,
 RPO/RTO, rollback, accessibility/keyboard/responsive regression. Numeric
-capacity/SLO/RPO/RTO perfection does not block P3 thin-slice repository
-completion unless separately promoted into the bounded cutover gate.
+capacity/SLO/RPO/RTO perfection does not retroactively invalidate the merged
+P3 local slice; it remains P7/release evidence unless separately promoted into
+the bounded cutover gate.
 
 ### P8. Release/cutover candidate
 

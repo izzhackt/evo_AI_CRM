@@ -1,21 +1,21 @@
 # EVO Platform Long-Run Execution Contract
 
 Status: active repository implementation contract
-Version date: 2026-07-30 (Asia/Bishkek)
+Version date: 2026-08-02 (Asia/Almaty)
 Initial kickoff baseline: GitHub `origin/main` at
 `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 `docs/PLAN_CHANGES.md`, and superseding ADRs including ADR 0016
 
-Execution checkpoint: historical P1 containment and reusable greenfield
-P2A-P2H foundation work are merged. The greenfield/UI boundary is merged
-through PR #93 at current `origin/main` checkpoint
-`26115344909261a39bbe591f3b835cda4b7e5068`; former P2I restore duties remain
-in P7. `BW0` is the active docs-only gate that adds the business-workflow
-contract discovered from the Ultimate EVO document. After BW0 is independently
-reviewed and merged, P3 remains the next implementation block: one thin
-messaging slice behind the accepted unified frontend. Business-workflow
-implementation starts only after P3C merges and the single-PR gate is free.
+Execution checkpoint: historical P1 containment, reusable greenfield P2A-P2H,
+the greenfield/UI and business-workflow plan gates, P3A-P3C, and BW1-BW4 are
+merged through PR #103 at `origin/main`
+`124ed41e1ba7f25d0f1affca336ce222e0a187d4`; former P2I restore duties remain
+in P7. P2R0 is the active docs-only gate that records a narrow local Supabase
+proof reliability remediation discovered while re-running the merged P2H
+Storage/Auth/PGMQ evidence. After P2R0 is independently reviewed and merged,
+P2R1 implements only that bounded repair. BW5 remains the next product block
+after P2R1 and exact-main CI are green.
 
 ## 1. Outcome and truth boundary
 
@@ -62,7 +62,7 @@ and rollback proof are real. No fixed-duration soak is required by contract.
 As of the version date:
 
 - GitHub `main` checkpoint for this amendment is
-  `26115344909261a39bbe591f3b835cda4b7e5068`;
+  `124ed41e1ba7f25d0f1affca336ce222e0a187d4`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -85,11 +85,13 @@ do not silently change production.
 
 After this amendment merges, implementation priority is intentionally narrow:
 
-1. P3 thin messaging slice behind the existing unified frontend.
-2. BW1 business-workflow/domain contracts after P3C, using the same
-   Supabase-native repositories, authorization and audit seams.
-3. Bounded amoCRM/WAHA/AI proof and the later BW2-BW7 workflow slices,
-   one independently reviewed PR at a time.
+1. P2R1 repairs only the local Supabase Auth/Storage/PGMQ proof path and the
+   document finalization/review lock order through the next free forward
+   migration.
+2. BW5 resumes the business-workflow lane with the university/college catalog
+   and reviewable import boundary; no real import occurs without source access.
+3. BW6-BW7 and bounded amoCRM/WAHA/AI proof continue one independently reviewed
+   PR at a time, with provider and production claims still evidence-gated.
 
 This contract explicitly defers broad infra perfection, broad restore proof,
 and broad backend parity work that do not change thin-slice product truth.
@@ -331,8 +333,10 @@ deployment surfaces are sequential.
 | P0 | Final plan, corrected TZ/DOCX, target ADR and architecture docs | Deterministic DOCX, every page inspected, independent review | Merged in PR #75 |
 | P1 | Current-app role/RBAC/handoff correction | Positive/negative route, action and object-scope tests; explicit visa-user migration report | P1A-P1D merged in PRs #76-#80 |
 | P2 | Reusable Supabase-native foundation | Canonical history, local RLS/queue/Storage evidence, private document contract | P2A-P2H merged; former P2I restore duties transferred to P7 |
-| BW0 | Business-workflow plan amendment | Confirmed/assumed requirements, dependency/file ownership, acceptance and source boundaries; deterministic TZ/DOCX evidence | Active docs-only gate |
-| P3 | Thin Supabase-native messaging slice behind the accepted frontend | Supabase Auth/RBAC, repository seams, real local persistence, conversation list/thread, draft/manual-send state and focused UI E2E | Pending BW0 merge; remains first implementation |
+| BW0 | Business-workflow plan amendment | Confirmed/assumed requirements, dependency/file ownership, acceptance and source boundaries; deterministic TZ/DOCX evidence | Merged in PR #94 |
+| P3 | Thin Supabase-native messaging slice behind the accepted frontend | Supabase Auth/RBAC, repository seams, real local persistence, conversation list/thread, draft/manual-send state and focused UI E2E | P3A-P3C merged in PRs #95-#97; no live-provider claim |
+| P2R0 | Local Supabase reliability plan amendment | Current checkpoint, bounded ownership, exact validation and rollback/provider boundary | Active docs-only gate |
+| P2R1 | Local Supabase proof reliability repair | Real clean local Auth/RLS/Storage/PGMQ gate, deterministic deadline/cleanup tests and forward-only document lock-order repair | Pending P2R0 merge; expected next migration 055 must be re-verified |
 | P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | Pending |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no legacy cutover yet | Pending |
 | P6 | Admissions, Portal, Documents, Finance, Notifications | Two-student isolation E2E and complete staff-to-portal workflows | Pending |
@@ -341,7 +345,8 @@ deployment surfaces are sequential.
 | P9 | Bounded cutover evidence and separate Lead Agent retirement PR | Zero unexplained loss/duplicate/drift in the evidence window plus proven rollback and health | Evidence-gated |
 | P10 | Completion audit | Every FR/NFR/SEC/ACC mapped to evidence, full CI/provider proof, no open implementation PR | Pending |
 
-Business workflow is delivered only after the BW0 plan gate and P3C:
+BW0, P3A-P3C and BW1-BW4 are merged. BW5 resumes only after P2R1 and
+exact-main CI:
 
 | Block | Contract | Dependency and exit evidence |
 | --- | --- | --- |
@@ -494,6 +499,7 @@ P2 is sequential and additive. Its detailed contract is
 | P2F | Add conversations/messages, participants, distinct WAHA/Kommo/amo mappings, raw events, approved knowledge and draft-only AI records | Transcript/handoff isolation and append/server-write boundaries; no live-provider claim |
 | P2G | Add real Supabase Queues/PGMQ, outbox, idempotency, dead-letter and reconciliation/conflict state | Local service retry/visibility/dedupe/concurrency evidence; unknown delivery never re-enqueued automatically |
 | P2H | Add new private Platform document/media buckets and policies through the real local Supabase Storage API | MIME/25 MB and cross-student/cross-organization denial; audited authorized access |
+| P2R1 | Repair the merged local proof path without widening product scope: bounded process-group deadlines, exact-label cleanup, transient-only Auth readiness, deterministic PGMQ leases, and a next-free forward migration for document finalization/review lock order | `npm run test:supabase:local` exits zero against real local services; exact-label resources and singleton lock are absent after cleanup; Inbox state is preserved; disposable PostgreSQL authorization, unit/security, lint, typecheck, build, scenarios, E2E/a11y and scoped secret checks pass |
 | P2I | Superseded in this lane; restore duties transfer to later reliability work | Later reliability work owns clean reset, RLS/grant/secret inventory, browser secret scan, isolated DB restore and separate Storage-object restore |
 
 P2 does not rename or drop legacy Inbox tables, cut root authentication over,
@@ -529,6 +535,10 @@ P3 is delivered sequentially to keep each PR reviewable:
 | P3A | Supabase SSR/server session, verified claims, organization membership/RBAC, `/login` and staff-shell authorization behind the existing UI | Positive/negative login, expiry, blocked-user, role and cross-organization tests; no legacy-account import |
 | P3B | Supabase conversation list/thread repositories and actions behind existing `/whatsapp` pages | Real local Supabase reads with two-organization/object-scope denials and browser E2E; synthetic records labelled non-provider evidence |
 | P3C | Approved-knowledge selection, draft review/edit, manual-send authorization/outbox/audit and fail-closed integration health behind existing components | Local persistence/idempotency/audit E2E; no provider invocation or success claim when WAHA/AI is unconfigured |
+
+P3A-P3C are merged in PRs #95-#97. Their evidence proves the local greenfield
+session, repository and manual-send state seams only; it does not prove live
+amoCRM, WAHA, delivery ACK or AI-provider behavior.
 
 P3 proves the greenfield application seam and local product workflow. Real
 amoCRM mapping is P4 evidence; real WAHA receive/send/ACK and AI-provider proof

@@ -1,13 +1,12 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-business-workflows` is active. Historical P1
-containment and reusable greenfield P2A-P2H foundation are merged. The
-greenfield/UI boundary merged in PR #93 at checkpoint
-`26115344909261a39bbe591f3b835cda4b7e5068`; P2I restore duties remain in P7.
-`BW0` is the active docs-only business-workflow amendment. P3 thin messaging
-behind the accepted unified frontend remains the first implementation block
-after BW0; BW1 starts only after P3C and the single-PR gate are clear. Updated
-2026-07-30 in the workspace timezone.
+Status: `/goal-evo-platform-local-reliability` is active. Historical P1,
+reusable greenfield P2A-P2H, BW0, P3A-P3C and BW1-BW4 are merged through PR
+#103 at checkpoint `124ed41e1ba7f25d0f1affca336ce222e0a187d4`; P2I restore
+duties remain in P7. P2R0 is the active docs-only reliability amendment. P2R1
+is the next implementation block and is limited to the local Supabase proof
+path plus a forward-only document lock-order repair. BW5 resumes only after
+P2R1 and exact-main CI are green. Updated 2026-08-02 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 The current detailed contract is
@@ -19,10 +18,11 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active slice: `/goal-evo-platform-business-workflows`, Block
-`EVO-BW0-BUSINESS-WORKFLOW-PLAN-2026-07-30`, docs-only workflow amendment.
-Post-merge slice: P3 implementation behind the existing unified frontend;
-BW1 follows P3C through the same repositories, authorization and audit seams.
+Active slice: `/goal-evo-platform-local-reliability`, Block
+`EVO-P2R0-LOCAL-SUPABASE-RELIABILITY-PLAN-2026-08-02`, docs-only checkpoint and
+acceptance amendment. Post-merge slice: P2R1 repairs the already merged local
+Supabase validation path without changing product scope, provider ownership or
+production state. BW5 then follows the merged BW1-BW4 seams.
 
 ### Goal
 
@@ -35,13 +35,13 @@ The existing unified frontend from PRs #64/#71/#72 is the sole product UI
 contract and must be wired through repository/session seams, not replaced or
 paralleled. AI remains draft-only with human manual send.
 
-This amendment changes documentation only. It converts the verified Ultimate
-EVO discovery into a normalized OP lifecycle, common OZO/admissions lifecycle,
-versioned country overlays, Student Profile, checklist/template/contract-draft,
-catalog/import, Q&A decision-backlog and Lead Manager knowledge/prompt
-contracts. It separates confirmed requirements from reversible assumptions and
-defines BW1-BW7 dependencies without changing code, SQL, provider or production
-state.
+This amendment changes documentation only. It reconciles the execution
+checkpoint through PR #103 and records one bounded remediation discovered by
+re-running the real local Supabase proof path: deterministic process-group
+deadlines, exact disposable-project cleanup, transient-only Auth readiness,
+stable PGMQ lease semantics and a forward-only document lock-order correction.
+It changes no product scope, provider ownership, production state or restore
+claim.
 
 ### Reconciled baseline
 
@@ -57,12 +57,13 @@ checkpoint is:
 - P2A canonical migration authority merged in PR #82.
 - P2B-P2H merged sequentially on `main`; this amendment recognizes them as
   reusable greenfield foundation rather than the active product slice.
-- PR #93 merged the greenfield/UI boundary and exact current checkpoint for
-  this amendment is `26115344909261a39bbe591f3b835cda4b7e5068`.
+- PR #93 merged the greenfield/UI boundary; PR #94 merged BW0; PRs #95-#97
+  merged P3A-P3C; and PRs #100-#103 merged BW1-BW4. The exact checkpoint for
+  this amendment is `124ed41e1ba7f25d0f1affca336ce222e0a187d4`.
 - Root `/whatsapp` remains a SQLite `wa_*` shadow surface with P1D
   authorization containment. It is not the unified communications backend;
-  the greenfield application seam starts in P3 and real provider completion
-  remains P5.
+  the greenfield application seam was established through P3C, while real
+  provider completion remains P5.
 
 - At the P0 snapshot, GitHub `main` and the clean P0 worktree resolved to
   `a16cd3fb`; the exact `EVO platform CI` run for that SHA was green and there
@@ -83,17 +84,17 @@ checkpoint is:
 
 ### Immediate execution order
 
-0. Merge BW0 as a docs-only launch-control gate. It does not authorize
-   application code.
-1. Keep P3A-P3C as the first implementation sequence under the sole accepted
-   frontend: P3A Supabase-native verified sessions/RBAC; P3B real conversation
-   repositories for `/whatsapp` and `/whatsapp/[id]`; P3C
-   draft-review/manual-send/outbox/audit state with provider calls fail-closed.
-2. Start BW1 only after P3C is merged and no other implementation PR is open.
-3. Deliver BW1-BW7 sequentially; inspect open PR/migration ownership before
+0. Merge P2R0 as a docs-only launch-control gate. It changes no runtime,
+   migration, provider or production state.
+1. Deliver P2R1 as one bounded implementation PR: deterministic process-group
+   deadlines, exact disposable-project cleanup, transient-only local Auth
+   readiness, stable queue-test leases and the next-free forward document
+   lock-order migration.
+2. Resume BW5 only after P2R1 is controller-merged and exact-main CI is green.
+3. Continue BW5-BW7 sequentially; inspect open PR/migration ownership before
    each block and never duplicate P3/P4/P5 platform/provider seams.
-4. Defer real amoCRM proof to P4 and real WAHA/AI/ACK proof to P5. Workflow
-   blocks may consume their contracts but cannot claim provider success.
+4. Defer real amoCRM proof to P4 and real WAHA/AI/ACK proof to P5. Workflow and
+   reliability blocks may consume contracts but cannot claim provider success.
 
 ### Business-workflow scope
 
@@ -142,13 +143,14 @@ checkpoint is:
 
 ### Merge-order boundary
 
-BW0 is that required separate sequential business-workflow amendment, rebased
-on merged PR #93. It changes no implementation ownership. P3 owns common
-session/repository seams, P4 owns amoCRM adapter behavior, P5 owns real
-WAHA/AI/ACK proof, and P7 owns whole-foundation restore/reliability evidence.
-BW1-BW7 consume those seams and cannot open while another implementation PR is
-active. Shared migrations are selected only after fetching current main and
-checking open ownership; merged migrations are immutable.
+BW0, P3A-P3C and BW1-BW4 are merged history. P2R0 is the required separate
+sequential amendment before P2R1; it does not transfer P7 restore ownership or
+authorize production application. P3 owns common session/repository seams, P4
+owns amoCRM adapter behavior, P5 owns real WAHA/AI/ACK proof, and P7 owns
+whole-foundation backup/restore and release reliability evidence. BW5-BW7
+consume those seams and cannot open while another implementation PR is active.
+Shared migrations are selected only after fetching current main and checking
+open ownership; merged migrations are immutable.
 - `crm.evoadmissions.com` and `inbox.evoadmissions.com` have no DNS answer.
   The fallback CRM URL responds.
 - The original checkout's modified Malaysia knowledge-base document and
@@ -164,7 +166,10 @@ are defined in `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`.
 - P1: current-app role/RBAC/handoff correction. P1A-P1D are merged.
 - P2: unified Supabase foundation. P2A is merged; P2B–P2H are reusable
   foundation and former P2I restore duties move to a later reliability lane.
-- P3: thin messaging slice behind the existing unified frontend.
+- P2R0/P2R1: docs-only reliability gate followed by the bounded local
+  Supabase proof-path and forward-only document lock-order repair.
+- P3: thin messaging slice behind the existing unified frontend; P3A-P3C are
+  merged with local-only, no-provider evidence.
 - P4: canonical amoCRM adapter.
 - P5: unified Inbox/WAHA/Lead Agent capability absorption.
 - P6: Admissions/Portal/Documents/Finance/Notifications.
@@ -252,8 +257,12 @@ P2 has the following strict dependency order:
    idempotency, dead-letter and reconciliation.
 8. P2H proves new private Platform buckets/policies through the real local
    Supabase Storage API.
-9. Former P2I whole-foundation reset/RLS/grant/secret and separate database/
-   Storage restore duties are transferred to P7 and do not block P3.
+9. P2R1 repairs only the already-merged local proof path. Its expected
+   next-free migration is 055, but the number must be re-verified after P2R0
+   merges. It adds no production apply, provider call, restore claim or product
+   feature.
+10. Former P2I whole-foundation reset/RLS/grant/secret and separate database/
+    Storage restore duties are transferred to P7.
 
 Merged migrations are immutable; defects use the next free forward migration.
 P2 is additive and does not rename/drop legacy tables, cut root auth over,
@@ -266,6 +275,13 @@ authority.
 
 Detailed ownership, negative matrices, rollback and provider boundaries are in
 `docs/platform/p2-supabase-foundation.md`.
+
+P2R1 exits only when the real local `npm run test:supabase:local` path proves
+admin-provisioned Auth/RLS, private Storage, PGMQ terminal semantics and exact
+disposable-resource cleanup under Node 22.23.1. The document finalization lock
+repair must be a next-free forward migration with concurrent finalization and
+review regression evidence. Local proof is not managed Supabase, provider,
+backup/restore or production proof.
 
 ### Historical pre-platform blocks
 

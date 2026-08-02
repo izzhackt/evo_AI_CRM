@@ -8,6 +8,11 @@ import { readFileSync, statSync, unlinkSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 
+import {
+  LocalSupabaseAuthReadinessError,
+  waitForLocalSupabaseAuthAdmin,
+} from "./supabase-auth-readiness.mjs";
+
 process.on("uncaughtException", () => {
   console.error(
     "ERROR: local P2H Storage API gate failed before runtime initialization.",
@@ -1806,6 +1811,27 @@ const main = async () => {
     studentBlocked: syntheticIdentity("student-blocked"),
   };
 
+  try {
+    // `supabase db reset` can report success on loaded OrbStack hosts before
+    // the restarted Auth Admin API is actually reachable through Kong. Keep
+    // this read-only probe patient but bounded; mutating user creation below
+    // remains single-attempt and never participates in the retry loop.
+    await waitForLocalSupabaseAuthAdmin({
+      apiUrl,
+      serviceRoleKey,
+      maxAttempts: 1_200,
+      readinessTimeoutMs: 300_000,
+    });
+  } catch (error) {
+    if (error instanceof LocalSupabaseAuthReadinessError) {
+      fail(error.stage);
+    }
+    throw error;
+  }
+
+  // Creation stays single-attempt. An unknown result from a mutating request
+  // must never be retried automatically because the first request may have
+  // succeeded even when the gateway response was lost.
   await Promise.all(Object.values(identities).map(signUp));
 
   const organizationA = createOrganizationFixture(identities.adminA, "org-a");

@@ -7,6 +7,11 @@ import {
 import { readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
+import {
+  LocalSupabaseAuthReadinessError,
+  waitForLocalSupabaseAuthAdmin,
+} from "./supabase-auth-readiness.mjs";
+
 process.on("uncaughtException", () => {
   console.error(
     "ERROR: local Supabase Auth smoke failed before runtime initialization.",
@@ -1201,6 +1206,15 @@ const main = async () => {
     adminB: syntheticIdentity("admin-b"),
     salesB: syntheticIdentity("sales-b"),
   };
+
+  try {
+    await waitForLocalSupabaseAuthAdmin({ apiUrl, serviceRoleKey });
+  } catch (error) {
+    if (error instanceof LocalSupabaseAuthReadinessError) {
+      fail(error.stage);
+    }
+    throw error;
+  }
 
   await assertPublicSignupDisabled();
   await Promise.all(Object.values(identities).map(signUp));

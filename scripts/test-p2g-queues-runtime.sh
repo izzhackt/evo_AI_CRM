@@ -1445,7 +1445,7 @@ manual_work="$(
 )"
 manual_claim="$(
   claim_fields \
-    1 \
+    30 \
     "p2g-runtime-unknown" \
     "45995000-0000-4000-8000-000000000011"
 )"

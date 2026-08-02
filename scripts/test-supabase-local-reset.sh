@@ -10,6 +10,7 @@ umask 077
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly SUPABASE_CLI="${REPO_ROOT}/node_modules/.bin/supabase"
 readonly PLAYWRIGHT_CLI="${REPO_ROOT}/node_modules/.bin/playwright"
+readonly DEADLINE_RUNNER="${REPO_ROOT}/scripts/run-command-with-deadline.mjs"
 readonly SUPABASE_PROJECT_ID="evo-platform-local"
 readonly EXPECTED_CLI_VERSION="2.110.0"
 readonly MIGRATIONS_DIR="${REPO_ROOT}/supabase/migrations"
@@ -18,6 +19,7 @@ readonly DATABASE_CONTAINER="supabase_db_${SUPABASE_PROJECT_ID}"
 readonly AUTH_CONTAINER="supabase_auth_${SUPABASE_PROJECT_ID}"
 readonly STORAGE_CONTAINER="supabase_storage_${SUPABASE_PROJECT_ID}"
 readonly KONG_CONTAINER="supabase_kong_${SUPABASE_PROJECT_ID}"
+readonly STACK_LABEL="com.supabase.cli.project=${SUPABASE_PROJECT_ID}"
 readonly EXCLUDED_SERVICES="realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
 readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2h.XXXXXX")"
 readonly CANONICAL_VERSIONS_FILE="${TEMP_DIR}/canonical-versions.txt"
@@ -27,8 +29,118 @@ readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
 lock_acquired=false
 stack_owned=false
 
+run_with_deadline() {
+  local timeout_ms=$1
+  shift
+  node "${DEADLINE_RUNNER}" "${timeout_ms}" "$@"
+}
+
+list_exact_stack_containers() {
+  run_with_deadline 5000 docker container ls \
+    --all \
+    --quiet \
+    --filter "label=${STACK_LABEL}"
+}
+
+list_exact_stack_volumes() {
+  run_with_deadline 5000 docker volume ls \
+    --quiet \
+    --filter "label=${STACK_LABEL}"
+}
+
+list_exact_stack_networks() {
+  run_with_deadline 5000 docker network ls \
+    --quiet \
+    --filter "label=${STACK_LABEL}"
+}
+
+remove_exact_local_stack_resources() {
+  local resource_id
+  local listed_resources
+  local removal_failed=false
+  local -a container_ids=()
+  local -a volume_names=()
+  local -a network_ids=()
+
+  listed_resources="$(list_exact_stack_containers)" || return 1
+  while IFS= read -r resource_id; do
+    [[ -n "${resource_id}" ]] && container_ids+=("${resource_id}")
+  done <<<"${listed_resources}"
+
+  listed_resources="$(list_exact_stack_volumes)" || return 1
+  while IFS= read -r resource_id; do
+    [[ -n "${resource_id}" ]] && volume_names+=("${resource_id}")
+  done <<<"${listed_resources}"
+
+  listed_resources="$(list_exact_stack_networks)" || return 1
+  while IFS= read -r resource_id; do
+    [[ -n "${resource_id}" ]] && network_ids+=("${resource_id}")
+  done <<<"${listed_resources}"
+
+  if (( ${#container_ids[@]} > 0 )) && ! run_with_deadline 30000 \
+    docker rm -f "${container_ids[@]}" >/dev/null 2>&1; then
+    removal_failed=true
+  fi
+
+  if (( ${#volume_names[@]} > 0 )) && ! run_with_deadline 30000 \
+    docker volume rm "${volume_names[@]}" >/dev/null 2>&1; then
+    removal_failed=true
+  fi
+
+  if (( ${#network_ids[@]} > 0 )) && ! run_with_deadline 30000 \
+    docker network rm "${network_ids[@]}" >/dev/null 2>&1; then
+    removal_failed=true
+  fi
+
+  [[ "${removal_failed}" == false ]] || return 1
+
+  # Prove the exact label is empty before a new stack can start. A half-failed
+  # teardown must not be mistaken for a clean disposable environment.
+  [[ -z "$(list_exact_stack_containers)" ]] || return 1
+  [[ -z "$(list_exact_stack_volumes)" ]] || return 1
+  [[ -z "$(list_exact_stack_networks)" ]] || return 1
+}
+
+stop_exact_local_stack() {
+  local existing_containers
+  local existing_volumes
+  local existing_networks
+
+  existing_containers="$(list_exact_stack_containers)" || return 1
+  existing_volumes="$(list_exact_stack_volumes)" || return 1
+  existing_networks="$(list_exact_stack_networks)" || return 1
+
+  # Avoid calling the Supabase teardown path when the exact disposable stack
+  # is already absent. On OrbStack an empty `supabase stop` can leave a slow
+  # daemon-side request racing the immediately following clean start.
+  if [[ -z "${existing_containers}" \
+    && -z "${existing_volumes}" \
+    && -z "${existing_networks}" ]]; then
+    return 0
+  fi
+
+  if ! run_with_deadline 90000 "${SUPABASE_CLI}" \
+    --workdir "${REPO_ROOT}" \
+    stop \
+    --project-id "${SUPABASE_PROJECT_ID}" \
+    --no-backup \
+    >"${TEMP_DIR}/stop.log" 2>&1; then
+    :
+  fi
+
+  # Supabase CLI can hang during container teardown on OrbStack. Fall back to
+  # resources carrying the exact disposable project label so the next run does
+  # not inherit a half-removed stack. This never targets unrelated projects.
+  if ! remove_exact_local_stack_resources; then
+    return 1
+  fi
+
+  return 0
+}
+
 cleanup() {
   local exit_code=$?
+  local cleanup_failed=false
 
   trap - EXIT HUP INT TERM
   set +e
@@ -36,21 +148,28 @@ cleanup() {
   # The project ID is explicit: never use `supabase stop --all`, and never stop
   # an unrelated local Supabase stack.
   if [[ "${stack_owned}" == true && -x "${SUPABASE_CLI}" ]]; then
-    "${SUPABASE_CLI}" \
-      --workdir "${REPO_ROOT}" \
-      stop \
-      --project-id "${SUPABASE_PROJECT_ID}" \
-      --no-backup \
-      >"${TEMP_DIR}/stop.log" 2>&1
+    if ! stop_exact_local_stack >/dev/null 2>&1; then
+      cleanup_failed=true
+    fi
   fi
 
   if [[ "${lock_acquired}" == true ]]; then
-    rm -f -- "${LOCK_DIR}/pid"
-    rmdir -- "${LOCK_DIR}" 2>/dev/null
+    if ! rm -f -- "${LOCK_DIR}/pid"; then
+      cleanup_failed=true
+    fi
+    if ! rmdir -- "${LOCK_DIR}" 2>/dev/null; then
+      cleanup_failed=true
+    fi
   fi
 
   rm -rf -- "${TEMP_DIR}"
-  exit "${exit_code}"
+  if (( exit_code != 0 )); then
+    exit "${exit_code}"
+  fi
+  if [[ "${cleanup_failed}" == true ]]; then
+    exit 1
+  fi
+  exit 0
 }
 
 trap cleanup EXIT HUP INT TERM
@@ -79,7 +198,8 @@ show_safe_database_deadlock_log() {
   local database_log="${TEMP_DIR}/database.log"
   local deadlock_log="${TEMP_DIR}/database-deadlock.log"
 
-  if ! docker logs "${DATABASE_CONTAINER}" >"${database_log}" 2>&1; then
+  if ! run_with_deadline 10000 \
+    docker logs "${DATABASE_CONTAINER}" >"${database_log}" 2>&1; then
     return
   fi
 
@@ -98,6 +218,8 @@ wait_for_local_stack_readiness() {
   local container_name
   local container_state
   local containers_ready
+  local remaining_seconds
+  local probe_timeout_ms
 
   : >"${status_file}"
   chmod 600 "${status_file}"
@@ -109,8 +231,12 @@ wait_for_local_stack_readiness() {
       "${AUTH_CONTAINER}" \
       "${STORAGE_CONTAINER}" \
       "${KONG_CONTAINER}"; do
+      remaining_seconds=$((deadline - SECONDS))
+      (( remaining_seconds > 0 )) || return 1
+      probe_timeout_ms=$((remaining_seconds * 1000))
+      (( probe_timeout_ms <= 5000 )) || probe_timeout_ms=5000
       container_state="$(
-        docker inspect \
+        run_with_deadline "${probe_timeout_ms}" docker inspect \
           --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
           "${container_name}" \
           2>/dev/null \
@@ -122,7 +248,12 @@ wait_for_local_stack_readiness() {
       fi
     done
 
-    if [[ "${containers_ready}" == true ]] && "${SUPABASE_CLI}" \
+    remaining_seconds=$((deadline - SECONDS))
+    (( remaining_seconds > 0 )) || break
+    probe_timeout_ms=$((remaining_seconds * 1000))
+    (( probe_timeout_ms <= 10000 )) || probe_timeout_ms=10000
+    if [[ "${containers_ready}" == true ]] && run_with_deadline \
+      "${probe_timeout_ms}" "${SUPABASE_CLI}" \
       --workdir "${REPO_ROOT}" \
       status \
       --output json \
@@ -140,6 +271,8 @@ wait_for_local_stack_readiness() {
 
 [[ -x "${SUPABASE_CLI}" ]] \
   || fail "Project-local Supabase CLI is missing. Run npm ci with Node 22 first."
+[[ -f "${DEADLINE_RUNNER}" ]] \
+  || fail "Project-local command deadline runner is missing."
 
 [[ "$(node --version)" == v22.* ]] \
   || fail "Node 22 is required; found $(node --version)."
@@ -192,10 +325,10 @@ if [[ -n "${DOCKER_HOST:-}" && "${DOCKER_HOST}" != unix://* ]]; then
   fail "DOCKER_HOST must reference a local unix socket, not ${DOCKER_HOST}."
 fi
 
-docker_context="$(docker context show 2>/dev/null)" \
+docker_context="$(run_with_deadline 10000 docker context show 2>/dev/null)" \
   || fail "Unable to determine the active Docker context."
 docker_endpoint="$(
-  docker context inspect \
+  run_with_deadline 10000 docker context inspect \
     "${docker_context}" \
     --format '{{ (index .Endpoints "docker").Host }}' \
     2>/dev/null
@@ -203,7 +336,7 @@ docker_endpoint="$(
 [[ "${docker_endpoint}" == unix://* ]] \
   || fail "Docker context ${docker_context} is not local (${docker_endpoint})."
 
-docker info >/dev/null 2>&1 \
+run_with_deadline 10000 docker info >/dev/null 2>&1 \
   || fail "The local Docker engine is not running."
 
 if ! mkdir -- "${LOCK_DIR}" 2>/dev/null; then
@@ -215,14 +348,11 @@ stack_owned=true
 
 # Remove only a stale stack with this exact project ID so the run begins from
 # clean volumes. Output is suppressed because Supabase may print local secrets.
-"${SUPABASE_CLI}" \
-  --workdir "${REPO_ROOT}" \
-  stop \
-  --project-id "${SUPABASE_PROJECT_ID}" \
-  --no-backup \
-  >"${TEMP_DIR}/pre-stop.log" 2>&1 || true
+if ! stop_exact_local_stack; then
+  fail "Unable to remove the exact disposable Supabase stack before start."
+fi
 
-if ! "${SUPABASE_CLI}" \
+if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   --output-format json \
   start \
@@ -232,7 +362,7 @@ if ! "${SUPABASE_CLI}" \
   fail "The disposable local Supabase database failed to start; credential-bearing output was withheld."
 fi
 
-if ! "${SUPABASE_CLI}" \
+if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   --output-format json \
   db reset \
@@ -240,10 +370,29 @@ if ! "${SUPABASE_CLI}" \
   --no-seed \
   >"${TEMP_DIR}/reset.json" 2>"${TEMP_DIR}/reset.log"; then
   show_safe_failure_log "${TEMP_DIR}/reset.log"
-  fail "Local Supabase reset failed."
+  show_safe_database_deadlock_log
+  # OrbStack can finish applying every migration before the CLI observes all
+  # restarted services as ready. Require the exact disposable stack to become
+  # healthy, then retry the same clean reset once. A migration failure still
+  # fails twice; no later gate runs unless a reset command itself succeeds.
+  if ! wait_for_local_stack_readiness; then
+    fail "Disposable Supabase stack did not become healthy before initial reset retry."
+  fi
+  if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
+    --workdir "${REPO_ROOT}" \
+    --output-format json \
+    db reset \
+    --local \
+    --no-seed \
+    >"${TEMP_DIR}/reset-retry.json" \
+    2>"${TEMP_DIR}/reset-retry.log"; then
+    show_safe_failure_log "${TEMP_DIR}/reset-retry.log"
+    show_safe_database_deadlock_log
+    fail "Initial disposable Supabase reset failed after one bounded retry."
+  fi
 fi
 
-if ! "${SUPABASE_CLI}" \
+if ! run_with_deadline 120000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   seed buckets \
   --local \
@@ -254,7 +403,7 @@ if ! "${SUPABASE_CLI}" \
 fi
 
 if ! postgrest_environment="$(
-  docker inspect \
+  run_with_deadline 10000 docker inspect \
     --format '{{range .Config.Env}}{{println .}}{{end}}' \
     "${POSTGREST_CONTAINER}"
 )"; then
@@ -296,7 +445,7 @@ then
   fail "Disposable local PostgREST schema exposure does not match P2B."
 fi
 
-if ! "${SUPABASE_CLI}" \
+if ! run_with_deadline 30000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   --output-format json \
   migration list \
@@ -349,7 +498,7 @@ readonly LEGACY_DB_SENTINEL="${TEMP_DIR}/legacy-must-not-exist.db"
 chmod 600 "${AUTH_STATUS_FILE}"
 chmod 600 "${PLATFORM_AUTH_BROWSER_FIXTURE}"
 
-if ! "${SUPABASE_CLI}" \
+if ! run_with_deadline 10000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   status \
   --output json \
@@ -357,7 +506,7 @@ if ! "${SUPABASE_CLI}" \
   fail "Unable to read disposable local Supabase status; credential-bearing output was withheld."
 fi
 
-if ! node \
+if ! run_with_deadline 300000 node \
   "${REPO_ROOT}/scripts/test-supabase-auth-hook.mjs" \
   "${AUTH_STATUS_FILE}" \
   "${DATABASE_CONTAINER}" \
@@ -368,7 +517,8 @@ fi
 [[ ! -e "${AUTH_STATUS_FILE}" ]] \
   || fail "Auth smoke did not delete the credential-bearing local status file."
 
-if ! EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+if ! run_with_deadline 300000 env \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
   EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
   "${PLAYWRIGHT_CLI}" \
   test \
@@ -383,7 +533,7 @@ rm -f -- "${PLATFORM_AUTH_BROWSER_FIXTURE}"
 # The browser workflow intentionally leaves one AI job and one manual-send job
 # queued so the UI can prove real outbox persistence. Reset the disposable
 # database before the independent Storage and empty-queue runtime gates.
-if ! "${SUPABASE_CLI}" \
+if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   --output-format json \
   db reset \
@@ -400,7 +550,7 @@ if ! "${SUPABASE_CLI}" \
   if ! wait_for_local_stack_readiness; then
     fail "Disposable Supabase stack did not become healthy before reset retry."
   fi
-  if ! "${SUPABASE_CLI}" \
+  if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
     --workdir "${REPO_ROOT}" \
     --output-format json \
     db reset \
@@ -414,7 +564,7 @@ if ! "${SUPABASE_CLI}" \
   fi
 fi
 
-if ! "${SUPABASE_CLI}" \
+if ! run_with_deadline 120000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   seed buckets \
   --local \
@@ -426,7 +576,7 @@ readonly STORAGE_STATUS_FILE="${TEMP_DIR}/storage-status.json"
 : >"${STORAGE_STATUS_FILE}"
 chmod 600 "${STORAGE_STATUS_FILE}"
 
-if ! "${SUPABASE_CLI}" \
+if ! run_with_deadline 10000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   status \
   --output json \
@@ -434,7 +584,7 @@ if ! "${SUPABASE_CLI}" \
   fail "Unable to read disposable local Storage status; credential-bearing output was withheld."
 fi
 
-if ! node \
+if ! run_with_deadline 600000 node \
   "${REPO_ROOT}/scripts/test-p2h-storage-api.mjs" \
   "${STORAGE_STATUS_FILE}" \
   "${DATABASE_CONTAINER}"; then
@@ -445,7 +595,7 @@ fi
 [[ ! -e "${STORAGE_STATUS_FILE}" ]] \
   || fail "Storage gate did not delete the credential-bearing local status file."
 
-if ! bash \
+if ! run_with_deadline 300000 bash \
   "${REPO_ROOT}/scripts/test-p2g-queues-runtime.sh" \
   "${DATABASE_CONTAINER}" \
   "postgres"; then

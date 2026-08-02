@@ -27,6 +27,7 @@ GRANT EXECUTE ON FUNCTION pg_temp.assert_true(BOOLEAN, TEXT)
 \set bw3_finance_user '51000000-0000-4000-8000-000000000104'
 \set bw3_student_one_user '51000000-0000-4000-8000-000000000105'
 \set bw3_student_two_user '53000000-0000-4000-8000-000000000106'
+\set bw3_student_three_user '54000000-0000-4000-8000-000000000107'
 \set bw3_admin_b_user '51100000-0000-4000-8000-000000000101'
 \set bw3_sales_membership '51000000-0000-4000-8000-000000000302'
 \set bw3_curator_membership '51000000-0000-4000-8000-000000000303'
@@ -51,11 +52,16 @@ WHERE profile.auth_user_id = :'bw3_admin_b_user' \gset
 SELECT jsonb_build_object('role', 'service_role')::TEXT
   AS bw3_service_claims \gset
 
--- A second synthetic Student proves student-to-student isolation.
+-- Two additional synthetic Students prove student-to-student isolation and
+-- the fail-closed portal state before Profile/checklist setup is complete.
 INSERT INTO auth.users (id, email, raw_user_meta_data)
 VALUES (
   :'bw3_student_two_user',
   'bw3-student-two@example.invalid',
+  '{}'
+), (
+  :'bw3_student_three_user',
+  'bw3-student-three@example.invalid',
   '{}'
 );
 
@@ -69,12 +75,24 @@ SELECT platform.provision_member(
   'provision second synthetic BW3 Student',
   '53000000-0000-4000-8000-000000000601'
 )::TEXT AS bw3_student_two_result \gset
+SELECT platform.provision_member(
+  :'bw3_org_a',
+  :'bw3_student_three_user',
+  'BW3 Synthetic Student Three',
+  'student',
+  'provision third synthetic BW3 Student',
+  '53000000-0000-4000-8000-000000000650'
+)::TEXT AS bw3_student_three_result \gset
 RESET ROLE;
 SELECT
   (:'bw3_student_two_result'::JSONB ->> 'membership_id')
     AS bw3_student_two_membership,
   (:'bw3_student_two_result'::JSONB ->> 'profile_id')
-    AS bw3_student_two_identity_profile_id
+    AS bw3_student_two_identity_profile_id,
+  (:'bw3_student_three_result'::JSONB ->> 'membership_id')
+    AS bw3_student_three_membership,
+  (:'bw3_student_three_result'::JSONB ->> 'profile_id')
+    AS bw3_student_three_identity_profile_id
 \gset
 
 -- Two pending cases share one exact synthetic route. The service-only ingest
@@ -117,10 +135,29 @@ SELECT platform.create_pending_student_case(
   'Complete second synthetic Student Profile',
   '53000000-0000-4000-8000-000000000603'
 )::TEXT AS bw3_case_two_result \gset
+SELECT platform.create_pending_student_case(
+  :'bw3_org_a',
+  :'bw3_student_three_membership',
+  :'bw3_sales_membership',
+  'bw3-synthetic-case-003',
+  'bw3-synthetic-contract-003',
+  '2026-08-02T08:10:00Z'::TIMESTAMPTZ,
+  'BW3 Synthetic Student Three',
+  'Synthetic Country',
+  'Synthetic Degree',
+  NULL,
+  'synthetic_intake',
+  'ru',
+  'synthetic_budget',
+  'profile_and_route',
+  'Await synthetic Student Profile setup',
+  '53000000-0000-4000-8000-000000000651'
+)::TEXT AS bw3_case_three_result \gset
 RESET ROLE;
 SELECT
   (:'bw3_case_one_result'::JSONB ->> 'student_case_id') AS bw3_case_one_id,
-  (:'bw3_case_two_result'::JSONB ->> 'student_case_id') AS bw3_case_two_id
+  (:'bw3_case_two_result'::JSONB ->> 'student_case_id') AS bw3_case_two_id,
+  (:'bw3_case_three_result'::JSONB ->> 'student_case_id') AS bw3_case_three_id
 \gset
 
 -- Case-scope creation increments access versions; claims always refresh from
@@ -685,6 +722,20 @@ SELECT pg_temp.assert_true(
 -- lifecycle fields.
 SET request.jwt.claims TO :'bw3_admin_claims';
 SET ROLE authenticated;
+SELECT count(*)::TEXT AS bw3_incomplete_route_version_count
+FROM platform.staff_country_requirement_versions_for_case(:'bw3_case_three_id')
+\gset
+SELECT platform.set_student_case_route(
+  :'bw3_org_a', :'bw3_case_three_id',
+  'Synthetic Country', 'Synthetic Degree', 'synthetic_program',
+  'synthetic_intake', 'ru', 'synthetic_budget', 'draft',
+  'profile_and_route', 'Await synthetic Student Profile setup',
+  'complete previously nullable program direction',
+  '53000000-0000-4000-8000-000000000657'
+);
+SELECT count(*)::TEXT AS bw3_completed_route_version_count
+FROM platform.staff_country_requirement_versions_for_case(:'bw3_case_three_id')
+\gset
 SELECT platform.retire_country_requirement_version(
   :'bw3_org_a', :'bw3_version_one_id',
   'retire version one while retaining historical binding',
@@ -699,6 +750,11 @@ SELECT platform.assign_student_case_curator(
   :'bw3_org_a', :'bw3_case_two_id', :'bw3_curator_membership',
   'handoff synthetic case two to Curator',
   '53000000-0000-4000-8000-000000000642'
+);
+SELECT platform.assign_student_case_curator(
+  :'bw3_org_a', :'bw3_case_three_id', :'bw3_curator_membership',
+  'activate synthetic case before Profile setup',
+  '53000000-0000-4000-8000-000000000652'
 );
 RESET ROLE;
 
@@ -735,6 +791,14 @@ SELECT jsonb_build_object(
 )::TEXT AS bw3_student_two_claims
 FROM platform.profiles AS profile
 WHERE profile.auth_user_id = :'bw3_student_two_user' \gset
+SELECT jsonb_build_object(
+  'sub', profile.auth_user_id,
+  'role', 'authenticated',
+  'platform_role', 'student',
+  'platform_access_version', profile.access_version
+)::TEXT AS bw3_student_three_claims
+FROM platform.profiles AS profile
+WHERE profile.auth_user_id = :'bw3_student_three_user' \gset
 
 SET request.jwt.claims TO :'bw3_sales_claims';
 SET ROLE authenticated;
@@ -845,6 +909,81 @@ FROM platform.student_portal_profile()
 WHERE case_id = :'bw3_case_one_id' \gset
 RESET ROLE;
 
+-- An activated case without its Profile/checklist is a controlled pending
+-- portal state: the RPC emits no partial row for the TypeScript normalizer.
+SET request.jwt.claims TO :'bw3_student_three_claims';
+SET ROLE authenticated;
+SELECT count(*)::TEXT AS bw3_student_three_incomplete_portal_count
+FROM platform.student_portal_profile() \gset
+RESET ROLE;
+
+-- Multiple otherwise eligible cases are intentionally ambiguous. Do not pick
+-- one silently; return no row so the server facade redirects to the pending
+-- resolver until a later explicit case-selection contract exists.
+SET request.jwt.claims TO :'bw3_service_claims';
+SET ROLE service_role;
+SELECT platform.create_pending_student_case(
+  :'bw3_org_a',
+  :'bw3_student_one_membership',
+  :'bw3_sales_membership',
+  'bw3-synthetic-case-004',
+  'bw3-synthetic-contract-004',
+  '2026-08-02T08:15:00Z'::TIMESTAMPTZ,
+  'BW3 Synthetic Student One Repeat Case',
+  'Synthetic Country',
+  'Synthetic Degree',
+  'synthetic_program',
+  'synthetic_intake',
+  'ru',
+  'synthetic_budget',
+  'profile_and_route',
+  'Resolve explicit portal case selection',
+  '53000000-0000-4000-8000-000000000653'
+)::TEXT AS bw3_case_four_result \gset
+RESET ROLE;
+SELECT
+  (:'bw3_case_four_result'::JSONB ->> 'student_case_id') AS bw3_case_four_id
+\gset
+
+SET request.jwt.claims TO :'bw3_admin_claims';
+SET ROLE authenticated;
+SELECT platform.apply_country_requirement_version(
+  :'bw3_org_a', :'bw3_case_four_id', :'bw3_version_two_id',
+  'apply synthetic version two to repeat case',
+  '53000000-0000-4000-8000-000000000654'
+);
+SELECT platform.upsert_student_profile(
+  :'bw3_org_a', :'bw3_case_four_id', 0,
+  'Synthetic Repeat Preferred', 'Synthetic Repeat Legal', DATE '2003-03-03',
+  'ru', 'Synthetic Citizenship', 'Synthetic Residency',
+  'Synthetic repeat current education', 'Synthetic repeat academic summary',
+  'Synthetic repeat language summary', 'synthetic_budget_standard',
+  ARRAY['self']::TEXT[], 'not_recorded', NULL,
+  'Resolve explicit portal case selection',
+  'create eligible repeat-case profile',
+  '53000000-0000-4000-8000-000000000655'
+);
+SELECT platform.assign_student_case_curator(
+  :'bw3_org_a', :'bw3_case_four_id', :'bw3_curator_membership',
+  'activate eligible repeat case for ambiguity proof',
+  '53000000-0000-4000-8000-000000000656'
+);
+RESET ROLE;
+
+SELECT jsonb_build_object(
+  'sub', profile.auth_user_id,
+  'role', 'authenticated',
+  'platform_role', 'student',
+  'platform_access_version', profile.access_version
+)::TEXT AS bw3_student_one_ambiguous_claims
+FROM platform.profiles AS profile
+WHERE profile.auth_user_id = :'bw3_student_one_user' \gset
+SET request.jwt.claims TO :'bw3_student_one_ambiguous_claims';
+SET ROLE authenticated;
+SELECT count(*)::TEXT AS bw3_student_one_ambiguous_portal_count
+FROM platform.student_portal_profile() \gset
+RESET ROLE;
+
 SELECT pg_temp.assert_true(
   :'bw3_sales_after_handoff_read' = '0'
     AND :'bw3_sales_after_handoff_write_state' = '42501'
@@ -861,7 +1000,11 @@ SELECT pg_temp.assert_true(
     AND :'bw3_student_one_direct_count' = '1'
     AND :'bw3_student_profile_write_state' = '42501'
     AND :'bw3_student_two_portal_count' = '1'
-    AND :'bw3_student_two_cross_count' = '0',
+    AND :'bw3_student_two_cross_count' = '0'
+    AND :'bw3_incomplete_route_version_count' = '0'
+    AND :'bw3_completed_route_version_count' = '2'
+    AND :'bw3_student_three_incomplete_portal_count' = '0'
+    AND :'bw3_student_one_ambiguous_portal_count' = '0',
   'post-handoff role matrix or cross-student/cross-org denial failed'
 );
 

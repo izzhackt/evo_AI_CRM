@@ -1307,7 +1307,7 @@ const main = async () => {
       'Synthetic Org A Student',
       'Malaysia',
       'Bachelor',
-      'Synthetic admissions workflow',
+      NULL,
       '2027',
       'ru',
       'self-funded',
@@ -1339,6 +1339,35 @@ const main = async () => {
       orgACuratorAssignment?.curator_membership_id === roleMembers.curator.id &&
       orgACuratorAssignment?.case_state === "active",
     "p3c-org-a-curator-assignment-result",
+  );
+  const orgARouteCompletion = authenticatedFunctionResult(
+    decodeClaims(
+      identities.adminA.accessToken,
+      "bw3-org-a-admin-claims-for-route-completion",
+    ),
+    `platform.set_student_case_route(
+      ${sqlUuid(adminAMembership.organization_id, "bw3-org-a-route-org")},
+      ${sqlUuid(orgAStudentCaseId, "bw3-org-a-route-case")},
+      'Malaysia',
+      'Bachelor',
+      'Synthetic admissions workflow',
+      '2027',
+      'ru',
+      'self-funded',
+      'draft',
+      'profile_and_route',
+      'Prepare the synthetic route before checklist binding',
+      'Complete the previously nullable synthetic program direction',
+      ${sqlUuid(randomUUID(), "bw3-org-a-route-request")}
+    )`,
+    "bw3-org-a-route-completion",
+  );
+  assert(
+    orgARouteCompletion?.student_case_id === orgAStudentCaseId &&
+      orgARouteCompletion?.program_direction ===
+        "Synthetic admissions workflow" &&
+      orgARouteCompletion?.route_approval_status === "draft",
+    "bw3-org-a-route-completion-result",
   );
   await refresh(identities.responsibleSales, "sales");
   await refresh(identities.curator, "curator");

@@ -342,3 +342,30 @@ test("mutation forms preserve a validated render-time request id across uncertai
     assert.match(source, /parsePlatformAdmissionsUuid\(query\.retry_request_id\)/);
   }
 });
+
+test("Student 360 completes a nullable route before immutable checklist binding", () => {
+  const actionSource = readFileSync(
+    new URL("../src/lib/platform-admissions-actions.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(actionSource, /rpc\(\s*["']set_student_case_route["']/);
+  assert.match(actionSource, /p_program_direction:\s*programDirection/);
+  assert.match(actionSource, /p_route_approval_status:\s*["']draft["']/);
+  assert.match(actionSource, /response\.data\.program_direction !== programDirection/);
+
+  const connectedPage = readFileSync(
+    new URL("../src/app/(staff)/clients/[id]/PlatformClientPage.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(connectedPage, /updateStudentRoute:\s*updatePlatformStudentCaseRouteAction/);
+  assert.match(connectedPage, /programDirection:\s*studentCase\.programDirection/);
+  assert.match(connectedPage, /canEditStudentRoute:[\s\S]*!appliedCountryRequirement/);
+
+  const renderer = readFileSync(
+    new URL("../src/app/(staff)/clients/[id]/ClientPageContent.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(renderer, /data-testid="platform-student-route-gate"/);
+  assert.match(renderer, /name="program_direction"/);
+  assert.match(renderer, /name="reason"/);
+});

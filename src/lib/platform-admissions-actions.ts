@@ -166,6 +166,91 @@ export async function changePlatformStudentCaseStateAction(
   safeRedirect(targetPath, "saved");
 }
 
+export async function updatePlatformStudentCaseRouteAction(
+  form: FormData,
+): Promise<void> {
+  const actor = await requirePlatformClientsActor();
+  const studentCaseId = requiredUuid(form, "student_case_id");
+  const requestId = requiredUuid(form, "request_id");
+  const targetPath = studentCaseId ? `/clients/${studentCaseId}` : "/clients";
+  const targetCountry = boundedText(form, "target_country", 1, 120);
+  const targetDegree = boundedText(form, "target_degree", 1, 160);
+  const programDirection = boundedText(form, "program_direction", 1, 200);
+  const intake = optionalBoundedText(form, "intake", 200);
+  const languageAssumption = optionalBoundedText(
+    form,
+    "language_assumption",
+    200,
+  );
+  const fundingAssumption = optionalBoundedText(
+    form,
+    "funding_assumption",
+    300,
+  );
+  const operationalStage = boundedText(form, "operational_stage", 1, 200);
+  const nextAction = optionalBoundedText(form, "next_action", 1000);
+  const reason = boundedText(form, "reason", 3, 500);
+
+  if (
+    !studentCaseId ||
+    !requestId ||
+    !targetCountry ||
+    !targetDegree ||
+    !programDirection ||
+    intake === undefined ||
+    languageAssumption === undefined ||
+    fundingAssumption === undefined ||
+    !operationalStage ||
+    nextAction === undefined ||
+    !reason
+  ) {
+    safeRedirect(targetPath, "invalid", requestId);
+  }
+
+  try {
+    const client = await createSupabaseServerClient();
+    const response = await client.schema("platform").rpc(
+      "set_student_case_route",
+      {
+        p_organization_id: actor.organizationId,
+        p_student_case_id: studentCaseId,
+        p_target_country: targetCountry,
+        p_target_degree: targetDegree,
+        p_program_direction: programDirection,
+        p_intake: intake,
+        p_language_assumption: languageAssumption,
+        p_funding_assumption: fundingAssumption,
+        // Any route edit re-enters review; the browser cannot preserve an old
+        // approval for materially changed route data.
+        p_route_approval_status: "draft",
+        p_operational_stage: operationalStage,
+        p_next_action: nextAction,
+        p_reason: reason,
+        p_request_id: requestId,
+      },
+    );
+    if (
+      response.error ||
+      !isRecord(response.data) ||
+      parsePlatformAdmissionsUuid(response.data.organization_id) !==
+        actor.organizationId ||
+      parsePlatformAdmissionsUuid(response.data.student_case_id) !==
+        studentCaseId ||
+      response.data.program_direction !== programDirection ||
+      response.data.route_approval_status !== "draft"
+    ) {
+      safeRedirect(targetPath, "unavailable", requestId);
+    }
+  } catch {
+    safeRedirect(targetPath, "unavailable", requestId);
+  }
+
+  revalidatePath("/clients");
+  revalidatePath(targetPath);
+  revalidatePath("/applications");
+  safeRedirect(targetPath, "saved");
+}
+
 export async function createPlatformUniversityApplicationAction(
   form: FormData,
 ): Promise<void> {

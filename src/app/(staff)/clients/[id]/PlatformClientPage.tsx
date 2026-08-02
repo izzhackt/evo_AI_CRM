@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { changePlatformStudentCaseStateAction } from "@/lib/platform-admissions-actions";
+import {
+  changePlatformStudentCaseStateAction,
+  updatePlatformStudentCaseRouteAction,
+} from "@/lib/platform-admissions-actions";
 import {
   applyPlatformCountryRequirementVersionAction,
   updatePlatformStudentProfileAction,
@@ -94,6 +97,7 @@ export async function loadPlatformClientPageData(
   const profileRequestId = retryRequestId ?? randomUUID();
   const checklistRequestId = retryRequestId ?? randomUUID();
   const lifecycleRequestId = retryRequestId ?? randomUUID();
+  const routeRequestId = retryRequestId ?? randomUUID();
   const riskSignals = [
     studentCase.overdueTaskCount > 0
       ? `Просроченные задачи: ${studentCase.overdueTaskCount}`
@@ -190,6 +194,7 @@ export async function loadPlatformClientPageData(
     visaStatuses: [],
     actions: {
       changePlatformState: changePlatformStudentCaseStateAction,
+      updateStudentRoute: updatePlatformStudentCaseRouteAction,
       updateStudentProfile: updatePlatformStudentProfileAction,
       applyCountryRequirementVersion: applyPlatformCountryRequirementVersionAction,
     },
@@ -197,6 +202,17 @@ export async function loadPlatformClientPageData(
     canViewCaseAudit: false,
     canMutatePayments: false,
     canUseAiSummary: false,
+    studentRoute: {
+      targetCountry: studentCase.targetCountry,
+      targetDegree: studentCase.targetDegree,
+      programDirection: studentCase.programDirection,
+      intake: studentCase.intake,
+      languageAssumption: studentCase.languageAssumption,
+      fundingAssumption: studentCase.fundingAssumption,
+      routeApprovalStatus: studentCase.routeApprovalStatus,
+      operationalStage: studentCase.operationalStage,
+      nextAction: studentCase.nextAction,
+    },
     studentProfile: {
       revision: profileSnapshot?.profileRevision ?? 0,
       preferredDisplayName: profileSnapshot?.preferredDisplayName ?? null,
@@ -237,6 +253,14 @@ export async function loadPlatformClientPageData(
         || actor.platformRole === "curator"
       ),
     canApplyCountryRequirements: actor.platformRole === "admin",
+    canEditStudentRoute:
+      !appliedCountryRequirement
+      && (
+        actor.platformRole === "admin"
+        || actor.platformRole === "sales"
+        || actor.platformRole === "curator"
+      ),
+    routeRequestId,
     profileRequestId,
     checklistRequestId,
     sourceHint:

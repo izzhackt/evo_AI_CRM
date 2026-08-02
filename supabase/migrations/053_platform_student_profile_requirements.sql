@@ -1984,6 +1984,26 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+  WITH eligible_cases AS MATERIALIZED (
+    SELECT candidate.id
+    FROM platform.student_cases AS candidate
+    JOIN platform.student_profiles AS candidate_profile
+      ON candidate_profile.organization_id = candidate.organization_id
+      AND candidate_profile.student_case_id = candidate.id
+    JOIN platform.country_requirement_versions AS candidate_version
+      ON candidate_version.organization_id = candidate.organization_id
+      AND candidate_version.id =
+        candidate.applied_country_requirement_version_id
+      AND candidate_version.status IN ('approved', 'retired')
+    WHERE private.platform_has_permission(
+        candidate.organization_id,
+        'profile.read.self'
+      )
+      AND private.platform_can_read_student_portal_case(
+        candidate.organization_id,
+        candidate.id
+      )
+  )
   SELECT
     student_case.id,
     profile.id,
@@ -2019,19 +2039,13 @@ AS $$
   JOIN platform.student_profiles AS profile
     ON profile.organization_id = student_case.organization_id
     AND profile.student_case_id = student_case.id
-  LEFT JOIN platform.country_requirement_versions AS requirement_version
+  JOIN platform.country_requirement_versions AS requirement_version
     ON requirement_version.organization_id = student_case.organization_id
     AND requirement_version.id =
       student_case.applied_country_requirement_version_id
-  WHERE private.platform_has_permission(
-      student_case.organization_id,
-      'profile.read.self'
-    )
-    AND private.platform_can_read_student_portal_case(
-      student_case.organization_id,
-      student_case.id
-    )
-  ORDER BY student_case.portal_activated_at DESC, student_case.id
+    AND requirement_version.status IN ('approved', 'retired')
+  WHERE student_case.id IN (SELECT eligible_case.id FROM eligible_cases AS eligible_case)
+    AND (SELECT count(*) FROM eligible_cases) = 1
 $$;
 
 CREATE OR REPLACE FUNCTION platform.staff_student_case_documents(

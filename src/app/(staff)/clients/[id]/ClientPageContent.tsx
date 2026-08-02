@@ -86,6 +86,17 @@ type PresentationCountryRequirementVersion = Readonly<{
   status: "draft" | "approved" | "retired";
   sourceCount: number;
 }>;
+type PresentationStudentRoute = Readonly<{
+  targetCountry: string;
+  targetDegree: string;
+  programDirection: string | null;
+  intake: string | null;
+  languageAssumption: string | null;
+  fundingAssumption: string | null;
+  routeApprovalStatus: "draft" | "approved" | "rework";
+  operationalStage: string;
+  nextAction: string | null;
+}>;
 type PresentationVisa = Readonly<{
   country: string;
   status: string;
@@ -151,6 +162,7 @@ type PresentationActions = Readonly<{
   closeCase?: ServerFormAction;
   reopenCase?: ServerFormAction;
   changePlatformState?: ServerFormAction;
+  updateStudentRoute?: ServerFormAction;
   updateStudentProfile?: ServerFormAction;
   applyCountryRequirementVersion?: ServerFormAction;
 }>;
@@ -197,10 +209,13 @@ export type ClientPagePresentationData =
       result?: "saved" | "invalid" | "unavailable";
       lifecycleRequestId?: string;
       warning?: Readonly<{ title: string; description: string }>;
+      studentRoute?: PresentationStudentRoute;
       studentProfile?: PresentationStudentProfile;
       countryRequirementVersions?: readonly PresentationCountryRequirementVersion[];
       canEditStudentProfile?: boolean;
       canApplyCountryRequirements?: boolean;
+      canEditStudentRoute?: boolean;
+      routeRequestId?: string;
       profileRequestId?: string;
       checklistRequestId?: string;
       connected: boolean;
@@ -421,10 +436,13 @@ export default async function ClientPageContent({
     canManageLifecycle,
     canViewCaseAudit,
     canMutatePayments,
+    studentRoute,
     studentProfile,
     countryRequirementVersions = [],
     canEditStudentProfile = false,
     canApplyCountryRequirements = false,
+    canEditStudentRoute = false,
+    routeRequestId,
     profileRequestId,
     checklistRequestId,
   } = data;
@@ -452,6 +470,11 @@ export default async function ClientPageContent({
       provenance: "Подтверждённых источников",
       applyChecklist: "Применить утверждённую версию",
       saveProfile: "Сохранить профиль",
+      routeTitle: "Маршрут перед чек-листом",
+      routeMissing: "Укажите направление программы — без него нельзя безопасно выбрать страновой чек-лист.",
+      routeReady: "Проверьте направление программы перед назначением неизменяемой версии чек-листа.",
+      programDirection: "Направление программы",
+      saveRoute: "Сохранить маршрут",
     },
     ky: {
       title: "Студенттин профили",
@@ -476,6 +499,11 @@ export default async function ClientPageContent({
       provenance: "Текшерилген булактар",
       applyChecklist: "Бекитилген версияны колдонуу",
       saveProfile: "Профилди сактоо",
+      routeTitle: "Чек-листке чейинки маршрут",
+      routeMissing: "Программанын багытын көрсөтүңүз — ансыз өлкө чек-листин коопсуз тандоо мүмкүн эмес.",
+      routeReady: "Өзгөрбөс чек-лист версиясын дайындоодон мурда программанын багытын текшериңиз.",
+      programDirection: "Программанын багыты",
+      saveRoute: "Маршрутту сактоо",
     },
     en: {
       title: "Student profile",
@@ -500,6 +528,11 @@ export default async function ClientPageContent({
       provenance: "Verified sources",
       applyChecklist: "Apply approved version",
       saveProfile: "Save profile",
+      routeTitle: "Route before checklist",
+      routeMissing: "Enter the program direction before a country checklist can be selected safely.",
+      routeReady: "Confirm the program direction before assigning an immutable checklist version.",
+      programDirection: "Program direction",
+      saveRoute: "Save route",
     },
   }[locale];
   const profileFieldLabels: Readonly<Record<string, string>> = {
@@ -936,6 +969,59 @@ export default async function ClientPageContent({
         <Card title={studentProfile ? profileLabels.title : t("client")}>
         {studentProfile ? (
           <div className="space-y-4">
+            {studentRoute
+              && !studentProfile.appliedCountryRequirementVersionId
+              && canEditStudentRoute
+              && actions.updateStudentRoute && (
+              <div
+                data-testid="platform-student-route-gate"
+                className="rounded-nav border border-border-strong bg-surface-2 p-3"
+              >
+                <p className="text-[13px] font-semibold text-fg">{profileLabels.routeTitle}</p>
+                <p className="mt-1 text-[12px] leading-5 text-fg-2">
+                  {studentRoute.programDirection
+                    ? profileLabels.routeReady
+                    : profileLabels.routeMissing}
+                </p>
+                <form
+                  action={actions.updateStudentRoute}
+                  className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                >
+                  <input type="hidden" name="student_case_id" value={client.id} />
+                  {routeRequestId && <input type="hidden" name="request_id" value={routeRequestId} />}
+                  <input type="hidden" name="target_country" value={studentRoute.targetCountry} />
+                  <input type="hidden" name="target_degree" value={studentRoute.targetDegree} />
+                  <input type="hidden" name="intake" value={studentRoute.intake ?? ""} />
+                  <input type="hidden" name="language_assumption" value={studentRoute.languageAssumption ?? ""} />
+                  <input type="hidden" name="funding_assumption" value={studentRoute.fundingAssumption ?? ""} />
+                  <input type="hidden" name="operational_stage" value={studentRoute.operationalStage} />
+                  <input type="hidden" name="next_action" value={studentRoute.nextAction ?? ""} />
+                  <label className={labelCls}>
+                    {profileLabels.programDirection}
+                    <input
+                      name="program_direction"
+                      required
+                      maxLength={200}
+                      defaultValue={studentRoute.programDirection ?? ""}
+                      className={cn(inputCls, "mt-1")}
+                    />
+                  </label>
+                  <label className={labelCls}>
+                    {profileLabels.reason}
+                    <input
+                      name="reason"
+                      required
+                      minLength={3}
+                      maxLength={500}
+                      className={cn(inputCls, "mt-1")}
+                    />
+                  </label>
+                  <div className="flex items-end">
+                    <button type="submit" className={btnGhostCls}>{profileLabels.saveRoute}</button>
+                  </div>
+                </form>
+              </div>
+            )}
             {canEditStudentProfile && actions.updateStudentProfile ? (
               <form
                 action={actions.updateStudentProfile}

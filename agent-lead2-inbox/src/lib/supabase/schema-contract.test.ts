@@ -98,6 +98,10 @@ const platformStudentProfileRequirementsMigration = readFileSync(
   join(migrationsDir, '053_platform_student_profile_requirements.sql'),
   'utf8'
 )
+const platformDecisionPromptLifecycleMigration = readFileSync(
+  join(migrationsDir, '054_platform_decision_prompt_lifecycle.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -113,9 +117,9 @@ function expectRlsEnabled(table: string) {
 }
 
 describe('Supabase companion schema contract', () => {
-  it('preserves containment and advances through the BW3 profile boundary', () => {
+  it('preserves containment and advances through the BW4 decision boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '053_platform_student_profile_requirements.sql'
+      '054_platform_decision_prompt_lifecycle.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -132,6 +136,15 @@ describe('Supabase companion schema contract', () => {
     )
     expect(platformIdentityMigration).toMatch(
       /CREATE\s+TYPE\s+platform\.business_role\s+AS\s+ENUM\s*\(\s*'admin',\s*'sales',\s*'curator',\s*'finance',\s*'student'\s*\)/i
+    )
+    expect(platformDecisionPromptLifecycleMigration).toMatch(
+      /CREATE\s+TABLE\s+platform_private\.ai_prompt_artifact_versions/i
+    )
+    expect(platformDecisionPromptLifecycleMigration).toMatch(
+      /CREATE\s+TABLE\s+platform\.decision_backlogs/i
+    )
+    expect(platformDecisionPromptLifecycleMigration).toMatch(
+      /ALTER\s+TABLE\s+platform\.decision_backlogs\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/i
     )
     expect(platformIdentityMigration).toMatch(
       /CREATE\s+TABLE\s+platform\.organization_memberships/i

@@ -535,6 +535,18 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_student_profile_requirements_rls.sql
   fi
+
+  # BW4 owns migration 054's append-only decision backlog and private prompt
+  # artifact lifecycle. Run at the exact boundary so later catalog work cannot
+  # mask raw-content grants, pin swapping, stale authority or history drift.
+  if [[ "$(basename "$migration")" == 054_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_decision_prompt_lifecycle_inventory.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_decision_prompt_lifecycle_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

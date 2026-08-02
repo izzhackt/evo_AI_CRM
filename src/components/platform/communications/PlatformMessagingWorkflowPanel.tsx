@@ -8,6 +8,7 @@ import {
   requestPlatformAiDraftAction,
   reviewPlatformAiDraftAction,
 } from "@/lib/platform-messaging-actions";
+import type { PlatformConversationBw4Workspace } from "@/lib/platform-bw4-workflow";
 import type {
   PlatformConversationWorkflow,
   PlatformKnowledgeCatalogItem,
@@ -15,6 +16,9 @@ import type {
   PlatformWorkflowIntegration,
 } from "@/lib/platform-messaging-workflow";
 import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { PlatformDecisionBacklogCard } from "@/components/platform/communications/PlatformDecisionBacklogCard";
+import { PlatformHandoffContextCard } from "@/components/platform/communications/PlatformHandoffContextCard";
+import { PlatformPromptEvidenceCard } from "@/components/platform/communications/PlatformPromptEvidenceCard";
 
 type Labels = Readonly<Record<string, string>>;
 type DraftReviewDecision = "approved" | "rework" | "handoff";
@@ -117,6 +121,9 @@ export function PlatformMessagingWorkflowPanel({
   defaultLanguage,
   initialWorkflow,
   knowledge,
+  bw4Workspace,
+  locale,
+  decisionMutationOutcome,
   labels,
 }: {
   conversationId: string;
@@ -124,13 +131,23 @@ export function PlatformMessagingWorkflowPanel({
   defaultLanguage: "ru" | "en" | null;
   initialWorkflow: PlatformConversationWorkflow;
   knowledge: readonly PlatformKnowledgeCatalogItem[];
+  bw4Workspace: PlatformConversationBw4Workspace | null;
+  locale: string;
+  decisionMutationOutcome: "saved" | "invalid" | "unavailable" | null;
   labels: Labels;
 }) {
   const router = useRouter();
   const [actionStatus, setActionStatus] =
     useState<PlatformMessagingMutationStatus | null>(null);
+  const [selectedDraftLanguage, setSelectedDraftLanguage] = useState<
+    "ru" | "en" | null
+  >(defaultLanguage);
   const [pending, startTransition] = useTransition();
   const workflow = initialWorkflow;
+  const effectiveDraftLanguage =
+    workflow.draft?.selectedLanguage ??
+    workflow.draft?.requestedLanguage ??
+    selectedDraftLanguage;
 
   function applyResult(
     result: Awaited<
@@ -212,10 +229,16 @@ export function PlatformMessagingWorkflowPanel({
 
   const statusMessage = actionStatusLabel(actionStatus, labels);
   const draft = workflow.draft;
-  const canRequest =
+  const promptContextReady =
+    bw4Workspace?.activePromptArtifacts.promptPolicy?.status === "approved" &&
+    bw4Workspace.activePromptArtifacts.businessContext?.status === "approved";
+  const draftPrerequisitesReady =
     workflow.health.canRequestAiDraft &&
     latestInboundMessageId !== null &&
-    knowledge.length > 0;
+    knowledge.length > 0 &&
+    promptContextReady;
+  const canRequest =
+    draftPrerequisitesReady && selectedDraftLanguage !== null;
 
   return (
     <section
@@ -227,6 +250,7 @@ export function PlatformMessagingWorkflowPanel({
           ? "proved"
           : "not-proved"
       }
+      data-prompt-context-ready={promptContextReady ? "true" : "false"}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
@@ -244,6 +268,25 @@ export function PlatformMessagingWorkflowPanel({
         )}
       </div>
 
+      {decisionMutationOutcome !== null && (
+        <p
+          aria-live="polite"
+          className={`mt-2 rounded-ctl px-3 py-2 text-[11px] ${
+            decisionMutationOutcome === "saved"
+              ? "bg-ok-weak text-ok"
+              : "bg-warn-weak text-warn"
+          }`}
+          data-decision-action-result={decisionMutationOutcome}
+          data-testid="platform-decision-action-result"
+        >
+          {decisionMutationOutcome === "saved"
+            ? labels.platformDecisionActionSaved
+            : decisionMutationOutcome === "invalid"
+              ? labels.platformDecisionActionInvalid
+              : labels.platformDecisionActionUnavailable}
+        </p>
+      )}
+
       <div
         className="mt-2 grid gap-2 sm:grid-cols-2"
         data-testid="platform-workflow-health"
@@ -258,6 +301,68 @@ export function PlatformMessagingWorkflowPanel({
           integration={workflow.integrations.waha}
           labels={labels}
         />
+      </div>
+
+      <div
+        className={`mt-2 rounded-ctl border px-3 py-2 ${
+          effectiveDraftLanguage === null
+            ? "border-warn/30 bg-warn-weak text-warn"
+            : "border-border bg-surface-2 text-fg-2"
+        }`}
+        data-language-gate={
+          effectiveDraftLanguage === null
+            ? "manual-selection-required"
+            : effectiveDraftLanguage
+        }
+        data-testid="platform-language-gate"
+      >
+        <p className="text-[11px] font-bold">
+          {labels.platformLanguageGateTitle}
+        </p>
+        <p className="mt-0.5 text-[10.5px] leading-4">
+          {effectiveDraftLanguage === null
+            ? labels.platformLanguageManualRequired
+            : labels.platformLanguageGateRuEn}
+        </p>
+      </div>
+
+      <div
+        className="mt-3 space-y-2"
+        data-testid="platform-bw4-workspace"
+      >
+        {bw4Workspace === null ? (
+          <section
+            className="rounded-ctl border border-warn/30 bg-warn-weak p-3 text-warn"
+            data-testid="platform-bw4-unavailable"
+          >
+            <h3 className="text-[11px] font-bold">
+              {labels.platformBw4UnavailableTitle}
+            </h3>
+            <p className="mt-1 text-[10.5px] leading-4">
+              {labels.platformBw4UnavailableHint}
+            </p>
+          </section>
+        ) : (
+          <>
+            <PlatformDecisionBacklogCard
+              workspace={bw4Workspace}
+              locale={locale}
+              labels={labels}
+            />
+            <PlatformHandoffContextCard
+              studentCaseId={bw4Workspace.studentCaseId}
+              handoff={bw4Workspace.handoff}
+              locale={locale}
+              labels={labels}
+            />
+            <PlatformPromptEvidenceCard
+              activeArtifacts={bw4Workspace.activePromptArtifacts}
+              pinnedArtifacts={bw4Workspace.pinnedPromptArtifacts}
+              locale={locale}
+              labels={labels}
+            />
+          </>
+        )}
       </div>
 
       {workflow.selectedKnowledge && (
@@ -294,7 +399,7 @@ export function PlatformMessagingWorkflowPanel({
               id="platform-knowledge-select"
               name="knowledgeVersionId"
               required
-              disabled={!canRequest || pending}
+              disabled={!draftPrerequisitesReady || pending}
               className={inputCls}
               data-testid="platform-knowledge-select"
             >
@@ -315,9 +420,16 @@ export function PlatformMessagingWorkflowPanel({
             <select
               id="platform-draft-language"
               name="requestedLanguage"
-              defaultValue={defaultLanguage ?? ""}
+              value={selectedDraftLanguage ?? ""}
+              onChange={(event) =>
+                setSelectedDraftLanguage(
+                  event.target.value === "ru" || event.target.value === "en"
+                    ? event.target.value
+                    : null,
+                )
+              }
               required
-              disabled={!canRequest || pending}
+              disabled={!draftPrerequisitesReady || pending}
               className={inputCls}
             >
               <option value="" disabled>
@@ -337,7 +449,7 @@ export function PlatformMessagingWorkflowPanel({
               required
               minLength={3}
               maxLength={500}
-              disabled={!canRequest || pending}
+              disabled={!draftPrerequisitesReady || pending}
               className={inputCls}
             />
           </div>

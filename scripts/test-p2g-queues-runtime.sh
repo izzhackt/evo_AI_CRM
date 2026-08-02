@@ -253,6 +253,14 @@ SELECT EXISTS (
 ) AS has_p3c_source_message_column
 \gset
 
+SELECT (
+  to_regprocedure(
+    'platform.publish_ai_prompt_artifact_version(uuid,platform.ai_prompt_artifact_kind,text,text,text,text,uuid)'
+  ) IS NOT NULL
+  AND to_regclass('platform.ai_draft_request_prompt_selections') IS NOT NULL
+) AS has_bw4_prompt_lifecycle
+\gset
+
 INSERT INTO platform.organizations (id, name)
 VALUES (
   '45990000-0000-4000-8000-000000000001',
@@ -490,6 +498,52 @@ VALUES (
   '45993000-0000-4000-8000-000000000123'
 );
 
+-- Publish the same approved, versioned prompt contract required by the live
+-- draft RPC. The disposable queue fixture uses an authenticated Admin and
+-- captures only immutable artifact identifiers; raw content is never emitted.
+\if :has_bw4_prompt_lifecycle
+SELECT set_config(
+  'request.jwt.claims',
+  jsonb_build_object(
+    'sub', profile.auth_user_id,
+    'role', 'authenticated',
+    'platform_role', 'admin',
+    'platform_access_version', profile.access_version
+  )::TEXT,
+  TRUE
+) AS p2g_admin_claims
+FROM platform.profiles AS profile
+WHERE profile.id = '45993000-0000-4000-8000-000000000022'
+\gset
+
+SET LOCAL ROLE authenticated;
+SELECT (
+  platform.publish_ai_prompt_artifact_version(
+    '45990000-0000-4000-8000-000000000001',
+    'prompt_policy',
+    'P2G synthetic prompt policy v1',
+    'Synthetic local queue prompt policy. No customer content.',
+    'local:p2g:prompt-policy:v1',
+    'Publish the P2G synthetic prompt-policy fixture',
+    '45997000-0000-4000-8000-000000000001'
+  ) ->> 'prompt_artifact_version_id'
+) AS p2g_prompt_policy_id
+\gset
+SELECT (
+  platform.publish_ai_prompt_artifact_version(
+    '45990000-0000-4000-8000-000000000001',
+    'business_context',
+    'P2G synthetic business context v1',
+    'Synthetic local queue business context. No customer content.',
+    'local:p2g:business-context:v1',
+    'Publish the P2G synthetic business-context fixture',
+    '45997000-0000-4000-8000-000000000002'
+  ) ->> 'prompt_artifact_version_id'
+) AS p2g_business_context_id
+\gset
+RESET ROLE;
+\endif
+
 INSERT INTO platform.communication_conversations (
   id,
   organization_id,
@@ -629,6 +683,54 @@ VALUES (
   '45993000-0000-4000-8000-000000000109'
 );
 
+\if :has_bw4_prompt_lifecycle
+INSERT INTO platform.ai_draft_request_knowledge_selections (
+  id,
+  organization_id,
+  conversation_id,
+  ai_draft_request_id,
+  selected_knowledge_version_id,
+  selected_by_profile_id,
+  selected_by_membership_id,
+  reason,
+  request_id
+)
+VALUES (
+  '45998000-0000-4000-8000-000000000001',
+  '45990000-0000-4000-8000-000000000001',
+  '45993000-0000-4000-8000-000000000005',
+  '45993000-0000-4000-8000-000000000009',
+  '45993000-0000-4000-8000-000000000008',
+  '45993000-0000-4000-8000-000000000002',
+  '45993000-0000-4000-8000-000000000003',
+  'Pin approved synthetic knowledge for the P2G runtime fixture',
+  '45999000-0000-4000-8000-000000000001'
+);
+
+INSERT INTO platform.ai_draft_request_prompt_selections (
+  id,
+  organization_id,
+  conversation_id,
+  ai_draft_request_id,
+  prompt_policy_artifact_version_id,
+  business_context_artifact_version_id,
+  selected_by_profile_id,
+  selected_by_membership_id,
+  request_id
+)
+VALUES (
+  '45998000-0000-4000-8000-000000000002',
+  '45990000-0000-4000-8000-000000000001',
+  '45993000-0000-4000-8000-000000000005',
+  '45993000-0000-4000-8000-000000000009',
+  :'p2g_prompt_policy_id',
+  :'p2g_business_context_id',
+  '45993000-0000-4000-8000-000000000002',
+  '45993000-0000-4000-8000-000000000003',
+  '45999000-0000-4000-8000-000000000002'
+);
+\endif
+
 INSERT INTO platform.ai_drafts (
   id,
   organization_id,
@@ -663,7 +765,7 @@ VALUES (
   '45993000-0000-4000-8000-000000000008',
   'synthetic-local-provider',
   'synthetic-local-model',
-  'p2g-runtime-v1',
+  'lead_manager.default@1',
   '{"synthetic":true}'::JSONB,
   repeat('a', 64),
   'Synthetic draft text.',
@@ -788,6 +890,54 @@ VALUES (
   '45993000-0000-4000-8000-000000000132'
 );
 
+\if :has_bw4_prompt_lifecycle
+INSERT INTO platform.ai_draft_request_knowledge_selections (
+  id,
+  organization_id,
+  conversation_id,
+  ai_draft_request_id,
+  selected_knowledge_version_id,
+  selected_by_profile_id,
+  selected_by_membership_id,
+  reason,
+  request_id
+)
+VALUES (
+  '45998000-0000-4000-8000-000000000003',
+  '45990000-0000-4000-8000-000000000001',
+  '45993000-0000-4000-8000-000000000005',
+  '45993000-0000-4000-8000-000000000032',
+  '45993000-0000-4000-8000-000000000008',
+  '45993000-0000-4000-8000-000000000002',
+  '45993000-0000-4000-8000-000000000003',
+  'Pin approved synthetic knowledge for the P2G crash fixture',
+  '45999000-0000-4000-8000-000000000003'
+);
+
+INSERT INTO platform.ai_draft_request_prompt_selections (
+  id,
+  organization_id,
+  conversation_id,
+  ai_draft_request_id,
+  prompt_policy_artifact_version_id,
+  business_context_artifact_version_id,
+  selected_by_profile_id,
+  selected_by_membership_id,
+  request_id
+)
+VALUES (
+  '45998000-0000-4000-8000-000000000004',
+  '45990000-0000-4000-8000-000000000001',
+  '45993000-0000-4000-8000-000000000005',
+  '45993000-0000-4000-8000-000000000032',
+  :'p2g_prompt_policy_id',
+  :'p2g_business_context_id',
+  '45993000-0000-4000-8000-000000000002',
+  '45993000-0000-4000-8000-000000000003',
+  '45999000-0000-4000-8000-000000000004'
+);
+\endif
+
 INSERT INTO platform.ai_drafts (
   id,
   organization_id,
@@ -822,7 +972,7 @@ VALUES (
   '45993000-0000-4000-8000-000000000008',
   'synthetic-local-provider',
   'synthetic-local-model',
-  'p2g-runtime-v1',
+  'lead_manager.default@1',
   '{"synthetic":true,"crash_ambiguity":true}'::JSONB,
   repeat('d', 64),
   'Synthetic crash ambiguity draft.',
@@ -891,6 +1041,61 @@ VALUES (
 
 COMMIT;
 SQL
+
+has_bw4_prompt_lifecycle="$(
+  admin_query "
+    SELECT (
+      to_regclass('platform.ai_draft_request_prompt_selections') IS NOT NULL
+      AND to_regprocedure(
+        'platform.publish_ai_prompt_artifact_version(uuid,platform.ai_prompt_artifact_kind,text,text,text,text,uuid)'
+      ) IS NOT NULL
+    )::TEXT;
+  "
+)"
+
+if [[ "${has_bw4_prompt_lifecycle}" == "true" ]]; then
+pinned_draft_count="$(
+  admin_query "
+    SELECT count(*)
+    FROM platform.ai_drafts AS draft
+    JOIN platform.ai_draft_request_prompt_selections AS selection
+      ON selection.organization_id = draft.organization_id
+     AND selection.ai_draft_request_id = draft.ai_draft_request_id
+     AND selection.prompt_policy_artifact_version_id =
+       draft.prompt_policy_artifact_version_id
+     AND selection.business_context_artifact_version_id =
+       draft.business_context_artifact_version_id
+    JOIN platform_private.ai_prompt_artifact_versions AS prompt_policy
+      ON prompt_policy.organization_id = selection.organization_id
+     AND prompt_policy.id = selection.prompt_policy_artifact_version_id
+     AND prompt_policy.artifact_kind = 'prompt_policy'
+     AND prompt_policy.status = 'approved'
+    JOIN platform_private.ai_prompt_artifact_versions AS business_context
+      ON business_context.organization_id = selection.organization_id
+     AND business_context.id = selection.business_context_artifact_version_id
+     AND business_context.artifact_kind = 'business_context'
+     AND business_context.status = 'approved'
+    WHERE draft.id IN (
+      '45993000-0000-4000-8000-000000000010',
+      '45993000-0000-4000-8000-000000000033'
+    );
+  "
+)"
+assert_equal "2" "${pinned_draft_count}" \
+  "P2G synthetic AI drafts did not retain exact approved prompt pins"
+
+if admin_query "
+  UPDATE platform.ai_drafts AS draft
+  SET prompt_policy_artifact_version_id =
+    selection.business_context_artifact_version_id
+  FROM platform.ai_draft_request_prompt_selections AS selection
+  WHERE draft.id = '45993000-0000-4000-8000-000000000010'
+    AND selection.organization_id = draft.organization_id
+    AND selection.ai_draft_request_id = draft.ai_draft_request_id;
+" >"${TEMP_DIR}/unexpected-prompt-pin-update.log" 2>&1; then
+  fail "P2G synthetic AI draft prompt pins were mutable"
+fi
+fi
 
 # Two independent sessions race over two messages. PGMQ's SKIP LOCKED claim
 # must give each worker a different item rather than duplicate side effects.

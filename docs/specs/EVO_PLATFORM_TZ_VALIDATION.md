@@ -58,7 +58,7 @@ python scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
   `PASS requirements=231 traceability=231 pages=67 a11y=0/0/0`.
 
 Machine-readable evidence находится во временном каталоге:
-`/private/tmp/evo-platform-tz-render-p2r0-finalfix.qa1VYi`:
+`/private/tmp/evo-platform-tz-render-p2r0-rereview-final.Q6F9tu`:
 
 - `validation.json`;
 - `accessibility-report.json`;
@@ -68,9 +68,10 @@ Machine-readable evidence находится во временном катал�
 Временные PDF/PNG не коммитятся. Markdown, generator, verifier и закреплённая
 зависимость позволяют воспроизвести evidence.
 
-Финальный clean rerun завершился `PASS`. Его `66` неизменившихся PNG-страниц
-побайтно совпали с ранее полностью просмотренным render; единственная
-изменившаяся страница `38` дополнительно проверена в original resolution.
+Финальный clean rerun завершился `PASS`. Декодированные RGB pixels всех `67`
+PNG-страниц совпали с ранее полностью просмотренным render (`0` pixel
+mismatches); различия в бинарном PNG-контейнере не используются как визуальный
+сигнал. Все страницы повторно проверены в `17` bordered 2×2 contact sheets.
 
 ## 2. Контрольные суммы и размеры
 
@@ -112,7 +113,7 @@ FR/INT/DATA/SEC/NFR/ACC ID между Markdown и PDF text layer. Diff пуст�
 - все таблицы помещаются в printable area, строки и повторяемые headers читаемы;
 - все шесть UI screenshots пропорциональны и не искажены;
 - страницы с длинной provenance-таблицей дополнительно просмотрены отдельно в
-  original resolution;
+  полном кадре (`detail=high`) и в bordered contact sheets;
 - clipping, overflow, missing content, raster corruption и illegible rows не
   обнаружены.
 
@@ -131,9 +132,21 @@ heading spacing; переполнявшиеся разделы 13.6/13.7, 27.x �
 находится только ожидаемый footer. Страницы 1–67 просмотрены в фиксированных
 contact sheets, сохраняющих белые поля и границы каждой страницы; страницы
 37–40 с изменённым execution contract, provenance continuation page 64 и
-финальная signoff page 67 дополнительно проверены в original resolution.
+финальная signoff page 67 дополнительно проверены в полном кадре.
 P2R1 table 38–39 и BW execution lane 40 также проверены на читаемость.
 Обрезания, наложения, пропавших строк и сломанных glyphs не обнаружено.
+
+После controller review отдельно перепроверены отмеченные страницы `24`, `26`,
+`50`, `56`, `62`, `64` и `66`. Их исходные PNG и DOCX были корректны и не
+изменялись: пропавшие в review цифры и префиксы воспроизводились только в
+model-visible preview одиночного PNG при `detail=original`, который кадрировал
+левый или верхний край изображения. Тот же PNG при `detail=high`, а также
+фиксированный bordered contact sheet с серым внешним полем, показывают страницу
+целиком: `FR-029`/`FR-030`, отдельный `FR-058`, заголовки `27.3` и `31`, все
+идентификаторы и source prefixes на страницах `62`/`64`/`66` присутствуют и
+читаемы. Поэтому одиночный `detail=original` не используется как доказательство
+геометрии страницы; для full-page проверки обязательны `detail=high` либо
+bordered contact sheet, где видимы все четыре края страницы.
 
 Итог ручной проверки: `PASS`.
 

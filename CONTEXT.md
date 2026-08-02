@@ -240,6 +240,14 @@ _Avoid_: deadline, application date
 One applicant's attempt to enter one specific university and program for a specific intake, with its own deadline, status, evidence, and result.
 _Avoid_: student file, sales lead
 
+**Decision Backlog Entry**:
+A versioned question-and-answer record that remains unresolved until an explicit answer is supported by reviewed source or evidence. Reopening or retiring the decision creates a new effective version rather than changing its history.
+_Avoid_: free-form note, silent default, answer inferred from chat
+
+**Approved Prompt Artifact**:
+A reviewed version of either the Lead Manager system instructions or EVO business context that may be pinned to an AI draft request. It is separate from approved country knowledge and customer messages.
+_Avoid_: provider configuration, unreviewed prompt, customer transcript
+
 **Country Knowledge Document**:
 A reviewed, approved, and separately versioned body of country-specific
 services, prices, routes, requirements, and handoff guidance used for retrieval.

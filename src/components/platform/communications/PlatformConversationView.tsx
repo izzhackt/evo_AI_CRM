@@ -7,6 +7,7 @@ import type {
   PlatformConversationMessage,
   PlatformConversationSummary,
 } from "@/lib/platform-communications";
+import type { PlatformConversationBw4Workspace } from "@/lib/platform-bw4-workflow";
 import type {
   PlatformConversationWorkflow,
   PlatformKnowledgeCatalogItem,
@@ -46,23 +47,31 @@ export async function PlatformConversationView({
   messages,
   workflow,
   knowledge,
+  bw4Workspace,
+  decisionMutationOutcome,
 }: {
   conversations: readonly PlatformConversationSummary[];
   conversation: PlatformConversationSummary;
   messages: readonly PlatformConversationMessage[];
   workflow: PlatformConversationWorkflow;
   knowledge: readonly PlatformKnowledgeCatalogItem[];
+  bw4Workspace: PlatformConversationBw4Workspace | null;
+  decisionMutationOutcome: "saved" | "invalid" | "unavailable" | null;
 }) {
   const { t, locale } = await getT();
   const synthetic = isSyntheticSubject(conversation.subject);
   const latestInboundMessage =
     [...messages].reverse().find((message) => message.direction === "inbound") ??
     null;
-  const defaultLanguage =
+  const inboundLanguage =
     latestInboundMessage?.language === "ru" ||
     latestInboundMessage?.language === "en"
       ? latestInboundMessage.language
       : null;
+  const defaultLanguage =
+    workflow.draft?.selectedLanguage ??
+    workflow.draft?.requestedLanguage ??
+    inboundLanguage;
   const workflowLabels = {
     platformWorkflowTitle: t("platformWorkflowTitle"),
     platformWorkflowHint: t("platformWorkflowHint"),
@@ -114,6 +123,169 @@ export async function PlatformConversationView({
     platformActionInvalid: t("platformActionInvalid"),
     platformActionUnavailable: t("platformActionUnavailable"),
     platformAuditLatest: t("platformAuditLatest"),
+    platformLanguageGateTitle: t("platformLanguageGateTitle"),
+    platformLanguageGateRuEn: t("platformLanguageGateRuEn"),
+    platformLanguageManualRequired: t("platformLanguageManualRequired"),
+    platformBw4UnavailableTitle: t("platformBw4UnavailableTitle"),
+    platformBw4UnavailableHint: t("platformBw4UnavailableHint"),
+    platformDecisionBacklogTitle: t("platformDecisionBacklogTitle"),
+    platformDecisionBacklogHint: t("platformDecisionBacklogHint"),
+    platformDecisionEmpty: t("platformDecisionEmpty"),
+    platformDecisionCreate: t("platformDecisionCreate"),
+    platformDecisionQuestion: t("platformDecisionQuestion"),
+    platformDecisionAnswer: t("platformDecisionAnswer"),
+    platformDecisionAnswerText: t("platformDecisionAnswerText"),
+    platformDecisionNoAnswer: t("platformDecisionNoAnswer"),
+    platformDecisionOwner: t("platformDecisionOwner"),
+    platformDecisionOwnerAdmin: t("platformDecisionOwnerAdmin"),
+    platformDecisionOwnerSales: t("platformDecisionOwnerSales"),
+    platformDecisionOwnerCurator: t("platformDecisionOwnerCurator"),
+    platformDecisionOwnerFixed: t("platformDecisionOwnerFixed"),
+    platformDecisionStatus: t("platformDecisionStatus"),
+    platformDecisionStatusUnresolved: t(
+      "platformDecisionStatusUnresolved",
+    ),
+    platformDecisionStatusAnswered: t("platformDecisionStatusAnswered"),
+    platformDecisionStatusRetired: t("platformDecisionStatusRetired"),
+    platformDecisionEvidence: t("platformDecisionEvidence"),
+    platformDecisionEvidenceRequired: t(
+      "platformDecisionEvidenceRequired",
+    ),
+    platformDecisionEvidenceRef: t("platformDecisionEvidenceRef"),
+    platformDecisionNoReviewedSources: t(
+      "platformDecisionNoReviewedSources",
+    ),
+    platformDecisionSourceRetired: t("platformDecisionSourceRetired"),
+    platformDecisionActionSaved: t("platformDecisionActionSaved"),
+    platformDecisionActionInvalid: t("platformDecisionActionInvalid"),
+    platformDecisionActionUnavailable: t(
+      "platformDecisionActionUnavailable",
+    ),
+    platformDecisionAffectedRequirement: t(
+      "platformDecisionAffectedRequirement",
+    ),
+    platformDecisionRequirementGeneral: t(
+      "platformDecisionRequirementGeneral",
+    ),
+    platformDecisionRequirementStudentProfile: t(
+      "platformDecisionRequirementStudentProfile",
+    ),
+    platformDecisionRequirementCountry: t(
+      "platformDecisionRequirementCountry",
+    ),
+    platformDecisionRequirementDocument: t(
+      "platformDecisionRequirementDocument",
+    ),
+    platformDecisionRequirementHandoff: t(
+      "platformDecisionRequirementHandoff",
+    ),
+    platformDecisionRequirementField: t(
+      "platformDecisionRequirementField",
+    ),
+    platformStudentProfileFieldPreferredDisplayName: t(
+      "platformStudentProfileFieldPreferredDisplayName",
+    ),
+    platformStudentProfileFieldLegalDisplayName: t(
+      "platformStudentProfileFieldLegalDisplayName",
+    ),
+    platformStudentProfileFieldCommunicationLanguage: t(
+      "platformStudentProfileFieldCommunicationLanguage",
+    ),
+    platformStudentProfileFieldDateOfBirth: t(
+      "platformStudentProfileFieldDateOfBirth",
+    ),
+    platformStudentProfileFieldCitizenshipCountry: t(
+      "platformStudentProfileFieldCitizenshipCountry",
+    ),
+    platformStudentProfileFieldResidencyCountry: t(
+      "platformStudentProfileFieldResidencyCountry",
+    ),
+    platformStudentProfileFieldCurrentEducationSummary: t(
+      "platformStudentProfileFieldCurrentEducationSummary",
+    ),
+    platformStudentProfileFieldAcademicSummary: t(
+      "platformStudentProfileFieldAcademicSummary",
+    ),
+    platformStudentProfileFieldLanguageSummary: t(
+      "platformStudentProfileFieldLanguageSummary",
+    ),
+    platformStudentProfileFieldBudgetBand: t(
+      "platformStudentProfileFieldBudgetBand",
+    ),
+    platformStudentProfileFieldDecisionParticipantLabels: t(
+      "platformStudentProfileFieldDecisionParticipantLabels",
+    ),
+    platformStudentProfileFieldConsentStatus: t(
+      "platformStudentProfileFieldConsentStatus",
+    ),
+    platformStudentProfileFieldConsentEvidenceRef: t(
+      "platformStudentProfileFieldConsentEvidenceRef",
+    ),
+    platformStudentProfileFieldNextStep: t(
+      "platformStudentProfileFieldNextStep",
+    ),
+    platformDecisionRequirementReference: t(
+      "platformDecisionRequirementReference",
+    ),
+    platformDecisionEffectiveVersion: t(
+      "platformDecisionEffectiveVersion",
+    ),
+    platformDecisionReason: t("platformDecisionReason"),
+    platformDecisionSaveAnswer: t("platformDecisionSaveAnswer"),
+    platformDecisionReopen: t("platformDecisionReopen"),
+    platformDecisionRetire: t("platformDecisionRetire"),
+    platformDecisionHistory: t("platformDecisionHistory"),
+    platformDecisionHistoryVersion: t("platformDecisionHistoryVersion"),
+    platformDecisionHistoryEmpty: t("platformDecisionHistoryEmpty"),
+    platformDecisionHistoryActor: t("platformDecisionHistoryActor"),
+    platformDecisionHistoryAt: t("platformDecisionHistoryAt"),
+    platformDecisionHistoryActionCreated: t(
+      "platformDecisionHistoryActionCreated",
+    ),
+    platformDecisionHistoryActionAnswered: t(
+      "platformDecisionHistoryActionAnswered",
+    ),
+    platformDecisionHistoryActionReopened: t(
+      "platformDecisionHistoryActionReopened",
+    ),
+    platformDecisionHistoryActionRetired: t(
+      "platformDecisionHistoryActionRetired",
+    ),
+    platformHandoffContextTitle: t("platformHandoffContextTitle"),
+    platformHandoffContextHint: t("platformHandoffContextHint"),
+    platformHandoffNoLinkedCase: t("platformHandoffNoLinkedCase"),
+    platformHandoffUnavailable: t("platformHandoffUnavailable"),
+    platformHandoffRecordedAt: t("platformHandoffRecordedAt"),
+    platformHandoffVersion: t("platformHandoffVersion"),
+    platformHandoffCommercialFields: t(
+      "platformHandoffCommercialFields",
+    ),
+    platformHandoffUnresolvedQuestions: t(
+      "platformHandoffUnresolvedQuestions",
+    ),
+    platformHandoffPromises: t("platformHandoffPromises"),
+    platformHandoffNextStep: t("platformHandoffNextStep"),
+    platformHandoffDueDate: t("platformHandoffDueDate"),
+    platformHandoffResponsibleRole: t(
+      "platformHandoffResponsibleRole",
+    ),
+    platformHandoffNoneRecorded: t("platformHandoffNoneRecorded"),
+    platformValueYes: t("platformValueYes"),
+    platformValueNo: t("platformValueNo"),
+    platformPromptEvidenceTitle: t("platformPromptEvidenceTitle"),
+    platformPromptEvidenceHint: t("platformPromptEvidenceHint"),
+    platformPromptPolicy: t("platformPromptPolicy"),
+    platformBusinessContext: t("platformBusinessContext"),
+    platformPromptUnavailable: t("platformPromptUnavailable"),
+    platformPromptApproved: t("platformPromptApproved"),
+    platformPromptPinnedSnapshot: t("platformPromptPinnedSnapshot"),
+    platformPromptApprovedPinned: t("platformPromptApprovedPinned"),
+    platformPromptActiveArtifacts: t("platformPromptActiveArtifacts"),
+    platformPromptPinnedArtifacts: t("platformPromptPinnedArtifacts"),
+    platformPromptPinnedAt: t("platformPromptPinnedAt"),
+    platformPromptVersion: t("platformPromptVersion"),
+    platformPromptSha: t("platformPromptSha"),
+    platformPromptRawHidden: t("platformPromptRawHidden"),
   };
 
   return (
@@ -214,11 +386,15 @@ export async function PlatformConversationView({
         </div>
 
         <PlatformMessagingWorkflowPanel
+          key={conversation.id}
           conversationId={conversation.id}
           latestInboundMessageId={latestInboundMessage?.id ?? null}
           defaultLanguage={defaultLanguage}
           initialWorkflow={workflow}
           knowledge={knowledge}
+          bw4Workspace={bw4Workspace}
+          locale={locale}
+          decisionMutationOutcome={decisionMutationOutcome}
           labels={workflowLabels}
         />
       </section>

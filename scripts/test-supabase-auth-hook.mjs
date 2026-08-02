@@ -1416,6 +1416,8 @@ const main = async () => {
   const bw3SourceKey = `src_${createHash("sha256")
     .update("evo-bw3-synthetic-country-requirement-source")
     .digest("hex")}`;
+  const bw3SourceUrl =
+    `https://github.com/izzhackt/evo_AI_CRM/commit/${"f".repeat(40)}`;
   const bw3SourceRegistryId = await rpc(
     identities.adminA,
     "register_workflow_source",
@@ -1423,7 +1425,7 @@ const main = async () => {
       adminAMembership.organization_id,
       bw3SourceKey,
       "repository_contract",
-      `https://github.com/izzhackt/evo_AI_CRM/commit/${"f".repeat(40)}`,
+      bw3SourceUrl,
       "synthetic_bw3_v1",
       "Register the synthetic repository contract used by the BW3 local fixture",
       randomUUID(),
@@ -1444,6 +1446,181 @@ const main = async () => {
   assert(
     reviewedBw3SourceRegistryId === bw3SourceRegistryId,
     "bw3-reviewed-source-id",
+  );
+
+  // Seed one approved OP/OZO definition pair, then attach a single immutable
+  // handoff to the synthetic org A case. This is local contract data only.
+  const bw4OpContractId = await rpc(
+    identities.adminA,
+    "create_workflow_contract",
+    [
+      adminAMembership.organization_id,
+      "wf_op",
+      "op",
+      "Create the synthetic BW4 OP workflow contract",
+      randomUUID(),
+    ],
+  );
+  const bw4OzoContractId = await rpc(
+    identities.adminA,
+    "create_workflow_contract",
+    [
+      adminAMembership.organization_id,
+      "wf_ozo",
+      "ozo",
+      "Create the synthetic BW4 OZO workflow contract",
+      randomUUID(),
+    ],
+  );
+  sqlUuid(bw4OpContractId, "bw4-op-contract-id");
+  sqlUuid(bw4OzoContractId, "bw4-ozo-contract-id");
+  const bw4OpContractVersionId = await rpc(
+    identities.adminA,
+    "create_workflow_contract_version",
+    [
+      adminAMembership.organization_id,
+      bw4OpContractId,
+      1,
+      [
+        "new",
+        "contacting",
+        "qualified",
+        "meeting_scheduled",
+        "meeting_completed",
+        "potential",
+        "contract_signed",
+      ],
+      ["no_answer", "meeting_not_attended"],
+      ["won", "lost"],
+      [],
+      "Create the synthetic BW4 OP workflow version",
+      randomUUID(),
+    ],
+  );
+  const bw4OzoContractVersionId = await rpc(
+    identities.adminA,
+    "create_workflow_contract_version",
+    [
+      adminAMembership.organization_id,
+      bw4OzoContractId,
+      1,
+      [
+        "intake",
+        "profile_and_route",
+        "documents",
+        "applications",
+        "decisions",
+        "visa_and_predeparture",
+        "arrival_and_adaptation",
+        "completed",
+        "closed",
+      ],
+      [],
+      [],
+      ["completed", "closed"],
+      "Create the synthetic BW4 OZO workflow version",
+      randomUUID(),
+    ],
+  );
+  sqlUuid(bw4OpContractVersionId, "bw4-op-contract-version-id");
+  sqlUuid(bw4OzoContractVersionId, "bw4-ozo-contract-version-id");
+  for (const [versionId, label] of [
+    [bw4OpContractVersionId, "op"],
+    [bw4OzoContractVersionId, "ozo"],
+  ]) {
+    const sourceLinkId = await rpc(
+      identities.adminA,
+      "link_workflow_contract_version_source",
+      [
+        adminAMembership.organization_id,
+        versionId,
+        bw3SourceRegistryId,
+        `Link the synthetic BW4 ${label.toUpperCase()} source`,
+        randomUUID(),
+      ],
+    );
+    sqlUuid(sourceLinkId, `bw4-${label}-source-link-id`);
+    const approvedVersionId = await rpc(
+      identities.adminA,
+      "approve_workflow_contract_version",
+      [
+        adminAMembership.organization_id,
+        versionId,
+        `Approve the synthetic BW4 ${label.toUpperCase()} version`,
+        randomUUID(),
+      ],
+    );
+    assert(approvedVersionId === versionId, `bw4-${label}-version-approval`);
+  }
+
+  const bw4HandoffId = randomUUID();
+  const bw4HandoffRequestId = randomUUID();
+  const bw4HandoffNextStep =
+    "Review the synthetic application checklist with the assigned Curator";
+  const bw4HandoffResponsibleRole = "curator";
+  const bw4HandoffInputSha = createHash("sha256")
+    .update(
+      JSON.stringify({
+        organizationId: adminAMembership.organization_id,
+        studentCaseId: orgAStudentCaseId,
+        opVersionId: bw4OpContractVersionId,
+        ozoVersionId: bw4OzoContractVersionId,
+        nextStep: bw4HandoffNextStep,
+      }),
+    )
+    .digest("hex");
+  runSql(
+    `
+      DO $fixture$
+      BEGIN
+        UPDATE platform.student_cases
+        SET applied_ozo_workflow_contract_version_id =
+          ${sqlUuid(bw4OzoContractVersionId, "bw4-handoff-ozo-binding")}
+        WHERE organization_id =
+          ${sqlUuid(adminAMembership.organization_id, "bw4-handoff-org")}
+          AND id = ${sqlUuid(orgAStudentCaseId, "bw4-handoff-case")}
+          AND applied_ozo_workflow_contract_version_id IS NULL;
+        IF NOT FOUND THEN
+          RAISE EXCEPTION 'Synthetic BW4 case could not receive OZO binding';
+        END IF;
+      END
+      $fixture$;
+
+      INSERT INTO platform.student_case_op_handoffs (
+        id,
+        organization_id,
+        student_case_id,
+        op_workflow_contract_id,
+        op_workflow_contract_version_id,
+        ozo_workflow_contract_id,
+        ozo_workflow_contract_version_id,
+        approved_commercial_fields,
+        unresolved_questions,
+        promises,
+        next_step,
+        due_at,
+        responsible_role,
+        request_id,
+        input_sha256
+      ) VALUES (
+        ${sqlUuid(bw4HandoffId, "bw4-handoff-id")},
+        ${sqlUuid(adminAMembership.organization_id, "bw4-handoff-insert-org")},
+        ${sqlUuid(orgAStudentCaseId, "bw4-handoff-insert-case")},
+        ${sqlUuid(bw4OpContractId, "bw4-handoff-op-contract")},
+        ${sqlUuid(bw4OpContractVersionId, "bw4-handoff-op-version")},
+        ${sqlUuid(bw4OzoContractId, "bw4-handoff-ozo-contract")},
+        ${sqlUuid(bw4OzoContractVersionId, "bw4-handoff-ozo-version")},
+        '{"service_package":"synthetic_standard"}'::jsonb,
+        '["Confirm the synthetic intake date"]'::jsonb,
+        '["Share the synthetic checklist"]'::jsonb,
+        ${sqlText(bw4HandoffNextStep)},
+        '2026-08-15T12:00:00+06:00'::timestamptz,
+        ${sqlText(bw4HandoffResponsibleRole)}::platform.business_role,
+        ${sqlUuid(bw4HandoffRequestId, "bw4-handoff-request")},
+        ${sqlText(bw4HandoffInputSha)}
+      );
+    `,
+    "bw4-student-case-handoff-fixture",
   );
 
   const bw3DocumentRequirement = await rpc(
@@ -1715,6 +1892,64 @@ const main = async () => {
     occurredAt: "2026-07-30T09:03:00+06:00",
     messages: [],
   });
+  const bw4NoCaseConversation = createSyntheticConversationFixture({
+    organizationId: adminAMembership.organization_id,
+    responsibleSalesMembershipId: salesScopedMembership.id,
+    fixtureKey: "bw4-no-case-sales",
+    subject: "[SYNTHETIC-NON-PROVIDER] BW4 no-case Sales inquiry",
+    accountSeed: 91_004,
+    occurredAt: "2026-07-30T09:07:00+06:00",
+    messages: [],
+  });
+  const bw4RuConversation = createSyntheticConversationFixture({
+    organizationId: adminBMembership.organization_id,
+    responsibleSalesMembershipId: salesBMembership.id,
+    fixtureKey: "bw4-language-ru",
+    subject: "[SYNTHETIC-NON-PROVIDER] BW4 Russian draft path",
+    accountSeed: 91_005,
+    occurredAt: "2026-07-30T09:08:00+06:00",
+    messages: [
+      {
+        providerMessageId: "synthetic-local-fixture-bw4-language-ru-message-1",
+        bodyText: "Синтетическое сообщение для проверки русского черновика.",
+        language: "ru",
+        occurredAt: "2026-07-30T09:08:00+06:00",
+      },
+    ],
+  });
+  const bw4EnConversation = createSyntheticConversationFixture({
+    organizationId: adminBMembership.organization_id,
+    responsibleSalesMembershipId: salesBMembership.id,
+    fixtureKey: "bw4-language-en",
+    subject: "[SYNTHETIC-NON-PROVIDER] BW4 English draft path",
+    accountSeed: 91_006,
+    occurredAt: "2026-07-30T09:09:00+06:00",
+    messages: [
+      {
+        providerMessageId: "synthetic-local-fixture-bw4-language-en-message-1",
+        bodyText: "Synthetic message for the English draft path.",
+        language: "en",
+        occurredAt: "2026-07-30T09:09:00+06:00",
+      },
+    ],
+  });
+  const bw4UndeterminedConversation = createSyntheticConversationFixture({
+    organizationId: adminBMembership.organization_id,
+    responsibleSalesMembershipId: salesBMembership.id,
+    fixtureKey: "bw4-language-undetermined",
+    subject: "[SYNTHETIC-NON-PROVIDER] BW4 uncertain draft path",
+    accountSeed: 91_007,
+    occurredAt: "2026-07-30T09:10:00+06:00",
+    messages: [
+      {
+        providerMessageId:
+          "synthetic-local-fixture-bw4-language-undetermined-message-1",
+        bodyText: "Synthetic message whose language needs staff selection.",
+        language: "undetermined",
+        occurredAt: "2026-07-30T09:10:00+06:00",
+      },
+    ],
+  });
   const orgBConversation = createSyntheticConversationFixture({
     organizationId: adminBMembership.organization_id,
     responsibleSalesMembershipId: salesBMembership.id,
@@ -1759,6 +1994,7 @@ const main = async () => {
     ],
   });
   await refresh(identities.responsibleSales, "sales");
+  await refresh(identities.salesScoped, "sales");
   await refresh(identities.salesB, "sales");
   await reloadAndAssertCommunicationsReadRpcs();
 
@@ -1895,6 +2131,139 @@ const main = async () => {
     orgBKnowledgeVersionFirst?.approved_knowledge_version_id;
   sqlUuid(orgBKnowledgeVersionId, "p3c-org-b-knowledge-version-id");
 
+  const bw4RawContentSentinel =
+    "BW4_RAW_PROMPT_SENTINEL_MUST_NOT_LEAK";
+  const bw4PromptPolicyTitle =
+    "Synthetic Lead Manager Prompt Policy v1";
+  const bw4BusinessContextTitle =
+    "Synthetic EVO Business Context v1";
+  const publishPromptArtifacts = (identity, organizationId, tenantLabel) => {
+    const claims = decodeClaims(
+      identity.accessToken,
+      `bw4-${tenantLabel}-admin-prompt-claims`,
+    );
+    const promptPolicy = authenticatedFunctionResult(
+      claims,
+      `platform.publish_ai_prompt_artifact_version(
+        ${sqlUuid(organizationId, `bw4-${tenantLabel}-prompt-org`)},
+        'prompt_policy',
+        ${sqlText(bw4PromptPolicyTitle)},
+        ${sqlText(`${bw4RawContentSentinel} synthetic policy content`)},
+        ${sqlText(`synthetic:prompt-policy:${tenantLabel}:v1`)},
+        'Publish the synthetic approved prompt policy for local browser proof',
+        ${sqlUuid(randomUUID(), `bw4-${tenantLabel}-prompt-request`)}
+      )`,
+      `bw4-${tenantLabel}-prompt-publish`,
+    );
+    const businessContext = authenticatedFunctionResult(
+      claims,
+      `platform.publish_ai_prompt_artifact_version(
+        ${sqlUuid(organizationId, `bw4-${tenantLabel}-context-org`)},
+        'business_context',
+        ${sqlText(bw4BusinessContextTitle)},
+        ${sqlText(`${bw4RawContentSentinel} synthetic business context`)},
+        ${sqlText(`synthetic:business-context:${tenantLabel}:v1`)},
+        'Publish the synthetic approved business context for local browser proof',
+        ${sqlUuid(randomUUID(), `bw4-${tenantLabel}-context-request`)}
+      )`,
+      `bw4-${tenantLabel}-context-publish`,
+    );
+    sqlUuid(
+      promptPolicy?.prompt_artifact_version_id,
+      `bw4-${tenantLabel}-prompt-version-id`,
+    );
+    sqlUuid(
+      businessContext?.prompt_artifact_version_id,
+      `bw4-${tenantLabel}-context-version-id`,
+    );
+    assert(
+      promptPolicy?.artifact_kind === "prompt_policy" &&
+        promptPolicy?.version === 1 &&
+        promptPolicy?.status === "approved" &&
+        /^[0-9a-f]{64}$/.test(promptPolicy?.content_sha256 ?? ""),
+      `bw4-${tenantLabel}-prompt-result`,
+    );
+    assert(
+      businessContext?.artifact_kind === "business_context" &&
+        businessContext?.version === 1 &&
+        businessContext?.status === "approved" &&
+        /^[0-9a-f]{64}$/.test(businessContext?.content_sha256 ?? ""),
+      `bw4-${tenantLabel}-context-result`,
+    );
+    return { promptPolicy, businessContext };
+  };
+  const orgAPromptArtifacts = publishPromptArtifacts(
+    identities.adminA,
+    adminAMembership.organization_id,
+    "org-a",
+  );
+  publishPromptArtifacts(
+    identities.adminB,
+    adminBMembership.organization_id,
+    "org-b",
+  );
+
+  const bw4DecisionQuestion =
+    "Which synthetic admissions route is approved?";
+  const bw4DecisionAnswer =
+    "Synthetic reviewed BW4 answer for fixture metadata.";
+  const bw4Decision = authenticatedFunctionResult(
+    decodeClaims(
+      identities.adminA.accessToken,
+      "bw4-org-a-admin-decision-claims",
+    ),
+    `platform.create_decision_backlog_entry(
+      ${sqlUuid(adminAMembership.organization_id, "bw4-decision-org")},
+      ${sqlUuid(orgAConversation.id, "bw4-decision-conversation")},
+      ${sqlUuid(orgAStudentCaseId, "bw4-decision-case")},
+      ${sqlText(bw4DecisionQuestion)},
+      'admin',
+      'general',
+      NULL::uuid,
+      NULL::platform.student_profile_field,
+      NULL::uuid,
+      NULL::text,
+      'Create one synthetic unresolved BW4 fixture decision',
+      ${sqlUuid(randomUUID(), "bw4-decision-request")}
+    )`,
+    "bw4-org-a-decision-create",
+  );
+  const bw4DecisionId = bw4Decision?.decision_backlog_id;
+  sqlUuid(bw4DecisionId, "bw4-decision-id");
+  assert(
+    bw4Decision?.status === "unresolved" &&
+      bw4Decision?.effective_version === 1,
+    "bw4-decision-result",
+  );
+
+  const bw4UnrelatedCase = serviceFunctionResult(
+    `platform.create_pending_student_case(
+      ${sqlUuid(adminAMembership.organization_id, "bw4-unrelated-case-org")},
+      ${sqlUuid(roleMembers.student.id, "bw4-unrelated-case-student")},
+      ${sqlUuid(
+        responsibleSalesMembership.id,
+        "bw4-unrelated-case-responsible-sales",
+      )},
+      'synthetic-local-fixture-bw4-unrelated-case',
+      'synthetic-contract:bw4:unrelated:confirmed',
+      '2026-07-30T09:11:00+06:00'::timestamptz,
+      'Synthetic BW4 Unrelated Student Case',
+      'Synthetic Country',
+      'Bachelor',
+      'synthetic_program',
+      '2027',
+      'en',
+      'self-funded',
+      'contract_confirmed',
+      'Keep this case outside the BW4 conversation fixture',
+      ${sqlUuid(randomUUID(), "bw4-unrelated-case-request")}
+    )`,
+    "bw4-unrelated-case-create",
+  );
+  const bw4UnrelatedCaseId = bw4UnrelatedCase?.student_case_id;
+  sqlUuid(bw4UnrelatedCaseId, "bw4-unrelated-case-id");
+  await refresh(identities.responsibleSales, "sales");
+
   const recordHealthEvent = ({
     organizationId,
     target,
@@ -1996,7 +2365,7 @@ const main = async () => {
       'Synthetic local draft for workflow rendering only.',
       'synthetic:ai-provider:not-real',
       'synthetic:model:not-real',
-      'synthetic:prompt-policy:v1',
+      'lead_manager.default@1',
       ${sqlText(orgASyntheticSourceContext)}::jsonb,
       encode(
         sha256(
@@ -2126,7 +2495,7 @@ const main = async () => {
       'Synthetic local draft awaiting browser review.',
       'synthetic:ai-provider:not-real',
       'synthetic:model:not-real',
-      'synthetic:prompt-policy:v1',
+      'lead_manager.default@1',
       ${sqlText(orgBAiReviewSourceContext)}::jsonb,
       encode(
         sha256(
@@ -2397,6 +2766,32 @@ const main = async () => {
   await refresh(identities.blocked, null);
   await assertNoPlatformRows(identities.blocked, "blocked-refreshed-read");
 
+  const bw4Workspace = requireSuccess(
+    await requestJson(
+      "/rest/v1/rpc/staff_conversation_bw4_workspace",
+      {
+        method: "POST",
+        token: identities.adminA.accessToken,
+        schema: true,
+        body: {
+          p_organization_id: adminAMembership.organization_id,
+          p_conversation_id: orgAConversation.id,
+        },
+        stage: "bw4-workspace-postgrest",
+      },
+    ),
+    "bw4-workspace-postgrest",
+  );
+  assert(
+    bw4Workspace?.organization_id === adminAMembership.organization_id &&
+      bw4Workspace?.conversation_id === orgAConversation.id &&
+      bw4Workspace?.student_case_id === orgAStudentCaseId &&
+      bw4Workspace?.actor_role === "admin" &&
+      Array.isArray(bw4Workspace?.decisions) &&
+      !JSON.stringify(bw4Workspace).includes(bw4RawContentSentinel),
+    "bw4-workspace-postgrest-shape",
+  );
+
   const legacySideEffects = Number(
     runSql(
       `
@@ -2523,6 +2918,50 @@ const main = async () => {
               aiDraftId: orgBAiReviewDraftId,
               generatedText: "Synthetic local draft awaiting browser review.",
             },
+          },
+        },
+        bw4: {
+          orgA: {
+            organizationId: adminAMembership.organization_id,
+            conversationId: orgAConversation.id,
+            studentCaseId: orgAStudentCaseId,
+            decisionId: bw4DecisionId,
+            decisionQuestion: bw4DecisionQuestion,
+            reviewedSourceId: bw3SourceRegistryId,
+            sourceKey: bw3SourceKey,
+            sourceUrl: bw3SourceUrl,
+            answerText: bw4DecisionAnswer,
+            reopenedStatus: "unresolved",
+            promptPolicyTitle: bw4PromptPolicyTitle,
+            promptPolicyVersion: String(
+              orgAPromptArtifacts.promptPolicy.version,
+            ),
+            promptPolicySha:
+              orgAPromptArtifacts.promptPolicy.content_sha256,
+            businessContextTitle: bw4BusinessContextTitle,
+            businessContextVersion: String(
+              orgAPromptArtifacts.businessContext.version,
+            ),
+            businessContextSha:
+              orgAPromptArtifacts.businessContext.content_sha256,
+            rawContentSentinel: bw4RawContentSentinel,
+            handoffNextStep: bw4HandoffNextStep,
+            responsibleRole: bw4HandoffResponsibleRole,
+          },
+          noCase: {
+            organizationId: adminAMembership.organization_id,
+            conversationId: bw4NoCaseConversation.id,
+            studentCaseId: null,
+          },
+          languages: {
+            ruConversationId: bw4RuConversation.id,
+            enConversationId: bw4EnConversation.id,
+            undeterminedConversationId: bw4UndeterminedConversation.id,
+          },
+          negative: {
+            formerSalesMembershipId: roleMembers.sales.id,
+            crossOrgOrganizationId: adminBMembership.organization_id,
+            unrelatedStudentCaseId: bw4UnrelatedCaseId,
           },
         },
         bw3: {

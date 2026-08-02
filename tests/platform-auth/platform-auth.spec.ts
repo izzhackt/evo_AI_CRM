@@ -128,6 +128,44 @@ type Fixture = Readonly<{
       displayName: string;
     }>;
   }>;
+  bw4: Readonly<{
+    orgA: Readonly<{
+      organizationId: string;
+      conversationId: string;
+      studentCaseId: string;
+      decisionId: string;
+      decisionQuestion: string;
+      reviewedSourceId: string;
+      sourceKey: string;
+      sourceUrl: string;
+      answerText: string;
+      reopenedStatus: string;
+      promptPolicyTitle: string;
+      promptPolicyVersion: string;
+      promptPolicySha: string;
+      businessContextTitle: string;
+      businessContextVersion: string;
+      businessContextSha: string;
+      rawContentSentinel: string;
+      handoffNextStep: string;
+      responsibleRole: string;
+    }>;
+    noCase: Readonly<{
+      organizationId: string;
+      conversationId: string;
+      studentCaseId: null;
+    }>;
+    languages: Readonly<{
+      ruConversationId: string;
+      enConversationId: string;
+      undeterminedConversationId: string;
+    }>;
+    negative: Readonly<{
+      formerSalesMembershipId: string;
+      crossOrgOrganizationId: string;
+      unrelatedStudentCaseId: string;
+    }>;
+  }>;
 }>;
 
 const fixturePath = process.env.EVO_PLATFORM_AUTH_FIXTURE_PATH;
@@ -500,7 +538,7 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
       name: /Основная навигация|Негизги навигация|Primary navigation/,
     }).first(),
   ).toBeVisible();
-  await expect(page.getByText("Рабочий контракт OP не утверждён")).toBeVisible();
+  await expect(page.getByText(/Утверждённый контракт OP v\d+/)).toBeVisible();
 
   await page.goto("/clients");
   const clientsPage = page.getByTestId("platform-clients-page");
@@ -1184,4 +1222,287 @@ test("staff reviews an AI draft then authorizes the edited final text", async ({
       .getByTestId("platform-outbox-state")
       .locator('[data-outbox-kind="manual_whatsapp_send"]'),
   ).toHaveCount(1);
+});
+
+test("BW4 renders immutable handoff and metadata-only approved prompt evidence", async ({
+  page,
+}) => {
+  await openConversation(
+    page,
+    fixture.identities.admin,
+    fixture.bw4.orgA.conversationId,
+  );
+
+  const handoff = page.getByTestId("platform-handoff-context");
+  await expect(handoff).toHaveAttribute("data-handoff-state", "recorded");
+  await expect(handoff).toContainText(fixture.bw4.orgA.handoffNextStep);
+  await expect(handoff).toContainText(
+    new RegExp(fixture.bw4.orgA.responsibleRole, "i"),
+  );
+
+  const promptPolicy = page.getByTestId("platform-active-prompt-policy");
+  await expect(promptPolicy).toHaveAttribute("data-artifact-state", "approved");
+  await expect(promptPolicy).toContainText(fixture.bw4.orgA.promptPolicyTitle);
+  await expect(promptPolicy).toContainText(
+    fixture.bw4.orgA.promptPolicyVersion,
+  );
+  await expect(promptPolicy).toContainText(fixture.bw4.orgA.promptPolicySha);
+
+  const businessContext = page.getByTestId("platform-active-business-context");
+  await expect(businessContext).toHaveAttribute(
+    "data-artifact-state",
+    "approved",
+  );
+  await expect(businessContext).toContainText(
+    fixture.bw4.orgA.businessContextTitle,
+  );
+  await expect(businessContext).toContainText(
+    fixture.bw4.orgA.businessContextVersion,
+  );
+  await expect(businessContext).toContainText(
+    fixture.bw4.orgA.businessContextSha,
+  );
+
+  expect(await page.content()).not.toContain(
+    fixture.bw4.orgA.rawContentSentinel,
+  );
+});
+
+test("Admin creates, answers, reopens, and retires one versioned BW4 decision", async ({
+  page,
+}) => {
+  const question = `BW4 browser decision ${randomUUID()}`;
+  const answer = "Reviewed BW4 browser answer grounded in the synthetic source.";
+  await openConversation(
+    page,
+    fixture.identities.admin,
+    fixture.bw4.orgA.conversationId,
+  );
+
+  const createDisclosure = page.getByTestId("platform-decision-create");
+  await createDisclosure.locator("summary").click();
+  await expect(
+    createDisclosure.locator('select[name="owner_role"] option'),
+  ).toHaveCount(3);
+  const requirementKind = createDisclosure.locator(
+    'select[name="affected_requirement_kind"]',
+  );
+  await expect(requirementKind.locator('option[value="country_requirement"]')).toHaveCount(1);
+  await expect(requirementKind.locator('option[value="document_requirement"]')).toHaveCount(1);
+  await requirementKind.selectOption("country_requirement");
+  await expect(
+    createDisclosure.getByTestId("platform-decision-requirement-target"),
+  ).toContainText(fixture.bw3.orgA.checklist.targetCountry);
+  await requirementKind.selectOption("document_requirement");
+  await expect(
+    createDisclosure.getByTestId("platform-decision-requirement-target"),
+  ).toContainText(fixture.bw3.orgA.document.label);
+  await createDisclosure.locator('textarea[name="question"]').fill(question);
+  await requirementKind.selectOption("student_profile");
+  const affectedProfileField = createDisclosure.locator(
+    'select[name="affected_requirement_field"]',
+  );
+  await expect(affectedProfileField.locator("option")).toHaveCount(15);
+  await affectedProfileField.selectOption("communication_language");
+  await createDisclosure
+    .locator('input[name="reason"]')
+    .fill("Record a synthetic unresolved decision for browser lifecycle proof");
+  await createDisclosure.getByTestId("platform-decision-create-submit").click();
+
+  await expect(page.getByTestId("platform-decision-action-result")).toHaveAttribute(
+    "data-decision-action-result",
+    "saved",
+  );
+  let entry = page
+    .getByTestId("platform-decision-entry")
+    .filter({ hasText: question });
+  await expect(entry).toHaveAttribute("data-decision-status", "unresolved");
+
+  const answerDisclosure = entry
+    .locator("details")
+    .filter({ hasText: "Зафиксировать ответ" });
+  await answerDisclosure.locator("summary").click();
+  await answerDisclosure.locator('textarea[name="answer"]').fill(answer);
+  await answerDisclosure
+    .locator('select[name="source_registry_id"]')
+    .selectOption(fixture.bw4.orgA.reviewedSourceId);
+  await answerDisclosure
+    .locator('input[name="evidence_ref"]')
+    .fill("Synthetic reviewed source passage used for the exact answer");
+  await answerDisclosure
+    .locator('input[name="reason"]')
+    .fill("Answer reviewed against the selected source");
+  await answerDisclosure.getByTestId("platform-decision-answer-submit").click();
+
+  entry = page
+    .getByTestId("platform-decision-entry")
+    .filter({ hasText: question });
+  await expect(entry).toHaveAttribute("data-decision-status", "answered");
+  await expect(entry).toContainText(answer);
+  await expect(entry).toContainText(fixture.bw4.orgA.sourceKey);
+
+  const historySummary = entry.locator("summary").filter({
+    hasText: "История решения",
+  });
+  await historySummary.focus();
+  await page.keyboard.press("Enter");
+  await expect(entry.getByTestId("platform-decision-history")).toBeVisible();
+  await expect(
+    entry.getByTestId("platform-decision-history").locator("li"),
+  ).toHaveCount(2);
+
+  await entry
+    .locator('input[id^="platform-decision-unresolved-reason-"]')
+    .fill("Explicitly reopen after new information arrived");
+  await entry.getByTestId("platform-decision-reopen-submit").click();
+
+  entry = page
+    .getByTestId("platform-decision-entry")
+    .filter({ hasText: question });
+  await expect(entry).toHaveAttribute("data-decision-status", "unresolved");
+  await expect(entry).toContainText("Ответ ещё не зафиксирован");
+  await entry
+    .locator('input[id^="platform-decision-retired-reason-"]')
+    .fill("Retire the synthetic question after lifecycle proof");
+  await entry.getByTestId("platform-decision-retire-submit").click();
+
+  entry = page
+    .getByTestId("platform-decision-entry")
+    .filter({ hasText: question });
+  await expect(entry).toHaveAttribute("data-decision-status", "retired");
+  await expect(entry.getByTestId("platform-decision-controls")).toHaveCount(0);
+  await entry.locator("summary").filter({ hasText: "История решения" }).click();
+  await expect(
+    entry.getByTestId("platform-decision-history").locator("li"),
+  ).toHaveCount(4);
+});
+
+test("responsible Sales gets a fixed owner role and a clear no-case handoff state", async ({
+  page,
+}) => {
+  await openConversation(
+    page,
+    fixture.identities.salesScoped,
+    fixture.bw4.noCase.conversationId,
+  );
+
+  await expect(page.getByTestId("platform-handoff-context")).toHaveAttribute(
+    "data-handoff-state",
+    "no-linked-case",
+  );
+  const createDisclosure = page.getByTestId("platform-decision-create");
+  await createDisclosure.locator("summary").click();
+  await expect(
+    createDisclosure.locator('input[name="owner_role"]'),
+  ).toHaveValue("sales");
+  await expect(
+    createDisclosure.locator('select[name="owner_role"]'),
+  ).toHaveCount(0);
+  await expect(
+    createDisclosure.locator(
+      'select[name="affected_requirement_kind"] option',
+    ),
+  ).toHaveCount(1);
+});
+
+test("RU and EN draft requests work while uncertain language stops for manual selection", async ({
+  page,
+}) => {
+  await loginToMessaging(page, fixture.identities.crossOrgAdmin);
+
+  for (const [conversationId, language] of [
+    [fixture.bw4.languages.ruConversationId, "ru"],
+    [fixture.bw4.languages.enConversationId, "en"],
+  ] as const) {
+    await page.goto(`/whatsapp/${conversationId}`);
+    await expect(page.getByTestId("platform-language-gate")).toHaveAttribute(
+      "data-language-gate",
+      language,
+    );
+    await expect(page.locator("#platform-draft-language")).toHaveValue(language);
+    await page
+      .locator("#platform-draft-reason")
+      .fill(`Browser proof for the ${language.toUpperCase()} draft path`);
+    await page.getByTestId("platform-request-draft").click();
+    await expect(page.getByTestId("platform-draft-awaiting")).toBeVisible();
+    await expect(
+      page
+        .getByTestId("platform-outbox-state")
+        .locator('[data-outbox-kind="ai_draft_generate"]'),
+    ).toHaveCount(1);
+    await expect(
+      page
+        .getByTestId("platform-outbox-state")
+        .locator('[data-outbox-kind="manual_whatsapp_send"]'),
+    ).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId("platform-language-gate")).toHaveAttribute(
+      "data-language-gate",
+      language,
+    );
+  }
+
+  await page.goto(
+    `/whatsapp/${fixture.bw4.languages.undeterminedConversationId}`,
+  );
+  const languageGate = page.getByTestId("platform-language-gate");
+  await expect(languageGate).toHaveAttribute(
+    "data-language-gate",
+    "manual-selection-required",
+  );
+  const languageSelect = page.locator("#platform-draft-language");
+  await expect(languageSelect).toHaveValue("");
+  await expect(languageSelect).toBeEnabled();
+  await expect(languageSelect.locator('option[value="ky"]')).toHaveCount(0);
+  await expect(page.getByTestId("platform-request-draft")).toBeDisabled();
+
+  await languageSelect.selectOption("ru");
+  await expect(languageGate).toHaveAttribute("data-language-gate", "ru");
+  await expect(page.getByTestId("platform-request-draft")).toBeEnabled();
+});
+
+test("Finance, Students, former Sales, and cross-org staff see no BW4 controls", async ({
+  browser,
+}) => {
+  for (const identity of [
+    fixture.identities.finance,
+    fixture.identities.student,
+    fixture.identities.studentNoCase,
+  ]) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await login(page, identity);
+    await page.goto(`/whatsapp/${fixture.bw4.orgA.conversationId}`);
+    await expect(page.getByTestId("platform-decision-create")).toHaveCount(0);
+    await expect(page.getByTestId("platform-decision-controls")).toHaveCount(0);
+    await expect(page.getByTestId("platform-decision-backlog")).toHaveCount(0);
+    await expect(page.getByTestId("platform-handoff-context")).toHaveCount(0);
+    await expect(page.getByTestId("platform-prompt-evidence")).toHaveCount(0);
+    await context.close();
+  }
+
+  const crossOrgContext = await browser.newContext();
+  const crossOrgPage = await crossOrgContext.newPage();
+  await loginToMessaging(crossOrgPage, fixture.identities.crossOrgAdmin);
+  await expectDeniedConversationRoute(
+    crossOrgPage,
+    `/whatsapp/${fixture.bw4.orgA.conversationId}`,
+  );
+  await expect(crossOrgPage.getByTestId("platform-decision-controls")).toHaveCount(
+    0,
+  );
+  await expect(crossOrgPage.getByTestId("platform-decision-backlog")).toHaveCount(0);
+  await expect(crossOrgPage.getByTestId("platform-handoff-context")).toHaveCount(0);
+  await expect(crossOrgPage.getByTestId("platform-prompt-evidence")).toHaveCount(0);
+  await crossOrgContext.close();
+
+  const formerSalesResult = await platformRpc(
+    fixture.p3c.orgA.staleSalesAccessToken,
+    "staff_conversation_bw4_workspace",
+    {
+      p_organization_id: fixture.bw4.orgA.organizationId,
+      p_conversation_id: fixture.bw4.orgA.conversationId,
+    },
+  );
+  expect([401, 403]).toContain(formerSalesResult.status);
 });

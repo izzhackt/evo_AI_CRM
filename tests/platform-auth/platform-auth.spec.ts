@@ -22,6 +22,7 @@ type Fixture = Readonly<{
     studentNoCase: Identity;
     blocked: Identity;
     noMembership: Identity;
+    revocableCurator: Identity;
   }>;
   conversations: Readonly<{
     orgA: ConversationFixture;
@@ -77,6 +78,10 @@ type Fixture = Readonly<{
         generatedText: string;
       }>;
     }>;
+  }>;
+  p2r3: Readonly<{
+    organizationId: string;
+    revocableMembershipId: string;
   }>;
   bw3: Readonly<{
     orgA: Readonly<{
@@ -176,6 +181,17 @@ if ((statSync(fixturePath).mode & 0o777) !== 0o600) {
   throw new Error("Platform Auth fixture must use mode 0600");
 }
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as Fixture;
+const appOrigin = "http://127.0.0.1:3311";
+const platformAuthCookieBaseName = `sb-${new URL(fixture.apiUrl).hostname.split(".")[0]}-auth-token`;
+
+function isCurrentPlatformAuthCookie(name: string) {
+  if (name === platformAuthCookieBaseName) return true;
+  const chunkPrefix = `${platformAuthCookieBaseName}.`;
+  return (
+    name.startsWith(chunkPrefix) &&
+    /^\d+$/.test(name.slice(chunkPrefix.length))
+  );
+}
 const configuredLegacyDatabaseSentinel =
   process.env.EVO_PLATFORM_LEGACY_DB_SENTINEL;
 if (
@@ -440,6 +456,91 @@ test("route-level auth failures surface an explicit login error", async ({
   await expect(page.locator("#login-error")).toContainText(
     "не может проверить вход",
   );
+});
+
+test("a direct stale-session handler request preserves a valid Admin session", async ({
+  page,
+}) => {
+  expectLegacyDatabaseUntouched();
+  await login(page, fixture.identities.admin);
+  await expect(page).toHaveURL(`${appOrigin}/sales`);
+
+  const before = (await page.context().cookies()).filter(({ name }) =>
+    isCurrentPlatformAuthCookie(name),
+  );
+  expect(before.length).toBeGreaterThan(0);
+
+  await page.goto(
+    "/auth/platform-session?reason=fake&next=https://evil.test",
+  );
+  await expect(page).toHaveURL(`${appOrigin}/sales`);
+
+  const after = (await page.context().cookies()).filter(({ name }) =>
+    isCurrentPlatformAuthCookie(name),
+  );
+  expect(after.length).toBeGreaterThan(0);
+  expectLegacyDatabaseUntouched();
+});
+
+test("a revoked live authority clears only this Platform session", async ({
+  page,
+}) => {
+  expectLegacyDatabaseUntouched();
+  await login(page, fixture.identities.revocableCurator);
+  await expect(page).toHaveURL(`${appOrigin}/clients`);
+
+  const authenticatedCookies = (await page.context().cookies()).filter(
+    ({ name }) => isCurrentPlatformAuthCookie(name),
+  );
+  expect(authenticatedCookies.length).toBeGreaterThan(0);
+
+  const legacySentinelValue = `p2r3-legacy-${randomUUID()}`;
+  const foreignSupabaseSentinelValue = `p2r3-foreign-${randomUUID()}`;
+  await page.context().addCookies([
+    {
+      name: "edu_session",
+      value: legacySentinelValue,
+      url: appOrigin,
+      sameSite: "Lax",
+    },
+    {
+      name: "sb-other-auth-token",
+      value: foreignSupabaseSentinelValue,
+      url: appOrigin,
+      sameSite: "Lax",
+    },
+  ]);
+
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const revocation = await platformRpc(
+    adminToken,
+    "change_membership_status",
+    {
+      p_organization_id: fixture.p2r3.organizationId,
+      p_membership_id: fixture.p2r3.revocableMembershipId,
+      p_new_status: "blocked",
+      p_reason: "P2R3 local browser stale-authority proof",
+      p_request_id: randomUUID(),
+    },
+  );
+  expect(revocation.status).toBe(200);
+
+  await page.goto("/whatsapp");
+  await expect(page).toHaveURL(
+    `${appOrigin}/login?error=authority_not_found`,
+  );
+
+  const finalCookies = await page.context().cookies();
+  expect(
+    finalCookies.filter(({ name }) => isCurrentPlatformAuthCookie(name)),
+  ).toEqual([]);
+  expect(
+    finalCookies.find(({ name }) => name === "edu_session")?.value,
+  ).toBe(legacySentinelValue);
+  expect(
+    finalCookies.find(({ name }) => name === "sb-other-auth-token")?.value,
+  ).toBe(foreignSupabaseSentinelValue);
+  expectLegacyDatabaseUntouched();
 });
 
 test("admin opens ordered synthetic inbound messages through Supabase RLS", async ({

@@ -6,7 +6,10 @@ import {
   getSupabasePublicConfig,
   SupabaseConfigurationError,
 } from "../src/lib/supabase/config.ts";
-import { isSupabaseAuthCookieName } from "../src/lib/supabase/auth-cookies.ts";
+import {
+  isProjectSupabaseAuthCookieName,
+  isSupabaseAuthCookieName,
+} from "../src/lib/supabase/auth-cookies.ts";
 import {
   isConnectedPlatformPage,
   platformHomeRoute,
@@ -17,6 +20,14 @@ import { isUiContractFixtureMode } from "../src/lib/runtime-mode.ts";
 
 const scenarioRunnerSource = readFileSync(
   new URL("../scripts/evaluate-scenarios.mjs", import.meta.url),
+  "utf8",
+);
+const loginActionSource = readFileSync(
+  new URL("../src/lib/actions.ts", import.meta.url),
+  "utf8",
+);
+const platformAuthSource = readFileSync(
+  new URL("../src/lib/platform-auth.ts", import.meta.url),
   "utf8",
 );
 
@@ -202,4 +213,133 @@ test("logout fallback matches only Supabase auth-token cookies", () => {
   ]) {
     assert.equal(isSupabaseAuthCookieName(name), false, name);
   }
+});
+
+test("stale-session repair matches only the configured Supabase project", () => {
+  const configuredUrl = "http://127.0.0.1:45421";
+
+  for (const name of [
+    "sb-127-auth-token",
+    "sb-127-auth-token.0",
+    "sb-127-auth-token.12",
+  ]) {
+    assert.equal(
+      isProjectSupabaseAuthCookieName(name, configuredUrl),
+      true,
+      name,
+    );
+  }
+
+  for (const name of [
+    "edu_session",
+    "sb-other-auth-token",
+    "sb-127-auth-token-code-verifier",
+    "sb-127-auth-token.extra",
+    "sb-127-auth-token.-1",
+  ]) {
+    assert.equal(
+      isProjectSupabaseAuthCookieName(name, configuredUrl),
+      false,
+      name,
+    );
+  }
+});
+
+test("login verifies the just-issued access token and clears rejected sessions", () => {
+  const loginStart = loginActionSource.indexOf(
+    "export async function loginAction",
+  );
+  const loginEnd = loginActionSource.indexOf(
+    "export async function registerAction",
+    loginStart,
+  );
+  const loginSource = loginActionSource.slice(loginStart, loginEnd);
+
+  const signInCall = loginSource.indexOf(
+    "context.client.auth.signInWithPassword",
+  );
+  const tokenRequirement = loginSource.indexOf(
+    "if (!data.session?.access_token)",
+  );
+  const tokenCapture = loginSource.indexOf(
+    "accessToken = data.session.access_token",
+  );
+  const actorResolution = loginSource.indexOf(
+    "resolvePlatformActor(context.client, true, accessToken)",
+  );
+  const rejectedActor = loginSource.indexOf(
+    'if (result.status !== "authenticated")',
+    actorResolution,
+  );
+  const acceptedActorCleanup = loginSource.indexOf(
+    "await clearSession();",
+    rejectedActor,
+  );
+  const missingTokenSource = loginSource.slice(
+    tokenRequirement,
+    tokenCapture,
+  );
+  const rejectedActorSource = loginSource.slice(
+    rejectedActor,
+    acceptedActorCleanup,
+  );
+
+  assert.notEqual(loginStart, -1);
+  assert.notEqual(loginEnd, -1);
+  assert.ok(signInCall < tokenRequirement);
+  assert.ok(tokenRequirement < tokenCapture);
+  assert.ok(tokenCapture < actorResolution);
+  assert.match(
+    missingTokenSource,
+    /await clearPlatformAuthSession\(context\.client\);[\s\S]*return "platformUnavailable";/,
+  );
+  assert.match(
+    rejectedActorSource,
+    /result\.reason === "authority_lookup_failed"[\s\S]*\? "platformUnavailable"[\s\S]*: "accessNotProvisioned";/,
+  );
+  assert.match(
+    rejectedActorSource,
+    /await clearPlatformAuthSession\(context\.client\);[\s\S]*return rejectionError;/,
+  );
+  assert.doesNotMatch(loginSource, /auth\.getSession\(/);
+});
+
+test("Platform actor verifies the supplied token before live authority", () => {
+  const resolverStart = platformAuthSource.indexOf(
+    "export async function resolvePlatformActor",
+  );
+  const resolverSource = platformAuthSource.slice(resolverStart);
+  const claimsVerification = resolverSource.indexOf(
+    "context.client.auth.getClaims(accessToken)",
+  );
+  const authorityLookup = resolverSource.indexOf(
+    '.rpc("current_actor_authority")',
+  );
+
+  assert.notEqual(resolverStart, -1);
+  assert.match(resolverSource, /accessToken\?: string/);
+  assert.notEqual(claimsVerification, -1);
+  assert.notEqual(authorityLookup, -1);
+  assert.ok(claimsVerification < authorityLookup);
+  assert.doesNotMatch(resolverSource, /auth\.getSession\(/);
+});
+
+test("auth verification diagnostics cannot emit provider messages or tokens", () => {
+  const loggerStart = platformAuthSource.indexOf(
+    "function logAuthVerificationFailure",
+  );
+  const loggerEnd = platformAuthSource.indexOf(
+    "function parseAuthority",
+    loggerStart,
+  );
+  const loggerSource = platformAuthSource.slice(loggerStart, loggerEnd);
+
+  assert.notEqual(loggerStart, -1);
+  assert.notEqual(loggerEnd, -1);
+  assert.match(loggerSource, /safeAuthErrorLabel\(record\.name\)/);
+  assert.match(loggerSource, /safeAuthErrorLabel\(record\.code\)/);
+  assert.doesNotMatch(
+    loggerSource,
+    /record\.message|error\.message|accessToken|JSON\.stringify\(error\)/,
+  );
 });

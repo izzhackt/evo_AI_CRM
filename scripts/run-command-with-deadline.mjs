@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const SIGNAL_EXIT_CODES = new Map([
   ["SIGINT", 130],
@@ -112,9 +113,21 @@ export function runCommandWithDeadline({
   });
 }
 
-const isDirectExecution =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+const isDirectExecution = (() => {
+  if (process.argv[1] === undefined) return false;
+
+  try {
+    return (
+      realpathSync.native(fileURLToPath(import.meta.url)) ===
+      realpathSync.native(process.argv[1])
+    );
+  } catch {
+    // Do not execute commands when either path cannot be resolved to a real
+    // file. Treating an unresolved path as direct execution could run this CLI
+    // while it is being imported by another program.
+    return false;
+  }
+})();
 
 if (isDirectExecution) {
   const [timeoutRaw, command, ...args] = process.argv.slice(2);

@@ -3,12 +3,12 @@
 ## Единая платформа автоматизации EVO Admissions
 
 **Идентификатор документа:** EVO-PLATFORM-TZ-001
-**Версия:** 1.5
+**Версия:** 1.6
 **Статус:** действующий контракт repository-реализации; production-gates
 остаются отдельными
-**Дата:** 2 августа 2026 года
-**Базовая версия репозитория:** `124ed41e1ba7f25d0f1affca336ce222e0a187d4`
-**Текущий execution checkpoint:** `124ed41e1ba7f25d0f1affca336ce222e0a187d4`
+**Дата:** 3 августа 2026 года
+**Базовая версия репозитория:** `9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`
+**Текущий execution checkpoint:** `9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`
 **Язык документа:** русский
 
 > **Назначение документа.** Это ТЗ является контрактом на последующую
@@ -31,7 +31,7 @@
 | Формат согласования | SHA-bound review, должностное решение по открытым gates и audit evidence |
 | Источник бренда | `docs/company/brand/evo-admissions-logobook.pdf` |
 | Принятый preset | `standard_business_brief` |
-| Текущий checkpoint | P0, P1A–P1D, reusable P2A–P2H, greenfield/UI boundary, BW0, P3A–P3C и BW1–BW4 merged through PR #103 at `124ed41e1ba7f25d0f1affca336ce222e0a187d4`; P2R0 gates bounded local reliability repair P2R1 before BW5 |
+| Текущий checkpoint | P0, P1A–P1D, reusable P2A–P2H, greenfield/UI boundary, BW0, P3A–P3C, BW1–BW4 и P2R0/P2R1 merged through PR #105 at `9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`; BW5 is active after green exact-main CI `30763498291` |
 
 > **Главная граница.** amoCRM остаётся источником истины для контакта, лида,
 > ответственного sales manager и стадии продаж. Один dedicated production
@@ -1090,17 +1090,17 @@ P2 идёт только последовательно:
 | P2F | conversations/provider mappings/raw events/knowledge/AI drafts | transcript isolation и server-write boundaries; no provider claim |
 | P2G | real local Queues/outbox/idempotency/dead-letter/reconciliation | visibility/retry/dedupe; unknown never auto-requeued |
 | P2H | real local private Platform Storage API/policies | MIME/25 MB, cross-user denial, audited access |
-| P2R1 | bounded local proof reliability repair: process-group deadlines, exact disposable cleanup, transient-only Auth readiness, stable PGMQ leases and next-free forward document lock order | real `npm run test:supabase:local` exits zero; exact-label resources/lock absent; Inbox state preserved; local auth/security, lint, typecheck, build, scenarios, E2E/a11y and scoped secret checks pass |
+| P2R1 | merged bounded local proof reliability repair: process-group deadlines, exact disposable cleanup, transient-only Auth readiness, stable PGMQ leases and forward document lock order | PR #105 and immutable migration 055; real `npm run test:supabase:local` exits zero; exact-label resources/lock absent; Inbox state preserved; local auth/security, lint, typecheck, build, scenarios, E2E/a11y and scoped secret checks pass |
 | Former P2I | transferred to P7 reliability work; not a thin-slice blocker | clean reset/grants/secrets plus isolated DB restore and separate Storage-object restore remain required before release |
 
 P2 additive: no legacy rename/drop, root-auth cutover, real-secret copy,
 legacy bucket flip, remote apply или production mutation. Detailed contract:
 `docs/platform/p2-supabase-foundation.md`.
 
-P2R0 is docs-only. P2R1 does not add product scope and does not prove managed
-Supabase, providers, malware scanning, backup/restore or production. Its
-migration number is expected to be 055 and must be re-verified on fresh
-`origin/main`; merged migrations remain immutable.
+P2R0/P2R1 are merged through PR #105. P2R1 did not add product scope and does
+not prove managed Supabase, providers, malware scanning, backup/restore or
+production. Migration 055 is immutable; BW5 must re-verify the next free
+number, expected 056, on fresh `origin/main` and against open PR ownership.
 
 ### P3. Thin Supabase-native messaging slice
 
@@ -1142,16 +1142,21 @@ bounded reconciliation and provider rollback readiness belong to P5/P8.
 
 ### BW0-BW7. Business-workflow lane
 
-BW0, P3A-P3C и BW1-BW4 merged through PR #103. P2R0/P2R1 now form the
-sequential reliability gate before BW5; they do not reopen completed workflow
-blocks or authorize provider/production work.
+BW0, P3A-P3C, BW1-BW4 и P2R0/P2R1 merged through PR #105. BW5 is the active
+sequential block; completed reliability work does not reopen workflow blocks or
+authorize provider/production work.
 
 1. BW1 — normalized workflow/domain/source contracts без PII.
 2. BW2 — OP/OZO repositories/actions за существующими screens.
 3. BW3 — Student Profile и versioned country checklists.
 4. BW4 — approved prompt/knowledge, Q&A decision backlog и handoff.
-5. BW5 — university/college catalog и reviewable import boundary; real import
-   blocked без authorized source access.
+5. BW5 — active university/college catalog и reviewable import boundary behind
+   accepted `/applications`; expected migration 056 only after fresh ownership
+   verification. Staging/validation never directly publish approved rows or
+   mutate applications; explicit Admin approval/rejection, provenance and
+   role/tenant/object-scope tests are required. Real import remains blocked
+   without authorized source access, and missing college data must not be
+   replaced with invented records.
 6. BW6 — generated contract draft и post-contract checklist/report с approval
    и audit.
 7. BW7 — latest-main integration и полный real local/staging Supabase E2E через

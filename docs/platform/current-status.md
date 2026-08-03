@@ -1,7 +1,7 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-08-02
+- Snapshot date: 2026-08-03
 - Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 - P2A starting checkpoint: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
 - P2B starting checkpoint: `8ad755b5039390f418dbe12924a806f069f93b53`
@@ -12,8 +12,8 @@
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current merged checkpoint: `124ed41e1ba7f25d0f1affca336ce222e0a187d4`
-- Active plan block: `EVO-P2R0-LOCAL-SUPABASE-RELIABILITY-PLAN-2026-08-02`
+- Current merged checkpoint: `9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`
+- Active plan block: `EVO-BW5-CATALOG-IMPORT-BOUNDARY-2026-08-03`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -31,10 +31,9 @@ AI draft → manual send → ACK → audit ни разу не доказан end
 platform нельзя называть production-complete.
 
 P1 остаётся историческим legacy containment. P2A-P2H, greenfield/UI boundary,
-BW0, P3A-P3C и BW1-BW4 merged через PR #103. P2R0 теперь является отдельным
-docs-only gate перед узким P2R1 repair для local Supabase proof path; после
-controller merge и exact-main CI работа возвращается к BW5. Former P2I restore
-duties остаются в P7 и не входят в P2R1.
+BW0, P3A-P3C, BW1-BW4 и P2R0/P2R1 merged через PR #105. Exact-main CI run
+`30763498291` зелёный для applicable jobs. BW5 является текущим product block.
+Former P2I restore duties остаются в P7 и не входят в BW5.
 
 ## Что подтверждено из репозитория
 
@@ -51,7 +50,7 @@ duties остаются в P7 и не входят в P2R1.
 | P2H private documents | PR #92 controller-merged как `b10d72863230aba646bcc8f2acafdc76c27b3fe1`; migration 046 — 79,701 bytes, SHA-256 `0bfcbd0f478b4714e347dced2f8220be3c9d28a65807e5485aef1c474983b58f`; private `platform-documents`, reservation/finalization, one-time audited download grants and exact denial matrices | real disposable local Auth/PostgREST/Storage/PGMQ proved; exact-main CI `30490070719` green; managed/production Supabase, malware provider and DB plus Storage restore remain unproved |
 | Greenfield/UI boundary | PR #93 controller-merged как `26115344909261a39bbe591f3b835cda4b7e5068`; root frontend из PR #64/#71/#72 — sole UI, Platform Supabase-native без SQLite/root-auth import, dual-read/write или automatic legacy import | exact-main CI green; это plan boundary, не runtime/provider proof |
 | BW0/P3/BW1-BW4 | PR #94 merged workflow plan; PRs #95-#97 merged Supabase-native auth, conversation and guarded manual-send seams; PRs #100-#103 merged provenance, OP/OZO, Student Profile/checklists and prompt/decision lifecycle | local repository/RLS/browser evidence only; no live amoCRM/WAHA/AI/ACK or production proof |
-| P2R0/P2R1 | P2R0 records a bounded local reliability remediation before code; P2R1 may change only deadlines, exact disposable cleanup, local Auth readiness, PGMQ test leases and forward document lock order | docs-only until P2R0 merges; managed Supabase, restore, providers and production remain excluded |
+| P2R0/P2R1 | PR #104 merged the bounded docs-only remediation contract; PR #105 merged scoped deadlines, exact disposable cleanup, local Auth readiness, PGMQ test leases and forward document lock order as migration 055 | exact-main CI `30763498291` is green; managed Supabase, restore, providers and production remain excluded |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до bounded cutover evidence and rollback gate |
@@ -156,12 +155,12 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — P2R0 docs-only reliability amendment. После его controller
-merge P2R1 должен доказать стабильный реальный local Supabase
-Auth/RLS/Storage/PGMQ gate, exact cleanup и forward-only document lock-order
-repair, не затрагивая production или providers. После зелёного exact-main CI
-следующий product block — BW5. Реальный amoCRM adapter остаётся P4, реальный
-WAHA/AI/ACK proof — P5, а restore duties — P7.
+Текущий gate — docs-only checkpoint amendment перед BW5. После его controller
+merge BW5 может занять только проверенный next-free migration 056 и реализовать
+reviewable university/college catalog boundary без fake records или прямой
+публикации из staging. Реальный Notion source остаётся blocked без authorized
+AbdyldaYT access; confirmed college dataset отсутствует. Реальный amoCRM
+adapter остаётся P4, WAHA/AI/ACK proof — P5, а restore duties — P7.
 Production cutover remains a separate authorized event with bounded
 reconciliation/health/rollback evidence.
 

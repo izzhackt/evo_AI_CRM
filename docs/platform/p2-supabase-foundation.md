@@ -1,13 +1,13 @@
 # P2 canonical Supabase foundation
 
 - Status: implementation contract; no production application
-- Date: 2026-08-02
-- Block family: P2A–P2H merged reusable foundation; P2R0/P2R1 bounded local
-  proof reliability remediation
+- Date: 2026-08-03
+- Block family: P2A–P2H and P2R0/P2R1 merged reusable foundation/local proof
+  reliability remediation
 - Parent contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 - Architecture: ADR 0014/0015, with greenfield/UI conflicts superseded by ADR
   0016
-- Current checkpoint: `124ed41e1ba7f25d0f1affca336ce222e0a187d4`
+- Current checkpoint: `9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`
 
 ## Purpose and truth boundary
 
@@ -90,10 +90,10 @@ P3 thin messaging slice
 Later reliability lane restore evidence
 ```
 
-This dependency flow records the original foundation sequence. P3A-P3C and
-BW1-BW4 are now merged. Before BW5, P2R0/P2R1 add only a bounded reliability
-repair to the local proof path; they do not reopen the historical sequence or
-take P7 restore ownership.
+This dependency flow records the original foundation sequence. P3A-P3C,
+BW1-BW4 and P2R0/P2R1 are now merged. Their bounded reliability repair did not
+reopen the historical sequence or take P7 restore ownership; BW5 follows from
+checkpoint `9ef7a726...`.
 
 ## Sequential blocks
 
@@ -380,10 +380,9 @@ Exit:
 
 ### P2R0/P2R1 — local proof reliability remediation
 
-P2R0 is a docs-only launch-control gate. P2R1 is the single bounded
-implementation block after it merges. The migration number is expected to be
-055 and must be re-verified against fresh `origin/main` and open migration
-ownership before commit.
+P2R0 merged as the docs-only launch-control gate in PR #104. P2R1 merged as the
+single bounded implementation block in PR #105, including immutable migration
+`055_platform_document_finalization_lock_order.sql`.
 
 P2R1 owns only:
 

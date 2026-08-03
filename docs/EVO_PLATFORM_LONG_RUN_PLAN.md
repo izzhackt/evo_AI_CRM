@@ -1,21 +1,20 @@
 # EVO Platform Long-Run Execution Contract
 
 Status: active repository implementation contract
-Version date: 2026-08-02 (Asia/Almaty)
+Version date: 2026-08-03 (Asia/Almaty)
 Initial kickoff baseline: GitHub `origin/main` at
 `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 `docs/PLAN_CHANGES.md`, and superseding ADRs including ADR 0016
 
 Execution checkpoint: historical P1 containment, reusable greenfield P2A-P2H,
-the greenfield/UI and business-workflow plan gates, P3A-P3C, and BW1-BW4 are
-merged through PR #103 at `origin/main`
-`124ed41e1ba7f25d0f1affca336ce222e0a187d4`; former P2I restore duties remain
-in P7. P2R0 is the active docs-only gate that records a narrow local Supabase
-proof reliability remediation discovered while re-running the merged P2H
-Storage/Auth/PGMQ evidence. After P2R0 is independently reviewed and merged,
-P2R1 implements only that bounded repair. BW5 remains the next product block
-after P2R1 and exact-main CI are green.
+the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW4, P2R0 and
+P2R1 are merged through PR #105 at `origin/main`
+`9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`; exact-main CI run `30763498291`
+is green for the applicable Main CRM, EVO Inbox and EVO Lead Agent jobs. Former
+P2I restore duties remain in P7. BW5 is the active product block; this
+checkpoint amendment changes no architecture, provider ownership or production
+authority.
 
 ## 1. Outcome and truth boundary
 
@@ -62,7 +61,7 @@ and rollback proof are real. No fixed-duration soak is required by contract.
 As of the version date:
 
 - GitHub `main` checkpoint for this amendment is
-  `124ed41e1ba7f25d0f1affca336ce222e0a187d4`;
+  `9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -85,13 +84,11 @@ do not silently change production.
 
 After this amendment merges, implementation priority is intentionally narrow:
 
-1. P2R1 repairs only the local Supabase Auth/Storage/PGMQ proof path and the
-   document finalization/review lock order through the next free forward
-   migration.
-2. BW5 resumes the business-workflow lane with the university/college catalog
-   and reviewable import boundary; no real import occurs without source access.
-3. BW6-BW7 and bounded amoCRM/WAHA/AI proof continue one independently reviewed
-   PR at a time, with provider and production claims still evidence-gated.
+1. BW5 owns the university/college catalog and reviewable import boundary; no
+   real import occurs without authorized source access.
+2. BW6-BW7 follow one independently reviewed PR at a time after BW5 merges.
+3. P4/P5/P7 retain amoCRM, real WAHA/AI/ACK and restore/reliability ownership;
+   provider and production claims remain evidence-gated.
 
 This contract explicitly defers broad infra perfection, broad restore proof,
 and broad backend parity work that do not change thin-slice product truth.
@@ -335,8 +332,8 @@ deployment surfaces are sequential.
 | P2 | Reusable Supabase-native foundation | Canonical history, local RLS/queue/Storage evidence, private document contract | P2A-P2H merged; former P2I restore duties transferred to P7 |
 | BW0 | Business-workflow plan amendment | Confirmed/assumed requirements, dependency/file ownership, acceptance and source boundaries; deterministic TZ/DOCX evidence | Merged in PR #94 |
 | P3 | Thin Supabase-native messaging slice behind the accepted frontend | Supabase Auth/RBAC, repository seams, real local persistence, conversation list/thread, draft/manual-send state and focused UI E2E | P3A-P3C merged in PRs #95-#97; no live-provider claim |
-| P2R0 | Local Supabase reliability plan amendment | Current checkpoint, bounded ownership, exact validation and rollback/provider boundary | Active docs-only gate |
-| P2R1 | Local Supabase proof reliability repair | Real clean local Auth/RLS/Storage/PGMQ gate, deterministic deadline/cleanup tests and forward-only document lock-order repair | Pending P2R0 merge; expected next migration 055 must be re-verified |
+| P2R0 | Local Supabase reliability plan amendment | Current checkpoint, bounded ownership, exact validation and rollback/provider boundary | Merged in PR #104 |
+| P2R1 | Local Supabase proof reliability repair | Real clean local Auth/RLS/Storage/PGMQ gate, deterministic deadline/cleanup tests and forward-only document lock-order repair | Merged in PR #105; migration 055 is immutable history |
 | P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | Pending |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no legacy cutover yet | Pending |
 | P6 | Admissions, Portal, Documents, Finance, Notifications | Two-student isolation E2E and complete staff-to-portal workflows | Pending |
@@ -345,8 +342,8 @@ deployment surfaces are sequential.
 | P9 | Bounded cutover evidence and separate Lead Agent retirement PR | Zero unexplained loss/duplicate/drift in the evidence window plus proven rollback and health | Evidence-gated |
 | P10 | Completion audit | Every FR/NFR/SEC/ACC mapped to evidence, full CI/provider proof, no open implementation PR | Pending |
 
-BW0, P3A-P3C and BW1-BW4 are merged. BW5 resumes only after P2R1 and
-exact-main CI:
+BW0, P3A-P3C, BW1-BW4 and P2R0/P2R1 are merged. BW5 is active after the green
+exact-main CI for PR #105:
 
 | Block | Contract | Dependency and exit evidence |
 | --- | --- | --- |
@@ -357,6 +354,27 @@ exact-main CI:
 | BW5 | University/college catalog and reviewable import boundary | BW4; source access required for real import; provenance, validation/rejection and no-direct-approval tests |
 | BW6 | Contract draft generation and post-contract checklist/report | BW5; approved typed fields only; authorization, immutable version and audit proof |
 | BW7 | Latest-main integration and end-to-end workflow proof | BW1-BW6; real local/staging Supabase path through the accepted frontend, no production/provider claim without real exercise |
+
+### Active BW5 contract and provider boundary
+
+- BW5 must re-fetch `origin/main` and inspect open migration ownership before
+  claiming the next free forward migration. At checkpoint `9ef7a726...`,
+  migration `055_platform_document_finalization_lock_order.sql` is immutable;
+  the expected BW5 candidate is 056.
+- BW5 may add only bounded, PII-free university/college source metadata,
+  revision-pinned staging candidates, explicit validation, and audited Admin
+  approval or rejection behind the accepted `/applications` frontend.
+- Staging or validation must never directly publish approved catalog rows or
+  mutate student applications. Approved catalog reads remain role- and
+  organization-scoped, and catalog-backed application creation must preserve
+  the existing student-case object-scope contract.
+- Acceptance requires provenance stability, validation/rejection and
+  no-direct-approval tests, positive and negative role/tenant/object-scope
+  evidence, and rollback notes for an additive unapplied migration.
+- The real Notion university source still requires authorized AbdyldaYT access,
+  and no confirmed college dataset exists. BW5 must not invent records or claim
+  real import, managed Supabase, amoCRM, WAHA, AI-provider, production, restore
+  or cutover proof.
 
 BW1-BW7 must not edit a migration number/schema file owned by another open PR.
 Before every block, fetch `origin/main`, inspect open PRs and select the next

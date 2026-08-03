@@ -1,13 +1,13 @@
 # P2 canonical Supabase foundation
 
 - Status: implementation contract; no production application
-- Date: 2026-08-03
-- Block family: P2A–P2H and P2R0/P2R1 merged reusable foundation; P2R2 active
-  local auth/reset reproducibility plan gate
+- Date: 2026-08-04
+- Block family: P2A–P2H and P2R0/P2R1 merged reusable foundation; P2R2 plan
+  merged in PR #109; P2R3 stale-session/local-proof ownership gate active
 - Parent contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 - Architecture: ADR 0014/0015, with greenfield/UI conflicts superseded by ADR
   0016
-- Current checkpoint: `db8f3c75c898d5b68b0080099583d4eeea9931d2`
+- Current checkpoint: `30bcc956fbf1ac90e79c2a75c22748633e219d9d`
 
 ## Purpose and truth boundary
 
@@ -91,10 +91,11 @@ Later reliability lane restore evidence
 ```
 
 This dependency flow records the original foundation sequence. P3A-P3C,
-BW1-BW4 and P2R0/P2R1 are merged. PR #107 merged the BW5 checkpoint, but BW5 is
-paused while P2R2 repairs auth-token verification and the reproducibility of the
-real local proof. P2R2 does not reopen the historical schema sequence or take
-P7 restore ownership; BW5 resumes only after its controller-merged repair.
+BW1-BW4 and P2R0/P2R1 are merged. PR #107 merged the BW5 checkpoint and PR #109
+merged the P2R2 plan, but BW5 is paused while P2R3 completes stale-session
+clearing and the reproducibility of the real local proof. P2R3 does not reopen
+the historical schema sequence or take P7 restore ownership; BW5 resumes only
+after its controller-merged repair.
 
 ## Sequential blocks
 
@@ -408,17 +409,29 @@ This block does not prove or authorize managed Supabase, malware scanning,
 database or Storage restore, production apply, provider behavior, customer
 traffic or cutover. Whole-foundation restore evidence remains P7 work.
 
-### P2R2 — issued-token and local reset reproducibility repair
+### P2R2/P2R3 — issued-token, stale-session and local reset repair
 
 Controller review of PR #108 required a prior plan gate and rejected its claimed
 real local PASS after a fresh physical-worktree run exited non-zero following
-two bounded reset attempts. PR #108 was closed without merge. P2R2 owns only:
+two bounded reset attempts. PR #108 was closed without merge; PR #109 then
+merged the bounded P2R2 plan. Controller review of PR #110 found that its
+protected-route invalid-authority path redirected without clearing the resident
+Supabase browser cookie and could not reproduce the independent local gate while
+its OrbStack endpoint was unresponsive. PR #110 was also closed without merge.
+P2R3 preserves the P2R2 scope and owns only:
 
 - explicit verification of the access token returned by successful login using
   `getClaims(accessToken)` before the live `platform.current_actor_authority`
   RPC; `getSession()` is not trusted for server authorization;
 - fail-closed logout/session clearing when the issued token, live membership or
   authority bundle cannot be verified;
+- one exact same-origin response-writable Route Handler reached from the
+  connected-route guard; it independently rechecks claims/live authority,
+  preserves a recovered valid actor, and otherwise expires only the Platform
+  Supabase auth-token cookie/chunks before a bounded login redirect;
+- a real disposable browser regression that starts authenticated, makes live
+  authority revoked or version-stale, exercises a protected connected route and
+  proves the Platform auth cookie is absent while unrelated cookies remain;
 - a local Auth smoke that performs the real `supabase-js` claims verification
   before browser fixture handoff;
 - symlink-safe direct execution and exit propagation in the deadline runner;
@@ -428,8 +441,9 @@ two bounded reset attempts. PR #108 was closed without merge. P2R2 owns only:
   preserved Inbox resources.
 
 Authorized implementation surfaces are limited to the auth actions/resolver,
-the deadline/Auth/reset scripts and their focused regression harnesses named in
-the parent long-run plan. P2R2 adds no migration and does not change RLS,
+the deadline/Auth/reset scripts and their focused regression harnesses, plus
+the exact guard/proxy/auth-cookie/Route Handler/browser-test surfaces named in
+the parent long-run plan. P2R3 adds no migration and does not change RLS,
 Storage, queue, provider or production contracts.
 
 Exit requires focused tests plus a real `npm run test:supabase:local` exit zero

@@ -3671,3 +3671,89 @@ Reviewer notes: this amendment exists because the independent controller
 rejected an out-of-order implementation and non-reproducible local PASS claim.
 No implementation file may change in this docs-only PR. ADR 0014-0016 remain
 valid because the architecture and provider boundaries are unchanged.
+
+## 2026-08-04 - Add Response-Writable Stale-Session Handoff To P2R3
+
+Source: independent launch-controller verdict on PR #110 exact head
+`fd4428451793bdc59b3b183dcc9dde7518e80201`, comment `5171649961`; official
+Next.js 16 cookie contract at
+<https://nextjs.org/docs/app/api-reference/functions/cookies>.
+
+Change type: file-ownership and validation correction for an already-approved
+fail-closed acceptance outcome. This is not a target-architecture,
+product-scope, schema, provider-ownership or production-authority change.
+
+Affected plan section: `/goal-evo-platform-p2r3`, prerequisite server-auth
+handoff, P2R2/P2R3 merge order and disposable local Supabase evidence.
+
+Evidence:
+
+- PR #109 merged the P2R2 plan at
+  `30bcc956fbf1ac90e79c2a75c22748633e219d9d`; exact-main CI run `30824043775`
+  is green.
+- PR #110 verified the issued login token with `getClaims(accessToken)`, used
+  live authority and repaired the deadline/reset harnesses, but its exact-head
+  controller found that `requirePlatformActor()` only redirected an already
+  authenticated invalid actor. The rejected Supabase auth cookie remained in
+  the browser, so repeated connected-route requests retained a stale session.
+- Next.js 16 allows cookie mutation only in a Server Function or Route Handler.
+  The original P2R2 ownership list did not include either a response-writable
+  invalid-session handoff or the guard/proxy surfaces needed to reach it.
+- The controller also could not reproduce the mandatory second physical-
+  worktree `npm run test:supabase:local` because its OrbStack Docker endpoint
+  timed out. That is missing exit evidence, not a provider-success claim and
+  not permission to restart the daemon or mutate unrelated stacks.
+- PR #110 was closed without merge. Its branch remains a recovery point only;
+  BW5 remains paused.
+
+Decision:
+
+- Make this docs-only P2R3 amendment the sole active block. After it merges,
+  rebuild the P2R2 auth/reset repair from latest main and add only
+  `src/lib/platform-guards.ts`, `src/proxy.ts`,
+  `src/lib/supabase/auth-cookies.ts`, the new exact Route Handler
+  `src/app/auth/platform-session/route.ts`, and the existing
+  `tests/platform-auth/platform-auth.spec.ts` to the authorized file set.
+- A protected connected route with invalid claims, blocked/inactive
+  membership, stale access version or failed live authority must hand off to
+  that same-origin Route Handler. The handler rechecks `getClaims()` plus live
+  authority with response-writable cookie methods. A recovered valid actor is
+  preserved; authority that remains invalid or unavailable is locally signed
+  out and only this Platform project's auth-token cookie/chunks are expired.
+  Query parameters are never authorization evidence, and legacy root-auth
+  cookies remain untouched.
+- Require a real disposable local Playwright regression that begins with an
+  authenticated session, makes live authority revoked or version-stale,
+  exercises a connected protected route and proves the Platform auth cookie is
+  absent after the login redirect. Direct handler access by a still-valid actor
+  must preserve the session.
+- Retain all P2R2 issued-token, symlink/deadline, bounded reset, exact cleanup,
+  Inbox-preservation and redaction requirements. Executor and independent
+  fresh physical-worktree `npm run test:supabase:local` runs must both exit zero
+  with a responsive existing Docker endpoint. Docker daemon restart, broad
+  cleanup and unrelated stack mutation remain forbidden.
+- P2R3 owns no migration, managed Supabase, provider, production, restore or
+  cutover behavior. `real-provider-proof: not-required` remains the truthful
+  boundary.
+- Resume BW5 only after the rebuilt P2R3 implementation is independently
+  reviewed, controller-merged and green on exact-main CI.
+
+Validation impact:
+
+- This amendment updates the long-run/launch contracts, append-only decision
+  log, current status, detailed P2 boundary and only the version/checkpoint/
+  execution-status portions of canonical TZ 1.8. FR/INT/DATA/SEC/NFR/ACC
+  requirements remain unchanged. The deterministic owner-facing DOCX and its
+  validation ledger must be regenerated and every rendered page inspected.
+- The system/data model, `CONTEXT.md` and ADR 0014-0016 remain unchanged because
+  no domain term, target architecture, schema, provider or production boundary
+  changes.
+- The implementation PR must include focused auth source tests, the real
+  connected-route cookie-clearing Playwright regression, two fresh physical-
+  worktree local Supabase proofs, exact cleanup/Inbox preservation, all four
+  exact-head CI jobs and a new SHA-bound independent review.
+
+Reviewer notes: the new Route Handler is not a new product surface or auth
+fallback. It is the minimum response-writable handoff required to satisfy the
+already-merged fail-closed session-clearing acceptance under Next.js 16. No
+implementation file may change in this docs-only PR.

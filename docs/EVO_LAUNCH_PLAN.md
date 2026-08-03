@@ -1,12 +1,13 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-p2r2` is active. Historical P1, reusable greenfield
-P2A-P2H, BW0, P3A-P3C, BW1-BW4 and P2R0/P2R1 are merged; PR #107 merged the
-BW5 checkpoint amendment at current main
-`db8f3c75c898d5b68b0080099583d4eeea9931d2`, with exact-main CI run
-`30782828561` green. PR #108 was closed without merge after controller
-`changes_requested`. P2R2 is the required auth/local-readiness plan gate; BW5
-is paused. P2I restore duties remain in P7. Updated 2026-08-03 in the workspace
+Status: `/goal-evo-platform-p2r3` is active. Historical P1, reusable greenfield
+P2A-P2H, BW0, P3A-P3C, BW1-BW4 and P2R0/P2R1 are merged; PR #109 merged the
+P2R2 plan gate at current main
+`30bcc956fbf1ac90e79c2a75c22748633e219d9d`, with exact-main CI run
+`30824043775` green. PR #110 was closed without merge after controller
+`changes_requested` on stale-session clearing and the second physical-worktree
+Docker proof. P2R3 is the required file-ownership and validation plan gate; BW5
+is paused. P2I restore duties remain in P7. Updated 2026-08-04 in the workspace
 timezone.
 
 This document is the execution contract for launch-control work in this repo.
@@ -19,11 +20,12 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active plan slice: `/goal-evo-platform-p2r2`, Block
-`EVO-P2R2-AUTH-LOCAL-READINESS-PLAN-2026-08-03`, docs-only repair amendment.
-Post-merge implementation slice: rebuild the bounded issued-token auth and
-local reset reproducibility repair on amended latest main. BW5 resumes only
-after that implementation is independently proved and controller-merged.
+Active plan slice: `/goal-evo-platform-p2r3`, Block
+`EVO-P2R3-STALE-SESSION-CLEAR-PLAN-2026-08-04`, docs-only ownership amendment.
+Post-merge implementation slice: rebuild the bounded issued-token auth/local
+reset repair, adding only the response-writable stale-session handoff and real
+connected-route regression authorized below. BW5 resumes only after that
+implementation is independently proved and controller-merged.
 
 ### Goal
 
@@ -36,11 +38,12 @@ The existing unified frontend from PRs #64/#71/#72 is the sole product UI
 contract and must be wired through repository/session seams, not replaced or
 paralleled. AI remains draft-only with human manual send.
 
-This amendment changes documentation only. It records PR #107 as the merged BW5
-checkpoint, records the exact-head rejection and closure of PR #108, pauses BW5,
-and authorizes one bounded P2R2 repair before BW5 resumes. It changes no target
-architecture, schema/migration ownership, provider ownership, production state
-or restore claim.
+This amendment changes documentation only. It records PR #109 as the merged
+P2R2 plan gate, records the exact-head rejection and closure of PR #110, keeps
+BW5 paused, and authorizes one bounded P2R3 response-writable stale-session
+repair before BW5 resumes. It changes no target architecture, requirement
+outcome, schema/migration ownership, provider ownership, production state or
+restore claim.
 
 ### Reconciled baseline
 
@@ -58,13 +61,21 @@ checkpoint is:
   reusable greenfield foundation rather than the active product slice.
 - PR #93 merged the greenfield/UI boundary; PR #94 merged BW0; PRs #95-#97
   merged P3A-P3C; PRs #100-#103 merged BW1-BW4; PR #104 merged P2R0; PR #105
-  merged P2R1; and PR #107 merged the BW5 checkpoint amendment. The exact
-  checkpoint for this amendment is
-  `db8f3c75c898d5b68b0080099583d4eeea9931d2`.
+  merged P2R1; PR #107 merged the BW5 checkpoint amendment; and PR #109 merged
+  the P2R2 plan gate. The exact checkpoint for this amendment is
+  `30bcc956fbf1ac90e79c2a75c22748633e219d9d`, with exact-main CI run
+  `30824043775` green.
 - PR #108 exact head `f719b749efaadaf02c6344c5d01cd4b6bbe3d79c`
-  passed focused tests and CI but was closed without merge after controller
+  is historical recovery evidence: it passed focused tests and CI but was
+  closed without merge after controller
   comment `5166574008`: no prior plan authorization and no independently
   reproducible real local reset exit zero.
+- PR #110 exact head `fd4428451793bdc59b3b183dcc9dde7518e80201`
+  passed executor proof, exact-head CI and independent review but was closed
+  without merge after controller comment `5171649961`: connected-route stale
+  authority did not clear the resident Supabase browser cookie, and the
+  controller's OrbStack endpoint did not permit the second physical-worktree
+  local proof.
 - Root `/whatsapp` remains a SQLite `wa_*` shadow surface with P1D
   authorization containment. It is not the unified communications backend;
   the greenfield application seam was established through P3C, while real
@@ -89,10 +100,12 @@ checkpoint is:
 
 ### Immediate execution order
 
-0. Merge this P2R2 amendment as a docs-only launch-control gate.
-1. Rebuild only the authorized auth/local-readiness repair on amended latest
-   main; prove explicit `getClaims(accessToken)` plus live authority,
-   symlink-safe deadline execution, real reset exit zero and exact cleanup.
+0. Merge this P2R3 amendment as a docs-only launch-control gate.
+1. Rebuild only the authorized P2R2 auth/local-readiness repair on amended
+   latest main, add the P2R3 same-origin Route Handler handoff, and prove stale
+   browser-session clearing plus explicit `getClaims(accessToken)`, live
+   authority, symlink-safe deadline execution, real reset exit zero and exact
+   cleanup.
 2. Resume BW5 with the expected next-free migration 056 only after refreshing
    `origin/main` and verifying open migration ownership.
 3. Continue BW6-BW7 sequentially; inspect open PR/migration ownership before
@@ -100,12 +113,22 @@ checkpoint is:
 4. Defer real amoCRM proof to P4 and real WAHA/AI/ACK proof to P5. Workflow and
    reliability blocks may consume contracts but cannot claim provider success.
 
-### P2R2 acceptance
+### P2R3 acceptance
 
 - The server verifies the exact access token returned by successful Supabase
   login with `getClaims(accessToken)` before resolving the live database
   authority bundle. Missing/invalid claims, blocked membership or RPC failure
   fail closed and clear the Platform session.
+- Protected connected routes hand invalid authority to the exact same-origin
+  `src/app/auth/platform-session/route.ts`. That response-writable handler
+  independently rechecks claims plus live authority, preserves a recovered
+  valid actor, and otherwise expires only the Platform Supabase auth-token
+  cookie/chunks before redirecting to a bounded login error. Query parameters
+  are not authorization proof; legacy root-auth cookies remain untouched.
+- Real local Playwright starts with an authenticated Platform session, makes
+  the live authority revoked or version-stale, exercises the connected route,
+  and proves the browser no longer holds the Platform auth cookie. A direct
+  handler request with valid authority must preserve the session.
 - `getSession()` is never a server authorization source; self-registration,
   legacy-account import and root-auth fallback stay disabled.
 - The deadline runner executes its child and propagates the true exit code from
@@ -116,7 +139,12 @@ checkpoint is:
 - Cleanup proves no exact-project lock, container, volume or network remains and
   preserves unrelated Inbox resources. Broad prune and daemon restart are
   forbidden.
-- P2R2 owns no migration, provider, production, restore or cutover behavior.
+- P2R3 owns only the original P2R2 auth/reset files plus
+  `src/lib/platform-guards.ts`, `src/proxy.ts`,
+  `src/lib/supabase/auth-cookies.ts`,
+  `src/app/auth/platform-session/route.ts` and
+  `tests/platform-auth/platform-auth.spec.ts`. It owns no migration, provider,
+  production, restore or cutover behavior.
   Executor and independent physical-worktree evidence, exact-head CI and a new
   SHA-bound review are all required before controller merge.
 
@@ -167,9 +195,9 @@ checkpoint is:
 
 ### Merge-order boundary
 
-BW0, P3A-P3C, BW1-BW4 and P2R0/P2R1 are merged history. P2R2 is the only active
-repair gate; BW5 is paused until P2R2 implementation and exact-main CI are
-green. P2R0-P2R2 do not transfer P7 restore ownership or authorize production
+BW0, P3A-P3C, BW1-BW4 and P2R0/P2R1 are merged history. P2R3 is the only active
+repair gate; BW5 is paused until P2R3 implementation and exact-main CI are
+green. P2R0-P2R3 do not transfer P7 restore ownership or authorize production
 application. P3 owns common session/repository seams, P4
 owns amoCRM adapter behavior, P5 owns real WAHA/AI/ACK proof, and P7 owns
 whole-foundation backup/restore and release reliability evidence. BW5-BW7

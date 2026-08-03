@@ -19,11 +19,21 @@ import {
   labelCls,
 } from "@/components/ui";
 
+import {
+  CatalogImportWorkspace,
+  type CatalogImportWorkspaceModel,
+} from "./CatalogImportWorkspace";
+import { ApplicationInstitutionFields } from "./ApplicationInstitutionFields";
+
 export type ApplicationsSearchParams = Readonly<{
   status?: string;
   result?: string;
   student_case_id?: string;
   retry_request_id?: string;
+  catalog_result?: string;
+  catalog_batch_id?: string;
+  catalog_retry_request_id?: string;
+  catalog_retry_op?: string;
 }>;
 
 export type ApplicationDetailSearchParams = Readonly<{
@@ -169,6 +179,10 @@ export type ApplicationsQueuePresenterModel = Readonly<{
       label: string;
     }>[];
     statusOptions: readonly ApplicationStatusOption[];
+    catalogInstitutions?: readonly Readonly<{
+      id: string;
+      label: string;
+    }>[];
     copy: Readonly<{
       summaryLabel: string;
       emptyTitle: string;
@@ -176,8 +190,13 @@ export type ApplicationsQueuePresenterModel = Readonly<{
       evidenceLabel: string;
       evidenceHint: string;
       submitLabel: string;
+      catalogLabel?: string;
+      catalogManualOption?: string;
+      manualInstitutionLabel?: string;
+      catalogHint?: string;
     }>;
   }>;
+  catalog?: CatalogImportWorkspaceModel;
 }>;
 
 const selectCls =
@@ -289,15 +308,17 @@ function CreateApplicationPanel({
                 ))}
               </select>
             </label>
-            <label className={labelCls}>
-              {copy.university}
-              <input
-                name="institution_name"
-                required
-                maxLength={300}
-                className={`${inputCls} mt-1`}
-              />
-            </label>
+            <ApplicationInstitutionFields
+              catalogInstitutions={model.catalogInstitutions ?? []}
+              catalogLabel={model.copy.catalogLabel ?? copy.university}
+              catalogManualOption={
+                model.copy.catalogManualOption ?? "Manual entry"
+              }
+              manualInstitutionLabel={
+                model.copy.manualInstitutionLabel ?? copy.university
+              }
+              catalogHint={model.copy.catalogHint}
+            />
             <label className={labelCls}>
               {copy.program}
               <input
@@ -626,6 +647,7 @@ export function ApplicationsQueuePresenter({
       {model.create ? (
         <CreateApplicationPanel model={model.create} copy={model.copy} />
       ) : null}
+      {model.catalog ? <CatalogImportWorkspace model={model.catalog} /> : null}
     </div>
   );
 }

@@ -9,6 +9,9 @@ import { fileURLToPath } from 'node:url'
 const resolver = fileURLToPath(
   new URL('../scripts/resolve-postgres-test-image.sh', import.meta.url)
 )
+const authorizationHarness = fileURLToPath(
+  new URL('../scripts/test-postgres-authorization.sh', import.meta.url)
+)
 const digest =
   'sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453'
 const ecr = `public.ecr.aws/supabase/postgres@${digest}`
@@ -123,4 +126,20 @@ test('rejects an explicitly empty image override', (t) => {
   assert.equal(result.stdout, '')
   assert.deepEqual(result.calls, [])
   assert.match(result.stderr, /POSTGRES_TEST_IMAGE must not be empty/)
+})
+
+test('authorization harness keeps cold Postgres readiness bounded by wall time', () => {
+  const source = readFileSync(authorizationHarness, 'utf8')
+
+  assert.match(source, /EVO_POSTGRES_HEALTH_TIMEOUT_SECONDS:-300/)
+  assert.match(source, /health_timeout_seconds < 60 \|\| health_timeout_seconds > 600/)
+  assert.match(source, /health_deadline=\$\(\(SECONDS \+ health_timeout_seconds\)\)/)
+  assert.match(source, /while \(\( SECONDS < health_deadline \)\)/)
+  assert.match(source, /deadline_runner.*run-command-with-deadline\.mjs/)
+  assert.match(source, /120000 docker run/)
+  assert.match(source, /--network none/)
+  assert.match(source, /15000 docker inspect/)
+  assert.match(source, /15000 docker logs --tail 120/)
+  assert.match(source, /30000 docker rm -f/)
+  assert.doesNotMatch(source, /for _ in \$\(seq 1 60\)/)
 })

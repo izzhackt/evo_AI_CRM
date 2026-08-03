@@ -326,6 +326,28 @@ async function platformRpc(
   return { status: response.status, payload };
 }
 
+async function platformRows(
+  token: string,
+  resource: string,
+  query: URLSearchParams,
+) {
+  const response = await fetch(
+    `${fixture.apiUrl}/rest/v1/${resource}?${query.toString()}`,
+    {
+      headers: {
+        apikey: fixture.publishableKey,
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Accept-Profile": "platform",
+      },
+    },
+  );
+  const text = await response.text();
+  let payload: unknown = null;
+  if (text) payload = JSON.parse(text);
+  return { status: response.status, payload };
+}
+
 function expectLegacyDatabaseUntouched() {
   expect(existsSync(legacyDatabaseSentinel)).toBe(false);
 }
@@ -1010,6 +1032,353 @@ test("admin creates a preparation application with one RLS-visible audit event",
       request_id: requestId,
     },
   ]);
+});
+
+test("admin promotes a reviewed catalog batch before creating a catalog-linked application", async ({
+  browser,
+  page,
+}) => {
+  const runId = randomUUID();
+  const sourceUrl = `https://notion.so/${runId.replaceAll("-", "")}`;
+  const rejectedSourceUrl = `https://notion.so/rejected${runId.replaceAll("-", "")}`;
+  const sourceRevision = `bw5-${runId.slice(0, 8)}`;
+  const rejectedSourceRevision = `bw5-reject-${runId.slice(0, 8)}`;
+  const sourceRecordReference = `notion-row-${runId}`;
+  const rejectedSourceRecordReference = `notion-row-rejected-${runId}`;
+  const institutionName = `Synthetic BW5 University ${runId.slice(0, 8)}`;
+  const rejectedInstitutionName = `Synthetic rejected college ${runId.slice(0, 8)}`;
+  const programName = `Synthetic catalog program ${runId.slice(9, 17)}`;
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const { default: AxeBuilder } = await import("@axe-core/playwright");
+  const expectCatalogWorkspaceAccessible = async () => {
+    const results = await new AxeBuilder({ page })
+      .include('[data-testid="platform-catalog-import-workspace"]')
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .analyze();
+    expect(
+      results.violations,
+      results.violations
+        .map(
+          ({ id, impact, help, nodes }) =>
+            `${id} (${impact ?? "unknown"}): ${help}\n${nodes
+              .map(
+                ({ target, failureSummary }) =>
+                  `  ${target.join(" ")}: ${failureSummary ?? "No failure summary"}`,
+              )
+              .join("\n")}`,
+        )
+        .join("\n\n"),
+    ).toEqual([]);
+  };
+  const registerSource = async (
+    source: string,
+    revision: string,
+    reason: string,
+  ) => {
+    await page.getByText("Зарегистрировать метаданные источника").click();
+    const form = page.getByTestId("platform-catalog-register-source-form");
+    await form.locator('select[name="source_kind"]').selectOption("notion_database");
+    await form.locator('input[name="source_url"]').fill(source);
+    await form.locator('input[name="source_revision"]').fill(revision);
+    await form.locator('input[name="reason"]').fill(reason);
+    await form
+      .getByRole("button", { name: "Сохранить source metadata" })
+      .click();
+    await expect(page).toHaveURL(/catalog_result=source_saved/);
+  };
+
+  await login(page, fixture.identities.admin);
+  await expect(page).toHaveURL(/\/sales$/);
+  await page.goto("/applications#catalog-import");
+  await expect(
+    page.getByTestId("platform-catalog-import-workspace"),
+  ).toBeVisible();
+
+  await registerSource(
+    rejectedSourceUrl,
+    rejectedSourceRevision,
+    "Register source metadata for the rejection-path proof",
+  );
+  const rejectedSourceContainer = page
+    .getByText(rejectedSourceUrl, { exact: true })
+    .locator("xpath=ancestor::div[contains(@class,'space-y-3')]")
+    .first();
+  const rejectedSourceReviewForm = rejectedSourceContainer.getByTestId(
+    "platform-catalog-source-review-form",
+  );
+  await expectCatalogWorkspaceAccessible();
+  await rejectedSourceReviewForm
+    .locator('input[name="reason"]')
+    .fill("Reject unauthorized disposable source metadata");
+  await rejectedSourceReviewForm
+    .getByRole("button", { name: "Отклонить" })
+    .click();
+  await expect(page).toHaveURL(/catalog_result=source_rejected/);
+  await expect(page.getByText("Источник отклонён", { exact: true })).toBeVisible();
+
+  await registerSource(
+    sourceUrl,
+    sourceRevision,
+    "Register disposable BW5 browser-proof source metadata",
+  );
+  const sourceContainer = page
+    .getByText(sourceUrl, { exact: true })
+    .locator("xpath=ancestor::div[contains(@class,'space-y-3')]")
+    .first();
+  const reviewForm = sourceContainer.getByTestId(
+    "platform-catalog-source-review-form",
+  );
+  const sourceRegistryId = await reviewForm
+    .locator('input[name="source_registry_id"]')
+    .inputValue();
+  expect(sourceRegistryId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  await reviewForm
+    .locator('input[name="reason"]')
+    .fill("Review synthetic source metadata for local BW5 proof");
+  await reviewForm.getByRole("button", { name: "Подтвердить" }).click();
+
+  await expect(page).toHaveURL(/catalog_result=source_reviewed/);
+  const createBatchForm = page.getByTestId(
+    "platform-catalog-create-batch-form",
+  );
+  await createBatchForm
+    .locator('select[name="source_registry_id"]')
+    .selectOption(sourceRegistryId);
+  await createBatchForm
+    .locator('select[name="institution_kind"]')
+    .selectOption("university");
+  await createBatchForm
+    .locator('input[name="reason"]')
+    .fill("Create disposable BW5 staging batch");
+  await createBatchForm.getByRole("button", { name: "Создать batch" }).click();
+
+  await expect(page).toHaveURL(/catalog_result=batch_created/);
+  const batchId = new URL(page.url()).searchParams.get("catalog_batch_id");
+  expect(batchId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  const stageForm = page.getByTestId("platform-catalog-stage-candidate-form");
+  await stageForm
+    .locator('input[name="source_record_reference"]')
+    .fill(sourceRecordReference);
+  await stageForm
+    .locator('input[name="institution_name"]')
+    .fill(institutionName);
+  await stageForm.locator('input[name="country_code"]').fill("MY");
+  await stageForm.locator('input[name="city"]').fill("Kuala Lumpur");
+  await stageForm
+    .locator('input[name="reason"]')
+    .fill("Stage one synthetic institution candidate");
+  await stageForm
+    .getByRole("button", { name: "Добавить в staging" })
+    .click();
+
+  await expect(page).toHaveURL(/catalog_result=candidate_staged/);
+  await expect(page.getByText(institutionName, { exact: true })).toBeVisible();
+  await expect(page.getByText(sourceRecordReference, { exact: true })).toHaveCount(0);
+  const beforeApproval = await platformRpc(
+    adminToken,
+    "staff_catalog_institutions",
+    {},
+  );
+  expect(beforeApproval.status).toBe(200);
+  expect(Array.isArray(beforeApproval.payload)).toBe(true);
+  expect(
+    (beforeApproval.payload as Array<Record<string, unknown>>).some(
+      (row) => row.institution_name === institutionName,
+    ),
+  ).toBe(false);
+  await expect(
+    page.getByTestId("platform-catalog-approve-batch-form"),
+  ).toHaveCount(0);
+
+  const validateForm = page.getByTestId("platform-catalog-validate-batch-form");
+  await validateForm
+    .locator('input[name="reason"]')
+    .fill("Validate typed candidate fields without publication");
+  await validateForm
+    .getByRole("button", { name: "Запустить validation" })
+    .click();
+  await expect(page).toHaveURL(/catalog_result=batch_validated/);
+  await expect(page.getByText(institutionName, { exact: true })).toBeVisible();
+  await expectCatalogWorkspaceAccessible();
+
+  const approveForm = page.getByTestId("platform-catalog-approve-batch-form");
+  await approveForm
+    .locator('input[name="reason"]')
+    .fill("Approve validated disposable catalog candidate");
+  await approveForm
+    .getByRole("button", { name: "Approve и опубликовать" })
+    .click();
+  await expect(page).toHaveURL(/catalog_result=batch_approved/);
+  await expect(
+    page
+      .getByTestId("platform-approved-catalog")
+      .getByText(institutionName, { exact: true }),
+  ).toBeVisible();
+
+  const approved = await platformRpc(
+    adminToken,
+    "staff_catalog_institutions",
+    {},
+  );
+  expect(approved.status).toBe(200);
+  expect(Array.isArray(approved.payload)).toBe(true);
+  const approvedInstitution = (approved.payload as Array<Record<string, unknown>>).find(
+    (row) => row.institution_name === institutionName,
+  );
+  expect(approvedInstitution).toBeTruthy();
+  const catalogInstitutionId = approvedInstitution?.catalog_institution_id;
+  expect(catalogInstitutionId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  if (typeof catalogInstitutionId !== "string") {
+    throw new Error("Approved catalog row did not expose its UUID");
+  }
+
+  const rejectionBatchForm = page.getByTestId(
+    "platform-catalog-create-batch-form",
+  );
+  await rejectionBatchForm
+    .locator('select[name="source_registry_id"]')
+    .selectOption(sourceRegistryId);
+  await rejectionBatchForm
+    .locator('select[name="institution_kind"]')
+    .selectOption("college");
+  await rejectionBatchForm
+    .locator('input[name="reason"]')
+    .fill("Create a disposable batch for the pre-validation rejection proof");
+  await rejectionBatchForm
+    .getByRole("button", { name: "Создать batch" })
+    .click();
+  await expect(page).toHaveURL(/catalog_result=batch_created/);
+  const rejectedBatchId = new URL(page.url()).searchParams.get(
+    "catalog_batch_id",
+  );
+  expect(rejectedBatchId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  const rejectedStageForm = page.getByTestId(
+    "platform-catalog-stage-candidate-form",
+  );
+  await rejectedStageForm
+    .locator('input[name="source_record_reference"]')
+    .fill(rejectedSourceRecordReference);
+  await rejectedStageForm
+    .locator('input[name="institution_name"]')
+    .fill(rejectedInstitutionName);
+  await rejectedStageForm.locator('input[name="country_code"]').fill("KG");
+  await rejectedStageForm.locator('input[name="city"]').fill("Bishkek");
+  await rejectedStageForm
+    .locator('input[name="reason"]')
+    .fill("Stage a pending candidate before rejecting the batch");
+  await rejectedStageForm
+    .getByRole("button", { name: "Добавить candidate" })
+    .click();
+  await expect(page).toHaveURL(/catalog_result=candidate_staged/);
+  await expect(
+    page.getByText(rejectedInstitutionName, { exact: true }),
+  ).toBeVisible();
+  const rejectBatchForm = page.getByTestId(
+    "platform-catalog-reject-batch-form",
+  );
+  await rejectBatchForm
+    .locator('input[name="reason"]')
+    .fill("Reject staging batch before candidate validation");
+  await rejectBatchForm.getByRole("button", { name: "Отклонить" }).click();
+  await expect(page).toHaveURL(/catalog_result=batch_rejected/);
+  await expect(page.getByText("Batch отклонён", { exact: true })).toBeVisible();
+
+  await page.locator("#add > summary").click();
+  const applicationForm = page.locator("#add form");
+  const applicationRequestId = await applicationForm
+    .locator('input[name="request_id"]')
+    .inputValue();
+  await applicationForm
+    .locator('select[name="student_case_id"]')
+    .selectOption(fixture.p3c.orgA.studentCaseId);
+  const catalogInstitutionSelect = applicationForm.locator(
+    'select[name="catalog_institution_id"]',
+  );
+  const manualInstitutionInput = applicationForm.locator(
+    'input[name="institution_name"]',
+  );
+  await expect(catalogInstitutionSelect).toHaveValue("");
+  await expect(manualInstitutionInput).toBeEnabled();
+  await expect(manualInstitutionInput).toHaveAttribute("required", "");
+  await catalogInstitutionSelect.selectOption(catalogInstitutionId);
+  await expect(manualInstitutionInput).toBeDisabled();
+  await expect(manualInstitutionInput).not.toHaveAttribute("required", "");
+  await catalogInstitutionSelect.selectOption("");
+  await expect(manualInstitutionInput).toBeEnabled();
+  await expect(manualInstitutionInput).toHaveAttribute("required", "");
+  await catalogInstitutionSelect.selectOption(catalogInstitutionId);
+  await applicationForm.locator('input[name="program_name"]').fill(programName);
+  await applicationForm
+    .locator('textarea[name="note"]')
+    .fill("Catalog-linked local BW5 application proof; no provider was called.");
+  await applicationForm
+    .getByRole("button", { name: "Создать с аудитом" })
+    .click();
+
+  await expect(page).toHaveURL(/\/applications\?result=saved$/);
+  const applicationLink = page.locator('a[href^="/applications/"]:visible', {
+    hasText: institutionName,
+  });
+  await expect(applicationLink).toHaveCount(1);
+  const applicationRows = await platformRows(
+    adminToken,
+    "university_applications",
+    new URLSearchParams({
+      select:
+        "id,catalog_institution_id,institution_name,program_name,student_case_id",
+      catalog_institution_id: `eq.${catalogInstitutionId}`,
+      program_name: `eq.${programName}`,
+    }),
+  );
+  expect(applicationRows.status).toBe(200);
+  expect(applicationRows.payload).toEqual([
+    expect.objectContaining({
+      catalog_institution_id: catalogInstitutionId,
+      institution_name: institutionName,
+      program_name: programName,
+      student_case_id: fixture.p3c.orgA.studentCaseId,
+    }),
+  ]);
+  const linkedApplication = (applicationRows.payload as Array<Record<string, unknown>>)[0];
+  const linkedApplicationId = linkedApplication?.id;
+  expect(typeof linkedApplicationId).toBe("string");
+  if (typeof linkedApplicationId !== "string") {
+    throw new Error("Catalog-linked application did not expose its UUID");
+  }
+  await expect(
+    applicationCreateAudit(
+      adminToken,
+      linkedApplicationId,
+      applicationRequestId,
+    ),
+  ).resolves.toHaveLength(1);
+
+  const curatorContext = await browser.newContext();
+  const curatorPage = await curatorContext.newPage();
+  await login(curatorPage, fixture.identities.curator);
+  await expect(curatorPage).toHaveURL(/\/clients$/);
+  await curatorPage.goto("/applications#catalog-import");
+  await expect(
+    curatorPage
+      .getByTestId("platform-approved-catalog")
+      .getByText(institutionName, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    curatorPage.getByTestId("platform-catalog-register-source-form"),
+  ).toHaveCount(0);
+  await expect(
+    curatorPage.getByTestId("platform-catalog-create-batch-form"),
+  ).toHaveCount(0);
+  await curatorContext.close();
+  expectLegacyDatabaseUntouched();
 });
 
 test("staff cannot stay on the student portal and a Student without a case fails closed", async ({

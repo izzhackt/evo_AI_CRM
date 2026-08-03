@@ -12,8 +12,8 @@
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current merged checkpoint: `9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`
-- Active plan block: `EVO-BW5-CATALOG-IMPORT-BOUNDARY-2026-08-03`
+- Current merged checkpoint: `db8f3c75c898d5b68b0080099583d4eeea9931d2`
+- Active plan block: `EVO-P2R2-AUTH-LOCAL-READINESS-PLAN-2026-08-03`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -31,9 +31,13 @@ AI draft → manual send → ACK → audit ни разу не доказан end
 platform нельзя называть production-complete.
 
 P1 остаётся историческим legacy containment. P2A-P2H, greenfield/UI boundary,
-BW0, P3A-P3C, BW1-BW4 и P2R0/P2R1 merged через PR #105. Exact-main CI run
-`30763498291` зелёный для applicable jobs. BW5 является текущим product block.
-Former P2I restore duties остаются в P7 и не входят в BW5.
+BW0, P3A-P3C, BW1-BW4 и P2R0/P2R1 merged; PR #107 merged BW5 checkpoint.
+Exact-main CI run `30782828561` зелёный на
+`db8f3c75c898d5b68b0080099583d4eeea9931d2`. PR #108 был закрыт без merge
+после controller `changes_requested`: repair не был заранее разрешён планом, а
+fresh physical-worktree `test:supabase:local` завершился exit 1 после двух
+reset attempts. P2R2 теперь единственный active docs-only gate; BW5 paused.
+Former P2I restore duties остаются в P7 и не входят в P2R2/BW5.
 
 ## Что подтверждено из репозитория
 
@@ -51,6 +55,7 @@ Former P2I restore duties остаются в P7 и не входят в BW5.
 | Greenfield/UI boundary | PR #93 controller-merged как `26115344909261a39bbe591f3b835cda4b7e5068`; root frontend из PR #64/#71/#72 — sole UI, Platform Supabase-native без SQLite/root-auth import, dual-read/write или automatic legacy import | exact-main CI green; это plan boundary, не runtime/provider proof |
 | BW0/P3/BW1-BW4 | PR #94 merged workflow plan; PRs #95-#97 merged Supabase-native auth, conversation and guarded manual-send seams; PRs #100-#103 merged provenance, OP/OZO, Student Profile/checklists and prompt/decision lifecycle | local repository/RLS/browser evidence only; no live amoCRM/WAHA/AI/ACK or production proof |
 | P2R0/P2R1 | PR #104 merged the bounded docs-only remediation contract; PR #105 merged scoped deadlines, exact disposable cleanup, local Auth readiness, PGMQ test leases and forward document lock order as migration 055 | exact-main CI `30763498291` is green; managed Supabase, restore, providers and production remain excluded |
+| P2R2 plan gate | PR #108 exact head `f719b749…` was closed without merge after controller comment `5166574008`; focused 19/19 and exact-head CI passed, but plan order and fresh real reset proof failed | active docs-only amendment authorizes only issued-token `getClaims` plus live authority, symlink-safe deadline execution and reproducible exact-project reset/cleanup; no migration/provider/production claim |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до bounded cutover evidence and rollback gate |
@@ -155,12 +160,16 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — docs-only checkpoint amendment перед BW5. После его controller
-merge BW5 может занять только проверенный next-free migration 056 и реализовать
-reviewable university/college catalog boundary без fake records или прямой
-публикации из staging. Реальный Notion source остаётся blocked без authorized
-AbdyldaYT access; confirmed college dataset отсутствует. Реальный amoCRM
-adapter остаётся P4, WAHA/AI/ACK proof — P5, а restore duties — P7.
+Текущий gate — docs-only P2R2 amendment. После его controller merge допускается
+только bounded auth/local-readiness repair: exact issued-token
+`getClaims(accessToken)`, live authority, symlink-safe deadline execution,
+normal real local reset exit zero и exact cleanup с сохранением Inbox. После
+controller-merged implementation и зелёного exact-main CI BW5 может занять
+только проверенный next-free migration 056 и реализовать reviewable
+university/college catalog boundary без fake records или прямой публикации из
+staging. Реальный Notion source остаётся blocked без authorized AbdyldaYT
+access; confirmed college dataset отсутствует. Реальный amoCRM adapter остаётся
+P4, WAHA/AI/ACK proof — P5, а restore duties — P7.
 Production cutover remains a separate authorized event with bounded
 reconciliation/health/rollback evidence.
 

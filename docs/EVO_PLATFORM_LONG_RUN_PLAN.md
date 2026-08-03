@@ -9,12 +9,14 @@ Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 
 Execution checkpoint: historical P1 containment, reusable greenfield P2A-P2H,
 the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW4, P2R0 and
-P2R1 are merged through PR #105 at `origin/main`
-`9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`; exact-main CI run `30763498291`
-is green for the applicable Main CRM, EVO Inbox and EVO Lead Agent jobs. Former
-P2I restore duties remain in P7. BW5 is the active product block; this
-checkpoint amendment changes no architecture, provider ownership or production
-authority.
+P2R1 are merged; the BW5 checkpoint amendment is merged through PR #107 at
+`origin/main` `db8f3c75c898d5b68b0080099583d4eeea9931d2`. Exact-main CI run
+`30782828561` is green for the applicable Main CRM, EVO Inbox and EVO Lead
+Agent jobs. PR #108 was closed without merge after the independent controller
+required a prior plan amendment and a reproducible real local reset. P2R2 is
+therefore the active docs-only repair gate and BW5 is paused. Former P2I
+restore duties remain in P7. This amendment changes no target architecture,
+provider ownership, schema ownership or production authority.
 
 ## 1. Outcome and truth boundary
 
@@ -61,7 +63,7 @@ and rollback proof are real. No fixed-duration soak is required by contract.
 As of the version date:
 
 - GitHub `main` checkpoint for this amendment is
-  `9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`;
+  `db8f3c75c898d5b68b0080099583d4eeea9931d2`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -334,6 +336,7 @@ deployment surfaces are sequential.
 | P3 | Thin Supabase-native messaging slice behind the accepted frontend | Supabase Auth/RBAC, repository seams, real local persistence, conversation list/thread, draft/manual-send state and focused UI E2E | P3A-P3C merged in PRs #95-#97; no live-provider claim |
 | P2R0 | Local Supabase reliability plan amendment | Current checkpoint, bounded ownership, exact validation and rollback/provider boundary | Merged in PR #104 |
 | P2R1 | Local Supabase proof reliability repair | Real clean local Auth/RLS/Storage/PGMQ gate, deterministic deadline/cleanup tests and forward-only document lock-order repair | Merged in PR #105; migration 055 is immutable history |
+| P2R2 | Auth-token and local reset reproducibility repair | Explicit issued-token `getClaims()` plus live authority; symlink-safe deadline execution; reproducible exact-project reset and cleanup | This docs-only amendment is active; implementation must be rebuilt after amendment merge |
 | P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | Pending |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no legacy cutover yet | Pending |
 | P6 | Admissions, Portal, Documents, Finance, Notifications | Two-student isolation E2E and complete staff-to-portal workflows | Pending |
@@ -342,8 +345,11 @@ deployment surfaces are sequential.
 | P9 | Bounded cutover evidence and separate Lead Agent retirement PR | Zero unexplained loss/duplicate/drift in the evidence window plus proven rollback and health | Evidence-gated |
 | P10 | Completion audit | Every FR/NFR/SEC/ACC mapped to evidence, full CI/provider proof, no open implementation PR | Pending |
 
-BW0, P3A-P3C, BW1-BW4 and P2R0/P2R1 are merged. BW5 is active after the green
-exact-main CI for PR #105:
+BW0, P3A-P3C, BW1-BW4 and P2R0/P2R1 are merged. PR #107 merged the BW5
+checkpoint, but BW5 implementation is paused while P2R2 repairs a prerequisite
+found during its real local proof. BW5 resumes only after the P2R2 amendment and
+implementation are independently reviewed, controller-merged and green on
+exact-main CI:
 
 | Block | Contract | Dependency and exit evidence |
 | --- | --- | --- |
@@ -355,10 +361,50 @@ exact-main CI for PR #105:
 | BW6 | Contract draft generation and post-contract checklist/report | BW5; approved typed fields only; authorization, immutable version and audit proof |
 | BW7 | Latest-main integration and end-to-end workflow proof | BW1-BW6; real local/staging Supabase path through the accepted frontend, no production/provider claim without real exercise |
 
-### Active BW5 contract and provider boundary
+### Active P2R2 contract and provider boundary
+
+- Trigger: controller review of PR #108 at exact head
+  `f719b749efaadaf02c6344c5d01cd4b6bbe3d79c` found that the repair was outside
+  the active sequential plan and that a fresh physical-path local Supabase run
+  exited non-zero after two migration/reset attempts. PR #108 was closed without
+  merge; its branch is recovery evidence only.
+- P2R2 owns only the prerequisite server-auth and local-proof surfaces:
+  `src/lib/actions.ts`, `src/lib/platform-auth.ts`,
+  `scripts/run-command-with-deadline.mjs`,
+  `scripts/test-supabase-auth-hook.mjs`,
+  `scripts/test-supabase-local-reset.sh`, and their focused tests in
+  `tests/platform-auth-config.test.mjs`,
+  `tests/run-command-with-deadline.test.mjs`,
+  `tests/supabase-auth-hook-harness.test.mjs` and
+  `tests/supabase-local-reset-harness.test.mjs`.
+- Login must require the just-issued Supabase access token, verify that exact
+  token with `getClaims(accessToken)`, and then resolve the live fail-closed
+  database authority bundle. `getSession()` remains untrusted for server
+  authorization; self-registration and legacy/root-auth fallback remain
+  forbidden.
+- Deadline execution must invoke the intended child and propagate its real exit
+  status from both logical symlink and physical worktree paths. A wrapper that
+  silently exits zero without running its child is a failed gate.
+- The exact-project local path must complete migrations 001-055, Auth,
+  PostgREST/RLS, accepted-frontend browser checks, private Storage and PGMQ with
+  a real exit zero. Reset/start/restart waits remain bounded; retries are only
+  for classified transient readiness failures; safe diagnostics must identify
+  the failed phase without exposing local keys, cookies or payloads.
+- Cleanup must prove zero resources and zero singleton lock for exact label
+  `com.supabase.cli.project=evo-platform-local` while preserving every Inbox
+  container and volume. Broad prune, Docker daemon restart and unrelated stack
+  mutation are forbidden.
+- Exit evidence requires focused regression tests, executor real local proof,
+  a fresh independent physical-worktree reproduction, all four exact-head CI
+  jobs, a new SHA-bound reviewer approval and controller merge. P2R2 adds no
+  migration and cannot claim managed Supabase, providers, production, restore
+  or cutover proof; `real-provider-proof: not-required` remains the truthful
+  provider boundary.
+
+### Paused BW5 contract and provider boundary
 
 - BW5 must re-fetch `origin/main` and inspect open migration ownership before
-  claiming the next free forward migration. At checkpoint `9ef7a726...`,
+  claiming the next free forward migration. At checkpoint `db8f3c75...`,
   migration `055_platform_document_finalization_lock_order.sql` is immutable;
   the expected BW5 candidate is 056.
 - BW5 may add only bounded, PII-free university/college source metadata,
@@ -375,6 +421,9 @@ exact-main CI for PR #105:
   and no confirmed college dataset exists. BW5 must not invent records or claim
   real import, managed Supabase, amoCRM, WAHA, AI-provider, production, restore
   or cutover proof.
+- No BW5 implementation PR may reopen until P2R2 is controller-merged and its
+  exact-main push CI is green. The preserved BW5 commits remain recovery points,
+  not current-main evidence.
 
 BW1-BW7 must not edit a migration number/schema file owned by another open PR.
 Before every block, fetch `origin/main`, inspect open PRs and select the next

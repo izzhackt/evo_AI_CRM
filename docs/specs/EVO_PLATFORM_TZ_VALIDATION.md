@@ -5,24 +5,28 @@
 Timezone: `Asia/Almaty`
 
 Base commit до docs-only amendment:
-`9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`
+`db8f3c75c898d5b68b0080099583d4eeea9931d2`
 
 Канонический источник: `docs/specs/EVO_PLATFORM_TZ.md`
 
 Owner-facing документ: `docs/specs/EVO_PLATFORM_TZ.docx`
 
-Контекст проверки: docs-only checkpoint amendment фиксирует merged P2R0/P2R1
-через PR #104/#105 и переводит authoritative execution checkpoint на BW5.
-BW5 — узкий university/college catalog и reviewable import boundary за
-существующим `/applications`: staging/validation не публикуют записи напрямую,
-Admin явно approve/reject с reason и audit, а tenant/role/object scope остаётся
-fail-closed. Следующий номер migration только ожидается как `056` и обязан быть
-повторно проверен на свежем `origin/main` и среди открытых PR перед реализацией.
+Контекст проверки: docs-only plan amendment фиксирует результат независимого
+controller-аудита PR #108. Реализация была закрыта без merge: её plan-order был
+неправильным, а свежий real local reset из физического worktree завершился с
+ненулевым кодом. P2R2 становится единственным активным repair gate: server auth
+обязан проверять точный access token, возвращённый login, через
+`getClaims(accessToken)`, затем live authority/RLS; deadline helper обязан
+работать одинаково из logical и physical paths и передавать реальный exit code;
+полный local Auth/PostgREST/RLS/browser/Storage/PGMQ gate обязан завершиться
+нулём с exact-project cleanup. BW5 временно приостановлен до merge P2R2 и
+зелёного exact-main CI.
 
-Этот amendment не содержит product/runtime code или migration, не вызывает
-Notion/college provider, не применяет remote schema и не мутирует production.
-Реальный import остаётся заблокирован без разрешённого источника; отсутствующие
-college records нельзя заменять вымышленными данными.
+Этот amendment не содержит product/runtime code или migration, не запускает
+Supabase/Notion/college provider, не применяет remote schema и не мутирует
+production. Он разрешает только отдельный P2R2 implementation PR с новым
+exact-head review и controller gate; P2R2 сам не доказывает managed Supabase,
+provider behavior, backup/restore или production.
 
 ## 1. Воспроизводимая сборка
 
@@ -55,33 +59,34 @@ python scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
 - DOCX structure: `598` paragraphs, `31` tables, `7` inline shapes,
   `7` drawings с alt text, `8` external hyperlinks;
 - две последовательные сборки DOCX побайтно совпали;
-- LibreOffice → PDF → Poppler PNG: `67` страниц;
+- LibreOffice → PDF → Poppler PNG: `68` страниц;
 - accessibility audit: `0 high / 0 medium / 0 low`;
 - итог:
-  `PASS requirements=231 traceability=231 pages=67 a11y=0/0/0`.
+  `PASS requirements=231 traceability=231 pages=68 a11y=0/0/0`.
 
 Machine-readable evidence финального clean rerun находится во временном
 каталоге:
-`/private/tmp/evo-platform-tz-render-bw5-final.IF67i1`:
+`/private/tmp/evo-platform-tz-render-p2r2-final.vlyKMO`:
 
 - `validation.json`;
 - `accessibility-report.json`;
 - `EVO_PLATFORM_TZ.pdf`;
-- `page-01.png` … `page-67.png`.
+- `page-01.png` … `page-68.png`.
 
 Временные PDF/PNG и contact sheets не коммитятся. Markdown, generator,
 verifier и закреплённая зависимость позволяют воспроизвести evidence.
-Все `67` PNG финального clean rerun побайтно совпали с полностью просмотренным
+Все `68` PNG финального clean rerun побайтно совпали с полностью просмотренным
 render (`0` mismatches).
 
 ## 2. Контрольные суммы и размеры
 
 | Файл | Размер | SHA-256 |
 |---|---:|---|
-| `docs/specs/EVO_PLATFORM_TZ.md` | `142226` bytes | `49b6801b7b86d5bc9e144ce6c1c25fcb3ce623c5e7b5e3e3b32bdb85c53085ce` |
-| `docs/specs/EVO_PLATFORM_TZ.docx` | `1785290` bytes | `276e2ab0981811cb1025fe06b257b4e5eb6bb00b09a174e149112a142672a1cc` |
+| `docs/specs/EVO_PLATFORM_TZ.md` | `143487` bytes | `0f18e9c502cbe36a2fc2b7ea4587dbdc30a6cad60d3faa06ab93e064d8513f09` |
+| `docs/specs/EVO_PLATFORM_TZ.docx` | `1785817` bytes | `6b2d6a5e52c9662132b2d164df7b49deaf61e845bfdd418b4e749288ea3dceab` |
 | `scripts/generate-evo-platform-tz.py` | `39198` bytes | `ebd0d431ca456fc42492d3e5ab815bde4bc980d295f8db01ffa7ced63b9eb14f` |
 | `scripts/verify-evo-platform-tz.py` | `15754` bytes | `b4228980f03a9add719fd0c2c22dc09917c36121774d3fb6160b14c365c5fd40` |
+| `scripts/requirements-evo-platform-tz.txt` | `152` bytes | `b93132cee8981930f04871f997ac539e7b718a3ca95d97c8536651e374fa4677` |
 
 `validation.json` подтверждает одинаковый DOCX SHA-256 для первой и второй
 сборки.
@@ -105,8 +110,8 @@ Verifier проверяет:
 
 ## 4. Ручная визуальная проверка
 
-Все страницы `1–67` проверены в PNG финального render через `17` bordered 2×2
-contact sheets, сохраняющих серое внешнее поле и все четыре края каждой
+Все страницы `1–68` проверены в PNG через `9` bordered 2×4 contact sheets,
+сохраняющих серое внешнее поле и все четыре края каждой
 страницы:
 
 - cover, headers, footers и последовательность page numbers корректны;
@@ -118,10 +123,10 @@ contact sheets, сохраняющих серое внешнее поле и в�
 - clipping, overflow, missing content, raster corruption и illegible rows не
   обнаружены.
 
-Страницы `1`, `38`, `39` и `40`, содержащие новый version/base/checkpoint,
-merged P2R1 status и активный BW5 contract, дополнительно просмотрены по
-отдельным полноразмерным PNG. Страницы `65–67` отдельно закрыты финальным
-contact sheet. Обрезания, наложения, пропавших строк и сломанных glyphs нет.
+Страницы `1`, `38`, `39` и `40`, содержащие version/base/checkpoint, новый P2R2
+contract и paused BW5 status, дополнительно просмотрены по отдельным
+полноразмерным PNG. Страницы `65–68` отдельно закрыты финальным contact sheet.
+Обрезания, наложения, пропавших строк и сломанных glyphs нет.
 
 Итог ручной проверки: `PASS`.
 
@@ -129,13 +134,15 @@ contact sheet. Обрезания, наложения, пропавших стр
 
 Эта проверка доказывает целостность, воспроизводимость, traceability,
 структурную доступность и визуальную корректность текущего ТЗ и docs-only
-checkpoint amendment. После merge она фиксирует P2R0/P2R1 как merged history и
-разрешает только отдельную реализацию BW5 с новым exact-head review и
-merge-controller gate.
+plan amendment. После merge она фиксирует P2R2 как единственный активный repair
+gate и разрешает только отдельную реализацию P2R2 с новым exact-head review и
+merge-controller gate. BW5 остаётся paused до merge P2R2 и зелёного exact-main
+CI.
 
 Она не доказывает:
 
-- выполнение или merge BW5 implementation diff;
+- выполнение или merge P2R2 либо BW5 implementation diff;
+- успешный real local Supabase reset из physical worktree;
 - реальный Notion или college dataset import;
 - managed Supabase behavior и отдельный backup/restore proof;
 - live amoCRM, WAHA, AI или Storage provider behavior;

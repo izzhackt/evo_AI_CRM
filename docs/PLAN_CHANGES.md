@@ -3589,3 +3589,85 @@ Validation impact:
 Reviewer notes: checkpoint-only amendment; ADR changes are not required because
 the target architecture and requirement set are unchanged. Exact-head
 independent review is required before merge.
+
+## 2026-08-03 - Pause BW5 For Issued-Token And Local Reset Repair
+
+Source: independent launch-controller verdict on PR #108 exact head
+`f719b749efaadaf02c6344c5d01cd4b6bbe3d79c`, comment
+`5166574008`; owner standing instruction to repair reviewer findings under the
+plan-first launch-control contract.
+
+Change type: execution-order repair, validation-contract correction and
+checkpoint freshness. This is not a target-architecture, product-scope,
+provider-ownership, schema or production-authority change.
+
+Affected plan section: `/goal-evo-platform-p2r2`, current checkpoint, P2/BW5
+merge order, server-auth proof and disposable local Supabase validation.
+
+Evidence:
+
+- PR #107 merged the BW5 checkpoint amendment; current `origin/main` is
+  `db8f3c75c898d5b68b0080099583d4eeea9931d2`, and exact-main CI run
+  `30782828561` is green for applicable jobs.
+- PR #108 contained a bounded issued-token auth/local-readiness repair and had
+  green focused tests, exact-head CI and an independent reviewer approval.
+- The separate controller rejected PR #108 because BW5 remained the active
+  sequential block and no earlier amendment authorized a P2R/P3 repair slice.
+- The controller's fresh physical-worktree run applied migrations 001-055 in
+  two bounded reset attempts, reached container restart, then exited 1 with
+  `Initial disposable Supabase reset failed after one bounded retry`.
+- The controller also observed that a logical `/tmp` path could make the
+  deadline runner's direct-execution guard silently skip its child because
+  macOS resolves the module through `/private/tmp`; that no-op cannot count as
+  test evidence.
+- Controller cleanup proved zero exact-project containers, volumes, networks
+  and lock. PR #108 was closed without merge and its branch was retained only
+  as a recovery point.
+
+Decision:
+
+- Pause BW5 and make a docs-only P2R2 amendment the sole active block.
+- After this amendment merges, allow one bounded implementation repair limited
+  to server login/authority resolution, the deadline runner, the local Auth and
+  reset harnesses, and their focused regression tests. P2R2 owns no migration.
+- Require successful login to expose the just-issued access token and require
+  the server to validate that exact token with `getClaims(accessToken)` before
+  resolving the live `platform.current_actor_authority` bundle. Missing or
+  invalid claims, blocked/inactive authority, or RPC failure must fail closed
+  and clear the Platform session.
+- Keep `getSession()` untrusted for server authorization. Self-registration,
+  legacy-account import, root-auth fallback, dual-read and dual-write remain
+  forbidden.
+- Make deadline execution symlink-safe and require it to propagate the child's
+  real exit code. A wrapper that exits zero without executing the child is a
+  failed test.
+- Make the normal exact-project Supabase path reproducible under Node 22.23.1:
+  migrations 001-055, Auth, PostgREST/RLS, accepted-frontend browser checks,
+  private Storage and PGMQ must finish with a real exit zero. Readiness waits
+  stay bounded; retry is transient-only; diagnostics stay redacted.
+- Cleanup must prove zero `evo-platform-local` lock/container/volume/network
+  resources and preserve unrelated Inbox containers and volumes. Broad prune,
+  Docker daemon restart and production/provider mutation remain forbidden.
+- Require executor proof and a second fresh physical-worktree reproduction,
+  focused regressions, all four exact-head CI jobs, a new SHA-bound independent
+  reviewer approval and controller merge.
+- Resume BW5 only after P2R2 implementation is merged and exact-main CI is
+  green. BW5 must then re-fetch main/open ownership before claiming expected
+  migration 056 and must obtain fresh exact-head evidence.
+
+Validation impact:
+
+- This amendment updates the long-run/launch contracts, current status,
+  detailed P2 boundary and canonical TZ 1.7, then regenerates and visually
+  verifies deterministic DOCX evidence.
+- The P2R2 implementation must add regression coverage for the symlink-path
+  no-op and real exit propagation, issued-token claims verification, bounded
+  reset classification and exact cleanup.
+- `real-provider-proof: not-required`: P2R2 proves a real disposable local
+  Supabase path with synthetic identities, not managed Supabase, providers,
+  production, malware scanning, backup/restore or cutover.
+
+Reviewer notes: this amendment exists because the independent controller
+rejected an out-of-order implementation and non-reproducible local PASS claim.
+No implementation file may change in this docs-only PR. ADR 0014-0016 remain
+valid because the architecture and provider boundaries are unchanged.

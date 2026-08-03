@@ -20,7 +20,7 @@ const executableLines = harness
 
 const extractResetRecoverySource = () => {
   const detectorStart = harness.indexOf(
-    "reset_log_has_known_storage_gateway_failure() {",
+    "reset_outputs_have_known_storage_gateway_failure() {",
   );
   const reloadStart = harness.indexOf("reload_exact_local_kong() {");
   const recoverStart = harness.indexOf(
@@ -78,6 +78,17 @@ test("local Supabase start stays bounded while allowing a loaded cold OrbStack b
   assert.match(
     executableLines,
     /run_with_deadline 600000 "\$\{SUPABASE_CLI\}" \\\n+[\s\S]*? start \\\n+/,
+  );
+});
+
+test("both clean resets use one bounded cold-OrbStack attempt", () => {
+  const boundedResetPattern =
+    /if ! run_with_deadline 600000 "\$\{SUPABASE_CLI\}" \\\n+\s+--workdir "\$\{REPO_ROOT\}" \\\n+\s+--output-format json \\\n+\s+db reset \\\n+/g;
+
+  assert.equal(harness.match(boundedResetPattern)?.length, 2);
+  assert.doesNotMatch(
+    executableLines,
+    /run_with_deadline 300000 "\$\{SUPABASE_CLI\}"[\s\S]*?db reset/,
   );
 });
 
@@ -139,10 +150,21 @@ test("known post-reset Storage 502 recovery stays exact-project and bounded", ()
 
   assert.match(
     harness,
-    /readonly KNOWN_STORAGE_GATEWAY_502="Error status 502: An invalid response was received from the upstream server"/,
+    /readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"/,
+  );
+  assert.match(
+    harness,
+    /readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"/,
   );
   assert.match(detector, /grep -Fq "Restarting containers"/);
-  assert.match(detector, /grep -Fq "\$\{KNOWN_STORAGE_GATEWAY_502\}"/);
+  assert.match(
+    detector,
+    /grep -Fq "\$\{KNOWN_STORAGE_GATEWAY_502_STATUS\}" "\$\{result_file\}"/,
+  );
+  assert.match(
+    detector,
+    /grep -Fq "\$\{KNOWN_STORAGE_GATEWAY_502_MESSAGE\}" "\$\{result_file\}"/,
+  );
   assert.equal(
     reload.match(/index \.Config\.Labels "com\.supabase\.cli\.project"/g)
       ?.length,
@@ -163,7 +185,7 @@ test("known post-reset Storage 502 recovery stays exact-project and bounded", ()
   assert.doesNotMatch(reload, /docker restart[^\n]*\$\{[A-Z_]*CONTAINERS?\[@\]\}/);
   assert.match(
     recover,
-    /reset_log_has_known_storage_gateway_failure "\$\{log_file\}"[\s\S]*reload_exact_local_kong[\s\S]*wait_for_local_stack_readiness/,
+    /reset_outputs_have_known_storage_gateway_failure "\$\{progress_log\}" "\$\{result_file\}"[\s\S]*reload_exact_local_kong[\s\S]*wait_for_local_stack_readiness/,
   );
 });
 
@@ -183,8 +205,10 @@ readonly TEMP_DIR=$1
 readonly MODE=$2
 readonly SUPABASE_PROJECT_ID="evo-platform-local"
 readonly KONG_CONTAINER="supabase_kong_evo-platform-local"
-readonly KNOWN_STORAGE_GATEWAY_502="Error status 502: An invalid response was received from the upstream server"
+readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"
+readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"
 readonly COMMAND_LOG="\${TEMP_DIR}/commands-\${MODE}.log"
+: >"\${COMMAND_LOG}"
 
 run_with_deadline() {
   local timeout_ms=$1
@@ -216,14 +240,48 @@ wait_for_local_stack_readiness() {
 ${combined}
 
 readonly RESET_LOG="\${TEMP_DIR}/reset-\${MODE}.log"
-printf 'Restarting containers...\\n%s\\n' "\${KNOWN_STORAGE_GATEWAY_502}" >"\${RESET_LOG}"
+readonly RESET_RESULT="\${TEMP_DIR}/reset-\${MODE}.json"
+printf 'Restarting containers...\\n' >"\${RESET_LOG}"
+printf '{"_tag":"Error","error":{"code":"UNKNOWN","message":"Error status 502: {\\n  \\"message\\":\\"%s\\"\\n}"}}\\n' \
+  "\${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" >"\${RESET_RESULT}"
+
+case "\${MODE}" in
+  missing-restart)
+    printf 'Recreating database...\\n' >"\${RESET_LOG}"
+    ;;
+  missing-status)
+    printf '{"_tag":"Error","error":{"message":"%s"}}\\n' \
+      "\${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" >"\${RESET_RESULT}"
+    ;;
+  missing-message)
+    printf '{"_tag":"Error","error":{"message":"Error status 502: unrelated upstream failure"}}\\n' \
+      >"\${RESET_RESULT}"
+    ;;
+  stderr-only)
+    printf 'Restarting containers...\\n%s %s\\n' \
+      "\${KNOWN_STORAGE_GATEWAY_502_STATUS}" \
+      "\${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" >"\${RESET_LOG}"
+    printf '{"_tag":"Error","error":{"message":"unrelated failure"}}\\n' \
+      >"\${RESET_RESULT}"
+    ;;
+  mixed-source)
+    printf 'Restarting containers...\\n%s\\n' \
+      "\${KNOWN_STORAGE_GATEWAY_502_STATUS}" >"\${RESET_LOG}"
+    printf '{"_tag":"Error","error":{"message":"%s"}}\\n' \
+      "\${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" >"\${RESET_RESULT}"
+    ;;
+esac
 
 if [[ \${MODE} == foreign ]]; then
   if reload_exact_local_kong; then
     exit 90
   fi
+elif [[ \${MODE} == missing-* || \${MODE} == stderr-only || \${MODE} == mixed-source ]]; then
+  if recover_known_reset_storage_gateway_failure "\${RESET_LOG}" "\${RESET_RESULT}"; then
+    exit 91
+  fi
 else
-  recover_known_reset_storage_gateway_failure "\${RESET_LOG}"
+  recover_known_reset_storage_gateway_failure "\${RESET_LOG}" "\${RESET_RESULT}"
 fi
 `,
         "evo-reset-recovery-test",
@@ -259,24 +317,50 @@ fi
     const foreignCommands = runMode("foreign");
     assert.match(foreignCommands, /docker inspect/);
     assert.doesNotMatch(foreignCommands, /docker (?:exec|restart)/);
+
+    for (const mode of [
+      "missing-restart",
+      "missing-status",
+      "missing-message",
+      "stderr-only",
+      "mixed-source",
+    ]) {
+      assert.equal(runMode(mode), "", mode);
+    }
   } finally {
     rmSync(temporaryDirectory, { recursive: true, force: true });
   }
 });
 
 test("both reset phases recover only the classified Storage gateway failure", () => {
-  for (const logName of [
-    "reset.log",
-    "reset-retry.log",
-    "post-browser-reset.log",
-    "post-browser-reset-retry.log",
+  for (const [logName, resultName] of [
+    ["reset.log", "reset.json"],
+    ["post-browser-reset.log", "post-browser-reset.json"],
   ]) {
     assert.match(
       harness,
       new RegExp(
-        `reset_log_has_known_storage_gateway_failure "\\$\\{TEMP_DIR\\}/${logName.replaceAll(".", "\\.")}"[\\s\\S]*recover_known_reset_storage_gateway_failure "\\$\\{TEMP_DIR\\}/${logName.replaceAll(".", "\\.")}"`,
+        `reset_outputs_have_known_storage_gateway_failure[\\s\\S]*"\\$\\{TEMP_DIR\\}/${logName.replaceAll(".", "\\.")}" "\\$\\{TEMP_DIR\\}/${resultName.replaceAll(".", "\\.")}"[\\s\\S]*recover_known_reset_storage_gateway_failure[\\s\\S]*"\\$\\{TEMP_DIR\\}/${logName.replaceAll(".", "\\.")}" "\\$\\{TEMP_DIR\\}/${resultName.replaceAll(".", "\\.")}"`,
       ),
       logName,
     );
   }
+
+  for (const retryArtifact of [
+    "reset-retry.json",
+    "reset-retry.log",
+    "post-browser-reset-retry.json",
+    "post-browser-reset-retry.log",
+  ]) {
+    assert.doesNotMatch(harness, new RegExp(retryArtifact.replaceAll(".", "\\.")));
+  }
+
+  assert.match(
+    harness,
+    /Initial disposable Supabase reset failed without a classified transient recovery path\./,
+  );
+  assert.match(
+    harness,
+    /Post-browser disposable Supabase reset failed without a classified transient recovery path\./,
+  );
 });

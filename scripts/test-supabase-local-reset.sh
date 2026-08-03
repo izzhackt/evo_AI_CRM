@@ -20,7 +20,8 @@ readonly AUTH_CONTAINER="supabase_auth_${SUPABASE_PROJECT_ID}"
 readonly STORAGE_CONTAINER="supabase_storage_${SUPABASE_PROJECT_ID}"
 readonly KONG_CONTAINER="supabase_kong_${SUPABASE_PROJECT_ID}"
 readonly STACK_LABEL="com.supabase.cli.project=${SUPABASE_PROJECT_ID}"
-readonly KNOWN_STORAGE_GATEWAY_502="Error status 502: An invalid response was received from the upstream server"
+readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"
+readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"
 readonly EXCLUDED_SERVICES="realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
 readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2h.XXXXXX")"
 readonly CANONICAL_VERSIONS_FILE="${TEMP_DIR}/canonical-versions.txt"
@@ -270,12 +271,18 @@ wait_for_local_stack_readiness() {
   return 1
 }
 
-reset_log_has_known_storage_gateway_failure() {
-  local log_file=$1
+reset_outputs_have_known_storage_gateway_failure() {
+  local progress_log=$1
+  local result_file=$2
 
-  [[ -s "${log_file}" ]] \
-    && grep -Fq "Restarting containers" "${log_file}" \
-    && grep -Fq "${KNOWN_STORAGE_GATEWAY_502}" "${log_file}"
+  # Machine-output mode writes the structured failure to stdout while the
+  # restart banner stays on stderr. Require that exact split so an unrelated
+  # stderr message cannot broaden the only mutation-capable recovery path.
+  [[ -s "${progress_log}" ]] \
+    && [[ -s "${result_file}" ]] \
+    && grep -Fq "Restarting containers" "${progress_log}" \
+    && grep -Fq "${KNOWN_STORAGE_GATEWAY_502_STATUS}" "${result_file}" \
+    && grep -Fq "${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" "${result_file}"
 }
 
 reload_exact_local_kong() {
@@ -311,9 +318,11 @@ reload_exact_local_kong() {
 }
 
 recover_known_reset_storage_gateway_failure() {
-  local log_file=$1
+  local progress_log=$1
+  local result_file=$2
 
-  reset_log_has_known_storage_gateway_failure "${log_file}" || return 1
+  reset_outputs_have_known_storage_gateway_failure "${progress_log}" "${result_file}" \
+    || return 1
   reload_exact_local_kong || return 1
   wait_for_local_stack_readiness || return 1
   printf 'Recovered the classified post-reset Storage 502 by refreshing only the exact disposable Kong route.\n' >&2
@@ -412,7 +421,7 @@ if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
   fail "The disposable local Supabase database failed to start; credential-bearing output was withheld."
 fi
 
-if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
+if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   --output-format json \
   db reset \
@@ -421,35 +430,13 @@ if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
   >"${TEMP_DIR}/reset.json" 2>"${TEMP_DIR}/reset.log"; then
   show_safe_failure_log "${TEMP_DIR}/reset.log"
   show_safe_database_deadlock_log
-  if reset_log_has_known_storage_gateway_failure "${TEMP_DIR}/reset.log"; then
-    recover_known_reset_storage_gateway_failure "${TEMP_DIR}/reset.log" \
+  if reset_outputs_have_known_storage_gateway_failure \
+    "${TEMP_DIR}/reset.log" "${TEMP_DIR}/reset.json"; then
+    recover_known_reset_storage_gateway_failure \
+      "${TEMP_DIR}/reset.log" "${TEMP_DIR}/reset.json" \
       || fail "Known post-reset Storage gateway recovery failed for the exact disposable stack."
   else
-    # OrbStack can finish applying every migration before the CLI observes all
-    # restarted services as ready. Require the exact disposable stack to become
-    # healthy, then retry the same clean reset once. A migration failure still
-    # fails twice; only the exact known post-reset Storage 502 may recover
-    # without repeating the database mutation.
-    if ! wait_for_local_stack_readiness; then
-      fail "Disposable Supabase stack did not become healthy before initial reset retry."
-    fi
-    if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
-      --workdir "${REPO_ROOT}" \
-      --output-format json \
-      db reset \
-      --local \
-      --no-seed \
-      >"${TEMP_DIR}/reset-retry.json" \
-      2>"${TEMP_DIR}/reset-retry.log"; then
-      show_safe_failure_log "${TEMP_DIR}/reset-retry.log"
-      show_safe_database_deadlock_log
-      if reset_log_has_known_storage_gateway_failure "${TEMP_DIR}/reset-retry.log"; then
-        recover_known_reset_storage_gateway_failure "${TEMP_DIR}/reset-retry.log" \
-          || fail "Known post-retry Storage gateway recovery failed for the exact disposable stack."
-      else
-        fail "Initial disposable Supabase reset failed after one bounded retry."
-      fi
-    fi
+    fail "Initial disposable Supabase reset failed without a classified transient recovery path."
   fi
 fi
 
@@ -594,7 +581,7 @@ rm -f -- "${PLATFORM_AUTH_BROWSER_FIXTURE}"
 # The browser workflow intentionally leaves one AI job and one manual-send job
 # queued so the UI can prove real outbox persistence. Reset the disposable
 # database before the independent Storage and empty-queue runtime gates.
-if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
+if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   --output-format json \
   db reset \
@@ -604,34 +591,13 @@ if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
   2>"${TEMP_DIR}/post-browser-reset.log"; then
   show_safe_failure_log "${TEMP_DIR}/post-browser-reset.log"
   show_safe_database_deadlock_log
-  if reset_log_has_known_storage_gateway_failure "${TEMP_DIR}/post-browser-reset.log"; then
-    recover_known_reset_storage_gateway_failure "${TEMP_DIR}/post-browser-reset.log" \
+  if reset_outputs_have_known_storage_gateway_failure \
+    "${TEMP_DIR}/post-browser-reset.log" "${TEMP_DIR}/post-browser-reset.json"; then
+    recover_known_reset_storage_gateway_failure \
+      "${TEMP_DIR}/post-browser-reset.log" "${TEMP_DIR}/post-browser-reset.json" \
       || fail "Known post-browser Storage gateway recovery failed for the exact disposable stack."
   else
-    # Supabase CLI can return non-zero while the named disposable stack is still
-    # completing its container restart. Wait for the exact disposable stack to
-    # become healthy, then retry the same clean reset once. Any unclassified
-    # second failure remains terminal.
-    if ! wait_for_local_stack_readiness; then
-      fail "Disposable Supabase stack did not become healthy before reset retry."
-    fi
-    if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
-      --workdir "${REPO_ROOT}" \
-      --output-format json \
-      db reset \
-      --local \
-      --no-seed \
-      >"${TEMP_DIR}/post-browser-reset-retry.json" \
-      2>"${TEMP_DIR}/post-browser-reset-retry.log"; then
-      show_safe_failure_log "${TEMP_DIR}/post-browser-reset-retry.log"
-      show_safe_database_deadlock_log
-      if reset_log_has_known_storage_gateway_failure "${TEMP_DIR}/post-browser-reset-retry.log"; then
-        recover_known_reset_storage_gateway_failure "${TEMP_DIR}/post-browser-reset-retry.log" \
-          || fail "Known post-browser retry Storage gateway recovery failed for the exact disposable stack."
-      else
-        fail "Post-browser disposable Supabase reset failed after one bounded retry."
-      fi
-    fi
+    fail "Post-browser disposable Supabase reset failed without a classified transient recovery path."
   fi
 fi
 

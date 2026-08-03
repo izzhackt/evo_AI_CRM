@@ -1271,6 +1271,11 @@ test("BW4 renders immutable handoff and metadata-only approved prompt evidence",
 test("Admin creates, answers, reopens, and retires one versioned BW4 decision", async ({
   page,
 }) => {
+  // This one scenario performs four audited server actions plus four route
+  // revalidations. A cold local Supabase/Next.js run can legitimately exceed
+  // the suite's 30s default while every state transition still completes.
+  test.setTimeout(60_000);
+
   const question = `BW4 browser decision ${randomUUID()}`;
   const answer = "Reviewed BW4 browser answer grounded in the synthetic source.";
   await openConversation(

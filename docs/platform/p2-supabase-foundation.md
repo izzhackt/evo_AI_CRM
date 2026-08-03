@@ -2,12 +2,12 @@
 
 - Status: implementation contract; no production application
 - Date: 2026-08-03
-- Block family: P2A–P2H and P2R0/P2R1 merged reusable foundation/local proof
-  reliability remediation
+- Block family: P2A–P2H and P2R0/P2R1 merged reusable foundation; P2R2 active
+  local auth/reset reproducibility plan gate
 - Parent contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 - Architecture: ADR 0014/0015, with greenfield/UI conflicts superseded by ADR
   0016
-- Current checkpoint: `9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`
+- Current checkpoint: `db8f3c75c898d5b68b0080099583d4eeea9931d2`
 
 ## Purpose and truth boundary
 
@@ -91,9 +91,10 @@ Later reliability lane restore evidence
 ```
 
 This dependency flow records the original foundation sequence. P3A-P3C,
-BW1-BW4 and P2R0/P2R1 are now merged. Their bounded reliability repair did not
-reopen the historical sequence or take P7 restore ownership; BW5 follows from
-checkpoint `9ef7a726...`.
+BW1-BW4 and P2R0/P2R1 are merged. PR #107 merged the BW5 checkpoint, but BW5 is
+paused while P2R2 repairs auth-token verification and the reproducibility of the
+real local proof. P2R2 does not reopen the historical schema sequence or take
+P7 restore ownership; BW5 resumes only after its controller-merged repair.
 
 ## Sequential blocks
 
@@ -406,6 +407,36 @@ never edited.
 This block does not prove or authorize managed Supabase, malware scanning,
 database or Storage restore, production apply, provider behavior, customer
 traffic or cutover. Whole-foundation restore evidence remains P7 work.
+
+### P2R2 — issued-token and local reset reproducibility repair
+
+Controller review of PR #108 required a prior plan gate and rejected its claimed
+real local PASS after a fresh physical-worktree run exited non-zero following
+two bounded reset attempts. PR #108 was closed without merge. P2R2 owns only:
+
+- explicit verification of the access token returned by successful login using
+  `getClaims(accessToken)` before the live `platform.current_actor_authority`
+  RPC; `getSession()` is not trusted for server authorization;
+- fail-closed logout/session clearing when the issued token, live membership or
+  authority bundle cannot be verified;
+- a local Auth smoke that performs the real `supabase-js` claims verification
+  before browser fixture handoff;
+- symlink-safe direct execution and exit propagation in the deadline runner;
+- bounded reset/start/restart readiness with transient-only retry, safe phase
+  diagnostics and no credential-bearing output;
+- exact-label cleanup with zero lock/container/volume/network residuals and
+  preserved Inbox resources.
+
+Authorized implementation surfaces are limited to the auth actions/resolver,
+the deadline/Auth/reset scripts and their focused regression harnesses named in
+the parent long-run plan. P2R2 adds no migration and does not change RLS,
+Storage, queue, provider or production contracts.
+
+Exit requires focused tests plus a real `npm run test:supabase:local` exit zero
+from the executor and a fresh independent physical worktree, all four exact-head
+CI jobs, a new SHA-bound independent review and controller merge. A silent
+deadline-wrapper no-op, a non-zero reset, residual exact-project resources or a
+managed/provider claim fails closed.
 
 ### Former P2I — whole-foundation evidence
 Moved to the later reliability lane. Former P2I duties remain required work,

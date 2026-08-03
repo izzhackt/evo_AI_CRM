@@ -3530,3 +3530,62 @@ Validation impact:
   production evidence.
 
 Reviewer notes: exact-head independent review required before merge.
+
+## 2026-08-03 - Advance The Authoritative Checkpoint To BW5
+
+Date: 2026-08-03, Asia/Almaty workspace timezone.
+
+Author: Codex.
+
+Change type: checkpoint freshness, execution-order advance and
+acceptance-boundary refresh.
+
+Affected plan section: `/goal-evo-platform-bw5`, current checkpoint, BW5
+acceptance and next-free migration boundary.
+
+Reason:
+
+- `origin/main` now includes PR #104 at
+  `e492de74858a44eb4488a77525425e471f961214` and PR #105 at
+  `9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`, so the repository no longer sits
+  at the pre-repair checkpoint recorded by the active contract.
+- Exact-main CI run `30763498291` is green for the applicable Main CRM, EVO
+  Inbox and EVO Lead Agent jobs.
+- The long-run plan, launch summary, status snapshot and TZ still described
+  P2R0 as active and P2R1 as pending, which is now stale.
+- Migration `055_platform_document_finalization_lock_order.sql` is already
+  merged, so BW5 must treat 056 as the expected next-free migration only after
+  fresh `origin/main` and open-PR ownership verification.
+
+Decision:
+
+- Advance the authoritative checkpoint from
+  `124ed41e1ba7f25d0f1affca336ce222e0a187d4` to
+  `9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`.
+- Record P2R0 as merged docs-only planning evidence and P2R1 as the merged
+  bounded local reliability repair. Neither reopens architecture, provider
+  ownership, restore ownership or production authority.
+- Make BW5 the active implementation block and preserve the accepted unified
+  `/applications` frontend as its UI contract.
+- BW5 owns only the next-free forward migration. The expected current target is
+  056, but it must be re-verified against fresh `origin/main` and open PRs
+  before commit.
+- Require revision-pinned, bounded and PII-free source staging; no direct
+  publication during staging/validation; explicit audited Admin
+  approval/rejection; and role, tenant and student-case object-scope evidence.
+- Preserve provider boundaries: BW5 does not prove or mutate amoCRM, WAHA, AI
+  providers, managed Supabase, production deployment, restore or cutover. The
+  real Notion source remains blocked behind authorized AbdyldaYT access, no
+  confirmed college dataset exists, and fake replacement records are forbidden.
+
+Validation impact:
+
+- This docs-only amendment requires `git diff --check`, deterministic TZ DOCX
+  generation/verifier/render, visual inspection of every page, scoped
+  secret/PII checks, independent exact-head review and GitHub CI.
+- BW5 must prove only its local/repository/browser acceptance. Provider or
+  production claims remain blocked behind the P4/P5/P7/P8 gates.
+
+Reviewer notes: checkpoint-only amendment; ADR changes are not required because
+the target architecture and requirement set are unchanged. Exact-head
+independent review is required before merge.

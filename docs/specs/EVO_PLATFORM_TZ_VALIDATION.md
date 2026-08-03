@@ -1,25 +1,28 @@
 # EVO Platform ТЗ — журнал валидации
 
-Дата проверки: 02.08.2026
+Дата проверки: 03.08.2026
 
 Timezone: `Asia/Almaty`
 
 Base commit до docs-only amendment:
-`124ed41e1ba7f25d0f1affca336ce222e0a187d4`
+`9ef7a7264c901f9c25e35ccbf106afe00c3c91ad`
 
 Канонический источник: `docs/specs/EVO_PLATFORM_TZ.md`
 
 Owner-facing документ: `docs/specs/EVO_PLATFORM_TZ.docx`
 
-Контекст проверки: docs-only P2R0 amendment восстанавливает plan freshness
-после merged sequence through PR #103, фиксирует завершённые P3A–P3C и BW1–BW4
-и вводит узкий последовательный P2R1 gate для надёжности локального Supabase
-proof. P2R1 не
-расширяет product scope: process-group deadlines, точная очистка только
-одноразовых EVO validation resources, transient-only Auth readiness, стабильные
-PGMQ leases и next-free forward migration для document lock ordering.
-Product/runtime code, новая migration, remote apply, provider invocation,
-backup/restore proof и production mutation в P2R0 не входят.
+Контекст проверки: docs-only checkpoint amendment фиксирует merged P2R0/P2R1
+через PR #104/#105 и переводит authoritative execution checkpoint на BW5.
+BW5 — узкий university/college catalog и reviewable import boundary за
+существующим `/applications`: staging/validation не публикуют записи напрямую,
+Admin явно approve/reject с reason и audit, а tenant/role/object scope остаётся
+fail-closed. Следующий номер migration только ожидается как `056` и обязан быть
+повторно проверен на свежем `origin/main` и среди открытых PR перед реализацией.
+
+Этот amendment не содержит product/runtime code или migration, не вызывает
+Notion/college provider, не применяет remote schema и не мутирует production.
+Реальный import остаётся заблокирован без разрешённого источника; отсутствующие
+college records нельзя заменять вымышленными данными.
 
 ## 1. Воспроизводимая сборка
 
@@ -57,28 +60,26 @@ python scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
 - итог:
   `PASS requirements=231 traceability=231 pages=67 a11y=0/0/0`.
 
-Machine-readable evidence находится во временном каталоге:
-`/private/tmp/evo-platform-tz-render-p2r0-rereview-final.Q6F9tu`:
+Machine-readable evidence финального clean rerun находится во временном
+каталоге:
+`/private/tmp/evo-platform-tz-render-bw5-final.IF67i1`:
 
 - `validation.json`;
 - `accessibility-report.json`;
 - `EVO_PLATFORM_TZ.pdf`;
 - `page-01.png` … `page-67.png`.
 
-Временные PDF/PNG не коммитятся. Markdown, generator, verifier и закреплённая
-зависимость позволяют воспроизвести evidence.
-
-Финальный clean rerun завершился `PASS`. Декодированные RGB pixels всех `67`
-PNG-страниц совпали с ранее полностью просмотренным render (`0` pixel
-mismatches); различия в бинарном PNG-контейнере не используются как визуальный
-сигнал. Все страницы повторно проверены в `17` bordered 2×2 contact sheets.
+Временные PDF/PNG и contact sheets не коммитятся. Markdown, generator,
+verifier и закреплённая зависимость позволяют воспроизвести evidence.
+Все `67` PNG финального clean rerun побайтно совпали с полностью просмотренным
+render (`0` mismatches).
 
 ## 2. Контрольные суммы и размеры
 
 | Файл | Размер | SHA-256 |
 |---|---:|---|
-| `docs/specs/EVO_PLATFORM_TZ.md` | `141790` bytes | `98ad80f73d48ed07fdaf6c8d820d95541fe2afd01fc96dfd722ea8c8c36953f1` |
-| `docs/specs/EVO_PLATFORM_TZ.docx` | `1785132` bytes | `e59e2fabff92fc7607b2e97632beb3bdafc8e4946604474c6771fa50dc14a784` |
+| `docs/specs/EVO_PLATFORM_TZ.md` | `142226` bytes | `49b6801b7b86d5bc9e144ce6c1c25fcb3ce623c5e7b5e3e3b32bdb85c53085ce` |
+| `docs/specs/EVO_PLATFORM_TZ.docx` | `1785290` bytes | `276e2ab0981811cb1025fe06b257b4e5eb6bb00b09a174e149112a142672a1cc` |
 | `scripts/generate-evo-platform-tz.py` | `39198` bytes | `ebd0d431ca456fc42492d3e5ab815bde4bc980d295f8db01ffa7ced63b9eb14f` |
 | `scripts/verify-evo-platform-tz.py` | `15754` bytes | `b4228980f03a9add719fd0c2c22dc09917c36121774d3fb6160b14c365c5fd40` |
 
@@ -99,68 +100,43 @@ Verifier проверяет:
 - реальный PDF render и отдельный PNG каждой страницы;
 - accessibility findings.
 
-После render дополнительно выполнено сравнение количества каждого
-FR/INT/DATA/SEC/NFR/ACC ID между Markdown и PDF text layer. Diff пустой:
-визуальный документ содержит все ID с тем же количеством вхождений.
+Финальная machine-readable проверка завершилась `PASS`; source и две
+последовательные DOCX-сборки имеют зафиксированные выше SHA-256.
 
 ## 4. Ручная визуальная проверка
 
-Все страницы `1–67` проверены в PNG финального fixed render:
+Все страницы `1–67` проверены в PNG финального render через `17` bordered 2×2
+contact sheets, сохраняющих серое внешнее поле и все четыре края каждой
+страницы:
 
 - cover, headers, footers и последовательность page numbers корректны;
 - страница `2` содержит намеренный Word TOC placeholder до обновления field в
   Word;
 - все таблицы помещаются в printable area, строки и повторяемые headers читаемы;
 - все шесть UI screenshots пропорциональны и не искажены;
-- страницы с длинной provenance-таблицей дополнительно просмотрены отдельно в
-  полном кадре (`detail=high`) и в bordered contact sheets;
+- длинные provenance tables и signoff pages отображаются полностью;
 - clipping, overflow, missing content, raster corruption и illegible rows не
   обнаружены.
 
-Во время первой проверки был найден реальный pagination defect: LibreOffice
-терял FR-076–FR-082, когда таблица раздела 13.8 начиналась в последних строках
-предыдущей страницы. После первого review merge-controller дополнительно
-обнаружил визуальное обрезание continuation pages: таблица 13.6 теряла видимые
-префиксы `FR-`, а некоторые screenshot/heading pages начинались выше printable
-area. Generator исправлен безопасными явными page breaks и достаточным
-heading spacing; переполнявшиеся разделы 13.6/13.7, 27.x и 28–32 разделены без
-изменения содержания.
-
-Финальный повторный render подтвердил FR-001–FR-110 и все остальные ID.
-Дополнительно PDF bbox geometry проверена для всех страниц: на страницах 2–67
-присутствует точный running header, нет текста левее `55 pt`, и ниже `730 pt`
-находится только ожидаемый footer. Страницы 1–67 просмотрены в фиксированных
-contact sheets, сохраняющих белые поля и границы каждой страницы; страницы
-37–40 с изменённым execution contract, provenance continuation page 64 и
-финальная signoff page 67 дополнительно проверены в полном кадре.
-P2R1 table 38–39 и BW execution lane 40 также проверены на читаемость.
-Обрезания, наложения, пропавших строк и сломанных glyphs не обнаружено.
-
-После controller review отдельно перепроверены отмеченные страницы `24`, `26`,
-`50`, `56`, `62`, `64` и `66`. Их исходные PNG и DOCX были корректны и не
-изменялись: пропавшие в review цифры и префиксы воспроизводились только в
-model-visible preview одиночного PNG при `detail=original`, который кадрировал
-левый или верхний край изображения. Тот же PNG при `detail=high`, а также
-фиксированный bordered contact sheet с серым внешним полем, показывают страницу
-целиком: `FR-029`/`FR-030`, отдельный `FR-058`, заголовки `27.3` и `31`, все
-идентификаторы и source prefixes на страницах `62`/`64`/`66` присутствуют и
-читаемы. Поэтому одиночный `detail=original` не используется как доказательство
-геометрии страницы; для full-page проверки обязательны `detail=high` либо
-bordered contact sheet, где видимы все четыре края страницы.
+Страницы `1`, `38`, `39` и `40`, содержащие новый version/base/checkpoint,
+merged P2R1 status и активный BW5 contract, дополнительно просмотрены по
+отдельным полноразмерным PNG. Страницы `65–67` отдельно закрыты финальным
+contact sheet. Обрезания, наложения, пропавших строк и сломанных glyphs нет.
 
 Итог ручной проверки: `PASS`.
 
 ## 5. Граница доказательства
 
 Эта проверка доказывает целостность, воспроизводимость, traceability,
-структурную доступность и визуальную корректность текущего ТЗ и plan amendment.
-После merge она фиксирует P2R0 reliability plan gate: P3A–P3C и BW1–BW4 уже
-считаются merged history, P2R1 идёт следующим отдельным implementation block,
-а BW5 начинается только после его exact-head review и controller merge.
+структурную доступность и визуальную корректность текущего ТЗ и docs-only
+checkpoint amendment. После merge она фиксирует P2R0/P2R1 как merged history и
+разрешает только отдельную реализацию BW5 с новым exact-head review и
+merge-controller gate.
 
 Она не доказывает:
 
-- выполнение или merge P2R1 implementation diff;
+- выполнение или merge BW5 implementation diff;
+- реальный Notion или college dataset import;
 - managed Supabase behavior и отдельный backup/restore proof;
 - live amoCRM, WAHA, AI или Storage provider behavior;
 - production deployment/cutover;
@@ -168,6 +144,6 @@ bordered contact sheet, где видимы все четыре края стр�
 - bounded production reconciliation window или retirement legacy services.
 
 Для этого docs-only блока `real-provider-proof: not-required`. Реальные
-provider/release gates остаются `BLOCKED` или `PENDING` до credentials,
-sanitized test identity/number, production authority и фактического controlled
-evidence.
+provider/release gates остаются `BLOCKED` или `PENDING` до разрешённого source
+access, credentials, sanitized test identity/number, production authority и
+фактического controlled evidence.

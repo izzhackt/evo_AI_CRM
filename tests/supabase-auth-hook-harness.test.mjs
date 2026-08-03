@@ -36,6 +36,20 @@ test("Auth readiness is proven before the first mutating request", () => {
   );
 });
 
+test("Auth smoke verifies getClaims before handing credentials to Playwright", () => {
+  const verificationCall = authHook.indexOf(
+    'await verifyClientClaims(identities.adminA, "admin");',
+  );
+  const fixtureWrite = authHook.indexOf(
+    "writeFileSync(\n      browserFixturePath",
+  );
+
+  assert.match(authHook, /client\.auth\.getClaims\(identity\.accessToken\)/);
+  assert.notEqual(verificationCall, -1);
+  assert.notEqual(fixtureWrite, -1);
+  assert.ok(verificationCall < fixtureWrite);
+});
+
 test("post-reset Storage waits longer for Auth without retrying mutations", () => {
   const mainStart = storageGate.indexOf("const main = async () => {");
   const readinessCall = storageGate.indexOf(

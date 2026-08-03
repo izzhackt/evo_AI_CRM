@@ -237,19 +237,33 @@ export async function loginAction(_prev: string | null, form: FormData): Promise
   }
 
   let context: Awaited<ReturnType<typeof createSupabaseServerContext>>;
+  let accessToken: string;
   try {
     context = await createSupabaseServerContext();
-    const { error } = await context.client.auth.signInWithPassword({
+    const { data, error } = await context.client.auth.signInWithPassword({
       email,
       password,
     });
     if (error) return "invalidCredentials";
+    if (!data.session?.access_token) {
+      await clearPlatformAuthSession(context.client);
+      return "platformUnavailable";
+    }
+    accessToken = data.session.access_token;
   } catch {
     return "platformUnavailable";
   }
 
-  const result = await resolvePlatformActor(context.client, true);
+  const result = await resolvePlatformActor(context.client, true, accessToken);
   if (result.status !== "authenticated") {
+    console.warn(JSON.stringify({
+      event: "platform_login_authority_rejected",
+      code:
+        result.status === "invalid"
+          ? result.reason
+          : "authority_not_authenticated",
+      service: "evo-crm",
+    }));
     await clearPlatformAuthSession(context.client);
     return "accessNotProvisioned";
   }

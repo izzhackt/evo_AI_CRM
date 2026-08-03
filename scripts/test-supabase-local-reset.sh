@@ -362,7 +362,7 @@ if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
   fail "The disposable local Supabase database failed to start; credential-bearing output was withheld."
 fi
 
-if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
+if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   --output-format json \
   db reset \
@@ -378,7 +378,7 @@ if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
   if ! wait_for_local_stack_readiness; then
     fail "Disposable Supabase stack did not become healthy before initial reset retry."
   fi
-  if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
+  if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
     --workdir "${REPO_ROOT}" \
     --output-format json \
     db reset \
@@ -533,7 +533,7 @@ rm -f -- "${PLATFORM_AUTH_BROWSER_FIXTURE}"
 # The browser workflow intentionally leaves one AI job and one manual-send job
 # queued so the UI can prove real outbox persistence. Reset the disposable
 # database before the independent Storage and empty-queue runtime gates.
-if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
+if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   --output-format json \
   db reset \
@@ -550,7 +550,7 @@ if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
   if ! wait_for_local_stack_readiness; then
     fail "Disposable Supabase stack did not become healthy before reset retry."
   fi
-  if ! run_with_deadline 300000 "${SUPABASE_CLI}" \
+  if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
     --workdir "${REPO_ROOT}" \
     --output-format json \
     db reset \

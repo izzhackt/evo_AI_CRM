@@ -6,6 +6,7 @@ import {
 } from "node:crypto";
 import { readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { createClient } from "@supabase/supabase-js";
 
 import {
   LocalSupabaseAuthReadinessError,
@@ -34,6 +35,40 @@ const assert = (condition, stage) => {
   if (!condition) {
     fail(stage);
   }
+};
+
+const safeAuthErrorLabel = (value) =>
+  typeof value === "string" && /^[A-Za-z0-9_.:-]{1,64}$/.test(value)
+    ? value
+    : "unclassified";
+
+const verifyClientClaims = async (identity, expectedRole) => {
+  const client = createClient(apiUrl, publishableKey, {
+    auth: {
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      persistSession: false,
+    },
+  });
+  const { data, error } = await client.auth.getClaims(identity.accessToken);
+  if (error) {
+    console.error(
+      JSON.stringify({
+        event: "local_supabase_get_claims_failed",
+        error_name: safeAuthErrorLabel(error.name),
+        error_code: safeAuthErrorLabel(error.code),
+        status:
+          Number.isSafeInteger(error.status) ? error.status : null,
+      }),
+    );
+    fail(`${identity.label}-verified-claims`);
+  }
+  assert(data?.claims?.platform_role === expectedRole, `${identity.label}-verified-role`);
+  assert(
+    Number.isSafeInteger(data?.claims?.platform_access_version) &&
+      data.claims.platform_access_version > 0,
+    `${identity.label}-verified-access-version`,
+  );
 };
 
 const statusPath = process.argv[2];
@@ -1230,6 +1265,7 @@ const main = async () => {
 
   await signIn(identities.adminA, "admin");
   await signIn(identities.adminB, "admin");
+  await verifyClientClaims(identities.adminA, "admin");
 
   const nowSeconds = Math.floor(Date.now() / 1000);
   const expiredResult = await requestJson(

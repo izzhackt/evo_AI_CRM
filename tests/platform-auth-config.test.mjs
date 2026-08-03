@@ -19,6 +19,10 @@ const scenarioRunnerSource = readFileSync(
   new URL("../scripts/evaluate-scenarios.mjs", import.meta.url),
   "utf8",
 );
+const loginActionSource = readFileSync(
+  new URL("../src/lib/actions.ts", import.meta.url),
+  "utf8",
+);
 
 const originalEnv = {
   NODE_ENV: process.env.NODE_ENV,
@@ -202,4 +206,12 @@ test("logout fallback matches only Supabase auth-token cookies", () => {
   ]) {
     assert.equal(isSupabaseAuthCookieName(name), false, name);
   }
+});
+
+test("login verifies the just-issued access token before live authority lookup", () => {
+  assert.match(
+    loginActionSource,
+    /data\.session\.access_token[\s\S]*resolvePlatformActor\(context\.client, true, accessToken\)/,
+  );
+  assert.doesNotMatch(loginActionSource, /auth\.getSession\(/);
 });

@@ -115,6 +115,26 @@ function invalid(reason: PlatformActorInvalidReason): PlatformActorResult {
   return { status: "invalid", actor: null, reason };
 }
 
+function safeAuthErrorLabel(value: unknown): string {
+  return typeof value === "string" && /^[A-Za-z0-9_.:-]{1,64}$/.test(value)
+    ? value
+    : "unclassified";
+}
+
+function logAuthVerificationFailure(error: unknown): void {
+  const record = isRecord(error) ? error : {};
+  console.warn(JSON.stringify({
+    event: "platform_auth_verification_failed",
+    error_name: safeAuthErrorLabel(record.name),
+    error_code: safeAuthErrorLabel(record.code),
+    status:
+      typeof record.status === "number" && Number.isSafeInteger(record.status)
+        ? record.status
+        : null,
+    service: "evo-crm",
+  }));
+}
+
 function parseAuthority(
   value: unknown,
   claims: VerifiedAuthorityClaims,
@@ -188,6 +208,7 @@ async function resolveClient(
 export async function resolvePlatformActor(
   client?: SupabaseClient,
   authCookiePresent?: boolean,
+  accessToken?: string,
 ): Promise<PlatformActorResult> {
   const context = await resolveClient(client, authCookiePresent);
 
@@ -195,8 +216,9 @@ export async function resolvePlatformActor(
     ReturnType<SupabaseClient["auth"]["getClaims"]>
   >;
   try {
-    claimsResponse = await context.client.auth.getClaims();
-  } catch {
+    claimsResponse = await context.client.auth.getClaims(accessToken);
+  } catch (error) {
+    logAuthVerificationFailure(error);
     return invalid("auth_verification_failed");
   }
 
@@ -207,6 +229,7 @@ export async function resolvePlatformActor(
     ) {
       return { status: "anonymous", actor: null };
     }
+    logAuthVerificationFailure(claimsResponse.error);
     return invalid("auth_verification_failed");
   }
 

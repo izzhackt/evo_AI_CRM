@@ -48,6 +48,15 @@ test("local Supabase start stays bounded while allowing a loaded cold OrbStack b
   );
 });
 
+test("local Supabase resets stay bounded while allowing OrbStack service restarts", () => {
+  assert.equal(
+    executableLines.match(
+      /run_with_deadline 600000 "\$\{SUPABASE_CLI\}" \\\n+[\s\S]*? db reset \\\n+/g,
+    )?.length,
+    4,
+  );
+});
+
 test("every long-running child gate has a process-group deadline", () => {
   assert.match(
     executableLines,

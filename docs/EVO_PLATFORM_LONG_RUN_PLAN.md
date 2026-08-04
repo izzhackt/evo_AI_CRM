@@ -443,7 +443,8 @@ retains the established dependency and exit-evidence contract below:
 
 - BW5 re-fetched `origin/main`, selected the next-free migration 056 and merged
   in PR #113. Migrations 055 and 056 are now immutable history; BW6 owns only
-  the next-free migration 057 selected from main `1061bad8...`.
+  the next-free migration 057 selected from main
+  `a2ecadbe05dcf6993bbd558f3d80fa405a571a7c`.
 - BW5 may add only bounded, PII-free university/college source metadata,
   revision-pinned staging candidates, explicit validation, and audited Admin
   approval or rejection behind the accepted `/applications` frontend.

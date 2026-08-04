@@ -30,6 +30,10 @@ const platformAuthSource = readFileSync(
   new URL("../src/lib/platform-auth.ts", import.meta.url),
   "utf8",
 );
+const platformSessionRouteSource = readFileSync(
+  new URL("../src/app/auth/platform-session/route.ts", import.meta.url),
+  "utf8",
+);
 
 const originalEnv = {
   NODE_ENV: process.env.NODE_ENV,
@@ -194,6 +198,34 @@ test("student home and guard redirects keep roles on their connected surface", (
     platformStudentPortalRedirect("finance"),
     "/platform-pending",
   );
+});
+
+test("stale-session redirects stay relative to the browser origin", async () => {
+  const routeContract = await import(
+    "../src/lib/platform-route-contract.ts"
+  );
+  const redirectLocation =
+    routeContract.platformSameOriginRedirectLocation;
+
+  assert.equal(typeof redirectLocation, "function");
+  assert.equal(redirectLocation("/sales"), "/sales");
+  assert.equal(
+    redirectLocation("/login", "authority_not_found"),
+    "/login?error=authority_not_found",
+  );
+  assert.throws(
+    () => redirectLocation("https://evil.test"),
+    /same-origin Platform path/,
+  );
+  assert.throws(
+    () => redirectLocation("//evil.test"),
+    /same-origin Platform path/,
+  );
+  assert.match(
+    platformSessionRouteSource,
+    /platformSameOriginRedirectLocation/,
+  );
+  assert.doesNotMatch(platformSessionRouteSource, /request\.nextUrl\.clone\(\)/);
 });
 
 test("logout fallback matches only Supabase auth-token cookies", () => {

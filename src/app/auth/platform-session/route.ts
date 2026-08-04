@@ -4,7 +4,10 @@ import {
   resolvePlatformActor,
   type PlatformActorInvalidReason,
 } from "@/lib/platform-auth";
-import { platformHomeRoute } from "@/lib/platform-route-contract";
+import {
+  platformHomeRoute,
+  platformSameOriginRedirectLocation,
+} from "@/lib/platform-route-contract";
 import {
   hasSupabaseAuthCookie,
   isProjectSupabaseAuthCookieName,
@@ -25,15 +28,15 @@ type PlatformSessionError =
   | typeof PLATFORM_UNAVAILABLE_ERROR;
 
 function sameOriginRedirect(
-  request: NextRequest,
   pathname: string,
   error?: PlatformSessionError,
 ): NextResponse {
-  const target = request.nextUrl.clone();
-  target.pathname = pathname;
-  target.search = "";
-  if (error) target.searchParams.set("error", error);
-  return NextResponse.redirect(target);
+  return new NextResponse(null, {
+    status: 307,
+    headers: {
+      Location: platformSameOriginRedirectLocation(pathname, error),
+    },
+  });
 }
 
 function applyPendingResponseState(
@@ -98,7 +101,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     supabaseUrl = getSupabasePublicConfig().url;
   } catch {
     return applyPendingResponseState(
-      sameOriginRedirect(request, "/login", PLATFORM_UNAVAILABLE_ERROR),
+      sameOriginRedirect("/login", PLATFORM_UNAVAILABLE_ERROR),
       cookieWrites,
       providerHeaders,
     );
@@ -128,10 +131,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     if (result.status === "authenticated") {
       return applyPendingResponseState(
-        sameOriginRedirect(
-          request,
-          platformHomeRoute(result.actor.platformRole),
-        ),
+        sameOriginRedirect(platformHomeRoute(result.actor.platformRole)),
         cookieWrites,
         providerHeaders,
       );
@@ -139,7 +139,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     if (result.status === "anonymous") {
       return applyPendingResponseState(
-        sameOriginRedirect(request, "/login"),
+        sameOriginRedirect("/login"),
         cookieWrites,
         providerHeaders,
       );
@@ -154,11 +154,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     return applyPendingResponseState(
-      sameOriginRedirect(
-        request,
-        "/login",
-        result.reason,
-      ),
+      sameOriginRedirect("/login", result.reason),
       cookieWrites,
       providerHeaders,
     );
@@ -172,7 +168,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     return applyPendingResponseState(
-      sameOriginRedirect(request, "/login", PLATFORM_UNAVAILABLE_ERROR),
+      sameOriginRedirect("/login", PLATFORM_UNAVAILABLE_ERROR),
       cookieWrites,
       providerHeaders,
     );

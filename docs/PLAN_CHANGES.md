@@ -3757,3 +3757,79 @@ Reviewer notes: the new Route Handler is not a new product surface or auth
 fallback. It is the minimum response-writable handoff required to satisfy the
 already-merged fail-closed session-clearing acceptance under Next.js 16. No
 implementation file may change in this docs-only PR.
+
+## 2026-08-04 - Add P4B Mapping Selection And Approval Contract
+
+Source: merged PR #117 at
+`121db548b252eff9e4b79f62297aa27fe39e5c40`, exact-main CI run `30958119076`,
+the merged P4A discovery contract and the accepted unified frontend boundary.
+
+Change type: file-ownership and acceptance-boundary refinement inside the
+already-approved canonical amoCRM adapter lane. This is not a target-
+architecture, product-scope, provider-ownership or production-authority change.
+
+Affected plan section:
+`/goal-evo-platform-p4b-amocrm-mapping-selection-approval-plan` and the next
+bounded P4 implementation lane.
+
+Evidence:
+
+- P4A is merged history. Migration 058 stores immutable sanitized
+  account-specific discovery versions, service-only ingest and live-authority
+  Admin reads; its bounded server adapter is GET-only.
+- P4A deliberately does not select an operational mapping. The repository has
+  no reviewed approval/revocation seam or deterministic current selection for
+  messaging.
+- The accepted `/whatsapp` frontend already provides the truthful integration-
+  health seam. A parallel admin application or generic CRM settings surface is
+  neither required nor authorized.
+- A local sanitized discovery version is not real-provider proof and cannot be
+  treated as evidence that account mappings are correct or currently available.
+
+Decision:
+
+- Make this docs-only P4B amendment the sole active block. No implementation
+  file or migration may change before this amendment is independently reviewed,
+  controller-merged and green on exact-main CI.
+- Preserve P4A discovery versions as immutable evidence. A later additive
+  implementation may add only append-only `approved`/`revoked` decisions and a
+  deterministic current projection; it must not rewrite history or use a
+  mutable `active` flag on discovery evidence.
+- Scope each current selection to organization, amoCRM account and `messaging`.
+  It must reference one discovery version and explicitly select the account
+  pipeline, signed-contract status, responsible-user source rule and named
+  lead/contact custom-field bindings.
+- Only a current same-organization Platform Admin with live, non-stale authority
+  may approve, supersede or revoke. Each decision records actor, expected prior
+  decision, reason, before/after, request ID and time. All other roles, anon,
+  cross-organization Admin, inactive membership and Auth-admin without Platform
+  authority fail closed.
+- Keep the later UI adapter inside the existing `/whatsapp` product seam. No
+  current approval must render as a truthful blocked/not-approved state.
+- P4B does not authorize OAuth custody, provider calls, identity sync, webhook
+  ownership, jobs/outbox, reconciliation, canonical amoCRM writes, a new UI,
+  legacy SQLite/root-auth work or any production mutation.
+- Migrations 001-058 remain immutable. The next implementation is expected to
+  use migration 059 only after a fresh `origin/main` and open-ownership check.
+
+Validation impact:
+
+- This amendment updates the launch/long-run contracts, current-status ledger,
+  stale P2 execution-status metadata, append-only decision log, the focused
+  P4B contract and only the version, checkpoint and execution-status portions
+  of canonical TZ 1.9. FR/INT/DATA/SEC/NFR/ACC requirements remain unchanged.
+- Regenerate the deterministic owner-facing DOCX, run its structural,
+  traceability, accessibility and render verifier, and inspect every rendered
+  page. No render intermediates are committed.
+- The later implementation must prove Admin positive and non-Admin/cross-org/
+  stale-authority negative cases, immutable history, invalid-reference and
+  concurrent-supersession rejection, safe no-current-selection UI, audit
+  evidence, browser-secret absence and clean disposable local Supabase/RLS
+  execution with exact cleanup.
+- `real-provider-proof: not-required` for this docs-only amendment. Live amoCRM
+  mapping correctness remains blocked until separately authorized and exercised.
+
+Reviewer notes: `CONTEXT.md`, system/data-model docs and ADR 0014-0016 remain
+unchanged because the architecture, provider ownership, domain model and
+production boundary do not change. No implementation file may change in this
+docs-only PR.

@@ -2,12 +2,12 @@
 
 - Status: implementation contract; no production application
 - Date: 2026-08-04
-- Block family: P2A–P2H and P2R0/P2R1 merged reusable foundation; P2R2 plan
-  merged in PR #109; P2R3 stale-session/local-proof ownership gate active
+- Block family: P2A–P2H and P2R0–P2R3 merged reusable foundation; P2R3
+  implementation merged in PR #112
 - Parent contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 - Architecture: ADR 0014/0015, with greenfield/UI conflicts superseded by ADR
   0016
-- Current checkpoint: `30bcc956fbf1ac90e79c2a75c22748633e219d9d`
+- Current checkpoint: `121db548b252eff9e4b79f62297aa27fe39e5c40`
 
 ## Purpose and truth boundary
 
@@ -91,11 +91,9 @@ Later reliability lane restore evidence
 ```
 
 This dependency flow records the original foundation sequence. P3A-P3C,
-BW1-BW4 and P2R0/P2R1 are merged. PR #107 merged the BW5 checkpoint and PR #109
-merged the P2R2 plan, but BW5 is paused while P2R3 completes stale-session
-clearing and the reproducibility of the real local proof. P2R3 does not reopen
-the historical schema sequence or take P7 restore ownership; BW5 resumes only
-after its controller-merged repair.
+BW1-BW7 and P2R0-P2R3 are merged. PR #109 merged the P2R2 plan, plan PR #111
+and implementation PR #112 merged the P2R3 repair, and PR #113 then merged BW5.
+P2R3 did not reopen the historical schema sequence or take P7 restore ownership.
 
 ## Sequential blocks
 
@@ -418,7 +416,9 @@ merged the bounded P2R2 plan. Controller review of PR #110 found that its
 protected-route invalid-authority path redirected without clearing the resident
 Supabase browser cookie and could not reproduce the independent local gate while
 its OrbStack endpoint was unresponsive. PR #110 was also closed without merge.
-P2R3 preserves the P2R2 scope and owns only:
+Plan PR #111 and implementation PR #112 subsequently merged P2R3 with green
+exact-main CI `30883272841`. The merged repair preserved the P2R2 scope and
+owned only:
 
 - explicit verification of the access token returned by successful login using
   `getClaims(accessToken)` before the live `platform.current_actor_authority`
@@ -446,11 +446,12 @@ the exact guard/proxy/auth-cookie/Route Handler/browser-test surfaces named in
 the parent long-run plan. P2R3 adds no migration and does not change RLS,
 Storage, queue, provider or production contracts.
 
-Exit requires focused tests plus a real `npm run test:supabase:local` exit zero
-from the executor and a fresh independent physical worktree, all four exact-head
-CI jobs, a new SHA-bound independent review and controller merge. A silent
+Its exit evidence included focused tests plus a real
+`npm run test:supabase:local` exit zero from the executor and a fresh independent
+physical worktree, all four exact-head CI jobs, SHA-bound independent review and
+controller merge. The continuing boundary remains fail-closed: a silent
 deadline-wrapper no-op, a non-zero reset, residual exact-project resources or a
-managed/provider claim fails closed.
+managed/provider claim is not valid evidence.
 
 ### Former P2I — whole-foundation evidence
 Moved to the later reliability lane. Former P2I duties remain required work,

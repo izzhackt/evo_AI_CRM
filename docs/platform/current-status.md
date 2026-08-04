@@ -12,8 +12,9 @@
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current merged checkpoint: `45e64f7b6bfb181a065ae7cfc34abd0fb1b693ec`
-- Active plan block: `EVO-P4A-AMOCRM-MAPPING-DISCOVERY-2026-08-04`
+- Current merged checkpoint: `121db548b252eff9e4b79f62297aa27fe39e5c40`
+- Active plan block:
+  `EVO-P4B-AMOCRM-MAPPING-SELECTION-APPROVAL-PLAN-2026-08-04`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -31,14 +32,16 @@ AI draft → manual send → ACK → audit ни разу не доказан end
 platform нельзя называть production-complete.
 
 P1 остаётся историческим legacy containment. P2A-P2H, greenfield/UI boundary,
-BW0, P3A-P3C, BW1-BW7 и P2R0-P2R3 merged. PR #116 controller-merged BW7 как
-`45e64f7b6bfb181a065ae7cfc34abd0fb1b693ec`; exact-main CI run
-`30934111632` зелёный. Текущий product block — P4A: private versioned amoCRM
-mapping discovery и server-only read adapter, без credentials/provider calls,
-OAuth storage, webhooks или writes. Staging, real provider discovery, approved
-legal template, PDF/DOCX/e-sign, managed apply и customer delivery остаются
-blocked до отдельной авторизации и доказательств. Former P2I restore duties
-остаются в P7.
+BW0, P3A-P3C, BW1-BW7, P2R0-P2R3 и P4A merged. PR #117
+controller-merged P4A как
+`121db548b252eff9e4b79f62297aa27fe39e5c40`; exact-main CI run
+`30958119076` зелёный. Текущий plan block — P4B docs-only: он определяет
+Admin-reviewed selection/approval одного immutable discovery version для
+messaging use, без application code, migration, credentials/provider calls,
+OAuth storage, identity sync, webhooks или writes. Staging, real provider
+discovery, approved legal template, PDF/DOCX/e-sign, managed apply и customer
+delivery остаются blocked до отдельной авторизации и доказательств. Former P2I
+restore duties остаются в P7.
 
 ## Что подтверждено из репозитория
 
@@ -60,7 +63,8 @@ blocked до отдельной авторизации и доказательс
 | BW5 catalog boundary | PR #113 controller-merged migration 056, catalog repositories/actions and the accepted `/applications` route for reviewed source → staging → validation → Admin approval/rejection, approved catalog reads and catalog-backed application creation | independent exact-head review, controller gates and exact-main CI `30894448943` passed; managed Supabase and real source providers remain blocked |
 | BW6 contract/report | PR #114 controller-merged migration 057, contract repository/actions and the existing Student 360 route for typed approved-field contract drafts plus audited post-contract checklist/report | independent exact-SHA review, controller gates and exact-main CI `30918820654` passed; this is not a signed legal contract, PDF/DOCX/e-sign, provider, managed Supabase or production proof |
 | BW7 integration proof | PR #116 connected Student 360 assignment state and proved one synthetic case across Sales draft → Admin assignment/portal activation → Curator checklist/report → Student Portal → limited Sales summary | independent review/controller gates, real disposable local Supabase/Auth/RLS browser gate 28/28 and exact-main CI `30934111632` passed; persistent staging/provider/production proof remains absent |
-| P4A amoCRM mapping discovery candidate | Candidate migration 058 stores immutable sanitized account-specific snapshots privately; service-only ingest and live-authority Admin reads are paired with a GET-only bounded server adapter | disposable PostgreSQL authorization and full local Supabase passed 58 migrations, Auth/PostgREST/Storage/PGMQ and 28/28 browser scenarios; exact-head review/CI/controller merge and real amoCRM account proof remain pending |
+| P4A amoCRM mapping discovery | PR #117 merged migration 058 with immutable sanitized account-specific snapshots, service-only ingest, live-authority Admin reads and a GET-only bounded server adapter | independent exact-head review, controller full local Supabase RC=0 with 58 migrations and 28/28 browser scenarios, and exact-main CI `30958119076` passed; real amoCRM account proof remains blocked |
+| P4B mapping selection/approval plan | Docs-only contract separates immutable discovery evidence from append-only Admin approval events and a deterministic current messaging selection behind the accepted `/whatsapp` seam | no implementation, migration, managed Supabase or provider proof in this amendment; later implementation remains blocked until controller merge and green exact-main CI |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до bounded cutover evidence and rollback gate |
@@ -89,10 +93,12 @@ BW5 merged contract and evidence ledger:
 [`bw5-catalog-import-boundary.md`](bw5-catalog-import-boundary.md).
 BW6 merged contract and evidence ledger:
 [`bw6-contract-draft-report.md`](bw6-contract-draft-report.md).
-BW7 candidate integration evidence ledger:
+BW7 merged integration evidence ledger:
 [`bw7-latest-main-integration-proof.md`](bw7-latest-main-integration-proof.md).
-P4A candidate boundary and evidence ledger:
+P4A merged boundary and evidence ledger:
 [`p4a-amocrm-mapping-discovery.md`](p4a-amocrm-mapping-discovery.md).
+P4B docs-only selection/approval contract:
+[`p4b-amocrm-mapping-selection-approval.md`](p4b-amocrm-mapping-selection-approval.md).
 
 ## Принятый target, ещё не cut over
 
@@ -112,9 +118,10 @@ P4A candidate boundary and evidence ledger:
   workflow blocks — migrations 047–054, merged P2R1 lock-order repair —
   migration 055, merged BW5 catalog boundary — migration 056, merged BW6
   contract/report boundary — migration 057; BW7 не добавляет migration и
-  соединяет принятые RPC/RLS contracts с существующим frontend; candidate P4A
+  соединяет принятые RPC/RLS contracts с существующим frontend; merged P4A
   добавляет только forward migration 058 для private sanitized mapping
-  discovery versions;
+  discovery versions; P4B amendment не добавляет migration, а следующий
+  implementation обязан заново подтвердить expected next-free 059;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;
@@ -181,18 +188,18 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — P4A exact-head validation. Candidate migration 058 добавляет
-только private immutable sanitized mapping versions; read-only adapter
-разрешает пять account-metadata GET endpoints, а service/Admin RPC boundary
-прошёл disposable PostgreSQL и полный local Supabase gate: 58 migrations,
-Auth/PostgREST/Storage/PGMQ и 28/28 browser scenarios. Commit, exact-head CI,
-независимый SHA-bound review и controller merge ещё не доказаны. Persistent
-staging и реальный amoCRM account
-discovery остаются честными blockers до credentials, sanitized test account и
-отдельной авторизации. Identity/context sync, webhook/outbox/reconciliation и
-canonical writes остаются следующими P4 slices; real WAHA/AI/ACK proof — P5,
-restore duties — P7. Production cutover remains a separate authorized event
-with bounded reconciliation/health/rollback evidence.
+Текущий gate — merge docs-only P4B contract. Он разрешает только отдельный
+последующий implementation slice: current same-organization Admin выбирает и
+одобряет одну P4A discovery version для `messaging`, решения остаются
+append-only, а current selection выводится детерминированно. No-approved state
+fail-closed для mapping-dependent behavior; новый admin/settings frontend не
+создаётся, используется accepted `/whatsapp` seam. Persistent staging и
+реальный amoCRM account discovery остаются честными blockers до credentials,
+sanitized test account и отдельной авторизации. Identity/context sync,
+webhook/outbox/reconciliation и canonical writes остаются следующими P4
+slices; real WAHA/AI/ACK proof — P5, restore duties — P7. Production cutover
+остаётся отдельным authorized event с bounded
+reconciliation/health/rollback evidence.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой
 exact deployed revision, private network, provider readiness и full E2E.

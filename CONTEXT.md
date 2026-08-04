@@ -11,8 +11,10 @@ the superseding architecture decision is
 [`docs/adr/0014-unified-evo-platform-target-architecture.md`](docs/adr/0014-unified-evo-platform-target-architecture.md).
 Its canonical Supabase schema/migration boundary is refined by
 [`docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`](docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md).
-Companion-era terms below remain as honest descriptions of the runtime that
-exists before controlled migration; they are not the target architecture.
+Companion-era terms below remain as honest descriptions of separate runtimes
+that exist before any separately authorized provider cutover; they are neither
+the target architecture nor a legacy data-migration source for the greenfield
+Platform.
 
 ## Language
 
@@ -251,6 +253,20 @@ _Avoid_: live connector, direct catalog write, automatic publication
 **Catalog Import Candidate**:
 A typed, non-customer staging record for one proposed university or college, carrying opaque row provenance and validation results but no approved status of its own.
 _Avoid_: approved institution, student application, raw source payload
+
+**Platform Contract Draft**:
+An immutable, versioned plain-text proposal generated from an approved template
+and typed Platform fields resolved by the database for one authorized student
+case. Approval records staff review and does not make the artifact a signed
+legal contract or prove PDF/DOCX, e-signature, delivery, or customer acceptance.
+_Avoid_: signed contract, provider document, chat-generated promise
+
+**Post-Contract Operational Report**:
+An immutable versioned snapshot of the delivered, open and blocked service
+items for one active or closed student case, including evidence, owner and next
+action where required. It reports EVO work without claiming an external
+admission, scholarship or visa outcome.
+_Avoid_: sales stage, guaranteed result, mutable checklist
 
 **Decision Backlog Entry**:
 A versioned question-and-answer record that remains unresolved until an explicit answer is supported by reviewed source or evidence. Reopening or retiring the decision creates a new effective version rather than changing its history.

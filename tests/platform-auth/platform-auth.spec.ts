@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -17,6 +17,7 @@ type Fixture = Readonly<{
     curator: Identity;
     crossOrgAdmin: Identity;
     salesScoped: Identity;
+    responsibleSales: Identity;
     finance: Identity;
     student: Identity;
     studentNoCase: Identity;
@@ -169,6 +170,27 @@ type Fixture = Readonly<{
       formerSalesMembershipId: string;
       crossOrgOrganizationId: string;
       unrelatedStudentCaseId: string;
+    }>;
+  }>;
+  bw6: Readonly<{
+    orgA: Readonly<{
+      organizationId: string;
+      activeStudentCaseId: string;
+      contractTemplateVersionId: string;
+      studentCaseContractDraftId: string;
+      postContractItemId: string;
+      postContractReportId: string;
+      templateKey: string;
+      templateTitle: string;
+    }>;
+    salesPending: Readonly<{
+      organizationId: string;
+      studentCaseId: string;
+      responsibleSalesMembershipId: string;
+    }>;
+    negative: Readonly<{
+      crossOrgOrganizationId: string;
+      unassignedActiveStudentCaseId: string;
     }>;
   }>;
 }>;
@@ -1493,6 +1515,533 @@ test("admin promotes a reviewed catalog batch before creating a catalog-linked a
     curatorPage.getByTestId("platform-catalog-create-batch-form"),
   ).toHaveCount(0);
   await curatorContext.close();
+  expectLegacyDatabaseUntouched();
+});
+
+test("BW6 keeps contract drafts and post-contract reports versioned, authorized, and auditable", async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(150_000);
+  expectLegacyDatabaseUntouched();
+
+  const runId = randomUUID();
+  const suffix = runId.replaceAll("-", "").slice(0, 10);
+  const templateKey = `contract_bw6_${suffix}`;
+  const templateTitle = `Synthetic BW6 contract ${suffix}`;
+  const welcomeItemKey = `welcome_${suffix}`;
+  const documentItemKey = `document_${suffix}`;
+  const welcomeLabel = `Send synthetic welcome pack ${suffix}`;
+  const documentLabel = `Review synthetic document plan ${suffix}`;
+  const templateText = `Synthetic contract ${suffix}\nStudent: {{student_name}}`;
+  const manifestLines =
+    "student_name|student_case.student_display_name|text|true";
+  const checklistLines = [
+    `${welcomeItemKey}|${welcomeLabel}|curator|Send the synthetic non-provider welcome pack`,
+    `${documentItemKey}|${documentLabel}|curator|Review the synthetic document plan`,
+  ].join("\n");
+  const activePath = `/clients/${fixture.bw6.orgA.activeStudentCaseId}`;
+  const salesPendingPath = `/clients/${fixture.bw6.salesPending.studentCaseId}`;
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const auditedRequestIds: string[] = [];
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const requestIdFrom = async (form: Locator) => {
+    const value = await form.locator('input[name="request_id"]').inputValue();
+    expect(value).toMatch(uuidPattern);
+    return value;
+  };
+  const expectWorkspaceAccessible = async (targetPage: Page) => {
+    const { default: AxeBuilder } = await import("@axe-core/playwright");
+    const results = await new AxeBuilder({ page: targetPage })
+      .include('[data-testid="platform-contract-draft-report-workspace"]')
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .analyze();
+    expect(
+      results.violations,
+      results.violations
+        .map(
+          ({ id, impact, help, nodes }) =>
+            `${id} (${impact ?? "unknown"}): ${help}\n${nodes
+              .map(
+                ({ target, failureSummary }) =>
+                  `  ${target.join(" ")}: ${failureSummary ?? "No failure summary"}`,
+              )
+              .join("\n")}`,
+        )
+        .join("\n\n"),
+    ).toEqual([]);
+  };
+  const expectOneAuditEvent = async (requestId: string) => {
+    const rows = await platformRows(
+      adminToken,
+      "audit_events",
+      new URLSearchParams({
+        select: "action,resource_type,resource_id,request_id",
+        organization_id: `eq.${fixture.bw6.orgA.organizationId}`,
+        request_id: `eq.${requestId}`,
+      }),
+    );
+    expect(rows.status).toBe(200);
+    expect(rows.payload).toEqual([
+      expect.objectContaining({ request_id: requestId }),
+    ]);
+  };
+
+  await login(page, fixture.identities.admin);
+  await expect(page).toHaveURL(/\/sales$/);
+  await page.goto(`${activePath}#contract-workflow`);
+  const adminWorkspace = page.getByTestId(
+    "platform-contract-draft-report-workspace",
+  );
+  await expect(adminWorkspace).toBeVisible();
+  await expect(page.locator("#profile + #contract-workflow")).toBeVisible();
+  await expectWorkspaceAccessible(page);
+
+  await adminWorkspace
+    .getByTestId("platform-contract-template-create-panel")
+    .locator("summary")
+    .click();
+  const createTemplateForm = adminWorkspace.getByTestId(
+    "platform-contract-template-create-form",
+  );
+  await createTemplateForm.locator('input[name="template_key"]').fill(templateKey);
+  await createTemplateForm.locator('input[name="title"]').fill(templateTitle);
+  await createTemplateForm
+    .locator('select[name="source_registry_id"]')
+    .selectOption(fixture.bw3.orgA.sourceRegistryId);
+  const selectedSourceEvidence = await createTemplateForm
+    .locator('select[name="source_registry_id"] option:checked')
+    .textContent();
+  expect(selectedSourceEvidence).toBeTruthy();
+  await createTemplateForm
+    .locator('textarea[name="template_text"]')
+    .fill(templateText);
+  await createTemplateForm
+    .locator('textarea[name="manifest_lines"]')
+    .fill(manifestLines);
+  await createTemplateForm
+    .locator('textarea[name="checklist_lines"]')
+    .fill(checklistLines);
+  await createTemplateForm
+    .locator('input[name="reason"]')
+    .fill("Create a reviewed synthetic BW6 template version");
+  auditedRequestIds.push(await requestIdFrom(createTemplateForm));
+  await createTemplateForm
+    .getByRole("button", { name: "Создать неизменяемую версию" })
+    .click();
+  await expect(page).toHaveURL(/bw6_result=template_created/);
+
+  let templateVersion = page
+    .getByTestId("platform-contract-template-version")
+    .filter({ hasText: templateTitle });
+  await expect(templateVersion).toHaveCount(1);
+  for (const sourcePart of (selectedSourceEvidence ?? "").split(" · ")) {
+    await expect(templateVersion).toContainText(sourcePart);
+  }
+  const approveTemplateForm = templateVersion.getByTestId(
+    "platform-contract-template-approve-form",
+  );
+  const contractTemplateVersionId = await approveTemplateForm
+    .locator('input[name="contract_template_version_id"]')
+    .inputValue();
+  expect(contractTemplateVersionId).toMatch(uuidPattern);
+  await approveTemplateForm
+    .locator('input[name="reason"]')
+    .fill("Approve reviewed synthetic typed template");
+  auditedRequestIds.push(await requestIdFrom(approveTemplateForm));
+  await approveTemplateForm
+    .getByRole("button", { name: "Утвердить версию" })
+    .click();
+  await expect(page).toHaveURL(/bw6_result=template_approved/);
+  templateVersion = page
+    .getByTestId("platform-contract-template-version")
+    .filter({ hasText: templateTitle });
+  await expect(templateVersion.getByText("approved", { exact: true })).toBeVisible();
+
+  const salesContext = await browser.newContext();
+  const salesPage = await salesContext.newPage();
+  await login(salesPage, fixture.identities.salesScoped);
+  await expect(salesPage).toHaveURL(/\/sales$/);
+  await salesPage.goto(`${salesPendingPath}#contract-workflow`);
+  const salesWorkspace = salesPage.getByTestId(
+    "platform-contract-draft-report-workspace",
+  );
+  await expect(salesWorkspace).toBeVisible();
+  await expect(
+    salesWorkspace.getByTestId("platform-contract-template-create-form"),
+  ).toHaveCount(0);
+  await expect(
+    salesWorkspace.getByTestId("platform-post-contract-seed-form"),
+  ).toHaveCount(0);
+
+  let generateDraftForm = salesWorkspace.getByTestId(
+    "platform-contract-draft-generate-form",
+  );
+  await generateDraftForm
+    .locator('select[name="contract_template_version_id"]')
+    .selectOption(contractTemplateVersionId);
+  await generateDraftForm
+    .locator('input[name="reason"]')
+    .fill("Generate the first immutable synthetic contract draft");
+  await generateDraftForm.getByRole("button", { name: /Сгенерировать/ }).click();
+  await expect(salesPage).toHaveURL(/bw6_result=draft_generated/);
+
+  const approveDraftForm = salesWorkspace.getByTestId(
+    "platform-contract-draft-approved-form",
+  );
+  const firstDraftId = await approveDraftForm
+    .locator('input[name="student_case_contract_draft_id"]')
+    .inputValue();
+  expect(firstDraftId).toMatch(uuidPattern);
+  const firstDraft = salesWorkspace.locator(
+    `[data-testid="platform-contract-draft-version"][data-draft-id="${firstDraftId}"]`,
+  );
+  const firstRenderedText = await firstDraft
+    .getByTestId("platform-contract-rendered-draft")
+    .textContent();
+  const firstRenderedHash = await firstDraft
+    .getByText("Rendered SHA-256", { exact: true })
+    .locator("..")
+    .locator("dd")
+    .textContent();
+  expect(firstRenderedText).toContain("Student:");
+  expect(firstRenderedHash).toMatch(/^[0-9a-f]{64}$/i);
+  await approveDraftForm
+    .locator('input[name="reason"]')
+    .fill("Approve the reviewed immutable synthetic draft");
+  auditedRequestIds.push(await requestIdFrom(approveDraftForm));
+  await approveDraftForm.getByRole("button", { name: "Утвердить" }).click();
+  await expect(salesPage).toHaveURL(/bw6_result=draft_approved/);
+
+  generateDraftForm = salesWorkspace.getByTestId(
+    "platform-contract-draft-generate-form",
+  );
+  await generateDraftForm
+    .locator('select[name="contract_template_version_id"]')
+    .selectOption(contractTemplateVersionId);
+  await generateDraftForm
+    .locator('input[name="reason"]')
+    .fill("Generate a second immutable version for rejection proof");
+  await generateDraftForm.getByRole("button", { name: /Сгенерировать/ }).click();
+  await expect(salesPage).toHaveURL(/bw6_result=draft_generated/);
+  const rejectDraftForm = salesWorkspace.getByTestId(
+    "platform-contract-draft-rejected-form",
+  );
+  const secondDraftId = await rejectDraftForm
+    .locator('input[name="student_case_contract_draft_id"]')
+    .inputValue();
+  expect(secondDraftId).not.toBe(firstDraftId);
+  await rejectDraftForm
+    .locator('input[name="reason"]')
+    .fill("Reject the second immutable version without rewriting the first");
+  await rejectDraftForm.getByRole("button", { name: "Отклонить" }).click();
+  await expect(salesPage).toHaveURL(/bw6_result=draft_rejected/);
+  const preservedFirstDraft = salesWorkspace.locator(
+    `[data-testid="platform-contract-draft-version"][data-draft-id="${firstDraftId}"]`,
+  );
+  await expect(preservedFirstDraft.getByText("approved", { exact: true })).toBeVisible();
+  expect(
+    await preservedFirstDraft
+      .getByTestId("platform-contract-rendered-draft")
+      .textContent(),
+  ).toBe(firstRenderedText);
+  expect(
+    await preservedFirstDraft
+      .getByText("Rendered SHA-256", { exact: true })
+      .locator("..")
+      .locator("dd")
+      .textContent(),
+  ).toBe(firstRenderedHash);
+
+  await salesPage.goto(activePath);
+  await expect(salesPage.getByText("404", { exact: true })).toBeVisible();
+  await expect(
+    salesPage.getByTestId("platform-contract-draft-report-workspace"),
+  ).toHaveCount(0);
+  await salesContext.close();
+
+  const responsibleSalesContext = await browser.newContext();
+  const responsibleSalesPage = await responsibleSalesContext.newPage();
+  await login(responsibleSalesPage, fixture.identities.responsibleSales);
+  await expect(responsibleSalesPage).toHaveURL(/\/sales$/);
+  const responsibleSalesToken = await localAccessToken(
+    fixture.identities.responsibleSales,
+  );
+  const responsibleSalesSummaries = await platformRpc(
+    responsibleSalesToken,
+    "sales_handoff_summaries",
+    {},
+  );
+  expect(responsibleSalesSummaries.status).toBe(200);
+  expect(responsibleSalesSummaries.payload).toEqual([
+    expect.objectContaining({
+      case_id: fixture.bw6.orgA.activeStudentCaseId,
+      case_state: "active",
+    }),
+  ]);
+  await responsibleSalesPage.goto(activePath);
+  await expect(
+    responsibleSalesPage.getByTestId("platform-sales-handoff-summary"),
+  ).toBeVisible();
+  await expect(
+    responsibleSalesPage.getByTestId("platform-contract-draft-report-workspace"),
+  ).toHaveCount(0);
+  await responsibleSalesContext.close();
+
+  await page.goto(`${activePath}#contract-workflow`);
+  const activeWorkspace = page.getByTestId(
+    "platform-contract-draft-report-workspace",
+  );
+  const activeGenerateDraftForm = activeWorkspace.getByTestId(
+    "platform-contract-draft-generate-form",
+  );
+  await activeGenerateDraftForm
+    .locator('select[name="contract_template_version_id"]')
+    .selectOption(contractTemplateVersionId);
+  await activeGenerateDraftForm
+    .locator('input[name="reason"]')
+    .fill("Generate the reviewed active-case contract before post-contract work");
+  auditedRequestIds.push(await requestIdFrom(activeGenerateDraftForm));
+  await activeGenerateDraftForm
+    .getByRole("button", { name: /Сгенерировать/ })
+    .click();
+  await expect(page).toHaveURL(/bw6_result=draft_generated/);
+
+  const activeApproveDraftForm = activeWorkspace.getByTestId(
+    "platform-contract-draft-approved-form",
+  );
+  await activeApproveDraftForm
+    .locator('input[name="reason"]')
+    .fill("Approve the active-case draft before seeding its checklist");
+  auditedRequestIds.push(await requestIdFrom(activeApproveDraftForm));
+  await activeApproveDraftForm
+    .getByRole("button", { name: "Утвердить" })
+    .click();
+  await expect(page).toHaveURL(/bw6_result=draft_approved/);
+
+  const seedItemsForm = page.getByTestId("platform-post-contract-seed-form");
+  await seedItemsForm
+    .locator('select[name="contract_template_version_id"]')
+    .selectOption(contractTemplateVersionId);
+  await seedItemsForm
+    .locator('input[name="reason"]')
+    .fill("Seed synthetic post-contract items from the approved blueprint");
+  auditedRequestIds.push(await requestIdFrom(seedItemsForm));
+  await seedItemsForm.getByRole("button", { name: "Создать пункты" }).click();
+  await expect(page).toHaveURL(/bw6_result=items_seeded/);
+
+  let welcomeItem = page.locator(
+    `[data-testid="platform-post-contract-item"][data-item-key="${welcomeItemKey}"]`,
+  );
+  let welcomeForm = welcomeItem.getByTestId("platform-post-contract-item-form");
+  await welcomeForm.locator('select[name="status"]').selectOption("delivered");
+  await welcomeForm.locator('input[name="evidence_ref"]').fill("");
+  await welcomeForm
+    .locator('input[name="reason"]')
+    .fill("Prove delivered fails closed without evidence");
+  const deliveredRetryRequestId = await requestIdFrom(welcomeForm);
+  await welcomeForm.getByRole("button", { name: "Сохранить пункт" }).click();
+  await expect(page).toHaveURL(/bw6_result=invalid/);
+  welcomeItem = page.locator(
+    `[data-testid="platform-post-contract-item"][data-item-key="${welcomeItemKey}"]`,
+  );
+  welcomeForm = welcomeItem.getByTestId("platform-post-contract-item-form");
+  expect(await requestIdFrom(welcomeForm)).toBe(deliveredRetryRequestId);
+  await welcomeForm.locator('select[name="status"]').selectOption("delivered");
+  await welcomeForm
+    .locator('input[name="evidence_ref"]')
+    .fill(`synthetic:evidence:welcome-pack:${suffix}`);
+  await welcomeForm
+    .locator('input[name="reason"]')
+    .fill("Record delivered synthetic item with bounded evidence");
+  auditedRequestIds.push(deliveredRetryRequestId);
+  await welcomeForm.getByRole("button", { name: "Сохранить пункт" }).click();
+  await expect(page).toHaveURL(/bw6_result=item_updated/);
+
+  let documentItem = page.locator(
+    `[data-testid="platform-post-contract-item"][data-item-key="${documentItemKey}"]`,
+  );
+  let documentForm = documentItem.getByTestId("platform-post-contract-item-form");
+  const assignedCuratorMembershipId = await documentForm
+    .locator('input[name="owner_membership_id"]')
+    .inputValue();
+  expect(assignedCuratorMembershipId).toMatch(uuidPattern);
+  await documentForm.locator('select[name="status"]').selectOption("blocked");
+  await documentForm.locator('input[name="owner_membership_id"]').fill("");
+  await documentForm.locator('textarea[name="next_action"]').fill("");
+  await documentForm
+    .locator('input[name="reason"]')
+    .fill("Prove blocked fails closed without owner and next action");
+  const blockedRetryRequestId = await requestIdFrom(documentForm);
+  await documentForm.getByRole("button", { name: "Сохранить пункт" }).click();
+  await expect(page).toHaveURL(/bw6_result=invalid/);
+  documentItem = page.locator(
+    `[data-testid="platform-post-contract-item"][data-item-key="${documentItemKey}"]`,
+  );
+  documentForm = documentItem.getByTestId("platform-post-contract-item-form");
+  expect(await requestIdFrom(documentForm)).toBe(blockedRetryRequestId);
+  await documentForm.locator('select[name="status"]').selectOption("blocked");
+  await documentForm
+    .locator('input[name="owner_membership_id"]')
+    .fill(assignedCuratorMembershipId);
+  await documentForm
+    .locator('textarea[name="next_action"]')
+    .fill("Request synthetic missing input");
+  await documentForm
+    .locator('input[name="reason"]')
+    .fill("Record blocked synthetic item with owner and next action");
+  auditedRequestIds.push(blockedRetryRequestId);
+  await documentForm.getByRole("button", { name: "Сохранить пункт" }).click();
+  await expect(page).toHaveURL(/bw6_result=item_updated/);
+
+  let generateReportForm = page.getByTestId(
+    "platform-post-contract-report-generate-form",
+  );
+  await generateReportForm
+    .locator('select[name="contract_template_version_id"]')
+    .selectOption(contractTemplateVersionId);
+  await generateReportForm
+    .locator('input[name="reason"]')
+    .fill("Generate an immutable report from validated synthetic items");
+  auditedRequestIds.push(await requestIdFrom(generateReportForm));
+  await generateReportForm
+    .getByRole("button", { name: "Создать новую версию отчёта" })
+    .click();
+  await expect(page).toHaveURL(/bw6_result=report_generated/);
+  const approveReportForm = page.getByTestId(
+    "platform-contract-report-approved-form",
+  );
+  const generatedReportId = await approveReportForm
+    .locator('input[name="post_contract_report_id"]')
+    .inputValue();
+  const generatedReport = page.locator(
+    `[data-testid="platform-post-contract-report-version"][data-report-id="${generatedReportId}"]`,
+  );
+  await expect(generatedReport).toHaveAttribute(
+    "data-template-id",
+    contractTemplateVersionId,
+  );
+  const deliveredCount = Number(
+    await generatedReport.getByText("Доставлено", { exact: true }).locator("..").locator("dd").textContent(),
+  );
+  const blockedCount = Number(
+    await generatedReport.getByText("Заблокировано", { exact: true }).locator("..").locator("dd").textContent(),
+  );
+  expect(deliveredCount).toBe(1);
+  expect(blockedCount).toBe(1);
+  await expect(generatedReport).toContainText(
+    `synthetic:evidence:welcome-pack:${suffix}`,
+  );
+  await expect(generatedReport).toContainText("Request synthetic missing input");
+  expect(
+    await generatedReport
+      .getByTestId("platform-post-contract-report-item")
+      .count(),
+  ).toBe(2);
+  await expect(
+    generatedReport.locator(
+      `[data-testid="platform-post-contract-report-item"][data-item-id="${fixture.bw6.orgA.postContractItemId}"]`,
+    ),
+  ).toHaveCount(0);
+  await expect(
+    page.locator(
+      `[data-testid="platform-post-contract-report-version"][data-report-id="${fixture.bw6.orgA.postContractReportId}"]`,
+    ),
+  ).toHaveAttribute(
+    "data-template-id",
+    fixture.bw6.orgA.contractTemplateVersionId,
+  );
+  await approveReportForm
+    .locator('input[name="reason"]')
+    .fill("Approve report with delivered evidence and blocked ownership");
+  auditedRequestIds.push(await requestIdFrom(approveReportForm));
+  await approveReportForm.getByRole("button", { name: "Утвердить" }).click();
+  await expect(page).toHaveURL(/bw6_result=report_approved/);
+  await expectWorkspaceAccessible(page);
+
+  const curatorContext = await browser.newContext();
+  const curatorPage = await curatorContext.newPage();
+  await login(curatorPage, fixture.identities.curator);
+  await expect(curatorPage).toHaveURL(/\/clients$/);
+  await curatorPage.goto(`${activePath}#contract-workflow`);
+  const curatorWorkspace = curatorPage.getByTestId(
+    "platform-contract-draft-report-workspace",
+  );
+  await expect(curatorWorkspace).toBeVisible();
+  await expect(
+    curatorWorkspace.getByTestId("platform-contract-template-create-form"),
+  ).toHaveCount(0);
+  const curatorItem = curatorWorkspace.locator(
+    `[data-testid="platform-post-contract-item"][data-item-key="${documentItemKey}"]`,
+  );
+  const curatorItemForm = curatorItem.getByTestId(
+    "platform-post-contract-item-form",
+  );
+  await curatorItemForm.locator('select[name="status"]').selectOption("in_progress");
+  await curatorItemForm
+    .locator('textarea[name="next_action"]')
+    .fill("Continue synthetic review as assigned Curator");
+  await curatorItemForm
+    .locator('input[name="reason"]')
+    .fill("Assigned Curator advances the synthetic item");
+  await curatorItemForm.getByRole("button", { name: "Сохранить пункт" }).click();
+  await expect(curatorPage).toHaveURL(/bw6_result=item_updated/);
+  generateReportForm = curatorWorkspace.getByTestId(
+    "platform-post-contract-report-generate-form",
+  );
+  await generateReportForm
+    .locator('select[name="contract_template_version_id"]')
+    .selectOption(contractTemplateVersionId);
+  await generateReportForm
+    .locator('input[name="reason"]')
+    .fill("Assigned Curator snapshots the updated synthetic checklist");
+  await generateReportForm
+    .getByRole("button", { name: "Создать новую версию отчёта" })
+    .click();
+  await expect(curatorPage).toHaveURL(/bw6_result=report_generated/);
+  const rejectReportForm = curatorWorkspace.getByTestId(
+    "platform-contract-report-rejected-form",
+  );
+  await rejectReportForm
+    .locator('input[name="reason"]')
+    .fill("Reject Curator report version while preserving its audit history");
+  await rejectReportForm.getByRole("button", { name: "Отклонить" }).click();
+  await expect(curatorPage).toHaveURL(/bw6_result=report_rejected/);
+  const deniedCuratorResponse = await curatorPage.goto(
+    `/clients/${fixture.bw6.negative.unassignedActiveStudentCaseId}`,
+  );
+  expect(deniedCuratorResponse?.status()).toBe(404);
+  await expect(
+    curatorPage.getByTestId("platform-contract-draft-report-workspace"),
+  ).toHaveCount(0);
+  await curatorContext.close();
+
+  for (const identity of [
+    fixture.identities.crossOrgAdmin,
+    fixture.identities.finance,
+    fixture.identities.student,
+  ]) {
+    const context = await browser.newContext();
+    const deniedPage = await context.newPage();
+    await login(deniedPage, identity);
+    await expect(deniedPage).toHaveURL(expectedStaffHome(identity));
+    const response = await deniedPage.goto(activePath);
+    await expect(
+      deniedPage.getByTestId("platform-contract-draft-report-workspace"),
+    ).toHaveCount(0);
+    if (identity === fixture.identities.crossOrgAdmin) {
+      expect(response?.status()).toBe(404);
+    } else {
+      await expect(deniedPage).not.toHaveURL(
+        new RegExp(`${escapePathForRegex(activePath)}$`),
+      );
+    }
+    await context.close();
+  }
+
+  for (const requestId of auditedRequestIds) {
+    await expectOneAuditEvent(requestId);
+  }
   expectLegacyDatabaseUntouched();
 });
 

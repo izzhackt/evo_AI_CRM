@@ -6,6 +6,13 @@ import { Badge, Card, EmptyState, StatCard, inputCls, btnCls, btnGhostCls, label
 import { AiSummary } from "@/components/AiSummary";
 import { StudentProgress } from "@/components/platform/core/StudentProgress";
 import {
+  ContractDraftReportWorkspace,
+  type ContractDraftReportActions,
+  type ContractDraftReportRequestIdFor,
+  type ContractDraftReportResult,
+} from "./ContractDraftReportWorkspace";
+import type { PlatformCaseContractWorkspace } from "@/lib/platform-contract-workflow";
+import {
   PLATFORM_STUDENT_PROFILE_DECISION_PARTICIPANTS_INPUT_MAX_LENGTH,
   PLATFORM_STUDENT_PROFILE_DECISION_PARTICIPANTS_INPUT_PATTERN,
   PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS,
@@ -223,6 +230,11 @@ export type ClientPagePresentationData =
       routeRequestId?: string;
       profileRequestId?: string;
       checklistRequestId?: string;
+      contractWorkspace?: PlatformCaseContractWorkspace;
+      contractActions?: ContractDraftReportActions;
+      contractRequestIdFor?: ContractDraftReportRequestIdFor;
+      contractResult?: ContractDraftReportResult;
+      contractRetrySubjectId?: string;
       connected: boolean;
       testId?: string;
     }>;
@@ -450,6 +462,11 @@ export default async function ClientPageContent({
     routeRequestId,
     profileRequestId,
     checklistRequestId,
+    contractWorkspace,
+    contractActions,
+    contractRequestIdFor,
+    contractResult,
+    contractRetrySubjectId,
   } = data;
   const profileLabels = {
     ru: {
@@ -1340,6 +1357,16 @@ export default async function ClientPageContent({
         )}
         </Card>
       </section>
+
+      {contractWorkspace && contractActions && contractRequestIdFor ? (
+        <ContractDraftReportWorkspace
+          workspace={contractWorkspace}
+          actions={contractActions}
+          requestIdFor={contractRequestIdFor}
+          result={contractResult}
+          retrySubjectId={contractRetrySubjectId}
+        />
+      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Applications */}

@@ -106,6 +106,10 @@ const platformContractDraftReportMigration = readFileSync(
   join(migrationsDir, '057_platform_contract_draft_report.sql'),
   'utf8'
 )
+const platformAmoCrmMappingDiscoveryMigration = readFileSync(
+  join(migrationsDir, '058_platform_amocrm_mapping_discovery.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -123,7 +127,7 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '057_platform_contract_draft_report.sql'
+      '058_platform_amocrm_mapping_discovery.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -143,6 +147,18 @@ describe('Supabase companion schema contract', () => {
     )
     expect(platformDecisionPromptLifecycleMigration).toMatch(
       /CREATE\s+TABLE\s+platform_private\.ai_prompt_artifact_versions/i
+    )
+    expect(platformAmoCrmMappingDiscoveryMigration).toMatch(
+      /CREATE\s+TABLE\s+platform_private\.amocrm_mapping_discovery_versions/i
+    )
+    expect(platformAmoCrmMappingDiscoveryMigration).toMatch(
+      /ALTER\s+TABLE\s+platform_private\.amocrm_mapping_discovery_versions\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/i
+    )
+    expect(platformAmoCrmMappingDiscoveryMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.persist_amocrm_mapping_discovery[\s\S]*?TO\s+service_role/i
+    )
+    expect(platformAmoCrmMappingDiscoveryMigration).not.toMatch(
+      /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*?amocrm_mapping_discovery_versions/i
     )
     expect(platformDecisionPromptLifecycleMigration).toMatch(
       /CREATE\s+TABLE\s+platform\.decision_backlogs/i

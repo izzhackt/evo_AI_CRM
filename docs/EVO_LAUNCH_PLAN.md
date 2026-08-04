@@ -1,14 +1,17 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-bw7` is active. Historical P1, reusable greenfield
-P2A-P2H, BW0, P3A-P3C, BW1-BW6 and P2R0-P2R3 are merged. PR #114 merged BW6 at
-current main `a2ecadbe05dcf6993bbd558f3d80fa405a571a7c`; exact-main CI run
-`30918820654` is green for Main CRM, EVO Inbox and EVO Lead Agent, while
-Changed range was skipped on the push run as expected. BW7 is the active
-latest-main integration-proof block. Its local security, RLS, Auth and 28/28
-accepted-frontend browser scenarios are green; exact-head review, CI and
-controller merge remain pending. No managed Supabase, staging, provider or
-production exercise is claimed. P2I restore duties remain in P7.
+Status: `/goal-evo-platform-p4a` is active. Historical P1, reusable greenfield
+P2A-P2H, BW0, P3A-P3C, BW1-BW7 and P2R0-P2R3 are merged. PR #116 merged BW7 at
+current main `45e64f7b6bfb181a065ae7cfc34abd0fb1b693ec`; exact-main CI run
+`30934111632` is green for Main CRM, EVO Inbox and EVO Lead Agent, while
+Changed range was skipped on the push run as expected. P4A is the active
+disabled/fail-closed amoCRM mapping-discovery block. It adds no provider
+credentials, provider call, webhook, OAuth storage or canonical write and
+therefore cannot claim live amoCRM readiness. Candidate local proof is green:
+disposable PostgreSQL authorization, 58 contiguous local Supabase migrations,
+Auth/PostgREST/Storage/PGMQ and 28/28 accepted-frontend browser scenarios.
+No managed Supabase, staging, provider or production exercise is claimed. P2I
+restore duties remain in P7.
 Updated 2026-08-04 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
@@ -21,14 +24,15 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active plan slice: `/goal-evo-platform-bw7`, Block
-`EVO-BW7-INTEGRATION-PROOF-2026-08-04`. The implementation connects the
-existing Student 360 Curator-assignment controls to the greenfield Supabase
-repository/RPC seam and proves one case through Sales approval, Admin Curator
-assignment, Curator checklist/report approval, Student Portal activation and
-the post-handoff Sales summary. It changes no migration; migrations 001-057
-remain immutable. It does not claim managed Supabase, staging, provider
-exercise or production readiness.
+Active plan slice: `/goal-evo-platform-p4a`, Block
+`EVO-P4A-AMOCRM-MAPPING-DISCOVERY-2026-08-04`. The implementation establishes
+the smallest server-only P4 boundary: strict read-only provider response
+normalization plus private immutable organization/account-specific mapping
+versions, service-only persistence and live-authority Admin-only reads. It
+adds forward migration 058 without rewriting migrations 001-057. It does not
+store OAuth material or raw provider responses, select an active mapping,
+contact amoCRM, change amoCRM records, expose a browser secret or claim
+managed Supabase, staging, provider or production readiness.
 
 ### Goal
 
@@ -41,10 +45,10 @@ The existing unified frontend from PRs #64/#71/#72 is the sole product UI
 contract and must be wired through repository/session seams, not replaced or
 paralleled. AI remains draft-only with human manual send.
 
-This status refresh records the already-merged BW6 boundary and advances the
-existing sequential contract to BW7. It changes no target architecture,
-requirement outcome, provider ownership, production state, schema or restore
-claim. BW7 reuses migrations 001-057 without adding or rewriting one.
+This status refresh records the already-merged BW7 boundary and advances the
+existing approved P4 contract to its first bounded implementation slice. It
+changes no target architecture, requirement outcome, provider ownership,
+production authority or restore claim.
 
 ### Reconciled baseline
 
@@ -64,9 +68,9 @@ checkpoint is:
   merged P3A-P3C; PRs #100-#103 merged BW1-BW4; PR #104 merged P2R0; PR #105
   merged P2R1; PR #107 merged the BW5 checkpoint amendment; PR #109 merged the
   P2R2 plan gate; PR #111 merged the P2R3 plan gate; PR #112 merged the P2R3
-  repair; PR #113 merged BW5; and PR #114 merged BW6. The exact checkpoint for
-  BW7 is `a2ecadbe05dcf6993bbd558f3d80fa405a571a7c`; exact-main CI run
-  `30918820654` is green for Main CRM, EVO Inbox and EVO Lead Agent, while
+  repair; PR #113 merged BW5; PR #114 merged BW6; and PR #116 merged BW7. The
+  exact checkpoint for P4A is `45e64f7b6bfb181a065ae7cfc34abd0fb1b693ec`;
+  exact-main CI run `30934111632` is green for Main CRM, EVO Inbox and EVO Lead Agent, while
   Changed range was skipped on the push run as expected.
 - PR #108 exact head `f719b749efaadaf02c6344c5d01cd4b6bbe3d79c`
   is historical recovery evidence: it passed focused tests and CI but was
@@ -195,12 +199,12 @@ checkpoint is:
 
 ### Merge-order boundary
 
-BW0, P3A-P3C, BW1-BW6 and P2R0-P2R3 are merged history. BW7 is the only active
+BW0, P3A-P3C, BW1-BW7 and P2R0-P2R3 are merged history. P4A is the only active
 implementation block. P2R0-P2R3 do not transfer P7 restore ownership or
 authorize production application. P3 owns common session/repository seams, P4
 owns amoCRM adapter behavior, P5 owns real WAHA/AI/ACK proof, and P7 owns
-whole-foundation backup/restore and release reliability evidence. BW6-BW7
-consume those seams and cannot open while another implementation PR is active.
+whole-foundation backup/restore and release reliability evidence. No next
+implementation block can open while P4A remains open.
 Shared migrations are selected only after fetching current main and checking
 open ownership; merged migrations are immutable.
 - `crm.evoadmissions.com` and `inbox.evoadmissions.com` have no DNS answer.

@@ -591,6 +591,18 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_contract_draft_report_rls.sql
   fi
+
+  # P4A owns migration 058's private, immutable and account-specific amoCRM
+  # mapping-discovery versions. Run both suites at the exact boundary so later
+  # provider/webhook work cannot mask service-ingest or Admin-read drift.
+  if [[ "$(basename "$migration")" == 058_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_amocrm_mapping_discovery_inventory.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_amocrm_mapping_discovery_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

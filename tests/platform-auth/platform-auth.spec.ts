@@ -466,6 +466,62 @@ async function assertPersistedP3cWorkflow(page: Page) {
   await expect(page.getByTestId("platform-manual-send")).toHaveCount(0);
 }
 
+test("RU and EN draft requests work while uncertain language stops for manual selection", async ({
+  page,
+}) => {
+  await loginToMessaging(page, fixture.identities.crossOrgAdmin);
+
+  for (const [conversationId, language] of [
+    [fixture.bw4.languages.ruConversationId, "ru"],
+    [fixture.bw4.languages.enConversationId, "en"],
+  ] as const) {
+    await page.goto(`/whatsapp/${conversationId}`);
+    await expect(page.getByTestId("platform-language-gate")).toHaveAttribute(
+      "data-language-gate",
+      language,
+    );
+    await expect(page.locator("#platform-draft-language")).toHaveValue(language);
+    await page
+      .locator("#platform-draft-reason")
+      .fill(`Browser proof for the ${language.toUpperCase()} draft path`);
+    await page.getByTestId("platform-request-draft").click();
+    await expect(page.getByTestId("platform-draft-awaiting")).toBeVisible();
+    await expect(
+      page
+        .getByTestId("platform-outbox-state")
+        .locator('[data-outbox-kind="ai_draft_generate"]'),
+    ).toHaveCount(1);
+    await expect(
+      page
+        .getByTestId("platform-outbox-state")
+        .locator('[data-outbox-kind="manual_whatsapp_send"]'),
+    ).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId("platform-language-gate")).toHaveAttribute(
+      "data-language-gate",
+      language,
+    );
+  }
+
+  await page.goto(
+    `/whatsapp/${fixture.bw4.languages.undeterminedConversationId}`,
+  );
+  const languageGate = page.getByTestId("platform-language-gate");
+  await expect(languageGate).toHaveAttribute(
+    "data-language-gate",
+    "manual-selection-required",
+  );
+  const languageSelect = page.locator("#platform-draft-language");
+  await expect(languageSelect).toHaveValue("");
+  await expect(languageSelect).toBeEnabled();
+  await expect(languageSelect.locator('option[value="ky"]')).toHaveCount(0);
+  await expect(page.getByTestId("platform-request-draft")).toBeDisabled();
+
+  await languageSelect.selectOption("ru");
+  await expect(languageGate).toHaveAttribute("data-language-gate", "ru");
+  await expect(page.getByTestId("platform-request-draft")).toBeEnabled();
+});
+
 test("self-registration is disabled before any account write", async ({
   page,
 }) => {
@@ -2664,62 +2720,6 @@ test("responsible Sales gets a fixed owner role and a clear no-case handoff stat
       'select[name="affected_requirement_kind"] option',
     ),
   ).toHaveCount(1);
-});
-
-test("RU and EN draft requests work while uncertain language stops for manual selection", async ({
-  page,
-}) => {
-  await loginToMessaging(page, fixture.identities.crossOrgAdmin);
-
-  for (const [conversationId, language] of [
-    [fixture.bw4.languages.ruConversationId, "ru"],
-    [fixture.bw4.languages.enConversationId, "en"],
-  ] as const) {
-    await page.goto(`/whatsapp/${conversationId}`);
-    await expect(page.getByTestId("platform-language-gate")).toHaveAttribute(
-      "data-language-gate",
-      language,
-    );
-    await expect(page.locator("#platform-draft-language")).toHaveValue(language);
-    await page
-      .locator("#platform-draft-reason")
-      .fill(`Browser proof for the ${language.toUpperCase()} draft path`);
-    await page.getByTestId("platform-request-draft").click();
-    await expect(page.getByTestId("platform-draft-awaiting")).toBeVisible();
-    await expect(
-      page
-        .getByTestId("platform-outbox-state")
-        .locator('[data-outbox-kind="ai_draft_generate"]'),
-    ).toHaveCount(1);
-    await expect(
-      page
-        .getByTestId("platform-outbox-state")
-        .locator('[data-outbox-kind="manual_whatsapp_send"]'),
-    ).toHaveCount(0);
-    await page.reload();
-    await expect(page.getByTestId("platform-language-gate")).toHaveAttribute(
-      "data-language-gate",
-      language,
-    );
-  }
-
-  await page.goto(
-    `/whatsapp/${fixture.bw4.languages.undeterminedConversationId}`,
-  );
-  const languageGate = page.getByTestId("platform-language-gate");
-  await expect(languageGate).toHaveAttribute(
-    "data-language-gate",
-    "manual-selection-required",
-  );
-  const languageSelect = page.locator("#platform-draft-language");
-  await expect(languageSelect).toHaveValue("");
-  await expect(languageSelect).toBeEnabled();
-  await expect(languageSelect.locator('option[value="ky"]')).toHaveCount(0);
-  await expect(page.getByTestId("platform-request-draft")).toBeDisabled();
-
-  await languageSelect.selectOption("ru");
-  await expect(languageGate).toHaveAttribute("data-language-gate", "ru");
-  await expect(page.getByTestId("platform-request-draft")).toBeEnabled();
 });
 
 test("Finance, Students, former Sales, and cross-org staff see no BW4 controls", async ({

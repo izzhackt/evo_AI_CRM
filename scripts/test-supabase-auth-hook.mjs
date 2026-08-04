@@ -2853,6 +2853,278 @@ const main = async () => {
     "bw4-workspace-postgrest-shape",
   );
 
+  const bw6TemplateKey = "contract_bw6_fixture";
+  const bw6TemplateTitle = "Synthetic BW6 Admissions Contract";
+  const bw6FieldManifest = [
+    {
+      field_key: "student_name",
+      source_path: "student_case.student_display_name",
+      value_type: "text",
+      required: true,
+    },
+    {
+      field_key: "target_country",
+      source_path: "student_case.target_country",
+      value_type: "text",
+      required: true,
+    },
+    {
+      field_key: "service_package",
+      source_path: "handoff.approved_commercial_fields.service_package",
+      value_type: "text",
+      required: true,
+    },
+  ];
+  const bw6ChecklistBlueprint = [
+    {
+      item_key: "welcome_pack",
+      label: "Send the synthetic welcome pack",
+      owner_role: "curator",
+      next_action: "Send the synthetic welcome pack",
+    },
+    {
+      item_key: "commercial_follow_up",
+      label: "Confirm the synthetic commercial follow-up",
+      owner_role: "admin",
+      next_action: "Confirm the synthetic commercial follow-up",
+    },
+  ];
+  const bw6PendingCase = serviceFunctionResult(
+    `platform.create_pending_student_case_with_handoff(
+      ${sqlUuid(adminAMembership.organization_id, "bw6-pending-org")},
+      ${sqlUuid(roleMembers.student.id, "bw6-pending-student")},
+      ${sqlUuid(salesScopedMembership.id, "bw6-pending-sales")},
+      'bw6-synthetic-sales-pending',
+      'bw6-synthetic-contract-confirmation',
+      '2026-08-04T08:00:00Z'::timestamptz,
+      'BW6 Synthetic Pending Student',
+      'Synthetic Country',
+      'Synthetic Degree',
+      'synthetic_program',
+      'synthetic_intake',
+      'ru',
+      'synthetic_budget',
+      'intake',
+      'Review the synthetic contract draft',
+      ${sqlUuid(bw4OpContractVersionId, "bw6-pending-op-version")},
+      ${sqlUuid(bw4OzoContractVersionId, "bw6-pending-ozo-version")},
+      '{"service_package":"synthetic_standard","fee_currency":"USD","fee_amount_minor":125000,"payment_terms":"synthetic_single_payment"}'::jsonb,
+      '[]'::jsonb,
+      '[]'::jsonb,
+      'Complete the synthetic contract review',
+      '2026-08-20T08:00:00Z'::timestamptz,
+      'sales'::platform.business_role,
+      ${sqlUuid(randomUUID(), "bw6-pending-request")}
+    )`,
+    "bw6-pending-case-create",
+  );
+  const bw6PendingStudentCaseId = bw6PendingCase?.student_case_id;
+  sqlUuid(bw6PendingStudentCaseId, "bw6-pending-student-case-id");
+
+  const bw6Template = await rpc(
+    identities.adminA,
+    "create_contract_template_version",
+    [
+      adminAMembership.organization_id,
+      bw6TemplateKey,
+      bw6TemplateTitle,
+      bw3SourceRegistryId,
+      bw6FieldManifest,
+      "Student: {{student_name}}\nCountry: {{target_country}}\nPackage: {{service_package}}",
+      bw6ChecklistBlueprint,
+      "Create the synthetic BW6 contract template",
+      randomUUID(),
+    ],
+  );
+  const bw6ContractTemplateVersionId =
+    bw6Template?.contract_template_version_id;
+  sqlUuid(
+    bw6ContractTemplateVersionId,
+    "bw6-contract-template-version-id",
+  );
+  const bw6ApprovedTemplate = await rpc(
+    identities.adminA,
+    "approve_contract_template_version",
+    [
+      adminAMembership.organization_id,
+      bw6ContractTemplateVersionId,
+      "Approve the synthetic BW6 contract template",
+      randomUUID(),
+    ],
+  );
+  assert(
+    bw6ApprovedTemplate?.status === "approved",
+    "bw6-contract-template-approved",
+  );
+
+  const bw6Draft = await rpc(
+    identities.adminA,
+    "generate_student_case_contract_draft",
+    [
+      adminAMembership.organization_id,
+      orgAStudentCaseId,
+      bw6ContractTemplateVersionId,
+      "Generate the synthetic BW6 contract draft",
+      randomUUID(),
+    ],
+  );
+  const bw6StudentCaseContractDraftId =
+    bw6Draft?.student_case_contract_draft_id;
+  sqlUuid(
+    bw6StudentCaseContractDraftId,
+    "bw6-student-case-contract-draft-id",
+  );
+  const bw6ReviewedDraft = await rpc(
+    identities.adminA,
+    "review_student_case_contract_draft",
+    [
+      adminAMembership.organization_id,
+      orgAStudentCaseId,
+      bw6StudentCaseContractDraftId,
+      "approved",
+      "Approve the synthetic BW6 contract draft",
+      randomUUID(),
+    ],
+  );
+  assert(
+    bw6ReviewedDraft?.status === "approved",
+    "bw6-contract-draft-approved",
+  );
+
+  const bw6SeedResult = await rpc(
+    identities.adminA,
+    "seed_post_contract_items",
+    [
+      adminAMembership.organization_id,
+      orgAStudentCaseId,
+      bw6ContractTemplateVersionId,
+      "Seed the synthetic BW6 post-contract checklist",
+      randomUUID(),
+    ],
+  );
+  assert(
+    bw6SeedResult?.total_item_count === bw6ChecklistBlueprint.length,
+    "bw6-post-contract-items-seeded",
+  );
+  const bw6PostContractItems = JSON.parse(
+    runSql(
+      `
+        SELECT COALESCE(
+          jsonb_agg(
+            jsonb_build_object(
+              'id', item.id,
+              'item_key', item.item_key,
+              'revision', item.revision,
+              'owner_membership_id', item.owner_membership_id
+            ) ORDER BY item.item_key
+          ),
+          '[]'::jsonb
+        )::text
+        FROM platform.post_contract_items AS item
+        WHERE item.organization_id = ${sqlUuid(
+          adminAMembership.organization_id,
+          "bw6-items-org",
+        )}
+          AND item.student_case_id = ${sqlUuid(
+            orgAStudentCaseId,
+            "bw6-items-case",
+          )}
+          AND item.contract_template_version_id = ${sqlUuid(
+            bw6ContractTemplateVersionId,
+            "bw6-items-template",
+          )};
+      `,
+      "bw6-post-contract-items-read",
+    ),
+  );
+  assert(
+    Array.isArray(bw6PostContractItems) &&
+      bw6PostContractItems.length === bw6ChecklistBlueprint.length,
+    "bw6-post-contract-items-shape",
+  );
+  const bw6CommercialItem = bw6PostContractItems.find(
+    (item) => item.item_key === "commercial_follow_up",
+  );
+  const bw6WelcomeItem = bw6PostContractItems.find(
+    (item) => item.item_key === "welcome_pack",
+  );
+  sqlUuid(bw6CommercialItem?.id, "bw6-commercial-item-id");
+  sqlUuid(bw6WelcomeItem?.id, "bw6-welcome-item-id");
+  await rpc(identities.adminA, "update_post_contract_item", [
+    adminAMembership.organization_id,
+    orgAStudentCaseId,
+    bw6WelcomeItem.id,
+    bw6WelcomeItem.revision,
+    "delivered",
+    roleMembers.curator.id,
+    "Synthetic welcome pack delivered",
+    "synthetic://bw6/welcome-pack",
+    "Record synthetic welcome pack delivery",
+    randomUUID(),
+  ]);
+  await rpc(identities.adminA, "update_post_contract_item", [
+    adminAMembership.organization_id,
+    orgAStudentCaseId,
+    bw6CommercialItem.id,
+    bw6CommercialItem.revision,
+    "blocked",
+    adminAMembership.id,
+    "Resolve the synthetic commercial follow-up",
+    null,
+    "Record the synthetic commercial blocker",
+    randomUUID(),
+  ]);
+
+  const bw6Report = await rpc(
+    identities.adminA,
+    "generate_post_contract_report",
+    [
+      adminAMembership.organization_id,
+      orgAStudentCaseId,
+      bw6ContractTemplateVersionId,
+      "Generate the synthetic BW6 post-contract report",
+      randomUUID(),
+    ],
+  );
+  const bw6PostContractReportId = bw6Report?.post_contract_report_id;
+  sqlUuid(bw6PostContractReportId, "bw6-post-contract-report-id");
+  const bw6ReviewedReport = await rpc(
+    identities.adminA,
+    "review_post_contract_report",
+    [
+      adminAMembership.organization_id,
+      orgAStudentCaseId,
+      bw6PostContractReportId,
+      "approved",
+      "Approve the synthetic BW6 post-contract report",
+      randomUUID(),
+    ],
+  );
+  assert(
+    bw6ReviewedReport?.status === "approved" &&
+      bw6ReviewedReport?.delivered_item_count === 1 &&
+      bw6ReviewedReport?.blocked_item_count === 1,
+    "bw6-post-contract-report-approved",
+  );
+
+  // BW6 reuses the active case created before the contract fixture. Refresh the
+  // responsible Sales token after every fixture mutation and prove that the
+  // final database still exposes only the fixed post-handoff summary. This
+  // catches access-version or fixture-owner drift before browser validation.
+  await refresh(identities.responsibleSales, "sales");
+  const bw6ResponsibleSalesSummaries = await authenticatedPlatformRpcRows(
+    identities.responsibleSales,
+    "sales_handoff_summaries",
+    {},
+    "bw6-responsible-sales-handoff-summary",
+  );
+  assert(
+    bw6ResponsibleSalesSummaries.length === 1 &&
+      bw6ResponsibleSalesSummaries[0].case_id === orgAStudentCaseId &&
+      bw6ResponsibleSalesSummaries[0].case_state === "active",
+    "bw6-responsible-sales-handoff-summary-shape",
+  );
+
   const legacySideEffects = Number(
     runSql(
       `
@@ -2905,6 +3177,10 @@ const main = async () => {
             email: identities.salesScoped.email,
             password: identities.salesScoped.password,
           },
+          responsibleSales: {
+            email: identities.responsibleSales.email,
+            password: identities.responsibleSales.password,
+          },
           finance: {
             email: identities.finance.email,
             password: identities.finance.password,
@@ -2937,6 +3213,27 @@ const main = async () => {
           orgBAiRequest: orgBAiRequestConversation,
           orgBAiReview: orgBAiReviewConversation,
           sameOrgOutsideSalesScope: orgAScopedConversation,
+        },
+        bw6: {
+          orgA: {
+            organizationId: adminAMembership.organization_id,
+            activeStudentCaseId: orgAStudentCaseId,
+            contractTemplateVersionId: bw6ContractTemplateVersionId,
+            studentCaseContractDraftId: bw6StudentCaseContractDraftId,
+            postContractItemId: bw6WelcomeItem.id,
+            postContractReportId: bw6PostContractReportId,
+            templateKey: bw6TemplateKey,
+            templateTitle: bw6TemplateTitle,
+          },
+          salesPending: {
+            organizationId: adminAMembership.organization_id,
+            studentCaseId: bw6PendingStudentCaseId,
+            responsibleSalesMembershipId: salesScopedMembership.id,
+          },
+          negative: {
+            crossOrgOrganizationId: adminBMembership.organization_id,
+            unassignedActiveStudentCaseId: bw4UnrelatedCaseId,
+          },
         },
         p3c: {
           orgA: {

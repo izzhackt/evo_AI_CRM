@@ -1,14 +1,14 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-p2r3` is active. Historical P1, reusable greenfield
-P2A-P2H, BW0, P3A-P3C, BW1-BW4 and P2R0/P2R1 are merged; PR #109 merged the
-P2R2 plan gate at current main
-`30bcc956fbf1ac90e79c2a75c22748633e219d9d`, with exact-main CI run
-`30824043775` green. PR #110 was closed without merge after controller
-`changes_requested` on stale-session clearing and the second physical-worktree
-Docker proof. P2R3 is the required file-ownership and validation plan gate; BW5
-is paused. P2I restore duties remain in P7. Updated 2026-08-04 in the workspace
-timezone.
+Status: `/goal-evo-platform-bw6` is active. Historical P1, reusable greenfield
+P2A-P2H, BW0, P3A-P3C, BW1-BW5 and P2R0-P2R3 are merged. PR #112 merged the
+stale-session/local-proof repair; PR #113 merged BW5 at current main
+`1061bad81b27deee98d9c69380b3e543dc281924`, with exact-main CI run
+`30894448943` green. BW6 is the active contract-draft and post-contract
+checklist/report implementation block. Its local security, RLS, Auth, browser,
+build and regression gates are green; exact-head review, CI and controller
+merge remain pending. P2I restore duties remain in P7.
+Updated 2026-08-04 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 The current detailed contract is
@@ -20,12 +20,12 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active plan slice: `/goal-evo-platform-p2r3`, Block
-`EVO-P2R3-STALE-SESSION-CLEAR-PLAN-2026-08-04`, docs-only ownership amendment.
-Post-merge implementation slice: rebuild the bounded issued-token auth/local
-reset repair, adding only the response-writable stale-session handoff and real
-connected-route regression authorized below. BW5 resumes only after that
-implementation is independently proved and controller-merged.
+Active plan slice: `/goal-evo-platform-bw6`, Block
+`EVO-BW6-CONTRACT-DRAFT-REPORT-2026-08-04`. The implementation adds typed
+approved-field contract drafts plus a versioned post-contract checklist/report
+behind the accepted Student 360 frontend, with authorization, immutability and
+audit proof. It does not claim a signed legal contract, e-signature, provider
+exercise or production readiness.
 
 ### Goal
 
@@ -38,12 +38,11 @@ The existing unified frontend from PRs #64/#71/#72 is the sole product UI
 contract and must be wired through repository/session seams, not replaced or
 paralleled. AI remains draft-only with human manual send.
 
-This amendment changes documentation only. It records PR #109 as the merged
-P2R2 plan gate, records the exact-head rejection and closure of PR #110, keeps
-BW5 paused, and authorizes one bounded P2R3 response-writable stale-session
-repair before BW5 resumes. It changes no target architecture, requirement
-outcome, schema/migration ownership, provider ownership, production state or
-restore claim.
+This status refresh records the already-merged P2R3 repair and BW5 boundary and
+advances the existing sequential contract to BW6. It changes no target
+architecture, requirement outcome, provider ownership, production state or
+restore claim; migration 057 remains the next-free BW6 schema ownership proven
+from current main.
 
 ### Reconciled baseline
 
@@ -61,10 +60,11 @@ checkpoint is:
   reusable greenfield foundation rather than the active product slice.
 - PR #93 merged the greenfield/UI boundary; PR #94 merged BW0; PRs #95-#97
   merged P3A-P3C; PRs #100-#103 merged BW1-BW4; PR #104 merged P2R0; PR #105
-  merged P2R1; PR #107 merged the BW5 checkpoint amendment; and PR #109 merged
-  the P2R2 plan gate. The exact checkpoint for this amendment is
-  `30bcc956fbf1ac90e79c2a75c22748633e219d9d`, with exact-main CI run
-  `30824043775` green.
+  merged P2R1; PR #107 merged the BW5 checkpoint amendment; PR #109 merged the
+  P2R2 plan gate; PR #111 merged the P2R3 plan gate; PR #112 merged the P2R3
+  repair; and PR #113 merged BW5. The exact checkpoint for BW6 is
+  `1061bad81b27deee98d9c69380b3e543dc281924`, with exact-main CI run
+  `30894448943` green.
 - PR #108 exact head `f719b749efaadaf02c6344c5d01cd4b6bbe3d79c`
   is historical recovery evidence: it passed focused tests and CI but was
   closed without merge after controller
@@ -100,20 +100,18 @@ checkpoint is:
 
 ### Immediate execution order
 
-0. Merge this P2R3 amendment as a docs-only launch-control gate.
-1. Rebuild only the authorized P2R2 auth/local-readiness repair on amended
-   latest main, add the P2R3 same-origin Route Handler handoff, and prove stale
-   browser-session clearing plus explicit `getClaims(accessToken)`, live
-   authority, symlink-safe deadline execution, real reset exit zero and exact
-   cleanup.
-2. Resume BW5 with the expected next-free migration 056 only after refreshing
-   `origin/main` and verifying open migration ownership.
-3. Continue BW6-BW7 sequentially; inspect open PR/migration ownership before
-   each block and never duplicate P3/P4/P5 platform/provider seams.
-4. Defer real amoCRM proof to P4 and real WAHA/AI/ACK proof to P5. Workflow and
+0. Complete BW6 on the already-selected next-free migration 057 with typed
+   contract drafts, post-contract checklist/report, focused authorization and
+   accepted-frontend connected-browser proof.
+1. Obtain fresh exact-head independent review, all four exact-head CI jobs and
+   controller merge before opening another implementation PR.
+2. Continue BW7 only after BW6 is merged and exact-main CI is green; inspect
+   open migration ownership and never duplicate P3/P4/P5 platform/provider
+   seams.
+3. Defer real amoCRM proof to P4 and real WAHA/AI/ACK proof to P5. Workflow and
    reliability blocks may consume contracts but cannot claim provider success.
 
-### P2R3 acceptance
+### Merged P2R3 acceptance record
 
 - The server verifies the exact access token returned by successful Supabase
   login with `getClaims(accessToken)` before resolving the live database
@@ -195,12 +193,11 @@ checkpoint is:
 
 ### Merge-order boundary
 
-BW0, P3A-P3C, BW1-BW4 and P2R0/P2R1 are merged history. P2R3 is the only active
-repair gate; BW5 is paused until P2R3 implementation and exact-main CI are
-green. P2R0-P2R3 do not transfer P7 restore ownership or authorize production
-application. P3 owns common session/repository seams, P4
+BW0, P3A-P3C, BW1-BW5 and P2R0-P2R3 are merged history. BW6 is the only active
+implementation block. P2R0-P2R3 do not transfer P7 restore ownership or
+authorize production application. P3 owns common session/repository seams, P4
 owns amoCRM adapter behavior, P5 owns real WAHA/AI/ACK proof, and P7 owns
-whole-foundation backup/restore and release reliability evidence. BW5-BW7
+whole-foundation backup/restore and release reliability evidence. BW6-BW7
 consume those seams and cannot open while another implementation PR is active.
 Shared migrations are selected only after fetching current main and checking
 open ownership; merged migrations are immutable.

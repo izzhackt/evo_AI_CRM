@@ -102,6 +102,10 @@ const platformDecisionPromptLifecycleMigration = readFileSync(
   join(migrationsDir, '054_platform_decision_prompt_lifecycle.sql'),
   'utf8'
 )
+const platformContractDraftReportMigration = readFileSync(
+  join(migrationsDir, '057_platform_contract_draft_report.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -119,7 +123,7 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '056_platform_university_catalog_import_boundary.sql'
+      '057_platform_contract_draft_report.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -145,6 +149,47 @@ describe('Supabase companion schema contract', () => {
     )
     expect(platformDecisionPromptLifecycleMigration).toMatch(
       /ALTER\s+TABLE\s+platform\.decision_backlogs\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/i
+    )
+    for (const table of [
+      'contract_template_versions',
+      'student_case_contract_drafts',
+      'post_contract_items',
+      'post_contract_reports',
+    ]) {
+      expect(platformContractDraftReportMigration).toMatch(
+        new RegExp(`CREATE\\s+TABLE\\s+platform\\.${table}`, 'i')
+      )
+      expect(platformContractDraftReportMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform\\.${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+      expect(platformContractDraftReportMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+    for (const rpc of [
+      'create_contract_template_version',
+      'approve_contract_template_version',
+      'retire_contract_template_version',
+      'generate_student_case_contract_draft',
+      'review_student_case_contract_draft',
+      'seed_post_contract_items',
+      'update_post_contract_item',
+      'generate_post_contract_report',
+      'review_post_contract_report',
+      'staff_case_contract_workspace',
+    ]) {
+      expect(platformContractDraftReportMigration).toMatch(
+        new RegExp(`CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+platform\\.${rpc}`, 'i')
+      )
+    }
+    expect(platformContractDraftReportMigration).toMatch(
+      /INSERT\s+INTO\s+platform\.role_bundle_versions[\s\S]*'admin',\s*11[\s\S]*'student',\s*11/i
     )
     expect(platformIdentityMigration).toMatch(
       /CREATE\s+TABLE\s+platform\.organization_memberships/i

@@ -578,6 +578,19 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_university_catalog_import_boundary_rls.sql
   fi
+
+  # BW6 owns migration 057's source-reviewed contract templates, immutable
+  # contract/report versions and the audited mutable post-contract checklist.
+  # Run at the exact boundary so later integrations cannot mask role/state,
+  # provenance, rendering, idempotency or transition drift.
+  if [[ "$(basename "$migration")" == 057_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_contract_draft_report_inventory.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_contract_draft_report_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

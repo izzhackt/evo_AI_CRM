@@ -12,8 +12,8 @@
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current merged checkpoint: `cb74856305ed4a71d3bfa0ad94a19637bb6ffa48`
-- Active plan block: `EVO-BW5-CATALOG-IMPORT-BOUNDARY-2026-08-04`
+- Current merged checkpoint: `1061bad81b27deee98d9c69380b3e543dc281924`
+- Active plan block: `EVO-BW6-CONTRACT-DRAFT-REPORT-2026-08-04`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -31,16 +31,16 @@ AI draft → manual send → ACK → audit ни разу не доказан end
 platform нельзя называть production-complete.
 
 P1 остаётся историческим legacy containment. P2A-P2H, greenfield/UI boundary,
-BW0, P3A-P3C, BW1-BW4 и P2R0-P2R3 merged. PR #112 controller-merged bounded
-stale-session repair как `cb74856305ed4a71d3bfa0ad94a19637bb6ffa48`;
-exact-main CI run `30883272841` зелёный. Текущий product block — BW5:
-reviewable university/college catalog import boundary внутри существующего
-`/applications`. Migration 056 и implementation candidate прошли fresh
-exact-branch disposable PostgreSQL, local Supabase/Auth/RLS/Storage/PGMQ,
-26/26 connected browser и 89-test generic Playwright gates. Independent
-exact-SHA review, GitHub CI и controller merge ещё pending. Real source import
-остаётся blocked до авторизованного доступа. Former P2I restore duties остаются
-в P7.
+BW0, P3A-P3C, BW1-BW5 и P2R0-P2R3 merged. PR #113 controller-merged BW5 как
+`1061bad81b27deee98d9c69380b3e543dc281924`; exact-main CI run
+`30894448943` зелёный. Текущий product block — BW6: typed approved-field
+contract draft и post-contract checklist/report внутри существующего Student
+360. Implementation и local Supabase/RLS/browser validation завершились exit
+0; independent exact-SHA review, exact-head CI и controller merge ещё pending.
+Real source import, approved
+legal template, PDF/DOCX/e-sign, managed apply и customer delivery остаются
+blocked до отдельной авторизации и доказательств. Former P2I restore duties
+остаются в P7.
 
 ## Что подтверждено из репозитория
 
@@ -59,7 +59,8 @@ exact-SHA review, GitHub CI и controller merge ещё pending. Real source impo
 | BW0/P3/BW1-BW4 | PR #94 merged workflow plan; PRs #95-#97 merged Supabase-native auth, conversation and guarded manual-send seams; PRs #100-#103 merged provenance, OP/OZO, Student Profile/checklists and prompt/decision lifecycle | local repository/RLS/browser evidence only; no live amoCRM/WAHA/AI/ACK or production proof |
 | P2R0/P2R1 | PR #104 merged the bounded docs-only remediation contract; PR #105 merged scoped deadlines, exact disposable cleanup, local Auth readiness, PGMQ test leases and forward document lock order as migration 055 | exact-main CI `30763498291` is green; managed Supabase, restore, providers and production remain excluded |
 | P2R2/P2R3 repair | PR #109 merged the bounded repair contract; PR #112 controller-merged the exact issued-token check, live-authority response-writable stale-session clearing and symlink-safe bounded local reset | independent exact-head local Supabase proof passed 55 migrations and 25/25 browser tests; exact-main CI `30883272841` is green; no managed Supabase/provider/production claim |
-| BW5 candidate | Migration 056, catalog repositories/actions and the accepted `/applications` route implement reviewed source → staging → validation → Admin approval/rejection, approved catalog reads and catalog-backed application creation | fresh exact-branch gates passed 56 migrations, 26/26 connected browser tests, private Storage/PGMQ and 89 passed generic Playwright tests; exact-head CI/final independent review/controller merge remain pending, while managed Supabase and real source providers remain blocked |
+| BW5 catalog boundary | PR #113 controller-merged migration 056, catalog repositories/actions and the accepted `/applications` route for reviewed source → staging → validation → Admin approval/rejection, approved catalog reads and catalog-backed application creation | independent exact-head review, controller gates and exact-main CI `30894448943` passed; managed Supabase and real source providers remain blocked |
+| BW6 candidate | Migration 057, contract repository/actions and the existing Student 360 route add typed approved-field contract drafts plus an audited post-contract checklist/report | local security/RLS/Auth/browser/unit/build/E2E and retained-service compatibility gates pass; exact-head CI/review/controller merge remain pending; this is not a signed legal contract, PDF/DOCX/e-sign, provider, managed Supabase or production proof |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до bounded cutover evidence and rollback gate |
@@ -84,8 +85,10 @@ P2G merged Queue contract:
 [`p2g-durable-work-queues.md`](p2g-durable-work-queues.md).
 P2H merged private-document contract:
 [`p2h-private-document-storage.md`](p2h-private-document-storage.md).
-BW5 candidate contract and evidence ledger:
+BW5 merged contract and evidence ledger:
 [`bw5-catalog-import-boundary.md`](bw5-catalog-import-boundary.md).
+BW6 candidate contract and evidence ledger:
+[`bw6-contract-draft-report.md`](bw6-contract-draft-report.md).
 
 ## Принятый target, ещё не cut over
 
@@ -102,9 +105,10 @@ BW5 candidate contract and evidence ledger:
   communications/provider/AI database contracts, merged P2G — migration 045
   для real local PGMQ work/retry/reconciliation, merged P2H — migration 046
   для private document Storage authorization, merged greenfield/auth and
-  workflow blocks — migrations 047–054, а merged P2R1 lock-order repair —
-  migration 055; BW5 candidate добавляет migration 056, но она не считается
-  merged или applied до controller merge и exact-main evidence;
+  workflow blocks — migrations 047–054, merged P2R1 lock-order repair —
+  migration 055, а merged BW5 catalog boundary — migration 056; BW6 candidate
+  резервирует следующий additive номер 057, но не считается merged или applied
+  до controller merge и exact-main evidence;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;
@@ -171,16 +175,16 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — BW5 exact-head validation. GitHub Main CRM должен применить
-migrations 001–056 в disposable PostgreSQL и выполнить BW5 inventory/RLS suites;
-до него fresh exact-branch `test:supabase:local`, browser, build и cleanup evidence
-должны завершиться exit 0. Затем нужны ещё три exact-head CI jobs и
-независимый SHA-bound review. Реальный
-Notion/Drive/Sheets import не выполняется без авторизованного доступа, а пустой
-college source не заполняется fake records. После controller-merged BW5 и
-exact-main CI следующий последовательный block — BW6. Реальный amoCRM adapter
-остаётся P4, реальный WAHA/AI/ACK proof — P5, а restore duties — P7.
-Production cutover remains a separate authorized event with bounded
+Текущий gate — BW6 exact-head validation. Локально migrations 001–057,
+BW6 inventory/RLS suites, `test:supabase:local`, connected Student 360 browser
+path, build, full E2E и cleanup evidence уже завершились exit 0. После commit и
+push GitHub Main CRM должен повторить disposable PostgreSQL proof; затем нужны
+остальные exact-head CI jobs и независимый SHA-bound review.
+BW6 не публикует договор клиенту и не подменяет утверждённый юридический
+шаблон: он доказывает только versioned draft/approval и operational
+checklist/report на typed approved Platform data. Реальный amoCRM adapter
+остаётся P4, реальный WAHA/AI/ACK proof — P5, а restore duties — P7. Production
+cutover remains a separate authorized event with bounded
 reconciliation/health/rollback evidence.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой

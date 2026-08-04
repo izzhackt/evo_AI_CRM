@@ -9,6 +9,17 @@ import {
   updatePlatformStudentProfileAction,
 } from "@/lib/platform-student-profile-actions";
 import {
+  approvePlatformContractTemplateVersionAction,
+  createPlatformContractTemplateVersionAction,
+  generatePlatformPostContractReportAction,
+  generatePlatformStudentCaseContractDraftAction,
+  retirePlatformContractTemplateVersionAction,
+  reviewPlatformPostContractReportAction,
+  reviewPlatformStudentCaseContractDraftAction,
+  seedPlatformPostContractItemsAction,
+  updatePlatformPostContractItemAction,
+} from "@/lib/platform-contract-actions";
+import {
   getPlatformStudentCaseView,
   listPlatformApplications,
   parsePlatformAdmissionsUuid,
@@ -18,15 +29,35 @@ import {
   listPlatformCountryRequirementVersions,
   listPlatformStudentCaseDocuments,
 } from "@/lib/platform-student-profile";
+import {
+  getPlatformCaseContractWorkspace,
+  PLATFORM_CONTRACT_MUTATION_OUTCOMES,
+} from "@/lib/platform-contract-workflow";
 import { requirePlatformClientsActor } from "@/lib/platform-guards";
 
 import type { ClientPagePresentationData } from "./ClientPageContent";
+import type { ContractDraftReportResult } from "./ContractDraftReportWorkspace";
 
-type Query = { result?: string; retry_request_id?: string };
+type Query = {
+  result?: string;
+  retry_request_id?: string;
+  bw6_result?: string;
+  bw6_retry_request_id?: string;
+  bw6_retry_operation?: string;
+  bw6_subject_id?: string;
+};
 
 function result(value: string | undefined) {
   return value === "saved" || value === "invalid" || value === "unavailable"
     ? value
+    : undefined;
+}
+
+function contractResult(value: string | undefined): ContractDraftReportResult | undefined {
+  return value && PLATFORM_CONTRACT_MUTATION_OUTCOMES.includes(
+    value as ContractDraftReportResult,
+  )
+    ? value as ContractDraftReportResult
     : undefined;
 }
 
@@ -63,12 +94,24 @@ export async function loadPlatformClientPageData(
   }
 
   const studentCase = view.studentCase;
-  const [applicationRows, profileSnapshot, documentRows, countryRequirementVersions] =
+  const canReadContractWorkspace = actor.platformRole === "admin"
+    || actor.platformRole === "sales"
+    || actor.platformRole === "curator";
+  const [
+    applicationRows,
+    profileSnapshot,
+    documentRows,
+    countryRequirementVersions,
+    contractWorkspace,
+  ] =
     await Promise.all([
       listPlatformApplications(actor),
       getPlatformStudentProfile(actor, studentCase.studentCaseId),
       listPlatformStudentCaseDocuments(actor, studentCase.studentCaseId),
       listPlatformCountryRequirementVersions(actor, studentCase.studentCaseId),
+      canReadContractWorkspace
+        ? getPlatformCaseContractWorkspace(actor, studentCase.studentCaseId)
+        : Promise.resolve(null),
     ]);
   const appliedCountryRequirement =
     countryRequirementVersions.find((version) => version.isApplied) ?? null;
@@ -98,6 +141,16 @@ export async function loadPlatformClientPageData(
   const checklistRequestId = retryRequestId ?? randomUUID();
   const lifecycleRequestId = retryRequestId ?? randomUUID();
   const routeRequestId = retryRequestId ?? randomUUID();
+  const contractRetryRequestId = parsePlatformAdmissionsUuid(query.bw6_retry_request_id);
+  const contractRetrySubjectId = parsePlatformAdmissionsUuid(query.bw6_subject_id);
+  const contractRequestIdFor = (operation: string, subjectId?: string): string => {
+    const retryMatches = query.bw6_retry_operation === operation
+      && contractRetryRequestId
+      && (subjectId === undefined
+        ? contractRetrySubjectId === null
+        : subjectId === contractRetrySubjectId);
+    return retryMatches ? contractRetryRequestId : randomUUID();
+  };
   const riskSignals = [
     studentCase.overdueTaskCount > 0
       ? `Просроченные задачи: ${studentCase.overdueTaskCount}`
@@ -263,6 +316,21 @@ export async function loadPlatformClientPageData(
     routeRequestId,
     profileRequestId,
     checklistRequestId,
+    contractWorkspace: contractWorkspace ?? undefined,
+    contractActions: contractWorkspace ? {
+      createTemplate: createPlatformContractTemplateVersionAction,
+      approveTemplate: approvePlatformContractTemplateVersionAction,
+      retireTemplate: retirePlatformContractTemplateVersionAction,
+      generateDraft: generatePlatformStudentCaseContractDraftAction,
+      reviewDraft: reviewPlatformStudentCaseContractDraftAction,
+      seedItems: seedPlatformPostContractItemsAction,
+      updateItem: updatePlatformPostContractItemAction,
+      generateReport: generatePlatformPostContractReportAction,
+      reviewReport: reviewPlatformPostContractReportAction,
+    } : undefined,
+    contractRequestIdFor: contractWorkspace ? contractRequestIdFor : undefined,
+    contractResult: contractWorkspace ? contractResult(query.bw6_result) : undefined,
+    contractRetrySubjectId: contractWorkspace ? contractRetrySubjectId ?? undefined : undefined,
     sourceHint:
       "Операционный этап и команда читаются из аудируемого кейса EVO Platform. Этап продаж ведётся отдельно.",
     metrics: {

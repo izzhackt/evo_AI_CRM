@@ -8,18 +8,17 @@ Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 `docs/PLAN_CHANGES.md`, and superseding ADRs including ADR 0016
 
 Execution checkpoint: historical P1 containment, reusable greenfield P2A-P2H,
-the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW4, P2R0 and
-P2R1 are merged; PR #109 merged the P2R2 plan gate at `origin/main`
-`30bcc956fbf1ac90e79c2a75c22748633e219d9d`. Exact-main CI run `30824043775`
-is green for the applicable Main CRM, EVO Inbox and EVO Lead Agent jobs. PR
-#110 at head `fd4428451793bdc59b3b183dcc9dde7518e80201` was closed without
-merge after the independent controller found that stale authority redirected
-without clearing the resident Supabase browser session and could not reproduce
-the second physical-worktree local Supabase proof while the OrbStack endpoint
-was unresponsive. P2R3 is therefore the active docs-only file-ownership and
-validation repair gate; BW5 remains paused. Former P2I restore duties remain in
-P7. This amendment changes no target architecture, acceptance outcome,
-provider ownership, schema ownership or production authority.
+the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW5 and
+P2R0-P2R3 are merged. PR #112 merged the stale-authority/local-proof repair and
+PR #113 merged the reviewed catalog/import boundary at `origin/main`
+`1061bad81b27deee98d9c69380b3e543dc281924`. Exact-main CI run `30894448943`
+is green for Changed range, Main CRM, EVO Inbox and EVO Lead Agent. BW6 is the
+active sequential implementation block under the already-approved BW0
+business-workflow contract. Its local security, RLS, Auth, connected-browser,
+build and regression gates are green; exact-head review, CI and controller
+merge remain pending. Former P2I restore duties remain in P7. This
+status refresh changes no target architecture, acceptance outcome, provider
+ownership, schema ownership or production authority.
 
 ## 1. Outcome and truth boundary
 
@@ -65,8 +64,8 @@ and rollback proof are real. No fixed-duration soak is required by contract.
 
 As of the version date:
 
-- GitHub `main` checkpoint for this amendment is
-  `30bcc956fbf1ac90e79c2a75c22748633e219d9d`;
+- GitHub `main` checkpoint for this implementation is
+  `1061bad81b27deee98d9c69380b3e543dc281924`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -339,8 +338,8 @@ deployment surfaces are sequential.
 | P3 | Thin Supabase-native messaging slice behind the accepted frontend | Supabase Auth/RBAC, repository seams, real local persistence, conversation list/thread, draft/manual-send state and focused UI E2E | P3A-P3C merged in PRs #95-#97; no live-provider claim |
 | P2R0 | Local Supabase reliability plan amendment | Current checkpoint, bounded ownership, exact validation and rollback/provider boundary | Merged in PR #104 |
 | P2R1 | Local Supabase proof reliability repair | Real clean local Auth/RLS/Storage/PGMQ gate, deterministic deadline/cleanup tests and forward-only document lock-order repair | Merged in PR #105; migration 055 is immutable history |
-| P2R2 | Auth-token and local reset reproducibility repair | Explicit issued-token `getClaims()` plus live authority; symlink-safe deadline execution; reproducible exact-project reset and cleanup | Plan merged in PR #109; implementation PR #110 closed without merge after controller findings |
-| P2R3 | Stale-authority session clearing and exact local-proof ownership | Same-origin Route Handler clears rejected Supabase browser state; real connected-route regression; two physical-worktree local proofs | This docs-only amendment is active; implementation must be rebuilt after amendment merge |
+| P2R2 | Auth-token and local reset reproducibility repair | Explicit issued-token `getClaims()` plus live authority; symlink-safe deadline execution; reproducible exact-project reset and cleanup | Plan merged in PR #109; superseded implementation PR #110 closed without merge after controller findings |
+| P2R3 | Stale-authority session clearing and exact local-proof ownership | Same-origin Route Handler clears rejected Supabase browser state; real connected-route regression; two physical-worktree local proofs | Plan PR #111 and implementation PR #112 merged; exact-main CI green |
 | P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | Pending |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no legacy cutover yet | Pending |
 | P6 | Admissions, Portal, Documents, Finance, Notifications | Two-student isolation E2E and complete staff-to-portal workflows | Pending |
@@ -349,11 +348,10 @@ deployment surfaces are sequential.
 | P9 | Bounded cutover evidence and separate Lead Agent retirement PR | Zero unexplained loss/duplicate/drift in the evidence window plus proven rollback and health | Evidence-gated |
 | P10 | Completion audit | Every FR/NFR/SEC/ACC mapped to evidence, full CI/provider proof, no open implementation PR | Pending |
 
-BW0, P3A-P3C, BW1-BW4 and P2R0/P2R1 are merged. PR #107 merged the BW5
-checkpoint, but BW5 implementation is paused while P2R3 completes the
-prerequisite P2R2 auth/local-proof outcome. BW5 resumes only after the P2R3
-amendment and rebuilt implementation are independently reviewed,
-controller-merged and green on exact-main CI:
+BW0, P3A-P3C, BW1-BW5 and P2R0-P2R3 are merged. PR #112 satisfied the
+prerequisite stale-authority/local-proof gate and PR #113 merged BW5 with green
+exact-main CI. BW6 is now the active block and retains the established
+dependency and exit-evidence contract below:
 
 | Block | Contract | Dependency and exit evidence |
 | --- | --- | --- |
@@ -365,7 +363,7 @@ controller-merged and green on exact-main CI:
 | BW6 | Contract draft generation and post-contract checklist/report | BW5; approved typed fields only; authorization, immutable version and audit proof |
 | BW7 | Latest-main integration and end-to-end workflow proof | BW1-BW6; real local/staging Supabase path through the accepted frontend, no production/provider claim without real exercise |
 
-### Active P2R3 contract and provider boundary
+### Historical P2R2/P2R3 repair contract and provider boundary
 
 - Prior trigger: controller review of PR #108 at exact head
   `f719b749efaadaf02c6344c5d01cd4b6bbe3d79c` found that the repair was outside
@@ -373,7 +371,7 @@ controller-merged and green on exact-main CI:
   exited non-zero after two migration/reset attempts. PR #108 was closed without
   merge; its branch is recovery evidence only. PR #109 then merged the bounded
   P2R2 plan gate.
-- Current trigger: controller review of PR #110 at exact head
+- P2R3 trigger: controller review of PR #110 at exact head
   `fd4428451793bdc59b3b183dcc9dde7518e80201` found that
   `requirePlatformActor()` redirected invalid live authority to `/login` but
   did not clear the resident Supabase browser cookies. Next.js 16 permits cookie
@@ -440,12 +438,11 @@ controller-merged and green on exact-main CI:
   or cutover proof; `real-provider-proof: not-required` remains the truthful
   provider boundary.
 
-### Paused BW5 contract and provider boundary
+### Merged BW5 contract and remaining provider boundary
 
-- BW5 must re-fetch `origin/main` and inspect open migration ownership before
-  claiming the next free forward migration. At checkpoint `db8f3c75...`,
-  migration `055_platform_document_finalization_lock_order.sql` is immutable;
-  the expected BW5 candidate is 056.
+- BW5 re-fetched `origin/main`, selected the next-free migration 056 and merged
+  in PR #113. Migrations 055 and 056 are now immutable history; BW6 owns only
+  the next-free migration 057 selected from main `1061bad8...`.
 - BW5 may add only bounded, PII-free university/college source metadata,
   revision-pinned staging candidates, explicit validation, and audited Admin
   approval or rejection behind the accepted `/applications` frontend.
@@ -460,9 +457,9 @@ controller-merged and green on exact-main CI:
   and no confirmed college dataset exists. BW5 must not invent records or claim
   real import, managed Supabase, amoCRM, WAHA, AI-provider, production, restore
   or cutover proof.
-- No BW5 implementation PR may reopen until P2R3 is controller-merged and its
-  exact-main push CI is green. The preserved BW5 commits remain recovery points,
-  not current-main evidence.
+- P2R3 and BW5 are controller-merged with green exact-main CI. Any later BW5
+  correction requires a new bounded block; current BW6 work must not rewrite
+  migration 056 or absorb the still-blocked real source import.
 
 BW1-BW7 must not edit a migration number/schema file owned by another open PR.
 Before every block, fetch `origin/main`, inspect open PRs and select the next

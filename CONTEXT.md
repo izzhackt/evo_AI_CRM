@@ -240,6 +240,18 @@ _Avoid_: deadline, application date
 One applicant's attempt to enter one specific university and program for a specific intake, with its own deadline, status, evidence, and result.
 _Avoid_: student file, sales lead
 
+**Approved Catalog Institution**:
+A university or college whose normalized identity and source revision passed validation and explicit administrative review before staff may select it in an application.
+_Avoid_: source row, unreviewed recommendation, guaranteed destination
+
+**Catalog Import Batch**:
+A bounded set of institution candidates tied to one reviewed source revision that must be staged, validated, and explicitly approved or rejected as a unit.
+_Avoid_: live connector, direct catalog write, automatic publication
+
+**Catalog Import Candidate**:
+A typed, non-customer staging record for one proposed university or college, carrying opaque row provenance and validation results but no approved status of its own.
+_Avoid_: approved institution, student application, raw source payload
+
 **Decision Backlog Entry**:
 A versioned question-and-answer record that remains unresolved until an explicit answer is supported by reviewed source or evidence. Reopening or retiring the decision creates a new effective version rather than changing its history.
 _Avoid_: free-form note, silent default, answer inferred from chat

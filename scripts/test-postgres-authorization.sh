@@ -2,9 +2,11 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+deadline_runner="$repo_root/scripts/run-command-with-deadline.mjs"
 container_name="evo-platform-authz-$RANDOM-$$"
 postgres_image="$("$repo_root/scripts/resolve-postgres-test-image.sh")"
 test_database="evo_platform_authorization"
+health_timeout_seconds="${EVO_POSTGRES_HEALTH_TIMEOUT_SECONDS:-300}"
 p2b_drift_log="$(mktemp -t evo-p2b-owner-drift.XXXXXX)"
 p2h_acl_mutation_log="$(mktemp -t evo-p2h-acl-mutation.XXXXXX)"
 p2h_policy_mutation_log="$(mktemp -t evo-p2h-policy-mutation.XXXXXX)"
@@ -16,7 +18,8 @@ p2h_review_order_mutation_log="$(
 )"
 
 cleanup() {
-  docker rm -f "$container_name" >/dev/null 2>&1 || true
+  node "$deadline_runner" 30000 docker rm -f "$container_name" \
+    >/dev/null 2>&1 || true
   rm -f -- \
     "$p2b_drift_log" \
     "$p2h_acl_mutation_log" \
@@ -26,26 +29,42 @@ cleanup() {
 }
 trap cleanup EXIT
 
-docker run \
+if [[ ! "$health_timeout_seconds" =~ ^[0-9]+$ ]] \
+  || (( health_timeout_seconds < 60 || health_timeout_seconds > 600 )); then
+  echo "EVO_POSTGRES_HEALTH_TIMEOUT_SECONDS must be an integer from 60 to 600" >&2
+  exit 1
+fi
+
+node "$deadline_runner" 120000 docker run \
   --detach \
   --name "$container_name" \
+  --network none \
   --env POSTGRES_PASSWORD=postgres \
   --mount "type=bind,src=$repo_root,dst=/workspace,readonly" \
   "$postgres_image" >/dev/null
 
 health_status=""
-for _ in $(seq 1 60); do
-  health_status="$(
-    docker inspect \
+health_deadline=$((SECONDS + health_timeout_seconds))
+while (( SECONDS < health_deadline )); do
+  if health_status="$(
+    node "$deadline_runner" 15000 docker inspect \
       --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' \
-      "$container_name"
-  )"
+      "$container_name" 2>/dev/null
+  )"; then
+    :
+  else
+    health_status="docker_unavailable"
+  fi
   [[ "$health_status" == "healthy" ]] && break
   sleep 1
 done
 
 if [[ "$health_status" != "healthy" ]]; then
-  echo "Pinned Supabase Postgres container did not become healthy" >&2
+  echo \
+    "Pinned Supabase Postgres container did not become healthy within ${health_timeout_seconds}s (last status: ${health_status:-unknown})" \
+    >&2
+  node "$deadline_runner" 15000 docker logs --tail 120 "$container_name" \
+    >&2 || true
   exit 1
 fi
 
@@ -546,6 +565,18 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_decision_prompt_lifecycle_rls.sql
+  fi
+
+  # BW5 owns migration 056's approved institution catalog and reviewable,
+  # typed import boundary. Test at this exact boundary so later contract work
+  # cannot mask source-revision, no-direct-approval or role-matrix drift.
+  if [[ "$(basename "$migration")" == 056_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_university_catalog_import_boundary_inventory.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_university_catalog_import_boundary_rls.sql
   fi
 done < <(
   cd "$repo_root"

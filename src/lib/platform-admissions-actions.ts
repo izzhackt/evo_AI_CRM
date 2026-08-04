@@ -257,6 +257,10 @@ export async function createPlatformUniversityApplicationAction(
   const actor = await requirePlatformApplicationsActor();
   const studentCaseId = requiredUuid(form, "student_case_id");
   const requestId = requiredUuid(form, "request_id");
+  const catalogInstitutionValue = value(form, "catalog_institution_id");
+  const catalogInstitutionId = catalogInstitutionValue
+    ? parsePlatformAdmissionsUuid(catalogInstitutionValue)
+    : null;
   const institutionName = boundedText(form, "institution_name", 1, 300);
   const programName = boundedText(form, "program_name", 1, 300);
   const status = applicationStatus(value(form, "status"));
@@ -266,7 +270,8 @@ export async function createPlatformUniversityApplicationAction(
   if (
     !studentCaseId ||
     !requestId ||
-    !institutionName ||
+    (catalogInstitutionValue !== "" && !catalogInstitutionId) ||
+    (!catalogInstitutionId && !institutionName) ||
     !programName ||
     !status ||
     evidence === undefined ||
@@ -278,19 +283,33 @@ export async function createPlatformUniversityApplicationAction(
 
   try {
     const client = await createSupabaseServerClient();
-    const response = await client.schema("platform").rpc(
-      "create_university_application",
-      {
-        p_organization_id: actor.organizationId,
-        p_student_case_id: studentCaseId,
-        p_institution_name: institutionName,
-        p_program_name: programName,
-        p_status: status,
-        p_evidence_reference: evidence,
-        p_note: note,
-        p_request_id: requestId,
-      },
-    );
+    const response = catalogInstitutionId
+      ? await client.schema("platform").rpc(
+          "create_catalog_university_application",
+          {
+            p_organization_id: actor.organizationId,
+            p_student_case_id: studentCaseId,
+            p_catalog_institution_id: catalogInstitutionId,
+            p_program_name: programName,
+            p_status: status,
+            p_evidence_reference: evidence,
+            p_note: note,
+            p_request_id: requestId,
+          },
+        )
+      : await client.schema("platform").rpc(
+          "create_university_application",
+          {
+            p_organization_id: actor.organizationId,
+            p_student_case_id: studentCaseId,
+            p_institution_name: institutionName,
+            p_program_name: programName,
+            p_status: status,
+            p_evidence_reference: evidence,
+            p_note: note,
+            p_request_id: requestId,
+          },
+        );
     if (
       response.error ||
       !isRecord(response.data) ||
@@ -301,6 +320,9 @@ export async function createPlatformUniversityApplicationAction(
       parsePlatformAdmissionsUuid(
         response.data.university_application_id,
       ) === null ||
+      (catalogInstitutionId !== null &&
+        parsePlatformAdmissionsUuid(response.data.catalog_institution_id) !==
+          catalogInstitutionId) ||
       response.data.status !== status
     ) {
       safeRedirect("/applications", "unavailable", requestId);

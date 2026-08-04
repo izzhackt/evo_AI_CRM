@@ -8,17 +8,20 @@ Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 `docs/PLAN_CHANGES.md`, and superseding ADRs including ADR 0016
 
 Execution checkpoint: historical P1 containment, reusable greenfield P2A-P2H,
-the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW6 and
-P2R0-P2R3 are merged. PR #114 merged BW6 at `origin/main`
-`a2ecadbe05dcf6993bbd558f3d80fa405a571a7c`. Exact-main CI run `30918820654`
+the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW7 and
+P2R0-P2R3 are merged. PR #116 merged BW7 at `origin/main`
+`45e64f7b6bfb181a065ae7cfc34abd0fb1b693ec`. Exact-main CI run `30934111632`
 is green for Main CRM, EVO Inbox and EVO Lead Agent; Changed range was skipped
-on the push run as expected. BW7 is the active sequential implementation block
-under the already-approved BW0 business-workflow contract. Its local security,
-RLS, Auth and accepted-frontend one-case lifecycle proof are green, including
-28/28 connected-browser scenarios; exact-head review, CI and controller merge
-remain pending. No managed Supabase, staging, provider or production exercise
-is claimed. Former P2I restore duties remain in P7. This status refresh changes
-no target architecture, acceptance outcome, provider ownership, schema
+on the push run as expected. P4A is the active sequential block under the
+already-approved P4 contract: private immutable account-specific amoCRM
+mapping discovery with a read-only server adapter, service-only persistence
+and Admin-only reads. This first slice is deliberately disabled from live
+credentials, OAuth storage, provider calls, webhooks and canonical writes.
+Candidate local proof is green for disposable PostgreSQL authorization, 58
+contiguous local Supabase migrations, Auth/PostgREST/Storage/PGMQ and 28/28
+accepted-frontend browser scenarios. No managed Supabase, staging, provider or
+production exercise is claimed. Former P2I restore duties remain in P7. This
+status refresh changes no target architecture, acceptance outcome, provider
 ownership or production authority.
 
 ## 1. Outcome and truth boundary
@@ -66,7 +69,7 @@ and rollback proof are real. No fixed-duration soak is required by contract.
 As of the version date:
 
 - GitHub `main` checkpoint for this implementation is
-  `a2ecadbe05dcf6993bbd558f3d80fa405a571a7c`;
+  `45e64f7b6bfb181a065ae7cfc34abd0fb1b693ec`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -341,7 +344,7 @@ deployment surfaces are sequential.
 | P2R1 | Local Supabase proof reliability repair | Real clean local Auth/RLS/Storage/PGMQ gate, deterministic deadline/cleanup tests and forward-only document lock-order repair | Merged in PR #105; migration 055 is immutable history |
 | P2R2 | Auth-token and local reset reproducibility repair | Explicit issued-token `getClaims()` plus live authority; symlink-safe deadline execution; reproducible exact-project reset and cleanup | Plan merged in PR #109; superseded implementation PR #110 closed without merge after controller findings |
 | P2R3 | Stale-authority session clearing and exact local-proof ownership | Same-origin Route Handler clears rejected Supabase browser state; real connected-route regression; two physical-worktree local proofs | Plan PR #111 and implementation PR #112 merged; exact-main CI green |
-| P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | Pending |
+| P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | P4A private versioned discovery candidate active; provider proof blocked |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no legacy cutover yet | Pending |
 | P6 | Admissions, Portal, Documents, Finance, Notifications | Two-student isolation E2E and complete staff-to-portal workflows | Pending |
 | P7 | Security, reliability and operations | Threat model, load evidence, backup plus Storage restore, RPO/RTO and rollback rehearsal, accessibility | Pending |
@@ -349,10 +352,11 @@ deployment surfaces are sequential.
 | P9 | Bounded cutover evidence and separate Lead Agent retirement PR | Zero unexplained loss/duplicate/drift in the evidence window plus proven rollback and health | Evidence-gated |
 | P10 | Completion audit | Every FR/NFR/SEC/ACC mapped to evidence, full CI/provider proof, no open implementation PR | Pending |
 
-BW0, P3A-P3C, BW1-BW6 and P2R0-P2R3 are merged. PR #112 satisfied the
-prerequisite stale-authority/local-proof gate, PR #113 merged BW5 and PR #114
-merged BW6; both have green exact-main CI. BW7 is now the active block and
-retains the established dependency and exit-evidence contract below:
+BW0, P3A-P3C, BW1-BW7 and P2R0-P2R3 are merged. PR #112 satisfied the
+prerequisite stale-authority/local-proof gate, PR #113 merged BW5, PR #114
+merged BW6 and PR #116 merged BW7 with green exact-main CI. P4A now advances
+the already-approved P4 contract without changing the BW dependency and
+exit-evidence contract below:
 
 | Block | Contract | Dependency and exit evidence |
 | --- | --- | --- |

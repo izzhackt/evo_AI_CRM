@@ -1365,6 +1365,187 @@ const main = async () => {
     await signIn(identity, "sales");
   }
 
+  // P4A: prove the real local PostgREST grant boundary without contacting an
+  // amoCRM provider. Only the service JWT may persist a sanitized immutable
+  // snapshot; only a live same-organization Admin may read it.
+  const p4aRequestId = randomUUID();
+  const p4aAccountId = "93001";
+  const p4aSnapshot = {
+    schema_version: 1,
+    account: {
+      id: p4aAccountId,
+      domain: "synthetic-evo.amocrm.ru",
+      subdomain: "synthetic-evo",
+    },
+    pipelines: [
+      {
+        id: "93002",
+        name: "Synthetic local sales pipeline",
+        is_main: true,
+        is_archive: false,
+        statuses: [
+          {
+            id: "93003",
+            name: "Synthetic contract confirmed",
+            sort: 10,
+            is_editable: true,
+            type: 0,
+          },
+        ],
+      },
+    ],
+    users: [
+      {
+        id: "93004",
+        name: "Synthetic responsible manager",
+        is_active: true,
+      },
+    ],
+    lead_custom_fields: [],
+    contact_custom_fields: [],
+  };
+  const p4aPersistBody = {
+    p_organization_id: adminAMembership.organization_id,
+    p_amocrm_account_id: p4aAccountId,
+    p_account_domain: "synthetic-evo.amocrm.ru",
+    p_account_subdomain: "synthetic-evo",
+    p_sanitized_snapshot: p4aSnapshot,
+    p_evidence_kind: "local_non_provider",
+    p_evidence_ref: "scripts/test-supabase-auth-hook.mjs",
+    p_discovered_at: "2026-08-04T00:00:00Z",
+    p_request_id: p4aRequestId,
+  };
+  const p4aPersisted = requireSuccess(
+    await requestJson(
+      "/rest/v1/rpc/persist_amocrm_mapping_discovery",
+      {
+        method: "POST",
+        token: serviceRoleKey,
+        apiKey: serviceRoleKey,
+        body: p4aPersistBody,
+        schema: true,
+        stage: "p4a-service-persist",
+      },
+    ),
+    "p4a-service-persist",
+  );
+  assert(
+    Array.isArray(p4aPersisted) &&
+      p4aPersisted.length === 1 &&
+      p4aPersisted[0].organization_id === adminAMembership.organization_id &&
+      String(p4aPersisted[0].amocrm_account_id) === p4aAccountId &&
+      p4aPersisted[0].version === 1 &&
+      p4aPersisted[0].evidence_kind === "local_non_provider",
+    "p4a-service-persist-row",
+  );
+  const p4aDiscoveryVersionId = p4aPersisted[0].discovery_version_id;
+  sqlUuid(p4aDiscoveryVersionId, "p4a-discovery-version-id");
+
+  const p4aReplay = requireSuccess(
+    await requestJson(
+      "/rest/v1/rpc/persist_amocrm_mapping_discovery",
+      {
+        method: "POST",
+        token: serviceRoleKey,
+        apiKey: serviceRoleKey,
+        body: p4aPersistBody,
+        schema: true,
+        stage: "p4a-service-persist-replay",
+      },
+    ),
+    "p4a-service-persist-replay",
+  );
+  assert(
+    Array.isArray(p4aReplay) &&
+      p4aReplay.length === 1 &&
+      p4aReplay[0].discovery_version_id === p4aDiscoveryVersionId &&
+      p4aReplay[0].created_at === p4aPersisted[0].created_at,
+    "p4a-service-persist-replay-row",
+  );
+
+  const p4aAdminRows = await authenticatedPlatformRpcRows(
+    identities.adminA,
+    "admin_amocrm_mapping_discovery_versions",
+    {
+      p_organization_id: adminAMembership.organization_id,
+      p_amocrm_account_id: p4aAccountId,
+      p_version: 1,
+    },
+    "p4a-admin-read",
+  );
+  assert(
+    p4aAdminRows.length === 1 &&
+      p4aAdminRows[0].discovery_version_id === p4aDiscoveryVersionId &&
+      p4aAdminRows[0].sanitized_snapshot?.account?.id === p4aAccountId,
+    "p4a-admin-read-row",
+  );
+
+  const p4aReadQuery = new URLSearchParams({
+    p_organization_id: adminAMembership.organization_id,
+    p_amocrm_account_id: p4aAccountId,
+    p_version: "1",
+  });
+  for (const [label, identity] of [
+    ["sales", identities.sales],
+    ["cross-org-admin", identities.adminB],
+  ]) {
+    const denied = await requestJson(
+      `/rest/v1/rpc/admin_amocrm_mapping_discovery_versions?${p4aReadQuery}`,
+      {
+        token: identity.accessToken,
+        schema: true,
+        stage: `p4a-${label}-read-denied`,
+      },
+    );
+    assert(
+      denied.status >= 400 && denied.status < 500,
+      `p4a-${label}-read-denied`,
+    );
+  }
+
+  const p4aBrowserPersistDenied = await requestJson(
+    "/rest/v1/rpc/persist_amocrm_mapping_discovery",
+    {
+      method: "POST",
+      token: identities.adminA.accessToken,
+      body: { ...p4aPersistBody, p_request_id: randomUUID() },
+      schema: true,
+      stage: "p4a-browser-persist-denied",
+    },
+  );
+  assert(
+    p4aBrowserPersistDenied.status >= 400 &&
+      p4aBrowserPersistDenied.status < 500,
+    "p4a-browser-persist-denied",
+  );
+
+  const p4aUnsafeSnapshotDenied = await requestJson(
+    "/rest/v1/rpc/persist_amocrm_mapping_discovery",
+    {
+      method: "POST",
+      token: serviceRoleKey,
+      apiKey: serviceRoleKey,
+      body: {
+        ...p4aPersistBody,
+        p_sanitized_snapshot: {
+          ...p4aSnapshot,
+          account: {
+            ...p4aSnapshot.account,
+            email: "forbidden@example.invalid",
+          },
+        },
+        p_request_id: randomUUID(),
+      },
+      schema: true,
+      stage: "p4a-unsafe-snapshot-denied",
+    },
+  );
+  assert(
+    p4aUnsafeSnapshotDenied.status >= 400 &&
+      p4aUnsafeSnapshotDenied.status < 500,
+    "p4a-unsafe-snapshot-denied",
+  );
+
   const staleResponsibleSalesAccessToken =
     identities.responsibleSales.accessToken;
   const orgAStudentCase = serviceFunctionResult(

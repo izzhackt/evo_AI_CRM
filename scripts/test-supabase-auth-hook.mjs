@@ -6,6 +6,7 @@ import {
 } from "node:crypto";
 import { readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { createClient } from "@supabase/supabase-js";
 
 import {
   LocalSupabaseAuthReadinessError,
@@ -34,6 +35,42 @@ const assert = (condition, stage) => {
   if (!condition) {
     fail(stage);
   }
+};
+
+const safeAuthErrorLabel = (value) =>
+  typeof value === "string" && /^[A-Za-z0-9_.:-]{1,64}$/.test(value)
+    ? value
+    : "unclassified";
+
+const verifyClientClaims = async (identity, expectedRole) => {
+  const client = createClient(apiUrl, publishableKey, {
+    auth: {
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      persistSession: false,
+    },
+  });
+  const { data, error } = await client.auth.getClaims(identity.accessToken);
+  if (error) {
+    console.error(
+      JSON.stringify({
+        event: "local_supabase_get_claims_failed",
+        error_name: safeAuthErrorLabel(error.name),
+        error_code: safeAuthErrorLabel(error.code),
+        status: Number.isSafeInteger(error.status) ? error.status : null,
+      }),
+    );
+    fail(`${identity.label}-verified-claims`);
+  }
+  assert(
+    data?.claims?.platform_role === expectedRole,
+    `${identity.label}-verified-role`,
+  );
+  assert(
+    Number.isSafeInteger(data?.claims?.platform_access_version) &&
+      data.claims.platform_access_version > 0,
+    `${identity.label}-verified-access-version`,
+  );
 };
 
 const statusPath = process.argv[2];
@@ -1201,6 +1238,7 @@ const main = async () => {
     finance: syntheticIdentity("finance"),
     student: syntheticIdentity("student"),
     studentNoCase: syntheticIdentity("student-no-case"),
+    revocableCurator: syntheticIdentity("revocable-curator"),
     blocked: syntheticIdentity("blocked"),
     noMembership: syntheticIdentity("no-membership"),
     adminB: syntheticIdentity("admin-b"),
@@ -1230,6 +1268,7 @@ const main = async () => {
 
   await signIn(identities.adminA, "admin");
   await signIn(identities.adminB, "admin");
+  await verifyClientClaims(identities.adminA, "admin");
 
   const nowSeconds = Math.floor(Date.now() / 1000);
   const expiredResult = await requestJson(
@@ -1278,6 +1317,14 @@ const main = async () => {
   );
   sqlUuid(noCaseStudentMembership.profile_id, "student-no-case-profile-id");
   await signIn(identities.studentNoCase, "student");
+
+  const revocableCuratorMembership = await provisionMembership(
+    identities.adminA,
+    adminAMembership.organization_id,
+    identities.revocableCurator,
+    "curator",
+  );
+  await signIn(identities.revocableCurator, "curator");
 
   const responsibleSalesMembership = await provisionMembership(
     identities.adminA,
@@ -2870,6 +2917,10 @@ const main = async () => {
             email: identities.studentNoCase.email,
             password: identities.studentNoCase.password,
           },
+          revocableCurator: {
+            email: identities.revocableCurator.email,
+            password: identities.revocableCurator.password,
+          },
           blocked: {
             email: identities.blocked.email,
             password: identities.blocked.password,
@@ -2933,6 +2984,10 @@ const main = async () => {
               generatedText: "Synthetic local draft awaiting browser review.",
             },
           },
+        },
+        p2r3: {
+          organizationId: adminAMembership.organization_id,
+          revocableMembershipId: revocableCuratorMembership.id,
         },
         bw4: {
           orgA: {
@@ -3008,7 +3063,7 @@ const main = async () => {
   }
 
   console.log(
-    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; 12 admin-provisioned synthetic users, 5 roles, 2 organizations, expired/stale-token and blocked-claim invalidation; synthetic readiness rows are contract fixtures only and are not live provider proof.",
+    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; 13 admin-provisioned synthetic users, 5 roles, 2 organizations, expired/stale-token and blocked-claim invalidation; synthetic readiness rows are contract fixtures only and are not live provider proof.",
   );
 };
 

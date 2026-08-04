@@ -36,6 +36,53 @@ test("Auth readiness is proven before the first mutating request", () => {
   );
 });
 
+test("Auth smoke verifies issued claims before handing credentials to Playwright", () => {
+  const signInCall = authHook.indexOf(
+    'await signIn(identities.adminA, "admin");',
+  );
+  const verificationCall = authHook.indexOf(
+    'await verifyClientClaims(identities.adminA, "admin");',
+  );
+  const fixtureWrite = authHook.indexOf(
+    "writeFileSync(\n      browserFixturePath",
+  );
+
+  assert.match(authHook, /createClient/);
+  assert.match(authHook, /client\.auth\.getClaims\(identity\.accessToken\)/);
+  assert.notEqual(signInCall, -1);
+  assert.notEqual(verificationCall, -1);
+  assert.notEqual(fixtureWrite, -1);
+  assert.ok(signInCall < verificationCall);
+  assert.ok(verificationCall < fixtureWrite);
+});
+
+test("Auth smoke emits one dedicated revocable browser actor", () => {
+  const actorDeclaration = authHook.indexOf(
+    'revocableCurator: syntheticIdentity("revocable-curator")',
+  );
+  const membershipProvision = authHook.indexOf(
+    "const revocableCuratorMembership = await provisionMembership(",
+  );
+  const actorSignIn = authHook.indexOf(
+    'await signIn(identities.revocableCurator, "curator");',
+  );
+  const fixtureWrite = authHook.indexOf(
+    "writeFileSync(\n      browserFixturePath",
+  );
+
+  assert.notEqual(actorDeclaration, -1);
+  assert.notEqual(membershipProvision, -1);
+  assert.notEqual(actorSignIn, -1);
+  assert.notEqual(fixtureWrite, -1);
+  assert.ok(actorDeclaration < membershipProvision);
+  assert.ok(membershipProvision < actorSignIn);
+  assert.ok(actorSignIn < fixtureWrite);
+  assert.match(
+    authHook.slice(fixtureWrite),
+    /revocableMembershipId: revocableCuratorMembership\.id/,
+  );
+});
+
 test("post-reset Storage waits longer for Auth without retrying mutations", () => {
   const mainStart = storageGate.indexOf("const main = async () => {");
   const readinessCall = storageGate.indexOf(

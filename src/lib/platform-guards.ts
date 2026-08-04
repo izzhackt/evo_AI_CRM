@@ -19,7 +19,11 @@ export async function requirePlatformActor(): Promise<PlatformActor> {
   const result = await resolvePlatformActor();
   if (result.status === "anonymous") redirect("/login");
   if (result.status === "invalid") {
-    redirect(`/login?error=${encodeURIComponent(result.reason)}`);
+    // Cookie mutation is not permitted from a Server Component. Hand invalid
+    // resident sessions to the exact same-origin Route Handler, which repeats
+    // live authorization before it decides whether the session is still valid
+    // or must be cleared.
+    redirect("/auth/platform-session");
   }
   return result.actor;
 }

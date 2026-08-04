@@ -88,11 +88,18 @@ export async function proxy(request: NextRequest) {
     service: "evo-crm",
   }));
 
+  const path = request.nextUrl.pathname;
+  if (path === "/auth/platform-session") {
+    // The Route Handler owns response-writable session recovery. It repeats
+    // getClaims() plus live authority and must not be blocked or pre-refreshed
+    // by the connected-page proxy contract.
+    return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+
   if (isUiContractFixtureMode()) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
 
-  const path = request.nextUrl.pathname;
   if (path === "/api/health") {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }

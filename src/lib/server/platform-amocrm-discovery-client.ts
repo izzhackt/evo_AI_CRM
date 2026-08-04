@@ -1,3 +1,5 @@
+import "server-only";
+
 import {
   buildPlatformAmoCrmMappingSnapshot,
   normalizePlatformAmoCrmAccountDomain,
@@ -6,10 +8,11 @@ import {
 } from "../platform-amocrm-discovery-contract.ts";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
-const DEFAULT_MINIMUM_INTERVAL_MS = 160;
 const DEFAULT_MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MAX_PAGES = 100;
 const PAGE_LIMIT = 250;
+
+export const PLATFORM_AMOCRM_DISCOVERY_REQUEST_INTERVAL_MS = 200;
 
 type FetchImplementation = (
   input: string | URL | Request,
@@ -18,11 +21,9 @@ type FetchImplementation = (
 
 type DiscoveryClientOptions = Readonly<{
   fetchImplementation?: FetchImplementation;
-  minimumIntervalMs?: number;
   timeoutMs?: number;
   maxResponseBytes?: number;
   maxPages?: number;
-  sleep?: (milliseconds: number) => Promise<void>;
 }>;
 
 type DiscoveryInput = Readonly<{
@@ -176,6 +177,51 @@ function defaultSleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+type ProviderRequestPacer = Readonly<{
+  acquire: () => Promise<void>;
+}>;
+
+type ProviderRequestPacerDependencies = Readonly<{
+  now?: () => number;
+  sleep?: (milliseconds: number) => Promise<void>;
+}>;
+
+/**
+ * Creates an isolated pacer so its queue can be verified with a deterministic
+ * clock. The discovery client does not accept a pacer or these dependencies;
+ * production always uses the single fixed-interval instance below.
+ */
+export function createPlatformAmoCrmDiscoveryRequestPacer(
+  dependencies: ProviderRequestPacerDependencies = {},
+): ProviderRequestPacer {
+  const now = dependencies.now ?? (() => performance.now());
+  const sleep = dependencies.sleep ?? defaultSleep;
+  let nextSlot: Promise<void> = Promise.resolve();
+  let lastRequestStartedAt = Number.NEGATIVE_INFINITY;
+
+  return Object.freeze({
+    acquire(): Promise<void> {
+      const slot = nextSlot.then(async () => {
+        while (true) {
+          const remaining = lastRequestStartedAt +
+            PLATFORM_AMOCRM_DISCOVERY_REQUEST_INTERVAL_MS - now();
+          if (remaining <= 0) break;
+          await sleep(Math.ceil(remaining));
+        }
+        lastRequestStartedAt = now();
+      });
+
+      nextSlot = slot.catch(() => undefined);
+      return slot;
+    },
+  });
+}
+
+// One process-wide coordinator paces every concurrent discovery invocation.
+// Callers cannot replace it or tune the interval down. A future multi-process
+// runtime must additionally coordinate at the worker/deployment boundary.
+const sharedProviderRequestPacer = createPlatformAmoCrmDiscoveryRequestPacer();
+
 /**
  * Performs only read-only amoCRM discovery requests. The caller supplies the
  * short-lived access token; this module neither stores nor refreshes OAuth
@@ -192,12 +238,6 @@ export async function discoverPlatformAmoCrmMappingSnapshot(
     return invalidConfiguration();
   }
   const accessToken = normalizeAccessToken(input.accessToken);
-  const minimumIntervalMs = integerOption(
-    options.minimumIntervalMs,
-    DEFAULT_MINIMUM_INTERVAL_MS,
-    0,
-    60_000,
-  );
   const timeoutMs = integerOption(options.timeoutMs, DEFAULT_TIMEOUT_MS, 1, 60_000);
   const maxResponseBytes = integerOption(
     options.maxResponseBytes,
@@ -207,14 +247,9 @@ export async function discoverPlatformAmoCrmMappingSnapshot(
   );
   const maxPages = integerOption(options.maxPages, DEFAULT_MAX_PAGES, 1, 1_000);
   const fetchImplementation = options.fetchImplementation ?? fetch;
-  const sleep = options.sleep ?? defaultSleep;
-  let requestCount = 0;
 
   async function get(pathname: string): Promise<unknown> {
-    if (requestCount > 0 && minimumIntervalMs > 0) {
-      await sleep(minimumIntervalMs);
-    }
-    requestCount += 1;
+    await sharedProviderRequestPacer.acquire();
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -259,10 +294,7 @@ export async function discoverPlatformAmoCrmMappingSnapshot(
       );
       const currentRows = pageRows(response, key);
       rows.push(...currentRows);
-      if (!hasNextPage(response) && currentRows.length < PAGE_LIMIT) {
-        return paginatedEnvelope(key, rows);
-      }
-      if (!hasNextPage(response) && currentRows.length === 0) {
+      if (!hasNextPage(response)) {
         return paginatedEnvelope(key, rows);
       }
     }

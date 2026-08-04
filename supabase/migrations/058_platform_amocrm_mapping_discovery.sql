@@ -26,14 +26,14 @@ DECLARE
   object_entry RECORD;
   array_entry RECORD;
   forbidden_keys CONSTANT TEXT[] := ARRAY[
-    'access_token',
-    'refresh_token',
-    'client_secret',
+    'accesstoken',
+    'refreshtoken',
+    'clientsecret',
     'authorization',
     'password',
     'email',
     'phone',
-    'phone_number',
+    'phonenumber',
     'raw',
     'payload',
     'customer',
@@ -45,7 +45,12 @@ BEGIN
       SELECT entry.key, entry.value
       FROM pg_catalog.jsonb_each(p_value) AS entry(key, value)
     LOOP
-      IF pg_catalog.lower(object_entry.key) = ANY (forbidden_keys)
+      IF pg_catalog.regexp_replace(
+        pg_catalog.lower(object_entry.key),
+        '[^a-z0-9]',
+        '',
+        'g'
+      ) = ANY (forbidden_keys)
         OR pg_catalog.char_length(object_entry.key) NOT BETWEEN 1 AND 64
         OR object_entry.key ~ '[[:cntrl:]]'
       THEN
@@ -100,8 +105,14 @@ SET search_path = ''
 AS $$
 DECLARE
   account JSONB;
+  pipeline_entry RECORD;
+  status_entry RECORD;
+  user_entry RECORD;
+  custom_field_entry RECORD;
+  enum_entry RECORD;
   root_keys TEXT[];
   account_keys TEXT[];
+  nested_keys TEXT[];
 BEGIN
   IF p_snapshot IS NULL
     OR p_amocrm_account_id IS NULL
@@ -147,8 +158,8 @@ BEGIN
     'id',
     'subdomain'
   ]::TEXT[]
-    OR pg_catalog.jsonb_typeof(account -> 'id') NOT IN ('number', 'string')
-    OR (account ->> 'id') !~ '^[0-9]+$'
+    OR pg_catalog.jsonb_typeof(account -> 'id') <> 'string'
+    OR (account ->> 'id') !~ '^[1-9][0-9]*$'
     OR (account ->> 'id')::BIGINT <> p_amocrm_account_id
     OR pg_catalog.jsonb_typeof(account -> 'domain') <> 'string'
     OR account ->> 'domain' <> p_account_domain
@@ -172,37 +183,228 @@ BEGIN
     OR pg_catalog.jsonb_array_length(
       p_snapshot -> 'contact_custom_fields'
     ) > 10000
+    OR pg_catalog.jsonb_array_length(p_snapshot -> 'pipelines') = 0
+    OR pg_catalog.jsonb_array_length(p_snapshot -> 'users') = 0
   THEN
     RETURN FALSE;
   END IF;
 
-  IF EXISTS (
-    SELECT 1
-    FROM (
+  FOR pipeline_entry IN
+    SELECT element.value
+    FROM pg_catalog.jsonb_array_elements(
+      p_snapshot -> 'pipelines'
+    ) AS element(value)
+  LOOP
+    IF pg_catalog.jsonb_typeof(pipeline_entry.value) <> 'object' THEN
+      RETURN FALSE;
+    END IF;
+
+    SELECT pg_catalog.array_agg(key_name ORDER BY key_name)
+    INTO nested_keys
+    FROM pg_catalog.jsonb_object_keys(pipeline_entry.value) AS key_name;
+
+    IF nested_keys IS DISTINCT FROM ARRAY[
+      'id',
+      'is_archive',
+      'is_main',
+      'name',
+      'statuses'
+    ]::TEXT[]
+      OR pg_catalog.jsonb_typeof(pipeline_entry.value -> 'id') <> 'string'
+      OR pipeline_entry.value ->> 'id' !~ '^[1-9][0-9]*$'
+      OR (pipeline_entry.value ->> 'id')::NUMERIC > 9223372036854775807
+      OR pg_catalog.jsonb_typeof(pipeline_entry.value -> 'name') <> 'string'
+      OR pg_catalog.btrim(pipeline_entry.value ->> 'name')
+        <> pipeline_entry.value ->> 'name'
+      OR pg_catalog.char_length(pipeline_entry.value ->> 'name')
+        NOT BETWEEN 1 AND 512
+      OR pg_catalog.jsonb_typeof(pipeline_entry.value -> 'is_main')
+        <> 'boolean'
+      OR pg_catalog.jsonb_typeof(pipeline_entry.value -> 'is_archive')
+        <> 'boolean'
+      OR pg_catalog.jsonb_typeof(pipeline_entry.value -> 'statuses')
+        <> 'array'
+      OR pg_catalog.jsonb_array_length(
+        pipeline_entry.value -> 'statuses'
+      ) NOT BETWEEN 1 AND 10000
+    THEN
+      RETURN FALSE;
+    END IF;
+
+    FOR status_entry IN
       SELECT element.value
       FROM pg_catalog.jsonb_array_elements(
-        p_snapshot -> 'pipelines'
+        pipeline_entry.value -> 'statuses'
       ) AS element(value)
-      UNION ALL
+    LOOP
+      IF pg_catalog.jsonb_typeof(status_entry.value) <> 'object' THEN
+        RETURN FALSE;
+      END IF;
+
+      SELECT pg_catalog.array_agg(key_name ORDER BY key_name)
+      INTO nested_keys
+      FROM pg_catalog.jsonb_object_keys(status_entry.value) AS key_name;
+
+      IF nested_keys IS DISTINCT FROM ARRAY[
+        'id',
+        'is_editable',
+        'name',
+        'sort',
+        'type'
+      ]::TEXT[]
+        OR pg_catalog.jsonb_typeof(status_entry.value -> 'id') <> 'string'
+        OR status_entry.value ->> 'id' !~ '^[1-9][0-9]*$'
+        OR (status_entry.value ->> 'id')::NUMERIC > 9223372036854775807
+        OR pg_catalog.jsonb_typeof(status_entry.value -> 'name') <> 'string'
+        OR pg_catalog.btrim(status_entry.value ->> 'name')
+          <> status_entry.value ->> 'name'
+        OR pg_catalog.char_length(status_entry.value ->> 'name')
+          NOT BETWEEN 1 AND 512
+        OR pg_catalog.jsonb_typeof(status_entry.value -> 'sort') <> 'number'
+        OR status_entry.value ->> 'sort' !~ '^[0-9]+$'
+        OR (status_entry.value ->> 'sort')::NUMERIC > 9007199254740991
+        OR pg_catalog.jsonb_typeof(status_entry.value -> 'is_editable')
+          NOT IN ('boolean', 'null')
+        OR pg_catalog.jsonb_typeof(status_entry.value -> 'type')
+          NOT IN ('number', 'null')
+        OR (
+          pg_catalog.jsonb_typeof(status_entry.value -> 'type') = 'number'
+          AND (
+            status_entry.value ->> 'type' !~ '^[0-9]+$'
+            OR (status_entry.value ->> 'type')::NUMERIC > 9007199254740991
+          )
+        )
+      THEN
+        RETURN FALSE;
+      END IF;
+    END LOOP;
+  END LOOP;
+
+  FOR user_entry IN
+    SELECT element.value
+    FROM pg_catalog.jsonb_array_elements(
+      p_snapshot -> 'users'
+    ) AS element(value)
+  LOOP
+    IF pg_catalog.jsonb_typeof(user_entry.value) <> 'object' THEN
+      RETURN FALSE;
+    END IF;
+
+    SELECT pg_catalog.array_agg(key_name ORDER BY key_name)
+    INTO nested_keys
+    FROM pg_catalog.jsonb_object_keys(user_entry.value) AS key_name;
+
+    IF nested_keys IS DISTINCT FROM ARRAY[
+      'id',
+      'is_active',
+      'name'
+    ]::TEXT[]
+      OR pg_catalog.jsonb_typeof(user_entry.value -> 'id') <> 'string'
+      OR user_entry.value ->> 'id' !~ '^[1-9][0-9]*$'
+      OR (user_entry.value ->> 'id')::NUMERIC > 9223372036854775807
+      OR pg_catalog.jsonb_typeof(user_entry.value -> 'name') <> 'string'
+      OR pg_catalog.btrim(user_entry.value ->> 'name')
+        <> user_entry.value ->> 'name'
+      OR pg_catalog.char_length(user_entry.value ->> 'name')
+        NOT BETWEEN 1 AND 512
+      OR pg_catalog.jsonb_typeof(user_entry.value -> 'is_active')
+        <> 'boolean'
+    THEN
+      RETURN FALSE;
+    END IF;
+  END LOOP;
+
+  FOR custom_field_entry IN
+    SELECT element.value
+    FROM pg_catalog.jsonb_array_elements(
+      p_snapshot -> 'lead_custom_fields'
+    ) AS element(value)
+    UNION ALL
+    SELECT element.value
+    FROM pg_catalog.jsonb_array_elements(
+      p_snapshot -> 'contact_custom_fields'
+    ) AS element(value)
+  LOOP
+    IF pg_catalog.jsonb_typeof(custom_field_entry.value) <> 'object' THEN
+      RETURN FALSE;
+    END IF;
+
+    SELECT pg_catalog.array_agg(key_name ORDER BY key_name)
+    INTO nested_keys
+    FROM pg_catalog.jsonb_object_keys(custom_field_entry.value) AS key_name;
+
+    IF nested_keys IS DISTINCT FROM ARRAY[
+      'code',
+      'enums',
+      'id',
+      'name',
+      'type'
+    ]::TEXT[]
+      OR pg_catalog.jsonb_typeof(custom_field_entry.value -> 'id') <> 'string'
+      OR custom_field_entry.value ->> 'id' !~ '^[1-9][0-9]*$'
+      OR (custom_field_entry.value ->> 'id')::NUMERIC > 9223372036854775807
+      OR pg_catalog.jsonb_typeof(custom_field_entry.value -> 'name') <> 'string'
+      OR pg_catalog.btrim(custom_field_entry.value ->> 'name')
+        <> custom_field_entry.value ->> 'name'
+      OR pg_catalog.char_length(custom_field_entry.value ->> 'name')
+        NOT BETWEEN 1 AND 512
+      OR pg_catalog.jsonb_typeof(custom_field_entry.value -> 'code')
+        NOT IN ('string', 'null')
+      OR (
+        pg_catalog.jsonb_typeof(custom_field_entry.value -> 'code') = 'string'
+        AND (
+          custom_field_entry.value ->> 'code' !~ '^[A-Z0-9_]+$'
+          OR pg_catalog.char_length(custom_field_entry.value ->> 'code') > 128
+        )
+      )
+      OR pg_catalog.jsonb_typeof(custom_field_entry.value -> 'type') <> 'string'
+      OR pg_catalog.btrim(custom_field_entry.value ->> 'type')
+        <> custom_field_entry.value ->> 'type'
+      OR pg_catalog.char_length(custom_field_entry.value ->> 'type')
+        NOT BETWEEN 1 AND 128
+      OR pg_catalog.jsonb_typeof(custom_field_entry.value -> 'enums') <> 'array'
+      OR pg_catalog.jsonb_array_length(
+        custom_field_entry.value -> 'enums'
+      ) > 10000
+    THEN
+      RETURN FALSE;
+    END IF;
+
+    FOR enum_entry IN
       SELECT element.value
       FROM pg_catalog.jsonb_array_elements(
-        p_snapshot -> 'users'
+        custom_field_entry.value -> 'enums'
       ) AS element(value)
-      UNION ALL
-      SELECT element.value
-      FROM pg_catalog.jsonb_array_elements(
-        p_snapshot -> 'lead_custom_fields'
-      ) AS element(value)
-      UNION ALL
-      SELECT element.value
-      FROM pg_catalog.jsonb_array_elements(
-        p_snapshot -> 'contact_custom_fields'
-      ) AS element(value)
-    ) AS array_element
-    WHERE pg_catalog.jsonb_typeof(array_element.value) <> 'object'
-  ) THEN
-    RETURN FALSE;
-  END IF;
+    LOOP
+      IF pg_catalog.jsonb_typeof(enum_entry.value) <> 'object' THEN
+        RETURN FALSE;
+      END IF;
+
+      SELECT pg_catalog.array_agg(key_name ORDER BY key_name)
+      INTO nested_keys
+      FROM pg_catalog.jsonb_object_keys(enum_entry.value) AS key_name;
+
+      IF nested_keys IS DISTINCT FROM ARRAY[
+        'id',
+        'sort',
+        'value'
+      ]::TEXT[]
+        OR pg_catalog.jsonb_typeof(enum_entry.value -> 'id') <> 'string'
+        OR enum_entry.value ->> 'id' !~ '^[1-9][0-9]*$'
+        OR (enum_entry.value ->> 'id')::NUMERIC > 9223372036854775807
+        OR pg_catalog.jsonb_typeof(enum_entry.value -> 'value') <> 'string'
+        OR pg_catalog.btrim(enum_entry.value ->> 'value')
+          <> enum_entry.value ->> 'value'
+        OR pg_catalog.char_length(enum_entry.value ->> 'value')
+          NOT BETWEEN 1 AND 512
+        OR pg_catalog.jsonb_typeof(enum_entry.value -> 'sort') <> 'number'
+        OR enum_entry.value ->> 'sort' !~ '^[0-9]+$'
+        OR (enum_entry.value ->> 'sort')::NUMERIC > 9007199254740991
+      THEN
+        RETURN FALSE;
+      END IF;
+    END LOOP;
+  END LOOP;
 
   RETURN platform_private.amocrm_mapping_json_is_safe(p_snapshot);
 EXCEPTION

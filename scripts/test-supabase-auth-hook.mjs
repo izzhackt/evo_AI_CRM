@@ -1546,6 +1546,131 @@ const main = async () => {
     "p4a-unsafe-snapshot-denied",
   );
 
+  const p4aArbitraryNestedExtraDenied = await requestJson(
+    "/rest/v1/rpc/persist_amocrm_mapping_discovery",
+    {
+      method: "POST",
+      token: serviceRoleKey,
+      apiKey: serviceRoleKey,
+      body: {
+        ...p4aPersistBody,
+        p_sanitized_snapshot: {
+          ...p4aSnapshot,
+          pipelines: [
+            {
+              ...p4aSnapshot.pipelines[0],
+              unexpected_metadata: "synthetic-denied-value",
+            },
+          ],
+        },
+        p_request_id: randomUUID(),
+      },
+      schema: true,
+      stage: "p4a-arbitrary-nested-extra-denied",
+    },
+  );
+  assert(
+    p4aArbitraryNestedExtraDenied.status >= 400 &&
+      p4aArbitraryNestedExtraDenied.status < 500,
+    "p4a-arbitrary-nested-extra-denied",
+  );
+
+  const p4aCamelSecretExtraDenied = await requestJson(
+    "/rest/v1/rpc/persist_amocrm_mapping_discovery",
+    {
+      method: "POST",
+      token: serviceRoleKey,
+      apiKey: serviceRoleKey,
+      body: {
+        ...p4aPersistBody,
+        p_sanitized_snapshot: {
+          ...p4aSnapshot,
+          users: [
+            {
+              ...p4aSnapshot.users[0],
+              accessToken: "synthetic-denied-value",
+            },
+          ],
+        },
+        p_request_id: randomUUID(),
+      },
+      schema: true,
+      stage: "p4a-camel-secret-extra-denied",
+    },
+  );
+  assert(
+    p4aCamelSecretExtraDenied.status >= 400 &&
+      p4aCamelSecretExtraDenied.status < 500,
+    "p4a-camel-secret-extra-denied",
+  );
+
+  const p4aSnakeSecretExtraDenied = await requestJson(
+    "/rest/v1/rpc/persist_amocrm_mapping_discovery",
+    {
+      method: "POST",
+      token: serviceRoleKey,
+      apiKey: serviceRoleKey,
+      body: {
+        ...p4aPersistBody,
+        p_sanitized_snapshot: {
+          ...p4aSnapshot,
+          pipelines: [
+            {
+              ...p4aSnapshot.pipelines[0],
+              statuses: [
+                {
+                  ...p4aSnapshot.pipelines[0].statuses[0],
+                  client_secret: "synthetic-denied-value",
+                },
+              ],
+            },
+          ],
+        },
+        p_request_id: randomUUID(),
+      },
+      schema: true,
+      stage: "p4a-snake-secret-extra-denied",
+    },
+  );
+  assert(
+    p4aSnakeSecretExtraDenied.status >= 400 &&
+      p4aSnakeSecretExtraDenied.status < 500,
+    "p4a-snake-secret-extra-denied",
+  );
+
+  const p4aNestedTypeDenied = await requestJson(
+    "/rest/v1/rpc/persist_amocrm_mapping_discovery",
+    {
+      method: "POST",
+      token: serviceRoleKey,
+      apiKey: serviceRoleKey,
+      body: {
+        ...p4aPersistBody,
+        p_sanitized_snapshot: {
+          ...p4aSnapshot,
+          pipelines: [
+            {
+              ...p4aSnapshot.pipelines[0],
+              statuses: [
+                {
+                  ...p4aSnapshot.pipelines[0].statuses[0],
+                  sort: "10",
+                },
+              ],
+            },
+          ],
+        },
+        p_request_id: randomUUID(),
+      },
+      schema: true,
+      stage: "p4a-nested-type-denied",
+    },
+  );
+  assert(
+    p4aNestedTypeDenied.status >= 400 && p4aNestedTypeDenied.status < 500,
+    "p4a-nested-type-denied",
+  );
+
   const staleResponsibleSalesAccessToken =
     identities.responsibleSales.accessToken;
   const orgAStudentCase = serviceFunctionResult(

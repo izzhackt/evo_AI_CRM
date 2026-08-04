@@ -17,6 +17,7 @@ DECLARE
   checked_privilege TEXT;
   checked_routine REGPROCEDURE;
   persist_definition TEXT;
+  validator_definition TEXT;
   request_lock_position INTEGER;
   account_lock_position INTEGER;
   version_allocation_position INTEGER;
@@ -297,6 +298,66 @@ BEGIN
       END IF;
     END LOOP;
   END LOOP;
+
+  SELECT pg_catalog.regexp_replace(
+    pg_catalog.lower(pg_catalog.pg_get_functiondef(snapshot_helper)),
+    '[[:space:]]+',
+    '',
+    'g'
+  )
+  INTO validator_definition;
+
+  IF pg_catalog.strpos(
+    validator_definition,
+    $needle$nested_keysisdistinctfromarray['id','is_archive','is_main','name','statuses']::text[]$needle$
+  ) = 0
+    OR pg_catalog.strpos(
+      validator_definition,
+      $needle$nested_keysisdistinctfromarray['id','is_editable','name','sort','type']::text[]$needle$
+    ) = 0
+    OR pg_catalog.strpos(
+      validator_definition,
+      $needle$nested_keysisdistinctfromarray['id','is_active','name']::text[]$needle$
+    ) = 0
+    OR pg_catalog.strpos(
+      validator_definition,
+      $needle$nested_keysisdistinctfromarray['code','enums','id','name','type']::text[]$needle$
+    ) = 0
+    OR pg_catalog.strpos(
+      validator_definition,
+      $needle$nested_keysisdistinctfromarray['id','sort','value']::text[]$needle$
+    ) = 0
+    OR pg_catalog.strpos(
+      validator_definition,
+      $needle$jsonb_typeof(pipeline_entry.value->'id')<>'string'$needle$
+    ) = 0
+    OR pg_catalog.strpos(
+      validator_definition,
+      $needle$jsonb_typeof(status_entry.value->'sort')<>'number'$needle$
+    ) = 0
+    OR pg_catalog.strpos(
+      validator_definition,
+      $needle$jsonb_typeof(custom_field_entry.value->'enums')<>'array'$needle$
+    ) = 0
+  THEN
+    RAISE EXCEPTION 'P4A canonical nested allowlist/type validation drifted';
+  END IF;
+
+  SELECT pg_catalog.regexp_replace(
+    pg_catalog.lower(pg_catalog.pg_get_functiondef(safe_helper)),
+    '[[:space:]]+',
+    '',
+    'g'
+  )
+  INTO validator_definition;
+
+  IF pg_catalog.strpos(validator_definition, $needle$'accesstoken'$needle$) = 0
+    OR pg_catalog.strpos(validator_definition, $needle$'refreshtoken'$needle$) = 0
+    OR pg_catalog.strpos(validator_definition, $needle$'clientsecret'$needle$) = 0
+    OR pg_catalog.strpos(validator_definition, $needle$regexp_replace($needle$) = 0
+  THEN
+    RAISE EXCEPTION 'P4A normalized secret-key rejection drifted';
+  END IF;
 
   IF NOT EXISTS (
     SELECT 1

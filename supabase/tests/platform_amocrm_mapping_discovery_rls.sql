@@ -108,28 +108,50 @@ SELECT jsonb_build_object(
   ),
   'pipelines', jsonb_build_array(
     jsonb_build_object(
-      'id', 580101,
+      'id', '580101',
       'name', 'Synthetic Admissions Pipeline',
+      'is_main', true,
+      'is_archive', false,
       'statuses', jsonb_build_array(
-        jsonb_build_object('id', 580111, 'name', 'Synthetic Intake')
+        jsonb_build_object(
+          'id', '580111',
+          'name', 'Synthetic Intake',
+          'sort', 10,
+          'is_editable', true,
+          'type', 0
+        )
       )
     )
   ),
   'users', jsonb_build_array(
-    jsonb_build_object('id', 580201, 'name', 'Synthetic Operator')
+    jsonb_build_object(
+      'id', '580201',
+      'name', 'Synthetic Operator',
+      'is_active', true
+    )
   ),
   'lead_custom_fields', jsonb_build_array(
     jsonb_build_object(
-      'id', 580301,
+      'id', '580301',
       'name', 'Synthetic Program Direction',
-      'type', 'text'
+      'code', 'PROGRAM_DIRECTION',
+      'type', 'text',
+      'enums', jsonb_build_array()
     )
   ),
   'contact_custom_fields', jsonb_build_array(
     jsonb_build_object(
-      'id', 580401,
+      'id', '580401',
       'name', 'Synthetic Locale',
-      'type', 'select'
+      'code', null,
+      'type', 'select',
+      'enums', jsonb_build_array(
+        jsonb_build_object(
+          'id', '580411',
+          'value', 'Synthetic RU',
+          'sort', 10
+        )
+      )
     )
   )
 )::TEXT AS p4a_snapshot
@@ -217,6 +239,78 @@ FROM platform.persist_amocrm_mapping_discovery(
   '58000000-0000-4000-8000-000000000003'
 );
 \set p4a_forbidden_key_state :SQLSTATE
+
+SELECT *
+FROM platform.persist_amocrm_mapping_discovery(
+  :'p4a_org_a',
+  580001,
+  'synthetic-mapping.amocrm.ru',
+  'synthetic-mapping',
+  jsonb_set(
+    :'p4a_snapshot'::JSONB,
+    '{pipelines,0,unexpected_metadata}',
+    '"synthetic-denied-value"'::JSONB
+  ),
+  'local_non_provider',
+  'local:test:p4a:580001:arbitrary-extra',
+  TIMESTAMPTZ '2026-08-01 12:11:00+00',
+  '58000000-0000-4000-8000-000000000004'
+);
+\set p4a_arbitrary_nested_key_state :SQLSTATE
+
+SELECT *
+FROM platform.persist_amocrm_mapping_discovery(
+  :'p4a_org_a',
+  580001,
+  'synthetic-mapping.amocrm.ru',
+  'synthetic-mapping',
+  jsonb_set(
+    :'p4a_snapshot'::JSONB,
+    '{users,0,accessToken}',
+    '"synthetic-denied-value"'::JSONB
+  ),
+  'local_non_provider',
+  'local:test:p4a:580001:camel-secret',
+  TIMESTAMPTZ '2026-08-01 12:12:00+00',
+  '58000000-0000-4000-8000-000000000005'
+);
+\set p4a_camel_secret_state :SQLSTATE
+
+SELECT *
+FROM platform.persist_amocrm_mapping_discovery(
+  :'p4a_org_a',
+  580001,
+  'synthetic-mapping.amocrm.ru',
+  'synthetic-mapping',
+  jsonb_set(
+    :'p4a_snapshot'::JSONB,
+    '{contact_custom_fields,0,enums,0,client_secret}',
+    '"synthetic-denied-value"'::JSONB
+  ),
+  'local_non_provider',
+  'local:test:p4a:580001:snake-secret',
+  TIMESTAMPTZ '2026-08-01 12:13:00+00',
+  '58000000-0000-4000-8000-000000000006'
+);
+\set p4a_snake_secret_state :SQLSTATE
+
+SELECT *
+FROM platform.persist_amocrm_mapping_discovery(
+  :'p4a_org_a',
+  580001,
+  'synthetic-mapping.amocrm.ru',
+  'synthetic-mapping',
+  jsonb_set(
+    :'p4a_snapshot'::JSONB,
+    '{pipelines,0,statuses,0,sort}',
+    '"10"'::JSONB
+  ),
+  'local_non_provider',
+  'local:test:p4a:580001:wrong-type',
+  TIMESTAMPTZ '2026-08-01 12:14:00+00',
+  '58000000-0000-4000-8000-000000000007'
+);
+\set p4a_nested_type_state :SQLSTATE
 \set ON_ERROR_STOP on
 RESET ROLE;
 
@@ -227,7 +321,11 @@ SELECT pg_temp.assert_true(
   AND :'p4a_first_result'::JSONB ->> 'snapshot_sha256' =
     :'p4a_second_result'::JSONB ->> 'snapshot_sha256'
   AND :'p4a_changed_replay_state' = '22023'
-  AND :'p4a_forbidden_key_state' = '22023',
+  AND :'p4a_forbidden_key_state' = '22023'
+  AND :'p4a_arbitrary_nested_key_state' = '22023'
+  AND :'p4a_camel_secret_state' = '22023'
+  AND :'p4a_snake_secret_state' = '22023'
+  AND :'p4a_nested_type_state' = '22023',
   'service ingest, stable replay, versioning or sanitization drifted'
 );
 

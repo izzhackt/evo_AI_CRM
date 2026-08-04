@@ -32,9 +32,12 @@ The implementation follows the provider's HAL collection envelopes, reads user
 activity from `rights.is_active`, accepts current top-level custom-field enum
 metadata and handles provider field type as a defensively normalized opaque
 value. It reconstructs each next page on the already validated origin instead
-of following a provider-supplied URL. Requests are sequential, bounded, have a
+of following a provider-supplied URL, and stops whenever HAL omits
+`_links.next`, including a full 250-row final page. Requests are bounded, have a
 timeout and response-size limit, use no cache, reject redirects and do not
-retry automatically.
+retry automatically. A non-configurable process-wide coordinator spaces
+request starts by 200 ms across concurrent discovery calls; a later
+multi-process runtime must add deployment-level coordination before activation.
 
 Primary references:
 
@@ -60,11 +63,13 @@ Each row contains:
   bounded evidence reference;
 - replay-safe request ID and timestamps.
 
-The snapshot selects only mapping metadata. Recursive validation rejects keys
-associated with access/refresh tokens, client secrets, authorization headers,
-passwords, email, phone, raw/payload bodies, customer data and message data.
-Provider extras are not persisted. Rows are append-only and cannot be updated,
-deleted or truncated.
+The snapshot selects only mapping metadata. Every root and nested object has an
+exact key allowlist plus bounded type/value validation. Recursive defense in
+depth normalizes key spelling and rejects access/refresh tokens, client
+secrets, authorization headers, passwords, email, phone, raw/payload bodies,
+customer data and message data even when such keys are nested or use mixed
+camel/snake/hyphen spelling. Provider extras are not persisted. Rows are
+append-only and cannot be updated, deleted or truncated.
 
 `provider_observed` is evidence metadata supplied by the trusted caller; the
 database does not turn that label into provider proof. A release claim still
@@ -108,7 +113,7 @@ Still missing before prototype interactions become a real amoCRM path:
 Required candidate checks are:
 
 ```text
-node --experimental-strip-types --test tests/platform-amocrm-discovery.test.mjs
+node --conditions=react-server --experimental-strip-types --test tests/platform-amocrm-discovery.test.mjs
 npm run test:security:postgres
 npm run test:supabase:local
 npm run test:security
@@ -118,27 +123,38 @@ tsc --noEmit
 npm run build
 ```
 
-The candidate passed disposable PostgreSQL authorization and the complete
-OrbStack local gate: 58 contiguous migrations, real local Auth/PostgREST,
-private Storage, PGMQ and 28/28 accepted-frontend browser scenarios. Exact
-project containers and volumes were removed by the harness after exit 0.
+The first PR head passed the complete OrbStack local gate: 58 contiguous
+migrations, real local Auth/PostgREST, private Storage, PGMQ and 28/28
+accepted-frontend browser scenarios. The remediation rerun again applied all 58
+migrations and passed the Auth/PostgREST smoke, including the new P4A negative
+RPC cases. Its existing 300-second browser deadline then stopped the run after
+26/28 green scenarios with no individual assertion failure, so that rerun is
+recorded as partial rather than clean proof. The harness removed every exact
+`evo-platform-local` container and volume after exit; fresh disposable
+PostgreSQL authorization and the separate full root Playwright suite passed.
 
 Exact candidate results on 2026-08-04:
 
 | Gate | Result |
 | --- | --- |
-| Focused P4A contract/client/repository tests | 12/12 passed |
+| Focused P4A contract/client/repository tests | 14/14 passed |
 | Root security suite, including disposable PostgreSQL | passed |
-| OrbStack Supabase local gate | passed; 58 migrations and 28/28 browser scenarios |
-| Root unit tests | 156/156 passed |
+| OrbStack Supabase local gate | first PR head passed 58 migrations and 28/28; remediation rerun passed Auth/PostgREST negatives, then deadline stopped after 26/28 green browser scenarios |
+| Root unit tests | 158/158 passed |
 | Root lint, typecheck and production build | passed |
+| Root scenario suite | 39/39 passed after removing one timed-out test server process |
 | Root Playwright, including accessibility coverage | 89 passed, 55 intentionally skipped |
 | Root production and approved-development dependency audits | zero vulnerabilities |
 | EVO Inbox lint/typecheck/tests/build/audits | passed; 788/788 tests, zero audit vulnerabilities; seven pre-existing lint warnings |
 | Retained Lead Agent Ruff/pytest | passed; 124/124 tests |
 
-The exact-head GitHub CI, independent launch-control review and controller merge
-remain pending until this candidate is committed and opened as a PR.
+The first exact-head GitHub CI and independent review passed on PR #117. The
+merge-controller then correctly withheld merge and identified four remediation
+items: exact nested snapshot allowlists, non-bypassable concurrent pacing,
+HAL-next termination and build-time server-only poisoning. This candidate
+contains those fixes and their focused negative regressions. A fresh exact-head
+review, GitHub CI and independent controller decision remain required after the
+remediation commit.
 
 The local test data uses synthetic account IDs, names and domains only. This
 green result proves response normalization, immutable/versioned persistence,

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -10,7 +11,9 @@ import {
   parsePlatformAmoCrmProviderId,
 } from "../src/lib/platform-amocrm-discovery-contract.ts";
 import {
+  PLATFORM_AMOCRM_DISCOVERY_REQUEST_INTERVAL_MS,
   PlatformAmoCrmDiscoveryClientError,
+  createPlatformAmoCrmDiscoveryRequestPacer,
   discoverPlatformAmoCrmMappingSnapshot,
 } from "../src/lib/server/platform-amocrm-discovery-client.ts";
 import {
@@ -211,7 +214,6 @@ test("fails closed for account mismatch, duplicate IDs and empty required mappin
 test("uses only bounded sequential GET requests and canonicalizes all responses", async () => {
   const source = providerResponses();
   const requests = [];
-  const sleeps = [];
   const responses = new Map([
     ["/api/v4/account", source.account],
     ["/api/v4/leads/pipelines", source.pipelines],
@@ -226,10 +228,6 @@ test("uses only bounded sequential GET requests and canonicalizes all responses"
       accessToken: "synthetic-token-never-logged",
     },
     {
-      minimumIntervalMs: 7,
-      sleep: async (milliseconds) => {
-        sleeps.push(milliseconds);
-      },
       fetchImplementation: async (input, init) => {
         const url = new URL(input);
         requests.push({ url, init });
@@ -242,7 +240,6 @@ test("uses only bounded sequential GET requests and canonicalizes all responses"
 
   assert.equal(snapshot.account.id, ACCOUNT_ID);
   assert.equal(requests.length, 5);
-  assert.deepEqual(sleeps, [7, 7, 7, 7]);
   for (const request of requests) {
     assert.equal(request.url.origin, "https://evo-admissions.amocrm.ru");
     assert.equal(request.init.method, "GET");
@@ -253,6 +250,26 @@ test("uses only bounded sequential GET requests and canonicalizes all responses"
       "Bearer synthetic-token-never-logged",
     );
   }
+});
+
+test("shares non-bypassable pacing through a deterministic queue", async () => {
+  let now = 10_000;
+  const sleeps = [];
+  const pacer = createPlatformAmoCrmDiscoveryRequestPacer({
+    now: () => now,
+    sleep: async (milliseconds) => {
+      sleeps.push(milliseconds);
+      now += milliseconds;
+    },
+  });
+
+  await Promise.all([pacer.acquire(), pacer.acquire(), pacer.acquire()]);
+
+  assert.deepEqual(sleeps, [
+    PLATFORM_AMOCRM_DISCOVERY_REQUEST_INTERVAL_MS,
+    PLATFORM_AMOCRM_DISCOVERY_REQUEST_INTERVAL_MS,
+  ]);
+  assert.equal(now, 10_000 + 2 * PLATFORM_AMOCRM_DISCOVERY_REQUEST_INTERVAL_MS);
 });
 
 test("follows bounded pagination without trusting a provider next URL", async () => {
@@ -266,7 +283,6 @@ test("follows bounded pagination without trusting a provider next URL", async ()
   const snapshot = await discoverPlatformAmoCrmMappingSnapshot(
     { accountDomain: "evo-admissions.amocrm.ru", accessToken: "token" },
     {
-      minimumIntervalMs: 0,
       fetchImplementation: async (input) => {
         const url = new URL(input);
         const key = `${url.pathname}${url.search}`;
@@ -300,6 +316,41 @@ test("follows bounded pagination without trusting a provider next URL", async ()
   assert.equal(seen.some((value) => value.includes("attacker.invalid")), false);
 });
 
+test("stops pagination when an exact 250-row page has no HAL next link", async () => {
+  const source = providerResponses();
+  const exactPage = Array.from({ length: 250 }, (_, index) => ({
+    id: index + 1,
+    name: `User ${index + 1}`,
+    rights: { is_active: true },
+  }));
+  const seen = [];
+  const snapshot = await discoverPlatformAmoCrmMappingSnapshot(
+    { accountDomain: "evo-admissions.amocrm.ru", accessToken: "token" },
+    {
+      fetchImplementation: async (input) => {
+        const url = new URL(input);
+        const key = `${url.pathname}${url.search}`;
+        seen.push(key);
+        if (key === "/api/v4/account") return jsonResponse(source.account);
+        if (key === "/api/v4/leads/pipelines") return jsonResponse(source.pipelines);
+        if (key === "/api/v4/users?limit=250&page=1") {
+          return jsonResponse({ _embedded: { users: exactPage } });
+        }
+        if (key.startsWith("/api/v4/leads/custom_fields")) {
+          return jsonResponse(source.leadCustomFields);
+        }
+        if (key.startsWith("/api/v4/contacts/custom_fields")) {
+          return jsonResponse(source.contactCustomFields);
+        }
+        throw new Error(`Unexpected test request: ${key}`);
+      },
+    },
+  );
+
+  assert.equal(snapshot.users.length, 250);
+  assert.equal(seen.includes("/api/v4/users?limit=250&page=2"), false);
+});
+
 test("returns safe typed errors without response bodies, tokens or automatic retries", async () => {
   let calls = 0;
   const sensitiveMarker = ["unique", "sensitive", "test", "marker"].join("-");
@@ -307,7 +358,6 @@ test("returns safe typed errors without response bodies, tokens or automatic ret
     () => discoverPlatformAmoCrmMappingSnapshot(
       { accountDomain: "team.amocrm.ru", accessToken: sensitiveMarker },
       {
-        minimumIntervalMs: 0,
         fetchImplementation: async () => {
           calls += 1;
           return jsonResponse(
@@ -335,7 +385,6 @@ test("rejects malformed and oversized provider responses", async () => {
     () => discoverPlatformAmoCrmMappingSnapshot(
       { accountDomain: "team.amocrm.ru", accessToken: "token" },
       {
-        minimumIntervalMs: 0,
         fetchImplementation: async () => new Response("not-json", {
           headers: { "content-type": "text/plain" },
         }),
@@ -349,7 +398,6 @@ test("rejects malformed and oversized provider responses", async () => {
     () => discoverPlatformAmoCrmMappingSnapshot(
       { accountDomain: "team.amocrm.ru", accessToken: "token" },
       {
-        minimumIntervalMs: 0,
         maxResponseBytes: 1_024,
         fetchImplementation: async () => jsonResponse({ payload: "x".repeat(2_000) }),
       },
@@ -490,6 +538,27 @@ test("server adapters have no legacy DB, env secret, browser or provider-write s
   ]) {
     assert.equal(source.includes(forbidden), false, forbidden);
   }
+  assert.match(source, /^import "server-only";/);
+  assert.equal(source.includes("minimumIntervalMs"), false);
+  assert.match(
+    source,
+    /const sharedProviderRequestPacer = createPlatformAmoCrmDiscoveryRequestPacer\(\);/,
+  );
+
+  const poisonProbe = spawnSync(
+    process.execPath,
+    ["--input-type=module", "--eval", 'import("server-only")'],
+    {
+      cwd: new URL("../", import.meta.url),
+      encoding: "utf8",
+      env: { ...process.env, NODE_OPTIONS: "" },
+    },
+  );
+  assert.notEqual(poisonProbe.status, 0);
+  assert.match(
+    `${poisonProbe.stdout}${poisonProbe.stderr}`,
+    /cannot be imported from a Client Component module/,
+  );
 
   async function sourceFiles(directory) {
     const files = [];

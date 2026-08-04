@@ -1238,6 +1238,7 @@ const main = async () => {
     finance: syntheticIdentity("finance"),
     student: syntheticIdentity("student"),
     studentNoCase: syntheticIdentity("student-no-case"),
+    lifecycleStudent: syntheticIdentity("lifecycle-student"),
     revocableCurator: syntheticIdentity("revocable-curator"),
     blocked: syntheticIdentity("blocked"),
     noMembership: syntheticIdentity("no-membership"),
@@ -1317,6 +1318,18 @@ const main = async () => {
   );
   sqlUuid(noCaseStudentMembership.profile_id, "student-no-case-profile-id");
   await signIn(identities.studentNoCase, "student");
+
+  const lifecycleStudentMembership = await provisionMembership(
+    identities.adminA,
+    adminAMembership.organization_id,
+    identities.lifecycleStudent,
+    "student",
+  );
+  sqlUuid(
+    lifecycleStudentMembership.profile_id,
+    "lifecycle-student-profile-id",
+  );
+  await signIn(identities.lifecycleStudent, "student");
 
   const revocableCuratorMembership = await provisionMembership(
     identities.adminA,
@@ -2711,6 +2724,11 @@ const main = async () => {
       adminAMembership.organization_id,
     ],
     [
+      identities.lifecycleStudent,
+      lifecycleStudentMembership,
+      adminAMembership.organization_id,
+    ],
+    [
       identities.responsibleSales,
       responsibleSalesMembership,
       adminAMembership.organization_id,
@@ -2892,15 +2910,15 @@ const main = async () => {
   const bw6PendingCase = serviceFunctionResult(
     `platform.create_pending_student_case_with_handoff(
       ${sqlUuid(adminAMembership.organization_id, "bw6-pending-org")},
-      ${sqlUuid(roleMembers.student.id, "bw6-pending-student")},
+      ${sqlUuid(lifecycleStudentMembership.id, "bw6-pending-student")},
       ${sqlUuid(salesScopedMembership.id, "bw6-pending-sales")},
       'bw6-synthetic-sales-pending',
       'bw6-synthetic-contract-confirmation',
       '2026-08-04T08:00:00Z'::timestamptz,
-      'BW6 Synthetic Pending Student',
-      'Synthetic Country',
-      'Synthetic Degree',
-      'synthetic_program',
+      'BW7 Synthetic Lifecycle Student',
+      ${sqlText(bw3Checklist.targetCountry)},
+      ${sqlText(bw3Checklist.targetDegree)},
+      ${sqlText(bw3Checklist.programDirection)},
       'synthetic_intake',
       'ru',
       'synthetic_budget',
@@ -2920,6 +2938,56 @@ const main = async () => {
   );
   const bw6PendingStudentCaseId = bw6PendingCase?.student_case_id;
   sqlUuid(bw6PendingStudentCaseId, "bw6-pending-student-case-id");
+
+  const bw7RequirementApplication = await rpc(
+    identities.adminA,
+    "apply_country_requirement_version",
+    [
+      adminAMembership.organization_id,
+      bw6PendingStudentCaseId,
+      bw3CountryRequirementVersionId,
+      "Apply the approved synthetic checklist to the BW7 lifecycle case",
+      randomUUID(),
+    ],
+  );
+  assert(
+    bw7RequirementApplication?.student_case_id === bw6PendingStudentCaseId &&
+      bw7RequirementApplication?.country_requirement_version_id ===
+        bw3CountryRequirementVersionId,
+    "bw7-country-requirement-application",
+  );
+  const bw7ProfileResult = await rpc(
+    identities.adminA,
+    "upsert_student_profile",
+    [
+      adminAMembership.organization_id,
+      bw6PendingStudentCaseId,
+      0,
+      "BW7 Lifecycle Student",
+      null,
+      bw3Profile.dateOfBirth,
+      bw3Profile.communicationLanguage,
+      bw3Profile.citizenshipCountry,
+      bw3Profile.residencyCountry,
+      bw3Profile.currentEducationSummary,
+      bw3Profile.academicSummary,
+      bw3Profile.languageSummary,
+      bw3Profile.budgetBand,
+      bw3Profile.decisionParticipantLabels,
+      bw3Profile.consentStatus,
+      bw3Profile.consentEvidenceRef,
+      "Continue the BW7 lifecycle after Curator assignment",
+      "Persist the minimized synthetic BW7 Student Profile",
+      randomUUID(),
+    ],
+  );
+  assert(
+    bw7ProfileResult?.student_case_id === bw6PendingStudentCaseId &&
+      bw7ProfileResult?.revision === 1,
+    "bw7-student-profile-upsert",
+  );
+  const bw7StudentProfileId = bw7ProfileResult?.id;
+  sqlUuid(bw7StudentProfileId, "bw7-student-profile-id");
 
   const bw6Template = await rpc(
     identities.adminA,
@@ -3193,6 +3261,10 @@ const main = async () => {
             email: identities.studentNoCase.email,
             password: identities.studentNoCase.password,
           },
+          lifecycleStudent: {
+            email: identities.lifecycleStudent.email,
+            password: identities.lifecycleStudent.password,
+          },
           revocableCurator: {
             email: identities.revocableCurator.email,
             password: identities.revocableCurator.password,
@@ -3233,6 +3305,16 @@ const main = async () => {
           negative: {
             crossOrgOrganizationId: adminBMembership.organization_id,
             unassignedActiveStudentCaseId: bw4UnrelatedCaseId,
+          },
+        },
+        bw7: {
+          orgA: {
+            organizationId: adminAMembership.organization_id,
+            studentCaseId: bw6PendingStudentCaseId,
+            studentMembershipId: lifecycleStudentMembership.id,
+            studentProfileId: bw7StudentProfileId,
+            curatorMembershipId: roleMembers.curator.id,
+            studentDisplayName: "BW7 Synthetic Lifecycle Student",
           },
         },
         p3c: {
@@ -3360,7 +3442,7 @@ const main = async () => {
   }
 
   console.log(
-    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; 13 admin-provisioned synthetic users, 5 roles, 2 organizations, expired/stale-token and blocked-claim invalidation; synthetic readiness rows are contract fixtures only and are not live provider proof.",
+    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; 14 admin-provisioned synthetic users, 5 roles, 2 organizations, expired/stale-token and blocked-claim invalidation; synthetic readiness rows are contract fixtures only and are not live provider proof.",
   );
 };
 

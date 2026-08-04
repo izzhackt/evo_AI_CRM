@@ -21,6 +21,7 @@ type Fixture = Readonly<{
     finance: Identity;
     student: Identity;
     studentNoCase: Identity;
+    lifecycleStudent: Identity;
     blocked: Identity;
     noMembership: Identity;
     revocableCurator: Identity;
@@ -191,6 +192,16 @@ type Fixture = Readonly<{
     negative: Readonly<{
       crossOrgOrganizationId: string;
       unassignedActiveStudentCaseId: string;
+    }>;
+  }>;
+  bw7: Readonly<{
+    orgA: Readonly<{
+      organizationId: string;
+      studentCaseId: string;
+      studentMembershipId: string;
+      studentProfileId: string;
+      curatorMembershipId: string;
+      studentDisplayName: string;
     }>;
   }>;
 }>;
@@ -2042,6 +2053,223 @@ test("BW6 keeps contract drafts and post-contract reports versioned, authorized,
   for (const requestId of auditedRequestIds) {
     await expectOneAuditEvent(requestId);
   }
+  expectLegacyDatabaseUntouched();
+});
+
+test("BW7 proves one Supabase case from Sales draft through Admin handoff to Curator, Portal, and Sales summary", async ({
+  browser,
+}) => {
+  test.setTimeout(150_000);
+  expectLegacyDatabaseUntouched();
+
+  const casePath = `/clients/${fixture.bw7.orgA.studentCaseId}`;
+  const templateVersionId = fixture.bw6.orgA.contractTemplateVersionId;
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const requestIdFrom = async (form: Locator) => {
+    const value = await form.locator('input[name="request_id"]').inputValue();
+    expect(value).toMatch(uuidPattern);
+    return value;
+  };
+
+  const salesContext = await browser.newContext();
+  const salesPage = await salesContext.newPage();
+  await login(salesPage, fixture.identities.salesScoped);
+  await expect(salesPage).toHaveURL(/\/sales$/);
+  await salesPage.goto(`${casePath}#contract-workflow`);
+  const salesWorkspace = salesPage.getByTestId(
+    "platform-contract-draft-report-workspace",
+  );
+  await expect(salesWorkspace).toBeVisible();
+  const generateDraftForm = salesWorkspace.getByTestId(
+    "platform-contract-draft-generate-form",
+  );
+  await generateDraftForm
+    .locator('select[name="contract_template_version_id"]')
+    .selectOption(templateVersionId);
+  await generateDraftForm
+    .locator('input[name="reason"]')
+    .fill("Generate the BW7 one-case lifecycle draft");
+  await generateDraftForm.getByRole("button", { name: /Сгенерировать/ }).click();
+  await expect(salesPage).toHaveURL(/bw6_result=draft_generated/);
+  const approveDraftForm = salesWorkspace.getByTestId(
+    "platform-contract-draft-approved-form",
+  ).first();
+  await approveDraftForm
+    .locator('input[name="reason"]')
+    .fill("Approve the reviewed BW7 lifecycle draft");
+  await approveDraftForm.getByRole("button", { name: "Утвердить" }).click();
+  await expect(salesPage).toHaveURL(/bw6_result=draft_approved/);
+  await salesContext.close();
+
+  const pendingStudentContext = await browser.newContext();
+  const pendingStudentPage = await pendingStudentContext.newPage();
+  await login(pendingStudentPage, fixture.identities.lifecycleStudent);
+  await expect(pendingStudentPage).toHaveURL(/\/platform-pending(?:\?.*)?$/);
+  await expect(
+    pendingStudentPage.getByTestId("platform-pending"),
+  ).toBeVisible();
+  await pendingStudentPage.goto("/portal");
+  await expect(pendingStudentPage).toHaveURL(
+    /\/platform-pending\?from=\/portal$/,
+  );
+  await pendingStudentContext.close();
+
+  const adminContext = await browser.newContext();
+  const adminPage = await adminContext.newPage();
+  await login(adminPage, fixture.identities.admin);
+  await expect(adminPage).toHaveURL(/\/sales$/);
+  await adminPage.goto(`${casePath}#case-lifecycle`);
+  const assignmentForm = adminPage.getByTestId("curator-assignment-form");
+  await expect(assignmentForm).toBeVisible();
+  await assignmentForm
+    .locator('select[name="curator_id"]')
+    .selectOption(fixture.bw7.orgA.curatorMembershipId);
+  await assignmentForm
+    .locator('textarea[name="reason"]')
+    .fill("Assign the Curator and activate the bounded BW7 lifecycle");
+  const assignmentRequestId = await requestIdFrom(assignmentForm);
+  await assignmentForm.getByRole("button", { name: "Назначить куратора" }).click();
+  await expect(adminPage).toHaveURL(/result=saved/);
+  await expect(adminPage.getByTestId("platform-client-detail-page")).toBeVisible();
+  await expect(
+    adminPage.getByTestId("curator-assignment-form")
+      .locator('select[name="curator_id"]'),
+  ).toHaveValue(fixture.bw7.orgA.curatorMembershipId);
+  await expect(
+    adminPage.locator("#case-lifecycle").getByText("Активно", { exact: true }),
+  ).toBeVisible();
+
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const caseRows = await platformRows(
+    adminToken,
+    "student_cases",
+    new URLSearchParams({
+      select:
+        "id,state,current_curator_membership_id,handoff_at,portal_activated_at",
+      id: `eq.${fixture.bw7.orgA.studentCaseId}`,
+    }),
+  );
+  expect(caseRows.status).toBe(200);
+  expect(Array.isArray(caseRows.payload)).toBe(true);
+  if (!Array.isArray(caseRows.payload)) {
+    throw new Error("BW7 student case projection was not an array");
+  }
+  expect(caseRows.payload).toHaveLength(1);
+  expect(caseRows.payload[0]).toMatchObject({
+    id: fixture.bw7.orgA.studentCaseId,
+    state: "active",
+    current_curator_membership_id: fixture.bw7.orgA.curatorMembershipId,
+  });
+  expect(caseRows.payload[0].handoff_at).toEqual(expect.any(String));
+  expect(caseRows.payload[0].portal_activated_at).toEqual(expect.any(String));
+  const assignmentAudit = await platformRows(
+    adminToken,
+    "audit_events",
+    new URLSearchParams({
+      select: "action,resource_type,resource_id,request_id",
+      action: "eq.case.curator.set",
+      resource_id: `eq.${fixture.bw7.orgA.studentCaseId}`,
+      request_id: `eq.${assignmentRequestId}`,
+    }),
+  );
+  expect(assignmentAudit.status).toBe(200);
+  expect(assignmentAudit.payload).toEqual([{
+    action: "case.curator.set",
+    resource_type: "student_case",
+    resource_id: fixture.bw7.orgA.studentCaseId,
+    request_id: assignmentRequestId,
+  }]);
+  await adminContext.close();
+
+  const curatorContext = await browser.newContext();
+  const curatorPage = await curatorContext.newPage();
+  await login(curatorPage, fixture.identities.curator);
+  await expect(curatorPage).toHaveURL(/\/clients$/);
+  await curatorPage.goto(`${casePath}#contract-workflow`);
+  const curatorWorkspace = curatorPage.getByTestId(
+    "platform-contract-draft-report-workspace",
+  );
+  await expect(curatorWorkspace).toBeVisible();
+  const seedForm = curatorWorkspace.getByTestId(
+    "platform-post-contract-seed-form",
+  );
+  await seedForm
+    .locator('select[name="contract_template_version_id"]')
+    .selectOption(templateVersionId);
+  await seedForm
+    .locator('input[name="reason"]')
+    .fill("Seed the assigned Curator checklist for BW7");
+  await seedForm.getByRole("button", { name: "Создать пункты" }).click();
+  await expect(curatorPage).toHaveURL(/bw6_result=items_seeded/);
+  await expect(
+    curatorWorkspace.getByTestId("platform-post-contract-item"),
+  ).toHaveCount(2);
+
+  const reportForm = curatorWorkspace.getByTestId(
+    "platform-post-contract-report-generate-form",
+  );
+  await reportForm
+    .locator('select[name="contract_template_version_id"]')
+    .selectOption(templateVersionId);
+  await reportForm
+    .locator('input[name="reason"]')
+    .fill("Snapshot the BW7 assigned Curator checklist");
+  await reportForm
+    .getByRole("button", { name: "Создать новую версию отчёта" })
+    .click();
+  await expect(curatorPage).toHaveURL(/bw6_result=report_generated/);
+  const approveReportForm = curatorWorkspace.getByTestId(
+    "platform-contract-report-approved-form",
+  ).first();
+  await approveReportForm
+    .locator('input[name="reason"]')
+    .fill("Approve the reviewed BW7 post-contract report");
+  await approveReportForm.getByRole("button", { name: "Утвердить" }).click();
+  await expect(curatorPage).toHaveURL(/bw6_result=report_approved/);
+  await curatorContext.close();
+
+  const studentContext = await browser.newContext();
+  const studentPage = await studentContext.newPage();
+  await login(studentPage, fixture.identities.lifecycleStudent);
+  await expect(studentPage).toHaveURL(/\/portal$/);
+  await expect(
+    studentPage.locator("#portal-main").getByRole("heading", {
+      level: 1,
+      name: "Главная",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await studentPage.goto("/portal/profile");
+  await expect(
+    studentPage.locator("#portal-main").getByText(
+      "BW7 Lifecycle Student",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    studentPage.getByTestId("platform-contract-draft-report-workspace"),
+  ).toHaveCount(0);
+  await studentPage.goto(casePath);
+  await expect(studentPage).toHaveURL(/\/portal/);
+  await studentContext.close();
+
+  const summaryContext = await browser.newContext();
+  const summaryPage = await summaryContext.newPage();
+  await login(summaryPage, fixture.identities.salesScoped);
+  await expect(summaryPage).toHaveURL(/\/sales$/);
+  await summaryPage.goto(casePath);
+  await expect(summaryPage.getByTestId("platform-sales-handoff-summary"))
+    .toBeVisible();
+  await expect(summaryPage.getByText(fixture.bw7.orgA.studentDisplayName, {
+    exact: true,
+  })).toBeVisible();
+  await expect(
+    summaryPage.getByTestId("platform-contract-draft-report-workspace"),
+  ).toHaveCount(0);
+  await expect(summaryPage.getByTestId("curator-assignment-form")).toHaveCount(0);
+  await summaryContext.close();
+
   expectLegacyDatabaseUntouched();
 });
 

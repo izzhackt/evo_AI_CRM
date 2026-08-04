@@ -8,17 +8,18 @@ Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 `docs/PLAN_CHANGES.md`, and superseding ADRs including ADR 0016
 
 Execution checkpoint: historical P1 containment, reusable greenfield P2A-P2H,
-the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW5 and
-P2R0-P2R3 are merged. PR #112 merged the stale-authority/local-proof repair and
-PR #113 merged the reviewed catalog/import boundary at `origin/main`
-`1061bad81b27deee98d9c69380b3e543dc281924`. Exact-main CI run `30894448943`
-is green for Changed range, Main CRM, EVO Inbox and EVO Lead Agent. BW6 is the
-active sequential implementation block under the already-approved BW0
-business-workflow contract. Its local security, RLS, Auth, connected-browser,
-build and regression gates are green; exact-head review, CI and controller
-merge remain pending. Former P2I restore duties remain in P7. This
-status refresh changes no target architecture, acceptance outcome, provider
-ownership, schema ownership or production authority.
+the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW6 and
+P2R0-P2R3 are merged. PR #114 merged BW6 at `origin/main`
+`a2ecadbe05dcf6993bbd558f3d80fa405a571a7c`. Exact-main CI run `30918820654`
+is green for Main CRM, EVO Inbox and EVO Lead Agent; Changed range was skipped
+on the push run as expected. BW7 is the active sequential implementation block
+under the already-approved BW0 business-workflow contract. Its local security,
+RLS, Auth and accepted-frontend one-case lifecycle proof are green, including
+28/28 connected-browser scenarios; exact-head review, CI and controller merge
+remain pending. No managed Supabase, staging, provider or production exercise
+is claimed. Former P2I restore duties remain in P7. This status refresh changes
+no target architecture, acceptance outcome, provider ownership, schema
+ownership or production authority.
 
 ## 1. Outcome and truth boundary
 
@@ -65,7 +66,7 @@ and rollback proof are real. No fixed-duration soak is required by contract.
 As of the version date:
 
 - GitHub `main` checkpoint for this implementation is
-  `1061bad81b27deee98d9c69380b3e543dc281924`;
+  `a2ecadbe05dcf6993bbd558f3d80fa405a571a7c`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -348,10 +349,10 @@ deployment surfaces are sequential.
 | P9 | Bounded cutover evidence and separate Lead Agent retirement PR | Zero unexplained loss/duplicate/drift in the evidence window plus proven rollback and health | Evidence-gated |
 | P10 | Completion audit | Every FR/NFR/SEC/ACC mapped to evidence, full CI/provider proof, no open implementation PR | Pending |
 
-BW0, P3A-P3C, BW1-BW5 and P2R0-P2R3 are merged. PR #112 satisfied the
-prerequisite stale-authority/local-proof gate and PR #113 merged BW5 with green
-exact-main CI. BW6 is now the active block and retains the established
-dependency and exit-evidence contract below:
+BW0, P3A-P3C, BW1-BW6 and P2R0-P2R3 are merged. PR #112 satisfied the
+prerequisite stale-authority/local-proof gate, PR #113 merged BW5 and PR #114
+merged BW6; both have green exact-main CI. BW7 is now the active block and
+retains the established dependency and exit-evidence contract below:
 
 | Block | Contract | Dependency and exit evidence |
 | --- | --- | --- |
@@ -458,7 +459,7 @@ dependency and exit-evidence contract below:
   real import, managed Supabase, amoCRM, WAHA, AI-provider, production, restore
   or cutover proof.
 - P2R3 and BW5 are controller-merged with green exact-main CI. Any later BW5
-  correction requires a new bounded block; current BW6 work must not rewrite
+  correction requires a new bounded block; subsequent work must not rewrite
   migration 056 or absorb the still-blocked real source import.
 
 BW1-BW7 must not edit a migration number/schema file owned by another open PR.

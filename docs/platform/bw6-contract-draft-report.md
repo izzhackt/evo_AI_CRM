@@ -1,7 +1,6 @@
 # BW6 — contract draft and post-contract report boundary
 
-- Status: implementation and local validation complete; exact-head review, CI
-  and controller merge pending
+- Status: controller-merged in PR #114; exact-main CI green
 - Date: 2026-08-04
 - Block-ID: `EVO-BW6-CONTRACT-DRAFT-REPORT-2026-08-04`
 - Starting main: `1061bad81b27deee98d9c69380b3e543dc281924`
@@ -99,7 +98,7 @@ is deferred until an explicitly approved external-document contract exists.
 | EVO Inbox compatibility | Pass — 788/788 tests, lint, typecheck, build and audits | Schema contract freshness only; seven pre-existing lint warnings, no Inbox/provider mutation |
 | Retained EVO Lead Agent compatibility | Pass — Ruff and 124/124 tests | Repository compatibility only; no service, provider or production mutation |
 | Secret and legacy-boundary checks | Pass — gitleaks and browser-bundle symbol scans clean | Platform modules do not import the legacy SQLite/auth/`wa_*` data plane; scans do not prove managed-environment configuration |
-| Exact-head GitHub CI and independent review | Pending | Required before controller eligibility |
+| Exact-head GitHub CI and independent review | Pass | Independent exact-SHA review and all four required PR jobs passed before controller merge; exact-main push CI run `30918820654` is green |
 | Real legal template/provider/production proof | Blocked | No approved real template, e-sign/PDF provider, managed apply or production authority is claimed |
 
 ## Migration and rollback note

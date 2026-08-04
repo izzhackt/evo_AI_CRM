@@ -4,10 +4,7 @@ import {
   resolvePlatformActor,
   type PlatformActorInvalidReason,
 } from "@/lib/platform-auth";
-import {
-  platformHomeRoute,
-  platformSameOriginRedirectLocation,
-} from "@/lib/platform-route-contract";
+import { platformHomeRoute } from "@/lib/platform-route-contract";
 import {
   hasSupabaseAuthCookie,
   isProjectSupabaseAuthCookieName,
@@ -27,6 +24,24 @@ type PlatformSessionError =
   | PlatformActorInvalidReason
   | typeof PLATFORM_UNAVAILABLE_ERROR;
 
+function sameOriginRedirectLocation(
+  pathname: string,
+  error?: PlatformSessionError,
+): string {
+  if (
+    !pathname.startsWith("/") ||
+    pathname.startsWith("//") ||
+    /[\\?#\u0000-\u001f\u007f]/.test(pathname)
+  ) {
+    throw new Error("Platform redirect requires a same-origin Platform path");
+  }
+
+  const searchParams = new URLSearchParams();
+  if (error) searchParams.set("error", error);
+  const search = searchParams.toString();
+  return search ? `${pathname}?${search}` : pathname;
+}
+
 function sameOriginRedirect(
   pathname: string,
   error?: PlatformSessionError,
@@ -34,7 +49,7 @@ function sameOriginRedirect(
   return new NextResponse(null, {
     status: 307,
     headers: {
-      Location: platformSameOriginRedirectLocation(pathname, error),
+      Location: sameOriginRedirectLocation(pathname, error),
     },
   });
 }

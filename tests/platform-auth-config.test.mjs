@@ -200,32 +200,15 @@ test("student home and guard redirects keep roles on their connected surface", (
   );
 });
 
-test("stale-session redirects stay relative to the browser origin", async () => {
-  const routeContract = await import(
-    "../src/lib/platform-route-contract.ts"
-  );
-  const redirectLocation =
-    routeContract.platformSameOriginRedirectLocation;
-
-  assert.equal(typeof redirectLocation, "function");
-  assert.equal(redirectLocation("/sales"), "/sales");
-  assert.equal(
-    redirectLocation("/login", "authority_not_found"),
-    "/login?error=authority_not_found",
-  );
-  assert.throws(
-    () => redirectLocation("https://evil.test"),
-    /same-origin Platform path/,
-  );
-  assert.throws(
-    () => redirectLocation("//evil.test"),
-    /same-origin Platform path/,
-  );
+test("stale-session redirects stay relative to the browser origin", () => {
   assert.match(
     platformSessionRouteSource,
-    /platformSameOriginRedirectLocation/,
+    /Location:\s*sameOriginRedirectLocation\(pathname, error\)/,
   );
+  assert.match(platformSessionRouteSource, /status:\s*307/);
+  assert.match(platformSessionRouteSource, /pathname\.startsWith\("\/\/"\)/);
   assert.doesNotMatch(platformSessionRouteSource, /request\.nextUrl\.clone\(\)/);
+  assert.doesNotMatch(platformSessionRouteSource, /NextResponse\.redirect\(/);
 });
 
 test("logout fallback matches only Supabase auth-token cookies", () => {

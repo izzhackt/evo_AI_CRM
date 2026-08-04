@@ -41,24 +41,6 @@ export function platformStaffRedirect(role: PlatformRole): string | null {
   return role === "student" ? "/portal" : null;
 }
 
-export function platformSameOriginRedirectLocation(
-  pathname: string,
-  error?: string,
-): string {
-  if (
-    !pathname.startsWith("/") ||
-    pathname.startsWith("//") ||
-    /[\\?#\u0000-\u001f\u007f]/.test(pathname)
-  ) {
-    throw new Error("Platform redirect requires a same-origin Platform path");
-  }
-
-  const searchParams = new URLSearchParams();
-  if (error) searchParams.set("error", error);
-  const search = searchParams.toString();
-  return search ? `${pathname}?${search}` : pathname;
-}
-
 /**
  * Only routes backed by the greenfield Platform data plane may pass proxy.
  * Connected detail routes are one exact UUID segment; numeric identifiers,

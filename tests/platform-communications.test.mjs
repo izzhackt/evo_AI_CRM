@@ -553,3 +553,27 @@ test("manual-send text keeps an explicit accessible label", () => {
     /draft\?\.aiDraftId && draft\.state === "ready_for_manual_send"/,
   );
 });
+
+test("local browser handoff refreshes expiring synthetic AI readiness", () => {
+  const authHookSource = readFileSync(
+    new URL("../scripts/test-supabase-auth-hook.mjs", import.meta.url),
+    "utf8",
+  );
+  const browserSpecSource = readFileSync(
+    new URL("./platform-auth/platform-auth.spec.ts", import.meta.url),
+    "utf8",
+  );
+  const browserHandoff = authHookSource.slice(
+    authHookSource.indexOf("if (browserFixturePath)"),
+  );
+
+  assert.match(
+    browserHandoff,
+    /recordHealthEvent\(\{[\s\S]*?organizationId: adminBMembership\.organization_id,[\s\S]*?target: "ai",[\s\S]*?readiness: "ready",[\s\S]*?evidenceKind: "provider_observed",[\s\S]*?stage: "p3c-org-b-ai-browser-ready"[\s\S]*?\}\);[\s\S]*?writeFileSync\(/,
+  );
+  const languageScenarioIndex = browserSpecSource.indexOf(
+    'test("RU and EN draft requests work while uncertain language stops for manual selection"',
+  );
+  assert.ok(languageScenarioIndex > 0);
+  assert.equal(languageScenarioIndex, browserSpecSource.indexOf('test("'));
+});

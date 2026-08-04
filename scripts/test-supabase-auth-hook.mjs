@@ -3529,6 +3529,22 @@ const main = async () => {
       (statSync(browserFixturePath).mode & 0o777) === 0o600,
       "browser-fixture-mode",
     );
+    // Provider-observed readiness is intentionally fresh for only five minutes.
+    // The Auth/PostgREST smoke performs substantial setup after its first Org B
+    // health event, so hand the browser suite a newly timestamped synthetic
+    // contract fixture instead of coupling late scenarios to setup duration.
+    // This remains a synthetic local contract fixture and is never real
+    // live-provider proof.
+    recordHealthEvent({
+      organizationId: adminBMembership.organization_id,
+      target: "ai",
+      readiness: "ready",
+      evidenceKind: "provider_observed",
+      reason:
+        "Synthetic provider-observed AI readiness refreshed only for the local browser contract gate",
+      evidenceRef: "synthetic:browser:ai:provider-ready:org-b",
+      stage: "p3c-org-b-ai-browser-ready",
+    });
     writeFileSync(
       browserFixturePath,
       JSON.stringify({

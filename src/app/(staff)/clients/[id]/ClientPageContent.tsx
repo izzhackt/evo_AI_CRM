@@ -869,6 +869,13 @@ export default async function ClientPageContent({
               className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-2"
             >
               <input type="hidden" name="client_id" value={client.id} />
+              {actions.changePlatformState && data.lifecycleRequestId ? (
+                <input
+                  type="hidden"
+                  name="request_id"
+                  value={data.lifecycleRequestId}
+                />
+              ) : null}
               <div className="sm:col-span-2">
                 <p className="text-[13px] font-semibold text-fg">{t("curatorAssignment")}</p>
                 <p className="mt-1 text-[11px] leading-4 text-fg-3">{t("curatorAssignmentHint")}</p>

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import {
+  assignPlatformStudentCaseCuratorAction,
   changePlatformStudentCaseStateAction,
   updatePlatformStudentCaseRouteAction,
 } from "@/lib/platform-admissions-actions";
@@ -24,6 +25,10 @@ import {
   listPlatformApplications,
   parsePlatformAdmissionsUuid,
 } from "@/lib/platform-admissions";
+import {
+  getPlatformStudentCaseAssignmentState,
+  listPlatformActiveCurators,
+} from "@/lib/platform-case-assignment";
 import {
   getPlatformStudentProfile,
   listPlatformCountryRequirementVersions,
@@ -103,6 +108,8 @@ export async function loadPlatformClientPageData(
     documentRows,
     countryRequirementVersions,
     contractWorkspace,
+    assignmentState,
+    curatorOptions,
   ] =
     await Promise.all([
       listPlatformApplications(actor),
@@ -112,7 +119,12 @@ export async function loadPlatformClientPageData(
       canReadContractWorkspace
         ? getPlatformCaseContractWorkspace(actor, studentCase.studentCaseId)
         : Promise.resolve(null),
+      getPlatformStudentCaseAssignmentState(actor, studentCase.studentCaseId),
+      actor.platformRole === "admin"
+        ? listPlatformActiveCurators(actor)
+        : Promise.resolve([]),
     ]);
+  if (!assignmentState) return null;
   const appliedCountryRequirement =
     countryRequirementVersions.find((version) => version.isApplied) ?? null;
   const applications = applicationRows
@@ -188,9 +200,9 @@ export async function loadPlatformClientPageData(
       case_state: studentCase.state,
       contract_confirmed_at: studentCase.handoff?.createdAt ?? null,
       contract_confirmation_ref: studentCase.handoff?.studentCaseOpHandoffId ?? null,
-      portal_activated_at: null,
+      portal_activated_at: assignmentState.portalActivatedAt,
       handoff_at: studentCase.handoffAt,
-      curator_id: null,
+      curator_id: assignmentState.currentCuratorMembershipId,
       curator_name: studentCase.currentCuratorDisplayName,
       manager_name: studentCase.responsibleSalesDisplayName,
       notes,
@@ -202,7 +214,10 @@ export async function loadPlatformClientPageData(
     tasks: [],
     updates: [],
     taskAssignees: [],
-    curators: [],
+    curators: curatorOptions.map((curator) => ({
+      id: curator.membershipId,
+      name: curator.displayName,
+    })),
     audit: [],
     snapshot: {
       stageTimeline: [
@@ -246,6 +261,9 @@ export async function loadPlatformClientPageData(
     taskPriorities: [],
     visaStatuses: [],
     actions: {
+      assignCurator: actor.platformRole === "admin"
+        ? assignPlatformStudentCaseCuratorAction
+        : undefined,
       changePlatformState: changePlatformStudentCaseStateAction,
       updateStudentRoute: updatePlatformStudentCaseRouteAction,
       updateStudentProfile: updatePlatformStudentProfileAction,

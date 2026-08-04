@@ -166,6 +166,70 @@ export async function changePlatformStudentCaseStateAction(
   safeRedirect(targetPath, "saved");
 }
 
+export async function assignPlatformStudentCaseCuratorAction(
+  form: FormData,
+): Promise<void> {
+  const actor = await requirePlatformClientsActor();
+  const studentCaseId = requiredUuid(form, "client_id");
+  const curatorMembershipId = requiredUuid(form, "curator_id");
+  const requestId = requiredUuid(form, "request_id");
+  const reason = boundedText(form, "reason", 1, 1000);
+  const targetPath = studentCaseId
+    ? `/clients/${studentCaseId}`
+    : "/clients";
+
+  if (
+    actor.platformRole !== "admin"
+    || !studentCaseId
+    || !curatorMembershipId
+    || !requestId
+    || !reason
+  ) {
+    safeRedirect(targetPath, "invalid", requestId);
+  }
+
+  try {
+    const client = await createSupabaseServerClient();
+    const response = await client.schema("platform").rpc(
+      "assign_student_case_curator",
+      {
+        p_organization_id: actor.organizationId,
+        p_student_case_id: studentCaseId,
+        p_curator_membership_id: curatorMembershipId,
+        p_reason: reason,
+        p_request_id: requestId,
+      },
+    );
+    const portalActivatedAt = isRecord(response.data)
+      ? response.data.portal_activated_at
+      : null;
+    if (
+      response.error
+      || !isRecord(response.data)
+      || parsePlatformAdmissionsUuid(response.data.organization_id) !==
+        actor.organizationId
+      || parsePlatformAdmissionsUuid(response.data.student_case_id) !==
+        studentCaseId
+      || parsePlatformAdmissionsUuid(response.data.curator_membership_id) !==
+        curatorMembershipId
+      || (response.data.case_state !== "active"
+        && response.data.case_state !== "closed")
+      || typeof portalActivatedAt !== "string"
+      || !Number.isFinite(Date.parse(portalActivatedAt))
+    ) {
+      safeRedirect(targetPath, "unavailable", requestId);
+    }
+  } catch {
+    safeRedirect(targetPath, "unavailable", requestId);
+  }
+
+  revalidatePath("/clients");
+  revalidatePath(targetPath);
+  revalidatePath("/applications");
+  revalidatePath("/portal", "layout");
+  safeRedirect(targetPath, "saved");
+}
+
 export async function updatePlatformStudentCaseRouteAction(
   form: FormData,
 ): Promise<void> {

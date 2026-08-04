@@ -1,13 +1,14 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-bw6` is active. Historical P1, reusable greenfield
-P2A-P2H, BW0, P3A-P3C, BW1-BW5 and P2R0-P2R3 are merged. PR #112 merged the
-stale-session/local-proof repair; PR #113 merged BW5 at current main
-`1061bad81b27deee98d9c69380b3e543dc281924`, with exact-main CI run
-`30894448943` green. BW6 is the active contract-draft and post-contract
-checklist/report implementation block. Its local security, RLS, Auth, browser,
-build and regression gates are green; exact-head review, CI and controller
-merge remain pending. P2I restore duties remain in P7.
+Status: `/goal-evo-platform-bw7` is active. Historical P1, reusable greenfield
+P2A-P2H, BW0, P3A-P3C, BW1-BW6 and P2R0-P2R3 are merged. PR #114 merged BW6 at
+current main `a2ecadbe05dcf6993bbd558f3d80fa405a571a7c`; exact-main CI run
+`30918820654` is green for Main CRM, EVO Inbox and EVO Lead Agent, while
+Changed range was skipped on the push run as expected. BW7 is the active
+latest-main integration-proof block. Its local security, RLS, Auth and 28/28
+accepted-frontend browser scenarios are green; exact-head review, CI and
+controller merge remain pending. No managed Supabase, staging, provider or
+production exercise is claimed. P2I restore duties remain in P7.
 Updated 2026-08-04 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
@@ -20,11 +21,13 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active plan slice: `/goal-evo-platform-bw6`, Block
-`EVO-BW6-CONTRACT-DRAFT-REPORT-2026-08-04`. The implementation adds typed
-approved-field contract drafts plus a versioned post-contract checklist/report
-behind the accepted Student 360 frontend, with authorization, immutability and
-audit proof. It does not claim a signed legal contract, e-signature, provider
+Active plan slice: `/goal-evo-platform-bw7`, Block
+`EVO-BW7-INTEGRATION-PROOF-2026-08-04`. The implementation connects the
+existing Student 360 Curator-assignment controls to the greenfield Supabase
+repository/RPC seam and proves one case through Sales approval, Admin Curator
+assignment, Curator checklist/report approval, Student Portal activation and
+the post-handoff Sales summary. It changes no migration; migrations 001-057
+remain immutable. It does not claim managed Supabase, staging, provider
 exercise or production readiness.
 
 ### Goal
@@ -38,11 +41,10 @@ The existing unified frontend from PRs #64/#71/#72 is the sole product UI
 contract and must be wired through repository/session seams, not replaced or
 paralleled. AI remains draft-only with human manual send.
 
-This status refresh records the already-merged P2R3 repair and BW5 boundary and
-advances the existing sequential contract to BW6. It changes no target
-architecture, requirement outcome, provider ownership, production state or
-restore claim; migration 057 remains the next-free BW6 schema ownership proven
-from current main.
+This status refresh records the already-merged BW6 boundary and advances the
+existing sequential contract to BW7. It changes no target architecture,
+requirement outcome, provider ownership, production state, schema or restore
+claim. BW7 reuses migrations 001-057 without adding or rewriting one.
 
 ### Reconciled baseline
 
@@ -62,9 +64,10 @@ checkpoint is:
   merged P3A-P3C; PRs #100-#103 merged BW1-BW4; PR #104 merged P2R0; PR #105
   merged P2R1; PR #107 merged the BW5 checkpoint amendment; PR #109 merged the
   P2R2 plan gate; PR #111 merged the P2R3 plan gate; PR #112 merged the P2R3
-  repair; and PR #113 merged BW5. The exact checkpoint for BW6 is
-  `1061bad81b27deee98d9c69380b3e543dc281924`, with exact-main CI run
-  `30894448943` green.
+  repair; PR #113 merged BW5; and PR #114 merged BW6. The exact checkpoint for
+  BW7 is `a2ecadbe05dcf6993bbd558f3d80fa405a571a7c`; exact-main CI run
+  `30918820654` is green for Main CRM, EVO Inbox and EVO Lead Agent, while
+  Changed range was skipped on the push run as expected.
 - PR #108 exact head `f719b749efaadaf02c6344c5d01cd4b6bbe3d79c`
   is historical recovery evidence: it passed focused tests and CI but was
   closed without merge after controller
@@ -100,14 +103,13 @@ checkpoint is:
 
 ### Immediate execution order
 
-0. Complete BW6 on the already-selected next-free migration 057 with typed
-   contract drafts, post-contract checklist/report, focused authorization and
-   accepted-frontend connected-browser proof.
+0. Complete BW7 without a schema migration by connecting the accepted Student
+   360 assignment UI to the existing Supabase repository/RPC seam and proving
+   the one-case Sales -> Admin -> Curator -> Portal -> Sales-summary lifecycle.
 1. Obtain fresh exact-head independent review, all four exact-head CI jobs and
    controller merge before opening another implementation PR.
-2. Continue BW7 only after BW6 is merged and exact-main CI is green; inspect
-   open migration ownership and never duplicate P3/P4/P5 platform/provider
-   seams.
+2. Preserve migrations 001-057 as immutable history and never duplicate
+   P3/P4/P5 platform/provider seams.
 3. Defer real amoCRM proof to P4 and real WAHA/AI/ACK proof to P5. Workflow and
    reliability blocks may consume contracts but cannot claim provider success.
 
@@ -193,7 +195,7 @@ checkpoint is:
 
 ### Merge-order boundary
 
-BW0, P3A-P3C, BW1-BW5 and P2R0-P2R3 are merged history. BW6 is the only active
+BW0, P3A-P3C, BW1-BW6 and P2R0-P2R3 are merged history. BW7 is the only active
 implementation block. P2R0-P2R3 do not transfer P7 restore ownership or
 authorize production application. P3 owns common session/repository seams, P4
 owns amoCRM adapter behavior, P5 owns real WAHA/AI/ACK proof, and P7 owns

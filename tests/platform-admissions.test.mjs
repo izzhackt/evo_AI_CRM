@@ -12,6 +12,11 @@ import {
   normalizePlatformStudentCaseSnapshot,
   parsePlatformAdmissionsUuid,
 } from "../src/lib/platform-admissions.ts";
+import {
+  PlatformCaseAssignmentRepositoryError,
+  normalizePlatformCuratorOptions,
+  normalizePlatformStudentCaseAssignmentState,
+} from "../src/lib/platform-case-assignment.ts";
 import { isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
 
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
@@ -20,6 +25,8 @@ const APPLICATION_ID = "33333333-3333-4333-8333-333333333333";
 const VERSION_ID = "44444444-4444-4444-8444-444444444444";
 const CONTRACT_ID = "55555555-5555-4555-8555-555555555555";
 const HANDOFF_ID = "66666666-6666-4666-8666-666666666666";
+const CURATOR_MEMBERSHIP_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const CURATOR_PROFILE_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const AT = "2026-08-01T05:00:00+00:00";
 
 function actor(platformRole) {
@@ -222,10 +229,85 @@ test("finance, student and curator are denied before restricted repository reads
   );
 });
 
+test("assignment projections normalize only same-org active Curator authority", () => {
+  assert.deepEqual(
+    normalizePlatformStudentCaseAssignmentState(
+      {
+        id: CASE_ID,
+        organization_id: ORGANIZATION_ID,
+        current_curator_membership_id: CURATOR_MEMBERSHIP_ID,
+        portal_activated_at: AT,
+      },
+      ORGANIZATION_ID,
+      CASE_ID,
+    ),
+    {
+      organizationId: ORGANIZATION_ID,
+      studentCaseId: CASE_ID,
+      currentCuratorMembershipId: CURATOR_MEMBERSHIP_ID,
+      portalActivatedAt: AT,
+    },
+  );
+  assert.deepEqual(
+    normalizePlatformCuratorOptions(
+      [{
+        id: CURATOR_MEMBERSHIP_ID,
+        organization_id: ORGANIZATION_ID,
+        profile_id: CURATOR_PROFILE_ID,
+        status: "active",
+        current_role: "curator",
+      }],
+      [{
+        id: CURATOR_PROFILE_ID,
+        display_name: "  Assigned Curator  ",
+        status: "active",
+      }],
+      ORGANIZATION_ID,
+    ),
+    [{
+      membershipId: CURATOR_MEMBERSHIP_ID,
+      displayName: "Assigned Curator",
+    }],
+  );
+
+  assert.throws(
+    () => normalizePlatformCuratorOptions(
+      [{
+        id: CURATOR_MEMBERSHIP_ID,
+        organization_id: ORGANIZATION_ID,
+        profile_id: CURATOR_PROFILE_ID,
+        status: "active",
+        current_role: "sales",
+      }],
+      [{
+        id: CURATOR_PROFILE_ID,
+        display_name: "Wrong role",
+        status: "active",
+      }],
+      ORGANIZATION_ID,
+    ),
+    PlatformCaseAssignmentRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformStudentCaseAssignmentState(
+      {
+        id: CASE_ID,
+        organization_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        current_curator_membership_id: null,
+        portal_activated_at: null,
+      },
+      ORGANIZATION_ID,
+      CASE_ID,
+    ),
+    PlatformCaseAssignmentRepositoryError,
+  );
+});
+
 test("connected Platform runtime modules do not statically import SQLite or legacy auth", () => {
   const files = [
     "src/lib/platform-admissions.ts",
     "src/lib/platform-admissions-actions.ts",
+    "src/lib/platform-case-assignment.ts",
     "src/app/(staff)/layout.tsx",
     "src/app/(staff)/sales/page.tsx",
     "src/app/(staff)/sales/SalesPageContent.tsx",
@@ -341,6 +423,37 @@ test("mutation forms preserve a validated render-time request id across uncertai
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     assert.match(source, /parsePlatformAdmissionsUuid\(query\.retry_request_id\)/);
   }
+});
+
+test("connected Student 360 wires Admin assignment to the audited Supabase RPC", () => {
+  const actionSource = readFileSync(
+    new URL("../src/lib/platform-admissions-actions.ts", import.meta.url),
+    "utf8",
+  );
+  const adapterSource = readFileSync(
+    new URL(
+      "../src/app/(staff)/clients/[id]/PlatformClientPage.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const presentationSource = readFileSync(
+    new URL(
+      "../src/app/(staff)/clients/[id]/ClientPageContent.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(actionSource, /assignPlatformStudentCaseCuratorAction/);
+  assert.match(actionSource, /"assign_student_case_curator"/);
+  assert.match(actionSource, /p_curator_membership_id: curatorMembershipId/);
+  assert.match(adapterSource, /listPlatformActiveCurators\(actor\)/);
+  assert.match(adapterSource, /assignCurator: actor\.platformRole === "admin"/);
+  assert.match(presentationSource, /data-testid="curator-assignment-form"/);
+  assert.match(
+    presentationSource,
+    /name="request_id"[\s\S]*value=\{data\.lifecycleRequestId\}/,
+  );
 });
 
 test("Student 360 completes a nullable route before immutable checklist binding", () => {

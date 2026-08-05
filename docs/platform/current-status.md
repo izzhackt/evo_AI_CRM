@@ -12,9 +12,9 @@
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current merged checkpoint: `791a43aaa6d02aa6b72429121680939163ccc601`
+- Current merged checkpoint: `68fe755e9c7e6bbd92218ad6566aff3b7431b6f6`
 - Active plan block:
-  `EVO-BW8-STUDENT-DOCUMENT-INTELLIGENCE-PLAN-2026-08-05`
+  `EVO-P2R4-LOCAL-MIGRATION-SIMPLE-QUERY-PLAN-2026-08-05`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -32,19 +32,26 @@ AI draft → manual send → ACK → audit ни разу не доказан end
 platform нельзя называть production-complete.
 
 P1 остаётся историческим legacy containment. P2A-P2H, greenfield/UI boundary,
-BW0, P3A-P3C, BW1-BW7, P2R0-P2R3, P4A, P4B plan и BW8 plan merged. PR #119
-controller-merged BW8 docs-only contract как
-`791a43aaa6d02aa6b72429121680939163ccc601`; exact-main CI run
-`30965742642` зелёный. P4B docs-only остаётся действующим контрактом, но его
-implementation приостановлен до shared PR/migration. Текущий implementation
-candidate — BW8A в PR #120: migration 059, typed extraction/profile/export
-evidence, China overlay, reviewed applicability и deterministic domain. Его
-fresh disposable PostgreSQL security/RLS/concurrency, 171/171 unit, lint,
-typecheck, build и EVO Inbox schema compatibility проходят, но exact-head
-independent review, green PR CI и controller merge ещё не выполнены. Scanner,
-Drive/OpenAI, UI, managed apply, real-student AI use, production deployment и
-customer delivery остаются вне BW8A и blocked до следующих gates. Former P2I restore
-duties остаются в P7.
+BW0, P3A-P3C, BW1-BW7, P2R0-P2R3, P4A, P4B plan, BW8 plan и BW8A merged. PR
+#120 merged BW8A как текущий main
+`68fe755e9c7e6bbd92218ad6566aff3b7431b6f6`; migration 059 теперь immutable.
+Реальный clean `npm run test:supabase:local` падает при применении 059 и на
+pinned Supabase CLI 2.110.0, и на diagnostic 2.109.1 с SQLSTATE `55P04`
+`unsafe use of new value "document_validation"`: шесть новых enum values
+используются до commit в CLI execution. Отдельный exact-project proof с
+`SUPABASE_DB_MIGRATIONS_ENABLED=false` применил canonical 001-059
+последовательно через container-local `psql -X -v ON_ERROR_STOP=1` в
+simple-query режиме. Только после полного SQL success официальный local ledger
+repair и migration list подтвердили ровно 59 versions; PostgREST загрузил 112
+relations и 164 RPC, Database/PostgREST/Auth/Storage/Kong были healthy. Exact
+resources удалены, EVO Inbox не изменён. P2R4 теперь единственный active
+docs-only gate и не занимает migration number. P4B остаётся только
+uncommitted/stashed candidate migration 060; P4B и BW8B-BW8E приостановлены.
+Open BW8B implementation PR #121 не merge-eligible: все четыре exact-head CI
+jobs зелёные, но independent launch-control review вернул `changes_requested`,
+потому что новый authorization amendment и реализующий его код объединены в
+одном PR. Managed Supabase, staging, provider и production proof не заявлены.
+Former P2I restore duties остаются в P7.
 
 ## Что подтверждено из репозитория
 
@@ -67,9 +74,10 @@ duties остаются в P7.
 | BW6 contract/report | PR #114 controller-merged migration 057, contract repository/actions and the existing Student 360 route for typed approved-field contract drafts plus audited post-contract checklist/report | independent exact-SHA review, controller gates and exact-main CI `30918820654` passed; this is not a signed legal contract, PDF/DOCX/e-sign, provider, managed Supabase or production proof |
 | BW7 integration proof | PR #116 connected Student 360 assignment state and proved one synthetic case across Sales draft → Admin assignment/portal activation → Curator checklist/report → Student Portal → limited Sales summary | independent review/controller gates, real disposable local Supabase/Auth/RLS browser gate 28/28 and exact-main CI `30934111632` passed; persistent staging/provider/production proof remains absent |
 | P4A amoCRM mapping discovery | PR #117 merged migration 058 with immutable sanitized account-specific snapshots, service-only ingest, live-authority Admin reads and a GET-only bounded server adapter | independent exact-head review, controller full local Supabase RC=0 with 58 migrations and 28/28 browser scenarios, and exact-main CI `30958119076` passed; real amoCRM account proof remains blocked |
-| P4B mapping selection/approval plan | PR #118 merged the docs-only contract separating immutable discovery evidence from append-only Admin approval events and a deterministic current messaging selection behind the accepted `/whatsapp` seam | exact-main CI `30963131242` green; implementation/migration/provider proof absent and implementation explicitly paused while BW8 is active |
+| P4B mapping selection/approval plan | PR #118 merged the docs-only contract separating immutable discovery evidence from append-only Admin approval events and a deterministic current messaging selection behind the accepted `/whatsapp` seam | exact-main CI `30963131242` green; implementation remains an uncommitted/stashed migration-060 candidate and is paused through P2R4; provider proof absent |
 | BW8 student document intelligence plan | PR #119 controller-merged the docs-only priority amendment defining one accepted `/documents` workbench from private intake through scan, extraction candidates, human confirmation, typed profile and versioned DOCX/PDF draft export | exact-main CI `30965742642` green; no runtime/provider/managed/production proof was claimed by the plan |
-| BW8A schema/domain candidate | PR #120 candidate adds migration 059, 62 typed profile fields, extraction/decision/export evidence, source/version-backed China overlay, reviewed applicability recompute, existing-ledger durable work and race-safe private export Storage contracts | fresh disposable PostgreSQL inventory/RLS/dblink concurrency, 171/171 unit, lint/typecheck/build and Inbox schema compatibility pass; exact-head review/CI/controller merge and connected local Supabase reset remain pending; no scanner/provider/UI/managed/production claim |
+| BW8A schema/domain | PR #120 merged migration 059, 62 typed profile fields, extraction/decision/export evidence, source/version-backed China overlay, reviewed applicability recompute, existing-ledger durable work and race-safe private export Storage contracts as main `68fe755e9c7e6bbd92218ad6566aff3b7431b6f6` | disposable PostgreSQL inventory/RLS/dblink concurrency, 171/171 unit, lint/typecheck/build and Inbox schema compatibility passed; the standard local CLI path now reproducibly exposes SQLSTATE `55P04`; no scanner/provider/UI/managed/production claim |
+| P2R4 local migration validation plan | This docs-only amendment preserves migration 059 byte-for-byte and defines a later two-file local-harness repair: exact clean stack, sequential canonical `psql` simple-query application, SQL-success-gated official ledger repair/list equality, real local services/browser proof and exact cleanup | plan consumes no migration and changes no schema/API/product/provider/architecture; implementation, negative-harness, exact-head review/CI/controller merge and managed official-path proof remain pending; `real-provider-proof: not-required` |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до bounded cutover evidence and rollback gate |
@@ -104,7 +112,7 @@ P4A merged boundary and evidence ledger:
 [`p4a-amocrm-mapping-discovery.md`](p4a-amocrm-mapping-discovery.md).
 P4B docs-only selection/approval contract:
 [`p4b-amocrm-mapping-selection-approval.md`](p4b-amocrm-mapping-selection-approval.md).
-BW8 active student-document contract and BW8A candidate evidence ledger:
+BW8 merged student-document contract and BW8A evidence ledger:
 [`bw8-student-document-intelligence.md`](bw8-student-document-intelligence.md).
 
 ## Принятый target, ещё не cut over
@@ -127,9 +135,10 @@ BW8 active student-document contract and BW8A candidate evidence ledger:
   contract/report boundary — migration 057; BW7 не добавляет migration и
   соединяет принятые RPC/RLS contracts с существующим frontend; merged P4A
   добавляет только forward migration 058 для private sanitized mapping
-  discovery versions; P4B amendment и BW8 plan не добавляют migration; BW8A
-  candidate занимает next-free migration 059 только после merge PR #120, а
-  paused P4B после BW8 заново проверяет then-next free migration, expected 060;
+  discovery versions; P4B amendment и BW8 plan не добавляют migration; merged
+  BW8A добавляет immutable migration 059; P2R4 не добавляет migration, а P4B
+  остаётся uncommitted/stashed candidate migration 060 и paused до отдельного
+  завершения P2R4;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;
@@ -148,6 +157,12 @@ BW8 active student-document contract and BW8A candidate evidence ledger:
 
 ## Следующие доказательства, которых пока нет
 
+- merged P2R4 plan, затем отдельный exact-head implementation proof только для
+  local reset harness: два clean rebuild 001-059, fail-closed services,
+  Storage/PGMQ/Auth/RLS/browser path, exact ledger equality и scoped cleanup;
+- focused negative harness proof: SQL failure не может подделать ledger,
+  repair/list mismatch fails, linked refs запрещены, cleanup ограничен exact
+  project;
 - isolated database restore и отдельный Storage-object restore;
 - release-artifact browser-secret scan and production runtime-config
   attestation; текущий BW5 local `.next/static` name scan и scoped Gitleaks diff
@@ -196,18 +211,25 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — BW8A exact-head validation: обновить PR #120 полным candidate,
-получить независимый review на неизменный SHA, зелёные четыре CI jobs и только
-затем controller merge. После merge и exact-main CI свежая ветка BW8B может
-подключать real private intake/scanner/worker к уже принятому schema contract.
-BW8C-BW8E остаются последовательными gates для Drive/OpenAI, принятого
-`/documents` workbench и integrated proof. AI output остаётся candidate
-evidence и не пишет canonical profile без human confirmation. До
-Product/Legal/Data решения реальные student documents нельзя передавать
-OpenAI; manual path остаётся доступным. P4B implementation приостановлен, его
-immutable contract и P4A evidence сохраняются. Real amoCRM/WAHA/ACK proof,
-persistent staging, managed Supabase, restore duties и production cutover
-остаются отдельными gates с bounded reconciliation/health/rollback evidence.
+Текущий gate — merge этого docs-only P2R4 amendment через exact-head
+independent review, четыре CI jobs и controller. Migration 059 сохраняется
+byte-for-byte; новый migration number не используется. После plan merge один
+отдельный implementation PR может менять только
+`scripts/test-supabase-local-reset.sh` и
+`tests/supabase-local-reset-harness.test.mjs`: clean exact stack с отключённым
+auto-migration и bounded pre-schema `--ignore-health-check`, fail-closed DB
+readiness, contiguous migrations через container-local simple-query `psql`,
+ledger repair только после полного SQL success, exact list equality, затем
+fail-closed Database/PostgREST/Auth/Storage/Kong и real
+Storage/PGMQ/Auth/RLS/browser tests, повторный clean rebuild и exact-project
+cleanup. Linked refs и использование runner для managed/staging/production
+запрещены; managed branch/staging proof остаётся внешним blocker и обязан идти
+через официальный migration path. P4B и BW8B-BW8E остаются paused до
+independent review/controller merge implementation repair. AI output остаётся
+candidate evidence и не пишет canonical profile без human confirmation. Real
+amoCRM/WAHA/ACK proof, persistent staging, managed Supabase, restore duties и
+production cutover остаются отдельными gates с bounded
+reconciliation/health/rollback evidence.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой
 exact deployed revision, private network, provider readiness и full E2E.

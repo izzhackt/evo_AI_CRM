@@ -9,24 +9,27 @@ Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 
 Execution checkpoint: historical P1 containment, reusable greenfield P2A-P2H,
 the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW7,
-P2R0-P2R3, P4A and the P4B plan are merged. PR #118 merged the P4B docs-only
-contract at `origin/main` `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`.
-Exact-main CI run `30963131242`
-is green for Main CRM, EVO Inbox and EVO Lead Agent; Changed range was skipped
-on the push run as expected. P4B remains an approved docs-only contract, but
-its implementation is paused before any shared implementation PR or migration
-merged. BW8 student document intelligence is the active docs-only plan gate. It
-defines private intake, real validation/scanning, durable extraction,
-evidence-backed human confirmation, typed profile fields and deterministic
-DOCX/PDF draft export behind the existing `/documents` surface. It authorizes
-no code, migration, credential/provider call, real student processing or
-runtime mutation. P4A local
-proof is green for disposable PostgreSQL authorization, 58 contiguous local
-Supabase migrations, Auth/PostgREST/Storage/PGMQ and 28/28 accepted-frontend
-browser scenarios. No managed Supabase, staging, provider or production
-exercise is claimed. Former P2I restore duties remain in P7. This amendment
-changes execution priority and the document/profile schema outcome, but not
-the target architecture, amoCRM ownership or production authority.
+P2R0-P2R3, P4A, the P4B plan, the BW8 plan and BW8A are merged. PR #120 merged
+BW8A as current `origin/main` `68fe755e9c7e6bbd92218ad6566aff3b7431b6f6`
+and owns immutable migration 059. The real clean local Supabase command fails
+on both pinned CLI 2.110.0 and diagnostic CLI 2.109.1 while applying 059 with
+SQLSTATE `55P04`, because its six new enum values are used before the CLI
+execution commits them. A clean exact-project stack with automatic migrations
+disabled proved canonical 001-059 through sequential container-local `psql`
+simple-query execution, followed only after SQL success by official local
+ledger repair and exact migration-list verification. PostgREST loaded 112
+relations and 164 RPCs; Database, PostgREST, Auth, Storage and Kong were
+healthy; exact resources were removed; EVO Inbox was unchanged. P2R4 is now
+the sole active docs-only gate and consumes no migration number. P4B remains an
+uncommitted/stashed migration-060 candidate, while P4B and BW8B-BW8E
+implementation stay paused. Open BW8B implementation PR #121 is not
+merge-eligible even though its exact-head CI is green: independent
+launch-control review requested changes because it bundled a new authorization
+amendment with the code that amendment would authorize. No managed Supabase,
+staging, provider or production exercise is claimed. Former P2I restore duties
+remain in P7. This amendment changes only the local validation implementation
+and acceptance procedure, not the schema, API, product, provider, target
+architecture, amoCRM ownership or production authority.
 
 ## 1. Outcome and truth boundary
 
@@ -73,7 +76,18 @@ and rollback proof are real. No fixed-duration soak is required by contract.
 As of the version date:
 
 - GitHub `main` checkpoint for this implementation is
-  `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`;
+  `68fe755e9c7e6bbd92218ad6566aff3b7431b6f6` after PR #120 merged BW8A and
+  migration 059;
+- clean local Supabase migration execution on CLI 2.110.0 and diagnostic
+  2.109.1 stops at migration 059 with SQLSTATE `55P04`; changing one CLI patch
+  release does not repair the missing commit boundary;
+- an exact-project stack with automatic migrations disabled passed canonical
+  001-059 sequentially through container-local `psql` simple-query execution,
+  then matched all 59 versions after official local ledger repair; PostgREST
+  loaded 112 relations and 164 RPCs, the required services were healthy, exact
+  resources were removed and EVO Inbox was unchanged;
+- P4B exists only as an uncommitted/stashed migration-060 candidate and remains
+  paused; it is not shared source of truth;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -94,13 +108,20 @@ do not silently change production.
 
 ## 2A. Current planning priority
 
-After this amendment merges, implementation priority is intentionally narrow:
+Implementation priority is intentionally narrow:
 
-1. BW5 owns the university/college catalog and reviewable import boundary; no
-   real import occurs without authorized source access.
-2. BW6-BW7 follow one independently reviewed PR at a time after BW5 merges.
-3. P4/P5/P7 retain amoCRM, real WAHA/AI/ACK and restore/reliability ownership;
-   provider and production claims remain evidence-gated.
+1. Merge this docs-only P2R4 amendment through exact-head review, all four CI
+   jobs and the independent controller; preserve migration 059 byte-for-byte
+   and consume no migration number.
+2. In a separate PR, repair only `scripts/test-supabase-local-reset.sh` and
+   `tests/supabase-local-reset-harness.test.mjs` so the exact local gate uses
+   sequential simple-query migration application, success-gated official
+   ledger repair, exact list verification, real service/browser proof and
+   exact-project cleanup.
+3. Keep P4B and BW8B-BW8E paused until that implementation is independently
+   reviewed and controller-merged. Managed staging/branch migrations must keep
+   using their official external path; this local runner is never a linked,
+   managed or production deployment mechanism.
 
 This contract explicitly defers broad infra perfection, broad restore proof,
 and broad backend parity work that do not change thin-slice product truth.
@@ -348,8 +369,9 @@ deployment surfaces are sequential.
 | P2R1 | Local Supabase proof reliability repair | Real clean local Auth/RLS/Storage/PGMQ gate, deterministic deadline/cleanup tests and forward-only document lock-order repair | Merged in PR #105; migration 055 is immutable history |
 | P2R2 | Auth-token and local reset reproducibility repair | Explicit issued-token `getClaims()` plus live authority; symlink-safe deadline execution; reproducible exact-project reset and cleanup | Plan merged in PR #109; superseded implementation PR #110 closed without merge after controller findings |
 | P2R3 | Stale-authority session clearing and exact local-proof ownership | Same-origin Route Handler clears rejected Supabase browser state; real connected-route regression; two physical-worktree local proofs | Plan PR #111 and implementation PR #112 merged; exact-main CI green |
-| P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, reviewed mapping selection, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | P4A merged; P4B docs-only contract valid but implementation paused for BW8; provider proof blocked |
-| BW8 | Student document intelligence workbench | Private intake, real scan, durable extraction candidates, human confirmation, expanded typed profile and versioned DOCX/PDF draft export | Docs-only contract active; implementation blocked until this amendment merges |
+| P2R4 | Local migration simple-query validation repair | Immutable 059; exact-project sequential `psql` simple-query application; success-gated official local ledger repair/list equality; real local service/browser proof; negative harness and scoped cleanup evidence | Docs-only contract active; consumes no migration; implementation blocked until this amendment merges |
+| P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, reviewed mapping selection, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | P4A merged; P4B docs-only contract valid but its stashed migration-060 candidate is paused through P2R4; provider proof blocked |
+| BW8 | Student document intelligence workbench | Private intake, real scan, durable extraction candidates, human confirmation, expanded typed profile and versioned DOCX/PDF draft export | Plan and BW8A merged; migration 059 is immutable; BW8B-BW8E paused through P2R4 |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no legacy cutover yet | Pending |
 | P6 | Admissions, Portal, Documents, Finance, Notifications | Two-student isolation E2E and complete staff-to-portal workflows | Pending |
 | P7 | Security, reliability and operations | Threat model, load evidence, backup plus Storage restore, RPO/RTO and rollback rehearsal, accessibility | Pending |
@@ -357,12 +379,10 @@ deployment surfaces are sequential.
 | P9 | Bounded cutover evidence and separate Lead Agent retirement PR | Zero unexplained loss/duplicate/drift in the evidence window plus proven rollback and health | Evidence-gated |
 | P10 | Completion audit | Every FR/NFR/SEC/ACC mapped to evidence, full CI/provider proof, no open implementation PR | Pending |
 
-BW0, P3A-P3C, BW1-BW7, P2R0-P2R3 and P4A are merged. PR #112 satisfied the
-prerequisite stale-authority/local-proof gate, PR #113 merged BW5, PR #114
-merged BW6, PR #116 merged BW7 and PR #117 merged P4A with green exact-main
-CI. P4B remains a valid future P4 slice, but BW8 now owns the next bounded
-implementation sequence and expected next-free migration. The merged BW
-dependency and exit-evidence contract is extended as follows:
+BW0, P3A-P3C, BW1-BW7, P2R0-P2R3, P4A, the P4B plan, the BW8 plan and BW8A are
+merged. PR #120 made migration 059 immutable. P2R4 now owns only the local
+validation repair and consumes no migration; P4B and BW8B-BW8E stay paused.
+The merged BW dependency and exit-evidence contract remains:
 
 | Block | Contract | Dependency and exit evidence |
 | --- | --- | --- |
@@ -449,6 +469,54 @@ dependency and exit-evidence contract is extended as follows:
   migration and cannot claim managed Supabase, providers, production, restore
   or cutover proof; `real-provider-proof: not-required` remains the truthful
   provider boundary.
+
+### P2R4 — local migration simple-query validation repair
+
+Block-ID: `EVO-P2R4-LOCAL-MIGRATION-SIMPLE-QUERY-PLAN-2026-08-05`.
+
+PR #120 merged BW8A and immutable migration 059. Its first six statements add
+three values to `platform.durable_work_kind` and three matching values to
+`platform.durable_work_operation`; later statements use those values. Both
+pinned Supabase CLI 2.110.0 and diagnostic 2.109.1 fail the real clean local
+command at the first same-file use with SQLSTATE `55P04`. PostgreSQL documents
+that a new enum value added inside a transaction cannot be used until after
+commit. Therefore changing the migration bytes or downgrading one CLI release
+is not an accepted repair.
+
+P2R4 preserves migration 059 byte-for-byte, consumes no migration number and
+changes only `scripts/test-supabase-local-reset.sh` and
+`tests/supabase-local-reset-harness.test.mjs` in a later implementation PR. The
+gate must:
+
+1. reject any linked project reference, acquire the exact-project singleton
+   lock, remove only stale resources labelled for `evo-platform-local`, and
+   start one clean local stack with `SUPABASE_DB_MIGRATIONS_ENABLED=false` and
+   bounded `start --ignore-health-check`; the bypass exists only because the
+   pre-schema API services cannot become healthy before canonical SQL runs;
+2. require fail-closed database-container readiness, then apply every
+   contiguous canonical migration sequentially inside that container with
+   `psql -X -v ON_ERROR_STOP=1` simple-query execution;
+3. abort before any ledger mutation if any SQL file fails; only after every SQL
+   file succeeds may it use official
+   `supabase migration repair --local --status applied` for those exact
+   versions, followed by `supabase migration list --local` exact equality;
+4. only after SQL and ledger equality succeed, require fail-closed Database,
+   PostgREST, Auth, Storage and Kong readiness, run real local Storage, PGMQ,
+   Auth, RLS and accepted-browser coverage, repeat the entire clean rebuild and
+   full readiness after the browser reset, and finally prove that only
+   exact-project resources and its singleton lock were removed while EVO Inbox
+   stayed unchanged.
+
+Focused negative harness tests must prove that SQL failure cannot forge the
+ledger, a repair/list mismatch fails the gate, linked project references are
+rejected, and cleanup cannot cross the exact-project boundary. The implementation
+must also preserve safe diagnostics without printing keys, cookies or payloads.
+
+This runner is local validation only. It must never become a linked, managed,
+staging or production migration/deployment runner. Managed staging or branch
+proof remains a separate external gate using the official Supabase migration
+path. No schema, API, application, provider, deployment, Inbox, ADR, TZ or
+`CONTEXT.md` file enters P2R4; `real-provider-proof: not-required`.
 
 ### Merged BW5 contract and remaining provider boundary
 
@@ -615,6 +683,7 @@ P2 is sequential and additive. Its detailed contract is
 | P2G | Add real Supabase Queues/PGMQ, outbox, idempotency, dead-letter and reconciliation/conflict state | Local service retry/visibility/dedupe/concurrency evidence; unknown delivery never re-enqueued automatically |
 | P2H | Add new private Platform document/media buckets and policies through the real local Supabase Storage API | MIME/25 MB and cross-student/cross-organization denial; audited authorized access |
 | P2R1 | Repair the merged local proof path without widening product scope: bounded process-group deadlines, exact-label cleanup, transient-only Auth readiness, deterministic PGMQ leases, and a next-free forward migration for document finalization/review lock order | `npm run test:supabase:local` exits zero against real local services; exact-label resources and singleton lock are absent after cleanup; Inbox state is preserved; disposable PostgreSQL authorization, unit/security, lint, typecheck, build, scenarios, E2E/a11y and scoped secret checks pass |
+| P2R4 | Repair only the local validation runner for immutable migration 059: sequential canonical `psql` simple-query application, SQL-success-gated official local ledger repair/list equality, real services/browser proof and exact cleanup | Clean 001-059 rebuild passes twice; SQL failure cannot forge the ledger; repair/list mismatch and linked refs fail; exact-project cleanup preserves Inbox; no managed/provider/production claim |
 | P2I | Superseded in this lane; restore duties transfer to later reliability work | Later reliability work owns clean reset, RLS/grant/secret inventory, browser secret scan, isolated DB restore and separate Storage-object restore |
 
 P2 does not rename or drop legacy Inbox tables, cut root authentication over,
@@ -695,9 +764,11 @@ retention posture. Real-provider proof before that decision is limited to
 authorized non-sensitive sources such as the public checklist and verified
 blank template.
 
-P4B implementation remains paused throughout BW8. Its append-only approval
-contract and P4A evidence remain immutable. After BW8, P4B restarts from fresh
-main and rechecks the then-next migration, expected 060 if BW8A consumes 059.
+PR #120 merged BW8A as immutable migration 059. P4B remains an
+uncommitted/stashed migration-060 candidate and its append-only approval
+contract and P4A evidence remain valid. P4B and BW8B-BW8E stay paused until the
+P2R4 validation repair is separately merged and re-proved; each later block
+must restart from fresh main and recheck current migration ownership.
 
 ### P4 — canonical amoCRM adapter
 
@@ -853,7 +924,18 @@ uv run pytest
 
 ### Supabase and documents
 
-- clean migration reset and disposable PostgreSQL/RLS tests;
+- for P2R4, a clean exact-project stack with automatic migrations disabled,
+  a bounded pre-schema `start --ignore-health-check`, fail-closed database
+  readiness, sequential contiguous canonical migrations through container-local
+  `psql -X -v ON_ERROR_STOP=1` simple-query execution, and no ledger repair
+  unless every SQL file succeeds;
+- official local migration-ledger repair only after SQL success, followed by an
+  exact local migration-list match; SQL failure, repair/list mismatch, linked
+  refs or cleanup outside the exact-project boundary must fail closed;
+- post-migration fail-closed Database/PostgREST/Auth/Storage/Kong readiness,
+  real local Storage/PGMQ/Auth/RLS/browser proof, a second clean rebuild and
+  full readiness after browser reset, and exact-project cleanup that preserves
+  EVO Inbox;
 - P2A byte/checksum proof for the immutable 001–039 history;
 - real local Supabase Queues and Storage API evidence where those services are
   in scope; handcrafted mocks do not prove their contracts;
@@ -861,10 +943,13 @@ uv run pytest
 - isolated database and separate Storage backup/restore when touched;
 - deterministic DOCX build, verifier, real render and inspection of every page.
 
-Local Supabase proof is required for P2. It does not prove a linked managed
-project, remote migration-ledger parity, production branch configuration, paid
-plan/PITR availability or managed restore. Those claims remain blocked until
-the region/plan, credentials and separate production authority exist.
+Local Supabase proof is required for P2. The P2R4 runner must never accept a
+linked project ref or serve as a managed/staging/production migration runner.
+It does not prove remote migration-ledger parity, production branch
+configuration, paid plan/PITR availability or managed restore. Managed
+staging/branch proof remains an external blocker and must use the official
+Supabase migration path after the region/plan, credentials and separate
+authority exist.
 
 For every PR, verify GitHub `EVO platform CI` jobs `Changed range`, `Main CRM`,
 `EVO Inbox` and `EVO Lead Agent` for the exact head SHA. CI does not replace

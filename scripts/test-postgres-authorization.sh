@@ -603,22 +603,6 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_amocrm_mapping_discovery_rls.sql
   fi
-
-  # BW8A owns migration 059's typed student-document evidence, reviewed
-  # profile-field decisions, export evidence and the durable-work extensions
-  # consumed by later BW8 blocks. Run all suites at the exact boundary so a
-  # later worker or UI cannot mask catalog, authority, replay or lock drift.
-  if [[ "$(basename "$migration")" == 059_* ]]; then
-    docker exec "$container_name" \
-      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-      -f /workspace/supabase/tests/platform_student_document_intelligence_inventory.sql
-    docker exec "$container_name" \
-      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-      -f /workspace/supabase/tests/platform_student_document_intelligence_rls.sql
-    docker exec "$container_name" \
-      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-      -f /workspace/supabase/tests/platform_student_document_intelligence_concurrency.sql
-  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

@@ -295,8 +295,7 @@ export type PlatformDocumentRequirementApplicability =
       reason:
         | "date_of_birth_missing"
         | "date_of_birth_invalid"
-        | "as_of_date_invalid"
-        | "contract_payment_status_missing";
+        | "as_of_date_invalid";
     }>;
 
 function parseIsoDateParts(
@@ -315,7 +314,7 @@ function parseIsoDateParts(
 export function derivePlatformDocumentRequirementApplicability(
   requirementKey: PlatformChinaDocumentRequirementKey,
   dateOfBirth: string | null,
-  asOfDate: string,
+  asOfDate: string | null,
   contractPaymentComplete: boolean | null = null,
 ): PlatformDocumentRequirementApplicability {
   const requirement = PLATFORM_CHINA_DOCUMENT_REQUIREMENTS.find(
@@ -325,13 +324,7 @@ export function derivePlatformDocumentRequirementApplicability(
     return { state: "required", reason: "unconditional" };
   }
   if (requirement.applicabilityRule === "after_contract_payment") {
-    if (contractPaymentComplete === null) {
-      return {
-        state: "pending_information",
-        reason: "contract_payment_status_missing",
-      };
-    }
-    return contractPaymentComplete
+    return contractPaymentComplete === true
       ? { state: "required", reason: "contract_payment_complete" }
       : { state: "not_required", reason: "contract_payment_incomplete" };
   }
@@ -343,7 +336,7 @@ export function derivePlatformDocumentRequirementApplicability(
   if (!birth) {
     return { state: "pending_information", reason: "date_of_birth_invalid" };
   }
-  const asOf = parseIsoDateParts(asOfDate);
+  const asOf = asOfDate === null ? null : parseIsoDateParts(asOfDate);
   if (!asOf) {
     return { state: "pending_information", reason: "as_of_date_invalid" };
   }
@@ -355,7 +348,7 @@ export function derivePlatformDocumentRequirementApplicability(
   ) {
     age -= 1;
   }
-  if (age < 0) {
+  if (age < 0 || age > 120) {
     return { state: "pending_information", reason: "date_of_birth_invalid" };
   }
   return age < 18

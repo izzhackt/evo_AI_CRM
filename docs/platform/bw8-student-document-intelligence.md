@@ -277,6 +277,35 @@ typed expanded field catalog; same-org/object-scope RLS; Admin/Curator positive
 and role/cross-org/stale-authority negative tests; idempotency and stale
 revision/concurrency proof; no provider call or UI claim.
 
+#### BW8A candidate evidence ledger
+
+- Status: implementation candidate in PR #120; exact-head independent review,
+  controller merge and exact-main CI remain pending.
+- Starting main: `791a43aaa6d02aa6b72429121680939163ccc601`.
+- Additive migration:
+  `059_platform_student_document_intelligence.sql`, SHA-256
+  `df77738c3b27b705382cc73613b7888b52d3aa0cbc75d5b31205e9390eda3b39`.
+- The migration adds the missing typed candidate/decision/current-value/export
+  evidence, version-pinned China overlay, reviewed applicability recompute,
+  RBAC v12, private export Storage contract and document validation,
+  extraction and export work kinds on the existing durable-work ledger.
+- `npm run test:security` passed on a fresh disposable PostgreSQL database with
+  migrations 001-059, exact inventory/RLS suites and real two-session races for
+  replay, stale revision, overlay recompute, reservation renewal, latest-only
+  finalize and one-time download consumption.
+- `npm run test:unit` passed 171/171; focused domain coverage keeps the 62-field
+  TypeScript and SQL catalogs aligned and validates deterministic normalization,
+  applicability, projection, lifecycle and conflict guards.
+- Root lint, Next route generation, strict TypeScript and production build
+  passed under Node `22.23.1`; EVO Inbox schema-contract compatibility passed
+  21/21.
+- The connected local Supabase reset was not claimed in this candidate because
+  another live `evo-platform-local` singleton held the reset lock; the lock was
+  not removed or interrupted. Disposable PostgreSQL proof is complete, while
+  exact-head CI and independent review remain mandatory.
+- No scanner, Drive/OpenAI call, UI upload, managed apply, production mutation
+  or real student-data processing is claimed by BW8A.
+
 ### BW8B - private intake, scanner and durable worker
 
 Authorized files:

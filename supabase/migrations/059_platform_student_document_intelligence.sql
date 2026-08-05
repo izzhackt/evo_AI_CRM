@@ -282,16 +282,24 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  IF p_rule IS NULL OR p_reference_date IS NULL THEN
-    RAISE EXCEPTION 'Applicability rule and reference date are required'
-      USING ERRCODE = '22023';
+  IF p_rule IS NULL THEN
+    RAISE EXCEPTION 'Applicability rule is required' USING ERRCODE = '22023';
   END IF;
 
-  IF p_rule IN ('always', 'after_contract_payment') THEN
+  IF p_rule = 'always' THEN
     RETURN 'required';
   END IF;
 
-  IF p_date_of_birth IS NULL THEN RETURN 'pending_information'; END IF;
+  IF p_rule = 'after_contract_payment' THEN
+    RETURN CASE WHEN p_reference_date IS NULL
+      THEN 'not_required'
+      ELSE 'required'
+    END;
+  END IF;
+
+  IF p_date_of_birth IS NULL OR p_reference_date IS NULL THEN
+    RETURN 'pending_information';
+  END IF;
   IF p_date_of_birth > p_reference_date
     OR p_date_of_birth < p_reference_date - INTERVAL '120 years'
   THEN
@@ -607,6 +615,8 @@ CREATE TABLE platform.student_profile_exports (
   created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
   CONSTRAINT student_profile_exports_organization_id_id_key
     UNIQUE (organization_id, id),
+  CONSTRAINT student_profile_exports_organization_id_id_case_key
+    UNIQUE (organization_id, id, student_case_id),
   CONSTRAINT student_profile_exports_profile_fkey
     FOREIGN KEY (organization_id, student_profile_id)
     REFERENCES platform.student_profiles(organization_id, id)
@@ -667,6 +677,26 @@ ALTER TABLE platform.document_slots
     OR (applicability_status IN ('not_required', 'pending_information')
       AND applicability_reference_date IS NOT NULL)
   );
+
+-- A reviewed applicability recompute is the only operation allowed to alter a
+-- case-pinned slot. The short-lived row is private, transaction-bound, and
+-- removed before the RPC returns; callers cannot forge the trigger context.
+CREATE TABLE platform_private.document_applicability_recompute_context (
+  transaction_id BIGINT PRIMARY KEY,
+  request_id UUID NOT NULL UNIQUE,
+  organization_id UUID NOT NULL,
+  student_case_id UUID NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
+  CONSTRAINT document_applicability_recompute_context_case_fkey
+    FOREIGN KEY (organization_id, student_case_id)
+    REFERENCES platform.student_cases(organization_id, id)
+    ON DELETE RESTRICT
+);
+
+ALTER TABLE platform_private.document_applicability_recompute_context
+  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_private.document_applicability_recompute_context
+  FORCE ROW LEVEL SECURITY;
 
 -- Extend the existing PGMQ ledger with typed BW8 source pointers. The queue,
 -- attempt/event/dead-letter tables and claim/finish ownership remain the P2G
@@ -1023,8 +1053,16 @@ BEGIN
   IF NEW.applicability_status <> OLD.applicability_status
     OR NEW.applicability_reference_date IS DISTINCT FROM OLD.applicability_reference_date
   THEN
-    RAISE EXCEPTION 'Document slot applicability is case-pinned and immutable'
-      USING ERRCODE = '55000';
+    IF NOT EXISTS (
+      SELECT 1
+      FROM platform_private.document_applicability_recompute_context AS context
+      WHERE context.transaction_id = pg_catalog.txid_current()
+        AND context.organization_id = NEW.organization_id
+        AND context.student_case_id = NEW.student_case_id
+    ) THEN
+      RAISE EXCEPTION 'Document slot applicability is case-pinned and immutable'
+        USING ERRCODE = '55000';
+    END IF;
   END IF;
   RETURN NEW;
 END
@@ -1072,6 +1110,25 @@ CREATE TRIGGER document_requirements_bw8_metadata_guard
 CREATE TRIGGER document_slots_bw8_applicability_guard
   BEFORE UPDATE ON platform.document_slots
   FOR EACH ROW EXECUTE FUNCTION platform_private.guard_bw8_slot_applicability();
+
+-- P2E's transition guard intentionally rejects no-op status transitions. A
+-- reviewed BW8 applicability decision does not transition the upload-status
+-- state machine, so route only genuine status changes (or unrelated updates)
+-- through that older guard. The BW8 trigger above still rejects every
+-- applicability change without the private transaction-bound capability.
+DROP TRIGGER document_slots_transition_guard ON platform.document_slots;
+CREATE TRIGGER document_slots_transition_guard
+  BEFORE UPDATE ON platform.document_slots
+  FOR EACH ROW
+  WHEN (
+    OLD.status IS DISTINCT FROM NEW.status
+    OR (
+      OLD.applicability_status IS NOT DISTINCT FROM NEW.applicability_status
+      AND OLD.applicability_reference_date IS NOT DISTINCT FROM
+        NEW.applicability_reference_date
+    )
+  )
+  EXECUTE FUNCTION platform_private.guard_p2e_parent_transition();
 
 ALTER TABLE platform.student_profile_field_catalog ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform.student_profile_field_catalog FORCE ROW LEVEL SECURITY;
@@ -1341,19 +1398,19 @@ BEGIN
       AND (p_source_document_version_id IS NULL
         OR p_source_extraction_run_id IS NOT NULL
         OR p_source_profile_export_id IS NOT NULL
-        OR p_operation <> 'enqueue_document_validation')
+        OR p_operation <> 'enqueue_document_validation'))
     OR (
       p_kind = 'document_extraction'
       AND (p_source_document_version_id IS NOT NULL
         OR p_source_extraction_run_id IS NULL
         OR p_source_profile_export_id IS NOT NULL
-        OR p_operation <> 'enqueue_document_extraction')
+        OR p_operation <> 'enqueue_document_extraction'))
     OR (
       p_kind = 'student_profile_export'
       AND (p_source_document_version_id IS NOT NULL
         OR p_source_extraction_run_id IS NOT NULL
         OR p_source_profile_export_id IS NULL
-        OR p_operation <> 'enqueue_student_profile_export')
+        OR p_operation <> 'enqueue_student_profile_export'))
   THEN
     RAISE EXCEPTION 'Valid BW8 durable-work source and retry budget are required'
       USING ERRCODE = '22023';
@@ -1461,7 +1518,11 @@ BEGIN
     RAISE EXCEPTION 'Source and business key identify different work items'
       USING ERRCODE = '22023';
   END IF;
-  existing_item := COALESCE(source_match, business_match);
+  IF source_match.id IS NOT NULL THEN
+    existing_item := source_match;
+  ELSE
+    existing_item := business_match;
+  END IF;
 
   IF existing_item.id IS NOT NULL THEN
     IF existing_item.kind <> p_kind
@@ -1682,8 +1743,287 @@ BEGIN
       result
     );
 
-[context-firewall: omitted 276 middle lines]
+    RETURN result;
+  END IF;
 
+  IF jsonb_typeof(queue_message.message) <> 'object'
+    OR NOT (queue_message.message ? 'v')
+    OR NOT (queue_message.message ? 'work_item_id')
+    OR NOT (queue_message.message ? 'kind')
+    OR queue_message.message
+      - ARRAY['v', 'work_item_id', 'kind'] <> '{}'::JSONB
+    OR queue_message.message->>'v' <> '1'
+    OR queue_message.message->>'work_item_id'
+      !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+    OR queue_message.message->>'kind' NOT IN (
+      'provider_webhook_process',
+      'ai_draft_generate',
+      'manual_whatsapp_send',
+      'document_validation',
+      'document_extraction',
+      'student_profile_export'
+    )
+  THEN
+    RAISE EXCEPTION
+      'PGMQ work payload violates the pointer-only contract'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT *
+  INTO work_item
+  FROM platform_private.durable_work_items AS item
+  WHERE item.id = (queue_message.message->>'work_item_id')::UUID
+    AND item.queue_message_id = queue_message.msg_id
+  FOR UPDATE;
+
+  IF NOT FOUND
+    OR work_item.kind::TEXT <> queue_message.message->>'kind'
+    OR work_item.state NOT IN ('queued', 'leased', 'retry_wait')
+  THEN
+    RAISE EXCEPTION
+      'PGMQ pointer does not identify eligible durable work'
+      USING ERRCODE = '55000';
+  END IF;
+
+  SELECT *
+  INTO prior_attempt
+  FROM platform_private.durable_work_attempts AS attempt
+  WHERE attempt.organization_id = work_item.organization_id
+    AND attempt.work_item_id = work_item.id
+    AND attempt.finished_at IS NULL
+  FOR UPDATE;
+
+  IF prior_attempt.id IS NOT NULL THEN
+    IF prior_attempt.lease_expires_at > clock_timestamp() THEN
+      RAISE EXCEPTION
+        'PGMQ returned work whose recorded lease is still active'
+        USING ERRCODE = '55000';
+    END IF;
+
+    IF work_item.kind = 'manual_whatsapp_send' THEN
+      result := platform_private.p2g_open_unknown_review(
+        work_item.id,
+        prior_attempt.id,
+        'worker_lease_expired_before_result',
+        'worker_lease_expired_before_result',
+        p_request_id
+      ) || jsonb_build_object(
+        'claimed', FALSE,
+        'lease_expired_without_result', TRUE
+      );
+
+      PERFORM platform_private.p2g_store_result(
+        p_request_id,
+        'claim',
+        input_sha256,
+        work_item.organization_id,
+        work_item.id,
+        prior_attempt.id,
+        result
+      );
+
+      INSERT INTO platform.audit_events (
+        organization_id,
+        actor_kind,
+        actor_profile_id,
+        actor_principal,
+        action,
+        resource_type,
+        resource_id,
+        before_state,
+        after_state,
+        reason,
+        request_id
+      )
+      VALUES (
+        work_item.organization_id,
+        'service',
+        NULL,
+        'service:platform-durable-work',
+        'work.unknown.review',
+        'durable_work_item',
+        work_item.id,
+        jsonb_build_object(
+          'state', work_item.state,
+          'attempt_id', prior_attempt.id,
+          'lease_expires_at', prior_attempt.lease_expires_at
+        ),
+        result,
+        'Manual-send worker lease expired before a result was recorded',
+        p_request_id
+      );
+
+      RETURN result;
+    END IF;
+
+    expiry_request_id := gen_random_uuid();
+
+    UPDATE platform_private.durable_work_attempts
+    SET
+      finished_at = statement_timestamp(),
+      outcome = 'lease_expired',
+      error_code = 'lease_expired',
+      evidence_ref = 'pgmq-visibility-timeout',
+      finish_request_id = expiry_request_id
+    WHERE id = prior_attempt.id;
+
+    INSERT INTO platform_private.durable_work_events (
+      organization_id,
+      work_item_id,
+      attempt_id,
+      event_type,
+      previous_state,
+      new_state,
+      queue_message_id,
+      evidence_ref,
+      request_id
+    )
+    VALUES (
+      work_item.organization_id,
+      work_item.id,
+      prior_attempt.id,
+      'lease_expired',
+      work_item.state,
+      work_item.state,
+      work_item.queue_message_id,
+      'pgmq-visibility-timeout',
+      expiry_request_id
+    );
+  END IF;
+
+  IF work_item.attempt_count >= work_item.max_attempts THEN
+    result := platform_private.p2g_dead_letter_work(
+      work_item.id,
+      prior_attempt.id,
+      'retry_budget_exhausted',
+      'pgmq-visibility-timeout',
+      p_request_id
+    ) || jsonb_build_object(
+      'claimed', FALSE,
+      'retry_budget_exhausted', TRUE
+    );
+
+    PERFORM platform_private.p2g_store_result(
+      p_request_id,
+      'claim',
+      input_sha256,
+      work_item.organization_id,
+      work_item.id,
+      prior_attempt.id,
+      result
+    );
+
+    INSERT INTO platform.audit_events (
+      organization_id,
+      actor_kind,
+      actor_profile_id,
+      actor_principal,
+      action,
+      resource_type,
+      resource_id,
+      before_state,
+      after_state,
+      reason,
+      request_id
+    )
+    VALUES (
+      work_item.organization_id,
+      'service',
+      NULL,
+      'service:platform-durable-work',
+      'work.dead.letter',
+      'durable_work_item',
+      work_item.id,
+      jsonb_build_object(
+        'state', work_item.state,
+        'attempt_count', work_item.attempt_count
+      ),
+      result,
+      'Retry budget exhausted after a visibility timeout',
+      p_request_id
+    );
+
+    RETURN result;
+  END IF;
+
+  INSERT INTO platform_private.durable_work_attempts (
+    id,
+    organization_id,
+    work_item_id,
+    attempt_number,
+    queue_message_id,
+    queue_read_count,
+    worker_ref,
+    lease_expires_at
+  )
+  VALUES (
+    created_attempt_id,
+    work_item.organization_id,
+    work_item.id,
+    work_item.attempt_count + 1,
+    work_item.queue_message_id,
+    queue_message.read_ct,
+    btrim(p_worker_ref),
+    queue_message.vt
+  );
+
+  UPDATE platform_private.durable_work_items
+  SET
+    state = 'leased',
+    attempt_count = work_item.attempt_count + 1,
+    available_at = queue_message.vt,
+    leased_until = queue_message.vt
+  WHERE id = work_item.id;
+
+  result := jsonb_build_object(
+    'claimed', TRUE,
+    'organization_id', work_item.organization_id,
+    'work_item_id', work_item.id,
+    'attempt_id', created_attempt_id,
+    'kind', work_item.kind,
+    'queue', 'platform_work_v1',
+    'queue_message_id', work_item.queue_message_id,
+    'queue_read_count', queue_message.read_ct,
+    'attempt_number', work_item.attempt_count + 1,
+    'max_attempts', work_item.max_attempts,
+    'lease_expires_at', queue_message.vt,
+    'source_webhook_event_id', work_item.source_webhook_event_id,
+    'ai_draft_request_id', work_item.ai_draft_request_id,
+    'manual_send_authorization_id',
+      work_item.manual_send_authorization_id,
+    'document_version_id', work_item.document_version_id,
+    'document_extraction_run_id', work_item.document_extraction_run_id,
+    'student_profile_export_id', work_item.student_profile_export_id,
+    'queue_payload_is_pointer_only', TRUE
+  );
+
+  INSERT INTO platform_private.durable_work_events (
+    organization_id,
+    work_item_id,
+    attempt_id,
+    event_type,
+    previous_state,
+    new_state,
+    queue_message_id,
+    evidence_ref,
+    request_id
+  )
+  VALUES (
+    work_item.organization_id,
+    work_item.id,
+    created_attempt_id,
+    'claimed',
+    work_item.state,
+    'leased',
+    work_item.queue_message_id,
+    'worker:' || btrim(p_worker_ref),
+    p_request_id
+  );
+
+  PERFORM platform_private.p2g_store_result(
+    p_request_id,
+    'claim',
+    input_sha256,
     work_item.organization_id,
     work_item.id,
     created_attempt_id,
@@ -2280,7 +2620,7 @@ BEGIN
     'field_value', p_field_value
   ));
   replayed := platform_private.bw3_replay_jsonb(
-    p_request_id, 'student.profile.field.manual_edit',
+    p_request_id, 'student.profile.field.manual.edit',
     'student_profile_field_value', normalized_reason, input_sha256
   );
   IF replayed IS NOT NULL THEN RETURN replayed; END IF;
@@ -2367,7 +2707,7 @@ BEGIN
   ) VALUES (
     p_organization_id, 'user', actor.actor_profile_id,
     'auth:' || actor.actor_auth_user_id::TEXT,
-    'student.profile.field.manual_edit', 'student_profile_field_value',
+    'student.profile.field.manual.edit', 'student_profile_field_value',
     field_value_id,
     jsonb_build_object('field_revision', current_value.field_revision,
       'profile_revision', profile.revision),
@@ -2782,7 +3122,7 @@ BEGIN
     'source_registry_id', p_source_registry_id
   ));
   replayed := platform_private.bw3_replay_jsonb(
-    p_request_id, 'country.requirement.china_overlay.create',
+    p_request_id, 'country.requirement.china.overlay.create',
     'country_requirement_version', normalized_reason, input_sha256
   );
   IF replayed IS NOT NULL THEN RETURN replayed; END IF;
@@ -2912,7 +3252,7 @@ BEGIN
   ) VALUES (
     p_organization_id, 'user', actor.actor_profile_id,
     'auth:' || actor.actor_auth_user_id::TEXT,
-    'country.requirement.china_overlay.create', 'country_requirement_version',
+    'country.requirement.china.overlay.create', 'country_requirement_version',
     created_version_id, NULL, result, normalized_reason, p_request_id
   );
   RETURN result;
@@ -2939,6 +3279,9 @@ DECLARE
   profile platform.student_profiles%ROWTYPE;
   typed_dob JSONB;
   applicant_dob DATE;
+  applicability_as_of_date DATE := (
+    statement_timestamp() AT TIME ZONE 'UTC'
+  )::DATE;
   normalized_reason TEXT := pg_catalog.btrim(p_reason);
   input_sha256 TEXT;
   replayed JSONB;
@@ -2963,7 +3306,7 @@ BEGIN
     'country_requirement_version_id', p_country_requirement_version_id
   ));
   replayed := platform_private.bw3_replay_jsonb(
-    p_request_id, 'country.requirement.china_overlay.apply',
+    p_request_id, 'country.requirement.china.overlay.apply',
     'student_case', normalized_reason, input_sha256
   );
   IF replayed IS NOT NULL THEN RETURN replayed; END IF;
@@ -3022,7 +3365,7 @@ BEGIN
     profile.date_of_birth
   );
   minor_status := platform_private.resolve_document_applicability(
-    'minor_only', applicant_dob, target_case.contract_confirmed_at::DATE
+    'minor_only', applicant_dob, applicability_as_of_date
   );
 
   INSERT INTO platform.document_slots (
@@ -3035,10 +3378,18 @@ BEGIN
     actor.actor_membership_id,
     platform_private.resolve_document_applicability(
       requirement.applicability_rule, applicant_dob,
-      target_case.contract_confirmed_at::DATE
+      CASE
+        WHEN requirement.applicability_rule = 'minor_only'
+          THEN applicability_as_of_date
+        ELSE NULL
+      END
     ),
-    CASE WHEN requirement.applicability_rule = 'minor_only'
-      THEN target_case.contract_confirmed_at::DATE ELSE NULL END
+    CASE
+      WHEN requirement.applicability_rule IN (
+        'minor_only', 'after_contract_payment'
+      ) THEN applicability_as_of_date
+      ELSE NULL
+    END
   FROM platform.document_requirements AS requirement
   WHERE requirement.organization_id = p_organization_id
     AND requirement.country_requirement_version_id = target_version.id
@@ -3059,7 +3410,8 @@ BEGIN
     'version', target_version.version,
     'document_slot_count', slot_count,
     'minor_only_applicability', minor_status,
-    'applicability_reference_date', target_case.contract_confirmed_at::DATE,
+    'applicability_as_of_date', applicability_as_of_date,
+    'contract_payment_gate_exists', FALSE,
     'video_resume_evidence_only', TRUE,
     'input_sha256', input_sha256
   );
@@ -3070,7 +3422,7 @@ BEGIN
   ) VALUES (
     p_organization_id, 'user', actor.actor_profile_id,
     'auth:' || actor.actor_auth_user_id::TEXT,
-    'country.requirement.china_overlay.apply', 'student_case', p_student_case_id,
+    'country.requirement.china.overlay.apply', 'student_case', p_student_case_id,
     jsonb_build_object('applied_country_requirement_version_id', NULL),
     result, normalized_reason, p_request_id
   );
@@ -3078,18 +3430,1294 @@ BEGIN
 END
 $$;
 
+CREATE OR REPLACE FUNCTION platform.recompute_student_document_applicability(
+  p_organization_id UUID,
+  p_student_case_id UUID,
+  p_expected_profile_revision BIGINT,
+  p_as_of_date DATE,
+  p_contract_payment_confirmed_at TIMESTAMPTZ,
+  p_contract_payment_evidence_ref TEXT,
+  p_reason TEXT,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  actor RECORD;
+  target_case platform.student_cases%ROWTYPE;
+  profile platform.student_profiles%ROWTYPE;
+  typed_dob JSONB;
+  applicant_dob DATE;
+  normalized_evidence_ref TEXT := NULLIF(
+    pg_catalog.btrim(p_contract_payment_evidence_ref), ''
+  );
+  contract_payment_date DATE := (
+    p_contract_payment_confirmed_at AT TIME ZONE 'UTC'
+  )::DATE;
+  normalized_reason TEXT := pg_catalog.btrim(p_reason);
+  input_sha256 TEXT;
+  replayed JSONB;
+  before_slots JSONB;
+  after_slots JSONB;
+  changed_slot_count INTEGER;
+  result JSONB;
+BEGIN
+  IF p_organization_id IS NULL OR p_student_case_id IS NULL
+    OR p_expected_profile_revision IS NULL OR p_expected_profile_revision <= 0
+    OR p_as_of_date IS NULL OR p_request_id IS NULL
+    OR normalized_reason IS NULL
+    OR pg_catalog.char_length(normalized_reason) NOT BETWEEN 1 AND 1000
+    OR normalized_reason ~ '[[:cntrl:]]'
+    OR (
+      (p_contract_payment_confirmed_at IS NULL)
+      <> (normalized_evidence_ref IS NULL)
+    )
+    OR (
+      normalized_evidence_ref IS NOT NULL
+      AND (
+        pg_catalog.char_length(normalized_evidence_ref) NOT BETWEEN 1 AND 500
+        OR normalized_evidence_ref ~ '[[:cntrl:]]'
+      )
+    )
+    OR contract_payment_date > p_as_of_date
+  THEN
+    RAISE EXCEPTION 'Complete reviewed applicability inputs are required'
+      USING ERRCODE = '22023';
+  END IF;
 
+  SELECT authority.* INTO actor
+  FROM platform_private.require_bw8_case_actor(
+    p_organization_id, p_student_case_id, 'document.intelligence.manage'
+  ) AS authority;
+  PERFORM platform_private.lock_bw8_request(p_request_id);
+  PERFORM pg_advisory_xact_lock(pg_catalog.hashtextextended(
+    'evo:bw8:document-applicability:' || p_organization_id::TEXT || ':'
+      || p_student_case_id::TEXT, 0
+  ));
 
+  input_sha256 := platform_private.bw1_input_sha256(pg_catalog.jsonb_build_object(
+    'organization_id', p_organization_id,
+    'student_case_id', p_student_case_id,
+    'expected_profile_revision', p_expected_profile_revision,
+    'as_of_date', p_as_of_date,
+    'contract_payment_confirmed_at', p_contract_payment_confirmed_at,
+    'contract_payment_evidence_ref', normalized_evidence_ref
+  ));
+  replayed := platform_private.bw3_replay_jsonb(
+    p_request_id, 'student.document.applicability.recompute',
+    'student_case', normalized_reason, input_sha256
+  );
+  IF replayed IS NOT NULL THEN RETURN replayed; END IF;
 
+  PERFORM 1
+  FROM platform.organizations AS organization
+  WHERE organization.id = p_organization_id
+  FOR KEY SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Organization is unavailable' USING ERRCODE = '42501';
+  END IF;
 
+  SELECT candidate.* INTO target_case
+  FROM platform.student_cases AS candidate
+  WHERE candidate.organization_id = p_organization_id
+    AND candidate.id = p_student_case_id
+  FOR UPDATE;
+  IF NOT FOUND OR target_case.applied_country_requirement_version_id IS NULL THEN
+    RAISE EXCEPTION 'Case has no applied country requirement version'
+      USING ERRCODE = '55000';
+  END IF;
 
-[context-firewall]
-span: cfw://span/019fcf9057dc7211a39f58e5859a3adb
-raw: 9601 bytes, estimated 2401 tokens
-returned: 2502 bytes, estimated 626 tokens
-delivery_status: advisory_wrapper
-full output stored locally
-commands:
-  cfw show 019fcf9057dc7211a39f58e5859a3adb
-  cfw show 019fcf9057dc7211a39f58e5859a3adb --lines 120:180
-[/context-firewall]
+  SELECT candidate.* INTO profile
+  FROM platform.student_profiles AS candidate
+  WHERE candidate.organization_id = p_organization_id
+    AND candidate.student_case_id = p_student_case_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Student Profile is unavailable' USING ERRCODE = '42501';
+  END IF;
+  IF profile.revision <> p_expected_profile_revision THEN
+    RAISE EXCEPTION 'Student Profile revision changed concurrently'
+      USING ERRCODE = '40001';
+  END IF;
+
+  -- Lock every affected slot in one stable order before taking snapshots or
+  -- changing any decision, so concurrent reviewed recomputes cannot interleave.
+  PERFORM 1
+  FROM platform.document_slots AS slot
+  JOIN platform.document_requirements AS requirement
+    ON requirement.organization_id = slot.organization_id
+    AND requirement.id = slot.requirement_id
+  WHERE slot.organization_id = p_organization_id
+    AND slot.student_case_id = p_student_case_id
+    AND requirement.country_requirement_version_id =
+      target_case.applied_country_requirement_version_id
+  ORDER BY slot.id
+  FOR UPDATE OF slot;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Applied country requirement has no document slots'
+      USING ERRCODE = '55000';
+  END IF;
+
+  SELECT value.field_value INTO typed_dob
+  FROM platform.student_profile_field_values AS value
+  WHERE value.organization_id = p_organization_id
+    AND value.student_case_id = p_student_case_id
+    AND value.field_key = 'personal.date_of_birth';
+  applicant_dob := COALESCE(
+    CASE WHEN typed_dob IS NULL THEN NULL ELSE (typed_dob #>> '{}')::DATE END,
+    profile.date_of_birth
+  );
+
+  SELECT COALESCE(
+    pg_catalog.jsonb_agg(
+      pg_catalog.jsonb_build_object(
+        'document_slot_id', slot.id,
+        'requirement_id', requirement.id,
+        'requirement_key', requirement.requirement_key,
+        'applicability_rule', requirement.applicability_rule,
+        'applicability_status', slot.applicability_status,
+        'applicability_reference_date', slot.applicability_reference_date
+      ) ORDER BY requirement.source_item_order, slot.id
+    ),
+    '[]'::JSONB
+  ) INTO before_slots
+  FROM platform.document_slots AS slot
+  JOIN platform.document_requirements AS requirement
+    ON requirement.organization_id = slot.organization_id
+    AND requirement.id = slot.requirement_id
+  WHERE slot.organization_id = p_organization_id
+    AND slot.student_case_id = p_student_case_id
+    AND requirement.country_requirement_version_id =
+      target_case.applied_country_requirement_version_id;
+
+  INSERT INTO platform_private.document_applicability_recompute_context (
+    transaction_id, request_id, organization_id, student_case_id
+  ) VALUES (
+    pg_catalog.txid_current(), p_request_id, p_organization_id, p_student_case_id
+  );
+
+  UPDATE platform.document_slots AS slot
+  SET applicability_status =
+        platform_private.resolve_document_applicability(
+          requirement.applicability_rule,
+          applicant_dob,
+          CASE
+            WHEN requirement.applicability_rule = 'minor_only' THEN p_as_of_date
+            WHEN requirement.applicability_rule = 'after_contract_payment'
+              THEN contract_payment_date
+            ELSE NULL
+          END
+        ),
+      applicability_reference_date = CASE
+        WHEN requirement.applicability_rule = 'always' THEN NULL
+        WHEN requirement.applicability_rule = 'minor_only' THEN p_as_of_date
+        WHEN p_contract_payment_confirmed_at IS NULL THEN p_as_of_date
+        ELSE contract_payment_date
+      END,
+      updated_at = statement_timestamp()
+  FROM platform.document_requirements AS requirement
+  WHERE slot.organization_id = p_organization_id
+    AND slot.student_case_id = p_student_case_id
+    AND requirement.organization_id = slot.organization_id
+    AND requirement.id = slot.requirement_id
+    AND requirement.country_requirement_version_id =
+      target_case.applied_country_requirement_version_id
+    AND (
+      slot.applicability_status IS DISTINCT FROM
+        platform_private.resolve_document_applicability(
+          requirement.applicability_rule,
+          applicant_dob,
+          CASE
+            WHEN requirement.applicability_rule = 'minor_only' THEN p_as_of_date
+            WHEN requirement.applicability_rule = 'after_contract_payment'
+              THEN contract_payment_date
+            ELSE NULL
+          END
+        )
+      OR slot.applicability_reference_date IS DISTINCT FROM CASE
+        WHEN requirement.applicability_rule = 'always' THEN NULL
+        WHEN requirement.applicability_rule = 'minor_only' THEN p_as_of_date
+        WHEN p_contract_payment_confirmed_at IS NULL THEN p_as_of_date
+        ELSE contract_payment_date
+      END
+    );
+  GET DIAGNOSTICS changed_slot_count = ROW_COUNT;
+
+  DELETE FROM platform_private.document_applicability_recompute_context AS context
+  WHERE context.transaction_id = pg_catalog.txid_current()
+    AND context.request_id = p_request_id;
+
+  SELECT COALESCE(
+    pg_catalog.jsonb_agg(
+      pg_catalog.jsonb_build_object(
+        'document_slot_id', slot.id,
+        'requirement_id', requirement.id,
+        'requirement_key', requirement.requirement_key,
+        'applicability_rule', requirement.applicability_rule,
+        'applicability_status', slot.applicability_status,
+        'applicability_reference_date', slot.applicability_reference_date
+      ) ORDER BY requirement.source_item_order, slot.id
+    ),
+    '[]'::JSONB
+  ) INTO after_slots
+  FROM platform.document_slots AS slot
+  JOIN platform.document_requirements AS requirement
+    ON requirement.organization_id = slot.organization_id
+    AND requirement.id = slot.requirement_id
+  WHERE slot.organization_id = p_organization_id
+    AND slot.student_case_id = p_student_case_id
+    AND requirement.country_requirement_version_id =
+      target_case.applied_country_requirement_version_id;
+
+  result := pg_catalog.jsonb_build_object(
+    'organization_id', p_organization_id,
+    'student_case_id', p_student_case_id,
+    'student_profile_id', profile.id,
+    'profile_revision', profile.revision,
+    'country_requirement_version_id',
+      target_case.applied_country_requirement_version_id,
+    'as_of_date', p_as_of_date,
+    'date_of_birth_present', applicant_dob IS NOT NULL,
+    'contract_payment_gate_exists',
+      p_contract_payment_confirmed_at IS NOT NULL,
+    'contract_payment_confirmed_at', p_contract_payment_confirmed_at,
+    'contract_payment_evidence_ref', normalized_evidence_ref,
+    'changed_slot_count', changed_slot_count,
+    'slot_decisions', after_slots,
+    'input_sha256', input_sha256
+  );
+  INSERT INTO platform.audit_events (
+    organization_id, actor_kind, actor_profile_id, actor_principal,
+    action, resource_type, resource_id, before_state, after_state,
+    reason, request_id
+  ) VALUES (
+    p_organization_id, 'user', actor.actor_profile_id,
+    'auth:' || actor.actor_auth_user_id::TEXT,
+    'student.document.applicability.recompute', 'student_case',
+    p_student_case_id,
+    pg_catalog.jsonb_build_object(
+      'profile_revision', profile.revision,
+      'date_of_birth_present', applicant_dob IS NOT NULL,
+      'slot_decisions', before_slots
+    ),
+    result, normalized_reason, p_request_id
+  );
+  RETURN result;
+END
+$$;
+
+-- Profile exports use their own exact object binding because P2H document
+-- bindings are intentionally hard-FK'd to document slots/versions. The bucket
+-- stays private and shared; service workers upload while short-lived grants
+-- authorize audited server-side download/signing.
+CREATE TABLE platform_private.student_profile_export_storage_reservations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id UUID NOT NULL UNIQUE,
+  organization_id UUID NOT NULL,
+  student_case_id UUID NOT NULL,
+  profile_export_id UUID NOT NULL,
+  bucket_id TEXT NOT NULL DEFAULT 'platform-documents'
+    CHECK (bucket_id = 'platform-documents'),
+  object_name TEXT NOT NULL UNIQUE CHECK (
+    object_name ~ '^organizations/[0-9a-f-]{36}/student-cases/[0-9a-f-]{36}/profile-exports/[0-9a-f-]{36}/reservations/[0-9a-f-]{36}/(profile\.docx|profile\.pdf)$'
+  ),
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
+  CONSTRAINT student_profile_export_storage_reservations_export_fkey
+    FOREIGN KEY (organization_id, profile_export_id, student_case_id)
+    REFERENCES platform.student_profile_exports(
+      organization_id, id, student_case_id
+    ) ON DELETE RESTRICT,
+  CONSTRAINT student_profile_export_storage_reservations_window_check CHECK (
+    expires_at > created_at AND expires_at <= created_at + INTERVAL '30 minutes'
+  )
+);
+
+CREATE INDEX student_profile_export_storage_reservations_active_idx
+  ON platform_private.student_profile_export_storage_reservations (
+    profile_export_id,
+    expires_at DESC,
+    created_at DESC,
+    id DESC
+  );
+
+CREATE TABLE platform_private.student_profile_export_storage_bindings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL,
+  student_case_id UUID NOT NULL,
+  profile_export_id UUID NOT NULL UNIQUE,
+  storage_reservation_id UUID NOT NULL UNIQUE,
+  bucket_id TEXT NOT NULL CHECK (bucket_id = 'platform-documents'),
+  object_name TEXT NOT NULL UNIQUE,
+  byte_size BIGINT NOT NULL CHECK (byte_size BETWEEN 1 AND 26214400),
+  output_sha256 TEXT NOT NULL CHECK (output_sha256 ~ '^[0-9a-f]{64}$'),
+  object_created_at TIMESTAMPTZ NOT NULL,
+  finalized_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
+  CONSTRAINT student_profile_export_storage_bindings_export_fkey
+    FOREIGN KEY (organization_id, profile_export_id, student_case_id)
+    REFERENCES platform.student_profile_exports(
+      organization_id, id, student_case_id
+    ) ON DELETE RESTRICT,
+  CONSTRAINT student_profile_export_storage_bindings_reservation_fkey
+    FOREIGN KEY (storage_reservation_id)
+    REFERENCES platform_private.student_profile_export_storage_reservations(id)
+    ON DELETE RESTRICT
+);
+
+CREATE TABLE platform_private.student_profile_export_download_grants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id UUID NOT NULL UNIQUE,
+  organization_id UUID NOT NULL,
+  student_case_id UUID NOT NULL,
+  profile_export_id UUID NOT NULL,
+  storage_binding_id UUID NOT NULL,
+  actor_membership_id UUID NOT NULL,
+  purpose TEXT NOT NULL CHECK (
+    pg_catalog.char_length(pg_catalog.btrim(purpose)) BETWEEN 1 AND 240
+    AND purpose = pg_catalog.btrim(purpose)
+    AND purpose !~ '[[:cntrl:]]'
+  ),
+  token_sha256 TEXT NOT NULL UNIQUE CHECK (token_sha256 ~ '^[0-9a-f]{64}$'),
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
+  CONSTRAINT student_profile_export_download_grants_export_fkey
+    FOREIGN KEY (organization_id, profile_export_id, student_case_id)
+    REFERENCES platform.student_profile_exports(
+      organization_id, id, student_case_id
+    ) ON DELETE RESTRICT,
+  CONSTRAINT student_profile_export_download_grants_binding_fkey
+    FOREIGN KEY (storage_binding_id)
+    REFERENCES platform_private.student_profile_export_storage_bindings(id)
+    ON DELETE RESTRICT,
+  CONSTRAINT student_profile_export_download_grants_actor_fkey
+    FOREIGN KEY (organization_id, actor_membership_id)
+    REFERENCES platform.organization_memberships(organization_id, id)
+    ON DELETE RESTRICT,
+  CONSTRAINT student_profile_export_download_grants_window_check CHECK (
+    expires_at > created_at AND expires_at <= created_at + INTERVAL '5 minutes'
+  )
+);
+
+CREATE TABLE platform_private.student_profile_export_download_consumptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id UUID NOT NULL UNIQUE,
+  download_grant_id UUID NOT NULL UNIQUE
+    REFERENCES platform_private.student_profile_export_download_grants(id)
+    ON DELETE RESTRICT,
+  consumed_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp()
+);
+
+ALTER TABLE platform_private.student_profile_export_storage_reservations
+  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_private.student_profile_export_storage_reservations
+  FORCE ROW LEVEL SECURITY;
+ALTER TABLE platform_private.student_profile_export_storage_bindings
+  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_private.student_profile_export_storage_bindings
+  FORCE ROW LEVEL SECURITY;
+ALTER TABLE platform_private.student_profile_export_download_grants
+  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_private.student_profile_export_download_grants
+  FORCE ROW LEVEL SECURITY;
+ALTER TABLE platform_private.student_profile_export_download_consumptions
+  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_private.student_profile_export_download_consumptions
+  FORCE ROW LEVEL SECURITY;
+
+CREATE TRIGGER student_profile_export_storage_reservations_append_only
+  BEFORE UPDATE OR DELETE
+  ON platform_private.student_profile_export_storage_reservations
+  FOR EACH ROW EXECUTE FUNCTION platform_private.block_append_only_mutation();
+CREATE TRIGGER student_profile_export_storage_reservations_no_truncate
+  BEFORE TRUNCATE
+  ON platform_private.student_profile_export_storage_reservations
+  FOR EACH STATEMENT EXECUTE FUNCTION platform_private.block_append_only_mutation();
+CREATE TRIGGER student_profile_export_storage_bindings_append_only
+  BEFORE UPDATE OR DELETE
+  ON platform_private.student_profile_export_storage_bindings
+  FOR EACH ROW EXECUTE FUNCTION platform_private.block_append_only_mutation();
+CREATE TRIGGER student_profile_export_storage_bindings_no_truncate
+  BEFORE TRUNCATE
+  ON platform_private.student_profile_export_storage_bindings
+  FOR EACH STATEMENT EXECUTE FUNCTION platform_private.block_append_only_mutation();
+CREATE TRIGGER student_profile_export_download_grants_append_only
+  BEFORE UPDATE OR DELETE
+  ON platform_private.student_profile_export_download_grants
+  FOR EACH ROW EXECUTE FUNCTION platform_private.block_append_only_mutation();
+CREATE TRIGGER student_profile_export_download_grants_no_truncate
+  BEFORE TRUNCATE
+  ON platform_private.student_profile_export_download_grants
+  FOR EACH STATEMENT EXECUTE FUNCTION platform_private.block_append_only_mutation();
+CREATE TRIGGER student_profile_export_download_consumptions_append_only
+  BEFORE UPDATE OR DELETE
+  ON platform_private.student_profile_export_download_consumptions
+  FOR EACH ROW EXECUTE FUNCTION platform_private.block_append_only_mutation();
+CREATE TRIGGER student_profile_export_download_consumptions_no_truncate
+  BEFORE TRUNCATE
+  ON platform_private.student_profile_export_download_consumptions
+  FOR EACH STATEMENT EXECUTE FUNCTION platform_private.block_append_only_mutation();
+
+CREATE OR REPLACE FUNCTION platform.reserve_student_profile_export_storage(
+  p_organization_id UUID,
+  p_profile_export_id UUID,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  profile_export platform.student_profile_exports%ROWTYPE;
+  existing platform_private.student_profile_export_storage_reservations%ROWTYPE;
+  reservation_id UUID := gen_random_uuid();
+  object_name_value TEXT;
+  expires_at_value TIMESTAMPTZ := statement_timestamp() + INTERVAL '30 minutes';
+  result JSONB;
+BEGIN
+  PERFORM platform_private.require_p2g_service();
+  PERFORM platform_private.lock_bw8_request(p_request_id);
+  IF p_organization_id IS NULL OR p_profile_export_id IS NULL THEN
+    RAISE EXCEPTION 'Organization and profile export are required'
+      USING ERRCODE = '22023';
+  END IF;
+
+  -- The export is the parent business object. Lock it before checking either
+  -- unique reservation identity so concurrent double-submit calls serialize
+  -- and observe the committed reservation instead of racing at INSERT.
+  SELECT export.* INTO profile_export
+  FROM platform.student_profile_exports AS export
+  WHERE export.organization_id = p_organization_id
+    AND export.id = p_profile_export_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Queued profile export is unavailable'
+      USING ERRCODE = '55000';
+  END IF;
+
+  SELECT reservation.* INTO existing
+  FROM platform_private.student_profile_export_storage_reservations AS reservation
+  WHERE reservation.request_id = p_request_id
+  FOR UPDATE;
+  IF FOUND THEN
+    IF existing.organization_id <> p_organization_id
+      OR existing.profile_export_id <> p_profile_export_id
+    THEN
+      RAISE EXCEPTION 'Export reservation request was already bound differently'
+        USING ERRCODE = '22023';
+    END IF;
+  ELSE
+    SELECT reservation.* INTO existing
+    FROM platform_private.student_profile_export_storage_reservations AS reservation
+    WHERE reservation.profile_export_id = p_profile_export_id
+      AND reservation.expires_at > statement_timestamp()
+    ORDER BY reservation.expires_at DESC, reservation.created_at DESC,
+      reservation.id DESC
+    LIMIT 1
+    FOR UPDATE;
+    IF FOUND AND existing.organization_id <> p_organization_id THEN
+      RAISE EXCEPTION 'Export reservation is unavailable'
+        USING ERRCODE = '42501';
+    END IF;
+  END IF;
+
+  IF existing.id IS NOT NULL THEN
+    RETURN jsonb_build_object(
+      'organization_id', existing.organization_id,
+      'student_case_id', existing.student_case_id,
+      'profile_export_id', existing.profile_export_id,
+      'storage_reservation_id', existing.id,
+      'bucket_id', existing.bucket_id,
+      'object_name', existing.object_name,
+      'expires_at', existing.expires_at,
+      'deduplicated', TRUE
+    );
+  END IF;
+
+  IF profile_export.status NOT IN ('queued', 'processing') THEN
+    RAISE EXCEPTION 'Queued profile export is unavailable'
+      USING ERRCODE = '55000';
+  END IF;
+  object_name_value := 'organizations/' || profile_export.organization_id::TEXT
+    || '/student-cases/' || profile_export.student_case_id::TEXT
+    || '/profile-exports/' || profile_export.id::TEXT
+    || '/reservations/' || reservation_id::TEXT || '/profile.'
+    || profile_export.output_format::TEXT;
+  INSERT INTO platform_private.student_profile_export_storage_reservations (
+    id, request_id, organization_id, student_case_id, profile_export_id,
+    object_name, expires_at
+  ) VALUES (
+    reservation_id, p_request_id, profile_export.organization_id,
+    profile_export.student_case_id, profile_export.id, object_name_value,
+    expires_at_value
+  );
+  IF profile_export.status = 'queued' THEN
+    UPDATE platform.student_profile_exports SET status = 'processing'
+    WHERE id = profile_export.id;
+  END IF;
+  result := jsonb_build_object(
+    'organization_id', profile_export.organization_id,
+    'student_case_id', profile_export.student_case_id,
+    'profile_export_id', profile_export.id,
+    'storage_reservation_id', reservation_id,
+    'bucket_id', 'platform-documents',
+    'object_name', object_name_value,
+    'expires_at', expires_at_value,
+    'deduplicated', FALSE
+  );
+  INSERT INTO platform.audit_events (
+    organization_id, actor_kind, actor_profile_id, actor_principal,
+    action, resource_type, resource_id, before_state, after_state,
+    reason, request_id
+  ) VALUES (
+    profile_export.organization_id, 'service', NULL, 'service:profile-export',
+    'student.profile.export.storage.reserve', 'student_profile_export',
+    profile_export.id, jsonb_build_object('status', profile_export.status),
+    result, 'Reserve exact private Storage object for profile export', p_request_id
+  );
+  RETURN result;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION platform.finalize_student_profile_export_storage(
+  p_organization_id UUID,
+  p_storage_reservation_id UUID,
+  p_output_sha256 TEXT,
+  p_byte_size BIGINT,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  reservation platform_private.student_profile_export_storage_reservations%ROWTYPE;
+  existing platform_private.student_profile_export_storage_bindings%ROWTYPE;
+  profile_export platform.student_profile_exports%ROWTYPE;
+  object_row RECORD;
+  latest_reservation_id UUID;
+  binding_id UUID := gen_random_uuid();
+  normalized_sha TEXT := pg_catalog.lower(pg_catalog.btrim(p_output_sha256));
+  result JSONB;
+BEGIN
+  PERFORM platform_private.require_p2g_service();
+  PERFORM platform_private.lock_bw8_request(p_request_id);
+  IF p_organization_id IS NULL OR p_storage_reservation_id IS NULL
+    OR normalized_sha !~ '^[0-9a-f]{64}$'
+    OR p_byte_size NOT BETWEEN 1 AND 26214400
+  THEN RAISE EXCEPTION 'Exact export checksum and size are required' USING ERRCODE = '22023'; END IF;
+  -- Read the append-only reservation only to discover its parent, then take
+  -- the canonical export-before-reservation locks shared with reserve().
+  -- This prevents reserve/finalize deadlocks while the second locked read
+  -- still proves the exact reservation exists in the requested organization.
+  SELECT source.* INTO reservation
+  FROM platform_private.student_profile_export_storage_reservations AS source
+  WHERE source.organization_id = p_organization_id
+    AND source.id = p_storage_reservation_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Export Storage reservation is unavailable' USING ERRCODE = '42501'; END IF;
+  SELECT export.* INTO profile_export
+  FROM platform.student_profile_exports AS export
+  WHERE export.organization_id = reservation.organization_id
+    AND export.id = reservation.profile_export_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Profile export is unavailable' USING ERRCODE = '55000';
+  END IF;
+  SELECT source.* INTO reservation
+  FROM platform_private.student_profile_export_storage_reservations AS source
+  WHERE source.organization_id = p_organization_id
+    AND source.id = p_storage_reservation_id
+    AND source.profile_export_id = profile_export.id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Export Storage reservation is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- Renewal invalidates every older upload capability. The export parent lock
+  -- prevents a new reservation from appearing between this check and binding,
+  -- so a delayed stale worker cannot win after recovery has issued a new path.
+  SELECT candidate.id INTO latest_reservation_id
+  FROM platform_private.student_profile_export_storage_reservations AS candidate
+  WHERE candidate.organization_id = reservation.organization_id
+    AND candidate.profile_export_id = reservation.profile_export_id
+  ORDER BY candidate.created_at DESC, candidate.expires_at DESC,
+    candidate.id DESC
+  LIMIT 1
+  FOR KEY SHARE;
+  IF latest_reservation_id IS DISTINCT FROM reservation.id THEN
+    RAISE EXCEPTION 'Export Storage reservation was superseded by a newer reservation'
+      USING ERRCODE = '55000';
+  END IF;
+
+  SELECT binding.* INTO existing
+  FROM platform_private.student_profile_export_storage_bindings AS binding
+  WHERE binding.storage_reservation_id = reservation.id
+  FOR UPDATE;
+  IF FOUND THEN
+    IF existing.output_sha256 <> normalized_sha
+      OR existing.byte_size <> p_byte_size
+    THEN
+      RAISE EXCEPTION 'Export object was finalized differently'
+        USING ERRCODE = '55000';
+    END IF;
+    RETURN jsonb_build_object(
+      'organization_id', existing.organization_id,
+      'profile_export_id', existing.profile_export_id,
+      'storage_binding_id', existing.id,
+      'bucket_id', existing.bucket_id,
+      'object_name', existing.object_name,
+      'output_sha256', existing.output_sha256,
+      'byte_size', existing.byte_size,
+      'finalized_at', existing.finalized_at,
+      'deduplicated', TRUE
+    );
+  END IF;
+
+  IF profile_export.status <> 'processing' THEN
+    RAISE EXCEPTION 'Only a processing export may be finalized'
+      USING ERRCODE = '55000';
+  END IF;
+  SELECT object.created_at INTO object_row
+  FROM storage.objects AS object
+  WHERE object.bucket_id = reservation.bucket_id
+    AND object.name = reservation.object_name FOR SHARE;
+  IF NOT FOUND OR object_row.created_at < reservation.created_at
+    OR object_row.created_at > reservation.expires_at
+  THEN RAISE EXCEPTION 'Exact export object was not uploaded in its reservation window' USING ERRCODE = '42501'; END IF;
+
+  INSERT INTO platform_private.student_profile_export_storage_bindings (
+    id, organization_id, student_case_id, profile_export_id,
+    storage_reservation_id, bucket_id, object_name, byte_size, output_sha256,
+    object_created_at
+  ) VALUES (
+    binding_id, reservation.organization_id, reservation.student_case_id,
+    reservation.profile_export_id, reservation.id, reservation.bucket_id,
+    reservation.object_name, p_byte_size, normalized_sha, object_row.created_at
+  );
+  UPDATE platform.student_profile_exports
+  SET status = 'succeeded', output_sha256 = normalized_sha,
+      storage_evidence_ref = 'binding:' || binding_id::TEXT
+  WHERE id = profile_export.id;
+  result := jsonb_build_object(
+    'organization_id', reservation.organization_id,
+    'student_case_id', reservation.student_case_id,
+    'profile_export_id', reservation.profile_export_id,
+    'storage_binding_id', binding_id,
+    'bucket_id', reservation.bucket_id,
+    'object_name', reservation.object_name,
+    'output_sha256', normalized_sha,
+    'byte_size', p_byte_size,
+    'status', 'succeeded',
+    'deduplicated', FALSE
+  );
+  INSERT INTO platform.audit_events (
+    organization_id, actor_kind, actor_profile_id, actor_principal,
+    action, resource_type, resource_id, before_state, after_state,
+    reason, request_id
+  ) VALUES (
+    reservation.organization_id, 'service', NULL, 'service:profile-export',
+    'student.profile.export.storage.finalize', 'student_profile_export',
+    reservation.profile_export_id, jsonb_build_object('status', profile_export.status),
+    result, 'Finalize exact private profile export object', p_request_id
+  );
+  RETURN result;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION platform.grant_student_profile_export_download(
+  p_organization_id UUID,
+  p_profile_export_id UUID,
+  p_purpose TEXT,
+  p_ttl_seconds INTEGER,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  actor RECORD;
+  profile_export platform.student_profile_exports%ROWTYPE;
+  binding platform_private.student_profile_export_storage_bindings%ROWTYPE;
+  existing platform_private.student_profile_export_download_grants%ROWTYPE;
+  normalized_purpose TEXT := pg_catalog.btrim(p_purpose);
+  raw_token TEXT;
+  token_hash TEXT;
+  grant_id UUID := gen_random_uuid();
+  expiry TIMESTAMPTZ;
+  result JSONB;
+BEGIN
+  IF p_organization_id IS NULL OR p_profile_export_id IS NULL
+    OR p_ttl_seconds NOT BETWEEN 15 AND 300
+    OR pg_catalog.char_length(normalized_purpose) NOT BETWEEN 1 AND 240
+    OR normalized_purpose ~ '[[:cntrl:]]'
+  THEN RAISE EXCEPTION 'Bounded export download purpose and TTL are required' USING ERRCODE = '22023'; END IF;
+  SELECT export.* INTO profile_export
+  FROM platform.student_profile_exports AS export
+  WHERE export.organization_id = p_organization_id AND export.id = p_profile_export_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Profile export is unavailable' USING ERRCODE = '42501'; END IF;
+  SELECT authority.* INTO actor
+  FROM platform_private.require_bw8_case_actor(
+    p_organization_id, profile_export.student_case_id, 'profile.export.manage'
+  ) AS authority;
+  PERFORM platform_private.lock_bw8_request(p_request_id);
+  SELECT grant_row.* INTO existing
+  FROM platform_private.student_profile_export_download_grants AS grant_row
+  WHERE grant_row.request_id = p_request_id FOR UPDATE;
+  IF FOUND THEN
+    RAISE EXCEPTION 'Exact replay cannot reveal a previously returned download token; request a new grant'
+      USING ERRCODE = '55000';
+  END IF;
+  SELECT candidate.* INTO binding
+  FROM platform_private.student_profile_export_storage_bindings AS candidate
+  WHERE candidate.organization_id = p_organization_id
+    AND candidate.profile_export_id = p_profile_export_id FOR KEY SHARE;
+  IF profile_export.status <> 'succeeded' OR binding.id IS NULL THEN
+    RAISE EXCEPTION 'Only a finalized profile export can be downloaded'
+      USING ERRCODE = '55000';
+  END IF;
+  raw_token := pg_catalog.replace(pg_catalog.gen_random_uuid()::TEXT, '-', '')
+    || pg_catalog.replace(pg_catalog.gen_random_uuid()::TEXT, '-', '');
+  token_hash := encode(sha256(convert_to(raw_token, 'UTF8')), 'hex');
+  expiry := statement_timestamp() + make_interval(secs => p_ttl_seconds);
+  INSERT INTO platform_private.student_profile_export_download_grants (
+    id, request_id, organization_id, student_case_id, profile_export_id,
+    storage_binding_id, actor_membership_id, purpose, token_sha256, expires_at
+  ) VALUES (
+    grant_id, p_request_id, p_organization_id, profile_export.student_case_id,
+    p_profile_export_id, binding.id, actor.actor_membership_id,
+    normalized_purpose, token_hash, expiry
+  );
+  result := jsonb_build_object(
+    'organization_id', p_organization_id,
+    'student_case_id', profile_export.student_case_id,
+    'profile_export_id', p_profile_export_id,
+    'download_grant_id', grant_id,
+    'download_token', raw_token,
+    'expires_at', expiry
+  );
+  INSERT INTO platform.audit_events (
+    organization_id, actor_kind, actor_profile_id, actor_principal,
+    action, resource_type, resource_id, before_state, after_state,
+    reason, request_id
+  ) VALUES (
+    p_organization_id, 'user', actor.actor_profile_id,
+    'auth:' || actor.actor_auth_user_id::TEXT,
+    'student.profile.export.download.grant', 'student_profile_export',
+    p_profile_export_id, NULL,
+    result - 'download_token', normalized_purpose, p_request_id
+  );
+  RETURN result;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION platform.consume_student_profile_export_download_grant(
+  p_download_grant_id UUID,
+  p_download_token TEXT,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  grant_row platform_private.student_profile_export_download_grants%ROWTYPE;
+  binding platform_private.student_profile_export_storage_bindings%ROWTYPE;
+  existing_consumption
+    platform_private.student_profile_export_download_consumptions%ROWTYPE;
+  result JSONB;
+BEGIN
+  PERFORM platform_private.require_p2g_service();
+  PERFORM platform_private.lock_bw8_request(p_request_id);
+  IF p_download_grant_id IS NULL OR p_request_id IS NULL
+    OR p_download_token IS NULL
+    OR pg_catalog.char_length(p_download_token) <> 64
+  THEN RAISE EXCEPTION 'Exact download grant token is required' USING ERRCODE = '22023'; END IF;
+  SELECT candidate.* INTO grant_row
+  FROM platform_private.student_profile_export_download_grants AS candidate
+  WHERE candidate.id = p_download_grant_id FOR UPDATE;
+  IF NOT FOUND
+    OR grant_row.token_sha256 <> encode(sha256(convert_to(p_download_token, 'UTF8')), 'hex')
+  THEN RAISE EXCEPTION 'Download grant is invalid, expired, or consumed' USING ERRCODE = '42501'; END IF;
+  SELECT candidate.* INTO binding
+  FROM platform_private.student_profile_export_storage_bindings AS candidate
+  WHERE candidate.id = grant_row.storage_binding_id FOR KEY SHARE;
+
+  -- A committed consume may have succeeded even if its caller lost the
+  -- response. The request-id lock plus immutable ledger row lets the exact
+  -- request replay the same payload without creating another consumption or
+  -- audit event. A request id already bound to another grant is never reused.
+  SELECT consumption.* INTO existing_consumption
+  FROM platform_private.student_profile_export_download_consumptions
+    AS consumption
+  WHERE consumption.request_id = p_request_id
+  FOR KEY SHARE;
+  IF FOUND THEN
+    IF existing_consumption.download_grant_id <> grant_row.id THEN
+      RAISE EXCEPTION 'Download consumption request was already bound differently'
+        USING ERRCODE = '22023';
+    END IF;
+    RETURN jsonb_build_object(
+      'organization_id', grant_row.organization_id,
+      'student_case_id', grant_row.student_case_id,
+      'profile_export_id', grant_row.profile_export_id,
+      'bucket_id', binding.bucket_id,
+      'object_name', binding.object_name,
+      'output_sha256', binding.output_sha256,
+      'byte_size', binding.byte_size,
+      'consumed', TRUE
+    );
+  END IF;
+
+  IF grant_row.expires_at <= statement_timestamp()
+    OR EXISTS (
+      SELECT 1
+      FROM platform_private.student_profile_export_download_consumptions
+      WHERE download_grant_id = grant_row.id
+    )
+  THEN
+    RAISE EXCEPTION 'Download grant is invalid, expired, or consumed'
+      USING ERRCODE = '42501';
+  END IF;
+  INSERT INTO platform_private.student_profile_export_download_consumptions (
+    request_id, download_grant_id
+  ) VALUES (p_request_id, grant_row.id);
+  result := jsonb_build_object(
+    'organization_id', grant_row.organization_id,
+    'student_case_id', grant_row.student_case_id,
+    'profile_export_id', grant_row.profile_export_id,
+    'bucket_id', binding.bucket_id,
+    'object_name', binding.object_name,
+    'output_sha256', binding.output_sha256,
+    'byte_size', binding.byte_size,
+    'consumed', TRUE
+  );
+  INSERT INTO platform.audit_events (
+    organization_id, actor_kind, actor_profile_id, actor_principal,
+    action, resource_type, resource_id, before_state, after_state,
+    reason, request_id
+  ) VALUES (
+    grant_row.organization_id, 'service', NULL, 'service:profile-export',
+    'student.profile.export.download.consume', 'student_profile_export',
+    grant_row.profile_export_id, NULL,
+    result - ARRAY['bucket_id', 'object_name'],
+    'Consume one short-lived profile export download grant', p_request_id
+  );
+  RETURN result;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION platform.request_student_profile_export(
+  p_organization_id UUID,
+  p_student_case_id UUID,
+  p_expected_profile_revision BIGINT,
+  p_template_key TEXT,
+  p_template_version TEXT,
+  p_template_sha256 TEXT,
+  p_output_format platform.student_profile_export_format,
+  p_input_manifest_sha256 TEXT,
+  p_reason TEXT,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  actor RECORD;
+  profile platform.student_profiles%ROWTYPE;
+  existing platform.student_profile_exports%ROWTYPE;
+  normalized_template_key TEXT := pg_catalog.lower(pg_catalog.btrim(p_template_key));
+  normalized_template_version TEXT := pg_catalog.btrim(p_template_version);
+  normalized_template_sha TEXT := pg_catalog.lower(pg_catalog.btrim(p_template_sha256));
+  normalized_manifest_sha TEXT := pg_catalog.lower(pg_catalog.btrim(p_input_manifest_sha256));
+  normalized_reason TEXT := pg_catalog.btrim(p_reason);
+  export_id UUID := gen_random_uuid();
+  result JSONB;
+BEGIN
+  IF p_organization_id IS NULL OR p_student_case_id IS NULL
+    OR p_expected_profile_revision IS NULL OR p_expected_profile_revision <= 0
+    OR normalized_template_key !~ '^[a-z][a-z0-9_.-]{1,127}$'
+    OR normalized_template_version !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$'
+    OR normalized_template_sha !~ '^[0-9a-f]{64}$'
+    OR normalized_manifest_sha !~ '^[0-9a-f]{64}$'
+    OR p_output_format IS NULL
+    OR pg_catalog.char_length(normalized_reason) NOT BETWEEN 1 AND 1000
+    OR normalized_reason ~ '[[:cntrl:]]'
+  THEN RAISE EXCEPTION 'Complete exact profile/template export request is required' USING ERRCODE = '22023'; END IF;
+  SELECT authority.* INTO actor
+  FROM platform_private.require_bw8_case_actor(
+    p_organization_id, p_student_case_id, 'profile.export.manage'
+  ) AS authority;
+  PERFORM platform_private.lock_bw8_request(p_request_id);
+  SELECT export.* INTO existing
+  FROM platform.student_profile_exports AS export
+  WHERE export.request_id = p_request_id;
+  IF FOUND THEN
+    IF existing.organization_id <> p_organization_id
+      OR existing.student_case_id <> p_student_case_id
+      OR existing.profile_revision <> p_expected_profile_revision
+      OR existing.template_key <> normalized_template_key
+      OR existing.template_version <> normalized_template_version
+      OR existing.template_sha256 <> normalized_template_sha
+      OR existing.output_format <> p_output_format
+      OR existing.input_manifest_sha256 <> normalized_manifest_sha
+    THEN RAISE EXCEPTION 'request_id was already used for another profile export' USING ERRCODE = '22023'; END IF;
+    RETURN jsonb_build_object(
+      'organization_id', existing.organization_id,
+      'student_case_id', existing.student_case_id,
+      'student_profile_id', existing.student_profile_id,
+      'profile_export_id', existing.id,
+      'profile_revision', existing.profile_revision,
+      'output_format', existing.output_format,
+      'status', existing.status,
+      'deduplicated', TRUE
+    );
+  END IF;
+  SELECT candidate.* INTO profile
+  FROM platform.student_profiles AS candidate
+  WHERE candidate.organization_id = p_organization_id
+    AND candidate.student_case_id = p_student_case_id FOR KEY SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Student Profile is unavailable' USING ERRCODE = '42501'; END IF;
+  IF profile.revision <> p_expected_profile_revision THEN
+    RAISE EXCEPTION 'Student Profile revision changed concurrently' USING ERRCODE = '40001';
+  END IF;
+  INSERT INTO platform.student_profile_exports (
+    id, organization_id, student_case_id, student_profile_id,
+    profile_revision, template_key, template_version, template_sha256,
+    output_format, status, input_manifest_sha256, request_id,
+    created_by_membership_id
+  ) VALUES (
+    export_id, p_organization_id, p_student_case_id, profile.id,
+    profile.revision, normalized_template_key, normalized_template_version,
+    normalized_template_sha, p_output_format, 'queued', normalized_manifest_sha,
+    p_request_id, actor.actor_membership_id
+  );
+  result := jsonb_build_object(
+    'organization_id', p_organization_id,
+    'student_case_id', p_student_case_id,
+    'student_profile_id', profile.id,
+    'profile_export_id', export_id,
+    'profile_revision', profile.revision,
+    'template_key', normalized_template_key,
+    'template_version', normalized_template_version,
+    'template_sha256', normalized_template_sha,
+    'output_format', p_output_format,
+    'input_manifest_sha256', normalized_manifest_sha,
+    'status', 'queued',
+    'deduplicated', FALSE
+  );
+  INSERT INTO platform.audit_events (
+    organization_id, actor_kind, actor_profile_id, actor_principal,
+    action, resource_type, resource_id, before_state, after_state,
+    reason, request_id
+  ) VALUES (
+    p_organization_id, 'user', actor.actor_profile_id,
+    'auth:' || actor.actor_auth_user_id::TEXT,
+    'student.profile.export.request', 'student_profile_export', export_id,
+    NULL, result, normalized_reason, p_request_id
+  );
+  RETURN result;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION platform.fail_student_profile_export(
+  p_organization_id UUID,
+  p_profile_export_id UUID,
+  p_expected_status platform.student_profile_export_status,
+  p_failure_code TEXT,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  profile_export platform.student_profile_exports%ROWTYPE;
+  normalized_code TEXT := pg_catalog.lower(pg_catalog.btrim(p_failure_code));
+  replayed JSONB;
+  result JSONB;
+BEGIN
+  PERFORM platform_private.require_p2g_service();
+  PERFORM platform_private.lock_bw8_request(p_request_id);
+  IF p_organization_id IS NULL OR p_profile_export_id IS NULL
+    OR p_expected_status NOT IN ('queued', 'processing')
+    OR normalized_code !~ '^[a-z][a-z0-9_.-]{1,63}$'
+  THEN RAISE EXCEPTION 'Expected export status and bounded failure code are required' USING ERRCODE = '22023'; END IF;
+  replayed := platform_private.replay_audit(
+    p_request_id, 'student.profile.export.fail', 'student_profile_export',
+    p_profile_export_id, 'Record truthful profile export failure',
+    jsonb_build_object('status', 'failed', 'failure_code', normalized_code)
+  );
+  IF replayed IS NOT NULL THEN RETURN replayed; END IF;
+  SELECT export.* INTO profile_export
+  FROM platform.student_profile_exports AS export
+  WHERE export.organization_id = p_organization_id
+    AND export.id = p_profile_export_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Profile export is unavailable' USING ERRCODE = '42501'; END IF;
+  IF profile_export.status <> p_expected_status THEN
+    RAISE EXCEPTION 'Profile export changed concurrently' USING ERRCODE = '40001';
+  END IF;
+  UPDATE platform.student_profile_exports
+  SET status = 'failed', failure_code = normalized_code
+  WHERE id = profile_export.id;
+  result := jsonb_build_object(
+    'organization_id', p_organization_id,
+    'profile_export_id', profile_export.id,
+    'previous_status', profile_export.status,
+    'status', 'failed',
+    'failure_code', normalized_code
+  );
+  INSERT INTO platform.audit_events (
+    organization_id, actor_kind, actor_profile_id, actor_principal,
+    action, resource_type, resource_id, before_state, after_state,
+    reason, request_id
+  ) VALUES (
+    p_organization_id, 'service', NULL, 'service:profile-export',
+    'student.profile.export.fail', 'student_profile_export', profile_export.id,
+    jsonb_build_object('status', profile_export.status), result,
+    'Record truthful profile export failure', p_request_id
+  );
+  RETURN result;
+END
+$$;
+
+REVOKE ALL PRIVILEGES ON TABLE
+  platform.student_profile_field_catalog,
+  platform.document_extraction_runs,
+  platform.document_extracted_facts,
+  platform.student_profile_field_values,
+  platform.student_profile_field_decisions,
+  platform.student_profile_exports
+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
+GRANT SELECT ON TABLE
+  platform.student_profile_field_catalog,
+  platform.document_extraction_runs,
+  platform.document_extracted_facts,
+  platform.student_profile_field_values,
+  platform.student_profile_field_decisions,
+  platform.student_profile_exports
+TO authenticated;
+
+REVOKE ALL PRIVILEGES ON TABLE
+  platform_private.document_applicability_recompute_context,
+  platform_private.student_profile_export_storage_reservations,
+  platform_private.student_profile_export_storage_bindings,
+  platform_private.student_profile_export_download_grants,
+  platform_private.student_profile_export_download_consumptions
+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
+REVOKE ALL PRIVILEGES ON TYPE
+  platform.document_extraction_run_status,
+  platform.document_extracted_fact_status,
+  platform.student_profile_value_kind,
+  platform.student_profile_value_source,
+  platform.student_profile_field_decision_kind,
+  platform.student_profile_export_format,
+  platform.student_profile_export_status,
+  platform.document_requirement_applicability_rule,
+  platform.document_slot_applicability_status
+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
+GRANT USAGE ON TYPE
+  platform.document_extraction_run_status,
+  platform.document_extracted_fact_status,
+  platform.student_profile_value_kind,
+  platform.student_profile_value_source,
+  platform.student_profile_field_decision_kind,
+  platform.student_profile_export_format,
+  platform.student_profile_export_status,
+  platform.document_requirement_applicability_rule,
+  platform.document_slot_applicability_status
+TO authenticated;
+
+GRANT USAGE ON TYPE
+  platform.document_extraction_run_status,
+  platform.document_extracted_fact_status,
+  platform.student_profile_value_kind,
+  platform.student_profile_export_status
+TO service_role;
+
+REVOKE ALL ON FUNCTION
+  platform_private.student_profile_value_is_valid(
+    platform.student_profile_value_kind, JSONB
+  ),
+  platform_private.student_profile_catalog_value_is_valid(TEXT, JSONB),
+  platform_private.document_source_locator_is_valid(JSONB),
+  platform_private.resolve_document_applicability(
+    platform.document_requirement_applicability_rule, DATE, DATE
+  ),
+  platform_private.guard_bw8_extraction_run_mutation(),
+  platform_private.guard_bw8_extracted_fact_mutation(),
+  platform_private.guard_bw8_profile_field_value_mutation(),
+  platform_private.guard_bw8_profile_export_mutation(),
+  platform_private.guard_bw8_requirement_metadata(),
+  platform_private.guard_bw8_slot_applicability(),
+  platform_private.lock_bw8_request(UUID),
+  platform_private.require_bw8_case_actor(UUID, UUID, TEXT),
+  platform_private.project_bw8_profile_field(
+    UUID, UUID, UUID, TEXT, JSONB, UUID, BIGINT
+  ),
+  platform_private.enqueue_bw8_durable_work(
+    UUID, platform.durable_work_kind, UUID, UUID, UUID, TEXT, INTEGER,
+    UUID, platform.durable_work_operation
+  )
+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
+REVOKE ALL ON FUNCTION
+  private.platform_can_read_student_document_intelligence(UUID, UUID)
+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION
+  private.platform_can_read_student_document_intelligence(UUID, UUID)
+TO authenticated;
+
+REVOKE ALL ON FUNCTION
+  platform.enqueue_document_validation_work(UUID, UUID, TEXT, INTEGER, UUID),
+  platform.enqueue_document_extraction_work(UUID, UUID, TEXT, INTEGER, UUID),
+  platform.enqueue_student_profile_export_work(UUID, UUID, TEXT, INTEGER, UUID),
+  platform.create_document_extraction_run(
+    UUID, UUID, TEXT, TEXT, TEXT, INTEGER, UUID
+  ),
+  platform.transition_document_extraction_run(
+    UUID, UUID, platform.document_extraction_run_status,
+    platform.document_extraction_run_status, TEXT, TEXT, UUID
+  ),
+  platform.append_document_extracted_fact(
+    UUID, UUID, TEXT, platform.student_profile_value_kind,
+    JSONB, JSONB, NUMERIC, JSONB,
+    platform.document_extracted_fact_status, UUID
+  ),
+  platform.reserve_student_profile_export_storage(UUID, UUID, UUID),
+  platform.finalize_student_profile_export_storage(
+    UUID, UUID, TEXT, BIGINT, UUID
+  ),
+  platform.consume_student_profile_export_download_grant(UUID, TEXT, UUID),
+  platform.fail_student_profile_export(
+    UUID, UUID, platform.student_profile_export_status, TEXT, UUID
+  )
+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
+GRANT EXECUTE ON FUNCTION
+  platform.enqueue_document_validation_work(UUID, UUID, TEXT, INTEGER, UUID),
+  platform.enqueue_document_extraction_work(UUID, UUID, TEXT, INTEGER, UUID),
+  platform.enqueue_student_profile_export_work(UUID, UUID, TEXT, INTEGER, UUID),
+  platform.create_document_extraction_run(
+    UUID, UUID, TEXT, TEXT, TEXT, INTEGER, UUID
+  ),
+  platform.transition_document_extraction_run(
+    UUID, UUID, platform.document_extraction_run_status,
+    platform.document_extraction_run_status, TEXT, TEXT, UUID
+  ),
+  platform.append_document_extracted_fact(
+    UUID, UUID, TEXT, platform.student_profile_value_kind,
+    JSONB, JSONB, NUMERIC, JSONB,
+    platform.document_extracted_fact_status, UUID
+  ),
+  platform.reserve_student_profile_export_storage(UUID, UUID, UUID),
+  platform.finalize_student_profile_export_storage(
+    UUID, UUID, TEXT, BIGINT, UUID
+  ),
+  platform.consume_student_profile_export_download_grant(UUID, TEXT, UUID),
+  platform.fail_student_profile_export(
+    UUID, UUID, platform.student_profile_export_status, TEXT, UUID
+  )
+TO service_role;
+
+REVOKE ALL ON FUNCTION
+  platform.manual_edit_student_profile_field(
+    UUID, UUID, BIGINT, TEXT, platform.student_profile_value_kind,
+    JSONB, TEXT, UUID
+  ),
+  platform.confirm_student_profile_extracted_fact(
+    UUID, UUID, UUID, BIGINT, TEXT, UUID
+  ),
+  platform.reject_student_profile_extracted_fact(
+    UUID, UUID, UUID, BIGINT, TEXT, UUID
+  ),
+  platform.create_china_student_document_overlay(
+    UUID, TEXT, TEXT, BIGINT, UUID, TEXT, UUID
+  ),
+  platform.apply_china_student_document_overlay(
+    UUID, UUID, UUID, TEXT, UUID
+  ),
+  platform.recompute_student_document_applicability(
+    UUID, UUID, BIGINT, DATE, TIMESTAMPTZ, TEXT, TEXT, UUID
+  ),
+  platform.request_student_profile_export(
+    UUID, UUID, BIGINT, TEXT, TEXT, TEXT,
+    platform.student_profile_export_format, TEXT, TEXT, UUID
+  ),
+  platform.grant_student_profile_export_download(
+    UUID, UUID, TEXT, INTEGER, UUID
+  )
+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
+GRANT EXECUTE ON FUNCTION
+  platform.manual_edit_student_profile_field(
+    UUID, UUID, BIGINT, TEXT, platform.student_profile_value_kind,
+    JSONB, TEXT, UUID
+  ),
+  platform.confirm_student_profile_extracted_fact(
+    UUID, UUID, UUID, BIGINT, TEXT, UUID
+  ),
+  platform.reject_student_profile_extracted_fact(
+    UUID, UUID, UUID, BIGINT, TEXT, UUID
+  ),
+  platform.create_china_student_document_overlay(
+    UUID, TEXT, TEXT, BIGINT, UUID, TEXT, UUID
+  ),
+  platform.apply_china_student_document_overlay(
+    UUID, UUID, UUID, TEXT, UUID
+  ),
+  platform.recompute_student_document_applicability(
+    UUID, UUID, BIGINT, DATE, TIMESTAMPTZ, TEXT, TEXT, UUID
+  ),
+  platform.request_student_profile_export(
+    UUID, UUID, BIGINT, TEXT, TEXT, TEXT,
+    platform.student_profile_export_format, TEXT, TEXT, UUID
+  ),
+  platform.grant_student_profile_export_download(
+    UUID, UUID, TEXT, INTEGER, UUID
+  )
+TO authenticated;
+
+COMMENT ON TABLE platform.document_extraction_runs IS
+  'Document-version extraction request/outcome envelope. Identity and evidence are immutable; only controlled monotonic status transitions are allowed.';
+COMMENT ON TABLE platform.document_extracted_facts IS
+  'Typed evidence candidates from one immutable document version; no row is canonical until an authorized human decision.';
+COMMENT ON TABLE platform.student_profile_field_values IS
+  'Current typed confirmed field values for one existing Student Profile, with field and global profile revisions plus provenance.';
+COMMENT ON TABLE platform.student_profile_field_decisions IS
+  'Append-only exact human confirm, reject, manual-edit and supersede evidence.';
+COMMENT ON TABLE platform.student_profile_exports IS
+  'Exact profile/template revision export requests and immutable terminal DOCX/PDF evidence; outputs are generated drafts, never implicitly signed or approved.';
+COMMENT ON FUNCTION platform_private.resolve_document_applicability(
+  platform.document_requirement_applicability_rule, DATE, DATE
+) IS
+  'Deterministic resolver: always is independent, contract/payment is required only when its reviewed gate date exists, and minor-only uses DOB plus an explicit as-of date.';
+COMMENT ON FUNCTION platform.recompute_student_document_applicability(
+  UUID, UUID, BIGINT, DATE, TIMESTAMPTZ, TEXT, TEXT, UUID
+) IS
+  'Reviewed, replay-safe Admin or assigned-Curator recompute of pinned slot applicability after profile DOB or evidenced contract/payment state changes.';
+COMMENT ON FUNCTION platform.create_china_student_document_overlay(
+  UUID, TEXT, TEXT, BIGINT, UUID, TEXT, UUID
+) IS
+  'Admin-only materialization of the exact reviewed 14-item public China source into the existing country requirement and document requirement identities.';
+
+COMMIT;

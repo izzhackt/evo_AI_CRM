@@ -382,6 +382,22 @@ test("minor-only applicability uses the exact as-of date and fails closed on unk
   );
   assert.deepEqual(
     derivePlatformDocumentRequirementApplicability(
+      "original_birth_certificate",
+      "2008-08-06",
+      null,
+    ),
+    { state: "pending_information", reason: "as_of_date_invalid" },
+  );
+  assert.deepEqual(
+    derivePlatformDocumentRequirementApplicability(
+      "original_birth_certificate",
+      "1900-01-01",
+      "2026-08-05",
+    ),
+    { state: "pending_information", reason: "date_of_birth_invalid" },
+  );
+  assert.deepEqual(
+    derivePlatformDocumentRequirementApplicability(
       "passport",
       null,
       "not-a-date",
@@ -402,7 +418,7 @@ test("minor-only applicability uses the exact as-of date and fails closed on unk
       "2026-08-05",
       null,
     ),
-    { state: "pending_information", reason: "contract_payment_status_missing" },
+    { state: "not_required", reason: "contract_payment_incomplete" },
   );
   assert.deepEqual(
     derivePlatformDocumentRequirementApplicability(

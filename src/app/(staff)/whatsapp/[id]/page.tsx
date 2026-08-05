@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { PlatformConversationView } from "@/components/platform/communications/PlatformConversationView";
+import type { PlatformAmoCrmMappingUiWorkspace } from "@/components/platform/communications/PlatformAmoCrmMappingPanel";
 import { getT } from "@/lib/i18n";
 import {
   getPlatformConversationThread,
@@ -14,6 +15,11 @@ import {
 } from "@/lib/platform-messaging-workflow";
 import { getPlatformConversationBw4Workspace } from "@/lib/platform-bw4-workflow";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
+import {
+  readPlatformAmoCrmMappingApprovalWorkspace,
+  readPlatformAmoCrmMappingStateForConversation,
+} from "@/lib/server/platform-amocrm-mapping-repository";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { CommunicationsSourceDisclosure } from "../CommunicationsSourceDisclosure";
 
@@ -66,6 +72,35 @@ export default async function ConversationPage({
     ]);
   if (!thread || !workflow) notFound();
 
+  let amocrmMappingWorkspace: PlatformAmoCrmMappingUiWorkspace;
+  if (thread.conversation.amocrmAccountId === null) {
+    amocrmMappingWorkspace = { kind: "account_unlinked" };
+  } else {
+    try {
+      const client = await createSupabaseServerClient();
+      if (actor.platformRole === "admin") {
+        amocrmMappingWorkspace = {
+          kind: "admin",
+          workspace: await readPlatformAmoCrmMappingApprovalWorkspace(client, {
+            organizationId: actor.organizationId,
+            conversationId: thread.conversation.id,
+          }),
+        };
+      } else {
+        const state = await readPlatformAmoCrmMappingStateForConversation(client, {
+          organizationId: actor.organizationId,
+          conversationId: thread.conversation.id,
+        });
+        amocrmMappingWorkspace = {
+          kind: "staff",
+          state: { mappingState: state.mappingState },
+        };
+      }
+    } catch {
+      amocrmMappingWorkspace = { kind: "unavailable" };
+    }
+  }
+
   return (
     <div className="space-y-4" data-testid="whatsapp-conversation">
       <CommunicationsSourceDisclosure
@@ -80,6 +115,7 @@ export default async function ConversationPage({
         workflow={workflow}
         knowledge={knowledge}
         bw4Workspace={bw4Workspace}
+        amocrmMappingWorkspace={amocrmMappingWorkspace}
         decisionMutationOutcome={decisionMutationOutcome(
           resolvedSearchParams.result,
         )}

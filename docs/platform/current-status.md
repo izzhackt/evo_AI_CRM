@@ -12,9 +12,9 @@
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current merged checkpoint: `bb9d766163267846f406dcc376e893bb2a914af4`
+- Current merged checkpoint: `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`
 - Active plan block:
-  `EVO-P2R4-LOCAL-VALIDATION-PREREQUISITE-2026-08-05`
+  `EVO-P4B-AMOCRM-MAPPING-SELECTION-APPROVAL-2026-08-05`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -39,14 +39,18 @@ PR #119 остаётся immutable history, но его in-repository Student Pr
 document reading/extraction/autofill/export scope superseded решением owner-а:
 эта автоматизация принадлежит отдельной системе вне `evo_AI_CRM`. PRs
 #125-#127 отменили зависимые PRs #124, #122 и #120, а PR #128 controller-merged
-корректную продуктовую границу. Текущий main —
-`bb9d766163267846f406dcc376e893bb2a914af4`, exact-main CI
-`31012015566` зелёный, migrations остаются `001-058`. На этом неизменённом main
-точный `npm run test:supabase:local` с Node `22.23.1`, local Supabase CLI
-`2.110.0` и Docker context `orbstack` завершился `RC=1` после bounded
-`supabase start`; штатная очистка оставила 0 Platform resources/lock/process и
-не изменила Inbox resource set. Поэтому текущий docs-only gate разрешает только
-последующий двухфайловый ремонт local validation перед P4B.
+корректную продуктовую границу. PR #129 controller-merged ограниченный P2R4
+repair contract, а PR #130 controller-merged сам двухфайловый local validation
+harness repair. Текущий main —
+`4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`; exact-main CI run
+`31038964366` зелёный. Controller получил чистый local Supabase gate для
+migrations `001-058`, шести service readiness probes и 22/22 browser tests;
+cleanup оставил 0 Platform resources/lock/process и сохранил прежний Inbox
+resource fingerprint `12/3/1`. Это local-only evidence: managed Supabase,
+staging и providers не проверялись. Текущий unmerged P4B worktree предлагает
+forward migration `059` и wiring Admin review в существующий `/whatsapp` UI;
+его доказательства ещё должны пройти локальные gates, independent exact-SHA
+review и merge controller.
 Staging, real provider discovery, managed apply и customer delivery остаются
 blocked до отдельной авторизации и доказательств. Former P2I restore duties
 остаются в P7.
@@ -72,9 +76,9 @@ blocked до отдельной авторизации и доказательс
 | BW6 contract/report | PR #114 controller-merged migration 057, contract repository/actions and the existing Student 360 route for typed approved-field contract drafts plus audited post-contract checklist/report | independent exact-SHA review, controller gates and exact-main CI `30918820654` passed; this is not a signed legal contract, PDF/DOCX/e-sign, provider, managed Supabase or production proof |
 | BW7 integration proof | PR #116 connected Student 360 assignment state and proved one synthetic case across Sales draft → Admin assignment/portal activation → Curator checklist/report → Student Portal → limited Sales summary | independent review/controller gates, real disposable local Supabase/Auth/RLS browser gate 28/28 and exact-main CI `30934111632` passed; persistent staging/provider/production proof remains absent |
 | P4A amoCRM mapping discovery | PR #117 merged migration 058 with immutable sanitized account-specific snapshots, service-only ingest, live-authority Admin reads and a GET-only bounded server adapter | independent exact-head review, controller full local Supabase RC=0 with 58 migrations and 28/28 browser scenarios, and exact-main CI `30958119076` passed; real amoCRM account proof remains blocked |
-| P4B mapping selection/approval plan | PR #118 merged the docs-only contract separating immutable discovery evidence from append-only Admin approval events and a deterministic current messaging selection behind the accepted `/whatsapp` seam | P4B waits for P2R4 merge and exact-main local proof; it must then recheck fresh-main ownership; no managed Supabase or provider proof |
+| P4B mapping selection/approval plan | PR #118 merged the docs-only contract separating immutable discovery evidence from append-only Admin approval events and a deterministic current messaging selection behind the accepted `/whatsapp` seam | P2R4 is merged and exact-main local proof is green; current unmerged P4B work proposes migration 059 and existing-UI wiring, but still requires local gates, independent exact-SHA review and controller merge; no managed Supabase or provider proof |
 | PR #128 boundary correction | Student Profile document reading, extraction, autofill and form export moved to a separate system outside this repository; ordinary Platform document lifecycle remains | merged docs-only authority correction; no automatic data exchange, runtime dependency, provider call, customer-data action or production mutation |
-| P2R4 local validation prerequisite | Fresh unchanged-main OrbStack gate exits `1` at bounded local startup; cleanup leaves zero exact Platform resources and preserves Inbox | docs-only plan authorizes a later repair only in the local harness script and its focused test; no migration/product/provider/production change |
+| P2R4 local validation repair | PR #129 merged the bounded prerequisite as `437bd855c0b830c054a496c16bc2adf6dfe88731`; PR #130 merged the two-file harness repair as current main `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8` | controller proved six service probes, migrations 001–058 and 22/22 browser tests with zero residual Platform resources; exact-main CI `31038964366` green; no migration/product/provider/production change |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до bounded cutover evidence and rollback gate |
@@ -131,8 +135,9 @@ P4B docs-only selection/approval contract:
   соединяет принятые RPC/RLS contracts с существующим frontend; merged P4A
   добавляет только forward migration 058 для private sanitized mapping
   discovery versions; PR #118's P4B plan, merged PR #128 boundary correction и
-  текущий P2R4 docs-only prerequisite не добавляют migration; после P2R4
-  следующий P4B implementation обязан заново подтвердить next-free номер;
+  merged P2R4 prerequisite/repair не добавляют migration; current unmerged P4B
+  implementation подтвердил на fresh main next-free номер `059`, но этот номер
+  станет shared authority только после independent review и controller merge;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;
@@ -199,24 +204,21 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — merge docs-only P2R4 prerequisite. Затем свежий worktree может
-изменить только `scripts/test-supabase-local-reset.sh` и
-`tests/supabase-local-reset-harness.test.mjs`: CLI-supported
-`start --ignore-health-check` допускается лишь вместе с bounded fail-closed
-readiness для Database/PostgREST/Auth/Storage/Kong/CLI status; unknown failures
-не retry. Executor и independent controller должны по одному разу получить
-чистый `npm run test:supabase:local` exit `0`, gates для migrations `001-058`,
-Auth/RLS/Storage/PGMQ/browser, 0 Platform resources/lock после cleanup и
-идентичный Inbox resource fingerprint.
+Текущий gate — P4B implementation: current same-organization Admin выбирает и
+одобряет одну P4A discovery version для `messaging`; решения append-only,
+replay-safe и audit-linked, current selection определяется последним событием,
+а no-approved state fail-closed. Sales/Curator получают только bounded
+conversation-scoped state; account IDs, discovery evidence и internal event IDs
+остаются в отдельном Admin-only workspace. UI остаётся существующим
+`/whatsapp/[id]`, а configured mapping явно маркируется как unverified.
 
-Только после P2R4 controller merge и зелёного exact-main CI открывается P4B:
-current same-organization Admin выбирает и одобряет одну P4A discovery version
-для `messaging`, решения append-only, current selection детерминированный, а
-no-approved state fail-closed. P4B заново проверяет fresh-main migration
-ownership; `059` не reserved. Persistent staging и реальный amoCRM discovery
-остаются blockers до credentials, sanitized test account и отдельной
-авторизации. Real WAHA/AI/ACK proof остаётся P5, restore duties — P7, а
-production cutover — отдельным authorized event.
+До PR требуются чистые migration/RLS, local Supabase/Auth/PostgREST/Storage/
+PGMQ/browser gates, build/lint/unit/security checks и отсутствие residual
+Platform resources. Затем обязательны independent exact-head review, четыре
+зелёных PR CI jobs и отдельный merge controller. Persistent staging и реальный
+amoCRM discovery остаются blockers до credentials, sanitized test account и
+отдельной авторизации. Real WAHA/AI/ACK proof остаётся P5, restore duties — P7,
+а production cutover — отдельным authorized event.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой
 exact deployed revision, private network, provider readiness и full E2E.

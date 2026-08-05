@@ -1,4 +1,5 @@
 import { AutoRefresh } from "@/components/AutoRefresh";
+import type { PlatformAmoCrmMappingUiWorkspace } from "@/components/platform/communications/PlatformAmoCrmMappingPanel";
 import { PlatformMessagingWorkflowPanel } from "@/components/platform/communications/PlatformMessagingWorkflowPanel";
 import { PlatformWaList } from "@/components/platform/communications/PlatformWaList";
 import { EmptyState, cn } from "@/components/ui";
@@ -48,6 +49,7 @@ export async function PlatformConversationView({
   workflow,
   knowledge,
   bw4Workspace,
+  amocrmMappingWorkspace,
   decisionMutationOutcome,
 }: {
   conversations: readonly PlatformConversationSummary[];
@@ -56,6 +58,7 @@ export async function PlatformConversationView({
   workflow: PlatformConversationWorkflow;
   knowledge: readonly PlatformKnowledgeCatalogItem[];
   bw4Workspace: PlatformConversationBw4Workspace | null;
+  amocrmMappingWorkspace: PlatformAmoCrmMappingUiWorkspace;
   decisionMutationOutcome: "saved" | "invalid" | "unavailable" | null;
 }) {
   const { t, locale } = await getT();
@@ -123,6 +126,64 @@ export async function PlatformConversationView({
     platformActionInvalid: t("platformActionInvalid"),
     platformActionUnavailable: t("platformActionUnavailable"),
     platformAuditLatest: t("platformAuditLatest"),
+    platformAmoMappingTitle: t("platformAmoMappingTitle"),
+    platformAmoMappingHint: t("platformAmoMappingHint"),
+    platformAmoMappingConfiguredUnverified: t(
+      "platformAmoMappingConfiguredUnverified",
+    ),
+    platformAmoMappingConfiguredUnverifiedHint: t(
+      "platformAmoMappingConfiguredUnverifiedHint",
+    ),
+    platformAmoMappingAccountUnlinked: t("platformAmoMappingAccountUnlinked"),
+    platformAmoMappingDiscoveryMissing: t("platformAmoMappingDiscoveryMissing"),
+    platformAmoMappingNotApproved: t("platformAmoMappingNotApproved"),
+    platformAmoMappingUnavailable: t("platformAmoMappingUnavailable"),
+    platformAmoMappingBlockedHint: t("platformAmoMappingBlockedHint"),
+    platformAmoMappingActionApproved: t("platformAmoMappingActionApproved"),
+    platformAmoMappingActionRevoked: t("platformAmoMappingActionRevoked"),
+    platformAmoMappingActionInvalid: t("platformAmoMappingActionInvalid"),
+    platformAmoMappingActionUnavailable: t(
+      "platformAmoMappingActionUnavailable",
+    ),
+    platformAmoMappingAccount: t("platformAmoMappingAccount"),
+    platformAmoMappingDiscoveryVersion: t(
+      "platformAmoMappingDiscoveryVersion",
+    ),
+    platformAmoMappingDiscoveryEvidence: t(
+      "platformAmoMappingDiscoveryEvidence",
+    ),
+    platformAmoMappingDiscoveryProviderObserved: t(
+      "platformAmoMappingDiscoveryProviderObserved",
+    ),
+    platformAmoMappingDiscoveryLocalOnly: t(
+      "platformAmoMappingDiscoveryLocalOnly",
+    ),
+    platformAmoMappingLatestDecision: t("platformAmoMappingLatestDecision"),
+    platformAmoMappingApprovedEvent: t("platformAmoMappingApprovedEvent"),
+    platformAmoMappingRevokedEvent: t("platformAmoMappingRevokedEvent"),
+    platformAmoMappingNoDecision: t("platformAmoMappingNoDecision"),
+    platformAmoMappingPipeline: t("platformAmoMappingPipeline"),
+    platformAmoMappingSignedContractStatus: t(
+      "platformAmoMappingSignedContractStatus",
+    ),
+    platformAmoMappingResponsibleSource: t(
+      "platformAmoMappingResponsibleSource",
+    ),
+    platformAmoMappingLeadBindings: t("platformAmoMappingLeadBindings"),
+    platformAmoMappingContactBindings: t("platformAmoMappingContactBindings"),
+    platformAmoMappingBindingHint: t("platformAmoMappingBindingHint"),
+    platformAmoMappingBindingKey: t("platformAmoMappingBindingKey"),
+    platformAmoMappingProviderField: t("platformAmoMappingProviderField"),
+    platformAmoMappingRemoveBinding: t("platformAmoMappingRemoveBinding"),
+    platformAmoMappingAddBinding: t("platformAmoMappingAddBinding"),
+    platformAmoMappingReason: t("platformAmoMappingReason"),
+    platformAmoMappingIncompleteDiscovery: t(
+      "platformAmoMappingIncompleteDiscovery",
+    ),
+    platformAmoMappingApprove: t("platformAmoMappingApprove"),
+    platformAmoMappingSupersede: t("platformAmoMappingSupersede"),
+    platformAmoMappingRevokeReason: t("platformAmoMappingRevokeReason"),
+    platformAmoMappingRevoke: t("platformAmoMappingRevoke"),
     platformLanguageGateTitle: t("platformLanguageGateTitle"),
     platformLanguageGateRuEn: t("platformLanguageGateRuEn"),
     platformLanguageManualRequired: t("platformLanguageManualRequired"),
@@ -393,6 +454,7 @@ export async function PlatformConversationView({
           initialWorkflow={workflow}
           knowledge={knowledge}
           bw4Workspace={bw4Workspace}
+          amocrmMappingWorkspace={amocrmMappingWorkspace}
           locale={locale}
           decisionMutationOutcome={decisionMutationOutcome}
           labels={workflowLabels}

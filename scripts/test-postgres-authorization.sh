@@ -7,6 +7,7 @@ container_name="evo-platform-authz-$RANDOM-$$"
 postgres_image="$("$repo_root/scripts/resolve-postgres-test-image.sh")"
 test_database="evo_platform_authorization"
 health_timeout_seconds="${EVO_POSTGRES_HEALTH_TIMEOUT_SECONDS:-300}"
+docker_exec_timeout_ms="${EVO_POSTGRES_DOCKER_EXEC_TIMEOUT_MS:-180000}"
 p2b_drift_log="$(mktemp -t evo-p2b-owner-drift.XXXXXX)"
 p2h_acl_mutation_log="$(mktemp -t evo-p2h-acl-mutation.XXXXXX)"
 p2h_policy_mutation_log="$(mktemp -t evo-p2h-policy-mutation.XXXXXX)"
@@ -34,6 +35,24 @@ if [[ ! "$health_timeout_seconds" =~ ^[0-9]+$ ]] \
   echo "EVO_POSTGRES_HEALTH_TIMEOUT_SECONDS must be an integer from 60 to 600" >&2
   exit 1
 fi
+
+if [[ ! "$docker_exec_timeout_ms" =~ ^[0-9]+$ ]] \
+  || (( docker_exec_timeout_ms < 1000 || docker_exec_timeout_ms > 600000 )); then
+  echo \
+    "EVO_POSTGRES_DOCKER_EXEC_TIMEOUT_MS must be an integer from 1000 to 600000" \
+    >&2
+  exit 1
+fi
+
+docker() {
+  if [[ "${1:-}" == "exec" ]]; then
+    shift
+    node "$deadline_runner" "$docker_exec_timeout_ms" docker exec "$@"
+    return
+  fi
+
+  command docker "$@"
+}
 
 node "$deadline_runner" 120000 docker run \
   --detach \
@@ -602,6 +621,19 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_amocrm_mapping_discovery_rls.sql
+  fi
+
+  # P4B owns migration 059's private append-only mapping decision ledger,
+  # deterministic no-resurrection projection and conversation-scoped
+  # Admin approval boundary. Run both suites at the exact migration boundary
+  # so later provider work cannot mask ACL, concurrency or audit drift.
+  if [[ "$(basename "$migration")" == 059_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_amocrm_mapping_approval_inventory.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_amocrm_mapping_approval_rls.sql
   fi
 done < <(
   cd "$repo_root"

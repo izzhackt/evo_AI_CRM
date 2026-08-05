@@ -18,14 +18,24 @@ import {
 } from "../src/lib/server/platform-amocrm-discovery-client.ts";
 import {
   PlatformAmoCrmMappingRepositoryError,
+  approvePlatformAmoCrmMappingSelection,
+  normalizePlatformAmoCrmMappingApprovalEvent,
+  normalizePlatformAmoCrmMappingApprovalWorkspace,
+  normalizePlatformAmoCrmSelectedBindings,
   persistPlatformAmoCrmMappingDiscovery,
+  readPlatformAmoCrmMappingApprovalWorkspace,
   readPlatformAmoCrmMappingDiscoveryVersion,
+  readPlatformAmoCrmMappingStateForConversation,
+  revokePlatformAmoCrmMappingSelection,
 } from "../src/lib/server/platform-amocrm-mapping-repository.ts";
 
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const REQUEST_ID = "22222222-2222-4222-8222-222222222222";
 const VERSION_ID = "33333333-3333-4333-8333-333333333333";
 const ACCOUNT_ID = "10000001";
+const CONVERSATION_ID = "44444444-4444-4444-8444-444444444444";
+const EVENT_ID = "55555555-5555-4555-8555-555555555555";
+const ACTOR_PROFILE_ID = "66666666-6666-4666-8666-666666666666";
 
 function providerResponses(overrides = {}) {
   return {
@@ -433,7 +443,22 @@ function fakeSupabaseClient(handler) {
       assert.equal(schemaName, "platform");
       return {
         rpc(name, args, options) {
-          return handler(name, args, options);
+          let retryEnabled;
+          let result;
+          const execute = () => {
+            result ??= Promise.resolve().then(() =>
+              handler(name, args, options, retryEnabled));
+            return result;
+          };
+          return {
+            retry(enabled) {
+              retryEnabled = enabled;
+              return this;
+            },
+            then(onFulfilled, onRejected) {
+              return execute().then(onFulfilled, onRejected);
+            },
+          };
         },
       };
     },
@@ -517,6 +542,336 @@ test("repository adapters fail closed on errors, mismatches and malformed rows",
     }),
     PlatformAmoCrmMappingRepositoryError,
   );
+});
+
+function selectedBindingsRow(overrides = {}) {
+  return {
+    pipeline_id: "2002",
+    signed_contract_status_id: "3002",
+    responsible_user_source: "lead.responsible_user_id",
+    lead_custom_fields: [{ binding_key: "target_country", field_id: "5001" }],
+    contact_custom_fields: [{ binding_key: "primary_phone", field_id: "6001" }],
+    ...overrides,
+  };
+}
+
+function mappingStateRow(overrides = {}) {
+  return {
+    organization_id: ORGANIZATION_ID,
+    conversation_id: CONVERSATION_ID,
+    mapping_use: "messaging",
+    mapping_state: "not_approved",
+    ...overrides,
+  };
+}
+
+function adminWorkspaceRow(overrides = {}) {
+  return {
+    ...mappingStateRow(),
+    amocrm_account_id: ACCOUNT_ID,
+    review_discovery_version_id: VERSION_ID,
+    review_discovery_version: 1,
+    review_account_domain: "evo-admissions.amocrm.ru",
+    review_account_subdomain: "evo-admissions",
+    review_sanitized_snapshot: validSnapshot(),
+    review_snapshot_sha256: "a".repeat(64),
+    review_evidence_kind: "local_non_provider",
+    review_evidence_ref: "tests/platform-amocrm-discovery.test.mjs",
+    review_discovered_at: "2026-08-04T01:02:03Z",
+    current_event_id: null,
+    current_event_kind: null,
+    current_discovery_version_id: null,
+    current_discovery_version: null,
+    current_selected_bindings: null,
+    current_reason: null,
+    current_actor_profile_id: null,
+    current_request_id: null,
+    current_created_at: null,
+    ...overrides,
+  };
+}
+
+function approvalEventRow(overrides = {}) {
+  return {
+    approval_event_id: EVENT_ID,
+    organization_id: ORGANIZATION_ID,
+    amocrm_account_id: ACCOUNT_ID,
+    mapping_use: "messaging",
+    event_version: 1,
+    event_kind: "approved",
+    discovery_version_id: VERSION_ID,
+    discovery_version: 1,
+    selected_bindings: selectedBindingsRow(),
+    prior_event_id: null,
+    actor_profile_id: ACTOR_PROFILE_ID,
+    reason: "Reviewed account-specific mapping",
+    request_id: REQUEST_ID,
+    created_at: "2026-08-05T01:02:03.123456Z",
+    mapping_state: "approved_configured_unverified",
+    ...overrides,
+  };
+}
+
+test("normalizes generic selected bindings without inventing global semantic keys", () => {
+  const selected = normalizePlatformAmoCrmSelectedBindings(selectedBindingsRow());
+  assert.equal(selected.pipelineId, "2002");
+  assert.equal(selected.signedContractStatusId, "3002");
+  assert.deepEqual(selected.leadCustomFields, [
+    { bindingKey: "target_country", fieldId: "5001" },
+  ]);
+  assert.deepEqual(selected.contactCustomFields, [
+    { bindingKey: "primary_phone", fieldId: "6001" },
+  ]);
+
+  for (const rejected of [
+    selectedBindingsRow({ lead_custom_fields: [] }),
+    selectedBindingsRow({ responsible_user_source: "user.id" }),
+    selectedBindingsRow({
+      contact_custom_fields: [{ binding_key: "target_country", field_id: "6001" }],
+    }),
+    selectedBindingsRow({
+      lead_custom_fields: [{ binding_key: "Target Country", field_id: "5001" }],
+    }),
+  ]) {
+    assert.throws(
+      () => normalizePlatformAmoCrmSelectedBindings(rejected),
+      PlatformAmoCrmMappingRepositoryError,
+    );
+  }
+});
+
+test("reads only the bounded conversation mapping state for authorized staff", async () => {
+  let receipt;
+  const client = fakeSupabaseClient(async (name, args, options) => {
+    receipt = { name, args, options };
+    return { data: [mappingStateRow()], error: null };
+  });
+  const state = await readPlatformAmoCrmMappingStateForConversation(client, {
+    organizationId: ORGANIZATION_ID,
+    conversationId: CONVERSATION_ID,
+  });
+  assert.deepEqual(receipt, {
+    name: "amocrm_mapping_state_for_conversation",
+    args: {
+      p_organization_id: ORGANIZATION_ID,
+      p_conversation_id: CONVERSATION_ID,
+    },
+    options: { get: true },
+  });
+  assert.equal(state.mappingState, "not_approved");
+  assert.deepEqual(Object.keys(state).sort(), [
+    "conversationId",
+    "mappingState",
+    "mappingUse",
+    "organizationId",
+  ]);
+});
+
+test("normalizes Admin review workspace and keeps revoked latest-event concurrency evidence", () => {
+  const workspace = normalizePlatformAmoCrmMappingApprovalWorkspace(
+    adminWorkspaceRow({
+      current_event_id: EVENT_ID,
+      current_event_kind: "revoked",
+      current_discovery_version_id: VERSION_ID,
+      current_discovery_version: 1,
+      current_selected_bindings: selectedBindingsRow(),
+      current_reason: "Mapping revoked after review",
+      current_actor_profile_id: ACTOR_PROFILE_ID,
+      current_request_id: REQUEST_ID,
+      current_created_at: "2026-08-05T01:02:03Z",
+    }),
+  );
+  assert.equal(workspace.mappingState, "not_approved");
+  assert.equal(workspace.reviewDiscovery.version, 1);
+  assert.equal(workspace.latestDecision.eventKind, "revoked");
+  assert.equal(workspace.latestDecision.eventId, EVENT_ID);
+
+  const withoutDiscovery = normalizePlatformAmoCrmMappingApprovalWorkspace(
+    adminWorkspaceRow({
+      review_discovery_version_id: null,
+      review_discovery_version: null,
+      review_account_domain: null,
+      review_account_subdomain: null,
+      review_sanitized_snapshot: null,
+      review_snapshot_sha256: null,
+      review_evidence_kind: null,
+      review_evidence_ref: null,
+      review_discovered_at: null,
+    }),
+  );
+  assert.equal(withoutDiscovery.reviewDiscovery, null);
+});
+
+test("Admin workspace RPC is exact-scope and rejects response scope drift", async () => {
+  let receipt;
+  const client = fakeSupabaseClient(async (name, args, options) => {
+    receipt = { name, args, options };
+    return { data: [adminWorkspaceRow()], error: null };
+  });
+  const workspace = await readPlatformAmoCrmMappingApprovalWorkspace(client, {
+    organizationId: ORGANIZATION_ID,
+    conversationId: CONVERSATION_ID,
+    discoveryVersionId: VERSION_ID,
+  });
+  assert.equal(workspace.reviewDiscovery.discoveryVersionId, VERSION_ID);
+  assert.deepEqual(receipt, {
+    name: "admin_amocrm_mapping_approval_workspace",
+    args: {
+      p_organization_id: ORGANIZATION_ID,
+      p_conversation_id: CONVERSATION_ID,
+      p_discovery_version_id: VERSION_ID,
+    },
+    options: { get: true },
+  });
+
+  let defaultedReceipt;
+  const defaulted = fakeSupabaseClient(async (name, args, options) => {
+    defaultedReceipt = { name, args, options };
+    return { data: [adminWorkspaceRow()], error: null };
+  });
+  await readPlatformAmoCrmMappingApprovalWorkspace(defaulted, {
+    organizationId: ORGANIZATION_ID,
+    conversationId: CONVERSATION_ID,
+  });
+  assert.deepEqual(defaultedReceipt, {
+    name: "admin_amocrm_mapping_approval_workspace",
+    args: {
+      p_organization_id: ORGANIZATION_ID,
+      p_conversation_id: CONVERSATION_ID,
+    },
+    options: { get: true },
+  });
+
+  const drift = fakeSupabaseClient(async () => ({
+    data: [adminWorkspaceRow({ conversation_id: ACTOR_PROFILE_ID })],
+    error: null,
+  }));
+  await assert.rejects(
+    () => readPlatformAmoCrmMappingApprovalWorkspace(drift, {
+      organizationId: ORGANIZATION_ID,
+      conversationId: CONVERSATION_ID,
+    }),
+    PlatformAmoCrmMappingRepositoryError,
+  );
+});
+
+test("approve and revoke adapters keep immutable receipts separate from current state", async () => {
+  const selectedBindings = normalizePlatformAmoCrmSelectedBindings(
+    selectedBindingsRow(),
+  );
+  const receipts = [];
+  const client = fakeSupabaseClient(async (name, args, options, retryEnabled) => {
+    receipts.push({ name, args, options, retryEnabled });
+    if (name === "approve_amocrm_mapping_selection") {
+      return { data: [approvalEventRow()], error: null };
+    }
+    return {
+      data: [approvalEventRow({
+        approval_event_id: "77777777-7777-4777-8777-777777777777",
+        event_version: 2,
+        event_kind: "revoked",
+        prior_event_id: EVENT_ID,
+        reason: "Revoke after explicit review",
+        mapping_state: "not_approved",
+      })],
+      error: null,
+    };
+  });
+  const approved = await approvePlatformAmoCrmMappingSelection(client, {
+    organizationId: ORGANIZATION_ID,
+    conversationId: CONVERSATION_ID,
+    amocrmAccountId: ACCOUNT_ID,
+    discoveryVersionId: VERSION_ID,
+    selectedBindings,
+    expectedPriorEventId: null,
+    reason: "Reviewed account-specific mapping",
+    requestId: REQUEST_ID,
+  });
+  assert.equal(approved.eventKind, "approved");
+  assert.deepEqual(receipts[0], {
+    name: "approve_amocrm_mapping_selection",
+    args: {
+      p_organization_id: ORGANIZATION_ID,
+      p_conversation_id: CONVERSATION_ID,
+      p_discovery_version_id: VERSION_ID,
+      p_selected_bindings: selectedBindingsRow(),
+      p_expected_prior_event_id: null,
+      p_reason: "Reviewed account-specific mapping",
+      p_request_id: REQUEST_ID,
+    },
+    options: undefined,
+    retryEnabled: false,
+  });
+
+  const revoked = await revokePlatformAmoCrmMappingSelection(client, {
+    organizationId: ORGANIZATION_ID,
+    conversationId: CONVERSATION_ID,
+    amocrmAccountId: ACCOUNT_ID,
+    expectedPriorEventId: EVENT_ID,
+    reason: "Revoke after explicit review",
+    requestId: REQUEST_ID,
+  });
+  assert.equal(revoked.eventKind, "revoked");
+  assert.equal(receipts[1].name, "revoke_amocrm_mapping_selection");
+  assert.equal(receipts[1].args.p_expected_prior_event_id, EVENT_ID);
+  assert.equal(receipts[1].retryEnabled, false);
+
+  const replayedApprovalAfterRevoke = normalizePlatformAmoCrmMappingApprovalEvent(
+    approvalEventRow({ mapping_state: "not_approved" }),
+  );
+  assert.equal(replayedApprovalAfterRevoke.eventKind, "approved");
+  assert.equal(replayedApprovalAfterRevoke.mappingState, "not_approved");
+
+  const replayedRevokeAfterApproval = normalizePlatformAmoCrmMappingApprovalEvent(
+    approvalEventRow({
+      approval_event_id: "77777777-7777-4777-8777-777777777777",
+      event_version: 2,
+      event_kind: "revoked",
+      prior_event_id: EVENT_ID,
+      reason: "Revoke after explicit review",
+      mapping_state: "approved_configured_unverified",
+    }),
+  );
+  assert.equal(replayedRevokeAfterApproval.eventKind, "revoked");
+  assert.equal(
+    replayedRevokeAfterApproval.mappingState,
+    "approved_configured_unverified",
+  );
+});
+
+test("P4B app seam stays on Platform auth, persisted state, and non-provider truth", async () => {
+  const paths = [
+    new URL("../src/lib/platform-amocrm-approval-actions.ts", import.meta.url),
+    new URL("../src/app/(staff)/whatsapp/[id]/page.tsx", import.meta.url),
+    new URL(
+      "../src/components/platform/communications/PlatformAmoCrmMappingPanel.tsx",
+      import.meta.url,
+    ),
+  ];
+  const [actionSource, pageSource, panelSource] = await Promise.all(
+    paths.map((path) => readFile(path, "utf8")),
+  );
+  assert.match(actionSource, /requirePlatformMessagingActor/);
+  assert.match(actionSource, /actor\.platformRole !== "admin"/);
+  assert.match(actionSource, /approvePlatformAmoCrmMappingSelection/);
+  assert.match(actionSource, /revokePlatformAmoCrmMappingSelection/);
+  assert.doesNotMatch(actionSource, /mapping_result|mapping_retry_request_id/);
+  assert.doesNotMatch(pageSource, /mapping_result|mapping_retry_request_id/);
+  assert.match(pageSource, /readPlatformAmoCrmMappingStateForConversation/);
+  assert.match(panelSource, /data-provider-proof="not-proved"/);
+  assert.match(panelSource, /lead\.responsible_user_id/);
+  assert.match(panelSource, /aria-live="polite"/);
+  assert.match(panelSource, /name="request_id"[\s\S]{0,80}defaultValue=""/);
+  assert.match(
+    panelSource,
+    /key=\{`\$\{workspace\.workspace\.reviewDiscovery\?\.discoveryVersionId[\s\S]+workspace\.workspace\.latestDecision\?\.eventId/,
+  );
+  assert.doesNotMatch(panelSource, /JSON\.stringify|textarea[^>]+selected_bindings/);
+  for (const source of [actionSource, pageSource, panelSource]) {
+    assert.doesNotMatch(source, /@\/lib\/(?:db|auth)|from\s+["']\.\/db["']/);
+    assert.doesNotMatch(source, /SUPABASE_SERVICE_ROLE|service_role|AMOCRM_(?:TOKEN|SECRET)/);
+    assert.doesNotMatch(source, /LegacyWhatsAppPage/);
+  }
 });
 
 test("server adapters have no legacy DB, env secret, browser or provider-write seam", async () => {

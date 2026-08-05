@@ -83,6 +83,78 @@ test("Auth smoke emits one dedicated revocable browser actor", () => {
   );
 });
 
+test("P4B Auth smoke proves a real concurrent exact-prior single winner", () => {
+  const raceStart = authHook.indexOf("const p4bRaceBodies = [");
+  const parallelRequests = authHook.indexOf(
+    "const p4bRaceResults = await Promise.all(",
+    raceStart,
+  );
+  const singleWinnerAssertion = authHook.indexOf(
+    'p4bRaceWinners.length === 1 &&',
+    parallelRequests,
+  );
+  const staleStatusAssertion = authHook.indexOf(
+    "p4bRaceLosers[0].status === 409",
+    singleWinnerAssertion,
+  );
+  const staleCodeAssertion = authHook.indexOf(
+    'p4bRaceLosers[0].payload?.code === "PT409"',
+    staleStatusAssertion,
+  );
+  const fixtureWrite = authHook.indexOf(
+    "writeFileSync(\n      browserFixturePath",
+  );
+
+  assert.notEqual(raceStart, -1);
+  assert.notEqual(parallelRequests, -1);
+  assert.notEqual(singleWinnerAssertion, -1);
+  assert.notEqual(staleStatusAssertion, -1);
+  assert.notEqual(staleCodeAssertion, -1);
+  assert.notEqual(fixtureWrite, -1);
+  assert.ok(raceStart < parallelRequests);
+  assert.ok(parallelRequests < singleWinnerAssertion);
+  assert.ok(singleWinnerAssertion < staleCodeAssertion);
+  assert.ok(staleCodeAssertion < fixtureWrite);
+  assert.match(
+    authHook.slice(raceStart, parallelRequests),
+    /p_expected_prior_event_id: null/g,
+  );
+  assert.match(
+    authHook.slice(parallelRequests, fixtureWrite),
+    /amocrm_mapping_state_for_conversation/,
+  );
+  assert.match(
+    authHook.slice(fixtureWrite),
+    /p4b:[\s\S]*approvalEventId: p4bApprovalEventId/,
+  );
+});
+
+test("synthetic conversation fixture reuses an overridden amoCRM account id for recorded messages", () => {
+  const fixtureStart = authHook.indexOf(
+    "const createSyntheticConversationFixture = ({",
+  );
+  const fixtureEnd = authHook.indexOf(
+    "\nconst authenticatedPlatformRpcRows = async (",
+    fixtureStart,
+  );
+  const fixtureBody = authHook.slice(fixtureStart, fixtureEnd);
+
+  assert.notEqual(fixtureStart, -1);
+  assert.notEqual(fixtureEnd, -1);
+  assert.match(
+    fixtureBody,
+    /amocrmAccountId = accountSeed \+ 10_000/,
+  );
+  assert.match(
+    fixtureBody,
+    /create_communication_conversation\([\s\S]*\$\{amocrmAccountId\}/,
+  );
+  assert.match(
+    fixtureBody,
+    /record_communication_message\([\s\S]*\$\{amocrmAccountId\}/,
+  );
+});
+
 test("post-reset Storage waits longer for Auth without retrying mutations", () => {
   const mainStart = storageGate.indexOf("const main = async () => {");
   const readinessCall = storageGate.indexOf(

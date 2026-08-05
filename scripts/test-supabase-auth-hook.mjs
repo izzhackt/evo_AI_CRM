@@ -999,6 +999,7 @@ const createSyntheticConversationFixture = ({
   fixtureKey,
   subject,
   accountSeed,
+  amocrmAccountId = accountSeed + 10_000,
   occurredAt,
   messages,
 }) => {
@@ -1033,7 +1034,7 @@ const createSyntheticConversationFixture = ({
       ${sqlText(wahaSessionName)},
       ${accountSeed},
       ${sqlText(kommoConversationId)},
-      ${accountSeed + 10_000},
+      ${amocrmAccountId},
       ${accountSeed + 20_000},
       ${accountSeed + 30_000},
       ${sqlUuid(sourceEventId, `${stage}-source-event`)},
@@ -1093,7 +1094,7 @@ const createSyntheticConversationFixture = ({
         ${sqlText(
           `synthetic-local-fixture-${fixtureKey}-kommo-message-${index + 1}`,
         )},
-        ${accountSeed + 10_000},
+        ${amocrmAccountId},
         ${accountSeed + 20_000},
         ${accountSeed + 30_000},
         ${sqlUuid(messageEventId, `${messageStage}-source-event`)},
@@ -1369,7 +1370,11 @@ const main = async () => {
   // amoCRM provider. Only the service JWT may persist a sanitized immutable
   // snapshot; only a live same-organization Admin may read it.
   const p4aRequestId = randomUUID();
-  const p4aAccountId = "93001";
+  // The primary Org A conversation below derives its amoCRM account id as
+  // accountSeed + 10_000. Reuse that exact synthetic account so P4B can prove
+  // the conversation-scoped mapping boundary without inventing a second
+  // provider identity or contacting amoCRM.
+  const p4aAccountId = "101001";
   const p4aSnapshot = {
     schema_version: 1,
     account: {
@@ -1401,8 +1406,24 @@ const main = async () => {
         is_active: true,
       },
     ],
-    lead_custom_fields: [],
-    contact_custom_fields: [],
+    lead_custom_fields: [
+      {
+        id: "93005",
+        name: "Synthetic lead application reference",
+        code: null,
+        type: "text",
+        enums: [],
+      },
+    ],
+    contact_custom_fields: [
+      {
+        id: "93006",
+        name: "Synthetic contact portal reference",
+        code: null,
+        type: "text",
+        enums: [],
+      },
+    ],
   };
   const p4aPersistBody = {
     p_organization_id: adminAMembership.organization_id,
@@ -1414,6 +1435,23 @@ const main = async () => {
     p_evidence_ref: "scripts/test-supabase-auth-hook.mjs",
     p_discovered_at: "2026-08-04T00:00:00Z",
     p_request_id: p4aRequestId,
+  };
+  const p4bSelectedBindings = {
+    pipeline_id: "93002",
+    signed_contract_status_id: "93003",
+    responsible_user_source: "lead.responsible_user_id",
+    lead_custom_fields: [
+      {
+        binding_key: "application.reference",
+        field_id: "93005",
+      },
+    ],
+    contact_custom_fields: [
+      {
+        binding_key: "portal.reference",
+        field_id: "93006",
+      },
+    ],
   };
   const p4aPersisted = requireSuccess(
     await requestJson(
@@ -2245,6 +2283,162 @@ const main = async () => {
       },
     ],
   });
+
+  // P4B: run a real PostgREST race against the same empty approval tuple.
+  // The fail-fast tuple advisory lock and exact-prior contract must admit
+  // exactly one Admin decision; the loser must receive the stable stale-state
+  // SQLSTATE before the gateway timeout boundary.
+  // This is local synthetic authorization/concurrency evidence only, not an
+  // amoCRM provider call or proof that the selected account mapping is real.
+  assert(
+    p4aAccountId === String(91_001 + 10_000),
+    "p4b-conversation-account-matches-discovery",
+  );
+  const p4bRaceBodies = [
+    {
+      p_organization_id: adminAMembership.organization_id,
+      p_conversation_id: orgAConversation.id,
+      p_discovery_version_id: p4aDiscoveryVersionId,
+      p_selected_bindings: p4bSelectedBindings,
+      p_expected_prior_event_id: null,
+      p_reason: "Approve synthetic mapping candidate A in the local race",
+      p_request_id: randomUUID(),
+    },
+    {
+      p_organization_id: adminAMembership.organization_id,
+      p_conversation_id: orgAConversation.id,
+      p_discovery_version_id: p4aDiscoveryVersionId,
+      p_selected_bindings: p4bSelectedBindings,
+      p_expected_prior_event_id: null,
+      p_reason: "Approve synthetic mapping candidate B in the local race",
+      p_request_id: randomUUID(),
+    },
+  ];
+  const p4bRaceResults = await Promise.all(
+    p4bRaceBodies.map((body, index) =>
+      requestJson("/rest/v1/rpc/approve_amocrm_mapping_selection", {
+        method: "POST",
+        token: identities.adminA.accessToken,
+        body,
+        schema: true,
+        stage: `p4b-concurrent-approval-${index + 1}`,
+      }),
+    ),
+  );
+  const p4bRaceWinners = p4bRaceResults.filter(
+    ({ status }) => status >= 200 && status < 300,
+  );
+  const p4bRaceLosers = p4bRaceResults.filter(
+    ({ status }) => status < 200 || status >= 300,
+  );
+  const p4bRaceReceipt = p4bRaceResults.map(({ status, payload }) => ({
+    status,
+    code: typeof payload?.code === "string" ? payload.code : null,
+  }));
+  assert(
+    p4bRaceWinners.length === 1 &&
+      p4bRaceLosers.length === 1 &&
+      p4bRaceLosers[0].status === 409 &&
+      p4bRaceLosers[0].payload?.code === "PT409",
+    `p4b-concurrent-exact-prior-single-winner:${JSON.stringify(p4bRaceReceipt)}`,
+  );
+  const p4bWinnerRows = p4bRaceWinners[0].payload;
+  assert(
+    Array.isArray(p4bWinnerRows) &&
+      p4bWinnerRows.length === 1 &&
+      p4bWinnerRows[0].mapping_state ===
+        "approved_configured_unverified" &&
+      p4bWinnerRows[0].event_kind === "approved" &&
+      p4bWinnerRows[0].discovery_version_id === p4aDiscoveryVersionId,
+    "p4b-concurrent-approval-winner-shape",
+  );
+  const p4bApprovalEventId = p4bWinnerRows[0].approval_event_id;
+  sqlUuid(p4bApprovalEventId, "p4b-approval-event-id");
+
+  const p4bAdminStateRows = await authenticatedPlatformRpcRows(
+    identities.adminA,
+    "amocrm_mapping_state_for_conversation",
+    {
+      p_organization_id: adminAMembership.organization_id,
+      p_conversation_id: orgAConversation.id,
+    },
+    "p4b-admin-bounded-state",
+  );
+  const p4bBoundedStateKeys = [
+    "conversation_id",
+    "mapping_state",
+    "mapping_use",
+    "organization_id",
+  ];
+  assert(
+    p4bAdminStateRows.length === 1 &&
+      p4bAdminStateRows[0].mapping_state ===
+        "approved_configured_unverified" &&
+      JSON.stringify(Object.keys(p4bAdminStateRows[0]).sort()) ===
+        JSON.stringify(p4bBoundedStateKeys),
+    "p4b-admin-bounded-state-shape",
+  );
+  const p4bCuratorStateRows = await authenticatedPlatformRpcRows(
+    identities.curator,
+    "amocrm_mapping_state_for_conversation",
+    {
+      p_organization_id: adminAMembership.organization_id,
+      p_conversation_id: orgAConversation.id,
+    },
+    "p4b-curator-bounded-state",
+  );
+  assert(
+    p4bCuratorStateRows.length === 1 &&
+      p4bCuratorStateRows[0].mapping_state ===
+        "approved_configured_unverified" &&
+      JSON.stringify(Object.keys(p4bCuratorStateRows[0]).sort()) ===
+        JSON.stringify(p4bBoundedStateKeys),
+    "p4b-curator-bounded-state-shape",
+  );
+
+  for (const [label, identity] of [
+    ["finance", identities.finance],
+    ["cross-org-admin", identities.adminB],
+  ]) {
+    const denied = await requestJson(
+      "/rest/v1/rpc/amocrm_mapping_state_for_conversation",
+      {
+        method: "POST",
+        token: identity.accessToken,
+        body: {
+          p_organization_id: adminAMembership.organization_id,
+          p_conversation_id: orgAConversation.id,
+        },
+        schema: true,
+        stage: `p4b-${label}-bounded-state-denied`,
+      },
+    );
+    assert(
+      denied.status >= 400 && denied.payload?.code === "42501",
+      `p4b-${label}-bounded-state-denied`,
+    );
+  }
+
+  const p4bSalesMutationDenied = await requestJson(
+    "/rest/v1/rpc/approve_amocrm_mapping_selection",
+    {
+      method: "POST",
+      token: identities.responsibleSales.accessToken,
+      body: {
+        ...p4bRaceBodies[0],
+        p_expected_prior_event_id: p4bApprovalEventId,
+        p_reason: "Sales must not approve the synthetic mapping",
+        p_request_id: randomUUID(),
+      },
+      schema: true,
+      stage: "p4b-sales-mutation-denied",
+    },
+  );
+  assert(
+    p4bSalesMutationDenied.status >= 400 &&
+      p4bSalesMutationDenied.payload?.code === "42501",
+    "p4b-sales-mutation-denied",
+  );
   const orgAManualConversation = createSyntheticConversationFixture({
     organizationId: adminAMembership.organization_id,
     studentCaseId: orgAStudentCaseId,
@@ -2252,6 +2446,11 @@ const main = async () => {
     fixtureKey: "org-a-manual-ai-unavailable",
     subject: "[SYNTHETIC-NON-PROVIDER] Org A manual reply while AI unavailable",
     accountSeed: 91_003,
+    // Keep conversation/lead identifiers unique while binding this second
+    // conversation to the same account-specific discovery snapshot. With no
+    // decision event of its own it must resolve to the explicit not_approved
+    // state, not the earlier discovery_missing boundary.
+    amocrmAccountId: Number(p4aAccountId),
     occurredAt: "2026-07-30T09:02:00+06:00",
     messages: [
       {
@@ -2263,6 +2462,39 @@ const main = async () => {
       },
     ],
   });
+  const p4bNoApprovalStateRows = await authenticatedPlatformRpcRows(
+    identities.adminA,
+    "amocrm_mapping_state_for_conversation",
+    {
+      p_organization_id: adminAMembership.organization_id,
+      p_conversation_id: orgAManualConversation.id,
+    },
+    "p4b-admin-no-approval-state",
+  );
+  assert(
+    p4bNoApprovalStateRows.length === 1 &&
+      p4bNoApprovalStateRows[0].mapping_state === "not_approved" &&
+      JSON.stringify(Object.keys(p4bNoApprovalStateRows[0]).sort()) ===
+        JSON.stringify(p4bBoundedStateKeys),
+    "p4b-admin-no-approval-state-shape",
+  );
+  const p4bNoApprovalWorkspaceRows = await authenticatedPlatformRpcRows(
+    identities.adminA,
+    "admin_amocrm_mapping_approval_workspace",
+    {
+      p_organization_id: adminAMembership.organization_id,
+      p_conversation_id: orgAManualConversation.id,
+    },
+    "p4b-admin-no-approval-workspace",
+  );
+  assert(
+    p4bNoApprovalWorkspaceRows.length === 1 &&
+      p4bNoApprovalWorkspaceRows[0].mapping_state === "not_approved" &&
+      p4bNoApprovalWorkspaceRows[0].review_discovery_version_id ===
+        p4aDiscoveryVersionId &&
+      Number(p4bNoApprovalWorkspaceRows[0].review_discovery_version) === 1,
+    "p4b-admin-no-approval-workspace-shape",
+  );
   const orgAScopedConversation = createSyntheticConversationFixture({
     organizationId: adminAMembership.organization_id,
     responsibleSalesMembershipId: responsibleSalesMembership.id,
@@ -3637,6 +3869,26 @@ const main = async () => {
             studentProfileId: bw7StudentProfileId,
             curatorMembershipId: roleMembers.curator.id,
             studentDisplayName: "BW7 Synthetic Lifecycle Student",
+          },
+        },
+        p4b: {
+          orgA: {
+            organizationId: adminAMembership.organization_id,
+            conversationId: orgAConversation.id,
+            noApprovalConversationId: orgAManualConversation.id,
+            amocrmAccountId: p4aAccountId,
+            discoveryVersionId: p4aDiscoveryVersionId,
+            discoveryVersion: 1,
+            approvalEventId: p4bApprovalEventId,
+            pipelineId: p4bSelectedBindings.pipeline_id,
+            signedContractStatusId:
+              p4bSelectedBindings.signed_contract_status_id,
+            leadFieldId:
+              p4bSelectedBindings.lead_custom_fields[0].field_id,
+            leadFieldName: p4aSnapshot.lead_custom_fields[0].name,
+            contactFieldId:
+              p4bSelectedBindings.contact_custom_fields[0].field_id,
+            contactFieldName: p4aSnapshot.contact_custom_fields[0].name,
           },
         },
         p3c: {

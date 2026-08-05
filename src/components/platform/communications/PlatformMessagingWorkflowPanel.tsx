@@ -17,6 +17,10 @@ import type {
 } from "@/lib/platform-messaging-workflow";
 import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import { PlatformDecisionBacklogCard } from "@/components/platform/communications/PlatformDecisionBacklogCard";
+import {
+  PlatformAmoCrmMappingPanel,
+  type PlatformAmoCrmMappingUiWorkspace,
+} from "@/components/platform/communications/PlatformAmoCrmMappingPanel";
 import { PlatformHandoffContextCard } from "@/components/platform/communications/PlatformHandoffContextCard";
 import { PlatformPromptEvidenceCard } from "@/components/platform/communications/PlatformPromptEvidenceCard";
 
@@ -122,6 +126,7 @@ export function PlatformMessagingWorkflowPanel({
   initialWorkflow,
   knowledge,
   bw4Workspace,
+  amocrmMappingWorkspace,
   locale,
   decisionMutationOutcome,
   labels,
@@ -132,6 +137,7 @@ export function PlatformMessagingWorkflowPanel({
   initialWorkflow: PlatformConversationWorkflow;
   knowledge: readonly PlatformKnowledgeCatalogItem[];
   bw4Workspace: PlatformConversationBw4Workspace | null;
+  amocrmMappingWorkspace: PlatformAmoCrmMappingUiWorkspace;
   locale: string;
   decisionMutationOutcome: "saved" | "invalid" | "unavailable" | null;
   labels: Labels;
@@ -286,6 +292,12 @@ export function PlatformMessagingWorkflowPanel({
               : labels.platformDecisionActionUnavailable}
         </p>
       )}
+
+      <PlatformAmoCrmMappingPanel
+        workspace={amocrmMappingWorkspace}
+        labels={labels}
+        locale={locale}
+      />
 
       <div
         className="mt-2 grid gap-2 sm:grid-cols-2"

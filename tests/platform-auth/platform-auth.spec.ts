@@ -204,6 +204,23 @@ type Fixture = Readonly<{
       studentDisplayName: string;
     }>;
   }>;
+  p4b: Readonly<{
+    orgA: Readonly<{
+      organizationId: string;
+      conversationId: string;
+      noApprovalConversationId: string;
+      amocrmAccountId: string;
+      discoveryVersionId: string;
+      discoveryVersion: number;
+      approvalEventId: string;
+      pipelineId: string;
+      signedContractStatusId: string;
+      leadFieldId: string;
+      leadFieldName: string;
+      contactFieldId: string;
+      contactFieldName: string;
+    }>;
+  }>;
 }>;
 
 const fixturePath = process.env.EVO_PLATFORM_AUTH_FIXTURE_PATH;
@@ -2766,4 +2783,94 @@ test("Finance, Students, former Sales, and cross-org staff see no BW4 controls",
     },
   );
   expect([401, 403]).toContain(formerSalesResult.status);
+});
+
+test("P4B Admin reviews an approved local mapping without provider-proof claims", async ({
+  page,
+}) => {
+  await loginToMessaging(page, fixture.identities.admin);
+  await page.goto(`/whatsapp/${fixture.p4b.orgA.conversationId}`);
+
+  const panel = page.getByTestId("platform-amocrm-mapping");
+  await expect(panel).toBeVisible();
+  await expect(panel).toHaveAttribute(
+    "data-mapping-state",
+    "approved_configured_unverified",
+  );
+  await expect(panel).toHaveAttribute("data-provider-proof", "not-proved");
+  await expect(page.getByTestId("platform-amocrm-admin-workspace")).toBeVisible();
+  await expect(page.getByTestId("platform-amocrm-approve-form")).toBeVisible();
+  await expect(page.getByTestId("platform-amocrm-revoke-form")).toBeVisible();
+  await expect(page.locator('select[name="pipeline_id"]')).toHaveValue(
+    fixture.p4b.orgA.pipelineId,
+  );
+  await expect(
+    page.locator('select[name="signed_contract_status_id"]'),
+  ).toHaveValue(fixture.p4b.orgA.signedContractStatusId);
+  await expect(page.locator('select[name="lead_field_id"]')).toHaveValue(
+    fixture.p4b.orgA.leadFieldId,
+  );
+  await expect(page.locator('select[name="contact_field_id"]')).toHaveValue(
+    fixture.p4b.orgA.contactFieldId,
+  );
+  await expect(panel).toContainText(fixture.p4b.orgA.leadFieldName);
+  await expect(panel).toContainText(fixture.p4b.orgA.contactFieldName);
+  await expect(panel).toContainText(fixture.p4b.orgA.amocrmAccountId);
+  await expect(panel).toContainText(/работа провайдера не проверена/i);
+});
+
+test("P4B ignores forged URL outcomes and retry request IDs", async ({ page }) => {
+  await loginToMessaging(page, fixture.identities.admin);
+  const forgedRequestId = "59999999-9999-4999-8999-999999999999";
+  await page.goto(
+    `/whatsapp/${fixture.p4b.orgA.conversationId}` +
+      `?mapping_result=approved&mapping_retry_operation=approve&mapping_retry_request_id=${forgedRequestId}`,
+  );
+
+  await expect(page.getByTestId("platform-amocrm-mapping-result")).toHaveCount(0);
+  await expect(
+    page.getByTestId("platform-amocrm-approve-form").locator('[name="request_id"]'),
+  ).toHaveValue("");
+  await expect(
+    page.getByTestId("platform-amocrm-revoke-form").locator('[name="request_id"]'),
+  ).toHaveValue("");
+  await expect(page.getByTestId("platform-amocrm-mapping")).toHaveAttribute(
+    "data-mapping-state",
+    "approved_configured_unverified",
+  );
+});
+
+test("P4B Curator receives only bounded read-only mapping state", async ({
+  page,
+}) => {
+  await loginToMessaging(page, fixture.identities.curator);
+  await page.goto(`/whatsapp/${fixture.p4b.orgA.conversationId}`);
+
+  const panel = page.getByTestId("platform-amocrm-mapping");
+  await expect(panel).toHaveAttribute(
+    "data-mapping-state",
+    "approved_configured_unverified",
+  );
+  await expect(panel).toHaveAttribute("data-provider-proof", "not-proved");
+  await expect(page.getByTestId("platform-amocrm-admin-workspace")).toHaveCount(0);
+  await expect(page.getByTestId("platform-amocrm-approve-form")).toHaveCount(0);
+  await expect(page.getByTestId("platform-amocrm-revoke-form")).toHaveCount(0);
+  await expect(page.locator('[name="pipeline_id"]')).toHaveCount(0);
+  await expect(panel).not.toContainText(fixture.p4b.orgA.amocrmAccountId);
+  await expect(panel).not.toContainText(fixture.p4b.orgA.leadFieldName);
+  await expect(panel).not.toContainText(fixture.p4b.orgA.contactFieldName);
+});
+
+test("P4B Admin sees an explicit fail-closed state when no approval exists", async ({
+  page,
+}) => {
+  await loginToMessaging(page, fixture.identities.admin);
+  await page.goto(`/whatsapp/${fixture.p4b.orgA.noApprovalConversationId}`);
+
+  const panel = page.getByTestId("platform-amocrm-mapping");
+  await expect(panel).toHaveAttribute("data-mapping-state", "not_approved");
+  await expect(panel).toHaveAttribute("data-provider-proof", "not-proved");
+  await expect(page.getByTestId("platform-amocrm-approve-form")).toBeVisible();
+  await expect(page.getByTestId("platform-amocrm-revoke-form")).toHaveCount(0);
+  await expect(panel).toContainText(/Связка не одобрена/i);
 });

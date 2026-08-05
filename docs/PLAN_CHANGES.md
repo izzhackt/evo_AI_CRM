@@ -3919,7 +3919,9 @@ Validation impact:
 - This docs-only PR updates the launch/long-run contracts, focused BW8 plan,
   current-status and data/system/domain docs, canonical TZ 2.0, traceability,
   validation ledger and deterministic owner-facing DOCX. Every rendered page
-  must be inspected; no implementation file or migration may change.
+  must be inspected. Only canonical document generation/validation tooling may
+  change with those artifacts; no application/runtime implementation,
+  dependency, migration, deployment or provider surface may change.
 - Each later BW8 implementation PR requires exact-main migration/ownership
   recheck, focused unit/database/contract/browser/accessibility/security tests,
   clean local Supabase execution, exact cleanup, independent exact-head review,

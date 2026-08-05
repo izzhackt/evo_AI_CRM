@@ -73,7 +73,7 @@ and rollback proof are real. No fixed-duration soak is required by contract.
 As of the version date:
 
 - GitHub `main` checkpoint for this implementation is
-  `121db548b252eff9e4b79f62297aa27fe39e5c40`;
+  `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;

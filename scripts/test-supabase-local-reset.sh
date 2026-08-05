@@ -31,6 +31,7 @@ readonly INBOX_FINGERPRINT_BEFORE="${TEMP_DIR}/inbox-before.txt"
 readonly INBOX_FINGERPRINT_AFTER="${TEMP_DIR}/inbox-after.txt"
 readonly BROWSER_HOST="127.0.0.1"
 readonly BROWSER_PORT="3311"
+readonly PROVIDER_GATED_BROWSER_TESTS="RU and EN draft requests work while uncertain language stops for manual selection|admin reads the persisted local P3C workflow without proving providers|assigned Curator reads the same persisted local P3C workflow|staff writes and persists a manual reply while AI is unavailable|staff submits an approved-knowledge AI draft request through the real form|staff reviews an AI draft then authorizes the edited final text"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -43,6 +44,79 @@ run_with_deadline() {
   local timeout_ms=$1
   shift
   node "${DEADLINE_RUNNER}" "${timeout_ms}" "$@"
+}
+
+refresh_synthetic_browser_health() {
+  local refresh_log="${TEMP_DIR}/browser-health-refresh.log"
+
+  # Refresh only the positive synthetic readiness contracts exercised by the
+  # browser suite. Org A AI intentionally remains local_non_provider so its
+  # fail-closed assertions cannot be turned into provider proof.
+  if ! run_with_deadline 30000 docker exec -i \
+    "${DATABASE_CONTAINER}" \
+    psql \
+    -X \
+    --no-psqlrc \
+    -qAt \
+    -v ON_ERROR_STOP=1 \
+    -U postgres \
+    -d postgres \
+    >"${refresh_log}" 2>&1 <<'SQL'
+BEGIN;
+SELECT pg_catalog.set_config(
+  'request.jwt.claims',
+  '{"role":"service_role"}',
+  true
+);
+DO $refresh$
+DECLARE
+  org_a UUID;
+  org_b UUID;
+BEGIN
+  SELECT id
+  INTO STRICT org_a
+  FROM platform.organizations
+  WHERE name = 'EVO P2C Synthetic Organization A';
+
+  SELECT id
+  INTO STRICT org_b
+  FROM platform.organizations
+  WHERE name = 'EVO P2C Synthetic Organization B';
+
+  PERFORM platform.record_messaging_integration_health_event(
+    org_a,
+    'waha'::platform.messaging_integration_target,
+    'ready'::platform.messaging_integration_readiness,
+    'provider_observed'::platform.messaging_integration_evidence_kind,
+    'Refresh synthetic WAHA readiness for the bounded local browser contract gate',
+    'synthetic:browser:waha:provider-ready:org-a',
+    gen_random_uuid()
+  );
+  PERFORM platform.record_messaging_integration_health_event(
+    org_b,
+    'ai'::platform.messaging_integration_target,
+    'ready'::platform.messaging_integration_readiness,
+    'provider_observed'::platform.messaging_integration_evidence_kind,
+    'Refresh synthetic AI readiness for the bounded local browser contract gate',
+    'synthetic:browser:ai:provider-ready:org-b',
+    gen_random_uuid()
+  );
+  PERFORM platform.record_messaging_integration_health_event(
+    org_b,
+    'waha'::platform.messaging_integration_target,
+    'ready'::platform.messaging_integration_readiness,
+    'provider_observed'::platform.messaging_integration_evidence_kind,
+    'Refresh synthetic WAHA readiness for the bounded local browser contract gate',
+    'synthetic:browser:waha:provider-ready:org-b',
+    gen_random_uuid()
+  );
+END
+$refresh$;
+COMMIT;
+SQL
+  then
+    fail "Unable to refresh the exact synthetic local browser health contracts; output was withheld."
+  fi
 }
 
 list_exact_stack_containers() {
@@ -721,14 +795,32 @@ fi
 [[ ! -e "${AUTH_STATUS_FILE}" ]] \
   || fail "Auth smoke did not delete the credential-bearing local status file."
 
+refresh_synthetic_browser_health
 browser_gate_started=true
-if ! run_with_deadline 900000 env \
+# The local fixture records deliberately short-lived, synthetic provider-health
+# evidence. Run all six tests that exercise positive freshness first so their real
+# five-minute freshness contract is tested deterministically. The second pass
+# still runs every other browser test; no assertion or health TTL is weakened.
+if ! run_with_deadline 240000 env \
   EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
   EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
   "${PLAYWRIGHT_CLI}" \
   test \
-  --config "${REPO_ROOT}/playwright.platform-auth.config.ts"; then
-  fail "Real browser Platform Auth/staff-shell gate failed."
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep "${PROVIDER_GATED_BROWSER_TESTS}"; then
+  fail "Provider-gated browser Platform messaging proof failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop between browser partitions."
+fi
+if ! run_with_deadline 660000 env \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}"; then
+  fail "Remaining real browser Platform Auth/staff-shell gate failed."
 fi
 if ! stop_exact_browser_server; then
   fail "The exact-worktree Platform browser server did not stop after the browser gate."

@@ -13,6 +13,10 @@ const harness = readFileSync(
   new URL("../scripts/test-supabase-local-reset.sh", import.meta.url),
   "utf8",
 );
+const platformAuthSpec = readFileSync(
+  new URL("./platform-auth/platform-auth.spec.ts", import.meta.url),
+  "utf8",
+);
 const executableLines = harness
   .split("\n")
   .filter((line) => !line.trimStart().startsWith("#"))
@@ -156,7 +160,11 @@ test("every long-running child gate has a process-group deadline", () => {
   );
   assert.match(
     executableLines,
-    /run_with_deadline 900000 env \\\n\s+EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
+    /run_with_deadline 240000 env \\\n\s+EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
+  );
+  assert.match(
+    executableLines,
+    /run_with_deadline 660000 env \\\n\s+EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
   );
   assert.match(
     executableLines,
@@ -166,6 +174,101 @@ test("every long-running child gate has a process-group deadline", () => {
     executableLines,
     /run_with_deadline 300000 bash \\\n\s+"\$\{REPO_ROOT\}\/scripts\/test-p2g-queues-runtime\.sh"/,
   );
+});
+
+test("provider-gated browser tests run first without skipping the remaining suite", () => {
+  const expectedTitles = [
+    "RU and EN draft requests work while uncertain language stops for manual selection",
+    "admin reads the persisted local P3C workflow without proving providers",
+    "assigned Curator reads the same persisted local P3C workflow",
+    "staff writes and persists a manual reply while AI is unavailable",
+    "staff submits an approved-knowledge AI draft request through the real form",
+    "staff reviews an AI draft then authorizes the edited final text",
+  ];
+  const titles = `readonly PROVIDER_GATED_BROWSER_TESTS="${expectedTitles.join("|")}"`;
+  const providerPass = harness.indexOf(
+    "if ! run_with_deadline 240000 env \\",
+  );
+  const betweenPassCleanup = harness.indexOf(
+    'fail "The exact-worktree Platform browser server did not stop between browser partitions."',
+    providerPass,
+  );
+  const remainingPass = harness.indexOf(
+    "if ! run_with_deadline 660000 env \\",
+    betweenPassCleanup,
+  );
+  const finalCleanup = harness.indexOf(
+    'fail "The exact-worktree Platform browser server did not stop after the browser gate."',
+    remainingPass,
+  );
+
+  assert.ok(harness.includes(titles));
+  assert.equal(expectedTitles.length, 6);
+  for (const title of expectedTitles) {
+    assert.equal(platformAuthSpec.split(`test("${title}"`).length - 1, 1);
+  }
+  assert.notEqual(providerPass, -1);
+  assert.notEqual(betweenPassCleanup, -1);
+  assert.notEqual(remainingPass, -1);
+  assert.notEqual(finalCleanup, -1);
+  assert.ok(providerPass < betweenPassCleanup);
+  assert.ok(betweenPassCleanup < remainingPass);
+  assert.ok(remainingPass < finalCleanup);
+  assert.match(
+    harness.slice(providerPass, betweenPassCleanup),
+    /--grep "\$\{PROVIDER_GATED_BROWSER_TESTS\}"/,
+  );
+  assert.match(
+    harness.slice(remainingPass, finalCleanup),
+    /--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}"/,
+  );
+  assert.doesNotMatch(executableLines, /run_with_deadline 900000 env/);
+});
+
+test("browser health refresh is exact-local and preserves Org A AI negative proof", () => {
+  const refreshStart = harness.indexOf("refresh_synthetic_browser_health() {");
+  const refreshEnd = harness.indexOf(
+    "\n}\n\nlist_exact_stack_containers() {",
+    refreshStart,
+  );
+  const refreshSource = harness.slice(refreshStart, refreshEnd);
+  const authHook = harness.indexOf(
+    '"${REPO_ROOT}/scripts/test-supabase-auth-hook.mjs"',
+  );
+  const refreshCall = harness.indexOf(
+    "\nrefresh_synthetic_browser_health\n",
+    authHook,
+  );
+  const browserStart = harness.indexOf(
+    "\nbrowser_gate_started=true\n",
+    refreshCall,
+  );
+
+  assert.notEqual(refreshStart, -1);
+  assert.notEqual(refreshEnd, -1);
+  assert.notEqual(authHook, -1);
+  assert.notEqual(refreshCall, -1);
+  assert.notEqual(browserStart, -1);
+  assert.ok(authHook < refreshCall);
+  assert.ok(refreshCall < browserStart);
+  assert.match(
+    refreshSource,
+    /run_with_deadline 30000 docker exec -i \\\n\s+"\$\{DATABASE_CONTAINER\}"/,
+  );
+  assert.match(refreshSource, /request\.jwt\.claims/);
+  assert.match(refreshSource, /\{"role":"service_role"\}/);
+  assert.match(refreshSource, /EVO P2C Synthetic Organization A/);
+  assert.match(refreshSource, /EVO P2C Synthetic Organization B/);
+  assert.equal(
+    refreshSource.match(/record_messaging_integration_health_event/g)?.length,
+    3,
+  );
+  assert.match(refreshSource, /org_a,\n\s+'waha'/);
+  assert.match(refreshSource, /org_b,\n\s+'ai'/);
+  assert.match(refreshSource, /org_b,\n\s+'waha'/);
+  assert.doesNotMatch(refreshSource, /org_a,\n\s+'ai'/);
+  assert.doesNotMatch(refreshSource, /https?:\/\//);
+  assert.doesNotMatch(refreshSource, /SUPABASE_SERVICE_ROLE(?:_KEY)?/);
 });
 
 test("browser process matching is exact to this worktree, host, and port", () => {
@@ -211,7 +314,7 @@ test("browser gate rejects stale exact-worktree state and cleans only its own se
   const stackOwnershipIndex = harness.indexOf("stack_owned=true");
   const browserStartIndex = harness.indexOf("browser_gate_started=true");
   const playwrightIndex = harness.indexOf(
-    'run_with_deadline 900000 env',
+    'run_with_deadline 240000 env',
     browserStartIndex,
   );
 

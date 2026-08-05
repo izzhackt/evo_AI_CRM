@@ -1,26 +1,20 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-p2r4-local-migration-simple-query-plan` is active.
-Historical P1, reusable greenfield P2A-P2H, BW0, P3A-P3C, BW1-BW7,
-P2R0-P2R3, P4A, the P4B plan, the BW8 plan and BW8A are merged. PR #120 merged
-BW8A as current main `68fe755e9c7e6bbd92218ad6566aff3b7431b6f6` and owns immutable
-migration 059. The real clean `npm run test:supabase:local` path fails while
-applying that migration on Supabase CLI 2.110.0 and diagnostic 2.109.1 with
-SQLSTATE `55P04`, `unsafe use of new value "document_validation"`: migration
-059 adds six enum values and uses them before the CLI execution commits them.
-A separate exact-project proof applied canonical migrations 001-059
-sequentially with container-local `psql -X -v ON_ERROR_STOP=1` simple-query
-execution, then repaired and exactly verified the local migration ledger with
-the official CLI. It loaded 112 PostgREST relations and 164 RPCs, and Database,
-PostgREST, Auth, Storage and Kong were healthy. Exact resources were removed
-and EVO Inbox remained unchanged. This P2R4 docs-only repair consumes no
-migration number. P4B remains an uncommitted/stashed candidate for migration
-060 and stays paused. BW8B implementation PR #121 is also paused and not
-merge-eligible: its exact-head CI is green, but independent launch-control
-review requested changes because its new authorization amendment and the code
-that amendment would authorize were bundled in one PR. No managed Supabase,
-staging, provider or production exercise is claimed; P2I restore duties remain
-in P7.
+Status: `/goal-evo-platform-bw8-student-document-intelligence-plan` is active. Historical P1, reusable
+greenfield P2A-P2H, BW0, P3A-P3C, BW1-BW7, P2R0-P2R3, P4A and the P4B plan are
+merged. PR #118 merged the P4B docs-only contract at current main
+`10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`; exact-main CI run
+`30963131242` is green for Main CRM, EVO Inbox and EVO Lead Agent, while
+Changed range was skipped on the push run as expected. P4B remains a valid
+docs-only mapping-selection contract, but its implementation is paused before
+any shared PR or migration merged. BW8 is now the active docs-only contract for
+student document intake, extraction review and deterministic profile export.
+It authorizes no application code, migration, provider credential/call, real
+student upload or runtime mutation. P4A evidence is green for disposable
+PostgreSQL authorization, 58 contiguous local Supabase migrations,
+Auth/PostgREST/Storage/PGMQ and 28/28 accepted-frontend browser scenarios.
+No managed Supabase, staging, provider or production exercise is claimed. P2I
+restore duties remain in P7.
 Updated 2026-08-05 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
@@ -33,20 +27,17 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active plan slice:
-`/goal-evo-platform-p2r4-local-migration-simple-query-plan`, Block
-`EVO-P2R4-LOCAL-MIGRATION-SIMPLE-QUERY-PLAN-2026-08-05`. This docs-only
-amendment repairs only the local migration validation implementation and its
-acceptance procedure. After this amendment merges, one separate implementation
-PR may change only `scripts/test-supabase-local-reset.sh` and
-`tests/supabase-local-reset-harness.test.mjs`: start a clean exact-project
-stack with automatic migration execution disabled, apply every contiguous
-canonical migration sequentially through container-local `psql` simple-query
-execution, repair the local ledger only after every SQL file succeeds, require
-an exact migration-list match, exercise the real local services and accepted
-browser path, repeat from clean state, then remove only exact-project
-resources. The amendment adds no code or migration and authorizes no linked or
-managed-project migration, staging, provider or production mutation.
+Active plan slice: `/goal-evo-platform-bw8-student-document-intelligence-plan`,
+Block `EVO-BW8-STUDENT-DOCUMENT-INTELLIGENCE-PLAN-2026-08-05`. This docs-only
+amendment defines the next bounded business-workflow lane: connect the merged
+student-case, requirement, private Storage, document-version, audit and durable
+queue foundations into one accepted `/documents` workbench. A later ordered
+implementation may intake private files or exact Drive imports, verify and scan
+them, produce evidence-backed extraction candidates, require a human decision,
+maintain typed confirmed profile fields and generate versioned DOCX/PDF drafts.
+The amendment itself adds no code or migration and does not authorize provider
+credentials/calls, real student data processing, managed Supabase, staging or
+production mutation.
 
 ### Goal
 
@@ -59,12 +50,11 @@ The existing unified frontend from PRs #64/#71/#72 is the sole product UI
 contract and must be wired through repository/session seams, not replaced or
 paralleled. AI remains draft-only with human manual send.
 
-This amendment records a validation-gate correction discovered after BW8A
-merged. It preserves migration 059 byte-for-byte, consumes no migration number
-and pauses P4B and later dependent implementation without invalidating their
-reviewed contracts or touching the P4B stash. Schema, API, product behavior,
-amoCRM ownership, the unified frontend, provider and production authority, and
-P7 restore ownership remain unchanged.
+This amendment records an explicit product-priority change, defines BW8
+sub-block ownership, data/state boundaries and acceptance evidence, and pauses
+P4B implementation without invalidating its reviewed contract or touching its
+local worktree. It keeps amoCRM ownership, the unified frontend, provider and
+production authority, and P7 restore ownership unchanged.
 
 ### Reconciled baseline
 
@@ -84,23 +74,12 @@ checkpoint is:
   merged P3A-P3C; PRs #100-#103 merged BW1-BW4; PR #104 merged P2R0; PR #105
   merged P2R1; PR #107 merged the BW5 checkpoint amendment; PR #109 merged the
   P2R2 plan gate; PR #111 merged the P2R3 plan gate; PR #112 merged the P2R3
-  repair; PR #113 merged BW5; PR #114 merged BW6; PR #116 merged BW7; PR #117
-  merged P4A; PR #118 merged the P4B docs-only contract; PR #119 merged the BW8
-  plan; and PR #120 merged BW8A. Current main is
-  `68fe755e9c7e6bbd92218ad6566aff3b7431b6f6` and migration 059 is immutable
-  shared history.
-- Actual clean local Supabase runs on CLI 2.110.0 and 2.109.1 both stop at
-  migration 059 with SQLSTATE `55P04`. PostgreSQL requires a commit before a
-  new enum value added in a transaction may be used; changing CLI patch
-  versions did not supply that boundary.
-- An exact-project local stack with automatic migrations disabled passed
-  canonical 001-059 through sequential container-local `psql` simple-query
-  execution. Official local ledger repair followed SQL success, the migration
-  list then matched all 59 versions, PostgREST loaded 112 relations and 164
-  RPCs, and Database, PostgREST, Auth, Storage and Kong were healthy. Cleanup
-  removed exact-project resources and did not alter EVO Inbox.
-- P4B is preserved only as an uncommitted/stashed candidate for migration 060.
-  It is not shared source of truth and remains paused through P2R4.
+  repair; PR #113 merged BW5; PR #114 merged BW6; PR #116 merged BW7; and PR
+  #117 merged P4A, and PR #118 merged the P4B docs-only contract. The exact
+  checkpoint for BW8 planning is
+  `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`; exact-main CI run
+  `30963131242` is green for Main CRM, EVO Inbox and EVO Lead Agent, while
+  Changed range was skipped on the push run as expected.
 - PR #108 exact head `f719b749efaadaf02c6344c5d01cd4b6bbe3d79c`
   is historical recovery evidence: it passed focused tests and CI but was
   closed without merge after controller
@@ -136,27 +115,20 @@ checkpoint is:
 
 ### Immediate execution order
 
-0. Merge this docs-only P2R4 amendment through exact-head independent review,
-   all four exact-head CI jobs and the independent controller. Preserve merged
-   migration 059 byte-for-byte and allocate no new migration.
-1. Open one separate implementation PR limited to
-   `scripts/test-supabase-local-reset.sh` and
-   `tests/supabase-local-reset-harness.test.mjs`. It must reject linked refs,
-   use only the exact local project, start with automatic migrations disabled
-   and bounded pre-schema `--ignore-health-check`, require database readiness,
-   apply contiguous migrations sequentially via simple-query `psql`, and forbid
-   ledger repair after any SQL failure.
-2. Require exact official local migration-list equality and then fail-closed
-   Database/PostgREST/Auth/Storage/Kong readiness, followed by real local
-   Storage/PGMQ/Auth/RLS/browser coverage, a second clean rebuild after browser
-   reset, and exact-project cleanup. Negative tests must prove that SQL failure
-   cannot forge the ledger, repair/list mismatch fails, linked refs are rejected
-   and cleanup cannot cross the exact-project boundary.
-3. Independently review and controller-merge that implementation only after its
-   complete exact-head gate. Keep P4B and BW8B-BW8E paused; P4B remains a
-   stashed candidate for migration 060 and must restart from fresh main later.
-   Managed staging/branch migration proof must use the official external path,
-   never this local validation runner.
+0. Merge this docs-only BW8 amendment through exact-head independent review,
+   all four exact-head CI jobs and the independent controller before opening
+   student-document implementation.
+1. Preserve migrations 001-058, P4A discovery evidence and the P4B docs-only
+   contract as immutable history. Recheck fresh `origin/main` and open ownership
+   before BW8A selects expected next migration 059.
+2. Implement BW8A-BW8E sequentially: auditable schema/RLS; real private intake,
+   scanner and durable work; Drive/OpenAI extraction adapters; accepted
+   `/documents` review UI and deterministic DOCX/PDF export; then integrated
+   completion proof.
+3. Keep P4B implementation paused. After BW8, it restarts from current main and
+   rechecks next-free migration, expected 060. Identity/context sync, webhooks,
+   reconciliation, canonical amoCRM writes, real WAHA/ACK proof and production
+   authority remain in their separately reviewed lanes.
 
 ### Merged P2R3 acceptance record
 
@@ -244,18 +216,16 @@ checkpoint is:
 
 ### Merge-order boundary
 
-BW0, P3A-P3C, BW1-BW7, P2R0-P2R3, P4A, the P4B plan, the BW8 plan and BW8A are
-merged history. P2R4 is the only active docs-only plan block; P4B and
-BW8B-BW8E implementation remain paused. P2R4 changes only the local validation
-harness and acceptance procedure. It does not transfer P7 restore ownership,
-alter the schema/API/product/provider architecture, or authorize a linked,
-managed, staging or production migration. P3 owns common session/repository
-seams, P4 owns amoCRM adapter behavior, BW8 owns the document-intelligence
-workflow, P5 owns live messaging provider/ACK proof, and P7 owns
-whole-foundation backup/restore and release reliability evidence. No P2R4
-implementation can open until this amendment is controller-merged and green on
-exact-main CI. Shared migrations are selected only after fetching current main
-and checking open ownership; merged migration 059 remains immutable.
+BW0, P3A-P3C, BW1-BW7, P2R0-P2R3 and P4A are merged history. P4B remains a
+reviewed docs-only contract but its implementation is paused; BW8 is the only
+active docs-only plan block. P2R0-P2R3 do not transfer P7 restore ownership or
+authorize production application. P3 owns common session/repository seams, P4
+owns amoCRM adapter behavior, BW8 owns the document-intelligence workflow, P5
+owns live messaging provider/ACK proof, and P7 owns whole-foundation
+backup/restore and release reliability evidence. No BW8 implementation block
+can open until this amendment is controller-merged and green on exact-main CI.
+Shared migrations are selected only after fetching current main and checking
+open ownership; merged migrations are immutable.
 - `crm.evoadmissions.com` and `inbox.evoadmissions.com` have no DNS answer.
   The fallback CRM URL responds.
 - The original checkout's modified Malaysia knowledge-base document and

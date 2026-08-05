@@ -1,20 +1,21 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-bw8-boundary-correction-p4b-restore` is active.
+Status: `/goal-evo-platform-p2r4-local-validation-prerequisite` is active.
 Historical P1, reusable greenfield P2A-P2H, BW0, P3A-P3C, BW1-BW7,
-P2R0-P2R3 and P4A are merged. PR #118 merged the P4B docs-only contract.
-PR #119 then placed Student Profile document reading, extraction, autofill and
-form export inside this repository. The owner has moved that automation to a
-separate system outside `evo_AI_CRM`. PRs #125-#127 reverted the dependent
-PRs #124, #122 and #120; current `origin/main` is
-`4567ef5067c523604bee73e8730f1b54ac23487d`, its tree equals the PR #119
-checkpoint, migrations are again contiguous `001-058`, and exact-main CI run
-`30989252650` is green for Main CRM, EVO Inbox and EVO Lead Agent.
-This docs-only amendment supersedes PR #119 as active authority, preserves the
-ordinary Platform Documents/checklist/private Storage/version/review/audit
-contract, and restores P4B as the next implementation lane after controller
-merge. It authorizes no application code, migration, provider action,
-customer-data action or production mutation.
+P2R0-P2R3 and P4A are merged. PR #118 merged the P4B docs-only contract, and
+PR #128 merged the owner-authorized correction that supersedes PR #119 and
+keeps Student Profile document reading, extraction, autofill and form export
+outside `evo_AI_CRM`. Current `origin/main` is
+`bb9d766163267846f406dcc376e893bb2a914af4`, migrations are contiguous
+`001-058`, and exact-main CI run `31012015566` is green for Main CRM, EVO Inbox
+and EVO Lead Agent; Changed range is skipped on the push event as expected.
+Fresh unchanged-main evidence shows that the repo-scoped
+`npm run test:supabase:local` gate exits `1` after the bounded local
+`supabase start` times out on OrbStack. Normal exact-project cleanup leaves no
+Platform container, volume, network, lock or process and preserves the Inbox
+resource set. This docs-only prerequisite authorizes a later two-file repair of
+that local validation path before P4B. It authorizes no application code,
+migration, provider action, customer-data action or production mutation.
 Updated 2026-08-05 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
@@ -27,16 +28,15 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active plan slice: `/goal-evo-platform-bw8-boundary-correction-p4b-restore`,
-Block `EVO-BW8-BOUNDARY-CORRECTION-P4B-RESTORE-2026-08-05`. This docs-only
-amendment removes PR #119's misplaced in-repository automation authority
-without rewriting its append-only decision history. EVO Platform continues to
-own ordinary admissions document metadata, checklist slots, private objects,
-versions, review/rework and audited access. The separate Student Profile
-document-reading/autofill/form-export system is not a Platform runtime
-dependency and has no automatic data exchange with EVO Platform. Any future
-integration requires its own mapping, consent/privacy, authentication,
-validation and acceptance plan.
+Active plan slice: `/goal-evo-platform-p2r4-local-validation-prerequisite`,
+Block `EVO-P2R4-LOCAL-VALIDATION-PREREQUISITE-2026-08-05`. PR #128 is merged
+and remains the active product-boundary authority. This new docs-only slice
+changes execution order only: repair and re-prove the disposable local
+Supabase validation gate before opening P4B implementation. The later repair
+may edit only `scripts/test-supabase-local-reset.sh` and
+`tests/supabase-local-reset-harness.test.mjs`. It must not restore PR #122 or
+BW8, reserve migration `059`, change schema/API/domain/TZ, touch the frontend,
+call providers or mutate staging/production.
 
 ### Goal
 
@@ -49,9 +49,11 @@ The existing unified frontend from PRs #64/#71/#72 is the sole product UI
 contract and must be wired through repository/session seams, not replaced or
 paralleled. AI remains draft-only with human manual send.
 
-This amendment records the corrected product boundary and restores the already
-merged P4B plan as the next implementation lane. It changes no application
-code, schema, provider ownership, production authority or restore claim.
+This amendment records the local-validation prerequisite. P4B remains the next
+product lane only after the repair implementation is independently reviewed,
+controller-merged and re-proved on exact main. This amendment changes no
+application code, schema, provider ownership, production authority or restore
+claim.
 
 ### Reconciled baseline
 
@@ -74,14 +76,19 @@ checkpoint is:
   repair; PR #113 merged BW5; PR #114 merged BW6; PR #116 merged BW7; PR #117
   merged P4A; and PR #118 merged the P4B plan at
   `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`.
-- PR #119 is immutable merged history but is superseded by this amendment as
-  current product authority. PRs #120, #122 and #124 were removed by reviewed
-  revert PRs #127, #126 and #125. Current `origin/main` is
-  `4567ef5067c523604bee73e8730f1b54ac23487d`; exact-main CI
-  `30989252650` is green, and migrations end at `058`.
-- After this amendment is controller-merged and exact-main CI is green, P4B is
-  the next implementation lane. It must recheck migration ownership against
-  fresh main; the expected next-free migration is `059`.
+- PR #119 is immutable merged history but PR #128 supersedes it as current
+  product authority. PRs #120, #122 and #124 were removed by reviewed revert
+  PRs #127, #126 and #125. Current `origin/main` is
+  `bb9d766163267846f406dcc376e893bb2a914af4`; exact-main CI
+  `31012015566` is green, and migrations end at `058`.
+- On that unchanged main, Node `22.23.1`, project-local Supabase CLI `2.110.0`
+  and Docker context `orbstack` were used to run exactly
+  `npm run test:supabase:local`. The bounded `supabase start` phase exited the
+  gate with `RC=1`; cleanup then left zero exact `evo-platform-local`
+  containers, volumes and networks, no singleton lock/process, and the Inbox
+  resource set remained unchanged.
+- P2R4 is therefore a required local-proof repair before P4B. It does not
+  revive PR #122, BW8, migration `059` ownership or any removed scope.
 - PR #108 exact head `f719b749efaadaf02c6344c5d01cd4b6bbe3d79c`
   is historical recovery evidence: it passed focused tests and CI but was
   closed without merge after controller
@@ -117,16 +124,27 @@ checkpoint is:
 
 ### Immediate execution order
 
-0. Merge this docs-only PR #119 boundary correction through exact-head independent review,
-   all four exact-head CI jobs and the independent controller before opening
-   mapping-selection implementation.
-1. Preserve migrations 001-058 and P4A discovery evidence as immutable
-   history. Recheck fresh `origin/main` and open ownership before selecting the
-   expected next migration 059.
-2. Implement only Admin-reviewed messaging mapping approval behind the accepted
+0. Merge this docs-only P2R4 prerequisite through exact-head independent
+   review, all four exact-head CI jobs and the independent controller.
+1. In a fresh worktree from the resulting main, change only
+   `scripts/test-supabase-local-reset.sh` and
+   `tests/supabase-local-reset-harness.test.mjs`. Use the supported local
+   `supabase start --ignore-health-check` escape hatch only with an immediate,
+   bounded, fail-closed readiness proof for Database, PostgREST, Auth, Storage,
+   Kong and CLI status. Unknown failures remain fatal; do not use broad retry or
+   cleanup.
+2. Prove the repair twice: executor and independent controller each run the
+   exact repo-scoped local gate from clean state with exit `0`; migrations
+   `001-058`, Auth/RLS/Storage/PGMQ and accepted browser tests pass; exact
+   Platform resources and lock are absent afterward; exact Inbox container,
+   volume and network identities are unchanged.
+3. Preserve migrations 001-058 and P4A discovery evidence as immutable
+   history. After P2R4 merge, recheck fresh `origin/main` and open ownership
+   before P4B selects any next-free migration; `059` is not reserved.
+4. Implement only Admin-reviewed messaging mapping approval behind the accepted
    `/whatsapp` seam, with same-org live authority, append-only decisions,
    supersession/revocation audit and fail-closed no-approval behavior.
-3. Keep identity/context sync, webhooks, outbox/jobs, reconciliation and
+5. Keep identity/context sync, webhooks, outbox/jobs, reconciliation and
    canonical writes in later reviewed P4 slices. Defer real WAHA/AI/ACK proof
    to P5 and all production authority to release gates.
 
@@ -212,14 +230,13 @@ checkpoint is:
 
 ### Merge-order boundary
 
-BW0, P3A-P3C, BW1-BW7, P2R0-P2R3 and P4A are merged history. This PR #119
-boundary correction is the only active docs-only block; P4B implementation is
-next after it. P2R0-P2R3 do not transfer P7 restore ownership or
-authorize production application. P3 owns common session/repository seams, P4
-owns amoCRM adapter behavior, P5 owns real WAHA/AI/ACK proof, and P7 owns
-whole-foundation backup/restore and release reliability evidence. No P4B
-implementation block can open until this amendment is controller-merged and
-green on exact-main CI.
+BW0, P3A-P3C, BW1-BW7, P2R0-P2R3, P4A and the PR #128 boundary correction are
+merged history. This P2R4 prerequisite is the only active docs-only block. Its
+two-file implementation must merge and the real local gate must be re-proved
+before P4B opens. P2R0-P2R4 do not transfer P7 restore ownership or authorize
+production application. P3 owns common session/repository seams, P4 owns
+amoCRM adapter behavior, P5 owns real WAHA/AI/ACK proof, and P7 owns
+whole-foundation backup/restore and release reliability evidence.
 Shared migrations are selected only after fetching current main and checking
 open ownership; merged migrations are immutable.
 - `crm.evoadmissions.com` and `inbox.evoadmissions.com` have no DNS answer.

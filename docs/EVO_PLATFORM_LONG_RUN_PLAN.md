@@ -9,18 +9,17 @@ Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 
 Execution checkpoint: historical P1 containment, reusable greenfield P2A-P2H,
 the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW7,
-P2R0-P2R3 and P4A are merged; PR #118 merged the P4B docs-only plan. PR #119
-then placed Student Profile document reading, extraction, autofill and form
-export inside this repository. The owner moved that automation to a separate
-system outside `evo_AI_CRM`. Reviewed PRs #125-#127 reverted dependent PRs
-#124, #122 and #120. Current `origin/main` is
-`4567ef5067c523604bee73e8730f1b54ac23487d`, migrations are contiguous
-`001-058`, and exact-main CI `30989252650` is green. This docs-only
-amendment supersedes PR #119 as active authority, preserves ordinary Platform
-Documents/checklist/private Storage/version/review/audit capabilities and
-restores P4B as the next implementation lane after controller merge. It
-authorizes no code, migration, credential, provider, customer-data or
-production action.
+P2R0-P2R3 and P4A are merged; PR #118 merged the P4B docs-only plan and PR #128
+merged the owner-authorized boundary correction that supersedes PR #119.
+Current `origin/main` is `bb9d766163267846f406dcc376e893bb2a914af4`,
+migrations are contiguous `001-058`, and exact-main CI `31012015566` is green.
+Fresh unchanged-main evidence shows the repo-scoped local Supabase gate exits
+`1` after the bounded `supabase start` phase times out on OrbStack, with normal
+cleanup leaving zero exact Platform resources and the Inbox resource set
+unchanged. This docs-only P2R4 prerequisite authorizes a later two-file repair
+of the local validation harness before P4B. It does not restore PR #122 or BW8,
+reserve migration `059`, or authorize application, schema, credential,
+provider, customer-data, staging or production action.
 
 ## 1. Outcome and truth boundary
 
@@ -73,9 +72,15 @@ and rollback proof are real. No fixed-duration soak is required by contract.
 As of the version date:
 
 - GitHub `main` checkpoint before this amendment is
-  `4567ef5067c523604bee73e8730f1b54ac23487d`; its tree equals the PR #119
-  checkpoint after corrective PRs #125-#127, and PR #119 is historical rather
-  than current product authority;
+  `bb9d766163267846f406dcc376e893bb2a914af4`; PR #128 supersedes PR #119 as
+  current product authority after corrective PRs #125-#127;
+- exact-main CI run `31012015566` is green for Main CRM, EVO Inbox and EVO Lead
+  Agent; Changed range is skipped on the push event as expected;
+- the exact unchanged-main command `npm run test:supabase:local`, using Node
+  `22.23.1`, project-local Supabase CLI `2.110.0` and Docker context `orbstack`,
+  exited `1` after its bounded local `supabase start` phase timed out. Normal
+  cleanup left no exact `evo-platform-local` container, volume, network, lock or
+  process and preserved the Inbox resource set;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -98,11 +103,12 @@ do not silently change production.
 
 After this amendment merges, implementation priority is intentionally narrow:
 
-1. BW5 owns the university/college catalog and reviewable import boundary; no
-   real import occurs without authorized source access.
-2. BW6-BW7 follow one independently reviewed PR at a time after BW5 merges.
-3. P4/P5/P7 retain amoCRM, real WAHA/AI/ACK and restore/reliability ownership;
-   provider and production claims remain evidence-gated.
+1. P2R4 repairs and re-proves the repo-scoped disposable local Supabase gate in
+   exactly two harness files. It changes no product behavior or migration.
+2. P4B remains the next product lane only after P2R4 is independently reviewed,
+   controller-merged and green on exact main.
+3. Later P4/P5/P7 retain amoCRM, real WAHA/AI/ACK and restore/reliability
+   ownership; provider and production claims remain evidence-gated.
 
 This contract explicitly defers broad infra perfection, broad restore proof,
 and broad backend parity work that do not change thin-slice product truth.
@@ -350,7 +356,8 @@ deployment surfaces are sequential.
 | P2R1 | Local Supabase proof reliability repair | Real clean local Auth/RLS/Storage/PGMQ gate, deterministic deadline/cleanup tests and forward-only document lock-order repair | Merged in PR #105; migration 055 is immutable history |
 | P2R2 | Auth-token and local reset reproducibility repair | Explicit issued-token `getClaims()` plus live authority; symlink-safe deadline execution; reproducible exact-project reset and cleanup | Plan merged in PR #109; superseded implementation PR #110 closed without merge after controller findings |
 | P2R3 | Stale-authority session clearing and exact local-proof ownership | Same-origin Route Handler clears rejected Supabase browser state; real connected-route regression; two physical-worktree local proofs | Plan PR #111 and implementation PR #112 merged; exact-main CI green |
-| P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, reviewed mapping selection, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | P4A and the P4B plan merged; P4B implementation is next after this amendment; provider proof blocked |
+| P2R4 | Local Supabase startup/readiness prerequisite | Two-file harness repair; bounded fail-closed service readiness; two clean real local proofs; exact-project cleanup and Inbox identity preservation | This docs-only prerequisite is active; no migration, product or provider change |
+| P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, reviewed mapping selection, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | P4A and the P4B plan merged; P4B waits for P2R4 merge and exact-main proof; provider proof blocked |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no legacy cutover yet | Pending |
 | P6 | Admissions, Portal, Documents, Finance, Notifications | Two-student isolation E2E and complete staff-to-portal workflows | Pending |
 | P7 | Security, reliability and operations | Threat model, load evidence, backup plus Storage restore, RPO/RTO and rollback rehearsal, accessibility | Pending |
@@ -358,12 +365,13 @@ deployment surfaces are sequential.
 | P9 | Bounded cutover evidence and separate Lead Agent retirement PR | Zero unexplained loss/duplicate/drift in the evidence window plus proven rollback and health | Evidence-gated |
 | P10 | Completion audit | Every FR/NFR/SEC/ACC mapped to evidence, full CI/provider proof, no open implementation PR | Pending |
 
-BW0, P3A-P3C, BW1-BW7, P2R0-P2R3 and P4A are merged. PR #112 satisfied the
-prerequisite stale-authority/local-proof gate, PR #113 merged BW5, PR #114
+BW0, P3A-P3C, BW1-BW7, P2R0-P2R3, P4A and PR #128 are merged. PR #112
+satisfied the stale-authority/local-proof gate, PR #113 merged BW5, PR #114
 merged BW6, PR #116 merged BW7 and PR #117 merged P4A with green exact-main
-CI. PR #118 merged the P4B plan. After this amendment merges, P4B defines the
-next bounded P4 implementation slice without changing the BW
-dependency and exit-evidence contract below:
+CI. PR #118 merged the P4B plan. This amendment inserts only P2R4 as a
+local-validation prerequisite. After P2R4 implementation merges and the exact
+gate is re-proved, P4B remains the next bounded P4 implementation slice without
+changing the BW dependency and exit-evidence contract below:
 
 | Block | Contract | Dependency and exit evidence |
 | --- | --- | --- |
@@ -449,6 +457,58 @@ dependency and exit-evidence contract below:
   migration and cannot claim managed Supabase, providers, production, restore
   or cutover proof; `real-provider-proof: not-required` remains the truthful
   provider boundary.
+
+### P2R4 — local Supabase startup/readiness prerequisite
+
+P2R4 is a new narrow repair block; it does not revive PR #122 or any reverted
+BW8 work. The trigger is fresh evidence from unchanged main
+`bb9d766163267846f406dcc376e893bb2a914af4`: with Node `22.23.1`, the
+project-local Supabase CLI `2.110.0` and Docker context `orbstack`, the exact
+repo command `npm run test:supabase:local` exited `1` after the bounded
+`supabase start` phase timed out. The normal cleanup completed with zero exact
+`evo-platform-local` containers, volumes and networks, no singleton lock or
+process, and no change to the Inbox resource set. This failure happened before
+P4B work and means the required real local acceptance gate is not currently
+reproducible from main.
+
+P2R4 implementation ownership is limited to:
+
+- `scripts/test-supabase-local-reset.sh`;
+- `tests/supabase-local-reset-harness.test.mjs`.
+
+The implementation contract is:
+
+- keep all Supabase operations strictly local and exact-project scoped; never
+  use `--linked`, `--project-ref`, `--db-url`, `stop --all`, broad prune, Docker
+  daemon restart or unrelated-stack mutation;
+- use the CLI-supported `supabase start --ignore-health-check` only as a startup
+  escape hatch. Because that command may return success while a service is
+  unhealthy, immediately require bounded, fail-closed readiness for Database,
+  PostgREST, Auth, Storage, Kong and the CLI status before migrations, seeding
+  or browser gates continue;
+- preserve canonical immutable migrations `001-058` and the official local
+  reset path. Migration list/order must equal the repository exactly; migration
+  `059` is not reserved and no migration-repair ledger mutation is authorized
+  by this block;
+- keep the existing classified post-reset Storage/Kong recovery bounded to its
+  exact known signature and exact local project. Unknown, unclassified or
+  repeated failures fail immediately; no general retry policy is permitted;
+- prove Auth, live RLS/record scope, private Storage, PGMQ and the accepted
+  browser scenarios on the rebuilt local stack;
+- capture exact Inbox container IDs, volume names and network IDs before the
+  run and require the identical sets after cleanup. Also require zero exact
+  Platform resources and zero singleton lock/process after every exit path.
+
+P2R4 exits only when focused positive and negative harness tests pass and both
+the executor and an independent controller run the exact repo-scoped local gate
+from clean state with exit `0`, complete cleanup and unchanged Inbox identity.
+The implementation PR also needs `git diff --check`, scoped secret scanning,
+all four exact-head CI jobs, an exact-SHA independent review and controller
+merge. The controller then verifies exact-main CI before P4B opens.
+
+P2R4 changes no application/frontend behavior, schema, API, domain/TZ/DOCX,
+credential, provider, staging or production state. It provides local validation
+evidence only; `real-provider-proof: not-required`.
 
 ### Merged BW5 contract and remaining provider boundary
 
@@ -615,6 +675,7 @@ P2 is sequential and additive. Its detailed contract is
 | P2G | Add real Supabase Queues/PGMQ, outbox, idempotency, dead-letter and reconciliation/conflict state | Local service retry/visibility/dedupe/concurrency evidence; unknown delivery never re-enqueued automatically |
 | P2H | Add new private Platform document/media buckets and policies through the real local Supabase Storage API | MIME/25 MB and cross-student/cross-organization denial; audited authorized access |
 | P2R1 | Repair the merged local proof path without widening product scope: bounded process-group deadlines, exact-label cleanup, transient-only Auth readiness, deterministic PGMQ leases, and a next-free forward migration for document finalization/review lock order | `npm run test:supabase:local` exits zero against real local services; exact-label resources and singleton lock are absent after cleanup; Inbox state is preserved; disposable PostgreSQL authorization, unit/security, lint, typecheck, build, scenarios, E2E/a11y and scoped secret checks pass |
+| P2R4 | Repair only the current local startup/readiness harness after fresh unchanged-main OrbStack failure | Two independent clean `npm run test:supabase:local` exits `0`; exact migrations `001-058`, Auth/RLS/Storage/PGMQ/browser gates pass; exact Platform cleanup and Inbox identity preservation pass |
 | P2I | Superseded in this lane; restore duties transfer to later reliability work | Later reliability work owns clean reset, RLS/grant/secret inventory, browser secret scan, isolated DB restore and separate Storage-object restore |
 
 P2 does not rename or drop legacy Inbox tables, cut root authentication over,
@@ -666,7 +727,8 @@ mapping evidence through a GET-only server adapter, service-only persistence
 and live-authority Admin reads. Discovery versions remain immutable and have
 no active flag.
 
-The P4B plan merged in PR #118. After this boundary amendment merges, a
+The P4B plan merged in PR #118. After the P2R4 prerequisite and its two-file
+repair are controller-merged and the real local gate is re-proved, a
 separate implementation may
 let a current same-organization Admin approve one discovery version for the
 `messaging` use. Approval decisions are append-only, include the selected

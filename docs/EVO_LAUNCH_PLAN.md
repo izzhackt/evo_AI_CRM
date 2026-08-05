@@ -1,20 +1,20 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-bw8-student-document-intelligence-plan` is active. Historical P1, reusable
-greenfield P2A-P2H, BW0, P3A-P3C, BW1-BW7, P2R0-P2R3, P4A and the P4B plan are
-merged. PR #118 merged the P4B docs-only contract at current main
-`10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`; exact-main CI run
-`30963131242` is green for Main CRM, EVO Inbox and EVO Lead Agent, while
-Changed range was skipped on the push run as expected. P4B remains a valid
-docs-only mapping-selection contract, but its implementation is paused before
-any shared PR or migration merged. BW8 is now the active docs-only contract for
-student document intake, extraction review and deterministic profile export.
-It authorizes no application code, migration, provider credential/call, real
-student upload or runtime mutation. P4A evidence is green for disposable
-PostgreSQL authorization, 58 contiguous local Supabase migrations,
-Auth/PostgREST/Storage/PGMQ and 28/28 accepted-frontend browser scenarios.
-No managed Supabase, staging, provider or production exercise is claimed. P2I
-restore duties remain in P7.
+Status: `/goal-evo-platform-bw8-boundary-correction-p4b-restore` is active.
+Historical P1, reusable greenfield P2A-P2H, BW0, P3A-P3C, BW1-BW7,
+P2R0-P2R3 and P4A are merged. PR #118 merged the P4B docs-only contract.
+PR #119 then placed Student Profile document reading, extraction, autofill and
+form export inside this repository. The owner has moved that automation to a
+separate system outside `evo_AI_CRM`. PRs #125-#127 reverted the dependent
+PRs #124, #122 and #120; current `origin/main` is
+`4567ef5067c523604bee73e8730f1b54ac23487d`, its tree equals the PR #119
+checkpoint, migrations are again contiguous `001-058`, and exact-main CI run
+`30989252650` is green for Main CRM, EVO Inbox and EVO Lead Agent.
+This docs-only amendment supersedes PR #119 as active authority, preserves the
+ordinary Platform Documents/checklist/private Storage/version/review/audit
+contract, and restores P4B as the next implementation lane after controller
+merge. It authorizes no application code, migration, provider action,
+customer-data action or production mutation.
 Updated 2026-08-05 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
@@ -27,17 +27,16 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active plan slice: `/goal-evo-platform-bw8-student-document-intelligence-plan`,
-Block `EVO-BW8-STUDENT-DOCUMENT-INTELLIGENCE-PLAN-2026-08-05`. This docs-only
-amendment defines the next bounded business-workflow lane: connect the merged
-student-case, requirement, private Storage, document-version, audit and durable
-queue foundations into one accepted `/documents` workbench. A later ordered
-implementation may intake private files or exact Drive imports, verify and scan
-them, produce evidence-backed extraction candidates, require a human decision,
-maintain typed confirmed profile fields and generate versioned DOCX/PDF drafts.
-The amendment itself adds no code or migration and does not authorize provider
-credentials/calls, real student data processing, managed Supabase, staging or
-production mutation.
+Active plan slice: `/goal-evo-platform-bw8-boundary-correction-p4b-restore`,
+Block `EVO-BW8-BOUNDARY-CORRECTION-P4B-RESTORE-2026-08-05`. This docs-only
+amendment removes PR #119's misplaced in-repository automation authority
+without rewriting its append-only decision history. EVO Platform continues to
+own ordinary admissions document metadata, checklist slots, private objects,
+versions, review/rework and audited access. The separate Student Profile
+document-reading/autofill/form-export system is not a Platform runtime
+dependency and has no automatic data exchange with EVO Platform. Any future
+integration requires its own mapping, consent/privacy, authentication,
+validation and acceptance plan.
 
 ### Goal
 
@@ -50,11 +49,9 @@ The existing unified frontend from PRs #64/#71/#72 is the sole product UI
 contract and must be wired through repository/session seams, not replaced or
 paralleled. AI remains draft-only with human manual send.
 
-This amendment records an explicit product-priority change, defines BW8
-sub-block ownership, data/state boundaries and acceptance evidence, and pauses
-P4B implementation without invalidating its reviewed contract or touching its
-local worktree. It keeps amoCRM ownership, the unified frontend, provider and
-production authority, and P7 restore ownership unchanged.
+This amendment records the corrected product boundary and restores the already
+merged P4B plan as the next implementation lane. It changes no application
+code, schema, provider ownership, production authority or restore claim.
 
 ### Reconciled baseline
 
@@ -74,12 +71,17 @@ checkpoint is:
   merged P3A-P3C; PRs #100-#103 merged BW1-BW4; PR #104 merged P2R0; PR #105
   merged P2R1; PR #107 merged the BW5 checkpoint amendment; PR #109 merged the
   P2R2 plan gate; PR #111 merged the P2R3 plan gate; PR #112 merged the P2R3
-  repair; PR #113 merged BW5; PR #114 merged BW6; PR #116 merged BW7; and PR
-  #117 merged P4A, and PR #118 merged the P4B docs-only contract. The exact
-  checkpoint for BW8 planning is
-  `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`; exact-main CI run
-  `30963131242` is green for Main CRM, EVO Inbox and EVO Lead Agent, while
-  Changed range was skipped on the push run as expected.
+  repair; PR #113 merged BW5; PR #114 merged BW6; PR #116 merged BW7; PR #117
+  merged P4A; and PR #118 merged the P4B plan at
+  `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`.
+- PR #119 is immutable merged history but is superseded by this amendment as
+  current product authority. PRs #120, #122 and #124 were removed by reviewed
+  revert PRs #127, #126 and #125. Current `origin/main` is
+  `4567ef5067c523604bee73e8730f1b54ac23487d`; exact-main CI
+  `30989252650` is green, and migrations end at `058`.
+- After this amendment is controller-merged and exact-main CI is green, P4B is
+  the next implementation lane. It must recheck migration ownership against
+  fresh main; the expected next-free migration is `059`.
 - PR #108 exact head `f719b749efaadaf02c6344c5d01cd4b6bbe3d79c`
   is historical recovery evidence: it passed focused tests and CI but was
   closed without merge after controller
@@ -115,20 +117,18 @@ checkpoint is:
 
 ### Immediate execution order
 
-0. Merge this docs-only BW8 amendment through exact-head independent review,
+0. Merge this docs-only PR #119 boundary correction through exact-head independent review,
    all four exact-head CI jobs and the independent controller before opening
-   student-document implementation.
-1. Preserve migrations 001-058, P4A discovery evidence and the P4B docs-only
-   contract as immutable history. Recheck fresh `origin/main` and open ownership
-   before BW8A selects expected next migration 059.
-2. Implement BW8A-BW8E sequentially: auditable schema/RLS; real private intake,
-   scanner and durable work; Drive/OpenAI extraction adapters; accepted
-   `/documents` review UI and deterministic DOCX/PDF export; then integrated
-   completion proof.
-3. Keep P4B implementation paused. After BW8, it restarts from current main and
-   rechecks next-free migration, expected 060. Identity/context sync, webhooks,
-   reconciliation, canonical amoCRM writes, real WAHA/ACK proof and production
-   authority remain in their separately reviewed lanes.
+   mapping-selection implementation.
+1. Preserve migrations 001-058 and P4A discovery evidence as immutable
+   history. Recheck fresh `origin/main` and open ownership before selecting the
+   expected next migration 059.
+2. Implement only Admin-reviewed messaging mapping approval behind the accepted
+   `/whatsapp` seam, with same-org live authority, append-only decisions,
+   supersession/revocation audit and fail-closed no-approval behavior.
+3. Keep identity/context sync, webhooks, outbox/jobs, reconciliation and
+   canonical writes in later reviewed P4 slices. Defer real WAHA/AI/ACK proof
+   to P5 and all production authority to release gates.
 
 ### Merged P2R3 acceptance record
 
@@ -209,21 +209,17 @@ checkpoint is:
 - BW7 proves the complete local/staging Supabase workflow through the accepted
   frontend. It does not imply production/provider readiness without real
   authorized service exercise.
-- BW8 proves private intake, real scan, durable evidence candidates, human
-  confirmation, expanded typed profile and deterministic DOCX/PDF drafts
-  through the existing `/documents` surface. Real-student provider use and
-  production remain separately gated.
 
 ### Merge-order boundary
 
-BW0, P3A-P3C, BW1-BW7, P2R0-P2R3 and P4A are merged history. P4B remains a
-reviewed docs-only contract but its implementation is paused; BW8 is the only
-active docs-only plan block. P2R0-P2R3 do not transfer P7 restore ownership or
+BW0, P3A-P3C, BW1-BW7, P2R0-P2R3 and P4A are merged history. This PR #119
+boundary correction is the only active docs-only block; P4B implementation is
+next after it. P2R0-P2R3 do not transfer P7 restore ownership or
 authorize production application. P3 owns common session/repository seams, P4
-owns amoCRM adapter behavior, BW8 owns the document-intelligence workflow, P5
-owns live messaging provider/ACK proof, and P7 owns whole-foundation
-backup/restore and release reliability evidence. No BW8 implementation block
-can open until this amendment is controller-merged and green on exact-main CI.
+owns amoCRM adapter behavior, P5 owns real WAHA/AI/ACK proof, and P7 owns
+whole-foundation backup/restore and release reliability evidence. No P4B
+implementation block can open until this amendment is controller-merged and
+green on exact-main CI.
 Shared migrations are selected only after fetching current main and checking
 open ownership; merged migrations are immutable.
 - `crm.evoadmissions.com` and `inbox.evoadmissions.com` have no DNS answer.

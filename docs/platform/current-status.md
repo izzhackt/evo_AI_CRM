@@ -12,13 +12,15 @@
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current merged checkpoint: `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`
+- Current merged checkpoint: `4567ef5067c523604bee73e8730f1b54ac23487d`
 - Active plan block:
-  `EVO-BW8-STUDENT-DOCUMENT-INTELLIGENCE-PLAN-2026-08-05`
+  `EVO-BW8-BOUNDARY-CORRECTION-P4B-RESTORE-2026-08-05`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
   `docs/adr/0016-greenfield-platform-ui-and-data-boundary.md`
+- Active Student Profile automation boundary:
+  `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
 - Evidence rule: code/configuration is not real-provider proof
 
 ## Короткий вывод
@@ -32,18 +34,18 @@ AI draft → manual send → ACK → audit ни разу не доказан end
 platform нельзя называть production-complete.
 
 P1 остаётся историческим legacy containment. P2A-P2H, greenfield/UI boundary,
-BW0, P3A-P3C, BW1-BW7, P2R0-P2R3, P4A и P4B plan merged. PR #118
-controller-merged P4B docs-only contract как
-`10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`; exact-main CI run
-`30963131242` зелёный. P4B docs-only остаётся действующим контрактом, но его
-implementation приостановлен до shared PR/migration. Текущий plan block — BW8
-student document intelligence: private intake, scanner, durable extraction
-candidates, human confirmation, typed profile и versioned DOCX/PDF draft
-export через существующий `/documents`. Этот amendment не содержит code,
-migration, credentials/provider calls или real student processing. Staging,
-managed apply, real-student AI use, production deployment и customer delivery
-остаются blocked до отдельной авторизации и доказательств. Former P2I restore
-duties остаются в P7.
+BW0, P3A-P3C, BW1-BW7, P2R0-P2R3 и P4A merged; PR #118 merged the P4B plan.
+PR #119 остаётся immutable history, но его in-repository Student Profile
+document reading/extraction/autofill/export scope superseded решением owner-а:
+эта автоматизация принадлежит отдельной системе вне `evo_AI_CRM`. PRs
+#125-#127 отменили зависимые PRs #124, #122 и #120. Текущий main —
+`4567ef5067c523604bee73e8730f1b54ac23487d`, exact-main CI
+`30989252650` зелёный, migrations снова `001-058`. Этот docs-only gate
+сохраняет обычные Platform documents/checklists/private Storage/version/review/
+audit и восстанавливает P4B как следующий implementation lane после merge.
+Staging, real provider discovery, managed apply и customer delivery остаются
+blocked до отдельной авторизации и доказательств. Former P2I restore duties
+остаются в P7.
 
 ## Что подтверждено из репозитория
 
@@ -66,8 +68,8 @@ duties остаются в P7.
 | BW6 contract/report | PR #114 controller-merged migration 057, contract repository/actions and the existing Student 360 route for typed approved-field contract drafts plus audited post-contract checklist/report | independent exact-SHA review, controller gates and exact-main CI `30918820654` passed; this is not a signed legal contract, PDF/DOCX/e-sign, provider, managed Supabase or production proof |
 | BW7 integration proof | PR #116 connected Student 360 assignment state and proved one synthetic case across Sales draft → Admin assignment/portal activation → Curator checklist/report → Student Portal → limited Sales summary | independent review/controller gates, real disposable local Supabase/Auth/RLS browser gate 28/28 and exact-main CI `30934111632` passed; persistent staging/provider/production proof remains absent |
 | P4A amoCRM mapping discovery | PR #117 merged migration 058 with immutable sanitized account-specific snapshots, service-only ingest, live-authority Admin reads and a GET-only bounded server adapter | independent exact-head review, controller full local Supabase RC=0 with 58 migrations and 28/28 browser scenarios, and exact-main CI `30958119076` passed; real amoCRM account proof remains blocked |
-| P4B mapping selection/approval plan | PR #118 merged the docs-only contract separating immutable discovery evidence from append-only Admin approval events and a deterministic current messaging selection behind the accepted `/whatsapp` seam | exact-main CI `30963131242` green; implementation/migration/provider proof absent and implementation explicitly paused while BW8 is active |
-| BW8 student document intelligence plan | Docs-only priority amendment defines one accepted `/documents` workbench from private intake through scan, extraction candidates, human confirmation, typed profile and versioned DOCX/PDF draft export | no implementation, migration, provider call, real student processing, managed Supabase or production proof in this amendment |
+| P4B mapping selection/approval plan | PR #118 merged the docs-only contract separating immutable discovery evidence from append-only Admin approval events and a deterministic current messaging selection behind the accepted `/whatsapp` seam | P4B implementation is next after this amendment; it must recheck fresh-main ownership and expected next-free migration `059`; no managed Supabase or provider proof |
+| PR #119 boundary correction | Student Profile document reading, extraction, autofill and form export moved to a separate system outside this repository; ordinary Platform document lifecycle remains | docs-only authority correction; no automatic data exchange, runtime dependency, provider call, customer-data action or production mutation |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до bounded cutover evidence and rollback gate |
@@ -102,8 +104,6 @@ P4A merged boundary and evidence ledger:
 [`p4a-amocrm-mapping-discovery.md`](p4a-amocrm-mapping-discovery.md).
 P4B docs-only selection/approval contract:
 [`p4b-amocrm-mapping-selection-approval.md`](p4b-amocrm-mapping-selection-approval.md).
-BW8 active student-document contract:
-[`bw8-student-document-intelligence.md`](bw8-student-document-intelligence.md).
 
 ## Принятый target, ещё не cut over
 
@@ -125,9 +125,9 @@ BW8 active student-document contract:
   contract/report boundary — migration 057; BW7 не добавляет migration и
   соединяет принятые RPC/RLS contracts с существующим frontend; merged P4A
   добавляет только forward migration 058 для private sanitized mapping
-  discovery versions; P4B amendment не добавляет migration; BW8A теперь
-  обязан заново подтвердить expected next-free 059, а paused P4B после BW8
-  заново проверяет then-next free migration, expected 060;
+  discovery versions; PR #118's P4B plan и текущая docs-only boundary
+  correction не добавляют migration, а следующий implementation обязан заново
+  подтвердить expected next-free 059;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;
@@ -194,16 +194,20 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — merge docs-only BW8 contract. После него только последовательные
-BW8A-BW8E могут добавить extraction/profile/export schema, real private
-intake/scanner/worker, server-only Drive/OpenAI adapters, accepted `/documents`
-workbench и integrated completion proof. AI output остаётся candidate evidence
-и не пишет canonical profile без human confirmation. До Product/Legal/Data
-решения реальные student documents нельзя передавать OpenAI; manual path
-остаётся доступным. P4B implementation приостановлен, его immutable contract и
-P4A evidence сохраняются. Real amoCRM/WAHA/ACK proof, persistent staging,
-managed Supabase, restore duties и production cutover остаются отдельными
-gates с bounded reconciliation/health/rollback evidence.
+Текущий gate — merge docs-only boundary correction for PR #119. После
+controller merge и зелёного exact-main CI следующий implementation slice —
+P4B: current same-organization Admin выбирает и одобряет одну P4A discovery
+version для `messaging`, решения остаются append-only, а current selection
+выводится детерминированно. No-approved state fail-closed для
+mapping-dependent behavior; новый admin/settings frontend не создаётся,
+используется accepted `/whatsapp` seam. P4B обязан заново проверить
+fresh-main migration ownership; ожидаемый next-free номер — `059`, но это не
+reservation. Persistent staging и реальный amoCRM account discovery остаются
+честными blockers до credentials, sanitized test account и отдельной
+авторизации. Identity/context sync, webhook/outbox/reconciliation и canonical
+writes остаются следующими P4 slices; real WAHA/AI/ACK proof — P5, restore
+duties — P7. Production cutover остаётся отдельным authorized event с bounded
+reconciliation/health/rollback evidence.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой
 exact deployed revision, private network, provider readiness и full E2E.

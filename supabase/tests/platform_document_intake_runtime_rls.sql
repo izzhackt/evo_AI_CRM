@@ -445,6 +445,54 @@ SELECT platform.resolve_document_validation_input(
 \set bw8b_resolver_rebind_state :SQLSTATE
 \set ON_ERROR_STOP on
 
+SELECT platform.attest_document_validation(
+  :'bw8b_org_id',
+  :'bw8b_positive_version_id',
+  'verified',
+  'clean',
+  'clamav-instream-v1',
+  'synthetic://bw8b/recovered-clean',
+  '60000000-0000-4000-8000-000000000860'
+);
+SELECT platform.resolve_document_validation_input(
+  :'bw8b_org_id', :'bw8b_positive_version_id',
+  '60000000-0000-4000-8000-000000000861'
+)::TEXT AS bw8b_recovered_resolver_result
+\gset
+SELECT platform.resolve_document_validation_input(
+  :'bw8b_org_id', :'bw8b_positive_version_id',
+  '60000000-0000-4000-8000-000000000861'
+)::TEXT AS bw8b_recovered_resolver_replay
+\gset
+SELECT platform.attest_document_validation(
+  :'bw8b_org_id',
+  :'bw8b_positive_version_id',
+  'verified',
+  'infected',
+  'clamav-instream-v1',
+  'synthetic://bw8b/recovered-infected',
+  '60000000-0000-4000-8000-000000000862'
+);
+SELECT platform.resolve_document_validation_input(
+  :'bw8b_org_id', :'bw8b_positive_version_id',
+  '60000000-0000-4000-8000-000000000863'
+)::TEXT AS bw8b_recovered_infected_result
+\gset
+SELECT platform.attest_document_validation(
+  :'bw8b_org_id',
+  :'bw8b_positive_version_id',
+  'failed',
+  'error',
+  'clamav-instream-v1',
+  'synthetic://bw8b/recovered-failed',
+  '60000000-0000-4000-8000-000000000864'
+);
+SELECT platform.resolve_document_validation_input(
+  :'bw8b_org_id', :'bw8b_positive_version_id',
+  '60000000-0000-4000-8000-000000000865'
+)::TEXT AS bw8b_recovered_failed_result
+\gset
+
 SELECT platform.claim_durable_work(
   30, 'bw8b-generic-worker',
   '60000000-0000-4000-8000-000000000846'
@@ -551,16 +599,43 @@ SELECT pg_temp.bw8b_assert(
       = 2048
     AND :'bw8b_resolver_result'::JSONB ->> 'expected_sha256_hex'
       = repeat('1', 64)
+    AND (:'bw8b_resolver_result'::JSONB ->> 'validation_already_finalized')::BOOLEAN = FALSE
+    AND :'bw8b_resolver_result'::JSONB ->> 'final_integrity_status' IS NULL
+    AND :'bw8b_resolver_result'::JSONB ->> 'final_malware_status' IS NULL
     AND (
       SELECT array_agg(key ORDER BY key)
       FROM jsonb_object_keys(:'bw8b_resolver_result'::JSONB) AS key
     ) = ARRAY[
       'bucket_id', 'document_slot_id', 'document_version_id',
       'document_version_no', 'expected_byte_size', 'expected_mime_type',
-      'expected_original_filename', 'expected_sha256_hex', 'object_name',
-      'organization_id', 'student_case_id'
+      'expected_original_filename', 'expected_sha256_hex',
+      'final_integrity_status', 'final_malware_status', 'object_name',
+      'organization_id', 'student_case_id', 'validation_already_finalized'
     ]::TEXT[],
   'resolver returned wrong metadata, replay or extra fields'
+);
+SELECT pg_temp.bw8b_assert(
+  :'bw8b_recovered_resolver_result'::JSONB
+    = :'bw8b_recovered_resolver_replay'::JSONB
+    AND (:'bw8b_recovered_resolver_result'::JSONB ->> 'validation_already_finalized')::BOOLEAN
+    AND :'bw8b_recovered_resolver_result'::JSONB ->> 'final_integrity_status'
+      = 'verified'
+    AND :'bw8b_recovered_resolver_result'::JSONB ->> 'final_malware_status'
+      = 'clean',
+  'resolver did not expose deterministic finalized-validation recovery metadata'
+);
+SELECT pg_temp.bw8b_assert(
+  :'bw8b_recovered_infected_result'::JSONB ->> 'final_integrity_status'
+      = 'verified'
+    AND :'bw8b_recovered_infected_result'::JSONB ->> 'final_malware_status'
+      = 'infected'
+    AND (:'bw8b_recovered_infected_result'::JSONB ->> 'validation_already_finalized')::BOOLEAN
+    AND :'bw8b_recovered_failed_result'::JSONB ->> 'final_integrity_status'
+      = 'failed'
+    AND :'bw8b_recovered_failed_result'::JSONB ->> 'final_malware_status'
+      = 'error'
+    AND (:'bw8b_recovered_failed_result'::JSONB ->> 'validation_already_finalized')::BOOLEAN,
+  'resolver did not expose infected and failed recovery states'
 );
 SELECT pg_temp.bw8b_assert(
   :'bw8b_retry_result'::JSONB ->> 'state' = 'retry_wait'

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly CLAMAV_IMAGE="clamav/clamav:1.5.3-debian13-slim"
+readonly CLAMAV_IMAGE="clamav/clamav:1.5.3-debian13-slim@sha256:741e6c447241220e0792a901befcaec1d55a755c5097fc9cd88d7fd8be251a5c"
 readonly CONTAINER_NAME="evo-bw8b-clamav-test-${PPID}-$$"
 CONTAINER_ID=""
 

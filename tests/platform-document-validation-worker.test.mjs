@@ -53,6 +53,9 @@ function validationInput(overrides = {}) {
     expected_mime_type: "application/pdf",
     expected_byte_size: PDF_BYTES.byteLength,
     expected_sha256_hex: sha256(PDF_BYTES),
+    validation_already_finalized: false,
+    final_integrity_status: null,
+    final_malware_status: null,
     ...overrides,
   };
 }
@@ -236,6 +239,109 @@ test("a replacement lease reuses stable attestation identity and evidence", asyn
   const secondFinish = second.calls.find((entry) => Array.isArray(entry) && entry[0] === "finish")[1];
   assert.notEqual(firstFinish.requestId, secondFinish.requestId);
 });
+
+test("replacement lease with finalized resolver metadata finishes without download scan or attest", async () => {
+  const api = dependencies({
+    resolveValidationInput: async () => {
+      api.calls.push("resolve");
+      return validationInput({
+        validation_already_finalized: true,
+        final_integrity_status: "verified",
+        final_malware_status: "clean",
+      });
+    },
+    downloadObject: async () => {
+      api.calls.push("download");
+      throw new Error("download must not run");
+    },
+    scanBytes: async () => {
+      api.calls.push("scan");
+      throw new Error("scan must not run");
+    },
+    attestValidation: async () => {
+      api.calls.push("attest");
+      throw new Error("attest must not run");
+    },
+  });
+
+  const result = await run(api);
+
+  assert.deepEqual(api.calls.map((entry) => (Array.isArray(entry) ? entry[0] : entry)), [
+    "claim",
+    "resolve",
+    "finish",
+  ]);
+  assert.deepEqual(result, {
+    status: "succeeded",
+    workItemId: WORK_ITEM_ID,
+    code: "clean",
+  });
+  const finish = api.calls.find((entry) => Array.isArray(entry) && entry[0] === "finish")[1];
+  assert.equal(finish.outcome, "succeeded");
+  assert.match(
+    finish.evidenceRef,
+    /^document-validation-recovery:v1:55555555-5555-4555-8555-555555555555:44444444-4444-4444-8444-444444444444:verified-clean$/,
+  );
+});
+
+for (const recovery of [
+  {
+    label: "infected",
+    integrityStatus: "verified",
+    malwareStatus: "infected",
+    expectedCode: "document_infected",
+  },
+  {
+    label: "failed",
+    integrityStatus: "failed",
+    malwareStatus: "error",
+    expectedCode: "validation_previously_failed",
+  },
+]) {
+  test(`replacement lease closes finalized ${recovery.label} validation without re-attesting`, async () => {
+    const api = dependencies({
+      resolveValidationInput: async () => {
+        api.calls.push("resolve");
+        return validationInput({
+          validation_already_finalized: true,
+          final_integrity_status: recovery.integrityStatus,
+          final_malware_status: recovery.malwareStatus,
+        });
+      },
+      downloadObject: async () => {
+        api.calls.push("download");
+        throw new Error("download must not run");
+      },
+      scanBytes: async () => {
+        api.calls.push("scan");
+        throw new Error("scan must not run");
+      },
+      attestValidation: async () => {
+        api.calls.push("attest");
+        throw new Error("attest must not run");
+      },
+    });
+
+    assert.deepEqual(await run(api), {
+      status: "terminal",
+      workItemId: WORK_ITEM_ID,
+      code: recovery.expectedCode,
+    });
+    assert.deepEqual(
+      api.calls.map((entry) => (Array.isArray(entry) ? entry[0] : entry)),
+      ["claim", "resolve", "finish"],
+    );
+    const finish = api.calls.find(
+      (entry) => Array.isArray(entry) && entry[0] === "finish",
+    )[1];
+    assert.equal(finish.outcome, "terminal_error");
+    assert.equal(finish.errorCode, recovery.expectedCode);
+    assert.equal(
+      finish.evidenceRef,
+      `document-validation-recovery:v1:${WORK_ITEM_ID}:${DOCUMENT_VERSION_ID}:${recovery.integrityStatus}-${recovery.malwareStatus}`,
+    );
+  });
+}
 
 test("unsupported shared-queue kind is rejected without resolve or finish", async () => {
   const api = dependencies({

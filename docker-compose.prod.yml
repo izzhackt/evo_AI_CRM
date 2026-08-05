@@ -131,7 +131,7 @@ services:
   document-validation-scanner:
     profiles:
       - student-documents
-    image: "clamav/clamav:1.5.3-debian13-slim"
+    image: "clamav/clamav:1.5.3-debian13-slim@sha256:741e6c447241220e0792a901befcaec1d55a755c5097fc9cd88d7fd8be251a5c"
     restart: unless-stopped
     init: true
     user: clamav

@@ -19,7 +19,9 @@ declared filename or MIME type can never create a clean result.
 
 ## Security and network boundary
 
-- Compose pins the official `clamav/clamav:1.5.3-debian13-slim` patch image.
+- Compose pins the official `clamav/clamav:1.5.3-debian13-slim` patch image to
+  the immutable multi-architecture index digest
+  `sha256:741e6c447241220e0792a901befcaec1d55a755c5097fc9cd88d7fd8be251a5c`.
 - `clamd` and the worker share the dedicated EVO-owned
   `evo_crm_document_validation` network. There is no public `ports` mapping.
 - The scanner runs as the image's `clamav` user through

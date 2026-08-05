@@ -508,6 +508,9 @@ DECLARE
   binding_row platform_private.document_storage_bindings%ROWTYPE;
   reservation_row platform_private.document_upload_reservations%ROWTYPE;
   finalization_row platform_private.document_upload_finalizations%ROWTYPE;
+  validation_already_finalized BOOLEAN := FALSE;
+  final_integrity_status platform.document_integrity_status := NULL;
+  final_malware_status platform.document_malware_status := NULL;
   input_sha256 TEXT;
   replayed JSONB;
   result JSONB;
@@ -608,11 +611,25 @@ BEGIN
     AND version.version_no = slot_row.current_version_no
   FOR SHARE;
 
-  IF version_row.integrity_status <> 'pending'
-    OR version_row.malware_status <> 'pending'
+  IF version_row.integrity_status = 'pending'
+    AND version_row.malware_status = 'pending'
   THEN
+    validation_already_finalized := FALSE;
+  ELSIF version_row.integrity_status = 'verified'
+    AND version_row.malware_status IN ('clean', 'infected')
+  THEN
+    validation_already_finalized := TRUE;
+    final_integrity_status := version_row.integrity_status;
+    final_malware_status := version_row.malware_status;
+  ELSIF version_row.integrity_status = 'failed'
+    AND version_row.malware_status = 'error'
+  THEN
+    validation_already_finalized := TRUE;
+    final_integrity_status := version_row.integrity_status;
+    final_malware_status := version_row.malware_status;
+  ELSE
     RAISE EXCEPTION
-      'Document validation input is no longer pending'
+      'Document validation input is inconsistent'
       USING ERRCODE = '55000';
   END IF;
 
@@ -680,7 +697,10 @@ BEGIN
     'expected_original_filename', version_row.original_filename,
     'expected_mime_type', version_row.declared_mime_type,
     'expected_byte_size', version_row.byte_size,
-    'expected_sha256_hex', version_row.sha256_hex
+    'expected_sha256_hex', version_row.sha256_hex,
+    'validation_already_finalized', validation_already_finalized,
+    'final_integrity_status', final_integrity_status,
+    'final_malware_status', final_malware_status
   );
 
   IF replayed IS NOT NULL THEN

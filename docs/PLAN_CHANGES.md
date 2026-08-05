@@ -4002,3 +4002,48 @@ Validation impact:
 
 Reviewer notes: this is a forward-only runtime repair and bounded BW8B seam,
 not a rewrite of merged migration 059. ADR 0014-0016 remain unchanged.
+
+## 2026-08-05 - Complete BW8B Crash Recovery After Validation Attestation
+
+Context:
+
+- The first BW8B candidate proved queue filtering, private Storage flow and
+  ClamAV verdicts, but an exact crash-boundary review found one remaining gap:
+  if a worker successfully attests validation and then crashes before
+  `finish_durable_work` commits, the replacement lease cannot resolve that
+  already-finalized version because the resolver accepted only
+  `pending+pending` validation state.
+- The failed resolver path would keep retrying and could eventually dead-letter
+  durable work even though the document verdict had already committed. The
+  attested document state stayed correct, but queue convergence was incomplete.
+
+Decision:
+
+- BW8B may enrich `platform.resolve_document_validation_input(...)` with
+  recovery-only metadata that states whether the current finalized version is
+  already in one of the exact terminal validation states:
+  `verified+clean`, `verified+infected`, or `failed+error`.
+- The BW8B worker may short-circuit on that resolver metadata and finish the
+  current lease without re-downloading, re-scanning or re-attesting the same
+  object.
+- This remains a bounded repair. BW8B still does not introduce a new queue,
+  a scanner-side transaction RPC, a second attestation ledger, or browser
+  visibility into private bindings.
+- The official ClamAV 1.5.3 Compose and integration-test reference is pinned
+  to its immutable multi-architecture registry digest so production cannot
+  silently pull different scanner bytes under the same patch tag.
+
+Validation impact:
+
+- Extend the SQL runtime proof so the resolver returns the recovery metadata
+  for an already-attested current version and preserves replay determinism.
+- Extend worker unit coverage so a replacement lease with finalized resolver
+  metadata calls `finishWork` directly and skips `downloadObject`,
+  `scanBytes`, and `attestValidation`.
+- Re-render Compose and re-run the clean, EICAR and unavailable-scanner proof
+  against the exact immutable ClamAV digest.
+- Re-run focused Node 22 unit tests, SQL inventory/runtime proof, lint,
+  TypeScript, Next build, exact-head CI and independent review on the new SHA.
+
+Reviewer notes: this closes a real crash-recovery gap discovered during
+pre-merge review; the prior exact head is superseded and must not be approved.

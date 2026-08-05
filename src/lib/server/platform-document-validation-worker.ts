@@ -51,6 +51,9 @@ export interface PlatformDocumentValidationInput {
   expectedMimeType: PlatformDocumentMimeType;
   expectedByteSize: number;
   expectedSha256: string;
+  validationAlreadyFinalized: boolean;
+  finalIntegrityStatus: "verified" | "failed" | null;
+  finalMalwareStatus: "clean" | "infected" | "error" | null;
 }
 
 export type PlatformDocumentMimeType =
@@ -219,6 +222,28 @@ export function parseDocumentValidationInput(
   if (!SHA256_PATTERN.test(expectedSha256)) {
     throw new PlatformDocumentValidationWorkerError("validation_metadata_invalid", false);
   }
+  const validationAlreadyFinalized = requiredBoolean(
+    value,
+    "validation_already_finalized",
+  );
+  const finalIntegrityStatus = optionalValidationIntegrityStatus(
+    value.final_integrity_status,
+  );
+  const finalMalwareStatus = optionalValidationMalwareStatus(
+    value.final_malware_status,
+  );
+
+  if (validationAlreadyFinalized) {
+    const isTerminalFinalState =
+      (finalIntegrityStatus === "verified" && finalMalwareStatus === "clean") ||
+      (finalIntegrityStatus === "verified" && finalMalwareStatus === "infected") ||
+      (finalIntegrityStatus === "failed" && finalMalwareStatus === "error");
+    if (!isTerminalFinalState) {
+      throw new PlatformDocumentValidationWorkerError("validation_metadata_invalid", false);
+    }
+  } else if (finalIntegrityStatus !== null || finalMalwareStatus !== null) {
+    throw new PlatformDocumentValidationWorkerError("validation_metadata_invalid", false);
+  }
 
   return {
     organizationId: requiredUuid(value, "organization_id"),
@@ -237,11 +262,30 @@ export function parseDocumentValidationInput(
       PLATFORM_DOCUMENT_MAX_BYTES,
     ),
     expectedSha256,
+    validationAlreadyFinalized,
+    finalIntegrityStatus,
+    finalMalwareStatus,
   };
 }
 
 function isPlatformDocumentMimeType(value: string): value is PlatformDocumentMimeType {
   return ["application/pdf", "image/jpeg", "image/png"].includes(value);
+}
+
+function optionalValidationIntegrityStatus(
+  value: unknown,
+): "verified" | "failed" | null {
+  if (value === null) return null;
+  if (value === "verified" || value === "failed") return value;
+  throw new PlatformDocumentValidationWorkerError("validation_metadata_invalid", false);
+}
+
+function optionalValidationMalwareStatus(
+  value: unknown,
+): "clean" | "infected" | "error" | null {
+  if (value === null) return null;
+  if (value === "clean" || value === "infected" || value === "error") return value;
+  throw new PlatformDocumentValidationWorkerError("validation_metadata_invalid", false);
 }
 
 export function parseDownloadedDocumentBytes(
@@ -253,6 +297,14 @@ export function parseDownloadedDocumentBytes(
   }
   if (value.byteLength === 0 || value.byteLength > maximumBytes) {
     throw new PlatformDocumentValidationWorkerError("document_size_mismatch", false);
+  }
+  return value;
+}
+
+function requiredBoolean(record: RecordValue, key: string): boolean {
+  const value = record[key];
+  if (typeof value !== "boolean") {
+    throw new PlatformDocumentValidationWorkerError("boundary_response_invalid", false);
   }
   return value;
 }
@@ -373,6 +425,14 @@ function evidenceRef(
   return `document-validation:v1:${claim.workItemId}:${claim.documentVersionId}:${code}${scanner}`;
 }
 
+function recoveryEvidenceRef(
+  claim: PlatformDocumentValidationClaim,
+  integrityStatus: "verified" | "failed",
+  malwareStatus: "clean" | "infected" | "error",
+): string {
+  return `document-validation-recovery:v1:${claim.workItemId}:${claim.documentVersionId}:${integrityStatus}-${malwareStatus}`;
+}
+
 async function finish(
   dependencies: PlatformDocumentValidationWorkerDependencies,
   claim: PlatformDocumentValidationClaim,
@@ -486,6 +546,68 @@ async function terminal(
   return { status: "terminal", workItemId: claim.workItemId, code };
 }
 
+async function finishRecoveredValidation(
+  dependencies: PlatformDocumentValidationWorkerDependencies,
+  claim: PlatformDocumentValidationClaim,
+  input: PlatformDocumentValidationInput,
+  retryDelaySeconds: number,
+): Promise<PlatformDocumentValidationRunResult> {
+  const integrityStatus = input.finalIntegrityStatus;
+  const malwareStatus = input.finalMalwareStatus;
+
+  if (
+    !input.validationAlreadyFinalized ||
+    integrityStatus === null ||
+    malwareStatus === null
+  ) {
+    throw new PlatformDocumentValidationWorkerError("validation_metadata_invalid", false);
+  }
+
+  const evidence = recoveryEvidenceRef(claim, integrityStatus, malwareStatus);
+
+  if (integrityStatus === "verified" && malwareStatus === "clean") {
+    await finish(
+      dependencies,
+      claim,
+      "succeeded",
+      "clean",
+      evidence,
+      retryDelaySeconds,
+    );
+    return { status: "succeeded", workItemId: claim.workItemId, code: "clean" };
+  }
+
+  if (integrityStatus === "verified" && malwareStatus === "infected") {
+    await finish(
+      dependencies,
+      claim,
+      "terminal_error",
+      "document_infected",
+      evidence,
+      retryDelaySeconds,
+    );
+    return {
+      status: "terminal",
+      workItemId: claim.workItemId,
+      code: "document_infected",
+    };
+  }
+
+  await finish(
+    dependencies,
+    claim,
+    "terminal_error",
+    "validation_previously_failed",
+    evidence,
+    retryDelaySeconds,
+  );
+  return {
+    status: "terminal",
+    workItemId: claim.workItemId,
+    code: "validation_previously_failed",
+  };
+}
+
 function scanErrorCode(error: unknown): { code: string; retryable: boolean } {
   if (error instanceof PlatformClamAvError) {
     if (error.code === "stream_limit_exceeded" || error.code === "payload_too_large") {
@@ -583,6 +705,15 @@ export async function runPlatformDocumentValidationOnce(
       "validation_metadata_mismatch",
       "failed",
       "error",
+      retryDelaySeconds,
+    );
+  }
+
+  if (input.validationAlreadyFinalized) {
+    return finishRecoveredValidation(
+      dependencies,
+      claim,
+      input,
       retryDelaySeconds,
     );
   }

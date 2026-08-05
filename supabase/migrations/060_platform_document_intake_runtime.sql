@@ -10,7 +10,7 @@ ALTER TYPE platform.durable_work_operation
 -- BW8B: forward-only runtime repair for the shared durable-work claim path
 -- and one bounded service-only resolver for a finalized private document.
 -- Queue messages remain pointer-only. This migration creates no second queue,
--- file ledger, scanner verdict, signed URL, provider call or browser access.
+-- file ledger, scanner verdict, download artifact, provider call or browser access.
 -- ============================================================
 
 BEGIN;
@@ -741,6 +741,6 @@ COMMENT ON FUNCTION platform.claim_document_validation_work(
 COMMENT ON FUNCTION platform.resolve_document_validation_input(
   UUID, UUID, UUID
 ) IS
-  'Service-only replay-safe resolver for one current finalized private document object and its immutable expected validation metadata; returns no bytes, URL or credential.';
+  'Service-only replay-safe resolver for one current finalized private document object and its immutable expected validation metadata; returns metadata only.';
 
 COMMIT;

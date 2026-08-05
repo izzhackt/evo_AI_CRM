@@ -3937,3 +3937,85 @@ Reviewer notes: ADR 0014-0016 remain valid because BW8 uses the same unified
 frontend, greenfield Supabase boundary and canonical owners. This amendment
 changes the domain/data contract and therefore updates `CONTEXT.md`, system
 overview and data ownership instead of claiming they are unaffected.
+
+## 2026-08-05 - Separate Student Profile document automation and restore P4B
+
+Block-ID: `EVO-BW8-BOUNDARY-CORRECTION-P4B-RESTORE-2026-08-05`
+
+Source: explicit owner correction that Student Profile document reading,
+extracted-fact confirmation, profile autofill and profile-form export must be a
+separate small system outside EVO Platform; current repository checkpoint
+`4567ef5067c523604bee73e8730f1b54ac23487d`; reviewed revert PRs #125, #126 and
+#127; exact-main CI run `30989252650` green.
+
+Change type: product-boundary, architecture and merge-order correction. This
+entry supersedes PR #119/BW8 as current implementation authority without
+rewriting that historical decision. It is docs-only and authorizes no runtime
+code, migration, provider call, managed Supabase action, production mutation or
+customer/student-data processing.
+
+Affected plan section:
+`/goal-evo-platform-bw8-boundary-correction-p4b-restore`, the former BW8
+Student Profile document-intelligence lane and the next bounded P4B
+implementation lane.
+
+Evidence:
+
+- PR #119 is still present in immutable Git and append-only decision history.
+  Its dependent implementation PRs #120, #122 and #124 were reverted in
+  reverse dependency order by PRs #127, #126 and #125.
+- Current main has the PR #119 tree, contiguous migrations `001-058`, no BW8
+  implementation migrations and green exact-main CI.
+- EVO Platform already owns an ordinary admissions document lifecycle:
+  country/program checklists, case slots, private PDF/JPG/PNG objects up to
+  25 MiB, versions, integrity/malware evidence, review/rework, audited access
+  and separate Storage backup.
+- PR #118 already merged the docs-only P4B amoCRM mapping
+  selection/approval contract. Its implementation was paused only by the now
+  superseded BW8 priority.
+
+Decision:
+
+- Student Profile document reading, extracted-fact confirmation, profile
+  autofill and profile-form DOCX/PDF export belong to a separate system outside
+  `evo_AI_CRM`.
+- Remove BW8 as an active Platform lane and remove its dedicated extraction,
+  fact, confirmed-profile and export requirements from current plan/TZ
+  authority. Delete its focused active contract from the tree; Git and this
+  append-only log preserve history.
+- Preserve ordinary Platform Documents/Storage/checklist/version/review/audit
+  capabilities and their existing requirements. This correction does not move
+  or weaken those responsibilities.
+- The separate system is not a Platform runtime dependency. No automatic
+  import/export, shared database, shared Storage or data exchange is implied.
+  Any future integration requires its own plan amendment covering explicit
+  mapping, purpose and consent/privacy rules, authentication/authorization,
+  failure handling, validation and acceptance.
+- Restore P4B as the next implementation lane after this amendment is
+  independently reviewed, controller-merged and exact-main CI is green. P4B
+  must recheck fresh-main migration ownership; with current `001-058`, `059` is
+  only the expected next-free number and is not reserved.
+- Keep ADR 0014-0016 and add superseding boundary ADR 0017. ADR 0017 controls
+  wherever PR #119/BW8 conflicts with this owner correction.
+
+Validation impact:
+
+- Update launch/long-run/current-status, data/system boundary docs, canonical TZ
+  2.1, traceability, validation ledger, deterministic owner-facing DOCX and the
+  TZ verifier counts.
+- Remove requirement families `FR-111`-`FR-119`, `INT-021`-`INT-024`,
+  `DATA-019`-`DATA-024`, `SEC-021`-`SEC-026`, `NFR-019`-`NFR-022` and
+  `ACC-026`-`ACC-034`, while retaining all earlier ordinary-document
+  requirements.
+- Regenerate the DOCX deterministically, run structural, traceability,
+  accessibility and render verification, and inspect every rendered page.
+- Run stale-reference gates against active authority files while intentionally
+  excluding this append-only history and ADR 0017's supersession explanation.
+- Rollback is a docs-only forward/revert decision; no database or runtime
+  rollback is required because this amendment changes neither.
+- `real-provider-proof: not-required`. No real provider can prove or disprove a
+  docs-only ownership correction.
+
+Reviewer notes: this amendment is deliberately not an exact revert of PR #119.
+It preserves immutable history, records why authority changed and separates the
+normal Platform document lifecycle from the external automation system.

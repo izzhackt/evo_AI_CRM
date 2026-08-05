@@ -3,9 +3,11 @@
 - Owner: технический ответственный EVO Admissions
 - Status: Target approved; greenfield Platform not deployed; legacy CRM remains
   separate and messaging provider ownership awaits controlled cutover
-- Last verified against repository: 2026-07-30
+- Last verified against repository: 2026-08-05
 - Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
+- External automation boundary:
+  `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
 - Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 
 ## Главное простыми словами
@@ -18,6 +20,13 @@ production уже переведён на неё. Legacy root CRM остаётс
 evidence, реальный end-to-end путь, отдельное разрешение на provider cutover и
 rollback proof, EVO Inbox и EVO Lead Agent сохраняют текущую messaging
 ownership.
+
+Student Profile document reading, extracted-fact confirmation, profile
+autofill и profile-form export не являются частью этого runtime: owner вынес
+их в отдельную систему вне `evo_AI_CRM`. Обычные Platform documents —
+checklists, private objects, versions, review/rework и audited access — остаются
+в EVO Platform. Автоматический обмен между системами не предполагается; любая
+будущая интеграция требует отдельного контракта и проверки.
 
 amoCRM остаётся каноническим владельцем:
 
@@ -62,12 +71,6 @@ flowchart LR
   Platform <--> Data["Supabase Platform data"]
   Staff["Staff UI"] <--> Platform
   Portal["Student Portal"] <--> Platform
-  Staff --> Intake["Private document intake"]
-  Intake --> Scan["Integrity + malware scan"]
-  Scan --> Extract["Evidence candidates"]
-  Extract --> Confirm["Human confirm / reject"]
-  Confirm --> Data
-  Data --> Export["Versioned DOCX/PDF draft"]
   Platform --> Draft["AI draft only"]
   Draft --> Review["Staff review / edit"]
   Review --> Waha
@@ -199,18 +202,6 @@ Coarse role может приходить из custom JWT claim, но досту
 Private Storage используется только через поддерживаемый API, authenticated или
 короткоживущие signed downloads. Запрещено писать напрямую в таблицы схемы
 `storage`.
-
-BW8 document intelligence reuses this same boundary. Exact uploaded or Drive-
-imported bytes enter private Storage, then a persisted durable worker records
-integrity and real malware-scan evidence before any extraction. The extraction
-provider returns typed candidates with document-version and page/source
-locators; it does not update a student profile or review decision. A current
-authorized human confirmation or manual edit advances the typed profile
-revision, from which a private versioned DOCX/PDF draft can be generated.
-Refresh and event-stream reconnect reconstruct all visible states from
-persisted records, not process memory. Until Product/Legal/Data approves real
-student processing, external extraction calls are limited to authorized
-non-sensitive material and the UI remains truthful about manual work.
 
 Durable retryable business work идёт через Supabase Queues с идемпотентными
 consumer-ами. Database Webhooks допустимы для асинхронного event push, но не

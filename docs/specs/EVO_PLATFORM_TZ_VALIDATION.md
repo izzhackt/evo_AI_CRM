@@ -4,161 +4,135 @@
 
 Timezone: `Asia/Almaty`
 
-Base commit до docs-only amendment:
-`10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`
+Базовый `origin/main`: `4567ef5067c523604bee73e8730f1b54ac23487d`
+
+Block-ID: `EVO-BW8-BOUNDARY-CORRECTION-P4B-RESTORE-2026-08-05`
 
 Канонический источник: `docs/specs/EVO_PLATFORM_TZ.md`
 
 Owner-facing документ: `docs/specs/EVO_PLATFORM_TZ.docx`
 
-Контекст проверки: PR #118 уже слил P4B docs-only contract в `main` на exact
-checkpoint `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`; exact-main CI run
-`30963131242` зелёный. P4B implementation
-приостановлен до shared implementation PR/migration. Текущий docs-only
-amendment вводит BW8 как отдельный sequential gate student document
-intelligence: private intake, real scanner, durable extraction candidates,
-human confirmation, expanded typed profile и versioned DOCX/PDF drafts через
-существующий `/documents` UI contract.
+## 1. Проверенная граница
 
-Amendment не содержит product/runtime implementation или migration, не
-обращается к Supabase/Drive/OpenAI/scanner/converter, не читает real student
-files, не применяет remote schema и не мутирует production. Он не разрешает
-real-student provider processing до Product/Legal/Data decision и не меняет
-amoCRM sales ownership, managed-environment или release gates.
+PR #119 остаётся историческим решением, но его попытка включить в EVO Platform
+чтение документов, извлечение фактов, автозаполнение Student Profile и экспорт
+заполненных форм отменена текущим superseding amendment. PR #124, #122 и #120
+последовательно отменены через PR #125, #126 и #127. Их итоговый `main`
+`4567ef5067c523604bee73e8730f1b54ac23487d` имеет дерево до PR #120, migrations
+`001–058`; exact-main CI run `30989252650` завершён успешно.
 
-## 1. Воспроизводимая сборка
+Автоматизация чтения и заполнения документов является отдельной системой вне
+`evo_AI_CRM`. Между ней и EVO Platform нет автоматического обмена данными,
+общей БД, общей auth-сессии или runtime dependency. Будущая интеграция требует
+отдельного plan amendment, data mapping, privacy/consent решения, авторизации,
+валидации и acceptance evidence.
+
+EVO Platform сохраняет обычный документный lifecycle: private upload/download,
+версионирование, checklist, review/rework, integrity/malware policy и audit.
+Следующий Platform implementation gate снова P4B: immutable выбор одобренной
+версии P4A amoCRM discovery. Ожидаемый следующий номер migration — `059`, но он
+не резервируется и должен быть подтверждён на свежем `main` перед реализацией.
+
+Этот amendment изменяет только документацию, детерминированный DOCX и его
+верификатор. Он не меняет приложение, runtime, migrations, Supabase, amoCRM,
+WAHA, AI provider, production или реальные данные.
+
+## 2. Воспроизводимая сборка
 
 DOCX собирается только из канонического Markdown:
 
 ```bash
-/Users/iskhak.tazhibaev/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 \
-  scripts/generate-evo-platform-tz.py
+python scripts/generate-evo-platform-tz.py
 ```
 
-Полная повторная сборка, структура, traceability, accessibility и реальный
-LibreOffice/Poppler render проверены командой:
+Полная повторная сборка, структурная проверка, accessibility audit и реальный
+LibreOffice/Poppler render выполняются командой:
 
 ```bash
-render_dir="$(mktemp -d /private/tmp/evo-platform-tz-bw8-verify.XXXXXX)"
-/Users/iskhak.tazhibaev/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 \
-  scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
+render_dir="$(mktemp -d /private/tmp/evo-platform-tz-boundary.XXXXXX)"
+python scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
 ```
 
-Закреплённая document-зависимость:
-`python-docx==1.2.0` в `scripts/requirements-evo-platform-tz.txt`.
+Закреплённая document-зависимость: `python-docx==1.2.0` в
+`scripts/requirements-evo-platform-tz.txt`.
 
-Финальный clean прогон:
+Финальный автоматический результат:
 
 - Python: `3.12.13`;
 - `python-docx`: `1.2.0`;
-- requirements: `269`;
-- поэлементные traceability rows: `269`;
+- source SHA-256:
+  `85a8843b24e6786d533b8804e11767afc799f0ab6987e69f7d5fee0533492fd6`;
+- DOCX SHA-256:
+  `81665effd4b2b2547ee169aaed996d72f36125005c482909950955c11048a212`;
+- две последовательные сборки побайтно совпали;
+- requirements: `231`;
+- traceability rows: `231`;
 - source codes: `14`;
 - design-evidence images: `6`;
 - official external links: `8`;
-- DOCX structure: `610` paragraphs, `32` tables, `7` inline shapes,
+- DOCX structure: `602` paragraphs, `31` tables, `7` inline shapes,
   `7` drawings с alt text, `8` external hyperlinks;
-- source SHA-256:
-  `71c4ad3ea892517cc97c9c3cb4fd733b46a177a69341c641c891248d06e9c47d`;
-- DOCX SHA-256:
-  `3c12363140909beab2594cfc6c1c9c792457c0b07d38687c4b63dd12dcb00a24`;
-- две последовательные сборки DOCX побайтно совпали;
-- LibreOffice -> PDF -> Poppler PNG: `73` страницы;
 - accessibility audit: `0 high / 0 medium / 0 low`;
-- итог:
-  `PASS requirements=269 traceability=269 pages=73 a11y=0/0/0`.
+- LibreOffice → PDF → Poppler PNG: `68` страниц и `68` PNG.
 
-Machine-readable evidence clean rerun находится во временном каталоге:
-`/private/tmp/evo-platform-tz-bw8-verify.syOcSG`:
+Requirement coverage:
 
-- `validation.json`;
-- `accessibility-report.json`;
-- `EVO_PLATFORM_TZ.pdf`;
-- `page-01.png` ... `page-73.png`.
+| Семейство | Количество |
+|---|---:|
+| `FR` | 110 |
+| `INT` | 20 |
+| `DATA` | 18 |
+| `SEC` | 20 |
+| `NFR` | 18 |
+| `ACC` | 25 |
+| `DEC` | 20 |
+| Всего | 231 |
 
-Render artifacts намеренно не коммитятся.
+Удалённые PR119-only семейства отсутствуют в активном ТЗ:
+`FR-111..119`, `INT-021..024`, `DATA-019..024`, `SEC-021..026`,
+`NFR-019..022`, `ACC-026..034`.
 
-## 2. Что проверяет verifier
+## 3. Визуальная проверка
 
-- exact coverage всех `FR/INT/DATA/SEC/NFR/ACC/DEC` IDs;
-- ровно одна traceability row для каждого requirement;
-- source catalog без неизвестных или неиспользуемых codes;
-- deterministic DOCX generation через две независимые сборки;
-- pinned dependency и metadata;
-- Word headings, tables, relationships, hyperlinks и drawings;
-- alt text для drawings;
-- реальные LibreOffice PDF и Poppler PNG для каждой страницы;
-- accessibility findings с fail на любом high/medium/low issue.
+Все страницы `1–68` проверены по PNG из реального LibreOffice render в
+оригинальном разрешении. Cover, headers, footers, нумерация, таблицы,
+traceability, screenshots и signoff pages отображаются полностью. Страница `2`
+содержит намеренный Word TOC placeholder, который обновляется при открытии в
+Word.
 
-`scripts/verify-evo-platform-tz.py` обновлён только как document-validation
-tool: ожидаемые пределы теперь FR-119, INT-024, DATA-024, SEC-026, NFR-022 и
-ACC-034. Это не runtime/application implementation.
-
-## 3. Traceability и смысловая проверка
-
-- новые FR-111-FR-119 фиксируют accepted `/documents` workbench, exact private
-  intake/finalize, real scanner, typed evidence candidates, human revision-aware
-  decisions, expanded form fields, deterministic projection/export и 14-item
-  China overlay;
-- INT-021-INT-024 фиксируют Drive, OpenAI structured extraction,
-  real-student policy gate и private DOCX-to-PDF conversion;
-- DATA-019-DATA-024 отделяют persisted run/fact/decision/profile/export/live
-  projection от provider output и запрещают PII в logs/artifacts;
-- SEC-021-SEC-026 фиксируют real scan, case/object scope, server-only adapters,
-  minimized evidence, sanitized immutable template и retention boundary;
-- NFR-019-NFR-022 фиксируют reconnectable persisted live state, durable jobs,
-  export determinism и usable accessible document workbench;
-- ACC-026-ACC-034 дают проверяемый complete BW8 exit без подмены local,
-  provider, managed или production proof;
-- P4B contract и P4A evidence остаются immutable, но BW8A теперь rechecks
-  expected next-free migration 059; paused P4B rechecks the then-next free
-  migration after BW8.
-
-Проверено, что AI/OCR output везде является candidate evidence и не получает
-direct canonical write. Real student provider use везде blocked до existing
-Legal/Data gate DEC-012 и отдельного Product/Data approval. Video resume честно
-зафиксирован checklist/evidence-only, потому что P2H поддерживает только
-PDF/JPEG/PNG до 25 MiB.
-
-## 4. Визуальная проверка
-
-Все страницы `1-73` проверены по real LibreOffice/Poppler PNG. Для покрытия
-каждой страницы созданы девять временных `3x3` contact sheets; дополнительно в
-original resolution просмотрены новые/изменённые pages `29-36`, execution
-pages `43-44` и финальные traceability/signoff pages `72-73`.
-
-Проверено:
-
-- cover, version `2.0`, base checkpoint, headers, footers и page numbers;
-- намеренный Word TOC placeholder на page 2;
-- новые Student document intelligence, integrations, data, security, NFR и
-  acceptance tables полностью помещаются в printable area;
-- перенос длинных mixed RU/EN identifiers и URLs не ломает columns;
-- BW8/P4B execution boundary читаем и не обрезан;
-- все шесть UI screenshots пропорциональны и не искажены;
-- provenance/traceability tables и signoff отображаются полностью;
-- clipping, overlap, missing rows, broken glyphs, raster corruption и
-  illegible content не обнаружены.
+Из-за визуального масштабирования при пакетном просмотре страницы `26`, `40`,
+`52`, `54`, `62`, `64` и `66` были повторно открыты по одной в оригинальном
+разрешении. Фактических обрезаний или наложений не обнаружено. Clipping,
+overflow, пропавший content, повреждённые glyphs и raster corruption отсутствуют.
 
 Итог ручной проверки: `PASS`.
 
+## 4. Traceability и authority
+
+- `docs/specs/EVO_PLATFORM_TZ.md` — единственный канонический источник DOCX;
+- `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
+  supersede-ит PR119/BW8 boundary;
+- `docs/PLAN_CHANGES.md` сохраняет append-only историю и новую коррекцию;
+- оригинальный `TZ_Platforma_avtomatizacii_OZO.docx` остаётся только контекстом,
+  а не authority;
+- owner roles указываются должностями, не персональными ФИО;
+- требования и traceability имеют взаимно однозначное покрытие `231 / 231`.
+
 ## 5. Граница доказательства
 
-Эта проверка доказывает целостность, воспроизводимость, traceability,
-структурную доступность и визуальную корректность ТЗ версии `2.0` и текущего
-docs-only BW8 amendment. После controller merge она разрешает только отдельные
-sequential BW8A-BW8E implementation PRs с новым exact-head review/controller
-gate для каждого блока.
+Для этого docs-only блока `real-provider-proof: not-required`.
 
-Она не доказывает:
+Проверка доказывает только актуальность boundary, целостность,
+воспроизводимость, traceability, структурную доступность и визуальную
+корректность ТЗ версии `2.1`. Она не доказывает:
 
-- migration 059, RLS/extraction/profile/export implementation или workbench UI;
-- real private upload, scanner, PGMQ worker, Drive/OpenAI call или converter;
-- approval для отправки real student files external extraction provider;
-- managed Supabase, staging, backup/restore или production behavior;
-- live amoCRM/WAHA/ACK behavior либо P4B implementation;
-- production deployment/cutover или customer delivery.
+- P4B implementation, migration `059` или managed Supabase behavior;
+- live RLS/Auth/Storage, backup/restore или production deployment;
+- live amoCRM discovery, account mappings, OAuth, webhook или provider writes;
+- live WAHA, AI draft, manual send или ACK/audit;
+- controlled real E2E, reconciliation window, cutover или rollback;
+- какую-либо интеграцию с отдельной системой обработки документов.
 
-Для docs-only amendment `real-provider-proof: not-required`. Provider,
-real-student, managed/staging и release evidence остаются `BLOCKED`/`PENDING`
-до соответствующей авторизации и фактического controlled exercise.
+Эти gates остаются `PENDING` или `BLOCKED` до отдельных reviewed blocks,
+разрешённого provider access, credentials, sanitized test identity/number,
+production authority и фактического controlled evidence.

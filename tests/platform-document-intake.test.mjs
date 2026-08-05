@@ -361,4 +361,3 @@ test("client-safe intake code contains no service credential references", () => 
   );
   assert.doesNotMatch(source, /service[_-]?role|SUPABASE_SECRET|SUPABASE_SERVICE/i);
 });
-

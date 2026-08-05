@@ -8,21 +8,21 @@ Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 `docs/PLAN_CHANGES.md`, and superseding ADRs including ADR 0016
 
 Execution checkpoint: historical P1 containment, reusable greenfield P2A-P2H,
-the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW7 and
-P2R0-P2R3 are merged. PR #116 merged BW7 at `origin/main`
-`45e64f7b6bfb181a065ae7cfc34abd0fb1b693ec`. Exact-main CI run `30934111632`
+the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW7,
+P2R0-P2R3 and P4A are merged. PR #117 merged P4A at `origin/main`
+`121db548b252eff9e4b79f62297aa27fe39e5c40`. Exact-main CI run `30958119076`
 is green for Main CRM, EVO Inbox and EVO Lead Agent; Changed range was skipped
-on the push run as expected. P4A is the active sequential block under the
-already-approved P4 contract: private immutable account-specific amoCRM
-mapping discovery with a read-only server adapter, service-only persistence
-and Admin-only reads. This first slice is deliberately disabled from live
-credentials, OAuth storage, provider calls, webhooks and canonical writes.
-Candidate local proof is green for disposable PostgreSQL authorization, 58
-contiguous local Supabase migrations, Auth/PostgREST/Storage/PGMQ and 28/28
-accepted-frontend browser scenarios. No managed Supabase, staging, provider or
-production exercise is claimed. Former P2I restore duties remain in P7. This
-status refresh changes no target architecture, acceptance outcome, provider
-ownership or production authority.
+on the push run as expected. P4B is the active docs-only plan gate under the
+already-approved P4 contract. It defines Admin-reviewed selection/approval of
+one immutable account-specific discovery version for messaging use through
+append-only decisions and a deterministic current-selection projection. It
+authorizes no code, migration, live credentials, OAuth storage, provider call,
+identity sync, webhook, job, reconciliation or canonical write. P4A local
+proof is green for disposable PostgreSQL authorization, 58 contiguous local
+Supabase migrations, Auth/PostgREST/Storage/PGMQ and 28/28 accepted-frontend
+browser scenarios. No managed Supabase, staging, provider or production
+exercise is claimed. Former P2I restore duties remain in P7. This amendment
+changes no target architecture, provider ownership or production authority.
 
 ## 1. Outcome and truth boundary
 
@@ -69,7 +69,7 @@ and rollback proof are real. No fixed-duration soak is required by contract.
 As of the version date:
 
 - GitHub `main` checkpoint for this implementation is
-  `45e64f7b6bfb181a065ae7cfc34abd0fb1b693ec`;
+  `121db548b252eff9e4b79f62297aa27fe39e5c40`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -344,7 +344,7 @@ deployment surfaces are sequential.
 | P2R1 | Local Supabase proof reliability repair | Real clean local Auth/RLS/Storage/PGMQ gate, deterministic deadline/cleanup tests and forward-only document lock-order repair | Merged in PR #105; migration 055 is immutable history |
 | P2R2 | Auth-token and local reset reproducibility repair | Explicit issued-token `getClaims()` plus live authority; symlink-safe deadline execution; reproducible exact-project reset and cleanup | Plan merged in PR #109; superseded implementation PR #110 closed without merge after controller findings |
 | P2R3 | Stale-authority session clearing and exact local-proof ownership | Same-origin Route Handler clears rejected Supabase browser state; real connected-route regression; two physical-worktree local proofs | Plan PR #111 and implementation PR #112 merged; exact-main CI green |
-| P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | P4A private versioned discovery candidate active; provider proof blocked |
+| P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, reviewed mapping selection, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | P4A merged; P4B docs-only selection/approval contract active; provider proof blocked |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no legacy cutover yet | Pending |
 | P6 | Admissions, Portal, Documents, Finance, Notifications | Two-student isolation E2E and complete staff-to-portal workflows | Pending |
 | P7 | Security, reliability and operations | Threat model, load evidence, backup plus Storage restore, RPO/RTO and rollback rehearsal, accessibility | Pending |
@@ -352,11 +352,11 @@ deployment surfaces are sequential.
 | P9 | Bounded cutover evidence and separate Lead Agent retirement PR | Zero unexplained loss/duplicate/drift in the evidence window plus proven rollback and health | Evidence-gated |
 | P10 | Completion audit | Every FR/NFR/SEC/ACC mapped to evidence, full CI/provider proof, no open implementation PR | Pending |
 
-BW0, P3A-P3C, BW1-BW7 and P2R0-P2R3 are merged. PR #112 satisfied the
+BW0, P3A-P3C, BW1-BW7, P2R0-P2R3 and P4A are merged. PR #112 satisfied the
 prerequisite stale-authority/local-proof gate, PR #113 merged BW5, PR #114
-merged BW6 and PR #116 merged BW7 with green exact-main CI. P4A now advances
-the already-approved P4 contract without changing the BW dependency and
-exit-evidence contract below:
+merged BW6, PR #116 merged BW7 and PR #117 merged P4A with green exact-main
+CI. P4B now defines the next bounded P4 slice without changing the BW
+dependency and exit-evidence contract below:
 
 | Block | Contract | Dependency and exit evidence |
 | --- | --- | --- |
@@ -654,13 +654,31 @@ are P5 evidence.
 
 ### P4 — canonical amoCRM adapter
 
-Discover and version account-specific mappings. Begin with the contact/lead,
-responsible Sales and stage context needed by the messaging thread; then add
-persisted webhook intake, idempotency, asynchronous work, reconciliation,
-conflicts and loop prevention. Guard canonical writes. A confirmed contract
-mapping creates a pending case; Admin Curator assignment activates handoff and
-Portal. Without credentials and a sanitized test lead, only disabled,
-fail-closed adapter slices may merge and no live-provider claim is allowed.
+P4A, merged in PR #117, discovers and versions sanitized account-specific
+mapping evidence through a GET-only server adapter, service-only persistence
+and live-authority Admin reads. Discovery versions remain immutable and have
+no active flag.
+
+P4B first merges this docs-only contract, then a separate implementation may
+let a current same-organization Admin approve one discovery version for the
+`messaging` use. Approval decisions are append-only, include the selected
+pipeline, signed-contract status, canonical `lead.responsible_user_id` source
+rule and required lead/contact custom-field bindings, and record actor,
+before/after reference, reason, request ID and timestamp. Supersession and
+revocation append new events; the current selection is a deterministic
+projection for one organization/account/use tuple, not a mutation of discovery
+evidence. No approved selection means mapping-dependent behavior fails closed.
+
+P4B stays inside the accepted `/whatsapp` integration-health seam. It does not
+create a new settings/admin application and does not authorize credentials,
+provider calls, identity sync, webhook intake, jobs, reconciliation or writes.
+Later P4 slices may add read-only contact/lead/responsible Sales/stage context,
+then persisted webhook intake, idempotency, asynchronous work,
+reconciliation/conflicts/loop prevention and finally guarded canonical writes.
+A confirmed contract mapping creates a pending case; Admin Curator assignment
+activates handoff and Portal. Without credentials and a sanitized test lead,
+only disabled fail-closed adapter slices may merge and no live-provider claim
+is allowed.
 
 ### P5 — unified communications
 

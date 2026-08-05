@@ -150,11 +150,6 @@ These display states are projections; they do not replace existing document
 slot, version, validation and review history. Refresh, worker restart and
 reconnect must return the same result from persisted state.
 
-`pending_information` is an internal applicability reason for a conditional
-slot whose trusted date-of-birth/reference facts are not yet available. It is
-not an eighth checklist display state; the read model projects it to
-`needs_review` with the missing fact and next action.
-
 Extraction candidates move only through `proposed`, `conflict`, `confirmed`,
 `rejected` and `superseded`. A candidate from a rejected/correction-required or
 superseded document version cannot update a profile. A stale profile revision
@@ -281,35 +276,6 @@ Exit: contiguous migrations; immutable extraction/decision/export ledgers;
 typed expanded field catalog; same-org/object-scope RLS; Admin/Curator positive
 and role/cross-org/stale-authority negative tests; idempotency and stale
 revision/concurrency proof; no provider call or UI claim.
-
-#### BW8A candidate evidence ledger
-
-- Status: implementation candidate in PR #120; exact-head independent review,
-  controller merge and exact-main CI remain pending.
-- Starting main: `791a43aaa6d02aa6b72429121680939163ccc601`.
-- Additive migration:
-  `059_platform_student_document_intelligence.sql`, SHA-256
-  `785ebd0d3ddd0602a14a8f893dba940291a3ffc073124aeaad8d7b0ad6028d12`.
-- The migration adds the missing typed candidate/decision/current-value/export
-  evidence, version-pinned China overlay, reviewed applicability recompute,
-  RBAC v12, private export Storage contract and document validation,
-  extraction and export work kinds on the existing durable-work ledger.
-- `npm run test:security` passed on a fresh disposable PostgreSQL database with
-  migrations 001-059, exact inventory/RLS suites and real two-session races for
-  replay, stale revision, overlay recompute, reservation renewal, latest-only
-  finalize and one-time download consumption.
-- `npm run test:unit` passed 171/171; focused domain coverage keeps the 62-field
-  TypeScript and SQL catalogs aligned and validates deterministic normalization,
-  applicability, projection, lifecycle and conflict guards.
-- Root lint, Next route generation, strict TypeScript and production build
-  passed under Node `22.23.1`; EVO Inbox schema-contract compatibility passed
-  21/21.
-- The connected local Supabase reset was not claimed in this candidate because
-  another live `evo-platform-local` singleton held the reset lock; the lock was
-  not removed or interrupted. Disposable PostgreSQL proof is complete, while
-  exact-head CI and independent review remain mandatory.
-- No scanner, Drive/OpenAI call, UI upload, managed apply, production mutation
-  or real student-data processing is claimed by BW8A.
 
 ### BW8B - private intake, scanner and durable worker
 

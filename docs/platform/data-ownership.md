@@ -37,6 +37,9 @@ messaging provider ownership has its own bounded cutover gate.
 | University applications | EVO Platform Supabase | несколько параллельных applications одного студента |
 | Document metadata и review history | EVO Platform Supabase | checklist, versions, validation, integrity/malware evidence state и review/rework history |
 | Document binary objects | private Platform Storage после P2H | private objects, object-policy enforcement, download/access audit и separate backup |
+| Document extraction candidates | EVO Platform Supabase после BW8 | provider/model output как typed proposed evidence с document version, locator, confidence и status; provider не владеет business field |
+| Confirmed expanded student profile fields | EVO Platform Supabase после BW8 | typed current values, optimistic revision и append-only human decision/provenance history |
+| Generated student profile drafts | private Platform Storage после BW8 | immutable template/output checksums, exact input revision, DOCX/PDF generation evidence и audited access |
 | Visa case | EVO Platform Supabase | Curator-owned operational states и evidence |
 | Tasks | EVO Platform Supabase | assignment, priority, due/status и lifecycle history |
 | Notification intent v1 | EVO Platform Supabase | один recipient, in-app/individual-WhatsApp channel, consent snapshot и dedupe |
@@ -214,6 +217,36 @@ auto-delete запрещён.
 P2H создаёт новые private Platform buckets через реальный local Storage API.
 P2B не меняет молча legacy public `avatars`/`flow-media`; их compatibility и
 future cutover проверяются отдельно. `chat-media` уже private после legacy 039.
+
+## BW8 extraction and profile ownership
+
+An uploaded document and an extraction result are evidence, not automatic
+truth. A scanner owns only its attestation. Drive owns source bytes until an
+authorized exact import copies them into private Platform Storage. OpenAI or a
+later OCR/LLM provider owns no student field, checklist decision or document
+review outcome.
+
+BW8 stores each extraction attempt and typed candidate against one immutable
+document version. The candidate includes a normalized value, confidence,
+source/page locator and extractor policy/model version. Only a current
+same-organization authorized human confirmation or manual edit may advance the
+expanded profile revision. Rejected, correction-required or superseded
+document versions cannot project values. Stale revision and newer confirmed
+source conflicts fail without partial writes.
+
+Fields shared with the minimized `platform.student_profiles` core are projected
+deterministically after confirmation. Additional fields from the owner-supplied
+profile form live in one typed profile-field store; repeating education entries
+use an array rather than numbered columns. This is not a second student,
+checklist or document model.
+
+Profile exports are immutable drafts bound to one exact field revision and one
+exact template version. DOCX/PDF objects remain private and are never called
+signed or approved without a separate authorized decision. Real student bytes
+cannot be sent to an extraction provider until Product/Legal/Data approves the
+purpose, permitted field classes and provider retention posture. Logs,
+analytics, URLs, Git and CI artifacts contain neither raw bytes nor extracted
+sensitive values.
 
 ## Manual finance
 

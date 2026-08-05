@@ -222,6 +222,26 @@ visa work, payments, tasks, and support. A confirmed contract creates a pending
 case; Student Portal access activates only after Admin assigns the Curator.
 _Avoid_: lead, WhatsApp conversation, amoCRM deal
 
+**Document Extraction Candidate**:
+A typed proposed profile value produced from one immutable document version,
+with confidence, extractor policy/model version and an exact source/page
+locator. It is evidence awaiting a human decision and never a canonical value
+by itself.
+_Avoid_: verified field, automatic profile update, AI decision
+
+**Confirmed Profile Field**:
+The current typed operational value for one student-profile field after an
+authorized human confirmation or manual edit, with optimistic revision and
+append-only provenance. It may be projected to the minimized profile core but
+does not replace amoCRM sales identity or stage.
+_Avoid_: model output, raw OCR text, unreviewed autofill
+
+**Student Profile Export Draft**:
+A private immutable DOCX or PDF generated from one exact confirmed profile
+revision and one exact sanitized template version. It is neither signed nor
+approved unless a separate authorized decision says so.
+_Avoid_: signed form, canonical database, edited master template
+
 **Decision Participant**:
 A parent, guardian, sponsor, or other person who materially participates in the applicant's choice, consent, or payment.
 _Avoid_: applicant, contact owner

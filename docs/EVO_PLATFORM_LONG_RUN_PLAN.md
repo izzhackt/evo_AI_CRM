@@ -1,7 +1,7 @@
 # EVO Platform Long-Run Execution Contract
 
 Status: active repository implementation contract
-Version date: 2026-08-04 (Asia/Almaty)
+Version date: 2026-08-05 (Asia/Almaty)
 Initial kickoff baseline: GitHub `origin/main` at
 `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
@@ -9,20 +9,24 @@ Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
 
 Execution checkpoint: historical P1 containment, reusable greenfield P2A-P2H,
 the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW7,
-P2R0-P2R3 and P4A are merged. PR #117 merged P4A at `origin/main`
-`121db548b252eff9e4b79f62297aa27fe39e5c40`. Exact-main CI run `30958119076`
+P2R0-P2R3, P4A and the P4B plan are merged. PR #118 merged the P4B docs-only
+contract at `origin/main` `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`.
+Exact-main CI run `30963131242`
 is green for Main CRM, EVO Inbox and EVO Lead Agent; Changed range was skipped
-on the push run as expected. P4B is the active docs-only plan gate under the
-already-approved P4 contract. It defines Admin-reviewed selection/approval of
-one immutable account-specific discovery version for messaging use through
-append-only decisions and a deterministic current-selection projection. It
-authorizes no code, migration, live credentials, OAuth storage, provider call,
-identity sync, webhook, job, reconciliation or canonical write. P4A local
+on the push run as expected. P4B remains an approved docs-only contract, but
+its implementation is paused before any shared implementation PR or migration
+merged. BW8 student document intelligence is the active docs-only plan gate. It
+defines private intake, real validation/scanning, durable extraction,
+evidence-backed human confirmation, typed profile fields and deterministic
+DOCX/PDF draft export behind the existing `/documents` surface. It authorizes
+no code, migration, credential/provider call, real student processing or
+runtime mutation. P4A local
 proof is green for disposable PostgreSQL authorization, 58 contiguous local
 Supabase migrations, Auth/PostgREST/Storage/PGMQ and 28/28 accepted-frontend
 browser scenarios. No managed Supabase, staging, provider or production
 exercise is claimed. Former P2I restore duties remain in P7. This amendment
-changes no target architecture, provider ownership or production authority.
+changes execution priority and the document/profile schema outcome, but not
+the target architecture, amoCRM ownership or production authority.
 
 ## 1. Outcome and truth boundary
 
@@ -69,7 +73,7 @@ and rollback proof are real. No fixed-duration soak is required by contract.
 As of the version date:
 
 - GitHub `main` checkpoint for this implementation is
-  `121db548b252eff9e4b79f62297aa27fe39e5c40`;
+  `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`;
 - the root application still uses SQLite and its own authentication model;
 - root `/whatsapp` still uses local `wa_*` shadow tables, now with the
   provider-free P1D object-scope containment merged;
@@ -344,7 +348,8 @@ deployment surfaces are sequential.
 | P2R1 | Local Supabase proof reliability repair | Real clean local Auth/RLS/Storage/PGMQ gate, deterministic deadline/cleanup tests and forward-only document lock-order repair | Merged in PR #105; migration 055 is immutable history |
 | P2R2 | Auth-token and local reset reproducibility repair | Explicit issued-token `getClaims()` plus live authority; symlink-safe deadline execution; reproducible exact-project reset and cleanup | Plan merged in PR #109; superseded implementation PR #110 closed without merge after controller findings |
 | P2R3 | Stale-authority session clearing and exact local-proof ownership | Same-origin Route Handler clears rejected Supabase browser state; real connected-route regression; two physical-worktree local proofs | Plan PR #111 and implementation PR #112 merged; exact-main CI green |
-| P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, reviewed mapping selection, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | P4A merged; P4B docs-only selection/approval contract active; provider proof blocked |
+| P4 | Messaging-scoped canonical amoCRM adapter | Versioned discovery, reviewed mapping selection, read-only identity/context sync, webhook/outbox/reconciliation; live proof only with a sanitized test lead | P4A merged; P4B docs-only contract valid but implementation paused for BW8; provider proof blocked |
+| BW8 | Student document intelligence workbench | Private intake, real scan, durable extraction candidates, human confirmation, expanded typed profile and versioned DOCX/PDF draft export | Docs-only contract active; implementation blocked until this amendment merges |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Persist-before-process, dedupe, queue/history, manual-send and ACK evidence; no legacy cutover yet | Pending |
 | P6 | Admissions, Portal, Documents, Finance, Notifications | Two-student isolation E2E and complete staff-to-portal workflows | Pending |
 | P7 | Security, reliability and operations | Threat model, load evidence, backup plus Storage restore, RPO/RTO and rollback rehearsal, accessibility | Pending |
@@ -355,8 +360,9 @@ deployment surfaces are sequential.
 BW0, P3A-P3C, BW1-BW7, P2R0-P2R3 and P4A are merged. PR #112 satisfied the
 prerequisite stale-authority/local-proof gate, PR #113 merged BW5, PR #114
 merged BW6, PR #116 merged BW7 and PR #117 merged P4A with green exact-main
-CI. P4B now defines the next bounded P4 slice without changing the BW
-dependency and exit-evidence contract below:
+CI. P4B remains a valid future P4 slice, but BW8 now owns the next bounded
+implementation sequence and expected next-free migration. The merged BW
+dependency and exit-evidence contract is extended as follows:
 
 | Block | Contract | Dependency and exit evidence |
 | --- | --- | --- |
@@ -367,6 +373,7 @@ dependency and exit-evidence contract below:
 | BW5 | University/college catalog and reviewable import boundary | BW4; source access required for real import; provenance, validation/rejection and no-direct-approval tests |
 | BW6 | Contract draft generation and post-contract checklist/report | BW5; approved typed fields only; authorization, immutable version and audit proof |
 | BW7 | Latest-main integration and end-to-end workflow proof | BW1-BW6; real local/staging Supabase path through the accepted frontend, no production/provider claim without real exercise |
+| BW8 | Student document intelligence workbench | BW3, P2H, P2G and BW7; sequential BW8A-BW8E proof for schema/RLS, private intake/scanner/worker, Drive/OpenAI adapters, accepted UI/export and integrated audit; no real-student provider or production claim without separate approval |
 
 ### Historical P2R2/P2R3 repair contract and provider boundary
 
@@ -651,6 +658,46 @@ amoCRM, WAHA, delivery ACK or AI-provider behavior.
 P3 proves the greenfield application seam and local product workflow. Real
 amoCRM mapping is P4 evidence; real WAHA receive/send/ACK and AI-provider proof
 are P5 evidence.
+
+### BW8 — student document intelligence
+
+BW8 accelerates the bounded Documents/Profile portion of P6 because the owner
+explicitly prioritized repetitive student-file work. Its detailed controlling
+contract is
+[`docs/platform/bw8-student-document-intelligence.md`](platform/bw8-student-document-intelligence.md).
+It reuses the merged case/checklist, P2H private Storage, P2G durable work and
+BW3 profile foundations; it must not create a parallel UI, checklist, file
+ledger, queue or student identity.
+
+BW8A adds only the missing typed extraction-candidate, expanded confirmed
+profile-field, human-decision and export-evidence contracts with exact RLS and
+concurrency proof. BW8B connects real private intake, integrity/malware
+evidence and restart-safe queue workers. BW8C adds fail-closed server-only
+Drive/OpenAI adapters plus deterministic validation. BW8D replaces the honest
+legacy `/documents` blocked state with the accepted live workbench and
+versioned DOCX/PDF draft export. BW8E proves the integrated synthetic
+two-student scenario and performs the completion audit.
+
+An LLM never writes canonical fields or document decisions directly. It emits
+typed candidates with document-version evidence, source/page locators,
+confidence and extractor policy/model version. Only a current authorized human
+confirmation or manual edit can advance the typed profile revision. Stale,
+conflicting, low-confidence, rejected-version and cross-student input fails
+without a partial write. AI/Drive/scanner/export failure leaves a truthful
+manual path and persisted retry/action state.
+
+The first source-backed overlay is the 14-item China checklist supplied by the
+owner. The current P2H MIME/size contract remains PDF/JPEG/PNG up to 25 MiB;
+the video-resume requirement is checklist/evidence-only until a later private
+video-storage contract. No real student bytes may be sent to OpenAI until the
+Product/Legal/Data owner approves the processing purpose, field classes and
+retention posture. Real-provider proof before that decision is limited to
+authorized non-sensitive sources such as the public checklist and verified
+blank template.
+
+P4B implementation remains paused throughout BW8. Its append-only approval
+contract and P4A evidence remain immutable. After BW8, P4B restarts from fresh
+main and rechecks the then-next migration, expected 060 if BW8A consumes 059.
 
 ### P4 — canonical amoCRM adapter
 

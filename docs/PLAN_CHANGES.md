@@ -3937,3 +3937,115 @@ Reviewer notes: ADR 0014-0016 remain valid because BW8 uses the same unified
 frontend, greenfield Supabase boundary and canonical owners. This amendment
 changes the domain/data contract and therefore updates `CONTEXT.md`, system
 overview and data ownership instead of claiming they are unaffected.
+
+## 2026-08-05 - Give BW8B Forward-Only Runtime Ownership Of Migration 060
+
+Block-ID: `EVO-BW8B-RUNTIME-PLAN-2026-08-05`
+
+Source: merged BW8A PR #120 at exact main
+`68fe755e9c7e6bbd92218ad6566aff3b7431b6f6`, exact-main CI run
+`30975866690`, and the BW8B pre-implementation audit of migration 059 plus the
+existing P2G/P2H runtime contracts.
+
+Change type: implementation-scope and migration-ownership correction inside
+the already-approved BW8B private-intake/scanner/worker block. This does not
+change product scope, canonical ownership, provider policy or production
+authority.
+
+Evidence:
+
+- BW8A is merged and green. Migration 059 adds typed document-validation work
+  pointers to the existing durable-work ledger.
+- Its replacement `claim_durable_work` result projects legacy attribute names
+  (`document_version_id`, `document_extraction_run_id` and
+  `student_profile_export_id`) from the work-item row even though the actual
+  columns are `source_document_version_id`, `source_extraction_run_id` and
+  `source_profile_export_id`. The function can be created without exercising
+  that runtime expression, so the BW8A inventory/RLS tests did not catch the
+  first real BW8 claim path.
+- A document-only worker must not consume unrelated webhook, draft, send,
+  extraction or export jobs from the shared pointer-only PGMQ queue. PGMQ's
+  existing conditional JSONB read seam permits an exact kind filter without a
+  second queue or duplicated ledger.
+- The private Storage binding remains intentionally outside browser/Data API
+  access. A validation worker therefore needs one service-only, bounded input
+  resolver that returns only the exact finalized bucket/object plus expected
+  MIME, byte size and SHA-256 metadata.
+
+Decision:
+
+- BW8B owns next-free forward-only migration 060. It may replace the claim
+  implementation through one private shared helper, preserve the existing
+  unfiltered public service RPC, add an exact `document_validation` filtered
+  claim RPC, and fix the returned BW8 pointer aliases.
+- Migration 060 may add one service-only finalized-validation-input resolver;
+  it must not expose `platform_private`, Storage credentials, signed URLs or
+  raw bytes to browser roles.
+- BW8B reuses migration 046 reserve/finalize/download and migration 043
+  validation attestation. It adds no second file ledger, queue or canonical
+  profile path.
+- The worker records `clean` only from a real private scanner verdict. Missing,
+  timed-out, oversized, malformed or infected scans fail closed and never
+  enqueue extraction. Unsupported shared-queue kinds remain untouched.
+- P4B remains paused and, after the complete BW8 lane, must restart from fresh
+  main and select the then-next free migration instead of assuming 060.
+
+Validation impact:
+
+- Add focused PostgreSQL inventory/RLS/runtime/concurrency proof for corrected
+  source pointers, exact kind filtering, service-only input resolution,
+  restart/retry/dead-letter and no extraction before a clean attestation.
+- Add real local private Storage reserve/upload/finalize/download and ClamAV
+  clean/EICAR/unavailable evidence with exact cleanup. No public scanner or
+  Storage port is allowed.
+- All exact-head CI, independent review and separate controller-merge gates
+  remain mandatory. Managed Supabase, deployment, production and real student
+  data remain unauthorized.
+
+Reviewer notes: this is a forward-only runtime repair and bounded BW8B seam,
+not a rewrite of merged migration 059. ADR 0014-0016 remain unchanged.
+
+## 2026-08-05 - Complete BW8B Crash Recovery After Validation Attestation
+
+Context:
+
+- The first BW8B candidate proved queue filtering, private Storage flow and
+  ClamAV verdicts, but an exact crash-boundary review found one remaining gap:
+  if a worker successfully attests validation and then crashes before
+  `finish_durable_work` commits, the replacement lease cannot resolve that
+  already-finalized version because the resolver accepted only
+  `pending+pending` validation state.
+- The failed resolver path would keep retrying and could eventually dead-letter
+  durable work even though the document verdict had already committed. The
+  attested document state stayed correct, but queue convergence was incomplete.
+
+Decision:
+
+- BW8B may enrich `platform.resolve_document_validation_input(...)` with
+  recovery-only metadata that states whether the current finalized version is
+  already in one of the exact terminal validation states:
+  `verified+clean`, `verified+infected`, or `failed+error`.
+- The BW8B worker may short-circuit on that resolver metadata and finish the
+  current lease without re-downloading, re-scanning or re-attesting the same
+  object.
+- This remains a bounded repair. BW8B still does not introduce a new queue,
+  a scanner-side transaction RPC, a second attestation ledger, or browser
+  visibility into private bindings.
+- The official ClamAV 1.5.3 Compose and integration-test reference is pinned
+  to its immutable multi-architecture registry digest so production cannot
+  silently pull different scanner bytes under the same patch tag.
+
+Validation impact:
+
+- Extend the SQL runtime proof so the resolver returns the recovery metadata
+  for an already-attested current version and preserves replay determinism.
+- Extend worker unit coverage so a replacement lease with finalized resolver
+  metadata calls `finishWork` directly and skips `downloadObject`,
+  `scanBytes`, and `attestValidation`.
+- Re-render Compose and re-run the clean, EICAR and unavailable-scanner proof
+  against the exact immutable ClamAV digest.
+- Re-run focused Node 22 unit tests, SQL inventory/runtime proof, lint,
+  TypeScript, Next build, exact-head CI and independent review on the new SHA.
+
+Reviewer notes: this closes a real crash-recovery gap discovered during
+pre-merge review; the prior exact head is superseded and must not be approved.

@@ -10,6 +10,7 @@ umask 077
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly SUPABASE_CLI="${REPO_ROOT}/node_modules/.bin/supabase"
 readonly PLAYWRIGHT_CLI="${REPO_ROOT}/node_modules/.bin/playwright"
+readonly NEXT_CLI="${REPO_ROOT}/node_modules/.bin/next"
 readonly DEADLINE_RUNNER="${REPO_ROOT}/scripts/run-command-with-deadline.mjs"
 readonly SUPABASE_PROJECT_ID="evo-platform-local"
 readonly EXPECTED_CLI_VERSION="2.110.0"
@@ -20,21 +21,102 @@ readonly AUTH_CONTAINER="supabase_auth_${SUPABASE_PROJECT_ID}"
 readonly STORAGE_CONTAINER="supabase_storage_${SUPABASE_PROJECT_ID}"
 readonly KONG_CONTAINER="supabase_kong_${SUPABASE_PROJECT_ID}"
 readonly STACK_LABEL="com.supabase.cli.project=${SUPABASE_PROJECT_ID}"
+readonly INBOX_STACK_LABEL="com.supabase.cli.project=inbox"
 readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"
 readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"
 readonly EXCLUDED_SERVICES="realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
 readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2h.XXXXXX")"
 readonly CANONICAL_VERSIONS_FILE="${TEMP_DIR}/canonical-versions.txt"
+readonly INBOX_FINGERPRINT_BEFORE="${TEMP_DIR}/inbox-before.txt"
+readonly INBOX_FINGERPRINT_AFTER="${TEMP_DIR}/inbox-after.txt"
+readonly BROWSER_HOST="127.0.0.1"
+readonly BROWSER_PORT="3311"
+readonly PROVIDER_GATED_BROWSER_TESTS="RU and EN draft requests work while uncertain language stops for manual selection|admin reads the persisted local P3C workflow without proving providers|assigned Curator reads the same persisted local P3C workflow|staff writes and persists a manual reply while AI is unavailable|staff submits an approved-knowledge AI draft request through the real form|staff reviews an AI draft then authorizes the edited final text"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
 lock_acquired=false
 stack_owned=false
+inbox_fingerprint_recorded=false
+browser_gate_started=false
 
 run_with_deadline() {
   local timeout_ms=$1
   shift
   node "${DEADLINE_RUNNER}" "${timeout_ms}" "$@"
+}
+
+refresh_synthetic_browser_health() {
+  local refresh_log="${TEMP_DIR}/browser-health-refresh.log"
+
+  # Refresh only the positive synthetic readiness contracts exercised by the
+  # browser suite. Org A AI intentionally remains local_non_provider so its
+  # fail-closed assertions cannot be turned into provider proof.
+  if ! run_with_deadline 30000 docker exec -i \
+    "${DATABASE_CONTAINER}" \
+    psql \
+    -X \
+    --no-psqlrc \
+    -qAt \
+    -v ON_ERROR_STOP=1 \
+    -U postgres \
+    -d postgres \
+    >"${refresh_log}" 2>&1 <<'SQL'
+BEGIN;
+SELECT pg_catalog.set_config(
+  'request.jwt.claims',
+  '{"role":"service_role"}',
+  true
+);
+DO $refresh$
+DECLARE
+  org_a UUID;
+  org_b UUID;
+BEGIN
+  SELECT id
+  INTO STRICT org_a
+  FROM platform.organizations
+  WHERE name = 'EVO P2C Synthetic Organization A';
+
+  SELECT id
+  INTO STRICT org_b
+  FROM platform.organizations
+  WHERE name = 'EVO P2C Synthetic Organization B';
+
+  PERFORM platform.record_messaging_integration_health_event(
+    org_a,
+    'waha'::platform.messaging_integration_target,
+    'ready'::platform.messaging_integration_readiness,
+    'provider_observed'::platform.messaging_integration_evidence_kind,
+    'Refresh synthetic WAHA readiness for the bounded local browser contract gate',
+    'synthetic:browser:waha:provider-ready:org-a',
+    gen_random_uuid()
+  );
+  PERFORM platform.record_messaging_integration_health_event(
+    org_b,
+    'ai'::platform.messaging_integration_target,
+    'ready'::platform.messaging_integration_readiness,
+    'provider_observed'::platform.messaging_integration_evidence_kind,
+    'Refresh synthetic AI readiness for the bounded local browser contract gate',
+    'synthetic:browser:ai:provider-ready:org-b',
+    gen_random_uuid()
+  );
+  PERFORM platform.record_messaging_integration_health_event(
+    org_b,
+    'waha'::platform.messaging_integration_target,
+    'ready'::platform.messaging_integration_readiness,
+    'provider_observed'::platform.messaging_integration_evidence_kind,
+    'Refresh synthetic WAHA readiness for the bounded local browser contract gate',
+    'synthetic:browser:waha:provider-ready:org-b',
+    gen_random_uuid()
+  );
+END
+$refresh$;
+COMMIT;
+SQL
+  then
+    fail "Unable to refresh the exact synthetic local browser health contracts; output was withheld."
+  fi
 }
 
 list_exact_stack_containers() {
@@ -56,8 +138,105 @@ list_exact_stack_networks() {
     --filter "label=${STACK_LABEL}"
 }
 
+capture_inbox_stack_fingerprint() {
+  local output_file=$1
+  local resource_id
+  local container_ids
+  local volume_names
+  local network_ids
+
+  container_ids="$(
+    run_with_deadline 5000 docker container ls \
+      --all \
+      --no-trunc \
+      --quiet \
+      --filter "label=${INBOX_STACK_LABEL}"
+  )" || return 1
+  volume_names="$(
+    run_with_deadline 5000 docker volume ls \
+      --quiet \
+      --filter "label=${INBOX_STACK_LABEL}"
+  )" || return 1
+  network_ids="$(
+    run_with_deadline 5000 docker network ls \
+      --no-trunc \
+      --quiet \
+      --filter "label=${INBOX_STACK_LABEL}"
+  )" || return 1
+
+  {
+    while IFS= read -r resource_id; do
+      [[ -n "${resource_id}" ]] && printf 'container:%s\n' "${resource_id}"
+    done <<<"${container_ids}"
+    while IFS= read -r resource_id; do
+      [[ -n "${resource_id}" ]] && printf 'volume:%s\n' "${resource_id}"
+    done <<<"${volume_names}"
+    while IFS= read -r resource_id; do
+      [[ -n "${resource_id}" ]] && printf 'network:%s\n' "${resource_id}"
+    done <<<"${network_ids}"
+  } | LC_ALL=C sort >"${output_file}"
+}
+
+assert_inbox_stack_unchanged() {
+  [[ "${inbox_fingerprint_recorded}" == true ]] || return 0
+  capture_inbox_stack_fingerprint "${INBOX_FINGERPRINT_AFTER}" || return 1
+  cmp -s -- "${INBOX_FINGERPRINT_BEFORE}" "${INBOX_FINGERPRINT_AFTER}"
+}
+
+list_exact_browser_server_pids() {
+  local expected_command="node ${NEXT_CLI} dev --hostname ${BROWSER_HOST} --port ${BROWSER_PORT}"
+
+  ps -axo pid=,command= | awk -v expected_command="${expected_command}" '
+    {
+      pid = $1
+      sub(/^[[:space:]]*[0-9]+[[:space:]]+/, "", $0)
+      if ($0 == expected_command) {
+        print pid
+      }
+    }
+  '
+}
+
+stop_exact_browser_server() {
+  local listed_pids
+  local process_id
+  local attempt
+  local -a server_pids=()
+
+  listed_pids="$(list_exact_browser_server_pids)" || return 1
+  while IFS= read -r process_id; do
+    [[ -n "${process_id}" ]] && server_pids+=("${process_id}")
+  done <<<"${listed_pids}"
+  (( ${#server_pids[@]} > 0 )) || return 0
+
+  # Match only this worktree's Next executable, host and port. Never kill a
+  # generic port owner or another worktree's development server.
+  kill -TERM "${server_pids[@]}" 2>/dev/null || :
+  for attempt in {1..20}; do
+    sleep 0.25
+    listed_pids="$(list_exact_browser_server_pids)" || return 1
+    [[ -z "${listed_pids}" ]] && return 0
+  done
+
+  server_pids=()
+  listed_pids="$(list_exact_browser_server_pids)" || return 1
+  while IFS= read -r process_id; do
+    [[ -n "${process_id}" ]] && server_pids+=("${process_id}")
+  done <<<"${listed_pids}"
+  (( ${#server_pids[@]} > 0 )) || return 0
+  kill -KILL "${server_pids[@]}" 2>/dev/null || :
+
+  for attempt in {1..20}; do
+    sleep 0.25
+    listed_pids="$(list_exact_browser_server_pids)" || return 1
+    [[ -z "${listed_pids}" ]] && return 0
+  done
+  return 1
+}
+
 remove_exact_local_stack_resources() {
   local resource_id
+  local attempt
   local listed_resources
   local removal_failed=false
   local -a container_ids=()
@@ -89,8 +268,25 @@ remove_exact_local_stack_resources() {
     removal_failed=true
   fi
 
-  if (( ${#network_ids[@]} > 0 )) && ! run_with_deadline 30000 \
-    docker network rm "${network_ids[@]}" >/dev/null 2>&1; then
+  # OrbStack can briefly retain an empty Compose network after the last exact
+  # container disappears. Re-list the exact project label on every bounded
+  # attempt; never disconnect endpoints or retry a stale/broader network set.
+  for attempt in {1..20}; do
+    network_ids=()
+    listed_resources="$(list_exact_stack_networks)" || return 1
+    while IFS= read -r resource_id; do
+      [[ -n "${resource_id}" ]] && network_ids+=("${resource_id}")
+    done <<<"${listed_resources}"
+    (( ${#network_ids[@]} > 0 )) || break
+
+    run_with_deadline 2000 \
+      docker network rm "${network_ids[@]}" >/dev/null 2>&1 \
+      || :
+    sleep 0.25
+  done
+
+  listed_resources="$(list_exact_stack_networks)" || return 1
+  if [[ -n "${listed_resources}" ]]; then
     removal_failed=true
   fi
 
@@ -98,9 +294,12 @@ remove_exact_local_stack_resources() {
 
   # Prove the exact label is empty before a new stack can start. A half-failed
   # teardown must not be mistaken for a clean disposable environment.
-  [[ -z "$(list_exact_stack_containers)" ]] || return 1
-  [[ -z "$(list_exact_stack_volumes)" ]] || return 1
-  [[ -z "$(list_exact_stack_networks)" ]] || return 1
+  listed_resources="$(list_exact_stack_containers)" || return 1
+  [[ -z "${listed_resources}" ]] || return 1
+  listed_resources="$(list_exact_stack_volumes)" || return 1
+  [[ -z "${listed_resources}" ]] || return 1
+  listed_resources="$(list_exact_stack_networks)" || return 1
+  [[ -z "${listed_resources}" ]] || return 1
 }
 
 stop_exact_local_stack() {
@@ -147,12 +346,24 @@ cleanup() {
   trap - EXIT HUP INT TERM
   set +e
 
+  # Stop the exact browser server before its disposable database. This is only
+  # armed after a clean preflight and the Playwright gate has started.
+  if [[ "${browser_gate_started}" == true ]]; then
+    if ! stop_exact_browser_server; then
+      cleanup_failed=true
+    fi
+  fi
+
   # The project ID is explicit: never use `supabase stop --all`, and never stop
   # an unrelated local Supabase stack.
   if [[ "${stack_owned}" == true && -x "${SUPABASE_CLI}" ]]; then
     if ! stop_exact_local_stack >/dev/null 2>&1; then
       cleanup_failed=true
     fi
+  fi
+
+  if ! assert_inbox_stack_unchanged; then
+    cleanup_failed=true
   fi
 
   if [[ "${lock_acquired}" == true ]]; then
@@ -330,6 +541,8 @@ recover_known_reset_storage_gateway_failure() {
 
 [[ -x "${SUPABASE_CLI}" ]] \
   || fail "Project-local Supabase CLI is missing. Run npm ci with Node 22 first."
+[[ -x "${NEXT_CLI}" ]] \
+  || fail "Project-local Next.js CLI is missing. Run npm ci with Node 22 first."
 [[ -f "${DEADLINE_RUNNER}" ]] \
   || fail "Project-local command deadline runner is missing."
 
@@ -380,6 +593,11 @@ expected_last_migration="$(
 command -v docker >/dev/null 2>&1 \
   || fail "Docker is required for the disposable local database."
 
+browser_server_pids="$(list_exact_browser_server_pids)" \
+  || fail "Unable to inspect exact-worktree Platform browser processes."
+[[ -z "${browser_server_pids}" ]] \
+  || fail "An exact-worktree Platform browser server is already running; stop it before the clean local gate."
+
 if [[ -n "${DOCKER_HOST:-}" && "${DOCKER_HOST}" != unix://* ]]; then
   fail "DOCKER_HOST must reference a local unix socket, not ${DOCKER_HOST}."
 fi
@@ -397,6 +615,10 @@ docker_endpoint="$(
 
 run_with_deadline 10000 docker info >/dev/null 2>&1 \
   || fail "The local Docker engine is not running."
+
+capture_inbox_stack_fingerprint "${INBOX_FINGERPRINT_BEFORE}" \
+  || fail "Unable to record the existing EVO Inbox Docker resource identities."
+inbox_fingerprint_recorded=true
 
 if ! mkdir -- "${LOCK_DIR}" 2>/dev/null; then
   fail "Another evo-platform-local reset owns ${LOCK_DIR}; refusing to stop its stack."
@@ -416,18 +638,26 @@ if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
   --output-format json \
   start \
   --exclude "${EXCLUDED_SERVICES}" \
+  --ignore-health-check \
   >"${TEMP_DIR}/start.json" 2>"${TEMP_DIR}/start.log"; then
   # Do not echo start output: even failed starts can emit ephemeral local keys.
   fail "The disposable local Supabase database failed to start; credential-bearing output was withheld."
 fi
 
-if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
+if ! wait_for_local_stack_readiness; then
+  fail "The disposable local Supabase stack did not become ready after startup; credential-bearing output was withheld."
+fi
+
+reset_exit_code=0
+run_with_deadline 600000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   --output-format json \
   db reset \
   --local \
   --no-seed \
-  >"${TEMP_DIR}/reset.json" 2>"${TEMP_DIR}/reset.log"; then
+  >"${TEMP_DIR}/reset.json" 2>"${TEMP_DIR}/reset.log" \
+  || reset_exit_code=$?
+if (( reset_exit_code != 0 )); then
   show_safe_failure_log "${TEMP_DIR}/reset.log"
   show_safe_database_deadlock_log
   if reset_outputs_have_known_storage_gateway_failure \
@@ -436,7 +666,7 @@ if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
       "${TEMP_DIR}/reset.log" "${TEMP_DIR}/reset.json" \
       || fail "Known post-reset Storage gateway recovery failed for the exact disposable stack."
   else
-    fail "Initial disposable Supabase reset failed without a classified transient recovery path."
+    fail "Initial disposable Supabase reset failed without a classified transient recovery path. Exit code ${reset_exit_code}."
   fi
 fi
 
@@ -565,14 +795,37 @@ fi
 [[ ! -e "${AUTH_STATUS_FILE}" ]] \
   || fail "Auth smoke did not delete the credential-bearing local status file."
 
-if ! run_with_deadline 300000 env \
+refresh_synthetic_browser_health
+browser_gate_started=true
+# The local fixture records deliberately short-lived, synthetic provider-health
+# evidence. Run all six tests that exercise positive freshness first so their real
+# five-minute freshness contract is tested deterministically. The second pass
+# still runs every other browser test; no assertion or health TTL is weakened.
+if ! run_with_deadline 240000 env \
   EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
   EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
   "${PLAYWRIGHT_CLI}" \
   test \
-  --config "${REPO_ROOT}/playwright.platform-auth.config.ts"; then
-  fail "Real browser Platform Auth/staff-shell gate failed."
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep "${PROVIDER_GATED_BROWSER_TESTS}"; then
+  fail "Provider-gated browser Platform messaging proof failed."
 fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop between browser partitions."
+fi
+if ! run_with_deadline 660000 env \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}"; then
+  fail "Remaining real browser Platform Auth/staff-shell gate failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop after the browser gate."
+fi
+browser_gate_started=false
 
 rm -f -- "${PLATFORM_AUTH_BROWSER_FIXTURE}"
 [[ ! -e "${LEGACY_DB_SENTINEL}" ]] \
@@ -581,14 +834,17 @@ rm -f -- "${PLATFORM_AUTH_BROWSER_FIXTURE}"
 # The browser workflow intentionally leaves one AI job and one manual-send job
 # queued so the UI can prove real outbox persistence. Reset the disposable
 # database before the independent Storage and empty-queue runtime gates.
-if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
+post_browser_reset_exit_code=0
+run_with_deadline 600000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
   --output-format json \
   db reset \
   --local \
   --no-seed \
   >"${TEMP_DIR}/post-browser-reset.json" \
-  2>"${TEMP_DIR}/post-browser-reset.log"; then
+  2>"${TEMP_DIR}/post-browser-reset.log" \
+  || post_browser_reset_exit_code=$?
+if (( post_browser_reset_exit_code != 0 )); then
   show_safe_failure_log "${TEMP_DIR}/post-browser-reset.log"
   show_safe_database_deadlock_log
   if reset_outputs_have_known_storage_gateway_failure \
@@ -597,7 +853,7 @@ if ! run_with_deadline 600000 "${SUPABASE_CLI}" \
       "${TEMP_DIR}/post-browser-reset.log" "${TEMP_DIR}/post-browser-reset.json" \
       || fail "Known post-browser Storage gateway recovery failed for the exact disposable stack."
   else
-    fail "Post-browser disposable Supabase reset failed without a classified transient recovery path."
+    fail "Post-browser disposable Supabase reset failed without a classified transient recovery path. Exit code ${post_browser_reset_exit_code}."
   fi
 fi
 

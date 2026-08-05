@@ -62,6 +62,12 @@ flowchart LR
   Platform <--> Data["Supabase Platform data"]
   Staff["Staff UI"] <--> Platform
   Portal["Student Portal"] <--> Platform
+  Staff --> Intake["Private document intake"]
+  Intake --> Scan["Integrity + malware scan"]
+  Scan --> Extract["Evidence candidates"]
+  Extract --> Confirm["Human confirm / reject"]
+  Confirm --> Data
+  Data --> Export["Versioned DOCX/PDF draft"]
   Platform --> Draft["AI draft only"]
   Draft --> Review["Staff review / edit"]
   Review --> Waha
@@ -193,6 +199,18 @@ Coarse role может приходить из custom JWT claim, но досту
 Private Storage используется только через поддерживаемый API, authenticated или
 короткоживущие signed downloads. Запрещено писать напрямую в таблицы схемы
 `storage`.
+
+BW8 document intelligence reuses this same boundary. Exact uploaded or Drive-
+imported bytes enter private Storage, then a persisted durable worker records
+integrity and real malware-scan evidence before any extraction. The extraction
+provider returns typed candidates with document-version and page/source
+locators; it does not update a student profile or review decision. A current
+authorized human confirmation or manual edit advances the typed profile
+revision, from which a private versioned DOCX/PDF draft can be generated.
+Refresh and event-stream reconnect reconstruct all visible states from
+persisted records, not process memory. Until Product/Legal/Data approves real
+student processing, external extraction calls are limited to authorized
+non-sensitive material and the UI remains truthful about manual work.
 
 Durable retryable business work идёт через Supabase Queues с идемпотентными
 consumer-ами. Database Webhooks допустимы для асинхронного event push, но не

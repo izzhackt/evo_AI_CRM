@@ -43,12 +43,12 @@ DOCX = ROOT / "docs/specs/EVO_PLATFORM_TZ.docx"
 GENERATOR = ROOT / "scripts/generate-evo-platform-tz.py"
 
 EXPECTED_REQUIREMENTS = {
-    "FR": 110,
-    "INT": 20,
-    "DATA": 18,
-    "SEC": 20,
-    "NFR": 18,
-    "ACC": 25,
+    "FR": 119,
+    "INT": 24,
+    "DATA": 24,
+    "SEC": 26,
+    "NFR": 22,
+    "ACC": 34,
     "DEC": 20,
 }
 

@@ -3,12 +3,12 @@
 ## Единая платформа автоматизации EVO Admissions
 
 **Идентификатор документа:** EVO-PLATFORM-TZ-001
-**Версия:** 1.9
+**Версия:** 2.0
 **Статус:** действующий контракт repository-реализации; production-gates
 остаются отдельными
-**Дата:** 4 августа 2026 года
-**Базовая версия репозитория:** `121db548b252eff9e4b79f62297aa27fe39e5c40`
-**Текущий execution checkpoint:** `121db548b252eff9e4b79f62297aa27fe39e5c40`
+**Дата:** 5 августа 2026 года
+**Базовая версия репозитория:** `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`
+**Текущий execution checkpoint:** `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`
 **Язык документа:** русский
 
 > **Назначение документа.** Это ТЗ является контрактом на последующую
@@ -31,7 +31,7 @@
 | Формат согласования | SHA-bound review, должностное решение по открытым gates и audit evidence |
 | Источник бренда | `docs/company/brand/evo-admissions-logobook.pdf` |
 | Принятый preset | `standard_business_brief` |
-| Текущий checkpoint | P0, P1A–P1D, reusable P2A–P2H, greenfield/UI boundary, BW0, P3A–P3C, BW1–BW7, P2R0–P2R3 и P4A merged; PR #117 controller-merged P4A at `121db548b252eff9e4b79f62297aa27fe39e5c40`, exact-main CI `30958119076` green; P4B docs-only mapping-selection/approval gate active, without provider or production proof |
+| Текущий checkpoint | P0, P1A–P1D, reusable P2A–P2H, greenfield/UI boundary, BW0, P3A–P3C, BW1–BW7, P2R0–P2R3 и P4A merged; PR #118 merged the P4B docs-only contract at `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`; P4B implementation paused before a shared PR/migration; BW8 student document intelligence docs-only gate active, without code, provider, real-student or production proof |
 
 > **Главная граница.** amoCRM остаётся источником истины для контакта, лида,
 > ответственного sales manager и стадии продаж. Один dedicated production
@@ -189,6 +189,9 @@ unrelated settings исключены из первого delivery slice.
 - read-only проверка 39 tabs Ultimate EVO Google Doc 30 июля 2026 года,
   accessible 21-page China checklist и только metadata linked admissions
   Sheet/Drive; student rows/folder names/files не читались и не копировались;
+- product-owner supplied public 14-item China document checklist and blank EVO
+  Admissions Student Profile Form used only to define BW8 requirements; no
+  real student document or filled profile is repository evidence;
 - blocked university Notion catalog: доступ требует sign-in в workspace
   AbdyldaYT, поэтому records не выдуманы и import не считается доступным.
 
@@ -654,13 +657,21 @@ Platform membership автоматически.
 ### 12.4 Документ студента
 
 1. Система показывает требование, формат, срок и объяснение.
-2. Student загружает файл в private Storage.
-3. Server проверяет тип, размер, malware/quality rule и создаёт новую version.
-4. AI может сформировать наблюдение, но не решение.
-5. Curator открывает preview и выбирает approve, correction required или
-   reject с причиной.
-6. Student видит status, комментарий и действие resubmit.
-7. Предыдущая version и review history не исчезают.
+2. Student/authorized staff загружает файл либо staff импортирует exact Drive
+   file в private Storage через reservation/finalization contract.
+3. Durable worker проверяет hash, type, size и real malware rule; clean state
+   нельзя создать из declared metadata или fixture flag.
+4. AI/OCR может создать только typed candidates с confidence и page/source
+   evidence, но не decision/status/canonical profile write.
+5. Curator открывает preview/evidence и подтверждает или отклоняет отдельные
+   candidates, затем выбирает approve, correction required или reject с
+   причиной.
+6. Подтверждённые typed fields обновляют exact profile revision; stale или
+   conflicting input fail-closed без partial write.
+7. Система может создать private versioned DOCX/PDF profile draft из exact
+   profile/template revisions; это не signed/approved document.
+8. Student видит status, комментарий и действие resubmit; предыдущая version,
+   extraction/decision и review history не исчезают.
 
 ### 12.5 Заявка в университет
 
@@ -867,6 +878,20 @@ sub-block существующего unified frontend; это не перено�
 | FR-109 | Accounting/Bema не создаёт новый ledger; Finance v1 остаётся obligations/payments/refunds/evidence/audit. | MUST | Scope and route review |
 | FR-110 | Все OP/OZO/Profile/checklist/catalog/contract flows используют существующий unified frontend и real Supabase repositories/actions/RLS/audit без parallel UI, localStorage или demo fallback. | MUST | Existing-route real-backend E2E |
 
+### 13.11 Student document intelligence
+
+| ID | Требование | Приоритет | Проверка |
+| --- | --- | --- | --- |
+| FR-111 | `/documents` должен быть единственным staff workbench для case-pinned checklist, private intake/import, persisted processing, evidence review, confirmed profile и export status без parallel UI. | MUST | Existing-route E2E |
+| FR-112 | Upload/Drive import публикует document version только после exact reservation, private byte transfer и idempotent finalization; failed finalize не меняет current slot. | MUST | Storage + failure E2E |
+| FR-113 | Integrity и real malware evidence должны быть clean до extraction/preview; declared metadata, test flag или LLM output не создают clean attestation. | MUST | Scanner contract + security E2E |
+| FR-114 | Extraction создаёт typed candidates с document version, value, normalized value, confidence, source/page locator и extractor policy/model version; direct profile/status/review write запрещён. | MUST | DB + adapter tests |
+| FR-115 | Human confirm/reject/manual edit должен быть atomic, append-only, idempotent и revision-aware; stale/conflicting/rejected-version candidate не может молча заменить confirmed value. | MUST | Concurrency + authorization E2E |
+| FR-116 | Expanded typed profile покрывает supplied form: personal/contact/language, repeating education, study goals, family, emergency, visa/health, referral и signature/date acknowledgement; repeating rows не моделируются numbered columns. | MUST | Schema + form acceptance |
+| FR-117 | Confirmed overlapping fields проектируются в minimized core детерминированно; additional fields остаются в одном typed field store без второго student/checklist/document model. | MUST | Projection/invariant tests |
+| FR-118 | Exact profile/template revisions создают immutable private DOCX/PDF draft evidence с checksums; template не изменяется, conversion failure не скрывает valid DOCX и output не называется signed/approved автоматически. | MUST | Determinism + render E2E |
+| FR-119 | 14-item China overlay хранит source/version/reviewer и minor applicability; video resume в BW8 остаётся checklist/evidence-only до отдельного private-video contract. | MUST | Seed/version + boundary tests |
+
 ## 14. Требования к интеграциям
 
 | ID | Требование | Приоритет | Проверка |
@@ -891,6 +916,10 @@ sub-block существующего unified frontend; это не перено�
 | INT-018 | Email, telephony, payment gateway и другие provider не могут отображаться live до отдельного contract и acceptance. | MUST | Readiness UI |
 | INT-019 | Каждый provider должен иметь readiness checklist, last verified time и actionable blocker. | MUST | Admin E2E |
 | INT-020 | Все внешние вызовы должны иметь correlation ID, redacted structured log, timeout и bounded retry policy. | MUST | Observability test |
+| INT-021 | Drive import использует exact file ID, supports shared-drive/resource-key semantics, blob download или Google Workspace PDF export и least-privilege server auth; Drive не становится runtime database. | MUST | Drive contract tests |
+| INT-022 | OpenAI document extraction использует server-only official SDK, file/image input, strict structured output, `store: false`, bounded temporary-file expiry/deletion attempt и no raw content logs. | MUST | Provider contract + redaction tests |
+| INT-023 | Real student documents запрещено отправлять extraction provider до approved Product/Legal/Data decision по purpose, field classes и retention; до этого real calls ограничены authorized non-sensitive sources. | MUST | Configuration/policy gate |
+| INT-024 | DOCX-to-PDF conversion выполняется private LibreOffice-compatible runtime; недоступность converter оставляет DOCX и manual retry, не fake PDF success. | MUST | Converter degradation test |
 
 ## 15. Требования к данным
 
@@ -914,6 +943,12 @@ sub-block существующего unified frontend; это не перено�
 | DATA-016 | DB backup/PITR и отдельный Storage object backup имеют isolated restore; Vault содержит только нужные encrypted secret references. | MUST | DB + Storage restore rehearsal |
 | DATA-017 | Business export должен быть machine-readable, permission-controlled и audited. | SHOULD | Export acceptance |
 | DATA-018 | Data dictionary должен описывать owner, type, nullable, sensitivity, retention и API exposure. | MUST | Architecture gate |
+| DATA-019 | Extraction run привязан к exact document version/request/extractor version и имеет persisted queued/processing/succeeded/failed/superseded outcome. | MUST | DB/idempotency test |
+| DATA-020 | Extracted fact хранит typed candidate, normalized value, confidence, evidence locator и status proposed/conflict/confirmed/rejected/superseded без raw provider body в exposed data. | MUST | Schema/RLS test |
+| DATA-021 | Expanded profile current value имеет typed field key, value, revision и provenance; human decisions append-only с actor/before/after/reason/request/time. | MUST | History/concurrency test |
+| DATA-022 | Profile export manifest связывает exact profile revision, template version, input/output checksums, format, outcome и private object reference. | MUST | Determinism/audit test |
+| DATA-023 | Checklist live state является детерминированной projection persisted slot/version/validation/extraction/review data и одинаков после refresh/reconnect/worker restart. | MUST | Restart/reconnect E2E |
+| DATA-024 | Raw student bytes, full extracted sensitive values и provider payloads отсутствуют в logs, URLs, analytics, Git, fixtures и CI artifacts. | MUST | PII/redaction scan |
 
 Append-only audit не должен исчезать каскадно при удалении parent record.
 Для audit/draft/ack связей применяются `RESTRICT`, `SET NULL` с сохранённым
@@ -943,6 +978,12 @@ external reference либо архивирование, но не незамет
 | SEC-018 | Backup зашифрован, доступ ограничен, восстановление регулярно проверяется. | MUST | Restore evidence |
 | SEC-019 | Incident process определяет severity, owner, containment, notification, recovery и postmortem. | MUST | Tabletop exercise |
 | SEC-020 | Юридический владелец должен утвердить privacy, consent, retention, cross-border processing и provider DPA до production PII. | MUST | Signed checklist |
+| SEC-021 | Document bytes проходят private integrity/malware gate до extraction/preview; scanner evidence содержит engine/version/time/result, а unavailable/error fail-closed. | MUST | Real scanner E2E |
+| SEC-022 | Document/extraction/profile/export RPC и object access повторно проверяют live same-org role, case scope, version binding и stale authority; cross-student IDOR denied. | MUST | RLS/object-scope suite |
+| SEC-023 | Provider adapters и workers server-only; API keys, service account material, signed URLs и provider file IDs не попадают в browser bundle или user-visible error. | MUST | Bundle/API/error scan |
+| SEC-024 | Evidence preview/quote минимизировано и masked по role; raw file/full sensitive candidate не появляется в event stream, notification или analytics. | MUST | Privacy/UI tests |
+| SEC-025 | Template asset до commit проверяется на absence of customer data, фиксируется checksum и остаётся immutable; exporter работает только с copy. | MUST | Template PII/hash test |
+| SEC-026 | Extraction/provider temporary files и outputs следуют approved retention/delete-attempt policy, но irreversible Platform deletion запрещён до Legal/Data decision. | MUST | Retention/provider audit |
 
 ## 17. Нефункциональные требования
 
@@ -966,6 +1007,10 @@ external reference либо архивирование, но не незамет
 | NFR-016 | Auditability | Любой sensitive decision восстанавливается по actor/source/time/evidence | Audit scenario |
 | NFR-017 | Graceful degradation | AI/report/provider failure не блокирует разрешённую ручную работу | Chaos scenarios |
 | NFR-018 | Documentation | Runbook, data dictionary, API contracts, recovery, onboarding и owner matrix актуальны в GitHub main | Release checklist |
+| NFR-019 | Live work state | Persisted state change видим через reconnectable SSE/poll fallback; refresh/reconnect/worker restart не теряет и не выдумывает progress | Restart/reconnect test |
+| NFR-020 | Worker durability | Scan/extraction/export jobs имеют bounded lease, retry budget, idempotency и dead-letter/reconciliation без duplicate terminal outcome | Queue fault injection |
+| NFR-021 | Export determinism | Same profile/template revisions создают одинаковый semantic DOCX manifest; PDF render page count/readability проверяются отдельно | Rebuild + render comparison |
+| NFR-022 | Document workbench usability | Desktop/tablet сохраняют checklist+evidence context; mobile показывает complete sequential actions; states используют text/icon и не зависят только от color | Responsive/a11y E2E |
 
 ## 18. UX/UI контракт
 
@@ -983,6 +1028,15 @@ external reference либо архивирование, но не незамет
 - точные WhatsApp delivery states;
 - loading, empty, error, blocked, read-only, approval-required,
   integration-unavailable и sync-unverified states.
+
+BW8 `/documents` uses one operational workspace: case/checklist context,
+document rows and a synchronized evidence/profile inspector. Persisted states
+`missing`, `received`, `processing`, `needs_review`, `confirmed`, `failed` and
+`not_required` use text/icon plus semantic color and remain reconstructible
+after refresh/reconnect. Human confirmation is an explicit keyboard-accessible
+action; confidence never substitutes for a decision. The visual contract is a
+calm white/graphite surface with the existing EVO accent, not a decorative card
+dashboard.
 
 Screenshots в приложении к DOCX подтверждают дизайн и структуру экранов, но не
 live provider. В интерфейсе запрещены:
@@ -1007,6 +1061,10 @@ live provider. В интерфейсе запрещены:
 - sync lag, stale links и conflicts;
 - AI request success/timeout/handoff и draft review outcome;
 - Storage upload/download/delete/error;
+- document scan/extraction/export queue depth, lease age, retry/dead letter,
+  processing latency, candidate conflict и human review outcome;
+- Drive/OpenAI/converter readiness, temporary provider-file deletion attempt и
+  policy-blocked manual fallback;
 - authorization denial и privileged actions;
 - backup age и результат последнего restore rehearsal.
 
@@ -1022,6 +1080,8 @@ owner и runbook. Необходимо минимум:
 - amoCRM auth/rate-limit failure;
 - sync conflict growth;
 - Supabase/storage unavailable;
+- document scanner unavailable, extraction dead-letter growth или export
+  converter failure;
 - backup or retention job failure;
 - repeated authorization anomaly;
 - audit append failure.
@@ -1147,7 +1207,7 @@ authorization/persistence, fail-closed provider states и code rollback. Real
 amoCRM mapping belongs to P4; real WAHA receive/send/ACK and AI-provider proof,
 bounded reconciliation and provider rollback readiness belong to P5/P8.
 
-### BW0-BW7. Business-workflow lane
+### BW0-BW8. Business-workflow lane
 
 BW0, P3A-P3C, BW1-BW7 и P2R0-P2R3 are merged. PR #112 merged the prerequisite
 P2R3 repair, PR #113 merged BW5, PR #114 merged BW6 and PR #116 merged BW7.
@@ -1168,6 +1228,12 @@ or take P7 restore ownership.
    и audit.
 7. BW7 — latest-main integration и полный real local/staging Supabase E2E через
    accepted frontend.
+8. BW8 — sequential student document intelligence: missing typed extraction/
+   confirmation/export schema; real private intake/scanner/durable worker;
+   server-only Drive/OpenAI adapters with deterministic validation; accepted
+   `/documents` review/live-state UI and immutable DOCX/PDF drafts; integrated
+   synthetic two-student completion audit. Real student provider use remains
+   blocked without Product/Legal/Data approval.
 
 P3 владеет common session/repository seams, P4 — amoCRM adapter, P5 — real
 WAHA/AI/ACK proof, P7 — restore/reliability. BW blocks используют эти seams и
@@ -1180,8 +1246,10 @@ P4A merged in PR #117: immutable sanitized account-specific discovery versions,
 service-only ingest, live-authority Admin reads and a bounded GET-only server
 adapter. This proves the local discovery contract, not a real amoCRM account.
 
-P4B first merges a docs-only selection/approval contract. A later additive
-implementation may let a current same-organization Admin select one immutable
+P4B docs-only selection/approval contract is merged, but its implementation is
+paused while BW8 owns the active lane and expected next-free migration 059.
+After BW8, a later additive implementation rechecks current main and may let a
+current same-organization Admin select one immutable
 P4A discovery version for messaging use through append-only approval/revocation
 events and a deterministic current projection. The selection binds the account
 pipeline, signed-contract status, responsible-user source rule and explicitly
@@ -1310,6 +1378,8 @@ Phase ownership критериев:
 - P4 закрывает ACC-007–008;
 - P5/P8 закрывают real-provider ACC-006, ACC-011–013 и ACC-024;
 - P6 закрывает ACC-005 и ACC-014–018;
+- BW8 закрывает ACC-026–034 и расширяет document/profile portion ACC-005,
+  ACC-015–017, ACC-019–020 без provider/production claim;
 - P7 закрывает ACC-002–003 и ACC-019–023 на полном release scope;
 - P9 закрывает ACC-025, а P10 подтверждает финальное закрытие ACC-001,
   ACC-004, ACC-009–010 и всех остальных критериев.
@@ -1341,6 +1411,15 @@ Phase ownership критериев:
 | ACC-023 | Alerts и runbooks проверены tabletop/controlled failure | Ops report |
 | ACC-024 | Bounded controlled evidence-window reconciliation не содержит unexplained loss/orphans/duplicates для thin messaging path | Signed reconciliation |
 | ACC-025 | Lead Agent removal blocked до bounded real controlled path, bounded-window reconciliation, zero unexplained loss/duplicates/drift, health evidence, rollback и separate reviewed retirement PR | Controlled proof + approval record |
+| ACC-026 | Source/version-pinned China overlay создаёт 14 case slots, включая deterministic minor applicability и video evidence-only boundary | Seed/version E2E |
+| ACC-027 | Exact upload и Drive import проходят private reservation/transfer/finalization; failed finalization не публикует slot version | Storage/import E2E |
+| ACC-028 | Real scanner доказывает clean/infected/error paths, а extraction до clean невозможен | Scanner evidence |
+| ACC-029 | Durable extraction переживает restart/retry/dead-letter без duplicate terminal run/facts и показывает persisted live state после reconnect | Queue + UI fault test |
+| ACC-030 | Strict extraction создаёт source-located candidates; low-confidence/conflict/rejected/stale input не меняет confirmed profile | Adapter/concurrency E2E |
+| ACC-031 | Admin/assigned Curator confirm/reject/manual edit оставляют exact human audit; другие роли, cross-org и cross-student denied | Authorization/RLS report |
+| ACC-032 | Supplied form fields заполняются из one typed profile revision; repeating education and manual missing fields render correctly | Profile acceptance |
+| ACC-033 | Same exact profile/template revisions создают immutable private DOCX/PDF drafts; template hash неизменен, все rendered pages inspected | Determinism/render ledger |
+| ACC-034 | OpenAI/Drive/converter unavailable or policy-blocked path remains truthful and manual; real student provider use stays disabled without Product/Legal/Data approval | Degradation/policy E2E |
 
 ## 24. Реестр решений и оставшиеся gates
 
@@ -1676,6 +1755,15 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | FR-108 | SRC-ULTIMATE; SRC-OWNER; SRC-ARCH; SRC-SEC |
 | FR-109 | SRC-ULTIMATE; SRC-OWNER; SRC-BIZ; SRC-GAP |
 | FR-110 | SRC-ULTIMATE; SRC-OWNER; SRC-UI; SRC-SUPA |
+| FR-111 | SRC-OWNER; SRC-UI; SRC-SUPA; SRC-SEC |
+| FR-112 | SRC-OWNER; SRC-SUPA; SRC-SEC |
+| FR-113 | SRC-OWNER; SRC-SUPA; SRC-SEC; SRC-OPS |
+| FR-114 | SRC-OWNER; SRC-SUPA; SRC-SEC; SRC-OZO |
+| FR-115 | SRC-OWNER; SRC-SUPA; SRC-SEC; SRC-UI |
+| FR-116 | SRC-OWNER; SRC-OZO; SRC-BIZ; SRC-SEC |
+| FR-117 | SRC-OWNER; SRC-ARCH; SRC-SUPA; SRC-SEC |
+| FR-118 | SRC-OWNER; SRC-OZO; SRC-SUPA; SRC-SEC |
+| FR-119 | SRC-OWNER; SRC-ULTIMATE; SRC-OZO; SRC-SEC |
 | INT-001 | SRC-OWNER; SRC-ARCH; SRC-AMO; SRC-LEAD |
 | INT-002 | SRC-OWNER; SRC-ARCH; SRC-AMO; SRC-LEAD |
 | INT-003 | SRC-OWNER; SRC-ARCH; SRC-AMO; SRC-LEAD |
@@ -1696,6 +1784,10 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | INT-018 | SRC-OWNER; SRC-OPS; SRC-UI |
 | INT-019 | SRC-OWNER; SRC-OPS; SRC-UI |
 | INT-020 | SRC-OWNER; SRC-OPS; SRC-UI |
+| INT-021 | SRC-OWNER; SRC-ARCH; SRC-OPS; SRC-SEC |
+| INT-022 | SRC-OWNER; SRC-ARCH; SRC-LEAD; SRC-SEC |
+| INT-023 | SRC-OWNER; SRC-GAP; SRC-SEC |
+| INT-024 | SRC-OWNER; SRC-ARCH; SRC-OPS |
 | DATA-001 | SRC-OWNER; SRC-ARCH; SRC-AMO; SRC-SEC |
 | DATA-002 | SRC-OWNER; SRC-ARCH; SRC-AMO; SRC-SEC |
 | DATA-003 | SRC-INBOX; SRC-LEAD; SRC-SEC |
@@ -1714,6 +1806,12 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | DATA-016 | SRC-ARCH; SRC-OPS; SRC-SUPA |
 | DATA-017 | SRC-OWNER; SRC-ARCH; SRC-BIZ; SRC-SEC |
 | DATA-018 | SRC-OWNER; SRC-ARCH; SRC-BIZ; SRC-SEC |
+| DATA-019 | SRC-OWNER; SRC-SUPA; SRC-OPS; SRC-SEC |
+| DATA-020 | SRC-OWNER; SRC-SUPA; SRC-SEC |
+| DATA-021 | SRC-OWNER; SRC-SUPA; SRC-SEC; SRC-BIZ |
+| DATA-022 | SRC-OWNER; SRC-SUPA; SRC-SEC; SRC-OZO |
+| DATA-023 | SRC-OWNER; SRC-SUPA; SRC-UI; SRC-OPS |
+| DATA-024 | SRC-OWNER; SRC-SEC; SRC-OPS |
 | SEC-001 | SRC-SEC; SRC-OPS |
 | SEC-002 | SRC-SEC; SRC-SUPA |
 | SEC-003 | SRC-SEC; SRC-SUPA |
@@ -1734,6 +1832,12 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | SEC-018 | SRC-SEC; SRC-OPS |
 | SEC-019 | SRC-SEC; SRC-OPS |
 | SEC-020 | SRC-OWNER; SRC-GAP |
+| SEC-021 | SRC-OWNER; SRC-SEC; SRC-SUPA; SRC-OPS |
+| SEC-022 | SRC-OWNER; SRC-SEC; SRC-SUPA |
+| SEC-023 | SRC-OWNER; SRC-SEC; SRC-OPS |
+| SEC-024 | SRC-OWNER; SRC-SEC; SRC-UI |
+| SEC-025 | SRC-OWNER; SRC-SEC; SRC-OZO |
+| SEC-026 | SRC-OWNER; SRC-SEC; SRC-GAP |
 | NFR-001 | SRC-OWNER; SRC-OPS; SRC-GAP |
 | NFR-002 | SRC-OWNER; SRC-OPS; SRC-GAP |
 | NFR-003 | SRC-OWNER; SRC-OPS; SRC-GAP |
@@ -1752,6 +1856,10 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | NFR-016 | SRC-ARCH; SRC-OPS; SRC-OWNER |
 | NFR-017 | SRC-ARCH; SRC-OPS; SRC-OWNER |
 | NFR-018 | SRC-ARCH; SRC-OPS; SRC-OWNER |
+| NFR-019 | SRC-OWNER; SRC-UI; SRC-OPS; SRC-SUPA |
+| NFR-020 | SRC-OWNER; SRC-OPS; SRC-SUPA |
+| NFR-021 | SRC-OWNER; SRC-OPS; SRC-OZO |
+| NFR-022 | SRC-OWNER; SRC-UI; SRC-SEC |
 | ACC-001 | SRC-OWNER; SRC-SEC; SRC-SUPA |
 | ACC-002 | SRC-OWNER; SRC-SEC; SRC-SUPA |
 | ACC-003 | SRC-OWNER; SRC-SEC; SRC-SUPA |
@@ -1777,6 +1885,15 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | ACC-023 | SRC-OPS; SRC-GAP |
 | ACC-024 | SRC-OWNER; SRC-ARCH; SRC-LEAD; SRC-OPS |
 | ACC-025 | SRC-OWNER; SRC-ARCH; SRC-LEAD; SRC-OPS |
+| ACC-026 | SRC-OWNER; SRC-ULTIMATE; SRC-OZO; SRC-SUPA |
+| ACC-027 | SRC-OWNER; SRC-SUPA; SRC-SEC; SRC-OPS |
+| ACC-028 | SRC-OWNER; SRC-SEC; SRC-OPS |
+| ACC-029 | SRC-OWNER; SRC-SUPA; SRC-OPS; SRC-UI |
+| ACC-030 | SRC-OWNER; SRC-SUPA; SRC-SEC; SRC-OZO |
+| ACC-031 | SRC-OWNER; SRC-SUPA; SRC-SEC; SRC-UI |
+| ACC-032 | SRC-OWNER; SRC-OZO; SRC-BIZ; SRC-UI |
+| ACC-033 | SRC-OWNER; SRC-OZO; SRC-OPS; SRC-SEC |
+| ACC-034 | SRC-OWNER; SRC-GAP; SRC-OPS; SRC-SEC |
 | DEC-001 | SRC-OZO; SRC-GAP |
 | DEC-002 | SRC-OZO; SRC-GAP |
 | DEC-003 | SRC-OZO; SRC-GAP |
@@ -1812,7 +1929,7 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | Technical Owner | architecture, security, bounded cutover/rollback и later RPO/RTO targets | review + DEC-009/010/017 evidence |
 | Operations Owner | sanitized test sender number, `evo-inbox` QR recovery, bounded evidence window и release window | DEC-007/017 evidence |
 
-**Решение по версии 1.4:** repository-реализация по текущему phased contract
+**Решение по версии 2.0:** repository-реализация по текущему phased contract
 разрешена после merge соответствующих docs amendments. Production mutation и
 provider acceptance разрешаются только соответствующим evidence gate.
 

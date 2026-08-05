@@ -3833,3 +3833,105 @@ Reviewer notes: `CONTEXT.md`, system/data-model docs and ADR 0014-0016 remain
 unchanged because the architecture, provider ownership, domain model and
 production boundary do not change. No implementation file may change in this
 docs-only PR.
+
+## 2026-08-05 - Prioritize BW8 Student Document Intelligence
+
+Source: Product-owner request to build the complete repetitive-work reduction
+flow from the supplied EVO Student Profile Form and the public 14-item China
+document checklist; exact repository checkpoint
+`10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b` after PR #118; current official
+OpenAI Responses/file/vision/Structured Outputs/data-control documentation and
+Google Drive file/export/auth/shared-drive documentation.
+
+Change type: product-priority, domain/schema, provider-adapter, accepted-UI and
+merge-order amendment. It does not authorize production, managed Supabase,
+provider credentials/calls or real student data processing.
+
+Affected plan section:
+`/goal-evo-platform-bw8-student-document-intelligence-plan`, the Documents/
+Student Profile portion of P6, the current migration ownership and the paused
+P4B implementation lane.
+
+Evidence:
+
+- Merged P2G/P2H/BW3 already provide durable queue patterns, private Storage
+  reservation/finalization/download grants, document slots/versions/reviews,
+  versioned country requirements and a minimized student profile.
+- The accepted `/documents` route is still intentionally honest legacy UI:
+  statuses exist but binary files are not connected to Platform Storage.
+- The repository has no persisted document-extraction run, evidence-backed
+  field candidate, candidate-to-profile human confirmation or expanded typed
+  form-field/export ledger. Directly writing model output to the current
+  profile would be unauditable and unsafe.
+- The supplied China source contains 14 requirements, including conditional
+  minor documents and a video resume. Current P2H permits only PDF/JPEG/PNG up
+  to 25 MiB, so video bytes cannot be implied as supported.
+- The blank owner-supplied Student Profile Form covers personal/contact/
+  language, repeating education, study goals, family, emergency, visa refusal,
+  health, referral and signature/date fields; the existing minimized core is
+  intentionally insufficient for the full form.
+- P4B has an approved docs-only contract but no shared implementation PR or
+  migration is open. A separate local uncommitted P4B worktree is owner work
+  and is not touched or treated as shared source of truth.
+
+Decision:
+
+- Make BW8 the sole active docs-only block and pause P4B implementation. Keep
+  P4A evidence and the P4B contract immutable. BW8A rechecks exact main and
+  owns expected next-free migration 059; P4B later restarts from fresh main and
+  rechecks then-next free, expected 060.
+- Implement only through sequential BW8A-BW8E PRs: schema/RLS/domain; private
+  intake, real scanner and durable worker; Drive/OpenAI adapters plus
+  deterministic validation; accepted `/documents` workbench/live persisted
+  state/profile DOCX-PDF drafts; integrated proof/completion audit.
+- Store extraction as typed proposed/conflicting evidence tied to one immutable
+  document version, exact source/page locator, confidence and extractor
+  policy/model version. An LLM/OCR provider never writes canonical fields,
+  checklist status or review decisions.
+- Advance typed profile values only through current authorized human confirm,
+  reject, supersede or manual-edit commands with optimistic revision,
+  before/after, reason, request ID and append-only provenance. Project shared
+  fields deterministically to the minimized core; use one typed store for the
+  additional form fields and arrays for repeating education history.
+- Reuse private Storage, upload reservation/finalization, validation/review,
+  audited download and PGMQ patterns. Require real integrity/malware evidence
+  before extraction; no synthetic `clean` status, direct Storage-table write,
+  in-memory-only job or fake live UI state is permitted.
+- Drive is exact import only, not the runtime database. OpenAI uses server-only
+  strict structured output, `store: false`, bounded temporary-file expiry and
+  best-effort deletion. Provider output is deterministically revalidated.
+- Real student documents remain prohibited from OpenAI until Product/Legal/Data
+  approves processing purpose, permitted field classes and retention posture.
+  Before that decision, real-provider calls may use only authorized
+  non-sensitive sources such as the public checklist and verified blank
+  template; manual work remains available.
+- Preserve the template unchanged, fill only copies, bind each export to exact
+  profile/template revisions and store private immutable DOCX/PDF draft
+  evidence. PDF conversion failure must not hide a valid DOCX or become fake
+  success.
+- Keep the existing `/documents` surface. Use a calm white/graphite operational
+  layout, status color plus text/icon, evidence inspector, keyboard actions and
+  a reconnectable persisted event stream with read-model fallback. No parallel
+  app, decorative dashboard or localStorage/demo fallback is authorized.
+
+Validation impact:
+
+- This docs-only PR updates the launch/long-run contracts, focused BW8 plan,
+  current-status and data/system/domain docs, canonical TZ 2.0, traceability,
+  validation ledger and deterministic owner-facing DOCX. Every rendered page
+  must be inspected; no implementation file or migration may change.
+- Each later BW8 implementation PR requires exact-main migration/ownership
+  recheck, focused unit/database/contract/browser/accessibility/security tests,
+  clean local Supabase execution, exact cleanup, independent exact-head review,
+  controller merge and exact-main CI.
+- BW8E must prove a synthetic two-student flow across checklist, private intake,
+  scan, extraction/conflict, human confirmation, profile and export in two
+  physical worktrees. Provider, managed/staging and production claims remain
+  separately labelled and gated.
+- `real-provider-proof: not-required` for this docs-only amendment. It performs
+  no provider call and processes no customer data.
+
+Reviewer notes: ADR 0014-0016 remain valid because BW8 uses the same unified
+frontend, greenfield Supabase boundary and canonical owners. This amendment
+changes the domain/data contract and therefore updates `CONTEXT.md`, system
+overview and data ownership instead of claiming they are unaffected.

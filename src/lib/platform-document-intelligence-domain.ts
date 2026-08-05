@@ -508,8 +508,12 @@ export function guardPlatformExtractedFactDecision<
   }
   if (
     input.currentFieldValue?.provenance.kind === "extracted_fact"
-    && input.currentFieldValue.provenance.documentVersionNumber
-      > input.fact.documentVersionNumber
+    && (
+      input.currentFieldValue.provenance.documentVersionId
+        !== input.fact.documentVersionId
+      || input.currentFieldValue.provenance.documentVersionNumber
+        > input.fact.documentVersionNumber
+    )
   ) {
     return { ok: false, reason: "newer_confirmed_source" };
   }

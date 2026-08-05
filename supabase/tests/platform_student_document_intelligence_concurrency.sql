@@ -100,7 +100,7 @@ SET ROLE authenticated;
 SELECT platform.register_workflow_source(
   :'bw8a_org', 'src_88888888888888888888888888888888',
   'google_drive_file',
-  'https://drive.google.com/file/d/1EKZOzQKli3Ub2tVxsX1qlpRj21kAJ6C9/view',
+  'https://drive.google.com/file/d/1EKZOzQKli3Ub2tVxsX1qlpRj21kAJ6C9/view?pli=1',
   'synthetic-revision-20260805',
   'Register exact synthetic China checklist source',
   '59000000-0000-4000-8000-000000000730'
@@ -413,6 +413,8 @@ SELECT pg_temp.assert_true(
   :'bw8a_overlay_required_count' = '11'
     AND :'bw8a_overlay_pending_count' = '2'
     AND :'bw8a_overlay_not_required_count' = '1'
+    AND :'bw8a_china_overlay_create'::JSONB ->> 'source_url'
+      = 'https://drive.google.com/file/d/1EKZOzQKli3Ub2tVxsX1qlpRj21kAJ6C9/view?pli=1'
     AND (:'bw8a_china_overlay_apply'::JSONB
       ->> 'contract_payment_gate_exists')::BOOLEAN = FALSE,
   'real pre-contract China overlay applicability drifted'

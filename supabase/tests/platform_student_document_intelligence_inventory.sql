@@ -28,7 +28,8 @@ DECLARE
     'platform.grant_student_profile_export_download(uuid,uuid,text,integer,uuid)'::REGPROCEDURE
   ];
   authenticated_boolean_routines REGPROCEDURE[] := ARRAY[
-    'private.platform_can_read_student_document_intelligence(uuid,uuid)'::REGPROCEDURE
+    'private.platform_can_read_student_document_intelligence(uuid,uuid)'::REGPROCEDURE,
+    'private.platform_can_read_student_portal_case(uuid,uuid)'::REGPROCEDURE
   ];
   service_jsonb_routines REGPROCEDURE[] := ARRAY[
     'platform.enqueue_document_validation_work(uuid,uuid,text,integer,uuid)'::REGPROCEDURE,
@@ -44,6 +45,7 @@ DECLARE
     'platform.fail_student_profile_export(uuid,uuid,platform.student_profile_export_status,text,uuid)'::REGPROCEDURE
   ];
   private_routines REGPROCEDURE[] := ARRAY[
+    'platform_private.is_safe_workflow_source_url(platform.workflow_source_kind,text)'::REGPROCEDURE,
     'platform_private.student_profile_value_is_valid(platform.student_profile_value_kind,jsonb)'::REGPROCEDURE,
     'platform_private.student_profile_catalog_value_is_valid(text,jsonb)'::REGPROCEDURE,
     'platform_private.document_source_locator_is_valid(jsonb)'::REGPROCEDURE,
@@ -177,9 +179,26 @@ BEGIN
     'student_profile_exports:student_profile_exports_staff_read:SELECT',
     'student_profile_field_catalog:student_profile_field_catalog_read:SELECT',
     'student_profile_field_decisions:student_profile_field_decisions_staff_read:SELECT',
-    'student_profile_field_values:student_profile_field_values_staff_read:SELECT'
+    'student_profile_field_values:student_profile_field_values_staff_read:SELECT',
+    'student_profile_field_values:student_profile_field_values_student_self_read:SELECT'
   ]::TEXT[] THEN
     RAISE EXCEPTION 'BW8A public-table RLS policy inventory drifted';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policy AS policy
+    WHERE policy.polrelid = 'platform.student_profile_field_values'::REGCLASS
+      AND policy.polname = 'student_profile_field_values_student_self_read'
+      AND policy.polcmd = 'r'
+      AND policy.polpermissive
+      AND policy.polroles = ARRAY[authenticated_role_oid]
+      AND pg_get_expr(policy.polqual, policy.polrelid)
+        LIKE '%private.platform_has_permission(%organization_id, ''profile.read.self''%'
+      AND pg_get_expr(policy.polqual, policy.polrelid)
+        LIKE '%private.platform_can_read_student_portal_case(%organization_id, %student_case_id)%'
+  ) THEN
+    RAISE EXCEPTION 'BW8A Student confirmed-value self-read predicate drifted';
   END IF;
 
   -- The supplied Student Profile form is an exact, typed 62-field contract.
@@ -735,6 +754,29 @@ BEGIN
     ) <> 'not_required'
   THEN
     RAISE EXCEPTION 'BW8A document applicability resolver truth table drifted';
+  END IF;
+
+  IF NOT platform_private.is_safe_workflow_source_url(
+      'google_drive_file',
+      'https://drive.google.com/file/d/1EKZOzQKli3Ub2tVxsX1qlpRj21kAJ6C9/view?pli=1'
+    )
+    OR platform_private.is_safe_workflow_source_url(
+      'google_drive_file',
+      'https://drive.google.com/file/d/1EKZOzQKli3Ub2tVxsX1qlpRj21kAJ6C9/view?pli=2'
+    )
+    OR platform_private.is_safe_workflow_source_url(
+      'google_drive_file',
+      'https://drive.google.com/file/d/1EKZOzQKli3Ub2tVxsX1qlpRj21kAJ6C9/view?pli=1&x=1'
+    )
+    OR platform_private.is_safe_workflow_source_url(
+      'google_drive_file',
+      'https://drive.google.com/file/d/1EKZOzQKli3Ub2tVxsX1qlpRj21kAJ6C9/view?token=secret'
+    )
+    OR pg_get_functiondef(
+      'platform.create_china_student_document_overlay(uuid,text,text,bigint,uuid,text,uuid)'::REGPROCEDURE
+    ) NOT LIKE '%https://drive.google.com/file/d/1EKZOzQKli3Ub2tVxsX1qlpRj21kAJ6C9/view?pli=1%'
+  THEN
+    RAISE EXCEPTION 'BW8A reviewed China Drive URL contract drifted';
   END IF;
 END
 $$;

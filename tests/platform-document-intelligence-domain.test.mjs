@@ -573,4 +573,19 @@ test("fact decision guard blocks terminal facts, stale versions and newer confir
     expectedFieldRevision: 1,
     currentFieldValue,
   }), { ok: false, reason: "newer_confirmed_source" });
+
+  const sameNumberDifferentDocument = confirmed("personal.first_name", "Amina", {
+    provenance: {
+      kind: "extracted_fact",
+      decisionId: DECISION_ID,
+      factId: "88888888-8888-4888-8888-888888888888",
+      documentVersionId: "99999999-9999-4999-8999-999999999999",
+      documentVersionNumber: 2,
+    },
+  });
+  assert.deepEqual(guardPlatformExtractedFactDecision({
+    ...base,
+    expectedFieldRevision: 1,
+    currentFieldValue: sameNumberDifferentDocument,
+  }), { ok: false, reason: "newer_confirmed_source" });
 });

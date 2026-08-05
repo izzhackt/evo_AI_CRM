@@ -23,6 +23,41 @@ ALTER TYPE platform.durable_work_operation ADD VALUE IF NOT EXISTS 'enqueue_stud
 
 BEGIN;
 
+-- BW1 rejects every provider query string by default. The reviewed China
+-- checklist source was supplied by Drive with its exact harmless `?pli=1`
+-- suffix, so preserve the existing allowlist and add only that one literal
+-- suffix for an otherwise canonical Drive file view/edit URL. No other query,
+-- fragment, host, path, port, or percent-encoded variant becomes valid.
+CREATE OR REPLACE FUNCTION platform_private.is_safe_workflow_source_url(
+  p_source_kind platform.workflow_source_kind,
+  p_source_url TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE SQL
+IMMUTABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT CASE p_source_kind
+    WHEN 'google_document' THEN
+      p_source_url ~
+        '^https://docs\.google\.com/document/d/[A-Za-z0-9_-]{10,200}(/(edit|view))?$'
+    WHEN 'google_spreadsheet' THEN
+      p_source_url ~
+        '^https://docs\.google\.com/spreadsheets/d/[A-Za-z0-9_-]{10,200}(/(edit|view))?$'
+    WHEN 'google_drive_file' THEN
+      p_source_url ~
+        '^https://drive\.google\.com/file/d/[A-Za-z0-9_-]{10,200}(/(view|edit)(\?pli=1)?)?$'
+    WHEN 'notion_database' THEN
+      p_source_url ~
+        '^https://(www\.)?notion\.so/[A-Fa-f0-9]{32}$'
+    WHEN 'repository_contract' THEN
+      p_source_url ~
+        '^https://github\.com/[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}/commit/[A-Fa-f0-9]{40}$'
+    ELSE FALSE
+  END
+$$;
+
 CREATE TYPE platform.document_extraction_run_status AS ENUM (
   'queued',
   'processing',
@@ -1144,7 +1179,9 @@ ALTER TABLE platform.student_profile_exports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform.student_profile_exports FORCE ROW LEVEL SECURITY;
 
 -- Immutable v12 bundles clone v11. Only Admin and an assigned Curator receive
--- the BW8 sensitive-read/write permissions; Sales/Finance/Student stay denied.
+-- the BW8 staff evidence/read/write permissions. Student receives no staff
+-- permission; its separate field-value policy below reuses the existing
+-- profile.read.self and activated portal-case boundary.
 INSERT INTO platform.permission_definitions (permission_key, description)
 VALUES
   ('document.intelligence.read', 'Read assigned-case extraction and decision evidence'),
@@ -1340,6 +1377,16 @@ CREATE POLICY student_profile_field_values_staff_read
       organization_id, student_case_id
     )
   ));
+CREATE POLICY student_profile_field_values_student_self_read
+  ON platform.student_profile_field_values
+  FOR SELECT TO authenticated USING (
+    (SELECT private.platform_has_permission(
+      organization_id, 'profile.read.self'
+    ))
+    AND (SELECT private.platform_can_read_student_portal_case(
+      organization_id, student_case_id
+    ))
+  );
 CREATE POLICY student_profile_field_decisions_staff_read
   ON platform.student_profile_field_decisions
   FOR SELECT TO authenticated USING ((SELECT
@@ -3135,7 +3182,7 @@ BEGIN
   IF NOT FOUND
     OR source_row.source_kind <> 'google_drive_file'
     OR source_row.source_url <>
-      'https://drive.google.com/file/d/1EKZOzQKli3Ub2tVxsX1qlpRj21kAJ6C9/view'
+      'https://drive.google.com/file/d/1EKZOzQKli3Ub2tVxsX1qlpRj21kAJ6C9/view?pli=1'
     OR source_row.source_revision IS NULL
     OR source_row.review_status <> 'reviewed'
     OR source_row.reviewer_role <> 'admin'
@@ -3240,6 +3287,7 @@ BEGIN
     'program_direction', normalized_program,
     'version', p_version,
     'source_registry_id', p_source_registry_id,
+    'source_url', source_row.source_url,
     'source_revision', source_row.source_revision,
     'source_reviewed_by_membership_id', source_row.reviewed_by_membership_id,
     'requirement_count', 14,
@@ -3343,6 +3391,9 @@ BEGIN
         AND source.id = link.source_registry_id
       WHERE link.organization_id = p_organization_id
         AND link.country_requirement_version_id = target_version.id
+        AND source.source_kind = 'google_drive_file'
+        AND source.source_url =
+          'https://drive.google.com/file/d/1EKZOzQKli3Ub2tVxsX1qlpRj21kAJ6C9/view?pli=1'
         AND source.review_status = 'reviewed'
         AND source.source_revision IS NOT NULL
     )

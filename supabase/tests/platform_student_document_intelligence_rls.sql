@@ -55,6 +55,37 @@ $$;
 GRANT EXECUTE ON FUNCTION pg_temp.bw8_sensitive_row_count(UUID, UUID)
   TO anon, authenticated;
 
+CREATE OR REPLACE FUNCTION pg_temp.bw8_staff_evidence_row_count(
+  p_organization_id UUID,
+  p_student_case_id UUID
+)
+RETURNS BIGINT
+LANGUAGE SQL
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT
+    (SELECT count(*)
+     FROM platform.document_extraction_runs
+     WHERE organization_id = p_organization_id
+       AND student_case_id = p_student_case_id)
+    + (SELECT count(*)
+       FROM platform.document_extracted_facts
+       WHERE organization_id = p_organization_id
+         AND student_case_id = p_student_case_id)
+    + (SELECT count(*)
+       FROM platform.student_profile_field_decisions
+       WHERE organization_id = p_organization_id
+         AND student_case_id = p_student_case_id)
+    + (SELECT count(*)
+       FROM platform.student_profile_exports
+       WHERE organization_id = p_organization_id
+         AND student_case_id = p_student_case_id)
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.bw8_staff_evidence_row_count(UUID, UUID)
+  TO authenticated;
+
 \set bw8_org_a '51000000-0000-4000-8000-000000000001'
 \set bw8_org_b '51100000-0000-4000-8000-000000000001'
 \set bw8_admin_user '51000000-0000-4000-8000-000000000101'
@@ -62,8 +93,10 @@ GRANT EXECUTE ON FUNCTION pg_temp.bw8_sensitive_row_count(UUID, UUID)
 \set bw8_curator_user '51000000-0000-4000-8000-000000000103'
 \set bw8_finance_user '51000000-0000-4000-8000-000000000104'
 \set bw8_student_user '51000000-0000-4000-8000-000000000105'
+\set bw8_student_two_user '53000000-0000-4000-8000-000000000106'
 \set bw8_admin_b_user '51100000-0000-4000-8000-000000000101'
 \set bw8_unassigned_curator_user '59000000-0000-4000-8000-000000000101'
+\set bw8_cross_org_student_user '59100000-0000-4000-8000-000000000101'
 \set bw8_requirement_id '59000000-0000-4000-8000-000000000201'
 \set bw8_slot_id '59000000-0000-4000-8000-000000000202'
 \set bw8_document_version_id '59000000-0000-4000-8000-000000000203'
@@ -79,6 +112,12 @@ FROM platform.organization_memberships AS membership
 JOIN platform.profiles AS profile ON profile.id = membership.profile_id
 WHERE membership.organization_id = :'bw8_org_a'
   AND profile.auth_user_id = :'bw8_admin_user'
+\gset
+SELECT membership.id::TEXT AS bw8_student_membership_id
+FROM platform.organization_memberships AS membership
+JOIN platform.profiles AS profile ON profile.id = membership.profile_id
+WHERE membership.organization_id = :'bw8_org_a'
+  AND profile.auth_user_id = :'bw8_student_user'
 \gset
 
 SELECT jsonb_build_object(
@@ -158,6 +197,30 @@ SELECT jsonb_build_object(
   'role', 'authenticated',
   'platform_role', membership."current_role",
   'platform_access_version', profile.access_version
+)::TEXT AS bw8_stale_student_claims
+FROM platform.profiles AS profile
+JOIN platform.organization_memberships AS membership
+  ON membership.profile_id = profile.id
+WHERE profile.auth_user_id = :'bw8_student_user'
+  AND membership.organization_id = :'bw8_org_a'
+\gset
+SELECT jsonb_build_object(
+  'sub', profile.auth_user_id,
+  'role', 'authenticated',
+  'platform_role', membership."current_role",
+  'platform_access_version', profile.access_version
+)::TEXT AS bw8_student_two_claims
+FROM platform.profiles AS profile
+JOIN platform.organization_memberships AS membership
+  ON membership.profile_id = profile.id
+WHERE profile.auth_user_id = :'bw8_student_two_user'
+  AND membership.organization_id = :'bw8_org_a'
+\gset
+SELECT jsonb_build_object(
+  'sub', profile.auth_user_id,
+  'role', 'authenticated',
+  'platform_role', membership."current_role",
+  'platform_access_version', profile.access_version
 )::TEXT AS bw8_admin_b_claims
 FROM platform.profiles AS profile
 JOIN platform.organization_memberships AS membership
@@ -169,12 +232,16 @@ SELECT jsonb_build_object('role', 'service_role')::TEXT
   AS bw8_service_claims
 \gset
 
--- Create one same-organization Curator without a case scope. This identity is
--- later blocked and restored to prove both gates independently.
+-- Create one same-organization Curator without a case scope and one Student in
+-- the other tenant. Both are synthetic negative identities.
 INSERT INTO auth.users (id, email, raw_user_meta_data)
 VALUES (
   :'bw8_unassigned_curator_user',
   'bw8-unassigned-curator@example.invalid',
+  '{}'
+), (
+  :'bw8_cross_org_student_user',
+  'bw8-cross-org-student@example.invalid',
   '{}'
 );
 
@@ -206,6 +273,31 @@ JOIN platform.organization_memberships AS membership
   ON membership.profile_id = profile.id
 WHERE profile.auth_user_id = :'bw8_unassigned_curator_user'
   AND membership.organization_id = :'bw8_org_a'
+\gset
+
+SET request.jwt.claims TO :'bw8_admin_b_claims';
+SET ROLE authenticated;
+SELECT platform.provision_member(
+  :'bw8_org_b',
+  :'bw8_cross_org_student_user',
+  'BW8A Synthetic Cross-Org Student',
+  'student',
+  'create cross-organization Student for BW8A self-read isolation proof',
+  '59100000-0000-4000-8000-000000000301'
+)::TEXT AS bw8_cross_org_student_result
+\gset
+RESET ROLE;
+SELECT jsonb_build_object(
+  'sub', profile.auth_user_id,
+  'role', 'authenticated',
+  'platform_role', membership."current_role",
+  'platform_access_version', profile.access_version
+)::TEXT AS bw8_cross_org_student_claims
+FROM platform.profiles AS profile
+JOIN platform.organization_memberships AS membership
+  ON membership.profile_id = profile.id
+WHERE profile.auth_user_id = :'bw8_cross_org_student_user'
+  AND membership.organization_id = :'bw8_org_b'
 \gset
 
 -- Build one private, clean, current synthetic document source without using a
@@ -402,9 +494,10 @@ SELECT pg_temp.bw8_sensitive_row_count(
 \gset
 RESET ROLE;
 
--- Non-BW8 staff, the Student, cross-tenant Admin, stale Curator claim and
--- unassigned Curator all receive an empty sensitive projection and cannot call
--- a human profile mutation RPC.
+-- Non-BW8 staff, cross-tenant Admin, stale Curator claim and unassigned Curator
+-- receive an empty staff-sensitive projection and cannot call human mutation
+-- RPCs. The owning Student is tested separately on the narrow confirmed-value
+-- self-read policy and the existing P2E portal document projection.
 SET request.jwt.claims TO :'bw8_sales_claims';
 SET ROLE authenticated;
 SELECT pg_temp.bw8_sensitive_row_count(
@@ -448,11 +541,32 @@ RESET ROLE;
 
 SET request.jwt.claims TO :'bw8_student_claims';
 SET ROLE authenticated;
-SELECT pg_temp.bw8_sensitive_row_count(
+SELECT count(*)::TEXT AS bw8_student_value_count
+FROM platform.student_profile_field_values
+WHERE organization_id = :'bw8_org_a'
+  AND student_case_id = :'bw8_case_id'
+\gset
+SELECT pg_temp.bw8_staff_evidence_row_count(
   :'bw8_org_a', :'bw8_case_id'
-)::TEXT AS bw8_student_sensitive_count
+)::TEXT AS bw8_student_staff_evidence_count
+\gset
+SELECT count(*)::TEXT AS bw8_student_direct_document_version_count
+FROM platform.document_versions
+WHERE organization_id = :'bw8_org_a'
+  AND id = :'bw8_document_version_id'
+\gset
+SELECT count(*)::TEXT AS bw8_student_portal_document_version_count
+FROM platform.student_portal_documents()
+WHERE case_id = :'bw8_case_id'
+  AND document_version_id = :'bw8_document_version_id'
 \gset
 \set ON_ERROR_STOP off
+UPDATE platform.student_profile_field_values
+SET field_value = to_jsonb('Forbidden Student overwrite'::TEXT)
+WHERE organization_id = :'bw8_org_a'
+  AND student_case_id = :'bw8_case_id'
+  AND field_key = 'study.desired_university';
+\set bw8_student_direct_update_state :SQLSTATE
 SELECT platform.manual_edit_student_profile_field(
   :'bw8_org_a', :'bw8_case_id', :'bw8_revision_after_confirm'::BIGINT,
   'study.field_major', 'text', to_jsonb('Forbidden Student edit'::TEXT),
@@ -461,6 +575,55 @@ SELECT platform.manual_edit_student_profile_field(
 );
 \set bw8_student_rpc_state :SQLSTATE
 \set ON_ERROR_STOP on
+RESET ROLE;
+
+SET request.jwt.claims TO :'bw8_student_two_claims';
+SET ROLE authenticated;
+SELECT count(*)::TEXT AS bw8_other_student_value_count
+FROM platform.student_profile_field_values
+WHERE organization_id = :'bw8_org_a'
+  AND student_case_id = :'bw8_case_id'
+\gset
+SELECT count(*)::TEXT AS bw8_other_student_portal_document_count
+FROM platform.student_portal_documents()
+WHERE case_id = :'bw8_case_id'
+  AND document_version_id = :'bw8_document_version_id'
+\gset
+RESET ROLE;
+
+SET request.jwt.claims TO :'bw8_cross_org_student_claims';
+SET ROLE authenticated;
+SELECT count(*)::TEXT AS bw8_cross_org_student_value_count
+FROM platform.student_profile_field_values
+WHERE organization_id = :'bw8_org_a'
+  AND student_case_id = :'bw8_case_id'
+\gset
+SELECT count(*)::TEXT AS bw8_cross_org_student_portal_document_count
+FROM platform.student_portal_documents()
+WHERE case_id = :'bw8_case_id'
+  AND document_version_id = :'bw8_document_version_id'
+\gset
+RESET ROLE;
+
+SELECT jsonb_set(
+  :'bw8_stale_student_claims'::JSONB,
+  '{platform_access_version}',
+  to_jsonb((:'bw8_stale_student_claims'::JSONB
+    ->> 'platform_access_version')::BIGINT - 1)
+)::TEXT AS bw8_stale_student_claims
+\gset
+SET request.jwt.claims TO :'bw8_stale_student_claims';
+SET ROLE authenticated;
+SELECT count(*)::TEXT AS bw8_stale_student_value_count
+FROM platform.student_profile_field_values
+WHERE organization_id = :'bw8_org_a'
+  AND student_case_id = :'bw8_case_id'
+\gset
+SELECT count(*)::TEXT AS bw8_stale_student_portal_document_count
+FROM platform.student_portal_documents()
+WHERE case_id = :'bw8_case_id'
+  AND document_version_id = :'bw8_document_version_id'
+\gset
 RESET ROLE;
 
 SET request.jwt.claims TO :'bw8_admin_b_claims';
@@ -571,6 +734,51 @@ SELECT platform.change_membership_status(
 );
 RESET ROLE;
 
+-- The owning Student also fails closed while its membership is blocked. The
+-- membership is restored before the next suite, and no confirmed value is
+-- mutated by either the lifecycle proof or the denied Student writes above.
+SET request.jwt.claims TO :'bw8_admin_claims';
+SET ROLE authenticated;
+SELECT platform.change_membership_status(
+  :'bw8_org_a', :'bw8_student_membership_id', 'blocked',
+  'temporarily block owning Student for BW8A self-read proof',
+  '59000000-0000-4000-8000-000000000335'
+);
+RESET ROLE;
+SELECT jsonb_build_object(
+  'sub', profile.auth_user_id,
+  'role', 'authenticated',
+  'platform_role', membership."current_role",
+  'platform_access_version', profile.access_version
+)::TEXT AS bw8_blocked_student_claims
+FROM platform.profiles AS profile
+JOIN platform.organization_memberships AS membership
+  ON membership.profile_id = profile.id
+WHERE profile.auth_user_id = :'bw8_student_user'
+  AND membership.organization_id = :'bw8_org_a'
+\gset
+SET request.jwt.claims TO :'bw8_blocked_student_claims';
+SET ROLE authenticated;
+SELECT count(*)::TEXT AS bw8_blocked_student_value_count
+FROM platform.student_profile_field_values
+WHERE organization_id = :'bw8_org_a'
+  AND student_case_id = :'bw8_case_id'
+\gset
+SELECT count(*)::TEXT AS bw8_blocked_student_portal_document_count
+FROM platform.student_portal_documents()
+WHERE case_id = :'bw8_case_id'
+  AND document_version_id = :'bw8_document_version_id'
+\gset
+RESET ROLE;
+SET request.jwt.claims TO :'bw8_admin_claims';
+SET ROLE authenticated;
+SELECT platform.change_membership_status(
+  :'bw8_org_a', :'bw8_student_membership_id', 'active',
+  'restore owning Student after BW8A blocked self-read proof',
+  '59000000-0000-4000-8000-000000000336'
+);
+RESET ROLE;
+
 SET request.jwt.claims TO '{"role":"anon"}';
 SET ROLE anon;
 \set ON_ERROR_STOP off
@@ -595,6 +803,11 @@ SELECT pg_temp.assert_true(
   'authenticated Admin must not write BW8A tables directly'
 );
 SELECT pg_temp.assert_true(
+  :'bw8_student_direct_update_state' = '42501'
+    AND :'bw8_student_rpc_state' = '42501',
+  'Student confirmed-value access must remain SELECT-only'
+);
+SELECT pg_temp.assert_true(
   :'bw8_owner_direct_applicability_state' = '55000'
     AND :'bw8_authenticated_direct_applicability_state' = '42501',
   'slot applicability must reject owner forgery and direct authenticated writes'
@@ -616,9 +829,26 @@ SELECT pg_temp.assert_true(
   'freshly claimed assigned Curator must read the exact same-case evidence'
 );
 SELECT pg_temp.assert_true(
+  :'bw8_student_value_count' = '2'
+    AND :'bw8_student_staff_evidence_count' = '0'
+    AND :'bw8_student_direct_document_version_count' = '0'
+    AND :'bw8_student_portal_document_version_count' = '1',
+  'owning active Student must read only confirmed values through the same portal-scoped case authority as P2E documents'
+);
+SELECT pg_temp.assert_true(
+  :'bw8_other_student_value_count' = '0'
+    AND :'bw8_other_student_portal_document_count' = '0'
+    AND :'bw8_cross_org_student_value_count' = '0'
+    AND :'bw8_cross_org_student_portal_document_count' = '0'
+    AND :'bw8_stale_student_value_count' = '0'
+    AND :'bw8_stale_student_portal_document_count' = '0'
+    AND :'bw8_blocked_student_value_count' = '0'
+    AND :'bw8_blocked_student_portal_document_count' = '0',
+  'other-Student, cross-org, stale and blocked Student self-reads must fail closed on both confirmed values and portal documents'
+);
+SELECT pg_temp.assert_true(
   :'bw8_sales_sensitive_count' = '0'
     AND :'bw8_finance_sensitive_count' = '0'
-    AND :'bw8_student_sensitive_count' = '0'
     AND :'bw8_cross_org_sensitive_count' = '0'
     AND :'bw8_stale_sensitive_count' = '0'
     AND :'bw8_unassigned_sensitive_count' = '0'
@@ -629,7 +859,6 @@ SELECT pg_temp.assert_true(
   :'bw8_sales_rpc_state' = '42501'
     AND :'bw8_sales_recompute_state' = '42501'
     AND :'bw8_finance_rpc_state' = '42501'
-    AND :'bw8_student_rpc_state' = '42501'
     AND :'bw8_cross_org_rpc_state' = '42501'
     AND :'bw8_stale_rpc_state' = '42501'
     AND :'bw8_unassigned_rpc_state' = '42501'
@@ -648,8 +877,19 @@ SELECT pg_temp.assert_true(
     WHERE organization_id = :'bw8_org_a'
       AND id = :'bw8_unassigned_curator_membership_id'
       AND status = 'active'
-  ),
-  'blocked-membership fixture must be restored before the next suite'
+  ) AND EXISTS (
+    SELECT 1
+    FROM platform.organization_memberships
+    WHERE organization_id = :'bw8_org_a'
+      AND id = :'bw8_student_membership_id'
+      AND status = 'active'
+  ) AND (
+    SELECT count(*)
+    FROM platform.student_profile_field_values
+    WHERE organization_id = :'bw8_org_a'
+      AND student_case_id = :'bw8_case_id'
+  ) = 2,
+  'blocked memberships must be restored and denied Student mutations must leave confirmed values unchanged'
 );
 
 RESET request.jwt.claims;

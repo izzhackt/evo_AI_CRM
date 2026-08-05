@@ -619,6 +619,18 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_student_document_intelligence_concurrency.sql
   fi
+
+  # BW8B owns migration 060's forward-only durable claim repair, exact
+  # document-validation queue filter and service-only finalized input resolver.
+  # Run both catalog and real PostgreSQL runtime proof at this exact boundary.
+  if [[ "$(basename "$migration")" == 060_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_document_intake_runtime_inventory.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_document_intake_runtime_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

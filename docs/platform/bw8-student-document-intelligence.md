@@ -282,10 +282,12 @@ typed expanded field catalog; same-org/object-scope RLS; Admin/Curator positive
 and role/cross-org/stale-authority negative tests; idempotency and stale
 revision/concurrency proof; no provider call or UI claim.
 
-#### BW8A candidate evidence ledger
+#### BW8A merged evidence ledger
 
-- Status: implementation candidate in PR #120; exact-head independent review,
-  controller merge and exact-main CI remain pending.
+- Status: PR #120 independently approved at exact head
+  `fa420d754ce07b617c267fd4c5a1cf3f3fb82969`, controller-merged as
+  `68fe755e9c7e6bbd92218ad6566aff3b7431b6f6`; exact-main CI run
+  `30975866690` passed.
 - Starting main: `791a43aaa6d02aa6b72429121680939163ccc601`.
 - Additive migration:
   `059_platform_student_document_intelligence.sql`, SHA-256
@@ -304,14 +306,23 @@ revision/concurrency proof; no provider call or UI claim.
 - Root lint, Next route generation, strict TypeScript and production build
   passed under Node `22.23.1`; EVO Inbox schema-contract compatibility passed
   21/21.
-- The connected local Supabase reset was not claimed in this candidate because
+- The connected local Supabase reset was not claimed in this block because
   another live `evo-platform-local` singleton held the reset lock; the lock was
-  not removed or interrupted. Disposable PostgreSQL proof is complete, while
-  exact-head CI and independent review remain mandatory.
+  not removed or interrupted. Disposable PostgreSQL proof, exact-head CI and
+  independent review completed without treating that skipped local reset as
+  evidence.
 - No scanner, Drive/OpenAI call, UI upload, managed apply, production mutation
   or real student-data processing is claimed by BW8A.
 
 ### BW8B - private intake, scanner and durable worker
+
+Expected next-free migration: `060`. The pre-implementation audit found that
+the migration 059 claim result references legacy BW8 work-item attribute names
+instead of the actual `source_*` columns and that a document-only worker needs
+an exact PGMQ kind filter. BW8B owns one forward-only runtime repair plus one
+service-only finalized-object resolver; it does not rewrite migration 059 or
+create a second queue/file ledger. P4B must reselect the then-next free
+migration after BW8 rather than assuming 060.
 
 Authorized files:
 

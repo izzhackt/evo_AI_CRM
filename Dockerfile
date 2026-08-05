@@ -18,6 +18,34 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
+FROM node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS document-validation-worker
+
+WORKDIR /app
+
+ARG EVO_IMAGE_SOURCE
+ARG EVO_IMAGE_REVISION
+ARG EVO_IMAGE_VERSION
+
+LABEL org.opencontainers.image.source="${EVO_IMAGE_SOURCE}" \
+      org.opencontainers.image.revision="${EVO_IMAGE_REVISION}" \
+      org.opencontainers.image.version="${EVO_IMAGE_VERSION}"
+
+ENV NODE_ENV=production
+
+RUN groupadd --system --gid 1001 nodejs \
+  && useradd --system --uid 1001 --gid nodejs --home-dir /app worker
+
+COPY --from=deps --chown=worker:nodejs /app/node_modules ./node_modules
+COPY --chown=worker:nodejs package.json package-lock.json ./
+COPY --chown=worker:nodejs scripts/run-platform-document-validation-worker.mjs ./scripts/run-platform-document-validation-worker.mjs
+COPY --chown=worker:nodejs src/lib/server/platform-clamav-client.ts ./src/lib/server/platform-clamav-client.ts
+COPY --chown=worker:nodejs src/lib/server/platform-document-validation-worker.ts ./src/lib/server/platform-document-validation-worker.ts
+COPY --chown=worker:nodejs src/lib/server/platform-service-supabase.ts ./src/lib/server/platform-service-supabase.ts
+
+USER worker
+
+CMD ["node", "--conditions=react-server", "--experimental-strip-types", "scripts/run-platform-document-validation-worker.mjs"]
+
 FROM node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS runner
 
 WORKDIR /app

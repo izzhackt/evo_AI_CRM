@@ -37,13 +37,16 @@ controller-merged BW8 docs-only contract как
 `791a43aaa6d02aa6b72429121680939163ccc601`; exact-main CI run
 `30965742642` зелёный. P4B docs-only остаётся действующим контрактом, но его
 implementation приостановлен до shared PR/migration. Текущий implementation
-candidate — BW8A в PR #120: migration 059, typed extraction/profile/export
+BW8A merged as PR #120: migration 059, typed extraction/profile/export
 evidence, China overlay, reviewed applicability и deterministic domain. Его
 fresh disposable PostgreSQL security/RLS/concurrency, 171/171 unit, lint,
 typecheck, build и EVO Inbox schema compatibility проходят, но exact-head
 independent review, green PR CI и controller merge ещё не выполнены. Scanner,
 Drive/OpenAI, UI, managed apply, real-student AI use, production deployment и
-customer delivery остаются вне BW8A и blocked до следующих gates. Former P2I restore
+customer delivery остаются вне BW8A и blocked до следующих gates. BW8B is the
+active private-intake/scanner/worker block and owns forward migration 060 for
+the exact validation-kind claim, corrected BW8 source pointers and private
+finalized-input resolver. Former P2I restore
 duties остаются в P7.
 
 ## Что подтверждено из репозитория
@@ -69,7 +72,8 @@ duties остаются в P7.
 | P4A amoCRM mapping discovery | PR #117 merged migration 058 with immutable sanitized account-specific snapshots, service-only ingest, live-authority Admin reads and a GET-only bounded server adapter | independent exact-head review, controller full local Supabase RC=0 with 58 migrations and 28/28 browser scenarios, and exact-main CI `30958119076` passed; real amoCRM account proof remains blocked |
 | P4B mapping selection/approval plan | PR #118 merged the docs-only contract separating immutable discovery evidence from append-only Admin approval events and a deterministic current messaging selection behind the accepted `/whatsapp` seam | exact-main CI `30963131242` green; implementation/migration/provider proof absent and implementation explicitly paused while BW8 is active |
 | BW8 student document intelligence plan | PR #119 controller-merged the docs-only priority amendment defining one accepted `/documents` workbench from private intake through scan, extraction candidates, human confirmation, typed profile and versioned DOCX/PDF draft export | exact-main CI `30965742642` green; no runtime/provider/managed/production proof was claimed by the plan |
-| BW8A schema/domain candidate | PR #120 candidate adds migration 059, 62 typed profile fields, extraction/decision/export evidence, source/version-backed China overlay, reviewed applicability recompute, existing-ledger durable work and race-safe private export Storage contracts | fresh disposable PostgreSQL inventory/RLS/dblink concurrency, 171/171 unit, lint/typecheck/build and Inbox schema compatibility pass; exact-head review/CI/controller merge and connected local Supabase reset remain pending; no scanner/provider/UI/managed/production claim |
+| BW8A schema/domain | PR #120 merged migration 059, 62 typed profile fields, extraction/decision/export evidence, source/version-backed China overlay, reviewed applicability recompute, existing-ledger durable work and race-safe private export Storage contracts | exact head `fa420d7` independently approved; merge/main `68fe755e`; exact-main CI `30975866690` green; connected local Supabase reset was not claimed; no scanner/provider/UI/managed/production claim |
+| BW8B private intake/scanner/worker | Active fresh branch from `68fe755e`; migration 060 is reserved for corrected BW8 source-pointer projection, exact document-validation queue filtering and one service-only finalized-input resolver | implementation and real local Storage/ClamAV/restart-retry-dead-letter evidence pending; no managed/production/real-student claim |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path | его нельзя удалять до bounded cutover evidence and rollback gate |
@@ -128,8 +132,9 @@ BW8 active student-document contract and BW8A candidate evidence ledger:
   соединяет принятые RPC/RLS contracts с существующим frontend; merged P4A
   добавляет только forward migration 058 для private sanitized mapping
   discovery versions; P4B amendment и BW8 plan не добавляют migration; BW8A
-  candidate занимает next-free migration 059 только после merge PR #120, а
-  paused P4B после BW8 заново проверяет then-next free migration, expected 060;
+  занимает migration 059 в merged PR #120; active BW8B занимает migration 060
+  для runtime worker repair/resolver, а paused P4B после BW8 заново проверяет
+  then-next free migration без заранее закреплённого номера;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;

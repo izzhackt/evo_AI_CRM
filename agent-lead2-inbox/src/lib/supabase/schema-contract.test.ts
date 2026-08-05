@@ -110,6 +110,10 @@ const platformAmoCrmMappingDiscoveryMigration = readFileSync(
   join(migrationsDir, '058_platform_amocrm_mapping_discovery.sql'),
   'utf8'
 )
+const platformDocumentIntakeRuntimeMigration = readFileSync(
+  join(migrationsDir, '060_platform_document_intake_runtime.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -127,7 +131,7 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '059_platform_student_document_intelligence.sql'
+      '060_platform_document_intake_runtime.sql'
     )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
@@ -334,6 +338,49 @@ describe('Supabase companion schema contract', () => {
     )
     expect(supabaseConfig).not.toMatch(
       /schemas\s*=.*(?:platform_private|pgmq_public)/
+    )
+  })
+
+  it('keeps BW8B document validation on one filtered private queue seam', () => {
+    expect(platformDocumentIntakeRuntimeMigration).toMatch(
+      /ALTER\s+TYPE\s+platform\.durable_work_operation[\s\S]*ADD\s+VALUE\s+IF\s+NOT\s+EXISTS\s+'resolve_document_validation_input'/i
+    )
+    expect(platformDocumentIntakeRuntimeMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform_private\.claim_durable_work_shared\s*\(\s*p_visibility_timeout_seconds\s+INTEGER,\s*p_worker_ref\s+TEXT,\s*p_request_id\s+UUID,\s*p_kind_filter\s+platform\.durable_work_kind\s*\)[\s\S]*pgmq\.read\s*\([\s\S]*jsonb_build_object\s*\(\s*'kind',\s*p_kind_filter::TEXT\s*\)/i
+    )
+    expect(platformDocumentIntakeRuntimeMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.claim_durable_work\s*\([\s\S]*platform_private\.claim_durable_work_shared\s*\([\s\S]*p_request_id,\s*NULL\s*\)/i
+    )
+    expect(platformDocumentIntakeRuntimeMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.claim_document_validation_work\s*\([\s\S]*platform_private\.claim_durable_work_shared\s*\([\s\S]*'document_validation'\s*\)/i
+    )
+    expect(platformDocumentIntakeRuntimeMigration).toMatch(
+      /'document_version_id',\s*work_item\.source_document_version_id[\s\S]*'document_extraction_run_id',\s*work_item\.source_extraction_run_id[\s\S]*'student_profile_export_id',\s*work_item\.source_profile_export_id/i
+    )
+    expect(platformDocumentIntakeRuntimeMigration).not.toMatch(
+      /work_item\.(?:document_version_id|document_extraction_run_id|student_profile_export_id)/i
+    )
+    expect(platformDocumentIntakeRuntimeMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.resolve_document_validation_input\s*\(\s*p_organization_id\s+UUID,\s*p_document_version_id\s+UUID,\s*p_request_id\s+UUID\s*\)[\s\S]*document_storage_bindings[\s\S]*document_upload_reservations[\s\S]*document_upload_finalizations[\s\S]*current_version_id[\s\S]*current_version_no/i
+    )
+    for (const field of [
+      'expected_original_filename',
+      'expected_mime_type',
+      'expected_byte_size',
+      'expected_sha256_hex',
+      'bucket_id',
+      'object_name',
+    ]) {
+      expect(platformDocumentIntakeRuntimeMigration).toContain(`'${field}'`)
+    }
+    expect(platformDocumentIntakeRuntimeMigration).not.toMatch(
+      /storage\.objects|signed[_ ]?url|service[_ ]?key|raw[_ ]?bytes/i
+    )
+    expect(platformDocumentIntakeRuntimeMigration).toMatch(
+      /REVOKE\s+ALL\s+ON\s+FUNCTION\s+platform\.resolve_document_validation_input[\s\S]*FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role,\s*supabase_auth_admin/i
+    )
+    expect(platformDocumentIntakeRuntimeMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.resolve_document_validation_input[\s\S]*TO\s+service_role/i
     )
   })
 

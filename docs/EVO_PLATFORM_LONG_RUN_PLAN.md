@@ -15,11 +15,13 @@ Exact-main CI run `30963131242`
 is green for Main CRM, EVO Inbox and EVO Lead Agent; Changed range was skipped
 on the push run as expected. P4B remains an approved docs-only contract, but
 its implementation is paused before any shared implementation PR or migration
-merged. BW8 student document intelligence is the active docs-only plan gate. It
-defines private intake, real validation/scanning, durable extraction,
+merged. BW8A is merged as PR #120 at exact main
+`68fe755e9c7e6bbd92218ad6566aff3b7431b6f6`; exact-main CI run
+`30975866690` is green. BW8B private intake/scanner/worker is the active block.
+BW8 defines private intake, real validation/scanning, durable extraction,
 evidence-backed human confirmation, typed profile fields and deterministic
 DOCX/PDF draft export behind the existing `/documents` surface. It authorizes
-no code, migration, credential/provider call, real student processing or
+no managed Supabase, credential/provider call, real student processing or
 runtime mutation. P4A local
 proof is green for disposable PostgreSQL authorization, 58 contiguous local
 Supabase migrations, Auth/PostgREST/Storage/PGMQ and 28/28 accepted-frontend
@@ -696,8 +698,10 @@ authorized non-sensitive sources such as the public checklist and verified
 blank template.
 
 P4B implementation remains paused throughout BW8. Its append-only approval
-contract and P4A evidence remain immutable. After BW8, P4B restarts from fresh
-main and rechecks the then-next migration, expected 060 if BW8A consumes 059.
+contract and P4A evidence remain immutable. BW8A consumed migration 059 and
+BW8B owns forward-only migration 060 for the filtered validation-worker claim,
+correct BW8 source-pointer projection and private finalized-input resolver.
+After BW8, P4B restarts from fresh main and rechecks the then-next migration.
 
 ### P4 — canonical amoCRM adapter
 

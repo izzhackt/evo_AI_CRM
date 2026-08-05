@@ -25,6 +25,7 @@ const REQUIRED_043 = "043_platform_documents_finance_notifications.sql";
 const REQUIRED_044 = "044_platform_communications_contracts.sql";
 const REQUIRED_045 = "045_platform_durable_work_queues.sql";
 const REQUIRED_046 = "046_platform_private_document_storage.sql";
+const REQUIRED_060 = "060_platform_document_intake_runtime.sql";
 const required040Path = new URL(
   `../supabase/migrations/${REQUIRED_040}`,
   import.meta.url,
@@ -51,6 +52,10 @@ const required045Path = new URL(
 );
 const required046Path = new URL(
   `../supabase/migrations/${REQUIRED_046}`,
+  import.meta.url,
+);
+const required060Path = new URL(
+  `../supabase/migrations/${REQUIRED_060}`,
   import.meta.url,
 );
 
@@ -483,6 +488,33 @@ test("requires exact migrations 040-046 and contiguous later migrations", async 
     range: "001-046",
     current: "047",
     total: 47,
+  });
+});
+
+test("accepts contiguous forward history through BW8B migration 060", async (t) => {
+  const root = await createValidFixture(t);
+  const migrationsDirectory = path.join(root, "supabase", "migrations");
+
+  for (let number = 47; number <= 59; number += 1) {
+    const prefix = String(number).padStart(3, "0");
+    await writeFile(
+      path.join(migrationsDirectory, `${prefix}_forward_fixture.sql`),
+      FIXTURE_SQL,
+    );
+  }
+  await writeFile(
+    path.join(migrationsDirectory, REQUIRED_060),
+    await readFile(required060Path, "utf8"),
+  );
+
+  const { stdout, stderr } = await runVerifier(root);
+  assert.equal(stderr, "");
+  assert.deepEqual(JSON.parse(stdout), {
+    ok: true,
+    checked: 46,
+    range: "001-046",
+    current: "060",
+    total: 60,
   });
 });
 

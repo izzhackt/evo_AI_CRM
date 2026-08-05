@@ -128,12 +128,84 @@ services:
       retries: 5
       start_period: 30s
 
+  document-validation-scanner:
+    profiles:
+      - student-documents
+    image: "clamav/clamav:1.5.3-debian13-slim"
+    restart: unless-stopped
+    init: true
+    user: clamav
+    entrypoint:
+      - /init-unprivileged
+    cpus: "2.00"
+    mem_limit: 4g
+    pids_limit: 512
+    logging: *bounded-logging
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    expose:
+      - "3310"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+      - /run/clamav:rw,noexec,nosuid,nodev,size=16m
+    volumes:
+      - evo_crm_clamav_signatures:/var/lib/clamav
+    networks:
+      document-validation:
+        aliases:
+          - evo-document-validation-scanner
+
+  document-validation-worker:
+    profiles:
+      - student-documents
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: document-validation-worker
+      args:
+        EVO_IMAGE_SOURCE: "${EVO_IMAGE_SOURCE:-https://github.com/izzhackt/evo_AI_CRM}"
+        EVO_IMAGE_REVISION: "${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
+        EVO_IMAGE_VERSION: "${EVO_RELEASE_VERSION:?set EVO_RELEASE_VERSION}"
+    image: "evo-document-validation-worker:${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
+    labels:
+      org.opencontainers.image.revision: "${EVO_RELEASE_REVISION}"
+      org.opencontainers.image.version: "${EVO_RELEASE_VERSION}"
+    restart: on-failure:5
+    init: true
+    cpus: "1.00"
+    mem_limit: 512m
+    pids_limit: 128
+    logging: *bounded-logging
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - "${EVO_CRM_DOCUMENT_WORKER_ENV_FILE:-.env.platform-document-worker}"
+    environment:
+      NODE_ENV: production
+      EVO_DOCUMENT_VALIDATION_WORKER_ENABLED: "${EVO_DOCUMENT_VALIDATION_WORKER_ENABLED:-false}"
+      EVO_CLAMAV_HOST: evo-document-validation-scanner
+      EVO_CLAMAV_PORT: "3310"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    depends_on:
+      document-validation-scanner:
+        condition: service_healthy
+    networks:
+      - document-validation
+
 volumes:
   evo_crm_data:
   evo_crm_output:
   evo_crm_backups:
   evo_crm_waha_sessions:
   evo_crm_lead_agent_data:
+  evo_crm_clamav_signatures:
 
 networks:
   private:
@@ -142,3 +214,5 @@ networks:
   web:
     external: true
     name: ${EVO_CADDY_NETWORK:-evo_public_web}
+  document-validation:
+    name: evo_crm_document_validation

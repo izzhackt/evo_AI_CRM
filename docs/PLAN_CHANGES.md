@@ -4019,3 +4019,85 @@ Validation impact:
 Reviewer notes: this amendment is deliberately not an exact revert of PR #119.
 It preserves immutable history, records why authority changed and separates the
 normal Platform document lifecycle from the external automation system.
+
+## 2026-08-05 - Gate P4B on reproducible local Supabase validation
+
+Block-ID: `EVO-P2R4-LOCAL-VALIDATION-PREREQUISITE-2026-08-05`
+
+Source: owner authorization to correct PR #119 and continue EVO Platform;
+merged PR #128 at main `bb9d766163267846f406dcc376e893bb2a914af4`;
+exact-main CI run `31012015566` green; and a fresh unchanged-main OrbStack run
+of exactly `npm run test:supabase:local` using Node `22.23.1` and project-local
+Supabase CLI `2.110.0`.
+
+Change type: execution-order and local-validation prerequisite. This docs-only
+entry changes neither product/TZ requirements nor schema/API/domain ownership.
+It authorizes no application/frontend change, migration, credential, provider
+call, managed Supabase action, customer/student-data processing, staging action
+or production mutation.
+
+Affected plan section:
+`/goal-evo-platform-p2r4-local-validation-prerequisite`, before the already
+merged P4B product contract.
+
+Evidence:
+
+- Current main is `bb9d766163267846f406dcc376e893bb2a914af4`, its migrations
+  remain contiguous `001-058`, and exact-main CI run `31012015566` is green for
+  Main CRM, EVO Inbox and EVO Lead Agent; Changed range is skipped on push as
+  expected.
+- From that unchanged main, the exact repo-scoped local gate exited `1` after
+  the bounded local `supabase start` phase timed out on Docker context
+  `orbstack`. Credential-bearing diagnostics were withheld.
+- Normal cleanup completed: zero exact `evo-platform-local` containers,
+  volumes and networks remained, no singleton lock/process remained, and the
+  Inbox resource set was unchanged.
+- Supabase CLI `2.110.0` supports `start --ignore-health-check`; its successful
+  exit is not health proof, so the local harness must add its own bounded,
+  fail-closed service readiness before continuing. Primary CLI reference:
+  <https://github.com/supabase/cli/blob/develop/apps/cli/docs/go-cli-reference.md>.
+
+Decision:
+
+- Insert P2R4 before P4B. P4B remains the next product lane only after P2R4 is
+  independently reviewed, controller-merged and re-proved on exact main.
+- The later P2R4 implementation PR may edit only
+  `scripts/test-supabase-local-reset.sh` and
+  `tests/supabase-local-reset-harness.test.mjs`.
+- Use local `supabase start --ignore-health-check` only with an immediate
+  bounded fail-closed readiness proof for Database, PostgREST, Auth, Storage,
+  Kong and CLI status. Unknown or repeated failures remain fatal; no general
+  retry is authorized.
+- Keep all mutation and cleanup exact-project/local only. Forbid `--linked`,
+  `--project-ref`, `--db-url`, `stop --all`, broad prune, Docker daemon restart
+  and unrelated-stack mutation.
+- Preserve immutable migrations `001-058` and the official local reset path.
+  Require exact repository-to-local migration list equality. This block does
+  not reserve `059` and does not authorize a migration-repair ledger mutation.
+- Preserve the existing exact-signature, exact-project Storage/Kong recovery;
+  it must not become a generic retry path.
+- Capture exact Inbox container IDs, volume names and network IDs before the
+  run and require identical sets after cleanup. Require zero exact Platform
+  resources and zero singleton lock/process after every exit path.
+- This amendment does not restore PR #122, BW8, migration 059 ownership or any
+  reverted Student Profile document-automation scope.
+
+Validation impact:
+
+- This amendment changes only `docs/EVO_LAUNCH_PLAN.md`,
+  `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, this append-only decision log and
+  `docs/platform/current-status.md`. TZ/DOCX/validation and ADRs remain
+  unchanged because product requirements and architecture do not change.
+- The later implementation must pass focused positive and negative harness
+  tests plus two independent clean real executions of
+  `npm run test:supabase:local`: one by the executor and one by the independent
+  controller. Each must exit `0`, prove migrations `001-058`,
+  Auth/RLS/Storage/PGMQ and accepted browser gates, clean exact Platform state,
+  and preserve exact Inbox identities.
+- Both the docs-only plan PR and the later repair PR require exact-head CI,
+  SHA-bound independent approval, controller merge and green exact-main CI.
+- Rollback is a docs-only forward/revert decision for this amendment; the later
+  implementation rollback is the two-file harness revert. No migration or
+  runtime data rollback is required.
+- `real-provider-proof: not-required`; the proof is disposable local validation,
+  not amoCRM, WAHA, AI, managed Supabase, staging or production evidence.

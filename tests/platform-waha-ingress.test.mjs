@@ -342,14 +342,8 @@ test("declared and streamed oversized bodies are rejected before persistence", a
   });
 });
 
-test("supported WAHA event types retain distinct identities and normalize provider fields", async (t) => {
+test("canonical WAHA event types retain distinct identities and normalize provider fields", async (t) => {
   const cases = [
-    {
-      event: messageEvent({ event: "message" }),
-      eventType: "message",
-      payloadId: "wamid.synthetic-message-001",
-      variant: null,
-    },
     {
       event: messageEvent({ event: "message.any" }),
       eventType: "message.any",
@@ -392,6 +386,58 @@ test("supported WAHA event types retain distinct identities and normalize provid
       assert.equal(persisted.providerEventVariantRef, expected.variant);
       assert.equal(persisted.providerOccurredAt, new Date(NOW_MS).toISOString());
       assert.deepEqual(persisted.rawPayload, expected.event);
+    });
+  }
+});
+
+test("message alias and message.any persist and enqueue one canonical work item", async (t) => {
+  for (const order of [
+    ["message", "message.any"],
+    ["message.any", "message"],
+  ]) {
+    await t.test(order.join(" then "), async () => {
+      const repository = createMemoryRepository();
+      const handler = handlerFor(repository);
+
+      for (const [index, eventType] of order.entries()) {
+        const event = messageEvent({ event: eventType });
+        const response = await handler(
+          webhookRequest(event, {
+            requestId: `synthetic-alias-${index + 1}`,
+          }),
+        );
+        assert.equal(response.status, 202);
+
+        if (eventType === "message") {
+          assert.deepEqual(await json(response), {
+            ok: true,
+            persisted: false,
+            persistDeduplicated: null,
+            enqueued: false,
+            enqueueDeduplicated: null,
+            ignoredReason: "message_alias_use_message_any",
+          });
+        } else {
+          assert.deepEqual(await json(response), {
+            ok: true,
+            persisted: true,
+            persistDeduplicated: false,
+            enqueued: true,
+            enqueueDeduplicated: false,
+          });
+        }
+      }
+
+      assert.equal(
+        repository.calls.filter((call) => call.kind === "persist").length,
+        1,
+      );
+      assert.equal(
+        repository.calls.filter((call) => call.kind === "enqueue").length,
+        1,
+      );
+      assert.equal(repository.calls[0].input.eventType, "message.any");
+      assert.equal(repository.calls[0].input.payloadId, "wamid.synthetic-message-001");
     });
   }
 });

@@ -251,7 +251,11 @@ export function createPlatformWahaIngressHandler(
         config,
         dependencies.now?.() ?? Date.now(),
       );
-      const event = parsePlatformWahaWebhookEvent(rawBody, config.sessionName);
+      const event = parsePlatformWahaWebhookEvent(
+        rawBody,
+        config.sessionName,
+        authentication.providerSentAt,
+      );
 
       const payloadSha256 = sha256PlatformWahaRawBody(rawBody);
       const verificationEvidenceRef = `waha-raw-sha256:${payloadSha256}`;

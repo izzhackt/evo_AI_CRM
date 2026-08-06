@@ -52,9 +52,9 @@ function messageEvent(overrides = {}) {
   return {
     event: "message.any",
     session: "evo-inbox",
-    timestamp: NOW_MS,
     payload: {
       id: "wamid.synthetic-message-001",
+      timestamp: NOW_MS / 1_000,
       from: "synthetic-chat@c.us",
       body: "Synthetic test message",
     },
@@ -65,10 +65,8 @@ function messageEvent(overrides = {}) {
 function sessionEvent(overrides = {}) {
   return {
     event: "session.status",
-    id: "synthetic-session-status-001",
     session: "evo-inbox",
-    timestamp: NOW_MS,
-    payload: { status: "WORKING" },
+    payload: { status: "WORKING", data: null },
     ...overrides,
   };
 }
@@ -253,15 +251,34 @@ test("body and event parsing rejects empty, malformed and unbounded shapes", asy
     ["invalid UTF-8", invalidUtf8],
     ["missing event", rawJson({ ...messageEvent(), event: undefined })],
     ["invalid event name", rawJson({ ...messageEvent(), event: "Message.Any" })],
-    ["missing provider timestamp", rawJson({ ...messageEvent(), timestamp: undefined })],
-    ["invalid provider timestamp", rawJson({ ...messageEvent(), timestamp: -1 })],
     [
-      "message without payload id",
-      rawJson({ ...messageEvent(), payload: { body: "Synthetic only" } }),
+      "missing provider timestamp",
+      rawJson({
+        ...messageEvent(),
+        payload: { ...messageEvent().payload, timestamp: undefined },
+      }),
     ],
     [
-      "session event without top-level id",
-      rawJson({ ...sessionEvent(), id: undefined }),
+      "invalid provider timestamp",
+      rawJson({
+        ...messageEvent(),
+        payload: { ...messageEvent().payload, timestamp: -1 },
+      }),
+    ],
+    [
+      "message without payload id",
+      rawJson({
+        ...messageEvent(),
+        payload: { ...messageEvent().payload, id: undefined },
+      }),
+    ],
+    [
+      "session event without status",
+      rawJson({ ...sessionEvent(), payload: { data: null } }),
+    ],
+    [
+      "session event with invalid status casing",
+      rawJson({ ...sessionEvent(), payload: { status: "working", data: null } }),
     ],
   ];
 
@@ -362,7 +379,7 @@ test("canonical WAHA event types retain distinct identities and normalize provid
     {
       event: sessionEvent(),
       eventType: "session.status",
-      payloadId: "synthetic-session-status-001",
+      payloadIdPattern: /^local-session-status:[0-9a-f]{64}$/,
       variant: null,
     },
   ];
@@ -382,12 +399,85 @@ test("canonical WAHA event types retain distinct identities and normalize provid
 
       const persisted = repository.calls[0].input;
       assert.equal(persisted.eventType, expected.eventType);
-      assert.equal(persisted.payloadId, expected.payloadId);
+      if (expected.payloadIdPattern) {
+        assert.match(persisted.payloadId, expected.payloadIdPattern);
+      } else {
+        assert.equal(persisted.payloadId, expected.payloadId);
+      }
       assert.equal(persisted.providerEventVariantRef, expected.variant);
       assert.equal(persisted.providerOccurredAt, new Date(NOW_MS).toISOString());
       assert.deepEqual(persisted.rawPayload, expected.event);
     });
   }
+});
+
+test("documented session.status shape uses a stable local semantic identity", async () => {
+  const providerSentAt = new Date(NOW_MS).toISOString();
+  const first = sessionEvent({
+    payload: {
+      status: "SCAN_QR_CODE",
+      data: { qr: { expiresIn: 30, value: "synthetic-qr-a" }, attempt: 1 },
+    },
+  });
+  const reordered = sessionEvent({
+    payload: {
+      data: { attempt: 1, qr: { value: "synthetic-qr-a", expiresIn: 30 } },
+      status: "SCAN_QR_CODE",
+    },
+  });
+  const changed = sessionEvent({
+    payload: {
+      status: "SCAN_QR_CODE",
+      data: { qr: { expiresIn: 30, value: "synthetic-qr-b" }, attempt: 1 },
+    },
+  });
+
+  const normalized = [first, reordered, changed].map((event) =>
+    parsePlatformWahaWebhookEvent(
+      new TextEncoder().encode(rawJson(event)),
+      "evo-inbox",
+      providerSentAt,
+    ));
+
+  assert.match(normalized[0].payloadId, /^local-session-status:[0-9a-f]{64}$/);
+  assert.equal(normalized[0].payloadId, normalized[1].payloadId);
+  assert.notEqual(normalized[0].payloadId, normalized[2].payloadId);
+  assert.equal(normalized[0].providerOccurredAt, providerSentAt);
+});
+
+test("session.status accepts the optional general event envelope identity and time", () => {
+  const event = sessionEvent({
+    id: "evt_1111111111111111111111111111",
+    timestamp: NOW_MS,
+  });
+  const normalized = parsePlatformWahaWebhookEvent(
+    new TextEncoder().encode(rawJson(event)),
+    "evo-inbox",
+    new Date(NOW_MS + 1_000).toISOString(),
+  );
+
+  assert.equal(normalized.payloadId, "evt_1111111111111111111111111111");
+  assert.equal(normalized.providerOccurredAt, new Date(NOW_MS).toISOString());
+});
+
+test("message occurrence time comes from payload Unix seconds", () => {
+  const event = messageEvent({
+    timestamp: NOW_MS + 60_000,
+    payload: {
+      ...messageEvent().payload,
+      timestamp: NOW_MS / 1_000 + 0.853,
+    },
+  });
+  const normalized = parsePlatformWahaWebhookEvent(
+    new TextEncoder().encode(rawJson(event)),
+    "evo-inbox",
+    new Date(NOW_MS + 120_000).toISOString(),
+  );
+
+  assert.equal(
+    normalized.providerOccurredAt,
+    new Date(NOW_MS + 853).toISOString(),
+  );
 });
 
 test("message and message.any persist separately but enqueue one business work item", async (t) => {
@@ -523,6 +613,7 @@ test("message acknowledgement states are exact and unknown values remain explici
       const normalized = parsePlatformWahaWebhookEvent(
         new TextEncoder().encode(rawJson(event)),
         "evo-inbox",
+        new Date(NOW_MS).toISOString(),
       );
       assert.equal(normalized.providerEventVariantRef, ackName.toLowerCase());
       assert.equal(normalized.processable, true);
@@ -540,6 +631,7 @@ test("message acknowledgement states are exact and unknown values remain explici
           }),
         ),
         "evo-inbox",
+        new Date(NOW_MS).toISOString(),
       );
       assert.equal(normalized.providerEventVariantRef, "unknown");
     });

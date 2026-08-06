@@ -10,6 +10,8 @@ const EVENT_TYPE_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
 const MAX_REQUEST_ID_LENGTH = 256;
 const MAX_EVENT_TYPE_LENGTH = 128;
 const MAX_EVENT_ID_LENGTH = 512;
+const MAX_SESSION_STATUS_LENGTH = 64;
+const SESSION_STATUS_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 const PROCESSABLE_EVENT_TYPES = new Set([
   "message",
   "message.any",
@@ -46,6 +48,7 @@ export class PlatformWahaWebhookRequestError extends Error {
 
 export type PlatformWahaWebhookAuthentication = Readonly<{
   providerRequestId: string;
+  providerSentAt: string;
 }>;
 
 export type PlatformWahaWebhookEvent = Readonly<{
@@ -80,7 +83,7 @@ function boundedExactString(
   return value;
 }
 
-function bodyTimestampToIso(value: unknown): string | null {
+function epochMillisecondsToIso(value: unknown): string | null {
   const timestamp = typeof value === "number"
     ? value
     : typeof value === "string" && /^\d+$/.test(value)
@@ -93,6 +96,77 @@ function bodyTimestampToIso(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+function epochSecondsToIso(value: unknown): string | null {
+  const timestampSeconds = typeof value === "number"
+    ? value
+    : typeof value === "string" && /^\d+(?:\.\d+)?$/.test(value)
+      ? Number(value)
+      : Number.NaN;
+  if (!Number.isFinite(timestampSeconds) || timestampSeconds <= 0) return null;
+
+  const timestampMs = Math.round(timestampSeconds * 1_000);
+  if (!Number.isSafeInteger(timestampMs)) return null;
+  try {
+    return new Date(timestampMs).toISOString();
+  } catch {
+    return null;
+  }
+}
+
+function exactIsoTimestamp(value: string): string | null {
+  try {
+    return new Date(value).toISOString() === value ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function sessionStatusOccurredAt(
+  payload: Record<string, unknown>,
+  status: string,
+): string | null {
+  if (!Array.isArray(payload.statuses)) return null;
+
+  let occurredAt: string | null = null;
+  for (const candidate of payload.statuses) {
+    if (!isRecord(candidate) || candidate.status !== status) continue;
+    const candidateOccurredAt = epochMillisecondsToIso(candidate.timestamp);
+    if (candidateOccurredAt !== null) occurredAt = candidateOccurredAt;
+  }
+  return occurredAt;
+}
+
+function canonicalJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJsonValue);
+  if (!isRecord(value)) return value;
+
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, canonicalJsonValue(value[key])]),
+  );
+}
+
+function localSessionStatusId(
+  sessionName: string,
+  status: string,
+  statusOccurredAt: string | null,
+  data: unknown,
+): string {
+  const semanticFingerprint = createHash("sha256")
+    .update(
+      JSON.stringify([
+        "session.status",
+        sessionName,
+        status,
+        statusOccurredAt,
+        canonicalJsonValue(data ?? null),
+      ]),
+    )
+    .digest("hex");
+  return `local-session-status:${semanticFingerprint}`;
 }
 
 function safeHeader(
@@ -195,12 +269,16 @@ export function verifyPlatformWahaWebhookAuthentication(
     return reject("invalid_signature", 403);
   }
 
-  return Object.freeze({ providerRequestId });
+  const providerSentAt = epochMillisecondsToIso(timestampMs);
+  if (providerSentAt === null) return reject("invalid_signature", 403);
+
+  return Object.freeze({ providerRequestId, providerSentAt });
 }
 
 export function parsePlatformWahaWebhookEvent(
   rawBody: Uint8Array,
   expectedSessionName: string,
+  verifiedProviderSentAt: string,
 ): PlatformWahaWebhookEvent {
   let rawText: string;
   try {
@@ -225,15 +303,49 @@ export function parsePlatformWahaWebhookEvent(
   const sessionName = boundedExactString(parsed.session, 128);
   if (sessionName !== expectedSessionName) return reject("invalid_session", 403);
 
-  const providerOccurredAt = bodyTimestampToIso(parsed.timestamp);
-  if (providerOccurredAt === null) return reject("invalid_payload", 400);
-
   const payload = isRecord(parsed.payload) ? parsed.payload : null;
-  const payloadIdValue = MESSAGE_EVENT_TYPES.has(eventType)
-    ? payload?.id
-    : parsed.id;
-  const payloadId = boundedExactString(payloadIdValue, MAX_EVENT_ID_LENGTH);
+  if (payload === null) return reject("invalid_payload", 400);
+
+  let providerOccurredAt: string | null = null;
+  if (eventType === "message" || eventType === "message.any") {
+    providerOccurredAt = epochSecondsToIso(payload.timestamp);
+    if (providerOccurredAt === null) return reject("invalid_payload", 400);
+  } else if (eventType === "message.ack" && payload.timestamp !== undefined) {
+    providerOccurredAt = epochSecondsToIso(payload.timestamp);
+    if (providerOccurredAt === null) return reject("invalid_payload", 400);
+  } else if (parsed.timestamp !== undefined) {
+    providerOccurredAt = epochMillisecondsToIso(parsed.timestamp);
+    if (providerOccurredAt === null) return reject("invalid_payload", 400);
+  }
+
+  let payloadId: string | null;
+  if (MESSAGE_EVENT_TYPES.has(eventType)) {
+    payloadId = boundedExactString(payload.id, MAX_EVENT_ID_LENGTH);
+  } else if (eventType === "session.status") {
+    const status = boundedExactString(payload.status, MAX_SESSION_STATUS_LENGTH);
+    if (status === null || !SESSION_STATUS_PATTERN.test(status)) {
+      return reject("invalid_payload", 400);
+    }
+    const statusOccurredAt = sessionStatusOccurredAt(payload, status);
+    providerOccurredAt ??= statusOccurredAt;
+
+    if (parsed.id === undefined) {
+      payloadId = localSessionStatusId(
+        sessionName,
+        status,
+        statusOccurredAt,
+        payload.data,
+      );
+    } else {
+      payloadId = boundedExactString(parsed.id, MAX_EVENT_ID_LENGTH);
+    }
+  } else {
+    payloadId = boundedExactString(parsed.id, MAX_EVENT_ID_LENGTH);
+  }
   if (payloadId === null) return reject("invalid_payload", 400);
+
+  providerOccurredAt ??= exactIsoTimestamp(verifiedProviderSentAt);
+  if (providerOccurredAt === null) return reject("invalid_payload", 400);
 
   let providerEventVariantRef: string | null = null;
   if (eventType === "message.ack") {

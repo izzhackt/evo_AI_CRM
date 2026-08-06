@@ -7,8 +7,11 @@ unified platform.
 
 The target contract is
 [`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`](docs/EVO_PLATFORM_LONG_RUN_PLAN.md) and
-the superseding architecture decision is
-[`docs/adr/0014-unified-evo-platform-target-architecture.md`](docs/adr/0014-unified-evo-platform-target-architecture.md).
+the current execution-order decision is
+[`docs/adr/0018-defer-amocrm-and-retain-lead-agent.md`](docs/adr/0018-defer-amocrm-and-retain-lead-agent.md).
+The target architecture remains
+[`docs/adr/0014-unified-evo-platform-target-architecture.md`](docs/adr/0014-unified-evo-platform-target-architecture.md),
+subject to later superseding decisions.
 Its canonical Supabase schema/migration boundary is refined by
 [`docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`](docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md).
 Companion-era terms below remain as honest descriptions of separate runtimes
@@ -69,7 +72,10 @@ _Avoid_: lead-agent, external bot brain
 
 **Identity Source of Truth**:
 amoCRM, which owns the canonical contact, lead, responsible sales manager, and
-sales stage for admissions follow-up.
+sales stage for admissions follow-up. The canonical adapter is currently
+deferred under ADR 0018, so dependent resolution, ownership, stage and handoff
+must remain unavailable rather than falling back to SQLite, mocks or hardcoded
+mapping.
 _Avoid_: local source, duplicate identity
 
 **Shadow Record**:

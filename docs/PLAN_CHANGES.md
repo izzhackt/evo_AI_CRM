@@ -4101,3 +4101,78 @@ Validation impact:
   runtime data rollback is required.
 - `real-provider-proof: not-required`; the proof is disposable local validation,
   not amoCRM, WAHA, AI, managed Supabase, staging or production evidence.
+
+## 2026-08-06 - Defer P4, remove P9 and continue amoCRM-independent scope
+
+Block-ID: `EVO-P5-AMO-DEFERRAL-SCOPE-AMENDMENT-2026-08-06`
+
+Source: explicit owner decision after the deferred P4B checkpoint and failed
+local Auth/PostgREST gate; current repository checkpoint
+`4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`; exact-main CI run
+`31038964366` green.
+
+Change type: material execution-order, dependency and acceptance correction.
+This entry does not cancel the canonical amoCRM target. It defers P4/P4B,
+removes P9 from current execution and narrows P8/P10 so independent P5-P7 work
+can continue honestly. It is docs-only and authorizes no runtime code,
+migration, credential/provider action, customer-data action, staging/production
+mutation or service deletion.
+
+Affected plan section:
+`/goal-evo-platform-p5-amocrm-deferral-scope-amendment`, P4-P10 ordering,
+amoCRM-dependent acceptance, P9 retirement scope and P10 audit semantics.
+
+Evidence:
+
+- PRs #129-#130 are merged; current `origin/main` is
+  `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`, migrations remain contiguous
+  `001-058`, and exact-main CI `31038964366` is green.
+- P4B implementation is preserved on remote branch
+  `izzhackt/evo-platform-p4b-mapping-approval` at
+  `e53ba94954f147b295f596421a255591fa343ce8`; the worktree/remote branch is
+  clean, and no P4B implementation PR exists.
+- P4B focused tests, unit tests, lint, Next typegen, TypeScript and production
+  build passed. Its attempted full local Supabase gate failed closed in the
+  real Auth/PostgREST hook before Playwright. That run is failed/non-evidence;
+  read-only cleanup verification found zero exact Platform containers, volumes,
+  networks, processes and lock.
+- No live amoCRM account, WAHA receive/send/ACK, AI provider, managed Supabase,
+  staging or production path is proved by this amendment.
+
+Decision:
+
+- Preserve P4/P4B as deferred, not cancelled. Resume only after a separate
+  owner decision and fresh launch-control evidence.
+- Continue in order P5 → P6 → P7 → P8 → P10. P5-P8 may implement/prove only
+  capabilities that remain correct without canonical amoCRM.
+- No mock, SQLite shim, hardcoded amo mapping, fake provider, inferred sales
+  authority or silent fallback may replace P4. amoCRM identity resolution,
+  contact/lead linkage, responsible Sales, canonical sales stage,
+  contract-stage handoff, mapping approval and the amoCRM portion of E2E remain
+  fail-closed and `DEFERRED`.
+- Narrow P8 to real executable P5-P7 paths. Missing credentials, test identities
+  or production authority remain explicit blockers, never synthetic proof.
+- Remove P9 from the current execution scope. Do not perform a soak or plan a
+  Lead Agent retirement/removal PR. Lead Agent, the legacy webhook/session and
+  rollback path remain deployed/frozen and must not be deactivated or deleted.
+- Run P10 directly after P8 as an authorized-scope audit. It must explicitly
+  list P4 deferred and Lead Agent retained and must not claim that the original
+  full Platform target is complete.
+- Keep the standalone Student Profile document-reading/filling system outside
+  `evo_AI_CRM` under ADR 0017.
+
+Validation impact:
+
+- This docs-only PR updates the authoritative long-run/launch plans, this
+  append-only log, current status, canonical TZ 2.2, deterministic owner-facing
+  DOCX, validation ledger, CONTEXT authority link and ADR 0018. It changes no
+  application/runtime/schema/migration/deployment/provider surface.
+- DOCX must be rebuilt deterministically from the canonical Markdown, verified
+  structurally and for one-to-one traceability, rendered through
+  LibreOffice/Poppler and visually inspected on every page.
+- The PR requires `git diff --check`, scoped secret/PII scanning, exact-head CI,
+  independent SHA-bound review and controller merge before any P5 code.
+- Rollback is a docs-only revert/forward amendment. P4B branch state and
+  production services are not changed.
+- `real-provider-proof: not-required` for this docs-only amendment. Provider and
+  production gates remain blocked/deferred until real authorized evidence.

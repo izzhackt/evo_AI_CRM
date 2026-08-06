@@ -1,12 +1,12 @@
 # EVO Platform ТЗ — журнал валидации
 
-Дата проверки: 05.08.2026
+Дата проверки: 06.08.2026
 
 Timezone: `Asia/Almaty`
 
-Базовый `origin/main`: `4567ef5067c523604bee73e8730f1b54ac23487d`
+Базовый `origin/main`: `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`
 
-Block-ID: `EVO-BW8-BOUNDARY-CORRECTION-P4B-RESTORE-2026-08-05`
+Block-ID: `EVO-P5-AMO-DEFERRAL-SCOPE-AMENDMENT-2026-08-06`
 
 Канонический источник: `docs/specs/EVO_PLATFORM_TZ.md`
 
@@ -14,28 +14,34 @@ Owner-facing документ: `docs/specs/EVO_PLATFORM_TZ.docx`
 
 ## 1. Проверенная граница
 
-PR #119 остаётся историческим решением, но его попытка включить в EVO Platform
-чтение документов, извлечение фактов, автозаполнение Student Profile и экспорт
-заполненных форм отменена текущим superseding amendment. PR #124, #122 и #120
-последовательно отменены через PR #125, #126 и #127. Их итоговый `main`
-`4567ef5067c523604bee73e8730f1b54ac23487d` имеет дерево до PR #120, migrations
-`001–058`; exact-main CI run `30989252650` завершён успешно.
+P4/P4B сохранён и отложен до отдельного owner decision. Незавершённая
+реализация находится на remote branch
+`izzhackt/evo-platform-p4b-mapping-approval` в checkpoint
+`e53ba94954f147b295f596421a255591fa343ce8`; implementation PR отсутствует.
+Focused repository checks прошли, но full local Supabase gate завершился
+fail-closed в real Auth/PostgREST hook до Playwright. Этот запуск является
+`failed/non-evidence` и не доказывает mapping approval или live amoCRM.
 
-Автоматизация чтения и заполнения документов является отдельной системой вне
-`evo_AI_CRM`. Между ней и EVO Platform нет автоматического обмена данными,
-общей БД, общей auth-сессии или runtime dependency. Будущая интеграция требует
-отдельного plan amendment, data mapping, privacy/consent решения, авторизации,
-валидации и acceptance evidence.
+Текущий порядок исполнения: `P5 -> P6 -> P7 -> P8 -> P10`. P5–P8 могут
+реализовывать только amoCRM-independent capability. AmoCRM identity resolution,
+canonical sales stage/responsible Sales, mapping approval, contract-stage
+handoff и amoCRM segment исходного E2E остаются fail-closed и `DEFERRED` вместе
+с P4. Mock, SQLite shim, hardcoded amo mapping, fake provider и silent fallback
+запрещены.
 
-EVO Platform сохраняет обычный документный lifecycle: private upload/download,
-версионирование, checklist, review/rework, integrity/malware policy и audit.
-Следующий Platform implementation gate снова P4B: immutable выбор одобренной
-версии P4A amoCRM discovery. Ожидаемый следующий номер migration — `059`, но он
-не резервируется и должен быть подтверждён на свежем `main` перед реализацией.
+P9 удалён из текущего execution scope. Lead Agent, legacy webhook/session и
+rollback path остаются deployed/frozen; их deactivation, retirement или deletion
+не выполняются. P8 принимает только реально исполнимый P5–P7 controlled path,
+а P10 аудирует только авторизованный scope и не объявляет полный исходный
+Platform target завершённым.
 
-Этот amendment изменяет только документацию, детерминированный DOCX и его
-верификатор. Он не меняет приложение, runtime, migrations, Supabase, amoCRM,
-WAHA, AI provider, production или реальные данные.
+Автоматизация чтения/извлечения данных из документов и автозаполнения Student
+Profile остаётся отдельной системой вне `evo_AI_CRM` без подразумеваемого обмена
+данными или runtime dependency.
+
+Этот amendment изменяет только authority-документацию и детерминированный DOCX.
+Он не меняет приложение, migrations, Supabase runtime, amoCRM, WAHA, AI
+provider, production или реальные данные.
 
 ## 2. Воспроизводимая сборка
 
@@ -49,7 +55,7 @@ python scripts/generate-evo-platform-tz.py
 LibreOffice/Poppler render выполняются командой:
 
 ```bash
-render_dir="$(mktemp -d /private/tmp/evo-platform-tz-boundary.XXXXXX)"
+render_dir="$(mktemp -d /private/tmp/evo-platform-tz-p5-final.XXXXXX)"
 python scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
 ```
 
@@ -61,60 +67,48 @@ python scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
 - Python: `3.12.13`;
 - `python-docx`: `1.2.0`;
 - source SHA-256:
-  `85a8843b24e6786d533b8804e11767afc799f0ab6987e69f7d5fee0533492fd6`;
+  `19d017de3b156737c845e61758a1227a6bc626708cec50c3f3a34613cfe941ef`;
 - DOCX SHA-256:
-  `81665effd4b2b2547ee169aaed996d72f36125005c482909950955c11048a212`;
-- две последовательные сборки побайтно совпали;
+  `bd83f068a212ad5425e67b658465c3f251043763f2ffb5d7ecb4a3dc0e06d066`;
+- две независимые сборки DOCX: bit-for-bit одинаковы;
 - requirements: `231`;
 - traceability rows: `231`;
 - source codes: `14`;
-- design-evidence images: `6`;
-- official external links: `8`;
-- DOCX structure: `602` paragraphs, `31` tables, `7` inline shapes,
-  `7` drawings с alt text, `8` external hyperlinks;
-- accessibility audit: `0 high / 0 medium / 0 low`;
-- LibreOffice → PDF → Poppler PNG: `68` страниц и `68` PNG.
+- paragraphs: `592`;
+- tables: `31`;
+- inline shapes: `7` (`6` design screenshots + `1` logo);
+- drawing objects with alt text: `7`;
+- external hyperlinks: `8`;
+- accessibility findings: `high=0`, `medium=0`, `low=0`;
+- render: `68` PDF/PNG pages.
 
-Requirement coverage:
-
-| Семейство | Количество |
-|---|---:|
-| `FR` | 110 |
-| `INT` | 20 |
-| `DATA` | 18 |
-| `SEC` | 20 |
-| `NFR` | 18 |
-| `ACC` | 25 |
-| `DEC` | 20 |
-| Всего | 231 |
-
-Удалённые PR119-only семейства отсутствуют в активном ТЗ:
-`FR-111..119`, `INT-021..024`, `DATA-019..024`, `SEC-021..026`,
-`NFR-019..022`, `ACC-026..034`.
+Автоматический итог verifier: `PASS requirements=231 traceability=231 pages=68
+a11y=0/0/0`.
 
 ## 3. Визуальная проверка
 
-Все страницы `1–68` проверены по PNG из реального LibreOffice render в
-оригинальном разрешении. Cover, headers, footers, нумерация, таблицы,
-traceability, screenshots и signoff pages отображаются полностью. Страница `2`
-содержит намеренный Word TOC placeholder, который обновляется при открытии в
-Word.
+Все `68 / 68` страницы финального render просмотрены вручную. Проверены обложка,
+TOC placeholder, длинные таблицы, callout-блоки, screenshots, traceability и
+signoff. Страница `2` содержит намеренный Word TOC placeholder, который
+обновляется при открытии в Word.
 
-Из-за визуального масштабирования при пакетном просмотре страницы `26`, `40`,
-`52`, `54`, `62`, `64` и `66` были повторно открыты по одной в оригинальном
-разрешении. Фактических обрезаний или наложений не обнаружено. Clipping,
-overflow, пропавший content, повреждённые glyphs и raster corruption отсутствуют.
+Из-за масштабирования пакетного предпросмотра страницы `26`, `40`, `52`, `54`,
+`62`, `64` и `66` перепроверены в исходном разрешении. Для continuation pages
+traceability-таблицы дополнительно выполнены PDF text extraction и OCR-проверка:
+полные ID/source prefixes присутствуют в финальных пикселях и PDF text layer.
+Clipping, overflow, пропавший content, повреждённые glyphs и raster corruption
+не обнаружены.
 
 Итог ручной проверки: `PASS`.
 
 ## 4. Traceability и authority
 
 - `docs/specs/EVO_PLATFORM_TZ.md` — единственный канонический источник DOCX;
-- `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
-  supersede-ит PR119/BW8 boundary;
-- `docs/PLAN_CHANGES.md` сохраняет append-only историю и новую коррекцию;
-- оригинальный `TZ_Platforma_avtomatizacii_OZO.docx` остаётся только контекстом,
-  а не authority;
+- ADR 0018 задаёт текущую execution-order/retained-service boundary;
+- `docs/PLAN_CHANGES.md` сохраняет append-only историю решения;
+- ADR 0017 сохраняет отдельную boundary Student Profile document automation;
+- оригинальный `TZ_Platforma_avtomatizacii_OZO.docx` остаётся контекстом, а не
+  authority;
 - owner roles указываются должностями, не персональными ФИО;
 - требования и traceability имеют взаимно однозначное покрытие `231 / 231`.
 
@@ -122,17 +116,19 @@ overflow, пропавший content, повреждённые glyphs и raster 
 
 Для этого docs-only блока `real-provider-proof: not-required`.
 
-Проверка доказывает только актуальность boundary, целостность,
+Проверка доказывает только актуальность execution contract, целостность,
 воспроизводимость, traceability, структурную доступность и визуальную
-корректность ТЗ версии `2.1`. Она не доказывает:
+корректность ТЗ версии `2.2`. Она не доказывает:
 
-- P4B implementation, migration `059` или managed Supabase behavior;
+- успешный P4B Auth/PostgREST/Playwright gate или live amoCRM mapping;
 - live RLS/Auth/Storage, backup/restore или production deployment;
-- live amoCRM discovery, account mappings, OAuth, webhook или provider writes;
-- live WAHA, AI draft, manual send или ACK/audit;
-- controlled real E2E, reconciliation window, cutover или rollback;
-- какую-либо интеграцию с отдельной системой обработки документов.
+- live WAHA receive/send, AI draft, manual send или ACK/audit;
+- controlled real P5–P8 evidence window, cutover или rollback;
+- amoCRM identity/stage/handoff segment исходного full E2E;
+- какую-либо интеграцию с отдельной системой обработки документов;
+- право deactivation/retirement/deletion Lead Agent или legacy path.
 
-Эти gates остаются `PENDING` или `BLOCKED` до отдельных reviewed blocks,
-разрешённого provider access, credentials, sanitized test identity/number,
-production authority и фактического controlled evidence.
+Эти внешние gates остаются `DEFERRED`, `PENDING` или `BLOCKED` до
+соответствующего reviewed block, разрешённого provider access, credentials,
+sanitized test identity/number, production authority и фактического controlled
+evidence.

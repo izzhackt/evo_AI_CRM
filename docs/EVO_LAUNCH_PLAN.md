@@ -1,22 +1,26 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-p2r4-local-validation-prerequisite` is active.
+Status: `/goal-evo-platform-p5-amocrm-deferral-scope-amendment` is active.
 Historical P1, reusable greenfield P2A-P2H, BW0, P3A-P3C, BW1-BW7,
-P2R0-P2R3 and P4A are merged. PR #118 merged the P4B docs-only contract, and
-PR #128 merged the owner-authorized correction that supersedes PR #119 and
-keeps Student Profile document reading, extraction, autofill and form export
-outside `evo_AI_CRM`. Current `origin/main` is
-`bb9d766163267846f406dcc376e893bb2a914af4`, migrations are contiguous
-`001-058`, and exact-main CI run `31012015566` is green for Main CRM, EVO Inbox
+P2R0-P2R4 and P4A are merged. PR #118 merged the P4B docs-only contract, PR
+#128 merged the owner-authorized correction that keeps Student Profile document
+automation outside `evo_AI_CRM`, and PRs #129-#130 merged the local-validation
+prerequisite and repair. Current `origin/main` is
+`4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`, migrations are contiguous
+`001-058`, and exact-main CI run `31038964366` is green for Main CRM, EVO Inbox
 and EVO Lead Agent; Changed range is skipped on the push event as expected.
-Fresh unchanged-main evidence shows that the repo-scoped
-`npm run test:supabase:local` gate exits `1` after the bounded local
-`supabase start` times out on OrbStack. Normal exact-project cleanup leaves no
-Platform container, volume, network, lock or process and preserves the Inbox
-resource set. This docs-only prerequisite authorizes a later two-file repair of
-that local validation path before P4B. It authorizes no application code,
-migration, provider action, customer-data action or production mutation.
-Updated 2026-08-05 in the workspace timezone.
+
+P4B implementation is preserved on remote branch
+`izzhackt/evo-platform-p4b-mapping-approval` at
+`e53ba94954f147b295f596421a255591fa343ce8`; no implementation PR exists.
+Focused repository checks passed, but its attempted full local Supabase gate
+failed closed in the real Auth/PostgREST hook before Playwright and is
+failed/non-evidence. The owner has deferred P4/P4B, removed P9 from the current
+execution scope and authorized the sequence P5 → P6 → P7 → P8 → P10 for
+amoCRM-independent capabilities only. Lead Agent, the legacy webhook/session
+path and rollback path remain deployed/frozen. This amendment authorizes no
+application code, migration, provider action, customer-data action or
+production mutation. Updated 2026-08-06 in the workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 The current detailed contract is
@@ -28,15 +32,12 @@ separate plan amendment first.
 
 ## Current Goal Slice
 
-Active plan slice: `/goal-evo-platform-p2r4-local-validation-prerequisite`,
-Block `EVO-P2R4-LOCAL-VALIDATION-PREREQUISITE-2026-08-05`. PR #128 is merged
-and remains the active product-boundary authority. This new docs-only slice
-changes execution order only: repair and re-prove the disposable local
-Supabase validation gate before opening P4B implementation. The later repair
-may edit only `scripts/test-supabase-local-reset.sh` and
-`tests/supabase-local-reset-harness.test.mjs`. It must not restore PR #122 or
-BW8, reserve migration `059`, change schema/API/domain/TZ, touch the frontend,
-call providers or mutate staging/production.
+Active plan slice: `/goal-evo-platform-p5-amocrm-deferral-scope-amendment`,
+Block `EVO-P5-AMO-DEFERRAL-SCOPE-AMENDMENT-2026-08-06`. This docs-only slice
+changes phase order, dependency and acceptance only. Before P5 code, it must be
+independently reviewed, pass exact-head CI and be controller-merged. It must not
+change application/runtime code, schema, migrations, credentials, providers,
+customer data, staging or production.
 
 ### Goal
 
@@ -49,11 +50,11 @@ The existing unified frontend from PRs #64/#71/#72 is the sole product UI
 contract and must be wired through repository/session seams, not replaced or
 paralleled. AI remains draft-only with human manual send.
 
-This amendment records the local-validation prerequisite. P4B remains the next
-product lane only after the repair implementation is independently reviewed,
-controller-merged and re-proved on exact main. This amendment changes no
-application code, schema, provider ownership, production authority or restore
-claim.
+This amendment records P4/P4B as preserved and deferred, authorizes
+amoCRM-independent P5-P8 work followed by P10, removes P9 from the current
+scope and retains Lead Agent. No mock, SQLite shim, hardcoded mapping, fake
+provider or silent fallback may substitute for P4. amoCRM-dependent identity,
+stage, handoff, mapping and E2E remain fail-closed/deferred.
 
 ### Reconciled baseline
 
@@ -78,17 +79,17 @@ checkpoint is:
   `10e5d85147ed6b87bfbd0281fc6ccce5464e8d3b`.
 - PR #119 is immutable merged history but PR #128 supersedes it as current
   product authority. PRs #120, #122 and #124 were removed by reviewed revert
-  PRs #127, #126 and #125. Current `origin/main` is
-  `bb9d766163267846f406dcc376e893bb2a914af4`; exact-main CI
-  `31012015566` is green, and migrations end at `058`.
-- On that unchanged main, Node `22.23.1`, project-local Supabase CLI `2.110.0`
-  and Docker context `orbstack` were used to run exactly
-  `npm run test:supabase:local`. The bounded `supabase start` phase exited the
-  gate with `RC=1`; cleanup then left zero exact `evo-platform-local`
-  containers, volumes and networks, no singleton lock/process, and the Inbox
-  resource set remained unchanged.
-- P2R4 is therefore a required local-proof repair before P4B. It does not
-  revive PR #122, BW8, migration `059` ownership or any removed scope.
+  PRs #127, #126 and #125. PRs #129-#130 then merged the bounded local-validation
+  plan and repair. Current `origin/main` is
+  `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`; exact-main CI
+  `31038964366` is green, and migrations end at `058`.
+- P4B implementation is preserved on remote branch
+  `izzhackt/evo-platform-p4b-mapping-approval` at
+  `e53ba94954f147b295f596421a255591fa343ce8`, with no implementation PR.
+  Focused checks passed; the later full local Supabase gate failed closed in
+  the real Auth/PostgREST hook before Playwright. Cleanup verification found no
+  exact Platform resources/process/lock. This is failed/non-evidence, not P4B
+  acceptance or provider proof.
 - PR #108 exact head `f719b749efaadaf02c6344c5d01cd4b6bbe3d79c`
   is historical recovery evidence: it passed focused tests and CI but was
   closed without merge after controller
@@ -124,29 +125,23 @@ checkpoint is:
 
 ### Immediate execution order
 
-0. Merge this docs-only P2R4 prerequisite through exact-head independent
-   review, all four exact-head CI jobs and the independent controller.
-1. In a fresh worktree from the resulting main, change only
-   `scripts/test-supabase-local-reset.sh` and
-   `tests/supabase-local-reset-harness.test.mjs`. Use the supported local
-   `supabase start --ignore-health-check` escape hatch only with an immediate,
-   bounded, fail-closed readiness proof for Database, PostgREST, Auth, Storage,
-   Kong and CLI status. Unknown failures remain fatal; do not use broad retry or
-   cleanup.
-2. Prove the repair twice: executor and independent controller each run the
-   exact repo-scoped local gate from clean state with exit `0`; migrations
-   `001-058`, Auth/RLS/Storage/PGMQ and accepted browser tests pass; exact
-   Platform resources and lock are absent afterward; exact Inbox container,
-   volume and network identities are unchanged.
-3. Preserve migrations 001-058 and P4A discovery evidence as immutable
-   history. After P2R4 merge, recheck fresh `origin/main` and open ownership
-   before P4B selects any next-free migration; `059` is not reserved.
-4. Implement only Admin-reviewed messaging mapping approval behind the accepted
-   `/whatsapp` seam, with same-org live authority, append-only decisions,
-   supersession/revocation audit and fail-closed no-approval behavior.
-5. Keep identity/context sync, webhooks, outbox/jobs, reconciliation and
-   canonical writes in later reviewed P4 slices. Defer real WAHA/AI/ACK proof
-   to P5 and all production authority to release gates.
+0. Merge this docs-only scope amendment through exact-head independent review,
+   all four exact-head CI jobs and the independent controller.
+1. Preserve P4B at
+   `izzhackt/evo-platform-p4b-mapping-approval` / `e53ba94954f147b295f596421a255591fa343ce8`.
+   Do not reopen, merge or diagnose it until a separate owner decision.
+2. Implement P5 only for real amoCRM-independent messaging capabilities behind
+   the accepted frontend: Supabase persistence, WAHA trust/idempotency,
+   draft-only AI, human review/manual send, ACK/unknown and audit. Do not mutate
+   the old production webhook/session.
+3. Continue P6 and P7 on independent Platform case/document/finance/
+   notification/security/recovery scopes. Do not infer canonical sales identity,
+   responsible Sales, stage or contract handoff.
+4. Run narrowed P8 only for executable P5-P7 paths. Report the amoCRM portion
+   of the original E2E as deferred, never passed or synthetically replaced.
+5. Skip P9. Keep Lead Agent, the legacy webhook/session and rollback path
+   deployed/frozen. Run P10 directly after P8 as an authorized-scope audit that
+   lists P4 deferred and does not claim full Platform completion.
 
 ### Merged P2R3 acceptance record
 
@@ -230,13 +225,14 @@ checkpoint is:
 
 ### Merge-order boundary
 
-BW0, P3A-P3C, BW1-BW7, P2R0-P2R3, P4A and the PR #128 boundary correction are
-merged history. This P2R4 prerequisite is the only active docs-only block. Its
-two-file implementation must merge and the real local gate must be re-proved
-before P4B opens. P2R0-P2R4 do not transfer P7 restore ownership or authorize
-production application. P3 owns common session/repository seams, P4 owns
-amoCRM adapter behavior, P5 owns real WAHA/AI/ACK proof, and P7 owns
-whole-foundation backup/restore and release reliability evidence.
+BW0, P3A-P3C, BW1-BW7, P2R0-P2R4, P4A and the PR #128 boundary correction are
+merged history. This scope amendment is the only active docs-only block. P4B is
+preserved/deferred; P5-P8 may not replace it with a mock, SQLite shim, hardcoded
+mapping, fake provider or silent fallback. P3 owns common session/repository
+seams, deferred P4 owns amoCRM adapter behavior, P5 owns real WAHA/AI/ACK proof
+that can stand independently, and P7 owns whole-foundation backup/restore and
+release reliability evidence. P10 follows P8; P9 is removed from the authorized
+scope and Lead Agent remains deployed/frozen.
 Shared migrations are selected only after fetching current main and checking
 open ownership; merged migrations are immutable.
 - `crm.evoadmissions.com` and `inbox.evoadmissions.com` have no DNS answer.
@@ -258,14 +254,15 @@ are defined in `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`.
   proof-path/document lock-order repair in PRs #104/#105.
 - P3: thin messaging slice behind the existing unified frontend; P3A-P3C are
   merged with local-only, no-provider evidence.
-- P4: canonical amoCRM adapter.
-- P5: unified Inbox/WAHA/Lead Agent capability absorption.
-- P6: Admissions/Portal/Documents/Finance/Notifications.
+- P4: canonical amoCRM adapter, preserved and deferred on the checkpoint branch.
+- P5: amoCRM-independent unified Inbox/WAHA/Lead Agent capability absorption.
+- P6: amoCRM-independent Admissions/Portal/Documents/Finance/Notifications.
 - P7: security, reliability and operations.
-- P8: release/cutover candidate and controlled provider gate.
-- P9: bounded cutover reconciliation and rollback evidence, then a separate
-  reviewed retirement PR.
-- P10: requirement-to-evidence completion audit.
+- P8: narrowed real executable P5-P7 evidence; amoCRM-dependent acceptance is
+  deferred and no production action is authorized.
+- P9: removed from current execution scope; no soak or Lead Agent retirement.
+- P10: authorized-scope evidence audit, with P4 deferred and Lead Agent retained;
+  not a full-Platform completion claim.
 
 Only one implementation PR may be open. The executor never merges its own PR;
 the independent merge-controller may merge only an approved exact head. No
@@ -374,6 +371,8 @@ backup/restore or production proof.
 
 The following A–G record is retained as prior hardening history. It is not the
 active merge order; P0–P10 above and the long-run plan now control new work.
+Any retirement or full-target completion language below is historical and is
+superseded for current execution by ADR 0018.
 
 Every block starts from refreshed GitHub `main`, has one coherent PR, real
 validation, and a separate launch-control reviewer verdict of `approved`.
@@ -423,7 +422,7 @@ Shared migrations, deployment files, and plan files merge sequentially.
      lease/recovery, idempotent amoCRM side effects, deterministic
      phone/contact/lead selection, and non-sensitive liveness/readiness output.
    - If unused or blocked by credentials, freeze it disabled and document the
-     exact blocker instead of overbuilding a service planned for retirement.
+     exact blocker. Retirement requires a separate future owner decision.
 
 5. **E — runtime and deployment hardening**
    - Build on PR #46 rather than repeating it. Verify third-party images by
@@ -1745,12 +1744,14 @@ their own explicit authorization.
   lead/contact/sales-stage sources of truth.
 - Roles and permissions cover both server-side authorization and visible UI,
   including denial, audit and privileged-action rules.
-- The migration plan keeps the current production path reversible and does not
-  delete Lead Agent before the real WhatsApp-to-amoCRM-to-platform path is
-  proven.
-- The controlled acceptance journey is explicit:
+- The current plan keeps the production path reversible and retains Lead Agent,
+  the legacy webhook/session and rollback path deployed/frozen. It does not
+  authorize a retirement/removal PR.
+- The original full-target journey remains explicit but deferred with P4:
   `WhatsApp -> amoCRM -> EVO Platform -> AI draft -> manual send ->
-  delivery/read status -> audit history`.
+  delivery/read status -> audit history`. Current P8 accepts only the real
+  executable amoCRM-independent P5-P7 portion and records the amoCRM segment as
+  deferred, never passed.
 - Unknown provider states, missing credentials and unverified integrations
   remain visibly blocked; no mock or configured flag is described as production
   proof.

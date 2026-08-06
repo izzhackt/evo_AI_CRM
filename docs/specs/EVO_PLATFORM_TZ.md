@@ -3,12 +3,12 @@
 ## Единая платформа автоматизации EVO Admissions
 
 **Идентификатор документа:** EVO-PLATFORM-TZ-001
-**Версия:** 2.1
+**Версия:** 2.2
 **Статус:** действующий контракт repository-реализации; production-gates
 остаются отдельными
-**Дата:** 5 августа 2026 года
-**Базовая версия репозитория:** `4567ef5067c523604bee73e8730f1b54ac23487d`
-**Текущий execution checkpoint:** `4567ef5067c523604bee73e8730f1b54ac23487d`
+**Дата:** 6 августа 2026 года
+**Базовая версия репозитория:** `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`
+**Текущий execution checkpoint:** `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`
 **Язык документа:** русский
 
 > **Назначение документа.** Это ТЗ является контрактом на последующую
@@ -31,7 +31,7 @@
 | Формат согласования | SHA-bound review, должностное решение по открытым gates и audit evidence |
 | Источник бренда | `docs/company/brand/evo-admissions-logobook.pdf` |
 | Принятый preset | `standard_business_brief` |
-| Текущий checkpoint | P0, P1A–P1D, reusable P2A–P2H, greenfield/UI boundary, BW0, P3A–P3C, BW1–BW7, P2R0–P2R3 и P4A merged; PR #118 merged the P4B plan; PRs #125–#127 reverted dependent PRs #124/#122/#120; current main `4567ef5067c523604bee73e8730f1b54ac23487d` has migrations `001-058` and exact-main CI `30989252650` green; this docs-only boundary correction restores P4B implementation as next after merge, without provider or production proof |
+| Текущий checkpoint | P0, P1A–P1D, reusable P2A–P2H, greenfield/UI boundary, BW0, P3A–P3C, BW1–BW7, P2R0–P2R4 и P4A merged; PR #118 merged the P4B plan, PR #128 restored the external Student Profile automation boundary, PRs #129–#130 merged the local-validation plan/repair; current main `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8` has migrations `001-058` and exact-main CI `31038964366` green; P4B checkpoint `e53ba94954f147b295f596421a255591fa343ce8` is preserved without PR and its failed Auth/PostgREST gate is non-evidence; P4/P4B is deferred, current order is P5→P6→P7→P8→P10 for amoCRM-independent capabilities, P9 is removed and Lead Agent is retained/frozen |
 
 > **Главная граница.** amoCRM остаётся источником истины для контакта, лида,
 > ответственного sales manager и стадии продаж. Один dedicated production
@@ -46,6 +46,15 @@
 > `evo_AI_CRM`. Обычные Platform documents/checklists/private Storage/version/
 > review/audit остаются в scope. Автоматический обмен не предполагается; любая
 > будущая интеграция требует отдельного plan/data/privacy/auth/validation gate.
+
+> **Текущая execution-граница.** P4/P4B canonical amoCRM adapter preserved и
+> deferred. P5-P8 могут доказывать только amoCRM-independent capabilities; ни
+> mock, ни SQLite shim, ни hardcoded mapping, ни fake provider/silent fallback
+> не заменяют P4. amo identity/stage/responsible Sales/contract handoff и
+> amo-dependent E2E остаются fail-closed/deferred. P9 removed; Lead Agent,
+> legacy webhook/session и rollback path остаются deployed/frozen. P10 идёт
+> сразу после P8 как audit разрешённого scope, а не как claim полной готовности
+> исходного target.
 
 ## 1. Как читать это ТЗ
 
@@ -105,11 +114,12 @@ unrelated settings исключены из первого delivery slice.
    CRM не получают отдельные production-проекты.
 4. Используется один входящий WhatsApp/WAHA-контур, одна private session
    `evo-inbox` и один webhook owner.
-5. Полезная логика EVO Lead Agent переносится в единый backend как модули
-   интеграции и фоновой обработки.
-6. EVO Lead Agent не удаляется до bounded controlled real-path доказательства,
-   completed reconciliation, health evidence, rollback readiness и отдельного
-   reviewed retirement PR.
+5. Полезная amoCRM-independent логика EVO Lead Agent переносится в единый
+   backend как модули интеграции и фоновой обработки; P4-owned identity/stage/
+   handoff logic остаётся deferred.
+6. EVO Lead Agent, legacy webhook/session и rollback path остаются
+   deployed/frozen. P9, deactivation, retirement и deletion исключены из
+   текущего execution scope.
 7. AI создаёт только черновик. Сотрудник проверяет, редактирует и вручную
    отправляет каждое клиентское сообщение.
 8. Продажная воронка и операционный путь студента — разные модели.
@@ -162,6 +172,11 @@ unrelated settings исключены из первого delivery slice.
 - финальный контролируемый сценарий проходит по цепочке:
   **WhatsApp → amoCRM → EVO Platform → AI-черновик → ручная отправка →
   delivery/read status → audit history**.
+
+> Эти критерии описывают исходный полный production target. В текущем
+> execution scope amoCRM-dependent пункты и amoCRM segment финальной цепочки
+> имеют статус `DEFERRED` вместе с P4. P8 принимает только реально исполнимую
+> amoCRM-independent часть; P10 не выдаёт её за завершение полного target.
 
 ## 4. Источники и порядок приоритета
 
@@ -252,7 +267,7 @@ worker/auto-reply/outbound выключены, amoCRM readiness false.
 - payment gateway, telephony, email delivery или автоматическая подача в вуз;
 - production AI generation как утверждённая бизнес-функция;
 - автоматические ответы клиенту;
-- готовность удаления Lead Agent.
+- любая готовность или authority для deactivation/retirement Lead Agent.
 
 ## 6. Целевая архитектура
 
@@ -530,7 +545,9 @@ raw event до business processing и проверяет business key
 ### 9.3 Ручная отправка
 
 1. Сотрудник открывает разговор.
-2. Платформа показывает канонический lead/contact context и sync state.
+2. Платформа показывает Platform-owned conversation context. Канонический
+   lead/contact context и sync state показываются только после P4 proof;
+   иначе они явно unavailable без fallback.
 3. Сотрудник пишет текст либо запрашивает AI-черновик.
 4. Сотрудник проверяет и при необходимости редактирует текст.
 5. Сотрудник нажимает «Отправить».
@@ -588,6 +605,10 @@ Platform membership автоматически.
 базовым ролям. Отдельная роль Leadership или настраиваемые custom roles
 добавляются только после отдельного изменения permission contract. Визовая
 работа — модуль Curator, а не отдельная business role.
+
+Пока P4 deferred, все amo-derived Sales owner/stage/pre-post-handoff cells ниже
+являются target-only и недоступны. P5-P8 используют только Platform-owned
+authority; локальный или hardcoded fallback запрещён.
 
 ### 11.2 Базовая матрица разделов
 
@@ -705,8 +726,10 @@ payments, messages, notifications, EVO team и security profile. Просроч�
 ## 13. Функциональные требования
 
 Примечания о later-phase applicability меняют только порядок поставки. Каждое
-такое требование остаётся обязательным для полной Platform и должно быть
-закрыто своим later phase evidence до P10/production-complete заявления.
+требование остаётся частью исходного полного target, но текущий P10 аудирует
+только авторизованный P5-P8 scope. AmoCRM-dependent требования маркируются
+`DEFERRED` до возобновления P4 и не блокируют честное завершение более узкого
+audit; production-complete заявление для полного target запрещено.
 
 ### 13.1 Foundation, identity and access
 
@@ -729,7 +752,8 @@ payments, messages, notifications, EVO team и security profile. Просроч�
 
 Delivery applicability: FR-013–018 остаются требованиями полной Platform, но не
 являются P3 exit criteria. Их существующие frontend surfaces активируются на
-реальных данных только в отдельном post-P5 operational UI sub-block.
+реальных Platform-owned данных только в отдельном P6 operational UI sub-block;
+amo-derived metrics/queues остаются unavailable до P4.
 
 | ID | Требование | Приоритет | Проверка |
 | --- | --- | --- | --- |
@@ -742,9 +766,10 @@ Delivery applicability: FR-013–018 остаются требованиями �
 
 ### 13.3 Sales and amoCRM
 
-Delivery applicability: thin P3 показывает только conversation-scoped amo
-context. FR-019–020 и FR-026–030 относятся к отдельному post-P5 activation
-sub-block существующего unified frontend; это не перенос Inbox CRM surfaces.
+Delivery applicability: P4 deferred. FR-019–030 и любой conversation-scoped amo
+context остаются fail-closed и `DEFERRED` до отдельного owner decision о
+возобновлении P4. Это не перенос Inbox CRM surfaces и не может быть заменено
+SQLite/mock/hardcoded mapping.
 
 | ID | Требование | Приоритет | Проверка |
 | --- | --- | --- | --- |
@@ -1189,41 +1214,39 @@ P4A merged in PR #117: immutable sanitized account-specific discovery versions,
 service-only ingest, live-authority Admin reads and a bounded GET-only server
 adapter. This proves the local discovery contract, not a real amoCRM account.
 
-PR #118 merged the P4B docs-only selection/approval contract. After the current
-boundary correction merges, the next additive implementation may let a current
-same-organization Admin select one immutable
-P4A discovery version for messaging use through append-only approval/revocation
-events and a deterministic current projection. The selection binds the account
-pipeline, signed-contract status, responsible-user source rule and explicitly
-named custom fields. No mutable `active` flag may rewrite discovery evidence.
-The accepted UI seam remains `/whatsapp`; absence of a current approval is a
-truthful fail-closed state.
+PR #118 merged the P4B docs-only selection/approval contract. Implementation is
+preserved on remote branch `izzhackt/evo-platform-p4b-mapping-approval` at
+`e53ba94954f147b295f596421a255591fa343ce8`; implementation PR отсутствует.
+Focused repository checks прошли, но full local Supabase gate failed closed в
+real Auth/PostgREST hook до Playwright. Это failed/non-evidence и не доказывает
+mapping approval или real amoCRM account.
 
-P4B does not own OAuth custody, provider discovery calls, identity sync,
-webhooks, async jobs/outbox, reconciliation or canonical writes. Those remain
-separate later P4 slices. Broad Lead 360, pipeline boards and student activation
-logic remain later-slice work. Without an authorized sanitized test lead, live
-provider proof and guarded writes remain blocked.
+P4/P4B deferred до отдельного owner decision. При возобновлении он обязан
+проверить fresh-main ownership, пройти real gate и exact-head review. Пока P4
+deferred, amo contact/lead identity, responsible Sales, canonical sales stage,
+contract-stage handoff, mapping approval и amo-dependent действия fail closed.
+Mock, SQLite shim, hardcoded mapping, fake provider и silent fallback запрещены.
 
 ### P5. Messaging/WAHA/AI controlled proof
 
-Единая conversation/history и role-scoped messaging queue; отдельные
+Единая conversation/history и amoCRM-independent role/object scope; отдельные
 internal/WAHA/Kommo IDs; HMAC/timestamp/request ID; persist-before-process;
 ACK/unknown audit; draft-only RU/EN и manual send. Broadcast/flow/auto-reply
-surfaces disabled/removed. Exit требует bounded controlled real path:
-`WhatsApp → amoCRM context → Platform thread → AI draft → manual send →
-ACK/unknown → audit`, reconciliation по evidence window, zero unexplained loss
-или duplicates в этом окне, health evidence и proven rollback readiness.
-Старый webhook/session не выключается без отдельной authority.
+surfaces disabled/removed. Exit требует только реально доступный controlled
+path: `WhatsApp → Platform persistence → AI draft → manual send → ACK/unknown
+→ audit`, reconciliation по evidence window, zero unexplained loss или
+duplicates в этом окне, health evidence и proven rollback readiness. Это не
+доказывает canonical identity/stage/responsible Sales/handoff. Старый
+webhook/session не выключается без отдельной authority.
 
 ### P6. Broad admissions and portal surfaces
 
 Multiple applications, Curator-owned visa, reasoned close/reopen; private
 versioned documents; manual evidence-based finance; overdue Portal action;
 durable in-app + individual WhatsApp notifications. Exit: two-student
-isolation E2E и staff-to-portal workflows. Student 360, broad Admissions/Finance
-surfaces и adjacent reliability hardening intentionally wait until P3-P5 thin
-messaging proof is complete.
+isolation E2E и staff-to-portal workflows, которые не выводят amoCRM contract
+stage, responsible Sales или canonical handoff. Amo-dependent activation
+остаётся deferred вместе с P4.
 
 ### P7. Broader security, reliability, operations
 
@@ -1237,27 +1260,27 @@ the bounded cutover gate.
 ### P8. Release/cutover candidate
 
 Подготовить reconciliation/snapshot/freeze/rollback, но не выполнять production
-action в этом run. Exit требует реальный controlled path:
-`WhatsApp → amoCRM → Platform → AI draft → manual send → ACK/unknown → audit`.
+action в этом run. Exit относится только к real executable P5-P7 path:
+`WhatsApp → Platform persistence → AI draft → manual send → ACK/unknown →
+audit`. AmoCRM resolve/link portion исходного E2E — `DEFERRED`, never passed.
 Отсутствующий credential/number/QR/authorization — BLOCKED, не mock.
 
-### P9. Bounded cutover evidence and Lead Agent retirement
+### P9. Removed from current execution scope
 
-В явно утверждённом controlled evidence window сверить каждый receive, identity
-link, Platform persist, draft, manual send и ACK/unknown outcome. Exit:
-zero unexplained loss/duplicates/drift для evidence set, healthy webhook/outbox,
-completed reconciliation и proven rollback. Фиксированный период наблюдения по
-часам не требуется и сам по себе не является proof. Удаление Lead Agent или
-legacy webhook/session выполняется только отдельным reviewed PR и требует
-отдельного production authority; в текущем run оно запрещено.
+Soak и Lead Agent retirement/removal не выполняются. EVO Lead Agent, legacy
+webhook/session и rollback path остаются deployed/frozen и не могут быть
+deactivated, retired или deleted в текущем scope. P10 следует сразу после P8;
+label P9 сохраняется только для исторической traceability.
 
-### P10. Completion audit
+### P10. Authorized-scope audit
 
-Сопоставить каждый FR/NFR/INT/DATA/SEC/ACC с evidence, выполнить нужные для
-затронутого slice CI/provider/restore/security/accessibility gates, закрыть
-implementation PR. Verified, blocked и deferred всегда сообщаются раздельно.
+Сопоставить разрешённый P5-P8 scope с evidence, выполнить применимые
+CI/provider/restore/security/accessibility gates и закрыть implementation PR.
+Отдельно указать P4 deferred, Lead Agent retained и provider/production blockers.
+Verified, blocked и deferred сообщаются раздельно. Полный исходный Platform
+target не считается завершённым этим audit.
 
-## 22. Перенос и удаление EVO Lead Agent
+## 22. Поглощаемые capability и retained boundary EVO Lead Agent
 
 ### 22.1 Что переносится
 
@@ -1280,35 +1303,24 @@ implementation PR. Verified, blocked и deferred всегда сообщаютс
 Auto-reply decision/send logic не переносится как активная функция. Оно
 заменяется draft-only контрактом.
 
-### 22.2 Условия удаления
+### 22.2 Retained boundary
 
-Lead Agent можно удалить только если одновременно:
+P9 и Lead Agent retirement/removal исключены из текущего execution scope.
+`evo-lead-agent/`, Compose/env/volume references, `crm_primary` legacy path/
+session, internal sync route, legacy webhook/session и rollback artifacts не
+удаляются и не деактивируются. Lead Agent остаётся deployed/frozen: worker,
+auto-reply и outbound не включаются, а параллельный active webhook ownership не
+создаётся.
 
-1. новый webhook получает реальное входящее сообщение;
-2. contact/lead однозначно resolved/created в amoCRM;
-3. linked IDs и stage отображаются EVO Platform;
-4. AI draft создан и сохранён с evidence;
-5. сотрудник вручную отправил утверждённый текст;
-6. sent/delivered/read либо честный unknown/failed сохранены;
-7. audit восстанавливает всю цепочку;
-8. повтор одинакового webhook не создал duplicate;
-9. timeout/retry не отправил второе сообщение;
-10. reconciliation не выявила потерянные contacts/leads/messages;
-11. backup и rollback проверены;
-12. bounded controlled evidence window завершён без unexplained
-    loss/duplicates/drift, с наблюдаемыми failure metrics и completed
-    reconciliation;
-13. proven rollback остаётся доступным, а отдельный exact-SHA retirement PR
-    получил independent review и должностное release approval.
-
-До выполнения всех условий Lead Agent остаётся frozen/isolated fallback и не
-становится параллельным активным webhook owner.
+Любое будущее решение о retirement требует нового owner decision, отдельного
+plan amendment, production authority и пересобранного evidence contract. Это ТЗ
+не планирует и не принимает retirement PR.
 
 ## 23. Приёмочные критерии
 
-Later-phase applicability notes не отменяют критерии: соответствующие критерии
-не блокируют выход P3, но остаются обязательными для своих later phases и
-итогового P10 completion audit.
+Later-phase applicability notes не отменяют критерии исходного target. Однако
+текущий P10 audit принимает только авторизованный P5-P8 scope и обязан пометить
+amoCRM-dependent критерии как `DEFERRED`, а не как passed.
 
 Phase ownership критериев:
 
@@ -1317,12 +1329,14 @@ Phase ownership критериев:
 - P3 создаёт только partial local evidence для ACC-001, ACC-003–005,
   ACC-009–010 и changed-scope ACC-019–020; это не закрывает indivisible final
   criteria;
-- P4 закрывает ACC-007–008;
+- P4 закрывает ACC-007–008 и amo-dependent часть ACC-014; эти критерии deferred
+  до отдельного owner decision о возобновлении P4;
 - P5/P8 закрывают real-provider ACC-006, ACC-011–013 и ACC-024;
-- P6 закрывает ACC-005 и ACC-014–018;
+- P6 закрывает ACC-005 и amoCRM-independent части ACC-014–018;
 - P7 закрывает ACC-002–003 и ACC-019–023 на полном release scope;
-- P9 закрывает ACC-025, а P10 подтверждает финальное закрытие ACC-001,
-  ACC-004, ACC-009–010 и всех остальных критериев.
+- ACC-025 enforced во всех текущих фазах, потому что Lead Agent retained/frozen;
+- P10 аудирует только авторизованный scope, явно перечисляет deferred P4 и не
+  подтверждает финальное закрытие всех критериев исходного target.
 
 | ID | Критерий | Доказательство |
 | --- | --- | --- |
@@ -1349,8 +1363,8 @@ Phase ownership критериев:
 | ACC-021 | Performance соответствует утверждённому capacity profile | Load report |
 | ACC-022 | DB backup и отдельный Storage-object backup восстановлены в isolated environment; numeric RPO/RTO ждут DEC-010 | Two restore reports |
 | ACC-023 | Alerts и runbooks проверены tabletop/controlled failure | Ops report |
-| ACC-024 | Bounded controlled evidence-window reconciliation не содержит unexplained loss/orphans/duplicates для thin messaging path | Signed reconciliation |
-| ACC-025 | Lead Agent removal blocked до bounded real controlled path, bounded-window reconciliation, zero unexplained loss/duplicates/drift, health evidence, rollback и separate reviewed retirement PR | Controlled proof + approval record |
+| ACC-024 | Bounded controlled evidence-window reconciliation не содержит unexplained loss/orphans/duplicates для реально выполненного amoCRM-independent thin messaging path; amoCRM portion остаётся deferred | Signed reconciliation + deferred ledger |
+| ACC-025 | Lead Agent, legacy webhook/session и rollback path остаются deployed/frozen; deactivation, retirement, deletion и retirement PR отсутствуют в текущем scope | Repository/deployment diff + scope audit |
 
 ## 24. Реестр решений и оставшиеся gates
 
@@ -1378,7 +1392,7 @@ production-функцию, но не безопасную repository-реали�
 | DEC-015 | Fixed | KPI всегда имеет source/formula/period/freshness/owner; numeric targets меняются отдельно | Руководство |
 | DEC-016 | Fixed | EVO гарантирует только собственные услуги; Malaysia material с external guarantee не approved до новой reviewed version | Business Owner |
 | DEC-017 | Open | Release window, freeze rules, bounded evidence window и rollback authority | Technical + Operations Owners |
-| DEC-018 | Fixed | Lead Agent retirement только после bounded controlled real path и полного gate раздела 22; фиксированный soak по часам не требуется | Product + Technical Owners |
+| DEC-018 | Fixed | P9 и Lead Agent retirement/removal исключены из текущего scope; Lead Agent, legacy webhook/session и rollback path остаются deployed/frozen; любое будущее retirement решение требует нового owner decision и plan amendment | Product + Technical Owners |
 | DEC-019 | Deferred | Telephony, payment gateway, email provider и university submission не входят в v1 | Product Owner |
 | DEC-020 | Deferred | Жалобы, data requests и legal incident procedure уточняются с DEC-012; безопасный audit/export foundation входит в v1 | Business + Legal Owners |
 
@@ -1396,7 +1410,7 @@ production-функцию, но не безопасную repository-реали�
 - телефония/email provider до отдельного integration contract;
 - свободно настраиваемый workflow engine;
 - predictive scoring, facial recognition или profiling;
-- удаление Lead Agent до выполнения раздела 22;
+- deactivation, retirement или удаление Lead Agent/legacy path в текущем scope;
 - чтение документов для Student Profile, извлечение/подтверждение фактов,
   profile autofill и profile-form DOCX/PDF export; это отдельная система вне
   `evo_AI_CRM`, без подразумеваемого автоматического обмена данными.
@@ -1475,7 +1489,8 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 По текущему контракту команда последовательно поддерживает:
 
 1. Target Architecture ADR 0014, Supabase boundary ADR 0015, superseding
-   greenfield/UI boundary ADR 0016 и external-automation boundary ADR 0017.
+   greenfield/UI boundary ADR 0016, external-automation boundary ADR 0017 и
+   current execution-order/retention boundary ADR 0018.
 2. Data dictionary и ERD.
 3. Role/action/field/object-scope matrix.
 4. amoCRM field/status/user mapping.

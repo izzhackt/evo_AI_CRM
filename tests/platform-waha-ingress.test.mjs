@@ -390,7 +390,7 @@ test("canonical WAHA event types retain distinct identities and normalize provid
   }
 });
 
-test("message alias and message.any persist and enqueue one canonical work item", async (t) => {
+test("message and message.any persist separately but enqueue one business work item", async (t) => {
   for (const order of [
     ["message", "message.any"],
     ["message.any", "message"],
@@ -408,24 +408,13 @@ test("message alias and message.any persist and enqueue one canonical work item"
         );
         assert.equal(response.status, 202);
 
-        if (eventType === "message") {
-          assert.deepEqual(await json(response), {
-            ok: true,
-            persisted: true,
-            persistDeduplicated: false,
-            enqueued: false,
-            enqueueDeduplicated: null,
-            ignoredReason: "message_alias_use_message_any",
-          });
-        } else {
-          assert.deepEqual(await json(response), {
-            ok: true,
-            persisted: true,
-            persistDeduplicated: false,
-            enqueued: true,
-            enqueueDeduplicated: false,
-          });
-        }
+        assert.deepEqual(await json(response), {
+          ok: true,
+          persisted: true,
+          persistDeduplicated: false,
+          enqueued: true,
+          enqueueDeduplicated: index === 1,
+        });
       }
 
       assert.equal(
@@ -434,7 +423,7 @@ test("message alias and message.any persist and enqueue one canonical work item"
       );
       assert.equal(
         repository.calls.filter((call) => call.kind === "enqueue").length,
-        1,
+        2,
       );
       const persists = repository.calls.filter((call) => call.kind === "persist");
       assert.deepEqual(
@@ -447,16 +436,20 @@ test("message alias and message.any persist and enqueue one canonical work item"
         ),
       );
 
-      const canonicalPersistIndex = order.indexOf("message.any") + 1;
-      const canonicalProviderEventId =
-        `55555555-5555-4555-8555-${String(canonicalPersistIndex).padStart(12, "0")}`;
-      const [enqueue] = repository.calls.filter((call) => call.kind === "enqueue");
-      assert.equal(enqueue.input.providerWebhookEventId, canonicalProviderEventId);
+      const enqueues = repository.calls.filter((call) => call.kind === "enqueue");
+      assert.notEqual(
+        enqueues[0].input.providerWebhookEventId,
+        enqueues[1].input.providerWebhookEventId,
+      );
+      assert.equal(
+        enqueues[0].input.businessKeySha256,
+        enqueues[1].input.businessKeySha256,
+      );
     });
   }
 });
 
-test("message-only delivery persists raw evidence without enqueueing business work", async () => {
+test("message-only delivery persists raw evidence and enqueues durable work", async () => {
   const repository = createMemoryRepository();
   const response = await handlerFor(repository)(
     webhookRequest(messageEvent({ event: "message" }), {
@@ -469,21 +462,21 @@ test("message-only delivery persists raw evidence without enqueueing business wo
     ok: true,
     persisted: true,
     persistDeduplicated: false,
-    enqueued: false,
-    enqueueDeduplicated: null,
-    ignoredReason: "message_alias_use_message_any",
+    enqueued: true,
+    enqueueDeduplicated: false,
   });
 
-  assert.equal(repository.calls.length, 1);
+  assert.equal(repository.calls.length, 2);
   assert.equal(repository.calls[0].kind, "persist");
   assert.equal(repository.calls[0].input.eventType, "message");
   assert.equal(
     repository.calls[0].input.payloadId,
     "wamid.synthetic-message-001",
   );
+  assert.equal(repository.calls[1].kind, "enqueue");
 });
 
-test("message-only redelivery deduplicates raw evidence and never enqueues", async () => {
+test("message-only redelivery deduplicates raw evidence and durable work", async () => {
   const repository = createMemoryRepository();
   const handler = handlerFor(repository);
   const event = messageEvent({ event: "message" });
@@ -499,17 +492,15 @@ test("message-only redelivery deduplicates raw evidence and never enqueues", asy
     ok: true,
     persisted: true,
     persistDeduplicated: false,
-    enqueued: false,
-    enqueueDeduplicated: null,
-    ignoredReason: "message_alias_use_message_any",
+    enqueued: true,
+    enqueueDeduplicated: false,
   });
   assert.deepEqual(await json(second), {
     ok: true,
     persisted: true,
     persistDeduplicated: true,
-    enqueued: false,
-    enqueueDeduplicated: null,
-    ignoredReason: "message_alias_use_message_any",
+    enqueued: true,
+    enqueueDeduplicated: true,
   });
 
   assert.equal(
@@ -518,7 +509,7 @@ test("message-only redelivery deduplicates raw evidence and never enqueues", asy
   );
   assert.equal(
     repository.calls.filter((call) => call.kind === "enqueue").length,
-    0,
+    2,
   );
 });
 
@@ -785,6 +776,56 @@ test("Supabase adapter enqueues only a work pointer and validates the RPC proof"
   assert.equal(queueCall.args.p_max_attempts, 8);
   assert.equal("p_raw_payload" in queueCall.args, false);
   assert.equal("p_provider_request_id" in queueCall.args, false);
+});
+
+test("Supabase adapter accepts only a deduplicated alias source pointer", async (t) => {
+  const aliasSourceEventId = "99999999-9999-4999-8999-999999999999";
+  const businessKeySha256 = "c".repeat(64);
+
+  for (const deduplicated of [true, false]) {
+    await t.test(`deduplicated=${deduplicated}`, async () => {
+      const client = {
+        schema(schemaName) {
+          assert.equal(schemaName, "platform");
+          return {
+            async rpc(functionName) {
+              assert.equal(functionName, "enqueue_verified_webhook_work");
+              return {
+                data: {
+                  work_item_id: WORK_ITEM_ID,
+                  organization_id: ORGANIZATION_ID,
+                  kind: "provider_webhook_process",
+                  source_webhook_event_id: aliasSourceEventId,
+                  business_key_sha256: businessKeySha256,
+                  max_attempts: 8,
+                  queue_payload_is_pointer_only: true,
+                  deduplicated,
+                },
+                error: null,
+              };
+            },
+          };
+        },
+      };
+      const repository = createPlatformWahaIngressRepository(client);
+      const enqueue = () =>
+        repository.enqueueVerifiedEvent({
+          organizationId: ORGANIZATION_ID,
+          providerWebhookEventId: PROVIDER_EVENT_ID,
+          businessKeySha256,
+          requestId: "88888888-8888-4888-8888-999999999999",
+        });
+
+      if (deduplicated) {
+        assert.deepEqual(await enqueue(), {
+          workItemId: WORK_ITEM_ID,
+          deduplicated: true,
+        });
+      } else {
+        await assert.rejects(enqueue, PlatformWahaIngressRepositoryError);
+      }
+    });
+  }
 });
 
 test("browser and anon credentials fail closed without exposing credential values", async (t) => {

@@ -54,7 +54,6 @@ export type PlatformWahaWebhookEvent = Readonly<{
   payloadId: string;
   providerOccurredAt: string;
   providerEventVariantRef: string | null;
-  ignoredAsDuplicateAlias: boolean;
   processable: boolean;
   rawPayload: Record<string, unknown>;
 }>;
@@ -245,21 +244,17 @@ export function parsePlatformWahaWebhookEvent(
         : "unknown";
   }
 
-  // WAHA emits `message.any` for every message creation, including the same
-  // inbound creation also exposed as `message`. Persist both verified webhook
-  // deliveries as raw evidence, but keep `message.any` canonical for business
-  // processing so subscribing to both cannot enqueue one inbound message twice.
-  const ignoredAsDuplicateAlias = eventType === "message";
-
   return Object.freeze({
     eventType,
     sessionName,
     payloadId,
     providerOccurredAt,
     providerEventVariantRef,
-    ignoredAsDuplicateAlias,
-    processable:
-      PROCESSABLE_EVENT_TYPES.has(eventType) && !ignoredAsDuplicateAlias,
+    // `message` is the inbound delivery path; `message.any` is also accepted
+    // for reconciliation. Both must reach durable work because either provider
+    // delivery can arrive alone. The queue coalesces the alias pair by the
+    // shared session + payload.id business identity.
+    processable: PROCESSABLE_EVENT_TYPES.has(eventType),
     rawPayload: parsed,
   });
 }

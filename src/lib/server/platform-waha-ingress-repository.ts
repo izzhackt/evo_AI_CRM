@@ -184,10 +184,15 @@ export function createPlatformWahaIngressRepository(
       );
 
       if (response.error || !isRecord(response.data)) return invalidResult();
+      const deduplicated = requiredBoolean(response.data.deduplicated);
+      const sourceWebhookEventId = requiredUuid(
+        response.data.source_webhook_event_id,
+      );
       if (
         response.data.organization_id !== input.organizationId ||
         response.data.kind !== "provider_webhook_process" ||
-        response.data.source_webhook_event_id !== input.providerWebhookEventId ||
+        (!deduplicated &&
+          sourceWebhookEventId !== input.providerWebhookEventId) ||
         response.data.business_key_sha256 !== input.businessKeySha256 ||
         response.data.max_attempts !== MAX_PROCESSING_ATTEMPTS ||
         response.data.queue_payload_is_pointer_only !== true
@@ -197,7 +202,7 @@ export function createPlatformWahaIngressRepository(
 
       return Object.freeze({
         workItemId: requiredUuid(response.data.work_item_id),
-        deduplicated: requiredBoolean(response.data.deduplicated),
+        deduplicated,
       });
     },
   });
@@ -271,9 +276,19 @@ export function createPlatformWahaIngressHandler(
 
       let enqueueDeduplicated: boolean | null = null;
       if (event.processable) {
+        const eventFamily =
+          event.eventType === "message" || event.eventType === "message.any"
+            ? "message"
+            : `${event.eventType}:${event.providerEventVariantRef ?? ""}`;
         const businessKeySha256 = createHash("sha256")
           .update(
-            `provider_webhook_process:${config.organizationId}:${persisted.providerWebhookEventId}`,
+            JSON.stringify([
+              "provider_webhook_process",
+              config.organizationId,
+              event.sessionName,
+              eventFamily,
+              event.payloadId,
+            ]),
           )
           .digest("hex");
         const enqueued = await repository.enqueueVerifiedEvent({
@@ -292,9 +307,6 @@ export function createPlatformWahaIngressHandler(
           persistDeduplicated: persisted.deduplicated,
           enqueued: event.processable,
           enqueueDeduplicated,
-          ...(event.ignoredAsDuplicateAlias
-            ? { ignoredReason: "message_alias_use_message_any" }
-            : {}),
         },
         { status: 202 },
       );

@@ -248,20 +248,6 @@ export function createPlatformWahaIngressHandler(
       );
       const event = parsePlatformWahaWebhookEvent(rawBody, config.sessionName);
 
-      if (event.ignoredAsDuplicateAlias) {
-        return Response.json(
-          {
-            ok: true,
-            persisted: false,
-            persistDeduplicated: null,
-            enqueued: false,
-            enqueueDeduplicated: null,
-            ignoredReason: "message_alias_use_message_any",
-          },
-          { status: 202 },
-        );
-      }
-
       const payloadSha256 = sha256PlatformWahaRawBody(rawBody);
       const verificationEvidenceRef = `waha-raw-sha256:${payloadSha256}`;
       const generateRequestId = dependencies.generateRequestId ?? randomUUID;
@@ -306,6 +292,9 @@ export function createPlatformWahaIngressHandler(
           persistDeduplicated: persisted.deduplicated,
           enqueued: event.processable,
           enqueueDeduplicated,
+          ...(event.ignoredAsDuplicateAlias
+            ? { ignoredReason: "message_alias_use_message_any" }
+            : {}),
         },
         { status: 202 },
       );

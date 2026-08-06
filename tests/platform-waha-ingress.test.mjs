@@ -411,8 +411,8 @@ test("message alias and message.any persist and enqueue one canonical work item"
         if (eventType === "message") {
           assert.deepEqual(await json(response), {
             ok: true,
-            persisted: false,
-            persistDeduplicated: null,
+            persisted: true,
+            persistDeduplicated: false,
             enqueued: false,
             enqueueDeduplicated: null,
             ignoredReason: "message_alias_use_message_any",
@@ -430,16 +430,96 @@ test("message alias and message.any persist and enqueue one canonical work item"
 
       assert.equal(
         repository.calls.filter((call) => call.kind === "persist").length,
-        1,
+        2,
       );
       assert.equal(
         repository.calls.filter((call) => call.kind === "enqueue").length,
         1,
       );
-      assert.equal(repository.calls[0].input.eventType, "message.any");
-      assert.equal(repository.calls[0].input.payloadId, "wamid.synthetic-message-001");
+      const persists = repository.calls.filter((call) => call.kind === "persist");
+      assert.deepEqual(
+        persists.map((call) => call.input.eventType),
+        order,
+      );
+      assert.ok(
+        persists.every(
+          (call) => call.input.payloadId === "wamid.synthetic-message-001",
+        ),
+      );
+
+      const canonicalPersistIndex = order.indexOf("message.any") + 1;
+      const canonicalProviderEventId =
+        `55555555-5555-4555-8555-${String(canonicalPersistIndex).padStart(12, "0")}`;
+      const [enqueue] = repository.calls.filter((call) => call.kind === "enqueue");
+      assert.equal(enqueue.input.providerWebhookEventId, canonicalProviderEventId);
     });
   }
+});
+
+test("message-only delivery persists raw evidence without enqueueing business work", async () => {
+  const repository = createMemoryRepository();
+  const response = await handlerFor(repository)(
+    webhookRequest(messageEvent({ event: "message" }), {
+      requestId: "synthetic-message-only",
+    }),
+  );
+
+  assert.equal(response.status, 202);
+  assert.deepEqual(await json(response), {
+    ok: true,
+    persisted: true,
+    persistDeduplicated: false,
+    enqueued: false,
+    enqueueDeduplicated: null,
+    ignoredReason: "message_alias_use_message_any",
+  });
+
+  assert.equal(repository.calls.length, 1);
+  assert.equal(repository.calls[0].kind, "persist");
+  assert.equal(repository.calls[0].input.eventType, "message");
+  assert.equal(
+    repository.calls[0].input.payloadId,
+    "wamid.synthetic-message-001",
+  );
+});
+
+test("message-only redelivery deduplicates raw evidence and never enqueues", async () => {
+  const repository = createMemoryRepository();
+  const handler = handlerFor(repository);
+  const event = messageEvent({ event: "message" });
+
+  const first = await handler(
+    webhookRequest(event, { requestId: "synthetic-message-redelivery-a" }),
+  );
+  const second = await handler(
+    webhookRequest(event, { requestId: "synthetic-message-redelivery-b" }),
+  );
+
+  assert.deepEqual(await json(first), {
+    ok: true,
+    persisted: true,
+    persistDeduplicated: false,
+    enqueued: false,
+    enqueueDeduplicated: null,
+    ignoredReason: "message_alias_use_message_any",
+  });
+  assert.deepEqual(await json(second), {
+    ok: true,
+    persisted: true,
+    persistDeduplicated: true,
+    enqueued: false,
+    enqueueDeduplicated: null,
+    ignoredReason: "message_alias_use_message_any",
+  });
+
+  assert.equal(
+    repository.calls.filter((call) => call.kind === "persist").length,
+    2,
+  );
+  assert.equal(
+    repository.calls.filter((call) => call.kind === "enqueue").length,
+    0,
+  );
 });
 
 test("message acknowledgement states are exact and unknown values remain explicit", async (t) => {
@@ -748,7 +828,7 @@ test("browser and anon credentials fail closed without exposing credential value
   }
 });
 
-test("responses never expose server secrets or repository failure details", async () => {
+test("canonical and alias persistence failures stay fail-closed and redact details", async (t) => {
   const repository = {
     async persistVerifiedEvent() {
       throw new Error(`provider failed with ${SERVICE_SECRET} and ${WEBHOOK_SECRET}`);
@@ -757,15 +837,21 @@ test("responses never expose server secrets or repository failure details", asyn
       throw new PlatformWahaIngressRepositoryError();
     },
   };
-  const response = await handlerFor(repository)(webhookRequest(messageEvent()));
-  const responseBody = JSON.stringify(await json(response));
-  assert.equal(response.status, 503);
-  assert.equal(responseBody.includes(SERVICE_SECRET), false);
-  assert.equal(responseBody.includes(WEBHOOK_SECRET), false);
-  assert.deepEqual(JSON.parse(responseBody), {
-    ok: false,
-    error: "temporarily_unavailable",
-  });
+  for (const eventType of ["message.any", "message"]) {
+    await t.test(eventType, async () => {
+      const response = await handlerFor(repository)(
+        webhookRequest(messageEvent({ event: eventType })),
+      );
+      const responseBody = JSON.stringify(await json(response));
+      assert.equal(response.status, 503);
+      assert.equal(responseBody.includes(SERVICE_SECRET), false);
+      assert.equal(responseBody.includes(WEBHOOK_SECRET), false);
+      assert.deepEqual(JSON.parse(responseBody), {
+        ok: false,
+        error: "temporarily_unavailable",
+      });
+    });
+  }
 });
 
 test("receive-only implementation has no send, SQLite, amoCRM or silent provider fallback", async () => {

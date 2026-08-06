@@ -246,8 +246,9 @@ export function parsePlatformWahaWebhookEvent(
   }
 
   // WAHA emits `message.any` for every message creation, including the same
-  // inbound creation also exposed as `message`. Keep `message.any` canonical
-  // so subscribing to both cannot persist or enqueue one inbound message twice.
+  // inbound creation also exposed as `message`. Persist both verified webhook
+  // deliveries as raw evidence, but keep `message.any` canonical for business
+  // processing so subscribing to both cannot enqueue one inbound message twice.
   const ignoredAsDuplicateAlias = eventType === "message";
 
   return Object.freeze({

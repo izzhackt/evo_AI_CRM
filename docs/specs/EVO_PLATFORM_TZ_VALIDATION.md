@@ -67,9 +67,9 @@ python scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
 - Python: `3.12.13`;
 - `python-docx`: `1.2.0`;
 - source SHA-256:
-  `de506d0dc7aa5a2ecefc4f3df93d73524697f704290fcef13ea60904b20eaa33`;
+  `19d017de3b156737c845e61758a1227a6bc626708cec50c3f3a34613cfe941ef`;
 - DOCX SHA-256:
-  `a2b235cc360c88f1259e9d1943f2291f5b01e100956fdcba7b8c2043b1995e72`;
+  `bd83f068a212ad5425e67b658465c3f251043763f2ffb5d7ecb4a3dc0e06d066`;
 - две независимые сборки DOCX: bit-for-bit одинаковы;
 - requirements: `231`;
 - traceability rows: `231`;

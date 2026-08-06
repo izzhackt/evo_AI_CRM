@@ -1840,7 +1840,7 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | Technical Owner | architecture, security, bounded cutover/rollback и later RPO/RTO targets | review + DEC-009/010/017 evidence |
 | Operations Owner | sanitized test sender number, `evo-inbox` QR recovery, bounded evidence window и release window | DEC-007/017 evidence |
 
-**Решение по версии 2.1:** repository-реализация по текущему phased contract
+**Решение по версии 2.2:** repository-реализация по текущему phased contract
 разрешена после merge соответствующих docs amendments. Production mutation и
 provider acceptance разрешаются только соответствующим evidence gate.
 

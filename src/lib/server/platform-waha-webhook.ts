@@ -55,6 +55,7 @@ export type PlatformWahaWebhookEvent = Readonly<{
   eventType: string;
   sessionName: string;
   payloadId: string;
+  processingIdentityRef: string;
   providerOccurredAt: string;
   providerEventVariantRef: string | null;
   processable: boolean;
@@ -152,7 +153,7 @@ function canonicalJsonValue(value: unknown): unknown {
 function localSessionStatusId(
   sessionName: string,
   status: string,
-  statusOccurredAt: string | null,
+  providerOccurredAt: string,
   data: unknown,
 ): string {
   const semanticFingerprint = createHash("sha256")
@@ -161,12 +162,36 @@ function localSessionStatusId(
         "session.status",
         sessionName,
         status,
-        statusOccurredAt,
+        providerOccurredAt,
         canonicalJsonValue(data ?? null),
       ]),
     )
     .digest("hex");
   return `local-session-status:${semanticFingerprint}`;
+}
+
+function localSessionStatusFallbackIdentity(
+  rawBody: Uint8Array,
+  providerSentAt: string,
+  providerRequestId: string,
+): Readonly<{ payloadId: string; processingIdentityRef: string }> {
+  const signedBodySha256 = createHash("sha256").update(rawBody).digest("hex");
+  const deliveryFingerprint = createHash("sha256")
+    .update(
+      JSON.stringify([
+        "session.status.delivery",
+        signedBodySha256,
+        providerSentAt,
+        providerRequestId,
+      ]),
+    )
+    .digest("hex");
+
+  return Object.freeze({
+    payloadId:
+      `local-session-status-delivery:${signedBodySha256}:${deliveryFingerprint}`,
+    processingIdentityRef: `local-session-status-body:${signedBodySha256}`,
+  });
 }
 
 function safeHeader(
@@ -279,6 +304,7 @@ export function parsePlatformWahaWebhookEvent(
   rawBody: Uint8Array,
   expectedSessionName: string,
   verifiedProviderSentAt: string,
+  verifiedProviderRequestId: string,
 ): PlatformWahaWebhookEvent {
   let rawText: string;
   try {
@@ -319,6 +345,7 @@ export function parsePlatformWahaWebhookEvent(
   }
 
   let payloadId: string | null;
+  let processingIdentityRef: string | null = null;
   if (MESSAGE_EVENT_TYPES.has(eventType)) {
     payloadId = boundedExactString(payload.id, MAX_EVENT_ID_LENGTH);
   } else if (eventType === "session.status") {
@@ -328,14 +355,27 @@ export function parsePlatformWahaWebhookEvent(
     }
     const statusOccurredAt = sessionStatusOccurredAt(payload, status);
     providerOccurredAt ??= statusOccurredAt;
+    const usesTransportOccurrence = providerOccurredAt === null;
+    providerOccurredAt ??= exactIsoTimestamp(verifiedProviderSentAt);
+    if (providerOccurredAt === null) return reject("invalid_payload", 400);
 
     if (parsed.id === undefined) {
-      payloadId = localSessionStatusId(
-        sessionName,
-        status,
-        statusOccurredAt,
-        payload.data,
-      );
+      if (usesTransportOccurrence) {
+        const fallbackIdentity = localSessionStatusFallbackIdentity(
+          rawBody,
+          providerOccurredAt,
+          verifiedProviderRequestId,
+        );
+        payloadId = fallbackIdentity.payloadId;
+        processingIdentityRef = fallbackIdentity.processingIdentityRef;
+      } else {
+        payloadId = localSessionStatusId(
+          sessionName,
+          status,
+          providerOccurredAt,
+          payload.data,
+        );
+      }
     } else {
       payloadId = boundedExactString(parsed.id, MAX_EVENT_ID_LENGTH);
     }
@@ -343,6 +383,7 @@ export function parsePlatformWahaWebhookEvent(
     payloadId = boundedExactString(parsed.id, MAX_EVENT_ID_LENGTH);
   }
   if (payloadId === null) return reject("invalid_payload", 400);
+  processingIdentityRef ??= payloadId;
 
   providerOccurredAt ??= exactIsoTimestamp(verifiedProviderSentAt);
   if (providerOccurredAt === null) return reject("invalid_payload", 400);
@@ -360,6 +401,7 @@ export function parsePlatformWahaWebhookEvent(
     eventType,
     sessionName,
     payloadId,
+    processingIdentityRef,
     providerOccurredAt,
     providerEventVariantRef,
     // `message` is the inbound delivery path; `message.any` is also accepted

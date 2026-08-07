@@ -379,7 +379,8 @@ test("canonical WAHA event types retain distinct identities and normalize provid
     {
       event: sessionEvent(),
       eventType: "session.status",
-      payloadIdPattern: /^local-session-status:[0-9a-f]{64}$/,
+      payloadIdPattern:
+        /^local-session-status-delivery:[0-9a-f]{64}:[0-9a-f]{64}$/,
       variant: null,
     },
   ];
@@ -411,18 +412,11 @@ test("canonical WAHA event types retain distinct identities and normalize provid
   }
 });
 
-test("documented session.status shape uses a stable local semantic identity", async () => {
-  const providerSentAt = new Date(NOW_MS).toISOString();
-  const first = sessionEvent({
+test("documented session.status fallback separates raw delivery from signed-body work identity", () => {
+  const event = sessionEvent({
     payload: {
       status: "SCAN_QR_CODE",
       data: { qr: { expiresIn: 30, value: "synthetic-qr-a" }, attempt: 1 },
-    },
-  });
-  const reordered = sessionEvent({
-    payload: {
-      data: { attempt: 1, qr: { value: "synthetic-qr-a", expiresIn: 30 } },
-      status: "SCAN_QR_CODE",
     },
   });
   const changed = sessionEvent({
@@ -431,18 +425,108 @@ test("documented session.status shape uses a stable local semantic identity", as
       data: { qr: { expiresIn: 30, value: "synthetic-qr-b" }, attempt: 1 },
     },
   });
+  const rawEvent = new TextEncoder().encode(rawJson(event));
+  const first = parsePlatformWahaWebhookEvent(
+    rawEvent,
+    "evo-inbox",
+    new Date(NOW_MS).toISOString(),
+    "synthetic-parser-status-first",
+  );
+  const redelivery = parsePlatformWahaWebhookEvent(
+    rawEvent,
+    "evo-inbox",
+    new Date(NOW_MS + 1_000).toISOString(),
+    "synthetic-parser-status-redelivery",
+  );
+  const changedBody = parsePlatformWahaWebhookEvent(
+    new TextEncoder().encode(rawJson(changed)),
+    "evo-inbox",
+    new Date(NOW_MS + 2_000).toISOString(),
+    "synthetic-parser-status-changed",
+  );
 
-  const normalized = [first, reordered, changed].map((event) =>
-    parsePlatformWahaWebhookEvent(
-      new TextEncoder().encode(rawJson(event)),
-      "evo-inbox",
-      providerSentAt,
-    ));
+  assert.match(
+    first.payloadId,
+    /^local-session-status-delivery:[0-9a-f]{64}:[0-9a-f]{64}$/,
+  );
+  assert.notEqual(first.payloadId, redelivery.payloadId);
+  assert.equal(first.processingIdentityRef, redelivery.processingIdentityRef);
+  assert.notEqual(first.processingIdentityRef, changedBody.processingIdentityRef);
+  assert.equal(first.providerOccurredAt, new Date(NOW_MS).toISOString());
+  assert.equal(
+    redelivery.providerOccurredAt,
+    new Date(NOW_MS + 1_000).toISOString(),
+  );
+});
 
-  assert.match(normalized[0].payloadId, /^local-session-status:[0-9a-f]{64}$/);
-  assert.equal(normalized[0].payloadId, normalized[1].payloadId);
-  assert.notEqual(normalized[0].payloadId, normalized[2].payloadId);
-  assert.equal(normalized[0].providerOccurredAt, providerSentAt);
+test("documented session.status fallback preserves raw observations and deduplicates signed-body work", async () => {
+  const repository = createMemoryRepository();
+  const handler = handlerFor(repository);
+  const event = sessionEvent({
+    payload: {
+      status: "SCAN_QR_CODE",
+      data: { attempt: 1, reason: "synthetic-regression" },
+    },
+  });
+  const firstTimestamp = NOW_MS;
+  const laterTimestamp = NOW_MS + 1_000;
+
+  const firstResponse = await handler(webhookRequest(event, {
+    requestId: "synthetic-session-status-first",
+    timestamp: firstTimestamp,
+  }));
+  const laterResponse = await handler(webhookRequest(event, {
+    requestId: "synthetic-session-status-later",
+    timestamp: laterTimestamp,
+  }));
+
+  assert.equal(firstResponse.status, 202);
+  assert.equal(laterResponse.status, 202);
+  assert.deepEqual(await json(firstResponse), {
+    ok: true,
+    persisted: true,
+    persistDeduplicated: false,
+    enqueued: true,
+    enqueueDeduplicated: false,
+  });
+  assert.deepEqual(await json(laterResponse), {
+    ok: true,
+    persisted: true,
+    persistDeduplicated: false,
+    enqueued: true,
+    enqueueDeduplicated: true,
+  });
+
+  const persists = repository.calls.filter((call) => call.kind === "persist");
+  const enqueues = repository.calls.filter((call) => call.kind === "enqueue");
+  assert.equal(persists.length, 2);
+  assert.equal(enqueues.length, 2);
+  assert.notEqual(persists[0].input.payloadId, persists[1].input.payloadId);
+  assert.equal(
+    persists[0].input.providerOccurredAt,
+    new Date(firstTimestamp).toISOString(),
+  );
+  assert.equal(
+    persists[1].input.providerOccurredAt,
+    new Date(laterTimestamp).toISOString(),
+  );
+  assert.equal(
+    enqueues[0].input.businessKeySha256,
+    enqueues[1].input.businessKeySha256,
+  );
+
+  const exactReplay = await handler(webhookRequest(event, {
+    requestId: "synthetic-session-status-first",
+    timestamp: firstTimestamp,
+  }));
+  assert.equal(exactReplay.status, 202);
+  assert.deepEqual(await json(exactReplay), {
+    ok: true,
+    persisted: true,
+    persistDeduplicated: true,
+    enqueued: true,
+    enqueueDeduplicated: true,
+  });
 });
 
 test("session.status accepts the optional general event envelope identity and time", () => {
@@ -454,6 +538,7 @@ test("session.status accepts the optional general event envelope identity and ti
     new TextEncoder().encode(rawJson(event)),
     "evo-inbox",
     new Date(NOW_MS + 1_000).toISOString(),
+    "synthetic-parser-envelope-status",
   );
 
   assert.equal(normalized.payloadId, "evt_1111111111111111111111111111");
@@ -472,6 +557,7 @@ test("message occurrence time comes from payload Unix seconds", () => {
     new TextEncoder().encode(rawJson(event)),
     "evo-inbox",
     new Date(NOW_MS + 120_000).toISOString(),
+    "synthetic-parser-message-time",
   );
 
   assert.equal(
@@ -614,6 +700,7 @@ test("message acknowledgement states are exact and unknown values remain explici
         new TextEncoder().encode(rawJson(event)),
         "evo-inbox",
         new Date(NOW_MS).toISOString(),
+        "synthetic-parser-known-ack",
       );
       assert.equal(normalized.providerEventVariantRef, ackName.toLowerCase());
       assert.equal(normalized.processable, true);
@@ -632,6 +719,7 @@ test("message acknowledgement states are exact and unknown values remain explici
         ),
         "evo-inbox",
         new Date(NOW_MS).toISOString(),
+        "synthetic-parser-unknown-ack",
       );
       assert.equal(normalized.providerEventVariantRef, "unknown");
     });

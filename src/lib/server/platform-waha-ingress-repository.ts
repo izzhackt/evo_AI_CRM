@@ -255,6 +255,7 @@ export function createPlatformWahaIngressHandler(
         rawBody,
         config.sessionName,
         authentication.providerSentAt,
+        authentication.providerRequestId,
       );
 
       const payloadSha256 = sha256PlatformWahaRawBody(rawBody);
@@ -291,7 +292,7 @@ export function createPlatformWahaIngressHandler(
               config.organizationId,
               event.sessionName,
               eventFamily,
-              event.payloadId,
+              event.processingIdentityRef,
             ]),
           )
           .digest("hex");

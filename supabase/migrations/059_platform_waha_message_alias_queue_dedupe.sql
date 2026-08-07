@@ -1,7 +1,8 @@
--- Keep both verified WAHA message deliveries as immutable raw evidence while
--- allowing `message` and `message.any` to converge on one durable business
--- work item. All other attempts to bind a new source event to an existing
--- business key remain fail-closed.
+-- Keep verified WAHA transport observations as immutable raw evidence while
+-- allowing only proven aliases to converge on one durable business work item:
+-- `message`/`message.any` for one provider message, or byte-identical signed
+-- session.status fallback bodies that have no provider event ID/time. All
+-- other attempts to bind a new source event to an existing key fail closed.
 
 CREATE OR REPLACE FUNCTION platform.enqueue_verified_webhook_work(
   p_organization_id UUID,
@@ -25,6 +26,8 @@ DECLARE
   input_sha256 TEXT;
   replayed JSONB;
   result JSONB;
+  is_message_alias BOOLEAN := FALSE;
+  is_status_retry_alias BOOLEAN := FALSE;
   fixed_reason CONSTANT TEXT :=
     'Enqueue one validated pointer-only durable work item';
 BEGIN
@@ -146,8 +149,15 @@ BEGIN
       existing_event.provider_account_ref
     OR incoming_event.waha_session_name IS DISTINCT FROM
       existing_event.waha_session_name
-    OR incoming_event.payload_id <> existing_event.payload_id
-    OR NOT (
+  THEN
+    RAISE EXCEPTION
+      'Only verified WAHA webhook aliases may share durable work'
+      USING ERRCODE = '22023';
+  END IF;
+
+  is_message_alias :=
+    incoming_event.payload_id = existing_event.payload_id
+    AND (
       (
         incoming_event.event_type = 'message'
         AND existing_event.event_type = 'message.any'
@@ -156,10 +166,42 @@ BEGIN
         incoming_event.event_type = 'message.any'
         AND existing_event.event_type = 'message'
       )
-    )
-  THEN
+    );
+
+  is_status_retry_alias :=
+    incoming_event.event_type = 'session.status'
+    AND existing_event.event_type = 'session.status'
+    AND incoming_event.provider_event_variant_ref IS NULL
+    AND existing_event.provider_event_variant_ref IS NULL
+    AND incoming_event.payload_id ~
+      '^local-session-status-delivery:[0-9a-f]{64}:[0-9a-f]{64}$'
+    AND existing_event.payload_id ~
+      '^local-session-status-delivery:[0-9a-f]{64}:[0-9a-f]{64}$'
+    AND split_part(incoming_event.payload_id, ':', 2) =
+      incoming_event.payload_sha256
+    AND split_part(existing_event.payload_id, ':', 2) =
+      existing_event.payload_sha256
+    AND incoming_event.payload_sha256 = existing_event.payload_sha256
+    AND incoming_event.verification_evidence_ref =
+      existing_event.verification_evidence_ref
+    AND incoming_event.raw_payload = existing_event.raw_payload
+    AND incoming_event.raw_payload ->> 'event' = 'session.status'
+    AND incoming_event.raw_payload ->> 'session' =
+      incoming_event.waha_session_name
+    AND NOT (incoming_event.raw_payload ? 'id')
+    AND NOT (incoming_event.raw_payload ? 'timestamp')
+    AND jsonb_typeof(incoming_event.raw_payload -> 'payload') = 'object'
+    AND NULLIF(
+      btrim(incoming_event.raw_payload -> 'payload' ->> 'status'),
+      ''
+    ) IS NOT NULL;
+
+  IF NOT (
+    COALESCE(is_message_alias, FALSE)
+    OR COALESCE(is_status_retry_alias, FALSE)
+  ) THEN
     RAISE EXCEPTION
-      'Only verified WAHA message aliases may share durable work'
+      'Only verified WAHA webhook aliases may share durable work'
       USING ERRCODE = '22023';
   END IF;
 
@@ -196,7 +238,12 @@ BEGIN
     business_match.state,
     business_match.state,
     business_match.queue_message_id,
-    'waha-message-alias-business-key:' || normalized_business_key,
+    CASE
+      WHEN is_message_alias THEN
+        'waha-message-alias-business-key:' || normalized_business_key
+      ELSE
+        'waha-session-status-retry-business-key:' || normalized_business_key
+    END,
     p_request_id
   );
 
@@ -248,4 +295,4 @@ COMMENT ON FUNCTION platform.enqueue_verified_webhook_work(
   INTEGER,
   UUID
 ) IS
-  'Enqueues verified webhook work and safely coalesces WAHA message/message.any aliases by a shared business key.';
+  'Enqueues verified webhook work and safely coalesces proven WAHA message aliases or byte-identical session.status fallback retries.';

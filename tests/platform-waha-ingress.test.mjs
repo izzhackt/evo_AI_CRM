@@ -56,6 +56,8 @@ function messageEvent(overrides = {}) {
       id: "wamid.synthetic-message-001",
       timestamp: NOW_MS / 1_000,
       from: "synthetic-chat@c.us",
+      fromMe: false,
+      source: "app",
       body: "Synthetic test message",
     },
     ...overrides,
@@ -679,6 +681,78 @@ test("message and message.any persist separately but enqueue one business work i
         enqueues[0].input.businessKeySha256,
         enqueues[1].input.businessKeySha256,
       );
+    });
+  }
+});
+
+test("own and ambiguous message observations persist without entering inbound work", async (t) => {
+  const cases = [
+    {
+      name: "API-originated message.any",
+      eventType: "message.any",
+      fromMe: true,
+      source: "api",
+    },
+    {
+      name: "phone-originated message.any",
+      eventType: "message.any",
+      fromMe: true,
+      source: "app",
+    },
+    {
+      name: "own message event",
+      eventType: "message",
+      fromMe: true,
+      source: "app",
+    },
+    {
+      name: "case-insensitive API source with inconsistent inbound flag",
+      eventType: "message.any",
+      fromMe: false,
+      source: "API",
+    },
+    {
+      name: "missing direction evidence",
+      eventType: "message.any",
+      fromMe: undefined,
+      source: "app",
+    },
+  ];
+
+  for (const candidate of cases) {
+    await t.test(candidate.name, async () => {
+      const repository = createMemoryRepository();
+      const handler = handlerFor(repository);
+      const base = messageEvent();
+      const payload = {
+        ...base.payload,
+        source: candidate.source,
+      };
+      if (candidate.fromMe !== undefined) {
+        payload.fromMe = candidate.fromMe;
+      } else {
+        delete payload.fromMe;
+      }
+
+      const response = await handler(
+        webhookRequest({
+          ...base,
+          event: candidate.eventType,
+          payload,
+        }),
+      );
+
+      assert.equal(response.status, 202);
+      assert.deepEqual(await json(response), {
+        ok: true,
+        persisted: true,
+        persistDeduplicated: false,
+        enqueued: false,
+        enqueueDeduplicated: null,
+      });
+      assert.deepEqual(repository.calls.map((call) => call.kind), ["persist"]);
+      assert.equal(repository.calls[0].input.eventType, candidate.eventType);
+      assert.equal(repository.calls[0].input.rawPayload.payload.source, candidate.source);
     });
   }
 });

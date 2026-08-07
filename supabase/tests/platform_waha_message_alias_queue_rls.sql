@@ -54,7 +54,7 @@ VALUES
     'synthetic-p5a-alias-message-first', 'evo-inbox',
     'wamid.synthetic-p5a-message-first', 'message',
     '2026-08-07 09:00:00+06'::TIMESTAMPTZ, 'verified',
-    '{"event":"message","session":"evo-inbox"}'::JSONB,
+    '{"event":"message","session":"evo-inbox","payload":{"fromMe":false,"source":"app"}}'::JSONB,
     '{"hmac_verified":true}'::JSONB,
     'synthetic:p5a:message-first', repeat('1a', 32),
     '45900000-0000-4000-8000-000000000111'
@@ -65,7 +65,7 @@ VALUES
     'synthetic-p5a-alias-any-second', 'evo-inbox',
     'wamid.synthetic-p5a-message-first', 'message.any',
     '2026-08-07 09:00:00+06'::TIMESTAMPTZ, 'verified',
-    '{"event":"message.any","session":"evo-inbox"}'::JSONB,
+    '{"event":"message.any","session":"evo-inbox","payload":{"fromMe":false,"source":"app"}}'::JSONB,
     '{"hmac_verified":true}'::JSONB,
     'synthetic:p5a:any-second', repeat('2b', 32),
     '45900000-0000-4000-8000-000000000112'
@@ -76,7 +76,7 @@ VALUES
     'synthetic-p5a-alias-any-first', 'evo-inbox',
     'wamid.synthetic-p5a-any-first', 'message.any',
     '2026-08-07 09:01:00+06'::TIMESTAMPTZ, 'verified',
-    '{"event":"message.any","session":"evo-inbox"}'::JSONB,
+    '{"event":"message.any","session":"evo-inbox","payload":{"fromMe":false,"source":"app"}}'::JSONB,
     '{"hmac_verified":true}'::JSONB,
     'synthetic:p5a:any-first', repeat('3c', 32),
     '45900000-0000-4000-8000-000000000113'
@@ -87,7 +87,7 @@ VALUES
     'synthetic-p5a-alias-message-second', 'evo-inbox',
     'wamid.synthetic-p5a-any-first', 'message',
     '2026-08-07 09:01:00+06'::TIMESTAMPTZ, 'verified',
-    '{"event":"message","session":"evo-inbox"}'::JSONB,
+    '{"event":"message","session":"evo-inbox","payload":{"fromMe":false,"source":"app"}}'::JSONB,
     '{"hmac_verified":true}'::JSONB,
     'synthetic:p5a:message-second', repeat('4d', 32),
     '45900000-0000-4000-8000-000000000114'
@@ -98,10 +98,21 @@ VALUES
     'synthetic-p5a-unrelated-any', 'evo-inbox',
     'wamid.synthetic-p5a-unrelated', 'message.any',
     '2026-08-07 09:02:00+06'::TIMESTAMPTZ, 'verified',
-    '{"event":"message.any","session":"evo-inbox"}'::JSONB,
+    '{"event":"message.any","session":"evo-inbox","payload":{"fromMe":false,"source":"app"}}'::JSONB,
     '{"hmac_verified":true}'::JSONB,
     'synthetic:p5a:unrelated-any', repeat('5e', 32),
     '45900000-0000-4000-8000-000000000115'
+  ),
+  (
+    '45900000-0000-4000-8000-000000000106',
+    :'org_a_id', 'waha', 'waha:evo-inbox', NULL, NULL,
+    'synthetic-p5a-own-api-any', 'evo-inbox',
+    'wamid.synthetic-p5a-own-api', 'message.any',
+    '2026-08-07 09:03:00+06'::TIMESTAMPTZ, 'verified',
+    '{"event":"message.any","session":"evo-inbox","payload":{"fromMe":true,"source":"api"}}'::JSONB,
+    '{"hmac_verified":true}'::JSONB,
+    'synthetic:p5a:own-api-any', repeat('6f', 32),
+    '45900000-0000-4000-8000-000000000116'
   );
 
 SELECT count(*)::TEXT AS p5a_alias_baseline_work_count
@@ -116,6 +127,11 @@ SELECT encode(
   sha256(convert_to('p5a-any-first-business-key', 'UTF8')),
   'hex'
 ) AS p5a_any_first_business_key
+\gset
+SELECT encode(
+  sha256(convert_to('p5a-own-api-business-key', 'UTF8')),
+  'hex'
+) AS p5a_own_api_business_key
 \gset
 
 SET request.jwt.claims TO '{"role":"service_role"}';
@@ -154,6 +170,15 @@ SELECT platform.enqueue_verified_webhook_work(
 \set p5a_unrelated_source_state :SQLSTATE
 \set ON_ERROR_STOP on
 
+\set ON_ERROR_STOP off
+SELECT platform.enqueue_verified_webhook_work(
+  :'org_a_id', '45900000-0000-4000-8000-000000000106',
+  :'p5a_own_api_business_key', 8,
+  '45900000-0000-4000-8000-000000000206'
+);
+\set p5a_own_api_source_state :SQLSTATE
+\set ON_ERROR_STOP on
+
 RESET request.jwt.claims;
 
 SELECT count(*)::TEXT AS p5a_alias_after_work_count
@@ -176,6 +201,7 @@ SELECT pg_temp.assert_true(
       'source_webhook_event_id') =
       '45900000-0000-4000-8000-000000000103'
     AND :'p5a_unrelated_source_state' <> '00000'
+    AND :'p5a_own_api_source_state' <> '00000'
     AND :'p5a_alias_after_work_count'::INTEGER =
       :'p5a_alias_baseline_work_count'::INTEGER + 2,
   'WAHA message aliases did not converge safely on durable work'

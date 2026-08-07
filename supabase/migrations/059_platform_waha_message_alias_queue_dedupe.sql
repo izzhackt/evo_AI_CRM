@@ -88,6 +88,31 @@ BEGIN
   );
 
   SELECT *
+  INTO incoming_event
+  FROM platform_private.provider_webhook_events AS event
+  WHERE event.organization_id = p_organization_id
+    AND event.id = p_source_webhook_event_id;
+
+  -- `message.any` includes messages sent by this WhatsApp account. Keep those
+  -- verified rows as raw evidence, but never let an own/API send re-enter the
+  -- receive-processing queue. Missing direction evidence also fails closed.
+  IF incoming_event.provider = 'waha'
+    AND incoming_event.event_type IN ('message', 'message.any')
+    AND (
+      incoming_event.raw_payload #> '{payload,fromMe}'
+        IS DISTINCT FROM 'false'::JSONB
+      OR lower(COALESCE(
+        incoming_event.raw_payload #>> '{payload,source}',
+        ''
+      )) = 'api'
+    )
+  THEN
+    RAISE EXCEPTION
+      'Only explicitly inbound WAHA message events may be enqueued'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT *
   INTO source_match
   FROM platform_private.durable_work_items AS item
   WHERE item.organization_id = p_organization_id
@@ -126,12 +151,6 @@ BEGIN
       'enqueue_verified_webhook'
     );
   END IF;
-
-  SELECT *
-  INTO incoming_event
-  FROM platform_private.provider_webhook_events AS event
-  WHERE event.organization_id = p_organization_id
-    AND event.id = p_source_webhook_event_id;
 
   SELECT *
   INTO existing_event

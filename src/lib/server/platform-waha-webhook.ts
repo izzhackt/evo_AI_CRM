@@ -12,9 +12,7 @@ const MAX_EVENT_TYPE_LENGTH = 128;
 const MAX_EVENT_ID_LENGTH = 512;
 const MAX_SESSION_STATUS_LENGTH = 64;
 const SESSION_STATUS_PATTERN = /^[A-Z][A-Z0-9_]*$/;
-const PROCESSABLE_EVENT_TYPES = new Set([
-  "message",
-  "message.any",
+const NON_MESSAGE_PROCESSABLE_EVENT_TYPES = new Set([
   "message.ack",
   "session.status",
 ]);
@@ -431,6 +429,13 @@ export function parsePlatformWahaWebhookEvent(
   }
   processingIdentityRef ??= payloadId;
 
+  const messageSource =
+    typeof payload.source === "string" ? payload.source.toLowerCase() : null;
+  const isExplicitlyInboundMessage =
+    (eventType === "message" || eventType === "message.any") &&
+    payload.fromMe === false &&
+    messageSource !== "api";
+
   return Object.freeze({
     eventType,
     sessionName,
@@ -438,11 +443,14 @@ export function parsePlatformWahaWebhookEvent(
     processingIdentityRef,
     providerOccurredAt,
     providerEventVariantRef,
-    // `message` is the inbound delivery path; `message.any` is also accepted
-    // for reconciliation. Both must reach durable work because either provider
-    // delivery can arrive alone. The queue coalesces the alias pair by the
-    // shared session + payload.id business identity.
-    processable: PROCESSABLE_EVENT_TYPES.has(eventType),
+    // WAHA documents `message.any` as including our own sends. Persist every
+    // verified observation, but enqueue message work only when the signed body
+    // explicitly proves inbound direction. `source: api` is also denied as a
+    // defensive check against an inconsistent provider payload. Inbound
+    // `message` and `message.any` still share one downstream business identity.
+    processable:
+      isExplicitlyInboundMessage ||
+      NON_MESSAGE_PROCESSABLE_EVENT_TYPES.has(eventType),
     rawPayload: parsed,
   });
 }

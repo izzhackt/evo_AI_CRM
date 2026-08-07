@@ -373,7 +373,8 @@ test("canonical WAHA event types retain distinct identities and normalize provid
         payload: { id: "wamid.synthetic-ack-001", ackName: "DEVICE" },
       }),
       eventType: "message.ack",
-      payloadId: "wamid.synthetic-ack-001",
+      payloadIdPattern:
+        /^local-message-ack-delivery:[0-9a-f]{64}:[0-9a-f]{64}$/,
       variant: "device",
     },
     {
@@ -527,6 +528,63 @@ test("documented session.status fallback preserves raw observations and deduplic
     enqueued: true,
     enqueueDeduplicated: true,
   });
+});
+
+test("timestamp-less message.ack preserves raw observations and deduplicates signed-body work", async () => {
+  const repository = createMemoryRepository();
+  const handler = handlerFor(repository);
+  const event = messageEvent({
+    event: "message.ack",
+    payload: { id: "wamid.synthetic-ack-retry", ackName: "DEVICE" },
+  });
+  const firstTimestamp = NOW_MS;
+  const laterTimestamp = NOW_MS + 1_000;
+
+  const firstResponse = await handler(webhookRequest(event, {
+    requestId: "synthetic-message-ack-first",
+    timestamp: firstTimestamp,
+  }));
+  const laterResponse = await handler(webhookRequest(event, {
+    requestId: "synthetic-message-ack-later",
+    timestamp: laterTimestamp,
+  }));
+
+  assert.equal(firstResponse.status, 202);
+  assert.equal(laterResponse.status, 202);
+  assert.deepEqual(await json(firstResponse), {
+    ok: true,
+    persisted: true,
+    persistDeduplicated: false,
+    enqueued: true,
+    enqueueDeduplicated: false,
+  });
+  assert.deepEqual(await json(laterResponse), {
+    ok: true,
+    persisted: true,
+    persistDeduplicated: false,
+    enqueued: true,
+    enqueueDeduplicated: true,
+  });
+
+  const persists = repository.calls.filter((call) => call.kind === "persist");
+  const enqueues = repository.calls.filter((call) => call.kind === "enqueue");
+  assert.equal(persists.length, 2);
+  assert.equal(enqueues.length, 2);
+  assert.notEqual(persists[0].input.payloadId, persists[1].input.payloadId);
+  assert.equal(persists[0].input.providerEventVariantRef, "device");
+  assert.equal(persists[1].input.providerEventVariantRef, "device");
+  assert.equal(
+    persists[0].input.providerOccurredAt,
+    new Date(firstTimestamp).toISOString(),
+  );
+  assert.equal(
+    persists[1].input.providerOccurredAt,
+    new Date(laterTimestamp).toISOString(),
+  );
+  assert.equal(
+    enqueues[0].input.businessKeySha256,
+    enqueues[1].input.businessKeySha256,
+  );
 });
 
 test("session.status accepts the optional general event envelope identity and time", () => {

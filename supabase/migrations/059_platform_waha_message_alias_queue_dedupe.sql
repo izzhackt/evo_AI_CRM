@@ -1,7 +1,8 @@
 -- Keep verified WAHA transport observations as immutable raw evidence while
 -- allowing only proven aliases to converge on one durable business work item:
 -- `message`/`message.any` for one provider message, or byte-identical signed
--- session.status fallback bodies that have no provider event ID/time. All
+-- session.status fallback bodies that have no provider event ID/time, or
+-- byte-identical message.ack bodies that have no provider occurrence time. All
 -- other attempts to bind a new source event to an existing key fail closed.
 
 CREATE OR REPLACE FUNCTION platform.enqueue_verified_webhook_work(
@@ -28,6 +29,7 @@ DECLARE
   result JSONB;
   is_message_alias BOOLEAN := FALSE;
   is_status_retry_alias BOOLEAN := FALSE;
+  is_ack_retry_alias BOOLEAN := FALSE;
   fixed_reason CONSTANT TEXT :=
     'Enqueue one validated pointer-only durable work item';
 BEGIN
@@ -196,9 +198,38 @@ BEGIN
       ''
     ) IS NOT NULL;
 
+  is_ack_retry_alias :=
+    incoming_event.event_type = 'message.ack'
+    AND existing_event.event_type = 'message.ack'
+    AND incoming_event.provider_event_variant_ref IS NOT DISTINCT FROM
+      existing_event.provider_event_variant_ref
+    AND incoming_event.payload_id ~
+      '^local-message-ack-delivery:[0-9a-f]{64}:[0-9a-f]{64}$'
+    AND existing_event.payload_id ~
+      '^local-message-ack-delivery:[0-9a-f]{64}:[0-9a-f]{64}$'
+    AND split_part(incoming_event.payload_id, ':', 2) =
+      incoming_event.payload_sha256
+    AND split_part(existing_event.payload_id, ':', 2) =
+      existing_event.payload_sha256
+    AND incoming_event.payload_sha256 = existing_event.payload_sha256
+    AND incoming_event.verification_evidence_ref =
+      existing_event.verification_evidence_ref
+    AND incoming_event.raw_payload = existing_event.raw_payload
+    AND incoming_event.raw_payload ->> 'event' = 'message.ack'
+    AND incoming_event.raw_payload ->> 'session' =
+      incoming_event.waha_session_name
+    AND NOT (incoming_event.raw_payload ? 'timestamp')
+    AND jsonb_typeof(incoming_event.raw_payload -> 'payload') = 'object'
+    AND NOT (incoming_event.raw_payload -> 'payload' ? 'timestamp')
+    AND NULLIF(
+      btrim(incoming_event.raw_payload -> 'payload' ->> 'id'),
+      ''
+    ) IS NOT NULL;
+
   IF NOT (
     COALESCE(is_message_alias, FALSE)
     OR COALESCE(is_status_retry_alias, FALSE)
+    OR COALESCE(is_ack_retry_alias, FALSE)
   ) THEN
     RAISE EXCEPTION
       'Only verified WAHA webhook aliases may share durable work'
@@ -241,6 +272,8 @@ BEGIN
     CASE
       WHEN is_message_alias THEN
         'waha-message-alias-business-key:' || normalized_business_key
+      WHEN is_ack_retry_alias THEN
+        'waha-message-ack-retry-business-key:' || normalized_business_key
       ELSE
         'waha-session-status-retry-business-key:' || normalized_business_key
     END,
@@ -295,4 +328,4 @@ COMMENT ON FUNCTION platform.enqueue_verified_webhook_work(
   INTEGER,
   UUID
 ) IS
-  'Enqueues verified webhook work and safely coalesces proven WAHA message aliases or byte-identical session.status fallback retries.';
+  'Enqueues verified webhook work and safely coalesces proven WAHA message aliases or byte-identical session.status/message.ack fallback retries.';

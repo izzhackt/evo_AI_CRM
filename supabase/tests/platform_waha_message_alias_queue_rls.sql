@@ -342,4 +342,123 @@ SELECT pg_temp.assert_true(
   'WAHA session.status fallback identity did not preserve repeat evidence safely'
 );
 
-\echo 'P5A WAHA message alias and session status queue acceptance passed'
+-- The documented minimum message.ack shape can likewise omit provider time.
+-- Each verified delivery remains immutable raw evidence, while only the same
+-- byte-identical signed body and ACK variant may converge on one work item.
+SET request.jwt.claims TO '{"role":"service_role"}';
+
+SELECT count(*)::TEXT AS p5a_ack_baseline_event_count
+FROM platform_private.provider_webhook_events
+WHERE organization_id = :'org_a_id'
+  AND provider = 'waha'
+  AND event_type = 'message.ack'
+  AND waha_session_name = 'evo-inbox'
+  AND provider_request_id LIKE 'synthetic-p5a-ack-%'
+\gset
+SELECT count(*)::TEXT AS p5a_ack_baseline_work_count
+FROM platform_private.durable_work_items
+\gset
+
+SELECT platform.persist_provider_webhook_event(
+  :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'device',
+  'synthetic-p5a-ack-first', 'evo-inbox',
+  'local-message-ack-delivery:0a88caeecf91be19d2bdeb88674453052bb9015f0b8358c327bbe956bf063dd1:5fb4702d91d50c74d86e88b250ea5f8e30920c9e88f039a93a9751ff94123589',
+  'message.ack', '2026-08-06 04:46:09+00'::TIMESTAMPTZ, 'verified',
+  '{"event":"message.ack","session":"evo-inbox","payload":{"id":"wamid.synthetic-ack-retry","ackName":"DEVICE"}}'::JSONB,
+  '{"hmac_algorithm":"sha512","hmac_verified":true,"request_id_present":true,"timestamp_freshness_verified":true}'::JSONB,
+  'waha-raw-sha256:0a88caeecf91be19d2bdeb88674453052bb9015f0b8358c327bbe956bf063dd1',
+  '0a88caeecf91be19d2bdeb88674453052bb9015f0b8358c327bbe956bf063dd1',
+  '45900000-0000-4000-8000-000000000401'
+)::TEXT AS p5a_ack_first_persist
+\gset
+
+SELECT platform.persist_provider_webhook_event(
+  :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'device',
+  'synthetic-p5a-ack-later', 'evo-inbox',
+  'local-message-ack-delivery:0a88caeecf91be19d2bdeb88674453052bb9015f0b8358c327bbe956bf063dd1:2d7c387cf2babdfff71faac3f5d88263e68edf3734c0b435bf91af56a3cc01d5',
+  'message.ack', '2026-08-06 04:46:10+00'::TIMESTAMPTZ, 'verified',
+  '{"event":"message.ack","session":"evo-inbox","payload":{"id":"wamid.synthetic-ack-retry","ackName":"DEVICE"}}'::JSONB,
+  '{"hmac_algorithm":"sha512","hmac_verified":true,"request_id_present":true,"timestamp_freshness_verified":true}'::JSONB,
+  'waha-raw-sha256:0a88caeecf91be19d2bdeb88674453052bb9015f0b8358c327bbe956bf063dd1',
+  '0a88caeecf91be19d2bdeb88674453052bb9015f0b8358c327bbe956bf063dd1',
+  '45900000-0000-4000-8000-000000000402'
+)::TEXT AS p5a_ack_later_persist
+\gset
+
+SELECT platform.persist_provider_webhook_event(
+  :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'read',
+  'synthetic-p5a-ack-unrelated', 'evo-inbox',
+  'local-message-ack-delivery:56d4cc1c84345747e1e44bc4d3653589226ca379e5e7dd07aea26a45dd752af5:019fd2e6010e772a0282dee10f1c957e327c2b9d2a0dc2ea8b2dbe0cf7edb46f',
+  'message.ack', '2026-08-06 04:46:11+00'::TIMESTAMPTZ, 'verified',
+  '{"event":"message.ack","session":"evo-inbox","payload":{"id":"wamid.synthetic-ack-retry","ackName":"READ"}}'::JSONB,
+  '{"hmac_algorithm":"sha512","hmac_verified":true,"request_id_present":true,"timestamp_freshness_verified":true}'::JSONB,
+  'waha-raw-sha256:56d4cc1c84345747e1e44bc4d3653589226ca379e5e7dd07aea26a45dd752af5',
+  '56d4cc1c84345747e1e44bc4d3653589226ca379e5e7dd07aea26a45dd752af5',
+  '45900000-0000-4000-8000-000000000403'
+)::TEXT AS p5a_ack_unrelated_persist
+\gset
+
+SELECT encode(
+  sha256(convert_to('p5a-ack-device-business-key', 'UTF8')),
+  'hex'
+) AS p5a_ack_device_business_key
+\gset
+
+SELECT platform.enqueue_verified_webhook_work(
+  :'org_a_id',
+  (:'p5a_ack_first_persist'::JSONB ->> 'provider_webhook_event_id')::UUID,
+  :'p5a_ack_device_business_key', 8,
+  '45900000-0000-4000-8000-000000000404'
+)::TEXT AS p5a_ack_first_enqueue
+\gset
+SELECT platform.enqueue_verified_webhook_work(
+  :'org_a_id',
+  (:'p5a_ack_later_persist'::JSONB ->> 'provider_webhook_event_id')::UUID,
+  :'p5a_ack_device_business_key', 8,
+  '45900000-0000-4000-8000-000000000405'
+)::TEXT AS p5a_ack_later_enqueue
+\gset
+
+\set ON_ERROR_STOP off
+SELECT platform.enqueue_verified_webhook_work(
+  :'org_a_id',
+  (:'p5a_ack_unrelated_persist'::JSONB ->> 'provider_webhook_event_id')::UUID,
+  :'p5a_ack_device_business_key', 8,
+  '45900000-0000-4000-8000-000000000406'
+);
+\set p5a_ack_unrelated_source_state :SQLSTATE
+\set ON_ERROR_STOP on
+
+RESET request.jwt.claims;
+
+SELECT count(*)::TEXT AS p5a_ack_after_event_count
+FROM platform_private.provider_webhook_events
+WHERE organization_id = :'org_a_id'
+  AND provider = 'waha'
+  AND event_type = 'message.ack'
+  AND waha_session_name = 'evo-inbox'
+  AND provider_request_id LIKE 'synthetic-p5a-ack-%'
+\gset
+SELECT count(*)::TEXT AS p5a_ack_after_work_count
+FROM platform_private.durable_work_items
+\gset
+
+SELECT pg_temp.assert_true(
+  (:'p5a_ack_first_persist'::JSONB ->> 'deduplicated')::BOOLEAN = FALSE
+    AND (:'p5a_ack_later_persist'::JSONB ->> 'deduplicated')::BOOLEAN = FALSE
+    AND (:'p5a_ack_unrelated_persist'::JSONB ->> 'deduplicated')::BOOLEAN = FALSE
+    AND (:'p5a_ack_first_persist'::JSONB ->> 'provider_webhook_event_id') <>
+      (:'p5a_ack_later_persist'::JSONB ->> 'provider_webhook_event_id')
+    AND (:'p5a_ack_first_enqueue'::JSONB ->> 'deduplicated')::BOOLEAN = FALSE
+    AND (:'p5a_ack_later_enqueue'::JSONB ->> 'deduplicated')::BOOLEAN = TRUE
+    AND (:'p5a_ack_first_enqueue'::JSONB ->> 'work_item_id') =
+      (:'p5a_ack_later_enqueue'::JSONB ->> 'work_item_id')
+    AND :'p5a_ack_unrelated_source_state' <> '00000'
+    AND :'p5a_ack_after_event_count'::INTEGER =
+      :'p5a_ack_baseline_event_count'::INTEGER + 3
+    AND :'p5a_ack_after_work_count'::INTEGER =
+      :'p5a_ack_baseline_work_count'::INTEGER + 1,
+  'WAHA message.ack fallback identity did not preserve variant-safe repeat evidence'
+);
+
+\echo 'P5A WAHA message alias, session status, and ACK queue acceptance passed'

@@ -194,6 +194,29 @@ function localSessionStatusFallbackIdentity(
   });
 }
 
+function localMessageAckFallbackIdentity(
+  rawBody: Uint8Array,
+  providerSentAt: string,
+  providerRequestId: string,
+): Readonly<{ payloadId: string; processingIdentityRef: string }> {
+  const signedBodySha256 = createHash("sha256").update(rawBody).digest("hex");
+  const deliveryFingerprint = createHash("sha256")
+    .update(
+      JSON.stringify([
+        "message.ack.delivery",
+        signedBodySha256,
+        providerSentAt,
+        providerRequestId,
+      ]),
+    )
+    .digest("hex");
+
+  return Object.freeze({
+    payloadId: `local-message-ack-delivery:${signedBodySha256}:${deliveryFingerprint}`,
+    processingIdentityRef: `local-message-ack-body:${signedBodySha256}`,
+  });
+}
+
 function safeHeader(
   request: Request,
   name: string,
@@ -383,8 +406,8 @@ export function parsePlatformWahaWebhookEvent(
     payloadId = boundedExactString(parsed.id, MAX_EVENT_ID_LENGTH);
   }
   if (payloadId === null) return reject("invalid_payload", 400);
-  processingIdentityRef ??= payloadId;
 
+  const usesTransportOccurrence = providerOccurredAt === null;
   providerOccurredAt ??= exactIsoTimestamp(verifiedProviderSentAt);
   if (providerOccurredAt === null) return reject("invalid_payload", 400);
 
@@ -395,7 +418,18 @@ export function parsePlatformWahaWebhookEvent(
       typeof ackName === "string" && ACK_NAMES.has(ackName)
         ? ackName.toLowerCase()
         : "unknown";
+
+    if (usesTransportOccurrence) {
+      const fallbackIdentity = localMessageAckFallbackIdentity(
+        rawBody,
+        providerOccurredAt,
+        verifiedProviderRequestId,
+      );
+      payloadId = fallbackIdentity.payloadId;
+      processingIdentityRef = fallbackIdentity.processingIdentityRef;
+    }
   }
+  processingIdentityRef ??= payloadId;
 
   return Object.freeze({
     eventType,

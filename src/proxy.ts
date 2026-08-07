@@ -11,6 +11,9 @@ import { createSupabaseServerClientFromCookies } from "@/lib/supabase/server";
 // blocks. In Platform runtime they stay unreachable until a reviewed adapter
 // replaces them; the retained legacy deployment continues on its own revision.
 
+const PLATFORM_WAHA_INGRESS_PATH =
+  "/api/internal/platform-messaging/waha/events";
+
 function nextResponse(requestHeaders: Headers) {
   return NextResponse.next({
     request: { headers: requestHeaders },
@@ -101,6 +104,13 @@ export async function proxy(request: NextRequest) {
   }
 
   if (path === "/api/health") {
+    return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+  if (path === PLATFORM_WAHA_INGRESS_PATH) {
+    // This private service-to-service endpoint owns its own raw-body HMAC,
+    // timestamp, request-id and session checks. It must not be redirected into
+    // the staff-cookie authorization flow, while every other legacy/internal
+    // API route remains disconnected by default.
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
   if (!isConnectedPlatformPage(path)) {

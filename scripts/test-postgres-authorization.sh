@@ -603,6 +603,15 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_amocrm_mapping_discovery_rls.sql
   fi
+
+  # P5A keeps both verified WAHA message aliases as raw evidence while the
+  # durable queue coalesces them by session + payload.id. Run this only after
+  # migration 059 replaces the webhook enqueue wrapper.
+  if [[ "$(basename "$migration")" == 059_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_message_alias_queue_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

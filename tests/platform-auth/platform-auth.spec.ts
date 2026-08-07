@@ -831,6 +831,22 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
     );
   }
 
+  const privateWahaIngress = await page.evaluate(async () => {
+    const response = await fetch(
+      "/api/internal/platform-messaging/waha/events",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      },
+    );
+    return { status: response.status, body: await response.json() };
+  });
+  expect(privateWahaIngress.status).toBe(503);
+  expect(privateWahaIngress.body).toEqual(
+    expect.objectContaining({ error: "ingress_disabled" }),
+  );
+
   const actionBoundaryStatus = await page.evaluate(async () => {
     const response = await fetch("/finance", { method: "POST" });
     return response.status;

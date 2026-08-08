@@ -298,7 +298,21 @@ SELECT
   'message',
   statement_timestamp(),
   'verified'::platform.webhook_verification_status,
-  jsonb_build_object('synthetic', TRUE, 'sequence', sequence_number),
+  jsonb_build_object(
+    'event', 'message',
+    'session', 'evo-inbox',
+    'payload', jsonb_build_object(
+      'id', 'synthetic-payload-' || sequence_number,
+      'timestamp', 1786075200 + sequence_number,
+      'from', '1415555000' || sequence_number || '@c.us',
+      'chatId', '1415555000' || sequence_number || '@c.us',
+      'fromMe', FALSE,
+      'source', 'app',
+      'body', 'Synthetic P2G runtime message ' || sequence_number
+    ),
+    'synthetic', TRUE,
+    'sequence', sequence_number
+  ),
   '{}'::JSONB,
   'local:p2g:runtime',
   encode(

@@ -350,8 +350,9 @@ export async function listPlatformConversations(
 
     if (response.error) return invalidShape();
 
-    // The RPC orders by updated_at DESC and id. Preserve that authoritative
-    // queue order rather than inventing a weaker client-side ordering.
+    // The RPC orders by the latest guarded conversation or verified provider
+    // observation, then id. Preserve that authoritative queue order rather than
+    // inventing a weaker client-side ordering.
     return normalizeConversationRows(response.data);
   } catch (error) {
     return failClosed(error);

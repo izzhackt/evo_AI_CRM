@@ -32,6 +32,7 @@ readonly INBOX_FINGERPRINT_AFTER="${TEMP_DIR}/inbox-after.txt"
 readonly BROWSER_HOST="127.0.0.1"
 readonly BROWSER_PORT="3311"
 readonly PROVIDER_GATED_BROWSER_TESTS="RU and EN draft requests work while uncertain language stops for manual selection|admin reads the persisted local P3C workflow without proving providers|assigned Curator reads the same persisted local P3C workflow|staff writes and persists a manual reply while AI is unavailable|staff submits an approved-knowledge AI draft request through the real form|staff reviews an AI draft then authorizes the edited final text"
+readonly P5B_BROWSER_TEST="P5B projects verified inbound WAHA work into the accepted conversation UI"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -802,6 +803,7 @@ browser_gate_started=true
 # five-minute freshness contract is tested deterministically. The second pass
 # still runs every other browser test; no assertion or health TTL is weakened.
 if ! run_with_deadline 240000 env \
+  EVO_P5B_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
   EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
   "${PLAYWRIGHT_CLI}" \
@@ -813,13 +815,27 @@ fi
 if ! stop_exact_browser_server; then
   fail "The exact-worktree Platform browser server did not stop between browser partitions."
 fi
-if ! run_with_deadline 660000 env \
+if ! run_with_deadline 240000 env \
+  EVO_P5B_BROWSER_PROOF=1 \
   EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
   EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}"; then
+  --grep "${P5B_BROWSER_TEST}"; then
+  fail "P5B verified inbound WAHA projection browser proof failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop after the P5B browser partition."
+fi
+if ! run_with_deadline 660000 env \
+  EVO_P5B_BROWSER_PROOF=0 \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}"; then
   fail "Remaining real browser Platform Auth/staff-shell gate failed."
 fi
 if ! stop_exact_browser_server; then

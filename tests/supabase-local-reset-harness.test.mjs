@@ -160,11 +160,15 @@ test("every long-running child gate has a process-group deadline", () => {
   );
   assert.match(
     executableLines,
-    /run_with_deadline 240000 env \\\n\s+EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
+    /run_with_deadline 240000 env \\\n\s+EVO_P5B_BROWSER_PROOF=0 \\\n\s+EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
   );
   assert.match(
     executableLines,
-    /run_with_deadline 660000 env \\\n\s+EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
+    /run_with_deadline 660000 env \\\n\s+EVO_P5B_BROWSER_PROOF=0 \\\n\s+EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
+  );
+  assert.match(
+    executableLines,
+    /run_with_deadline 240000 env \\\n\s+EVO_P5B_BROWSER_PROOF=1 \\\n\s+EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
   );
   assert.match(
     executableLines,
@@ -176,7 +180,7 @@ test("every long-running child gate has a process-group deadline", () => {
   );
 });
 
-test("provider-gated browser tests run first without skipping the remaining suite", () => {
+test("provider and P5B browser partitions run before the remaining suite", () => {
   const expectedTitles = [
     "RU and EN draft requests work while uncertain language stops for manual selection",
     "admin reads the persisted local P3C workflow without proving providers",
@@ -186,6 +190,8 @@ test("provider-gated browser tests run first without skipping the remaining suit
     "staff reviews an AI draft then authorizes the edited final text",
   ];
   const titles = `readonly PROVIDER_GATED_BROWSER_TESTS="${expectedTitles.join("|")}"`;
+  const p5bTitle =
+    "P5B projects verified inbound WAHA work into the accepted conversation UI";
   const providerPass = harness.indexOf(
     "if ! run_with_deadline 240000 env \\",
   );
@@ -193,9 +199,17 @@ test("provider-gated browser tests run first without skipping the remaining suit
     'fail "The exact-worktree Platform browser server did not stop between browser partitions."',
     providerPass,
   );
+  const p5bPass = harness.indexOf(
+    "if ! run_with_deadline 240000 env \\",
+    betweenPassCleanup,
+  );
+  const p5bCleanup = harness.indexOf(
+    'fail "The exact-worktree Platform browser server did not stop after the P5B browser partition."',
+    p5bPass,
+  );
   const remainingPass = harness.indexOf(
     "if ! run_with_deadline 660000 env \\",
-    betweenPassCleanup,
+    p5bCleanup,
   );
   const finalCleanup = harness.indexOf(
     'fail "The exact-worktree Platform browser server did not stop after the browser gate."',
@@ -207,20 +221,37 @@ test("provider-gated browser tests run first without skipping the remaining suit
   for (const title of expectedTitles) {
     assert.equal(platformAuthSpec.split(`test("${title}"`).length - 1, 1);
   }
+  assert.ok(
+    harness.includes(`readonly P5B_BROWSER_TEST="${p5bTitle}"`),
+  );
+  assert.equal(platformAuthSpec.split(`test("${p5bTitle}"`).length - 1, 1);
   assert.notEqual(providerPass, -1);
   assert.notEqual(betweenPassCleanup, -1);
+  assert.notEqual(p5bPass, -1);
+  assert.notEqual(p5bCleanup, -1);
   assert.notEqual(remainingPass, -1);
   assert.notEqual(finalCleanup, -1);
   assert.ok(providerPass < betweenPassCleanup);
-  assert.ok(betweenPassCleanup < remainingPass);
+  assert.ok(betweenPassCleanup < p5bPass);
+  assert.ok(p5bPass < p5bCleanup);
+  assert.ok(p5bCleanup < remainingPass);
   assert.ok(remainingPass < finalCleanup);
   assert.match(
     harness.slice(providerPass, betweenPassCleanup),
-    /--grep "\$\{PROVIDER_GATED_BROWSER_TESTS\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*--grep "\$\{PROVIDER_GATED_BROWSER_TESTS\}"/,
+  );
+  assert.match(
+    harness.slice(p5bPass, p5bCleanup),
+    /EVO_P5B_BROWSER_PROOF=1[\s\S]*--grep "\$\{P5B_BROWSER_TEST\}"/,
   );
   assert.match(
     harness.slice(remainingPass, finalCleanup),
-    /--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}"/,
+  );
+  assert.equal(
+    harness.slice(providerPass, finalCleanup).match(/EVO_P5B_BROWSER_PROOF=1/g)
+      ?.length,
+    1,
   );
   assert.doesNotMatch(executableLines, /run_with_deadline 900000 env/);
 });

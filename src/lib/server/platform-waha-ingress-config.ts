@@ -173,20 +173,22 @@ function readWebhookHmacSecret(value: string | undefined): string {
  * unless the feature flag is set explicitly; disabled mode does not require or
  * inspect any backend secret.
  */
-export function getPlatformWahaIngressConfig(): PlatformWahaIngressConfig {
-  if (!readEnabledFlag(process.env.EVO_PLATFORM_WAHA_INGRESS_ENABLED)) {
+export function getPlatformWahaIngressConfig(
+  environment: NodeJS.ProcessEnv = process.env,
+): PlatformWahaIngressConfig {
+  if (!readEnabledFlag(environment.EVO_PLATFORM_WAHA_INGRESS_ENABLED)) {
     return Object.freeze({ enabled: false });
   }
 
   return Object.freeze({
     enabled: true,
-    organizationId: readOrganizationId(process.env.EVO_PLATFORM_ORGANIZATION_ID),
-    supabaseUrl: readSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    organizationId: readOrganizationId(environment.EVO_PLATFORM_ORGANIZATION_ID),
+    supabaseUrl: readSupabaseUrl(environment.NEXT_PUBLIC_SUPABASE_URL),
     supabaseSecretKey: readSupabaseSecretKey(
-      process.env.EVO_PLATFORM_SUPABASE_SECRET_KEY,
+      environment.EVO_PLATFORM_SUPABASE_SECRET_KEY,
     ),
     webhookHmacSecret: readWebhookHmacSecret(
-      process.env.EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET,
+      environment.EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET,
     ),
     sessionName: PLATFORM_WAHA_SESSION_NAME,
     maxBodyBytes: PLATFORM_WAHA_MAX_BODY_BYTES,

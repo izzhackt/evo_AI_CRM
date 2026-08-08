@@ -3545,11 +3545,20 @@ const main = async () => {
       evidenceRef: "synthetic:browser:ai:provider-ready:org-b",
       stage: "p3c-org-b-ai-browser-ready",
     });
+    const p5bIngressHmacSecret = randomBytes(48).toString("base64url");
+    const p5bWorkerTriggerSecret = randomBytes(48).toString("base64url");
     writeFileSync(
       browserFixturePath,
       JSON.stringify({
         apiUrl,
         publishableKey,
+        p5b: {
+          organizationId: adminAMembership.organization_id,
+          intakeSalesMembershipId: responsibleSalesMembership.id,
+          supabaseSecretKey: serviceRoleKey,
+          ingressHmacSecret: p5bIngressHmacSecret,
+          workerTriggerSecret: p5bWorkerTriggerSecret,
+        },
         identities: {
           admin: {
             email: identities.adminA.email,

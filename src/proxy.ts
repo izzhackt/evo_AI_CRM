@@ -13,6 +13,8 @@ import { createSupabaseServerClientFromCookies } from "@/lib/supabase/server";
 
 const PLATFORM_WAHA_INGRESS_PATH =
   "/api/internal/platform-messaging/waha/events";
+const PLATFORM_WAHA_WORKER_PATH =
+  "/api/internal/platform-messaging/waha/work";
 
 function nextResponse(requestHeaders: Headers) {
   return NextResponse.next({
@@ -106,11 +108,13 @@ export async function proxy(request: NextRequest) {
   if (path === "/api/health") {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
-  if (path === PLATFORM_WAHA_INGRESS_PATH) {
-    // This private service-to-service endpoint owns its own raw-body HMAC,
-    // timestamp, request-id and session checks. It must not be redirected into
-    // the staff-cookie authorization flow, while every other legacy/internal
-    // API route remains disconnected by default.
+  if (
+    path === PLATFORM_WAHA_INGRESS_PATH ||
+    path === PLATFORM_WAHA_WORKER_PATH
+  ) {
+    // These exact private service-to-service endpoints own their own HMAC or
+    // bearer-secret checks. They must not be redirected into the staff-cookie
+    // flow, while every other legacy/internal API route remains disconnected.
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
   if (!isConnectedPlatformPage(path)) {

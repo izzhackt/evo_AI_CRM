@@ -3,11 +3,14 @@
 - Owner: технический ответственный EVO Admissions
 - Status: Target approved; greenfield Platform not deployed; legacy CRM remains
   separate and messaging provider ownership awaits controlled cutover
-- Last verified against repository: 2026-08-05
+- Last verified against repository: 2026-08-09 at
+  `93f48b82785836e4ade92dd7c56d8653fdd9e2ea`
 - Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - External automation boundary:
   `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
+- Autonomy/read-mostly integration boundary:
+  `docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md`
 - Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 
 ## Главное простыми словами
@@ -38,6 +41,11 @@ amoCRM остаётся каноническим владельцем:
 EVO Platform хранит собственное операционное состояние поступления, но не
 подменяет им sales stage amoCRM.
 
+ADR 0019 возобновляет только read-mostly adapter: Platform может читать
+canonical contact/lead/responsible/stage и ссылки на sales tasks, calls/recordings
+и chat records. Real writes, inferred mapping, hardcoded IDs и silent fallback
+не разрешены.
+
 ## Текущее состояние до cutover
 
 Репозиторий всё ещё содержит три runtime-контура:
@@ -53,9 +61,10 @@ EVO Platform хранит собственное операционное сос
 а не разрешение менять production-сессии. Старый путь нельзя отключать, пока
 новый не доказал отсутствие потерь и дублей и не прошёл rollback gate.
 
-Unified frontend from PRs #64/#71/#72 remains the only product UI contract.
-Thin-slice work must wire that existing UI through repository/session seams,
-not by reviving parallel Inbox UI surfaces.
+The accepted Claude Design root frontend from PRs #64/#71/#72 remains the only
+product UI contract. Thin-slice work must wire that UI through repository/session
+seams, not revive a parallel or fallback Inbox UI. Its current polling path moves
+to private Supabase Realtime only in a later reviewed implementation block.
 
 Актуальный уровень доказательств записывается в
 [current-status.md](current-status.md). Наличие кода или конфигурации не
@@ -67,12 +76,15 @@ not by reviving parallel Inbox UI surfaces.
 flowchart LR
   Customer["Клиент / студент"] --> Waha["Private WAHA: evo-inbox"]
   Waha --> Platform["Unified EVO backend"]
-  Platform <--> Amo["amoCRM: contact, lead, responsible, sales stage"]
+  Platform --> Amo["Read-mostly amoCRM: canonical sales context"]
   Platform <--> Data["Supabase Platform data"]
   Staff["Staff UI"] <--> Platform
   Portal["Student Portal"] <--> Platform
-  Platform --> Draft["AI draft only"]
-  Draft --> Review["Staff review / edit"]
+  Platform --> Proposal["Gemini structured proposal"]
+  Proposal --> Gate["Deterministic EVO gates"]
+  Gate -->|"pass: inbound + 24h only"| Queue["Durable send intent"]
+  Gate -->|"blocked"| Review["Human review / takeover"]
+  Queue --> Waha
   Review --> Waha
 ```
 
@@ -85,13 +97,19 @@ Inbox и полезную, безопасную логику Lead Agent:
 - idempotency по `X-Webhook-Request-Id` и бизнес-ключу
   `session + payload.id`;
 - буферизацию, durable jobs, retry, dead-letter и reconciliation;
-- resolve/create amoCRM contact и lead через канонический adapter;
-- mapping notes/tasks, handoff и loop prevention;
+- read-mostly resolution of canonical amoCRM contact, lead, responsible Sales и
+  stage plus task/call/chat-record references;
+- explicit unresolved handoff и loop prevention без provider writes;
 - отдельные внутренние UUID, WAHA message IDs и Kommo conversation/message IDs;
-- ACK-аудит и правило «не повторять автоматически неизвестный результат send».
+- ACK/session-аудит и правило «не повторять автоматически неизвестный результат
+  send»;
+- durable lead memory, approved pgvector knowledge, structured Gemini proposal,
+  deterministic gate evidence and audited pause/resume.
 
-Auto-reply и unattended outbound не входят в целевую активную функцию.
-Inbox dashboards, pipelines, deals, leads, broadcasts, flows, campaigns,
+Target разрешает только inbound-triggered autonomous reply inside the rolling
+24-hour service window after every deterministic gate passes. Cold outbound,
+broadcasts, campaigns, autonomous follow-up/re-engagement и out-of-window
+free-form sends запрещены. Inbox dashboards, pipelines, deals, leads, flows,
 generic analytics and unrelated settings не входят в первый thin slice.
 
 ## Данные и среды
@@ -167,7 +185,7 @@ manual selection/handoff, а Kyrgyz customer draft запрещён. Полны�
 contract:
 [`p2f-communications-contracts.md`](p2f-communications-contracts.md).
 
-P2G candidate добавляет forward migration 045 и настоящий local
+Merged P2G добавляет forward migration 045 и настоящий local
 Supabase Queues/PGMQ contract. `platform_work_v1` и
 `platform_dead_letter_v1` принимают только pointer body
 `{v, work_item_id, kind}`; direct `pgmq`/`pgmq_public` grants закрыты, а
@@ -193,6 +211,15 @@ projections. P2F не доказывает, что real HMAC/timestamp verificat
 но не реальный webhook, AI generation, WAHA/Kommo/amoCRM call, provider send
 или ACK. P2G доказывает local Queue/outbox/worker/retry/dead-letter mechanics,
 но не provider delivery; private media/Storage/scanner относится к P2H.
+
+At current main `93f48b82785836e4ade92dd7c56d8653fdd9e2ea`, PR #132
+merged P5A receive-only ingress and migration 059. It validates configured
+HMAC/timestamp evidence, persists before processing and enqueues verified
+pointer-only work; runtime remains disabled by default. PR #133 is a draft,
+unmerged P5B receive/project candidate. P5B may project inbound work into the
+accepted root UI data path but may not call Gemini or send through WAHA. It is
+blocked until valid media-only inbound becomes operator-visible and hands off
+rather than completing as a missing-text no-op. Neither block is provider proof.
 
 Каждая exposed table должна иметь RLS. Browser использует только publishable
 key. Secret/service-role ключи и provider secrets остаются только на backend.
@@ -250,22 +277,37 @@ fixed self history, а Finance не видит sensitive document metadata.
 
 ## AI и отправка сообщений
 
-AI contract создаёт только draft на RU или EN по языку последнего customer
-message. Неуверенный или иной язык требует ручного выбора или handoff.
-Кыргызский customer-draft contract и автоматическая отправка запрещены.
+P2F's merged database contract remains historical draft/manual-send evidence.
+ADR 0019 adds a narrower future lane: Gemini produces a structured
+qualification/reply proposal, while deterministic EVO gates alone decide
+whether an inbound-triggered reply may enter the durable queue. The model never
+calls WAHA or declares a send successful.
 
-Draft строится только после explicit staff request, связан с exact source
-message и approved versioned knowledge citations. P2F сохраняет provider/model,
-prompt-policy version и immutable source context + SHA вместе с original
-generated text; human reviewed text и append-only transition evidence остаются
-отдельными. Manual authorization фиксирует operator, exact final text и его
-SHA-256. Сотрудник обязательно review/edit и нажимает manual send. Запись
-такого решения не означает, что сообщение отправлено.
+Every autonomous proposal stores the exact inbound trigger, model and prompt
+version, policy version, immutable context and hash, approved knowledge chunks,
+structured output, proposed memory updates, every gate input/result, rendered
+outbound and hash, transport response, ACK/session progression and human action.
+Supabase owns this evidence, durable lead memory, pgvector retrieval, queues,
+pause/resume state and audit.
 
-В будущем transport backend перед ответом вызывает `/api/sendSeen`, отправляет
-только при WAHA session `WORKING` и связывает trusted provider/ACK evidence.
-Этот Queue/provider path не входит в P2F и требует отдельного P2G и
-real-provider proof. Неизвестный результат send не повторяется автоматически.
+Autonomous send is allowed only in the same conversation inside the rolling
+24-hour service window and only after the gate passes both before queueing and
+immediately before transport. Default business hours are
+`Asia/Bishkek 09:00-21:00` until organization configuration exists. Staff
+outbound or explicit takeover pauses autonomy immediately; only an authorized
+staff actor may resume with an audited reason.
+
+Opt-out, outside business hours, unsupported/uncertain language, media-only or
+unsupported content, low confidence, missing approved knowledge, complaints,
+payments/refunds, legal/privacy, admission/scholarship/visa guarantees,
+unhealthy WAHA or unknown provider result fail closed to human review. A valid
+media-only event is still persisted and operator-visible. Unknown send outcome
+is reconciled and never retried automatically.
+
+Cold outbound, broadcast, campaign, autonomous follow-up/re-engagement,
+out-of-window free-form and model-direct WAHA sends remain prohibited. P5A,
+P5B and the later autonomous worker are disabled by default until separately
+authorized real-provider E2E.
 
 EVO может обещать только исполнение собственных услуг и обязательств. Platform
 не должна гарантировать admission, scholarship, visa или решение внешнего
@@ -286,15 +328,20 @@ EVO может обещать только исполнение собствен
 5. Legacy SQLite inventory остаётся historical reference; greenfield Platform
    path does not require SQLite import, account migration, dual-read or
    dual-write.
-6. amoCRM adapter обнаруживает и версионирует account-specific mappings; IDs не
-   hardcode-ятся как глобальные.
-7. На выделенном тестовом номере и sanitized test lead проходит реальный путь:
-   WhatsApp receive → amo resolve/link → Platform → AI draft → operator manual
-   send → delivery/read/unknown → audit.
-8. Production mutation получает отдельное явное разрешение и release window.
-9. Старый Lead Agent удаляется только отдельным reviewed PR после bounded
-   reconciliation evidence window with zero unexplained loss/duplicates,
-   health checks and rollback proof.
+6. Read-mostly amoCRM adapter discovers and versions account-specific mappings;
+   IDs are never global hardcodes, inferred by name or replaced with fallback.
+7. P5B proves operator-visible text and media projection, bounded leases,
+   retry/dead-letter/manual-review semantics and no Gemini/provider send.
+8. History, media, ACK/session reconciliation and private Supabase Realtime are
+   accepted before the autonomous-reply implementation begins.
+9. На выделенном тестовом номере и sanitized test lead проходит реальный путь:
+   WhatsApp receive → read-mostly amo resolve/link or explicit handoff → Gemini
+   proposal → deterministic gate → one eligible reply plus forced-human cases →
+   ACK/session/unknown reconciliation → private Realtime/audit.
+10. Production mutation получает отдельное явное разрешение и release window.
+11. EVO Lead Agent, legacy webhook/session and rollback path remain deployed and
+    frozen. Retirement is outside current scope and requires a new owner decision
+    plus separately reviewed evidence and rollback authority.
 
 До выполнения этих условий target остаётся принятым контрактом, а не
 production-complete заявлением.

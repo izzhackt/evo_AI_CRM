@@ -51,6 +51,7 @@ EXPECTED_REQUIREMENTS = {
     "ACC": 25,
     "DEC": 20,
 }
+EXPECTED_OFFICIAL_EXTERNAL_LINKS = 17
 
 REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 WP_NS = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
@@ -156,9 +157,11 @@ def validate_markdown() -> dict[str, Any]:
         )
 
     external_links = sorted(set(re.findall(r"https://[^)\s]+", text)))
-    if len(external_links) != 8:
+    if len(external_links) != EXPECTED_OFFICIAL_EXTERNAL_LINKS:
         raise RuntimeError(
-            f"Expected 8 official external references, found {len(external_links)}"
+            "Expected "
+            f"{EXPECTED_OFFICIAL_EXTERNAL_LINKS} official external references, "
+            f"found {len(external_links)}"
         )
 
     return {
@@ -272,12 +275,14 @@ def validate_docx_accessibility() -> tuple[dict[str, Any], dict[str, Any]]:
             f"Heading hierarchy skips levels at: {heading_skips}",
         )
 
-    if len(external_targets) != 8:
+    if len(external_targets) != EXPECTED_OFFICIAL_EXTERNAL_LINKS:
         add_finding(
             findings,
             "medium",
             "external-link-count",
-            f"Expected 8 official external hyperlinks, found {len(external_targets)}",
+            "Expected "
+            f"{EXPECTED_OFFICIAL_EXTERNAL_LINKS} official external hyperlinks, "
+            f"found {len(external_targets)}",
         )
 
     counts = Counter(finding["severity"] for finding in findings)

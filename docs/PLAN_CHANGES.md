@@ -4176,3 +4176,132 @@ Validation impact:
   production services are not changed.
 - `real-provider-proof: not-required` for this docs-only amendment. Provider and
   production gates remain blocked/deferred until real authorized evidence.
+
+## 2026-08-09 - Reprioritize the MVP and authorize guarded inbound AI replies
+
+Block-ID: `EVO-MVP-AUTONOMOUS-INBOUND-PLAN-2026-08-09`
+
+Source: written owner request to curate the MVP from the local/GitHub sources
+of truth, preserve the accepted Claude Design frontend, research the viable
+WAHA/amoCRM/AI approaches before implementation, and approve autonomous AI
+sending under the recommended safeguards. Official WAHA, WhatsApp Business,
+Gemini and Supabase documentation is summarized in
+`docs/research/evo-mvp-waha-ai-memory-2026-08-09.md` and
+`docs/research/evo-mvp-autonomous-send-2026-08-09.md`, with the bounded amoCRM
+adapter decision supported by
+`docs/research/evo-mvp-amocrm-integration-2026-08-09.md`.
+
+Change type: material product scope, phase order, integration boundary,
+AI-send authority, API/schema acceptance and rollback amendment. This entry is
+append-only and supersedes conflicting draft-only/manual-send and fully
+deferred-amo wording in active plans, TZ and summary documents. Historical
+decisions remain in Git and earlier ADRs; ADR 0019 controls the new lane.
+
+Checkpoint freshness:
+
+- accepted `origin/main` is
+  `93f48b82785836e4ade92dd7c56d8653fdd9e2ea` with contiguous migrations
+  `001-059` and green exact-main CI run `31145596058`;
+- PR #132 merged the disabled-by-default, persist-before-process P5A WAHA
+  ingress;
+- PR #133 at the time of this amendment is draft. Its exact-head repository and
+  local Supabase evidence was green, but the independent controller rejected
+  plan freshness and the terminal handling of media-only inbound. That verdict
+  is authoritative; the green run does not waive either finding;
+- P4B is still preserved at branch
+  `izzhackt/evo-platform-p4b-mapping-approval`, SHA
+  `e53ba94954f147b295f596421a255591fa343ce8`. Its failed Auth/PostgREST gate is
+  non-evidence and mapping activation/writes remain deferred.
+
+Decision:
+
+- The existing root frontend from PRs #64, #71 and #72 remains the sole product
+  UI. Wire real repositories, auth, messaging and integrations behind it; do
+  not add a second Inbox CRM UI or copy Inbox funnels/deals/campaigns.
+- Reprioritize the thin MVP as: finish WAHA projection; available conversation
+  history and private media; ACK/delivery and true realtime; bounded read-mostly
+  amoCRM context; Platform-owned lead memory and approved pgvector retrieval;
+  real Gemini qualification/replies; controlled E2E; then independent P6/P7,
+  narrowed P8 and P10.
+- Preserve P4B mapping activation and writes. Resume a separate P4R adapter only
+  for account-specific reads of contact, lead, responsible manager, sales stage,
+  tasks and call/chat-record references. It must expose explicit stale/degraded
+  state, reconcile real provider identifiers and make no amoCRM mutation,
+  inferred handoff, hardcoded mapping, SQLite fallback or fake-success claim.
+- Gemini returns a structured RU/EN proposal only. It receives no WAHA send
+  capability. Deterministic EVO server code validates semantics and owns every
+  send decision.
+- Autonomous send is limited to a reply inside the WhatsApp 24-hour customer
+  service window after a real inbound message. Cold outbound, broadcasts,
+  autonomous follow-up/re-engagement and out-of-window free-form sends remain
+  prohibited.
+- Before autonomous send, the server must pass organization/session binding,
+  consent and opt-out, supported language, approved-knowledge/evidence,
+  risk/sensitivity, confidence, business-hours, cooldown/rate, staff takeover,
+  idempotency, WAHA `WORKING`, kill-switch and policy-version checks. Default
+  hours are 09:00-21:00 Asia/Bishkek until organization-specific configuration
+  is approved. Failure creates a durable human-review handoff.
+- Human takeover or manual outbound pauses autonomy immediately and durably.
+  Only authorized staff may resume it, with before/after audit.
+- Supabase owns durable conversation summaries, explicit lead facts,
+  qualification state, retrieval references, queue/outbox, AI proposal and
+  gate evidence, takeover state, send attempts, ACK progression and audit. Do
+  not create a filesystem/CLI agent per client; use a server Gemini adapter plus
+  Platform state and approved retrieval.
+- Valid media-only inbound must be stored, shown and kept actionable. Until an
+  approved media-understanding path exists it is handed to staff; it must not
+  be terminally consumed because text is absent.
+- Unknown delivery is never automatically retried. Duplicate prevention uses
+  persisted idempotency/outbox state, not model judgment.
+- Lead Agent, legacy webhook/session and rollback path remain deployed/frozen.
+  P9 remains removed; no retirement/deactivation is implied.
+
+P5B authority added by this amendment:
+
+- private bodyless `POST /api/internal/platform-messaging/waha/work`, invoked
+  only by a private scheduler;
+- `X-Evo-Worker-Request-Id` UUID, `X-Evo-Worker-Timestamp` Unix milliseconds,
+  `X-Evo-Worker-Hmac-Algorithm: sha256` and lowercase HMAC-SHA256 over
+  `<request-id>.<timestamp>`;
+- disabled-by-default server configuration; configured organization, exact
+  `evo-inbox` session, `waha:evo-inbox` account and verified inbound
+  `provider_webhook_process` work only;
+- service-only organization/session/provenance-bound claim/project/finish RPCs,
+  exact lease, bounded retry/manual-review disposition, and no finish on an
+  invalid repository result;
+- `sales_authority_source='platform_intake'` is intake authorization only, not
+  canonical amoCRM Sales ownership;
+- raw WAHA chat/message IDs stay in private append-only bindings; public rows
+  expose no phone-bearing provider IDs;
+- no provider call/send, amoCRM write, production migration or legacy cutover.
+  Rollback is flags off, code revert and forward-fix of additive schema; no
+  destructive down migration.
+
+Acceptance impact:
+
+- P5 must prove available history/media, persist-before-process, private
+  projection, ACK, true realtime, staff takeover and the structured
+  proposal/deterministic send-or-handoff path through the accepted frontend.
+- P4R must prove real read-only provider behavior using sanitized account data;
+  absent credentials/mappings remain `BLOCKED`, never mocked.
+- P8 may accept only the real receive/history/media → Platform → real read
+  context where available → structured proposal → governed send/handoff → ACK
+  and audit path. P4B writes/activation and unavailable provider portions remain
+  explicitly deferred.
+- P10 audits this amended scope, lists P4B deferred, Lead Agent retained and all
+  provider/production blockers; it must not claim the original full Platform is
+  production-complete.
+
+Validation impact:
+
+- This amendment changes docs, ADR and deterministic TZ/DOCX only. It performs
+  no runtime/schema/provider/customer-data/staging/production mutation.
+- Regenerate and structurally verify the DOCX, render and inspect every page,
+  run traceability/accessibility checks, `git diff --check`, scoped secret/PII
+  scans, exact-head CI and an independent SHA-bound launch-control review.
+- After controller merge and green exact-main CI, rebase PR #133, fix media-only
+  handling, rerun the complete local Supabase/browser/security gates and obtain
+  fresh exact-head evidence before it can become ready.
+- `real-provider-proof: not-required` for this docs-only amendment. Real WAHA,
+  amoCRM and Gemini acceptance remains blocked until credentials, sanitized
+  identities and explicit test/send/production authority exist.

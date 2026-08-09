@@ -205,13 +205,19 @@ capture_inbox_stack_fingerprint() {
 
   {
     while IFS= read -r resource_id; do
-      [[ -n "${resource_id}" ]] && printf 'container:%s\n' "${resource_id}"
+      if [[ -n "${resource_id}" ]]; then
+        printf 'container:%s\n' "${resource_id}"
+      fi
     done <<<"${container_ids}"
     while IFS= read -r resource_id; do
-      [[ -n "${resource_id}" ]] && printf 'volume:%s\n' "${resource_id}"
+      if [[ -n "${resource_id}" ]]; then
+        printf 'volume:%s\n' "${resource_id}"
+      fi
     done <<<"${volume_names}"
     while IFS= read -r resource_id; do
-      [[ -n "${resource_id}" ]] && printf 'network:%s\n' "${resource_id}"
+      if [[ -n "${resource_id}" ]]; then
+        printf 'network:%s\n' "${resource_id}"
+      fi
     done <<<"${network_ids}"
   } | LC_ALL=C sort >"${output_file}"
 }

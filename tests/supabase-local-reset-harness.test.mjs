@@ -484,6 +484,25 @@ test("cleanup preserves the exact EVO Inbox container, volume, and network ident
   assert.ok(fingerprintCall < lockCall);
 
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "evo-inbox-fingerprint-"));
+  const emptyFingerprint = spawnSync(
+    "bash",
+    [
+      "-c",
+      `
+set -Eeuo pipefail
+readonly INBOX_STACK_LABEL="com.supabase.cli.project=inbox"
+run_with_deadline() {
+  return 0
+}
+${capture}
+capture_inbox_stack_fingerprint "$1"
+[[ -f "$1" && ! -s "$1" ]]
+`,
+      "evo-inbox-empty-fingerprint-test",
+      join(temporaryDirectory, "empty.txt"),
+    ],
+    { encoding: "utf8" },
+  );
   const runComparison = (mode) =>
     spawnSync(
       "bash",
@@ -514,6 +533,8 @@ assert_inbox_stack_unchanged
     );
 
   try {
+    assert.equal(emptyFingerprint.status, 0, emptyFingerprint.stderr);
+
     const same = runComparison("same");
     assert.equal(same.status, 0, same.stderr);
 

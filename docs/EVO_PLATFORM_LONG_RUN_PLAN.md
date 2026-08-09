@@ -13,11 +13,13 @@ the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW7,
 P2R0-P2R4 and P4A are merged; PR #118 merged the P4B docs-only plan, PR #128
 merged the owner-authorized boundary correction that supersedes PR #119, and
 PRs #129-#130 merged the local-validation prerequisite and repair. PR #132
-merged the disabled-by-default WAHA persist-before-process ingress. Current
-`origin/main` is `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`, migrations are contiguous
-`001-059`, and exact-main CI `31310795550` is green. PR #133 is a draft P5B
-projection implementation until this amendment is independently merged and its
-media-only handling is corrected and re-proved.
+merged the disabled-by-default WAHA persist-before-process ingress, and PR #133
+merged the disabled-by-default P5B projection into the accepted `/whatsapp`
+data path. Current `origin/main` is
+`18e0e0855fda31cba1fa837d81b3a75cedd585e9`, migrations are contiguous
+`001-060`, and exact-main CI `31323907123` is green. The next P5 slice is
+available-history reconciliation; it does not inherit real-provider or
+production proof from P5A/P5B.
 
 P4B implementation is preserved, not merged, on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -93,11 +95,11 @@ this contract.
 As of the version date:
 
 - GitHub `main` checkpoint before this amendment is
-  `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`; PR #128 supersedes PR #119 as
+  `18e0e0855fda31cba1fa837d81b3a75cedd585e9`; PR #128 supersedes PR #119 as
   current product authority after corrective PRs #125-#127, PRs #129-#130
   merged the bounded local-validation repair, and PR #132 merged the P5A WAHA
-  ingress foundation;
-- exact-main CI run `31310795550` is green for Main CRM, EVO Inbox and EVO Lead
+  ingress foundation; PR #133 merged the P5B projection and migration 060;
+- exact-main CI run `31323907123` is green for Main CRM, EVO Inbox and EVO Lead
   Agent; Changed range is skipped on the push event as expected;
 - the preserved P4B branch passed focused tests, unit tests, lint, Next typegen,
   TypeScript and a production build. Its later full local Supabase run failed
@@ -399,7 +401,7 @@ deployment surfaces are sequential.
 | P2R3 | Stale-authority session clearing and exact local-proof ownership | Same-origin Route Handler clears rejected Supabase browser state; real connected-route regression; two physical-worktree local proofs | Plan PR #111 and implementation PR #112 merged; exact-main CI green |
 | P2R4 | Local Supabase startup/readiness prerequisite | Two-file harness repair and exact-main CI; later run outcomes remain scoped to their exact branch | Merged in PRs #129-#130; no provider or production proof |
 | P4/P4R | Canonical amoCRM integration | Preserve P4B activation/write checkpoint; prove bounded read-only contact/lead/responsible/stage/tasks/call-chat references through versioned mappings, reconciliation and fail-closed degradation | P4B writes/activation deferred; P4R reads resume only after messaging foundation |
-| P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real persist-before-process, queue/projection, available history/media, ACK, realtime, staff takeover and structured AI proposal with deterministic reply-only send gates; no legacy cutover | P5A merged in PR #132; P5B draft #133 blocked on this plan gate and media-only repair |
+| P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real persist-before-process, queue/projection, available history/media, ACK, realtime, staff takeover and structured AI proposal with deterministic reply-only send gates; no legacy cutover | P5A merged in PR #132; P5B merged in PR #133; available-history reconciliation is next |
 | P6 | amoCRM-independent Admissions, Portal, Documents, Finance and Notifications | Two-student isolation E2E and staff-to-portal workflows that do not infer sales identity/stage/handoff | Pending after P5 |
 | P7 | Security, reliability and operations | Threat model, load evidence, backup plus Storage restore, RPO/RTO and rollback rehearsal, accessibility | Pending after P6 |
 | P8 | Narrowed controlled release-evidence gate | Real executable P5-P7 plus proved P4R read evidence; P4B writes/activation and unavailable provider segments reported deferred; no production action | Pending after P7 |
@@ -810,8 +812,9 @@ outbound, autonomous follow-ups and re-engagement remain excluded. Do not
 switch the old webhook/session or enable autonomous sending without controlled
 proof and separate production authorization.
 
-P5 is decomposed into small launch-control blocks. P5A is merged. P5B is the
-next code gate and is pre-authorized only by the following exact contract:
+P5 is decomposed into small launch-control blocks. P5A and P5B are merged.
+P5B was accepted under the following exact contract, which remains its runtime
+boundary:
 
 - private route `POST /api/internal/platform-messaging/waha/work`; it accepts
   no request body and is invoked only by a private scheduler;
@@ -921,15 +924,25 @@ For each block:
    Block-ID, reviewed head SHA, plan SHA, decision-log SHA, verdict,
    commands/results and provider boundary;
 8. if the head changes, repeat validation and review for the new SHA;
-9. the executor never merges its own PR. The independent merge-controller may
-   merge only an approved exact head; then GitHub `main` CI must pass before the
+9. after a fresh independent read-only exact-head approval and all required
+   exact-head CI jobs pass, the executor may merge that same SHA directly using
+   a head-matching merge command; GitHub exact-main push CI must pass before the
    next implementation PR opens.
 
-Self-review and a green CI badge alone are insufficient.
+The owner removed the scheduled Launch Auditor and separate merge-controller
+from the active workflow. Do not wait for or recreate either automation.
+Self-review and a green CI badge alone remain insufficient: the independent
+reviewer is still a separate mandatory gate, and any head change invalidates
+both its verdict and the previous exact-head CI evidence.
 
 ## 7. Validation baseline
 
 Use Node 22.23.1 and project-local package managers.
+
+The full Codex Security workflow is not a required gate for this run. Focused
+authorization/RLS/security tests, scoped secret/PII scans, dependency audits and
+the independent exact-head review remain required in proportion to the changed
+boundary.
 
 ### Root application
 

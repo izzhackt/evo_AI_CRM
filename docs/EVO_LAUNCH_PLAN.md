@@ -1,14 +1,15 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-mvp-autonomous-inbound-plan` is active.
+Status: `/goal-evo-platform-mvp-autonomous-inbound-plan` is active under the
+owner-authorized direct exact-head merge workflow.
 Historical P1, reusable greenfield P2A-P2H, BW0, P3A-P3C, BW1-BW7,
 P2R0-P2R4 and P4A are merged. PR #118 merged the P4B docs-only contract, PR
 #128 merged the owner-authorized correction that keeps Student Profile document
 automation outside `evo_AI_CRM`, and PRs #129-#130 merged the local-validation
-prerequisite and repair, and PR #132 merged the disabled-by-default P5A WAHA
-ingress. Current `origin/main` is
-`8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`, migrations are contiguous
-`001-059`, and exact-main CI run `31310795550` is green for Main CRM, EVO Inbox
+prerequisite and repair, PR #132 merged the disabled-by-default P5A WAHA
+ingress, and PR #133 merged the disabled-by-default P5B projection. Current
+`origin/main` is `18e0e0855fda31cba1fa837d81b3a75cedd585e9`, migrations are contiguous
+`001-060`, and exact-main CI run `31323907123` is green for Main CRM, EVO Inbox
 and EVO Lead Agent; Changed range is skipped on the push event as expected.
 
 P4B implementation is preserved on remote branch
@@ -19,8 +20,8 @@ failed closed in the real Auth/PostgREST hook before Playwright and is
 failed/non-evidence. The owner keeps P4B activation/writes deferred but resumes
 a bounded read-mostly P4R lane after the messaging foundation. P9 remains
 removed. Lead Agent, the legacy webhook/session path and rollback path remain
-deployed/frozen. PR #133 is draft until this amendment is merged and its
-media-only handling is fixed and re-proved. This amendment authorizes no
+deployed/frozen. P5B is merged without real-provider proof; available-history
+reconciliation is the next bounded P5 slice. This amendment authorizes no
 application code, migration, provider action, customer-data action or
 production mutation. Updated 2026-08-09 in the workspace timezone.
 
@@ -93,10 +94,10 @@ checkpoint is:
 - PR #119 is immutable merged history but PR #128 supersedes it as current
   product authority. PRs #120, #122 and #124 were removed by reviewed revert
   PRs #127, #126 and #125. PRs #129-#130 then merged the bounded local-validation
-  plan and repair. PR #132 merged the disabled-by-default P5A WAHA ingress.
-  Current `origin/main` is
-  `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`; exact-main CI
-  `31310795550` is green, and migrations end at `059`.
+  plan and repair. PR #132 merged the disabled-by-default P5A WAHA ingress, and
+  PR #133 merged the disabled-by-default P5B projection. Current `origin/main`
+  is `18e0e0855fda31cba1fa837d81b3a75cedd585e9`; exact-main CI
+  `31323907123` is green, and migrations end at `060`.
 - P4B implementation is preserved on remote branch
   `izzhackt/evo-platform-p4b-mapping-approval` at
   `e53ba94954f147b295f596421a255591fa343ce8`, with no implementation PR.
@@ -139,15 +140,16 @@ checkpoint is:
 
 ### Immediate execution order
 
-0. Merge this docs-only scope amendment through exact-head independent review,
-   all four exact-head CI jobs and the independent controller.
+0. Merge this docs-only governance amendment only after fresh exact-head
+   independent review and all required exact-head CI jobs. The executor may
+   then merge the reviewed SHA directly; require green exact-main push CI.
 1. Preserve P4B at
    `izzhackt/evo-platform-p4b-mapping-approval` / `e53ba94954f147b295f596421a255591fa343ce8`.
    Keep mapping activation and writes deferred. After the messaging foundation,
    open a separate P4R block for bounded read-only contact/lead/responsible/
    stage/tasks/call-chat context with real provider evidence.
-2. Complete P5 behind the accepted frontend: private P5B projection, available
-   history/media, ACK, true realtime, staff takeover, Platform memory/approved
+2. Continue P5 behind the accepted frontend: available history/media, ACK,
+   true realtime, staff takeover, Platform memory/approved
    retrieval and deterministic reply-only AI policy. Do not mutate the old
    production webhook/session or enable production sending.
 3. Continue P6 and P7 on independent Platform case/document/finance/
@@ -163,10 +165,11 @@ checkpoint is:
 
 ### P5B authority and rollback contract
 
-PR #133 remains draft until this docs-only gate is controller-merged and the
-implementation is rebased, corrected and re-proved. Its authorized scope is
-only a disabled-by-default, amoCRM-independent projection worker behind the
-accepted `/whatsapp` UI:
+PR #133 merged as `18e0e0855fda31cba1fa837d81b3a75cedd585e9`
+after its corrected exact head passed independent review, exact-head CI and the
+full local Supabase/browser gate. Its accepted scope remains only a
+disabled-by-default, amoCRM-independent projection worker behind the accepted
+`/whatsapp` UI:
 
 - private bodyless `POST /api/internal/platform-messaging/waha/work`, called by
   a private scheduler with UUID request ID, Unix-millisecond timestamp,
@@ -318,10 +321,14 @@ are defined in `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`.
 - P10: authorized-scope evidence audit, with P4R read evidence, P4B activation/
   writes deferred and Lead Agent retained; not a full-Platform completion claim.
 
-Only one implementation PR may be open. The executor never merges its own PR;
-the independent merge-controller may merge only an approved exact head. No
-production deployment, migration, DNS, WAHA session mutation, live customer
-send, real amoCRM mutation or service deletion is authorized by this plan.
+Only one implementation PR may be open. The owner removed the scheduled Launch
+Auditor and separate merge-controller. After a separate independent read-only
+reviewer approves the exact head and every required exact-head CI job passes,
+the executor may directly merge that same SHA with a head-matching merge
+command. Green exact-main push CI is required before the next implementation
+PR. No production deployment, migration, DNS, WAHA session mutation, live
+customer send, real amoCRM mutation or service deletion is authorized by this
+plan.
 
 ### Completed P1D contract: current-root WhatsApp object scope
 
@@ -584,6 +591,11 @@ long-run contract control.
 - Real production Compose/Caddy rendering without printing secret values.
 - Restart/persistence and isolated restore evidence where applicable.
 - Separate independent reviewer approval before each merge.
+- No scheduled Launch Auditor or separate merge-controller wait. Direct merge
+  is allowed only for the independently approved SHA after exact-head CI, and
+  exact-main push CI must pass before continuing.
+- The full Codex Security workflow is not required for this run; focused
+  authorization/RLS/security tests and scoped secret/PII checks remain gates.
 
 ### Stop conditions
 

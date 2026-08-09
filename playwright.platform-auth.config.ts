@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
+const projectRoot = __dirname;
+
 type Identity = Readonly<{ email: string; password: string }>;
 type Fixture = Readonly<{
   apiUrl: string;
@@ -37,6 +39,47 @@ if (
   throw new Error("EVO_P5B_BROWSER_PROOF must be 0 or 1");
 }
 const p5bBrowserProof = p5bBrowserProofFlag === "1";
+const platformAuthDevRunKey = process.env.EVO_PLATFORM_AUTH_DEV_RUN_KEY;
+const platformAuthBrowserPartition =
+  process.env.EVO_PLATFORM_AUTH_BROWSER_PARTITION;
+const platformAuthTsconfigPath =
+  process.env.EVO_PLATFORM_AUTH_TSCONFIG_PATH;
+const platformAuthTsconfigAbsolutePath = platformAuthTsconfigPath
+  ? path.resolve(projectRoot, platformAuthTsconfigPath)
+  : undefined;
+if (
+  !platformAuthDevRunKey ||
+  !/^[A-Za-z0-9_-]{1,96}$/.test(platformAuthDevRunKey)
+) {
+  throw new Error("EVO_PLATFORM_AUTH_DEV_RUN_KEY is invalid");
+}
+if (
+  !platformAuthBrowserPartition ||
+  !["provider", "p5b", "remaining"].includes(
+    platformAuthBrowserPartition,
+  )
+) {
+  throw new Error("EVO_PLATFORM_AUTH_BROWSER_PARTITION is invalid");
+}
+if (
+  (platformAuthBrowserPartition === "p5b") !== p5bBrowserProof
+) {
+  throw new Error(
+    "EVO_P5B_BROWSER_PROOF must be enabled only for the p5b browser partition",
+  );
+}
+if (
+  !platformAuthTsconfigPath ||
+  path.isAbsolute(platformAuthTsconfigPath) ||
+  !platformAuthTsconfigAbsolutePath ||
+  path.dirname(platformAuthTsconfigAbsolutePath) !==
+    path.join(projectRoot, ".next", "platform-auth", platformAuthDevRunKey) ||
+  path.basename(platformAuthTsconfigPath) !==
+    "tsconfig-platform-auth-" + platformAuthBrowserPartition + ".json" ||
+  (statSync(platformAuthTsconfigAbsolutePath).mode & 0o777) !== 0o600
+) {
+  throw new Error("EVO_PLATFORM_AUTH_TSCONFIG_PATH is invalid");
+}
 if (
   !/^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/.test(fixture.apiUrl) ||
   !fixture.publishableKey.startsWith("sb_publishable_")
@@ -86,6 +129,9 @@ export default defineConfig({
     reuseExistingServer: false,
     env: {
       ...process.env,
+      EVO_PLATFORM_AUTH_DEV_RUN_KEY: platformAuthDevRunKey,
+      EVO_PLATFORM_AUTH_BROWSER_PARTITION: platformAuthBrowserPartition,
+      EVO_PLATFORM_AUTH_TSCONFIG_PATH: platformAuthTsconfigPath,
       NEXT_PUBLIC_SUPABASE_URL: fixture.apiUrl,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: fixture.publishableKey,
       EVO_UI_CONTRACT_FIXTURES: "0",

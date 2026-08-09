@@ -4,6 +4,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,34 +18,51 @@ const platformAuthSpec = readFileSync(
   new URL("./platform-auth/platform-auth.spec.ts", import.meta.url),
   "utf8",
 );
+const platformAuthConfig = readFileSync(
+  new URL("../playwright.platform-auth.config.ts", import.meta.url),
+  "utf8",
+);
+const nextConfig = readFileSync(
+  new URL("../next.config.ts", import.meta.url),
+  "utf8",
+);
+const ciWorkflow = readFileSync(
+  new URL("../.github/workflows/evo-platform-ci.yml", import.meta.url),
+  "utf8",
+);
 const executableLines = harness
   .split("\n")
   .filter((line) => !line.trimStart().startsWith("#"))
   .join("\n");
 
 const extractResetRecoverySource = () => {
+  const migrationHistoryStart = harness.indexOf(
+    "assert_local_migration_history() {",
+  );
   const detectorStart = harness.indexOf(
-    "reset_outputs_have_known_storage_gateway_failure() {",
+    "reset_reached_post_migration_restart_failure() {",
   );
   const reloadStart = harness.indexOf("reload_exact_local_kong() {");
   const recoverStart = harness.indexOf(
-    "recover_known_reset_storage_gateway_failure() {",
+    "recover_post_migration_restart_failure() {",
   );
-  const historyStart = harness.indexOf(
+  const runtimeStart = harness.indexOf(
     '\n[[ -x "${SUPABASE_CLI}" ]]',
     recoverStart,
   );
 
+  assert.notEqual(migrationHistoryStart, -1);
   assert.notEqual(detectorStart, -1);
   assert.notEqual(reloadStart, -1);
   assert.notEqual(recoverStart, -1);
-  assert.notEqual(historyStart, -1);
+  assert.notEqual(runtimeStart, -1);
 
   return {
+    migrationHistory: harness.slice(migrationHistoryStart, detectorStart),
     detector: harness.slice(detectorStart, reloadStart),
     reload: harness.slice(reloadStart, recoverStart),
-    recover: harness.slice(recoverStart, historyStart),
-    combined: harness.slice(detectorStart, historyStart),
+    recover: harness.slice(recoverStart, runtimeStart),
+    combined: harness.slice(detectorStart, runtimeStart),
   };
 };
 
@@ -107,7 +125,7 @@ test("local Supabase start hands health proof to the explicit bounded readiness 
   const startPhase = harness.slice(startIndex, resetIndex);
   const readinessStart = harness.indexOf("wait_for_local_stack_readiness() {");
   const readinessEnd = harness.indexOf(
-    "reset_outputs_have_known_storage_gateway_failure() {",
+    "assert_local_migration_history() {",
     readinessStart,
   );
   const readiness = harness.slice(readinessStart, readinessEnd);
@@ -142,7 +160,7 @@ test("local Supabase start hands health proof to the explicit bounded readiness 
   );
 });
 
-test("both clean resets use one bounded cold-OrbStack attempt", () => {
+test("the isolated runtime gates use two bounded pre-browser resets", () => {
   const boundedResetPattern =
     /run_with_deadline 600000 "\$\{SUPABASE_CLI\}" \\\n+\s+--workdir "\$\{REPO_ROOT\}" \\\n+\s+--output-format json \\\n+\s+db reset \\\n+/g;
 
@@ -160,11 +178,15 @@ test("every long-running child gate has a process-group deadline", () => {
   );
   assert.match(
     executableLines,
-    /run_with_deadline 240000 env \\\n\s+EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
+    /run_with_deadline 240000 env \\\n\s+EVO_P5B_BROWSER_PROOF=0[\s\S]*?EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
   );
   assert.match(
     executableLines,
-    /run_with_deadline 660000 env \\\n\s+EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
+    /run_with_deadline 660000 env \\\n\s+EVO_P5B_BROWSER_PROOF=0[\s\S]*?EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
+  );
+  assert.match(
+    executableLines,
+    /run_with_deadline 240000 env \\\n\s+EVO_P5B_BROWSER_PROOF=1[\s\S]*?EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
   );
   assert.match(
     executableLines,
@@ -176,7 +198,31 @@ test("every long-running child gate has a process-group deadline", () => {
   );
 });
 
-test("provider-gated browser tests run first without skipping the remaining suite", () => {
+test("Main CRM CI installs the locked Chromium runtime before the full browser gate", () => {
+  const mainCrmJobStart = ciWorkflow.indexOf("\n  crm:\n");
+  const inboxJobStart = ciWorkflow.indexOf("\n  inbox:\n", mainCrmJobStart);
+
+  assert.notEqual(mainCrmJobStart, -1);
+  assert.notEqual(inboxJobStart, -1);
+
+  const mainCrmJob = ciWorkflow.slice(mainCrmJobStart, inboxJobStart);
+  const dependencyInstall = mainCrmJob.indexOf("run: npm ci");
+  const securityGate = mainCrmJob.indexOf("run: npm run test:security");
+  const browserInstall = mainCrmJob.indexOf(
+    "node_modules/.bin/playwright install --with-deps chromium",
+  );
+  const fullGate = mainCrmJob.indexOf("run: npm run test:supabase:local");
+
+  assert.notEqual(dependencyInstall, -1);
+  assert.notEqual(securityGate, -1);
+  assert.notEqual(browserInstall, -1);
+  assert.notEqual(fullGate, -1);
+  assert.ok(dependencyInstall < securityGate);
+  assert.ok(securityGate < browserInstall);
+  assert.ok(browserInstall < fullGate);
+});
+
+test("provider and P5B browser partitions run before the remaining suite", () => {
   const expectedTitles = [
     "RU and EN draft requests work while uncertain language stops for manual selection",
     "admin reads the persisted local P3C workflow without proving providers",
@@ -186,6 +232,8 @@ test("provider-gated browser tests run first without skipping the remaining suit
     "staff reviews an AI draft then authorizes the edited final text",
   ];
   const titles = `readonly PROVIDER_GATED_BROWSER_TESTS="${expectedTitles.join("|")}"`;
+  const p5bTitle =
+    "P5B projects verified inbound WAHA work into the accepted conversation UI";
   const providerPass = harness.indexOf(
     "if ! run_with_deadline 240000 env \\",
   );
@@ -193,9 +241,17 @@ test("provider-gated browser tests run first without skipping the remaining suit
     'fail "The exact-worktree Platform browser server did not stop between browser partitions."',
     providerPass,
   );
+  const p5bPass = harness.indexOf(
+    "if ! run_with_deadline 240000 env \\",
+    betweenPassCleanup,
+  );
+  const p5bCleanup = harness.indexOf(
+    'fail "The exact-worktree Platform browser server did not stop after the P5B browser partition."',
+    p5bPass,
+  );
   const remainingPass = harness.indexOf(
     "if ! run_with_deadline 660000 env \\",
-    betweenPassCleanup,
+    p5bCleanup,
   );
   const finalCleanup = harness.indexOf(
     'fail "The exact-worktree Platform browser server did not stop after the browser gate."',
@@ -207,22 +263,62 @@ test("provider-gated browser tests run first without skipping the remaining suit
   for (const title of expectedTitles) {
     assert.equal(platformAuthSpec.split(`test("${title}"`).length - 1, 1);
   }
+  assert.ok(
+    harness.includes(`readonly P5B_BROWSER_TEST="${p5bTitle}"`),
+  );
+  assert.equal(platformAuthSpec.split(`test("${p5bTitle}"`).length - 1, 1);
   assert.notEqual(providerPass, -1);
   assert.notEqual(betweenPassCleanup, -1);
+  assert.notEqual(p5bPass, -1);
+  assert.notEqual(p5bCleanup, -1);
   assert.notEqual(remainingPass, -1);
   assert.notEqual(finalCleanup, -1);
   assert.ok(providerPass < betweenPassCleanup);
-  assert.ok(betweenPassCleanup < remainingPass);
+  assert.ok(betweenPassCleanup < p5bPass);
+  assert.ok(p5bPass < p5bCleanup);
+  assert.ok(p5bCleanup < remainingPass);
   assert.ok(remainingPass < finalCleanup);
   assert.match(
     harness.slice(providerPass, betweenPassCleanup),
-    /--grep "\$\{PROVIDER_GATED_BROWSER_TESTS\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*--grep "\$\{PROVIDER_GATED_BROWSER_TESTS\}"/,
+  );
+  assert.match(
+    harness.slice(p5bPass, p5bCleanup),
+    /EVO_P5B_BROWSER_PROOF=1[\s\S]*--grep "\$\{P5B_BROWSER_TEST\}"/,
   );
   assert.match(
     harness.slice(remainingPass, finalCleanup),
-    /--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}"/,
+  );
+  assert.equal(
+    harness.slice(providerPass, finalCleanup).match(/EVO_P5B_BROWSER_PROOF=1/g)
+      ?.length,
+    1,
   );
   assert.doesNotMatch(executableLines, /run_with_deadline 900000 env/);
+});
+
+test("empty-queue proof is reset before Auth, Storage, and terminal browser validation", () => {
+  const storageGate = harness.indexOf(
+    '"${REPO_ROOT}/scripts/test-p2h-storage-api.mjs"',
+  );
+  const queueGate = harness.indexOf(
+    '"${REPO_ROOT}/scripts/test-p2g-queues-runtime.sh"',
+  );
+  const authGate = harness.indexOf(
+    '"${REPO_ROOT}/scripts/test-supabase-auth-hook.mjs"',
+  );
+  const browserGate = harness.indexOf(
+    "EVO_PLATFORM_AUTH_BROWSER_PARTITION=provider",
+  );
+  const postQueueReset = harness.indexOf("post-queue-reset.json");
+
+  assert.ok(queueGate > 0);
+  assert.ok(postQueueReset > queueGate);
+  assert.ok(authGate > postQueueReset);
+  assert.ok(storageGate > authGate);
+  assert.ok(browserGate > storageGate);
+  assert.doesNotMatch(harness, /post-browser-reset/);
 });
 
 test("browser health refresh is exact-local and preserves Org A AI negative proof", () => {
@@ -416,6 +512,25 @@ test("cleanup preserves the exact EVO Inbox container, volume, and network ident
   assert.ok(fingerprintCall < lockCall);
 
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "evo-inbox-fingerprint-"));
+  const emptyFingerprint = spawnSync(
+    "bash",
+    [
+      "-c",
+      `
+set -Eeuo pipefail
+readonly INBOX_STACK_LABEL="com.supabase.cli.project=inbox"
+run_with_deadline() {
+  return 0
+}
+${capture}
+capture_inbox_stack_fingerprint "$1"
+[[ -f "$1" && ! -s "$1" ]]
+`,
+      "evo-inbox-empty-fingerprint-test",
+      join(temporaryDirectory, "empty.txt"),
+    ],
+    { encoding: "utf8" },
+  );
   const runComparison = (mode) =>
     spawnSync(
       "bash",
@@ -446,6 +561,8 @@ assert_inbox_stack_unchanged
     );
 
   try {
+    assert.equal(emptyFingerprint.status, 0, emptyFingerprint.stderr);
+
     const same = runComparison("same");
     assert.equal(same.status, 0, same.stderr);
 
@@ -476,8 +593,9 @@ test("Supabase mutation and cleanup commands stay local-only and unlinked", () =
   );
 });
 
-test("known post-reset Storage 502 recovery stays exact-project and bounded", () => {
-  const { detector, reload, recover } = extractResetRecoverySource();
+test("post-migration reset recovery stays exact-project and proves parity", () => {
+  const { migrationHistory, detector, reload, recover } =
+    extractResetRecoverySource();
 
   assert.match(
     harness,
@@ -488,14 +606,12 @@ test("known post-reset Storage 502 recovery stays exact-project and bounded", ()
     /readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"/,
   );
   assert.match(detector, /grep -Fq "Restarting containers"/);
-  assert.match(
-    detector,
-    /grep -Fq "\$\{KNOWN_STORAGE_GATEWAY_502_STATUS\}" "\$\{result_file\}"/,
-  );
-  assert.match(
-    detector,
-    /grep -Fq "\$\{KNOWN_STORAGE_GATEWAY_502_MESSAGE\}" "\$\{result_file\}"/,
-  );
+  assert.match(detector, /last_nonempty_line/);
+  assert.match(detector, /KNOWN_STORAGE_GATEWAY_502_STATUS/);
+  assert.match(detector, /KNOWN_STORAGE_GATEWAY_502_MESSAGE/);
+  assert.match(migrationHistory, /migration list \\\n+\s+--local/);
+  assert.match(migrationHistory, /\["canonical files", local\]/);
+  assert.match(migrationHistory, /\["applied local database", applied\]/);
   assert.equal(
     reload.match(/index \.Config\.Labels "com\.supabase\.cli\.project"/g)
       ?.length,
@@ -516,11 +632,67 @@ test("known post-reset Storage 502 recovery stays exact-project and bounded", ()
   assert.doesNotMatch(reload, /docker restart[^\n]*\$\{[A-Z_]*CONTAINERS?\[@\]\}/);
   assert.match(
     recover,
-    /reset_outputs_have_known_storage_gateway_failure "\$\{progress_log\}" "\$\{result_file\}"[\s\S]*reload_exact_local_kong[\s\S]*wait_for_local_stack_readiness/,
+    /reset_reached_post_migration_restart_failure "\$\{progress_log\}"[\s\S]*reload_exact_local_kong[\s\S]*wait_for_local_stack_readiness[\s\S]*assert_local_migration_history recovery/,
   );
 });
 
-test("Storage 502 recovery reloads or restarts only the owned Kong container", () => {
+test("post-migration recovery rejects unrelated errors after restart", () => {
+  const { detector } = extractResetRecoverySource();
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "evo-reset-detector-"));
+  const runDetector = (name, contents) => {
+    const progressLog = join(temporaryDirectory, `${name}.log`);
+    writeFileSync(progressLog, contents, { mode: 0o600 });
+    return spawnSync(
+      "bash",
+      [
+        "-c",
+        `
+set -Eeuo pipefail
+readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"
+readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"
+${detector}
+reset_reached_post_migration_restart_failure "$1"
+`,
+        "bash",
+        progressLog,
+      ],
+      { encoding: "utf8" },
+    );
+  };
+
+  try {
+    assert.equal(
+      runDetector("stalled", "Applying migrations\nRestarting containers...\n")
+        .status,
+      0,
+    );
+    assert.equal(
+      runDetector(
+        "known-502",
+        "Restarting containers...\nError status 502:\nAn invalid response was received from the upstream server\n",
+      ).status,
+      0,
+    );
+    assert.notEqual(
+      runDetector(
+        "unrelated",
+        "Restarting containers...\nERROR: migration checksum mismatch\n",
+      ).status,
+      0,
+    );
+    assert.notEqual(
+      runDetector(
+        "known-502-then-unrelated",
+        "Restarting containers...\nError status 502:\nAn invalid response was received from the upstream server\nERROR: later unrelated failure\n",
+      ).status,
+      0,
+    );
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("post-migration recovery reloads or restarts only owned Kong", () => {
   const { combined } = extractResetRecoverySource();
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "evo-kong-recovery-"));
 
@@ -536,8 +708,6 @@ readonly TEMP_DIR=$1
 readonly MODE=$2
 readonly SUPABASE_PROJECT_ID="evo-platform-local"
 readonly KONG_CONTAINER="supabase_kong_evo-platform-local"
-readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"
-readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"
 readonly COMMAND_LOG="\${TEMP_DIR}/commands-\${MODE}.log"
 : >"\${COMMAND_LOG}"
 
@@ -565,41 +735,21 @@ run_with_deadline() {
 }
 
 wait_for_local_stack_readiness() {
-  return 0
+  [[ \${MODE} != readiness-failure ]]
+}
+
+assert_local_migration_history() {
+  [[ \${MODE} != parity-failure ]]
 }
 
 ${combined}
 
 readonly RESET_LOG="\${TEMP_DIR}/reset-\${MODE}.log"
-readonly RESET_RESULT="\${TEMP_DIR}/reset-\${MODE}.json"
 printf 'Restarting containers...\\n' >"\${RESET_LOG}"
-printf '{"_tag":"Error","error":{"code":"UNKNOWN","message":"Error status 502: {\\n  \\"message\\":\\"%s\\"\\n}"}}\\n' \
-  "\${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" >"\${RESET_RESULT}"
 
 case "\${MODE}" in
   missing-restart)
     printf 'Recreating database...\\n' >"\${RESET_LOG}"
-    ;;
-  missing-status)
-    printf '{"_tag":"Error","error":{"message":"%s"}}\\n' \
-      "\${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" >"\${RESET_RESULT}"
-    ;;
-  missing-message)
-    printf '{"_tag":"Error","error":{"message":"Error status 502: unrelated upstream failure"}}\\n' \
-      >"\${RESET_RESULT}"
-    ;;
-  stderr-only)
-    printf 'Restarting containers...\\n%s %s\\n' \
-      "\${KNOWN_STORAGE_GATEWAY_502_STATUS}" \
-      "\${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" >"\${RESET_LOG}"
-    printf '{"_tag":"Error","error":{"message":"unrelated failure"}}\\n' \
-      >"\${RESET_RESULT}"
-    ;;
-  mixed-source)
-    printf 'Restarting containers...\\n%s\\n' \
-      "\${KNOWN_STORAGE_GATEWAY_502_STATUS}" >"\${RESET_LOG}"
-    printf '{"_tag":"Error","error":{"message":"%s"}}\\n' \
-      "\${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" >"\${RESET_RESULT}"
     ;;
 esac
 
@@ -607,12 +757,12 @@ if [[ \${MODE} == foreign ]]; then
   if reload_exact_local_kong; then
     exit 90
   fi
-elif [[ \${MODE} == missing-* || \${MODE} == stderr-only || \${MODE} == mixed-source ]]; then
-  if recover_known_reset_storage_gateway_failure "\${RESET_LOG}" "\${RESET_RESULT}"; then
+elif [[ \${MODE} == missing-restart || \${MODE} == readiness-failure || \${MODE} == parity-failure ]]; then
+  if recover_post_migration_restart_failure "\${RESET_LOG}"; then
     exit 91
   fi
 else
-  recover_known_reset_storage_gateway_failure "\${RESET_LOG}" "\${RESET_RESULT}"
+  recover_post_migration_restart_failure "\${RESET_LOG}"
 fi
 `,
         "evo-reset-recovery-test",
@@ -649,49 +799,125 @@ fi
     assert.match(foreignCommands, /docker inspect/);
     assert.doesNotMatch(foreignCommands, /docker (?:exec|restart)/);
 
-    for (const mode of [
-      "missing-restart",
-      "missing-status",
-      "missing-message",
-      "stderr-only",
-      "mixed-source",
-    ]) {
-      assert.equal(runMode(mode), "", mode);
+    assert.equal(runMode("missing-restart"), "");
+    for (const mode of ["readiness-failure", "parity-failure"]) {
+      const commands = runMode(mode);
+      assert.match(commands, /docker inspect/, mode);
+      assert.match(
+        commands,
+        /docker exec supabase_kong_evo-platform-local kong reload/,
+        mode,
+      );
+      assert.doesNotMatch(commands, /docker restart/, mode);
     }
   } finally {
     rmSync(temporaryDirectory, { recursive: true, force: true });
   }
 });
 
-test("both reset phases recover only the classified Storage gateway failure", () => {
-  for (const [logName, resultName] of [
-    ["reset.log", "reset.json"],
-    ["post-browser-reset.log", "post-browser-reset.json"],
-  ]) {
-    assert.match(
-      harness,
-      new RegExp(
-        `reset_outputs_have_known_storage_gateway_failure[\\s\\S]*"\\$\\{TEMP_DIR\\}/${logName.replaceAll(".", "\\.")}" "\\$\\{TEMP_DIR\\}/${resultName.replaceAll(".", "\\.")}"[\\s\\S]*recover_known_reset_storage_gateway_failure[\\s\\S]*"\\$\\{TEMP_DIR\\}/${logName.replaceAll(".", "\\.")}" "\\$\\{TEMP_DIR\\}/${resultName.replaceAll(".", "\\.")}"`,
-      ),
-      logName,
-    );
-  }
+test("both reset phases use only proved post-migration recovery", () => {
+  assert.match(
+    harness,
+    /reset_reached_post_migration_restart_failure[\s\S]*"\$\{TEMP_DIR\}\/reset\.log"[\s\S]*recover_post_migration_restart_failure[\s\S]*"\$\{TEMP_DIR\}\/reset\.log"/,
+  );
+  assert.match(
+    harness,
+    /reset_reached_post_migration_restart_failure[\s\S]*"\$\{TEMP_DIR\}\/post-queue-reset\.log"[\s\S]*recover_post_migration_restart_failure[\s\S]*"\$\{TEMP_DIR\}\/post-queue-reset\.log"/,
+  );
 
-  for (const retryArtifact of [
-    "reset-retry.json",
-    "reset-retry.log",
-    "post-browser-reset-retry.json",
-    "post-browser-reset-retry.log",
-  ]) {
+  for (const retryArtifact of ["reset-retry.json", "reset-retry.log"]) {
     assert.doesNotMatch(harness, new RegExp(retryArtifact.replaceAll(".", "\\.")));
   }
 
   assert.match(
     harness,
-    /Initial disposable Supabase reset failed without a classified transient recovery path\./,
+    /Initial disposable Supabase reset failed before the proved post-migration recovery boundary\./,
   );
   assert.match(
     harness,
-    /Post-browser disposable Supabase reset failed without a classified transient recovery path\./,
+    /Post-queue disposable Supabase reset failed before the proved post-migration recovery boundary\./,
   );
+  assert.doesNotMatch(harness, /Post-browser disposable Supabase reset/);
+});
+
+test("browser partitions isolate Next dev artifacts by disposable run and partition", () => {
+  assert.match(
+    harness,
+    /readonly BROWSER_BUILD_RUN_KEY=/,
+  );
+  for (const partition of ["provider", "p5b", "remaining"]) {
+    assert.match(
+      harness,
+      new RegExp(`EVO_PLATFORM_AUTH_BROWSER_PARTITION=${partition}`),
+      partition,
+    );
+  }
+  assert.match(
+    harness,
+    /\.next\/platform-auth\/\$\{BROWSER_BUILD_RUN_KEY\}/,
+  );
+  assert.match(
+    platformAuthConfig,
+    /EVO_PLATFORM_AUTH_DEV_RUN_KEY/,
+  );
+  assert.match(
+    platformAuthConfig,
+    /EVO_PLATFORM_AUTH_BROWSER_PARTITION/,
+  );
+  assert.match(
+    nextConfig,
+    /\.next\/platform-auth\/\$\{platformAuthDevRunKey\}/,
+  );
+  assert.match(nextConfig, /\{ distDir: platformAuthDistDir \}/);
+});
+
+test("browser partitions keep Next type includes out of the tracked root tsconfig", () => {
+  assert.match(harness, /prepare_platform_auth_tsconfig\(\)/);
+  assert.match(
+    harness,
+    /extends: path\.relative\(path\.dirname\(outputPath\), rootTsconfig\)/,
+  );
+  for (const partition of ["provider", "p5b", "remaining"]) {
+    assert.match(
+      harness,
+      new RegExp(
+        'EVO_PLATFORM_AUTH_TSCONFIG_PATH="\\$\\{PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE\\}/tsconfig-platform-auth-' +
+          partition +
+          '\\.json"',
+      ),
+      partition,
+    );
+  }
+  assert.match(platformAuthConfig, /EVO_PLATFORM_AUTH_TSCONFIG_PATH/);
+  assert.match(
+    platformAuthConfig,
+    /path\.resolve\(projectRoot, platformAuthTsconfigPath\)/,
+  );
+  assert.match(
+    platformAuthConfig,
+    /path\.join\(projectRoot, "\.next", "platform-auth", platformAuthDevRunKey\)/,
+  );
+  assert.match(nextConfig, /path\.isAbsolute\(platformAuthTsconfigPath\)/);
+  assert.match(
+    nextConfig,
+    /typescript:[\s\S]*tsconfigPath: platformAuthTsconfigPath/,
+  );
+});
+
+test("post-migration reset recovery proves parity at a narrowly classified boundary", () => {
+  assert.match(
+    harness,
+    /reset_reached_post_migration_restart_failure\(\)/,
+  );
+  assert.match(
+    harness,
+    /assert_local_migration_history\(\)/,
+  );
+  assert.match(
+    harness,
+    /recover_post_migration_restart_failure\(\)[\s\S]*reset_reached_post_migration_restart_failure[\s\S]*reload_exact_local_kong[\s\S]*wait_for_local_stack_readiness[\s\S]*assert_local_migration_history/,
+  );
+  assert.match(executableLines, /last_nonempty_line/);
+  assert.match(executableLines, /KNOWN_STORAGE_GATEWAY_502_STATUS/);
+  assert.match(executableLines, /KNOWN_STORAGE_GATEWAY_502_MESSAGE/);
 });

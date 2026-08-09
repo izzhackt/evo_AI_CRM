@@ -26,12 +26,22 @@ readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"
 readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"
 readonly EXCLUDED_SERVICES="realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
 readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2h.XXXXXX")"
+readonly BROWSER_BUILD_RUN_KEY="$(
+  basename "${TEMP_DIR}" | tr -c 'A-Za-z0-9_-' '-'
+)"
+readonly BROWSER_BUILD_DIR="${REPO_ROOT}/.next/platform-auth/${BROWSER_BUILD_RUN_KEY}"
+readonly PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE=".next/platform-auth/${BROWSER_BUILD_RUN_KEY}"
+readonly ROOT_TSCONFIG="${REPO_ROOT}/tsconfig.json"
+readonly ROOT_TSCONFIG_SHA_BEFORE="$(
+  shasum -a 256 "${ROOT_TSCONFIG}" | awk '{print $1}'
+)"
 readonly CANONICAL_VERSIONS_FILE="${TEMP_DIR}/canonical-versions.txt"
 readonly INBOX_FINGERPRINT_BEFORE="${TEMP_DIR}/inbox-before.txt"
 readonly INBOX_FINGERPRINT_AFTER="${TEMP_DIR}/inbox-after.txt"
 readonly BROWSER_HOST="127.0.0.1"
 readonly BROWSER_PORT="3311"
 readonly PROVIDER_GATED_BROWSER_TESTS="RU and EN draft requests work while uncertain language stops for manual selection|admin reads the persisted local P3C workflow without proving providers|assigned Curator reads the same persisted local P3C workflow|staff writes and persists a manual reply while AI is unavailable|staff submits an approved-knowledge AI draft request through the real form|staff reviews an AI draft then authorizes the edited final text"
+readonly P5B_BROWSER_TEST="P5B projects verified inbound WAHA work into the accepted conversation UI"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -44,6 +54,35 @@ run_with_deadline() {
   local timeout_ms=$1
   shift
   node "${DEADLINE_RUNNER}" "${timeout_ms}" "$@"
+}
+
+prepare_platform_auth_tsconfig() {
+  local partition=$1
+  local tsconfig_path="${BROWSER_BUILD_DIR}/tsconfig-platform-auth-${partition}.json"
+
+  case "${partition}" in
+    provider|p5b|remaining) ;;
+    *) return 1 ;;
+  esac
+
+  mkdir -p -- "${BROWSER_BUILD_DIR}"
+  chmod 700 "${BROWSER_BUILD_DIR}"
+
+  node - "${ROOT_TSCONFIG}" "${tsconfig_path}" <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const [rootTsconfig, outputPath] = process.argv.slice(2);
+const payload = {
+  extends: path.relative(path.dirname(outputPath), rootTsconfig),
+};
+
+fs.writeFileSync(outputPath, JSON.stringify(payload, null, 2) + "\n", {
+  encoding: "utf8",
+  mode: 0o600,
+});
+fs.chmodSync(outputPath, 0o600);
+NODE
 }
 
 refresh_synthetic_browser_health() {
@@ -166,13 +205,19 @@ capture_inbox_stack_fingerprint() {
 
   {
     while IFS= read -r resource_id; do
-      [[ -n "${resource_id}" ]] && printf 'container:%s\n' "${resource_id}"
+      if [[ -n "${resource_id}" ]]; then
+        printf 'container:%s\n' "${resource_id}"
+      fi
     done <<<"${container_ids}"
     while IFS= read -r resource_id; do
-      [[ -n "${resource_id}" ]] && printf 'volume:%s\n' "${resource_id}"
+      if [[ -n "${resource_id}" ]]; then
+        printf 'volume:%s\n' "${resource_id}"
+      fi
     done <<<"${volume_names}"
     while IFS= read -r resource_id; do
-      [[ -n "${resource_id}" ]] && printf 'network:%s\n' "${resource_id}"
+      if [[ -n "${resource_id}" ]]; then
+        printf 'network:%s\n' "${resource_id}"
+      fi
     done <<<"${network_ids}"
   } | LC_ALL=C sort >"${output_file}"
 }
@@ -375,6 +420,20 @@ cleanup() {
     fi
   fi
 
+  # Each browser partition receives its own Next.js dev build directory. Remove
+  # only this run's exact ignored artifact after every server has stopped.
+  if [[ "${BROWSER_BUILD_DIR}" == "${REPO_ROOT}/.next/platform-auth/${BROWSER_BUILD_RUN_KEY}" ]]; then
+    rm -rf -- "${BROWSER_BUILD_DIR}"
+  else
+    cleanup_failed=true
+  fi
+
+  if [[ "$(
+    shasum -a 256 "${ROOT_TSCONFIG}" 2>/dev/null | awk '{print $1}'
+  )" != "${ROOT_TSCONFIG_SHA_BEFORE}" ]]; then
+    cleanup_failed=true
+  fi
+
   rm -rf -- "${TEMP_DIR}"
   if (( exit_code != 0 )); then
     exit "${exit_code}"
@@ -482,18 +541,81 @@ wait_for_local_stack_readiness() {
   return 1
 }
 
-reset_outputs_have_known_storage_gateway_failure() {
-  local progress_log=$1
-  local result_file=$2
+assert_local_migration_history() {
+  local stage=$1
+  local migration_list_file="${TEMP_DIR}/migration-list-${stage}.json"
+  local migration_list_log="${TEMP_DIR}/migration-list-${stage}.log"
 
-  # Machine-output mode writes the structured failure to stdout while the
-  # restart banner stays on stderr. Require that exact split so an unrelated
-  # stderr message cannot broaden the only mutation-capable recovery path.
-  [[ -s "${progress_log}" ]] \
-    && [[ -s "${result_file}" ]] \
-    && grep -Fq "Restarting containers" "${progress_log}" \
-    && grep -Fq "${KNOWN_STORAGE_GATEWAY_502_STATUS}" "${result_file}" \
-    && grep -Fq "${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" "${result_file}"
+  [[ "${stage}" =~ ^[a-z-]+$ ]] || return 1
+  if ! run_with_deadline 30000 "${SUPABASE_CLI}" \
+    --workdir "${REPO_ROOT}" \
+    --output-format json \
+    migration list \
+    --local \
+    >"${migration_list_file}" 2>"${migration_list_log}"; then
+    show_safe_failure_log "${migration_list_log}"
+    return 1
+  fi
+
+  node - \
+    "${migration_list_file}" \
+    "${CANONICAL_VERSIONS_FILE}" <<'NODE'
+const fs = require("node:fs");
+
+const [jsonPath, expectedVersionsPath] = process.argv.slice(2);
+const payload = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
+const migrations = payload.migrations;
+const expected = fs
+  .readFileSync(expectedVersionsPath, "utf8")
+  .trim()
+  .split("\n");
+
+if (!Array.isArray(migrations)) {
+  throw new Error("Supabase CLI did not return a migrations array.");
+}
+
+const local = migrations.map((row) => row.local).filter(Boolean);
+const applied = migrations.map((row) => row.remote).filter(Boolean);
+
+for (const [label, actual] of [
+  ["canonical files", local],
+  ["applied local database", applied],
+]) {
+  if (
+    actual.length !== expected.length ||
+    actual.some((version, index) => version !== expected[index])
+  ) {
+    throw new Error(
+      `${label} migration history must match canonical ${expected.join(", ")}; found ${actual.join(", ")}`,
+    );
+  }
+}
+NODE
+}
+
+reset_reached_post_migration_restart_failure() {
+  local progress_log=$1
+  local last_nonempty_line
+
+  # The CLI emits this banner only after it has recreated and migrated the
+  # database and entered its service-restart phase. Accept only a timeout whose
+  # last progress line is that banner, or the exact known local Storage gateway
+  # 502 emitted at the same boundary. Any unrelated later error remains fatal.
+  [[ -s "${progress_log}" ]] || return 1
+  grep -Fq "Restarting containers" "${progress_log}" || return 1
+
+  last_nonempty_line="$(
+    sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "${progress_log}" | tail -n 1
+  )"
+  if [[ "${last_nonempty_line}" == "Restarting containers..." ]]; then
+    return 0
+  fi
+
+  [[ "${last_nonempty_line}" == \
+    "${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" ]] || return 1
+
+  grep -Fq "${KNOWN_STORAGE_GATEWAY_502_STATUS}" "${progress_log}" \
+    && grep -Fq "${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" "${progress_log}"
 }
 
 reload_exact_local_kong() {
@@ -528,15 +650,15 @@ reload_exact_local_kong() {
     "${KONG_CONTAINER}" >"${restart_log}" 2>&1
 }
 
-recover_known_reset_storage_gateway_failure() {
+recover_post_migration_restart_failure() {
   local progress_log=$1
-  local result_file=$2
 
-  reset_outputs_have_known_storage_gateway_failure "${progress_log}" "${result_file}" \
+  reset_reached_post_migration_restart_failure "${progress_log}" \
     || return 1
   reload_exact_local_kong || return 1
   wait_for_local_stack_readiness || return 1
-  printf 'Recovered the classified post-reset Storage 502 by refreshing only the exact disposable Kong route.\n' >&2
+  assert_local_migration_history recovery || return 1
+  printf 'Recovered a post-migration reset restart failure after exact-stack readiness and migration parity proof.\n' >&2
 }
 
 [[ -x "${SUPABASE_CLI}" ]] \
@@ -660,13 +782,13 @@ run_with_deadline 600000 "${SUPABASE_CLI}" \
 if (( reset_exit_code != 0 )); then
   show_safe_failure_log "${TEMP_DIR}/reset.log"
   show_safe_database_deadlock_log
-  if reset_outputs_have_known_storage_gateway_failure \
-    "${TEMP_DIR}/reset.log" "${TEMP_DIR}/reset.json"; then
-    recover_known_reset_storage_gateway_failure \
-      "${TEMP_DIR}/reset.log" "${TEMP_DIR}/reset.json" \
-      || fail "Known post-reset Storage gateway recovery failed for the exact disposable stack."
+  if reset_reached_post_migration_restart_failure \
+    "${TEMP_DIR}/reset.log"; then
+    recover_post_migration_restart_failure \
+      "${TEMP_DIR}/reset.log" \
+      || fail "Post-migration reset recovery failed for the exact disposable stack."
   else
-    fail "Initial disposable Supabase reset failed without a classified transient recovery path. Exit code ${reset_exit_code}."
+    fail "Initial disposable Supabase reset failed before the proved post-migration recovery boundary. Exit code ${reset_exit_code}."
   fi
 fi
 
@@ -723,50 +845,53 @@ then
   fail "Disposable local PostgREST schema exposure does not match P2B."
 fi
 
-if ! run_with_deadline 30000 "${SUPABASE_CLI}" \
-  --workdir "${REPO_ROOT}" \
-  --output-format json \
-  migration list \
-  --local \
-  >"${TEMP_DIR}/migration-list.json" 2>"${TEMP_DIR}/migration-list.log"; then
-  show_safe_failure_log "${TEMP_DIR}/migration-list.log"
-  fail "Unable to read the local migration history."
+assert_local_migration_history initial \
+  || fail "Disposable local migration history does not match canonical files."
+
+# Prove the empty queue before any Auth/browser fixture can create outbox work.
+# The queue runtime itself creates an organization fixture, while Auth must
+# prove the guarded first-organization bootstrap. Recreate the disposable DB
+# between those independent gates; both resets happen before browser evidence.
+if ! run_with_deadline 300000 bash \
+  "${REPO_ROOT}/scripts/test-p2g-queues-runtime.sh" \
+  "${DATABASE_CONTAINER}" \
+  "postgres"; then
+  fail "Real local PGMQ visibility/retry/dead-letter gate failed."
 fi
 
-node - \
-  "${TEMP_DIR}/migration-list.json" \
-  "${CANONICAL_VERSIONS_FILE}" <<'NODE'
-const fs = require("node:fs");
+post_queue_reset_exit_code=0
+run_with_deadline 600000 "${SUPABASE_CLI}" \
+  --workdir "${REPO_ROOT}" \
+  --output-format json \
+  db reset \
+  --local \
+  --no-seed \
+  >"${TEMP_DIR}/post-queue-reset.json" \
+  2>"${TEMP_DIR}/post-queue-reset.log" \
+  || post_queue_reset_exit_code=$?
+if (( post_queue_reset_exit_code != 0 )); then
+  show_safe_failure_log "${TEMP_DIR}/post-queue-reset.log"
+  show_safe_database_deadlock_log
+  if reset_reached_post_migration_restart_failure \
+    "${TEMP_DIR}/post-queue-reset.log"; then
+    recover_post_migration_restart_failure \
+      "${TEMP_DIR}/post-queue-reset.log" \
+      || fail "Post-queue post-migration recovery failed for the exact disposable stack."
+  else
+    fail "Post-queue disposable Supabase reset failed before the proved post-migration recovery boundary. Exit code ${post_queue_reset_exit_code}."
+  fi
+fi
 
-const [jsonPath, expectedVersionsPath] = process.argv.slice(2);
-const payload = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
-const migrations = payload.migrations;
-const expected = fs
-  .readFileSync(expectedVersionsPath, "utf8")
-  .trim()
-  .split("\n");
+assert_local_migration_history post-queue \
+  || fail "Post-queue migration history does not match canonical files."
 
-if (!Array.isArray(migrations)) {
-  throw new Error("Supabase CLI did not return a migrations array.");
-}
-
-const local = migrations.map((row) => row.local).filter(Boolean);
-const applied = migrations.map((row) => row.remote).filter(Boolean);
-
-for (const [label, actual] of [
-  ["canonical files", local],
-  ["applied local database", applied],
-]) {
-  if (
-    actual.length !== expected.length ||
-    actual.some((version, index) => version !== expected[index])
-  ) {
-    throw new Error(
-      `${label} migration history must match canonical ${expected.join(", ")}; found ${actual.join(", ")}`,
-    );
-  }
-}
-NODE
+if ! run_with_deadline 120000 "${SUPABASE_CLI}" \
+  --workdir "${REPO_ROOT}" \
+  seed buckets \
+  --local \
+  >"${TEMP_DIR}/post-queue-seed-buckets.log" 2>&1; then
+  fail "Post-queue local Storage bucket seeding failed; output was withheld."
+fi
 
 readonly AUTH_STATUS_FILE="${TEMP_DIR}/auth-status.json"
 readonly PLATFORM_AUTH_BROWSER_FIXTURE="${TEMP_DIR}/platform-auth-browser.json"
@@ -795,76 +920,6 @@ fi
 [[ ! -e "${AUTH_STATUS_FILE}" ]] \
   || fail "Auth smoke did not delete the credential-bearing local status file."
 
-refresh_synthetic_browser_health
-browser_gate_started=true
-# The local fixture records deliberately short-lived, synthetic provider-health
-# evidence. Run all six tests that exercise positive freshness first so their real
-# five-minute freshness contract is tested deterministically. The second pass
-# still runs every other browser test; no assertion or health TTL is weakened.
-if ! run_with_deadline 240000 env \
-  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
-  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
-  "${PLAYWRIGHT_CLI}" \
-  test \
-  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep "${PROVIDER_GATED_BROWSER_TESTS}"; then
-  fail "Provider-gated browser Platform messaging proof failed."
-fi
-if ! stop_exact_browser_server; then
-  fail "The exact-worktree Platform browser server did not stop between browser partitions."
-fi
-if ! run_with_deadline 660000 env \
-  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
-  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
-  "${PLAYWRIGHT_CLI}" \
-  test \
-  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}"; then
-  fail "Remaining real browser Platform Auth/staff-shell gate failed."
-fi
-if ! stop_exact_browser_server; then
-  fail "The exact-worktree Platform browser server did not stop after the browser gate."
-fi
-browser_gate_started=false
-
-rm -f -- "${PLATFORM_AUTH_BROWSER_FIXTURE}"
-[[ ! -e "${LEGACY_DB_SENTINEL}" ]] \
-  || fail "Platform Auth browser gate touched the forbidden legacy SQLite sentinel."
-
-# The browser workflow intentionally leaves one AI job and one manual-send job
-# queued so the UI can prove real outbox persistence. Reset the disposable
-# database before the independent Storage and empty-queue runtime gates.
-post_browser_reset_exit_code=0
-run_with_deadline 600000 "${SUPABASE_CLI}" \
-  --workdir "${REPO_ROOT}" \
-  --output-format json \
-  db reset \
-  --local \
-  --no-seed \
-  >"${TEMP_DIR}/post-browser-reset.json" \
-  2>"${TEMP_DIR}/post-browser-reset.log" \
-  || post_browser_reset_exit_code=$?
-if (( post_browser_reset_exit_code != 0 )); then
-  show_safe_failure_log "${TEMP_DIR}/post-browser-reset.log"
-  show_safe_database_deadlock_log
-  if reset_outputs_have_known_storage_gateway_failure \
-    "${TEMP_DIR}/post-browser-reset.log" "${TEMP_DIR}/post-browser-reset.json"; then
-    recover_known_reset_storage_gateway_failure \
-      "${TEMP_DIR}/post-browser-reset.log" "${TEMP_DIR}/post-browser-reset.json" \
-      || fail "Known post-browser Storage gateway recovery failed for the exact disposable stack."
-  else
-    fail "Post-browser disposable Supabase reset failed without a classified transient recovery path. Exit code ${post_browser_reset_exit_code}."
-  fi
-fi
-
-if ! run_with_deadline 120000 "${SUPABASE_CLI}" \
-  --workdir "${REPO_ROOT}" \
-  seed buckets \
-  --local \
-  >"${TEMP_DIR}/post-browser-seed-buckets.log" 2>&1; then
-  fail "Post-browser local Storage bucket seeding failed; output was withheld."
-fi
-
 readonly STORAGE_STATUS_FILE="${TEMP_DIR}/storage-status.json"
 : >"${STORAGE_STATUS_FILE}"
 chmod 600 "${STORAGE_STATUS_FILE}"
@@ -888,12 +943,69 @@ fi
 [[ ! -e "${STORAGE_STATUS_FILE}" ]] \
   || fail "Storage gate did not delete the credential-bearing local status file."
 
-if ! run_with_deadline 300000 bash \
-  "${REPO_ROOT}/scripts/test-p2g-queues-runtime.sh" \
-  "${DATABASE_CONTAINER}" \
-  "postgres"; then
-  fail "Real local PGMQ visibility/retry/dead-letter gate failed."
+refresh_synthetic_browser_health
+for browser_partition in provider p5b remaining; do
+  prepare_platform_auth_tsconfig "${browser_partition}" \
+    || fail "Unable to create the disposable ${browser_partition} browser tsconfig."
+done
+browser_gate_started=true
+# The local fixture records deliberately short-lived, synthetic provider-health
+# evidence. Run all six tests that exercise positive freshness first so their real
+# five-minute freshness contract is tested deterministically. The second pass
+# still runs every other browser test; no assertion or health TTL is weakened.
+if ! run_with_deadline 240000 env \
+  EVO_P5B_BROWSER_PROOF=0 \
+  EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
+  EVO_PLATFORM_AUTH_BROWSER_PARTITION=provider \
+  EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-provider.json" \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep "${PROVIDER_GATED_BROWSER_TESTS}"; then
+  fail "Provider-gated browser Platform messaging proof failed."
 fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop between browser partitions."
+fi
+if ! run_with_deadline 240000 env \
+  EVO_P5B_BROWSER_PROOF=1 \
+  EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
+  EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5b \
+  EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5b.json" \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep "${P5B_BROWSER_TEST}"; then
+  fail "P5B verified inbound WAHA projection browser proof failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop after the P5B browser partition."
+fi
+if ! run_with_deadline 660000 env \
+  EVO_P5B_BROWSER_PROOF=0 \
+  EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
+  EVO_PLATFORM_AUTH_BROWSER_PARTITION=remaining \
+  EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-remaining.json" \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}"; then
+  fail "Remaining real browser Platform Auth/staff-shell gate failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop after the browser gate."
+fi
+browser_gate_started=false
+
+rm -f -- "${PLATFORM_AUTH_BROWSER_FIXTURE}"
+[[ ! -e "${LEGACY_DB_SENTINEL}" ]] \
+  || fail "Platform Auth browser gate touched the forbidden legacy SQLite sentinel."
 
 printf 'Supabase CLI %s reset the disposable local database successfully.\n' "${actual_cli_version}"
 printf 'Verified %s contiguous canonical/applied migrations ending at %s; no application seed or production data was loaded.\n' \

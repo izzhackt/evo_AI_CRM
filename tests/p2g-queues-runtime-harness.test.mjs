@@ -87,3 +87,10 @@ test("SQL negative finish checks reject the intended input shape", () => {
   assert.match(sqlHarness, /:'finish_ai_unknown_state' = '22023'/);
   assert.match(sqlHarness, /:'finish_manual_conflict_state' = '22023'/);
 });
+
+test("runtime webhook fixtures remain explicitly inbound after P5A hardening", () => {
+  assert.match(harness, /'fromMe', FALSE/);
+  assert.match(harness, /'source', 'app'/);
+  assert.match(harness, /'event', 'message'/);
+  assert.match(harness, /'session', 'evo-inbox'/);
+});

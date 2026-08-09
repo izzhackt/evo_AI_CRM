@@ -612,6 +612,16 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_waha_message_alias_queue_rls.sql
   fi
+
+  # P5B consumes only leased provider-webhook work and projects verified WAHA
+  # observations into the unified Platform history. Prove at migration 060 that
+  # other queue lanes remain untouched and that WAHA-only rows do not acquire
+  # fabricated amoCRM/Kommo identity.
+  if [[ "$(basename "$migration")" == 060_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_work_projection_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

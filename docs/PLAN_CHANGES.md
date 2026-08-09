@@ -4305,3 +4305,68 @@ Validation impact:
 - `real-provider-proof: not-required` for this docs-only amendment. Real WAHA,
   amoCRM and Gemini acceptance remains blocked until credentials, sanitized
   identities and explicit test/send/production authority exist.
+
+## 2026-08-09 - Replace the scheduled merge controller with direct exact-head merges
+
+Block-ID: `EVO-DIRECT-MERGE-GOVERNANCE-2026-08-09`
+
+Source: explicit written owner instruction to stop using the scheduled EVO
+Platform Launch Auditor and independent merge-controller because their hourly
+wait materially delays the MVP. The owner instructed the executor to continue
+directly while retaining the recommended safety checks that do not depend on
+the removed automation.
+
+Change type: execution-governance and merge-order amendment only. Product
+scope, architecture, API/schema acceptance, provider evidence requirements and
+production authority do not change.
+
+Checkpoint freshness:
+
+- PR #133 merged at final head
+  `14de773dbfd601f0ad394743e95fc829be470b71` as current `origin/main`
+  `18e0e0855fda31cba1fa837d81b3a75cedd585e9`;
+- migrations are contiguous `001-060`;
+- exact-main push CI run `31323907123` is green for Main CRM, EVO Inbox and EVO
+  Lead Agent; Changed range is skipped on the push event as expected;
+- P5A/P5B remain disabled by default and do not prove live WAHA, managed
+  Supabase, customer delivery or production readiness.
+
+Decision:
+
+- Remove the scheduled Launch Auditor and separate independent merge-controller
+  from the active EVO Platform workflow. Do not wait for or recreate their
+  hourly merge cycle.
+- Keep exactly one fresh independent read-only review for every final PR head.
+  The reviewer must bind its verdict to the exact head SHA and check plan
+  freshness, correctness, validation evidence and provider boundaries.
+- Keep all required exact-head CI jobs. A changed head invalidates both the
+  review and prior exact-head CI; rerun both before merge.
+- After the independent exact-head approval and required exact-head CI are
+  green, the executor may merge that same SHA directly with a head-matching
+  merge command. This owner authorization replaces only the former separation
+  between executor and merge-controller; it does not waive review or tests.
+- Require green exact-main push CI before opening the next implementation PR.
+  Keep only one implementation PR open at a time.
+- Do not use the full Codex Security workflow in this run. Continue focused
+  Auth/RLS/security tests, changed-scope negative tests, scoped secret/PII
+  scans, dependency audits and independent review for security-relevant
+  boundaries.
+- Historical controller/Launch Auditor records remain immutable evidence of
+  how earlier PRs merged; this amendment changes only the active workflow.
+- No production deployment/migration, DNS change, WAHA QR/session mutation,
+  live customer send, real amoCRM write, autonomous runtime enablement or
+  service deletion is authorized.
+
+Validation impact:
+
+- This amendment changes only the four active planning/status documents. It
+  changes no application code, schema, migration, CI workflow, provider,
+  customer data, staging or production state.
+- Run `git diff --check` plus scoped secret/PII text scans. The PR still requires
+  fresh independent exact-head review and required exact-head CI before the
+  executor may direct-merge its exact SHA.
+- After merge, exact-main push CI must pass before P5C or any later
+  implementation PR proceeds.
+- Rollback is a docs-only revert or forward amendment restoring the prior merge
+  governance. Product/runtime rollback paths are unchanged.
+- `real-provider-proof: not-required` for this docs-only governance amendment.

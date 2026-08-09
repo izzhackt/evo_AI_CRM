@@ -12,9 +12,9 @@
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current merged checkpoint: `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
+- Current merged checkpoint: `18e0e0855fda31cba1fa837d81b3a75cedd585e9`
 - Active plan block:
-  `EVO-MVP-AUTONOMOUS-INBOUND-PLAN-2026-08-09`
+  `EVO-DIRECT-MERGE-GOVERNANCE-2026-08-09`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -46,10 +46,10 @@ document reading/extraction/autofill/export scope superseded решением ow
 эта автоматизация принадлежит отдельной системе вне `evo_AI_CRM`. PRs
 #125-#127 отменили зависимые PRs #124, #122 и #120, PR #128 controller-merged
 корректную продуктовую границу, а PRs #129-#130 merged local-validation plan и
-repair. PR #131 merged P4 deferral/Lead Agent retention authority, а PR #132
-merged receive-only P5A ingress. Текущий main —
-`8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`, exact-main CI `31310795550`
-зелёный, migrations contiguous `001-059`.
+repair. PR #131 merged P4 deferral/Lead Agent retention authority, PR #132
+merged receive-only P5A ingress, а PR #133 merged P5B receive/project.
+Текущий main — `18e0e0855fda31cba1fa837d81b3a75cedd585e9`, exact-main CI
+`31323907123` зелёный, migrations contiguous `001-060`.
 
 P4B implementation сохранён на remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -63,10 +63,11 @@ bounded read-mostly amoCRM adapter; P4B writes, full mapping approval и cutover
 delivery остаются blocked до отдельной авторизации и доказательств. Former P2I
 restore duties остаются в P7.
 
-P5A merged, но ingress disabled by default. PR #133 at
-`8c681d9d48f0f3eda962f5d8546497dc2f637dd9` — draft P5B receive/project
-candidate, не AI/send implementation. Его checks зелёные, но PR blocked до
-этой authority amendment и media-only fix; merge/provider proof отсутствуют.
+P5A и P5B merged, но ingress/worker disabled by default. PR #133 был принят как
+receive/project implementation, не AI/send implementation; full local
+Supabase/browser gate и exact-main CI зелёные, но real WAHA/provider proof и
+production enablement отсутствуют. Следующий bounded P5 block — available
+history reconciliation.
 
 ## Что подтверждено из репозитория
 
@@ -94,7 +95,7 @@ candidate, не AI/send implementation. Его checks зелёные, но PR bl
 | P2R4 local validation repair | PRs #129-#130 merged the bounded plan and two-file fail-closed harness repair | exact-main CI `31038964366` green; later P4B gate failure is scoped to that branch/run and does not reopen P2R4 or prove providers |
 | P4 deferral/retention authority | PR #131 merged ADR 0018 and docs-only execution-order correction | ADR 0019 now supersedes only full P4 deferral and draft-only P5 wording; Lead Agent/legacy freeze remains |
 | P5A receive-only WAHA ingress | PR #132 merged signed HMAC/timestamp validation, raw-persist-before-process and pointer-only inbound work with migration 059 | P5A merge-baseline CI `31145596058` was green; current exact-main CI is tracked above; flags remain disabled by default and no real WAHA/Supabase/provider proof exists |
-| P5B receive/project candidate | PR #133 is draft at `8c681d9d48f0f3eda962f5d8546497dc2f637dd9`; candidate migration 060 and private worker project verified inbound work into the accepted root UI data path | not merged; blocked on authority amendment and media-only operator-visible handoff fix; no AI send or provider proof |
+| P5B receive/project | PR #133 merged as `18e0e0855fda31cba1fa837d81b3a75cedd585e9`; migration 060 and the private worker project verified inbound work into the accepted root UI data path | full local Supabase/browser gate and exact-main CI `31323907123` passed; flags remain off and there is no AI send, live WAHA or production proof |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path, deployed/frozen вместе с legacy webhook/session и rollback path | P9 removed; deactivation, retirement и deletion запрещены в текущем scope |
@@ -152,8 +153,8 @@ P4B docs-only selection/approval contract:
   добавляет только forward migration 058 для private sanitized mapping
   discovery versions; PR #118's P4B plan, merged PR #128 boundary correction и
   PRs #129-#131 не добавляют migration; merged P5A добавляет migration 059;
-  candidate P5B may use migration 060 only after a fresh next-free ownership
-  check; no later block may treat that number as reserved;
+  merged P5B добавляет migration 060; следующий migration-кандидат обязан
+  подтвердить свободный номер 061 перед использованием;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;
@@ -244,20 +245,21 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — merge docs-only
-`EVO-MVP-AUTONOMOUS-INBOUND-PLAN-2026-08-09` через independent exact-head review,
-четыре exact-head CI job и independent controller. PR #133 остаётся draft и
-blocked, пока в его exact head нет принятой authority amendment и media-only
-operator-visible handoff fix.
+Текущий gate — docs-only
+`EVO-DIRECT-MERGE-GOVERNANCE-2026-08-09`: fresh independent read-only
+exact-head review, все required exact-head CI jobs, затем direct executor merge
+того же SHA и green exact-main push CI. Scheduled Launch Auditor и отдельный
+merge-controller больше не используются; full Codex Security workflow не
+требуется. Focused authorization/RLS/security tests, secret/PII scan и
+dependency audit остаются обязательными по изменённой области.
 
-P5B после этого gate остаётся строго receive/project worker: private HMAC
-trigger, narrow service RPC, lease/idempotency/dead-letter semantics и accepted
-root UI projection без Gemini или provider send. Следующий autonomous inbound-
-reply PR допускается только после accepted history/media/ACK/session/private
-Realtime blocks. Он обязан использовать Gemini proposal, deterministic queue/
-worker gates, bounded read-mostly amoCRM, durable pause/resume и disabled-by-
-default flags. Real provider E2E и production enablement остаются separate
-authorized events. Lead Agent остаётся retained/frozen.
+Следующий implementation gate — P5 available-history reconciliation за
+accepted root UI, затем private media, ACK/session и Realtime. Autonomous
+inbound-reply PR допускается только после этих принятых blocks. Он обязан
+использовать Gemini proposal, deterministic queue/worker gates, bounded
+read-mostly amoCRM, durable pause/resume и disabled-by-default flags. Real
+provider E2E и production enablement остаются separate authorized events. Lead
+Agent остаётся retained/frozen.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой
 exact deployed revision, private network, provider readiness и full E2E.

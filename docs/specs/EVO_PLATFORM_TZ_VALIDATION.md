@@ -4,9 +4,9 @@
 
 Timezone: `Asia/Bishkek`
 
-Базовый `origin/main`: `93f48b82785836e4ade92dd7c56d8653fdd9e2ea`
+Базовый `origin/main`: `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
 
-Exact-main CI: `31145596058` — все четыре job зелёные.
+Exact-main CI: `31310795550` — все четыре job зелёные.
 
 Миграции на базовом main: `001–059`.
 
@@ -89,9 +89,9 @@ render_dir="$(mktemp -d /private/tmp/evo-platform-tz-v2.3-final.XXXXXX)"
 - Python: `3.12.13`;
 - `python-docx`: `1.2.0`;
 - source SHA-256:
-  `53fbbda9d9bd3f75ebf296ff62dc991a483630c06461f10528773a14d04fdb39`;
+  `06051a9a10202d24198aedac0f1a22437458514bd1c00dad3b8dfb387aec067a`;
 - DOCX SHA-256:
-  `3150f0d18b7b570bd696afb837b6bc64c719ab307d51c6034738667c3a43621a`;
+  `3d70b790239f393bc4c55cda9f949ff1e241b706c78465697f3a86257f3fca99`;
 - две независимые сборки DOCX: bit-for-bit одинаковы;
 - requirements: `231`;
 - traceability rows: `231`;

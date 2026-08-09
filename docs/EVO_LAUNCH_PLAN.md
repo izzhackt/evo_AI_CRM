@@ -7,8 +7,8 @@ P2R0-P2R4 and P4A are merged. PR #118 merged the P4B docs-only contract, PR
 automation outside `evo_AI_CRM`, and PRs #129-#130 merged the local-validation
 prerequisite and repair, and PR #132 merged the disabled-by-default P5A WAHA
 ingress. Current `origin/main` is
-`93f48b82785836e4ade92dd7c56d8653fdd9e2ea`, migrations are contiguous
-`001-059`, and exact-main CI run `31145596058` is green for Main CRM, EVO Inbox
+`8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`, migrations are contiguous
+`001-059`, and exact-main CI run `31310795550` is green for Main CRM, EVO Inbox
 and EVO Lead Agent; Changed range is skipped on the push event as expected.
 
 P4B implementation is preserved on remote branch
@@ -95,8 +95,8 @@ checkpoint is:
   PRs #127, #126 and #125. PRs #129-#130 then merged the bounded local-validation
   plan and repair. PR #132 merged the disabled-by-default P5A WAHA ingress.
   Current `origin/main` is
-  `93f48b82785836e4ade92dd7c56d8653fdd9e2ea`; exact-main CI
-  `31145596058` is green, and migrations end at `059`.
+  `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`; exact-main CI
+  `31310795550` is green, and migrations end at `059`.
 - P4B implementation is preserved on remote branch
   `izzhackt/evo-platform-p4b-mapping-approval` at
   `e53ba94954f147b295f596421a255591fa343ce8`, with no implementation PR.

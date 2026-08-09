@@ -4,7 +4,7 @@
 - Status: Target approved; greenfield Platform not deployed; legacy CRM remains
   separate and messaging provider ownership awaits controlled cutover
 - Last verified against repository: 2026-08-09 at
-  `93f48b82785836e4ade92dd7c56d8653fdd9e2ea`
+  `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
 - Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - External automation boundary:
@@ -212,7 +212,7 @@ projections. P2F не доказывает, что real HMAC/timestamp verificat
 или ACK. P2G доказывает local Queue/outbox/worker/retry/dead-letter mechanics,
 но не provider delivery; private media/Storage/scanner относится к P2H.
 
-At current main `93f48b82785836e4ade92dd7c56d8653fdd9e2ea`, PR #132
+At current main `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`, PR #132
 merged P5A receive-only ingress and migration 059. It validates configured
 HMAC/timestamp evidence, persists before processing and enqueues verified
 pointer-only work; runtime remains disabled by default. PR #133 is a draft,

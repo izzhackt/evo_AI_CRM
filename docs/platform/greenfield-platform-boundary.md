@@ -2,7 +2,7 @@
 
 This note summarizes the active boundary for EVO Platform implementation as of
 2026-08-09 at accepted main
-`93f48b82785836e4ade92dd7c56d8653fdd9e2ea`.
+`8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`.
 
 - Platform backend: greenfield, Supabase-native.
 - No legacy SQLite data import.

@@ -4200,8 +4200,8 @@ decisions remain in Git and earlier ADRs; ADR 0019 controls the new lane.
 Checkpoint freshness:
 
 - accepted `origin/main` is
-  `93f48b82785836e4ade92dd7c56d8653fdd9e2ea` with contiguous migrations
-  `001-059` and green exact-main CI run `31145596058`;
+  `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0` with contiguous migrations
+  `001-059` and green exact-main CI run `31310795550`;
 - PR #132 merged the disabled-by-default, persist-before-process P5A WAHA
   ingress;
 - PR #133 at the time of this amendment is draft. Its exact-head repository and

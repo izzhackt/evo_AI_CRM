@@ -3,7 +3,7 @@
 - Status: accepted
 - Date: 2026-08-09
 - Accepted main checkpoint:
-  `93f48b82785836e4ade92dd7c56d8653fdd9e2ea`
+  `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
 - Plan block: `EVO-MVP-AUTONOMOUS-INBOUND-PLAN-2026-08-09`
 - Refines: ADR 0014 messaging semantics and ADR 0016 thin-slice scope
 - Supersedes in conflict: ADR 0018 only where it fully defers P4 and limits P5

@@ -14,8 +14,8 @@ P2R0-P2R4 and P4A are merged; PR #118 merged the P4B docs-only plan, PR #128
 merged the owner-authorized boundary correction that supersedes PR #119, and
 PRs #129-#130 merged the local-validation prerequisite and repair. PR #132
 merged the disabled-by-default WAHA persist-before-process ingress. Current
-`origin/main` is `93f48b82785836e4ade92dd7c56d8653fdd9e2ea`, migrations are contiguous
-`001-059`, and exact-main CI `31145596058` is green. PR #133 is a draft P5B
+`origin/main` is `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`, migrations are contiguous
+`001-059`, and exact-main CI `31310795550` is green. PR #133 is a draft P5B
 projection implementation until this amendment is independently merged and its
 media-only handling is corrected and re-proved.
 
@@ -93,11 +93,11 @@ this contract.
 As of the version date:
 
 - GitHub `main` checkpoint before this amendment is
-  `93f48b82785836e4ade92dd7c56d8653fdd9e2ea`; PR #128 supersedes PR #119 as
+  `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`; PR #128 supersedes PR #119 as
   current product authority after corrective PRs #125-#127, PRs #129-#130
   merged the bounded local-validation repair, and PR #132 merged the P5A WAHA
   ingress foundation;
-- exact-main CI run `31145596058` is green for Main CRM, EVO Inbox and EVO Lead
+- exact-main CI run `31310795550` is green for Main CRM, EVO Inbox and EVO Lead
   Agent; Changed range is skipped on the push event as expected;
 - the preserved P4B branch passed focused tests, unit tests, lint, Next typegen,
   TypeScript and a production build. Its later full local Supabase run failed

@@ -19,7 +19,7 @@ messaging provider ownership has its own bounded cutover gate.
   future integration requires a separately approved mapping, privacy/consent,
   authentication, validation and acceptance contract.
 - Last verified against repository: 2026-08-09 at
-  `93f48b82785836e4ade92dd7c56d8653fdd9e2ea`
+  `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
 - Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - External automation boundary:

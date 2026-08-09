@@ -12,7 +12,7 @@
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current merged checkpoint: `93f48b82785836e4ade92dd7c56d8653fdd9e2ea`
+- Current merged checkpoint: `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
 - Active plan block:
   `EVO-MVP-AUTONOMOUS-INBOUND-PLAN-2026-08-09`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
@@ -48,7 +48,7 @@ document reading/extraction/autofill/export scope superseded решением ow
 корректную продуктовую границу, а PRs #129-#130 merged local-validation plan и
 repair. PR #131 merged P4 deferral/Lead Agent retention authority, а PR #132
 merged receive-only P5A ingress. Текущий main —
-`93f48b82785836e4ade92dd7c56d8653fdd9e2ea`, exact-main CI `31145596058`
+`8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`, exact-main CI `31310795550`
 зелёный, migrations contiguous `001-059`.
 
 P4B implementation сохранён на remote branch
@@ -93,7 +93,7 @@ candidate, не AI/send implementation. Его checks зелёные, но PR bl
 | PR #128 boundary correction | Student Profile document reading, extraction, autofill and form export moved to a separate system outside this repository; ordinary Platform document lifecycle remains | merged docs-only authority correction; no automatic data exchange, runtime dependency, provider call, customer-data action or production mutation |
 | P2R4 local validation repair | PRs #129-#130 merged the bounded plan and two-file fail-closed harness repair | exact-main CI `31038964366` green; later P4B gate failure is scoped to that branch/run and does not reopen P2R4 or prove providers |
 | P4 deferral/retention authority | PR #131 merged ADR 0018 and docs-only execution-order correction | ADR 0019 now supersedes only full P4 deferral and draft-only P5 wording; Lead Agent/legacy freeze remains |
-| P5A receive-only WAHA ingress | PR #132 merged signed HMAC/timestamp validation, raw-persist-before-process and pointer-only inbound work with migration 059 | exact-main CI `31145596058` green; flags remain disabled by default and no real WAHA/Supabase/provider proof exists |
+| P5A receive-only WAHA ingress | PR #132 merged signed HMAC/timestamp validation, raw-persist-before-process and pointer-only inbound work with migration 059 | P5A merge-baseline CI `31145596058` was green; current exact-main CI is tracked above; flags remain disabled by default and no real WAHA/Supabase/provider proof exists |
 | P5B receive/project candidate | PR #133 is draft at `8c681d9d48f0f3eda962f5d8546497dc2f637dd9`; candidate migration 060 and private worker project verified inbound work into the accepted root UI data path | not merged; blocked on authority amendment and media-only operator-visible handoff fix; no AI send or provider proof |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |

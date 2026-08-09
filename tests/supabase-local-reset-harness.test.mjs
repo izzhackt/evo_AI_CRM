@@ -26,6 +26,10 @@ const nextConfig = readFileSync(
   new URL("../next.config.ts", import.meta.url),
   "utf8",
 );
+const ciWorkflow = readFileSync(
+  new URL("../.github/workflows/evo-platform-ci.yml", import.meta.url),
+  "utf8",
+);
 const executableLines = harness
   .split("\n")
   .filter((line) => !line.trimStart().startsWith("#"))
@@ -192,6 +196,30 @@ test("every long-running child gate has a process-group deadline", () => {
     executableLines,
     /run_with_deadline 300000 bash \\\n\s+"\$\{REPO_ROOT\}\/scripts\/test-p2g-queues-runtime\.sh"/,
   );
+});
+
+test("Main CRM CI installs the locked Chromium runtime before the full browser gate", () => {
+  const mainCrmJobStart = ciWorkflow.indexOf("\n  crm:\n");
+  const inboxJobStart = ciWorkflow.indexOf("\n  inbox:\n", mainCrmJobStart);
+
+  assert.notEqual(mainCrmJobStart, -1);
+  assert.notEqual(inboxJobStart, -1);
+
+  const mainCrmJob = ciWorkflow.slice(mainCrmJobStart, inboxJobStart);
+  const dependencyInstall = mainCrmJob.indexOf("run: npm ci");
+  const securityGate = mainCrmJob.indexOf("run: npm run test:security");
+  const browserInstall = mainCrmJob.indexOf(
+    "node_modules/.bin/playwright install --with-deps chromium",
+  );
+  const fullGate = mainCrmJob.indexOf("run: npm run test:supabase:local");
+
+  assert.notEqual(dependencyInstall, -1);
+  assert.notEqual(securityGate, -1);
+  assert.notEqual(browserInstall, -1);
+  assert.notEqual(fullGate, -1);
+  assert.ok(dependencyInstall < securityGate);
+  assert.ok(securityGate < browserInstall);
+  assert.ok(browserInstall < fullGate);
 });
 
 test("provider and P5B browser partitions run before the remaining suite", () => {

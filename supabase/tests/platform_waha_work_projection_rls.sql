@@ -167,6 +167,7 @@ VALUES
   );
 
 \set p5b_intake_sales_membership_id '4b500000-0000-4000-8000-000000000024'
+\set p5b_rotated_intake_sales_membership_id '4b500000-0000-4000-8000-000000000021'
 
 INSERT INTO platform.membership_scope_assignments (
   organization_id,
@@ -425,6 +426,16 @@ VALUES
     '{"event":"message","session":"other-session","payload":{"id":"p5b-other-session","timestamp":1786075800,"from":"14155550107@c.us","fromMe":false,"source":"app","body":"Wrong WAHA account"}}',
     '{"hmac_verified":true}', 'synthetic:p5b:other-session', repeat('3d', 32),
     '4b500000-0000-4000-8000-000000000212'
+  ),
+  (
+    '4b500000-0000-4000-8000-000000000113',
+    :'org_a_id', 'waha', 'waha:evo-inbox', NULL, NULL,
+    'synthetic-p5b-metadata-mismatch', 'evo-inbox',
+    'p5b-metadata-mismatch', 'message',
+    '2026-08-07 10:11:00+06', 'verified',
+    '{"event":"message.any","session":"evo-inbox","payload":{"id":"p5b-metadata-mismatch","timestamp":1786075860,"from":"14155550108@c.us","fromMe":false,"source":"app","body":"Mismatched envelope"}}',
+    '{"hmac_verified":true}', 'synthetic:p5b:metadata-mismatch', repeat('3e', 32),
+    '4b500000-0000-4000-8000-000000000213'
   );
 
 SET request.jwt.claims TO '{"role":"service_role"}';
@@ -491,8 +502,9 @@ SELECT platform.enqueue_verified_webhook_work(
 )::TEXT AS p5b_other_session_enqueue
 \gset
 
--- These synthetic rows model stale/bypassed historical pointers. The P5B
--- claim join must leave direction-unsafe rows and non-provider lanes untouched.
+-- These synthetic rows model stale/bypassed historical pointers. P5B must
+-- claim direction/source/envelope-invalid provider rows so the projector can
+-- terminally audit them, while unrelated queue lanes remain untouched.
 RESET ROLE;
 RESET request.jwt.claims;
 
@@ -594,6 +606,23 @@ INSERT INTO platform_private.durable_work_items (
 
 SELECT pgmq.send(
   'platform_work_v1',
+  '{"v":1,"work_item_id":"4b500000-0000-4000-8000-000000000505","kind":"provider_webhook_process"}',
+  0
+)::TEXT AS p5b_metadata_mismatch_queue_id
+\gset
+INSERT INTO platform_private.durable_work_items (
+  id, organization_id, kind, source_webhook_event_id,
+  business_key_sha256, queue_message_id, max_attempts, request_id
+) VALUES (
+  '4b500000-0000-4000-8000-000000000505', :'org_a_id',
+  'provider_webhook_process', '4b500000-0000-4000-8000-000000000113',
+  encode(sha256(convert_to('p5b-metadata-mismatch', 'UTF8')), 'hex'),
+  :'p5b_metadata_mismatch_queue_id'::BIGINT, 4,
+  '4b500000-0000-4000-8000-000000000515'
+);
+
+SELECT pgmq.send(
+  'platform_work_v1',
   '{"v":1,"work_item_id":"4b500000-0000-4000-8000-000000000503","kind":"ai_draft_generate"}',
   0
 )::TEXT AS p5b_ai_queue_id
@@ -674,6 +703,17 @@ SELECT platform.project_claimed_waha_event(
   '4b500000-0000-4000-8000-000000000623'
 );
 \set p5b_unrelated_lane_state :SQLSTATE
+
+SELECT platform.finish_waha_webhook_work(
+  :'org_a_id',
+  (:'p5b_main_claim'::JSONB ->> 'work_item_id')::UUID,
+  (:'p5b_main_claim'::JSONB ->> 'attempt_id')::UUID,
+  'succeeded', NULL,
+  'p5b:projection-not-recorded',
+  NULL,
+  '4b500000-0000-4000-8000-000000000624'
+);
+\set p5b_finish_without_projection_state :SQLSTATE
 \set ON_ERROR_STOP on
 
 SELECT platform.project_claimed_waha_event(
@@ -829,6 +869,24 @@ SELECT platform.project_claimed_waha_event(
   '4b500000-0000-4000-8000-000000000616'
 )::TEXT AS p5b_media_projection
 \gset
+SELECT platform.project_claimed_waha_event(
+  :'org_a_id',
+  (:'p5b_media_claim'::JSONB ->> 'work_item_id')::UUID,
+  (:'p5b_media_claim'::JSONB ->> 'attempt_id')::UUID,
+  :'p5b_intake_sales_membership_id',
+  '4b500000-0000-4000-8000-000000000616'
+)::TEXT AS p5b_media_projection_replay
+\gset
+SELECT platform.finish_waha_webhook_work(
+  :'org_a_id',
+  (:'p5b_media_claim'::JSONB ->> 'work_item_id')::UUID,
+  (:'p5b_media_claim'::JSONB ->> 'attempt_id')::UUID,
+  'succeeded', NULL,
+  (:'p5b_media_projection'::JSONB ->> 'evidence_ref'),
+  NULL,
+  '4b500000-0000-4000-8000-000000000624'
+)::TEXT AS p5b_media_finish
+\gset
 
 SELECT platform.claim_waha_webhook_work(
   :'org_a_id', 300, 'p5b-worker-empty',
@@ -843,17 +901,59 @@ SELECT platform.project_claimed_waha_event(
   '4b500000-0000-4000-8000-000000000617'
 )::TEXT AS p5b_empty_projection
 \gset
+SELECT platform.finish_waha_webhook_work(
+  :'org_a_id',
+  (:'p5b_empty_claim'::JSONB ->> 'work_item_id')::UUID,
+  (:'p5b_empty_claim'::JSONB ->> 'attempt_id')::UUID,
+  'succeeded', NULL,
+  (:'p5b_empty_projection'::JSONB ->> 'evidence_ref'),
+  NULL,
+  '4b500000-0000-4000-8000-000000000625'
+)::TEXT AS p5b_empty_finish
+\gset
 
 SELECT platform.claim_waha_webhook_work(
   :'org_a_id', 300, 'p5b-worker-second',
   '4b500000-0000-4000-8000-000000000606'
 )::TEXT AS p5b_second_claim
 \gset
+
+-- The configured intake member may rotate after a chat is bound. The durable
+-- conversation keeps its original Sales owner; a new authorized intake member
+-- must not reassign or break follow-up projection for that existing binding.
+RESET ROLE;
+RESET request.jwt.claims;
+INSERT INTO platform.membership_scope_assignments (
+  organization_id,
+  membership_id,
+  scope_id,
+  scope_version,
+  assignment_version,
+  granted,
+  actor_kind,
+  reason,
+  request_id
+)
+VALUES (
+  :'org_a_id',
+  :'p5b_rotated_intake_sales_membership_id',
+  :'p5b_org_scope_id',
+  :'p5b_org_scope_version'::BIGINT,
+  1,
+  TRUE,
+  'service',
+  'P5B rotated intake authorization regression fixture',
+  '4b500000-0000-4000-8000-000000000026'
+);
+
+SET request.jwt.claims TO '{"role":"service_role"}';
+SET ROLE service_role;
+
 SELECT platform.project_claimed_waha_event(
   :'org_a_id',
   (:'p5b_second_claim'::JSONB ->> 'work_item_id')::UUID,
   (:'p5b_second_claim'::JSONB ->> 'attempt_id')::UUID,
-  :'p5b_intake_sales_membership_id',
+  :'p5b_rotated_intake_sales_membership_id',
   '4b500000-0000-4000-8000-000000000618'
 )::TEXT AS p5b_second_projection
 \gset
@@ -867,6 +967,81 @@ SELECT platform.claim_waha_webhook_work(
   :'org_a_id', 300, 'p5b-worker-exhausted',
   '4b500000-0000-4000-8000-000000000607'
 )::TEXT AS p5b_exhausted_claim_replay
+\gset
+
+SELECT platform.claim_waha_webhook_work(
+  :'org_a_id', 300, 'p5b-worker-from-me',
+  '4b500000-0000-4000-8000-000000000640'
+)::TEXT AS p5b_from_me_claim
+\gset
+SELECT platform.project_claimed_waha_event(
+  :'org_a_id',
+  (:'p5b_from_me_claim'::JSONB ->> 'work_item_id')::UUID,
+  (:'p5b_from_me_claim'::JSONB ->> 'attempt_id')::UUID,
+  :'p5b_intake_sales_membership_id',
+  '4b500000-0000-4000-8000-000000000641'
+)::TEXT AS p5b_from_me_projection
+\gset
+SELECT platform.finish_waha_webhook_work(
+  :'org_a_id',
+  (:'p5b_from_me_claim'::JSONB ->> 'work_item_id')::UUID,
+  (:'p5b_from_me_claim'::JSONB ->> 'attempt_id')::UUID,
+  'terminal_error',
+  (:'p5b_from_me_projection'::JSONB ->> 'error_code'),
+  (:'p5b_from_me_projection'::JSONB ->> 'evidence_ref'),
+  NULL,
+  '4b500000-0000-4000-8000-000000000642'
+)::TEXT AS p5b_from_me_finish
+\gset
+
+SELECT platform.claim_waha_webhook_work(
+  :'org_a_id', 300, 'p5b-worker-api',
+  '4b500000-0000-4000-8000-000000000643'
+)::TEXT AS p5b_api_claim
+\gset
+SELECT platform.project_claimed_waha_event(
+  :'org_a_id',
+  (:'p5b_api_claim'::JSONB ->> 'work_item_id')::UUID,
+  (:'p5b_api_claim'::JSONB ->> 'attempt_id')::UUID,
+  :'p5b_intake_sales_membership_id',
+  '4b500000-0000-4000-8000-000000000644'
+)::TEXT AS p5b_api_projection
+\gset
+SELECT platform.finish_waha_webhook_work(
+  :'org_a_id',
+  (:'p5b_api_claim'::JSONB ->> 'work_item_id')::UUID,
+  (:'p5b_api_claim'::JSONB ->> 'attempt_id')::UUID,
+  'terminal_error',
+  (:'p5b_api_projection'::JSONB ->> 'error_code'),
+  (:'p5b_api_projection'::JSONB ->> 'evidence_ref'),
+  NULL,
+  '4b500000-0000-4000-8000-000000000645'
+)::TEXT AS p5b_api_finish
+\gset
+
+SELECT platform.claim_waha_webhook_work(
+  :'org_a_id', 300, 'p5b-worker-metadata-mismatch',
+  '4b500000-0000-4000-8000-000000000646'
+)::TEXT AS p5b_metadata_mismatch_claim
+\gset
+SELECT platform.project_claimed_waha_event(
+  :'org_a_id',
+  (:'p5b_metadata_mismatch_claim'::JSONB ->> 'work_item_id')::UUID,
+  (:'p5b_metadata_mismatch_claim'::JSONB ->> 'attempt_id')::UUID,
+  :'p5b_intake_sales_membership_id',
+  '4b500000-0000-4000-8000-000000000647'
+)::TEXT AS p5b_metadata_mismatch_projection
+\gset
+SELECT platform.finish_waha_webhook_work(
+  :'org_a_id',
+  (:'p5b_metadata_mismatch_claim'::JSONB ->> 'work_item_id')::UUID,
+  (:'p5b_metadata_mismatch_claim'::JSONB ->> 'attempt_id')::UUID,
+  'terminal_error',
+  (:'p5b_metadata_mismatch_projection'::JSONB ->> 'error_code'),
+  (:'p5b_metadata_mismatch_projection'::JSONB ->> 'evidence_ref'),
+  NULL,
+  '4b500000-0000-4000-8000-000000000648'
+)::TEXT AS p5b_metadata_mismatch_finish
 \gset
 
 RESET ROLE;
@@ -991,6 +1166,7 @@ SELECT pg_temp.assert_true(
   AND :'p5b_no_org_scope_state' <> '00000'
   AND :'p5b_missing_permission_state' <> '00000'
   AND :'p5b_unrelated_lane_state' <> '00000'
+  AND :'p5b_finish_without_projection_state' = '42501'
   AND :'p5b_authority_flip_state' <> '00000'
   AND :'p5b_direct_activity_touch_state' = '55000'
   AND :'p5b_provider_without_identity_state' <> '00000'
@@ -1071,15 +1247,145 @@ SELECT pg_temp.assert_true(
 );
 
 SELECT pg_temp.assert_true(
+  (:'p5b_from_me_claim'::JSONB ->> 'claimed')::BOOLEAN
+  AND (:'p5b_from_me_projection'::JSONB ->> 'disposition') =
+    'terminal_error'
+  AND (:'p5b_from_me_projection'::JSONB ->> 'error_code') =
+    'waha_inbound_from_me'
+  AND (:'p5b_from_me_finish'::JSONB ->> 'state') = 'dead_lettered'
+  AND (:'p5b_api_claim'::JSONB ->> 'claimed')::BOOLEAN
+  AND (:'p5b_api_projection'::JSONB ->> 'disposition') =
+    'terminal_error'
+  AND (:'p5b_api_projection'::JSONB ->> 'error_code') =
+    'waha_inbound_api_source'
+  AND (:'p5b_api_finish'::JSONB ->> 'state') = 'dead_lettered'
+  AND (:'p5b_metadata_mismatch_claim'::JSONB ->> 'claimed')::BOOLEAN
+  AND (:'p5b_metadata_mismatch_projection'::JSONB ->> 'disposition') =
+    'terminal_error'
+  AND (:'p5b_metadata_mismatch_projection'::JSONB ->> 'error_code') =
+    'waha_event_metadata_mismatch'
+  AND (:'p5b_metadata_mismatch_finish'::JSONB ->> 'state') =
+    'dead_lettered'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform.communication_messages AS message
+    WHERE message.organization_id = :'org_a_id'
+      AND message.source_webhook_event_id IN (
+        '4b500000-0000-4000-8000-000000000109',
+        '4b500000-0000-4000-8000-000000000110',
+        '4b500000-0000-4000-8000-000000000113'
+      )
+  ),
+  'malformed verified WAHA work did not terminate without public projection'
+);
+
+SELECT pg_temp.assert_true(
   (:'p5b_group_projection'::JSONB ->> 'disposition') = 'terminal_error'
   AND (:'p5b_group_projection'::JSONB ->> 'error_code') =
     'waha_inbound_unsupported_chat'
-  AND (:'p5b_media_projection'::JSONB ->> 'error_code') =
-    'waha_inbound_body_required'
-  AND (:'p5b_empty_projection'::JSONB ->> 'error_code') =
-    'waha_inbound_body_required'
+  AND :'p5b_media_projection' = :'p5b_media_projection_replay'
+  AND (:'p5b_media_projection'::JSONB ->> 'disposition') = 'succeeded'
+  AND (:'p5b_media_projection'::JSONB ->> 'error_code') IS NULL
+  AND (:'p5b_media_projection'::JSONB ->>
+    'human_review_required')::BOOLEAN
+  AND (:'p5b_media_projection'::JSONB ->> 'handoff_event_id') IS NOT NULL
+  AND (:'p5b_media_finish'::JSONB ->> 'state') = 'succeeded'
+  AND (:'p5b_empty_projection'::JSONB ->> 'disposition') = 'succeeded'
+  AND (:'p5b_empty_projection'::JSONB ->> 'error_code') IS NULL
+  AND (:'p5b_empty_projection'::JSONB ->>
+    'human_review_required')::BOOLEAN
+  AND (:'p5b_empty_projection'::JSONB ->> 'handoff_event_id') IS NOT NULL
+  AND (:'p5b_empty_finish'::JSONB ->> 'state') = 'succeeded'
   AND (:'p5b_second_projection'::JSONB ->> 'disposition') = 'succeeded',
   'group, media-only, empty, or direct-message outcomes are wrong'
+);
+
+SELECT pg_temp.assert_true(
+  (
+    SELECT count(*) = 2
+    FROM platform.communication_messages AS message
+    WHERE message.organization_id = :'org_a_id'
+      AND message.id IN (
+        (:'p5b_media_projection'::JSONB ->>
+          'communication_message_id')::UUID,
+        (:'p5b_empty_projection'::JSONB ->>
+          'communication_message_id')::UUID
+      )
+      AND message.body_text =
+        '[Системное уведомление] Получено медиа или сообщение без текста. Требуется проверка сотрудником.'
+      AND message.language = 'undetermined'
+      AND NOT message.student_visible
+      AND message.message_identity_source = 'private_waha_binding'
+      AND message.waha_session_name IS NULL
+      AND message.waha_message_id IS NULL
+      AND message.kommo_account_id IS NULL
+      AND message.amocrm_account_id IS NULL
+  )
+  AND (
+    SELECT count(*) = 2
+    FROM platform_private.waha_message_bindings AS binding
+    WHERE binding.organization_id = :'org_a_id'
+      AND binding.source_webhook_event_id IN (
+        '4b500000-0000-4000-8000-000000000104',
+        '4b500000-0000-4000-8000-000000000105'
+      )
+      AND binding.communication_message_id IN (
+        (:'p5b_media_projection'::JSONB ->>
+          'communication_message_id')::UUID,
+        (:'p5b_empty_projection'::JSONB ->>
+          'communication_message_id')::UUID
+      )
+  )
+  AND (
+    SELECT count(*) = 2
+    FROM platform.conversation_handoff_events AS handoff
+    WHERE handoff.organization_id = :'org_a_id'
+      AND handoff.source_webhook_event_id IN (
+        '4b500000-0000-4000-8000-000000000104',
+        '4b500000-0000-4000-8000-000000000105'
+      )
+      AND handoff.id IN (
+        (:'p5b_media_projection'::JSONB ->> 'handoff_event_id')::UUID,
+        (:'p5b_empty_projection'::JSONB ->> 'handoff_event_id')::UUID
+      )
+      AND handoff.request_id = handoff.source_webhook_event_id
+      AND handoff.previous_queue IS NULL
+      AND handoff.previous_owner_membership_id IS NULL
+      AND handoff.new_queue = 'sales'
+      AND handoff.new_owner_membership_id =
+        :'p5b_intake_sales_membership_id'
+      AND handoff.reason =
+        'Inbound WAHA content without text requires staff review'
+  )
+  AND (
+    SELECT count(*) = 1
+    FROM platform.communication_conversations AS conversation
+    JOIN platform.conversation_participants AS participant
+      ON participant.organization_id = conversation.organization_id
+     AND participant.conversation_id = conversation.id
+     AND participant.participant_kind = 'sales'
+    WHERE conversation.organization_id = :'org_a_id'
+      AND conversation.id = (
+        :'p5b_second_projection'::JSONB ->>
+          'communication_conversation_id'
+      )::UUID
+      AND conversation.responsible_sales_membership_id =
+        :'p5b_intake_sales_membership_id'
+      AND participant.membership_id = :'p5b_intake_sales_membership_id'
+      AND participant.membership_id <>
+        :'p5b_rotated_intake_sales_membership_id'
+  )
+  AND (
+    SELECT count(*) = 2
+    FROM platform_private.durable_work_items AS item
+    WHERE item.organization_id = :'org_a_id'
+      AND item.id IN (
+        (:'p5b_media_claim'::JSONB ->> 'work_item_id')::UUID,
+        (:'p5b_empty_claim'::JSONB ->> 'work_item_id')::UUID
+      )
+      AND item.state = 'succeeded'
+  ),
+  'bodyless WAHA projection did not preserve private identity, operator marker, handoff, and successful finish'
 );
 
 SELECT pg_temp.assert_true(
@@ -1242,16 +1548,6 @@ SELECT pg_temp.assert_true(
   AND (
     SELECT read_ct = 0
     FROM pgmq.q_platform_work_v1
-    WHERE msg_id = :'p5b_from_me_queue_id'::BIGINT
-  )
-  AND (
-    SELECT read_ct = 0
-    FROM pgmq.q_platform_work_v1
-    WHERE msg_id = :'p5b_api_queue_id'::BIGINT
-  )
-  AND (
-    SELECT read_ct = 0
-    FROM pgmq.q_platform_work_v1
     WHERE msg_id = :'p5b_ai_queue_id'::BIGINT
   )
   AND (
@@ -1265,7 +1561,7 @@ SELECT pg_temp.assert_true(
     WHERE msg_id =
       (:'p5b_other_session_enqueue'::JSONB ->> 'queue_message_id')::BIGINT
   ),
-  'claim touched ACK, status, unsafe direction, wrong session, AI, or manual queue rows'
+  'claim touched ACK, status, wrong-session, AI, or manual queue rows'
 );
 
 SELECT

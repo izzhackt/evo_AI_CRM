@@ -56,6 +56,10 @@ jobs:
       - name: Test security and PostgreSQL authorization boundaries
         run: npm run test:security
 
+      - name: Test the full local Supabase, Storage, queue, and browser contract
+        timeout-minutes: 35
+        run: npm run test:supabase:local
+
       - name: Test frontend state contracts
         run: npm run test:unit
 

@@ -14,6 +14,14 @@ frontend. This first projection block claims only
 inbound `message`/`message.any` work. Signed `message.ack` and `session.status`
 work remains queued and untouched for the next independently reviewed P5 block.
 
+A verified direct message without non-empty text is not discarded. P5B keeps
+the immutable raw event and private WAHA identity, projects a fixed
+operator-visible system marker into the accepted thread, and appends a durable
+Sales handoff event requiring human review. This includes media-only messages
+until a later block adds private media download, Storage persistence and safe
+rendering. The marker is not customer-authored content, and P5B does not infer,
+download or interpret the media.
+
 This is deliberately not a CRM resolver. A WAHA-only conversation has no
 fabricated Kommo or amoCRM identifiers. It uses an explicitly configured,
 active Platform Sales membership only as the pre-contract **intake queue
@@ -46,9 +54,14 @@ no generic update or silent conversion path.
    configured organization, exact session `evo-inbox` and exact account
    reference `waha:evo-inbox`. Another verified WAHA session remains untouched;
    ACK, session-status, AI-draft and manual-send work also remain untouched.
+   A stale/bypassed row with an invalid raw envelope, direction or API source is
+   still leased inside that narrow lane so the projector can record a terminal
+   audited outcome instead of leaving poisoned work queued forever.
 5. The service-only projector revalidates the lease, source event, signed raw
    direction and tenant boundary before writing an idempotent receive-side
-   effect.
+   effect. Bodyless/media-only input follows the same identity checks, then
+   receives the fixed system marker and an append-only handoff to the configured
+   intake Sales operator instead of a terminal missing-body outcome.
 6. Only after the projection returns a bounded disposition does the worker call
    the service-only, tenant-bound WAHA finish wrapper. It delegates to the
    existing durable finish contract but repairs the older terminal envelope by
@@ -100,10 +113,19 @@ database constraint requires the exact private WAHA binding to exist before
 the projection transaction can commit, so the marker cannot become a silent
 identity fallback.
 
+For bodyless/media-only input, the handoff uses the verified source webhook
+event UUID as its deterministic request identity. Replays therefore cannot add
+another handoff before or after the terminal projection effect is stored. The
+conversation remains in the Platform intake Sales queue; this is human-review
+assignment evidence, not an amoCRM ownership claim or canonical sales handoff.
+
 ## Evidence and provider boundary
 
 Local proof must include the focused Node tests, disposable PostgreSQL/RLS
 suite, migration reset and existing authenticated `/whatsapp` read-path tests.
+The browser proof must include a signed bodyless/media-only event, the private
+worker, the visible system marker, one readable handoff event and the absence
+of raw chat/message identifiers in the accepted frontend and public RPC rows.
 Synthetic event bodies prove parsing, idempotency and authorization only; they
 are not WAHA provider proof.
 

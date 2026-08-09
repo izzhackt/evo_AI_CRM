@@ -620,6 +620,10 @@ BEGIN
     RETURN replayed;
   END IF;
 
+  -- Claim tenant/session-scoped message work even when its stored raw envelope
+  -- is malformed. The projector revalidates metadata, direction and source and
+  -- records a terminal disposition, preventing poisoned verified rows from
+  -- remaining visible in the queue forever.
   WITH candidate AS MATERIALIZED (
     SELECT queue_row.msg_id
     FROM pgmq.q_platform_work_v1 AS queue_row
@@ -638,14 +642,6 @@ BEGIN
       AND source_event.waha_session_name = 'evo-inbox'
       AND source_event.verification_status = 'verified'
       AND source_event.event_type IN ('message', 'message.any')
-      AND source_event.raw_payload ->> 'event' = source_event.event_type
-      AND source_event.raw_payload ->> 'session' =
-        source_event.waha_session_name
-      AND source_event.raw_payload #> '{payload,fromMe}' = 'false'::JSONB
-      AND lower(COALESCE(
-        source_event.raw_payload #>> '{payload,source}',
-        ''
-      )) <> 'api'
       AND jsonb_typeof(queue_row.message) = 'object'
       AND queue_row.message ?& ARRAY['v', 'work_item_id', 'kind']
       AND queue_row.message - ARRAY['v', 'work_item_id', 'kind'] =
@@ -964,12 +960,16 @@ DECLARE
   resolved_chat_id TEXT;
   customer_subject_ref TEXT;
   inbound_body_text TEXT;
+  human_review_required BOOLEAN := FALSE;
+  human_review_marker CONSTANT TEXT :=
+    '[Системное уведомление] Получено медиа или сообщение без текста. Требуется проверка сотрудником.';
   source_waha_message_id TEXT;
   created_conversation_id UUID := gen_random_uuid();
   created_scope_id UUID := gen_random_uuid();
   created_customer_participant_id UUID := gen_random_uuid();
   created_sales_participant_id UUID := gen_random_uuid();
   created_message_id UUID := gen_random_uuid();
+  handoff_event_id UUID;
 BEGIN
   PERFORM platform_private.require_p2g_service();
 
@@ -1080,16 +1080,6 @@ BEGIN
     OR source_event.waha_session_name <> 'evo-inbox'
     OR source_event.verification_status <> 'verified'
     OR source_event.event_type NOT IN ('message', 'message.any')
-    OR source_event.raw_payload ->> 'event' IS DISTINCT FROM
-      source_event.event_type
-    OR source_event.raw_payload ->> 'session' IS DISTINCT FROM
-      source_event.waha_session_name
-    OR source_event.raw_payload #> '{payload,fromMe}' IS DISTINCT FROM
-      'false'::JSONB
-    OR lower(COALESCE(
-      source_event.raw_payload #>> '{payload,source}',
-      ''
-    )) = 'api'
   THEN
     RAISE EXCEPTION
       'Verified tenant-matched inbound WAHA message evidence is required'
@@ -1235,17 +1225,16 @@ BEGIN
       END IF;
 
       inbound_body_text := NULLIF(btrim(payload ->> 'body'), '');
-      IF jsonb_typeof(payload -> 'body') IS DISTINCT FROM 'string'
-        OR inbound_body_text IS NULL
-      THEN
-        error_code := 'waha_inbound_body_required';
-        evidence_ref := 'waha-projection:' || source_event.id::TEXT
-          || ':' || error_code;
-        result := platform_private.p5b_projection_result(
-          p_organization_id, p_work_item_id, p_attempt_id,
-          'terminal_error', evidence_ref, error_code
-        );
-        EXIT project_event;
+      human_review_required :=
+        jsonb_typeof(payload -> 'body') IS DISTINCT FROM 'string'
+        OR inbound_body_text IS NULL;
+
+      IF human_review_required THEN
+        -- The accepted communications contract requires non-empty body_text,
+        -- while P5B does not yet download or interpret media. Preserve the raw
+        -- event and exact private provider identity, expose only this fixed
+        -- non-customer marker, and create a durable staff handoff below.
+        inbound_body_text := human_review_marker;
       END IF;
 
       chat_candidates := ARRAY[
@@ -1473,8 +1462,6 @@ BEGIN
         IF conversation.id IS NULL
           OR conversation.waha_session_name <>
             source_event.waha_session_name
-          OR conversation.responsible_sales_membership_id <>
-            p_intake_sales_membership_id
           OR conversation.sales_authority_source <> 'platform_intake'
           OR conversation.queue <> 'sales'
           OR conversation.student_case_id IS NOT NULL
@@ -1501,7 +1488,7 @@ BEGIN
           AND participant.conversation_id = conversation.id
           AND participant.participant_kind = 'sales'
           AND participant.membership_id =
-            p_intake_sales_membership_id
+            conversation.responsible_sales_membership_id
         ORDER BY participant.created_at, participant.id
         LIMIT 1;
 
@@ -1607,7 +1594,49 @@ BEGIN
         -- to touch the parent conversation timestamp.
       END IF;
 
-      evidence_ref := 'waha-inbound-projected:' || source_event.id::TEXT;
+      IF human_review_required THEN
+        INSERT INTO platform.conversation_handoff_events (
+          organization_id,
+          conversation_id,
+          previous_student_case_id,
+          new_student_case_id,
+          previous_queue,
+          new_queue,
+          previous_owner_membership_id,
+          new_owner_membership_id,
+          source_webhook_event_id,
+          student_case_assignment_event_id,
+          reason,
+          request_id
+        )
+        VALUES (
+          p_organization_id,
+          conversation.id,
+          NULL,
+          NULL,
+          CASE
+            WHEN binding.id IS NULL THEN NULL
+            ELSE 'sales'::platform.communication_queue
+          END,
+          'sales',
+          CASE
+            WHEN binding.id IS NULL THEN NULL
+            ELSE conversation.responsible_sales_membership_id
+          END,
+          conversation.responsible_sales_membership_id,
+          source_event.id,
+          NULL,
+          'Inbound WAHA content without text requires staff review',
+          source_event.id
+        )
+        RETURNING id INTO handoff_event_id;
+      END IF;
+
+      evidence_ref := CASE
+        WHEN human_review_required
+          THEN 'waha-inbound-human-review:' || source_event.id::TEXT
+        ELSE 'waha-inbound-projected:' || source_event.id::TEXT
+      END;
       result := platform_private.p5b_projection_result(
         p_organization_id,
         p_work_item_id,
@@ -1619,7 +1648,9 @@ BEGIN
         'communication_conversation_id', conversation.id,
         'communication_message_id', message_row.id,
         'customer_participant_id', customer_participant.id,
-        'sales_participant_id', sales_participant.id
+        'sales_participant_id', sales_participant.id,
+        'human_review_required', human_review_required,
+        'handoff_event_id', handoff_event_id
       );
     ELSE
       error_code := 'waha_event_type_unsupported';
@@ -1692,11 +1723,18 @@ BEGIN
         AND source_event.waha_session_name = 'evo-inbox'
         AND source_event.verification_status = 'verified'
         AND source_event.event_type IN ('message', 'message.any')
-        AND source_event.raw_payload #> '{payload,fromMe}' = 'false'::JSONB
-        AND lower(COALESCE(
-          source_event.raw_payload #>> '{payload,source}',
-          ''
-        )) <> 'api'
+        AND EXISTS (
+          SELECT 1
+          FROM platform_private.waha_work_projection_requests AS projection
+          WHERE projection.organization_id = p_organization_id
+            AND projection.work_item_id = p_work_item_id
+            AND projection.attempt_id = p_attempt_id
+            AND projection.response ->> 'disposition' = p_outcome::TEXT
+            AND projection.response ->> 'evidence_ref' IS NOT DISTINCT FROM
+              p_evidence_ref
+            AND projection.response ->> 'error_code' IS NOT DISTINCT FROM
+              p_error_code
+        )
     )
   THEN
     RAISE EXCEPTION
@@ -1892,6 +1930,6 @@ COMMENT ON FUNCTION platform.finish_waha_webhook_work(
   INTEGER,
   UUID
 ) IS
-  'Finishes only tenant-matched verified inbound WAHA work and returns an organization-bound response envelope.';
+  'Finishes only tenant-matched verified inbound WAHA work with a matching persisted projection receipt and returns an organization-bound response envelope.';
 
 COMMIT;

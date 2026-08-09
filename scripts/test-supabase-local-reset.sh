@@ -22,6 +22,8 @@ readonly STORAGE_CONTAINER="supabase_storage_${SUPABASE_PROJECT_ID}"
 readonly KONG_CONTAINER="supabase_kong_${SUPABASE_PROJECT_ID}"
 readonly STACK_LABEL="com.supabase.cli.project=${SUPABASE_PROJECT_ID}"
 readonly INBOX_STACK_LABEL="com.supabase.cli.project=inbox"
+readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"
+readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"
 readonly EXCLUDED_SERVICES="realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
 readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2h.XXXXXX")"
 readonly BROWSER_BUILD_RUN_KEY="$(
@@ -587,12 +589,27 @@ NODE
 
 reset_reached_post_migration_restart_failure() {
   local progress_log=$1
+  local last_nonempty_line
 
   # The CLI emits this banner only after it has recreated and migrated the
-  # database and entered its service-restart phase. Recovery still must prove
-  # exact-stack readiness and migration parity before proceeding.
-  [[ -s "${progress_log}" ]] \
-    && grep -Fq "Restarting containers" "${progress_log}"
+  # database and entered its service-restart phase. Accept only a timeout whose
+  # last progress line is that banner, or the exact known local Storage gateway
+  # 502 emitted at the same boundary. Any unrelated later error remains fatal.
+  [[ -s "${progress_log}" ]] || return 1
+  grep -Fq "Restarting containers" "${progress_log}" || return 1
+
+  last_nonempty_line="$(
+    sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "${progress_log}" | tail -n 1
+  )"
+  if [[ "${last_nonempty_line}" == "Restarting containers..." ]]; then
+    return 0
+  fi
+
+  [[ "${last_nonempty_line}" == \
+    "${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" ]] || return 1
+
+  grep -Fq "${KNOWN_STORAGE_GATEWAY_502_STATUS}" "${progress_log}" \
+    && grep -Fq "${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" "${progress_log}"
 }
 
 reload_exact_local_kong() {
@@ -825,6 +842,51 @@ fi
 assert_local_migration_history initial \
   || fail "Disposable local migration history does not match canonical files."
 
+# Prove the empty queue before any Auth/browser fixture can create outbox work.
+# The queue runtime itself creates an organization fixture, while Auth must
+# prove the guarded first-organization bootstrap. Recreate the disposable DB
+# between those independent gates; both resets happen before browser evidence.
+if ! run_with_deadline 300000 bash \
+  "${REPO_ROOT}/scripts/test-p2g-queues-runtime.sh" \
+  "${DATABASE_CONTAINER}" \
+  "postgres"; then
+  fail "Real local PGMQ visibility/retry/dead-letter gate failed."
+fi
+
+post_queue_reset_exit_code=0
+run_with_deadline 600000 "${SUPABASE_CLI}" \
+  --workdir "${REPO_ROOT}" \
+  --output-format json \
+  db reset \
+  --local \
+  --no-seed \
+  >"${TEMP_DIR}/post-queue-reset.json" \
+  2>"${TEMP_DIR}/post-queue-reset.log" \
+  || post_queue_reset_exit_code=$?
+if (( post_queue_reset_exit_code != 0 )); then
+  show_safe_failure_log "${TEMP_DIR}/post-queue-reset.log"
+  show_safe_database_deadlock_log
+  if reset_reached_post_migration_restart_failure \
+    "${TEMP_DIR}/post-queue-reset.log"; then
+    recover_post_migration_restart_failure \
+      "${TEMP_DIR}/post-queue-reset.log" \
+      || fail "Post-queue post-migration recovery failed for the exact disposable stack."
+  else
+    fail "Post-queue disposable Supabase reset failed before the proved post-migration recovery boundary. Exit code ${post_queue_reset_exit_code}."
+  fi
+fi
+
+assert_local_migration_history post-queue \
+  || fail "Post-queue migration history does not match canonical files."
+
+if ! run_with_deadline 120000 "${SUPABASE_CLI}" \
+  --workdir "${REPO_ROOT}" \
+  seed buckets \
+  --local \
+  >"${TEMP_DIR}/post-queue-seed-buckets.log" 2>&1; then
+  fail "Post-queue local Storage bucket seeding failed; output was withheld."
+fi
+
 readonly AUTH_STATUS_FILE="${TEMP_DIR}/auth-status.json"
 readonly PLATFORM_AUTH_BROWSER_FIXTURE="${TEMP_DIR}/platform-auth-browser.json"
 readonly LEGACY_DB_SENTINEL="${TEMP_DIR}/legacy-must-not-exist.db"
@@ -851,6 +913,29 @@ fi
 
 [[ ! -e "${AUTH_STATUS_FILE}" ]] \
   || fail "Auth smoke did not delete the credential-bearing local status file."
+
+readonly STORAGE_STATUS_FILE="${TEMP_DIR}/storage-status.json"
+: >"${STORAGE_STATUS_FILE}"
+chmod 600 "${STORAGE_STATUS_FILE}"
+
+if ! run_with_deadline 10000 "${SUPABASE_CLI}" \
+  --workdir "${REPO_ROOT}" \
+  status \
+  --output json \
+  >"${STORAGE_STATUS_FILE}" 2>"${TEMP_DIR}/storage-status.log"; then
+  fail "Unable to read disposable local Storage status; credential-bearing output was withheld."
+fi
+
+if ! run_with_deadline 600000 node \
+  "${REPO_ROOT}/scripts/test-p2h-storage-api.mjs" \
+  "${STORAGE_STATUS_FILE}" \
+  "${DATABASE_CONTAINER}"; then
+  show_safe_database_deadlock_log
+  fail "Real local private Storage API/policy gate failed."
+fi
+
+[[ ! -e "${STORAGE_STATUS_FILE}" ]] \
+  || fail "Storage gate did not delete the credential-bearing local status file."
 
 refresh_synthetic_browser_health
 for browser_partition in provider p5b remaining; do
@@ -915,73 +1000,6 @@ browser_gate_started=false
 rm -f -- "${PLATFORM_AUTH_BROWSER_FIXTURE}"
 [[ ! -e "${LEGACY_DB_SENTINEL}" ]] \
   || fail "Platform Auth browser gate touched the forbidden legacy SQLite sentinel."
-
-# The browser workflow intentionally leaves one AI job and one manual-send job
-# queued so the UI can prove real outbox persistence. Reset the disposable
-# database before the independent Storage and empty-queue runtime gates.
-post_browser_reset_exit_code=0
-run_with_deadline 600000 "${SUPABASE_CLI}" \
-  --workdir "${REPO_ROOT}" \
-  --output-format json \
-  db reset \
-  --local \
-  --no-seed \
-  >"${TEMP_DIR}/post-browser-reset.json" \
-  2>"${TEMP_DIR}/post-browser-reset.log" \
-  || post_browser_reset_exit_code=$?
-if (( post_browser_reset_exit_code != 0 )); then
-  show_safe_failure_log "${TEMP_DIR}/post-browser-reset.log"
-  show_safe_database_deadlock_log
-  if reset_reached_post_migration_restart_failure \
-    "${TEMP_DIR}/post-browser-reset.log"; then
-    recover_post_migration_restart_failure \
-      "${TEMP_DIR}/post-browser-reset.log" \
-      || fail "Post-browser post-migration recovery failed for the exact disposable stack."
-  else
-    fail "Post-browser disposable Supabase reset failed before the proved post-migration recovery boundary. Exit code ${post_browser_reset_exit_code}."
-  fi
-fi
-
-assert_local_migration_history post-browser \
-  || fail "Post-browser migration history does not match canonical files."
-
-if ! run_with_deadline 120000 "${SUPABASE_CLI}" \
-  --workdir "${REPO_ROOT}" \
-  seed buckets \
-  --local \
-  >"${TEMP_DIR}/post-browser-seed-buckets.log" 2>&1; then
-  fail "Post-browser local Storage bucket seeding failed; output was withheld."
-fi
-
-readonly STORAGE_STATUS_FILE="${TEMP_DIR}/storage-status.json"
-: >"${STORAGE_STATUS_FILE}"
-chmod 600 "${STORAGE_STATUS_FILE}"
-
-if ! run_with_deadline 10000 "${SUPABASE_CLI}" \
-  --workdir "${REPO_ROOT}" \
-  status \
-  --output json \
-  >"${STORAGE_STATUS_FILE}" 2>"${TEMP_DIR}/storage-status.log"; then
-  fail "Unable to read disposable local Storage status; credential-bearing output was withheld."
-fi
-
-if ! run_with_deadline 600000 node \
-  "${REPO_ROOT}/scripts/test-p2h-storage-api.mjs" \
-  "${STORAGE_STATUS_FILE}" \
-  "${DATABASE_CONTAINER}"; then
-  show_safe_database_deadlock_log
-  fail "Real local private Storage API/policy gate failed."
-fi
-
-[[ ! -e "${STORAGE_STATUS_FILE}" ]] \
-  || fail "Storage gate did not delete the credential-bearing local status file."
-
-if ! run_with_deadline 300000 bash \
-  "${REPO_ROOT}/scripts/test-p2g-queues-runtime.sh" \
-  "${DATABASE_CONTAINER}" \
-  "postgres"; then
-  fail "Real local PGMQ visibility/retry/dead-letter gate failed."
-fi
 
 printf 'Supabase CLI %s reset the disposable local database successfully.\n' "${actual_cli_version}"
 printf 'Verified %s contiguous canonical/applied migrations ending at %s; no application seed or production data was loaded.\n' \

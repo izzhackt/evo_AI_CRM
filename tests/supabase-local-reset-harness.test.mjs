@@ -4,6 +4,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -155,7 +156,7 @@ test("local Supabase start hands health proof to the explicit bounded readiness 
   );
 });
 
-test("both clean resets use one bounded cold-OrbStack attempt", () => {
+test("the isolated runtime gates use two bounded pre-browser resets", () => {
   const boundedResetPattern =
     /run_with_deadline 600000 "\$\{SUPABASE_CLI\}" \\\n+\s+--workdir "\$\{REPO_ROOT\}" \\\n+\s+--output-format json \\\n+\s+db reset \\\n+/g;
 
@@ -267,6 +268,29 @@ test("provider and P5B browser partitions run before the remaining suite", () =>
     1,
   );
   assert.doesNotMatch(executableLines, /run_with_deadline 900000 env/);
+});
+
+test("empty-queue proof is reset before Auth, Storage, and terminal browser validation", () => {
+  const storageGate = harness.indexOf(
+    '"${REPO_ROOT}/scripts/test-p2h-storage-api.mjs"',
+  );
+  const queueGate = harness.indexOf(
+    '"${REPO_ROOT}/scripts/test-p2g-queues-runtime.sh"',
+  );
+  const authGate = harness.indexOf(
+    '"${REPO_ROOT}/scripts/test-supabase-auth-hook.mjs"',
+  );
+  const browserGate = harness.indexOf(
+    "EVO_PLATFORM_AUTH_BROWSER_PARTITION=provider",
+  );
+  const postQueueReset = harness.indexOf("post-queue-reset.json");
+
+  assert.ok(queueGate > 0);
+  assert.ok(postQueueReset > queueGate);
+  assert.ok(authGate > postQueueReset);
+  assert.ok(storageGate > authGate);
+  assert.ok(browserGate > storageGate);
+  assert.doesNotMatch(harness, /post-browser-reset/);
 });
 
 test("browser health refresh is exact-local and preserves Org A AI negative proof", () => {
@@ -524,12 +548,18 @@ test("post-migration reset recovery stays exact-project and proves parity", () =
   const { migrationHistory, detector, reload, recover } =
     extractResetRecoverySource();
 
-  assert.doesNotMatch(
-    executableLines,
-    /KNOWN_STORAGE_GATEWAY_502_STATUS|KNOWN_STORAGE_GATEWAY_502_MESSAGE/,
+  assert.match(
+    harness,
+    /readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"/,
+  );
+  assert.match(
+    harness,
+    /readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"/,
   );
   assert.match(detector, /grep -Fq "Restarting containers"/);
-  assert.doesNotMatch(detector, /result_file|502|upstream/);
+  assert.match(detector, /last_nonempty_line/);
+  assert.match(detector, /KNOWN_STORAGE_GATEWAY_502_STATUS/);
+  assert.match(detector, /KNOWN_STORAGE_GATEWAY_502_MESSAGE/);
   assert.match(migrationHistory, /migration list \\\n+\s+--local/);
   assert.match(migrationHistory, /\["canonical files", local\]/);
   assert.match(migrationHistory, /\["applied local database", applied\]/);
@@ -555,6 +585,62 @@ test("post-migration reset recovery stays exact-project and proves parity", () =
     recover,
     /reset_reached_post_migration_restart_failure "\$\{progress_log\}"[\s\S]*reload_exact_local_kong[\s\S]*wait_for_local_stack_readiness[\s\S]*assert_local_migration_history recovery/,
   );
+});
+
+test("post-migration recovery rejects unrelated errors after restart", () => {
+  const { detector } = extractResetRecoverySource();
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "evo-reset-detector-"));
+  const runDetector = (name, contents) => {
+    const progressLog = join(temporaryDirectory, `${name}.log`);
+    writeFileSync(progressLog, contents, { mode: 0o600 });
+    return spawnSync(
+      "bash",
+      [
+        "-c",
+        `
+set -Eeuo pipefail
+readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"
+readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"
+${detector}
+reset_reached_post_migration_restart_failure "$1"
+`,
+        "bash",
+        progressLog,
+      ],
+      { encoding: "utf8" },
+    );
+  };
+
+  try {
+    assert.equal(
+      runDetector("stalled", "Applying migrations\nRestarting containers...\n")
+        .status,
+      0,
+    );
+    assert.equal(
+      runDetector(
+        "known-502",
+        "Restarting containers...\nError status 502:\nAn invalid response was received from the upstream server\n",
+      ).status,
+      0,
+    );
+    assert.notEqual(
+      runDetector(
+        "unrelated",
+        "Restarting containers...\nERROR: migration checksum mismatch\n",
+      ).status,
+      0,
+    );
+    assert.notEqual(
+      runDetector(
+        "known-502-then-unrelated",
+        "Restarting containers...\nError status 502:\nAn invalid response was received from the upstream server\nERROR: later unrelated failure\n",
+      ).status,
+      0,
+    );
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
 });
 
 test("post-migration recovery reloads or restarts only owned Kong", () => {
@@ -681,22 +767,16 @@ fi
 });
 
 test("both reset phases use only proved post-migration recovery", () => {
-  for (const logName of ["reset.log", "post-browser-reset.log"]) {
-    assert.match(
-      harness,
-      new RegExp(
-        `reset_reached_post_migration_restart_failure[\\s\\S]*"\\$\\{TEMP_DIR\\}/${logName.replaceAll(".", "\\.")}"[\\s\\S]*recover_post_migration_restart_failure[\\s\\S]*"\\$\\{TEMP_DIR\\}/${logName.replaceAll(".", "\\.")}"`,
-      ),
-      logName,
-    );
-  }
+  assert.match(
+    harness,
+    /reset_reached_post_migration_restart_failure[\s\S]*"\$\{TEMP_DIR\}\/reset\.log"[\s\S]*recover_post_migration_restart_failure[\s\S]*"\$\{TEMP_DIR\}\/reset\.log"/,
+  );
+  assert.match(
+    harness,
+    /reset_reached_post_migration_restart_failure[\s\S]*"\$\{TEMP_DIR\}\/post-queue-reset\.log"[\s\S]*recover_post_migration_restart_failure[\s\S]*"\$\{TEMP_DIR\}\/post-queue-reset\.log"/,
+  );
 
-  for (const retryArtifact of [
-    "reset-retry.json",
-    "reset-retry.log",
-    "post-browser-reset-retry.json",
-    "post-browser-reset-retry.log",
-  ]) {
+  for (const retryArtifact of ["reset-retry.json", "reset-retry.log"]) {
     assert.doesNotMatch(harness, new RegExp(retryArtifact.replaceAll(".", "\\.")));
   }
 
@@ -706,8 +786,9 @@ test("both reset phases use only proved post-migration recovery", () => {
   );
   assert.match(
     harness,
-    /Post-browser disposable Supabase reset failed before the proved post-migration recovery boundary\./,
+    /Post-queue disposable Supabase reset failed before the proved post-migration recovery boundary\./,
   );
+  assert.doesNotMatch(harness, /Post-browser disposable Supabase reset/);
 });
 
 test("browser partitions isolate Next dev artifacts by disposable run and partition", () => {
@@ -774,7 +855,7 @@ test("browser partitions keep Next type includes out of the tracked root tsconfi
   );
 });
 
-test("post-migration reset recovery proves migration parity without relying on vendor 502 wording", () => {
+test("post-migration reset recovery proves parity at a narrowly classified boundary", () => {
   assert.match(
     harness,
     /reset_reached_post_migration_restart_failure\(\)/,
@@ -787,8 +868,7 @@ test("post-migration reset recovery proves migration parity without relying on v
     harness,
     /recover_post_migration_restart_failure\(\)[\s\S]*reset_reached_post_migration_restart_failure[\s\S]*reload_exact_local_kong[\s\S]*wait_for_local_stack_readiness[\s\S]*assert_local_migration_history/,
   );
-  assert.doesNotMatch(
-    executableLines,
-    /KNOWN_STORAGE_GATEWAY_502_STATUS|KNOWN_STORAGE_GATEWAY_502_MESSAGE/,
-  );
+  assert.match(executableLines, /last_nonempty_line/);
+  assert.match(executableLines, /KNOWN_STORAGE_GATEWAY_502_STATUS/);
+  assert.match(executableLines, /KNOWN_STORAGE_GATEWAY_502_MESSAGE/);
 });

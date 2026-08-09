@@ -8,7 +8,9 @@ unified platform.
 The target contract is
 [`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`](docs/EVO_PLATFORM_LONG_RUN_PLAN.md) and
 the current execution-order decision is
-[`docs/adr/0018-defer-amocrm-and-retain-lead-agent.md`](docs/adr/0018-defer-amocrm-and-retain-lead-agent.md).
+[`docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md`](docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md).
+ADR 0018 remains authoritative for the retained/frozen Lead Agent and legacy
+rollback path except where ADR 0019 narrowly supersedes it.
 The target architecture remains
 [`docs/adr/0014-unified-evo-platform-target-architecture.md`](docs/adr/0014-unified-evo-platform-target-architecture.md),
 subject to later superseding decisions.
@@ -67,15 +69,16 @@ _Avoid_: multi-session launch, primary CRM session
 **Companion AI Assistant**:
 The Companion WAHA CRM App's current AI reply system for draft replies,
 legacy configurable auto-reply surfaces, handoff, and knowledge-base grounding.
-The target platform does not retain automatic customer replies.
+It is companion-era context, not authority for the Platform's gated autonomous
+inbound-reply lane.
 _Avoid_: lead-agent, external bot brain
 
 **Identity Source of Truth**:
 amoCRM, which owns the canonical contact, lead, responsible sales manager, and
-sales stage for admissions follow-up. The canonical adapter is currently
-deferred under ADR 0018, so dependent resolution, ownership, stage and handoff
-must remain unavailable rather than falling back to SQLite, mocks or hardcoded
-mapping.
+sales stage for admissions follow-up. ADR 0019 resumes only a bounded read-mostly
+adapter for those values and references to sales tasks, calls/recordings and chat
+records. Missing verified account mapping fails closed; SQLite, mocks, inferred
+identity, hardcoded IDs and silent fallback remain prohibited.
 _Avoid_: local source, duplicate identity
 
 **Shadow Record**:
@@ -96,6 +99,45 @@ edit if needed, and deliberately send it. The target supports Russian or
 English according to the last customer message; uncertain language detection
 requires manual language selection or human handoff.
 _Avoid_: passive bot, silent auto-reply
+
+**Rolling 24-Hour Service Window**:
+The WhatsApp customer-service window opened or refreshed by a customer inbound
+message in the same conversation. The bounded autonomous lane may send only an
+inbound-triggered reply while this window remains open.
+_Avoid_: campaign window, follow-up permission, permanent opt-in
+
+**Bounded Autonomous Inbound Reply**:
+A reply proposed by Gemini and approved by deterministic EVO gates for the exact
+triggering inbound message inside the Rolling 24-Hour Service Window. It excludes
+cold outbound, broadcast, campaign, autonomous follow-up/re-engagement and
+out-of-window free-form sends.
+_Avoid_: bot campaign, autonomous outbound, model-direct send
+
+**Deterministic EVO Send Gate**:
+The server-side policy decision that records every input and verdict and alone
+may queue an autonomous reply. Gemini proposes content and qualification facts;
+it does not authorize or perform transport.
+_Avoid_: model approval, prompt-only safety, WAHA policy
+
+**Autonomy Pause**:
+A durable conversation state created immediately by any staff outbound message
+or explicit takeover. Only an authorized staff actor may resume autonomy, with
+actor, reason and time audited.
+_Avoid_: temporary model hint, reconnect reset, silent resume
+
+**Media-Only Inbound**:
+A valid inbound customer event with media but no usable text. It must be
+persisted, projected for the Operator UI and handed to a person; missing text is
+not a reason to terminally consume it. Autonomous media understanding requires a
+separate approval.
+_Avoid_: empty message, ignored webhook, successful no-op
+
+**Read-Mostly amoCRM Adapter**:
+The bounded adapter that reads verified canonical contact, lead, responsible
+sales manager and stage plus task, call/recording and chat-record references.
+It performs no provider write, inferred mapping, name-based identity match or
+silent fallback.
+_Avoid_: bidirectional sync, stage writer, local identity authority
 
 **Companion First Launch Surface**:
 The first usable surface of the companion app: manual WhatsApp inbox, contacts, optional pipeline context, AI draft, knowledge base, WAHA receive/send, and amoCRM identity resolution.
@@ -160,10 +202,10 @@ integration.
 _Avoid_: unified Inbox, provider proof, canonical conversation ownership
 
 **Unified Frontend Contract**:
-The merged unified frontend shipped in PRs #64, #71 and #72. It is the sole
-product UI contract for the Platform path. Platform work must wire this UI
-through repository/session seams rather than replace it or introduce a parallel
-Inbox-derived UI.
+The accepted Claude Design root frontend shipped in PRs #64, #71 and #72. It is
+the sole product UI contract for the Platform path. Platform work must wire this
+UI through repository/session seams rather than replace it or introduce a
+parallel or fallback Inbox-derived UI.
 _Avoid_: second operator UI, replacement prototype, dual frontend
 
 **Unified Platform Data Store**:
@@ -198,10 +240,24 @@ _Avoid_: automatic role migration, signup-implies-Platform-access
 **Thin Messaging Slice**:
 The first bounded Platform product slice behind the unified frontend:
 conversation list/thread, necessary contact/student context, WAHA receive/send,
-ACK/delivery, AI draft, staff manual send, approved knowledge, audit, and
-minimal health/settings. It excludes generic CRM dashboards, pipelines, deals,
+ACK/delivery, AI draft, staff manual send, approved knowledge, durable memory,
+audit and minimal health/settings. ADR 0019 adds only the gated Bounded
+Autonomous Inbound Reply. It excludes generic CRM dashboards, pipelines, deals,
 lead management, broadcasts, flows, campaigns and unrelated analytics.
-_Avoid_: duplicate CRM, broad Inbox parity, auto-reply
+_Avoid_: duplicate CRM, broad Inbox parity, autonomous outbound
+
+**P5A WAHA Ingress**:
+The merged receive-only boundary that verifies signed WAHA events, persists raw
+evidence before processing and enqueues pointer-only durable work. It is disabled
+by default and is repository evidence, not real-provider proof.
+_Avoid_: projected conversation, AI reply, provider cutover
+
+**P5B WAHA Receive/Project Worker**:
+The not-yet-merged private worker that claims verified inbound WAHA work and
+projects operator-visible conversation/message state. It does not call Gemini or
+send through WAHA. Valid media-only input must project and hand off rather than
+be terminally consumed.
+_Avoid_: autonomous-send worker, merged capability, provider proof
 
 **Unified WAHA Session**:
 The target single private production WAHA session `evo-inbox`, representing one

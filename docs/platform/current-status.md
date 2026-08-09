@@ -1,7 +1,7 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-08-06
+- Snapshot date: 2026-08-09
 - Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 - P2A starting checkpoint: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
 - P2B starting checkpoint: `8ad755b5039390f418dbe12924a806f069f93b53`
@@ -12,17 +12,19 @@
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current merged checkpoint: `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`
+- Current merged checkpoint: `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
 - Active plan block:
-  `EVO-P5-AMO-DEFERRAL-SCOPE-AMENDMENT-2026-08-06`
+  `EVO-MVP-AUTONOMOUS-INBOUND-PLAN-2026-08-09`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
   `docs/adr/0016-greenfield-platform-ui-and-data-boundary.md`
 - Active Student Profile automation boundary:
   `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
-- Active execution-order boundary:
+- Retained Lead Agent/legacy-path boundary:
   `docs/adr/0018-defer-amocrm-and-retain-lead-agent.md`
+- Active autonomy and read-mostly amoCRM boundary:
+  `docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md`
 - Evidence rule: code/configuration is not real-provider proof
 
 ## Короткий вывод
@@ -31,9 +33,11 @@ Target unified EVO Platform принят как implementation contract, но е
 является production reality. Текущий repository baseline сохраняет root CRM,
 EVO Inbox и EVO Lead Agent как отдельные контуры. Платформа теперь описана как
 greenfield Supabase-native path без legacy SQLite import/auth migration,
-dual-read или dual-write. Полный реальный путь WhatsApp → amoCRM → Platform →
-AI draft → manual send → ACK → audit ни разу не доказан end-to-end, поэтому
-platform нельзя называть production-complete.
+dual-read или dual-write, а accepted Claude Design root frontend остаётся sole
+UI. Полный реальный путь WhatsApp → read-mostly amoCRM → Platform → Gemini
+proposal → deterministic gate → manual или bounded autonomous reply → ACK →
+Realtime/audit ни разу не доказан end-to-end, поэтому Platform нельзя называть
+production-complete.
 
 P1 остаётся историческим legacy containment. P2A-P2H, greenfield/UI boundary,
 BW0, P3A-P3C, BW1-BW7, P2R0-P2R4 и P4A merged; PR #118 merged the P4B plan.
@@ -42,20 +46,27 @@ document reading/extraction/autofill/export scope superseded решением ow
 эта автоматизация принадлежит отдельной системе вне `evo_AI_CRM`. PRs
 #125-#127 отменили зависимые PRs #124, #122 и #120, PR #128 controller-merged
 корректную продуктовую границу, а PRs #129-#130 merged local-validation plan и
-repair. Текущий main — `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`,
-exact-main CI `31038964366` зелёный, migrations остаются `001-058`.
+repair. PR #131 merged P4 deferral/Lead Agent retention authority, а PR #132
+merged receive-only P5A ingress. Текущий main —
+`8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`, exact-main CI `31310795550`
+зелёный, migrations contiguous `001-059`.
 
 P4B implementation сохранён на remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
 `e53ba94954f147b295f596421a255591fa343ce8`; implementation PR отсутствует.
 Focused checks прошли, но full local Supabase gate failed closed в real
 Auth/PostgREST hook до Playwright. Это failed/non-evidence; cleanup verification
-показал 0 exact Platform resources/process/lock. По owner decision P4/P4B
-deferred, текущий порядок — P5 → P6 → P7 → P8 → P10 только для
-amoCRM-independent capabilities. P9 removed; Lead Agent, legacy webhook/session
-и rollback path остаются deployed/frozen. Staging, real providers, managed apply
-и customer delivery остаются blocked до отдельной авторизации и доказательств.
-Former P2I restore duties остаются в P7.
+показал 0 exact Platform resources/process/lock. ADR 0019 возобновляет только
+bounded read-mostly amoCRM adapter; P4B writes, full mapping approval и cutover
+остаются gated. P9 removed; Lead Agent, legacy webhook/session и rollback path
+остаются deployed/frozen. Staging, real providers, managed apply и customer
+delivery остаются blocked до отдельной авторизации и доказательств. Former P2I
+restore duties остаются в P7.
+
+P5A merged, но ingress disabled by default. PR #133 at
+`8c681d9d48f0f3eda962f5d8546497dc2f637dd9` — draft P5B receive/project
+candidate, не AI/send implementation. Его checks зелёные, но PR blocked до
+этой authority amendment и media-only fix; merge/provider proof отсутствуют.
 
 ## Что подтверждено из репозитория
 
@@ -78,9 +89,12 @@ Former P2I restore duties остаются в P7.
 | BW6 contract/report | PR #114 controller-merged migration 057, contract repository/actions and the existing Student 360 route for typed approved-field contract drafts plus audited post-contract checklist/report | independent exact-SHA review, controller gates and exact-main CI `30918820654` passed; this is not a signed legal contract, PDF/DOCX/e-sign, provider, managed Supabase or production proof |
 | BW7 integration proof | PR #116 connected Student 360 assignment state and proved one synthetic case across Sales draft → Admin assignment/portal activation → Curator checklist/report → Student Portal → limited Sales summary | independent review/controller gates, real disposable local Supabase/Auth/RLS browser gate 28/28 and exact-main CI `30934111632` passed; persistent staging/provider/production proof remains absent |
 | P4A amoCRM mapping discovery | PR #117 merged migration 058 with immutable sanitized account-specific snapshots, service-only ingest, live-authority Admin reads and a GET-only bounded server adapter | independent exact-head review, controller full local Supabase RC=0 with 58 migrations and 28/28 browser scenarios, and exact-main CI `30958119076` passed; real amoCRM account proof remains blocked |
-| P4B mapping selection/approval | PR #118 merged the plan; implementation checkpoint `e53ba94954f147b295f596421a255591fa343ce8` is preserved remotely with focused checks passed and no PR | owner-deferred; full local gate failed in real Auth/PostgREST hook before Playwright and is non-evidence; no managed Supabase or provider proof |
+| P4B mapping selection/approval | PR #118 merged the plan; implementation checkpoint `e53ba94954f147b295f596421a255591fa343ce8` is preserved remotely with focused checks passed and no PR | full mapping/write scope remains gated; ADR 0019 separately resumes only read-mostly access; failed Auth/PostgREST gate is non-evidence and there is no provider proof |
 | PR #128 boundary correction | Student Profile document reading, extraction, autofill and form export moved to a separate system outside this repository; ordinary Platform document lifecycle remains | merged docs-only authority correction; no automatic data exchange, runtime dependency, provider call, customer-data action or production mutation |
 | P2R4 local validation repair | PRs #129-#130 merged the bounded plan and two-file fail-closed harness repair | exact-main CI `31038964366` green; later P4B gate failure is scoped to that branch/run and does not reopen P2R4 or prove providers |
+| P4 deferral/retention authority | PR #131 merged ADR 0018 and docs-only execution-order correction | ADR 0019 now supersedes only full P4 deferral and draft-only P5 wording; Lead Agent/legacy freeze remains |
+| P5A receive-only WAHA ingress | PR #132 merged signed HMAC/timestamp validation, raw-persist-before-process and pointer-only inbound work with migration 059 | P5A merge-baseline CI `31145596058` was green; current exact-main CI is tracked above; flags remain disabled by default and no real WAHA/Supabase/provider proof exists |
+| P5B receive/project candidate | PR #133 is draft at `8c681d9d48f0f3eda962f5d8546497dc2f637dd9`; candidate migration 060 and private worker project verified inbound work into the accepted root UI data path | not merged; blocked on authority amendment and media-only operator-visible handoff fix; no AI send or provider proof |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path, deployed/frozen вместе с legacy webhook/session и rollback path | P9 removed; deactivation, retirement и deletion запрещены в текущем scope |
@@ -137,19 +151,37 @@ P4B docs-only selection/approval contract:
   соединяет принятые RPC/RLS contracts с существующим frontend; merged P4A
   добавляет только forward migration 058 для private sanitized mapping
   discovery versions; PR #118's P4B plan, merged PR #128 boundary correction и
-  PRs #129-#130 не добавляют migration; если P4B позже возобновится, он обязан
-  заново подтвердить next-free номер и ownership на свежем main;
+  PRs #129-#131 не добавляют migration; merged P5A добавляет migration 059;
+  candidate P5B may use migration 060 only after a fresh next-free ownership
+  check; no later block may treat that number as reserved;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;
 - одна private production WAHA session `evo-inbox` и один webhook owner;
+- WAHA остаётся private transport; Supabase owns durable queues, proposal/gate
+  evidence, lead memory, approved pgvector retrieval, ACK/session reconciliation,
+  private Realtime and audit;
+- bounded read-mostly amoCRM adapter читает canonical contact, lead,
+  responsible Sales и stage плюс task/call/chat-record references; writes,
+  inferred mapping, hardcoded IDs и silent fallback запрещены;
 - роли v1: Admin, Sales, Curator, Finance и target machine role `student`
   (user-facing Client/Student); текущий root `client` не импортируется и не
   маппится без отдельного будущего scoped decision;
   отдельной Visa role нет, module `/visa` остаётся;
 - все exposed tables защищены RLS, private Storage — object policies и audited
   downloads;
-- AI только создаёт RU/EN draft, staff review/edit/manual-send обязателен;
+- Gemini создаёт structured qualification/reply proposal. Deterministic EVO
+  gates may queue only an inbound-triggered reply inside the rolling 24-hour
+  service window; cold outbound, broadcast, campaign, autonomous follow-up/
+  re-engagement и out-of-window free-form запрещены;
+- staff outbound/takeover immediately pauses autonomy; only authorized staff
+  may resume. Opt-out, outside `Asia/Bishkek 09:00-21:00` until organization
+  configuration, unsupported language/content, media-only, low confidence,
+  missing approved knowledge, complaint, payment/refund, legal/privacy,
+  guarantee risk, unhealthy WAHA or unknown provider outcome fail closed to
+  human review;
+- valid media-only inbound сохраняется и становится operator-visible before
+  human handoff; missing text не является terminal success;
 - unknown delivery никогда не retry-ится автоматически;
 - P9 и retirement/removal Lead Agent исключены из текущего execution scope:
   legacy Lead Agent, webhook/session и rollback path остаются deployed/frozen;
@@ -170,8 +202,12 @@ P4B docs-only selection/approval contract:
 - подтверждённые account-specific amoCRM pipeline/status/user/custom-field
   mappings;
 - sanitized test lead и dedicated test WhatsApp number/QR owner;
-- реальный signed WAHA webhook с raw-persist-before-process, amo resolve/link,
-  draft, operator manual send и ACK/unknown reconciliation;
+- реальный signed WAHA webhook с raw-persist-before-process, operator-visible
+  text/media projection, read-mostly amo resolve/link, Gemini structured
+  proposal, deterministic gate, forced-human cases, one authorized bounded
+  autonomous reply, staff pause/resume и ACK/session/unknown reconciliation;
+- private Supabase Realtime visibility in the accepted root UI without direct
+  browser-to-WAHA access;
 - production-like capacity test и утверждённые SLO/RPO/RTO;
 - cutover/rollback rehearsal, release window и отдельная production
   authorization;
@@ -183,7 +219,7 @@ P4B docs-only selection/approval contract:
 2. Supabase region, plan, PITR и cost.
 3. Capacity, SLO, RPO и RTO.
 4. Retention, privacy, DPA и legal deletion period.
-5. AI provider и data-handling policy.
+5. Exact Gemini model/version, credentials, retention and data-handling policy.
 6. Dedicated sanitized test sender number, `evo-inbox` production QR/session
    recovery owner и controlled test-send authority.
 7. Release window, freeze и rollback authority.
@@ -198,7 +234,9 @@ P4B docs-only selection/approval contract:
 - WAHA QR/session/webhook mutation;
 - live customer WhatsApp send;
 - создание или изменение реальных amoCRM contacts/leads;
-- включение auto-reply, outbound automation, broadcast или mass send;
+- включение P5A/P5B/autonomous-send runtime flags или scheduler;
+- cold outbound, broadcast, campaign, autonomous follow-up/re-engagement,
+  out-of-window free-form или model-direct WAHA send;
 - отключение или удаление production service, EVO Lead Agent или legacy path.
 
 Для этих действий текущий результат может подготовить code, runbook и evidence
@@ -207,18 +245,19 @@ gate, но не выполнять mutation.
 ## Следующий безопасный gate
 
 Текущий gate — merge docs-only
-`EVO-P5-AMO-DEFERRAL-SCOPE-AMENDMENT-2026-08-06` через independent exact-head
-review, четыре exact-head CI job и independent controller. До merge P5 code не
-начинается.
+`EVO-MVP-AUTONOMOUS-INBOUND-PLAN-2026-08-09` через independent exact-head review,
+четыре exact-head CI job и independent controller. PR #133 остаётся draft и
+blocked, пока в его exact head нет принятой authority amendment и media-only
+operator-visible handoff fix.
 
-После merge следующий implementation lane — P5 amoCRM-independent messaging:
-real Supabase persistence, WAHA trust/idempotency, draft-only AI, staff
-review/manual send, ACK/unknown и audit behind the accepted frontend. Canonical
-amoCRM identity/stage/responsible Sales/handoff/mapping остаются deferred и
-fail-closed; mock, SQLite shim, hardcoded mapping, fake provider и silent
-fallback запрещены. Production provider actions остаются separate authorized
-events. P6, P7, narrowed P8 и authorized-scope P10 следуют последовательно; P9
-не выполняется, Lead Agent остаётся retained/frozen.
+P5B после этого gate остаётся строго receive/project worker: private HMAC
+trigger, narrow service RPC, lease/idempotency/dead-letter semantics и accepted
+root UI projection без Gemini или provider send. Следующий autonomous inbound-
+reply PR допускается только после accepted history/media/ACK/session/private
+Realtime blocks. Он обязан использовать Gemini proposal, deterministic queue/
+worker gates, bounded read-mostly amoCRM, durable pause/resume и disabled-by-
+default flags. Real provider E2E и production enablement остаются separate
+authorized events. Lead Agent остаётся retained/frozen.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой
 exact deployed revision, private network, provider readiness и full E2E.

@@ -4,7 +4,7 @@
 - Status: Target contract; legacy storage remains separate and no legacy-data
   cutover is authorized
 
-## 2026-08-05 greenfield and external-automation boundary
+## 2026-08-09 greenfield, autonomy and integration boundary
 
 Platform data ownership is greenfield and Supabase-native. The target does not
 import root SQLite data or accounts, does not migrate root auth into Platform,
@@ -12,16 +12,20 @@ and does not rely on dual-read or dual-write between legacy and Platform data
 planes. Legacy root storage remains a separate reference unless a later
 explicitly scoped import or integration decision is approved. Inbox/Lead Agent
 messaging provider ownership has its own bounded cutover gate.
+
 - Student Profile document reading, extracted-fact confirmation, profile
   autofill and profile-form export belong to a separate system outside this
   repository. EVO Platform owns no automatic exchange with that system. A
   future integration requires a separately approved mapping, privacy/consent,
   authentication, validation and acceptance contract.
-- Last verified against repository: 2026-08-05
+- Last verified against repository: 2026-08-09 at
+  `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
 - Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - External automation boundary:
   `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
+- Autonomy/read-mostly integration boundary:
+  `docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md`
 
 ## Зачем фиксировать владельца
 
@@ -45,7 +49,9 @@ messaging provider ownership has its own bounded cutover gate.
 | Document metadata и review history | EVO Platform Supabase | checklist, versions, validation, integrity/malware evidence state и review/rework history |
 | Document binary objects | private Platform Storage после P2H | private objects, object-policy enforcement, download/access audit и separate backup |
 | Visa case | EVO Platform Supabase | Curator-owned operational states и evidence |
-| Tasks | EVO Platform Supabase | assignment, priority, due/status и lifecycle history |
+| Platform admissions tasks | EVO Platform Supabase | assignment, priority, due/status и lifecycle history |
+| amoCRM sales tasks | amoCRM | read-only task IDs, owner, due/status and entity references; no Platform write in this scope |
+| Call/recording and existing chat-record references | amoCRM/Kommo | verified external IDs, safe metadata/links and sync evidence; raw recordings are not duplicated |
 | Notification intent v1 | EVO Platform Supabase | один recipient, in-app/individual-WhatsApp channel, consent snapshot и dedupe |
 | WhatsApp provider delivery/ACK | WAHA | наблюдаемое provider evidence, ACK progression и reconciliation state; Platform record не создаёт provider truth |
 | Obligations, payments и refunds v1 | EVO Platform Supabase | ручное Finance/Admin confirmation, evidence и audit |
@@ -53,28 +59,36 @@ messaging provider ownership has its own bounded cutover gate.
 | WhatsApp transport/session state | WAHA | отдельные `session`, message ID, ACK и reconciliation records |
 | Kommo Chats identity | Kommo | отдельные `conversation.id` и `message.id`, не смешанные с WAHA IDs |
 | AI draft evidence | EVO Platform Supabase | explicit request/source message, provider/model/prompt-policy references, source context + SHA, approved-knowledge citations, original generated text, review evidence и exact human final text + SHA |
+| Structured qualification/reply proposal | EVO Platform Supabase | inbound trigger, Gemini model/prompt/policy/context evidence, extracted facts, confidence/risk, proposed memory update, citations and proposed reply |
+| Deterministic autonomous-send decision | EVO Platform Supabase | every gate input/result, rendered text/hash, immutable send intent, idempotency identity and forced-human reason |
+| Lead memory and approved retrieval | EVO Platform Supabase + pgvector | immutable events, normalized messages/media, rolling summaries and only approved versioned knowledge chunks |
+| Human takeover and autonomy pause/resume | EVO Platform Supabase | durable conversation state, actor, reason, time and append-only transition history |
 | Communications audit/reconciliation state | EVO Platform Supabase после P2F | immutable append-style evidence; не доказательство Queue или provider delivery |
 | Outbox/queue/dead-letter processing | EVO Platform Supabase после P2G | durable work, attempts, retry budget, dead-letter и manual reconciliation |
+| Operator live-update state | EVO Platform Supabase | RLS-safe normalized events distributed through private Realtime in a later block; never a direct browser subscription to WAHA |
 
 Operational admissions status никогда не записывается как замена sales stage.
-Canonical amoCRM writes используют `pipeline_id`, `status_id`,
-`responsible_user_id` и `custom_fields_values` только после account discovery.
+ADR 0019 authorizes no canonical amoCRM write. Any later write contract must use
+verified `pipeline_id`, `status_id`, `responsible_user_id` and
+`custom_fields_values` only after account discovery and separate approval.
 
 ## Account-specific amoCRM mapping
 
-Pipeline, status, custom-field и user IDs уникальны для аккаунта. Adapter
-обязан:
+Pipeline, status, custom-field, user and chat IDs are account-specific. The
+active bounded adapter is read-mostly and must:
 
-1. обнаружить значения через API;
-2. сохранить versioned mapping с account identity и временем проверки;
-3. блокировать canonical write при отсутствующем или устаревшем mapping;
-4. быстро сохранять webhook, обрабатывать его асинхронно и идемпотентно;
-5. периодически выполнять reconciliation и отмечать conflicts;
-6. соблюдать лимит не более 7 requests/s/IP и предпочитать не более 50 writes
-   в одном batch.
+1. discover account identity and values through authorized GET/read APIs;
+2. retain versioned mapping, granted scope and verification time;
+3. read canonical contact, lead, responsible Sales and stage plus references to
+   sales tasks, calls/recordings and chat records;
+4. keep CRM IDs, Kommo chat IDs, WAHA IDs and Platform UUIDs separate;
+5. fail closed on missing/stale/conflicting mapping, credentials or scope;
+6. use bounded paging, rate limits and reconciliation without provider writes.
 
-Точный production mapping остаётся release blocker до проверки на выделенном
-sanitized test lead. Глобальные hardcoded stage IDs запрещены.
+No name-based inference, hardcoded account/stage ID, SQLite/mock substitution or
+silent fallback is allowed. Exact production mapping remains a release blocker
+until an authorized sanitized test proves it. Writes and full cutover require a
+later owner decision.
 
 ## Platform roles и object scope
 
@@ -129,7 +143,7 @@ browser получает только разрешённые transcript/safe-sum
 Подробная граница:
 [`p2f-communications-contracts.md`](p2f-communications-contracts.md).
 
-P2G candidate начинается от merged P2F checkpoint и добавляет только migration
+Merged P2G начинается от merged P2F checkpoint и добавляет только migration
 045. Private work/attempt/event/idempotency/dead-letter ledgers ссылаются на
 P2F source rows по UUID; PGMQ payload не содержит customer text, raw provider
 payload, verification headers или secrets. Две exposed review relations дают
@@ -138,6 +152,15 @@ reason-required resolution. Manual-send authorization одноразовая,
 `max_attempts = 1`; explicit unknown и истёкший ambiguous worker lease
 архивируют active message и никогда не попадают в retry/DLQ. Полный контракт:
 [`p2g-durable-work-queues.md`](p2g-durable-work-queues.md).
+
+P5A is merged at current main with migration 059. It owns signed WAHA raw-event
+receipt and verified pointer-only enqueue, but remains disabled by default and
+does not prove a provider. Draft PR #133 is the unmerged P5B receive/project
+candidate. Its private worker may claim, project and finish one bounded inbound
+item through narrow service RPCs; it may not generate AI output or send through
+WAHA. Full provider identifiers and lease/attempt evidence stay private while
+RLS-safe conversation/message state becomes operator-visible. Media-only inbound
+must project and hand off rather than complete as a missing-text no-op.
 
 ## RLS и server authorization
 
@@ -247,7 +270,7 @@ channel. Только Student управляет своим individual WhatsApp 
 broadcast или mass-send объекта. Это durable database intent, а не provider
 delivery.
 
-P2F candidate добавляет единую conversation/message history и five-role
+Merged P2F contract добавляет единую conversation/message history и five-role
 handoff scope. Sales владеет transcript до contract handoff, текущий Curator —
 после; former Sales получает только фиксированный несекретный summary. Admin
 ограничен своей organization, Finance по умолчанию не видит transcript/raw
@@ -274,18 +297,44 @@ backend-only boundary. Принятый database row не доказывает, 
 реальным или provider event был успешно обработан. Replay одного ключа не
 создаёт второе message/action, а конфликтующий replay fail-closed.
 
-Approved versioned knowledge — единственный разрешённый AI context. P2F хранит
-immutable original draft/evidence отдельно от human edit/final text. Customer
-draft разрешён только на RU/EN; uncertain или другой язык требует manual
-selection/handoff. Кыргызский customer draft, auto-reply, unattended outbound,
-broadcast и mass send запрещены. Review/manual-send evidence не доказывает
-provider send.
+Valid media-only inbound remains a message, not an empty event. Raw evidence and
+private media/provider references persist, an RLS-safe operator-visible message
+is projected, and human review opens. Missing text cannot terminally consume the
+item. Autonomous media understanding is outside the approved scope.
+
+Approved versioned knowledge in pgvector is the only reusable knowledge context
+for an autonomous proposal. Gemini emits structured qualification/reply data;
+deterministic EVO code owns the gate. Supabase retains model, prompt, policy,
+context/hash, knowledge citations, structured output, lead-memory changes,
+every gate result, final rendered text/hash, transport response and later
+ACK/session/human evidence.
+
+Autonomy is limited to an exact inbound-triggered reply in the same conversation
+inside the rolling 24-hour service window. Staff outbound/takeover creates an
+immediate durable pause; only authorized staff may resume. Opt-out, outside
+`Asia/Bishkek 09:00-21:00` until organization configuration, unsupported
+language/content, media-only, low confidence, missing approved knowledge,
+complaint, payment/refund, legal/privacy, guarantee risk, unhealthy WAHA or
+unknown provider outcome fail closed to human review. Cold outbound, broadcast,
+campaign, autonomous follow-up/re-engagement, out-of-window free-form and
+model-direct WAHA sends are prohibited.
 
 Durable work P2G идёт через две fixed Supabase Queues. Consumer-ы
 идемпотентны; исчерпанные обычные ошибки переходят в dead-letter, тогда как
 unknown/ambiguous manual send остаётся только в reconciliation/manual review.
 Database Webhooks допустимы для асинхронного push, но не являются durable
 business queue.
+
+P5B receive/project work uses a pointer-only item, bounded lease and separate
+organization/session/account-bound claim, project and finish RPCs. Retryable
+projection failures remain unacknowledged until lease expiry; finite exhausted
+processing records immutable dead-letter/manual-review evidence. Exact replay is
+idempotent and conflicting replay fails closed. P5B has no outbound capability.
+
+A later autonomous send intent is immutable and single-use. The send worker
+rechecks policy, pause state, service/business windows, idempotency and session
+health immediately before transport. Unknown/ambiguous result opens
+reconciliation/human review and never creates an automatic second attempt.
 
 P2G проверяет реальный local Supabase Queues/PGMQ contract: `read()` с
 visibility timeout, concurrency, retry budget и dedupe. Handcrafted mock и
@@ -300,6 +349,9 @@ provider и Queue behavior остаются недоказанными. Неиз
 Audit фиксирует actor, action, object, before/after, reason, evidence reference,
 request/idempotency keys и timestamp. Audit export не должен раскрывать secrets,
 PII сверх разрешённого scope или полный customer message без необходимости.
+
+The accepted root UI later receives normalized updates through private Supabase
+Realtime with RLS-safe authorization. Browsers never subscribe directly to WAHA.
 
 ## Current-to-target boundary
 
@@ -318,3 +370,10 @@ cutover, real-secret copy или legacy bucket flip. Root auth/SQLite migration
 разрешение. Greenfield Platform не использует dual-write или dual-read bridge
 с legacy SQLite/Inbox data planes; controlled evidence сверяет provider events
 и новые Platform records без импорта legacy данных.
+
+P5A ingress, P5B receive/project worker and every later autonomous-send worker
+remain disabled by default until separately authorized real-provider E2E. This
+documentation change performs no managed Supabase apply, amoCRM/WAHA mutation or
+customer send. EVO Lead Agent, legacy webhook/session and rollback path remain
+deployed and frozen; rollback disables new flags while preserving immutable raw,
+queue, decision and audit evidence.

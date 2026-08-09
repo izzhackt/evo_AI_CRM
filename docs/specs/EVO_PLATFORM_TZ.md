@@ -3,12 +3,12 @@
 ## Единая платформа автоматизации EVO Admissions
 
 **Идентификатор документа:** EVO-PLATFORM-TZ-001
-**Версия:** 2.2
+**Версия:** 2.3
 **Статус:** действующий контракт repository-реализации; production-gates
 остаются отдельными
-**Дата:** 6 августа 2026 года
-**Базовая версия репозитория:** `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`
-**Текущий execution checkpoint:** `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`
+**Дата:** 9 августа 2026 года
+**Базовая версия репозитория:** `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
+**Текущий execution checkpoint:** `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
 **Язык документа:** русский
 
 > **Назначение документа.** Это ТЗ является контрактом на последующую
@@ -31,7 +31,7 @@
 | Формат согласования | SHA-bound review, должностное решение по открытым gates и audit evidence |
 | Источник бренда | `docs/company/brand/evo-admissions-logobook.pdf` |
 | Принятый preset | `standard_business_brief` |
-| Текущий checkpoint | P0, P1A–P1D, reusable P2A–P2H, greenfield/UI boundary, BW0, P3A–P3C, BW1–BW7, P2R0–P2R4 и P4A merged; PR #118 merged the P4B plan, PR #128 restored the external Student Profile automation boundary, PRs #129–#130 merged the local-validation plan/repair; current main `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8` has migrations `001-058` and exact-main CI `31038964366` green; P4B checkpoint `e53ba94954f147b295f596421a255591fa343ce8` is preserved without PR and its failed Auth/PostgREST gate is non-evidence; P4/P4B is deferred, current order is P5→P6→P7→P8→P10 for amoCRM-independent capabilities, P9 is removed and Lead Agent is retained/frozen |
+| Текущий checkpoint | P0, P1A–P1D, reusable P2A–P2H, greenfield/UI boundary, BW0, P3A–P3C, BW1–BW7, P2R0–P2R4, P4A и P5A merged; current main `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0` has migrations `001-059` and exact-main CI `31310795550` green; P4B checkpoint `e53ba94954f147b295f596421a255591fa343ce8` is preserved and its failed Auth/PostgREST gate is non-evidence; PR #133 is draft until this plan gate merges and media-only handling is corrected/re-proved; P4B activation/writes remain deferred, bounded P4R reads resume after the messaging foundation, P9 is removed and Lead Agent is retained/frozen |
 
 > **Главная граница.** amoCRM остаётся источником истины для контакта, лида,
 > ответственного sales manager и стадии продаж. Один dedicated production
@@ -47,14 +47,14 @@
 > review/audit остаются в scope. Автоматический обмен не предполагается; любая
 > будущая интеграция требует отдельного plan/data/privacy/auth/validation gate.
 
-> **Текущая execution-граница.** P4/P4B canonical amoCRM adapter preserved и
-> deferred. P5-P8 могут доказывать только amoCRM-independent capabilities; ни
-> mock, ни SQLite shim, ни hardcoded mapping, ни fake provider/silent fallback
-> не заменяют P4. amo identity/stage/responsible Sales/contract handoff и
-> amo-dependent E2E остаются fail-closed/deferred. P9 removed; Lead Agent,
-> legacy webhook/session и rollback path остаются deployed/frozen. P10 идёт
-> сразу после P8 как audit разрешённого scope, а не как claim полной готовности
-> исходного target.
+> **Текущая execution-граница.** P4B mapping activation и amoCRM writes
+> preserved/deferred. После messaging foundation разрешён отдельный bounded
+> P4R read-mostly adapter для contact/lead/responsible/stage/tasks/call-chat
+> references; mock, SQLite shim, hardcoded mapping и fake provider/silent
+> fallback запрещены. P5 строит available history/media, ACK, true realtime,
+> Platform memory и guarded inbound-reply AI. P9 removed; Lead Agent, legacy
+> webhook/session и rollback path остаются deployed/frozen. P10 идёт после P8
+> как audit разрешённого scope, а не claim полной готовности исходного target.
 
 ## 1. Как читать это ТЗ
 
@@ -96,8 +96,9 @@ parallel/generic UI, duplicate dashboard или второй CRM surface не в
 scope. Архитектура должна greenfield-реализовать backend/auth/RBAC/repository/
 workflow/messaging/integration слой за этим UI, используя из EVO Inbox только
 operator messaging donor scope: conversation list/thread, operator context, WAHA
-receive/send, delivery/ACK, AI draft + staff manual send, approved knowledge,
-audit и minimal integration/settings health. Standalone dashboards, pipelines,
+available history, private media, receive/send, delivery/ACK, true realtime,
+staff takeover/manual send, guarded AI qualification/replies, approved
+knowledge, audit и minimal integration/settings health. Standalone dashboards, pipelines,
 deals, leads, funnels, broadcast, flows, campaigns, unrelated analytics и
 unrelated settings исключены из первого delivery slice.
 
@@ -107,21 +108,25 @@ unrelated settings исключены из первого delivery slice.
    ответственного менеджера и стадии продаж.
 2. Supabase становится основным хранилищем собственных данных EVO Platform:
    пользователей, ролей, студенческих дел, заявок, документов, виз, финансовых
-   обязательств, задач, коммуникаций, AI-черновиков, синхронизации и аудита.
+   обязательств, задач, коммуникаций, AI proposals/memory, синхронизации и аудита.
 3. Используется один dedicated production Supabase project. Local/dev,
    persistent staging и preview branches/projects физически изолированы, имеют
    ту же migration history и не получают production data по умолчанию. Inbox и
    CRM не получают отдельные production-проекты.
 4. Используется один входящий WhatsApp/WAHA-контур, одна private session
    `evo-inbox` и один webhook owner.
-5. Полезная amoCRM-independent логика EVO Lead Agent переносится в единый
-   backend как модули интеграции и фоновой обработки; P4-owned identity/stage/
-   handoff logic остаётся deferred.
+5. Полезная messaging/qualification логика EVO Lead Agent переносится как
+   изолированные Platform-модули, а не копируется как второй worker. P4B
+   activation/writes остаются deferred; отдельный P4R может read-only получать
+   contact/lead/responsible/stage/tasks/call-chat references после messaging
+   foundation.
 6. EVO Lead Agent, legacy webhook/session и rollback path остаются
    deployed/frozen. P9, deactivation, retirement и deletion исключены из
    текущего execution scope.
-7. AI создаёт только черновик. Сотрудник проверяет, редактирует и вручную
-   отправляет каждое клиентское сообщение.
+7. Gemini создаёт только structured RU/EN proposal и не получает прямой WAHA
+   send capability. Deterministic server policy может отправить его
+   автоматически только как ответ на недавний inbound внутри 24-hour service
+   window после всех guardrails; любой failed gate создаёт human handoff.
 8. Продажная воронка и операционный путь студента — разные модели.
 9. Figma, прототипы и скриншоты являются дизайн-доказательствами, но не
    заменяют это ТЗ и не доказывают работу внешнего provider.
@@ -160,8 +165,8 @@ unrelated settings исключены из первого delivery slice.
 - сотрудник входит под собственной учётной записью и видит только разрешённые
   разделы и записи;
 - входящий WhatsApp-контакт связан с каноническим контактом и лидом amoCRM;
-- история разговора, AI-черновик, ручная отправка и статусы доставки сохранены
-  в одной последовательной истории;
+- доступная WhatsApp-история и private media, AI proposal, send/handoff,
+  takeover и статусы доставки сохранены в одной последовательной истории;
 - после договора создаётся связанное операционное дело студента без создания
   второго независимого лида;
 - документы, заявки, визовый кейс, платежные обязательства и задачи ведутся
@@ -170,13 +175,15 @@ unrelated settings исключены из первого delivery slice.
 - каждое чувствительное изменение имеет автора, время, исходное и новое
   значение либо ссылку на неизменяемое событие;
 - финальный контролируемый сценарий проходит по цепочке:
-  **WhatsApp → amoCRM → EVO Platform → AI-черновик → ручная отправка →
-  delivery/read status → audit history**.
+  **WhatsApp history/media → amoCRM read context → EVO Platform → structured
+  AI proposal → governed auto-send или human handoff → delivery/read status →
+  audit history**.
 
 > Эти критерии описывают исходный полный production target. В текущем
-> execution scope amoCRM-dependent пункты и amoCRM segment финальной цепочки
-> имеют статус `DEFERRED` вместе с P4. P8 принимает только реально исполнимую
-> amoCRM-independent часть; P10 не выдаёт её за завершение полного target.
+> execution scope P4R может доказать только bounded amoCRM read context;
+> activation, writes и automatic contract handoff остаются `DEFERRED` вместе с
+> P4B. P8 принимает только реально исполненную часть, а P10 не выдаёт её за
+> завершение полного target.
 
 ## 4. Источники и порядок приоритета
 
@@ -229,7 +236,7 @@ Platform.
 | Компонент | Назначение сейчас | Хранилище | Главный риск |
 | --- | --- | --- | --- |
 | Корневая EVO CRM | Legacy deployed reference contour behind the accepted frontend contract | Локальная SQLite | Не является greenfield launch data plane; локальные записи могут расходиться с amoCRM и Inbox |
-| EVO Inbox | Donor contour для operator messaging behavior: conversation/thread, AI draft, manual send, ACK/history | Supabase/Postgres | Любые contacts/deals/pipeline/dashboards здесь нельзя переносить как второй CRM surface |
+| EVO Inbox | Donor contour для operator messaging behavior: conversation/thread, history/media, manual send, ACK/realtime patterns | Supabase/Postgres | Любые contacts/deals/pipeline/dashboards здесь нельзя переносить как второй CRM surface |
 | EVO Lead Agent | Donor contour для WAHA webhook, amoCRM resolution, dedupe/retry ideas и readiness patterns | Локальная SQLite | Отдельный runtime, отдельная память и незавершённый retry/replay контракт; не launch dependency как data plane |
 | amoCRM | Контакт, лид, ответственный, стадия продаж | Внешний SaaS | Webhook/API могут задержаться или временно быть недоступны |
 | WAHA | Приём и отправка WhatsApp, session/status/ack events | Приватный runtime | Дубли webhook, неизвестный результат send, QR/session failure |
@@ -286,7 +293,7 @@ worker/auto-reply/outbound выключены, amoCRM readiness false.
 - Authentication and Access;
 - amoCRM Adapter;
 - WhatsApp/WAHA Adapter;
-- Communications and AI Drafts;
+- Communications, AI Proposals and Memory;
 - Admissions Operations;
 - Documents and Storage;
 - Finance and Stop Factors;
@@ -308,7 +315,7 @@ worker/auto-reply/outbound выключены, amoCRM readiness false.
       |                                  v
       |                           Background Jobs
       v                                  |
-amoCRM Adapter <-> amoCRM                v
+P4R amoCRM Read Adapter <-> amoCRM       v
       |                           Supabase/Postgres
       v                                  ^
 Linked Lead/Contact Read Model            |
@@ -316,10 +323,14 @@ Linked Lead/Contact Read Model            |
       +----------> Staff Workspace <------+
                          |
                          v
-                  AI Draft (no auto-send)
+             Structured AI Proposal
                          |
                          v
-                  Human approval -> Outbox -> WAHA
+          Deterministic Policy Gates
+                 |               |
+          Governed reply    Human handoff/takeover
+                 |               |
+                 +-----> Outbox/manual send -> WAHA
 
 Student Portal -> Supabase Auth/RLS -> Admissions, Documents, Finance, Messages
 ```
@@ -389,8 +400,8 @@ compatibility path, но не создаёт Platform organization membership и
 | Визовый result | Внешний орган | Case, tasks, received decision evidence | Curator фиксирует evidence; Admin видит/audit |
 | Финансовое обязательство/оплата/refund v1 | EVO Platform manual operations | Obligation, invoice/reference, payment/refund evidence, status/history | Только Finance/Admin с evidence и audit |
 | WhatsApp transport status | WAHA | Durable event, normalized status, unknown state | Только server integration |
-| Разговор и сообщения | EVO Platform | Полная durable history и links | Server ingest; employee manual outbound |
-| AI-черновик | EVO Platform | Prompt/context version, output, evidence, reviewer action | Server creates; employee reviews |
+| Разговор и сообщения | EVO Platform | Полная durable history, media links, realtime/reconciliation state | Server ingest; policy worker or authorized employee outbound |
+| AI proposal и qualification memory | EVO Platform | Prompt/policy/context/memory version, retrieval evidence, structured output, gates, disposition | Server creates; deterministic policy sends or hands off |
 | Audit event | EVO Platform append-only audit | Actor, action, target, before/after hash, source, time | Server only |
 | Admission/visa decision | Университет/орган | Полученный результат и evidence | Curator фиксирует без переименования в «гарантию» |
 
@@ -508,7 +519,10 @@ Platform identity по переименованию, импорту или cutov
 ### 9.1 Единый входящий путь
 
 Первый production-релиз использует одну WAHA session и один private webhook
-EVO Platform. Dashboard/API WAHA не публикуются в internet.
+EVO Platform. Dashboard/API WAHA не публикуются в internet. Platform сохраняет
+доступную inbound/outbound историю, private media references и собственный
+reconciliation cursor; UI обновляется через Supabase Realtime с bounded
+reconnect/catch-up, а не требует CMD+R или ручной кнопки refresh.
 
 Минимальные события:
 
@@ -522,6 +536,19 @@ Webhook проверяет HMAC по raw body, timestamp и `X-Webhook-Request-I
 raw event до business processing и проверяет business key
 `session + payload.id`. Повторная доставка не должна создавать второе сообщение
 или повторное business-действие.
+
+P5B projection worker имеет отдельный private contract: bodyless
+`POST /api/internal/platform-messaging/waha/work`, UUID request ID,
+Unix-millisecond timestamp, `sha256` algorithm header и lowercase HMAC-SHA256
+по `<request-id>.<timestamp>`. Он disabled by default и claims только verified
+inbound `provider_webhook_process` work для configured organization, exact
+`evo-inbox` session и `waha:evo-inbox` account. Claim/project/finish RPCs
+service-only, organization/session/provenance-bound и leased; invalid result не
+finish-ится, lease истекает для safe retry. Exhausted work попадает в явный
+manual-review/dead-letter state. `sales_authority_source='platform_intake'`
+означает только intake queue, не amoCRM owner. Raw chat/message IDs хранятся в
+private append-only bindings. P5B не вызывает provider, не отправляет клиенту,
+не пишет amoCRM и не выполняет production migration/cutover.
 
 ### 9.2 Статусы сообщения
 
@@ -542,38 +569,60 @@ raw event до business processing и проверяет business key
 - Acknowledgement меняет статус только вперёд
   `sent -> delivered -> read`; поздний или повторный event не понижает status.
 
-### 9.3 Ручная отправка
+### 9.3 Governed send и human takeover
 
-1. Сотрудник открывает разговор.
-2. Платформа показывает Platform-owned conversation context. Канонический
-   lead/contact context и sync state показываются только после P4 proof;
-   иначе они явно unavailable без fallback.
-3. Сотрудник пишет текст либо запрашивает AI-черновик.
-4. Сотрудник проверяет и при необходимости редактирует текст.
-5. Сотрудник нажимает «Отправить».
-6. Server подтверждает, что session находится в `WORKING`, и вызывает
+1. Входящий event сохраняется до processing и появляется в accepted
+   `/whatsapp` conversation history без raw phone-bearing provider IDs.
+2. Platform показывает собственный conversation context. Реальный amoCRM
+   contact/lead/responsible/stage/tasks/call-chat context показывается только
+   после P4R proof; иначе он явно unavailable/stale без fallback.
+3. Для текста Gemini может подготовить structured proposal. Для media-only
+   сообщения без approved media-understanding создаётся human handoff; event не
+   завершается как успешно обработанный только из-за отсутствия текста.
+4. Deterministic policy выбирает `auto_send`, `human_review` или `reject`.
+   Модель сама этот выбор не исполняет и не имеет WAHA credential/tool.
+5. Перед любым send Server проверяет organization/session, 24-hour window,
+   consent/opt-out, language, evidence, risk/confidence, business hours,
+   cooldown/rate, takeover, idempotency, kill switch и `WORKING`, затем вызывает
    `/api/sendSeen` перед reply.
-7. Server фиксирует immutable draft/review evidence и создаёт outbox record с
-   idempotency key.
-8. Worker выполняет один controlled send.
-9. Результат и acknowledgement дописываются в историю.
-10. Ошибка или unknown state видимы и требуют безопасного следующего действия.
+6. Server сохраняет immutable proposal, policy/gate evidence и outbox record с
+   idempotency key; worker выполняет ровно один controlled send.
+7. Human review позволяет отредактировать текст и вручную отправить. Manual
+   outbound либо takeover немедленно и durably ставит autonomy на паузу; resume
+   доступен только authorized staff и всегда audit-ится.
+8. Результат и acknowledgement дописываются в одну историю. Ошибка/unknown
+   видимы и требуют безопасного следующего действия; auto-resend запрещён.
 
-## 10. AI-черновики
+## 10. AI qualification, memory и structured proposals
 
-AI используется только как помощник сотрудника.
+AI используется как server-side модуль квалификации и ответа, но transport,
+state и authority принадлежат EVO Platform. Отдельный Codex/CLI agent и папка
+на каждого клиента не создаются. Supabase хранит conversation summary,
+explicit facts, qualification state, takeover state, proposal/gate evidence и
+pgvector references; approved knowledge retrieval даёт источники для ответа.
 
 Обязательные правила:
 
-- автоматическая отправка клиенту выключена;
-- draft создаётся только по явному действию сотрудника;
-- draft создаётся на RU или EN по языку последнего customer message. Если
-  уверенное RU/EN определение невозможно, генерация/отправка блокируется до
-  manual language selection либо handoff; Kyrgyz customer-draft не входит в v1;
+- Gemini возвращает schema-constrained RU/EN proposal: proposed text,
+  language, intent/qualification update, confidence, risk flags, citations и
+  requested next action. Structured output гарантирует форму, но семантика
+  повторно валидируется deterministic server code;
+- autonomous send разрешён только как reply после реального inbound внутри
+  WhatsApp 24-hour service window. Cold outbound, broadcast, autonomous
+  follow-up/re-engagement и out-of-window free-form send запрещены;
+- default business hours — 09:00-21:00 Asia/Bishkek до approved
+  organization-specific schedule; вне окна результат уходит в human review;
+- отправка fail-closed при opt-out/нет consent, unsupported/uncertain language,
+  sensitive topic, insufficient approved evidence, low confidence, rate/
+  cooldown failure, media-only input, takeover/pause, non-WORKING session,
+  duplicate/idempotency conflict или disabled kill switch;
+- RU/EN выбираются по языку последнего customer message. Kyrgyz или uncertain
+  language требует manual language selection/handoff;
 - используются только owner-approved, versioned knowledge documents с
-  effective date и provenance;
-- в audit сохраняются provider, model, prompt version, context snapshot,
-  knowledge evidence, output, requester, timestamp и итоговая редакция;
+  effective date, provenance и auditable retrieval evidence;
+- в audit сохраняются provider, model, prompt/policy version, context snapshot,
+  knowledge evidence, structured output, every gate result, send/handoff
+  disposition, timestamp и фактически отправленный текст;
 - AI не обещает admission, scholarship, visa или другой внешний outcome. EVO
   может гарантировать только документированные собственные услуги и
   обязательства; цена, срок и package facts требуют owner-approved evidence;
@@ -581,8 +630,9 @@ AI используется только как помощник сотрудн�
   privacy/data-processing политике;
 - unsupported вопрос вызывает handoff, а не уверенный вымысел;
 - AI не принимает финальное решение по документу, оплате, заявке или визе;
-- качество измеряется по принятию/редактированию draft, handoff, ошибкам и
-  grounded evidence, а не по количеству автоматически отправленных ответов.
+- качество измеряется по grounded accuracy, qualification completeness,
+  handoff correctness, duplicate/loss rate, policy violations и edit/override
+  outcomes, а не по объёму auto-sent сообщений.
 
 ## 11. Пользователи, роли и доступ
 
@@ -606,9 +656,10 @@ Platform membership автоматически.
 добавляются только после отдельного изменения permission contract. Визовая
 работа — модуль Curator, а не отдельная business role.
 
-Пока P4 deferred, все amo-derived Sales owner/stage/pre-post-handoff cells ниже
-являются target-only и недоступны. P5-P8 используют только Platform-owned
-authority; локальный или hardcoded fallback запрещён.
+Пока P4B activation/writes deferred, amo-derived Sales owner/stage/pre-post-
+handoff actions ниже недоступны. P4R может дать только доказанный read context;
+остальные P5-P8 действия используют Platform-owned authority. Локальный или
+hardcoded fallback запрещён.
 
 ### 11.2 Базовая матрица разделов
 
@@ -653,12 +704,18 @@ authority; локальный или hardcoded fallback запрещён.
 1. WAHA доставляет signed webhook.
 2. Platform проверяет HMAC/timestamp и сохраняет raw event.
 3. Deduplication проверяет provider message ID и session.
-4. amoCRM Adapter ищет контакт и активный lead.
-5. При однозначном совпадении сохраняются canonical IDs; при нескольких
-   кандидатах создаётся conflict.
-6. Сообщение появляется в Inbox с владельцем, sales stage и sync status.
-7. Сотрудник отвечает вручную либо запрашивает AI draft.
-8. Все действия и provider acknowledgements сохраняются.
+4. Сообщение и private media reference появляются в accepted Inbox; Supabase
+   Realtime обновляет list/thread, а reconnect выполняет catch-up.
+5. После P4R provider proof amoCRM Adapter read-only ищет contact/active lead,
+   responsible, stage, tasks и call/chat references. При неоднозначности
+   создаётся conflict; до proof контекст явно unavailable, без fallback.
+6. Gemini формирует structured qualification/reply proposal из Platform memory
+   и approved retrieval.
+7. Deterministic policy либо выполняет governed reply inside 24-hour window,
+   либо создаёт human handoff. Media-only, failed gate или staff takeover не
+   auto-send-ятся.
+8. Все proposal/gate/send/takeover действия и provider acknowledgements
+   сохраняются в одной истории.
 
 ### 12.2 Лид уже существует в amoCRM
 
@@ -766,10 +823,11 @@ amo-derived metrics/queues остаются unavailable до P4.
 
 ### 13.3 Sales and amoCRM
 
-Delivery applicability: P4 deferred. FR-019–030 и любой conversation-scoped amo
-context остаются fail-closed и `DEFERRED` до отдельного owner decision о
-возобновлении P4. Это не перенос Inbox CRM surfaces и не может быть заменено
-SQLite/mock/hardcoded mapping.
+Delivery applicability: P4B activation/writes остаются deferred. P4R может
+доказать read-only часть FR-019/020/022/024/026/027/030 для contact/lead/
+responsible/stage/tasks/call-chat context через account-specific mappings;
+остальные write/handoff requirements fail-closed. Это не перенос Inbox CRM
+surfaces и не может быть заменено SQLite/mock/hardcoded mapping.
 
 | ID | Требование | Приоритет | Проверка |
 | --- | --- | --- | --- |
@@ -792,22 +850,22 @@ SQLite/mock/hardcoded mapping.
 | --- | --- | --- | --- |
 | FR-031 | Все входящие WAHA events должны сохраняться до business processing. | MUST | Integration test |
 | FR-032 | Повтор webhook с тем же provider ID не должен создавать duplicate message/action. | MUST | Replay test |
-| FR-033 | Thin slice Inbox behind the accepted frontend должен показывать conversation list/thread, unread, assignee, latest message, operator amo context и sync state без отдельного lead/deal/pipeline CRM surface. | MUST | E2E |
-| FR-034 | Conversation history должна объединять received, prepared, sent, delivered, read, failed и unknown. | MUST | Status mapping test |
+| FR-033 | Thin slice Inbox behind the accepted frontend должен показывать realtime conversation list/thread, unread, assignee, latest message, available read-only amo context и sync/stale state без отдельного lead/deal/pipeline CRM surface или CMD+R. | MUST | Realtime/reconnect E2E |
+| FR-034 | Conversation history должна объединять available inbound/outbound history, private media и received/prepared/sent/delivered/read/failed/unknown с reconciliation cursor. | MUST | History/media/status E2E |
 | FR-035 | Отправка должна выполняться только через server outbox с idempotency key. | MUST | Outbox integration test |
 | FR-036 | Unknown send result не должен автоматически повторяться. | MUST | Timeout test |
 | FR-037 | Employee должен иметь безопасное manual retry/reconcile действие с предупреждением duplicate risk. | MUST | Failure E2E |
 | FR-038 | Sales владеет conversation/queue до contract, Curator после handoff; единая history сохраняется, а assignment/handoff хранит actor, reason, before/after, owner и time. | MUST | Scope + audit test |
-| FR-039 | AI draft создаётся только по явному запросу сотрудника и никогда не отправляется автоматически. | MUST | E2E |
-| FR-040 | Автоматический customer send должен отсутствовать/быть fail-closed. | MUST | Security test + config |
-| FR-041 | Draft должен сохранять provider/model/prompt/context/evidence/requester. | MUST | DB assertion |
-| FR-042 | Employee может редактировать draft; исходный draft остаётся immutable. | MUST | E2E + audit |
-| FR-043 | Отправленное сообщение связывается с review/draft, но хранит фактический текст отправки. | MUST | DB assertion |
-| FR-044 | Draft language — RU/EN по последнему customer message; uncertain/non-RU/EN требует manual selection/handoff без invented send. | MUST | AI language eval set |
-| FR-045 | AI использует только approved versioned knowledge с owner, provenance, approval state и effective date. | MUST | Admin workflow |
-| FR-046 | Media private, с audited access/deletion; irreversible auto-delete запрещён до Legal/Data retention decision. | MUST | Storage/RLS tests |
+| FR-039 | Gemini должен вернуть immutable structured RU/EN proposal с text, qualification update, confidence, risk flags, citations и next action; direct provider send tool отсутствует. | MUST | Schema/semantic validation + audit |
+| FR-040 | Deterministic server policy может auto-send только inbound reply внутри 24-hour window после consent/opt-out, language, evidence, risk/confidence, business-hours, cooldown/rate, takeover, idempotency, WORKING и kill-switch gates; иначе human handoff. | MUST | Policy matrix + E2E |
+| FR-041 | Proposal должен сохранять provider/model/prompt/policy/context/retrieval evidence, every gate result и disposition. | MUST | DB assertion |
+| FR-042 | Employee может редактировать proposal/manual reply; исходный proposal остаётся immutable, а manual outbound/takeover durably pauses autonomy до authorized audited resume. | MUST | E2E + audit |
+| FR-043 | Отправленное сообщение связывается с proposal/policy/outbox, но хранит фактический текст, actor/automation identity и idempotency key. | MUST | DB assertion |
+| FR-044 | Proposal language — RU/EN по последнему customer message; uncertain/non-RU/EN требует manual selection/handoff без invented send. | MUST | AI language eval set |
+| FR-045 | AI использует только approved versioned knowledge и Platform-owned memory с owner, provenance, approval state, effective date и auditable pgvector retrieval references. | MUST | Admin/retrieval workflow |
+| FR-046 | Media private, с audited access/deletion; media-only inbound остаётся operator-visible/actionable и до approved understanding вызывает handoff, а не terminal success; irreversible auto-delete запрещён до Legal/Data retention decision. | MUST | Storage/RLS/worker tests |
 | FR-047 | Search и filters Inbox не должны раскрывать разговоры вне scope. | MUST | Cross-role tests |
-| FR-048 | Session status и minimal integration health для messaging path должны быть видимы Admin без открытия WAHA dashboard наружу и без unrelated analytics/settings surface. | MUST | Admin E2E |
+| FR-048 | Session status, realtime/reconciliation lag, worker/queue health и kill-switch state должны быть видимы Admin без открытия WAHA dashboard наружу и без unrelated analytics/settings surface. | MUST | Admin E2E |
 
 ### 13.5 Student case and admissions
 
@@ -863,7 +921,7 @@ SQLite/mock/hardcoded mapping.
 | FR-081 | Admin должен видеть integration readiness по отдельным prerequisite, а не один зелёный badge. | MUST | E2E |
 | FR-082 | Admin должен видеть immutable audit search/export в пределах permission. | MUST | Security E2E |
 | FR-083 | Config change должен быть versioned, validated и reversible. | MUST | Integration test |
-| FR-084 | Broadcasts, mass sends, old flows, auto-reply и unattended outbound отсутствуют либо fail-closed. | MUST | Feature flag + route test |
+| FR-084 | Broadcasts, mass sends, old flows, cold outbound, autonomous follow-up/re-engagement и out-of-window free-form sends отсутствуют/fail-closed; controlled inbound-reply autonomy имеет independent kill switch и disabled-by-default config. | MUST | Feature flag + route/policy test |
 
 ### 13.9 Student Portal
 
@@ -893,8 +951,8 @@ SQLite/mock/hardcoded mapping.
 | FR-101 | Templates и generated contracts используют только typed approved fields; output остаётся versioned draft до authorized staff approval и audit. | MUST | Generation/approval tests |
 | FR-102 | Post-contract checklist/report должен фиксировать delivered/open items, evidence, owner и next action без неподтверждённых claims. | MUST | Workflow E2E |
 | FR-103 | Q&A должен быть versioned decision backlog с answer, owner role, status, evidence/source, affected requirement и effective version; unanswered entries остаются unresolved. | MUST | Decision lifecycle tests |
-| FR-104 | System prompt, business context и country knowledge должны version/approve/retire независимо и иметь citations в AI draft. | MUST | Knowledge/prompt contract test |
-| FR-105 | AI создаёт только RU/EN draft; Kyrgyz или uncertain language требует manual language selection, human review/edit и manual send. | MUST | Language failure-path E2E |
+| FR-104 | System prompt, policy, business context, Platform memory schema и country knowledge должны version/approve/retire независимо и иметь citations/retrieval evidence в AI proposal. | MUST | Knowledge/prompt/policy contract test |
+| FR-105 | AI создаёт только RU/EN proposal; Kyrgyz или uncertain language требует manual language selection и human review, без autonomous send. | MUST | Language failure-path E2E |
 | FR-106 | University/college import проходит через reviewable staging, validation и approval; source record не пишет напрямую в approved catalog/student case. | MUST | Import isolation tests |
 | FR-107 | University import остаётся blocked пока Notion workspace недоступен; empty colleges не заполняются fake records. | MUST | Blocked-source acceptance |
 | FR-108 | Sheets/Drive/PDF/Notion остаются discovery/import sources, не runtime database/public dependency; customer PII не попадает в repository evidence. | MUST | Architecture + PII audit |
@@ -913,14 +971,14 @@ SQLite/mock/hardcoded mapping.
 | INT-006 | Система не должна циклически повторять собственное amoCRM изменение из webhook. | MUST | Loop-prevention test |
 | INT-007 | WAHA должна быть доступна только по private network/server route. | MUST | Network scan |
 | INT-008 | WAHA webhook проверяет SHA-512 HMAC raw body, timestamp, X-Webhook-Request-Id, сохраняет raw event и dedupe key session+payload.id. | MUST | Security/replay tests |
-| INT-009 | WAHA subscription v1 включает message, message.any, message.ack и session.status; WAHA/Kommo/internal IDs хранятся отдельно. | MUST | Live config + schema evidence |
+| INT-009 | WAHA subscription v1 включает message, message.any, message.ack и session.status; available history/media backfill имеет reconciliation cursor; WAHA/Kommo/internal IDs хранятся отдельно, UI получает Supabase Realtime + reconnect catch-up. | MUST | Live config + history/media/realtime evidence |
 | INT-010 | WAHA retry не должен нарушать platform deduplication. | MUST | Duplicate replay |
 | INT-011 | Send разрешён только при WAHA WORKING и после sendSeen; timeout даёт unknown + reconciliation без auto-resend. | MUST | Failure injection |
 | INT-012 | Root `supabase/` — единственный source: P2A переносит 001–039 byte/checksum-identically без 040; merged migrations immutable; durable work использует real local Queues/PGMQ, DB Webhooks — только async push. | MUST | Clean reset + checksum + queue test |
 | INT-013 | Один production project и изолированные local/dev, persistent staging, preview branches/projects имеют разные secrets, одинаковую migration history и no-prod-data default; local proof не подменяет remote ledger/PITR proof. | MUST | CI/environment audit |
 | INT-014 | Browser использует только publishable key; secret/service-role не попадает в bundle/log; `platform_private`/queue internals не имеют browser grants; Next.js 16 server auth использует SSR proxy/getClaims, не getSession trust. | MUST | Secret/auth/grant scan |
 | INT-015 | New Platform Storage private, download через authorized signed URL/server stream; direct writes в storage schema запрещены, DB и Storage-object restore доказываются отдельно; legacy bucket flip требует отдельного gate. | MUST | Cross-user denial + two restores |
-| INT-016 | AI server adapter создаёт только RU/EN draft из approved versioned knowledge с model/prompt/context audit и timeout. | MUST | Contract + eval |
+| INT-016 | Gemini server adapter создаёт только schema-constrained RU/EN proposal из approved knowledge и Platform memory с model/prompt/policy/context/retrieval audit и timeout; deterministic server отдельно валидирует semantics и send gates. | MUST | Contract + policy eval |
 | INT-017 | При недоступности AI ручная работа Inbox/Documents должна продолжаться. | MUST | Degradation test |
 | INT-018 | Email, telephony, payment gateway и другие provider не могут отображаться live до отдельного contract и acceptance. | MUST | Readiness UI |
 | INT-019 | Каждый provider должен иметь readiness checklist, last verified time и actionable blocker. | MUST | Admin E2E |
@@ -1013,7 +1071,7 @@ external reference либо архивирование, но не незамет
 - Tasks, Calls, WhatsApp, Chat, Notifications, Reports, Settings;
 - Student Portal с девятью рабочими разделами;
 - desktop/tablet/mobile поведение;
-- draft-only маркировку AI;
+- ясную AI automation/pause/handoff маркировку и доступный staff takeover;
 - точные WhatsApp delivery states;
 - loading, empty, error, blocked, read-only, approval-required,
   integration-unavailable и sync-unverified states.
@@ -1221,23 +1279,27 @@ Focused repository checks прошли, но full local Supabase gate failed clo
 real Auth/PostgREST hook до Playwright. Это failed/non-evidence и не доказывает
 mapping approval или real amoCRM account.
 
-P4/P4B deferred до отдельного owner decision. При возобновлении он обязан
-проверить fresh-main ownership, пройти real gate и exact-head review. Пока P4
-deferred, amo contact/lead identity, responsible Sales, canonical sales stage,
-contract-stage handoff, mapping approval и amo-dependent действия fail closed.
-Mock, SQLite shim, hardcoded mapping, fake provider и silent fallback запрещены.
+P4B mapping activation и writes deferred. После messaging foundation отдельный
+P4R block может read-only получить contact/lead/responsible/stage/tasks/
+call-chat references через account-specific mappings, real provider IDs,
+reconciliation и explicit stale/degraded state. Он не создаёт/изменяет amoCRM
+records, не infer-ит contract handoff и не approved mappings silently. Mock,
+SQLite shim, hardcoded mapping, fake provider и silent fallback запрещены.
+Broader P4B требует отдельного owner decision, fresh-main gate и review.
 
 ### P5. Messaging/WAHA/AI controlled proof
 
-Единая conversation/history и amoCRM-independent role/object scope; отдельные
-internal/WAHA/Kommo IDs; HMAC/timestamp/request ID; persist-before-process;
-ACK/unknown audit; draft-only RU/EN и manual send. Broadcast/flow/auto-reply
-surfaces disabled/removed. Exit требует только реально доступный controlled
-path: `WhatsApp → Platform persistence → AI draft → manual send → ACK/unknown
-→ audit`, reconciliation по evidence window, zero unexplained loss или
-duplicates в этом окне, health evidence и proven rollback readiness. Это не
-доказывает canonical identity/stage/responsible Sales/handoff. Старый
-webhook/session не выключается без отдельной authority.
+P5A persist-before-process merged. P5B добавляет только private disabled-by-
+default projection worker по exact HMAC/service-RPC/lease/provenance contract;
+media-only inbound остаётся actionable/handoff, а raw phone-bearing IDs private.
+Следующие small blocks добавляют available history, private media, ACK,
+Supabase Realtime/reconnect, Platform-owned memory/approved pgvector retrieval,
+structured Gemini qualification/proposals, deterministic reply-only policy и
+staff takeover. Broadcast/flow/cold outbound/follow-up/re-engagement исключены.
+Exit требует real controlled path: `WhatsApp history/media → Platform → real
+read context where available → structured proposal → governed send/handoff →
+ACK/unknown → audit`, reconciliation, zero unexplained loss/duplicates, health
+и rollback. Старый webhook/session не выключается без separate authority.
 
 ### P6. Broad admissions and portal surfaces
 
@@ -1260,10 +1322,11 @@ the bounded cutover gate.
 ### P8. Release/cutover candidate
 
 Подготовить reconciliation/snapshot/freeze/rollback, но не выполнять production
-action в этом run. Exit относится только к real executable P5-P7 path:
-`WhatsApp → Platform persistence → AI draft → manual send → ACK/unknown →
-audit`. AmoCRM resolve/link portion исходного E2E — `DEFERRED`, never passed.
-Отсутствующий credential/number/QR/authorization — BLOCKED, не mock.
+action в этом run. Exit относится только к real executable P5-P7 плюс доказанный
+P4R read path: `WhatsApp history/media → Platform → amo read context where
+available → structured proposal → governed send/handoff → ACK/unknown → audit`.
+P4B activation/writes и unavailable provider segments — `DEFERRED`, never
+passed. Отсутствующий credential/number/QR/authorization — BLOCKED, не mock.
 
 ### P9. Removed from current execution scope
 
@@ -1276,7 +1339,8 @@ label P9 сохраняется только для исторической tra
 
 Сопоставить разрешённый P5-P8 scope с evidence, выполнить применимые
 CI/provider/restore/security/accessibility gates и закрыть implementation PR.
-Отдельно указать P4 deferred, Lead Agent retained и provider/production blockers.
+Отдельно указать P4B activation/writes deferred, bounded P4R evidence, Lead
+Agent retained и provider/production blockers.
 Verified, blocked и deferred сообщаются раздельно. Полный исходный Platform
 target не считается завершённым этим audit.
 
@@ -1300,8 +1364,9 @@ target не считается завершённым этим audit.
 | Conversation list/thread and operator context only | Existing accepted frontend + messaging backend wiring |
 | Minimal integration/settings health | Admin messaging readiness |
 
-Auto-reply decision/send logic не переносится как активная функция. Оно
-заменяется draft-only контрактом.
+Legacy auto-reply decision/send logic не переносится как активная функция.
+Новый inbound-reply lane реализуется отдельно в Platform через structured
+proposal, deterministic policy, queue/outbox, kill switch и staff takeover.
 
 ### 22.2 Retained boundary
 
@@ -1348,8 +1413,8 @@ Phase ownership критериев:
 | ACC-006 | Реальный test WhatsApp event проходит HMAC, persist и dedup | Signed evidence |
 | ACC-007 | amo contact/lead resolution не создаёт duplicate | amoCRM comparison |
 | ACC-008 | Stage/manager совпадают с amoCRM | Linked record evidence |
-| ACC-009 | AI draft-only: no auto-send path остаётся fail-closed | Config/code/security test |
-| ACC-010 | Manual send сохраняет фактический текст, actor и outbox ID | Audit record |
+| ACC-009 | Real Gemini proposal проходит deterministic policy matrix; auto-send возможен только для inbound reply внутри 24-hour window, а каждый failed gate создаёт durable human handoff без provider send | Contract/policy/E2E evidence |
+| ACC-010 | Governed auto-send и manual send сохраняют фактический текст, automation/actor identity, policy/gates, takeover state, idempotency и outbox ID | Audit record |
 | ACC-011 | WAHA acknowledgement обновляет exact delivery state | Provider event evidence |
 | ACC-012 | Timeout создаёт unknown и не auto-resend | Failure injection |
 | ACC-013 | Повтор webhook/outbox не создаёт duplicate | Replay report |
@@ -1363,7 +1428,7 @@ Phase ownership критериев:
 | ACC-021 | Performance соответствует утверждённому capacity profile | Load report |
 | ACC-022 | DB backup и отдельный Storage-object backup восстановлены в isolated environment; numeric RPO/RTO ждут DEC-010 | Two restore reports |
 | ACC-023 | Alerts и runbooks проверены tabletop/controlled failure | Ops report |
-| ACC-024 | Bounded controlled evidence-window reconciliation не содержит unexplained loss/orphans/duplicates для реально выполненного amoCRM-independent thin messaging path; amoCRM portion остаётся deferred | Signed reconciliation + deferred ledger |
+| ACC-024 | Bounded controlled evidence-window reconciliation не содержит unexplained loss/orphans/duplicates для реально выполненного history/media → Platform → available P4R context → governed send/handoff → ACK path; P4B writes/activation остаются deferred | Signed reconciliation + deferred ledger |
 | ACC-025 | Lead Agent, legacy webhook/session и rollback path остаются deployed/frozen; deactivation, retirement, deletion и retirement PR отсутствуют в текущем scope | Repository/deployment diff + scope audit |
 
 ## 24. Реестр решений и оставшиеся gates
@@ -1387,7 +1452,7 @@ production-функцию, но не безопасную repository-реали�
 | DEC-010 | Open | Capacity baseline и numeric SLO/RPO/RTO; эти численные targets не блокируют первый thin messaging slice, если отдельно не включены в bounded cutover gate; dashboard observation не считается полной company truth | Product + Technical Owners |
 | DEC-011 | Fixed | Structured alerts, runbooks, support ownership, restore/load/rollback rehearsal обязательны; numeric targets следуют DEC-010 | Technical Owner |
 | DEC-012 | Open | Privacy notice, consent, residency, retention/legal deletion и provider DPA; до решения нет irreversible auto-delete | Legal/Data Owner |
-| DEC-013 | Open | AI provider/model, разрешённые data classes и data-processing policy; approved knowledge governance уже fixed | Business + Data Owners |
+| DEC-013 | Open | AI provider/model, разрешённые data classes, provider DPA и data-processing policy; reply-only 24-hour autonomy scope, deterministic guardrails, staff takeover и approved knowledge governance уже fixed | Business + Data Owners |
 | DEC-014 | Fixed | Notifications v1: durable in-app + individual WhatsApp with consent/dedupe; no broadcast/mass send | Product Owner |
 | DEC-015 | Fixed | KPI всегда имеет source/formula/period/freshness/owner; numeric targets меняются отдельно | Руководство |
 | DEC-016 | Fixed | EVO гарантирует только собственные услуги; Malaysia material с external guarantee не approved до новой reviewed version | Business Owner |
@@ -1398,7 +1463,8 @@ production-функцию, но не безопасную repository-реали�
 
 ## 25. Что не входит в первый production-релиз
 
-- автоматические AI-ответы клиенту;
+- cold/out-of-window AI outbound, autonomous follow-up/re-engagement и
+  model-direct send; guarded inbound reply внутри 24-hour window входит в MVP;
 - массовые рассылки и unattended campaigns;
 - broad no-code flows/automations;
 - несколько WhatsApp numbers/accounts;
@@ -1490,7 +1556,8 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 
 1. Target Architecture ADR 0014, Supabase boundary ADR 0015, superseding
    greenfield/UI boundary ADR 0016, external-automation boundary ADR 0017 и
-   current execution-order/retention boundary ADR 0018.
+   execution-order/retention boundary ADR 0018, superseded where applicable by
+   guarded-autonomy/read-mostly-integration ADR 0019.
 2. Data dictionary и ERD.
 3. Role/action/field/object-scope matrix.
 4. amoCRM field/status/user mapping.
@@ -1520,7 +1587,10 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 | Outbox | Durable очередь исходящих действий до подтверждения provider |
 | Reconciliation | Периодическая сверка локальных данных с master system |
 | Conflict | Неоднозначное или противоречивое соответствие, требующее решения |
-| Draft-only AI | AI предлагает текст, но не отправляет его клиенту |
+| Structured AI proposal | Schema-constrained предложение текста, qualification update, confidence, risk и citations; само по себе не даёт права send |
+| Guarded inbound reply | Автоматический ответ только на недавний inbound внутри 24-hour window после всех deterministic gates |
+| Human takeover | Durable пауза automation, после которой разговор ведёт сотрудник до authorized audited resume |
+| Platform memory | Supabase-owned summary, explicit facts, qualification и retrieval references; не отдельный файловый agent на клиента |
 | Evidence | Проверяемый файл, provider response, event или audit record |
 | External outcome | Решение университета, консульства или другого органа |
 | Stop factor | Явная блокировка с причиной, владельцем и правилом снятия |
@@ -1537,10 +1607,19 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 - [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
 - [Supabase Storage access control](https://supabase.com/docs/guides/storage/security/access-control)
 - [Supabase Queues](https://supabase.com/docs/guides/queues)
+- [Supabase Realtime database-change subscriptions](https://supabase.com/docs/guides/realtime/subscribing-to-database-changes)
 - [Supabase SSR client](https://supabase.com/docs/guides/auth/server-side/creating-a-client)
 - [Kommo API limitations](https://developers.kommo.com/docs/limitations)
 - [Kommo Webhooks](https://developers.kommo.com/docs/webhooks-general)
 - [WAHA Events, HMAC and acknowledgement](https://waha.devlike.pro/docs/how-to/events/)
+- [WAHA Send messages](https://waha.devlike.pro/docs/how-to/send-messages/)
+- [WAHA Receive messages and media](https://waha.devlike.pro/docs/how-to/receive-messages/)
+- [WAHA configuration and GOWS history synchronization](https://waha.devlike.pro/docs/how-to/config/)
+- [WhatsApp Business Messaging Policy](https://www.whatsappbusiness.com/policy/)
+- [WhatsApp Business Terms](https://www.whatsapp.com/legal/business-terms)
+- [Gemini structured output](https://ai.google.dev/gemini-api/docs/structured-output)
+- [Gemini function calling](https://ai.google.dev/gemini-api/docs/function-calling)
+- [Gemini safety settings](https://ai.google.dev/gemini-api/docs/safety-settings)
 
 Расширенный index официальных RBAC, Webhooks/Vault/backup/Realtime,
 Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
@@ -1551,6 +1630,8 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 - `AGENTS.md`, `CONTEXT.md`;
 - `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, `docs/EVO_LAUNCH_PLAN.md`,
   `docs/PLAN_CHANGES.md`;
+- `docs/research/evo-mvp-waha-ai-memory-2026-08-09.md`;
+- `docs/research/evo-mvp-autonomous-send-2026-08-09.md`;
 - `docs/platform/system-overview.md`;
 - `docs/platform/data-ownership.md`;
 - `docs/platform/greenfield-platform-boundary.md`;
@@ -1560,7 +1641,7 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 - `evo-lead-agent/functional-spec.md`;
 - `evo-lead-agent/technical-spec.md`;
 - `agent-lead2-inbox/docs/supabase-managed-store.md`;
-- `docs/adr/0003–0017`;
+- `docs/adr/0003–0019`;
 - `docs/design/evo-platform/COMPLETION_CHECKLIST.md`;
 - `docs/design/evo-platform/FINAL_FRONTEND_AUDIT_2026-07-24.md`;
 - `docs/design/evo-platform/DESIGN_REVIEW_CLOSURE_2026-07-25.md`;
@@ -1840,7 +1921,7 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | Technical Owner | architecture, security, bounded cutover/rollback и later RPO/RTO targets | review + DEC-009/010/017 evidence |
 | Operations Owner | sanitized test sender number, `evo-inbox` QR recovery, bounded evidence window и release window | DEC-007/017 evidence |
 
-**Решение по версии 2.2:** repository-реализация по текущему phased contract
+**Решение по версии 2.3:** repository-реализация по текущему phased contract
 разрешена после merge соответствующих docs amendments. Production mutation и
 provider acceptance разрешаются только соответствующим evidence gate.
 

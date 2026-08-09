@@ -1,31 +1,37 @@
 # EVO Platform Long-Run Execution Contract
 
 Status: active repository implementation contract
-Version date: 2026-08-06 (Asia/Almaty)
+Version date: 2026-08-09 (Asia/Bishkek)
 Initial kickoff baseline: GitHub `origin/main` at
 `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
-`docs/PLAN_CHANGES.md`, and superseding ADRs including ADR 0016, ADR 0017 and
-ADR 0018
+`docs/PLAN_CHANGES.md`, and superseding ADRs including ADR 0016, ADR 0017,
+ADR 0018 and ADR 0019
 
 Execution checkpoint: historical P1 containment, reusable greenfield P2A-P2H,
 the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW7,
 P2R0-P2R4 and P4A are merged; PR #118 merged the P4B docs-only plan, PR #128
 merged the owner-authorized boundary correction that supersedes PR #119, and
-PRs #129-#130 merged the local-validation prerequisite and repair. Current
-`origin/main` is `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`, migrations are contiguous
-`001-058`, and exact-main CI `31038964366` is green.
+PRs #129-#130 merged the local-validation prerequisite and repair. PR #132
+merged the disabled-by-default WAHA persist-before-process ingress. Current
+`origin/main` is `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`, migrations are contiguous
+`001-059`, and exact-main CI `31310795550` is green. PR #133 is a draft P5B
+projection implementation until this amendment is independently merged and its
+media-only handling is corrected and re-proved.
 
 P4B implementation is preserved, not merged, on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
 `e53ba94954f147b295f596421a255591fa343ce8`. Focused repository checks passed,
 but its attempted full local Supabase gate failed closed in the real
 Auth/PostgREST hook before Playwright; it is failed/non-evidence. The owner has
-deferred P4/P4B. This docs-only amendment authorizes the sequence
-P5 → P6 → P7 → P8 → P10 only for amoCRM-independent capabilities, removes P9
-from the current execution scope, and requires Lead Agent and the legacy
-rollback path to remain deployed/frozen. It authorizes no application, schema,
-credential, provider, customer-data, staging or production action.
+deferred broad P4/P4B writes and mapping activation. This docs-only amendment
+keeps that checkpoint preserved while resuming a bounded read-mostly P4R lane
+for amoCRM contact/lead/responsible/stage plus tasks and call/chat-record
+references. It reprioritizes the thin MVP as P5 messaging history/media/ACK/
+realtime, P4R canonical reads, gated AI qualification/replies, P6, P7, P8 and
+P10. P9 remains removed and Lead Agent plus the legacy rollback path remain
+deployed/frozen. It authorizes no application, schema, credential, provider,
+customer-data, staging or production action.
 
 ## 1. Outcome and truth boundary
 
@@ -47,9 +53,10 @@ deliberately and reversibly:
   webhook/session path and rollback path remain deployed and frozen; retirement
   or deactivation is outside the current authorized scope;
 - only the necessary operator messaging capability from EVO Inbox is reused:
-  conversation list/thread, necessary contact/student context, WAHA
-  receive/send, ACK/delivery, AI draft, staff manual send, approved knowledge,
-  audit, and minimal health/settings;
+  available WhatsApp history, conversation list/thread, media, necessary
+  contact/student context, WAHA receive/send, ACK/delivery, true realtime
+  updates, gated AI qualification/replies, staff takeover/manual send, approved
+  knowledge, audit, and minimal health/settings;
 - Inbox CRM/dashboard/pipeline/deal/lead/broadcast/flow/campaign/unrelated
   analytics/settings surfaces are not part of the Platform thin slice;
 - useful EVO Lead Agent capabilities move into one backend and one logical data
@@ -58,7 +65,12 @@ deliberately and reversibly:
   owner serve the final production path;
 - staff and Student Portal use real server authorization, RLS, object scope and
   durable audit;
-- AI creates reviewable RU/EN drafts only. A human edits and manually sends.
+- AI creates a structured RU/EN proposal only. Deterministic server policy may
+  send it automatically only as a reply inside the WhatsApp 24-hour service
+  window and only when all consent, opt-out, language, evidence, risk,
+  confidence, business-hours, cooldown, rate, takeover, session-health,
+  idempotency and kill-switch gates pass. Every other result becomes a durable
+  human-review handoff. Staff can pause/take over immediately and manually send.
 - EVO Platform owns ordinary admissions document slots, private objects,
   immutable versions, review/rework and audited access. Student Profile
   document reading, extraction, autofill and form export belong to a separate
@@ -81,10 +93,11 @@ this contract.
 As of the version date:
 
 - GitHub `main` checkpoint before this amendment is
-  `4d28b7f49d791a78dc387c6f6a16681dd3cf3df8`; PR #128 supersedes PR #119 as
-  current product authority after corrective PRs #125-#127, and PRs #129-#130
-  merged the bounded local-validation repair;
-- exact-main CI run `31038964366` is green for Main CRM, EVO Inbox and EVO Lead
+  `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`; PR #128 supersedes PR #119 as
+  current product authority after corrective PRs #125-#127, PRs #129-#130
+  merged the bounded local-validation repair, and PR #132 merged the P5A WAHA
+  ingress foundation;
+- exact-main CI run `31310795550` is green for Main CRM, EVO Inbox and EVO Lead
   Agent; Changed range is skipped on the push event as expected;
 - the preserved P4B branch passed focused tests, unit tests, lint, Next typegen,
   TypeScript and a production build. Its later full local Supabase run failed
@@ -102,7 +115,7 @@ As of the version date:
   the fallback CRM URL responds;
 - WAHA session endpoints are private and returned `401` without a key during
   the read-only snapshot, so current session states were not re-proved;
-- no full WhatsApp → amoCRM → Platform → AI draft → manual send → ACK → audit
+- no full WhatsApp → amoCRM → Platform → AI decision → governed send/handoff → ACK → audit
   path has ever been proved.
 
 These facts describe the present system. P1 work remains historical legacy
@@ -113,15 +126,18 @@ do not silently change production.
 
 After this amendment merges, implementation priority is intentionally narrow:
 
-1. P4/P4B remains preserved and deferred until a separate owner decision.
-2. Continue P5, P6, P7, P8 and P10 in that order, but only for capabilities
-   that do not require canonical amoCRM.
+1. Preserve P4B and defer mapping activation and amoCRM writes. Resume only a
+   bounded read-mostly P4R adapter after the messaging foundation: contact,
+   lead, responsible manager, sales stage, tasks and call/chat-record links.
+2. Complete P5 history/media/ACK/realtime and the private P5B projection seam;
+   then P4R reads, gated AI qualification/replies, P6, P7, P8 and P10.
 3. No mock, SQLite shim, hardcoded amoCRM mapping, fake provider or silent
    fallback may replace P4. amoCRM identity, responsible Sales, canonical stage,
    contract-stage handoff, mapping approval and amoCRM E2E remain fail-closed.
 4. P9 is removed from the authorized execution scope. Lead Agent, the legacy
    webhook/session path and rollback path remain deployed/frozen.
-5. Provider and production claims remain evidence-gated and separately
+5. Autonomous reply code ships disabled by default. Provider and production
+   claims remain evidence-gated and separately
    authorized.
 
 This contract explicitly defers broad infra perfection, broad restore proof,
@@ -174,12 +190,23 @@ and broad backend parity work that do not change thin-slice product truth.
 - Draft language follows the last customer message when it is confidently RU
   or EN. Otherwise the system requires manual language selection or handoff.
   Kyrgyz customer-draft generation is not an approved first-release contract.
-- AI uses approved, versioned knowledge only and never sends automatically.
+- Gemini uses approved, versioned knowledge and Platform-owned memory only and
+  emits a structured proposal; it never receives a direct WAHA send capability.
+  Deterministic server policy may auto-send only a reply to a recent inbound
+  customer message inside the 24-hour service window. Cold outbound,
+  broadcasts, autonomous follow-ups/re-engagement and out-of-window free-form
+  sends remain prohibited.
+- A human manual outbound or takeover durably pauses autonomy for that
+  conversation. Only an authorized staff action may resume it with audit.
+- Media-only inbound is persisted and shown to the operator; until an approved
+  media-understanding path exists it creates a human handoff and is never
+  terminally consumed merely because text is absent.
 - Unknown send outcomes are never automatically retried.
 - The new platform must absorb phone normalization, WAHA HMAC and idempotency,
   raw-event persistence, buffering/jobs, amoCRM resolution, notes/tasks
-  mapping, handoff, retry/dead-letter and reconciliation. Active auto-reply
-  logic must not be absorbed.
+  mapping, handoff, retry/dead-letter and reconciliation. Legacy auto-reply
+  code must not be copied; the new controlled reply lane is Platform-owned,
+  policy-gated, audited and independently kill-switchable.
 
 ### 3.4 Business workflow contract
 
@@ -371,30 +398,32 @@ deployment surfaces are sequential.
 | P2R2 | Auth-token and local reset reproducibility repair | Explicit issued-token `getClaims()` plus live authority; symlink-safe deadline execution; reproducible exact-project reset and cleanup | Plan merged in PR #109; superseded implementation PR #110 closed without merge after controller findings |
 | P2R3 | Stale-authority session clearing and exact local-proof ownership | Same-origin Route Handler clears rejected Supabase browser state; real connected-route regression; two physical-worktree local proofs | Plan PR #111 and implementation PR #112 merged; exact-main CI green |
 | P2R4 | Local Supabase startup/readiness prerequisite | Two-file harness repair and exact-main CI; later run outcomes remain scoped to their exact branch | Merged in PRs #129-#130; no provider or production proof |
-| P4 | Messaging-scoped canonical amoCRM adapter | Preserved P4B checkpoint plus failed/non-evidence full local gate; no mapping-dependent behavior without real approval | Deferred by owner; branch `izzhackt/evo-platform-p4b-mapping-approval` at `e53ba94954f147b295f596421a255591fa343ce8`; no PR |
-| P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real amoCRM-independent persist-before-process, dedupe, queue/history, draft/manual-send and ACK evidence; no legacy cutover | Authorized next after this amendment merges |
+| P4/P4R | Canonical amoCRM integration | Preserve P4B activation/write checkpoint; prove bounded read-only contact/lead/responsible/stage/tasks/call-chat references through versioned mappings, reconciliation and fail-closed degradation | P4B writes/activation deferred; P4R reads resume only after messaging foundation |
+| P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real persist-before-process, queue/projection, available history/media, ACK, realtime, staff takeover and structured AI proposal with deterministic reply-only send gates; no legacy cutover | P5A merged in PR #132; P5B draft #133 blocked on this plan gate and media-only repair |
 | P6 | amoCRM-independent Admissions, Portal, Documents, Finance and Notifications | Two-student isolation E2E and staff-to-portal workflows that do not infer sales identity/stage/handoff | Pending after P5 |
 | P7 | Security, reliability and operations | Threat model, load evidence, backup plus Storage restore, RPO/RTO and rollback rehearsal, accessibility | Pending after P6 |
-| P8 | Narrowed controlled release-evidence gate | Real executable P5-P7 evidence only; amoCRM-dependent acceptance reported deferred; no production action | Pending after P7 |
+| P8 | Narrowed controlled release-evidence gate | Real executable P5-P7 plus proved P4R read evidence; P4B writes/activation and unavailable provider segments reported deferred; no production action | Pending after P7 |
 | P9 | Removed from current execution scope | Lead Agent, legacy webhook/session and rollback path remain deployed/frozen; no retirement/deactivation PR | Removed by owner decision |
-| P10 | Authorized-scope audit | Map P5-P8 scope to evidence, list P4 deferred and Lead Agent retained, separate verified/blocked/deferred; no full-platform completion claim | Pending directly after P8 |
+| P10 | Authorized-scope audit | Map P4R/P5-P8 scope to evidence, list P4B writes/activation deferred and Lead Agent retained, separate verified/blocked/deferred; no full-platform completion claim | Pending directly after P8 |
 
 BW0, P3A-P3C, BW1-BW7, P2R0-P2R4, P4A and PR #128 are merged. PR #112
 satisfied the stale-authority/local-proof gate, PR #113 merged BW5, PR #114
 merged BW6, PR #116 merged BW7 and PR #117 merged P4A with green exact-main
 CI. PR #118 merged the P4B plan; PRs #129-#130 merged P2R4. P4B work is
 preserved at `e53ba94954f147b295f596421a255591fa343ce8`, but its full local gate
-failed before Playwright and P4 is now deferred. This amendment authorizes only
-amoCRM-independent P5-P8 work followed by P10. The historical BW dependency and
-exit-evidence contract below remains reference evidence, not permission to
-substitute for P4:
+failed before Playwright and remains non-evidence. P4B mapping activation and
+writes stay deferred; this amendment separately resumes only P4R read-mostly
+context after the messaging foundation. P5-P8 may proceed independently where
+they do not require canonical Sales ownership, stage mutation or automatic
+handoff. The historical BW dependency and exit-evidence contract below remains
+reference evidence, not permission to substitute for either P4R proof or P4B:
 
 | Block | Contract | Dependency and exit evidence |
 | --- | --- | --- |
 | BW1 | Workflow/domain contracts and source registry without PII | P3C merged; next-free forward migration only if schema is required; clean reset, RLS/grant tests, provenance/version tests |
 | BW2 | OP/OZO repositories/actions behind existing Sales, Client and Application screens | BW1; amoCRM remains external sales authority; no localStorage/demo fallback; positive/negative authorization and audit E2E |
 | BW3 | Manual operational Student Profile and country requirement/checklist workflow | BW2; private Storage foundation; minimization, version retention, cross-student denial and staff/portal E2E; no document-reading/autofill/export automation |
-| BW4 | Approved knowledge, prompt lifecycle, decision backlog and handoff | BW3 and P3/P5 messaging seams as applicable; draft-only/manual-send proof, RU/EN and manual-language failure path |
+| BW4 | Approved knowledge, prompt lifecycle, decision backlog and handoff | BW3 and P3/P5 messaging seams as applicable; structured proposal, deterministic send/handoff proof, RU/EN and manual-language failure path |
 | BW5 | University/college catalog and reviewable import boundary | BW4; source access required for real import; provenance, validation/rejection and no-direct-approval tests |
 | BW6 | Contract draft generation and post-contract checklist/report | BW5; approved typed fields only; authorization, immutable version and audit proof |
 | BW7 | Latest-main integration and end-to-end workflow proof | BW1-BW6; real local/staging Supabase path through the accepted frontend, no production/provider claim without real exercise |
@@ -753,25 +782,73 @@ passed. The attempted full local Supabase gate failed closed in the real
 Auth/PostgREST hook before Playwright, so it is failed/non-evidence and does not
 prove mapping approval or a real amoCRM account.
 
-P4/P4B is deferred by owner decision. It resumes only under a separate owner
-decision and must then recheck fresh-main migration ownership, rerun the real
-gate and complete exact-head review. Until then, no mock, SQLite shim, hardcoded
-mapping, fake provider or silent fallback may stand in for canonical amoCRM.
-Contact/lead identity, responsible Sales, sales stage, contract-stage handoff,
-mapping approval and every amoCRM-dependent action remain fail-closed.
+P4B mapping activation and every amoCRM write remain deferred. The owner now
+authorizes a separate bounded P4R read-mostly lane after the messaging
+foundation: versioned account discovery/mappings may read contact, lead,
+responsible manager, sales stage, tasks and call/chat-record references for
+operator context. P4R must use provider-issued identifiers, account-specific
+mappings, webhook/poll reconciliation and explicit stale/degraded state. It may
+not create/update leads, tasks or stages, approve mappings silently, infer
+contract handoff, or replace unavailable data with a mock, SQLite shim,
+hardcoded mapping, fake provider or cached-success claim. Broader P4B resumes
+only under a later owner decision, fresh-main gate and exact-head review.
 
 ### P5 — unified communications
 
-Absorb only the agent-facing messaging capability: conversation list/thread,
-necessary operator context, WAHA receive/send, ACK/delivery, approved-knowledge
-retrieval, draft-only RU/EN AI, human review/edit/manual send, audit and minimal
-messaging health/settings. Keep distinct internal, WAHA and Kommo identifiers.
+Absorb only the agent-facing messaging capability: available WhatsApp history,
+conversation list/thread, necessary operator context, private media,
+WAHA receive/send, ACK/delivery, approved-knowledge retrieval, Platform-owned
+lead memory, true realtime, gated RU/EN AI qualification/replies, staff
+takeover/manual send, audit and minimal messaging health/settings. Keep
+distinct internal, WAHA and Kommo identifiers.
 Role-scoped queues may use only Platform-owned authority that is valid without
-amoCRM; amo-derived Sales ownership and handoff stay unavailable while P4 is
-deferred. Broadcasts, flows, campaigns, standalone Inbox
-CRM/dashboard/pipeline/deal/lead surfaces, unrelated analytics/settings and
-auto-reply remain excluded. Do not switch the old webhook/session without
-controlled proof and separate production authorization.
+amoCRM; P4R read context does not grant amo-derived Sales ownership or handoff,
+which stay unavailable until separately approved P4B authority. Broadcasts,
+flows, campaigns, standalone Inbox
+CRM/dashboard/pipeline/deal/lead surfaces, unrelated analytics/settings, cold
+outbound, autonomous follow-ups and re-engagement remain excluded. Do not
+switch the old webhook/session or enable autonomous sending without controlled
+proof and separate production authorization.
+
+P5 is decomposed into small launch-control blocks. P5A is merged. P5B is the
+next code gate and is pre-authorized only by the following exact contract:
+
+- private route `POST /api/internal/platform-messaging/waha/work`; it accepts
+  no request body and is invoked only by a private scheduler;
+- request headers are `X-Evo-Worker-Request-Id` (UUID),
+  `X-Evo-Worker-Timestamp` (Unix milliseconds),
+  `X-Evo-Worker-Hmac-Algorithm: sha256` and `X-Evo-Worker-Hmac`, the lowercase
+  HMAC-SHA256 of `<request-id>.<timestamp>`;
+- server-only configuration is disabled by default. The worker may claim only
+  verified inbound `provider_webhook_process` work for the configured
+  organization, exact `evo-inbox` session and `waha:evo-inbox` account;
+- claim/project/finish RPCs are service-only, tenant/session/provenance bound,
+  leased and bounded. An invalid repository result is never finished; its lease
+  expires for safe retry. Exhausted work moves to explicit manual review/dead
+  letter, never silent success;
+- WAHA-only conversations use `sales_authority_source='platform_intake'`. This
+  is intake-queue authorization, not canonical amoCRM Sales ownership;
+- raw WAHA chat/message identifiers live only in private append-only bindings.
+  Browser-visible rows expose no phone-bearing provider identifiers;
+- valid media-only inbound remains pending/actionable and operator-visible. It
+  must not be terminally finished because the text body is absent;
+- this block makes no provider call, customer send, amoCRM write, production
+  migration or legacy cutover. Its additive migration is rolled back by
+  keeping flags off, reverting code and forward-fixing schema; no destructive
+  down migration is allowed and the legacy path remains available.
+
+Later P5 blocks must add available-history backfill/reconciliation, private
+media archival, ACK projection and Supabase Realtime before the AI reply lane.
+The AI lane stores Platform-owned conversation summaries, explicit facts,
+qualification state, takeover state and pgvector retrieval references in
+Supabase. It does not create one filesystem agent per client. Gemini is called
+through a server adapter and returns a structured proposal; deterministic
+application code validates semantics and owns every send gate. Default local
+business hours are 09:00-21:00 Asia/Bishkek until an organization-specific
+schedule is approved. Outside hours, low confidence, unsupported language,
+missing evidence, sensitive topics, opt-out, cooldown/rate failure, media-only
+input, takeover, non-WORKING session or disabled kill switch all fail closed to
+human review.
 
 ### P6 — operations and portal
 
@@ -779,8 +856,9 @@ Deliver multiple applications, Curator-owned visa and reasoned case
 close/reopen. Deliver versioned private documents, evidence-based manual
 finance, clear overdue Portal actions and durable in-app/individual WhatsApp
 notifications. P6 may prove direct Platform case workflows and object scope,
-but it must not infer amoCRM contract stage, responsible Sales or canonical
-handoff. Those paths remain deferred with P4.
+   but it must not infer amoCRM contract stage, responsible Sales or canonical
+   handoff. Mapping activation, writes and automatic handoff remain deferred
+   with P4B; P4R may supply only verified read context.
 
 ### P7 — security and reliability
 
@@ -792,15 +870,16 @@ load, database and separate Storage restore, rollback and accessibility.
 ### P8 — controlled release gate
 
 Prepare reconciliation, snapshot, freeze and rollback artifacts for the real
-executable P5-P7 scope. Where credentials and authority exist, the narrowed
-messaging path is:
+executable P5-P7 and bounded P4R scope. Where credentials and authority exist,
+the narrowed messaging path is:
 
-`WhatsApp receive → Platform persistence → AI draft → operator review/edit/manual send → delivery/read/unknown → audit`.
+`WhatsApp receive/history/media → Platform persistence → identity/context read → structured AI proposal → deterministic auto-send or durable human handoff → delivery/read/unknown → audit`.
 
-This path must not imply canonical customer identity, responsible Sales, sales
-stage or handoff without P4. The amoCRM resolve/link portion of the original E2E
-remains `DEFERRED`, never passed. Missing credentials, test number, QR owner,
-production authorization or release window are `BLOCKED`, never mocked.
+P4R may prove only real read context. It must not imply mapping activation,
+amoCRM writes or automatic contract handoff. Missing credentials, sanitized
+test identity/number, QR owner, production authorization or release window are
+`BLOCKED`, never mocked. Autonomous send requires separate explicit production
+enablement after the real receive-to-ACK path and rollback are proved.
 
 ### P9 — removed from current execution scope
 
@@ -813,8 +892,9 @@ P9 label remains only for historical traceability.
 
 Re-read this plan, the decision log and TZ. Map the authorized P5-P8 scope to
 exact tests, runtime evidence or an honest blocker. Run the applicable CI,
-restore, security and accessibility gates. Explicitly list P4 as deferred,
-Lead Agent as retained and provider/production gates as blocked or deferred.
+restore, security and accessibility gates. Explicitly list P4R read evidence,
+P4B activation/writes as deferred, Lead Agent as retained and provider/
+production gates as blocked or deferred.
 Report verified, blocked and deferred work separately and never claim that the
 original full Platform target is complete.
 
@@ -912,7 +992,10 @@ full local Playwright or live provider proof.
 
 ## 8. Fail-closed invariants
 
-- no auto-reply or unattended outbound;
+- no cold outbound, broadcast, autonomous follow-up/re-engagement or
+  out-of-window free-form send; controlled inbound reply autonomy is disabled
+  by default and requires every deterministic policy gate;
+- no direct model-to-WAHA capability and no model-controlled retry;
 - no automatic retry of an unknown delivery outcome;
 - no public WAHA/Lead Agent port and no new `acadis_*` dependency;
 - no service-role or provider secret in browser, Git or logs;
@@ -928,11 +1011,13 @@ full local Playwright or live provider proof.
 The implementation may advance safely around these items, but the affected
 gates remain blocked until resolved:
 
-1. exact amoCRM account/pipeline/status/custom-field/user mappings;
+1. exact amoCRM account/pipeline/status/custom-field/user mappings and provider
+   authority for the bounded P4R read proof;
 2. Supabase region, plan, PITR availability and cost owner;
 3. capacity profile, SLO, RPO and RTO;
 4. retention, privacy notice, residency, DPA and legal deletion policy;
-5. AI provider/model and allowed-data policy;
+5. AI provider/model, provider DPA and allowed-data policy; the reply-only
+   autonomy scope and deterministic guardrails are fixed by this amendment;
 6. dedicated sanitized test sender number, `evo-inbox` production
    QR/session-recovery owner and controlled test-send authority;
 7. release window, freeze rules and rollback authority.

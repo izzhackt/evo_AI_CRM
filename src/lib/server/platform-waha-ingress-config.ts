@@ -15,13 +15,16 @@ export type PlatformWahaIngressDisabledConfig = Readonly<{
   enabled: false;
 }>;
 
-export type PlatformWahaIngressEnabledConfig = Readonly<{
-  enabled: true;
+export type PlatformWahaBackendConfig = Readonly<{
   organizationId: string;
   supabaseUrl: string;
   supabaseSecretKey: string;
-  webhookHmacSecret: string;
   sessionName: typeof PLATFORM_WAHA_SESSION_NAME;
+}>;
+
+export type PlatformWahaIngressEnabledConfig = PlatformWahaBackendConfig & Readonly<{
+  enabled: true;
+  webhookHmacSecret: string;
   maxBodyBytes: number;
   maxClockSkewMs: number;
 }>;
@@ -169,6 +172,23 @@ function readWebhookHmacSecret(value: string | undefined): string {
 }
 
 /**
+ * Reads the server-only Platform/Supabase boundary shared by independent WAHA
+ * capabilities. A caller still owns its own explicit feature flag and secrets.
+ */
+export function getPlatformWahaBackendConfig(
+  environment: NodeJS.ProcessEnv = process.env,
+): PlatformWahaBackendConfig {
+  return Object.freeze({
+    organizationId: readOrganizationId(environment.EVO_PLATFORM_ORGANIZATION_ID),
+    supabaseUrl: readSupabaseUrl(environment.NEXT_PUBLIC_SUPABASE_URL),
+    supabaseSecretKey: readSupabaseSecretKey(
+      environment.EVO_PLATFORM_SUPABASE_SECRET_KEY,
+    ),
+    sessionName: PLATFORM_WAHA_SESSION_NAME,
+  });
+}
+
+/**
  * Reads the receive-only ingress configuration lazily. The route stays disabled
  * unless the feature flag is set explicitly; disabled mode does not require or
  * inspect any backend secret.
@@ -180,17 +200,13 @@ export function getPlatformWahaIngressConfig(
     return Object.freeze({ enabled: false });
   }
 
+  const backend = getPlatformWahaBackendConfig(environment);
   return Object.freeze({
+    ...backend,
     enabled: true,
-    organizationId: readOrganizationId(environment.EVO_PLATFORM_ORGANIZATION_ID),
-    supabaseUrl: readSupabaseUrl(environment.NEXT_PUBLIC_SUPABASE_URL),
-    supabaseSecretKey: readSupabaseSecretKey(
-      environment.EVO_PLATFORM_SUPABASE_SECRET_KEY,
-    ),
     webhookHmacSecret: readWebhookHmacSecret(
       environment.EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET,
     ),
-    sessionName: PLATFORM_WAHA_SESSION_NAME,
     maxBodyBytes: PLATFORM_WAHA_MAX_BODY_BYTES,
     maxClockSkewMs: PLATFORM_WAHA_MAX_CLOCK_SKEW_MS,
   });

@@ -110,6 +110,10 @@ const platformAmoCrmMappingDiscoveryMigration = readFileSync(
   join(migrationsDir, '058_platform_amocrm_mapping_discovery.sql'),
   'utf8'
 )
+const platformWahaHistoryMigration = readFileSync(
+  join(migrationsDir, '061_platform_waha_history_reconciliation.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -127,8 +131,59 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '060_platform_waha_work_projection.sql'
+      '061_platform_waha_history_reconciliation.sql'
     )
+    for (const table of [
+      'waha_history_reconciliation_runs',
+      'waha_history_reconciliation_lifecycle',
+      'waha_history_reconciliation_requests',
+      'waha_history_message_observations',
+      'waha_history_projection_effects',
+      'waha_history_reconciliation_checkpoints',
+    ]) {
+      expect(platformWahaHistoryMigration).toMatch(
+        new RegExp(
+          `CREATE\\s+TABLE\\s+platform_private\\.${table}`,
+          'i'
+        )
+      )
+      expect(platformWahaHistoryMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+      expect(platformWahaHistoryMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+      expect(platformWahaHistoryMigration).toMatch(
+        new RegExp(
+          `REVOKE\\s+ALL\\s+ON\\s+TABLE[\\s\\S]*?platform_private\\.${table}[\\s\\S]*?FROM\\s+PUBLIC,\\s*anon,\\s*authenticated,\\s*service_role,\\s*supabase_auth_admin`,
+          'i'
+        )
+      )
+    }
+    for (const rpc of [
+      'begin_waha_history_reconciliation',
+      'project_waha_history_page',
+      'finish_waha_history_reconciliation',
+    ]) {
+      expect(platformWahaHistoryMigration).toMatch(
+        new RegExp(
+          `REVOKE\\s+ALL\\s+ON\\s+FUNCTION[\\s\\S]*?platform\\.${rpc}\\s*\\([\\s\\S]*?FROM\\s+PUBLIC,\\s*anon,\\s*authenticated,\\s*service_role,\\s*supabase_auth_admin`,
+          'i'
+        )
+      )
+      expect(platformWahaHistoryMigration).toMatch(
+        new RegExp(
+          `GRANT\\s+EXECUTE\\s+ON\\s+FUNCTION[\\s\\S]*?platform\\.${rpc}\\s*\\([\\s\\S]*?TO\\s+service_role`,
+          'i'
+        )
+      )
+    }
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
     )

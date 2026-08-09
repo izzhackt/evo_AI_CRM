@@ -195,6 +195,38 @@ P5B does not authorize AI or provider claims. History/media reconciliation,
 ACK projection and Supabase Realtime are later independently reviewed P5
 blocks and precede the autonomous-reply lane.
 
+### P5C authority and rollback contract
+
+Block `EVO-P5C-WAHA-HISTORY-2026-08-10` adds only a disabled-by-default,
+server-side reconciliation lane for history that the existing WAHA store can
+actually return for the exact `evo-inbox` session:
+
+- the private trigger is HMAC-authenticated and requires an explicit feature
+  flag, tenant, private WAHA origin, provider credential and service-only
+  Supabase credential;
+- provider access is read-only: session preflight plus paginated `GET` chat and
+  message history with `downloadMedia=false`. It sends no message, sets no read
+  marker and changes no WAHA session or webhook;
+- NOWEB must explicitly report its store enabled; supported engines and
+  `WORKING` session state fail closed before reconciliation;
+- only direct chats enter this block. Inbound and historical outbound rows are
+  projected behind the accepted `/whatsapp` UI, while raw WAHA chat/message
+  identifiers remain private and browser-visible provider/amoCRM IDs stay null;
+- cursor movement, page effects, replay evidence and lifecycle state are
+  service-only, organization/session-bound and atomic. A provider/repository
+  failure leaves the last committed cursor resumable;
+- media-only history becomes an operator-visible marker. P5C does not download,
+  archive or display media bytes; private media is the next P5 block;
+- the configured Sales membership is an intake authorization only. P5C creates
+  no canonical amoCRM identity, Sales owner, stage or handoff claim;
+- synthetic local adapter/browser evidence proves the Platform path only.
+  Real WAHA history completeness and provider behavior remain blocked until a
+  separately authorized controlled provider run.
+
+Rollback keeps P5C disabled, reverts the route/worker code and forward-fixes
+the additive migration. It performs no destructive down migration, provider
+mutation, production migration or legacy-path retirement.
+
 ### Merged P2R3 acceptance record
 
 - The server verifies the exact access token returned by successful Supabase

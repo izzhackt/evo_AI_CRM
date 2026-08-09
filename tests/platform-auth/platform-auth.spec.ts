@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createHmac, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
+import { createServer } from "node:http";
 import path from "node:path";
 
 type Identity = Readonly<{ email: string; password: string }>;
@@ -18,6 +19,10 @@ type Fixture = Readonly<{
     supabaseSecretKey: string;
     ingressHmacSecret: string;
     workerTriggerSecret: string;
+  }>;
+  p5c: Readonly<{
+    wahaApiKey: string;
+    historyTriggerSecret: string;
   }>;
   identities: Readonly<{
     admin: Identity;
@@ -1278,6 +1283,311 @@ test("P5B projects verified inbound WAHA work into the accepted conversation UI"
     }),
   ]);
   expectLegacyDatabaseUntouched();
+});
+
+test("P5C reconciles available WAHA history into the accepted conversation UI", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.EVO_P5C_BROWSER_PROOF !== "1",
+    "Runs only in the dedicated local P5C browser-proof partition.",
+  );
+  expectLegacyDatabaseUntouched();
+
+  const chatId = "14155550208@c.us";
+  const inboundMessageId = `false_${chatId}_${randomUUID()}`;
+  const outboundMessageId = `true_${chatId}_${randomUUID()}`;
+  const mediaMessageId = `false_${chatId}_${randomUUID()}`;
+  const inboundText = `P5C inbound history ${randomUUID()}`;
+  const outboundText = `P5C outbound history ${randomUUID()}`;
+  const mediaMarker =
+    "[Медиа из истории — вложение ожидает безопасного архивирования]";
+  const baseTimestamp = Math.floor(Date.now() / 1_000) - 60;
+  const requests: Array<Readonly<{
+    method: string | undefined;
+    pathname: string;
+    search: string;
+    apiKey: string | undefined;
+  }>> = [];
+  const messagePath =
+    `/api/evo-inbox/chats/${encodeURIComponent(chatId)}/messages`;
+  const historyFixture = createServer((request, response) => {
+    const url = new URL(request.url ?? "/", "http://127.0.0.1:3312");
+    const apiKeyHeader = request.headers["x-api-key"];
+    requests.push({
+      method: request.method,
+      pathname: url.pathname,
+      search: url.search,
+      apiKey: Array.isArray(apiKeyHeader)
+        ? apiKeyHeader.join(",")
+        : apiKeyHeader,
+    });
+
+    let payload: unknown;
+    if (
+      request.method === "GET" &&
+      url.pathname === "/api/sessions/evo-inbox" &&
+      url.search === ""
+    ) {
+      payload = {
+        name: "evo-inbox",
+        status: "WORKING",
+        engine: { engine: "WEBJS" },
+        config: {},
+      };
+    } else if (
+      request.method === "GET" &&
+      url.pathname === "/api/evo-inbox/chats"
+    ) {
+      const offset = url.searchParams.get("offset");
+      if (offset === "0") {
+        payload = [{ id: chatId }];
+      } else if (offset === "25") {
+        payload = [];
+      } else {
+        response.writeHead(404, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: "unexpected_chat_offset" }));
+        return;
+      }
+    } else if (
+      request.method === "GET" &&
+      url.pathname === messagePath
+    ) {
+      const offset = url.searchParams.get("offset");
+      if (offset === "0") {
+        // WAHA ordering is deliberately not trusted. The Platform must render
+        // the stored history by occurred_at, not by this provider array order.
+        payload = [
+          {
+            id: outboundMessageId,
+            timestamp: baseTimestamp + 20,
+            fromMe: true,
+            body: outboundText,
+            hasMedia: false,
+          },
+          {
+            id: inboundMessageId,
+            timestamp: baseTimestamp + 10,
+            fromMe: false,
+            body: inboundText,
+            hasMedia: false,
+          },
+          {
+            id: mediaMessageId,
+            timestamp: baseTimestamp + 15,
+            fromMe: false,
+            body: "",
+            hasMedia: true,
+          },
+        ];
+      } else if (offset === "50") {
+        payload = [];
+      } else {
+        response.writeHead(404, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: "unexpected_message_offset" }));
+        return;
+      }
+    } else {
+      response.writeHead(404, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "not_found" }));
+      return;
+    }
+
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify(payload));
+  });
+
+  let fixtureListening = false;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: NodeJS.ErrnoException) => {
+        historyFixture.off("listening", onListening);
+        if (error.code === "EADDRINUSE") {
+          reject(new Error("P5C loopback WAHA fixture port 3312 is occupied"));
+          return;
+        }
+        reject(error);
+      };
+      const onListening = () => {
+        historyFixture.off("error", onError);
+        fixtureListening = true;
+        resolve();
+      };
+      historyFixture.once("error", onError);
+      historyFixture.once("listening", onListening);
+      historyFixture.listen(3312, "127.0.0.1");
+    });
+
+    const historyTimestamp = String(Date.now());
+    const historyRequestId = randomUUID();
+    const historyResponse = await fetch(
+      `${appOrigin}/api/internal/platform-messaging/waha/history`,
+      {
+        method: "POST",
+        headers: {
+          "x-evo-history-request-id": historyRequestId,
+          "x-evo-history-timestamp": historyTimestamp,
+          "x-evo-history-hmac-algorithm": "sha256",
+          "x-evo-history-hmac": createHmac(
+            "sha256",
+            fixture.p5c.historyTriggerSecret,
+          )
+            .update(`${historyRequestId}.${historyTimestamp}`)
+            .digest("hex"),
+        },
+      },
+    );
+    const historyPayload = await historyResponse.json();
+    const serializedHistoryPayload = JSON.stringify(historyPayload);
+    expect(historyResponse.status).toBe(200);
+    expect(historyPayload).toEqual({
+      ok: true,
+      state: "completed",
+      projected: 3,
+    });
+    for (const rawIdentifier of [
+      chatId,
+      inboundMessageId,
+      outboundMessageId,
+      mediaMessageId,
+    ]) {
+      expect(serializedHistoryPayload).not.toContain(rawIdentifier);
+    }
+
+    expect(requests).toHaveLength(5);
+    expect(requests.every((request) => request.method === "GET")).toBe(true);
+    expect(
+      requests.every((request) => request.apiKey === fixture.p5c.wahaApiKey),
+    ).toBe(true);
+    expect(requests.map((request) => request.pathname)).toEqual([
+      "/api/sessions/evo-inbox",
+      "/api/evo-inbox/chats",
+      messagePath,
+      messagePath,
+      "/api/evo-inbox/chats",
+    ]);
+    expect(
+      Object.fromEntries(new URLSearchParams(requests[1]?.search)),
+    ).toEqual({ limit: "25", offset: "0", sortBy: "id", sortOrder: "asc" });
+    expect(
+      Object.fromEntries(new URLSearchParams(requests[2]?.search)),
+    ).toEqual({ limit: "50", offset: "0", downloadMedia: "false" });
+    expect(
+      Object.fromEntries(new URLSearchParams(requests[3]?.search)),
+    ).toEqual({ limit: "50", offset: "50", downloadMedia: "false" });
+    expect(
+      Object.fromEntries(new URLSearchParams(requests[4]?.search)),
+    ).toEqual({ limit: "25", offset: "25", sortBy: "id", sortOrder: "asc" });
+
+    await loginToMessaging(page, fixture.identities.responsibleSales);
+    const projectedConversation = page
+      .getByTestId("platform-conversation-list")
+      .locator("a")
+      .filter({ hasText: "WhatsApp ••••0208" });
+    await expect(projectedConversation).toHaveCount(1);
+    const href = await projectedConversation.getAttribute("href");
+    expect(href).toMatch(/^\/whatsapp\/[0-9a-f-]{36}$/i);
+    const conversationId = href?.split("/").at(-1);
+    expect(conversationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+
+    await projectedConversation.click();
+    await expect(page).toHaveURL(new RegExp(`/whatsapp/${conversationId}$`));
+    const thread = page.getByTestId("platform-conversation-thread");
+    await expect(thread).toBeVisible();
+    await expect(thread).toHaveAttribute("data-provider-proof", "not-proved");
+    const renderedMessages = thread.locator("[data-message-direction]");
+    await expect(renderedMessages).toHaveCount(3);
+    await expect(renderedMessages.nth(0)).toHaveAttribute(
+      "data-message-direction",
+      "inbound",
+    );
+    await expect(renderedMessages.nth(0)).toContainText(inboundText);
+    await expect(renderedMessages.nth(1)).toHaveAttribute(
+      "data-message-direction",
+      "inbound",
+    );
+    await expect(renderedMessages.nth(1)).toContainText(mediaMarker);
+    await expect(renderedMessages.nth(2)).toHaveAttribute(
+      "data-message-direction",
+      "outbound",
+    );
+    await expect(renderedMessages.nth(2)).toContainText(outboundText);
+
+    const responsibleSalesToken = await localAccessToken(
+      fixture.identities.responsibleSales,
+    );
+    const messageRows = await platformRpc(
+      responsibleSalesToken,
+      "staff_conversation_messages",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_conversation_id: conversationId,
+      },
+    );
+    expect(messageRows.status).toBe(200);
+    expect(messageRows.payload).toEqual([
+      expect.objectContaining({
+        direction: "inbound",
+        body_text: inboundText,
+        waha_session_name: null,
+        waha_message_id: null,
+        kommo_account_id: null,
+        kommo_conversation_id: null,
+        kommo_message_id: null,
+        amocrm_account_id: null,
+        amocrm_lead_id: null,
+        amocrm_contact_id: null,
+      }),
+      expect.objectContaining({
+        direction: "inbound",
+        body_text: mediaMarker,
+        waha_session_name: null,
+        waha_message_id: null,
+        kommo_account_id: null,
+        kommo_conversation_id: null,
+        kommo_message_id: null,
+        amocrm_account_id: null,
+        amocrm_lead_id: null,
+        amocrm_contact_id: null,
+      }),
+      expect.objectContaining({
+        direction: "outbound",
+        body_text: outboundText,
+        waha_session_name: null,
+        waha_message_id: null,
+        kommo_account_id: null,
+        kommo_conversation_id: null,
+        kommo_message_id: null,
+        amocrm_account_id: null,
+        amocrm_lead_id: null,
+        amocrm_contact_id: null,
+      }),
+    ]);
+
+    const pageBody = page.locator("body");
+    for (const rawIdentifier of [
+      chatId,
+      inboundMessageId,
+      outboundMessageId,
+      mediaMessageId,
+    ]) {
+      await expect(pageBody).not.toContainText(rawIdentifier);
+      expect(JSON.stringify(messageRows.payload)).not.toContain(rawIdentifier);
+    }
+    expectLegacyDatabaseUntouched();
+  } finally {
+    if (fixtureListening) {
+      historyFixture.closeAllConnections();
+      await new Promise<void>((resolve, reject) => {
+        historyFixture.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+    }
+  }
 });
 
 test("student portal renders the persisted BW3 profile and one requirement without legacy SQLite", async ({

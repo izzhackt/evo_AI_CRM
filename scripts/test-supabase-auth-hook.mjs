@@ -3547,6 +3547,8 @@ const main = async () => {
     });
     const p5bIngressHmacSecret = randomBytes(48).toString("base64url");
     const p5bWorkerTriggerSecret = randomBytes(48).toString("base64url");
+    const p5cWahaApiKey = randomBytes(48).toString("base64url");
+    const p5cHistoryTriggerSecret = randomBytes(48).toString("base64url");
     writeFileSync(
       browserFixturePath,
       JSON.stringify({
@@ -3558,6 +3560,10 @@ const main = async () => {
           supabaseSecretKey: serviceRoleKey,
           ingressHmacSecret: p5bIngressHmacSecret,
           workerTriggerSecret: p5bWorkerTriggerSecret,
+        },
+        p5c: {
+          wahaApiKey: p5cWahaApiKey,
+          historyTriggerSecret: p5cHistoryTriggerSecret,
         },
         identities: {
           admin: {

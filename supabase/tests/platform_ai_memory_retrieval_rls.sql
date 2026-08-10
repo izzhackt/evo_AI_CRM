@@ -936,9 +936,9 @@ SELECT platform.record_conversation_ai_fact(
 SELECT platform.record_conversation_ai_qualification(
   :'p5f1_org_b',
   :'p5f1_conversation_b',
-  0,
+  0::BIGINT,
   'collecting',
-  11,
+  11::SMALLINT,
   ARRAY[
     'preferred_country',
     'preferred_program',
@@ -957,16 +957,16 @@ SELECT platform.record_conversation_ai_qualification(
 
 \set ON_ERROR_STOP off
 SELECT platform.record_conversation_ai_qualification(
-  :'p5f1_org_b', :'p5f1_conversation_b', 1,
-  'staff_confirmed', 90, ARRAY[]::TEXT[],
+  :'p5f1_org_b', :'p5f1_conversation_b', 1::BIGINT,
+  'staff_confirmed', 90::SMALLINT, ARRAY[]::TEXT[],
   'Incomplete confirmation must fail.', :'p5f1_message_b',
   'Reject incomplete confirmation',
   '65000000-0000-4000-8000-000000000009'
 );
 \set p5f1_bad_confirmation_state :SQLSTATE
 SELECT platform.record_conversation_ai_qualification(
-  :'p5f1_org_b', :'p5f1_conversation_b', 0,
-  'collecting', 12, ARRAY['preferred_country']::TEXT[],
+  :'p5f1_org_b', :'p5f1_conversation_b', 0::BIGINT,
+  'collecting', 12::SMALLINT, ARRAY['preferred_country']::TEXT[],
   'Changed replay.', :'p5f1_message_b',
   'Record collecting synthetic qualification',
   '65000000-0000-4000-8000-000000000008'
@@ -977,9 +977,9 @@ SELECT platform.record_conversation_ai_qualification(
 SELECT platform.record_conversation_ai_qualification(
   :'p5f1_org_b',
   :'p5f1_conversation_b',
-  1,
+  1::BIGINT,
   'staff_confirmed',
-  100,
+  100::SMALLINT,
   ARRAY[]::TEXT[],
   'Staff confirmed the bounded synthetic assessment.',
   :'p5f1_message_b',

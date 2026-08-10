@@ -475,4 +475,8 @@ test("approved knowledge chunk validation uses parse-safe PostgreSQL offsets", a
     authorizationSource,
     /array_agg\(bundle\.role ORDER BY bundle\.role::TEXT\)/,
   );
+  assert.equal(
+    authorizationSource.match(/(?:11|90|12|100)::SMALLINT/g)?.length,
+    4,
+  );
 });

@@ -1,7 +1,7 @@
 # EVO Platform Long-Run Execution Contract
 
 Status: active repository implementation contract
-Version date: 2026-08-09 (Asia/Bishkek)
+Version date: 2026-08-10 (Asia/Bishkek)
 Initial kickoff baseline: GitHub `origin/main` at
 `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
@@ -13,13 +13,15 @@ the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW7,
 P2R0-P2R4 and P4A are merged; PR #118 merged the P4B docs-only plan, PR #128
 merged the owner-authorized boundary correction that supersedes PR #119, and
 PRs #129-#130 merged the local-validation prerequisite and repair. PR #132
-merged the disabled-by-default WAHA persist-before-process ingress, and PR #133
+merged the disabled-by-default WAHA persist-before-process ingress, PR #133
 merged the disabled-by-default P5B projection into the accepted `/whatsapp`
-data path. Current `origin/main` is
-`18e0e0855fda31cba1fa837d81b3a75cedd585e9`, migrations are contiguous
-`001-060`, and exact-main CI `31323907123` is green. The next P5 slice is
-available-history reconciliation; it does not inherit real-provider or
-production proof from P5A/P5B.
+data path, PR #137 merged the P5C available-history reconciliation lane, and
+PR #138 merged the disabled-by-default P5D private media archive plus accepted
+media display. Current `origin/main` is
+`0032a99439bdd1cafdbefa99301fab67a7fc8aeb`, migrations are contiguous
+`001-062`, and exact-main CI `31369896660` is green. The next bounded P5 slice
+is ACK/session projection plus private realtime with reconnectable read-model
+fallback; it does not inherit real-provider or production proof from P5A-P5D.
 
 P4B implementation is preserved, not merged, on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -34,6 +36,14 @@ realtime, P4R canonical reads, gated AI qualification/replies, P6, P7, P8 and
 P10. P9 remains removed and Lead Agent plus the legacy rollback path remain
 deployed/frozen. It authorizes no application, schema, credential, provider,
 customer-data, staging or production action.
+
+For the current owner-authorized MVP lane, older references in this file to a
+scheduled Launch Auditor or controller-only merge are historical unless
+restated inside an active slice. The superseding merge protocol is one fresh
+independent read-only exact-head review, green exact-head GitHub CI, a final
+refresh/recheck that `origin/main`, the PR base and the reviewed head SHA still
+match the evidence, direct merge only of that reviewed head SHA, and then
+exact-main push-CI verification before the next block starts.
 
 ## 1. Outcome and truth boundary
 
@@ -401,7 +411,7 @@ deployment surfaces are sequential.
 | P2R3 | Stale-authority session clearing and exact local-proof ownership | Same-origin Route Handler clears rejected Supabase browser state; real connected-route regression; two physical-worktree local proofs | Plan PR #111 and implementation PR #112 merged; exact-main CI green |
 | P2R4 | Local Supabase startup/readiness prerequisite | Two-file harness repair and exact-main CI; later run outcomes remain scoped to their exact branch | Merged in PRs #129-#130; no provider or production proof |
 | P4/P4R | Canonical amoCRM integration | Preserve P4B activation/write checkpoint; prove bounded read-only contact/lead/responsible/stage/tasks/call-chat references through versioned mappings, reconciliation and fail-closed degradation | P4B writes/activation deferred; P4R reads resume only after messaging foundation |
-| P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real persist-before-process, queue/projection, available history/media, ACK, realtime, staff takeover and structured AI proposal with deterministic reply-only send gates; no legacy cutover | P5A merged in PR #132; P5B merged in PR #133; available-history reconciliation is next |
+| P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real persist-before-process, queue/projection, available history/media, ACK, realtime, staff takeover and structured AI proposal with deterministic reply-only send gates; no legacy cutover | P5A merged in PR #132; P5B merged in PR #133; P5C merged in PR #137; P5D merged in PR #138; ACK/session projection plus private realtime is next |
 | P6 | amoCRM-independent Admissions, Portal, Documents, Finance and Notifications | Two-student isolation E2E and staff-to-portal workflows that do not infer sales identity/stage/handoff | Pending after P5 |
 | P7 | Security, reliability and operations | Threat model, load evidence, backup plus Storage restore, RPO/RTO and rollback rehearsal, accessibility | Pending after P6 |
 | P8 | Narrowed controlled release-evidence gate | Real executable P5-P7 plus proved P4R read evidence; P4B writes/activation and unavailable provider segments reported deferred; no production action | Pending after P7 |
@@ -928,9 +938,11 @@ For each block:
    commands/results and provider boundary;
 8. if the head changes, repeat validation and review for the new SHA;
 9. after a fresh independent read-only exact-head approval and all required
-   exact-head CI jobs pass, the executor may merge that same SHA directly using
-   a head-matching merge command; GitHub exact-main push CI must pass before the
-   next implementation PR opens.
+   exact-head CI jobs pass, refresh `origin/main` and the PR base, confirm the
+   reviewed base/main and reviewed head SHA still match the evidence, then merge
+   that same SHA directly using a head-matching merge command; otherwise rerun
+   the review/CI cycle on the refreshed state. GitHub exact-main push CI must
+   pass before the next implementation PR opens.
 
 The owner removed the scheduled Launch Auditor and separate merge-controller
 from the active workflow. Do not wait for or recreate either automation.

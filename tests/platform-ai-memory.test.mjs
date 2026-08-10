@@ -447,6 +447,13 @@ test("approved knowledge chunk validation uses parse-safe PostgreSQL offsets", a
     ),
     "utf8",
   );
+  const authorizationSource = await readFile(
+    new URL(
+      "../supabase/tests/platform_ai_memory_retrieval_rls.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
 
   assert.match(
     migrationSource,
@@ -463,5 +470,9 @@ test("approved knowledge chunk validation uses parse-safe PostgreSQL offsets", a
   assert.doesNotMatch(
     migrationSource,
     /INSERT\s+INTO\s+platform\.permission_definitions/i,
+  );
+  assert.match(
+    authorizationSource,
+    /array_agg\(bundle\.role ORDER BY bundle\.role::TEXT\)/,
   );
 });

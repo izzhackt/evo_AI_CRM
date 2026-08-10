@@ -413,7 +413,7 @@ SELECT pg_temp.assert_true(
 
 SELECT pg_temp.assert_true(
   (
-    SELECT pg_catalog.array_agg(bundle.role ORDER BY bundle.role) = ARRAY[
+    SELECT pg_catalog.array_agg(bundle.role ORDER BY bundle.role::TEXT) = ARRAY[
       'admin',
       'curator',
       'finance',

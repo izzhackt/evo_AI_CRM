@@ -192,9 +192,9 @@ SELECT
 -- Scope creation rotates the responsible Sales profile access version. Build
 -- the positive-read JWT only after that rotation so the proof uses live
 -- authority rather than a deliberately stale claim.
-SELECT profile.access_version AS p4r1_sales_b_access_version
-FROM platform.profiles AS profile
-WHERE profile.auth_user_id = '42000000-0000-4000-8000-000000000003'
+SELECT
+  (:'p4r1_case_b'::JSONB ->> 'sales_access_version')::BIGINT
+    AS p4r1_sales_b_access_version
 \gset
 
 SELECT jsonb_build_object(

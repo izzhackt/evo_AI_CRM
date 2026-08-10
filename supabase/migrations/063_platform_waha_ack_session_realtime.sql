@@ -795,7 +795,7 @@ DECLARE
   evidence_ref TEXT;
   error_code TEXT;
   persist_effect BOOLEAN := TRUE;
-  raw_message_id TEXT;
+  ack_raw_message_id TEXT;
   ack_code_text TEXT;
   ack_code INTEGER;
   ack_name TEXT;
@@ -1002,12 +1002,12 @@ BEGIN
     END IF;
 
     IF source_event.event_type = 'message.ack' THEN
-      raw_message_id := NULLIF(btrim(payload ->> 'id'), '');
+      ack_raw_message_id := NULLIF(btrim(payload ->> 'id'), '');
       ack_code_text := payload ->> 'ack';
       ack_name := payload ->> 'ackName';
 
       IF jsonb_typeof(payload -> 'id') IS DISTINCT FROM 'string'
-        OR raw_message_id IS NULL
+        OR ack_raw_message_id IS NULL
         OR jsonb_typeof(payload -> 'fromMe') IS DISTINCT FROM 'boolean'
         OR payload ->> 'fromMe' IS DISTINCT FROM 'true'
         OR jsonb_typeof(payload -> 'ack') IS DISTINCT FROM 'number'
@@ -1032,7 +1032,7 @@ BEGIN
       -- body-bound delivery id so HTTP retries can persist as distinct source
       -- deliveries while sharing one durable processing identity. The raw WAHA
       -- message id remains payload.id and is the only value used for binding.
-      IF source_event.payload_id IS DISTINCT FROM raw_message_id
+      IF source_event.payload_id IS DISTINCT FROM ack_raw_message_id
         AND NOT (
           source_event.payload_id ~
             '^local-message-ack-delivery:[0-9a-f]{64}:[0-9a-f]{64}$'
@@ -1088,7 +1088,7 @@ BEGIN
       FROM platform_private.waha_message_bindings AS binding
       WHERE binding.organization_id = p_organization_id
         AND binding.waha_session_name = source_event.waha_session_name
-        AND binding.raw_message_id = project_claimed_waha_observation.raw_message_id;
+        AND binding.raw_message_id = ack_raw_message_id;
 
       IF message_binding.id IS NULL THEN
         error_code := 'waha_ack_binding_pending';
@@ -1151,7 +1151,7 @@ BEGIN
         source_event.id,
         message_row.id,
         source_event.waha_session_name,
-        raw_message_id,
+        ack_raw_message_id,
         TRUE,
         ack_code,
         expected_ack_name,

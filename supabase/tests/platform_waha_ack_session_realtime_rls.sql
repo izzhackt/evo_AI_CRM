@@ -275,7 +275,7 @@ VALUES
   ),
   (
     '46300000-0000-4000-8000-000000000003',
-    :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'read',
+    :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'read-mismatch',
     'synthetic-p5e-ack-mismatch', 'evo-inbox',
     'p5c-history-outbound-1', 'message.ack',
     '2026-08-10 10:11:00+06', 'verified',
@@ -327,7 +327,9 @@ VALUES
     '46300000-0000-4000-8000-000000000008',
     :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'pending',
     'synthetic-p5e-ack-pending', 'evo-inbox',
-    'p5c-history-outbound-1', 'message.ack',
+    'local-message-ack-delivery:' || repeat('a8', 32) || ':' ||
+      repeat('d8', 32),
+    'message.ack',
     '2026-08-10 10:00:00+06', 'verified',
     '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5c-history-outbound-1","fromMe":true,"ack":0,"ackName":"PENDING"}}',
     '{"hmac_verified":true}', 'synthetic:p5e:ack-pending',
@@ -337,7 +339,9 @@ VALUES
     '46300000-0000-4000-8000-000000000009',
     :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'error',
     'synthetic-p5e-ack-error', 'evo-inbox',
-    'p5c-history-outbound-1', 'message.ack',
+    'local-message-ack-delivery:' || repeat('a9', 32) || ':' ||
+      repeat('d9', 32),
+    'message.ack',
     '2026-08-10 10:01:00+06', 'verified',
     '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5c-history-outbound-1","fromMe":true,"ack":-1,"ackName":"ERROR"}}',
     '{"hmac_verified":true}', 'synthetic:p5e:ack-error',
@@ -347,7 +351,9 @@ VALUES
     '46300000-0000-4000-8000-000000000010',
     :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'device',
     'synthetic-p5e-ack-positive-after-error', 'evo-inbox',
-    'p5c-history-outbound-1', 'message.ack',
+    'local-message-ack-delivery:' || repeat('aa', 32) || ':' ||
+      repeat('da', 32),
+    'message.ack',
     '2026-08-10 10:02:00+06', 'verified',
     '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5c-history-outbound-1","fromMe":true,"ack":2,"ackName":"DEVICE"}}',
     '{"hmac_verified":true}', 'synthetic:p5e:ack-positive-after-error',

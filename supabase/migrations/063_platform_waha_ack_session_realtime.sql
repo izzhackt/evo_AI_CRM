@@ -1088,7 +1088,7 @@ BEGIN
       FROM platform_private.waha_message_bindings AS binding
       WHERE binding.organization_id = p_organization_id
         AND binding.waha_session_name = source_event.waha_session_name
-        AND binding.raw_message_id = raw_message_id;
+        AND binding.raw_message_id = project_claimed_waha_observation.raw_message_id;
 
       IF message_binding.id IS NULL THEN
         error_code := 'waha_ack_binding_pending';

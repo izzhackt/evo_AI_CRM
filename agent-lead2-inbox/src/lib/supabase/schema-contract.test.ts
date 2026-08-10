@@ -1225,6 +1225,10 @@ describe('Supabase companion schema contract', () => {
   })
 
   it('keeps P4R1 amoCRM read evidence private and exposes only scoped safe RPCs', () => {
+    expect(platformAmoCrmCanonicalContextMigration).not.toMatch(
+      /pg_catalog\.coalesce/i
+    )
+
     for (const table of [
       'amocrm_canonical_context_current',
       'amocrm_canonical_context_observations',

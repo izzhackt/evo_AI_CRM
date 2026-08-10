@@ -84,7 +84,7 @@ BEGIN
   );
 
   IF p_state = 'failed' THEN
-    IF pg_catalog.coalesce(pg_catalog.array_length(normalized, 1), 0) <> 0 THEN
+    IF COALESCE(pg_catalog.array_length(normalized, 1), 0) <> 0 THEN
       RAISE EXCEPTION
         'Failed canonical-context observations cannot declare capabilities'
         USING ERRCODE = '22023';

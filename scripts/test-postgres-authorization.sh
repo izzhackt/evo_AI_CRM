@@ -631,6 +631,16 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_waha_history_reconciliation_rls.sql
   fi
+
+  # P5D archives media only for already-projected P5B/P5C messages. Prove at
+  # migration 062 that raw provider/Storage identity stays private, archive
+  # claims and finishes are service-only, and human download grants remain
+  # live-authority, tenant, assignment and one-time scoped.
+  if [[ "$(basename "$migration")" == 062_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_private_media_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

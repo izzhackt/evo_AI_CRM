@@ -16,6 +16,30 @@ export type PlatformConversationQueue = "sales" | "curator";
 export type PlatformConversationStatus = "open" | "closed";
 export type PlatformMessageDirection = "inbound" | "outbound";
 export type PlatformMessageLanguage = "ru" | "en" | "undetermined";
+export type PlatformMessageMediaKind =
+  | "image"
+  | "audio"
+  | "video"
+  | "pdf"
+  | "file";
+export type PlatformMessageMediaArchivalStatus =
+  | "pending"
+  | "processing"
+  | "archived"
+  | "retryable_error"
+  | "terminal_error";
+
+export type PlatformMessageMedia = Readonly<{
+  id: string;
+  ordinal: number;
+  mediaKind: PlatformMessageMediaKind;
+  mimeType: string | null;
+  fileName: string | null;
+  fileSizeBytes: number | null;
+  archivalStatus: PlatformMessageMediaArchivalStatus;
+  createdAt: string;
+  archivedAt: string | null;
+}>;
 
 export type PlatformConversationSummary = Readonly<{
   id: string;
@@ -48,6 +72,7 @@ export type PlatformConversationMessage = Readonly<{
   amocrmLeadId: string | null;
   amocrmContactId: string | null;
   createdAt: string;
+  media: readonly PlatformMessageMedia[];
 }>;
 
 export type PlatformConversationThread = Readonly<{
@@ -134,6 +159,124 @@ function parseOptionalProviderInteger(
   }
 
   return undefined;
+}
+
+function parseOptionalNonNegativeInteger(
+  value: unknown,
+): number | null | undefined {
+  if (value === null) return null;
+  if (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
+function parseRequiredNonNegativeInteger(value: unknown): number | undefined {
+  if (value === null) return undefined;
+  const parsed = parseOptionalNonNegativeInteger(value);
+  return parsed === null ? undefined : parsed;
+}
+
+function parseOptionalMimeType(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  if (typeof value !== "string") return undefined;
+
+  const normalized = value.trim();
+  if (normalized.length === 0 || normalized.length > 255) return undefined;
+  return normalized;
+}
+
+function parseOptionalFileName(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  if (typeof value !== "string") return undefined;
+
+  const normalized = value.trim();
+  if (normalized.length === 0 || normalized.length > 255) return undefined;
+  return normalized;
+}
+
+function parseMediaKind(value: unknown): PlatformMessageMediaKind | null {
+  return value === "image" ||
+    value === "audio" ||
+    value === "video" ||
+    value === "pdf" ||
+    value === "file"
+    ? value
+    : null;
+}
+
+function parseMediaArchivalStatus(
+  value: unknown,
+): PlatformMessageMediaArchivalStatus | null {
+  return value === "pending" ||
+    value === "processing" ||
+    value === "archived" ||
+    value === "retryable_error" ||
+    value === "terminal_error"
+    ? value
+    : null;
+}
+
+function parseMessageMedia(
+  value: unknown,
+): readonly PlatformMessageMedia[] | null {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length > 16) return null;
+
+  const seenIds = new Set<string>();
+  const seenOrdinals = new Set<number>();
+
+  return value.map((entry) => {
+    if (!isRecord(entry)) return invalidShape();
+
+    const id = parsePlatformRouteUuid(entry.id);
+    const ordinal = parseRequiredNonNegativeInteger(entry.ordinal);
+    const mediaKind = parseMediaKind(entry.media_kind);
+    const mimeType = parseOptionalMimeType(entry.mime_type);
+    const fileName = parseOptionalFileName(entry.file_name);
+    const fileSizeBytes = parseOptionalNonNegativeInteger(entry.file_size_bytes);
+    const archivalStatus = parseMediaArchivalStatus(entry.archival_status);
+    const createdAt = parseTimestamp(entry.created_at);
+    const archivedAt =
+      entry.archived_at === null ? null : parseTimestamp(entry.archived_at);
+
+    if (
+      id === null ||
+      ordinal === undefined ||
+      mediaKind === null ||
+      mimeType === undefined ||
+      fileName === undefined ||
+      fileSizeBytes === undefined ||
+      archivalStatus === null ||
+      createdAt === null ||
+      archivedAt === undefined ||
+      seenIds.has(id) ||
+      seenOrdinals.has(ordinal) ||
+      (archivalStatus === "archived" && archivedAt === null) ||
+      (archivalStatus !== "archived" && archivedAt !== null)
+    ) {
+      return invalidShape();
+    }
+
+    seenIds.add(id);
+    seenOrdinals.add(ordinal);
+
+    return Object.freeze({
+      id,
+      ordinal,
+      mediaKind,
+      mimeType,
+      fileName,
+      fileSizeBytes,
+      archivalStatus,
+      createdAt,
+      archivedAt,
+    });
+  });
 }
 
 function invalidShape(): never {
@@ -235,6 +378,7 @@ export function normalizePlatformConversationMessage(
     value.amocrm_contact_id,
   );
   const createdAt = parseTimestamp(value.created_at);
+  const media = parseMessageMedia(value.media);
 
   if (
     id === null ||
@@ -253,12 +397,13 @@ export function normalizePlatformConversationMessage(
     amocrmAccountId === undefined ||
     amocrmLeadId === undefined ||
     amocrmContactId === undefined ||
-    createdAt === null
+    createdAt === null ||
+    media === null
   ) {
     return invalidShape();
   }
 
-  return {
+  return Object.freeze({
     id,
     conversationId,
     direction: value.direction,
@@ -274,7 +419,8 @@ export function normalizePlatformConversationMessage(
     amocrmLeadId,
     amocrmContactId,
     createdAt,
-  };
+    media,
+  });
 }
 
 function requireMessagingOrganization(actor: PlatformActor): string {

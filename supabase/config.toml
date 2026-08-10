@@ -67,6 +67,14 @@ public = false
 file_size_limit = "25MiB"
 allowed_mime_types = ["application/pdf", "image/jpeg", "image/png"]
 
+# P5D fixed private archive for already-projected evo-inbox media. Browser
+# principals receive neither a Storage select policy nor bucket/object names;
+# a backend service signs only after consuming an audited one-time grant.
+[storage.buckets.platform-whatsapp-media]
+public = false
+file_size_limit = "50MiB"
+allowed_mime_types = ["application/octet-stream", "application/pdf", "image/gif", "image/jpeg", "image/png", "image/webp", "audio/mpeg", "audio/ogg", "audio/wav", "video/mp4"]
+
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:3000"

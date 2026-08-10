@@ -13,9 +13,9 @@
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
 - Current accepted base for this block:
-  `1cb8f050cc1effbcc7f87c77c5e08311b5198e1f`
+  `5b3754b2e0cdee2d340448bd95f5ce9647f14633`
 - Active plan block:
-  `EVO-P5C-WAHA-HISTORY-2026-08-10`
+  `EVO-P5D-PRIVATE-WAHA-MEDIA-2026-08-10`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -49,9 +49,10 @@ document reading/extraction/autofill/export scope superseded решением ow
 корректную продуктовую границу, а PRs #129-#130 merged local-validation plan и
 repair. PR #131 merged P4 deferral/Lead Agent retention authority, PR #132
 merged receive-only P5A ingress, PR #133 merged P5B receive/project, а PR #136
-merged direct exact-head governance. Текущий accepted base —
-`1cb8f050cc1effbcc7f87c77c5e08311b5198e1f`, exact-main CI `31329977244`
-зелёный, migrations contiguous `001-060`.
+merged direct exact-head governance, а PR #137 merged P5C available-history
+reconciliation. Текущий accepted base —
+`5b3754b2e0cdee2d340448bd95f5ce9647f14633`, exact-main CI `31347918501`
+зелёный, migrations contiguous `001-061`.
 
 P4B implementation сохранён на remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -65,14 +66,13 @@ bounded read-mostly amoCRM adapter; P4B writes, full mapping approval и cutover
 delivery остаются blocked до отдельной авторизации и доказательств. Former P2I
 restore duties остаются в P7.
 
-P5A и P5B merged, но ingress/worker disabled by default. PR #133 был принят как
-receive/project implementation, не AI/send implementation; full local
-Supabase/browser gate и exact-main CI зелёные, но real WAHA/provider proof и
-production enablement отсутствуют. Текущий P5C block добавляет
-disabled-by-default reconciliation только той истории, которую уже
-может вернуть существующий WAHA store. Он не доказывает lifetime
-history и не скачивает media bytes; private media остаётся следующим
-P5 block.
+P5A-P5C merged, но ingress/worker/history lanes disabled by default. PR #133
+был принят как receive/project implementation, не AI/send implementation; PR
+#137 добавил resumable read-only reconciliation только той истории, которую
+может вернуть существующий WAHA store. Full local Supabase/browser и exact-main
+CI зелёные, но real WAHA/provider proof и production enablement отсутствуют.
+Текущий P5D block архивирует private media и подключает безопасное отображение
+к accepted UI. ACK/session + private Realtime остаются следующим P5 block.
 
 ## Что подтверждено из репозитория
 
@@ -101,6 +101,7 @@ P5 block.
 | P4 deferral/retention authority | PR #131 merged ADR 0018 and docs-only execution-order correction | ADR 0019 now supersedes only full P4 deferral and draft-only P5 wording; Lead Agent/legacy freeze remains |
 | P5A receive-only WAHA ingress | PR #132 merged signed HMAC/timestamp validation, raw-persist-before-process and pointer-only inbound work with migration 059 | P5A merge-baseline CI `31145596058` was green; current exact-main CI is tracked above; flags remain disabled by default and no real WAHA/Supabase/provider proof exists |
 | P5B receive/project | PR #133 merged as `18e0e0855fda31cba1fa837d81b3a75cedd585e9`; migration 060 and the private worker project verified inbound work into the accepted root UI data path | full local Supabase/browser gate and exact-main CI `31323907123` passed; flags remain off and there is no AI send, live WAHA or production proof |
+| P5C available history | PR #137 merged as `5b3754b2e0cdee2d340448bd95f5ce9647f14633`; migration 061 and the disabled server reconciliation lane project provider-available inbound/outbound history into the accepted root UI | focused security/RLS, full local Supabase/browser, exact-head CI and exact-main CI `31347918501` passed; media bytes, lifetime completeness, live provider and production remain unproved |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path, deployed/frozen вместе с legacy webhook/session и rollback path | P9 removed; deactivation, retirement и deletion запрещены в текущем scope |
@@ -258,8 +259,9 @@ merge-controller больше не используются; full Codex Security
 требуется. Focused authorization/RLS/security tests, secret/PII scan и
 dependency audit остаются обязательными по изменённой области.
 
-Следующий implementation gate — P5 available-history reconciliation за
-accepted root UI, затем private media, ACK/session и Realtime. Autonomous
+Текущий implementation gate — P5D private media archival и безопасное
+отображение за accepted root UI. Затем P5E объединяет ACK/session projection и
+private Realtime с reconnect catch-up. Autonomous
 inbound-reply PR допускается только после этих принятых blocks. Он обязан
 использовать Gemini proposal, deterministic queue/worker gates, bounded
 read-mostly amoCRM, durable pause/resume и disabled-by-default flags. Real

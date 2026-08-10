@@ -840,8 +840,11 @@ boundary:
   keeping flags off, reverting code and forward-fixing schema; no destructive
   down migration is allowed and the legacy path remains available.
 
-Later P5 blocks must add available-history backfill/reconciliation, private
-media archival, ACK projection and Supabase Realtime before the AI reply lane.
+P5C merged the available-history backfill/reconciliation lane. P5D owns only
+private media archival and authorized display. ACK/session projection and
+Supabase Realtime stay together in the following P5 block because realtime
+without an exposed durable delivery state would still present stale provider
+truth. All three accepted capabilities precede the AI reply lane.
 The AI lane stores Platform-owned conversation summaries, explicit facts,
 qualification state, takeover state and pgvector retrieval references in
 Supabase. It does not create one filesystem agent per client. Gemini is called

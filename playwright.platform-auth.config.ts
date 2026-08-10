@@ -19,6 +19,15 @@ type Fixture = Readonly<{
     wahaApiKey: string;
     historyTriggerSecret: string;
   }>;
+  p5d: Readonly<{
+    organizationId: string;
+    intakeSalesMembershipId: string;
+    supabaseSecretKey: string;
+    ingressHmacSecret: string;
+    workerTriggerSecret: string;
+    wahaApiKey: string;
+    mediaTriggerSecret: string;
+  }>;
   identities: Readonly<Record<string, Identity>>;
 }>;
 
@@ -52,6 +61,15 @@ if (
   throw new Error("EVO_P5C_BROWSER_PROOF must be 0 or 1");
 }
 const p5cBrowserProof = p5cBrowserProofFlag === "1";
+const p5dBrowserProofFlag = process.env.EVO_P5D_BROWSER_PROOF;
+if (
+  p5dBrowserProofFlag !== undefined &&
+  p5dBrowserProofFlag !== "0" &&
+  p5dBrowserProofFlag !== "1"
+) {
+  throw new Error("EVO_P5D_BROWSER_PROOF must be 0 or 1");
+}
+const p5dBrowserProof = p5dBrowserProofFlag === "1";
 const platformAuthDevRunKey = process.env.EVO_PLATFORM_AUTH_DEV_RUN_KEY;
 const platformAuthBrowserPartition =
   process.env.EVO_PLATFORM_AUTH_BROWSER_PARTITION;
@@ -68,7 +86,7 @@ if (
 }
 if (
   !platformAuthBrowserPartition ||
-  !["provider", "p5b", "p5c", "remaining"].includes(
+  !["provider", "p5b", "p5c", "p5d", "remaining"].includes(
     platformAuthBrowserPartition,
   )
 ) {
@@ -85,10 +103,23 @@ if (p5bBrowserProof && p5cBrowserProof) {
   );
 }
 if (
+  Number(p5bBrowserProof) + Number(p5cBrowserProof) + Number(p5dBrowserProof) >
+  1
+) {
+  throw new Error(
+    "P5B, P5C and P5D browser proof partitions are mutually exclusive",
+  );
+}
+if (
   (platformAuthBrowserPartition === "p5b") !== p5bBrowserProof
 ) {
   throw new Error(
     "EVO_P5B_BROWSER_PROOF must be enabled only for the p5b browser partition",
+  );
+}
+if ((platformAuthBrowserPartition === "p5d") !== p5dBrowserProof) {
+  throw new Error(
+    "EVO_P5D_BROWSER_PROOF must be enabled only for the p5d browser partition",
   );
 }
 if (
@@ -129,8 +160,20 @@ if (
 ) {
   throw new Error("P5C browser proof fixture is invalid");
 }
+if (
+  p5dBrowserProof &&
+  (!uuidPattern.test(fixture.p5d.organizationId) ||
+    !uuidPattern.test(fixture.p5d.intakeSalesMembershipId) ||
+    fixture.p5d.supabaseSecretKey.length === 0 ||
+    fixture.p5d.ingressHmacSecret.length < 32 ||
+    fixture.p5d.workerTriggerSecret.length < 32 ||
+    fixture.p5d.wahaApiKey.length < 32 ||
+    fixture.p5d.mediaTriggerSecret.length < 32)
+) {
+  throw new Error("P5D browser proof fixture is invalid");
+}
 
-const platformMessagingProof = p5bBrowserProof || p5cBrowserProof;
+const platformMessagingProof = p5bBrowserProof || p5cBrowserProof || p5dBrowserProof;
 
 const port = 3311;
 const baseURL = `http://127.0.0.1:${port}`;
@@ -171,22 +214,36 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: fixture.publishableKey,
       EVO_UI_CONTRACT_FIXTURES: "0",
       EVO_DB_PATH: legacySentinel,
-      EVO_PLATFORM_WAHA_INGRESS_ENABLED: p5bBrowserProof ? "1" : "0",
-      EVO_PLATFORM_WAHA_WORKER_ENABLED: p5bBrowserProof ? "1" : "0",
+      EVO_PLATFORM_WAHA_INGRESS_ENABLED:
+        p5bBrowserProof || p5dBrowserProof ? "1" : "0",
+      EVO_PLATFORM_WAHA_WORKER_ENABLED:
+        p5bBrowserProof || p5dBrowserProof ? "1" : "0",
       EVO_PLATFORM_ORGANIZATION_ID: platformMessagingProof
-        ? fixture.p5b.organizationId
+        ? p5dBrowserProof
+          ? fixture.p5d.organizationId
+          : fixture.p5b.organizationId
         : "",
       EVO_PLATFORM_SUPABASE_SECRET_KEY: platformMessagingProof
-        ? fixture.p5b.supabaseSecretKey
+        ? p5dBrowserProof
+          ? fixture.p5d.supabaseSecretKey
+          : fixture.p5b.supabaseSecretKey
         : "",
-      EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: p5bBrowserProof
-        ? fixture.p5b.ingressHmacSecret
+      EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET:
+        p5bBrowserProof || p5dBrowserProof
+        ? p5dBrowserProof
+          ? fixture.p5d.ingressHmacSecret
+          : fixture.p5b.ingressHmacSecret
         : "",
       EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: platformMessagingProof
-        ? fixture.p5b.intakeSalesMembershipId
+        ? p5dBrowserProof
+          ? fixture.p5d.intakeSalesMembershipId
+          : fixture.p5b.intakeSalesMembershipId
         : "",
-      EVO_PLATFORM_WAHA_WORKER_TRIGGER_SECRET: p5bBrowserProof
-        ? fixture.p5b.workerTriggerSecret
+      EVO_PLATFORM_WAHA_WORKER_TRIGGER_SECRET:
+        p5bBrowserProof || p5dBrowserProof
+        ? p5dBrowserProof
+          ? fixture.p5d.workerTriggerSecret
+          : fixture.p5b.workerTriggerSecret
         : "",
       EVO_PLATFORM_WAHA_HISTORY_ENABLED: p5cBrowserProof ? "1" : "0",
       EVO_PLATFORM_WAHA_HISTORY_BASE_URL: p5cBrowserProof
@@ -197,6 +254,16 @@ export default defineConfig({
         : "",
       EVO_PLATFORM_WAHA_HISTORY_TRIGGER_SECRET: p5cBrowserProof
         ? fixture.p5c.historyTriggerSecret
+        : "",
+      EVO_PLATFORM_WAHA_MEDIA_ENABLED: p5dBrowserProof ? "1" : "0",
+      EVO_PLATFORM_WAHA_MEDIA_BASE_URL: p5dBrowserProof
+        ? "http://127.0.0.1:3313"
+        : "",
+      EVO_PLATFORM_WAHA_MEDIA_API_KEY: p5dBrowserProof
+        ? fixture.p5d.wahaApiKey
+        : "",
+      EVO_PLATFORM_WAHA_MEDIA_TRIGGER_SECRET: p5dBrowserProof
+        ? fixture.p5d.mediaTriggerSecret
         : "",
     },
   },

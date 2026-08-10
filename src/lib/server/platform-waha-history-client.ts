@@ -1,9 +1,11 @@
 import "server-only";
 
 import type { PlatformWahaHistoryEnabledConfig } from "./platform-waha-history-config.ts";
+import {
+  isSafeWahaProviderId,
+  isWahaDirectChatId,
+} from "./platform-waha-identifiers.ts";
 
-const SAFE_PROVIDER_ID_PATTERN = /^[\x21-\x7e]{1,512}$/;
-const DIRECT_CHAT_ID_PATTERN = /^[1-9][0-9]{4,20}@c\.us$/;
 const MAX_PROVIDER_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_MESSAGE_BODY_BYTES = 64 * 1024;
 const MAX_UNIX_TIMESTAMP_SECONDS = 4_102_444_800;
@@ -82,7 +84,7 @@ function positiveInteger(value: number): boolean {
 }
 
 function safeProviderId(value: unknown): string {
-  if (typeof value !== "string" || !SAFE_PROVIDER_ID_PATTERN.test(value)) {
+  if (!isSafeWahaProviderId(value)) {
     return providerError();
   }
   return value;
@@ -161,7 +163,7 @@ function normalizeChats(
   for (const [index, item] of value.entries()) {
     if (!isRecord(item)) return providerError();
     const rawChatId = safeProviderId(item.id);
-    if (DIRECT_CHAT_ID_PATTERN.test(rawChatId)) {
+    if (isWahaDirectChatId(rawChatId)) {
       chats.push(Object.freeze({ rawChatId, sourceOffset: offset + index }));
     }
   }
@@ -278,7 +280,7 @@ export function createPlatformWahaHistoryClient(
 
     async listMessages(input) {
       if (
-        !DIRECT_CHAT_ID_PATTERN.test(input.rawChatId) ||
+        !isWahaDirectChatId(input.rawChatId) ||
         !nonNegativeInteger(input.offset) ||
         !positiveInteger(input.limit)
       ) {

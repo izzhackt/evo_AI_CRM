@@ -159,6 +159,7 @@ test("normalizes message enums, visibility and nullable provider references", ()
     amocrmLeadId: "5678",
     amocrmContactId: "9012",
     createdAt: "2026-07-30T03:15:30Z",
+    media: [],
   });
 });
 

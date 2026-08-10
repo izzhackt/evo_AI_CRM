@@ -23,6 +23,8 @@ const PLATFORM_CLIENT_PATH =
   /^\/clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_APPLICATION_PATH =
   /^\/applications\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PLATFORM_MEDIA_DOWNLOAD_PATH =
+  /^\/api\/platform-messaging\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function platformHomeRoute(role: PlatformRole): string {
   if (role === "admin" || role === "sales") return "/sales";
@@ -54,5 +56,14 @@ export function isConnectedPlatformPage(path: string): boolean {
     PLATFORM_CLIENT_PATH.test(path) ||
     PLATFORM_APPLICATION_PATH.test(path)
   );
+}
+
+/**
+ * The only browser-facing Platform API currently connected through proxy.
+ * Its route handler repeats getClaims(), live authority and record-scope
+ * checks before issuing an audited one-time media grant.
+ */
+export function isConnectedPlatformApi(path: string): boolean {
+  return PLATFORM_MEDIA_DOWNLOAD_PATH.test(path);
 }
 import type { PlatformRole } from "./platform-auth";

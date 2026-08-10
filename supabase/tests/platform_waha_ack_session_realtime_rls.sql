@@ -1330,8 +1330,7 @@ WHERE NOT trigger_row.tgisinternal
     'waha_session_health_realtime_invalidate'
   )
   AND trigger_row.tgfoid =
-    'platform_private.broadcast_platform_messaging_invalidation()'::REGPROCEDURE
-);
+    'platform_private.broadcast_platform_messaging_invalidation()'::REGPROCEDURE;
 
 SELECT pg_temp.assert_true(
   count(*) > 0

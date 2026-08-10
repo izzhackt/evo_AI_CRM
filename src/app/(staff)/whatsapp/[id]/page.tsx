@@ -16,6 +16,7 @@ import {
 } from "@/lib/platform-messaging-workflow";
 import { getPlatformConversationBw4Workspace } from "@/lib/platform-bw4-workflow";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
+import { getPlatformAmoCrmCanonicalContext } from "@/lib/server/platform-amocrm-canonical-context-service";
 
 import { CommunicationsSourceDisclosure } from "../CommunicationsSourceDisclosure";
 
@@ -68,6 +69,10 @@ export default async function ConversationPage({
       getPlatformWahaSessionHealth(actor),
     ]);
   if (!thread || !workflow) notFound();
+  const amocrmCanonicalContext = await getPlatformAmoCrmCanonicalContext(
+    actor,
+    thread.conversation,
+  );
 
   return (
     <div className="space-y-4" data-testid="whatsapp-conversation">
@@ -85,6 +90,7 @@ export default async function ConversationPage({
         knowledge={knowledge}
         bw4Workspace={bw4Workspace}
         wahaSessionHealth={wahaSessionHealth}
+        amocrmCanonicalContext={amocrmCanonicalContext}
         decisionMutationOutcome={decisionMutationOutcome(
           resolvedSearchParams.result,
         )}

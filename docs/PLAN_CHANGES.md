@@ -4679,3 +4679,116 @@ Validation impact:
   additive schema. It does not apply destructive down migration, mutate WAHA
   session state, delete historical evidence or retire the frozen Lead Agent /
   legacy rollback path.
+
+## 2026-08-10 - P4R1 bounded live canonical amoCRM context
+
+Date: 2026-08-10, Asia/Bishkek.
+
+Author: EVO Platform owner/executor.
+
+Block-ID: `EVO-P4R1-AMOCRM-CANONICAL-CONTEXT-2026-08-10`.
+
+Change type: bounded P4R implementation, server-only provider adapter,
+accepted-frontend integration and rollback record.
+
+Affected plan sections: bounded read-mostly amoCRM adapter, accepted
+`/whatsapp` frontend, provider truth/failure states, P4B deferral and validation.
+
+Checkpoint:
+
+- PR #141 merged P5E as
+  `88169c55935f0b66d0b58e844a5e6c4cac2cc285`;
+- exact-main push CI run `31390559256` passed Main CRM, EVO Inbox and EVO Lead
+  Agent; Changed range was skipped as expected for a push;
+- migrations are contiguous `001-063`;
+- P4B remains preserved at
+  `izzhackt/evo-platform-p4b-mapping-approval` /
+  `e53ba94954f147b295f596421a255591fa343ce8` and is not resumed by this block.
+
+Reason:
+
+- the accepted `/whatsapp` thread already carries provider-issued amoCRM
+  account/contact/lead IDs, but does not yet show the canonical contact, lead,
+  responsible manager or sales stage owned by amoCRM;
+- ADR 0019 now permits bounded account-specific reads after the P5 messaging
+  foundation, while still prohibiting amoCRM writes, inferred mapping,
+  hardcoded IDs, SQLite fallback and fake provider success;
+- P4B owns approval/revocation of a current messaging mapping. A live by-ID
+  context read does not need and must not recreate that approval workflow.
+
+Decision:
+
+- Add a disabled-by-default server-only client that accepts one validated
+  amoCRM/Kommo account origin and a secret read credential from runtime
+  configuration. No secret or raw provider response may cross into the browser
+  or repository.
+- Read only the exact account, contact, lead, pipeline/status and responsible
+  user identified by the already-authorized conversation. Validate the account
+  and every cross-entity relationship before returning sanitized context.
+- Do not use the legacy SQLite amoCRM settings/adapter. Do not use the latest
+  P4A discovery snapshot as an implicit approved mapping. Do not create a P4B
+  current-selection pointer or approval event.
+- Present canonical names and observation time in the existing Claude Design
+  conversation context. Missing bindings/configuration, 401/402/403/404/429,
+  timeout, malformed provider data, relationship conflicts and the
+  administrator-only Users endpoint all become explicit disabled, blocked,
+  degraded or stale states.
+- Add one forward-only migration for append-only read-attempt observations and
+  a minimal current projection. Service-only write RPCs validate the exact
+  organization/conversation/account/contact/lead bindings; a staff GET RPC
+  repeats live authority plus conversation visibility and returns only the
+  safe context. Browser table writes and direct private-table access remain
+  denied.
+- Every successful observation records the adapter-contract version, exact
+  provider relationships, capabilities actually exercised and provider-read
+  time. A failed refresh records a bounded failure code; it may retain a prior
+  value only as explicit `stale`. This is durable read evidence, not P4B
+  semantic mapping approval, handoff authority, AI context or live provider
+  proof.
+- A bounded process-local single-flight guard may coalesce duplicate
+  Realtime-driven refreshes, but Supabase remains the durable state.
+- This first slice adds no provider write, task/call/chat read, webhook/poll
+  reconciler, autonomous-send input, production configuration or provider
+  exercise. Those remain separate reviewed blocks/gates.
+
+Official provider basis:
+
+- OAuth/private integration and token behavior:
+  <https://developers.kommo.com/docs/kommo-for-developers> and
+  <https://developers.kommo.com/docs/oauth-20>;
+- contact and lead by ID:
+  <https://developers.kommo.com/reference/get-contact> and
+  <https://developers.kommo.com/reference/getting-a-lead-by-its-id>;
+- pipeline/stage and responsible user:
+  <https://developers.kommo.com/reference/get-pipeline-by-id>,
+  <https://developers.kommo.com/reference/get-stage> and
+  <https://developers.kommo.com/reference/get-user-by-id>;
+- rate/error limits:
+  <https://developers.kommo.com/docs/http-codes> and
+  <https://developers.kommo.com/docs/limitations>.
+
+Validation impact:
+
+- Require focused config/parser/client/repository tests for exact endpoints,
+  redirects, response bounds, timeouts, 429 metadata, account/link/stage/user
+  mismatches, freshness/staleness and secret-free errors.
+- Require disposable PostgreSQL authorization tests for append-only evidence,
+  idempotent/conflicting replay, service-only writes, tenant isolation, current
+  authority, conversation scope and safe response columns.
+- Require tests that the accepted thread renders the truthful context states,
+  no client component imports the server credential module, and no provider or
+  customer identifier is added to logs or Realtime payloads.
+- Run root unit/security-node, lint, Next type generation, TypeScript, build,
+  dependency audits, scoped secret scan and `git diff --check`; then exact-head
+  CI and one immediate independent read-only exact-head review.
+- Synthetic fetch responses prove only the adapter/UI contract. Real-provider
+  proof is `blocked` until a valid credential and sanitized provider entities
+  are separately supplied and authorized.
+
+Rollback:
+
+- keep the feature flag off or revert the server/UI files and forward-fix the
+  additive migration;
+- do not apply a destructive database down migration;
+- P4B stays preserved/deferred, and Lead Agent plus the legacy webhook/session
+  rollback path stay frozen and available.

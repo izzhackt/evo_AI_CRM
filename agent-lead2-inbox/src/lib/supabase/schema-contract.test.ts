@@ -118,6 +118,10 @@ const platformWahaAckSessionRealtimeMigration = readFileSync(
   join(migrationsDir, '063_platform_waha_ack_session_realtime.sql'),
   'utf8'
 )
+const platformAmoCrmCanonicalContextMigration = readFileSync(
+  join(migrationsDir, '064_platform_amocrm_canonical_context.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -135,7 +139,7 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '063_platform_waha_ack_session_realtime.sql'
+      '064_platform_amocrm_canonical_context.sql'
     )
     for (const table of [
       'waha_history_reconciliation_runs',
@@ -1217,6 +1221,56 @@ describe('Supabase companion schema contract', () => {
     )
     expect(outboundAuditMigration).toMatch(
       /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+record_waha_message_ack[\s\S]*TO\s+service_role/i
+    )
+  })
+
+  it('keeps P4R1 amoCRM read evidence private and exposes only scoped safe RPCs', () => {
+    for (const table of [
+      'amocrm_canonical_context_current',
+      'amocrm_canonical_context_observations',
+    ]) {
+      expect(platformAmoCrmCanonicalContextMigration).toMatch(
+        new RegExp(
+          `CREATE\\s+TABLE\\s+platform_private\\.${table}`,
+          'i'
+        )
+      )
+      expect(platformAmoCrmCanonicalContextMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+      expect(platformAmoCrmCanonicalContextMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+
+    expect(platformAmoCrmCanonicalContextMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.record_amocrm_canonical_context_observation[\s\S]*SECURITY\s+DEFINER/i
+    )
+    expect(platformAmoCrmCanonicalContextMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION[\s\S]*platform\.record_amocrm_canonical_context_observation[\s\S]*TO\s+service_role/i
+    )
+    expect(platformAmoCrmCanonicalContextMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.staff_amocrm_canonical_context[\s\S]*RETURNS\s+TABLE[\s\S]*platform_private\.require_domain_actor_read[\s\S]*private\.platform_can_read_communication_full/i
+    )
+    expect(platformAmoCrmCanonicalContextMigration).toMatch(
+      /FROM\s+platform_private\.amocrm_canonical_context_current\s+AS\s+current_projection[\s\S]*JOIN\s+platform\.communication_conversations\s+AS\s+conversation[\s\S]*conversation\.amocrm_account_id\s*=\s*current_projection\.amocrm_account_id[\s\S]*conversation\.amocrm_contact_id\s*=\s*current_projection\.amocrm_contact_id[\s\S]*conversation\.amocrm_lead_id\s*=\s*current_projection\.amocrm_lead_id/i
+    )
+    expect(platformAmoCrmCanonicalContextMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION[\s\S]*platform\.staff_amocrm_canonical_context\(UUID,\s*UUID\)[\s\S]*TO\s+authenticated/i
+    )
+
+    const staffResult = platformAmoCrmCanonicalContextMigration.match(
+      /platform\.staff_amocrm_canonical_context\([\s\S]*?RETURNS\s+TABLE\s*\(([\s\S]*?)\)\s*LANGUAGE/i
+    )?.[1]
+    expect(staffResult).toBeDefined()
+    expect(staffResult).not.toMatch(
+      /amocrm_(?:account|contact|lead)_id|responsible_user_id|pipeline_id|status_id|provider_body|token|secret/i
     )
   })
 })

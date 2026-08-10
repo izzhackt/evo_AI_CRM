@@ -413,9 +413,16 @@ SELECT pg_temp.assert_true(
 
 SELECT pg_temp.assert_true(
   (
-    SELECT pg_catalog.max(bundle.version) = 11
+    SELECT pg_catalog.array_agg(bundle.role ORDER BY bundle.role) = ARRAY[
+      'admin',
+      'curator',
+      'finance',
+      'sales',
+      'student'
+    ]::platform.business_role[]
     FROM platform.role_bundle_versions AS bundle
-    WHERE bundle.status = 'published'
+    WHERE bundle.version = 11
+      AND bundle.status = 'published'
   )
   AND NOT EXISTS (
     SELECT 1
@@ -433,7 +440,7 @@ SELECT pg_temp.assert_true(
       'knowledge.manage'
     )
   ),
-  'P5F1 introduced permission/bundle churn or lost reused permissions'
+  'canonical v11 bundles or reused P5F1 permissions drifted'
 );
 
 -- Resolve persistent synthetic P2F/P3C fixtures and live claims.

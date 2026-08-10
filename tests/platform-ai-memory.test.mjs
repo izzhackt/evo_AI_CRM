@@ -456,4 +456,12 @@ test("approved knowledge chunk validation uses parse-safe PostgreSQL offsets", a
     migrationSource,
     /pg_catalog\.substring\([\s\S]*?FROM start_offset \+ 1/,
   );
+  assert.doesNotMatch(
+    migrationSource,
+    /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+platform\.role_bundle_versions/i,
+  );
+  assert.doesNotMatch(
+    migrationSource,
+    /INSERT\s+INTO\s+platform\.permission_definitions/i,
+  );
 });

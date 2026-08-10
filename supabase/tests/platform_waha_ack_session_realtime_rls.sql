@@ -1190,7 +1190,8 @@ SELECT pg_temp.assert_true(
   ) = 1
   AND bool_and(
     observation.raw_message_id = 'p5c-history-outbound-1'
-  )
+  ),
+  'original outbound immutable ACK observations drifted'
 )
 FROM platform_private.waha_ack_observations AS observation
 WHERE observation.organization_id = :'org_a_id'
@@ -1225,7 +1226,8 @@ SELECT pg_temp.assert_true(
   ) = 1
   AND bool_and(
     observation.raw_message_id = 'p5e-ack-outbound-2'
-  )
+  ),
+  'positive outbound immutable ACK observations drifted'
 )
 FROM platform_private.waha_ack_observations AS observation
 WHERE observation.organization_id = :'org_a_id'
@@ -1298,7 +1300,8 @@ SELECT pg_temp.assert_true(
   count(*) = 5
   AND count(*) FILTER (WHERE observation.status = 'WORKING') = 1
   AND count(*) FILTER (WHERE observation.status = 'STARTING') = 2
-  AND count(*) FILTER (WHERE observation.status = 'FUTURE_STATE') = 2
+  AND count(*) FILTER (WHERE observation.status = 'FUTURE_STATE') = 2,
+  'immutable WAHA session observations drifted'
 )
 FROM platform_private.waha_session_observations AS observation
 WHERE observation.organization_id = :'org_a_id';
@@ -1319,7 +1322,8 @@ SELECT realtime.send(
 );
 
 SELECT pg_temp.assert_true(
-  count(*) = 5
+  count(*) = 5,
+  'Platform messaging Realtime trigger coverage drifted'
 )
 FROM pg_trigger AS trigger_row
 WHERE NOT trigger_row.tgisinternal
@@ -1352,7 +1356,8 @@ SELECT pg_temp.assert_true(
   AND bool_and(
     position(:'outbound_message_id' IN message.payload::TEXT) = 0
   )
-  AND bool_and(position('passkey' IN message.payload::TEXT) = 0)
+  AND bool_and(position('passkey' IN message.payload::TEXT) = 0),
+  'private Realtime invalidation payload leaked identity or drifted'
 )
 FROM realtime.messages AS message
 WHERE message.topic = 'platform-messaging:' || :'org_a_id';

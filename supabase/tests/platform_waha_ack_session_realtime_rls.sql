@@ -786,12 +786,17 @@ SELECT pg_temp.assert_true(
     '{projection,current_state_updated}')::BOOLEAN
   AND NOT (:'ack_positive_after_error_run'::JSONB #>>
     '{projection,current_state_updated}')::BOOLEAN
-  AND current_ack.waha_ack_name = 'ERROR'
-  AND current_ack.waha_ack_observed_at =
-    '2026-08-10 10:01:00+06'::TIMESTAMPTZ
-FROM platform.waha_message_ack_current AS current_ack
-WHERE current_ack.organization_id = :'org_a_id'
-  AND current_ack.communication_message_id = :'outbound_message_id';
+  AND EXISTS (
+    SELECT 1
+    FROM platform.waha_message_ack_current AS current_ack
+    WHERE current_ack.organization_id = :'org_a_id'
+      AND current_ack.communication_message_id = :'outbound_message_id'
+      AND current_ack.waha_ack_name = 'ERROR'
+      AND current_ack.waha_ack_observed_at =
+        '2026-08-10 10:01:00+06'::TIMESTAMPTZ
+  ),
+  'outbound current ACK state after ERROR drifted'
+);
 
 SET request.jwt.claims TO '{"role":"service_role"}';
 SET ROLE service_role;
@@ -1154,12 +1159,17 @@ SELECT pg_temp.assert_true(
 );
 
 SELECT pg_temp.assert_true(
-  current_ack.waha_ack_name = 'PLAYED'
-  AND current_ack.waha_ack_observed_at =
-    '2026-08-10 10:08:00+06'::TIMESTAMPTZ
-FROM platform.waha_message_ack_current AS current_ack
-WHERE current_ack.organization_id = :'org_a_id'
-  AND current_ack.communication_message_id = :'positive_outbound_message_id';
+  EXISTS (
+    SELECT 1
+    FROM platform.waha_message_ack_current AS current_ack
+    WHERE current_ack.organization_id = :'org_a_id'
+      AND current_ack.communication_message_id = :'positive_outbound_message_id'
+      AND current_ack.waha_ack_name = 'PLAYED'
+      AND current_ack.waha_ack_observed_at =
+        '2026-08-10 10:08:00+06'::TIMESTAMPTZ
+  ),
+  'positive outbound current ACK state drifted'
+);
 
 SELECT pg_temp.assert_true(
   count(*) = 3
@@ -1181,6 +1191,7 @@ SELECT pg_temp.assert_true(
   AND bool_and(
     observation.raw_message_id = 'p5c-history-outbound-1'
   )
+)
 FROM platform_private.waha_ack_observations AS observation
 WHERE observation.organization_id = :'org_a_id'
   AND observation.communication_message_id = :'outbound_message_id';
@@ -1215,6 +1226,7 @@ SELECT pg_temp.assert_true(
   AND bool_and(
     observation.raw_message_id = 'p5e-ack-outbound-2'
   )
+)
 FROM platform_private.waha_ack_observations AS observation
 WHERE observation.organization_id = :'org_a_id'
   AND observation.communication_message_id = :'positive_outbound_message_id';
@@ -1267,20 +1279,27 @@ SELECT pg_temp.assert_true(
 );
 
 SELECT pg_temp.assert_true(
-  health.waha_session_name = 'evo-inbox'
-  AND health.status = 'FUTURE_STATE'
-  AND health.status <> 'WORKING'
-  AND health.observed_at = '2026-08-10 10:30:00+06'::TIMESTAMPTZ
-  AND position('passkey' IN row_to_json(health)::TEXT) = 0
-  AND position('+15550000000' IN row_to_json(health)::TEXT) = 0
-FROM platform.waha_session_health AS health
-WHERE health.organization_id = :'org_a_id';
+  EXISTS (
+    SELECT 1
+    FROM platform.waha_session_health AS health
+    WHERE health.organization_id = :'org_a_id'
+      AND health.waha_session_name = 'evo-inbox'
+      AND health.status = 'FUTURE_STATE'
+      AND health.status <> 'WORKING'
+      AND health.observed_at =
+        '2026-08-10 10:30:00+06'::TIMESTAMPTZ
+      AND position('passkey' IN row_to_json(health)::TEXT) = 0
+      AND position('+15550000000' IN row_to_json(health)::TEXT) = 0
+  ),
+  'current WAHA session health drifted or exposed private data'
+);
 
 SELECT pg_temp.assert_true(
   count(*) = 5
   AND count(*) FILTER (WHERE observation.status = 'WORKING') = 1
   AND count(*) FILTER (WHERE observation.status = 'STARTING') = 2
   AND count(*) FILTER (WHERE observation.status = 'FUTURE_STATE') = 2
+)
 FROM platform_private.waha_session_observations AS observation
 WHERE observation.organization_id = :'org_a_id';
 
@@ -1300,13 +1319,15 @@ SELECT realtime.send(
 );
 
 SELECT pg_temp.assert_true(
-  count(*) = 4
+  count(*) = 5
+)
 FROM pg_trigger AS trigger_row
 WHERE NOT trigger_row.tgisinternal
   AND trigger_row.tgname IN (
     'communication_conversations_realtime_invalidate',
     'communication_messages_realtime_invalidate',
     'communication_message_media_realtime_invalidate',
+    'waha_message_ack_current_realtime_invalidate',
     'waha_session_health_realtime_invalidate'
   )
   AND trigger_row.tgfoid =
@@ -1332,6 +1353,7 @@ SELECT pg_temp.assert_true(
     position(:'outbound_message_id' IN message.payload::TEXT) = 0
   )
   AND bool_and(position('passkey' IN message.payload::TEXT) = 0)
+)
 FROM realtime.messages AS message
 WHERE message.topic = 'platform-messaging:' || :'org_a_id';
 

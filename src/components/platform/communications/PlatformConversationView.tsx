@@ -1,8 +1,10 @@
+import { PlatformAmoCrmContextCard } from "@/components/platform/communications/PlatformAmoCrmContextCard";
 import { PlatformMessagingWorkflowPanel } from "@/components/platform/communications/PlatformMessagingWorkflowPanel";
 import { PlatformMessageMedia } from "@/components/platform/communications/PlatformMessageMedia";
 import { PlatformWaList } from "@/components/platform/communications/PlatformWaList";
 import { EmptyState, cn } from "@/components/ui";
 import { getT } from "@/lib/i18n";
+import type { PlatformAmoCrmCanonicalContext } from "@/lib/platform-amocrm-canonical-context";
 import type {
   PlatformConversationMessage,
   PlatformConversationSummary,
@@ -70,6 +72,7 @@ export async function PlatformConversationView({
   knowledge,
   bw4Workspace,
   wahaSessionHealth,
+  amocrmCanonicalContext,
   decisionMutationOutcome,
 }: {
   conversations: readonly PlatformConversationSummary[];
@@ -79,6 +82,7 @@ export async function PlatformConversationView({
   knowledge: readonly PlatformKnowledgeCatalogItem[];
   bw4Workspace: PlatformConversationBw4Workspace | null;
   wahaSessionHealth: PlatformWahaSessionHealth | null;
+  amocrmCanonicalContext: PlatformAmoCrmCanonicalContext;
   decisionMutationOutcome: "saved" | "invalid" | "unavailable" | null;
 }) {
   const { t, locale } = await getT();
@@ -327,6 +331,43 @@ export async function PlatformConversationView({
     platformMediaFileUnnamed: t("platformMediaFileUnnamed"),
     platformMediaSizeUnknown: t("platformMediaSizeUnknown"),
   };
+  const amocrmLabels = {
+    platformAmoCrmContextTitle: t("platformAmoCrmContextTitle"),
+    platformAmoCrmContextHint: t("platformAmoCrmContextHint"),
+    platformAmoCrmContextAvailable: t("platformAmoCrmContextAvailable"),
+    platformAmoCrmContextDegraded: t("platformAmoCrmContextDegraded"),
+    platformAmoCrmContextStale: t("platformAmoCrmContextStale"),
+    platformAmoCrmContextUnavailable: t("platformAmoCrmContextUnavailable"),
+    platformAmoCrmContextDisabled: t("platformAmoCrmContextDisabled"),
+    platformAmoCrmContextNotLinked: t("platformAmoCrmContextNotLinked"),
+    platformAmoCrmContextReasonLabel: t("platformAmoCrmContextReasonLabel"),
+    platformAmoCrmContextObservedAt: t("platformAmoCrmContextObservedAt"),
+    platformAmoCrmContextLastAttemptAt: t("platformAmoCrmContextLastAttemptAt"),
+    platformAmoCrmContextContactName: t("platformAmoCrmContextContactName"),
+    platformAmoCrmContextLeadName: t("platformAmoCrmContextLeadName"),
+    platformAmoCrmContextResponsibleUser: t("platformAmoCrmContextResponsibleUser"),
+    platformAmoCrmContextResponsibleActive: t("platformAmoCrmContextResponsibleActive"),
+    platformAmoCrmContextPipeline: t("platformAmoCrmContextPipeline"),
+    platformAmoCrmContextStatus: t("platformAmoCrmContextStatus"),
+    platformAmoCrmContextUnknownValue: t("platformAmoCrmContextUnknownValue"),
+    platformValueYes: t("platformValueYes"),
+    platformValueNo: t("platformValueNo"),
+    platformAmoCrmContextReasonDisabledByConfig: t("platformAmoCrmContextReasonDisabledByConfig"),
+    platformAmoCrmContextReasonMissingConfiguration: t("platformAmoCrmContextReasonMissingConfiguration"),
+    platformAmoCrmContextReasonInvalidConfiguration: t("platformAmoCrmContextReasonInvalidConfiguration"),
+    platformAmoCrmContextReasonConfigurationScopeMismatch: t("platformAmoCrmContextReasonConfigurationScopeMismatch"),
+    platformAmoCrmContextReasonMissingBinding: t("platformAmoCrmContextReasonMissingBinding"),
+    platformAmoCrmContextReasonProviderRejected: t("platformAmoCrmContextReasonProviderRejected"),
+    platformAmoCrmContextReasonProviderNotFound: t("platformAmoCrmContextReasonProviderNotFound"),
+    platformAmoCrmContextReasonProviderRateLimited: t("platformAmoCrmContextReasonProviderRateLimited"),
+    platformAmoCrmContextReasonProviderTimeout: t("platformAmoCrmContextReasonProviderTimeout"),
+    platformAmoCrmContextReasonProviderTransportFailure: t("platformAmoCrmContextReasonProviderTransportFailure"),
+    platformAmoCrmContextReasonProviderResponseInvalid: t("platformAmoCrmContextReasonProviderResponseInvalid"),
+    platformAmoCrmContextReasonProviderRelationshipMismatch: t("platformAmoCrmContextReasonProviderRelationshipMismatch"),
+    platformAmoCrmContextReasonResponsibleUserForbidden: t("platformAmoCrmContextReasonResponsibleUserForbidden"),
+    platformAmoCrmContextReasonRefreshFailed: t("platformAmoCrmContextReasonRefreshFailed"),
+    platformAmoCrmContextReasonUnknown: t("platformAmoCrmContextReasonUnknown"),
+  };
 
   return (
     <div
@@ -478,29 +519,36 @@ export async function PlatformConversationView({
             {t("platformContextHint")}
           </p>
         </div>
-        <dl className="space-y-3 p-4">
-          {[
-            [t("platformConversationId"), conversation.id],
-            [
-              t("platformStudentCase"),
-              conversation.studentCaseId ?? t("platformNotLinked"),
-            ],
-            [t("platformWahaSession"), conversation.wahaSessionName],
-            [
-              t("platformCreatedAt"),
-              formatTimestamp(conversation.createdAt, locale),
-            ],
-          ].map(([label, value]) => (
-            <div key={label}>
-              <dt className="text-[10px] font-bold uppercase tracking-[0.04em] text-fg-3">
-                {label}
-              </dt>
-              <dd className="mt-1 break-words text-[12px] font-semibold text-fg">
-                {value}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <div className="space-y-4 p-4">
+          <PlatformAmoCrmContextCard
+            context={amocrmCanonicalContext}
+            locale={locale}
+            labels={amocrmLabels}
+          />
+          <dl className="space-y-3">
+            {[
+              [t("platformConversationId"), conversation.id],
+              [
+                t("platformStudentCase"),
+                conversation.studentCaseId ?? t("platformNotLinked"),
+              ],
+              [t("platformWahaSession"), conversation.wahaSessionName],
+              [
+                t("platformCreatedAt"),
+                formatTimestamp(conversation.createdAt, locale),
+              ],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-[10px] font-bold uppercase tracking-[0.04em] text-fg-3">
+                  {label}
+                </dt>
+                <dd className="mt-1 break-words text-[12px] font-semibold text-fg">
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </aside>
     </div>
   );

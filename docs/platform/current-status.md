@@ -13,9 +13,9 @@
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
 - Current accepted base for this block:
-  `0869c34b5ea693b684009a397847ad1596a9942a`
+  `88169c55935f0b66d0b58e844a5e6c4cac2cc285`
 - Active plan block:
-  `EVO-P5E-WAHA-ACK-SESSION-REALTIME-2026-08-10`
+  `EVO-P4R1-AMOCRM-CANONICAL-CONTEXT-2026-08-10`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -50,11 +50,12 @@ document reading/extraction/autofill/export scope superseded решением ow
 repair. PR #131 merged P4 deferral/Lead Agent retention authority, PR #132
 merged receive-only P5A ingress, PR #133 merged P5B receive/project, PR #136
 merged direct exact-head governance, PR #137 merged P5C available-history
-reconciliation, PR #138 merged P5D private media, а PR #140 синхронизировал
-MVP authority contract. Текущий accepted base —
-`0869c34b5ea693b684009a397847ad1596a9942a`, exact-main CI `31379257336`
+reconciliation, PR #138 merged P5D private media, PR #140 синхронизировал
+MVP authority contract, а PR #141 merged P5E ACK/session и private Realtime.
+Текущий accepted base —
+`88169c55935f0b66d0b58e844a5e6c4cac2cc285`, exact-main CI `31390559256`
 зелёный для Main CRM, EVO Inbox и EVO Lead Agent; Changed range ожидаемо
-skipped на push. Migrations contiguous `001-062`.
+skipped на push. Migrations contiguous `001-063`.
 
 P4B implementation сохранён на remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -68,14 +69,16 @@ bounded read-mostly amoCRM adapter; P4B writes, full mapping approval и cutover
 delivery остаются blocked до отдельной авторизации и доказательств. Former P2I
 restore duties остаются в P7.
 
-P5A-P5D merged, но ingress/worker/history/media lanes disabled by default. PR #133
+P5A-P5E merged, но provider-facing lanes disabled by default. PR #133
 был принят как receive/project implementation, не AI/send implementation; PR
 #137 добавил resumable read-only reconciliation только той истории, которую
 может вернуть существующий WAHA store, а PR #138 — private media и безопасное
 отображение в accepted UI. Full local Supabase/browser и exact-main CI зелёные,
-но real WAHA/provider proof и production enablement отсутствуют. Текущий P5E
-block добавляет долговечный ACK/session state и private Realtime invalidation с
-авторизованным refetch вместо семисекундного polling.
+но real WAHA/provider proof и production enablement отсутствуют. PR #141
+добавил долговечный ACK/session state и private Realtime invalidation с
+авторизованным refetch вместо семисекундного polling. Текущий P4R1 добавляет
+только disabled-by-default live read canonical amoCRM context; real amoCRM
+credential/test entities и provider proof пока отсутствуют.
 
 ## Что подтверждено из репозитория
 

@@ -10,9 +10,10 @@ prerequisite and repair, PR #132 merged the disabled-by-default P5A WAHA
 ingress, PR #133 merged the disabled-by-default P5B projection, PR #137 merged
 the P5C available-history reconciliation lane, and PR #138 merged the
 disabled-by-default P5D private WAHA media archive and accepted media display.
-Current `origin/main` is
-`0032a99439bdd1cafdbefa99301fab67a7fc8aeb`, migrations are contiguous
-`001-062`, and exact-main CI run `31369896660` is green for Main CRM, EVO Inbox
+PR #141 merged the disabled-by-default P5E ACK/session projection and private
+Realtime invalidation lane. Current `origin/main` is
+`88169c55935f0b66d0b58e844a5e6c4cac2cc285`, migrations are contiguous
+`001-063`, and exact-main CI run `31390559256` is green for Main CRM, EVO Inbox
 and EVO Lead Agent; Changed range is skipped on the push event as expected.
 
 P4B implementation is preserved on remote branch
@@ -23,11 +24,11 @@ failed closed in the real Auth/PostgREST hook before Playwright and is
 failed/non-evidence. The owner keeps P4B activation/writes deferred but resumes
 a bounded read-mostly P4R lane after the messaging foundation. P9 remains
 removed. Lead Agent, the legacy webhook/session path and rollback path remain
-deployed/frozen. P5D is merged without real-provider proof; the next bounded P5
-slice is ACK/session projection plus private realtime with reconnectable
-read-model fallback. This amendment authorizes no application code, migration,
-provider action, customer-data action or production mutation. Updated
-2026-08-10 in the workspace timezone.
+deployed/frozen. P5A-P5E are merged without real-provider proof. The active
+implementation block is the first bounded P4R read-only canonical amoCRM
+context slice described below. It authorizes no amoCRM write, production
+mutation, provider cutover or customer-data experiment. Updated 2026-08-10 in
+the workspace timezone.
 
 This document is the execution contract for the current EVO Platform MVP lane in
 this repo. The current detailed contract is
@@ -328,6 +329,60 @@ Rollback keeps P5E disabled, reverts worker/UI code and forward-fixes additive
 schema. It does not apply destructive down migration, mutate WAHA session
 state, delete historical evidence or retire the frozen Lead Agent / legacy
 rollback path.
+
+### P4R1 bounded live canonical amoCRM read authority and rollback contract
+
+Block `EVO-P4R1-AMOCRM-CANONICAL-CONTEXT-2026-08-10` adds the smallest
+read-only amoCRM context behind the accepted `/whatsapp/[id]` thread. It does
+not resume the deferred P4B approval/activation implementation.
+
+- The server may read only the exact amoCRM account, contact, lead,
+  responsible-user, pipeline and status identified by provider IDs already
+  attached to the authorized Platform conversation. It may not search by name
+  or phone, infer a link, select a mapping, or create an identity.
+- The adapter is disabled by default and accepts only a validated HTTPS
+  `<subdomain>.amocrm.ru` or `<subdomain>.kommo.com` origin plus a server-only
+  read credential. The credential never reaches browser code, URLs, logs,
+  errors or committed configuration.
+- The provider account ID must equal the conversation account ID. Contact and
+  lead responses must cross-reference each other, the lead's pipeline/status
+  must resolve inside the exact provider pipeline, and a returned user must
+  equal the lead's responsible-user ID. Any mismatch fails closed.
+- The accepted UI may show only sanitized contact, lead, responsible-manager,
+  pipeline/stage names, active status and the observation time. Missing IDs,
+  configuration, scope, provider availability or administrator-only user
+  access produces an explicit disabled, blocked, degraded or stale state.
+- Supabase records an append-only refresh observation for each completed live
+  attempt and a bounded current read projection for the authorized UI. A
+  failed refresh preserves the last successful value only with an explicit
+  `stale` state and original observation time. Browser actors receive it only
+  through the existing live-authority and conversation-scope checks.
+- The projection records the provider account/entity relationships actually
+  verified, the exact adapter-contract version, observed endpoint
+  capabilities, refresh outcome and time. It is not P4B mapping approval,
+  custom-field semantic mapping, provider proof, AI authority or a handoff
+  signal.
+- No legacy SQLite settings or existing mutable amoCRM adapter may supply this
+  Platform path. This block adds no approved mapping pointer, P4B event,
+  task/call/chat read, webhook/poll reconciler or autonomous-send input.
+- Official GET-only CRM endpoints are the account, contact-by-ID,
+  lead-by-ID, pipeline-by-ID and user-by-ID APIs. The user lookup is allowed to
+  degrade independently because the official Users API is administrator-only.
+  Kommo Chats API is not required when the exact CRM entity IDs already exist.
+
+Validation requires focused config/parser/client/repository and fail-closed
+tests, append-only/idempotency/RLS/tenant/conversation-scope SQL tests,
+secret-containment/client-boundary checks, accepted-thread integration checks,
+root lint/type/build/unit/security gates, exact-head CI and one fresh
+independent exact-head review. Synthetic fetch responses are adapter tests, not
+real-provider proof. A live sanitized amoCRM read remains `blocked` until a
+valid read credential and dedicated test entities are separately supplied and
+authorized.
+
+Rollback leaves the feature disabled or reverts server/UI code and forward-
+fixes the additive schema; no destructive database down migration is allowed.
+P4B remains preserved/deferred and Lead Agent plus the legacy rollback path
+remain frozen and available.
 
 ### Merged P2R3 acceptance record
 

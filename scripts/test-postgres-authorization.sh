@@ -651,6 +651,15 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_waha_ack_session_realtime_rls.sql
   fi
+
+  # P4R1 stores only sanitized read evidence and a bounded current projection.
+  # Prove append-only/idempotent service writes plus live tenant/conversation
+  # read authority at migration 064 before later schema can mask the boundary.
+  if [[ "$(basename "$migration")" == 064_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_amocrm_canonical_context_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

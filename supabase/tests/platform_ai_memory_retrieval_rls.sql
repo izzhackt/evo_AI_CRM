@@ -1282,7 +1282,7 @@ FROM platform.staff_ai_retrieval_evidence(
 -- A later approval for the same knowledge key must not make the immutable
 -- evidence row re-resolve to the latest version or collapse to nulls.
 RESET ROLE;
-SELECT pg_catalog.coalesce(pg_catalog.max(knowledge.version), 0) + 1
+SELECT COALESCE(pg_catalog.max(knowledge.version), 0::BIGINT) + 1
   AS p5f1_newer_knowledge_b_version
 FROM platform.approved_knowledge_versions AS knowledge
 WHERE knowledge.organization_id = :'p5f1_org_b'

@@ -771,13 +771,24 @@ SELECT pg_temp.assert_true(
   'staff RPC exposed unsafe canonical-context columns'
 );
 
--- Correcting a provider binding invalidates the previous sanitized cache
--- immediately. The read RPC compares private binding evidence without ever
--- returning those identifiers to the staff client.
+-- Conversation provider identity is immutable after creation. Prove that
+-- unsupported drift is rejected at the source before exercising the read
+-- RPC's separate defence against a stale private projection.
+\set ON_ERROR_STOP off
 UPDATE platform.communication_conversations
 SET amocrm_contact_id = 5299
 WHERE organization_id = :'p4r1_org_a'
   AND id = :'p4r1_conversation_b_id';
+\set p4r1_binding_update_state :SQLSTATE
+\set ON_ERROR_STOP on
+
+-- Simulate a stale private cache row without weakening the immutable public
+-- conversation identity. The staff RPC must compare the private provider IDs
+-- to the live conversation and fail closed without returning either value.
+UPDATE platform_private.amocrm_canonical_context_current
+SET amocrm_contact_id = 5299
+WHERE organization_id = :'p4r1_org_a'
+  AND conversation_id = :'p4r1_conversation_b_id';
 
 SET request.jwt.claims TO :'p4r1_admin_a_claims';
 SET ROLE authenticated;
@@ -789,14 +800,15 @@ FROM platform.staff_amocrm_canonical_context(
 \gset
 RESET ROLE;
 
-UPDATE platform.communication_conversations
+UPDATE platform_private.amocrm_canonical_context_current
 SET amocrm_contact_id = 5202
 WHERE organization_id = :'p4r1_org_a'
-  AND id = :'p4r1_conversation_b_id';
+  AND conversation_id = :'p4r1_conversation_b_id';
 
 SELECT pg_temp.assert_true(
-  :'p4r1_rebound_stale_count' = '0',
-  'staff read served canonical context from a previous provider binding'
+  :'p4r1_binding_update_state' = '55000'
+  AND :'p4r1_rebound_stale_count' = '0',
+  'provider identity mutation or stale-cache containment drifted'
 );
 
 \set ON_ERROR_STOP off

@@ -765,7 +765,7 @@ test("the isolated browser build admits the P5C partition", async () => {
   ]);
   assert.match(
     nextConfigSource,
-    /new Set\(\["provider", "p5b", "p5c", "remaining"\]\)/,
+    /new Set\(\["provider", "p5b", "p5c", "p5d", "remaining"\]\)/,
   );
-  assert.match(resetHarnessSource, /provider\|p5b\|p5c\|remaining/);
+  assert.match(resetHarnessSource, /provider\|p5b\|p5c\|p5d\|remaining/);
 });

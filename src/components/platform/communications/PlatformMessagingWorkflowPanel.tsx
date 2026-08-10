@@ -474,7 +474,11 @@ export function PlatformMessagingWorkflowPanel({
       )}
 
       {draft?.aiDraftId && draft.state === "review_required" && (
-        <form action={reviewDraft} className="mt-3 space-y-2">
+        <form
+          key={`platform-draft-review-${draft.aiDraftId}`}
+          action={reviewDraft}
+          className="mt-3 space-y-2"
+        >
           <label htmlFor="platform-draft-editor" className={labelCls}>
             {labels.platformDraftEditor}
           </label>
@@ -535,7 +539,11 @@ export function PlatformMessagingWorkflowPanel({
       )}
 
       {latestInboundMessageId !== null && !workflow.manualSend && (
-          <form action={authorizeManualSend} className="mt-3 space-y-2">
+          <form
+            key={`platform-manual-send-${draft?.aiDraftId ?? "no-draft"}`}
+            action={authorizeManualSend}
+            className="mt-3 space-y-2"
+          >
             <h3 className="text-[12px] font-bold text-fg">
               {labels.platformManualSendTitle}
             </h3>

@@ -3549,6 +3549,10 @@ const main = async () => {
     const p5bWorkerTriggerSecret = randomBytes(48).toString("base64url");
     const p5cWahaApiKey = randomBytes(48).toString("base64url");
     const p5cHistoryTriggerSecret = randomBytes(48).toString("base64url");
+    const p5dWahaApiKey = randomBytes(48).toString("base64url");
+    const p5dMediaTriggerSecret = randomBytes(48).toString("base64url");
+    const p5dIngressHmacSecret = randomBytes(48).toString("base64url");
+    const p5dWorkerTriggerSecret = randomBytes(48).toString("base64url");
     writeFileSync(
       browserFixturePath,
       JSON.stringify({
@@ -3564,6 +3568,15 @@ const main = async () => {
         p5c: {
           wahaApiKey: p5cWahaApiKey,
           historyTriggerSecret: p5cHistoryTriggerSecret,
+        },
+        p5d: {
+          organizationId: adminBMembership.organization_id,
+          intakeSalesMembershipId: salesBMembership.id,
+          supabaseSecretKey: serviceRoleKey,
+          ingressHmacSecret: p5dIngressHmacSecret,
+          workerTriggerSecret: p5dWorkerTriggerSecret,
+          wahaApiKey: p5dWahaApiKey,
+          mediaTriggerSecret: p5dMediaTriggerSecret,
         },
         identities: {
           admin: {
@@ -3585,6 +3598,10 @@ const main = async () => {
           responsibleSales: {
             email: identities.responsibleSales.email,
             password: identities.responsibleSales.password,
+          },
+          p5dSales: {
+            email: identities.salesB.email,
+            password: identities.salesB.password,
           },
           finance: {
             email: identities.finance.email,

@@ -4441,3 +4441,81 @@ Validation impact:
 - Rollback keeps P5C disabled, reverts route/worker code and forward-fixes the
   additive schema. Do not use a destructive down migration. Lead Agent and the
   legacy rollback path remain frozen and available.
+
+## 2026-08-10 - P5D private WAHA media archival and authorized display
+
+Date: 2026-08-10, Asia/Bishkek.
+
+Author: EVO Platform owner/executor.
+
+Block-ID: `EVO-P5D-PRIVATE-WAHA-MEDIA-2026-08-10`.
+
+Change type: bounded P5 implementation, private Storage/security contract,
+accepted-frontend integration and rollback record.
+
+Affected plan sections: P5 unified communications, accepted `/whatsapp`
+frontend repository, private Storage, local Supabase validation and release
+evidence.
+
+Reason:
+
+- P5B and P5C now make verified inbound and available-history messages visible
+  in the accepted frontend, but media remains only an honest marker. WAHA media
+  bytes and provider URLs are not archived or safe for browser access.
+- Current WAHA documentation requires the private API key to download media.
+  Passing provider URLs or the key to the browser would cross the reviewed
+  trust boundary and can expose phone-bearing identifiers.
+- Media Storage/access and ACK/Realtime touch different security boundaries.
+  P5D therefore owns only private media; the next P5 block owns ACK/session
+  projection plus private Realtime and reconnect catch-up.
+
+Decision:
+
+- Add a disabled-by-default, service-authenticated media archive worker for the
+  exact `evo-inbox` session. It may process only messages already bound by P5B
+  or P5C private evidence; it may not discover or create an unrelated CRM
+  identity.
+- Re-fetch the exact WAHA message with `downloadMedia=true`, validate the
+  returned session/chat/message identity, require a configured private WAHA
+  origin and reject redirects. Enforce bounded timeout and byte size before
+  Storage upload.
+- Provision a fixed private `platform-whatsapp-media` bucket through Supabase
+  configuration/Storage API. Upload bytes only through the Storage API; never
+  write `storage.buckets` or `storage.objects` from application SQL.
+- Store only safe media metadata in the exposed Platform read model. Raw WAHA
+  identifiers, source URLs and provider evidence remain private and
+  service-only. The opaque Storage object name contains no phone, chat,
+  provider, contact or student identifier and may appear only inside the
+  audited short-lived signed download URL, never in RPC rows or page content.
+- Authorize access through the existing live Platform actor/record-scope rules,
+  append an audit record, consume a one-time service signing grant and redirect
+  to a signed URL valid for at most 60 seconds. Browser principals cannot list,
+  select, sign, update or delete media objects directly.
+- Render archived images/audio/video and bounded file downloads inside the
+  accepted Claude Design conversation view without replacing its design
+  language. Unsafe/unknown inline types remain download-only; unavailable,
+  oversize or failed media stays explicit and actionable.
+- Preserve idempotency by message/ordinal/provider-locator evidence. Replays do
+  not duplicate exposed media, private bindings, Storage objects or audit
+  effects. A provider/Storage conflict fails closed.
+- Media-only input remains human-review only. No Gemini interpretation,
+  autonomous reply, provider send/read marker, ACK/session mutation, amoCRM
+  write, production migration, Lead Agent change or service deletion is
+  authorized.
+
+Validation impact:
+
+- Require focused configuration, HMAC, SSRF/redirect, identity, MIME/size,
+  replay and Storage-failure tests; disposable PostgreSQL RLS/grant/tenant
+  denial; real local Supabase Storage API and accepted `/whatsapp` browser
+  evidence; lint/type/build; dependency audit; scoped secret scan; and
+  `git diff --check`.
+- Synthetic local WAHA responses prove only the adapter and authorization
+  contract. `real-provider-proof` remains `blocked` until a separately
+  authorized private provider run with sanitized media.
+- One fresh independent read-only exact-head review plus green exact-head CI is
+  required. The executor may then merge that exact SHA directly and must
+  verify exact-main push CI; no scheduled auditor or merge-controller is used.
+- Rollback keeps P5D disabled, reverts server/UI code and forward-fixes the
+  additive schema. It does not delete objects, apply a destructive down
+  migration, mutate production or retire the retained legacy path.

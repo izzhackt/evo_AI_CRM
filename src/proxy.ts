@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requestId } from "@/lib/request-id";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
-import { isConnectedPlatformPage } from "@/lib/platform-route-contract";
+import {
+  isConnectedPlatformApi,
+  isConnectedPlatformPage,
+} from "@/lib/platform-route-contract";
 import {
   SupabaseConfigurationError,
 } from "@/lib/supabase/config";
@@ -17,6 +20,8 @@ const PLATFORM_WAHA_WORKER_PATH =
   "/api/internal/platform-messaging/waha/work";
 const PLATFORM_WAHA_HISTORY_PATH =
   "/api/internal/platform-messaging/waha/history";
+const PLATFORM_WAHA_MEDIA_PATH =
+  "/api/internal/platform-messaging/waha/media";
 
 function nextResponse(requestHeaders: Headers) {
   return NextResponse.next({
@@ -113,14 +118,15 @@ export async function proxy(request: NextRequest) {
   if (
     path === PLATFORM_WAHA_INGRESS_PATH ||
     path === PLATFORM_WAHA_WORKER_PATH ||
-    path === PLATFORM_WAHA_HISTORY_PATH
+    path === PLATFORM_WAHA_HISTORY_PATH ||
+    path === PLATFORM_WAHA_MEDIA_PATH
   ) {
     // These exact private service-to-service endpoints own their own HMAC or
     // bearer-secret checks. They must not be redirected into the staff-cookie
     // flow, while every other legacy/internal API route remains disconnected.
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
-  if (!isConnectedPlatformPage(path)) {
+  if (!isConnectedPlatformPage(path) && !isConnectedPlatformApi(path)) {
     return blockedPlatformRoute(request, id);
   }
 

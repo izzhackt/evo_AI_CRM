@@ -131,7 +131,7 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '061_platform_waha_history_reconciliation.sql'
+      '062_platform_waha_private_media.sql'
     )
     for (const table of [
       'waha_history_reconciliation_runs',
@@ -423,15 +423,21 @@ describe('Supabase companion schema contract', () => {
     )
   })
 
-  it('declares one private Platform document bucket and service-only download signing', () => {
+  it('declares only the fixed private Platform buckets and service-only download signing', () => {
     const bucketDeclarations = Array.from(
       supabaseConfig.matchAll(/^\[storage\.buckets\.([^\]]+)\]$/gm),
       (match) => match[1]
     )
 
-    expect(bucketDeclarations).toEqual(['platform-documents'])
+    expect(bucketDeclarations).toEqual([
+      'platform-documents',
+      'platform-whatsapp-media',
+    ])
     expect(supabaseConfig).toMatch(
       /\[storage\.buckets\.platform-documents\]\s*public\s*=\s*false\s*file_size_limit\s*=\s*"25MiB"\s*allowed_mime_types\s*=\s*\["application\/pdf",\s*"image\/jpeg",\s*"image\/png"\]/m
+    )
+    expect(supabaseConfig).toMatch(
+      /\[storage\.buckets\.platform-whatsapp-media\]\s*public\s*=\s*false\s*file_size_limit\s*=\s*"50MiB"\s*allowed_mime_types\s*=\s*\["application\/octet-stream",\s*"application\/pdf",\s*"image\/gif",\s*"image\/jpeg",\s*"image\/png",\s*"image\/webp",\s*"audio\/mpeg",\s*"audio\/ogg",\s*"audio\/wav",\s*"video\/mp4"\]/m
     )
     expect(platformDocumentStorageMigration).toMatch(
       /CREATE\s+TABLE\s+platform_private\.document_upload_reservations/i

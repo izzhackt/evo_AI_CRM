@@ -24,12 +24,22 @@ type Fixture = Readonly<{
     wahaApiKey: string;
     historyTriggerSecret: string;
   }>;
+  p5d: Readonly<{
+    organizationId: string;
+    intakeSalesMembershipId: string;
+    supabaseSecretKey: string;
+    ingressHmacSecret: string;
+    workerTriggerSecret: string;
+    wahaApiKey: string;
+    mediaTriggerSecret: string;
+  }>;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
     crossOrgAdmin: Identity;
     salesScoped: Identity;
     responsibleSales: Identity;
+    p5dSales: Identity;
     finance: Identity;
     student: Identity;
     studentNoCase: Identity;
@@ -1696,6 +1706,346 @@ test("student portal renders the persisted BW3 profile and one requirement witho
       ).toHaveCount(1);
     }
   }
+  expectLegacyDatabaseUntouched();
+});
+
+test("P5D archives private WAHA media into the accepted conversation UI", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.EVO_P5D_BROWSER_PROOF !== "1",
+    "Runs only in the dedicated local P5D browser-proof partition.",
+  );
+  expectLegacyDatabaseUntouched();
+
+  const chatId = "14155550288@c.us";
+  const rawMessageId = `false_${chatId}_${randomUUID()}`;
+  const fileName = "p5d-proof.png";
+  const humanReviewMarker =
+    "[Системное уведомление] Получено медиа или сообщение без текста. Требуется проверка сотрудником.";
+  const pngBytes = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6Z5sAAAAASUVORK5CYII=",
+    "base64",
+  );
+  const providerRequests: Array<
+    Readonly<{ pathname: string; apiKey: string | undefined }>
+  > = [];
+
+  const mediaFixture = createServer((request, response) => {
+    const url = new URL(request.url ?? "/", "http://127.0.0.1:3313");
+    providerRequests.push({
+      pathname: `${url.pathname}${url.search}`,
+      apiKey:
+        typeof request.headers["x-api-key"] === "string"
+          ? request.headers["x-api-key"]
+          : undefined,
+    });
+    if (request.method !== "GET") {
+      response.writeHead(405).end();
+      return;
+    }
+
+    const match = url.pathname.match(
+      /^\/api\/evo-inbox\/chats\/([^/]+)\/messages\/([^/]+)$/,
+    );
+    if (match) {
+      const requestChatId = decodeURIComponent(match[1]);
+      const requestMessageId = decodeURIComponent(match[2]);
+      if (
+        url.searchParams.get("downloadMedia") !== "true" ||
+        request.headers["x-api-key"] !== fixture.p5d.wahaApiKey
+      ) {
+        response.writeHead(401).end();
+        return;
+      }
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          session: "evo-inbox",
+          id: requestMessageId,
+          from: requestChatId,
+          to: "996555000001@c.us",
+          chatId: requestChatId,
+          fromMe: false,
+          source: "app",
+          hasMedia: true,
+          media: {
+            url: "http://127.0.0.1:3313/api/files/evo-inbox/p5d-proof",
+            mimetype: "image/png",
+            filename: fileName,
+            error: null,
+          },
+        }),
+      );
+      return;
+    }
+
+    if (url.pathname === "/api/files/evo-inbox/p5d-proof") {
+      if (request.headers["x-api-key"] !== fixture.p5d.wahaApiKey) {
+        response.writeHead(401).end();
+        return;
+      }
+      response.writeHead(200, {
+        "content-type": "image/png",
+        "content-length": String(pngBytes.byteLength),
+      });
+      response.end(pngBytes);
+      return;
+    }
+
+    response.writeHead(404).end();
+  });
+
+  async function triggerMediaWorker() {
+    const requestId = randomUUID();
+    const timestamp = String(Date.now());
+    const response = await fetch(
+      `${appOrigin}/api/internal/platform-messaging/waha/media`,
+      {
+        method: "POST",
+        headers: {
+          "x-evo-media-request-id": requestId,
+          "x-evo-media-timestamp": timestamp,
+          "x-evo-media-hmac-algorithm": "sha256",
+          "x-evo-media-hmac": createHmac(
+            "sha256",
+            fixture.p5d.mediaTriggerSecret,
+          )
+            .update(`${requestId}.${timestamp}`)
+            .digest("hex"),
+        },
+      },
+    );
+    expect(response.status).toBe(200);
+    return (await response.json()) as Readonly<{
+      ok?: unknown;
+      claimed?: unknown;
+      outcome?: unknown;
+      state?: unknown;
+    }>;
+  }
+
+  let fixtureListening = false;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: NodeJS.ErrnoException) => {
+        mediaFixture.off("listening", onListening);
+        reject(
+          error.code === "EADDRINUSE"
+            ? new Error("P5D loopback WAHA fixture port 3313 is occupied")
+            : error,
+        );
+      };
+      const onListening = () => {
+        mediaFixture.off("error", onError);
+        fixtureListening = true;
+        resolve();
+      };
+      mediaFixture.once("error", onError);
+      mediaFixture.once("listening", onListening);
+      mediaFixture.listen(3313, "127.0.0.1");
+    });
+
+    const occurredAtMs = Date.now();
+    const rawBody = JSON.stringify({
+      event: "message",
+      session: "evo-inbox",
+      payload: {
+        id: rawMessageId,
+        timestamp: Math.floor(occurredAtMs / 1_000),
+        from: chatId,
+        chatId,
+        fromMe: false,
+        source: "app",
+        body: "",
+        hasMedia: true,
+      },
+    });
+    const ingressResponse = await fetch(
+      `${appOrigin}/api/internal/platform-messaging/waha/events`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-webhook-request-id": `p5d-browser-${randomUUID()}`,
+          "x-webhook-timestamp": String(occurredAtMs),
+          "x-webhook-hmac-algorithm": "sha512",
+          "x-webhook-hmac": createHmac(
+            "sha512",
+            fixture.p5d.ingressHmacSecret,
+          )
+            .update(rawBody)
+            .digest("hex"),
+        },
+        body: rawBody,
+      },
+    );
+    expect(ingressResponse.status).toBe(202);
+    expect(await ingressResponse.json()).toEqual(
+      expect.objectContaining({ ok: true, persisted: true, enqueued: true }),
+    );
+
+    const projectionRequestId = randomUUID();
+    const projectionTimestamp = String(Date.now());
+    const projectionResponse = await fetch(
+      `${appOrigin}/api/internal/platform-messaging/waha/work`,
+      {
+        method: "POST",
+        headers: {
+          "x-evo-worker-request-id": projectionRequestId,
+          "x-evo-worker-timestamp": projectionTimestamp,
+          "x-evo-worker-hmac-algorithm": "sha256",
+          "x-evo-worker-hmac": createHmac(
+            "sha256",
+            fixture.p5d.workerTriggerSecret,
+          )
+            .update(`${projectionRequestId}.${projectionTimestamp}`)
+            .digest("hex"),
+        },
+      },
+    );
+    expect(projectionResponse.status).toBe(200);
+    expect(await projectionResponse.json()).toEqual(
+      expect.objectContaining({
+        ok: true,
+        processed: true,
+        disposition: "succeeded",
+        state: "succeeded",
+      }),
+    );
+
+    const archiveResult = await triggerMediaWorker();
+    expect(archiveResult).toEqual({
+      ok: true,
+      claimed: true,
+      outcome: "archived",
+      state: "archived",
+    });
+    expect(providerRequests).toHaveLength(2);
+    expect(providerRequests.every((entry) => entry.apiKey === fixture.p5d.wahaApiKey)).toBe(true);
+    expect(providerRequests[0]?.pathname).toContain("downloadMedia=true");
+    expect(providerRequests[1]?.pathname).toBe(
+      "/api/files/evo-inbox/p5d-proof",
+    );
+
+    await loginToMessaging(page, fixture.identities.p5dSales);
+    const projectedConversation = page
+      .getByTestId("platform-conversation-list")
+      .locator("a")
+      .filter({ hasText: "WhatsApp ••••0288" });
+    await expect(projectedConversation).toHaveCount(1);
+    const href = await projectedConversation.getAttribute("href");
+    expect(href).toMatch(/^\/whatsapp\/[0-9a-f-]{36}$/i);
+    const conversationId = href?.split("/").at(-1);
+    expect(conversationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+
+    const p5dSalesToken = await localAccessToken(
+      fixture.identities.p5dSales,
+    );
+    const messageRows = await platformRpc(
+      p5dSalesToken,
+      "staff_conversation_messages",
+      {
+        p_organization_id: fixture.p5d.organizationId,
+        p_conversation_id: conversationId,
+      },
+    );
+    expect(messageRows.status).toBe(200);
+    expect(Array.isArray(messageRows.payload)).toBe(true);
+    const rows = messageRows.payload as Array<Record<string, unknown>>;
+    const mediaMessage = rows.find(
+      (row) => row.body_text === humanReviewMarker,
+    );
+    expect(mediaMessage).toBeDefined();
+    expect(Array.isArray(mediaMessage?.media)).toBe(true);
+    const mediaEntries = mediaMessage?.media as Array<Record<string, unknown>>;
+    expect(mediaEntries).toHaveLength(1);
+    expect(Object.keys(mediaEntries[0] ?? {}).sort()).toEqual(
+      [
+        "archival_status",
+        "archived_at",
+        "created_at",
+        "file_name",
+        "file_size_bytes",
+        "id",
+        "media_kind",
+        "mime_type",
+        "ordinal",
+      ].sort(),
+    );
+    expect(mediaEntries[0]).toEqual(
+      expect.objectContaining({
+        ordinal: 0,
+        media_kind: "image",
+        mime_type: "image/png",
+        file_name: fileName,
+        file_size_bytes: pngBytes.byteLength,
+        archival_status: "archived",
+      }),
+    );
+    const mediaId = mediaEntries[0]?.id;
+    expect(mediaId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    const safePayload = JSON.stringify(messageRows.payload);
+    expect(safePayload).not.toContain(chatId);
+    expect(safePayload).not.toContain(rawMessageId);
+    expect(safePayload).not.toContain("platform-whatsapp-media");
+
+    await projectedConversation.click();
+    await expect(page.getByTestId("platform-conversation-thread")).toContainText(
+      humanReviewMarker,
+    );
+    const image = page.getByAltText(
+      `Архивированное изображение: ${fileName}`,
+    );
+    await expect(image).toBeVisible();
+    expect(await image.getAttribute("src")).toBe(
+      `/api/platform-messaging/media/${mediaId}`,
+    );
+    await expect
+      .poll(() =>
+        image.evaluate(
+          (element) =>
+            element instanceof HTMLImageElement &&
+            element.complete &&
+            element.naturalWidth === 1,
+        ),
+      )
+      .toBe(true);
+    await expect(page.locator("body")).not.toContainText(chatId);
+    await expect(page.locator("body")).not.toContainText(rawMessageId);
+
+    const mediaResponse = await page.request.get(
+      `/api/platform-messaging/media/${mediaId}`,
+    );
+    expect(mediaResponse.status()).toBe(200);
+    expect(mediaResponse.headers()["content-type"]).toContain("image/png");
+    expect(Buffer.compare(await mediaResponse.body(), pngBytes)).toBe(0);
+
+    await page.context().clearCookies();
+    const anonymousResponse = await page.request.get(
+      `/api/platform-messaging/media/${mediaId}`,
+      { maxRedirects: 0 },
+    );
+    expect(anonymousResponse.status()).toBe(404);
+
+    await loginToMessaging(page, fixture.identities.admin);
+    const crossOrganizationResponse = await page.request.get(
+      `/api/platform-messaging/media/${mediaId}`,
+      { maxRedirects: 0 },
+    );
+    expect(crossOrganizationResponse.status()).toBe(404);
+  } finally {
+    if (fixtureListening) {
+      await new Promise<void>((resolve, reject) => {
+        mediaFixture.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  }
+
   expectLegacyDatabaseUntouched();
 });
 

@@ -307,23 +307,33 @@ test("exposes platform without exposing private or queue schemas", async () => {
   assert.equal(extraSearchPath.includes("pgmq_public"), false);
 });
 
-test("declares exactly one private 25 MiB Platform document bucket", async () => {
+test("declares the exact private Platform document and WhatsApp media buckets", async () => {
   const config = await readFile(supabaseConfigPath, "utf8");
   const bucketNames = Array.from(
     config.matchAll(/^\[storage\.buckets\.([^\]]+)\]$/gm),
     (match) => match[1],
   );
-  const bucketSection = config.match(
+  const documentBucketSection = config.match(
     /^\[storage\.buckets\.platform-documents\]\n([\s\S]*?)(?=^\[)/m,
   );
+  const mediaBucketSection = config.match(
+    /^\[storage\.buckets\.platform-whatsapp-media\]\n([\s\S]*?)(?=^\[)/m,
+  );
 
-  assert.deepEqual(bucketNames, ["platform-documents"]);
-  assert.ok(bucketSection, "platform-documents bucket must be declared");
-  assert.match(bucketSection[1], /^public\s*=\s*false$/m);
-  assert.match(bucketSection[1], /^file_size_limit\s*=\s*"25MiB"$/m);
+  assert.deepEqual(bucketNames, ["platform-documents", "platform-whatsapp-media"]);
+  assert.ok(documentBucketSection, "platform-documents bucket must be declared");
+  assert.match(documentBucketSection[1], /^public\s*=\s*false$/m);
+  assert.match(documentBucketSection[1], /^file_size_limit\s*=\s*"25MiB"$/m);
   assert.match(
-    bucketSection[1],
+    documentBucketSection[1],
     /^allowed_mime_types\s*=\s*\["application\/pdf",\s*"image\/jpeg",\s*"image\/png"\]$/m,
+  );
+  assert.ok(mediaBucketSection, "platform-whatsapp-media bucket must be declared");
+  assert.match(mediaBucketSection[1], /^public\s*=\s*false$/m);
+  assert.match(mediaBucketSection[1], /^file_size_limit\s*=\s*"50MiB"$/m);
+  assert.match(
+    mediaBucketSection[1],
+    /^allowed_mime_types\s*=\s*\["application\/octet-stream",\s*"application\/pdf",\s*"image\/gif",\s*"image\/jpeg",\s*"image\/png",\s*"image\/webp",\s*"audio\/mpeg",\s*"audio\/ogg",\s*"audio\/wav",\s*"video\/mp4"\]$/m,
   );
 });
 

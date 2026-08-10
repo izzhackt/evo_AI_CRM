@@ -1,5 +1,6 @@
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { PlatformMessagingWorkflowPanel } from "@/components/platform/communications/PlatformMessagingWorkflowPanel";
+import { PlatformMessageMedia } from "@/components/platform/communications/PlatformMessageMedia";
 import { PlatformWaList } from "@/components/platform/communications/PlatformWaList";
 import { EmptyState, cn } from "@/components/ui";
 import { getT } from "@/lib/i18n";
@@ -287,6 +288,20 @@ export async function PlatformConversationView({
     platformPromptSha: t("platformPromptSha"),
     platformPromptRawHidden: t("platformPromptRawHidden"),
   };
+  const mediaLabels = {
+    platformMediaGalleryLabel: t("platformMediaGalleryLabel"),
+    platformMediaImageAlt: t("platformMediaImageAlt"),
+    platformMediaAudioLabel: t("platformMediaAudioLabel"),
+    platformMediaVideoLabel: t("platformMediaVideoLabel"),
+    platformMediaDownload: t("platformMediaDownload"),
+    platformMediaDownloadPdf: t("platformMediaDownloadPdf"),
+    platformMediaPending: t("platformMediaPending"),
+    platformMediaProcessing: t("platformMediaProcessing"),
+    platformMediaRetryableError: t("platformMediaRetryableError"),
+    platformMediaTerminalError: t("platformMediaTerminalError"),
+    platformMediaFileUnnamed: t("platformMediaFileUnnamed"),
+    platformMediaSizeUnknown: t("platformMediaSizeUnknown"),
+  };
 
   return (
     <div
@@ -367,6 +382,11 @@ export async function PlatformConversationView({
                       )}
                     >
                       <p className="break-words">{message.bodyText}</p>
+                      <PlatformMessageMedia
+                        labels={mediaLabels}
+                        media={message.media}
+                        outgoing={outgoing}
+                      />
                       <p
                         className={cn(
                           "mt-1 text-right font-mono text-[9.5px]",

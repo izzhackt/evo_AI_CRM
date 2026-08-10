@@ -11,6 +11,7 @@ import {
   isSupabaseAuthCookieName,
 } from "../src/lib/supabase/auth-cookies.ts";
 import {
+  isConnectedPlatformApi,
   isConnectedPlatformPage,
   platformHomeRoute,
   platformStaffRedirect,
@@ -155,6 +156,25 @@ test("proxy admits only the exact connected conversation route shape", () => {
     "/api/waha/qr",
   ]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
+  }
+});
+
+test("proxy admits only the exact UUID media API route shape", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  assert.equal(
+    isConnectedPlatformApi(`/api/platform-messaging/media/${id}`),
+    true,
+  );
+
+  for (const path of [
+    "/api/platform-messaging/media",
+    "/api/platform-messaging/media/123",
+    `/api/platform-messaging/media/${id}/download`,
+    `/api/platform-messaging/media/${id}/`,
+    "/api/platform-messaging/media/not-a-uuid",
+    `/api/platform-messaging/messages/${id}`,
+  ]) {
+    assert.equal(isConnectedPlatformApi(path), false, path);
   }
 });
 

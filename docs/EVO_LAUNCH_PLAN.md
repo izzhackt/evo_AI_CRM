@@ -227,6 +227,39 @@ Rollback keeps P5C disabled, reverts the route/worker code and forward-fixes
 the additive migration. It performs no destructive down migration, provider
 mutation, production migration or legacy-path retirement.
 
+### P5D private WAHA media authority and rollback contract
+
+Block `EVO-P5D-PRIVATE-WAHA-MEDIA-2026-08-10` adds only the private-media
+archive and authorized display path behind the accepted root `/whatsapp` UI.
+It is deliberately separate from ACK/session projection and Supabase Realtime,
+which remain the next independently reviewed P5 block:
+
+- the Platform may archive media only for an already projected P5B/P5C
+  communication message whose raw WAHA identity and source evidence remain in
+  the reviewed private bindings;
+- the server re-fetches one exact message with `downloadMedia=true`, validates
+  the exact `evo-inbox` session, direct chat, message identity and configured
+  private WAHA origin, rejects redirects and enforces bounded timeout/size;
+- WAHA URLs and API keys never reach the browser. Object names are opaque,
+  contain no phone, chat, contact, student or provider locator, stay out of RPC
+  rows/page content and may appear only inside a short-lived audited Storage
+  download URL;
+- bytes are written through the Supabase Storage API to the fixed private
+  `platform-whatsapp-media` bucket. Application SQL never inserts or updates
+  Storage catalog rows directly;
+- missing provider media, unsupported or unsafe inline content, oversize
+  objects, Storage failure and binding conflict remain explicit archive states
+  or staff handoff. They never become silent success or fabricated media;
+- media-only messages stay operator-visible and remain in human-review state.
+  P5D performs no media understanding, Gemini call or autonomous reply;
+- no WAHA send/read marker, ACK/session mutation, amoCRM write, production
+  migration, legacy-path change or service deletion is authorized.
+
+Rollback keeps the archive worker disabled, reverts server/UI code and
+forward-fixes additive schema. It does not delete archived objects or apply a
+destructive down migration. Real-provider completeness and production
+retention/restore remain blocked until separately authorized evidence exists.
+
 ### Merged P2R3 acceptance record
 
 - The server verifies the exact access token returned by successful Supabase

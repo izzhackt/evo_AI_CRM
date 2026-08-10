@@ -10,7 +10,7 @@ const platformAuthBrowserPartition =
 const platformAuthTsconfigPath =
   process.env.EVO_PLATFORM_AUTH_TSCONFIG_PATH;
 const platformAuthRunKeyPattern = /^[A-Za-z0-9_-]{1,96}$/;
-const platformAuthPartitions = new Set(["provider", "p5b", "p5c", "remaining"]);
+const platformAuthPartitions = new Set(["provider", "p5b", "p5c", "p5d", "remaining"]);
 const platformAuthConfigValues = [
   platformAuthDevRunKey,
   platformAuthBrowserPartition,

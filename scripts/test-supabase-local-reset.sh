@@ -43,6 +43,7 @@ readonly BROWSER_PORT="3311"
 readonly PROVIDER_GATED_BROWSER_TESTS="RU and EN draft requests work while uncertain language stops for manual selection|admin reads the persisted local P3C workflow without proving providers|assigned Curator reads the same persisted local P3C workflow|staff writes and persists a manual reply while AI is unavailable|staff submits an approved-knowledge AI draft request through the real form|staff reviews an AI draft then authorizes the edited final text"
 readonly P5B_BROWSER_TEST="P5B projects verified inbound WAHA work into the accepted conversation UI"
 readonly P5C_BROWSER_TEST="P5C reconciles available WAHA history into the accepted conversation UI"
+readonly P5D_BROWSER_TEST="P5D archives private WAHA media into the accepted conversation UI"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -62,7 +63,7 @@ prepare_platform_auth_tsconfig() {
   local tsconfig_path="${BROWSER_BUILD_DIR}/tsconfig-platform-auth-${partition}.json"
 
   case "${partition}" in
-    provider|p5b|p5c|remaining) ;;
+    provider|p5b|p5c|p5d|remaining) ;;
     *) return 1 ;;
   esac
 
@@ -606,7 +607,10 @@ reset_reached_post_migration_restart_failure() {
   grep -Fq "Restarting containers" "${progress_log}" || return 1
 
   last_nonempty_line="$(
-    sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "${progress_log}" | tail -n 1
+    sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "${progress_log}" \
+      | grep -Ev \
+        '^A new version of Supabase CLI is available: v[0-9]+\.[0-9]+\.[0-9]+ \(currently installed v[0-9]+\.[0-9]+\.[0-9]+\)$|^We recommend updating regularly for new features and bug fixes: https://supabase\.com/docs/guides/cli/getting-started#updating-the-supabase-cli$' \
+      | tail -n 1
   )"
   if [[ "${last_nonempty_line}" == "Restarting containers..." ]]; then
     return 0
@@ -945,7 +949,7 @@ fi
   || fail "Storage gate did not delete the credential-bearing local status file."
 
 refresh_synthetic_browser_health
-for browser_partition in provider p5b p5c remaining; do
+for browser_partition in provider p5b p5c p5d remaining; do
   prepare_platform_auth_tsconfig "${browser_partition}" \
     || fail "Unable to create the disposable ${browser_partition} browser tsconfig."
 done
@@ -990,7 +994,26 @@ if ! stop_exact_browser_server; then
 fi
 if ! run_with_deadline 240000 env \
   EVO_P5B_BROWSER_PROOF=0 \
+  EVO_P5C_BROWSER_PROOF=0 \
+  EVO_P5D_BROWSER_PROOF=1 \
+  EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
+  EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5d \
+  EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5d.json" \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep "${P5D_BROWSER_TEST}"; then
+  fail "P5D private WAHA media browser proof failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop after the P5D browser partition."
+fi
+if ! run_with_deadline 240000 env \
+  EVO_P5B_BROWSER_PROOF=0 \
   EVO_P5C_BROWSER_PROOF=1 \
+  EVO_P5D_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5c \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5c.json" \
@@ -1008,6 +1031,7 @@ fi
 if ! run_with_deadline 660000 env \
   EVO_P5B_BROWSER_PROOF=0 \
   EVO_P5C_BROWSER_PROOF=0 \
+  EVO_P5D_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=remaining \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-remaining.json" \
@@ -1016,7 +1040,7 @@ if ! run_with_deadline 660000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}"; then
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}"; then
   fail "Remaining real browser Platform Auth/staff-shell gate failed."
 fi
 if ! stop_exact_browser_server; then

@@ -1,4 +1,3 @@
-import { AutoRefresh } from "@/components/AutoRefresh";
 import { PlatformMessagingWorkflowPanel } from "@/components/platform/communications/PlatformMessagingWorkflowPanel";
 import { PlatformMessageMedia } from "@/components/platform/communications/PlatformMessageMedia";
 import { PlatformWaList } from "@/components/platform/communications/PlatformWaList";
@@ -7,12 +6,18 @@ import { getT } from "@/lib/i18n";
 import type {
   PlatformConversationMessage,
   PlatformConversationSummary,
+  PlatformWahaSessionHealth,
 } from "@/lib/platform-communications";
 import type { PlatformConversationBw4Workspace } from "@/lib/platform-bw4-workflow";
 import type {
   PlatformConversationWorkflow,
   PlatformKnowledgeCatalogItem,
 } from "@/lib/platform-messaging-workflow";
+import {
+  getWahaAckPresentation,
+  getWahaSessionHealthPresentation,
+  type OperationalTone,
+} from "./whatsapp-state";
 
 function initials(value: string) {
   return value
@@ -42,6 +47,21 @@ function isSyntheticSubject(subject: string) {
   return /^\[synthetic(?:-non-provider)?\]/i.test(subject.trim());
 }
 
+function statusTone(tone: OperationalTone) {
+  switch (tone) {
+    case "ok":
+      return "border-ok/30 bg-ok-weak text-ok";
+    case "warning":
+      return "border-warn/30 bg-warn-weak text-warn";
+    case "danger":
+      return "border-danger/30 bg-danger-weak text-danger";
+    case "info":
+      return "border-info/30 bg-info-weak text-info";
+    default:
+      return "border-border bg-surface-2 text-fg-2";
+  }
+}
+
 export async function PlatformConversationView({
   conversations,
   conversation,
@@ -49,6 +69,7 @@ export async function PlatformConversationView({
   workflow,
   knowledge,
   bw4Workspace,
+  wahaSessionHealth,
   decisionMutationOutcome,
 }: {
   conversations: readonly PlatformConversationSummary[];
@@ -57,6 +78,7 @@ export async function PlatformConversationView({
   workflow: PlatformConversationWorkflow;
   knowledge: readonly PlatformKnowledgeCatalogItem[];
   bw4Workspace: PlatformConversationBw4Workspace | null;
+  wahaSessionHealth: PlatformWahaSessionHealth | null;
   decisionMutationOutcome: "saved" | "invalid" | "unavailable" | null;
 }) {
   const { t, locale } = await getT();
@@ -73,6 +95,9 @@ export async function PlatformConversationView({
     workflow.draft?.selectedLanguage ??
     workflow.draft?.requestedLanguage ??
     inboundLanguage;
+  const wahaHealth = getWahaSessionHealthPresentation(
+    wahaSessionHealth?.status,
+  );
   const workflowLabels = {
     platformWorkflowTitle: t("platformWorkflowTitle"),
     platformWorkflowHint: t("platformWorkflowHint"),
@@ -309,7 +334,6 @@ export async function PlatformConversationView({
       data-testid="platform-conversation-thread"
       data-provider-proof="not-proved"
     >
-      <AutoRefresh intervalMs={7000} />
       <PlatformWaList
         conversations={conversations}
         activeId={conversation.id}
@@ -342,6 +366,24 @@ export async function PlatformConversationView({
           </span>
         </header>
 
+        <section
+          className={cn(
+            "border-b px-4 py-2 text-[11px]",
+            statusTone(wahaHealth.tone),
+          )}
+          data-testid="platform-waha-session-health"
+          data-session-status={wahaSessionHealth?.status ?? "UNKNOWN"}
+          data-waha-health={wahaHealth.tone}
+        >
+          <p className="font-bold">{t("platformWahaSessionHealth")}</p>
+          <p className="mt-0.5">
+            {t(wahaHealth.labelKey)}
+            {wahaSessionHealth
+              ? ` · ${t("platformWahaSessionObserved")} ${formatTimestamp(wahaSessionHealth.observedAt, locale)}`
+              : ""}
+          </p>
+        </section>
+
         {synthetic && (
           <section
             className="border-b border-warn/30 bg-warn-weak px-4 py-3 text-warn"
@@ -363,6 +405,7 @@ export async function PlatformConversationView({
             <div className="space-y-3">
               {messages.map((message) => {
                 const outgoing = message.direction === "outbound";
+                const wahaAck = getWahaAckPresentation(message.wahaAckName);
                 return (
                   <article
                     key={message.id}
@@ -371,7 +414,9 @@ export async function PlatformConversationView({
                       outgoing ? "justify-end" : "justify-start",
                     )}
                     data-message-direction={message.direction}
-                    data-message-id={message.id}
+                    data-waha-ack-name={
+                      outgoing ? message.wahaAckName ?? "UNKNOWN" : undefined
+                    }
                   >
                     <div
                       className={cn(
@@ -395,7 +440,12 @@ export async function PlatformConversationView({
                       >
                         {formatTimestamp(message.createdAt, locale)}
                         {" · "}
-                        {t("platformProviderStateNotProved")}
+                        {outgoing
+                          ? t(wahaAck.labelKey)
+                          : t("platformProviderStateNotProved")}
+                        {outgoing && message.wahaAckObservedAt
+                          ? ` · ${formatTimestamp(message.wahaAckObservedAt, locale)}`
+                          : ""}
                       </p>
                     </div>
                   </article>

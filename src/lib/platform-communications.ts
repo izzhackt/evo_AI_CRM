@@ -16,6 +16,13 @@ export type PlatformConversationQueue = "sales" | "curator";
 export type PlatformConversationStatus = "open" | "closed";
 export type PlatformMessageDirection = "inbound" | "outbound";
 export type PlatformMessageLanguage = "ru" | "en" | "undetermined";
+export type PlatformMessageWahaAckName =
+  | "ERROR"
+  | "PENDING"
+  | "SERVER"
+  | "DEVICE"
+  | "READ"
+  | "PLAYED";
 export type PlatformMessageMediaKind =
   | "image"
   | "audio"
@@ -73,6 +80,14 @@ export type PlatformConversationMessage = Readonly<{
   amocrmContactId: string | null;
   createdAt: string;
   media: readonly PlatformMessageMedia[];
+  wahaAckName: PlatformMessageWahaAckName | null;
+  wahaAckObservedAt: string | null;
+}>;
+
+export type PlatformWahaSessionHealth = Readonly<{
+  sessionName: string;
+  status: string;
+  observedAt: string;
 }>;
 
 export type PlatformConversationThread = Readonly<{
@@ -121,6 +136,38 @@ function parseTimestamp(value: unknown): string | null {
     return null;
   }
   return value;
+}
+
+function parseWahaAckName(value: unknown): PlatformMessageWahaAckName | null {
+  return value === "ERROR" ||
+    value === "PENDING" ||
+    value === "SERVER" ||
+    value === "DEVICE" ||
+    value === "READ" ||
+    value === "PLAYED"
+    ? value
+    : null;
+}
+
+function parseWahaAck(
+  direction: unknown,
+  name: unknown,
+  observedAt: unknown,
+): Readonly<{
+  name: PlatformMessageWahaAckName | null;
+  observedAt: string | null;
+}> | null {
+  if (name === null && observedAt === null) {
+    return { name: null, observedAt: null };
+  }
+
+  const parsedName = parseWahaAckName(name);
+  const parsedObservedAt = parseTimestamp(observedAt);
+  if (direction !== "outbound" || parsedName === null || parsedObservedAt === null) {
+    return null;
+  }
+
+  return { name: parsedName, observedAt: parsedObservedAt };
 }
 
 function parseOptionalProviderText(value: unknown): string | null | undefined {
@@ -379,6 +426,11 @@ export function normalizePlatformConversationMessage(
   );
   const createdAt = parseTimestamp(value.created_at);
   const media = parseMessageMedia(value.media);
+  const wahaAck = parseWahaAck(
+    value.direction,
+    value.waha_ack_name,
+    value.waha_ack_observed_at,
+  );
 
   if (
     id === null ||
@@ -398,7 +450,8 @@ export function normalizePlatformConversationMessage(
     amocrmLeadId === undefined ||
     amocrmContactId === undefined ||
     createdAt === null ||
-    media === null
+    media === null ||
+    wahaAck === null
   ) {
     return invalidShape();
   }
@@ -420,7 +473,33 @@ export function normalizePlatformConversationMessage(
     amocrmContactId,
     createdAt,
     media,
+    wahaAckName: wahaAck.name,
+    wahaAckObservedAt: wahaAck.observedAt,
   });
+}
+
+/**
+ * Accepts only the bounded current WAHA health tuple returned by the
+ * organization-scoped RPC. Provider payloads and identifiers are never read.
+ */
+export function normalizePlatformWahaSessionHealth(
+  value: unknown,
+): PlatformWahaSessionHealth {
+  if (!isRecord(value)) return invalidShape();
+
+  const sessionName = parseRequiredText(value.waha_session_name);
+  const status = parseRequiredText(value.status);
+  const observedAt = parseTimestamp(value.observed_at);
+  if (
+    sessionName !== "evo-inbox" ||
+    status === null ||
+    !/^[A-Z][A-Z0-9_]{0,63}$/.test(status) ||
+    observedAt === null
+  ) {
+    return invalidShape();
+  }
+
+  return Object.freeze({ sessionName, status, observedAt });
 }
 
 function requireMessagingOrganization(actor: PlatformActor): string {
@@ -553,6 +632,32 @@ export async function getPlatformConversationThread(
     );
 
     return { conversation, messages };
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+export async function getPlatformWahaSessionHealth(
+  actor: PlatformActor,
+): Promise<PlatformWahaSessionHealth | null> {
+  try {
+    const organizationId = requireMessagingOrganization(actor);
+    const client = await getPlatformClient();
+    const response = await client
+      .schema("platform")
+      .rpc("staff_waha_session_health", {
+        p_organization_id: organizationId,
+      }, {
+        get: true,
+      });
+
+    if (response.error || !Array.isArray(response.data) || response.data.length > 1) {
+      return invalidShape();
+    }
+
+    return response.data.length === 0
+      ? null
+      : normalizePlatformWahaSessionHealth(response.data[0]);
   } catch (error) {
     return failClosed(error);
   }

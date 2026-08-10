@@ -114,6 +114,10 @@ const platformWahaHistoryMigration = readFileSync(
   join(migrationsDir, '061_platform_waha_history_reconciliation.sql'),
   'utf8'
 )
+const platformWahaAckSessionRealtimeMigration = readFileSync(
+  join(migrationsDir, '063_platform_waha_ack_session_realtime.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -131,7 +135,7 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '062_platform_waha_private_media.sql'
+      '063_platform_waha_ack_session_realtime.sql'
     )
     for (const table of [
       'waha_history_reconciliation_runs',
@@ -184,6 +188,46 @@ describe('Supabase companion schema contract', () => {
         )
       )
     }
+    expect(platformWahaAckSessionRealtimeMigration).toMatch(
+      /CREATE\s+TABLE\s+platform\.waha_session_health/i
+    )
+    expect(platformWahaAckSessionRealtimeMigration).toMatch(
+      /ALTER\s+TABLE\s+platform\.waha_session_health\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/i
+    )
+    for (const table of [
+      'waha_ack_observations',
+      'waha_session_observations',
+      'waha_event_projection_effects',
+      'waha_event_projection_requests',
+    ]) {
+      expect(platformWahaAckSessionRealtimeMigration).toMatch(
+        new RegExp(
+          `CREATE\\s+TABLE\\s+platform_private\\.${table}`,
+          'i'
+        )
+      )
+      expect(platformWahaAckSessionRealtimeMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+      expect(platformWahaAckSessionRealtimeMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+    expect(platformWahaAckSessionRealtimeMigration).toMatch(
+      /CREATE\s+POLICY\s+platform_messaging_broadcast_read\s+ON\s+realtime\.messages\s+FOR\s+SELECT\s+TO\s+authenticated/i
+    )
+    expect(platformWahaAckSessionRealtimeMigration).toMatch(
+      /REVOKE\s+INSERT,\s*UPDATE,\s*DELETE,\s*TRUNCATE\s+ON\s+TABLE\s+realtime\.messages\s+FROM\s+PUBLIC,\s*anon,\s*authenticated/i
+    )
+    expect(platformWahaAckSessionRealtimeMigration).not.toMatch(
+      /CREATE\s+POLICY[\s\S]{0,160}\s+ON\s+realtime\.messages\s+FOR\s+INSERT\s+TO\s+authenticated/i
+    )
     expect(platformGrantMigration).toMatch(
       /CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+platform\s+AUTHORIZATION\s+postgres/i
     )

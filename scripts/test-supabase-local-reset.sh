@@ -24,7 +24,7 @@ readonly STACK_LABEL="com.supabase.cli.project=${SUPABASE_PROJECT_ID}"
 readonly INBOX_STACK_LABEL="com.supabase.cli.project=inbox"
 readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"
 readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"
-readonly EXCLUDED_SERVICES="realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
+readonly EXCLUDED_SERVICES="imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
 readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-supabase-p2h.XXXXXX")"
 readonly BROWSER_BUILD_RUN_KEY="$(
   basename "${TEMP_DIR}" | tr -c 'A-Za-z0-9_-' '-'
@@ -44,6 +44,7 @@ readonly PROVIDER_GATED_BROWSER_TESTS="RU and EN draft requests work while uncer
 readonly P5B_BROWSER_TEST="P5B projects verified inbound WAHA work into the accepted conversation UI"
 readonly P5C_BROWSER_TEST="P5C reconciles available WAHA history into the accepted conversation UI"
 readonly P5D_BROWSER_TEST="P5D archives private WAHA media into the accepted conversation UI"
+readonly P5E_BROWSER_TEST="P5E projects WAHA ACK and session state into the live conversation UI"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -63,7 +64,7 @@ prepare_platform_auth_tsconfig() {
   local tsconfig_path="${BROWSER_BUILD_DIR}/tsconfig-platform-auth-${partition}.json"
 
   case "${partition}" in
-    provider|p5b|p5c|p5d|remaining) ;;
+    provider|p5b|p5c|p5d|p5e|remaining) ;;
     *) return 1 ;;
   esac
 
@@ -949,7 +950,7 @@ fi
   || fail "Storage gate did not delete the credential-bearing local status file."
 
 refresh_synthetic_browser_health
-for browser_partition in provider p5b p5c p5d remaining; do
+for browser_partition in provider p5b p5c p5d p5e remaining; do
   prepare_platform_auth_tsconfig "${browser_partition}" \
     || fail "Unable to create the disposable ${browser_partition} browser tsconfig."
 done
@@ -961,6 +962,7 @@ browser_gate_started=true
 if ! run_with_deadline 240000 env \
   EVO_P5B_BROWSER_PROOF=0 \
   EVO_P5C_BROWSER_PROOF=0 \
+  EVO_P5E_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=provider \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-provider.json" \
@@ -978,6 +980,7 @@ fi
 if ! run_with_deadline 240000 env \
   EVO_P5B_BROWSER_PROOF=1 \
   EVO_P5C_BROWSER_PROOF=0 \
+  EVO_P5E_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5b \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5b.json" \
@@ -996,6 +999,7 @@ if ! run_with_deadline 240000 env \
   EVO_P5B_BROWSER_PROOF=0 \
   EVO_P5C_BROWSER_PROOF=0 \
   EVO_P5D_BROWSER_PROOF=1 \
+  EVO_P5E_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5d \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5d.json" \
@@ -1014,6 +1018,7 @@ if ! run_with_deadline 240000 env \
   EVO_P5B_BROWSER_PROOF=0 \
   EVO_P5C_BROWSER_PROOF=1 \
   EVO_P5D_BROWSER_PROOF=0 \
+  EVO_P5E_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5c \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5c.json" \
@@ -1028,10 +1033,30 @@ fi
 if ! stop_exact_browser_server; then
   fail "The exact-worktree Platform browser server did not stop after the P5C browser partition."
 fi
+if ! run_with_deadline 240000 env \
+  EVO_P5B_BROWSER_PROOF=0 \
+  EVO_P5C_BROWSER_PROOF=0 \
+  EVO_P5D_BROWSER_PROOF=0 \
+  EVO_P5E_BROWSER_PROOF=1 \
+  EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
+  EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5e \
+  EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5e.json" \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep "${P5E_BROWSER_TEST}"; then
+  fail "P5E WAHA ACK, session health and private Realtime browser proof failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop after the P5E browser partition."
+fi
 if ! run_with_deadline 660000 env \
   EVO_P5B_BROWSER_PROOF=0 \
   EVO_P5C_BROWSER_PROOF=0 \
   EVO_P5D_BROWSER_PROOF=0 \
+  EVO_P5E_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=remaining \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-remaining.json" \
@@ -1040,7 +1065,7 @@ if ! run_with_deadline 660000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}"; then
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}"; then
   fail "Remaining real browser Platform Auth/staff-shell gate failed."
 fi
 if ! stop_exact_browser_server; then
@@ -1062,3 +1087,4 @@ printf 'Verified real browser Supabase login/logout, invite-only signup, staff/s
 printf 'Verified real local private Storage API policy, exact size/MIME, reservation, attestation, service-only one-time signing grant and object hash contract with synthetic users.\n'
 printf 'Storage evidence is local API/policy proof only; it does not prove a malware provider, managed Supabase or production.\n'
 printf 'Verified real local PGMQ claims, visibility, retries, terminal unknown handling and dead-letter evidence.\n'
+printf 'Verified signed WAHA ACK/session projection and private Realtime invalidation update the accepted UI without a page reload; provider execution remains unproved.\n'

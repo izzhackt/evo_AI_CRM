@@ -375,13 +375,14 @@ async function platformRpc(
   token: string,
   routineName: string,
   body: Readonly<Record<string, unknown>>,
+  apiKey = fixture.publishableKey,
 ) {
   const response = await fetch(
     `${fixture.apiUrl}/rest/v1/rpc/${routineName}`,
     {
       method: "POST",
       headers: {
-        apikey: fixture.publishableKey,
+        apikey: apiKey,
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
         "Accept-Profile": "platform",
@@ -2046,6 +2047,300 @@ test("P5D archives private WAHA media into the accepted conversation UI", async 
     }
   }
 
+  expectLegacyDatabaseUntouched();
+});
+
+test("P5E projects WAHA ACK and session state into the live conversation UI", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.EVO_P5E_BROWSER_PROOF !== "1",
+    "Runs only in the dedicated local P5E browser-proof partition.",
+  );
+  expectLegacyDatabaseUntouched();
+
+  const chatId = "14155550305@c.us";
+  const rawOutboundMessageId = `true_${chatId}_${randomUUID()}`;
+  const outboundText = `P5E local outbound observation ${randomUUID()}`;
+  const privateSessionPayloadSentinel = `p5e-private-session-${randomUUID()}`;
+  const historyOccurredAt = new Date(Date.now() - 60_000).toISOString();
+  const serviceToken = fixture.p5b.supabaseSecretKey;
+
+  const beginResult = await platformRpc(
+    serviceToken,
+    "begin_waha_history_reconciliation",
+    {
+      p_organization_id: fixture.p5b.organizationId,
+      p_waha_session_name: "evo-inbox",
+      p_engine: "NOWEB",
+      p_intake_sales_membership_id: fixture.p5b.intakeSalesMembershipId,
+      p_request_id: randomUUID(),
+    },
+    serviceToken,
+  );
+  expect(beginResult.status).toBe(200);
+  const beginPayload = beginResult.payload as Record<string, unknown>;
+  const runId = beginPayload.run_id;
+  expect(runId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  expect(beginPayload).toEqual(
+    expect.objectContaining({
+      state: "running",
+      chat_offset: 0,
+      message_offset: 0,
+    }),
+  );
+
+  const historyResult = await platformRpc(
+    serviceToken,
+    "project_waha_history_page",
+    {
+      p_organization_id: fixture.p5b.organizationId,
+      p_run_id: runId,
+      p_waha_session_name: "evo-inbox",
+      p_raw_chat_id: chatId,
+      p_messages: [
+        {
+          raw_message_id: rawOutboundMessageId,
+          direction: "outbound",
+          occurred_at: historyOccurredAt,
+          body_text: outboundText,
+          has_media: false,
+        },
+      ],
+      p_next_chat_offset: 0,
+      p_next_message_offset: 1,
+      p_request_id: randomUUID(),
+    },
+    serviceToken,
+  );
+  expect(historyResult.status).toBe(200);
+  expect(historyResult.payload).toEqual(
+    expect.objectContaining({
+      run_id: runId,
+      state: "running",
+      projected_count: 1,
+      chat_offset: 0,
+      message_offset: 1,
+    }),
+  );
+
+  const finishResult = await platformRpc(
+    serviceToken,
+    "finish_waha_history_reconciliation",
+    {
+      p_organization_id: fixture.p5b.organizationId,
+      p_run_id: runId,
+      p_outcome: "completed",
+      p_request_id: randomUUID(),
+    },
+    serviceToken,
+  );
+  expect(finishResult.status).toBe(200);
+  expect(finishResult.payload).toEqual(
+    expect.objectContaining({ state: "completed", projected_count: 1 }),
+  );
+
+  await loginToMessaging(page, fixture.identities.responsibleSales);
+  const projectedConversation = page
+    .getByTestId("platform-conversation-list")
+    .locator("a")
+    .filter({ hasText: "WhatsApp ••••0305" });
+  await expect(projectedConversation).toHaveCount(1);
+  const href = await projectedConversation.getAttribute("href");
+  expect(href).toMatch(/^\/whatsapp\/[0-9a-f-]{36}$/i);
+  const conversationId = href?.split("/").at(-1);
+  expect(conversationId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+
+  await projectedConversation.click();
+  await expect(page).toHaveURL(new RegExp(`/whatsapp/${conversationId}$`));
+  const thread = page.getByTestId("platform-conversation-thread");
+  await expect(thread).toContainText(outboundText);
+  await expect(thread).toHaveAttribute("data-provider-proof", "not-proved");
+  await expect(page.getByTestId("platform-messaging-realtime")).toHaveAttribute(
+    "data-realtime-state",
+    "subscribed",
+    { timeout: 20_000 },
+  );
+
+  const browserInstanceMarker = `p5e-browser-${randomUUID()}`;
+  await page.evaluate((marker) => {
+    (
+      window as Window & { __evoP5eBrowserInstance?: string }
+    ).__evoP5eBrowserInstance = marker;
+  }, browserInstanceMarker);
+
+  async function persistSignedEvent(
+    eventBody: Readonly<Record<string, unknown>>,
+    requestPrefix: string,
+  ) {
+    const occurredAtMs = Date.now();
+    const rawBody = JSON.stringify(eventBody);
+    const response = await fetch(
+      `${appOrigin}/api/internal/platform-messaging/waha/events`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-webhook-request-id": `${requestPrefix}-${randomUUID()}`,
+          "x-webhook-timestamp": String(occurredAtMs),
+          "x-webhook-hmac-algorithm": "sha512",
+          "x-webhook-hmac": createHmac("sha512", fixture.p5b.ingressHmacSecret)
+            .update(rawBody)
+            .digest("hex"),
+        },
+        body: rawBody,
+      },
+    );
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual(
+      expect.objectContaining({ ok: true, persisted: true, enqueued: true }),
+    );
+  }
+
+  async function projectOneSignedEvent() {
+    const requestId = randomUUID();
+    const timestamp = String(Date.now());
+    const response = await fetch(
+      `${appOrigin}/api/internal/platform-messaging/waha/work`,
+      {
+        method: "POST",
+        headers: {
+          "x-evo-worker-request-id": requestId,
+          "x-evo-worker-timestamp": timestamp,
+          "x-evo-worker-hmac-algorithm": "sha256",
+          "x-evo-worker-hmac": createHmac(
+            "sha256",
+            fixture.p5b.workerTriggerSecret,
+          )
+            .update(`${requestId}.${timestamp}`)
+            .digest("hex"),
+        },
+      },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        ok: true,
+        processed: true,
+        disposition: "succeeded",
+        state: "succeeded",
+      }),
+    );
+  }
+
+  await persistSignedEvent(
+    {
+      event: "message.ack",
+      session: "evo-inbox",
+      payload: {
+        id: rawOutboundMessageId,
+        from: chatId,
+        participant: null,
+        fromMe: true,
+        ack: 3,
+        ackName: "READ",
+      },
+    },
+    "p5e-browser-ack",
+  );
+  await projectOneSignedEvent();
+  const outboundMessage = thread
+    .locator('[data-message-direction="outbound"]')
+    .filter({ hasText: outboundText });
+  await expect(outboundMessage).toHaveAttribute("data-waha-ack-name", "READ", {
+    timeout: 20_000,
+  });
+
+  await persistSignedEvent(
+    {
+      event: "session.status",
+      session: "evo-inbox",
+      payload: {
+        name: "evo-inbox",
+        status: "WORKING",
+        data: { privateEvidence: privateSessionPayloadSentinel },
+      },
+    },
+    "p5e-browser-session",
+  );
+  await projectOneSignedEvent();
+  const sessionHealth = page.getByTestId("platform-waha-session-health");
+  await expect(sessionHealth).toHaveAttribute(
+    "data-session-status",
+    "WORKING",
+    {
+      timeout: 20_000,
+    },
+  );
+
+  expect(
+    await page.evaluate(
+      () =>
+        (window as Window & { __evoP5eBrowserInstance?: string })
+          .__evoP5eBrowserInstance,
+    ),
+  ).toBe(browserInstanceMarker);
+  await expect(page).toHaveURL(new RegExp(`/whatsapp/${conversationId}$`));
+
+  const responsibleSalesToken = await localAccessToken(
+    fixture.identities.responsibleSales,
+  );
+  const messageRows = await platformRpc(
+    responsibleSalesToken,
+    "staff_conversation_messages",
+    {
+      p_organization_id: fixture.p5b.organizationId,
+      p_conversation_id: conversationId,
+    },
+  );
+  expect(messageRows.status).toBe(200);
+  expect(Array.isArray(messageRows.payload)).toBe(true);
+  const projectedMessage = (
+    messageRows.payload as Array<Record<string, unknown>>
+  ).find((row) => row.body_text === outboundText);
+  expect(projectedMessage).toEqual(
+    expect.objectContaining({
+      direction: "outbound",
+      waha_session_name: null,
+      waha_message_id: null,
+      waha_ack_name: "READ",
+      waha_ack_observed_at: expect.any(String),
+      kommo_message_id: null,
+      amocrm_lead_id: null,
+      amocrm_contact_id: null,
+    }),
+  );
+
+  const sessionRows = await platformRpc(
+    responsibleSalesToken,
+    "staff_waha_session_health",
+    { p_organization_id: fixture.p5b.organizationId },
+  );
+  expect(sessionRows.status).toBe(200);
+  expect(sessionRows.payload).toEqual([
+    {
+      waha_session_name: "evo-inbox",
+      status: "WORKING",
+      observed_at: expect.any(String),
+    },
+  ]);
+
+  const safePublicPayload = JSON.stringify({
+    messages: messageRows.payload,
+    session: sessionRows.payload,
+  });
+  for (const privateValue of [
+    chatId,
+    rawOutboundMessageId,
+    privateSessionPayloadSentinel,
+  ]) {
+    expect(safePublicPayload).not.toContain(privateValue);
+    await expect(page.locator("body")).not.toContainText(privateValue);
+  }
   expectLegacyDatabaseUntouched();
 });
 

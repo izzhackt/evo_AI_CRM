@@ -13,9 +13,9 @@
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
 - Current accepted base for this block:
-  `5b3754b2e0cdee2d340448bd95f5ce9647f14633`
+  `0869c34b5ea693b684009a397847ad1596a9942a`
 - Active plan block:
-  `EVO-P5D-PRIVATE-WAHA-MEDIA-2026-08-10`
+  `EVO-P5E-WAHA-ACK-SESSION-REALTIME-2026-08-10`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -48,11 +48,13 @@ document reading/extraction/autofill/export scope superseded решением ow
 #125-#127 отменили зависимые PRs #124, #122 и #120, PR #128 controller-merged
 корректную продуктовую границу, а PRs #129-#130 merged local-validation plan и
 repair. PR #131 merged P4 deferral/Lead Agent retention authority, PR #132
-merged receive-only P5A ingress, PR #133 merged P5B receive/project, а PR #136
-merged direct exact-head governance, а PR #137 merged P5C available-history
-reconciliation. Текущий accepted base —
-`5b3754b2e0cdee2d340448bd95f5ce9647f14633`, exact-main CI `31347918501`
-зелёный, migrations contiguous `001-061`.
+merged receive-only P5A ingress, PR #133 merged P5B receive/project, PR #136
+merged direct exact-head governance, PR #137 merged P5C available-history
+reconciliation, PR #138 merged P5D private media, а PR #140 синхронизировал
+MVP authority contract. Текущий accepted base —
+`0869c34b5ea693b684009a397847ad1596a9942a`, exact-main CI `31379257336`
+зелёный для Main CRM, EVO Inbox и EVO Lead Agent; Changed range ожидаемо
+skipped на push. Migrations contiguous `001-062`.
 
 P4B implementation сохранён на remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -66,13 +68,14 @@ bounded read-mostly amoCRM adapter; P4B writes, full mapping approval и cutover
 delivery остаются blocked до отдельной авторизации и доказательств. Former P2I
 restore duties остаются в P7.
 
-P5A-P5C merged, но ingress/worker/history lanes disabled by default. PR #133
+P5A-P5D merged, но ingress/worker/history/media lanes disabled by default. PR #133
 был принят как receive/project implementation, не AI/send implementation; PR
 #137 добавил resumable read-only reconciliation только той истории, которую
-может вернуть существующий WAHA store. Full local Supabase/browser и exact-main
-CI зелёные, но real WAHA/provider proof и production enablement отсутствуют.
-Текущий P5D block архивирует private media и подключает безопасное отображение
-к accepted UI. ACK/session + private Realtime остаются следующим P5 block.
+может вернуть существующий WAHA store, а PR #138 — private media и безопасное
+отображение в accepted UI. Full local Supabase/browser и exact-main CI зелёные,
+но real WAHA/provider proof и production enablement отсутствуют. Текущий P5E
+block добавляет долговечный ACK/session state и private Realtime invalidation с
+авторизованным refetch вместо семисекундного polling.
 
 ## Что подтверждено из репозитория
 
@@ -251,17 +254,15 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — docs-only
-`EVO-DIRECT-MERGE-GOVERNANCE-2026-08-09`: fresh independent read-only
+Текущий gate — implementation block
+`EVO-P5E-WAHA-ACK-SESSION-REALTIME-2026-08-10`: focused
+authorization/RLS/browser/security tests, один fresh independent read-only
 exact-head review, все required exact-head CI jobs, затем direct executor merge
 того же SHA и green exact-main push CI. Scheduled Launch Auditor и отдельный
-merge-controller больше не используются; full Codex Security workflow не
-требуется. Focused authorization/RLS/security tests, secret/PII scan и
-dependency audit остаются обязательными по изменённой области.
+merge-controller не используются; full Codex Security workflow не требуется.
 
-Текущий implementation gate — P5D private media archival и безопасное
-отображение за accepted root UI. Затем P5E объединяет ACK/session projection и
-private Realtime с reconnect catch-up. Autonomous
+P5E объединяет ACK/session projection и private Realtime с reconnect catch-up.
+Autonomous
 inbound-reply PR допускается только после этих принятых blocks. Он обязан
 использовать Gemini proposal, deterministic queue/worker gates, bounded
 read-mostly amoCRM, durable pause/resume и disabled-by-default flags. Real

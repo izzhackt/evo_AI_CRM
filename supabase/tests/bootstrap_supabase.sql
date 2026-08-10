@@ -187,11 +187,68 @@ AS $$
   FROM normalized
 $$;
 
+-- Model the provider-owned Supabase Realtime authorization surface that is
+-- present before application migrations run. Keep this fixture limited to the
+-- columns and helper signatures used by private Broadcast RLS; application
+-- migrations may create policies, but must not create or replace provider
+-- tables/functions in the realtime schema.
+CREATE SCHEMA realtime;
+CREATE TABLE realtime.messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  topic TEXT NOT NULL,
+  extension TEXT NOT NULL,
+  payload JSONB,
+  event TEXT,
+  private BOOLEAN NOT NULL DEFAULT TRUE,
+  inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE realtime.messages ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION realtime.topic()
+RETURNS TEXT
+LANGUAGE SQL
+STABLE
+SET search_path = ''
+AS $$
+  SELECT NULLIF(current_setting('realtime.topic', TRUE), '')::TEXT
+$$;
+
+CREATE OR REPLACE FUNCTION realtime.send(
+  payload JSONB,
+  event TEXT,
+  topic TEXT,
+  private BOOLEAN DEFAULT TRUE
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  PERFORM set_config('realtime.topic', topic, TRUE);
+  INSERT INTO realtime.messages (
+    payload,
+    event,
+    topic,
+    private,
+    extension
+  )
+  VALUES (
+    payload,
+    event,
+    topic,
+    private,
+    'broadcast'
+  );
+END
+$$;
+
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE PUBLICATION supabase_realtime;
 
-GRANT USAGE ON SCHEMA public, auth, storage
+GRANT USAGE ON SCHEMA public, auth, storage, realtime
   TO anon, authenticated, service_role, supabase_auth_admin;
+GRANT SELECT, INSERT, UPDATE, DELETE ON realtime.messages
+  TO anon, authenticated, service_role;
 
 -- Model a provider-owned Supabase Queues API surface that exists before the
 -- application migrations run. Migration 040 must remove browser access without

@@ -193,5 +193,8 @@ test("uses a private invalidation-only Realtime channel with reconnect fallback 
   assert.doesNotMatch(listPage, /AutoRefresh/);
   assert.match(threadView, /data-session-status=\{wahaSessionHealth\?\.status \?\? "UNKNOWN"\}/);
   assert.match(threadView, /data-waha-ack-name=/);
-  assert.doesNotMatch(threadView, /AutoRefresh|data-message-id|platformConversationId|platformStudentCase/);
+  assert.match(threadView, /platformConversationId/);
+  assert.match(threadView, /platformStudentCase/);
+  assert.match(threadView, /platformWahaSession/);
+  assert.doesNotMatch(threadView, /AutoRefresh|data-message-id/);
 });

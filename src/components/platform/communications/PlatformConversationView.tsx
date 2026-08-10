@@ -480,6 +480,12 @@ export async function PlatformConversationView({
         </div>
         <dl className="space-y-3 p-4">
           {[
+            [t("platformConversationId"), conversation.id],
+            [
+              t("platformStudentCase"),
+              conversation.studentCaseId ?? t("platformNotLinked"),
+            ],
+            [t("platformWahaSession"), conversation.wahaSessionName],
             [
               t("platformCreatedAt"),
               formatTimestamp(conversation.createdAt, locale),

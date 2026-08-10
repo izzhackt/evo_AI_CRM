@@ -6,11 +6,14 @@ Historical P1, reusable greenfield P2A-P2H, BW0, P3A-P3C, BW1-BW7,
 P2R0-P2R4 and P4A are merged. PR #118 merged the P4B docs-only contract, PR
 #128 merged the owner-authorized correction that keeps Student Profile document
 automation outside `evo_AI_CRM`, and PRs #129-#130 merged the local-validation
-prerequisite and repair, PR #132 merged the disabled-by-default P5A WAHA
-ingress, and PR #133 merged the disabled-by-default P5B projection. Current
-`origin/main` is `18e0e0855fda31cba1fa837d81b3a75cedd585e9`, migrations are contiguous
-`001-060`, and exact-main CI run `31323907123` is green for Main CRM, EVO Inbox
-and EVO Lead Agent; Changed range is skipped on the push event as expected.
+prerequisite and repair. Messaging foundation now advanced through PR #132
+(disabled-by-default P5A WAHA ingress), PR #133 (disabled-by-default P5B
+projection), PR #137 (disabled-by-default P5C available WAHA history), and PR
+#138 (disabled-by-default P5D private WAHA media). Current `origin/main` is
+`0032a99439bdd1cafdbefa99301fab67a7fc8aeb`, migrations are contiguous
+`001-062`, and exact-main push CI run `31369896660` is green for Main CRM, EVO
+Inbox and EVO Lead Agent; Changed range is skipped on the push event as
+expected.
 
 P4B implementation is preserved on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -20,10 +23,11 @@ failed closed in the real Auth/PostgREST hook before Playwright and is
 failed/non-evidence. The owner keeps P4B activation/writes deferred but resumes
 a bounded read-mostly P4R lane after the messaging foundation. P9 remains
 removed. Lead Agent, the legacy webhook/session path and rollback path remain
-deployed/frozen. P5B is merged without real-provider proof; available-history
-reconciliation is the next bounded P5 slice. This amendment authorizes no
-application code, migration, provider action, customer-data action or
-production mutation. Updated 2026-08-09 in the workspace timezone.
+deployed/frozen. P5D is merged without real-provider proof; ACK/session
+projection plus private Realtime/reconnect catch-up is the next bounded P5
+slice. This amendment authorizes no application code, migration, provider
+action, customer-data action or production mutation. Updated 2026-08-10 in the
+workspace timezone.
 
 This document is the execution contract for launch-control work in this repo.
 The current detailed contract is
@@ -36,12 +40,13 @@ separate plan amendment first.
 ## Current Goal Slice
 
 Active plan slice: `/goal-evo-platform-mvp-autonomous-inbound-plan`,
-Block `EVO-MVP-AUTONOMOUS-INBOUND-PLAN-2026-08-09`. This docs-only slice
-changes phase order, integration scope, AI authority, API/schema contract and
-acceptance. Before affected code can be merged, it must be
-independently reviewed, pass exact-head CI and be controller-merged. It must not
-change application/runtime code, schema, migrations, credentials, providers,
-customer data, staging or production.
+Block `EVO-P5E-WAHA-ACK-REALTIME-PLAN-2026-08-10`. This docs-only slice
+advances the sequential checkpoint through merged P5C/P5D evidence and fixes
+the exact authority/rollback/validation boundary for the next P5E ACK plus
+private Realtime block. Before affected code can be merged, it must be
+independently reviewed and pass exact-head CI. It must not change
+application/runtime code, schema, migrations, credentials, providers, customer
+data, staging or production.
 
 ### Goal
 
@@ -259,6 +264,65 @@ Rollback keeps the archive worker disabled, reverts server/UI code and
 forward-fixes additive schema. It does not delete archived objects or apply a
 destructive down migration. Real-provider completeness and production
 retention/restore remain blocked until separately authorized evidence exists.
+
+### P5E ACK/session projection and private Realtime authority and rollback contract
+
+Block `EVO-P5E-WAHA-ACK-REALTIME-2026-08-10` adds only the durable provider
+delivery/session projection plus authenticated private Realtime path behind the
+accepted root `/whatsapp` UI. It remains separate from Gemini/autonomous send,
+amoCRM reads/writes, and any production/provider mutation.
+
+- P5E may consume only already verified P5A raw `message.ack` and
+  `session.status` evidence for the exact configured organization, exact
+  `evo-inbox` session and exact reviewed account binding. It may not invent or
+  infer provider success from message text, timestamps, polling order or
+  browser heuristics.
+- Delivery state must be durable before it is shown live. Realtime therefore
+  follows append-only provider evidence and the exposed read model; it must not
+  become a browser-only optimistic layer.
+- Delivery progression is monotonic and duplicate-safe. Exact duplicate,
+  conflicting, missing-identifier or out-of-order acknowledgements remain
+  explicit reconciliation/manual-review evidence rather than silent regression
+  of a later state.
+- Session-state projection is bounded to the exact reviewed WAHA session health
+  states required by Platform policy. Unknown, unhealthy or stale session
+  evidence fails closed and never clears a conversation pause or implies send
+  safety.
+- Browser delivery/session visibility must use authenticated private Supabase
+  Realtime on the accepted Platform actor/organization boundary only. A
+  reconnect must catch up from the durable server read model so the UI reaches
+  the same state without requiring periodic `router.refresh()` polling.
+- The exposed UI may replace the current timed refresh only for the reviewed
+  `/whatsapp` queue/thread surfaces. It must not open a parallel Inbox UI, a
+  provider-direct browser path, or broader realtime subscriptions outside the
+  authorized actor scope.
+- No P5E path may send a message, mark a WAHA chat read, mutate a WAHA session
+  or webhook, execute Gemini, mutate amoCRM, retire Lead Agent, delete
+  archived media, or perform a production migration/deployment.
+
+Validation impact:
+
+- Require focused ingress/repository tests for duplicate and out-of-order
+  `message.ack`, missing provider identifiers, monotonic delivery projection,
+  session-health fail-closed handling, and reconnect catch-up from stored
+  evidence.
+- Require disposable PostgreSQL authorization/RLS proof for any new
+  reconciliation/projection RPCs, private Realtime authorization boundaries,
+  and cross-organization/session denial.
+- Require accepted `/whatsapp` browser proof that new delivery/session evidence
+  appears without timed polling and that reconnect receives the same durable
+  state. Local proof remains adapter/browser evidence only.
+- `real-provider-proof` remains `blocked` until a separately authorized private
+  WAHA run proves one real provider send, exact ACK progression, session health,
+  and no duplicate outbound effect.
+- One fresh independent read-only exact-head review plus green exact-head CI is
+  required. The executor may then merge that exact SHA directly and must verify
+  exact-main push CI before the next implementation branch.
+
+Rollback keeps P5E disabled, restores the timed refresh path if needed, reverts
+server/UI code and forward-fixes additive schema. It does not delete immutable
+provider evidence, apply a destructive down migration, mutate production or
+retire the retained legacy path.
 
 ### Merged P2R3 acceptance record
 

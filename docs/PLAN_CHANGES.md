@@ -4519,3 +4519,80 @@ Validation impact:
 - Rollback keeps P5D disabled, reverts server/UI code and forward-fixes the
   additive schema. It does not delete objects, apply a destructive down
   migration, mutate production or retire the retained legacy path.
+
+## 2026-08-10 - Advance the checkpoint to merged P5D and authorize P5E ACK plus private Realtime
+
+Date: 2026-08-10, Asia/Bishkek.
+
+Author: EVO Platform owner/executor.
+
+Block-ID: `EVO-P5E-WAHA-ACK-REALTIME-PLAN-2026-08-10`.
+
+Change type: docs-only checkpoint freshness correction, bounded P5 authority
+addition, rollback/validation clarification.
+
+Affected plan sections: active goal slice, ordered P5 sequence, `/whatsapp`
+execution path, delivery/session evidence, private Realtime and direct-merge
+validation order.
+
+Reason:
+
+- `origin/main` has advanced beyond the prior checkpoint summary: PR #137
+  merged P5C available WAHA history and PR #138 merged P5D private WAHA media.
+  The accepted plan text still described P5B as the latest merged messaging
+  block and available history as the next slice.
+- The accepted `/whatsapp` path still refreshes by a timed client poll through
+  `src/components/AutoRefresh.tsx` mounted from
+  `src/app/(staff)/whatsapp/page.tsx`. That means the next useful operator
+  capability is not generic “realtime”, but the exact delivery/session
+  projection plus authenticated catch-up path on the current production UI
+  contract.
+- P5D already recorded that media archival and ACK/Realtime touch different
+  boundaries. The next code lane needs an explicit authority record for those
+  boundaries before implementation starts.
+
+Decision:
+
+- Advance the current sequential checkpoint to merged P5D reality:
+  `origin/main` at `0032a99439bdd1cafdbefa99301fab67a7fc8aeb`, migrations
+  contiguous `001-062`, with green exact-main push CI run `31369896660`
+  after PR #138.
+- Replace the stale active docs-only checkpoint with
+  `EVO-P5E-WAHA-ACK-REALTIME-PLAN-2026-08-10`.
+- Authorize the next bounded P5E slice only for:
+  append-only `message.ack` and `session.status` consumption from verified P5A
+  evidence, monotonic durable delivery/session projection, authenticated
+  private Supabase Realtime for the accepted actor/organization scope, and
+  reconnect catch-up from the stored server read model.
+- Keep P5E fail-closed on duplicate/out-of-order acknowledgement conflicts,
+  missing provider identifiers, unknown/unhealthy session evidence, and stale
+  reconnect state. None of those conditions may invent provider success or
+  clear a human-review/takeover state.
+- Permit replacing the current timed `/whatsapp` refresh only on the accepted
+  queue/thread surfaces. Do not add a parallel Inbox UI, browser-direct WAHA
+  path, autonomous send, Gemini execution, amoCRM mutation, WAHA mutation,
+  Lead Agent retirement, production migration or service deletion.
+
+Validation impact:
+
+- Require focused tests for duplicate/out-of-order `message.ack`, monotonic
+  delivery progression, session fail-closed behavior and reconnect catch-up.
+- Require disposable PostgreSQL authorization/RLS proof for any new
+  reconciliation/projection RPCs and private Realtime authorization boundaries.
+- Require accepted `/whatsapp` browser proof that new delivery/session evidence
+  appears without timed polling and that reconnect converges to the same
+  durable state.
+- `real-provider-proof` remains `blocked` until a separately authorized private
+  WAHA run proves one real send plus exact ACK/session progression without
+  duplicate outbound effect.
+- One fresh independent read-only exact-head review plus green exact-head CI is
+  required. The executor may then merge that exact SHA directly and must verify
+  exact-main push CI before the next implementation branch.
+
+Rollback:
+
+- Docs-only rollback is a reviewed revert of this amendment.
+- The later P5E implementation rollback keeps flags off, restores the timed
+  refresh path if needed, reverts server/UI code and forward-fixes any additive
+  schema. It does not delete immutable provider evidence, perform a destructive
+  down migration, mutate production or retire the retained legacy path.

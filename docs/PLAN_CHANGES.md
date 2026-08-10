@@ -4519,3 +4519,163 @@ Validation impact:
 - Rollback keeps P5D disabled, reverts server/UI code and forward-fixes the
   additive schema. It does not delete objects, apply a destructive down
   migration, mutate production or retire the retained legacy path.
+
+## 2026-08-10 - MVP contract sync after owner-approved autonomous-send decision
+
+Date: 2026-08-10, Asia/Bishkek.
+
+Author: EVO Platform owner/executor.
+
+Block-ID: `EVO-MVP-CONTRACT-SYNC-2026-08-10`.
+
+Change type: docs-only authority sync for merge protocol, MVP send policy and
+next-block order.
+
+Affected plan sections: `docs/EVO_LAUNCH_PLAN.md` status/current-slice rules,
+`docs/EVO_PLATFORM_LONG_RUN_PLAN.md` execution checkpoint/merge protocol, and
+the active MVP sequence.
+
+Reason:
+
+- The accepted source of truth moved forward after PR #138 merged P5D private
+  media on `origin/main` `0032a99439bdd1cafdbefa99301fab67a7fc8aeb` with green
+  exact-main CI run `31369896660`.
+- The owner explicitly removed the scheduled Launch Auditor / controller-only
+  merge requirement for the active MVP lane and authorized direct progress with
+  one independent exact-head review plus exact-head CI.
+- The owner also changed the AI decision from global draft-only/manual-send to
+  autonomous sending constrained by the research-backed recommendation set.
+- The active authority docs still contained stale statements about
+  controller-only merges, globally draft-only AI, and the next P5 slice.
+
+Decision:
+
+- For the currently active owner-authorized MVP lane, the merge protocol is now:
+  one fresh independent read-only exact-head review, green exact-head GitHub
+  CI, a final refresh/recheck that `origin/main`, the PR base and the reviewed
+  head SHA still match the evidence, direct merge only of that reviewed head
+  SHA, then exact-main push-CI verification before the next block starts.
+- Older references to scheduled Launch Auditor / merge-controller workflow are
+  retained only as historical traceability unless restated inside an active
+  slice.
+- The current accepted checkpoint is `origin/main`
+  `0032a99439bdd1cafdbefa99301fab67a7fc8aeb` with contiguous migrations
+  `001-062`; PR #138 is part of the merged baseline.
+- The next bounded P5 slice is ACK/session projection plus private realtime
+  with reconnectable read-model fallback. It follows merged P5A/P5B/P5C/P5D
+  and still carries no real-provider proof.
+- Autonomous sending is authorized only in the constrained MVP form established
+  by the 2026-08-09 research notes:
+  - reply-only autonomy, not general outbound autonomy;
+  - only inside the WhatsApp 24-hour service window;
+  - Gemini returns structured proposals/decisions and never talks to WAHA
+    directly;
+  - deterministic server policy owns consent, opt-out, evidence, language,
+    confidence/risk, business-hours, cooldown/rate, takeover, session-health,
+    idempotency, policy-version and kill-switch checks;
+  - anything outside those gates becomes durable human-review/manual-send
+    handoff.
+- Cold outreach, autonomous re-engagement, broadcasts, out-of-window free-form
+  sends, and model-direct transport remain out of scope.
+
+Primary-source basis:
+
+- Supabase Realtime currently recommends Broadcast over Postgres Changes for
+  scalability and security, using private-channel authorization plus
+  `realtime.broadcast_changes()` triggers:
+  https://supabase.com/docs/guides/realtime/subscribing-to-database-changes
+- WAHA documents `POST /api/sendText`, reply anchoring via the same send guide,
+  and session-health gating around `session.status` / `WORKING`:
+  https://waha.devlike.pro/docs/how-to/send-messages/
+  https://waha.devlike.pro/docs/how-to/sessions/
+- Gemini structured outputs support JSON-schema-constrained responses, and the
+  current stable model guide lists `gemini-3.6-flash` as a stable production
+  target:
+  https://ai.google.dev/gemini-api/docs/structured-output
+  https://ai.google.dev/gemini-api/docs/models
+- amoCRM documents OAuth 2.0 as the authorization model for integrations:
+  https://www.amocrm.ru/developers/content/oauth/oauth
+
+Validation impact:
+
+- This amendment is docs-only. It changes no application/runtime code, schema,
+  migration, credential, provider surface, customer data, staging or production
+  state.
+- Each following implementation PR still requires exact-main refresh, focused
+  local validation, one independent exact-head read-only review, and green
+  exact-head CI before direct merge.
+- Real provider sends, WAHA QR/session mutation, amoCRM writes, auto-reply
+  enablement in production, and any deployment mutation remain separately gated
+  by explicit owner authority.
+
+## 2026-08-10 - P5E WAHA ACK/session projection and private Realtime
+
+Date: 2026-08-10, Asia/Bishkek.
+
+Author: EVO Platform owner/executor.
+
+Block-ID: `EVO-P5E-WAHA-ACK-SESSION-REALTIME-2026-08-10`.
+
+Source: PR #138 merged P5D at canonical `origin/main`
+`0032a99439bdd1cafdbefa99301fab67a7fc8aeb`; exact-main CI run `31369896660`
+passed Main CRM, EVO Inbox and EVO Lead Agent while Changed range was skipped
+on the push event as expected. This docs entry is ported into PR #140 so PR
+#140 supersedes the separate docs-only P5E authority PR and remains the single
+canonical MVP contract sync before the implementation head merges.
+
+Change type: bounded P5 implementation and evidence amendment. It does not
+change phase order, the accepted Claude Design UI, the ADR 0019 autonomous-send
+authority, the deferred P4B write/cutover boundary or any
+production/provider authorization.
+
+Decision:
+
+- Extend the existing disabled-by-default HMAC WAHA work processor so one
+  tenant/session-scoped lane can project verified `message`, `message.any`,
+  `message.ack` and `session.status` observations. Existing P5B message
+  projection semantics remain unchanged.
+- Require exact ACK provenance, private message binding and the documented
+  integer/name pairs `ERROR/-1`, `PENDING/0`, `SERVER/1`, `DEVICE/2`,
+  `READ/3` and `PLAYED/4`. Persist immutable private evidence; expose only safe
+  ACK state and observation time. Missing bindings retry safely; malformed,
+  cross-tenant, wrong-session, inbound-target or mismatched pairs fail closed.
+- Maintain a bounded current state for the exact `evo-inbox` session while
+  keeping raw provider payloads and `data` private. Observe only; never start,
+  restart, log out, pair, mark read or reconfigure WAHA.
+- Preserve idempotency and append-only evidence. A replay cannot duplicate an
+  effect and an older observation cannot regress current delivery/session
+  state.
+- Emit record-free private Database Broadcast invalidations on
+  `platform-messaging:<organization UUID>` for accepted conversation, message,
+  media and session changes. Realtime RLS allows authenticated receive access
+  only for the exact live organization and `communication.read.full`; no
+  browser insert/send policy exists.
+- Replace the seven-second Platform `/whatsapp` refresh loop with an
+  authenticated private channel. Subscribe, reconnect, visibility restore and
+  each invalidation trigger a bounded `router.refresh()` through the existing
+  server RPC/RLS truth path. Broadcast data is never merged directly into UI
+  state.
+- Show truthful ACK and session health inside the existing frontend and keep
+  raw WAHA/chat/message/contact/student identifiers out of Realtime payloads,
+  RPC rows and page content. Unknown session values must render
+  unhealthy/unknown, never healthy.
+- This block does not shorten or restate the autonomous-send checklist. The
+  complete deterministic gate set in ADR 0019 and
+  `EVO-MVP-AUTONOMOUS-INBOUND-PLAN-2026-08-09` remains authoritative for the
+  later AI/send lane.
+
+Validation impact:
+
+- Require focused worker/repository tests, exact ACK/session parser and replay
+  denial, disposable PostgreSQL RLS/grant/tenant/topic tests, no raw-ID
+  exposure, private receive-only Realtime authorization and accepted-browser
+  update-without-reload plus reconnect catch-up proof.
+- Rerun full local Supabase/Auth/Storage/PGMQ/browser coverage under the repo
+  singleton protocol, then lint/type/build, dependency audit, scoped secret
+  scan and `git diff --check`.
+- Synthetic local WAHA and Broadcast evidence prove only adapter,
+  authorization and UI integration. Real-provider proof remains `blocked`.
+- Rollback keeps P5E disabled, reverts worker/UI code and forward-fixes the
+  additive schema. It does not apply destructive down migration, mutate WAHA
+  session state, delete historical evidence or retire the frozen Lead Agent /
+  legacy rollback path.

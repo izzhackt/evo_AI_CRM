@@ -7,9 +7,12 @@ P2R0-P2R4 and P4A are merged. PR #118 merged the P4B docs-only contract, PR
 #128 merged the owner-authorized correction that keeps Student Profile document
 automation outside `evo_AI_CRM`, and PRs #129-#130 merged the local-validation
 prerequisite and repair, PR #132 merged the disabled-by-default P5A WAHA
-ingress, and PR #133 merged the disabled-by-default P5B projection. Current
-`origin/main` is `18e0e0855fda31cba1fa837d81b3a75cedd585e9`, migrations are contiguous
-`001-060`, and exact-main CI run `31323907123` is green for Main CRM, EVO Inbox
+ingress, PR #133 merged the disabled-by-default P5B projection, PR #137 merged
+the P5C available-history reconciliation lane, and PR #138 merged the
+disabled-by-default P5D private WAHA media archive and accepted media display.
+Current `origin/main` is
+`0032a99439bdd1cafdbefa99301fab67a7fc8aeb`, migrations are contiguous
+`001-062`, and exact-main CI run `31369896660` is green for Main CRM, EVO Inbox
 and EVO Lead Agent; Changed range is skipped on the push event as expected.
 
 P4B implementation is preserved on remote branch
@@ -20,28 +23,41 @@ failed closed in the real Auth/PostgREST hook before Playwright and is
 failed/non-evidence. The owner keeps P4B activation/writes deferred but resumes
 a bounded read-mostly P4R lane after the messaging foundation. P9 remains
 removed. Lead Agent, the legacy webhook/session path and rollback path remain
-deployed/frozen. P5B is merged without real-provider proof; available-history
-reconciliation is the next bounded P5 slice. This amendment authorizes no
-application code, migration, provider action, customer-data action or
-production mutation. Updated 2026-08-09 in the workspace timezone.
+deployed/frozen. P5D is merged without real-provider proof; the next bounded P5
+slice is ACK/session projection plus private realtime with reconnectable
+read-model fallback. This amendment authorizes no application code, migration,
+provider action, customer-data action or production mutation. Updated
+2026-08-10 in the workspace timezone.
 
-This document is the execution contract for launch-control work in this repo.
-The current detailed contract is
+This document is the execution contract for the current EVO Platform MVP lane in
+this repo. The current detailed contract is
 `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`. New implementation lanes are blocked
-until their plan and `docs/PLAN_CHANGES.md` amendment is independently reviewed
-and merged. If scope, architecture, API/schema, acceptance criteria, file
-ownership or merge order changes, stop the affected code change and merge a
-separate plan amendment first.
+until their plan and `docs/PLAN_CHANGES.md` amendment are independently
+reviewed and merged. If scope, architecture, API/schema, acceptance criteria,
+file ownership or merge order changes, stop the affected code change and merge
+a separate plan amendment first.
+
+For the currently active owner-authorized MVP lane, older references in this
+file to a scheduled Launch Auditor, controller-only merge, or globally
+draft-only/manual-send AI are historical unless restated inside the active
+slice. The superseding rule is:
+
+- one fresh independent read-only exact-head review is required;
+- exact-head GitHub CI must be green;
+- before merge, refresh `origin/main` and the PR base and confirm the reviewed
+  head SHA and reviewed base/main still match the evidence;
+- the executor may merge only that exact reviewed head directly;
+- exact-main push CI must then be re-verified before the next block starts.
 
 ## Current Goal Slice
 
 Active plan slice: `/goal-evo-platform-mvp-autonomous-inbound-plan`,
 Block `EVO-MVP-AUTONOMOUS-INBOUND-PLAN-2026-08-09`. This docs-only slice
 changes phase order, integration scope, AI authority, API/schema contract and
-acceptance. Before affected code can be merged, it must be
-independently reviewed, pass exact-head CI and be controller-merged. It must not
-change application/runtime code, schema, migrations, credentials, providers,
-customer data, staging or production.
+acceptance. Before affected code can be merged, it must be independently
+reviewed, pass exact-head CI, and be merged only at the reviewed head SHA. It
+must not change application/runtime code, schema, migrations, credentials,
+providers, customer data, staging or production.
 
 ### Goal
 
@@ -94,10 +110,12 @@ checkpoint is:
 - PR #119 is immutable merged history but PR #128 supersedes it as current
   product authority. PRs #120, #122 and #124 were removed by reviewed revert
   PRs #127, #126 and #125. PRs #129-#130 then merged the bounded local-validation
-  plan and repair. PR #132 merged the disabled-by-default P5A WAHA ingress, and
-  PR #133 merged the disabled-by-default P5B projection. Current `origin/main`
-  is `18e0e0855fda31cba1fa837d81b3a75cedd585e9`; exact-main CI
-  `31323907123` is green, and migrations end at `060`.
+  plan and repair. PR #132 merged the disabled-by-default P5A WAHA ingress,
+  PR #133 merged the disabled-by-default P5B projection, PR #137 merged the
+  P5C available-history reconciliation lane, and PR #138 merged the P5D private
+  WAHA media archive/display lane. Current `origin/main` is
+  `0032a99439bdd1cafdbefa99301fab67a7fc8aeb`; exact-main CI `31369896660` is
+  green, and migrations end at `062`.
 - P4B implementation is preserved on remote branch
   `izzhackt/evo-platform-p4b-mapping-approval` at
   `e53ba94954f147b295f596421a255591fa343ce8`, with no implementation PR.
@@ -141,8 +159,11 @@ checkpoint is:
 ### Immediate execution order
 
 0. Merge this docs-only governance amendment only after fresh exact-head
-   independent review and all required exact-head CI jobs. The executor may
-   then merge the reviewed SHA directly; require green exact-main push CI.
+   independent review and all required exact-head CI jobs. Before the merge
+   command, refresh `origin/main` and the PR base, confirm the reviewed head SHA
+   and reviewed base/main still match the evidence, then merge only that exact
+   reviewed SHA directly; otherwise rerun review/CI on the refreshed state.
+   Require green exact-main push CI after merge.
 1. Preserve P4B at
    `izzhackt/evo-platform-p4b-mapping-approval` / `e53ba94954f147b295f596421a255591fa343ce8`.
    Keep mapping activation and writes deferred. After the messaging foundation,
@@ -259,6 +280,54 @@ Rollback keeps the archive worker disabled, reverts server/UI code and
 forward-fixes additive schema. It does not delete archived objects or apply a
 destructive down migration. Real-provider completeness and production
 retention/restore remain blocked until separately authorized evidence exists.
+
+### P5E WAHA ACK/session projection and private Realtime authority and rollback contract
+
+Block `EVO-P5E-WAHA-ACK-SESSION-REALTIME-2026-08-10` keeps the accepted Claude
+Design `/whatsapp` UI and adds only the next bounded P5 truth path after P5D:
+durable ACK/session projection plus private Realtime invalidation. It consumes
+only already verified P5A signed WAHA work and exposes only safe delivery and
+session-health state through the existing server truth path:
+
+- the disabled-by-default server worker may project exact `message`,
+  `message.any`, `message.ack` and `session.status` observations for one
+  organization-bound, session-bound lane. Existing P5B message projection
+  semantics remain unchanged;
+- ACK projection requires the exact documented integer/name pairs
+  `ERROR/-1`, `PENDING/0`, `SERVER/1`, `DEVICE/2`, `READ/3` and `PLAYED/4`,
+  plus exact private message binding and observation time. Missing bindings,
+  cross-tenant/session mismatches, malformed pairs, inbound targets or stale
+  regressions fail closed;
+- current session health is bounded to the exact `evo-inbox` session and is
+  observe-only. The Platform may not start, restart, log out, pair, mark read
+  or reconfigure WAHA in this block;
+- record-free private Database Broadcast invalidations may be emitted only on
+  `platform-messaging:<organization UUID>`. Browser subscribers are
+  receive-only and authenticated; no browser send/insert permission exists;
+- Broadcast data is an invalidation hint only. The browser must refetch
+  authoritative RLS-scoped state after subscribe, reconnect, visibility restore
+  and accepted invalidation through bounded `router.refresh()`. Payload fields
+  never merge directly into UI state;
+- the accepted UI may show safe ACK name/time and safe session health, but raw
+  WAHA chat/message/contact identifiers and raw provider payloads remain
+  private. Unknown session values render unhealthy/unknown, never healthy;
+- this block does not authorize provider send/read markers, amoCRM writes,
+  production mutation, legacy-path retirement or any change to the autonomous
+  send gate. The later AI/send lane still follows the ADR 0019 deterministic
+  reply-only policy.
+
+Validation requires focused ACK/session parser and replay-denial tests,
+disposable PostgreSQL RLS/grant/topic checks, no raw-ID exposure proof,
+private receive-only Realtime authorization, accepted browser update without
+reload plus reconnect catch-up proof, and the full local Supabase/Auth/Storage/
+PGMQ/browser gate under the repo singleton protocol. Synthetic local WAHA and
+Broadcast evidence prove only the adapter, authorization and UI integration;
+real-provider proof remains blocked.
+
+Rollback keeps P5E disabled, reverts worker/UI code and forward-fixes additive
+schema. It does not apply destructive down migration, mutate WAHA session
+state, delete historical evidence or retire the frozen Lead Agent / legacy
+rollback path.
 
 ### Merged P2R3 acceptance record
 
@@ -843,7 +912,10 @@ append-only plan amendment explicitly adds them.
 - No frontend success state claims a real amoCRM, WAHA, Supabase, AI or
   telephony result unless that real service was exercised.
 - Sales stages and operational student stages remain visibly distinct.
-- AI drafts cannot auto-send and the manual-send boundary is explicit.
+- AI auto-send remains blocked unless the currently active owner-authorized MVP
+  autonomous-reply slice explicitly permits it under its reply-only,
+  policy-gated boundary; outside that slice, the manual-send boundary is
+  explicit.
 - The root application lint, build and affected automated/browser tests pass.
 
 ### Merge order and stop conditions
@@ -1714,7 +1786,7 @@ Named write set:
 
 ## EVO Platform Post-Design Review Polish Slice
 
-Active slice: `/goal-evo-platform-design-polish`.
+Historical completed slice: `/goal-evo-platform-design-polish`.
 
 This slice applies the independent Claude Design review dated 2026-07-25 to
 the already-merged unified frontend. It is a frontend refinement pass, not a
@@ -1724,7 +1796,8 @@ rebuild. The reviewed baseline is `origin/main` at
 ### Product and technical boundaries
 
 - amoCRM remains canonical for lead/contact identity and sales stage.
-- AI customer replies remain draft-only and require explicit operator send.
+- For this historical design-polish slice, AI customer replies remained
+  draft-only and required explicit operator send.
 - Provider status remains honest; no WAHA, amoCRM, AI, telephony, storage or
   payment connection may be presented as verified without a real exercise.
 - Existing roles and server-side authorization are unchanged.

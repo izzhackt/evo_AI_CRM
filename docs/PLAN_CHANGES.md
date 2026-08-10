@@ -4792,3 +4792,168 @@ Rollback:
 - do not apply a destructive database down migration;
 - P4B stays preserved/deferred, and Lead Agent plus the legacy webhook/session
   rollback path stay frozen and available.
+
+## 2026-08-10 - P5F AI memory and bounded autonomous reply lane
+
+Date: 2026-08-10, Asia/Bishkek.
+
+Author: EVO Platform owner/executor.
+
+Block-ID: `EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10`.
+
+Change type: docs-only authority amendment for the post-P4R1 AI-memory and
+bounded autonomous-reply lane.
+
+Affected plan sections: `docs/EVO_LAUNCH_PLAN.md` current baseline, next block
+order and P5F authority; `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` P5 decomposition
+and autonomous-reply implementation order; new
+`docs/platform/p5f-ai-memory-reply-lane.md` focused implementation contract;
+`docs/platform/current-status.md` current accepted base and next safe gate.
+
+Checkpoint:
+
+- PR #142 merged P4R1 at `origin/main`
+  `8cf46a94b79e8bc24ad49b30606753a690ea5469`;
+- exact-main CI run `31402664864` is green for Main CRM, EVO Inbox and EVO Lead
+  Agent; Changed range is skipped on the push event as expected;
+- migrations are contiguous `001-064`;
+- P4B remains preserved at
+  `izzhackt/evo-platform-p4b-mapping-approval` /
+  `e53ba94954f147b295f596421a255591fa343ce8`;
+- Lead Agent, the legacy webhook/session path and rollback path remain
+  deployed/frozen; P9 remains removed.
+
+Reason:
+
+- The merged messaging foundation now covers ingress, projection, available
+  history, private media, ACK/session state and private Realtime. The next thin
+  vertical slice is Platform-owned AI memory and bounded autonomous reply,
+  not broad Inbox parity or deferred amoCRM writes.
+- The owner explicitly authorized autonomous reply code, but the repository
+  still needs a small, falsifiable authority split before implementation so
+  memory, model proposal and send authority do not collapse into one oversized
+  PR.
+- The accepted frontend contract, P4B deferral, real-provider honesty and
+  frozen Lead Agent/rollback boundaries must remain explicit before any AI
+  block starts.
+
+Decision:
+
+- The next required block after merged P4R1 is docs-only
+  `EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10`.
+- P5F SHALL be implemented in three independently reviewed slices:
+  - `P5F1` — Platform-owned durable conversation-scoped memory, approved-
+    knowledge chunks, retrieval audit, RLS and pgvector foundation;
+  - `P5F2` — stateless Gemini structured RU/EN qualification/reply proposal
+    adapter;
+  - `P5F3` — deterministic policy-only durable `reply_to` send intents and
+    worker.
+- Supabase SHALL own durable memory, retrieval evidence, send-intent evidence,
+  ACK/session linkage, pause/resume state and audit. Per-client filesystem
+  agents SHALL NOT be introduced, and Gemini server-side state/cache SHALL NOT
+  be a source of truth.
+- `P5F1` SHALL add additive migration `065` only for staff-controlled memory,
+  approved-knowledge chunks, retrieval audit, RLS and pgvector. The embedding
+  target SHALL be `gemini-embedding-2` at a fixed `1536` dimensions. Provider
+  ingestion remains disabled by default and real provider proof remains
+  blocked. Any lexical-only retrieval preview SHALL be explicit degraded staff
+  preview only and SHALL NOT authorize autonomous replies.
+- `P5F2` SHALL use stateless Gemini Interactions with storage disabled
+  (`store=false`) and a runtime-configured allowlist. The P5F-specific initial
+  sanctioned model is the owner-named `gemini-3.5-flash`. Google's current
+  catalog also lists `gemini-3.6-flash` as stable, but the older generic target
+  note does not authorize it for P5F without a separate eval and plan update.
+  The adapter SHALL use bounded context/token budgets and JSON-schema
+  structured RU/EN proposals. Gemini SHALL NOT call WAHA, SHALL NOT own retries
+  and SHALL NOT imply send success.
+- `P5F3` SHALL make deterministic Platform policy the only authority that can
+  create a durable WAHA `reply_to` send intent. It SHALL re-check mutable
+  conditions immediately before transport. The allowed send shape remains the
+  same conversation and exact inbound trigger, `<=24h` service window,
+  consent/opt-out pass, approved citations/evidence, known language,
+  confidence/risk pass, business-hours pass, cooldown/rate pass,
+  takeover/pause clear, session-health pass, unused idempotency key, matching
+  policy version, explicit autonomous-reply runtime enablement and an emergency
+  stop/kill switch that is not engaged. Media-only, unsupported or ambiguous
+  input SHALL fail closed to human review.
+- No mock provider success, fake embeddings/retrieval, SQLite fallback,
+  hardcoded amoCRM mapping or silent degraded fallback may substitute for
+  missing proof or configuration.
+- P6, P7, narrowed P8 and P10 continue only after the P5F implementation
+  slices are accepted.
+
+Primary-source basis:
+
+- Gemini Interactions:
+  https://ai.google.dev/gemini-api/docs/interactions-overview
+- Gemini model catalog:
+  https://ai.google.dev/gemini-api/docs/models
+- Gemini structured output:
+  https://ai.google.dev/gemini-api/docs/structured-output
+- Gemini function calling:
+  https://ai.google.dev/gemini-api/docs/function-calling
+- Gemini embeddings:
+  https://ai.google.dev/gemini-api/docs/embeddings
+- Gemini Embedding 2 model contract:
+  https://ai.google.dev/gemini-api/docs/models/gemini-embedding-2
+- Gemini caching:
+  https://ai.google.dev/gemini-api/docs/caching
+- Gemini tokens:
+  https://ai.google.dev/gemini-api/docs/tokens
+- Gemini generate-content quickstart:
+  https://ai.google.dev/gemini-api/docs/generate-content/get-started
+- Supabase semantic search:
+  https://supabase.com/docs/guides/ai/semantic-search
+- Supabase hybrid search:
+  https://supabase.com/docs/guides/ai/hybrid-search
+- Supabase RAG with permissions:
+  https://supabase.com/docs/guides/ai/rag-with-permissions
+- Supabase pgvector:
+  https://supabase.com/docs/guides/database/extensions/pgvector
+- Supabase RLS:
+  https://supabase.com/docs/guides/database/postgres/row-level-security
+- Supabase Queues:
+  https://supabase.com/docs/guides/queues
+- Supabase Realtime:
+  https://supabase.com/docs/guides/realtime/subscribing-to-database-changes
+- WAHA receive messages:
+  https://waha.devlike.pro/docs/how-to/receive-messages/
+- WAHA events:
+  https://waha.devlike.pro/docs/how-to/events/
+- WAHA send messages:
+  https://waha.devlike.pro/docs/how-to/send-messages/
+- WAHA session health:
+  https://waha.devlike.pro/docs/how-to/sessions/
+- WAHA blocking avoidance:
+  https://waha.devlike.pro/docs/overview/how-to-avoid-blocking/
+- Meta WhatsApp customer service window:
+  https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages
+
+Validation impact:
+
+- This amendment is docs-only. It changes no product code, migration,
+  configuration, credential, provider surface, customer data, staging or
+  production state.
+- Each P5F implementation slice still requires focused local validation, one
+  fresh independent exact-head read-only review, green exact-head CI and exact-
+  main CI before the next slice starts.
+- Real provider execution, live customer sends, production enablement, WAHA
+  session mutation and amoCRM writes remain separate blocked events that
+  require explicit later authority.
+
+Non-goals and blocked proof:
+
+- no cold outbound, campaign/broadcast, autonomous follow-up/re-engagement,
+  out-of-window free-form send or model-direct transport;
+- no broad Inbox CRM/funnel/automation surfaces;
+- no P4B activation/writes, amoCRM task/call/chat writes or canonical handoff;
+- no production enablement or live customer send proof in this amendment;
+- no claim that lexical-only retrieval preview is equivalent to approved
+  pgvector retrieval or sufficient for autonomous send.
+
+Rollback note:
+
+- This amendment changes authority only. If a later P5F implementation slice
+  proves wrong, rollback SHALL keep runtime flags off, revert code and
+  forward-fix additive schema. Lead Agent and the legacy rollback path remain
+  frozen and available throughout the lane.

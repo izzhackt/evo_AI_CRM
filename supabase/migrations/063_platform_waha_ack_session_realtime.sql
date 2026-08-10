@@ -8,28 +8,6 @@
 
 BEGIN;
 
-ALTER TABLE platform.communication_messages
-  ADD COLUMN waha_ack_name TEXT,
-  ADD COLUMN waha_ack_observed_at TIMESTAMPTZ,
-  ADD CONSTRAINT communication_messages_waha_ack_shape_check CHECK (
-    (
-      waha_ack_name IS NULL
-      AND waha_ack_observed_at IS NULL
-    )
-    OR (
-      direction = 'outbound'
-      AND waha_ack_name IN (
-        'ERROR',
-        'PENDING',
-        'SERVER',
-        'DEVICE',
-        'READ',
-        'PLAYED'
-      )
-      AND waha_ack_observed_at IS NOT NULL
-    )
-  );
-
 -- This exposed-schema table contains only the bounded current health tuple.
 -- Provider payload data, passkeys, account identity and source-event IDs are
 -- intentionally absent and are available only through private evidence.
@@ -90,6 +68,36 @@ CREATE INDEX waha_ack_observations_message_idx
     communication_message_id,
     observed_at DESC
   );
+
+-- This exposed-schema table contains only the bounded current ACK tuple shown
+-- by the accepted staff UI. Raw provider identity stays in immutable private
+-- observations and the append-only binding ledger.
+CREATE TABLE platform.waha_message_ack_current (
+  organization_id UUID NOT NULL
+    REFERENCES platform.organizations(id) ON DELETE RESTRICT,
+  communication_message_id UUID NOT NULL,
+  waha_ack_name TEXT NOT NULL CHECK (
+    waha_ack_name IN (
+      'ERROR',
+      'PENDING',
+      'SERVER',
+      'DEVICE',
+      'READ',
+      'PLAYED'
+    )
+  ),
+  waha_ack_observed_at TIMESTAMPTZ NOT NULL,
+  source_observation_id UUID NOT NULL,
+  PRIMARY KEY (organization_id, communication_message_id),
+  CONSTRAINT waha_message_ack_current_message_fkey
+    FOREIGN KEY (organization_id, communication_message_id)
+    REFERENCES platform.communication_messages(organization_id, id)
+    ON DELETE RESTRICT,
+  CONSTRAINT waha_message_ack_current_source_fkey
+    FOREIGN KEY (organization_id, source_observation_id)
+    REFERENCES platform_private.waha_ack_observations(organization_id, id)
+    ON DELETE RESTRICT
+);
 
 CREATE TABLE platform_private.waha_session_observations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -208,6 +216,10 @@ CREATE INDEX waha_event_projection_requests_attempt_idx
 ALTER TABLE platform.waha_session_health
   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform.waha_session_health
+  FORCE ROW LEVEL SECURITY;
+ALTER TABLE platform.waha_message_ack_current
+  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform.waha_message_ack_current
   FORCE ROW LEVEL SECURITY;
 ALTER TABLE platform_private.waha_ack_observations
   ENABLE ROW LEVEL SECURITY;
@@ -800,6 +812,8 @@ DECLARE
   ack_code INTEGER;
   ack_name TEXT;
   expected_ack_name TEXT;
+  expected_ack_code INTEGER;
+  ack_observation_id UUID;
   session_status TEXT;
   current_session_health platform.waha_session_health%ROWTYPE;
   changed_rows INTEGER := 0;
@@ -1063,6 +1077,7 @@ BEGIN
         WHEN 3 THEN 'READ'
         WHEN 4 THEN 'PLAYED'
       END;
+      expected_ack_code := ack_code;
 
       IF ack_name IS DISTINCT FROM expected_ack_name
         OR source_event.provider_event_variant_ref IS NULL
@@ -1157,35 +1172,49 @@ BEGIN
         expected_ack_name,
         source_event.provider_occurred_at,
         p_request_id
-      );
+      )
+      RETURNING id INTO ack_observation_id;
 
-      UPDATE platform.communication_messages AS message
+      INSERT INTO platform.waha_message_ack_current AS ack_current (
+        organization_id,
+        communication_message_id,
+        waha_ack_name,
+        waha_ack_observed_at,
+        source_observation_id
+      )
+      VALUES (
+        p_organization_id,
+        message_row.id,
+        expected_ack_name,
+        source_event.provider_occurred_at,
+        ack_observation_id
+      )
+      ON CONFLICT (organization_id, communication_message_id)
+      DO UPDATE
       SET
-        waha_ack_name = expected_ack_name,
-        waha_ack_observed_at = source_event.provider_occurred_at
-      WHERE message.organization_id = p_organization_id
-        AND message.id = message_row.id
-        AND (
-          message.waha_ack_name IS NULL
-          OR (
-            message.waha_ack_name = expected_ack_name
-            AND source_event.provider_occurred_at >
-              message.waha_ack_observed_at
-          )
-          OR (
-            message.waha_ack_name = 'PENDING'
-            AND expected_ack_name <> 'PENDING'
-          )
-          OR (
-            message.waha_ack_name IN ('SERVER', 'DEVICE', 'READ', 'PLAYED')
-            AND expected_ack_name IN ('SERVER', 'DEVICE', 'READ', 'PLAYED')
-            AND ack_code > CASE message.waha_ack_name
-              WHEN 'SERVER' THEN 1
-              WHEN 'DEVICE' THEN 2
-              WHEN 'READ' THEN 3
-              WHEN 'PLAYED' THEN 4
-            END
-          )
+        waha_ack_name = EXCLUDED.waha_ack_name,
+        waha_ack_observed_at = EXCLUDED.waha_ack_observed_at,
+        source_observation_id = EXCLUDED.source_observation_id
+      WHERE
+        ack_current.waha_ack_name IS NULL
+        OR (
+          ack_current.waha_ack_name = EXCLUDED.waha_ack_name
+          AND EXCLUDED.waha_ack_observed_at >
+            ack_current.waha_ack_observed_at
+        )
+        OR (
+          ack_current.waha_ack_name = 'PENDING'
+          AND EXCLUDED.waha_ack_name <> 'PENDING'
+        )
+        OR (
+          ack_current.waha_ack_name IN ('SERVER', 'DEVICE', 'READ', 'PLAYED')
+          AND EXCLUDED.waha_ack_name IN ('SERVER', 'DEVICE', 'READ', 'PLAYED')
+          AND expected_ack_code > CASE ack_current.waha_ack_name
+            WHEN 'SERVER' THEN 1
+            WHEN 'DEVICE' THEN 2
+            WHEN 'READ' THEN 3
+            WHEN 'PLAYED' THEN 4
+          END
         );
       GET DIAGNOSTICS changed_rows = ROW_COUNT;
 
@@ -1527,9 +1556,12 @@ BEGIN
     message.amocrm_contact_id,
     message.created_at,
     COALESCE(media_rows.media, '[]'::JSONB),
-    message.waha_ack_name,
-    message.waha_ack_observed_at
+    ack_current.waha_ack_name,
+    ack_current.waha_ack_observed_at
   FROM platform.communication_messages AS message
+  LEFT JOIN platform.waha_message_ack_current AS ack_current
+    ON ack_current.organization_id = message.organization_id
+   AND ack_current.communication_message_id = message.id
   LEFT JOIN LATERAL (
     SELECT jsonb_agg(
       jsonb_build_object(
@@ -1683,6 +1715,13 @@ CREATE TRIGGER communication_message_media_realtime_invalidate
   EXECUTE FUNCTION
     platform_private.broadcast_platform_messaging_invalidation('media');
 
+CREATE TRIGGER waha_message_ack_current_realtime_invalidate
+  AFTER INSERT OR UPDATE OR DELETE
+  ON platform.waha_message_ack_current
+  FOR EACH ROW
+  EXECUTE FUNCTION
+    platform_private.broadcast_platform_messaging_invalidation('message');
+
 CREATE TRIGGER waha_session_health_realtime_invalidate
   AFTER INSERT OR UPDATE OR DELETE
   ON platform.waha_session_health
@@ -1715,6 +1754,7 @@ REVOKE ALL ON FUNCTION realtime.send(JSONB, TEXT, TEXT, BOOLEAN)
   FROM PUBLIC, anon, authenticated, service_role;
 
 REVOKE ALL ON TABLE
+  platform.waha_message_ack_current,
   platform.waha_session_health,
   platform_private.waha_ack_observations,
   platform_private.waha_session_observations,
@@ -1778,10 +1818,8 @@ GRANT EXECUTE ON FUNCTION
   platform_private.can_subscribe_platform_messaging(TEXT)
 TO authenticated;
 
-COMMENT ON COLUMN platform.communication_messages.waha_ack_name IS
-  'Latest non-regressed exact WAHA ACK name; raw provider message identity remains private.';
-COMMENT ON COLUMN platform.communication_messages.waha_ack_observed_at IS
-  'Provider observation time corresponding to waha_ack_name.';
+COMMENT ON TABLE platform.waha_message_ack_current IS
+  'Safe current exact ACK tuple for one outbound message; raw provider identity remains private and immutable.';
 COMMENT ON TABLE platform.waha_session_health IS
   'Safe current exact evo-inbox status tuple; raw WAHA payload data and passkeys are never stored here.';
 COMMENT ON TABLE platform_private.waha_ack_observations IS

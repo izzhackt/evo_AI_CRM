@@ -115,6 +115,136 @@ WHERE binding.organization_id = :'org_a_id'
   AND message.direction = 'outbound'
 \gset
 
+-- Give the independent positive-rank ACK sequence its own legitimate
+-- read-only history message. Reusing only the original source event would
+-- violate the deferred history-binding proof at commit time.
+SELECT
+  observation.run_id AS positive_outbound_run_id,
+  observation.normalized_chat_id AS positive_outbound_chat_id,
+  message.conversation_id AS positive_outbound_conversation_id,
+  message.sender_participant_id AS positive_outbound_sender_id,
+  message.language::TEXT AS positive_outbound_language
+FROM platform_private.waha_history_message_observations AS observation
+JOIN platform.communication_messages AS message
+  ON message.organization_id = observation.organization_id
+ AND message.id = observation.communication_message_id
+WHERE observation.organization_id = :'org_a_id'
+  AND observation.raw_message_id = 'p5c-history-outbound-1'
+\gset
+
+SELECT jsonb_build_object(
+  'provenance', 'api_history',
+  'read_only', TRUE,
+  'session', 'evo-inbox',
+  'chat_id', :'positive_outbound_chat_id',
+  'message', jsonb_build_object(
+    'raw_message_id', 'p5e-ack-outbound-2',
+    'direction', 'outbound',
+    'occurred_at', '2026-08-10T09:30:00+06:00',
+    'body_text', 'Synthetic P5E positive-rank outbound fixture',
+    'has_media', FALSE
+  )
+)::TEXT AS positive_outbound_raw_envelope
+\gset
+
+SELECT encode(
+  sha256(convert_to(:'positive_outbound_raw_envelope'::JSONB::TEXT, 'UTF8')),
+  'hex'
+) AS positive_outbound_payload_sha256
+\gset
+
+INSERT INTO platform_private.provider_webhook_events (
+  id, organization_id, provider, provider_account_ref,
+  provider_conversation_ref, provider_event_variant_ref,
+  provider_request_id, waha_session_name, payload_id, event_type,
+  provider_occurred_at, verification_status, raw_payload,
+  verification_headers, verification_evidence_ref, payload_sha256,
+  request_id
+) VALUES (
+  '46310000-0000-4000-8000-000000000001', :'org_a_id', 'waha',
+  'waha:evo-inbox', NULL, NULL, 'synthetic:p5e:history-request',
+  'evo-inbox', 'p5e-ack-outbound-2', 'history.message',
+  '2026-08-10T09:30:00+06:00', 'missing',
+  :'positive_outbound_raw_envelope'::JSONB,
+  '{"provenance":"api_history","webhook_verified":false,"read_only":true}',
+  'synthetic:p5e:history-read', :'positive_outbound_payload_sha256',
+  '46310000-0000-4000-8000-000000000002'
+);
+
+INSERT INTO platform.communication_messages (
+  id, organization_id, conversation_id, student_case_id,
+  sender_participant_id, direction, body_text, language, student_visible,
+  message_identity_source, waha_session_name, waha_message_id,
+  kommo_account_id, kommo_conversation_id, kommo_message_id,
+  amocrm_account_id, amocrm_lead_id, amocrm_contact_id,
+  source_webhook_event_id, manual_send_authorization_id, created_at
+)
+SELECT
+  '46310000-0000-4000-8000-000000000003',
+  :'org_a_id',
+  :'positive_outbound_conversation_id',
+  message.student_case_id,
+  :'positive_outbound_sender_id',
+  'outbound',
+  'Synthetic P5E positive-rank outbound fixture',
+  :'positive_outbound_language'::platform.communication_message_language,
+  FALSE,
+  'private_waha_history_binding',
+  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+  '46310000-0000-4000-8000-000000000001',
+  NULL,
+  '2026-08-10T09:30:00+06:00'
+FROM platform.communication_messages AS message
+WHERE message.organization_id = :'org_a_id'
+  AND message.id = :'outbound_message_id';
+
+INSERT INTO platform_private.waha_message_bindings (
+  organization_id, waha_session_name, raw_message_id,
+  communication_message_id, source_webhook_event_id
+) VALUES (
+  :'org_a_id', 'evo-inbox', 'p5e-ack-outbound-2',
+  '46310000-0000-4000-8000-000000000003',
+  '46310000-0000-4000-8000-000000000001'
+);
+
+INSERT INTO platform_private.waha_history_message_observations (
+  organization_id, run_id, waha_session_name, normalized_chat_id,
+  raw_message_id, direction, provider_occurred_at, source_event_id,
+  communication_message_id, payload_sha256, page_request_id
+) VALUES (
+  :'org_a_id', :'positive_outbound_run_id', 'evo-inbox',
+  :'positive_outbound_chat_id', 'p5e-ack-outbound-2', 'outbound',
+  '2026-08-10T09:30:00+06:00',
+  '46310000-0000-4000-8000-000000000001',
+  '46310000-0000-4000-8000-000000000003',
+  :'positive_outbound_payload_sha256',
+  '46310000-0000-4000-8000-000000000004'
+);
+
+INSERT INTO platform_private.waha_history_projection_effects (
+  organization_id, run_id, source_event_id, communication_message_id,
+  disposition, payload_sha256, page_request_id
+) VALUES (
+  :'org_a_id', :'positive_outbound_run_id',
+  '46310000-0000-4000-8000-000000000001',
+  '46310000-0000-4000-8000-000000000003', 'projected',
+  :'positive_outbound_payload_sha256',
+  '46310000-0000-4000-8000-000000000004'
+);
+
+SELECT
+  binding.communication_message_id AS positive_outbound_message_id,
+  message.conversation_id AS positive_outbound_conversation_id
+FROM platform_private.waha_message_bindings AS binding
+JOIN platform.communication_messages AS message
+  ON message.organization_id = binding.organization_id
+ AND message.id = binding.communication_message_id
+WHERE binding.organization_id = :'org_a_id'
+  AND binding.waha_session_name = 'evo-inbox'
+  AND binding.raw_message_id = 'p5e-ack-outbound-2'
+  AND message.direction = 'outbound'
+\gset
+
 SELECT jsonb_build_object(
   'role', 'authenticated',
   'sub', '4b500000-0000-4000-8000-000000000003',
@@ -174,6 +304,31 @@ SELECT pg_temp.assert_true(
     'SELECT'
   )
   AND NOT has_table_privilege(
+    'authenticated',
+    'platform.waha_message_ack_current',
+    'SELECT'
+  )
+  AND NOT has_table_privilege(
+    'service_role',
+    'platform.waha_message_ack_current',
+    'SELECT'
+  )
+  AND NOT has_table_privilege(
+    'service_role',
+    'platform.waha_message_ack_current',
+    'INSERT'
+  )
+  AND NOT has_table_privilege(
+    'service_role',
+    'platform.waha_message_ack_current',
+    'UPDATE'
+  )
+  AND NOT has_table_privilege(
+    'service_role',
+    'platform.waha_message_ack_current',
+    'DELETE'
+  )
+  AND NOT has_table_privilege(
     'service_role',
     'platform_private.waha_ack_observations',
     'SELECT'
@@ -194,6 +349,30 @@ SELECT pg_temp.assert_true(
     'INSERT'
   ),
   'P5E evidence, current state or Realtime send grants are too broad'
+);
+
+SELECT pg_temp.assert_true(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns AS column_row
+    WHERE column_row.table_schema = 'platform'
+      AND column_row.table_name = 'communication_messages'
+      AND column_row.column_name IN (
+        'waha_ack_name',
+        'waha_ack_observed_at'
+      )
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM pg_class AS relation
+    JOIN pg_namespace AS namespace
+      ON namespace.oid = relation.relnamespace
+    WHERE namespace.nspname = 'platform'
+      AND relation.relname = 'waha_message_ack_current'
+      AND relation.relrowsecurity
+      AND relation.relforcerowsecurity
+  ),
+  'immutable messages regained mutable ACK columns or current ACK RLS drifted'
 );
 
 SELECT pg_temp.assert_true(
@@ -257,9 +436,9 @@ VALUES
     '46300000-0000-4000-8000-000000000001',
     :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'read',
     'synthetic-p5e-ack-read', 'evo-inbox',
-    'p5c-history-outbound-1', 'message.ack',
+    'p5e-ack-outbound-2', 'message.ack',
     '2026-08-10 10:10:00+06', 'verified',
-    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5c-history-outbound-1","fromMe":true,"ack":3,"ackName":"READ"}}',
+    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5e-ack-outbound-2","fromMe":true,"ack":3,"ackName":"READ"}}',
     '{"hmac_verified":true}', 'synthetic:p5e:ack-read',
     repeat('a1', 32), '46300000-0000-4000-8000-000000000101'
   ),
@@ -267,9 +446,9 @@ VALUES
     '46300000-0000-4000-8000-000000000002',
     :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'device',
     'synthetic-p5e-ack-older-device', 'evo-inbox',
-    'p5c-history-outbound-1', 'message.ack',
+    'p5e-ack-outbound-2', 'message.ack',
     '2026-08-10 10:09:00+06', 'verified',
-    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5c-history-outbound-1","fromMe":true,"ack":2,"ackName":"DEVICE"}}',
+    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5e-ack-outbound-2","fromMe":true,"ack":2,"ackName":"DEVICE"}}',
     '{"hmac_verified":true}', 'synthetic:p5e:ack-older',
     repeat('a2', 32), '46300000-0000-4000-8000-000000000102'
   ),
@@ -277,9 +456,9 @@ VALUES
     '46300000-0000-4000-8000-000000000003',
     :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'read-mismatch',
     'synthetic-p5e-ack-mismatch', 'evo-inbox',
-    'p5c-history-outbound-1', 'message.ack',
+    'p5e-ack-outbound-2', 'message.ack',
     '2026-08-10 10:11:00+06', 'verified',
-    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5c-history-outbound-1","fromMe":true,"ack":2,"ackName":"READ"}}',
+    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5e-ack-outbound-2","fromMe":true,"ack":2,"ackName":"READ"}}',
     '{"hmac_verified":true}', 'synthetic:p5e:ack-mismatch',
     repeat('a3', 32), '46300000-0000-4000-8000-000000000103'
   ),
@@ -366,7 +545,7 @@ VALUES
     'local-message-ack-delivery:' || repeat('b1', 32) || ':' ||
       repeat('c1', 32),
     'message.ack', '2026-08-10 10:08:00+06', 'verified',
-    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5c-history-outbound-1","fromMe":true,"ack":4,"ackName":"PLAYED"}}',
+    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5e-ack-outbound-2","fromMe":true,"ack":4,"ackName":"PLAYED"}}',
     '{"hmac_verified":true}', 'synthetic:p5e:ack-timestampless',
     repeat('b1', 32), '46300000-0000-4000-8000-000000000111'
   ),
@@ -377,7 +556,7 @@ VALUES
     'local-message-ack-delivery:' || repeat('ff', 32) || ':' ||
       repeat('c2', 32),
     'message.ack', '2026-08-10 10:25:00+06', 'verified',
-    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5c-history-outbound-1","fromMe":true,"ack":2,"ackName":"DEVICE"}}',
+    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5e-ack-outbound-2","fromMe":true,"ack":2,"ackName":"DEVICE"}}',
     '{"hmac_verified":true}', 'synthetic:p5e:ack-alias-invalid',
     repeat('b2', 32), '46300000-0000-4000-8000-000000000112'
   ),
@@ -385,9 +564,9 @@ VALUES
     '46300000-0000-4000-8000-000000000013',
     :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'server',
     'synthetic-p5e-ack-later-lower', 'evo-inbox',
-    'p5c-history-outbound-1', 'message.ack',
+    'p5e-ack-outbound-2', 'message.ack',
     '2026-08-10 10:30:00+06', 'verified',
-    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5c-history-outbound-1","fromMe":true,"ack":1,"ackName":"SERVER"}}',
+    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5e-ack-outbound-2","fromMe":true,"ack":1,"ackName":"SERVER"}}',
     '{"hmac_verified":true}', 'synthetic:p5e:ack-later-lower',
     repeat('b3', 32), '46300000-0000-4000-8000-000000000113'
   ),
@@ -395,9 +574,9 @@ VALUES
     '46300000-0000-4000-8000-000000000014',
     :'org_a_id', 'waha', 'waha:evo-inbox', NULL, 'error',
     'synthetic-p5e-ack-late-error', 'evo-inbox',
-    'p5c-history-outbound-1', 'message.ack',
+    'p5e-ack-outbound-2', 'message.ack',
     '2026-08-10 10:31:00+06', 'verified',
-    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5c-history-outbound-1","fromMe":true,"ack":-1,"ackName":"ERROR"}}',
+    '{"event":"message.ack","session":"evo-inbox","payload":{"id":"p5e-ack-outbound-2","fromMe":true,"ack":-1,"ackName":"ERROR"}}',
     '{"hmac_verified":true}', 'synthetic:p5e:ack-late-error',
     repeat('b4', 32), '46300000-0000-4000-8000-000000000114'
   ),
@@ -607,20 +786,12 @@ SELECT pg_temp.assert_true(
     '{projection,current_state_updated}')::BOOLEAN
   AND NOT (:'ack_positive_after_error_run'::JSONB #>>
     '{projection,current_state_updated}')::BOOLEAN
-  AND message.waha_ack_name = 'ERROR'
-  AND message.waha_ack_observed_at =
+  AND current_ack.waha_ack_name = 'ERROR'
+  AND current_ack.waha_ack_observed_at =
     '2026-08-10 10:01:00+06'::TIMESTAMPTZ
-FROM platform.communication_messages AS message
-WHERE message.organization_id = :'org_a_id'
-  AND message.id = :'outbound_message_id';
-
--- Reset only the public derived fixture so the independent rank sequence can
--- start from an empty state. Immutable observations above remain untouched.
-UPDATE platform.communication_messages
-SET waha_ack_name = NULL,
-    waha_ack_observed_at = NULL
-WHERE organization_id = :'org_a_id'
-  AND id = :'outbound_message_id';
+FROM platform.waha_message_ack_current AS current_ack
+WHERE current_ack.organization_id = :'org_a_id'
+  AND current_ack.communication_message_id = :'outbound_message_id';
 
 SET request.jwt.claims TO '{"role":"service_role"}';
 SET ROLE service_role;
@@ -983,16 +1154,39 @@ SELECT pg_temp.assert_true(
 );
 
 SELECT pg_temp.assert_true(
-  message.waha_ack_name = 'PLAYED'
-  AND message.waha_ack_observed_at =
+  current_ack.waha_ack_name = 'PLAYED'
+  AND current_ack.waha_ack_observed_at =
     '2026-08-10 10:08:00+06'::TIMESTAMPTZ
-  AND message.waha_message_id IS NULL
-FROM platform.communication_messages AS message
-WHERE message.organization_id = :'org_a_id'
-  AND message.id = :'outbound_message_id';
+FROM platform.waha_message_ack_current AS current_ack
+WHERE current_ack.organization_id = :'org_a_id'
+  AND current_ack.communication_message_id = :'positive_outbound_message_id';
 
 SELECT pg_temp.assert_true(
-  count(*) = 8
+  count(*) = 3
+  AND count(*) FILTER (
+    WHERE observation.ack_name = 'PENDING'
+      AND observation.ack_code = 0
+      AND observation.from_me
+  ) = 1
+  AND count(*) FILTER (
+    WHERE observation.ack_name = 'ERROR'
+      AND observation.ack_code = -1
+      AND observation.from_me
+  ) = 1
+  AND count(*) FILTER (
+    WHERE observation.ack_name = 'DEVICE'
+      AND observation.ack_code = 2
+      AND observation.from_me
+  ) = 1
+  AND bool_and(
+    observation.raw_message_id = 'p5c-history-outbound-1'
+  )
+FROM platform_private.waha_ack_observations AS observation
+WHERE observation.organization_id = :'org_a_id'
+  AND observation.communication_message_id = :'outbound_message_id';
+
+SELECT pg_temp.assert_true(
+  count(*) = 5
   AND count(*) FILTER (
     WHERE observation.ack_name = 'READ'
       AND observation.ack_code = 3
@@ -1002,23 +1196,28 @@ SELECT pg_temp.assert_true(
     WHERE observation.ack_name = 'DEVICE'
       AND observation.ack_code = 2
       AND observation.from_me
-  ) = 2
+  ) = 1
   AND count(*) FILTER (
     WHERE observation.ack_name = 'ERROR'
       AND observation.ack_code = -1
       AND observation.from_me
-  ) = 2
+  ) = 1
   AND count(*) FILTER (
     WHERE observation.ack_name = 'PLAYED'
       AND observation.ack_code = 4
       AND observation.from_me
   ) = 1
+  AND count(*) FILTER (
+    WHERE observation.ack_name = 'SERVER'
+      AND observation.ack_code = 1
+      AND observation.from_me
+  ) = 1
   AND bool_and(
-    observation.raw_message_id = 'p5c-history-outbound-1'
+    observation.raw_message_id = 'p5e-ack-outbound-2'
   )
 FROM platform_private.waha_ack_observations AS observation
 WHERE observation.organization_id = :'org_a_id'
-  AND observation.communication_message_id = :'outbound_message_id';
+  AND observation.communication_message_id = :'positive_outbound_message_id';
 
 SELECT pg_temp.assert_true(
   NOT EXISTS (
@@ -1258,7 +1457,7 @@ SELECT pg_temp.assert_true(
   AND EXISTS (
     SELECT 1
     FROM jsonb_array_elements(:'staff_messages'::JSONB) AS message_row
-    WHERE message_row ->> 'message_id' = :'outbound_message_id'
+    WHERE message_row ->> 'message_id' = :'positive_outbound_message_id'
       AND message_row ->> 'waha_ack_name' = 'PLAYED'
       AND message_row ->> 'waha_ack_observed_at' IS NOT NULL
       AND message_row ? 'media'
@@ -1306,6 +1505,21 @@ ROLLBACK TO SAVEPOINT expect_ack_append_only;
 \set ON_ERROR_STOP on
 RELEASE SAVEPOINT expect_ack_append_only;
 
+SAVEPOINT expect_current_ack_update_denied;
+\set ON_ERROR_STOP off
+SET request.jwt.claims TO '{"role":"service_role"}';
+SET ROLE service_role;
+UPDATE platform.waha_message_ack_current
+SET waha_ack_name = 'READ'
+WHERE organization_id = :'org_a_id'
+  AND communication_message_id = :'positive_outbound_message_id';
+\set current_ack_update_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_current_ack_update_denied;
+RESET ROLE;
+RESET request.jwt.claims;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_current_ack_update_denied;
+
 SAVEPOINT expect_session_append_only;
 \set ON_ERROR_STOP off
 DELETE FROM platform_private.waha_session_observations
@@ -1319,8 +1533,9 @@ RELEASE SAVEPOINT expect_session_append_only;
 
 SELECT pg_temp.assert_true(
   :'ack_append_only_state' = '55000'
+  AND :'current_ack_update_state' = '42501'
   AND :'session_append_only_state' = '55000',
-  'private ACK/session evidence was not immutable'
+  'private ACK evidence or direct current-state writes were not blocked'
 );
 
 ROLLBACK;

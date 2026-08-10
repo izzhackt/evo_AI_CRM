@@ -17,11 +17,12 @@ merged the disabled-by-default WAHA persist-before-process ingress, PR #133
 merged the disabled-by-default P5B projection into the accepted `/whatsapp`
 data path, PR #137 merged the P5C available-history reconciliation lane, and
 PR #138 merged the disabled-by-default P5D private media archive plus accepted
-media display. Current `origin/main` is
-`0032a99439bdd1cafdbefa99301fab67a7fc8aeb`, migrations are contiguous
-`001-062`, and exact-main CI `31369896660` is green. The next bounded P5 slice
-is ACK/session projection plus private realtime with reconnectable read-model
-fallback; it does not inherit real-provider or production proof from P5A-P5D.
+media display. PR #141 merged P5E ACK/session projection and private Realtime,
+and PR #142 merged bounded P4R1 read-only canonical amoCRM context. Current
+`origin/main` is `8cf46a94b79e8bc24ad49b30606753a690ea5469`, migrations are
+contiguous `001-064`, and exact-main CI `31402664864` is green. The next gate is
+this docs-only P5F authority amendment; it does not inherit real-provider or
+production proof from the merged implementation lanes.
 
 P4B implementation is preserved, not merged, on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -29,13 +30,11 @@ P4B implementation is preserved, not merged, on remote branch
 but its attempted full local Supabase gate failed closed in the real
 Auth/PostgREST hook before Playwright; it is failed/non-evidence. The owner has
 deferred broad P4/P4B writes and mapping activation. This docs-only amendment
-keeps that checkpoint preserved while resuming a bounded read-mostly P4R lane
-for amoCRM contact/lead/responsible/stage plus tasks and call/chat-record
-references. It reprioritizes the thin MVP as P5 messaging history/media/ACK/
-realtime, P4R canonical reads, gated AI qualification/replies, P6, P7, P8 and
-P10. P9 remains removed and Lead Agent plus the legacy rollback path remain
-deployed/frozen. It authorizes no application, schema, credential, provider,
-customer-data, staging or production action.
+keeps that checkpoint preserved after merged P4R1 and authorizes the next P5F
+memory, proposal and bounded autonomous-reply implementation order. P6, P7,
+narrowed P8 and P10 follow P5F. P9 remains removed and Lead Agent plus the
+legacy rollback path remain deployed/frozen. It authorizes no application,
+schema, credential, provider, customer-data, staging or production action.
 
 For the current owner-authorized MVP lane, older references in this file to a
 scheduled Launch Auditor or controller-only merge are historical unless
@@ -105,11 +104,12 @@ this contract.
 As of the version date:
 
 - GitHub `main` checkpoint before this amendment is
-  `18e0e0855fda31cba1fa837d81b3a75cedd585e9`; PR #128 supersedes PR #119 as
+  `8cf46a94b79e8bc24ad49b30606753a690ea5469`; PR #128 supersedes PR #119 as
   current product authority after corrective PRs #125-#127, PRs #129-#130
-  merged the bounded local-validation repair, and PR #132 merged the P5A WAHA
-  ingress foundation; PR #133 merged the P5B projection and migration 060;
-- exact-main CI run `31323907123` is green for Main CRM, EVO Inbox and EVO Lead
+  merged the bounded local-validation repair, PRs #132/#133/#137/#138/#141
+  merged P5A-P5E, and PR #142 merged bounded P4R1 read-only canonical amoCRM
+  context with migration 064;
+- exact-main CI run `31402664864` is green for Main CRM, EVO Inbox and EVO Lead
   Agent; Changed range is skipped on the push event as expected;
 - the preserved P4B branch passed focused tests, unit tests, lint, Next typegen,
   TypeScript and a production build. Its later full local Supabase run failed
@@ -138,11 +138,11 @@ do not silently change production.
 
 After this amendment merges, implementation priority is intentionally narrow:
 
-1. Preserve P4B and defer mapping activation and amoCRM writes. Resume only a
-   bounded read-mostly P4R adapter after the messaging foundation: contact,
-   lead, responsible manager, sales stage, tasks and call/chat-record links.
-2. Complete P5 history/media/ACK/realtime and the private P5B projection seam;
-   then P4R reads, gated AI qualification/replies, P6, P7, P8 and P10.
+1. Preserve P4B and defer mapping activation and amoCRM writes. Keep merged
+   bounded read-only P4R1 as canonical context only; it authorizes no mapping
+   activation, Sales ownership mutation or provider write.
+2. Implement P5F1 memory/retrieval, P5F2 Gemini structured proposals and P5F3
+   deterministic bounded replies in order; then P6, P7, narrowed P8 and P10.
 3. No mock, SQLite shim, hardcoded amoCRM mapping, fake provider or silent
    fallback may replace P4. amoCRM identity, responsible Sales, canonical stage,
    contract-stage handoff, mapping approval and amoCRM E2E remain fail-closed.
@@ -410,8 +410,8 @@ deployment surfaces are sequential.
 | P2R2 | Auth-token and local reset reproducibility repair | Explicit issued-token `getClaims()` plus live authority; symlink-safe deadline execution; reproducible exact-project reset and cleanup | Plan merged in PR #109; superseded implementation PR #110 closed without merge after controller findings |
 | P2R3 | Stale-authority session clearing and exact local-proof ownership | Same-origin Route Handler clears rejected Supabase browser state; real connected-route regression; two physical-worktree local proofs | Plan PR #111 and implementation PR #112 merged; exact-main CI green |
 | P2R4 | Local Supabase startup/readiness prerequisite | Two-file harness repair and exact-main CI; later run outcomes remain scoped to their exact branch | Merged in PRs #129-#130; no provider or production proof |
-| P4/P4R | Canonical amoCRM integration | Preserve P4B activation/write checkpoint; prove bounded read-only contact/lead/responsible/stage/tasks/call-chat references through versioned mappings, reconciliation and fail-closed degradation | P4B writes/activation deferred; P4R reads resume only after messaging foundation |
-| P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real persist-before-process, queue/projection, available history/media, ACK, realtime, staff takeover and structured AI proposal with deterministic reply-only send gates; no legacy cutover | P5A merged in PR #132; P5B merged in PR #133; P5C merged in PR #137; P5D merged in PR #138; ACK/session projection plus private realtime is next |
+| P4/P4R | Canonical amoCRM integration | Preserve P4B activation/write checkpoint; prove bounded read-only contact/lead/responsible/stage/tasks/call-chat references through versioned mappings, reconciliation and fail-closed degradation | P4B writes/activation deferred; bounded read-only P4R1 merged in PR #142 |
+| P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real persist-before-process, queue/projection, available history/media, ACK, realtime, staff takeover and structured AI proposal with deterministic reply-only send gates; no legacy cutover | P5A-P5E merged in PRs #132, #133, #137, #138 and #141; P5F is the next implementation lane after this docs-only authority gate |
 | P6 | amoCRM-independent Admissions, Portal, Documents, Finance and Notifications | Two-student isolation E2E and staff-to-portal workflows that do not infer sales identity/stage/handoff | Pending after P5 |
 | P7 | Security, reliability and operations | Threat model, load evidence, backup plus Storage restore, RPO/RTO and rollback rehearsal, accessibility | Pending after P6 |
 | P8 | Narrowed controlled release-evidence gate | Real executable P5-P7 plus proved P4R read evidence; P4B writes/activation and unavailable provider segments reported deferred; no production action | Pending after P7 |
@@ -425,10 +425,12 @@ CI. PR #118 merged the P4B plan; PRs #129-#130 merged P2R4. P4B work is
 preserved at `e53ba94954f147b295f596421a255591fa343ce8`, but its full local gate
 failed before Playwright and remains non-evidence. P4B mapping activation and
 writes stay deferred; this amendment separately resumes only P4R read-mostly
-context after the messaging foundation. P5-P8 may proceed independently where
-they do not require canonical Sales ownership, stage mutation or automatic
-handoff. The historical BW dependency and exit-evidence contract below remains
-reference evidence, not permission to substitute for either P4R proof or P4B:
+context after the messaging foundation. P5F through P8 may proceed without P4B
+only where they do not require canonical Sales ownership, stage mutation or
+automatic handoff. Within that independent-from-P4B scope, the authorized
+execution order remains P5F, P6, P7, narrowed P8 and then P10. The historical
+BW dependency and exit-evidence contract below remains reference evidence, not
+permission to substitute for either P4R proof or P4B:
 
 | Block | Contract | Dependency and exit evidence |
 | --- | --- | --- |
@@ -850,21 +852,64 @@ boundary:
   keeping flags off, reverting code and forward-fixing schema; no destructive
   down migration is allowed and the legacy path remains available.
 
-P5C merged the available-history backfill/reconciliation lane. P5D owns only
-private media archival and authorized display. ACK/session projection and
-Supabase Realtime stay together in the following P5 block because realtime
-without an exposed durable delivery state would still present stale provider
-truth. All three accepted capabilities precede the AI reply lane.
-The AI lane stores Platform-owned conversation summaries, explicit facts,
-qualification state, takeover state and pgvector retrieval references in
-Supabase. It does not create one filesystem agent per client. Gemini is called
-through a server adapter and returns a structured proposal; deterministic
-application code validates semantics and owns every send gate. Default local
-business hours are 09:00-21:00 Asia/Bishkek until an organization-specific
-schedule is approved. Outside hours, low confidence, unsupported language,
-missing evidence, sensitive topics, opt-out, cooldown/rate failure, media-only
-input, takeover, non-WORKING session or disabled kill switch all fail closed to
-human review.
+P5C merged the available-history backfill/reconciliation lane. P5D merged only
+private media archival and authorized display. P5E then merged ACK/session
+projection and private Supabase Realtime invalidation so the accepted UI can
+refetch durable provider state without the former polling loop. All three
+accepted capabilities precede the AI reply lane.
+
+The AI lane is the next required block group after merged P4R1 and SHALL be
+implemented as `EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10`.
+
+#### P5F1 — Platform-owned memory and retrieval foundation
+
+P5F1 SHALL add only the additive `065` foundation for staff-controlled
+conversation-scoped memory, explicit facts, qualification state,
+takeover/pause state, approved-knowledge chunks, retrieval audit, RLS and
+pgvector. Supabase SHALL own this durable state; per-client filesystem agents
+SHALL NOT be introduced, and Gemini state/cache SHALL NOT be a source of
+truth. The embedding target SHALL be `gemini-embedding-2` at a fixed `1536`
+dimensions. Provider ingestion remains disabled by default and provider proof
+remains blocked until sanctioned credentials and test data exist. Any lexical-
+only preview SHALL be explicit degraded staff preview only and SHALL NOT
+authorize deterministic autonomous replies.
+
+#### P5F2 — Gemini structured proposal adapter
+
+P5F2 SHALL add only the Gemini proposal adapter. Gemini SHALL use stateless
+Interactions with storage disabled (`store=false`) because official provider
+retention is finite and Platform memory must stay durable and auditable inside
+Supabase. The model SHALL be runtime-configured through an allowlist. The P5F-
+specific initial sanctioned model SHALL be `gemini-3.5-flash`, the owner-named
+MVP model. Google's current model catalog also lists `gemini-3.6-flash` as
+stable, but the older generic target note does not authorize it for P5F without
+a separate eval and plan update. The adapter SHALL use
+bounded conversation context, bounded retrieval evidence, bounded read-only
+amoCRM context and explicit token budgets, and SHALL return only JSON-schema
+structured RU/EN qualification/reply proposals. Gemini SHALL NOT call WAHA,
+SHALL NOT own transport retries and SHALL NOT imply send success.
+
+#### P5F3 — deterministic autonomous reply gate
+
+P5F3 SHALL add only deterministic send gating, durable send intents and the
+bounded worker. Deterministic Platform policy SHALL be the only authority that
+can create a WAHA `reply_to` send intent. It SHALL re-check mutable conditions
+immediately before transport. The allowed send shape remains the same
+conversation and exact inbound trigger, inside the rolling WhatsApp `<=24h`
+service window, with consent/opt-out, approved citations/evidence, known
+language, confidence/risk, business-hours, cooldown/rate, takeover/pause,
+session health, idempotency and policy version all passing. The autonomous-
+reply runtime enablement must be present and the emergency stop/kill switch
+must not be engaged.
+Media-only, unsupported or ambiguous input SHALL fail closed to human review.
+No cold outbound, campaign/broadcast, autonomous follow-up/re-engagement,
+out-of-window free-form send, direct model send or silent fallback is
+authorized.
+
+Default local business hours remain 09:00-21:00 Asia/Bishkek until an
+organization-specific schedule is approved. Owner authority now allows
+autonomous-reply code, but production enablement, live customer sends,
+provider credentials and real provider proof remain separate blocked events.
 
 ### P6 — operations and portal
 

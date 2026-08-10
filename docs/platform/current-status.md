@@ -13,9 +13,9 @@
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
 - Current accepted base for this block:
-  `88169c55935f0b66d0b58e844a5e6c4cac2cc285`
+  `8cf46a94b79e8bc24ad49b30606753a690ea5469`
 - Active plan block:
-  `EVO-P4R1-AMOCRM-CANONICAL-CONTEXT-2026-08-10`
+  `EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -51,11 +51,12 @@ repair. PR #131 merged P4 deferral/Lead Agent retention authority, PR #132
 merged receive-only P5A ingress, PR #133 merged P5B receive/project, PR #136
 merged direct exact-head governance, PR #137 merged P5C available-history
 reconciliation, PR #138 merged P5D private media, PR #140 синхронизировал
-MVP authority contract, а PR #141 merged P5E ACK/session и private Realtime.
-Текущий accepted base —
-`88169c55935f0b66d0b58e844a5e6c4cac2cc285`, exact-main CI `31390559256`
+MVP authority contract, PR #141 merged P5E ACK/session и private Realtime, а
+PR #142 merged bounded P4R1 read-only canonical amoCRM context. Текущий
+accepted base —
+`8cf46a94b79e8bc24ad49b30606753a690ea5469`, exact-main CI `31402664864`
 зелёный для Main CRM, EVO Inbox и EVO Lead Agent; Changed range ожидаемо
-skipped на push. Migrations contiguous `001-063`.
+skipped на push. Migrations contiguous `001-064`.
 
 P4B implementation сохранён на remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -76,8 +77,8 @@ P5A-P5E merged, но provider-facing lanes disabled by default. PR #133
 отображение в accepted UI. Full local Supabase/browser и exact-main CI зелёные,
 но real WAHA/provider proof и production enablement отсутствуют. PR #141
 добавил долговечный ACK/session state и private Realtime invalidation с
-авторизованным refetch вместо семисекундного polling. Текущий P4R1 добавляет
-только disabled-by-default live read canonical amoCRM context; real amoCRM
+авторизованным refetch вместо семисекундного polling. PR #142 добавил только
+disabled-by-default live read canonical amoCRM context; real amoCRM
 credential/test entities и provider proof пока отсутствуют.
 
 ## Что подтверждено из репозитория
@@ -257,20 +258,31 @@ gate, но не выполнять mutation.
 
 ## Следующий безопасный gate
 
-Текущий gate — implementation block
-`EVO-P5E-WAHA-ACK-SESSION-REALTIME-2026-08-10`: focused
-authorization/RLS/browser/security tests, один fresh independent read-only
-exact-head review, все required exact-head CI jobs, затем direct executor merge
-того же SHA и green exact-main push CI. Scheduled Launch Auditor и отдельный
-merge-controller не используются; full Codex Security workflow не требуется.
+Следующий gate — docs-only authority block
+`EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10`: update the authoritative plan,
+append-only `PLAN_CHANGES`, the long-run contract and this status snapshot, and
+create `docs/platform/p5f-ai-memory-reply-lane.md` as the focused implementation
+contract so the next slices are explicit before code starts. It changes no
+product code, migration, runtime config, credential, provider state or
+customer data.
 
-P5E объединяет ACK/session projection и private Realtime с reconnect catch-up.
-Autonomous
-inbound-reply PR допускается только после этих принятых blocks. Он обязан
-использовать Gemini proposal, deterministic queue/worker gates, bounded
-read-mostly amoCRM, durable pause/resume и disabled-by-default flags. Real
-provider E2E и production enablement остаются separate authorized events. Lead
-Agent остаётся retained/frozen.
+P5F splits the next implementation lane into:
+
+1. `P5F1` — Platform-owned durable memory, approved-knowledge chunks,
+   retrieval audit, RLS and pgvector foundation;
+2. `P5F2` — stateless Gemini structured RU/EN proposal adapter with
+   `store=false`, bounded context/token budgets and no WAHA access;
+3. `P5F3` — deterministic policy-only `reply_to` send intents and worker with
+   recheck-before-send, same-conversation/inbound trigger, `<=24h` window,
+   consent/opt-out, approved citations, language, confidence/risk,
+   business-hours, cooldown/rate, takeover/pause, session health, idempotency,
+   policy version, explicit autonomous-reply runtime enablement and an emergency
+   stop/kill switch that is not engaged.
+
+Owner authority now allows autonomous-reply code, but production enablement,
+live customer sends, provider credentials and real provider proof remain
+separate blocked events. P6, P7, narrowed P8 and P10 follow only after P5F is
+accepted and then implemented in order.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой
 exact deployed revision, private network, provider readiness и full E2E.

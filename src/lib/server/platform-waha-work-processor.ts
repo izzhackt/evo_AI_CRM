@@ -279,7 +279,7 @@ export function createPlatformWahaWorkRepository(
   return Object.freeze({
     async claim(input) {
       const response = await client.schema("platform").rpc(
-        "claim_waha_webhook_work",
+        "claim_waha_event_projection",
         {
           p_organization_id: input.organizationId,
           p_visibility_timeout_seconds: input.visibilityTimeoutSeconds,
@@ -293,7 +293,7 @@ export function createPlatformWahaWorkRepository(
 
     async project(input) {
       const response = await client.schema("platform").rpc(
-        "project_claimed_waha_event",
+        "project_claimed_waha_observation",
         {
           p_organization_id: input.organizationId,
           p_work_item_id: input.workItemId,
@@ -308,7 +308,7 @@ export function createPlatformWahaWorkRepository(
 
     async finish(input) {
       const response = await client.schema("platform").rpc(
-        "finish_waha_webhook_work",
+        "finish_waha_event_projection",
         {
           p_organization_id: input.organizationId,
           p_work_item_id: input.workItemId,

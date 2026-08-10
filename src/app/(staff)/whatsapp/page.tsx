@@ -1,5 +1,5 @@
-import { AutoRefresh } from "@/components/AutoRefresh";
 import { Icon } from "@/components/icons";
+import { PlatformMessagingRealtime } from "@/components/platform/communications/PlatformMessagingRealtime";
 import { PlatformWaList } from "@/components/platform/communications/PlatformWaList";
 import { PageHeader } from "@/components/ui";
 import { getT } from "@/lib/i18n";
@@ -34,8 +34,8 @@ export default async function WhatsAppPage() {
         description={t("platformCommunicationsSourceHint")}
         mobileSummary={t("platformCommunicationsSourceSummary")}
       />
+      <PlatformMessagingRealtime organizationId={actor.organizationId} />
       <div className="flex h-[calc(100vh-310px)] min-h-[500px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
-        <AutoRefresh intervalMs={7000} />
         <PlatformWaList conversations={conversations} />
         <section
           aria-labelledby="whatsapp-empty-state-title"

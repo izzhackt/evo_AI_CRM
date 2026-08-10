@@ -641,6 +641,16 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_waha_private_media_rls.sql
   fi
+
+  # P5E extends the same exact-session worker lane to ACK/session observations
+  # and private Realtime invalidation. Prove delivery monotonicity, replay,
+  # safe staff reads and receive-only tenant topic authorization at migration
+  # 063 before later schema can mask the boundary.
+  if [[ "$(basename "$migration")" == 063_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_ack_session_realtime_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

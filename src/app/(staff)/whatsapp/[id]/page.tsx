@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 
 import { PlatformConversationView } from "@/components/platform/communications/PlatformConversationView";
+import { PlatformMessagingRealtime } from "@/components/platform/communications/PlatformMessagingRealtime";
 import { getT } from "@/lib/i18n";
 import {
   getPlatformConversationThread,
+  getPlatformWahaSessionHealth,
   isPlatformConversationId,
   listPlatformConversations,
 } from "@/lib/platform-communications";
@@ -56,13 +58,14 @@ export default async function ConversationPage({
   ]);
   if (!isPlatformConversationId(id)) notFound();
 
-  const [conversations, thread, workflow, knowledge, bw4Workspace] =
+  const [conversations, thread, workflow, knowledge, bw4Workspace, wahaSessionHealth] =
     await Promise.all([
       listPlatformConversations(actor),
       getPlatformConversationThread(actor, id),
       getPlatformConversationWorkflow(actor, id),
       listApprovedPlatformKnowledge(actor),
       getPlatformConversationBw4Workspace(actor, id).catch(() => null),
+      getPlatformWahaSessionHealth(actor),
     ]);
   if (!thread || !workflow) notFound();
 
@@ -73,6 +76,7 @@ export default async function ConversationPage({
         description={t("platformCommunicationsSourceHint")}
         mobileSummary={t("platformCommunicationsSourceSummary")}
       />
+      <PlatformMessagingRealtime organizationId={actor.organizationId} />
       <PlatformConversationView
         conversations={conversations}
         conversation={thread.conversation}
@@ -80,6 +84,7 @@ export default async function ConversationPage({
         workflow={workflow}
         knowledge={knowledge}
         bw4Workspace={bw4Workspace}
+        wahaSessionHealth={wahaSessionHealth}
         decisionMutationOutcome={decisionMutationOutcome(
           resolvedSearchParams.result,
         )}

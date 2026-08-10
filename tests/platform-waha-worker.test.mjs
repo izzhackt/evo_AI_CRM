@@ -335,8 +335,14 @@ test("repository rejects a generic queue claim from another work lane", async ()
     schema(name) {
       assert.equal(name, "platform");
       return {
-        async rpc(functionName) {
-          assert.equal(functionName, "claim_waha_webhook_work");
+        async rpc(functionName, args) {
+          assert.equal(functionName, "claim_waha_event_projection");
+          assert.deepEqual(args, {
+            p_organization_id: ORGANIZATION_ID,
+            p_visibility_timeout_seconds: 60,
+            p_worker_ref: "nextjs:p5b-waha-projection",
+            p_request_id: "66666666-6666-4666-8666-666666666661",
+          });
           return {
             error: null,
             data: {
@@ -364,6 +370,86 @@ test("repository rejects a generic queue claim from another work lane", async ()
       visibilityTimeoutSeconds: 60,
       workerRef: "nextjs:p5b-waha-projection",
       requestId: "66666666-6666-4666-8666-666666666661",
+    }),
+  );
+});
+
+test("repository projects through the tenant-bound WAHA projection wrapper", async () => {
+  const calls = [];
+  const client = {
+    schema(name) {
+      assert.equal(name, "platform");
+      return {
+        async rpc(functionName, args) {
+          calls.push({ functionName, args });
+          return {
+            error: null,
+            data: {
+              organization_id: ORGANIZATION_ID,
+              work_item_id: WORK_ITEM_ID,
+              attempt_id: ATTEMPT_ID,
+              disposition: "succeeded",
+              evidence_ref: `waha-projection:${SOURCE_EVENT_ID}`,
+              error_code: null,
+            },
+          };
+        },
+      };
+    },
+  };
+
+  await createPlatformWahaWorkRepository(client).project({
+    organizationId: ORGANIZATION_ID,
+    workItemId: WORK_ITEM_ID,
+    attemptId: ATTEMPT_ID,
+    intakeSalesMembershipId: INTAKE_SALES_MEMBERSHIP_ID,
+    requestId: "66666666-6666-4666-8666-666666666664",
+  });
+
+  assert.deepEqual(calls, [
+    {
+      functionName: "project_claimed_waha_observation",
+      args: {
+        p_organization_id: ORGANIZATION_ID,
+        p_work_item_id: WORK_ITEM_ID,
+        p_attempt_id: ATTEMPT_ID,
+        p_intake_sales_membership_id: INTAKE_SALES_MEMBERSHIP_ID,
+        p_request_id: "66666666-6666-4666-8666-666666666664",
+      },
+    },
+  ]);
+});
+
+test("repository rejects a malformed projection envelope", async () => {
+  const client = {
+    schema(name) {
+      assert.equal(name, "platform");
+      return {
+        async rpc(functionName) {
+          assert.equal(functionName, "project_claimed_waha_observation");
+          return {
+            error: null,
+            data: {
+              organization_id: ORGANIZATION_ID,
+              work_item_id: WORK_ITEM_ID,
+              attempt_id: ATTEMPT_ID,
+              disposition: "succeeded",
+              evidence_ref: null,
+              error_code: null,
+            },
+          };
+        },
+      };
+    },
+  };
+
+  await assert.rejects(() =>
+    createPlatformWahaWorkRepository(client).project({
+      organizationId: ORGANIZATION_ID,
+      workItemId: WORK_ITEM_ID,
+      attemptId: ATTEMPT_ID,
+      intakeSalesMembershipId: INTAKE_SALES_MEMBERSHIP_ID,
+      requestId: "66666666-6666-4666-8666-666666666665",
     }),
   );
 });
@@ -404,7 +490,7 @@ test("repository finishes through the tenant-bound WAHA wrapper", async () => {
 
   assert.deepEqual(calls, [
     {
-      functionName: "finish_waha_webhook_work",
+      functionName: "finish_waha_event_projection",
       args: {
         p_organization_id: ORGANIZATION_ID,
         p_work_item_id: WORK_ITEM_ID,

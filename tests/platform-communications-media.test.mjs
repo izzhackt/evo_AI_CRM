@@ -24,6 +24,8 @@ function validMessageRow(overrides = {}) {
     amocrm_lead_id: "5678",
     amocrm_contact_id: 9012,
     created_at: "2026-07-30T03:15:30Z",
+    waha_ack_name: null,
+    waha_ack_observed_at: null,
     media: [],
     ...overrides,
   };

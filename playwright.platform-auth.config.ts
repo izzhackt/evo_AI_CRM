@@ -70,6 +70,15 @@ if (
   throw new Error("EVO_P5D_BROWSER_PROOF must be 0 or 1");
 }
 const p5dBrowserProof = p5dBrowserProofFlag === "1";
+const p5eBrowserProofFlag = process.env.EVO_P5E_BROWSER_PROOF;
+if (
+  p5eBrowserProofFlag !== undefined &&
+  p5eBrowserProofFlag !== "0" &&
+  p5eBrowserProofFlag !== "1"
+) {
+  throw new Error("EVO_P5E_BROWSER_PROOF must be 0 or 1");
+}
+const p5eBrowserProof = p5eBrowserProofFlag === "1";
 const platformAuthDevRunKey = process.env.EVO_PLATFORM_AUTH_DEV_RUN_KEY;
 const platformAuthBrowserPartition =
   process.env.EVO_PLATFORM_AUTH_BROWSER_PARTITION;
@@ -86,7 +95,7 @@ if (
 }
 if (
   !platformAuthBrowserPartition ||
-  !["provider", "p5b", "p5c", "p5d", "remaining"].includes(
+  !["provider", "p5b", "p5c", "p5d", "p5e", "remaining"].includes(
     platformAuthBrowserPartition,
   )
 ) {
@@ -103,11 +112,14 @@ if (p5bBrowserProof && p5cBrowserProof) {
   );
 }
 if (
-  Number(p5bBrowserProof) + Number(p5cBrowserProof) + Number(p5dBrowserProof) >
+  Number(p5bBrowserProof) +
+    Number(p5cBrowserProof) +
+    Number(p5dBrowserProof) +
+    Number(p5eBrowserProof) >
   1
 ) {
   throw new Error(
-    "P5B, P5C and P5D browser proof partitions are mutually exclusive",
+    "P5B, P5C, P5D and P5E browser proof partitions are mutually exclusive",
   );
 }
 if (
@@ -120,6 +132,11 @@ if (
 if ((platformAuthBrowserPartition === "p5d") !== p5dBrowserProof) {
   throw new Error(
     "EVO_P5D_BROWSER_PROOF must be enabled only for the p5d browser partition",
+  );
+}
+if ((platformAuthBrowserPartition === "p5e") !== p5eBrowserProof) {
+  throw new Error(
+    "EVO_P5E_BROWSER_PROOF must be enabled only for the p5e browser partition",
   );
 }
 if (
@@ -172,8 +189,19 @@ if (
 ) {
   throw new Error("P5D browser proof fixture is invalid");
 }
+if (
+  p5eBrowserProof &&
+  (!uuidPattern.test(fixture.p5b.organizationId) ||
+    !uuidPattern.test(fixture.p5b.intakeSalesMembershipId) ||
+    fixture.p5b.supabaseSecretKey.length === 0 ||
+    fixture.p5b.ingressHmacSecret.length < 32 ||
+    fixture.p5b.workerTriggerSecret.length < 32)
+) {
+  throw new Error("P5E browser proof fixture is invalid");
+}
 
-const platformMessagingProof = p5bBrowserProof || p5cBrowserProof || p5dBrowserProof;
+const platformMessagingProof =
+  p5bBrowserProof || p5cBrowserProof || p5dBrowserProof || p5eBrowserProof;
 
 const port = 3311;
 const baseURL = `http://127.0.0.1:${port}`;
@@ -215,9 +243,9 @@ export default defineConfig({
       EVO_UI_CONTRACT_FIXTURES: "0",
       EVO_DB_PATH: legacySentinel,
       EVO_PLATFORM_WAHA_INGRESS_ENABLED:
-        p5bBrowserProof || p5dBrowserProof ? "1" : "0",
+        p5bBrowserProof || p5dBrowserProof || p5eBrowserProof ? "1" : "0",
       EVO_PLATFORM_WAHA_WORKER_ENABLED:
-        p5bBrowserProof || p5dBrowserProof ? "1" : "0",
+        p5bBrowserProof || p5dBrowserProof || p5eBrowserProof ? "1" : "0",
       EVO_PLATFORM_ORGANIZATION_ID: platformMessagingProof
         ? p5dBrowserProof
           ? fixture.p5d.organizationId
@@ -229,7 +257,7 @@ export default defineConfig({
           : fixture.p5b.supabaseSecretKey
         : "",
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET:
-        p5bBrowserProof || p5dBrowserProof
+        p5bBrowserProof || p5dBrowserProof || p5eBrowserProof
         ? p5dBrowserProof
           ? fixture.p5d.ingressHmacSecret
           : fixture.p5b.ingressHmacSecret
@@ -240,7 +268,7 @@ export default defineConfig({
           : fixture.p5b.intakeSalesMembershipId
         : "",
       EVO_PLATFORM_WAHA_WORKER_TRIGGER_SECRET:
-        p5bBrowserProof || p5dBrowserProof
+        p5bBrowserProof || p5dBrowserProof || p5eBrowserProof
         ? p5dBrowserProof
           ? fixture.p5d.workerTriggerSecret
           : fixture.p5b.workerTriggerSecret

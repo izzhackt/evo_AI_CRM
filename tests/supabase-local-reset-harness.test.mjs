@@ -22,6 +22,10 @@ const platformAuthConfig = readFileSync(
   new URL("../playwright.platform-auth.config.ts", import.meta.url),
   "utf8",
 );
+const authHook = readFileSync(
+  new URL("../scripts/test-supabase-auth-hook.mjs", import.meta.url),
+  "utf8",
+);
 const nextConfig = readFileSync(
   new URL("../next.config.ts", import.meta.url),
   "utf8",
@@ -198,6 +202,26 @@ test("every long-running child gate has a process-group deadline", () => {
   );
 });
 
+test("the P5C browser partition has its own bounded deadline", () => {
+  const p5cPartition = executableLines.indexOf(
+    "EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5c",
+  );
+  const p5cCommand = executableLines.lastIndexOf(
+    "run_with_deadline 240000 env",
+    p5cPartition,
+  );
+  const p5cGrep = executableLines.indexOf(
+    '--grep "${P5C_BROWSER_TEST}"',
+    p5cPartition,
+  );
+
+  assert.notEqual(p5cPartition, -1);
+  assert.notEqual(p5cCommand, -1);
+  assert.notEqual(p5cGrep, -1);
+  assert.ok(p5cCommand < p5cPartition);
+  assert.ok(p5cPartition < p5cGrep);
+});
+
 test("Main CRM CI installs the locked Chromium runtime before the full browser gate", () => {
   const mainCrmJobStart = ciWorkflow.indexOf("\n  crm:\n");
   const inboxJobStart = ciWorkflow.indexOf("\n  inbox:\n", mainCrmJobStart);
@@ -222,7 +246,7 @@ test("Main CRM CI installs the locked Chromium runtime before the full browser g
   assert.ok(browserInstall < fullGate);
 });
 
-test("provider and P5B browser partitions run before the remaining suite", () => {
+test("provider, P5B, and P5C browser partitions run before the remaining suite", () => {
   const expectedTitles = [
     "RU and EN draft requests work while uncertain language stops for manual selection",
     "admin reads the persisted local P3C workflow without proving providers",
@@ -234,6 +258,8 @@ test("provider and P5B browser partitions run before the remaining suite", () =>
   const titles = `readonly PROVIDER_GATED_BROWSER_TESTS="${expectedTitles.join("|")}"`;
   const p5bTitle =
     "P5B projects verified inbound WAHA work into the accepted conversation UI";
+  const p5cTitle =
+    "P5C reconciles available WAHA history into the accepted conversation UI";
   const providerPass = harness.indexOf(
     "if ! run_with_deadline 240000 env \\",
   );
@@ -249,9 +275,17 @@ test("provider and P5B browser partitions run before the remaining suite", () =>
     'fail "The exact-worktree Platform browser server did not stop after the P5B browser partition."',
     p5bPass,
   );
+  const p5cPass = harness.indexOf(
+    "if ! run_with_deadline 240000 env \\",
+    p5bCleanup,
+  );
+  const p5cCleanup = harness.indexOf(
+    'fail "The exact-worktree Platform browser server did not stop after the P5C browser partition."',
+    p5cPass,
+  );
   const remainingPass = harness.indexOf(
     "if ! run_with_deadline 660000 env \\",
-    p5bCleanup,
+    p5cCleanup,
   );
   const finalCleanup = harness.indexOf(
     'fail "The exact-worktree Platform browser server did not stop after the browser gate."',
@@ -267,16 +301,24 @@ test("provider and P5B browser partitions run before the remaining suite", () =>
     harness.includes(`readonly P5B_BROWSER_TEST="${p5bTitle}"`),
   );
   assert.equal(platformAuthSpec.split(`test("${p5bTitle}"`).length - 1, 1);
+  assert.ok(
+    harness.includes(`readonly P5C_BROWSER_TEST="${p5cTitle}"`),
+  );
+  assert.equal(platformAuthSpec.split(`test("${p5cTitle}"`).length - 1, 1);
   assert.notEqual(providerPass, -1);
   assert.notEqual(betweenPassCleanup, -1);
   assert.notEqual(p5bPass, -1);
   assert.notEqual(p5bCleanup, -1);
+  assert.notEqual(p5cPass, -1);
+  assert.notEqual(p5cCleanup, -1);
   assert.notEqual(remainingPass, -1);
   assert.notEqual(finalCleanup, -1);
   assert.ok(providerPass < betweenPassCleanup);
   assert.ok(betweenPassCleanup < p5bPass);
   assert.ok(p5bPass < p5bCleanup);
-  assert.ok(p5bCleanup < remainingPass);
+  assert.ok(p5bCleanup < p5cPass);
+  assert.ok(p5cPass < p5cCleanup);
+  assert.ok(p5cCleanup < remainingPass);
   assert.ok(remainingPass < finalCleanup);
   assert.match(
     harness.slice(providerPass, betweenPassCleanup),
@@ -287,15 +329,55 @@ test("provider and P5B browser partitions run before the remaining suite", () =>
     /EVO_P5B_BROWSER_PROOF=1[\s\S]*--grep "\$\{P5B_BROWSER_TEST\}"/,
   );
   assert.match(
+    harness.slice(p5cPass, p5cCleanup),
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=1[\s\S]*--grep "\$\{P5C_BROWSER_TEST\}"/,
+  );
+  assert.match(
     harness.slice(remainingPass, finalCleanup),
-    /EVO_P5B_BROWSER_PROOF=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}\|\$\{P5C_BROWSER_TEST\}"/,
   );
   assert.equal(
     harness.slice(providerPass, finalCleanup).match(/EVO_P5B_BROWSER_PROOF=1/g)
       ?.length,
     1,
   );
+  assert.equal(
+    harness.slice(providerPass, finalCleanup).match(/EVO_P5C_BROWSER_PROOF=1/g)
+      ?.length,
+    1,
+  );
   assert.doesNotMatch(executableLines, /run_with_deadline 900000 env/);
+});
+
+test("P5C browser proof uses runtime-only secrets and keeps ingress and send worker disabled", () => {
+  assert.match(
+    authHook,
+    /const p5cWahaApiKey = randomBytes\(48\)\.toString\("base64url"\)/,
+  );
+  assert.match(
+    authHook,
+    /const p5cHistoryTriggerSecret = randomBytes\(48\)\.toString\("base64url"\)/,
+  );
+  assert.match(
+    authHook,
+    /p5c: \{[\s\S]*wahaApiKey: p5cWahaApiKey,[\s\S]*historyTriggerSecret: p5cHistoryTriggerSecret/,
+  );
+  assert.match(
+    platformAuthConfig,
+    /EVO_PLATFORM_WAHA_INGRESS_ENABLED: p5bBrowserProof \? "1" : "0"/,
+  );
+  assert.match(
+    platformAuthConfig,
+    /EVO_PLATFORM_WAHA_WORKER_ENABLED: p5bBrowserProof \? "1" : "0"/,
+  );
+  assert.match(
+    platformAuthConfig,
+    /EVO_PLATFORM_WAHA_HISTORY_ENABLED: p5cBrowserProof \? "1" : "0"/,
+  );
+  assert.match(
+    platformAuthConfig,
+    /EVO_PLATFORM_WAHA_HISTORY_BASE_URL: p5cBrowserProof[\s\S]*"http:\/\/127\.0\.0\.1:3312"/,
+  );
 });
 
 test("empty-queue proof is reset before Auth, Storage, and terminal browser validation", () => {
@@ -845,7 +927,7 @@ test("browser partitions isolate Next dev artifacts by disposable run and partit
     harness,
     /readonly BROWSER_BUILD_RUN_KEY=/,
   );
-  for (const partition of ["provider", "p5b", "remaining"]) {
+  for (const partition of ["provider", "p5b", "p5c", "remaining"]) {
     assert.match(
       harness,
       new RegExp(`EVO_PLATFORM_AUTH_BROWSER_PARTITION=${partition}`),
@@ -877,7 +959,7 @@ test("browser partitions keep Next type includes out of the tracked root tsconfi
     harness,
     /extends: path\.relative\(path\.dirname\(outputPath\), rootTsconfig\)/,
   );
-  for (const partition of ["provider", "p5b", "remaining"]) {
+  for (const partition of ["provider", "p5b", "p5c", "remaining"]) {
     assert.match(
       harness,
       new RegExp(

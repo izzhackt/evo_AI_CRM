@@ -4370,3 +4370,74 @@ Validation impact:
 - Rollback is a docs-only revert or forward amendment restoring the prior merge
   governance. Product/runtime rollback paths are unchanged.
 - `real-provider-proof: not-required` for this docs-only governance amendment.
+
+## 2026-08-10 - P5C available WAHA history reconciliation
+
+Date: 2026-08-10, Asia/Bishkek.
+
+Author: EVO Platform owner/executor.
+
+Block-ID: `EVO-P5C-WAHA-HISTORY-2026-08-10`.
+
+Change type: bounded P5 implementation, private API/schema acceptance,
+provider-evidence boundary and rollback record.
+
+Affected plan sections: P5 unified communications, accepted `/whatsapp`
+frontend repository, local Supabase validation, release evidence and rollback.
+
+Reason:
+
+- P5A and P5B durably receive and project newly verified inbound webhook work,
+  but the accepted operator UI still lacks history already present in the
+  configured WAHA store.
+- The owner requires available WhatsApp history before private media, ACK,
+  Realtime and autonomous replies. “Available” must not be misreported as
+  lifetime history or real-provider proof.
+- The history lane needs a resumable service-only cursor and private provider
+  identifiers; browser polling or raw provider IDs are not a safe import seam.
+
+Decision:
+
+- Add a disabled-by-default, HMAC-authenticated server reconciliation trigger
+  for the exact `evo-inbox` session and an explicitly configured organization,
+  private WAHA origin and authorized Platform Sales intake membership.
+- Perform read-only provider preflight and paginated `GET` chat/message reads
+  with `downloadMedia=false`. Require WAHA `WORKING`; require supported engine
+  metadata and an explicitly enabled NOWEB store. Do not send, mark read,
+  reconfigure, restart, log out or mutate a WAHA session/webhook.
+- Reconcile direct chats only. Import inbound and historical outbound messages
+  into the existing Supabase conversation/message model used by the accepted
+  root frontend. Preserve existing assignment; intake membership is not
+  canonical amoCRM ownership.
+- Keep raw chat/message identifiers, provider payload provenance, replay
+  receipts, page effects and run cursor/lifecycle evidence private and
+  service-only. Public rows expose opaque Platform identifiers and null
+  provider/amoCRM IDs.
+- Advance the cursor atomically only with a successful page projection. A
+  provider or repository failure leaves the last committed cursor resumable;
+  bounded unfinished work records `paused`, exhaustion records `completed`.
+- Represent media-only history as an operator-visible marker without claiming
+  or downloading bytes. Private media download/storage/access is the next P5
+  block and remains unproved here.
+- Synthetic disposable Supabase/WAHA adapter and browser tests are Platform
+  contract evidence only. Real WAHA completeness/provider behavior stays
+  `blocked` until a separately authorized controlled provider run.
+- No production deployment/migration, WAHA session/QR/webhook mutation, live
+  customer send, real amoCRM write, Gemini execution, SQLite fallback, Lead
+  Agent change or service deletion is authorized.
+
+Validation impact:
+
+- Require focused P5A/P5B/P5C unit and negative tests, disposable PostgreSQL
+  authorization/RLS execution, local Supabase/Auth/Storage/PGMQ and browser
+  coverage where local infrastructure is healthy, root and Inbox lint/type/
+  build/tests, migration-history verification, dependency audit, scoped secret
+  scan and `git diff --check`.
+- If the local OrbStack disposable-container path is wedged, do not broad-clean
+  or disturb Inbox state. The exact-head Linux CI PostgreSQL gate must still
+  execute migration 061 and its real-role RLS test before merge.
+- One fresh independent read-only reviewer must approve the exact final head;
+  every changed head invalidates prior review and exact-head CI.
+- Rollback keeps P5C disabled, reverts route/worker code and forward-fixes the
+  additive schema. Do not use a destructive down migration. Lead Agent and the
+  legacy rollback path remain frozen and available.

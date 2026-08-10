@@ -622,6 +622,15 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_waha_work_projection_rls.sql
   fi
+
+  # P5C imports only read-only WAHA history observations. Prove at migration
+  # 061 that its resumable cursor, private identifiers, tenant/session checks,
+  # inbound/outbound provenance and browser RLS remain fail-closed.
+  if [[ "$(basename "$migration")" == 061_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_history_reconciliation_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

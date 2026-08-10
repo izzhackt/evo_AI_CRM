@@ -1,7 +1,7 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-08-09
+- Snapshot date: 2026-08-10
 - Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 - P2A starting checkpoint: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
 - P2B starting checkpoint: `8ad755b5039390f418dbe12924a806f069f93b53`
@@ -12,9 +12,10 @@
 - P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current merged checkpoint: `18e0e0855fda31cba1fa837d81b3a75cedd585e9`
+- Current accepted base for this block:
+  `1cb8f050cc1effbcc7f87c77c5e08311b5198e1f`
 - Active plan block:
-  `EVO-DIRECT-MERGE-GOVERNANCE-2026-08-09`
+  `EVO-P5C-WAHA-HISTORY-2026-08-10`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -47,9 +48,10 @@ document reading/extraction/autofill/export scope superseded решением ow
 #125-#127 отменили зависимые PRs #124, #122 и #120, PR #128 controller-merged
 корректную продуктовую границу, а PRs #129-#130 merged local-validation plan и
 repair. PR #131 merged P4 deferral/Lead Agent retention authority, PR #132
-merged receive-only P5A ingress, а PR #133 merged P5B receive/project.
-Текущий main — `18e0e0855fda31cba1fa837d81b3a75cedd585e9`, exact-main CI
-`31323907123` зелёный, migrations contiguous `001-060`.
+merged receive-only P5A ingress, PR #133 merged P5B receive/project, а PR #136
+merged direct exact-head governance. Текущий accepted base —
+`1cb8f050cc1effbcc7f87c77c5e08311b5198e1f`, exact-main CI `31329977244`
+зелёный, migrations contiguous `001-060`.
 
 P4B implementation сохранён на remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -66,8 +68,11 @@ restore duties остаются в P7.
 P5A и P5B merged, но ingress/worker disabled by default. PR #133 был принят как
 receive/project implementation, не AI/send implementation; full local
 Supabase/browser gate и exact-main CI зелёные, но real WAHA/provider proof и
-production enablement отсутствуют. Следующий bounded P5 block — available
-history reconciliation.
+production enablement отсутствуют. Текущий P5C block добавляет
+disabled-by-default reconciliation только той истории, которую уже
+может вернуть существующий WAHA store. Он не доказывает lifetime
+history и не скачивает media bytes; private media остаётся следующим
+P5 block.
 
 ## Что подтверждено из репозитория
 

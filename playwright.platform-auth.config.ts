@@ -15,6 +15,10 @@ type Fixture = Readonly<{
     ingressHmacSecret: string;
     workerTriggerSecret: string;
   }>;
+  p5c: Readonly<{
+    wahaApiKey: string;
+    historyTriggerSecret: string;
+  }>;
   identities: Readonly<Record<string, Identity>>;
 }>;
 
@@ -39,6 +43,15 @@ if (
   throw new Error("EVO_P5B_BROWSER_PROOF must be 0 or 1");
 }
 const p5bBrowserProof = p5bBrowserProofFlag === "1";
+const p5cBrowserProofFlag = process.env.EVO_P5C_BROWSER_PROOF;
+if (
+  p5cBrowserProofFlag !== undefined &&
+  p5cBrowserProofFlag !== "0" &&
+  p5cBrowserProofFlag !== "1"
+) {
+  throw new Error("EVO_P5C_BROWSER_PROOF must be 0 or 1");
+}
+const p5cBrowserProof = p5cBrowserProofFlag === "1";
 const platformAuthDevRunKey = process.env.EVO_PLATFORM_AUTH_DEV_RUN_KEY;
 const platformAuthBrowserPartition =
   process.env.EVO_PLATFORM_AUTH_BROWSER_PARTITION;
@@ -55,11 +68,21 @@ if (
 }
 if (
   !platformAuthBrowserPartition ||
-  !["provider", "p5b", "remaining"].includes(
+  !["provider", "p5b", "p5c", "remaining"].includes(
     platformAuthBrowserPartition,
   )
 ) {
   throw new Error("EVO_PLATFORM_AUTH_BROWSER_PARTITION is invalid");
+}
+if ((platformAuthBrowserPartition === "p5c") !== p5cBrowserProof) {
+  throw new Error(
+    "EVO_P5C_BROWSER_PROOF must be enabled only for the p5c browser partition",
+  );
+}
+if (p5bBrowserProof && p5cBrowserProof) {
+  throw new Error(
+    "P5B and P5C browser proof partitions are mutually exclusive",
+  );
 }
 if (
   (platformAuthBrowserPartition === "p5b") !== p5bBrowserProof
@@ -96,6 +119,18 @@ if (
 ) {
   throw new Error("P5B browser proof fixture is invalid");
 }
+if (
+  p5cBrowserProof &&
+  (!uuidPattern.test(fixture.p5b.organizationId) ||
+    !uuidPattern.test(fixture.p5b.intakeSalesMembershipId) ||
+    fixture.p5b.supabaseSecretKey.length === 0 ||
+    fixture.p5c.wahaApiKey.length < 32 ||
+    fixture.p5c.historyTriggerSecret.length < 32)
+) {
+  throw new Error("P5C browser proof fixture is invalid");
+}
+
+const platformMessagingProof = p5bBrowserProof || p5cBrowserProof;
 
 const port = 3311;
 const baseURL = `http://127.0.0.1:${port}`;
@@ -138,20 +173,30 @@ export default defineConfig({
       EVO_DB_PATH: legacySentinel,
       EVO_PLATFORM_WAHA_INGRESS_ENABLED: p5bBrowserProof ? "1" : "0",
       EVO_PLATFORM_WAHA_WORKER_ENABLED: p5bBrowserProof ? "1" : "0",
-      EVO_PLATFORM_ORGANIZATION_ID: p5bBrowserProof
+      EVO_PLATFORM_ORGANIZATION_ID: platformMessagingProof
         ? fixture.p5b.organizationId
         : "",
-      EVO_PLATFORM_SUPABASE_SECRET_KEY: p5bBrowserProof
+      EVO_PLATFORM_SUPABASE_SECRET_KEY: platformMessagingProof
         ? fixture.p5b.supabaseSecretKey
         : "",
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: p5bBrowserProof
         ? fixture.p5b.ingressHmacSecret
         : "",
-      EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: p5bBrowserProof
+      EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: platformMessagingProof
         ? fixture.p5b.intakeSalesMembershipId
         : "",
       EVO_PLATFORM_WAHA_WORKER_TRIGGER_SECRET: p5bBrowserProof
         ? fixture.p5b.workerTriggerSecret
+        : "",
+      EVO_PLATFORM_WAHA_HISTORY_ENABLED: p5cBrowserProof ? "1" : "0",
+      EVO_PLATFORM_WAHA_HISTORY_BASE_URL: p5cBrowserProof
+        ? "http://127.0.0.1:3312"
+        : "",
+      EVO_PLATFORM_WAHA_HISTORY_API_KEY: p5cBrowserProof
+        ? fixture.p5c.wahaApiKey
+        : "",
+      EVO_PLATFORM_WAHA_HISTORY_TRIGGER_SECRET: p5cBrowserProof
+        ? fixture.p5c.historyTriggerSecret
         : "",
     },
   },

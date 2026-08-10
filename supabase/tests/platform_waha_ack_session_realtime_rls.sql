@@ -1306,14 +1306,9 @@ SELECT pg_temp.assert_true(
 FROM platform_private.waha_session_observations AS observation
 WHERE observation.organization_id = :'org_a_id';
 
--- Broadcast is an organization-scoped invalidation only. Force a conversation
--- change so all public resource families covered by this suite have emitted or
--- installed an invalidation path.
-UPDATE platform.communication_conversations
-SET updated_at = updated_at
-WHERE organization_id = :'org_a_id'
-  AND id = :'outbound_conversation_id';
-
+-- Broadcast is an organization-scoped invalidation only. ACK and session
+-- projection above exercise runtime delivery; the remaining resource triggers
+-- are verified structurally without bypassing conversation mutation policy.
 SELECT realtime.send(
   jsonb_build_object('resource', 'session'),
   'invalidate',

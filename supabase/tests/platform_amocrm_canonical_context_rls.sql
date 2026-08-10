@@ -676,6 +676,7 @@ FROM platform.staff_amocrm_canonical_context(
   :'p4r1_conversation_b_id'
 )
 \gset
+\set ON_ERROR_STOP off
 SELECT platform.staff_amocrm_canonical_context(
   :'p4r1_org_a',
   :'p4r1_conversation_a_id'

@@ -58,7 +58,7 @@ WHERE student_case.organization_id = :'p4r1_org_a'
 \gset
 
 SELECT
-  student_case.id AS p4r1_case_b_id,
+  student_case.student_membership_id AS p4r1_case_b_student_membership_id,
   student_case.responsible_sales_membership_id AS p4r1_case_b_sales_membership_id
 FROM platform.student_cases AS student_case
 WHERE student_case.organization_id = :'p4r1_org_a'
@@ -72,11 +72,6 @@ SELECT
 FROM platform.student_cases AS student_case
 WHERE student_case.organization_id = :'p4r1_org_b'
   AND student_case.source_key = 'synthetic:amocrm:lead:org-b'
-\gset
-
-SELECT profile.access_version AS p4r1_sales_b_access_version
-FROM platform.profiles AS profile
-WHERE profile.auth_user_id = '42000000-0000-4000-8000-000000000003'
 \gset
 
 SELECT profile.access_version AS p4r1_curator_a_access_version
@@ -114,13 +109,6 @@ SELECT jsonb_build_object(
   'platform_role', 'admin',
   'platform_access_version', :'p4r1_admin_b_access_version'::BIGINT
 )::TEXT AS p4r1_admin_b_claims
-\gset
-SELECT jsonb_build_object(
-  'sub', '42000000-0000-4000-8000-000000000003',
-  'role', 'authenticated',
-  'platform_role', 'sales',
-  'platform_access_version', :'p4r1_sales_b_access_version'::BIGINT
-)::TEXT AS p4r1_sales_b_claims
 \gset
 SELECT jsonb_build_object(
   'sub', '10000000-0000-4000-8000-000000000002',
@@ -172,6 +160,50 @@ SELECT pg_temp.assert_true(
 
 SET request.jwt.claims TO :'p4r1_service_claims';
 SET ROLE service_role;
+
+-- The shared fixture's original Sales-B case may have advanced beyond the
+-- pending Sales queue in earlier stateful acceptance suites. Create a fresh,
+-- transaction-local pending case so this test proves positive Sales access
+-- without weakening the production full-conversation authority predicate.
+SELECT platform.create_pending_student_case(
+  :'p4r1_org_a',
+  :'p4r1_case_b_student_membership_id',
+  :'p4r1_case_b_sales_membership_id',
+  'synthetic:p4r1:amocrm:lead:sales-b',
+  'synthetic:p4r1:contract:sales-b',
+  '2026-08-10 08:55:00+06'::TIMESTAMPTZ,
+  'Synthetic P4R1 Sales Student',
+  'Synthetic Country',
+  'Synthetic Degree',
+  'Synthetic Program',
+  '2027-P4R1',
+  'RU',
+  'synthetic-funded',
+  'contract_confirmed',
+  'Sales queue acceptance proof',
+  '64000000-0000-4000-8000-000000000000'
+)::TEXT AS p4r1_case_b
+\gset
+
+SELECT
+  (:'p4r1_case_b'::JSONB ->> 'student_case_id')::UUID AS p4r1_case_b_id
+\gset
+
+-- Scope creation rotates the responsible Sales profile access version. Build
+-- the positive-read JWT only after that rotation so the proof uses live
+-- authority rather than a deliberately stale claim.
+SELECT profile.access_version AS p4r1_sales_b_access_version
+FROM platform.profiles AS profile
+WHERE profile.auth_user_id = '42000000-0000-4000-8000-000000000003'
+\gset
+
+SELECT jsonb_build_object(
+  'sub', '42000000-0000-4000-8000-000000000003',
+  'role', 'authenticated',
+  'platform_role', 'sales',
+  'platform_access_version', :'p4r1_sales_b_access_version'::BIGINT
+)::TEXT AS p4r1_sales_b_claims
+\gset
 
 SELECT platform.persist_provider_webhook_event(
   :'p4r1_org_a',

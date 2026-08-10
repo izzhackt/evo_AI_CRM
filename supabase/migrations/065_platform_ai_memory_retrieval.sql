@@ -2153,10 +2153,10 @@ BEGIN
     content_sha256 := chunk_item ->> 'content_sha256';
 
     IF end_offset > pg_catalog.char_length(knowledge_row.content_text)
-      OR pg_catalog.substring(
-        knowledge_row.content_text
-        FROM start_offset + 1
-        FOR end_offset - start_offset
+      OR pg_catalog.substr(
+        knowledge_row.content_text,
+        start_offset + 1,
+        end_offset - start_offset
       ) <> content_text
     THEN
       RAISE EXCEPTION

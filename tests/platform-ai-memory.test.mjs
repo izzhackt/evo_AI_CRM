@@ -438,3 +438,22 @@ test("UI contract exposes stable P5F1 controls without resume/autonomy or a raw 
   assert.match(repositorySource, /EVO_PLATFORM_AI_MEMORY_ENABLED/);
   assert.match(repositorySource, /===\s*["']1["']/);
 });
+
+test("approved knowledge chunk validation uses parse-safe PostgreSQL offsets", async () => {
+  const migrationSource = await readFile(
+    new URL(
+      "../supabase/migrations/065_platform_ai_memory_retrieval.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(
+    migrationSource,
+    /pg_catalog\.substr\(\s*knowledge_row\.content_text,\s*start_offset \+ 1,\s*end_offset - start_offset\s*\)/,
+  );
+  assert.doesNotMatch(
+    migrationSource,
+    /pg_catalog\.substring\([\s\S]*?FROM start_offset \+ 1/,
+  );
+});

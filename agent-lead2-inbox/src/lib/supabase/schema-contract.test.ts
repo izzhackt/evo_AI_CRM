@@ -122,6 +122,10 @@ const platformAmoCrmCanonicalContextMigration = readFileSync(
   join(migrationsDir, '064_platform_amocrm_canonical_context.sql'),
   'utf8'
 )
+const platformAiMemoryRetrievalMigration = readFileSync(
+  join(migrationsDir, '065_platform_ai_memory_retrieval.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -139,7 +143,7 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '064_platform_amocrm_canonical_context.sql'
+      '065_platform_ai_memory_retrieval.sql'
     )
     for (const table of [
       'waha_history_reconciliation_runs',
@@ -1276,5 +1280,139 @@ describe('Supabase companion schema contract', () => {
     expect(staffResult).not.toMatch(
       /amocrm_(?:account|contact|lead)_id|responsible_user_id|pipeline_id|status_id|provider_body|token|secret/i
     )
+  })
+
+  it('adds private P5F1 AI memory with degraded lexical retrieval only', () => {
+    const privateTables = [
+      'conversation_ai_memory_versions',
+      'conversation_ai_fact_versions',
+      'conversation_ai_qualification_versions',
+      'conversation_ai_control_events',
+      'approved_knowledge_chunk_sets',
+      'approved_knowledge_chunks',
+      'approved_knowledge_chunk_embeddings',
+      'ai_retrieval_requests',
+      'ai_retrieval_evidence',
+    ]
+
+    for (const table of privateTables) {
+      expect(platformAiMemoryRetrievalMigration).toMatch(
+        new RegExp(`CREATE\\s+TABLE\\s+platform_private\\.${table}`, 'i')
+      )
+      expect(platformAiMemoryRetrievalMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+      expect(platformAiMemoryRetrievalMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+
+    const tableRevoke = platformAiMemoryRetrievalMigration.match(
+      /REVOKE\s+ALL\s+ON\s+TABLE([\s\S]*?)FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role,\s*supabase_auth_admin/i
+    )?.[1]
+    expect(tableRevoke).toBeDefined()
+    for (const table of privateTables) {
+      expect(tableRevoke).toMatch(
+        new RegExp(`platform_private\\.${table}`, 'i')
+      )
+    }
+
+    expect(platformAiMemoryRetrievalMigration).toMatch(
+      /CREATE\s+TYPE\s+platform\.ai_memory_fact_key\s+AS\s+ENUM\s*\(\s*'preferred_country',\s*'preferred_program',\s*'budget_signal',\s*'intake_target',\s*'preferred_language',\s*'urgency',\s*'blockers',\s*'promised_follow_up',\s*'unanswered_questions'\s*\)/i
+    )
+    expect(platformAiMemoryRetrievalMigration).toMatch(
+      /CREATE\s+TYPE\s+platform\.ai_qualification_status\s+AS\s+ENUM\s*\(\s*'collecting',\s*'ready_for_staff_review',\s*'staff_confirmed',\s*'not_a_fit'\s*\)/i
+    )
+    expect(platformAiMemoryRetrievalMigration).toMatch(
+      /CREATE\s+TYPE\s+platform\.ai_control_state\s+AS\s+ENUM\s*\(\s*'paused',\s*'staff_takeover',\s*'staff_only'\s*\)/i
+    )
+    expect(platformAiMemoryRetrievalMigration).toMatch(
+      /embedding\s+public\.vector\(1536\)/i
+    )
+    expect(platformAiMemoryRetrievalMigration).toMatch(
+      /search_vector\s+TSVECTOR\s+GENERATED\s+ALWAYS\s+AS\s*\(\s*to_tsvector\('simple',\s*content_text\)\s*\)\s+STORED/i
+    )
+    expect(platformAiMemoryRetrievalMigration).toMatch(
+      /CREATE\s+INDEX\s+approved_knowledge_chunks_fts_idx[\s\S]*?USING\s+GIN\s*\(search_vector\)/i
+    )
+    expect(platformAiMemoryRetrievalMigration).not.toMatch(/USING\s+HNSW/i)
+
+    for (const rpc of [
+      'staff_conversation_ai_memory',
+      'record_conversation_ai_memory',
+      'record_conversation_ai_fact',
+      'record_conversation_ai_qualification',
+      'set_conversation_ai_control',
+      'publish_approved_knowledge_chunk_set',
+      'preview_approved_knowledge_lexical',
+      'staff_ai_retrieval_evidence',
+      'staff_ai_retrieval_capabilities',
+    ]) {
+      const declaration = platformAiMemoryRetrievalMigration.match(
+        new RegExp(
+          `CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+platform\\.${rpc}\\s*\\([\\s\\S]*?SECURITY\\s+DEFINER[\\s\\S]*?SET\\s+search_path\\s*=\\s*''[\\s\\S]*?AS\\s+\\$\\$`,
+          'i'
+        )
+      )?.[0]
+      expect(declaration).toBeDefined()
+    }
+
+    expect(platformAiMemoryRetrievalMigration).toMatch(
+      /platform\.record_conversation_ai_memory\s*\(\s*p_organization_id\s+UUID,\s*p_conversation_id\s+UUID,\s*p_expected_version\s+BIGINT,\s*p_short_summary\s+TEXT,\s*p_long_summary\s+TEXT,\s*p_source_message_id\s+UUID,\s*p_reason\s+TEXT,\s*p_request_id\s+UUID\s*\)/i
+    )
+    expect(platformAiMemoryRetrievalMigration).toMatch(
+      /platform\.record_conversation_ai_fact\s*\(\s*p_organization_id\s+UUID,\s*p_conversation_id\s+UUID,\s*p_fact_key\s+TEXT,\s*p_expected_version\s+BIGINT,\s*p_status\s+TEXT,\s*p_value\s+JSONB,\s*p_source_message_id\s+UUID,\s*p_reason\s+TEXT,\s*p_request_id\s+UUID\s*\)/i
+    )
+    expect(platformAiMemoryRetrievalMigration).toMatch(
+      /platform\.preview_approved_knowledge_lexical\s*\(\s*p_organization_id\s+UUID,\s*p_conversation_id\s+UUID,\s*p_source_message_ref\s+TEXT,\s*p_limit\s+INTEGER,\s*p_reason\s+TEXT,\s*p_request_id\s+UUID\s*\)/i
+    )
+    expect(platformAiMemoryRetrievalMigration).toMatch(
+      /exact_source_message_id\s*:=\s*p_source_message_ref::UUID[\s\S]*?message\.direction\s*=\s*'inbound'/i
+    )
+
+    const memoryResult = platformAiMemoryRetrievalMigration.match(
+      /platform\.staff_conversation_ai_memory\([\s\S]*?RETURNS\s+TABLE\s*\(([\s\S]*?)\)\s*LANGUAGE/i
+    )?.[1]
+    expect(memoryResult).toBeDefined()
+    expect(memoryResult).not.toMatch(
+      /waha|phone|kommo|amocrm|embedding|score|distance|query|hash|chunk|secret|token/i
+    )
+
+    const evidenceResult = platformAiMemoryRetrievalMigration.match(
+      /platform\.staff_ai_retrieval_evidence\([\s\S]*?RETURNS\s+TABLE\s*\(([\s\S]*?)\)\s*LANGUAGE/i
+    )?.[1]
+    expect(evidenceResult).toBeDefined()
+    expect(evidenceResult).not.toMatch(
+      /knowledge_version_id|chunk_id|content_text|embedding|score|distance|query|hash|waha|phone|kommo|amocrm|secret|token/i
+    )
+    expect(evidenceResult).toMatch(
+      /retrieval_request_id\s+UUID[\s\S]*source_message_id\s+UUID[\s\S]*knowledge_key\s+TEXT[\s\S]*knowledge_version\s+BIGINT/i
+    )
+
+    expect(platformAiMemoryRetrievalMigration).toMatch(
+      /RETURN\s+QUERY\s+SELECT\s+'gemini-embedding-2'::TEXT,\s*1536,\s*FALSE,\s*FALSE,\s*TRUE,\s*TRUE,\s*FALSE,\s*'blocked'::TEXT/i
+    )
+    expect(platformAiMemoryRetrievalMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION[\s\S]*?platform\.staff_ai_retrieval_capabilities\(UUID,\s*UUID\)[\s\S]*?TO\s+authenticated/i
+    )
+    expect(platformAiMemoryRetrievalMigration).not.toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION[\s\S]*?TO\s+service_role/i
+    )
+    expect(platformAiMemoryRetrievalMigration).not.toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.[a-z0-9_]*(?:semantic|embedding|provider)[a-z0-9_]*\s*\(/i
+    )
+    expect(platformAiMemoryRetrievalMigration).not.toMatch(
+      /INSERT\s+INTO\s+platform_private\.approved_knowledge_chunk_embeddings/i
+    )
+    expect(platformAiMemoryRetrievalMigration).not.toMatch(
+      /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+platform\.(?:ai_drafts|manual_send_authorizations|durable_work_items)/i
+    )
+    expect(platformAiMemoryRetrievalMigration).not.toMatch(/\bresume\b/i)
   })
 })

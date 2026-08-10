@@ -660,6 +660,16 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_amocrm_canonical_context_rls.sql
   fi
+
+  # P5F1 owns only private, append-only conversation AI memory and approved-
+  # knowledge retrieval evidence. Prove exact staff authority, literal chunk
+  # publication, degraded lexical behavior and the absence of any provider or
+  # autonomous-send surface at the migration 065 boundary.
+  if [[ "$(basename "$migration")" == 065_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_memory_retrieval_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

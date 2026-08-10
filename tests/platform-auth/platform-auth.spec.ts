@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
@@ -2341,6 +2341,295 @@ test("P5E projects WAHA ACK and session state into the live conversation UI", as
     expect(safePublicPayload).not.toContain(privateValue);
     await expect(page.locator("body")).not.toContainText(privateValue);
   }
+  expectLegacyDatabaseUntouched();
+});
+
+test("P5F1 persists staff-controlled memory and degraded lexical evidence in the accepted conversation UI", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.EVO_P5F1_BROWSER_PROOF !== "1",
+    "Runs only in the dedicated local P5F1 browser-proof partition.",
+  );
+  expectLegacyDatabaseUntouched();
+
+  const target = fixture.p3c.mutations.aiRequest;
+  const approvedKnowledgeText = "Synthetic org B approved knowledge v1.";
+  const approvedKnowledgeHash = createHash("sha256")
+    .update(approvedKnowledgeText, "utf8")
+    .digest("hex");
+  const rawProviderMessageId =
+    "synthetic-local-fixture-org-b-ai-request-message-1";
+  const allowedToken = await localAccessToken(
+    fixture.identities.crossOrgAdmin,
+  );
+  const deniedToken = await localAccessToken(fixture.identities.admin);
+
+  const publishResult = await platformRpc(
+    allowedToken,
+    "publish_approved_knowledge_chunk_set",
+    {
+      p_organization_id: target.organizationId,
+      p_knowledge_version_id: target.knowledgeVersionId,
+      p_chunker_version: "p5f1-local-lexical-v1",
+      p_chunks: [
+        {
+          chunk_index: 0,
+          start_offset: 0,
+          end_offset: approvedKnowledgeText.length,
+          content_text: approvedKnowledgeText,
+          content_sha256: approvedKnowledgeHash,
+        },
+      ],
+      p_reason: "p5f1_local_non_provider_browser_proof",
+      p_request_id: randomUUID(),
+    },
+  );
+  expect(publishResult.status).toBe(200);
+  const safePublishPayload = JSON.stringify(publishResult.payload);
+  expect(safePublishPayload).not.toContain(approvedKnowledgeText);
+  expect(safePublishPayload).not.toContain(approvedKnowledgeHash);
+
+  const crossOrganizationRead = await platformRpc(
+    deniedToken,
+    "staff_conversation_ai_memory",
+    {
+      p_organization_id: target.organizationId,
+      p_conversation_id: target.conversationId,
+    },
+  );
+  expect([401, 403]).toContain(crossOrganizationRead.status);
+
+  const initialMemory = await platformRpc(
+    allowedToken,
+    "staff_conversation_ai_memory",
+    {
+      p_organization_id: target.organizationId,
+      p_conversation_id: target.conversationId,
+    },
+  );
+  expect(initialMemory.status).toBe(200);
+  expect(Array.isArray(initialMemory.payload)).toBe(true);
+  const initialMemoryRow = (
+    initialMemory.payload as Array<Record<string, unknown>>
+  )[0];
+  expect(initialMemoryRow).toEqual(
+    expect.objectContaining({
+      conversation_id: target.conversationId,
+      facts: [],
+      qualification_status: "collecting",
+      control_state: "paused",
+      autonomous_authority: false,
+    }),
+  );
+  for (const version of [
+    initialMemoryRow.memory_version,
+    initialMemoryRow.qualification_version,
+    initialMemoryRow.control_version,
+  ]) {
+    expect([0, "0"]).toContain(version);
+  }
+
+  await loginToMessaging(page, fixture.identities.crossOrgAdmin);
+  await page.goto(`/whatsapp/${target.conversationId}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/whatsapp/${target.conversationId}$`),
+  );
+
+  const memoryCard = page.locator(
+    '[data-testid="platform-ai-memory-card"]:visible',
+  );
+  await expect(memoryCard).toBeVisible();
+  await expect(memoryCard).toHaveAttribute("data-enabled", "true");
+  await expect(
+    memoryCard.getByTestId("platform-ai-memory-capabilities"),
+  ).toHaveAttribute("data-autonomous-authority", "false");
+  await expect(
+    memoryCard.getByTestId("platform-ai-memory-capabilities"),
+  ).toHaveAttribute("data-provider-proof-state", "blocked");
+  await expect(
+    memoryCard.getByTestId("platform-ai-memory-capabilities"),
+  ).toHaveAttribute("data-lexical-preview-degraded", "true");
+
+  const factForm = memoryCard.getByTestId("platform-ai-memory-fact-form");
+  await factForm
+    .locator("xpath=ancestor::details")
+    .locator("summary")
+    .click();
+  await memoryCard
+    .getByTestId("platform-ai-memory-fact-key")
+    .selectOption("intake_target");
+  await memoryCard
+    .getByTestId("platform-ai-memory-fact-value")
+    .fill("Fall 2027");
+  await memoryCard.getByTestId("platform-ai-memory-fact-save").click();
+  await expect(memoryCard.getByTestId("platform-ai-memory-facts")).toContainText(
+    "Fall 2027",
+  );
+
+  const qualificationForm = memoryCard.getByTestId(
+    "platform-ai-memory-qualification-form",
+  );
+  await qualificationForm
+    .locator("xpath=ancestor::details")
+    .locator("summary")
+    .click();
+  await memoryCard
+    .getByTestId("platform-ai-memory-qualification-state")
+    .selectOption("ready_for_staff_review");
+  await memoryCard
+    .getByTestId("platform-ai-memory-qualification-save")
+    .click();
+  await expect(
+    memoryCard.getByTestId("platform-ai-memory-qualification-state"),
+  ).toHaveValue("ready_for_staff_review");
+
+  await memoryCard
+    .getByTestId("platform-ai-memory-control-staff-takeover")
+    .click();
+  await expect(
+    memoryCard.getByTestId("platform-ai-memory-control-state"),
+  ).toHaveAttribute("data-control-state", "staff_takeover");
+
+  await page.reload();
+  await expect(memoryCard.getByTestId("platform-ai-memory-facts")).toContainText(
+    "Fall 2027",
+  );
+  await expect(
+    memoryCard.getByTestId("platform-ai-memory-qualification-state"),
+  ).toHaveValue("ready_for_staff_review");
+  await expect(
+    memoryCard.getByTestId("platform-ai-memory-control-state"),
+  ).toHaveAttribute("data-control-state", "staff_takeover");
+
+  await memoryCard.getByTestId("platform-ai-memory-lexical-preview").click();
+  const evidenceBlock = memoryCard.getByTestId(
+    "platform-ai-memory-retrieval-evidence",
+  );
+  await expect(evidenceBlock).toBeVisible();
+  await expect(evidenceBlock).toHaveAttribute(
+    "data-retrieval-mode",
+    "lexical_preview",
+  );
+  await expect(evidenceBlock).toHaveAttribute(
+    "data-retrieval-outcome",
+    "completed",
+  );
+  await expect(evidenceBlock).toHaveAttribute(
+    "data-provider-proof-state",
+    "blocked",
+  );
+  await expect(evidenceBlock).toHaveAttribute(
+    "data-autonomous-authority",
+    "false",
+  );
+  await expect(evidenceBlock).toContainText(
+    "Synthetic org B admissions knowledge",
+  );
+
+  const finalMemory = await platformRpc(
+    allowedToken,
+    "staff_conversation_ai_memory",
+    {
+      p_organization_id: target.organizationId,
+      p_conversation_id: target.conversationId,
+    },
+  );
+  expect(finalMemory.status).toBe(200);
+  expect(Array.isArray(finalMemory.payload)).toBe(true);
+  const finalMemoryRow = (
+    finalMemory.payload as Array<Record<string, unknown>>
+  )[0];
+  expect(finalMemoryRow).toEqual(
+    expect.objectContaining({
+      conversation_id: target.conversationId,
+      qualification_status: "ready_for_staff_review",
+      control_state: "staff_takeover",
+      autonomous_authority: false,
+      latest_retrieval_outcome: "completed",
+    }),
+  );
+  expect(finalMemoryRow.latest_retrieval_request_id).toEqual(
+    expect.any(String),
+  );
+  expect(Object.keys(finalMemoryRow).sort()).toEqual(
+    [
+      "autonomous_authority",
+      "control_reason",
+      "control_state",
+      "control_version",
+      "conversation_id",
+      "facts",
+      "latest_retrieval_created_at",
+      "latest_retrieval_outcome",
+      "latest_retrieval_request_id",
+      "memory_long_summary",
+      "memory_short_summary",
+      "memory_source_message_id",
+      "memory_version",
+      "qualification_completeness",
+      "qualification_missing_fact_keys",
+      "qualification_notes",
+      "qualification_source_message_id",
+      "qualification_status",
+      "qualification_version",
+    ].sort(),
+  );
+
+  const evidenceResult = await platformRpc(
+    allowedToken,
+    "staff_ai_retrieval_evidence",
+    {
+      p_organization_id: target.organizationId,
+      p_conversation_id: target.conversationId,
+      p_retrieval_request_id: finalMemoryRow.latest_retrieval_request_id,
+    },
+  );
+  expect(evidenceResult.status).toBe(200);
+  expect(evidenceResult.payload).toEqual([
+    expect.objectContaining({
+      source_message_id: target.sourceMessageId,
+      retrieval_mode: "lexical_preview",
+      retrieval_outcome: "completed",
+      degraded: true,
+      provider_proof_state: "blocked",
+      autonomous_authority: false,
+      knowledge_key: "synthetic.orgb.admissions.general",
+      knowledge_title: "Synthetic org B admissions knowledge",
+      evidence_ordinal: 1,
+    }),
+  ]);
+  for (const row of evidenceResult.payload as Array<Record<string, unknown>>) {
+    expect([1, "1"]).toContain(row.knowledge_version);
+    expect(Object.keys(row).sort()).toEqual(
+      [
+        "autonomous_authority",
+        "created_at",
+        "degraded",
+        "evidence_ordinal",
+        "knowledge_key",
+        "knowledge_title",
+        "knowledge_version",
+        "provider_proof_state",
+        "retrieval_mode",
+        "retrieval_outcome",
+        "retrieval_request_id",
+        "source_message_id",
+      ].sort(),
+    );
+  }
+
+  const safeEvidencePayload = JSON.stringify(evidenceResult.payload);
+  for (const privateValue of [
+    target.knowledgeVersionId,
+    approvedKnowledgeText,
+    approvedKnowledgeHash,
+    rawProviderMessageId,
+  ]) {
+    expect(safeEvidencePayload).not.toContain(privateValue);
+    await expect(evidenceBlock).not.toContainText(privateValue);
+  }
+  await expect(page.locator("body")).not.toContainText(rawProviderMessageId);
   expectLegacyDatabaseUntouched();
 });
 

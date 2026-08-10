@@ -1,10 +1,16 @@
 import { PlatformAmoCrmContextCard } from "@/components/platform/communications/PlatformAmoCrmContextCard";
+import { PlatformAiMemoryCard } from "@/components/platform/communications/PlatformAiMemoryCard";
 import { PlatformMessagingWorkflowPanel } from "@/components/platform/communications/PlatformMessagingWorkflowPanel";
 import { PlatformMessageMedia } from "@/components/platform/communications/PlatformMessageMedia";
 import { PlatformWaList } from "@/components/platform/communications/PlatformWaList";
 import { EmptyState, cn } from "@/components/ui";
 import { getT } from "@/lib/i18n";
 import type { PlatformAmoCrmCanonicalContext } from "@/lib/platform-amocrm-canonical-context";
+import type {
+  PlatformAiRetrievalCapabilities,
+  PlatformAiRetrievalEvidence,
+  PlatformConversationAiMemory,
+} from "@/lib/platform-ai-memory";
 import type {
   PlatformConversationMessage,
   PlatformConversationSummary,
@@ -73,6 +79,9 @@ export async function PlatformConversationView({
   bw4Workspace,
   wahaSessionHealth,
   amocrmCanonicalContext,
+  aiMemory,
+  aiRetrievalCapabilities,
+  aiRetrievalEvidence,
   decisionMutationOutcome,
 }: {
   conversations: readonly PlatformConversationSummary[];
@@ -83,6 +92,9 @@ export async function PlatformConversationView({
   bw4Workspace: PlatformConversationBw4Workspace | null;
   wahaSessionHealth: PlatformWahaSessionHealth | null;
   amocrmCanonicalContext: PlatformAmoCrmCanonicalContext;
+  aiMemory: PlatformConversationAiMemory | null;
+  aiRetrievalCapabilities: PlatformAiRetrievalCapabilities | null;
+  aiRetrievalEvidence: PlatformAiRetrievalEvidence | null;
   decisionMutationOutcome: "saved" | "invalid" | "unavailable" | null;
 }) {
   const { t, locale } = await getT();
@@ -90,6 +102,19 @@ export async function PlatformConversationView({
   const latestInboundMessage =
     [...messages].reverse().find((message) => message.direction === "inbound") ??
     null;
+  const aiMemorySourceMessages = [...messages]
+    .filter((message) => message.direction === "inbound")
+    .reverse()
+    .map((message) => {
+      const body = message.bodyText.trim();
+      const excerpt = body.length
+        ? body.slice(0, 72)
+        : t("platformAiMemorySourceNoText");
+      return {
+        id: message.id,
+        label: `${formatTimestamp(message.createdAt, locale)} · ${excerpt}`,
+      };
+    });
   const inboundLanguage =
     latestInboundMessage?.language === "ru" ||
     latestInboundMessage?.language === "en"
@@ -368,6 +393,64 @@ export async function PlatformConversationView({
     platformAmoCrmContextReasonRefreshFailed: t("platformAmoCrmContextReasonRefreshFailed"),
     platformAmoCrmContextReasonUnknown: t("platformAmoCrmContextReasonUnknown"),
   };
+  const aiMemoryLabels = {
+    title: t("platformAiMemoryTitle"),
+    hint: t("platformAiMemoryHint"),
+    disabled: t("platformAiMemoryDisabled"),
+    summary: t("platformAiMemorySummary"),
+    shortSummary: t("platformAiMemoryShortSummary"),
+    longSummary: t("platformAiMemoryLongSummary"),
+    saveSummary: t("platformAiMemorySaveSummary"),
+    facts: t("platformAiMemoryFacts"),
+    noFacts: t("platformAiMemoryNoFacts"),
+    factKey: t("platformAiMemoryFactKey"),
+    factValue: t("platformAiMemoryFactValue"),
+    factStatus: t("platformAiMemoryFactStatus"),
+    factActive: t("platformAiMemoryFactActive"),
+    factRetracted: t("platformAiMemoryFactRetracted"),
+    saveFact: t("platformAiMemorySaveFact"),
+    qualification: t("platformAiMemoryQualification"),
+    completeness: t("platformAiMemoryCompleteness"),
+    missingFacts: t("platformAiMemoryMissingFacts"),
+    notes: t("platformAiMemoryNotes"),
+    saveQualification: t("platformAiMemorySaveQualification"),
+    control: t("platformAiMemoryControl"),
+    controlPaused: t("platformAiMemoryControlPaused"),
+    controlStaffTakeover: t("platformAiMemoryControlStaffTakeover"),
+    controlStaffOnly: t("platformAiMemoryControlStaffOnly"),
+    pause: t("platformAiMemoryPause"),
+    staffTakeover: t("platformAiMemoryStaffTakeover"),
+    returnStaffOnly: t("platformAiMemoryReturnStaffOnly"),
+    retrieval: t("platformAiMemoryRetrieval"),
+    lexicalPreview: t("platformAiMemoryLexicalPreview"),
+    lexicalDegraded: t("platformAiMemoryLexicalDegraded"),
+    providerBlocked: t("platformAiMemoryProviderBlocked"),
+    noEvidence: t("platformAiMemoryNoEvidence"),
+    noMatch: t("platformAiMemoryNoMatch"),
+    latestInboundRequired: t("platformAiMemoryLatestInboundRequired"),
+    edit: t("platformAiMemoryEdit"),
+    sourceMessage: t("platformAiMemorySourceMessage"),
+    sourceMessageHint: t("platformAiMemorySourceMessageHint"),
+    factLabels: {
+      preferred_country: t("platformAiMemoryFactPreferredCountry"),
+      preferred_program: t("platformAiMemoryFactPreferredProgram"),
+      budget_signal: t("platformAiMemoryFactBudgetSignal"),
+      intake_target: t("platformAiMemoryFactIntakeTarget"),
+      preferred_language: t("platformAiMemoryFactPreferredLanguage"),
+      urgency: t("platformAiMemoryFactUrgency"),
+      blockers: t("platformAiMemoryFactBlockers"),
+      promised_follow_up: t("platformAiMemoryFactPromisedFollowUp"),
+      unanswered_questions: t("platformAiMemoryFactUnansweredQuestions"),
+    },
+    qualificationLabels: {
+      collecting: t("platformAiMemoryQualificationCollecting"),
+      ready_for_staff_review: t(
+        "platformAiMemoryQualificationReadyForStaffReview",
+      ),
+      staff_confirmed: t("platformAiMemoryQualificationStaffConfirmed"),
+      not_a_fit: t("platformAiMemoryQualificationNotAFit"),
+    },
+  };
 
   return (
     <div
@@ -438,6 +521,26 @@ export async function PlatformConversationView({
             </p>
           </section>
         )}
+
+        <details
+          className="border-b border-border bg-surface xl:hidden"
+          data-testid="platform-ai-memory-mobile-details"
+        >
+          <summary className="cursor-pointer px-4 py-2.5 text-[11px] font-bold text-fg">
+            {aiMemoryLabels.title}
+          </summary>
+          <div className="px-4 pb-3">
+            <PlatformAiMemoryCard
+              capabilities={aiRetrievalCapabilities}
+              conversationId={conversation.id}
+              evidence={aiRetrievalEvidence}
+              inboundSourceMessages={aiMemorySourceMessages}
+              labels={aiMemoryLabels}
+              memory={aiMemory}
+              testIdSuffix="-mobile"
+            />
+          </div>
+        </details>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {messages.length === 0 ? (
@@ -524,6 +627,14 @@ export async function PlatformConversationView({
             context={amocrmCanonicalContext}
             locale={locale}
             labels={amocrmLabels}
+          />
+          <PlatformAiMemoryCard
+            capabilities={aiRetrievalCapabilities}
+            conversationId={conversation.id}
+            evidence={aiRetrievalEvidence}
+            inboundSourceMessages={aiMemorySourceMessages}
+            labels={aiMemoryLabels}
+            memory={aiMemory}
           />
           <dl className="space-y-3">
             {[

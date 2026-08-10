@@ -1337,7 +1337,12 @@ SELECT pg_temp.assert_true(
   AND bool_and(message.extension = 'broadcast')
   AND bool_and(message.event = 'invalidate')
   AND bool_and(message.private)
-  AND bool_and(jsonb_object_length(message.payload) = 1)
+  AND bool_and(
+    message.payload = jsonb_build_object(
+      'resource',
+      message.payload ->> 'resource'
+    )
+  )
   AND bool_and(message.payload ? 'resource')
   AND bool_and(
     message.payload ->> 'resource' IN (
@@ -1489,7 +1494,10 @@ SELECT pg_temp.assert_true(
 );
 
 SELECT pg_temp.assert_true(
-  jsonb_object_length(:'staff_session_health'::JSONB) = 3
+  (
+    SELECT count(*)
+    FROM jsonb_object_keys(:'staff_session_health'::JSONB)
+  ) = 3
   AND :'staff_session_health'::JSONB ?&
     ARRAY['waha_session_name', 'status', 'observed_at']
   AND :'staff_session_health'::JSONB ->> 'waha_session_name' = 'evo-inbox'

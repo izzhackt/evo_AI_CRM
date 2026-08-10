@@ -39,6 +39,7 @@ export type PlatformAmoCrmCanonicalContextFailureCode =
   | "invalid_configuration"
   | "provider_rejected"
   | "provider_not_found"
+  | "provider_relationship_mismatch"
   | "provider_rate_limited"
   | "provider_http_error"
   | "provider_response_invalid"
@@ -72,6 +73,10 @@ function invalidConfiguration(): never {
 
 function providerResponseInvalid(): never {
   throw new PlatformAmoCrmCanonicalContextClientError("provider_response_invalid");
+}
+
+function providerRelationshipMismatch(): never {
+  throw new PlatformAmoCrmCanonicalContextClientError("provider_relationship_mismatch");
 }
 
 function integerOption(
@@ -246,7 +251,9 @@ function toReasonCode(
 ): PlatformAmoCrmCanonicalContextReasonCode {
   switch (error.code) {
     case "provider_not_found":
-      return "provider_binding_mismatch";
+      return "provider_not_found";
+    case "provider_relationship_mismatch":
+      return "provider_relationship_mismatch";
     case "provider_rate_limited":
       return "provider_rate_limited";
     case "provider_http_error":
@@ -261,8 +268,9 @@ function toReasonCode(
     case "provider_rejected":
       return "provider_auth_failed";
     case "invalid_configuration":
+      return "invalid_configuration";
     default:
-      return "missing_configuration";
+      return "unknown";
   }
 }
 
@@ -341,20 +349,26 @@ export async function readPlatformAmoCrmCanonicalContext(
   const attemptedAt = new Date().toISOString();
   try {
     const account = requiredRecord(await get("/api/v4/account"));
-    if (requiredProviderId(account.id) !== amocrmAccountId) return providerResponseInvalid();
+    if (requiredProviderId(account.id) !== amocrmAccountId) {
+      return providerRelationshipMismatch();
+    }
 
     const contact = requiredRecord(
       await get(`/api/v4/contacts/${amocrmContactId}?with=leads`),
     );
-    if (requiredProviderId(contact.id) !== amocrmContactId) return providerResponseInvalid();
+    if (requiredProviderId(contact.id) !== amocrmContactId) {
+      return providerRelationshipMismatch();
+    }
 
     const lead = requiredRecord(await get(`/api/v4/leads/${amocrmLeadId}?with=contacts`));
-    if (requiredProviderId(lead.id) !== amocrmLeadId) return providerResponseInvalid();
+    if (requiredProviderId(lead.id) !== amocrmLeadId) {
+      return providerRelationshipMismatch();
+    }
 
     const contactLeadIds = normalizeLinks(contact, "leads");
     const leadContactIds = normalizeLinks(lead, "contacts");
     if (!contactLeadIds.includes(amocrmLeadId) || !leadContactIds.includes(amocrmContactId)) {
-      return providerResponseInvalid();
+      return providerRelationshipMismatch();
     }
 
     const pipelineId = requiredProviderId(lead.pipeline_id);

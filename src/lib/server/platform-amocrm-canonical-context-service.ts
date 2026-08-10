@@ -134,10 +134,15 @@ function notLinkedContext(): PlatformAmoCrmCanonicalContext {
   });
 }
 
-function missingConfigurationContext(): PlatformAmoCrmCanonicalContext {
+function configurationContext(
+  reasonCode:
+    | "missing_configuration"
+    | "invalid_configuration"
+    | "configuration_scope_mismatch",
+): PlatformAmoCrmCanonicalContext {
   return buildPlatformAmoCrmCanonicalContext({
     state: "disabled",
-    reason_code: "missing_configuration",
+    reason_code: reasonCode,
   });
 }
 
@@ -154,7 +159,11 @@ export async function getPlatformAmoCrmCanonicalContext(
     config = getConfig();
   } catch (error) {
     if (error instanceof PlatformAmoCrmReadConfigurationError) {
-      return missingConfigurationContext();
+      return configurationContext(
+        error.code.startsWith("missing_")
+          ? "missing_configuration"
+          : "invalid_configuration",
+      );
     }
     throw error;
   }
@@ -176,7 +185,7 @@ export async function getPlatformAmoCrmCanonicalContext(
   }
 
   if (enabledConfig.organizationId !== authority.organizationId) {
-    return missingConfigurationContext();
+    return configurationContext("configuration_scope_mismatch");
   }
 
   const now = dependencies.now ?? Date.now;
@@ -215,7 +224,13 @@ export async function getPlatformAmoCrmCanonicalContext(
   const nowMs = now();
   if (current && isFresh(current, nowMs)) return current;
 
-  const inflightKey = `${authority.organizationId}:${binding.id}`;
+  const inflightKey = [
+    authority.organizationId,
+    binding.id,
+    binding.amocrmAccountId,
+    binding.amocrmContactId,
+    binding.amocrmLeadId,
+  ].join(":");
   const existing = refreshInflight.get(inflightKey);
   if (existing) return existing;
 

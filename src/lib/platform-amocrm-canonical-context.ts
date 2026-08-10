@@ -24,6 +24,8 @@ export type PlatformAmoCrmCanonicalContextState =
 export const PLATFORM_AMOCRM_CANONICAL_CONTEXT_REASON_CODES = [
   "disabled_by_config",
   "missing_configuration",
+  "invalid_configuration",
+  "configuration_scope_mismatch",
   "missing_binding",
   "provider_rejected",
   "provider_not_found",

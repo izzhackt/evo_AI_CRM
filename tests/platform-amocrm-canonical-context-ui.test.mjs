@@ -166,6 +166,8 @@ test("RU, KY, and EN dictionaries contain amoCRM context labels and reasons", ()
     "platformAmoCrmContextUnknownValue",
     "platformAmoCrmContextReasonDisabledByConfig",
     "platformAmoCrmContextReasonMissingConfiguration",
+    "platformAmoCrmContextReasonInvalidConfiguration",
+    "platformAmoCrmContextReasonConfigurationScopeMismatch",
     "platformAmoCrmContextReasonMissingBinding",
     "platformAmoCrmContextReasonProviderRejected",
     "platformAmoCrmContextReasonProviderNotFound",

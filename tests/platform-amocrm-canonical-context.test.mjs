@@ -353,6 +353,12 @@ test("client degrades only the admin-only user lookup on 403 and maps other erro
       return true;
     },
   );
+
+  const notFound = buildUnavailableCanonicalContextFromError(
+    new PlatformAmoCrmCanonicalContextClientError("provider_not_found"),
+    "2026-08-10T12:05:00.000Z",
+  );
+  assert.equal(notFound.reason_code, "provider_not_found");
 });
 
 test("client rejects cross-link mismatches, redirects and oversized responses", async () => {
@@ -382,7 +388,10 @@ test("client rejects cross-link mismatches, redirects and oversized responses", 
         },
       },
     ),
-    /unavailable/,
+    (error) => {
+      assert.equal(error.code, "provider_relationship_mismatch");
+      return true;
+    },
   );
 
   await assert.rejects(
@@ -621,6 +630,14 @@ test("service keeps the conversation page available when enabled configuration i
   assert.equal(missing.state, "disabled");
   assert.equal(missing.reason_code, "missing_configuration");
 
+  const invalid = await getPlatformAmoCrmCanonicalContext(actor(), conversation(), {
+    getConfig: () => {
+      throw new PlatformAmoCrmReadConfigurationError("unsafe_read_token");
+    },
+  });
+  assert.equal(invalid.state, "disabled");
+  assert.equal(invalid.reason_code, "invalid_configuration");
+
   const wrongOrganization = await getPlatformAmoCrmCanonicalContext(
     actor(),
     conversation(),
@@ -641,7 +658,7 @@ test("service keeps the conversation page available when enabled configuration i
     },
   );
   assert.equal(wrongOrganization.state, "disabled");
-  assert.equal(wrongOrganization.reason_code, "missing_configuration");
+  assert.equal(wrongOrganization.reason_code, "configuration_scope_mismatch");
 });
 
 test("service refreshes stale data once, records failures, and falls back to stale only inside the bounded lifetime", async () => {
@@ -767,6 +784,94 @@ test("service refreshes stale data once, records failures, and falls back to sta
     },
   });
   assert.equal(unavailable.state, "unavailable");
+});
+
+test("service isolates concurrent refreshes when a conversation amoCRM binding changes", async () => {
+  const config = {
+    enabled: true,
+    organizationId: ORGANIZATION_ID,
+    supabaseUrl: "https://example.supabase.co",
+    supabaseSecretKey: "sb_secret_abcdefghijklmnopqrstuvwxyz",
+    accountDomain: "evoadmissions.amocrm.ru",
+    accountOrigin: "https://evoadmissions.amocrm.ru",
+    accountSubdomain: "evoadmissions",
+    accessToken: "synthetic-read-token-123456",
+    timeoutMs: 1000,
+    maxResponseBytes: 1024,
+    requestIntervalMs: 200,
+  };
+  const rotatedContactId = "200099";
+  const rotatedLeadId = "300099";
+  let providerReads = 0;
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const dependencies = {
+    getConfig: () => config,
+    createStaffClient: async () => ({}),
+    createServiceClient: () => ({}),
+    readCurrent: async () => null,
+    recordObservation: async () => ({}),
+    readProvider: async (input) => {
+      providerReads += 1;
+      await gate;
+      return {
+        state: "available",
+        reasonCode: null,
+        attemptedAt: "2026-08-10T12:16:00.000Z",
+        observedAt: "2026-08-10T12:16:01.000Z",
+        responsibleUserResolution: "not_assigned",
+        relationshipIds: {
+          amocrmAccountId: input.amocrmAccountId,
+          amocrmContactId: input.amocrmContactId,
+          amocrmLeadId: input.amocrmLeadId,
+          pipelineId: PIPELINE_ID,
+          statusId: STATUS_ID,
+          responsibleUserId: null,
+        },
+        responsibleUserActive: null,
+        observedCapabilities: [
+          "account.read",
+          "contact.read",
+          "lead.read",
+          "pipeline.read",
+        ],
+        context: buildPlatformAmoCrmCanonicalContext({
+          state: "available",
+          contact_name: `Contact ${input.amocrmContactId}`,
+          lead_name: `Lead ${input.amocrmLeadId}`,
+          responsible_user_resolution: "not_assigned",
+          pipeline_name: "Pipeline",
+          status_name: "Stage",
+          last_attempt_at: "2026-08-10T12:16:00.000Z",
+          provider_observed_at: "2026-08-10T12:16:01.000Z",
+        }),
+      };
+    },
+  };
+
+  const original = getPlatformAmoCrmCanonicalContext(
+    actor(),
+    conversation(),
+    dependencies,
+  );
+  const rotated = getPlatformAmoCrmCanonicalContext(
+    actor(),
+    conversation({
+      amocrmContactId: rotatedContactId,
+      amocrmLeadId: rotatedLeadId,
+    }),
+    dependencies,
+  );
+  release();
+  const [originalResult, rotatedResult] = await Promise.all([original, rotated]);
+
+  assert.equal(providerReads, 2);
+  assert.equal(originalResult.contact_name, `Contact ${CONTACT_ID}`);
+  assert.equal(rotatedResult.contact_name, `Contact ${rotatedContactId}`);
+  assert.equal(originalResult.lead_name, `Lead ${LEAD_ID}`);
+  assert.equal(rotatedResult.lead_name, `Lead ${rotatedLeadId}`);
 });
 
 test("service propagates observation-storage failures without misclassifying them as provider failures", async () => {

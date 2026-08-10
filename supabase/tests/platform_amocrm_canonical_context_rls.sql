@@ -74,9 +74,9 @@ WHERE student_case.organization_id = :'p4r1_org_b'
   AND student_case.source_key = 'synthetic:amocrm:lead:org-b'
 \gset
 
-SELECT profile.access_version AS p4r1_sales_a_access_version
+SELECT profile.access_version AS p4r1_sales_b_access_version
 FROM platform.profiles AS profile
-WHERE profile.auth_user_id = '42000000-0000-4000-8000-000000000002'
+WHERE profile.auth_user_id = '42000000-0000-4000-8000-000000000003'
 \gset
 
 SELECT profile.access_version AS p4r1_curator_a_access_version
@@ -116,11 +116,11 @@ SELECT jsonb_build_object(
 )::TEXT AS p4r1_admin_b_claims
 \gset
 SELECT jsonb_build_object(
-  'sub', '42000000-0000-4000-8000-000000000002',
+  'sub', '42000000-0000-4000-8000-000000000003',
   'role', 'authenticated',
   'platform_role', 'sales',
-  'platform_access_version', :'p4r1_sales_a_access_version'::BIGINT
-)::TEXT AS p4r1_sales_a_claims
+  'platform_access_version', :'p4r1_sales_b_access_version'::BIGINT
+)::TEXT AS p4r1_sales_b_claims
 \gset
 SELECT jsonb_build_object(
   'sub', '10000000-0000-4000-8000-000000000002',
@@ -636,7 +636,7 @@ FROM platform.staff_amocrm_canonical_context(
 \gset
 RESET ROLE;
 
-SET request.jwt.claims TO :'p4r1_sales_a_claims';
+SET request.jwt.claims TO :'p4r1_sales_b_claims';
 SET ROLE authenticated;
 SELECT count(*)::TEXT AS p4r1_sales_visible_count
 FROM platform.staff_amocrm_canonical_context(

@@ -26,6 +26,8 @@ type Labels = Readonly<{
   platformValueNo: string;
   platformAmoCrmContextReasonDisabledByConfig: string;
   platformAmoCrmContextReasonMissingConfiguration: string;
+  platformAmoCrmContextReasonInvalidConfiguration: string;
+  platformAmoCrmContextReasonConfigurationScopeMismatch: string;
   platformAmoCrmContextReasonMissingBinding: string;
   platformAmoCrmContextReasonProviderRejected: string;
   platformAmoCrmContextReasonProviderNotFound: string;
@@ -83,6 +85,10 @@ function reasonLabel(
       return labels.platformAmoCrmContextReasonDisabledByConfig;
     case "missing_configuration":
       return labels.platformAmoCrmContextReasonMissingConfiguration;
+    case "invalid_configuration":
+      return labels.platformAmoCrmContextReasonInvalidConfiguration;
+    case "configuration_scope_mismatch":
+      return labels.platformAmoCrmContextReasonConfigurationScopeMismatch;
     case "missing_binding":
       return labels.platformAmoCrmContextReasonMissingBinding;
     case "provider_rejected":

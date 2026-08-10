@@ -354,6 +354,8 @@ export async function PlatformConversationView({
     platformValueNo: t("platformValueNo"),
     platformAmoCrmContextReasonDisabledByConfig: t("platformAmoCrmContextReasonDisabledByConfig"),
     platformAmoCrmContextReasonMissingConfiguration: t("platformAmoCrmContextReasonMissingConfiguration"),
+    platformAmoCrmContextReasonInvalidConfiguration: t("platformAmoCrmContextReasonInvalidConfiguration"),
+    platformAmoCrmContextReasonConfigurationScopeMismatch: t("platformAmoCrmContextReasonConfigurationScopeMismatch"),
     platformAmoCrmContextReasonMissingBinding: t("platformAmoCrmContextReasonMissingBinding"),
     platformAmoCrmContextReasonProviderRejected: t("platformAmoCrmContextReasonProviderRejected"),
     platformAmoCrmContextReasonProviderNotFound: t("platformAmoCrmContextReasonProviderNotFound"),

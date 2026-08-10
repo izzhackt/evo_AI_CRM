@@ -79,6 +79,15 @@ if (
   throw new Error("EVO_P5E_BROWSER_PROOF must be 0 or 1");
 }
 const p5eBrowserProof = p5eBrowserProofFlag === "1";
+const p5f1BrowserProofFlag = process.env.EVO_P5F1_BROWSER_PROOF;
+if (
+  p5f1BrowserProofFlag !== undefined &&
+  p5f1BrowserProofFlag !== "0" &&
+  p5f1BrowserProofFlag !== "1"
+) {
+  throw new Error("EVO_P5F1_BROWSER_PROOF must be 0 or 1");
+}
+const p5f1BrowserProof = p5f1BrowserProofFlag === "1";
 const platformAuthDevRunKey = process.env.EVO_PLATFORM_AUTH_DEV_RUN_KEY;
 const platformAuthBrowserPartition =
   process.env.EVO_PLATFORM_AUTH_BROWSER_PARTITION;
@@ -95,7 +104,7 @@ if (
 }
 if (
   !platformAuthBrowserPartition ||
-  !["provider", "p5b", "p5c", "p5d", "p5e", "remaining"].includes(
+  !["provider", "p5b", "p5c", "p5d", "p5e", "p5f1", "remaining"].includes(
     platformAuthBrowserPartition,
   )
 ) {
@@ -115,11 +124,12 @@ if (
   Number(p5bBrowserProof) +
     Number(p5cBrowserProof) +
     Number(p5dBrowserProof) +
-    Number(p5eBrowserProof) >
+    Number(p5eBrowserProof) +
+    Number(p5f1BrowserProof) >
   1
 ) {
   throw new Error(
-    "P5B, P5C, P5D and P5E browser proof partitions are mutually exclusive",
+    "P5B, P5C, P5D, P5E and P5F1 browser proof partitions are mutually exclusive",
   );
 }
 if (
@@ -137,6 +147,11 @@ if ((platformAuthBrowserPartition === "p5d") !== p5dBrowserProof) {
 if ((platformAuthBrowserPartition === "p5e") !== p5eBrowserProof) {
   throw new Error(
     "EVO_P5E_BROWSER_PROOF must be enabled only for the p5e browser partition",
+  );
+}
+if ((platformAuthBrowserPartition === "p5f1") !== p5f1BrowserProof) {
+  throw new Error(
+    "EVO_P5F1_BROWSER_PROOF must be enabled only for the p5f1 browser partition",
   );
 }
 if (
@@ -246,6 +261,7 @@ export default defineConfig({
         p5bBrowserProof || p5dBrowserProof || p5eBrowserProof ? "1" : "0",
       EVO_PLATFORM_WAHA_WORKER_ENABLED:
         p5bBrowserProof || p5dBrowserProof || p5eBrowserProof ? "1" : "0",
+      EVO_PLATFORM_AI_MEMORY_ENABLED: p5f1BrowserProof ? "1" : "0",
       EVO_PLATFORM_ORGANIZATION_ID: platformMessagingProof
         ? p5dBrowserProof
           ? fixture.p5d.organizationId

@@ -17,6 +17,11 @@ import {
 import { getPlatformConversationBw4Workspace } from "@/lib/platform-bw4-workflow";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 import { getPlatformAmoCrmCanonicalContext } from "@/lib/server/platform-amocrm-canonical-context-service";
+import {
+  readPlatformAiRetrievalCapabilities,
+  readPlatformAiRetrievalEvidence,
+  readPlatformConversationAiMemory,
+} from "@/lib/server/platform-ai-memory-repository";
 
 import { CommunicationsSourceDisclosure } from "../CommunicationsSourceDisclosure";
 
@@ -69,10 +74,19 @@ export default async function ConversationPage({
       getPlatformWahaSessionHealth(actor),
     ]);
   if (!thread || !workflow) notFound();
-  const amocrmCanonicalContext = await getPlatformAmoCrmCanonicalContext(
-    actor,
-    thread.conversation,
-  );
+  const [amocrmCanonicalContext, aiMemory, aiRetrievalCapabilities] =
+    await Promise.all([
+      getPlatformAmoCrmCanonicalContext(actor, thread.conversation),
+      readPlatformConversationAiMemory(actor, id).catch(() => null),
+      readPlatformAiRetrievalCapabilities(actor, id).catch(() => null),
+    ]);
+  const aiRetrievalEvidence = aiMemory?.latestRetrieval
+    ? await readPlatformAiRetrievalEvidence(
+        actor,
+        id,
+        aiMemory.latestRetrieval.requestId,
+      ).catch(() => null)
+    : null;
 
   return (
     <div className="space-y-4" data-testid="whatsapp-conversation">
@@ -91,6 +105,9 @@ export default async function ConversationPage({
         bw4Workspace={bw4Workspace}
         wahaSessionHealth={wahaSessionHealth}
         amocrmCanonicalContext={amocrmCanonicalContext}
+        aiMemory={aiMemory}
+        aiRetrievalCapabilities={aiRetrievalCapabilities}
+        aiRetrievalEvidence={aiRetrievalEvidence}
         decisionMutationOutcome={decisionMutationOutcome(
           resolvedSearchParams.result,
         )}

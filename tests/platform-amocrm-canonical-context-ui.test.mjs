@@ -27,7 +27,7 @@ const i18nSource = readFileSync(
 
 test("conversation page resolves canonical context only after an accepted thread exists", () => {
   const notFoundIndex = pageSource.indexOf('if (!thread || !workflow) notFound();');
-  const serviceCallIndex = pageSource.indexOf("await getPlatformAmoCrmCanonicalContext(");
+  const serviceCallIndex = pageSource.indexOf("getPlatformAmoCrmCanonicalContext(");
 
   assert.match(
     pageSource,

@@ -1521,7 +1521,7 @@ DELETE FROM platform_private.ai_retrieval_evidence
 WHERE retrieval_request_id =
   (:'p5f1_preview_first'::JSONB ->> 'retrieval_request_id')::UUID;
 \set p5f1_owner_delete_state :SQLSTATE
-TRUNCATE TABLE platform_private.approved_knowledge_chunks;
+TRUNCATE TABLE platform_private.conversation_ai_control_events;
 \set p5f1_owner_truncate_state :SQLSTATE
 \set ON_ERROR_STOP on
 

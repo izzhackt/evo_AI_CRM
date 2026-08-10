@@ -484,4 +484,12 @@ test("approved knowledge chunk validation uses parse-safe PostgreSQL offsets", a
     /COALESCE\(pg_catalog\.max\(knowledge\.version\), 0::BIGINT\)/,
   );
   assert.doesNotMatch(authorizationSource, /pg_catalog\.coalesce/i);
+  assert.match(
+    authorizationSource,
+    /TRUNCATE TABLE platform_private\.conversation_ai_control_events/,
+  );
+  assert.doesNotMatch(
+    authorizationSource,
+    /TRUNCATE TABLE platform_private\.approved_knowledge_chunks/,
+  );
 });

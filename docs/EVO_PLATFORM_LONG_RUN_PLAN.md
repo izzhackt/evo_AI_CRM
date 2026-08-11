@@ -1,7 +1,7 @@
 # EVO Platform Long-Run Execution Contract
 
 Status: active repository implementation contract
-Version date: 2026-08-10 (Asia/Bishkek)
+Version date: 2026-08-11 (Asia/Bishkek)
 Initial kickoff baseline: GitHub `origin/main` at
 `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
@@ -18,11 +18,13 @@ merged the disabled-by-default P5B projection into the accepted `/whatsapp`
 data path, PR #137 merged the P5C available-history reconciliation lane, and
 PR #138 merged the disabled-by-default P5D private media archive plus accepted
 media display. PR #141 merged P5E ACK/session projection and private Realtime,
-and PR #142 merged bounded P4R1 read-only canonical amoCRM context. Current
-`origin/main` is `8cf46a94b79e8bc24ad49b30606753a690ea5469`, migrations are
-contiguous `001-064`, and exact-main CI `31402664864` is green. The next gate is
-this docs-only P5F authority amendment; it does not inherit real-provider or
-production proof from the merged implementation lanes.
+and PR #142 merged bounded P4R1 read-only canonical amoCRM context. PRs #144,
+#145 and #146 then merged P5F1 Platform memory/retrieval, P5F2 stateless Gemini
+proposals and P5F3 deterministic autonomous inbound replies. Current
+`origin/main` is `81ae079594baaa4a453501a99ad0ed5c3ba408d6`, migrations are
+contiguous `001-067`, and exact-main CI `31514964102` is green. The next gate is
+this docs-only P6 operations/Portal amendment; it does not inherit real-provider
+or production proof from the merged implementation lanes.
 
 P4B implementation is preserved, not merged, on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -30,9 +32,11 @@ P4B implementation is preserved, not merged, on remote branch
 but its attempted full local Supabase gate failed closed in the real
 Auth/PostgREST hook before Playwright; it is failed/non-evidence. The owner has
 deferred broad P4/P4B writes and mapping activation. This docs-only amendment
-keeps that checkpoint preserved after merged P4R1 and authorizes the next P5F
-memory, proposal and bounded autonomous-reply implementation order. P6, P7,
-narrowed P8 and P10 follow P5F. P9 remains removed and Lead Agent plus the
+keeps that checkpoint preserved after merged P4R1 and completed P5F, and
+decomposes P6 into read-only overdue Portal actions, durable in-app-only
+Student notifications, overdue-transition publication and a cross-domain two-
+Student closure proof. P7, narrowed P8 and P10 follow P6. P9 remains removed
+and Lead Agent plus the
 legacy rollback path remain deployed/frozen. It authorizes no application,
 schema, credential, provider, customer-data, staging or production action.
 
@@ -104,12 +108,12 @@ this contract.
 As of the version date:
 
 - GitHub `main` checkpoint before this amendment is
-  `8cf46a94b79e8bc24ad49b30606753a690ea5469`; PR #128 supersedes PR #119 as
+  `81ae079594baaa4a453501a99ad0ed5c3ba408d6`; PR #128 supersedes PR #119 as
   current product authority after corrective PRs #125-#127, PRs #129-#130
   merged the bounded local-validation repair, PRs #132/#133/#137/#138/#141
   merged P5A-P5E, and PR #142 merged bounded P4R1 read-only canonical amoCRM
-  context with migration 064;
-- exact-main CI run `31402664864` is green for Main CRM, EVO Inbox and EVO Lead
+  context. PRs #144/#145/#146 merged P5F1-P5F3 through migration 067;
+- exact-main CI run `31514964102` is green for Main CRM, EVO Inbox and EVO Lead
   Agent; Changed range is skipped on the push event as expected;
 - the preserved P4B branch passed focused tests, unit tests, lint, Next typegen,
   TypeScript and a production build. Its later full local Supabase run failed
@@ -141,8 +145,9 @@ After this amendment merges, implementation priority is intentionally narrow:
 1. Preserve P4B and defer mapping activation and amoCRM writes. Keep merged
    bounded read-only P4R1 as canonical context only; it authorizes no mapping
    activation, Sales ownership mutation or provider write.
-2. Implement P5F1 memory/retrieval, P5F2 Gemini structured proposals and P5F3
-   deterministic bounded replies in order; then P6, P7, narrowed P8 and P10.
+2. Implement P6A read-only overdue Portal actions, P6B durable in-app-only
+   Student notifications, P6C overdue-transition publication and P6D cross-
+   domain closure in order; then P7, narrowed P8 and P10.
 3. No mock, SQLite shim, hardcoded amoCRM mapping, fake provider or silent
    fallback may replace P4. amoCRM identity, responsible Sales, canonical stage,
    contract-stage handoff, mapping approval and amoCRM E2E remain fail-closed.
@@ -183,9 +188,10 @@ and broad backend parity work that do not change thin-slice product truth.
 - Finance v1 is a manual operational source inside EVO Platform. Finance/Admin
   alone confirm payment or refund with evidence and audit. Excel/1C import is a
   future integration, not a placeholder connector.
-- Notifications v1 are durable in-app records and individual WhatsApp
-  notifications with consent and deduplication. Broadcasts and mass sends are
-  out of scope.
+- Notifications v1 are durable in-app records with persisted self-read state.
+  Existing consent-gated individual-WhatsApp intent state is preserved for a
+  separate post-P6 delivery target; P6 does not create, claim, route or dispatch
+  that channel. Broadcasts and mass sends are out of scope.
 - Documents are private PDF/JPG/PNG, at most 25 MB, versioned and protected by
   integrity/malware policy, review/rework history and audited access. No
   irreversible auto-delete is allowed before Legal/Data Owner sets retention.
@@ -411,8 +417,8 @@ deployment surfaces are sequential.
 | P2R3 | Stale-authority session clearing and exact local-proof ownership | Same-origin Route Handler clears rejected Supabase browser state; real connected-route regression; two physical-worktree local proofs | Plan PR #111 and implementation PR #112 merged; exact-main CI green |
 | P2R4 | Local Supabase startup/readiness prerequisite | Two-file harness repair and exact-main CI; later run outcomes remain scoped to their exact branch | Merged in PRs #129-#130; no provider or production proof |
 | P4/P4R | Canonical amoCRM integration | Preserve P4B activation/write checkpoint; prove bounded read-only contact/lead/responsible/stage/tasks/call-chat references through versioned mappings, reconciliation and fail-closed degradation | P4B writes/activation deferred; bounded read-only P4R1 merged in PR #142 |
-| P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real persist-before-process, queue/projection, available history/media, ACK, realtime, staff takeover and structured AI proposal with deterministic reply-only send gates; no legacy cutover | P5A-P5E merged in PRs #132, #133, #137, #138 and #141; P5F is the next implementation lane after this docs-only authority gate |
-| P6 | amoCRM-independent Admissions, Portal, Documents, Finance and Notifications | Two-student isolation E2E and staff-to-portal workflows that do not infer sales identity/stage/handoff | Pending after P5 |
+| P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real persist-before-process, queue/projection, available history/media, ACK, realtime, staff takeover and structured AI proposal with deterministic reply-only send gates; no legacy cutover | P5A-P5F3 merged in PRs #132, #133, #137, #138, #141 and #144-#146; synthetic local proof only, provider/production proof blocked |
+| P6 | amoCRM-independent Admissions, Portal, Documents, Finance and Notifications | Two-student isolation E2E and staff-to-portal workflows that do not infer sales identity/stage/handoff | Active docs-only decomposition: P6A read-only overdue actions, P6B in-app notifications, P6C overdue transitions, P6D cross-domain closure |
 | P7 | Security, reliability and operations | Threat model, load evidence, backup plus Storage restore, RPO/RTO and rollback rehearsal, accessibility | Pending after P6 |
 | P8 | Narrowed controlled release-evidence gate | Real executable P5-P7 plus proved P4R read evidence; P4B writes/activation and unavailable provider segments reported deferred; no production action | Pending after P7 |
 | P9 | Removed from current execution scope | Lead Agent, legacy webhook/session and rollback path remain deployed/frozen; no retirement/deactivation PR | Removed by owner decision |
@@ -425,10 +431,10 @@ CI. PR #118 merged the P4B plan; PRs #129-#130 merged P2R4. P4B work is
 preserved at `e53ba94954f147b295f596421a255591fa343ce8`, but its full local gate
 failed before Playwright and remains non-evidence. P4B mapping activation and
 writes stay deferred; this amendment separately resumes only P4R read-mostly
-context after the messaging foundation. P5F through P8 may proceed without P4B
+context after the messaging foundation. P6 through P8 may proceed without P4B
 only where they do not require canonical Sales ownership, stage mutation or
 automatic handoff. Within that independent-from-P4B scope, the authorized
-execution order remains P5F, P6, P7, narrowed P8 and then P10. The historical
+execution order remains P6, P7, narrowed P8 and then P10. The historical
 BW dependency and exit-evidence contract below remains reference evidence, not
 permission to substitute for either P4R proof or P4B:
 
@@ -858,8 +864,9 @@ projection and private Supabase Realtime invalidation so the accepted UI can
 refetch durable provider state without the former polling loop. All three
 accepted capabilities precede the AI reply lane.
 
-The AI lane is the next required block group after merged P4R1 and SHALL be
-implemented as `EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10`.
+The AI lane was the required block group after merged P4R1 and was implemented
+as `EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10`. P5F1-P5F3 are now merged; P6 is
+the next active group.
 
 #### P5F1 — Platform-owned memory and retrieval foundation
 
@@ -915,11 +922,38 @@ provider credentials and real provider proof remain separate blocked events.
 
 Deliver multiple applications, Curator-owned visa and reasoned case
 close/reopen. Deliver versioned private documents, evidence-based manual
-finance, clear overdue Portal actions and durable in-app/individual WhatsApp
-notifications. P6 may prove direct Platform case workflows and object scope,
-   but it must not infer amoCRM contract stage, responsible Sales or canonical
-   handoff. Mapping activation, writes and automatic handoff remain deferred
-   with P4B; P4R may supply only verified read context.
+finance, clear overdue Portal actions and durable in-app notifications.
+Individual WhatsApp notification delivery remains a separate post-P6 target.
+P6 may prove direct Platform case workflows and object scope,
+but it must not infer amoCRM contract stage, responsible Sales or canonical
+handoff. Mapping activation, writes and automatic handoff remain deferred with
+P4B; P4R may supply only verified read context.
+
+P6 SHALL execute as four sequential gates:
+
+1. `P6A` exposes read-only overdue and attention state in the accepted Student
+   Portal from existing Platform-owned task, document and finance projections.
+   It adds no durable notification row, scheduler or provider work and a page
+   read never creates a notification.
+2. `P6B` adds a versioned in-app-only durable Platform notification contract
+   to the accepted Student Portal, adds self-only persisted read
+   acknowledgement, uses reviewed negative document outcomes as the first
+   idempotent producer and refreshes through private authorization-bound
+   Realtime invalidation.
+3. `P6C` adds disabled-by-default, idempotent overdue-transition publication
+   from explicit Platform task/payment due data. It performs no read-time write
+   and infers no deadline from amoCRM.
+4. `P6D` closes P6 with one two-Student plus cross-organization browser path
+   across multiple applications, visa, reasoned close/reopen, private document
+   review, evidence-based manual finance, overdue Portal action and durable
+   notification/read state.
+
+Migration 043 remains immutable. Its `individual_whatsapp` intent is durable
+state only: P6 does not claim, route or dispatch it and does not claim provider
+delivery. Individual WhatsApp notification delivery remains a separate future
+target; this amendment neither cancels nor activates it. The legacy SQLite
+staff notification feed is not copied into the Platform model. Exact contracts
+and acceptance criteria are in `docs/platform/p6-operations-portal.md`.
 
 ### P7 — security and reliability
 

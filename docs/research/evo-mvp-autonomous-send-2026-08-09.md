@@ -65,7 +65,7 @@ Design implication:
 
 ### 4. WAHA exposes the delivery and session signals EVO needs for safe automation
 
-WAHA's [events guide](https://waha.devlike.pro/docs/how-to/events/) documents `message.any`, `message.ack`, and webhook/WebSocket delivery. WAHA's [sessions guide](https://waha.devlike.pro/docs/how-to/sessions/) documents `session.status` states such as `WORKING`, and also shows `reachoutTimelock` information being emitted with a `WORKING` status payload. WAHA's [presence guide](https://waha.devlike.pro/docs/how-to/presence/) documents explicit `typing`, `paused`, `online`, and `offline` presence controls.
+WAHA's [events guide](https://waha.devlike.pro/docs/how-to/events/) documents `message.any`, `message.ack`, and webhook/WebSocket delivery. WAHA's current [sessions guide](https://waha.devlike.pro/docs/how-to/sessions/#reachout-timelock) documents both `WORKING` and `me.reachoutTimelock`: the session can remain `WORKING` while an active timelock blocks outreach. The preflight therefore requires an explicit `null` or `isActive: false` timelock state and fails closed on active, missing, or malformed state. WAHA's [presence guide](https://waha.devlike.pro/docs/how-to/presence/) documents explicit `typing`, `paused`, `online`, and `offline` presence controls.
 
 Design implication:
 
@@ -217,7 +217,9 @@ Before any send job is created, EVO code re-checks:
 - `global_kill_switch == false`
 - `lead_kill_switch == false`
 - `session.status == WORKING` from WAHA's [sessions guide](https://waha.devlike.pro/docs/how-to/sessions/)
-- `reachoutTimelock` not active if present in session data from the same guide
+- `me.reachoutTimelock == null || me.reachoutTimelock.isActive == false` from
+  the current [Reachout Timelock guide](https://waha.devlike.pro/docs/how-to/sessions/#reachout-timelock)
+- exact same-chat latest-inbound reply binding
 - `message_idempotency_key` unused
 - `last_outbound_at` respects cooldown/rate rules
 - `risk_level` and `risk_flags` pass owner policy

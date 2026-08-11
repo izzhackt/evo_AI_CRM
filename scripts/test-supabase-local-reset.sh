@@ -46,6 +46,7 @@ readonly P5C_BROWSER_TEST="P5C reconciles available WAHA history into the accept
 readonly P5D_BROWSER_TEST="P5D archives private WAHA media into the accepted conversation UI"
 readonly P5E_BROWSER_TEST="P5E projects WAHA ACK and session state into the live conversation UI"
 readonly P5F1_BROWSER_TEST="P5F1 persists staff-controlled memory and degraded lexical evidence in the accepted conversation UI"
+readonly P5F3_BROWSER_TEST="P5F3 persists and reconciles one synthetic autonomous reply in the accepted conversation UI"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -53,6 +54,7 @@ lock_acquired=false
 stack_owned=false
 inbox_fingerprint_recorded=false
 browser_gate_started=false
+p5f3_policy_clock_overridden=false
 
 run_with_deadline() {
   local timeout_ms=$1
@@ -65,7 +67,7 @@ prepare_platform_auth_tsconfig() {
   local tsconfig_path="${BROWSER_BUILD_DIR}/tsconfig-platform-auth-${partition}.json"
 
   case "${partition}" in
-    provider|p5b|p5c|p5d|p5e|p5f1|remaining) ;;
+    provider|p5b|p5c|p5d|p5e|p5f1|p5f3|remaining) ;;
     *) return 1 ;;
   esac
 
@@ -160,6 +162,142 @@ SQL
   then
     fail "Unable to refresh the exact synthetic local browser health contracts; output was withheld."
   fi
+}
+
+override_p5f3_policy_clock() {
+  local override_log="${TEMP_DIR}/p5f3-policy-clock-override.log"
+
+  if ! run_with_deadline 30000 docker exec -i \
+    "${DATABASE_CONTAINER}" \
+    psql \
+    -X \
+    --no-psqlrc \
+    -qAt \
+    -v ON_ERROR_STOP=1 \
+    -U postgres \
+    -d postgres \
+    >"${override_log}" 2>&1 <<'SQL'
+CREATE OR REPLACE FUNCTION platform_private.p5f3_policy_now()
+RETURNS TIMESTAMPTZ
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT CASE
+    WHEN local_now::TIME < TIME '09:00'
+      THEN (local_now::DATE + TIME '09:30') AT TIME ZONE 'Asia/Bishkek'
+    WHEN local_now::TIME >= TIME '21:00'
+      THEN (local_now::DATE + 1 + TIME '09:30') AT TIME ZONE 'Asia/Bishkek'
+    ELSE pg_catalog.statement_timestamp()
+  END
+  FROM (
+    SELECT pg_catalog.statement_timestamp() AT TIME ZONE 'Asia/Bishkek'
+      AS local_now
+  ) AS clock
+$$;
+REVOKE ALL ON FUNCTION platform_private.p5f3_policy_now()
+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+SQL
+  then
+    return 1
+  fi
+  p5f3_policy_clock_overridden=true
+}
+
+restore_p5f3_policy_clock() {
+  local restore_log="${TEMP_DIR}/p5f3-policy-clock-restore.log"
+
+  if ! run_with_deadline 30000 docker exec -i \
+    "${DATABASE_CONTAINER}" \
+    psql \
+    -X \
+    --no-psqlrc \
+    -qAt \
+    -v ON_ERROR_STOP=1 \
+    -U postgres \
+    -d postgres \
+    >"${restore_log}" 2>&1 <<'SQL'
+CREATE OR REPLACE FUNCTION platform_private.p5f3_policy_now()
+RETURNS TIMESTAMPTZ
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT pg_catalog.statement_timestamp()
+$$;
+REVOKE ALL ON FUNCTION platform_private.p5f3_policy_now()
+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+DO $assert$
+DECLARE
+  source_body TEXT;
+  volatility "char";
+  security_definer BOOLEAN;
+  function_settings TEXT[];
+  function_oid OID;
+BEGIN
+  SELECT
+    pg_catalog.regexp_replace(proc.prosrc, '\s', '', 'g'),
+    proc.provolatile,
+    proc.prosecdef,
+    proc.proconfig,
+    proc.oid
+  INTO
+    source_body,
+    volatility,
+    security_definer,
+    function_settings,
+    function_oid
+  FROM pg_catalog.pg_proc AS proc
+  JOIN pg_catalog.pg_namespace AS namespace
+    ON namespace.oid = proc.pronamespace
+  WHERE namespace.nspname = 'platform_private'
+    AND proc.proname = 'p5f3_policy_now'
+    AND proc.pronargs = 0;
+
+  IF source_body IS DISTINCT FROM 'SELECTpg_catalog.statement_timestamp()'
+    OR volatility IS DISTINCT FROM 's'
+    OR security_definer IS DISTINCT FROM TRUE
+    OR function_settings IS DISTINCT FROM ARRAY['search_path=""']::TEXT[]
+  THEN
+    RAISE EXCEPTION 'P5F3 production policy clock contract was not restored';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.aclexplode(
+      COALESCE(
+        (SELECT proc.proacl FROM pg_catalog.pg_proc AS proc
+          WHERE proc.oid = function_oid),
+        pg_catalog.acldefault('f',
+          (SELECT proc.proowner FROM pg_catalog.pg_proc AS proc
+            WHERE proc.oid = function_oid)
+        )
+      )
+    ) AS privilege
+    LEFT JOIN pg_catalog.pg_roles AS grantee
+      ON grantee.oid = privilege.grantee
+    WHERE privilege.privilege_type = 'EXECUTE'
+      AND (
+        privilege.grantee = 0
+        OR grantee.rolname IN (
+          'anon',
+          'authenticated',
+          'service_role',
+          'supabase_auth_admin'
+        )
+      )
+  ) THEN
+    RAISE EXCEPTION 'P5F3 production policy clock grants were not restored';
+  END IF;
+END
+$assert$;
+SQL
+  then
+    return 1
+  fi
+  p5f3_policy_clock_overridden=false
 }
 
 list_exact_stack_containers() {
@@ -399,6 +537,12 @@ cleanup() {
   # armed after a clean preflight and the Playwright gate has started.
   if [[ "${browser_gate_started}" == true ]]; then
     if ! stop_exact_browser_server; then
+      cleanup_failed=true
+    fi
+  fi
+
+  if [[ "${p5f3_policy_clock_overridden}" == true ]]; then
+    if ! restore_p5f3_policy_clock; then
       cleanup_failed=true
     fi
   fi
@@ -951,7 +1095,7 @@ fi
   || fail "Storage gate did not delete the credential-bearing local status file."
 
 refresh_synthetic_browser_health
-for browser_partition in provider p5b p5c p5d p5e p5f1 remaining; do
+for browser_partition in provider p5b p5c p5d p5e p5f1 p5f3 remaining; do
   prepare_platform_auth_tsconfig "${browser_partition}" \
     || fail "Unable to create the disposable ${browser_partition} browser tsconfig."
 done
@@ -965,6 +1109,7 @@ if ! run_with_deadline 240000 env \
   EVO_P5C_BROWSER_PROOF=0 \
   EVO_P5E_BROWSER_PROOF=0 \
   EVO_P5F1_BROWSER_PROOF=0 \
+  EVO_P5F3_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=provider \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-provider.json" \
@@ -984,6 +1129,7 @@ if ! run_with_deadline 240000 env \
   EVO_P5C_BROWSER_PROOF=0 \
   EVO_P5E_BROWSER_PROOF=0 \
   EVO_P5F1_BROWSER_PROOF=0 \
+  EVO_P5F3_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5b \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5b.json" \
@@ -1004,6 +1150,7 @@ if ! run_with_deadline 240000 env \
   EVO_P5D_BROWSER_PROOF=1 \
   EVO_P5E_BROWSER_PROOF=0 \
   EVO_P5F1_BROWSER_PROOF=0 \
+  EVO_P5F3_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5d \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5d.json" \
@@ -1024,6 +1171,7 @@ if ! run_with_deadline 240000 env \
   EVO_P5D_BROWSER_PROOF=0 \
   EVO_P5E_BROWSER_PROOF=0 \
   EVO_P5F1_BROWSER_PROOF=0 \
+  EVO_P5F3_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5c \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5c.json" \
@@ -1044,6 +1192,7 @@ if ! run_with_deadline 240000 env \
   EVO_P5D_BROWSER_PROOF=0 \
   EVO_P5E_BROWSER_PROOF=1 \
   EVO_P5F1_BROWSER_PROOF=0 \
+  EVO_P5F3_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5e \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5e.json" \
@@ -1064,6 +1213,7 @@ if ! run_with_deadline 240000 env \
   EVO_P5D_BROWSER_PROOF=0 \
   EVO_P5E_BROWSER_PROOF=0 \
   EVO_P5F1_BROWSER_PROOF=1 \
+  EVO_P5F3_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5f1 \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5f1.json" \
@@ -1078,12 +1228,40 @@ fi
 if ! stop_exact_browser_server; then
   fail "The exact-worktree Platform browser server did not stop after the P5F1 browser partition."
 fi
+if ! override_p5f3_policy_clock; then
+  fail "Unable to pin the private P5F3 policy clock for the disposable browser proof; output was withheld."
+fi
+if ! run_with_deadline 240000 env \
+  EVO_P5B_BROWSER_PROOF=0 \
+  EVO_P5C_BROWSER_PROOF=0 \
+  EVO_P5D_BROWSER_PROOF=0 \
+  EVO_P5E_BROWSER_PROOF=0 \
+  EVO_P5F1_BROWSER_PROOF=0 \
+  EVO_P5F3_BROWSER_PROOF=1 \
+  EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
+  EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5f3 \
+  EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5f3.json" \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep "${P5F3_BROWSER_TEST}"; then
+  fail "P5F3 synthetic autonomous reply browser proof failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop after the P5F3 browser partition."
+fi
+if ! restore_p5f3_policy_clock; then
+  fail "Unable to restore and verify the production P5F3 policy clock; output was withheld."
+fi
 if ! run_with_deadline 660000 env \
   EVO_P5B_BROWSER_PROOF=0 \
   EVO_P5C_BROWSER_PROOF=0 \
   EVO_P5D_BROWSER_PROOF=0 \
   EVO_P5E_BROWSER_PROOF=0 \
   EVO_P5F1_BROWSER_PROOF=0 \
+  EVO_P5F3_BROWSER_PROOF=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=remaining \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-remaining.json" \
@@ -1092,7 +1270,7 @@ if ! run_with_deadline 660000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}"; then
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}"; then
   fail "Remaining real browser Platform Auth/staff-shell gate failed."
 fi
 if ! stop_exact_browser_server; then

@@ -1,5 +1,6 @@
 import { PlatformAmoCrmContextCard } from "@/components/platform/communications/PlatformAmoCrmContextCard";
 import { PlatformAiMemoryCard } from "@/components/platform/communications/PlatformAiMemoryCard";
+import { PlatformAutonomousReplyCard } from "@/components/platform/communications/PlatformAutonomousReplyCard";
 import { PlatformGeminiProposalCard } from "@/components/platform/communications/PlatformGeminiProposalCard";
 import { PlatformMessagingWorkflowPanel } from "@/components/platform/communications/PlatformMessagingWorkflowPanel";
 import { PlatformMessageMedia } from "@/components/platform/communications/PlatformMessageMedia";
@@ -13,6 +14,7 @@ import type {
   PlatformConversationAiMemory,
 } from "@/lib/platform-ai-memory";
 import type { PlatformGeminiProposal } from "@/lib/platform-gemini-proposals";
+import type { PlatformAutonomousReplyState } from "@/lib/platform-autonomous-replies";
 import type {
   PlatformConversationMessage,
   PlatformConversationSummary,
@@ -86,6 +88,9 @@ export async function PlatformConversationView({
   aiRetrievalEvidence,
   geminiProposal,
   geminiProposalUnavailable,
+  autonomousReplyState,
+  autonomousReplyUnavailable,
+  autonomousReplyRuntimeEnabled,
   decisionMutationOutcome,
 }: {
   conversations: readonly PlatformConversationSummary[];
@@ -101,6 +106,9 @@ export async function PlatformConversationView({
   aiRetrievalEvidence: PlatformAiRetrievalEvidence | null;
   geminiProposal: PlatformGeminiProposal | null;
   geminiProposalUnavailable: boolean;
+  autonomousReplyState: PlatformAutonomousReplyState | null;
+  autonomousReplyUnavailable: boolean;
+  autonomousReplyRuntimeEnabled: boolean;
   decisionMutationOutcome: "saved" | "invalid" | "unavailable" | null;
 }) {
   const { t, locale } = await getT();
@@ -584,6 +592,92 @@ export async function PlatformConversationView({
       not_a_fit: t("platformAiMemoryQualificationNotAFit"),
     },
   };
+  const autonomousReplyLabels = {
+    title: t("platformAutonomousReplyTitle"),
+    hint: t("platformAutonomousReplyHint"),
+    unavailable: t("platformAutonomousReplyUnavailable"),
+    runtime: t("platformAutonomousReplyRuntime"),
+    runtimeEnabled: t("platformAutonomousReplyRuntimeEnabled"),
+    runtimeDisabled: t("platformAutonomousReplyRuntimeDisabled"),
+    runtimeDisabledHint: t("platformAutonomousReplyRuntimeDisabledHint"),
+    control: t("platformAutonomousReplyControl"),
+    controlLabels: {
+      enabled: t("platformAutonomousReplyControlEnabled"),
+      paused: t("platformAutonomousReplyControlPaused"),
+      staff_takeover: t("platformAutonomousReplyControlStaffTakeover"),
+      opted_out: t("platformAutonomousReplyControlOptedOut"),
+    },
+    decision: t("platformAutonomousReplyDecision"),
+    noDecision: t("platformAutonomousReplyNoDecision"),
+    decisionBlocked: t("platformAutonomousReplyDecisionBlocked"),
+    decisionQueued: t("platformAutonomousReplyDecisionQueued"),
+    reason: t("platformAutonomousReplyReason"),
+    reasonPlaceholder: t("platformAutonomousReplyReasonPlaceholder"),
+    enable: t("platformAutonomousReplyEnable"),
+    resume: t("platformAutonomousReplyResume"),
+    pause: t("platformAutonomousReplyPause"),
+    takeOver: t("platformAutonomousReplyTakeOver"),
+    optOutLocked: t("platformAutonomousReplyOptOutLocked"),
+    delivery: t("platformAutonomousReplyDelivery"),
+    noIntent: t("platformAutonomousReplyNoIntent"),
+    intentLabels: {
+      queued: t("platformAutonomousReplyIntentQueued"),
+      dispatching: t("platformAutonomousReplyIntentDispatching"),
+      accepted: t("platformAutonomousReplyIntentAccepted"),
+      rejected: t("platformAutonomousReplyIntentRejected"),
+      unknown: t("platformAutonomousReplyIntentUnknown"),
+      manual_review: t("platformAutonomousReplyIntentManualReview"),
+    },
+    attempt: t("platformAutonomousReplyAttempt"),
+    noAttempt: t("platformAutonomousReplyNoAttempt"),
+    attemptLabels: {
+      accepted: t("platformAutonomousReplyAttemptAccepted"),
+      rejected: t("platformAutonomousReplyAttemptRejected"),
+      unknown: t("platformAutonomousReplyAttemptUnknown"),
+      blocked: t("platformAutonomousReplyAttemptBlocked"),
+    },
+    ack: t("platformAutonomousReplyAck"),
+    noAck: t("platformAutonomousReplyNoAck"),
+    ackLabels: {
+      ERROR: t("platformAutonomousReplyAckError"),
+      PENDING: t("platformAutonomousReplyAckPending"),
+      SERVER: t("platformAutonomousReplyAckServer"),
+      DEVICE: t("platformAutonomousReplyAckDevice"),
+      READ: t("platformAutonomousReplyAckRead"),
+      PLAYED: t("platformAutonomousReplyAckPlayed"),
+    },
+    blockedReasonLabels: {
+      autonomy_paused: t("platformAutonomousReplyBlockAutonomyPaused"),
+      staff_takeover: t("platformAutonomousReplyBlockStaffTakeover"),
+      staff_outbound_after_enable: t("platformAutonomousReplyBlockStaffOutbound"),
+      opted_out: t("platformAutonomousReplyBlockOptedOut"),
+      conversation_closed: t("platformAutonomousReplyBlockConversationClosed"),
+      source_not_latest: t("platformAutonomousReplyBlockSourceNotLatest"),
+      source_not_inbound: t("platformAutonomousReplyBlockSourceNotInbound"),
+      source_unsupported: t("platformAutonomousReplyBlockSourceUnsupported"),
+      outside_reply_window: t("platformAutonomousReplyBlockOutsideWindow"),
+      outside_business_hours: t("platformAutonomousReplyBlockOutsideHours"),
+      proposal_unavailable: t("platformAutonomousReplyBlockProposalUnavailable"),
+      proposal_not_ready: t("platformAutonomousReplyBlockProposalNotReady"),
+      unsupported_language: t("platformAutonomousReplyBlockLanguage"),
+      unsupported_intent: t("platformAutonomousReplyBlockIntent"),
+      low_confidence: t("platformAutonomousReplyBlockConfidence"),
+      risk_not_low: t("platformAutonomousReplyBlockRisk"),
+      handoff_required: t("platformAutonomousReplyBlockHandoff"),
+      handoff_reason_present: t("platformAutonomousReplyBlockHandoffReason"),
+      approved_evidence_missing: t("platformAutonomousReplyBlockEvidence"),
+      session_unhealthy: t("platformAutonomousReplyBlockSession"),
+      cooldown_active: t("platformAutonomousReplyBlockCooldown"),
+      rolling_rate_exhausted: t("platformAutonomousReplyBlockRate"),
+      consecutive_limit_reached: t("platformAutonomousReplyBlockConsecutive"),
+      binding_unavailable: t("platformAutonomousReplyBlockBinding"),
+      mutable_gate_blocked: t("platformAutonomousReplyBlockMutableGate"),
+    },
+    lastControlChange: t("platformAutonomousReplyLastControlChange"),
+    decidedAt: t("platformAutonomousReplyDecidedAt"),
+    attemptedAt: t("platformAutonomousReplyAttemptedAt"),
+    providerProofBlocked: t("platformAutonomousReplyProviderProofBlocked"),
+  };
 
   return (
     <div
@@ -654,6 +748,26 @@ export async function PlatformConversationView({
             </p>
           </section>
         )}
+
+        <details
+          className="border-b border-border bg-surface xl:hidden"
+          data-testid="platform-autonomous-reply-mobile-details"
+        >
+          <summary className="cursor-pointer px-4 py-2.5 text-[11px] font-bold text-fg">
+            {autonomousReplyLabels.title}
+          </summary>
+          <div className="px-4 pb-3">
+            <PlatformAutonomousReplyCard
+              conversationId={conversation.id}
+              labels={autonomousReplyLabels}
+              locale={locale}
+              runtimeEnabled={autonomousReplyRuntimeEnabled}
+              state={autonomousReplyState}
+              testIdSuffix="-mobile"
+              unavailable={autonomousReplyUnavailable}
+            />
+          </div>
+        </details>
 
         <details
           className="border-b border-border bg-surface xl:hidden"
@@ -778,6 +892,14 @@ export async function PlatformConversationView({
             context={amocrmCanonicalContext}
             locale={locale}
             labels={amocrmLabels}
+          />
+          <PlatformAutonomousReplyCard
+            conversationId={conversation.id}
+            labels={autonomousReplyLabels}
+            locale={locale}
+            runtimeEnabled={autonomousReplyRuntimeEnabled}
+            state={autonomousReplyState}
+            unavailable={autonomousReplyUnavailable}
           />
           <PlatformGeminiProposalCard
             labels={geminiProposalLabels}

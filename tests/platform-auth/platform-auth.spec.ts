@@ -33,6 +33,9 @@ type Fixture = Readonly<{
     wahaApiKey: string;
     mediaTriggerSecret: string;
   }>;
+  p5f3: Readonly<{
+    autonomousReplyTriggerSecret: string;
+  }>;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
@@ -492,6 +495,7 @@ async function assertPersistedP3cWorkflow(page: Page) {
 test("RU and EN draft requests work while uncertain language stops for manual selection", async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   await loginToMessaging(page, fixture.identities.crossOrgAdmin);
 
   for (const [conversationId, language] of [
@@ -2631,6 +2635,452 @@ test("P5F1 persists staff-controlled memory and degraded lexical evidence in the
   }
   await expect(page.locator("body")).not.toContainText(rawProviderMessageId);
   expectLegacyDatabaseUntouched();
+});
+
+test("P5F3 persists and reconciles one synthetic autonomous reply in the accepted conversation UI", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.EVO_P5F3_BROWSER_PROOF !== "1",
+    "Runs only in the dedicated local P5F3 browser-proof partition.",
+  );
+  expectLegacyDatabaseUntouched();
+  expect(fixture.p5f3.autonomousReplyTriggerSecret).not.toBe(
+    fixture.p5b.workerTriggerSecret,
+  );
+
+  const chatId = "996555120406@c.us";
+  const rawInboundMessageId = `false_${chatId}_${randomUUID()}`;
+  const rawOutboundMessageId = `true_${chatId}_${randomUUID()}`;
+  const inboundText = `P5F3 verified inbound ${randomUUID()}`;
+  const replyText = `P5F3 synthetic autonomous reply ${randomUUID()}`;
+  const serviceToken = fixture.p5b.supabaseSecretKey;
+  const loopbackRequests: Array<Readonly<{
+    method: string | undefined;
+    pathname: string;
+    body: unknown;
+  }>> = [];
+  let observeSend: (() => void) | undefined;
+  let releaseSend: (() => void) | undefined;
+  const sendObserved = new Promise<void>((resolve) => {
+    observeSend = resolve;
+  });
+  const sendReleased = new Promise<void>((resolve) => {
+    releaseSend = resolve;
+  });
+
+  const loopbackWaha = createServer(async (request, response) => {
+    const url = new URL(request.url ?? "/", "http://127.0.0.1:3314");
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const rawBody = Buffer.concat(chunks).toString("utf8");
+    let body: unknown = null;
+    if (rawBody.length > 0) body = JSON.parse(rawBody);
+    loopbackRequests.push({ method: request.method, pathname: url.pathname, body });
+    expect(request.headers["x-api-key"]).toBe(fixture.p5c.wahaApiKey);
+    response.setHeader("content-type", "application/json");
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/api/sessions/evo-inbox"
+    ) {
+      response.statusCode = 200;
+      response.end(
+        JSON.stringify({
+          name: "evo-inbox",
+          status: "WORKING",
+          me: {
+            id: "996555123456@c.us",
+            pushName: "EVO",
+            reachoutTimelock: null,
+          },
+        }),
+      );
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/sendText") {
+      observeSend?.();
+      await sendReleased;
+      response.statusCode = 201;
+      response.end(JSON.stringify({ id: rawOutboundMessageId }));
+      return;
+    }
+
+    response.statusCode = 404;
+    response.end(JSON.stringify({ error: "not_found" }));
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    loopbackWaha.once("error", (error) => {
+      reject(
+        (error as NodeJS.ErrnoException).code === "EADDRINUSE"
+          ? new Error("P5F3 loopback WAHA fixture port 3314 is occupied")
+          : error,
+      );
+    });
+    loopbackWaha.listen(3314, "127.0.0.1", resolve);
+  });
+
+  async function persistSignedEvent(
+    eventBody: Readonly<Record<string, unknown>>,
+    requestPrefix: string,
+  ) {
+    const occurredAtMs = Date.now();
+    const rawBody = JSON.stringify(eventBody);
+    const response = await fetch(
+      `${appOrigin}/api/internal/platform-messaging/waha/events`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-webhook-request-id": `${requestPrefix}-${randomUUID()}`,
+          "x-webhook-timestamp": String(occurredAtMs),
+          "x-webhook-hmac-algorithm": "sha512",
+          "x-webhook-hmac": createHmac(
+            "sha512",
+            fixture.p5b.ingressHmacSecret,
+          )
+            .update(rawBody)
+            .digest("hex"),
+        },
+        body: rawBody,
+      },
+    );
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual(
+      expect.objectContaining({ ok: true, persisted: true, enqueued: true }),
+    );
+  }
+
+  async function projectOneSignedEvent() {
+    const requestId = randomUUID();
+    const timestamp = String(Date.now());
+    const response = await fetch(
+      `${appOrigin}/api/internal/platform-messaging/waha/work`,
+      {
+        method: "POST",
+        headers: {
+          "x-evo-worker-request-id": requestId,
+          "x-evo-worker-timestamp": timestamp,
+          "x-evo-worker-hmac-algorithm": "sha256",
+          "x-evo-worker-hmac": createHmac(
+            "sha256",
+            fixture.p5b.workerTriggerSecret,
+          )
+            .update(`${requestId}.${timestamp}`)
+            .digest("hex"),
+        },
+      },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        ok: true,
+        processed: true,
+        disposition: "succeeded",
+        state: "succeeded",
+      }),
+    );
+  }
+
+  async function triggerAutonomousReply() {
+    const requestId = randomUUID();
+    const timestamp = String(Date.now());
+    return fetch(
+      `${appOrigin}/api/internal/platform-messaging/waha/autonomous-reply`,
+      {
+        method: "POST",
+        headers: {
+          "x-evo-autonomous-reply-request-id": requestId,
+          "x-evo-autonomous-reply-timestamp": timestamp,
+          "x-evo-autonomous-reply-hmac-algorithm": "sha256",
+          "x-evo-autonomous-reply-hmac": createHmac(
+            "sha256",
+            fixture.p5f3.autonomousReplyTriggerSecret,
+          )
+            .update(`${requestId}.${timestamp}`)
+            .digest("hex"),
+        },
+      },
+    );
+  }
+
+  try {
+    await persistSignedEvent(
+      {
+        event: "message.any",
+        session: "evo-inbox",
+        payload: {
+          id: rawInboundMessageId,
+          timestamp: Math.floor(Date.now() / 1_000),
+          from: chatId,
+          chatId,
+          fromMe: false,
+          source: "app",
+          body: inboundText,
+        },
+      },
+      "p5f3-browser-inbound",
+    );
+    await projectOneSignedEvent();
+    await persistSignedEvent(
+      {
+        event: "session.status",
+        session: "evo-inbox",
+        payload: { name: "evo-inbox", status: "WORKING" },
+      },
+      "p5f3-browser-session",
+    );
+    await projectOneSignedEvent();
+
+    await loginToMessaging(page, fixture.identities.responsibleSales);
+    const projectedConversation = page
+      .getByTestId("platform-conversation-list")
+      .locator("a")
+      .filter({ hasText: "••••0406" });
+    await expect(projectedConversation).toHaveCount(1);
+    const href = await projectedConversation.getAttribute("href");
+    const conversationId = href?.split("/").at(-1);
+    expect(conversationId).toMatch(/^[0-9a-f-]{36}$/i);
+    await projectedConversation.click();
+    await expect(page).toHaveURL(new RegExp(`/whatsapp/${conversationId}$`));
+    const thread = page.getByTestId("platform-conversation-thread");
+    await expect(thread).toContainText(inboundText);
+    await expect(page.getByTestId("platform-messaging-realtime")).toHaveAttribute(
+      "data-realtime-state",
+      "subscribed",
+      { timeout: 20_000 },
+    );
+    const card = page.getByTestId("platform-autonomous-reply-card");
+    const browserInstanceMarker = `p5f3-browser-${randomUUID()}`;
+    await page.evaluate((marker) => {
+      (
+        window as Window & { __evoP5f3BrowserInstance?: string }
+      ).__evoP5f3BrowserInstance = marker;
+    }, browserInstanceMarker);
+
+    const responsibleSalesToken = await localAccessToken(
+      fixture.identities.responsibleSales,
+    );
+    const messages = await platformRpc(
+      responsibleSalesToken,
+      "staff_conversation_messages",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_conversation_id: conversationId,
+      },
+    );
+    expect(messages.status).toBe(200);
+    const sourceMessage = (
+      messages.payload as Array<Record<string, unknown>>
+    ).find((row) => row.body_text === inboundText);
+    expect(sourceMessage).toEqual(
+      expect.objectContaining({
+        message_id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+        direction: "inbound",
+        waha_message_id: null,
+      }),
+    );
+    const sourceMessageId = sourceMessage?.message_id;
+
+    const begin = await platformRpc(
+      serviceToken,
+      "begin_gemini_proposal",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_conversation_id: conversationId,
+        p_source_message_id: sourceMessageId,
+        p_request_id: randomUUID(),
+        p_model_ref: "gemini-3.5-flash",
+        p_schema_version: 1,
+        p_prompt_policy_version: "p5f2-gemini-proposal-v1",
+      },
+      serviceToken,
+    );
+    expect(begin.status).toBe(200);
+    const proposalRequestId = (
+      begin.payload as Array<Record<string, unknown>>
+    )[0]?.proposal_request_id;
+    expect(proposalRequestId).toMatch(/^[0-9a-f-]{36}$/i);
+
+    const finish = await platformRpc(
+      serviceToken,
+      "finish_gemini_proposal",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_conversation_id: conversationId,
+        p_source_message_id: sourceMessageId,
+        p_proposal_request_id: proposalRequestId,
+        p_outcome: "proposal_ready",
+        p_failure_code: null,
+        p_prompt_text: "Synthetic local P5F3 proposal contract proof",
+        p_provider_interaction_ref: `local-contract-${randomUUID()}`,
+        p_provider_status: "completed",
+        p_response_json: {
+          schema_version: 1,
+          language: "en",
+          intent: "greeting",
+          confidence: 96,
+          risk: "low",
+          handoff_required: false,
+          handoff_reasons: [],
+          citations: [],
+          memory_changes: [],
+          qualification: {
+            status: "collecting",
+            completeness: 10,
+            missing_fact_keys: ["preferred_country"],
+            notes: null,
+          },
+          reply_text: replyText,
+        },
+      },
+      serviceToken,
+    );
+    expect(finish.status).toBe(200);
+    expect(finish.payload).toEqual([
+      expect.objectContaining({
+        proposal_request_id: proposalRequestId,
+        outcome: "proposal_ready",
+        human_review_required: true,
+        autonomous_authority: false,
+        provider_proof_state: "blocked",
+      }),
+    ]);
+
+    const blockedResponse = await triggerAutonomousReply();
+    expect(blockedResponse.status).toBe(200);
+    expect(await blockedResponse.json()).toEqual(
+      expect.objectContaining({ ok: true, state: "blocked" }),
+    );
+    expect(loopbackRequests).toEqual([]);
+    await expect(card).toHaveAttribute("data-control-state", "paused", {
+      timeout: 20_000,
+    });
+    await expect(
+      page.getByTestId("platform-autonomous-reply-block-reason"),
+    ).toBeVisible({ timeout: 20_000 });
+
+    await page
+      .getByTestId("platform-autonomous-reply-control-reason")
+      .fill("Local synthetic browser proof approved by staff");
+    await page.getByTestId("platform-autonomous-reply-enable").click();
+    await expect(card).toHaveAttribute("data-control-state", "enabled");
+
+    const acceptedResponsePromise = triggerAutonomousReply();
+    await sendObserved;
+    expect(loopbackRequests).toEqual([
+      expect.objectContaining({
+        method: "GET",
+        pathname: "/api/sessions/evo-inbox",
+      }),
+      expect.objectContaining({
+        method: "POST",
+        pathname: "/api/sendText",
+        body: {
+          session: "evo-inbox",
+          chatId,
+          text: replyText,
+          reply_to: rawInboundMessageId,
+        },
+      }),
+    ]);
+
+    const dispatching = await platformRpc(
+      responsibleSalesToken,
+      "staff_conversation_autonomous_reply_state",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_conversation_id: conversationId,
+      },
+    );
+    expect(dispatching.status).toBe(200);
+    expect(dispatching.payload).toEqual([
+      expect.objectContaining({
+        control_state: "enabled",
+        decision_state: "queued",
+        intent_state: "dispatching",
+        communication_message_id: null,
+        autonomous_authority: true,
+      }),
+    ]);
+    releaseSend?.();
+    const acceptedResponse = await acceptedResponsePromise;
+    expect(acceptedResponse.status).toBe(200);
+    expect(await acceptedResponse.json()).toEqual(
+      expect.objectContaining({ ok: true, state: "accepted" }),
+    );
+
+    await expect(thread).toContainText(replyText, { timeout: 20_000 });
+    await expect(card).toHaveAttribute("data-intent-state", "accepted");
+    const acceptedState = await platformRpc(
+      responsibleSalesToken,
+      "staff_conversation_autonomous_reply_state",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_conversation_id: conversationId,
+      },
+    );
+    expect(acceptedState.status).toBe(200);
+    expect(acceptedState.payload).toEqual([
+      expect.objectContaining({
+        intent_state: "accepted",
+        attempt_outcome: "accepted",
+        ack_name: null,
+        communication_message_id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+      }),
+    ]);
+
+    await persistSignedEvent(
+      {
+        event: "message.ack",
+        session: "evo-inbox",
+        payload: {
+          id: rawOutboundMessageId,
+          from: chatId,
+          participant: null,
+          fromMe: true,
+          ack: 3,
+          ackName: "READ",
+        },
+      },
+      "p5f3-browser-ack",
+    );
+    await projectOneSignedEvent();
+    const outboundMessage = thread
+      .locator('[data-message-direction="outbound"]')
+      .filter({ hasText: replyText });
+    await expect(outboundMessage).toHaveAttribute("data-waha-ack-name", "READ", {
+      timeout: 20_000,
+    });
+    await expect(page.getByTestId("platform-autonomous-reply-ack")).not.toBeEmpty();
+    expect(
+      await page.evaluate(
+        () =>
+          (window as Window & { __evoP5f3BrowserInstance?: string })
+            .__evoP5f3BrowserInstance,
+      ),
+    ).toBe(browserInstanceMarker);
+
+    const safeStateJson = JSON.stringify(acceptedState.payload);
+    const pageText = await page.locator("body").innerText();
+    for (const privateValue of [
+      chatId,
+      rawInboundMessageId,
+      rawOutboundMessageId,
+      `local-contract-`,
+    ]) {
+      expect(safeStateJson).not.toContain(privateValue);
+      expect(pageText).not.toContain(privateValue);
+    }
+    expectLegacyDatabaseUntouched();
+  } finally {
+    releaseSend?.();
+    await new Promise<void>((resolve) => loopbackWaha.close(() => resolve()));
+  }
 });
 
 test("BW3 RPCs deny cross-student reads and non-Admin checklist binding", async () => {

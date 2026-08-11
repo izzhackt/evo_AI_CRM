@@ -680,6 +680,16 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_gemini_proposals_rls.sql
   fi
+
+  # P5F3 adds only deterministic exact-inbound autonomous reply intent,
+  # single-use attempt and provider/ACK evidence. Prove private-table
+  # containment, service-only mutation, staff control/read authority and
+  # no-replay transport semantics at migration 067.
+  if [[ "$(basename "$migration")" == 067_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_autonomous_inbound_replies_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

@@ -22,6 +22,7 @@ import {
   readPlatformAiRetrievalEvidence,
   readPlatformConversationAiMemory,
 } from "@/lib/server/platform-ai-memory-repository";
+import { readPlatformGeminiProposal } from "@/lib/server/platform-gemini-proposals-repository";
 
 import { CommunicationsSourceDisclosure } from "../CommunicationsSourceDisclosure";
 
@@ -74,11 +75,20 @@ export default async function ConversationPage({
       getPlatformWahaSessionHealth(actor),
     ]);
   if (!thread || !workflow) notFound();
-  const [amocrmCanonicalContext, aiMemory, aiRetrievalCapabilities] =
+  const [
+    amocrmCanonicalContext,
+    aiMemory,
+    aiRetrievalCapabilities,
+    geminiProposal,
+  ] =
     await Promise.all([
       getPlatformAmoCrmCanonicalContext(actor, thread.conversation),
       readPlatformConversationAiMemory(actor, id).catch(() => null),
       readPlatformAiRetrievalCapabilities(actor, id).catch(() => null),
+      readPlatformGeminiProposal(actor, id).then(
+        (proposal) => ({ proposal, unavailable: false as const }),
+        () => ({ proposal: null, unavailable: true as const }),
+      ),
     ]);
   const aiRetrievalEvidence = aiMemory?.latestRetrieval
     ? await readPlatformAiRetrievalEvidence(
@@ -108,6 +118,8 @@ export default async function ConversationPage({
         aiMemory={aiMemory}
         aiRetrievalCapabilities={aiRetrievalCapabilities}
         aiRetrievalEvidence={aiRetrievalEvidence}
+        geminiProposal={geminiProposal.proposal}
+        geminiProposalUnavailable={geminiProposal.unavailable}
         decisionMutationOutcome={decisionMutationOutcome(
           resolvedSearchParams.result,
         )}

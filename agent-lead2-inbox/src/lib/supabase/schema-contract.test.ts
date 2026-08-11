@@ -126,6 +126,10 @@ const platformAiMemoryRetrievalMigration = readFileSync(
   join(migrationsDir, '065_platform_ai_memory_retrieval.sql'),
   'utf8'
 )
+const platformGeminiProposalsMigration = readFileSync(
+  join(migrationsDir, '066_platform_gemini_proposals.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -143,7 +147,7 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '065_platform_ai_memory_retrieval.sql'
+      '066_platform_gemini_proposals.sql'
     )
     for (const table of [
       'waha_history_reconciliation_runs',
@@ -1414,5 +1418,84 @@ describe('Supabase companion schema contract', () => {
       /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+platform\.(?:ai_drafts|manual_send_authorizations|durable_work_items)/i
     )
     expect(platformAiMemoryRetrievalMigration).not.toMatch(/\bresume\b/i)
+
+    for (const table of [
+      'gemini_proposal_requests',
+      'gemini_proposal_results',
+    ]) {
+      expect(platformGeminiProposalsMigration).toMatch(
+        new RegExp(`CREATE\\s+TABLE\\s+platform_private\\.${table}`, 'i')
+      )
+      expect(platformGeminiProposalsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+      expect(platformGeminiProposalsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+
+    for (const rpc of [
+      'begin_gemini_proposal',
+      'finish_gemini_proposal',
+      'staff_gemini_proposal',
+    ]) {
+      expect(platformGeminiProposalsMigration).toMatch(
+        new RegExp(
+          `CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+platform\\.${rpc}\\s*\\([\\s\\S]*?SECURITY\\s+DEFINER[\\s\\S]*?SET\\s+search_path\\s*=\\s*''[\\s\\S]*?AS\\s+\\$\\$`,
+          'i'
+        )
+      )
+    }
+
+    expect(platformGeminiProposalsMigration).toMatch(
+      /model_ref\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(model_ref\s*=\s*'gemini-3\.5-flash'\)/i
+    )
+    expect(platformGeminiProposalsMigration).toMatch(
+      /human_review_required\s+BOOLEAN\s+NOT\s+NULL\s+DEFAULT\s+TRUE\s+CHECK\s*\(\s*human_review_required\s*=\s*TRUE/i
+    )
+    expect(platformGeminiProposalsMigration).toMatch(
+      /autonomous_authority\s+BOOLEAN\s+NOT\s+NULL\s+DEFAULT\s+FALSE\s+CHECK\s*\(\s*autonomous_authority\s*=\s*FALSE/i
+    )
+    expect(platformGeminiProposalsMigration).toMatch(
+      /provider_proof_state\s+TEXT\s+NOT\s+NULL\s+DEFAULT\s+'blocked'\s+CHECK\s*\(\s*provider_proof_state\s*=\s*'blocked'/i
+    )
+    expect(platformGeminiProposalsMigration).toMatch(
+      /private_provider_status\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*platform_private\.gemini_proposal_provider_status_is_valid/i
+    )
+    expect(platformGeminiProposalsMigration).toMatch(
+      /outcome\s*=\s*'proposal_ready'[\s\S]*?private_provider_status\s*=\s*'completed'/i
+    )
+    expect(platformGeminiProposalsMigration).toMatch(
+      /platform\.finish_gemini_proposal\s*\(\s*p_organization_id\s+UUID,\s*p_conversation_id\s+UUID,\s*p_source_message_id\s+UUID,\s*p_proposal_request_id\s+UUID,\s*p_outcome\s+TEXT,\s*p_failure_code\s+TEXT,\s*p_prompt_text\s+TEXT,\s*p_provider_interaction_ref\s+TEXT,\s*p_provider_status\s+TEXT,\s*p_response_json\s+JSONB\s*\)/i
+    )
+    expect(platformGeminiProposalsMigration).toMatch(
+      /message\.direction\s*=\s*'inbound'[\s\S]*?NOT\s+EXISTS[\s\S]*?later_message/i
+    )
+
+    const proposalResult = platformGeminiProposalsMigration.match(
+      /platform\.staff_gemini_proposal\([\s\S]*?RETURNS\s+TABLE\s*\(([\s\S]*?)\)\s*LANGUAGE/i
+    )?.[1]
+    expect(proposalResult).toBeDefined()
+    expect(proposalResult).not.toMatch(
+      /context|prompt|provider_interaction|provider_status|response_json|hash|waha|phone|kommo|amocrm|secret|token/i
+    )
+    expect(platformGeminiProposalsMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.begin_gemini_proposal[\s\S]*?TO\s+service_role/i
+    )
+    expect(platformGeminiProposalsMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.finish_gemini_proposal[\s\S]*?TO\s+service_role/i
+    )
+    expect(platformGeminiProposalsMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.staff_gemini_proposal\(UUID,\s*UUID\)[\s\S]*?TO\s+authenticated/i
+    )
+    expect(platformGeminiProposalsMigration).not.toMatch(
+      /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+platform\.(?:communication_messages|manual_send_authorizations|durable_work_items|conversation_ai_memory_versions|conversation_ai_fact_versions|conversation_ai_qualification_versions)/i
+    )
   })
 })

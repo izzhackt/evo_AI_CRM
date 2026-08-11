@@ -4957,3 +4957,88 @@ Rollback note:
   proves wrong, rollback SHALL keep runtime flags off, revert code and
   forward-fix additive schema. Lead Agent and the legacy rollback path remain
   frozen and available throughout the lane.
+
+## 2026-08-11 - Implement the stateless P5F2 Gemini proposal adapter
+
+Block-ID: `EVO-P5F2-GEMINI-PROPOSALS-2026-08-11`
+
+Accepted predecessor:
+
+- P5F1 merged in PR #144 at canonical main
+  `a930bfa1a3e3ad736cfa688201d157b3082cd80a`;
+- exact-main push CI run `31427264318` passed Main CRM, EVO Inbox and EVO Lead
+  Agent; Changed range was skipped as expected for a push;
+- P5F2 research is recorded in
+  `docs/research/evo-p5f2-gemini-interactions-2026-08-11.md`.
+
+Reason:
+
+- P5F1 now gives EVO durable conversation memory, approved-knowledge chunks,
+  retrieval evidence and a pgvector foundation, while keeping provider
+  execution and autonomy disabled;
+- P4R1 gives a bounded safe amoCRM read projection;
+- the next authorized slice is only the stateless Gemini structured proposal
+  adapter. It must not become memory, policy, transport or send authority.
+
+Decision:
+
+- Add a disabled-by-default server-only adapter for the sanctioned
+  `gemini-3.5-flash` model through the official `@google/genai` Interactions
+  API. Every request SHALL set `store=false`, disable tools, omit background
+  execution and previous-interaction state, apply bounded context/output/time
+  budgets and disable SDK transport retries.
+- The model allowlist SHALL contain only `gemini-3.5-flash` in this block.
+  Google's newer `gemini-3.6-flash` guidance is research evidence, not current
+  EVO authority.
+- Add a fixed JSON-schema proposal contract carrying RU/EN language, intent,
+  confidence, risk, handoff requirements, approved-knowledge citations,
+  proposed memory/qualification changes and reply text. EVO SHALL parse and
+  validate the result again after the provider returns it.
+- Add one private append-only request/result audit and service-only begin/finish
+  RPCs. The begin RPC SHALL bind the exact organization, open conversation and
+  source message, prove that it is both the latest conversation message and
+  inbound, and build bounded context from Platform
+  messages, P5F1 memory/retrieval evidence and the safe P4R1 projection. Raw
+  WAHA/phone-bearing identifiers, raw amoCRM identifiers and provider secrets
+  SHALL never enter the public response.
+- Add one authenticated staff read RPC and a read-only review surface inside
+  the accepted Claude Design `/whatsapp` conversation context. Provider
+  interaction references, private prompts, private chunk text, hashes and raw
+  context remain private.
+- The execution seam SHALL be an exact HMAC-authenticated internal route. It
+  returns only a bounded receipt, never a provider response or a send result.
+  Missing configuration, timeout, provider error, malformed output, unsupported
+  language, missing evidence or unsafe semantics SHALL finish as durable human
+  review.
+- P5F2 SHALL NOT consume the mixed legacy `platform_work_v1` queue. That queue
+  contains webhook, AI-draft and manual-send work and its generic claim RPC is
+  not kind-filtered. P5F3 will own the separately reviewed durable autonomous
+  trigger/intent worker.
+- Existing legacy `/api/ai/draft`, Lead Agent, manual-send workflow and rollback
+  path remain frozen. P5F2 performs no WAHA call, send, retry, ACK mutation,
+  amoCRM write, memory write or autonomous policy decision.
+
+Validation impact:
+
+- Require focused config, request-shape, schema/parser, timeout/error mapping,
+  prompt-bound and secret-free adapter tests using a clearly synthetic local
+  transport seam. These tests are contract evidence, not real-provider proof.
+- Require disposable PostgreSQL/RLS tests for exact source binding,
+  append-only/idempotent audit, service-only mutation, tenant isolation, safe
+  staff projection and denial of raw/private fields.
+- Require focused UI/repository tests, lint, type generation, typecheck, build,
+  dependency/secret audits, one fresh independent exact-head read-only review,
+  all four exact-head CI jobs, direct merge at that exact SHA and green
+  exact-main push CI.
+
+Blocked proof and rollback:
+
+- Real Gemini execution remains blocked until sanctioned credentials and
+  approved non-customer test data are explicitly made available. A loopback
+  fixture or injected SDK response must never be reported as provider proof.
+- Production enablement, provider credential injection, live customer data,
+  WAHA sends, autonomous intents and provider/model upgrades remain outside
+  this block.
+- Rollback keeps all P5F2 runtime flags off, reverts application code and
+  forward-fixes additive migration `066` only. P5F1 data and the frozen legacy
+  paths remain intact.

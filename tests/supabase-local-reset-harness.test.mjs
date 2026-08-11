@@ -286,6 +286,26 @@ test("the P5F3 browser partition has its own bounded deadline", () => {
   assert.ok(p5f3Partition < p5f3Grep);
 });
 
+test("the P6A browser partition has its own bounded deadline", () => {
+  const p6aPartition = executableLines.indexOf(
+    "EVO_PLATFORM_AUTH_BROWSER_PARTITION=p6a",
+  );
+  const p6aCommand = executableLines.lastIndexOf(
+    "run_with_deadline 240000 env",
+    p6aPartition,
+  );
+  const p6aGrep = executableLines.indexOf(
+    '--grep "${P6A_BROWSER_TEST}"',
+    p6aPartition,
+  );
+
+  assert.notEqual(p6aPartition, -1);
+  assert.notEqual(p6aCommand, -1);
+  assert.notEqual(p6aGrep, -1);
+  assert.ok(p6aCommand < p6aPartition);
+  assert.ok(p6aPartition < p6aGrep);
+});
+
 test("Main CRM CI installs the locked Chromium runtime before the full browser gate", () => {
   const mainCrmJobStart = ciWorkflow.indexOf("\n  crm:\n");
   const inboxJobStart = ciWorkflow.indexOf("\n  inbox:\n", mainCrmJobStart);
@@ -310,7 +330,7 @@ test("Main CRM CI installs the locked Chromium runtime before the full browser g
   assert.ok(browserInstall < fullGate);
 });
 
-test("provider, P5B, P5D, P5C, P5E, P5F1 and P5F3 browser partitions run before the remaining suite", () => {
+test("provider, P5B, P5D, P5C, P5E, P5F1, P5F3 and P6A browser partitions run before the remaining suite", () => {
   const expectedTitles = [
     "RU and EN draft requests work while uncertain language stops for manual selection",
     "admin reads the persisted local P3C workflow without proving providers",
@@ -332,6 +352,8 @@ test("provider, P5B, P5D, P5C, P5E, P5F1 and P5F3 browser partitions run before 
     "P5F1 persists staff-controlled memory and degraded lexical evidence in the accepted conversation UI";
   const p5f3Title =
     "P5F3 persists and reconciles one synthetic autonomous reply in the accepted conversation UI";
+  const p6aTitle =
+    "P6A exposes read-only overdue Portal attention without notification or provider controls";
   const providerPass = harness.indexOf(
     "if ! run_with_deadline 240000 env \\",
   );
@@ -387,9 +409,17 @@ test("provider, P5B, P5D, P5C, P5E, P5F1 and P5F3 browser partitions run before 
     'fail "The exact-worktree Platform browser server did not stop after the P5F3 browser partition."',
     p5f3Pass,
   );
+  const p6aPass = harness.indexOf(
+    "if ! run_with_deadline 240000 env \\",
+    p5f3Cleanup,
+  );
+  const p6aCleanup = harness.indexOf(
+    'fail "The exact-worktree Platform browser server did not stop after the P6A browser partition."',
+    p6aPass,
+  );
   const remainingPass = harness.indexOf(
     "if ! run_with_deadline 660000 env \\",
-    p5f3Cleanup,
+    p6aCleanup,
   );
   const finalCleanup = harness.indexOf(
     'fail "The exact-worktree Platform browser server did not stop after the browser gate."',
@@ -425,6 +455,10 @@ test("provider, P5B, P5D, P5C, P5E, P5F1 and P5F3 browser partitions run before 
     harness.includes(`readonly P5F3_BROWSER_TEST="${p5f3Title}"`),
   );
   assert.equal(platformAuthSpec.split(`test("${p5f3Title}"`).length - 1, 1);
+  assert.ok(
+    harness.includes(`readonly P6A_BROWSER_TEST="${p6aTitle}"`),
+  );
+  assert.equal(platformAuthSpec.split(`test("${p6aTitle}"`).length - 1, 1);
   assert.notEqual(providerPass, -1);
   assert.notEqual(betweenPassCleanup, -1);
   assert.notEqual(p5bPass, -1);
@@ -439,6 +473,8 @@ test("provider, P5B, P5D, P5C, P5E, P5F1 and P5F3 browser partitions run before 
   assert.notEqual(p5f1Cleanup, -1);
   assert.notEqual(p5f3Pass, -1);
   assert.notEqual(p5f3Cleanup, -1);
+  assert.notEqual(p6aPass, -1);
+  assert.notEqual(p6aCleanup, -1);
   assert.notEqual(remainingPass, -1);
   assert.notEqual(finalCleanup, -1);
   assert.ok(providerPass < betweenPassCleanup);
@@ -454,39 +490,45 @@ test("provider, P5B, P5D, P5C, P5E, P5F1 and P5F3 browser partitions run before 
   assert.ok(p5f1Pass < p5f1Cleanup);
   assert.ok(p5f1Cleanup < p5f3Pass);
   assert.ok(p5f3Pass < p5f3Cleanup);
-  assert.ok(p5f3Cleanup < remainingPass);
+  assert.ok(p5f3Cleanup < p6aPass);
+  assert.ok(p6aPass < p6aCleanup);
+  assert.ok(p6aCleanup < remainingPass);
   assert.ok(remainingPass < finalCleanup);
   assert.match(
     harness.slice(providerPass, betweenPassCleanup),
-    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*--grep "\$\{PROVIDER_GATED_BROWSER_TESTS\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*--grep "\$\{PROVIDER_GATED_BROWSER_TESTS\}"/,
   );
   assert.match(
     harness.slice(p5bPass, p5bCleanup),
-    /EVO_P5B_BROWSER_PROOF=1[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*--grep "\$\{P5B_BROWSER_TEST\}"/,
+    /EVO_P5B_BROWSER_PROOF=1[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*--grep "\$\{P5B_BROWSER_TEST\}"/,
   );
   assert.match(
     harness.slice(p5cPass, p5cCleanup),
-    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=1[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*--grep "\$\{P5C_BROWSER_TEST\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=1[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*--grep "\$\{P5C_BROWSER_TEST\}"/,
   );
   assert.match(
     harness.slice(p5dPass, p5dCleanup),
-    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=1[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*--grep "\$\{P5D_BROWSER_TEST\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=1[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*--grep "\$\{P5D_BROWSER_TEST\}"/,
   );
   assert.match(
     harness.slice(p5ePass, p5eCleanup),
-    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=1[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*--grep "\$\{P5E_BROWSER_TEST\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=1[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*--grep "\$\{P5E_BROWSER_TEST\}"/,
   );
   assert.match(
     harness.slice(p5f1Pass, p5f1Cleanup),
-    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=1[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*--grep "\$\{P5F1_BROWSER_TEST\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=1[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*--grep "\$\{P5F1_BROWSER_TEST\}"/,
   );
   assert.match(
     harness.slice(p5f3Pass, p5f3Cleanup),
-    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=1[\s\S]*--grep "\$\{P5F3_BROWSER_TEST\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=1[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*--grep "\$\{P5F3_BROWSER_TEST\}"/,
+  );
+  assert.match(
+    harness.slice(p6aPass, p6aCleanup),
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=1[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=1[\s\S]*EVO_PLATFORM_AMOCRM_READ_ENABLED=0[\s\S]*EVO_PLATFORM_GEMINI_PROPOSALS_ENABLED=0[\s\S]*--grep "\$\{P6A_BROWSER_TEST\}"/,
   );
   assert.match(
     harness.slice(remainingPass, finalCleanup),
-    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}\|\$\{P5C_BROWSER_TEST\}\|\$\{P5D_BROWSER_TEST\}\|\$\{P5E_BROWSER_TEST\}\|\$\{P5F1_BROWSER_TEST\}\|\$\{P5F3_BROWSER_TEST\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}\|\$\{P5C_BROWSER_TEST\}\|\$\{P5D_BROWSER_TEST\}\|\$\{P5E_BROWSER_TEST\}\|\$\{P5F1_BROWSER_TEST\}\|\$\{P5F3_BROWSER_TEST\}\|\$\{P6A_BROWSER_TEST\}"/,
   );
   assert.equal(
     harness.slice(providerPass, finalCleanup).match(/EVO_P5B_BROWSER_PROOF=1/g)
@@ -518,7 +560,7 @@ test("provider, P5B, P5D, P5C, P5E, P5F1 and P5F3 browser partitions run before 
     harness
       .slice(providerPass, finalCleanup)
       .match(/EVO_P5F1_BROWSER_PROOF=0/g)?.length,
-    7,
+    8,
   );
   assert.equal(
     harness
@@ -530,7 +572,31 @@ test("provider, P5B, P5D, P5C, P5E, P5F1 and P5F3 browser partitions run before 
     harness
       .slice(providerPass, finalCleanup)
       .match(/EVO_P5F3_BROWSER_PROOF=0/g)?.length,
-    7,
+    8,
+  );
+  assert.equal(
+    harness
+      .slice(providerPass, finalCleanup)
+      .match(/EVO_P6A_BROWSER_PROOF=1/g)?.length,
+    1,
+  );
+  assert.equal(
+    harness
+      .slice(providerPass, finalCleanup)
+      .match(/EVO_P6A_BROWSER_PROOF=0/g)?.length,
+    8,
+  );
+  assert.equal(
+    harness
+      .slice(providerPass, finalCleanup)
+      .match(/EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=1/g)?.length,
+    1,
+  );
+  assert.equal(
+    harness
+      .slice(providerPass, finalCleanup)
+      .match(/EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0/g)?.length,
+    8,
   );
   assert.equal(
     harness.match(/EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5e/g)?.length,
@@ -544,7 +610,74 @@ test("provider, P5B, P5D, P5C, P5E, P5F1 and P5F3 browser partitions run before 
     harness.match(/EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5f3/g)?.length,
     1,
   );
+  assert.equal(
+    harness.match(/EVO_PLATFORM_AUTH_BROWSER_PARTITION=p6a/g)?.length,
+    1,
+  );
   assert.doesNotMatch(executableLines, /run_with_deadline 900000 env/);
+});
+
+test("P6A browser proof enables only read-only Portal attention", () => {
+  const p6aPartition = harness.indexOf(
+    "EVO_PLATFORM_AUTH_BROWSER_PARTITION=p6a",
+  );
+  const p6aCommand = harness.lastIndexOf(
+    "if ! run_with_deadline 240000 env \\",
+    p6aPartition,
+  );
+  const p6aCleanup = harness.indexOf(
+    'fail "The exact-worktree Platform browser server did not stop after the P6A browser partition."',
+    p6aPartition,
+  );
+  const p6aSource = harness.slice(p6aCommand, p6aCleanup);
+
+  assert.notEqual(p6aPartition, -1);
+  assert.notEqual(p6aCommand, -1);
+  assert.notEqual(p6aCleanup, -1);
+  assert.match(
+    platformAuthConfig,
+    /EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED: p6aBrowserProof \? "1" : "0"/,
+  );
+  assert.match(
+    platformAuthConfig,
+    /\(platformAuthBrowserPartition === "p6a"\) !== p6aBrowserProof/,
+  );
+  assert.match(
+    authHook,
+    /"create_payment_obligation"[\s\S]*"p6a-student-portal-finance-overdue"/,
+  );
+  assert.match(
+    authHook,
+    /p6a: \{[\s\S]*sameOrgOtherStudentCaseId: bw4UnrelatedCaseId[\s\S]*overduePaymentObligationId: p6aOverduePaymentObligationId/,
+  );
+  assert.match(
+    platformAuthSpec,
+    /EVO_P6A_BROWSER_PROOF !== "1"[\s\S]*portal-attention-read-only[\s\S]*portal-overdue-payment-helper/,
+  );
+  assert.match(
+    platformAuthConfig,
+    /EVO_PLATFORM_AUTONOMOUS_REPLIES_ENABLED: p5f3BrowserProof \? "1" : "0"/,
+  );
+  assert.doesNotMatch(
+    platformAuthConfig,
+    /EVO_PLATFORM_(?:WAHA|AI_MEMORY|AUTONOMOUS)[A-Z0-9_]*_ENABLED: p6aBrowserProof/,
+  );
+  for (const disabledFlag of [
+    "EVO_PLATFORM_AMOCRM_READ_ENABLED",
+    "EVO_PLATFORM_GEMINI_PROPOSALS_ENABLED",
+    "EVO_PLATFORM_WAHA_INGRESS_ENABLED",
+    "EVO_PLATFORM_WAHA_WORKER_ENABLED",
+    "EVO_PLATFORM_WAHA_HISTORY_ENABLED",
+    "EVO_PLATFORM_WAHA_MEDIA_ENABLED",
+    "EVO_PLATFORM_AI_MEMORY_ENABLED",
+    "EVO_PLATFORM_AUTONOMOUS_REPLIES_ENABLED",
+  ]) {
+    assert.match(p6aSource, new RegExp(`${disabledFlag}=0`), disabledFlag);
+  }
+  assert.match(
+    p6aSource,
+    /EVO_PLATFORM_AUTONOMOUS_REPLIES_KILL_SWITCH=1/,
+  );
 });
 
 test("P5F1 browser proof is isolated and keeps provider and WAHA execution disabled", () => {
@@ -613,20 +746,26 @@ test("P5F3 pins only its private policy clock and restores the exact production 
     "\nif ! restore_p5f3_policy_clock; then\n",
     p5f3Cleanup,
   );
+  const p6aPartition = harness.indexOf(
+    "EVO_PLATFORM_AUTH_BROWSER_PARTITION=p6a",
+    restore,
+  );
   const remainingPartition = harness.indexOf(
     "EVO_PLATFORM_AUTH_BROWSER_PARTITION=remaining",
-    restore,
+    p6aPartition,
   );
 
   assert.notEqual(override, -1);
   assert.notEqual(p5f3Partition, -1);
   assert.notEqual(p5f3Cleanup, -1);
   assert.notEqual(restore, -1);
+  assert.notEqual(p6aPartition, -1);
   assert.notEqual(remainingPartition, -1);
   assert.ok(override < p5f3Partition);
   assert.ok(p5f3Partition < p5f3Cleanup);
   assert.ok(p5f3Cleanup < restore);
-  assert.ok(restore < remainingPartition);
+  assert.ok(restore < p6aPartition);
+  assert.ok(p6aPartition < remainingPartition);
   assert.match(
     harness,
     /CREATE OR REPLACE FUNCTION platform_private\.p5f3_policy_now\(\)[\s\S]*local_now::TIME < TIME '09:00'[\s\S]*local_now::TIME >= TIME '21:00'[\s\S]*AT TIME ZONE 'Asia\/Bishkek'/,
@@ -1265,6 +1404,13 @@ test("both reset phases use only proved post-migration recovery", () => {
 });
 
 test("browser partitions isolate Next dev artifacts by disposable run and partition", () => {
+  const nextConfigPartitionList = nextConfig.match(
+    /const platformAuthPartitions = new Set\(\[([\s\S]*?)\]\);/,
+  )?.[1];
+  assert.ok(
+    nextConfigPartitionList,
+    "Next config partition allowlist is missing",
+  );
   assert.match(
     harness,
     /readonly BROWSER_BUILD_RUN_KEY=/,
@@ -1277,12 +1423,18 @@ test("browser partitions isolate Next dev artifacts by disposable run and partit
     "p5e",
     "p5f1",
     "p5f3",
+    "p6a",
     "remaining",
   ]) {
     assert.match(
       harness,
       new RegExp(`EVO_PLATFORM_AUTH_BROWSER_PARTITION=${partition}`),
       partition,
+    );
+    assert.match(
+      nextConfigPartitionList,
+      new RegExp(`"${partition}"`),
+      `${partition} is missing from the Next config partition allowlist`,
     );
   }
   assert.match(
@@ -1308,7 +1460,7 @@ test("browser partitions keep Next type includes out of the tracked root tsconfi
   assert.match(harness, /prepare_platform_auth_tsconfig\(\)/);
   assert.match(
     harness,
-    /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|remaining\) ;;/,
+    /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|p6a\|remaining\) ;;/,
   );
   assert.match(
     harness,
@@ -1322,6 +1474,7 @@ test("browser partitions keep Next type includes out of the tracked root tsconfi
     "p5e",
     "p5f1",
     "p5f3",
+    "p6a",
     "remaining",
   ]) {
     assert.match(

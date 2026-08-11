@@ -1,7 +1,7 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-08-11
+- Snapshot date: 2026-08-12
 - Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 - P2A starting checkpoint: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
 - P2B starting checkpoint: `8ad755b5039390f418dbe12924a806f069f93b53`
@@ -13,9 +13,9 @@
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
 - Current accepted base for this block:
-  `81ae079594baaa4a453501a99ad0ed5c3ba408d6`
+  `fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`
 - Active plan block:
-  `EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11`
+  `EVO-P6A-PORTAL-ATTENTION-2026-08-12`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -54,10 +54,13 @@ reconciliation, PR #138 merged P5D private media, PR #140 синхронизир
 MVP authority contract, PR #141 merged P5E ACK/session и private Realtime, PR
 #142 merged bounded P4R1 read-only canonical amoCRM context, PR #144 merged
 P5F1 memory/retrieval, PR #145 merged P5F2 stateless Gemini proposals, а PR
-#146 merged disabled-by-default P5F3 deterministic autonomous replies. Текущий
-accepted base — `81ae079594baaa4a453501a99ad0ed5c3ba408d6`, exact-main CI
-`31514964102` зелёный для Main CRM, EVO Inbox и EVO Lead Agent; Changed range
-ожидаемо skipped на push. Migrations contiguous `001-067`.
+#146 merged disabled-by-default P5F3 deterministic autonomous replies, а PR
+#147 merged reviewed P6A-P6D implementation contract. Текущий accepted base —
+`fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`; exact-main CI
+`31523285552` attempt 2 зелёный для Main CRM, EVO Inbox и EVO Lead Agent;
+Changed range ожидаемо skipped на push. Первый Main CRM attempt был
+non-evidence из-за единичного 31.2-second Playwright timeout при 30-second
+лимите; rerun того же exact SHA прошёл. Migrations contiguous `001-067`.
 
 P4B implementation сохранён на remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -113,12 +116,13 @@ proof, production enablement или customer send.
 | P5A receive-only WAHA ingress | PR #132 merged signed HMAC/timestamp validation, raw-persist-before-process and pointer-only inbound work with migration 059 | P5A merge-baseline CI `31145596058` was green; current exact-main CI is tracked above; flags remain disabled by default and no real WAHA/Supabase/provider proof exists |
 | P5B receive/project | PR #133 merged as `18e0e0855fda31cba1fa837d81b3a75cedd585e9`; migration 060 and the private worker project verified inbound work into the accepted root UI data path | full local Supabase/browser gate and exact-main CI `31323907123` passed; flags remain off and there is no AI send, live WAHA or production proof |
 | P5C available history | PR #137 merged as `5b3754b2e0cdee2d340448bd95f5ce9647f14633`; migration 061 and the disabled server reconciliation lane project provider-available inbound/outbound history into the accepted root UI | focused security/RLS, full local Supabase/browser, exact-head CI and exact-main CI `31347918501` passed; media bytes, lifetime completeness, live provider and production remain unproved |
-| P5D private media | PR #138 merged as `0032a99439bdd1cafdbefa99301fab67a7fc8aeb`; migration 062, private Storage bindings, one-time audited download grants and accepted `/whatsapp` media display | local Storage/RLS/browser and exact-head evidence passed; current exact-main CI `31514964102` includes it, but synthetic WAHA bytes are not real-provider or production proof |
+| P5D private media | PR #138 merged as `0032a99439bdd1cafdbefa99301fab67a7fc8aeb`; migration 062, private Storage bindings, one-time audited download grants and accepted `/whatsapp` media display | local Storage/RLS/browser and exact-head evidence passed; current exact-main CI `31523285552` attempt 2 includes it, but synthetic WAHA bytes are not real-provider or production proof |
 | P5E ACK/session/Realtime | PR #141 merged as `88169c55935f0b66d0b58e844a5e6c4cac2cc285`; migration 063 projects monotonic ACK/session state and private authorization-bound invalidation | local PostgreSQL/browser and exact-head evidence passed; current exact-main CI includes it, while live WAHA ACK/session and production remain unproved |
 | P4R1 canonical amoCRM context | PR #142 merged as `8cf46a94b79e8bc24ad49b30606753a690ea5469`; migration 064 and disabled GET-only adapter expose bounded safe contact/lead/responsible/pipeline/status context | exact-main CI passed, but no sanctioned credential/test entity was exercised and no mapping activation, amoCRM write or handoff authority exists |
 | P5F1 memory/retrieval | PR #144 merged as `a930bfa1a3e3ad736cfa688201d157b3082cd80a`; migration 065 provides Platform-owned versioned memory, approved lexical retrieval evidence and pgvector foundation | local RLS/browser and exact-main evidence passed; embedding ingestion, semantic retrieval, Gemini and autonomy remained blocked in this slice |
 | P5F2 Gemini proposals | PR #145 merged as `5ac5b018d475117d13aff4607debcee60ec0cc7c`; migration 066 and disabled stateless adapter persist structured human-review proposals with `store=false` and no tools/send authority | SDK/request/schema/local adapter evidence and exact-main CI passed; no real Gemini credential/provider call or customer data was used |
 | P5F3 autonomous inbound replies | PR #146 merged as `81ae079594baaa4a453501a99ad0ed5c3ba408d6`; migration 067 adds explicit staff control, deterministic mutable gates, one-use intent/attempt evidence, exact WAHA `reply_to` transport and ACK linkage | full local Supabase/browser gate, independent exact-head review and exact-main CI `31514964102` passed; runtime remains disabled and no real Gemini/WAHA/customer send or production enablement is proved |
+| P6 operations/Portal contract | PR #147 merged as `fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`; freezes P6A read-only attention, P6B in-app-only notifications, P6C overdue-transition producer and P6D closure proof as separate reviewed slices | docs-only plan passed independent exact-head review and exact-main CI `31523285552` attempt 2; it did not mutate schema, runtime, providers, customer data or production |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path, deployed/frozen вместе с legacy webhook/session и rollback path | P9 removed; deactivation, retirement и deletion запрещены в текущем scope |
@@ -279,16 +283,35 @@ Current P6 docs-only contract:
 Для этих действий текущий результат может подготовить code, runbook и evidence
 gate, но не выполнять mutation.
 
-## Следующий безопасный gate
+## Текущий безопасный gate
 
-Следующий gate — docs-only authority block
-`EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11`: refresh the authoritative plan and
-append-only `PLAN_CHANGES`, and freeze the focused
-`docs/platform/p6-operations-portal.md` contract before implementation. It
-changes no product code, migration, runtime configuration, credential, provider
-state or customer data.
+Текущий gate — implementation block
+`EVO-P6A-PORTAL-ATTENTION-2026-08-12` под merged contract
+`EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11`. Он feature-flagged и по умолчанию
+выключен. P6A читает только существующий argument-free actor-derived Student
+Portal snapshot и в accepted Claude Design UI явно группирует urgent/high task,
+rejected document и overdue payment. Он не добавляет migration, RPC, DTO,
+write, scheduler, durable notification, acknowledgement, WAHA/amoCRM/provider
+call или production mutation.
 
-P6 then executes in four independently reviewed slices:
+Локальный workstation runtime gate пока не является доказательством: две
+singleton попытки `npm run test:supabase:local` остановились до P6A Playwright
+на OrbStack container lifecycle (`post-reset recovery` и initial reset timeout
+`124`). SQL migrations `001-067` не показали ошибки, а focused PostgreSQL/RLS
+gate зелёный. Точные disposable ресурсы очищены, Inbox и соседние frontend/API
+сервисы восстановлены.
+
+Exact-head CI run `31534003041` также пока красный и является non-evidence.
+Attempt 1 остановился на transient P5F3 Next.js/Turbopack font resolution;
+same-head attempt 2 прошёл P5F3 и выявил точную P6A bootstrap-ошибку:
+`next.config.ts` не разрешал partition `p6a`. Исправление
+`EVO-P6A-PARTITION-BOOTSTRAP-FIX-2026-08-12` добавляет только этот literal и
+регрессию, связывающую Next.js allowlist со всеми singleton browser
+partitions. Новый exact head обязан пройти полный неизменённый
+Auth/PostgREST/Storage/PGMQ/P6A browser command с exit `0`; до этого
+runtime/browser acceptance остаётся pending.
+
+P6 исполняется в четырёх независимо проверяемых slices:
 
 1. `P6A` — read-only overdue and attention state in the accepted Portal from
    existing Platform task/document/payment projections only, with no

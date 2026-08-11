@@ -14,10 +14,11 @@ PR #141 merged the disabled-by-default P5E ACK/session projection and private
 Realtime invalidation lane, PR #142 merged the bounded P4R1 read-only
 canonical amoCRM context lane, PR #144 merged the disabled-by-default P5F1
 Platform-owned memory/retrieval foundation, PR #145 merged the disabled-by-
-default P5F2 stateless Gemini proposal adapter, and PR #146 merged the disabled-
-by-default P5F3 deterministic autonomous inbound-reply lane. Current
-`origin/main` is `81ae079594baaa4a453501a99ad0ed5c3ba408d6`, migrations are
-contiguous `001-067`, and exact-main CI run `31514964102` is green for Main CRM,
+default P5F2 stateless Gemini proposal adapter, PR #146 merged the disabled-by-
+default P5F3 deterministic autonomous inbound-reply lane, and PR #147 merged
+the reviewed P6A-P6D implementation contract. Current `origin/main` is
+`fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`, migrations remain contiguous
+`001-067`, and exact-main CI run `31523285552` attempt 2 is green for Main CRM,
 EVO Inbox and EVO Lead Agent; Changed range is skipped on the push event as
 expected.
 
@@ -30,11 +31,10 @@ failed/non-evidence. The owner keeps P4B activation/writes deferred but resumes
 a bounded read-mostly P4R lane after the messaging foundation. P9 remains
 removed. Lead Agent, the legacy webhook/session path and rollback path remain
 deployed/frozen. P5A-P5F3 and P4R1 are merged without real-provider proof. The
-active step is the docs-only P6 decomposition: read-only overdue Portal
-actions, durable in-app-only Student notifications, overdue-transition
-publication and a cross-domain two-Student closure proof. It authorizes no
-application, schema, runtime, credential, provider, customer-data, staging or
-production mutation. Updated 2026-08-11 in the workspace timezone.
+active step is P6A: a disabled-by-default read-only attention presentation over
+the existing RLS-bound Student Portal task, document and finance snapshot. P6A
+adds no schema, RPC, write, scheduler, durable notification, WhatsApp, amoCRM or
+provider path. Updated 2026-08-12 in the workspace timezone.
 
 This document is the execution contract for the current EVO Platform MVP lane in
 this repo. The current detailed contract is
@@ -58,17 +58,21 @@ slice. The superseding rule is:
 
 ## Current Goal Slice
 
-Active plan slice: Block
-`EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11`. This docs-only amendment freezes
-the P6A read-only overdue Portal, P6B durable in-app-only Student notification,
-P6C overdue-transition and P6D cross-domain closure contracts defined in
-`docs/platform/p6-operations-portal.md` and the matching append-only
-`docs/PLAN_CHANGES.md` entry. It changes no product code, migration, runtime
-configuration, credential, provider state, customer data, staging or
-production. After it merges and exact-main CI is green, P6A begins in a fresh
-isolated worktree. Each implementation slice still requires one fresh
-independent exact-head read-only review, exact-head CI, direct merge of only
-that reviewed head and green exact-main push CI.
+Active implementation slice: Block
+`EVO-P6A-PORTAL-ATTENTION-2026-08-12`, under the merged
+`EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11` contract. P6A reuses the existing
+argument-free, actor-derived Portal snapshot and accepted Claude Design pages.
+Its exact server flag is `EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED`; it fails
+closed unless exactly `1`. Test-only selector `EVO_P6A_BROWSER_PROOF` exists
+only in the local Playwright harness, is never read by product runtime, and
+selects the sole partition allowed to enable the server flag. Every unrelated
+partition keeps both values off.
+P6A may present only authoritative urgent/warning task, rejected-document and
+overdue-payment attention. It must not add a migration, RPC, write, scheduler,
+durable notification, acknowledgement, provider call or production mutation.
+The slice requires one fresh independent exact-head read-only review,
+exact-head CI, direct merge of only that reviewed head and green exact-main push
+CI before P6B begins.
 
 ### Goal
 
@@ -127,9 +131,9 @@ checkpoint is:
   P5C available-history reconciliation lane, PR #138 merged the P5D private
   WAHA media archive/display lane, PR #141 merged P5E ACK/session plus private
   Realtime, PR #142 merged bounded P4R1 read-only canonical amoCRM context,
-  PRs #144-#146 merged P5F1-P5F3, and PR #146 produced current
-  `origin/main` `81ae079594baaa4a453501a99ad0ed5c3ba408d6`.
-  Exact-main CI `31514964102` is green, and migrations end at `067`.
+  PRs #144-#146 merged P5F1-P5F3, and PR #147 merged the P6A-P6D contract.
+  Current `origin/main` is `fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`.
+  Exact-main CI `31523285552` attempt 2 is green, and migrations end at `067`.
 - P4B implementation is preserved on remote branch
   `izzhackt/evo-platform-p4b-mapping-approval` at
   `e53ba94954f147b295f596421a255591fa343ce8`, with no implementation PR.
@@ -172,27 +176,26 @@ checkpoint is:
 
 ### Immediate execution order
 
-0. Merge this docs-only governance amendment only after fresh exact-head
-   independent review and all required exact-head CI jobs. Before the merge
-   command, refresh `origin/main` and the PR base, confirm the reviewed head SHA
-   and reviewed base/main still match the evidence, then merge only that exact
-   reviewed SHA directly; otherwise rerun review/CI on the refreshed state.
-   Require green exact-main push CI after merge.
+0. PR #147 merged the P6A-P6D governance amendment as
+   `fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`; exact-main run `31523285552`
+   attempt 2 is green. Preserve this accepted contract.
 1. Preserve P4B at
    `izzhackt/evo-platform-p4b-mapping-approval` / `e53ba94954f147b295f596421a255591fa343ce8`.
    Keep mapping activation and writes deferred. Merged P4R1 remains bounded
    read-only context without provider proof or mutation authority.
-2. Implement P6A read-only overdue Portal actions, P6B durable in-app-only
-   Student notifications, P6C overdue-transition publication and P6D cross-
-   domain two-Student closure in order.
-   Reuse existing Platform admissions/document/finance foundations and do not
-   copy the legacy SQLite staff notification feed.
-3. Continue P7 only after P6D is accepted. Do not infer canonical sales
+2. Implement P6A now as the feature-flagged read-only Portal attention slice.
+   Reuse the existing Platform task/document/finance snapshot and do not add a
+   schema/RPC/write side effect.
+3. After P6A exact-main CI is green, implement P6B durable in-app-only Student
+   notifications, P6C overdue-transition publication and P6D cross-domain two-
+   Student closure in order. Do not copy the legacy SQLite staff notification
+   feed.
+4. Continue P7 only after P6D is accepted. Do not infer canonical sales
    identity, responsible Sales, stage, Portal activation or contract handoff.
-4. Run narrowed P8 only for executable P5-P7 plus proved P4R read paths. Report
+5. Run narrowed P8 only for executable P5-P7 plus proved P4R read paths. Report
    P4B activation/writes and unavailable provider segments as deferred, never
    passed or synthetically replaced.
-5. Skip P9. Keep Lead Agent, the legacy webhook/session and rollback path
+6. Skip P9. Keep Lead Agent, the legacy webhook/session and rollback path
    deployed/frozen. Run P10 directly after P8 as an authorized-scope audit that
    lists P4B activation/writes deferred and does not claim full Platform
    completion.

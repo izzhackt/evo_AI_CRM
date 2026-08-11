@@ -5275,3 +5275,113 @@ Blocked proof and rollback:
   and forward-fixes additive migrations without deleting durable audit or
   notification history. Migration 043 and its dormant consent-gated WhatsApp
   intent model remain intact.
+
+## 2026-08-12 - Implement P6A read-only Portal attention
+
+Block-ID: `EVO-P6A-PORTAL-ATTENTION-2026-08-12`
+
+Accepted baseline:
+
+- PR #147 merged the reviewed P6A-P6D contract as
+  `fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`.
+- Exact-main CI run `31523285552` attempt 2 is green for Main CRM, EVO Inbox
+  and EVO Lead Agent; Changed range is skipped on the push event as expected.
+- Attempt 1 is non-evidence: one unrelated P5F1 browser case completed in 31.2
+  seconds against a 30-second limit. The failed job was rerun at the same exact
+  main SHA and passed without a code change.
+- Migrations remain contiguous `001-067`; P6A reserves no migration number.
+
+Decision:
+
+- Implement P6A only over the existing argument-free, actor-derived and
+  RLS-bound Student Portal snapshot. The server continues to derive the
+  organization and Student identity from the authenticated actor; browser
+  route/query input is not authority.
+- Add exact fail-closed runtime flag
+  `EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED`, enabled only by the literal
+  value `1`. Test-only selector `EVO_P6A_BROWSER_PROOF` exists solely inside
+  the local Playwright harness, is never read by product runtime, and selects
+  the one proof partition allowed to enable the runtime flag. Every unrelated
+  local browser partition keeps both values disabled.
+- When the runtime flag is disabled, preserve the accepted Portal behavior.
+  When enabled, present only authoritative urgent/high task, rejected-document
+  and overdue-payment items in a named read-only attention region, and add a
+  localized overdue-payment explanation. Normal informational actions do not
+  become attention items.
+- Preserve the accepted Claude Design components, responsive layout and
+  existing navigation. P6A may add localized RU/KY/EN copy and focused
+  accessibility semantics, but no parallel frontend or copied Inbox surface.
+- P6A adds no schema, migration, RPC, DTO field, direct-table access, write,
+  read receipt, acknowledgement, scheduler, durable notification, Realtime
+  publication, WAHA/amoCRM/Gemini call or provider credential path.
+- P6B remains the first durable in-app-only Student notification slice; P6C
+  remains the first overdue-transition producer; P6D remains the full two-
+  Student and cross-organization closure proof.
+
+Validation required before merge:
+
+- Node `22.23.1` focused P6A UI/config and reset-harness tests; unit/security
+  Node suites; `git diff --check`; ESLint; Next route type generation;
+  TypeScript; production build; staged secret scan and dependency audits.
+- One singleton disposable local Supabase/browser gate. Its dedicated P6A
+  partition must prove the real authenticated positive Student sees the named
+  attention region and overdue helper, the same-organization no-case Student
+  fails closed, and a browser-supplied route/query identifier cannot expand
+  scope. Existing PostgreSQL/RLS evidence remains the authority for self-only
+  and cross-organization reads.
+- The P6A proof must show no acknowledgement control, provider identifier,
+  WAHA/amoCRM action or hidden production claim. It does not substitute for the
+  P6D two-positive-Student/cross-organization matrix.
+- Require one fresh independent read-only review of the final exact head, all
+  four exact-head CI jobs, a final head/base refresh, direct merge of only that
+  reviewed head and green exact-main push CI before P6B begins.
+
+Proof boundary and rollback:
+
+- Local Supabase/Auth/Playwright data is synthetic acceptance evidence only.
+  It is not managed-Supabase, customer-data, provider, staging or production
+  proof and authorizes no production mutation.
+- Rollback is immediate and data-free: keep
+  `EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED` unset/disabled and revert the
+  P6A UI/harness wiring. No durable P6A row, provider effect or audit history
+  requires cleanup.
+
+## 2026-08-12 - Move the P6A runtime gate to the clean exact-head CI runner
+
+Block-ID: `EVO-P6A-CI-RUNTIME-GATE-2026-08-12`
+
+Observed constraint:
+
+- Node `22.23.1` focused P6A/reset tests, the full unit and security-Node
+  suites, ESLint, Next route type generation, TypeScript, production build,
+  PostgreSQL/RLS authorization, migration-history verification, dependency
+  audits, staged secret scan and diff checks pass in the isolated P6A
+  worktree.
+- Two singleton workstation runs of exactly
+  `npm run test:supabase:local` remained non-evidence before the browser
+  partition. The first applied migrations `001-067` and then failed the exact
+  disposable stack's post-reset recovery; the second timed out during the
+  initial disposable reset with exit `124`. Both failures were in OrbStack
+  container lifecycle operations, not a P6A assertion, SQL error or browser
+  result.
+- Bounded exact-resource cleanup initially hung in the same Docker API.
+  Coordinated OrbStack recovery preserved all data; only exact disposable
+  `evo-platform-local` containers, volume and network were removed. Final
+  verification found zero exact Platform resources/process/lock, healthy EVO
+  Inbox containers and recovered unrelated frontend/API services. No broad
+  Docker cleanup occurred.
+
+Decision:
+
+- Do not weaken, skip or replace the required runtime acceptance. The current
+  exact-head Main CRM CI job must run the same repository command
+  `npm run test:supabase:local` on its clean isolated Docker runner and must
+  exit `0`, including the dedicated P6A Auth/PostgREST/browser partition and
+  normal exact cleanup, before merge.
+- The two workstation failures remain explicit infrastructure blockers and
+  are not test evidence. A green exact-head CI run is the runtime/browser
+  evidence for this slice; focused local PostgreSQL/RLS and Node/build evidence
+  remain separate supporting checks.
+- If exact-head CI reproduces any P6A, Supabase, RLS or browser failure, fix the
+  actual defect and rerun. Only a clean exact-head CI pass plus one fresh
+  independent exact-head review may authorize direct merge.

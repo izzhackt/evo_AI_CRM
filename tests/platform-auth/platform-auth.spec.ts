@@ -36,6 +36,14 @@ type Fixture = Readonly<{
   p5f3: Readonly<{
     autonomousReplyTriggerSecret: string;
   }>;
+  p6a: Readonly<{
+    studentCaseId: string;
+    sameOrgOtherStudentCaseId: string;
+    sameOrgOtherStudentDisplayName: string;
+    overduePaymentObligationId: string;
+    overduePaymentLabel: string;
+    overduePaymentNextAction: string;
+  }>;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
@@ -1711,6 +1719,136 @@ test("student portal renders the persisted BW3 profile and one requirement witho
       ).toHaveCount(1);
     }
   }
+  expectLegacyDatabaseUntouched();
+});
+
+test("P6A exposes read-only overdue Portal attention without notification or provider controls", async ({
+  browser,
+}) => {
+  test.skip(
+    process.env.EVO_P6A_BROWSER_PROOF !== "1",
+    "P6A feature proof runs in its isolated browser partition.",
+  );
+  test.slow();
+  expectLegacyDatabaseUntouched();
+
+  const studentContext = await browser.newContext();
+  const studentPage = await studentContext.newPage();
+  await login(studentPage, fixture.identities.student);
+  await expect(studentPage).toHaveURL(/\/portal$/);
+  await studentPage.goto("/portal/notifications");
+  await expect(studentPage).toHaveURL(/\/portal\/notifications$/);
+
+  const attentionRegion = studentPage.getByTestId(
+    "portal-attention-read-only",
+  );
+  await expect(attentionRegion).toHaveAttribute(
+    "aria-labelledby",
+    "portal-attention-read-only-title",
+  );
+  await expect(
+    studentPage.getByRole("region", {
+      name: "Требует внимания",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    attentionRegion.getByRole("heading", {
+      level: 2,
+      name: "Требует внимания",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(attentionRegion).toContainText("Срочно");
+  await expect(attentionRegion).toContainText("Просроченный платёж");
+  await expect(attentionRegion).toContainText(
+    fixture.p6a.overduePaymentNextAction,
+  );
+  const paymentLink = attentionRegion.locator('a[href="/portal/payments"]');
+  await expect(paymentLink).toHaveCount(1);
+  await expect(paymentLink).toHaveAttribute("href", "/portal/payments");
+  await expect(attentionRegion.getByRole("button")).toHaveCount(0);
+  await expect(
+    attentionRegion.locator('input, textarea, select, [role="checkbox"]'),
+  ).toHaveCount(0);
+  await expect(
+    studentPage.getByRole("button", {
+      name: /прочитан|подтверд|acknowledge|mark as read/i,
+    }),
+  ).toHaveCount(0);
+
+  const notificationText = await studentPage.locator("body").innerText();
+  expect(notificationText).not.toMatch(
+    /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
+  );
+  for (const rawValue of [
+    fixture.p6a.studentCaseId,
+    fixture.p6a.sameOrgOtherStudentCaseId,
+    fixture.p6a.overduePaymentObligationId,
+    "payment_obligation_id",
+    "provider_observed",
+    "WAHA",
+  ]) {
+    expect(notificationText).not.toContain(rawValue);
+  }
+
+  await paymentLink.click();
+  await expect(studentPage).toHaveURL(/\/portal\/payments$/);
+  const overduePaymentCard = studentPage
+    .getByRole("article")
+    .filter({ hasText: fixture.p6a.overduePaymentLabel });
+  await expect(overduePaymentCard).toHaveCount(1);
+  await expect(overduePaymentCard).toContainText("Просрочен");
+  await expect(
+    overduePaymentCard.getByTestId("portal-overdue-payment-helper"),
+  ).toHaveText(
+    "Срок оплаты прошёл. Для оплаты или сверки свяжитесь с ответственным сотрудником.",
+  );
+  await expect(
+    overduePaymentCard.locator('button, input, textarea, select'),
+  ).toHaveCount(0);
+
+  await studentPage.goto(
+    `/portal/notifications?studentCaseId=${encodeURIComponent(
+      fixture.p6a.sameOrgOtherStudentCaseId,
+    )}&caseId=${encodeURIComponent(
+      fixture.p6a.sameOrgOtherStudentCaseId,
+    )}`,
+  );
+  expect(new URL(studentPage.url()).pathname).toBe("/portal/notifications");
+  await expect(
+    studentPage.getByTestId("portal-attention-read-only"),
+  ).toContainText(fixture.p6a.overduePaymentNextAction);
+  await expect(studentPage.locator("#portal-main")).not.toContainText(
+    fixture.p6a.sameOrgOtherStudentDisplayName,
+  );
+  await expect(studentPage.locator("body")).not.toContainText(
+    fixture.p6a.sameOrgOtherStudentCaseId,
+  );
+  await studentContext.close();
+
+  const noCaseContext = await browser.newContext();
+  const noCasePage = await noCaseContext.newPage();
+  await login(noCasePage, fixture.identities.studentNoCase);
+  await expect.poll(() => new URL(noCasePage.url()).pathname).toBe(
+    "/platform-pending",
+  );
+  await noCasePage.goto(
+    `/portal/notifications?studentCaseId=${encodeURIComponent(
+      fixture.p6a.studentCaseId,
+    )}`,
+  );
+  await expect.poll(() => new URL(noCasePage.url()).pathname).toBe(
+    "/platform-pending",
+  );
+  await expect(
+    noCasePage.getByTestId("portal-attention-read-only"),
+  ).toHaveCount(0);
+  await expect(noCasePage.getByText(fixture.p6a.overduePaymentLabel)).toHaveCount(
+    0,
+  );
+  await noCaseContext.close();
+
   expectLegacyDatabaseUntouched();
 });
 

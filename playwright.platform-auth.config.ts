@@ -31,6 +31,14 @@ type Fixture = Readonly<{
   p5f3: Readonly<{
     autonomousReplyTriggerSecret: string;
   }>;
+  p6a: Readonly<{
+    studentCaseId: string;
+    sameOrgOtherStudentCaseId: string;
+    sameOrgOtherStudentDisplayName: string;
+    overduePaymentObligationId: string;
+    overduePaymentLabel: string;
+    overduePaymentNextAction: string;
+  }>;
   identities: Readonly<Record<string, Identity>>;
 }>;
 
@@ -100,6 +108,15 @@ if (
   throw new Error("EVO_P5F3_BROWSER_PROOF must be 0 or 1");
 }
 const p5f3BrowserProof = p5f3BrowserProofFlag === "1";
+const p6aBrowserProofFlag = process.env.EVO_P6A_BROWSER_PROOF;
+if (
+  p6aBrowserProofFlag !== undefined &&
+  p6aBrowserProofFlag !== "0" &&
+  p6aBrowserProofFlag !== "1"
+) {
+  throw new Error("EVO_P6A_BROWSER_PROOF must be 0 or 1");
+}
+const p6aBrowserProof = p6aBrowserProofFlag === "1";
 const platformAuthDevRunKey = process.env.EVO_PLATFORM_AUTH_DEV_RUN_KEY;
 const platformAuthBrowserPartition =
   process.env.EVO_PLATFORM_AUTH_BROWSER_PARTITION;
@@ -124,6 +141,7 @@ if (
     "p5e",
     "p5f1",
     "p5f3",
+    "p6a",
     "remaining",
   ].includes(
     platformAuthBrowserPartition,
@@ -147,11 +165,12 @@ if (
     Number(p5dBrowserProof) +
     Number(p5eBrowserProof) +
     Number(p5f1BrowserProof) +
-    Number(p5f3BrowserProof) >
+    Number(p5f3BrowserProof) +
+    Number(p6aBrowserProof) >
   1
 ) {
   throw new Error(
-    "P5B, P5C, P5D, P5E, P5F1 and P5F3 browser proof partitions are mutually exclusive",
+    "P5B, P5C, P5D, P5E, P5F1, P5F3 and P6A browser proof partitions are mutually exclusive",
   );
 }
 if (
@@ -179,6 +198,11 @@ if ((platformAuthBrowserPartition === "p5f1") !== p5f1BrowserProof) {
 if ((platformAuthBrowserPartition === "p5f3") !== p5f3BrowserProof) {
   throw new Error(
     "EVO_P5F3_BROWSER_PROOF must be enabled only for the p5f3 browser partition",
+  );
+}
+if ((platformAuthBrowserPartition === "p6a") !== p6aBrowserProof) {
+  throw new Error(
+    "EVO_P6A_BROWSER_PROOF must be enabled only for the p6a browser partition",
   );
 }
 if (
@@ -253,6 +277,17 @@ if (
 ) {
   throw new Error("P5F3 browser proof fixture is invalid");
 }
+if (
+  p6aBrowserProof &&
+  (!uuidPattern.test(fixture.p6a.studentCaseId) ||
+    !uuidPattern.test(fixture.p6a.sameOrgOtherStudentCaseId) ||
+    !uuidPattern.test(fixture.p6a.overduePaymentObligationId) ||
+    fixture.p6a.sameOrgOtherStudentDisplayName.length === 0 ||
+    fixture.p6a.overduePaymentLabel.length === 0 ||
+    fixture.p6a.overduePaymentNextAction.length === 0)
+) {
+  throw new Error("P6A browser proof fixture is invalid");
+}
 
 const platformMessagingProof =
   p5bBrowserProof ||
@@ -300,6 +335,7 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: fixture.publishableKey,
       EVO_UI_CONTRACT_FIXTURES: "0",
       EVO_DB_PATH: legacySentinel,
+      EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED: p6aBrowserProof ? "1" : "0",
       EVO_PLATFORM_WAHA_INGRESS_ENABLED:
         p5bBrowserProof ||
         p5dBrowserProof ||

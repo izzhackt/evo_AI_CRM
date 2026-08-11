@@ -12,11 +12,14 @@ import {
 import { PortalIcon } from "@/components/platform/portal/PortalIcon";
 import { getPortalCopy } from "@/components/platform/portal/portal-copy";
 import { getPortalPageData } from "@/lib/portal";
+import { isPlatformP6APortalAttentionEnabled } from "@/lib/server/platform-p6a-portal-attention";
 
 export default async function PortalPaymentsPage() {
   const { snapshot, locale, t } = await getPortalPageData();
   const copy = getPortalCopy(locale);
   if (!snapshot) return <PortalMissingCase copy={copy} />;
+
+  const portalAttentionEnabled = isPlatformP6APortalAttentionEnabled();
 
   return (
     <>
@@ -65,6 +68,14 @@ export default async function PortalPaymentsPage() {
                     </div>
                   </div>
                 </div>
+                {portalAttentionEnabled && payment.status === "overdue" ? (
+                  <p
+                    className={styles.cardMeta}
+                    data-testid="portal-overdue-payment-helper"
+                  >
+                    {copy.overduePaymentHelper}
+                  </p>
+                ) : null}
               </article>
             ))
           )}

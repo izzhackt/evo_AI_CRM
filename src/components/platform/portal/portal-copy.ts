@@ -108,6 +108,8 @@ const ru = {
   paymentUnavailableTitle: "Онлайн-оплата в кабинете не подключена",
   paymentUnavailableBody:
     "Не вводите реквизиты и не считайте статус подтверждением банковской операции. Для оплаты или сверки свяжитесь с ответственным сотрудником.",
+  overduePaymentHelper:
+    "Срок оплаты прошёл. Для оплаты или сверки свяжитесь с ответственным сотрудником.",
   teamTitle: "Моя команда",
   teamDescription: "Подтверждённые сотрудники, назначенные к вашему делу.",
   manager: "Менеджер",
@@ -120,6 +122,8 @@ const ru = {
   teamBoundaryBody: "Кабинет не показывает сотрудников и данные других студентов.",
   notificationsTitle: "Уведомления",
   notificationsDescription: "Непрочитанные обновления и ближайшее действие по вашему делу.",
+  notificationsP6ADescription:
+    "Элементы раздела «Требует внимания» доступны только для чтения и показаны отдельно от непрочитанных обновлений по вашему делу.",
   attentionNow: "Требует внимания",
   recentNotifications: "Последние обновления",
   noNotificationsTitle: "Новых уведомлений нет",
@@ -248,6 +252,8 @@ const ky: PortalCopy = {
   paymentUnavailableTitle: "Кабинеттен онлайн төлөм туташтырылган эмес",
   paymentUnavailableBody:
     "Реквизиттерди киргизбеңиз жана абалды банк операциясынын ырастоосу деп эсептебеңиз. Төлөм же салыштыруу үчүн жооптуу кызматкерге кайрылыңыз.",
+  overduePaymentHelper:
+    "Төлөө мөөнөтү өттү. Төлөө же салыштыруу үчүн жооптуу кызматкерге кайрылыңыз.",
   teamTitle: "Менин командам",
   teamDescription: "Сиздин ишке дайындалган ырасталган кызматкерлер.",
   manager: "Менеджер",
@@ -260,6 +266,8 @@ const ky: PortalCopy = {
   teamBoundaryBody: "Кабинет башка студенттердин кызматкерлерин жана маалыматтарын көрсөтпөйт.",
   notificationsTitle: "Эскертмелер",
   notificationsDescription: "Окулбаган жаңылыктар жана ишиңиз боюнча жакынкы аракет.",
+  notificationsP6ADescription:
+    "«Көңүл буруу керек» бөлүмүндөгү маалымат окуу үчүн гана жеткиликтүү жана ишиңиз боюнча окула элек жаңылыктардан өзүнчө көрсөтүлөт.",
   attentionNow: "Көңүл буруу керек",
   recentNotifications: "Акыркы жаңылыктар",
   noNotificationsTitle: "Жаңы эскертме жок",
@@ -386,6 +394,8 @@ const en: PortalCopy = {
   paymentUnavailableTitle: "Online payment is not connected",
   paymentUnavailableBody:
     "Do not enter payment details or treat the status as bank confirmation. Contact the responsible team member to pay or reconcile a payment.",
+  overduePaymentHelper:
+    "The due date has passed. Contact the responsible team member to pay or reconcile this payment.",
   teamTitle: "My team",
   teamDescription: "Confirmed staff assigned to your case.",
   manager: "Manager",
@@ -398,6 +408,8 @@ const en: PortalCopy = {
   teamBoundaryBody: "The portal never shows staff assignments or data from other students.",
   notificationsTitle: "Notifications",
   notificationsDescription: "Unread updates and the next action for your case.",
+  notificationsP6ADescription:
+    "Read-only items under “Needs attention” are shown separately from unread updates for your case.",
   attentionNow: "Needs attention",
   recentNotifications: "Recent updates",
   noNotificationsTitle: "No new notifications",

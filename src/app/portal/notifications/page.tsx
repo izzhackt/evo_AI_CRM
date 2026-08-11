@@ -13,43 +13,78 @@ import {
 import { PortalIcon } from "@/components/platform/portal/PortalIcon";
 import { getPortalCopy } from "@/components/platform/portal/portal-copy";
 import { getPortalPageData } from "@/lib/portal";
+import {
+  isPlatformP6APortalAttentionEnabled,
+  shouldShowPortalNextActionForP6A,
+} from "@/lib/server/platform-p6a-portal-attention";
 
 export default async function PortalNotificationsPage() {
   const { snapshot, locale, t } = await getPortalPageData();
   const copy = getPortalCopy(locale);
   if (!snapshot) return <PortalMissingCase copy={copy} />;
 
+  const portalAttentionEnabled = isPlatformP6APortalAttentionEnabled();
+  const visibleNextAction =
+    snapshot.nextAction &&
+    shouldShowPortalNextActionForP6A(
+      snapshot.nextAction,
+      portalAttentionEnabled,
+    )
+      ? snapshot.nextAction
+      : null;
   const unreadUpdates = snapshot.updates.filter((update) => !update.isRead);
 
   return (
     <>
-      <PortalPageHeader title={copy.notificationsTitle} description={copy.notificationsDescription} />
+      <PortalPageHeader
+        title={copy.notificationsTitle}
+        description={
+          portalAttentionEnabled
+            ? copy.notificationsP6ADescription
+            : copy.notificationsDescription
+        }
+      />
       <div className={styles.twoColumn}>
         <div className={styles.stack}>
-          {snapshot.nextAction && (
-            <section className={`${styles.panel} ${styles.panelPadding}`}>
+          {visibleNextAction && (
+            <section
+              className={`${styles.panel} ${styles.panelPadding}`}
+              aria-labelledby={
+                portalAttentionEnabled ? "portal-attention-read-only-title" : undefined
+              }
+              data-testid={
+                portalAttentionEnabled ? "portal-attention-read-only" : undefined
+              }
+            >
               <div className={styles.panelTitleRow}>
-                <h2 className={styles.panelTitle}>{copy.attentionNow}</h2>
+                <h2
+                  id={
+                    portalAttentionEnabled ? "portal-attention-read-only-title" : undefined
+                  }
+                  className={styles.panelTitle}
+                >
+                  {copy.attentionNow}
+                </h2>
                 <PortalStatusBadge
-                  value={snapshot.nextAction.severity}
+                  value={visibleNextAction.severity}
                   label={
-                    snapshot.nextAction.severity === "urgent"
+                    visibleNextAction.severity === "urgent"
                       ? copy.urgent
-                      : snapshot.nextAction.severity === "warning"
+                      : visibleNextAction.severity === "warning"
                         ? copy.warning
                         : copy.normal
                   }
                 />
               </div>
-              <div className={styles.cardTitle}>{snapshot.nextAction.detail}</div>
+              <div className={styles.cardTitle}>{visibleNextAction.detail}</div>
               <div className={styles.cardMeta}>
-                {t(snapshot.nextAction.labelKey)}
-                {snapshot.nextAction.dueDate
-                  ? ` · ${copy.due}: ${formatPortalDate(snapshot.nextAction.dueDate, locale)}`
+                {t(visibleNextAction.labelKey)}
+                {visibleNextAction.dueDate
+                  ? ` · ${copy.due}: ${formatPortalDate(visibleNextAction.dueDate, locale)}`
                   : ""}
               </div>
               <div className={styles.teamActions}>
-                <Link href={nextActionHref(snapshot.nextAction)} className={styles.button}>
+                <Link href={nextActionHref(visibleNextAction)} className={styles.button}>
                   {copy.viewAll}
                   <PortalIcon name="chevron-right" size={16} />
                 </Link>

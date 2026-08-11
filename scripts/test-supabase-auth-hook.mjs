@@ -1754,6 +1754,57 @@ const main = async () => {
   await refresh(identities.student, "student");
   await refresh(identities.studentNoCase, "student");
 
+  const p6aOverduePaymentLabel = "Synthetic overdue EVO service fee";
+  const p6aOverduePaymentNextAction =
+    "Contact the responsible team member to reconcile this overdue payment";
+  const p6aOverduePaymentDueAt = new Date(
+    Date.now() - 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const p6aOverduePayment = await rpc(
+    identities.finance,
+    "create_payment_obligation",
+    [
+      adminAMembership.organization_id,
+      orgAStudentCaseId,
+      p6aOverduePaymentLabel,
+      "evo_service_fee",
+      125_000,
+      "USD",
+      p6aOverduePaymentDueAt,
+      p6aOverduePaymentNextAction,
+      "Create one deterministic synthetic overdue obligation for the local P6A browser proof",
+      randomUUID(),
+    ],
+  );
+  const p6aOverduePaymentObligationId =
+    p6aOverduePayment?.payment_obligation_id;
+  sqlUuid(
+    p6aOverduePaymentObligationId,
+    "p6a-overdue-payment-obligation-id",
+  );
+  assert(
+    p6aOverduePayment?.student_case_id === orgAStudentCaseId &&
+      p6aOverduePayment?.label === p6aOverduePaymentLabel &&
+      p6aOverduePayment?.next_action === p6aOverduePaymentNextAction,
+    "p6a-overdue-payment-obligation-create",
+  );
+  const p6aPortalFinanceRows = await authenticatedPlatformRpcRows(
+    identities.student,
+    "student_portal_finance",
+    {},
+    "p6a-student-portal-finance",
+  );
+  assert(
+    p6aPortalFinanceRows.some(
+      (row) =>
+        row.payment_obligation_id === p6aOverduePaymentObligationId &&
+        row.case_id === orgAStudentCaseId &&
+        row.derived_status === "overdue" &&
+        row.overdue === true,
+    ),
+    "p6a-student-portal-finance-overdue",
+  );
+
   const bw3Checklist = {
     targetCountry: "Malaysia",
     targetDegree: "Bachelor",
@@ -3578,6 +3629,15 @@ const main = async () => {
           workerTriggerSecret: p5dWorkerTriggerSecret,
           wahaApiKey: p5dWahaApiKey,
           mediaTriggerSecret: p5dMediaTriggerSecret,
+        },
+        p6a: {
+          studentCaseId: orgAStudentCaseId,
+          sameOrgOtherStudentCaseId: bw4UnrelatedCaseId,
+          sameOrgOtherStudentDisplayName:
+            "Synthetic BW4 Unrelated Student Case",
+          overduePaymentObligationId: p6aOverduePaymentObligationId,
+          overduePaymentLabel: p6aOverduePaymentLabel,
+          overduePaymentNextAction: p6aOverduePaymentNextAction,
         },
         p5f3: {
           autonomousReplyTriggerSecret: p5f3AutonomousReplyTriggerSecret,

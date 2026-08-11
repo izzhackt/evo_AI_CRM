@@ -1049,7 +1049,9 @@ WHERE id = :'p5f2_begin_proposal_request_id';
 DELETE FROM platform_private.gemini_proposal_results
 WHERE proposal_request_id = :'p5f2_begin_proposal_request_id';
 \set p5f2_owner_delete_state :SQLSTATE
-TRUNCATE TABLE platform_private.gemini_proposal_requests;
+TRUNCATE TABLE
+  platform_private.gemini_proposal_results,
+  platform_private.gemini_proposal_requests;
 \set p5f2_owner_truncate_state :SQLSTATE
 \set ON_ERROR_STOP on
 

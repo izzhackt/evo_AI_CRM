@@ -220,7 +220,7 @@ SELECT pg_temp.assert_true(
       )
       AND (
         NOT procedure.prosecdef
-        OR procedure.proconfig IS DISTINCT FROM ARRAY['search_path=']::TEXT[]
+        OR procedure.proconfig IS DISTINCT FROM ARRAY['search_path=""']::TEXT[]
       )
   ),
   'proposal RPC definer/search_path hardening drifted'

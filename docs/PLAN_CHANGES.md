@@ -5042,3 +5042,107 @@ Blocked proof and rollback:
 - Rollback keeps all P5F2 runtime flags off, reverts application code and
   forward-fixes additive migration `066` only. P5F1 data and the frozen legacy
   paths remain intact.
+
+## 2026-08-11 - Implement deterministic P5F3 autonomous inbound replies
+
+Block-ID: `EVO-P5F3-AUTONOMOUS-INBOUND-REPLIES-2026-08-11`.
+
+Supersedes the active implementation checkpoint only. It does not expand the
+accepted P5F3 product authority in ADR 0019 or authorize live sends.
+
+Accepted base:
+
+- PR #145 merged P5F2 at exact main
+  `5ac5b018d475117d13aff4607debcee60ec0cc7c`;
+- exact-main CI run `31452549612` passed Main CRM, EVO Inbox and EVO Lead
+  Agent; Changed range was skipped on the push event as expected;
+- migrations are contiguous through `066`;
+- P5F2 persists structured Gemini proposals but deliberately reports
+  `autonomous_authority=false` and performs no transport action.
+
+Reason:
+
+- the owner approved autonomous replies, but only as replies to an exact
+  customer inbound and not as general outbound automation;
+- a model proposal is not send authority, and an HTTP success is not delivery
+  proof;
+- the next thin slice must therefore separate deterministic policy, durable
+  intent, provider attempt and later ACK observation before any production
+  enablement can be considered.
+
+Decision:
+
+- Add additive migration `067` for private append-only control, policy/gate,
+  send-intent, attempt and provider-binding evidence; guarded current
+  projections may exist only for safe staff reads and ACK reconciliation.
+- Deterministic Platform policy is the only creator of an autonomous intent.
+  It binds the same organization/conversation, exact latest inbound source,
+  exact completed P5F2 proposal, `p5f3-v1` policy and one unused idempotency
+  key. Gemini and browsers cannot create or claim an intent.
+- Staff must explicitly enable or resume autonomy for a conversation with a
+  bounded reason. Staff pause/takeover, any later manual outbound and durable
+  opt-out block autonomy. A model result, reconnect or new inbound cannot
+  resume it.
+- Both intent creation and worker claim re-check the exact source, open
+  conversation, `<=24h` internal EVO window, `Asia/Bishkek 09:00-21:00`, known
+  language, confidence `>=85`, low risk, no handoff, approved evidence,
+  `WORKING` session health, 60-second cooldown, at most six autonomous sends
+  rolling 24 hours and at most three consecutive autonomous replies.
+- Initial intent allowlist is `greeting`, `admissions_discovery`,
+  `program_or_country`, `documents` and `deadline`. Pricing/payment, visa,
+  scholarship, complaint, opt-out and other/ambiguous intents fail closed to
+  human review. Media-only/unsupported inbound also fails closed.
+- The private worker requires exact runtime enablement and an explicitly
+  disengaged emergency kill switch, then performs a current exact-session WAHA
+  preflight. It sends only `POST /api/sendText` with the exact private direct
+  chat, exact inbound `reply_to` and persisted bounded text.
+- Its internal trigger is deliberately bodyless: HMAC authenticates the exact
+  request UUID and 13-digit timestamp, while all command data is claimed
+  atomically from private SQL. The caller cannot submit chat IDs, message IDs or
+  reply text in an HTTP body.
+- Persist the intent before transport. Provider rejection is durable
+  `rejected`; timeout, connection loss, malformed response or another
+  ambiguous post-call result is durable `unknown` plus human review and is
+  never retried automatically. HTTP acceptance is `accepted`, not delivered.
+  Existing `message.any`/`message.ack` evidence advances the safe visible state.
+- Raw WAHA chat/message identifiers, provider response bodies, hashes, secrets
+  and phone-bearing identifiers remain private. The accepted Claude Design
+  `/whatsapp` view exposes only safe control, block/queue/attempt and ACK state.
+- The `<=24h` rule is explicitly an internal conservative EVO policy. WAHA is
+  not Meta Cloud API and this block must not claim WAHA enforces that service
+  window. Current primary-source verification is recorded in
+  `docs/research/p5f3-waha-autonomous-reply-transport-2026-08-11.md`.
+- Existing Lead Agent, manual-send workflow, legacy rollback path, P4B
+  deferral, P9 removal and no-SQLite boundary remain frozen.
+- Fresh official WAHA verification confirms that `WORKING` alone is
+  insufficient: the current Sessions guide documents
+  `me.reachoutTimelock`, which can be active while the session remains
+  `WORKING`. P5F3 therefore accepts only an explicit `null` or
+  `isActive: false` state and fails closed on active, missing, or malformed
+  state. The same-chat latest-inbound binding and internal 24-hour limit remain
+  additional deterministic guards. A synthetic fixture validates the adapter
+  contract but is not real-provider proof.
+
+Validation impact:
+
+- Require focused deterministic gate, configuration, HMAC, queue/claim/finish,
+  exact WAHA request, idempotency, rejection/unknown and no-retry tests.
+- Require disposable PostgreSQL/RLS tests for service-only mutation, exact
+  tenant/source/proposal binding, actor-controlled resume/pause, rate/cooldown,
+  provider binding, ACK linkage and public privacy.
+- Require a dedicated disposable Supabase/browser partition proving a
+  synthetic loopback `reply_to` flow through the accepted `/whatsapp` thread,
+  with all runtime/provider flags off in every other partition.
+- Require focused UI/repository tests, lint, type generation, typecheck, build,
+  dependency/secret audits, one fresh independent exact-head read-only review,
+  all four exact-head CI jobs, direct merge at that exact SHA and green
+  exact-main push CI.
+
+Blocked proof and rollback:
+
+- Production enablement, credentials, customer data, a live WAHA send, real
+  Gemini execution and provider/cutover proof remain blocked without separate
+  explicit owner authority. A loopback fixture is never provider proof.
+- Rollback keeps enablement off and the kill switch engaged, safely holds
+  queued intents, reverts application code and forward-fixes additive migration
+  `067` without deleting audit history.

@@ -17,6 +17,8 @@ import {
 import { getPlatformConversationBw4Workspace } from "@/lib/platform-bw4-workflow";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 import { getPlatformAmoCrmCanonicalContext } from "@/lib/server/platform-amocrm-canonical-context-service";
+import { loadPlatformAutonomousReplyConfig } from "@/lib/server/platform-autonomous-reply-config";
+import { readPlatformAutonomousReplyState } from "@/lib/server/platform-autonomous-replies-repository";
 import {
   readPlatformAiRetrievalCapabilities,
   readPlatformAiRetrievalEvidence,
@@ -36,6 +38,15 @@ function decisionMutationOutcome(value: string | string[] | undefined) {
     return value;
   }
   return null;
+}
+
+function autonomousReplyRuntimeEnabled() {
+  try {
+    const config = loadPlatformAutonomousReplyConfig();
+    return config.enabled && !config.killSwitchEngaged;
+  } catch {
+    return false;
+  }
 }
 
 export default async function ConversationPage({
@@ -80,6 +91,7 @@ export default async function ConversationPage({
     aiMemory,
     aiRetrievalCapabilities,
     geminiProposal,
+    autonomousReply,
   ] =
     await Promise.all([
       getPlatformAmoCrmCanonicalContext(actor, thread.conversation),
@@ -88,6 +100,10 @@ export default async function ConversationPage({
       readPlatformGeminiProposal(actor, id).then(
         (proposal) => ({ proposal, unavailable: false as const }),
         () => ({ proposal: null, unavailable: true as const }),
+      ),
+      readPlatformAutonomousReplyState(actor, id).then(
+        (state) => ({ state, unavailable: false as const }),
+        () => ({ state: null, unavailable: true as const }),
       ),
     ]);
   const aiRetrievalEvidence = aiMemory?.latestRetrieval
@@ -120,6 +136,9 @@ export default async function ConversationPage({
         aiRetrievalEvidence={aiRetrievalEvidence}
         geminiProposal={geminiProposal.proposal}
         geminiProposalUnavailable={geminiProposal.unavailable}
+        autonomousReplyState={autonomousReply.state}
+        autonomousReplyUnavailable={autonomousReply.unavailable}
+        autonomousReplyRuntimeEnabled={autonomousReplyRuntimeEnabled()}
         decisionMutationOutcome={decisionMutationOutcome(
           resolvedSearchParams.result,
         )}

@@ -3553,6 +3553,7 @@ const main = async () => {
     const p5dMediaTriggerSecret = randomBytes(48).toString("base64url");
     const p5dIngressHmacSecret = randomBytes(48).toString("base64url");
     const p5dWorkerTriggerSecret = randomBytes(48).toString("base64url");
+    const p5f3AutonomousReplyTriggerSecret = randomBytes(48).toString("base64url");
     writeFileSync(
       browserFixturePath,
       JSON.stringify({
@@ -3577,6 +3578,9 @@ const main = async () => {
           workerTriggerSecret: p5dWorkerTriggerSecret,
           wahaApiKey: p5dWahaApiKey,
           mediaTriggerSecret: p5dMediaTriggerSecret,
+        },
+        p5f3: {
+          autonomousReplyTriggerSecret: p5f3AutonomousReplyTriggerSecret,
         },
         identities: {
           admin: {

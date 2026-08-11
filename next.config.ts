@@ -17,6 +17,7 @@ const platformAuthPartitions = new Set([
   "p5d",
   "p5e",
   "p5f1",
+  "p5f3",
   "remaining",
 ]);
 const platformAuthConfigValues = [

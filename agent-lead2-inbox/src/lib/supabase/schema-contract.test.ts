@@ -130,6 +130,10 @@ const platformGeminiProposalsMigration = readFileSync(
   join(migrationsDir, '066_platform_gemini_proposals.sql'),
   'utf8'
 )
+const platformAutonomousRepliesMigration = readFileSync(
+  join(migrationsDir, '067_platform_autonomous_inbound_replies.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -147,7 +151,7 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '066_platform_gemini_proposals.sql'
+      '067_platform_autonomous_inbound_replies.sql'
     )
     for (const table of [
       'waha_history_reconciliation_runs',
@@ -1496,6 +1500,74 @@ describe('Supabase companion schema contract', () => {
     )
     expect(platformGeminiProposalsMigration).not.toMatch(
       /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+platform\.(?:communication_messages|manual_send_authorizations|durable_work_items|conversation_ai_memory_versions|conversation_ai_fact_versions|conversation_ai_qualification_versions)/i
+    )
+  })
+
+  it('contains P5F3 autonomous transport behind exact staff and service RPCs', () => {
+    for (const table of [
+      'conversation_autonomy_control_events',
+      'autonomous_reply_gate_decisions',
+      'autonomous_reply_intents',
+      'autonomous_reply_intent_lifecycle',
+      'autonomous_reply_attempts',
+      'autonomous_reply_claim_receipts',
+      'autonomous_reply_attempt_results',
+      'autonomous_reply_provider_bindings',
+    ]) {
+      expect(platformAutonomousRepliesMigration).toMatch(
+        new RegExp(`CREATE\\s+TABLE\\s+platform_private\\.${table}`, 'i')
+      )
+      expect(platformAutonomousRepliesMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+      expect(platformAutonomousRepliesMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+
+    expect(platformAutonomousRepliesMigration).toMatch(
+      /platform\.set_conversation_autonomy_control\s*\(\s*p_organization_id\s+UUID,\s*p_conversation_id\s+UUID,\s*p_expected_version\s+BIGINT,\s*p_state\s+TEXT,\s*p_reason\s+TEXT,\s*p_request_id\s+UUID\s*\)/i
+    )
+    expect(platformAutonomousRepliesMigration).toMatch(
+      /platform\.claim_autonomous_reply\s*\(\s*p_organization_id\s+UUID,\s*p_worker_ref\s+TEXT,\s*p_visibility_timeout_seconds\s+INTEGER,\s*p_policy_version\s+TEXT,\s*p_request_id\s+UUID\s*\)/i
+    )
+    expect(platformAutonomousRepliesMigration).toMatch(
+      /platform\.finish_autonomous_reply\s*\(\s*p_organization_id\s+UUID,\s*p_intent_id\s+UUID,\s*p_attempt_id\s+UUID,\s*p_outcome\s+TEXT,\s*p_error_code\s+TEXT,\s*p_provider_message_id\s+TEXT,\s*p_provider_observed_at\s+TIMESTAMPTZ,\s*p_request_id\s+UUID\s*\)/i
+    )
+    expect(platformAutonomousRepliesMigration).toMatch(
+      /platform\.staff_conversation_autonomous_reply_state\s*\(\s*p_organization_id\s+UUID,\s*p_conversation_id\s+UUID\s*\)/i
+    )
+    expect(platformAutonomousRepliesMigration).toMatch(
+      /A claimed autonomous reply request cannot be replayed/i
+    )
+    expect(platformAutonomousRepliesMigration).toMatch(
+      /platform_private\.p5f3_policy_now\(\)[\s\S]*?SELECT\s+pg_catalog\.statement_timestamp\(\)/i
+    )
+    expect(platformAutonomousRepliesMigration).toMatch(
+      /inside_reply_window[\s\S]*?policy_now\s*-\s*INTERVAL\s*'24 hours'\s+AND\s+policy_now[\s\S]*?business_hours[\s\S]*?policy_now\s+AT\s+TIME\s+ZONE\s+'Asia\/Bishkek'/i
+    )
+    expect(
+      platformAutonomousRepliesMigration.match(
+        /evo:p5f3:conversation:/gi
+      )?.length
+    ).toBeGreaterThanOrEqual(4)
+    expect(platformAutonomousRepliesMigration).toMatch(
+      /'mutable_gate_blocked'[\s\S]*?INSERT\s+INTO\s+platform\.conversation_autonomous_reply_state[\s\S]*?'manual_review'[\s\S]*?autonomous_authority\s*=\s*FALSE/i
+    )
+    expect(platformAutonomousRepliesMigration).toMatch(
+      /CREATE\s+TRIGGER\s+conversation_autonomous_reply_state_realtime_invalidate[\s\S]*?platform_private\.broadcast_platform_messaging_invalidation\s*\(\s*'autonomous_reply'\s*\)/i
+    )
+    expect(platformAutonomousRepliesMigration).toMatch(
+      /message_identity_source\s*=\s*'private_autonomous_reply_binding'/i
+    )
+    expect(platformAutonomousRepliesMigration).not.toMatch(
+      /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE|ALL)[\s\S]*?platform_private\.autonomous_reply/i
     )
   })
 })

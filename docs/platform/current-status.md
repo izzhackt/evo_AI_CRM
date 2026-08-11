@@ -299,10 +299,17 @@ singleton попытки `npm run test:supabase:local` остановились 
 на OrbStack container lifecycle (`post-reset recovery` и initial reset timeout
 `124`). SQL migrations `001-067` не показали ошибки, а focused PostgreSQL/RLS
 gate зелёный. Точные disposable ресурсы очищены, Inbox и соседние frontend/API
-сервисы восстановлены. Полный неизменённый Auth/PostgREST/Storage/PGMQ/P6A
-browser command обязан пройти с exit `0` в clean exact-head Main CRM CI runner;
-до этого runtime/browser acceptance остаётся pending, а локальные красные
-попытки — non-evidence.
+сервисы восстановлены.
+
+Exact-head CI run `31534003041` также пока красный и является non-evidence.
+Attempt 1 остановился на transient P5F3 Next.js/Turbopack font resolution;
+same-head attempt 2 прошёл P5F3 и выявил точную P6A bootstrap-ошибку:
+`next.config.ts` не разрешал partition `p6a`. Исправление
+`EVO-P6A-PARTITION-BOOTSTRAP-FIX-2026-08-12` добавляет только этот literal и
+регрессию, связывающую Next.js allowlist со всеми singleton browser
+partitions. Новый exact head обязан пройти полный неизменённый
+Auth/PostgREST/Storage/PGMQ/P6A browser command с exit `0`; до этого
+runtime/browser acceptance остаётся pending.
 
 P6 исполняется в четырёх независимо проверяемых slices:
 

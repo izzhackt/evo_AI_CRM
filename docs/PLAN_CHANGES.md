@@ -5385,3 +5385,44 @@ Decision:
 - If exact-head CI reproduces any P6A, Supabase, RLS or browser failure, fix the
   actual defect and rerun. Only a clean exact-head CI pass plus one fresh
   independent exact-head review may authorize direct merge.
+
+## 2026-08-12 - Align the P6A Next.js browser-partition bootstrap
+
+Block-ID: `EVO-P6A-PARTITION-BOOTSTRAP-FIX-2026-08-12`
+
+Observed exact-head evidence:
+
+- Exact-head CI run `31534003041` attempt 1 reached the browser partitions but
+  its P5F3 Next.js dev server hit a transient `next/font/google` Turbopack
+  resolution failure. The same-head failed-job rerun passed P5F3, so no font,
+  typography or accepted Claude Design change is justified by that attempt.
+- Attempt 2 then reached the new P6A partition and failed before Playwright
+  because `next.config.ts` rejected
+  `EVO_PLATFORM_AUTH_BROWSER_PARTITION=p6a`. The reset harness and Playwright
+  config already recognized P6A, but the Next.js bootstrap allowlist still
+  ended at P5F3 and `remaining`.
+- This is a deterministic P6A proof-bootstrap defect. Both CI attempts are red
+  and remain non-evidence for the full P6A runtime gate.
+
+Decision and validation impact:
+
+- Add only the literal `p6a` to the existing fail-closed Next.js partition
+  allowlist. Do not widen the accepted value shape, disable validation, change
+  the font stack or alter the P6A product/runtime contract.
+- Extend the reset-harness contract test so every partition used by the
+  singleton browser runner must also be present in the Next.js allowlist, and
+  align the existing history bootstrap assertion with that same exact list.
+  The regression failed first with the exact missing-P6A assertion and passed
+  after the one-value bootstrap fix under Node `22.23.1`.
+- The corrected exact head still requires the full local/static checks, one
+  fresh independent exact-head read-only review and all four exact-head CI
+  jobs. Only a green Main CRM run proving the full disposable Supabase,
+  Storage, PGMQ and every browser partition may authorize direct merge.
+
+Scope and rollback remain unchanged:
+
+- P6A remains read-only, server-flagged and disabled by default. This fix adds
+  no schema, RPC, DTO, write, acknowledgement, provider call, production
+  mutation or new public route.
+- Rollback removes the single `p6a` bootstrap value and its regression
+  assertion together with the P6A harness if the entire slice is reverted.

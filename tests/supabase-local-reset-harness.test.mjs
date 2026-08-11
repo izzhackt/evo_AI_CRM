@@ -1404,6 +1404,13 @@ test("both reset phases use only proved post-migration recovery", () => {
 });
 
 test("browser partitions isolate Next dev artifacts by disposable run and partition", () => {
+  const nextConfigPartitionList = nextConfig.match(
+    /const platformAuthPartitions = new Set\(\[([\s\S]*?)\]\);/,
+  )?.[1];
+  assert.ok(
+    nextConfigPartitionList,
+    "Next config partition allowlist is missing",
+  );
   assert.match(
     harness,
     /readonly BROWSER_BUILD_RUN_KEY=/,
@@ -1423,6 +1430,11 @@ test("browser partitions isolate Next dev artifacts by disposable run and partit
       harness,
       new RegExp(`EVO_PLATFORM_AUTH_BROWSER_PARTITION=${partition}`),
       partition,
+    );
+    assert.match(
+      nextConfigPartitionList,
+      new RegExp(`"${partition}"`),
+      `${partition} is missing from the Next config partition allowlist`,
     );
   }
   assert.match(

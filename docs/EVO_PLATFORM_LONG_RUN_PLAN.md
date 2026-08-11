@@ -188,9 +188,10 @@ and broad backend parity work that do not change thin-slice product truth.
 - Finance v1 is a manual operational source inside EVO Platform. Finance/Admin
   alone confirm payment or refund with evidence and audit. Excel/1C import is a
   future integration, not a placeholder connector.
-- Notifications v1 are durable in-app records and individual WhatsApp
-  notifications with consent and deduplication. Broadcasts and mass sends are
-  out of scope.
+- Notifications v1 are durable in-app records with persisted self-read state.
+  Existing consent-gated individual-WhatsApp intent state is preserved for a
+  separate post-P6 delivery target; P6 does not create, claim, route or dispatch
+  that channel. Broadcasts and mass sends are out of scope.
 - Documents are private PDF/JPG/PNG, at most 25 MB, versioned and protected by
   integrity/malware policy, review/rework history and audited access. No
   irreversible auto-delete is allowed before Legal/Data Owner sets retention.
@@ -921,8 +922,9 @@ provider credentials and real provider proof remain separate blocked events.
 
 Deliver multiple applications, Curator-owned visa and reasoned case
 close/reopen. Deliver versioned private documents, evidence-based manual
-finance, clear overdue Portal actions and durable in-app/individual WhatsApp
-notifications. P6 may prove direct Platform case workflows and object scope,
+finance, clear overdue Portal actions and durable in-app notifications.
+Individual WhatsApp notification delivery remains a separate post-P6 target.
+P6 may prove direct Platform case workflows and object scope,
 but it must not infer amoCRM contract stage, responsible Sales or canonical
 handoff. Mapping activation, writes and automatic handoff remain deferred with
 P4B; P4R may supply only verified read context.

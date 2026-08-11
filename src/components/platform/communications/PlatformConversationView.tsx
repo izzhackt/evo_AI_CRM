@@ -1,5 +1,6 @@
 import { PlatformAmoCrmContextCard } from "@/components/platform/communications/PlatformAmoCrmContextCard";
 import { PlatformAiMemoryCard } from "@/components/platform/communications/PlatformAiMemoryCard";
+import { PlatformGeminiProposalCard } from "@/components/platform/communications/PlatformGeminiProposalCard";
 import { PlatformMessagingWorkflowPanel } from "@/components/platform/communications/PlatformMessagingWorkflowPanel";
 import { PlatformMessageMedia } from "@/components/platform/communications/PlatformMessageMedia";
 import { PlatformWaList } from "@/components/platform/communications/PlatformWaList";
@@ -11,6 +12,7 @@ import type {
   PlatformAiRetrievalEvidence,
   PlatformConversationAiMemory,
 } from "@/lib/platform-ai-memory";
+import type { PlatformGeminiProposal } from "@/lib/platform-gemini-proposals";
 import type {
   PlatformConversationMessage,
   PlatformConversationSummary,
@@ -82,6 +84,8 @@ export async function PlatformConversationView({
   aiMemory,
   aiRetrievalCapabilities,
   aiRetrievalEvidence,
+  geminiProposal,
+  geminiProposalUnavailable,
   decisionMutationOutcome,
 }: {
   conversations: readonly PlatformConversationSummary[];
@@ -95,6 +99,8 @@ export async function PlatformConversationView({
   aiMemory: PlatformConversationAiMemory | null;
   aiRetrievalCapabilities: PlatformAiRetrievalCapabilities | null;
   aiRetrievalEvidence: PlatformAiRetrievalEvidence | null;
+  geminiProposal: PlatformGeminiProposal | null;
+  geminiProposalUnavailable: boolean;
   decisionMutationOutcome: "saved" | "invalid" | "unavailable" | null;
 }) {
   const { t, locale } = await getT();
@@ -451,6 +457,133 @@ export async function PlatformConversationView({
       not_a_fit: t("platformAiMemoryQualificationNotAFit"),
     },
   };
+  const geminiProposalLabels = {
+    title: t("platformGeminiProposalTitle"),
+    hint: t("platformGeminiProposalHint"),
+    noProposal: t("platformGeminiProposalNoProposal"),
+    unavailable: t("platformGeminiProposalUnavailable"),
+    pending: t("platformGeminiProposalPending"),
+    proposalReady: t("platformGeminiProposalReady"),
+    humanReview: t("platformGeminiProposalHumanReview"),
+    reviewRequired: t("platformGeminiProposalReviewRequired"),
+    noAutonomousAuthority: t("platformGeminiProposalNoAutonomousAuthority"),
+    providerBlocked: t("platformGeminiProposalProviderBlocked"),
+    failure: t("platformGeminiProposalFailure"),
+    reply: t("platformGeminiProposalReply"),
+    intent: t("platformGeminiProposalIntent"),
+    confidence: t("platformGeminiProposalConfidence"),
+    risk: t("platformGeminiProposalRisk"),
+    language: t("platformGeminiProposalLanguage"),
+    languageRu: t("platformGeminiProposalLanguageRu"),
+    languageEn: t("platformGeminiProposalLanguageEn"),
+    handoff: t("platformGeminiProposalHandoff"),
+    handoffYes: t("platformGeminiProposalHandoffYes"),
+    handoffNo: t("platformGeminiProposalHandoffNo"),
+    handoffReasons: t("platformGeminiProposalHandoffReasons"),
+    qualification: t("platformGeminiProposalQualification"),
+    completeness: t("platformGeminiProposalCompleteness"),
+    missingFacts: t("platformGeminiProposalMissingFacts"),
+    noMissingFacts: t("platformGeminiProposalNoMissingFacts"),
+    notes: t("platformGeminiProposalNotes"),
+    memoryChanges: t("platformGeminiProposalMemoryChanges"),
+    noMemoryChanges: t("platformGeminiProposalNoMemoryChanges"),
+    changeSet: t("platformGeminiProposalChangeSet"),
+    changeClear: t("platformGeminiProposalChangeClear"),
+    citations: t("platformGeminiProposalCitations"),
+    noCitations: t("platformGeminiProposalNoCitations"),
+    model: t("platformGeminiProposalModel"),
+    schemaVersion: t("platformGeminiProposalSchemaVersion"),
+    requestedAt: t("platformGeminiProposalRequestedAt"),
+    completedAt: t("platformGeminiProposalCompletedAt"),
+    intentLabels: {
+      greeting: t("platformGeminiProposalIntentGreeting"),
+      admissions_discovery: t(
+        "platformGeminiProposalIntentAdmissionsDiscovery",
+      ),
+      program_or_country: t("platformGeminiProposalIntentProgramOrCountry"),
+      documents: t("platformGeminiProposalIntentDocuments"),
+      deadline: t("platformGeminiProposalIntentDeadline"),
+      pricing_or_payment: t("platformGeminiProposalIntentPricingOrPayment"),
+      visa: t("platformGeminiProposalIntentVisa"),
+      scholarship: t("platformGeminiProposalIntentScholarship"),
+      complaint: t("platformGeminiProposalIntentComplaint"),
+      opt_out: t("platformGeminiProposalIntentOptOut"),
+      other: t("platformGeminiProposalIntentOther"),
+    },
+    riskLabels: {
+      low: t("platformGeminiProposalRiskLow"),
+      medium: t("platformGeminiProposalRiskMedium"),
+      high: t("platformGeminiProposalRiskHigh"),
+    },
+    handoffReasonLabels: {
+      unsupported_language: t(
+        "platformGeminiProposalHandoffUnsupportedLanguage",
+      ),
+      missing_evidence: t("platformGeminiProposalHandoffMissingEvidence"),
+      low_confidence: t("platformGeminiProposalHandoffLowConfidence"),
+      complaint_or_anger: t(
+        "platformGeminiProposalHandoffComplaintOrAnger",
+      ),
+      payment_or_refund_or_price_exception: t(
+        "platformGeminiProposalHandoffPaymentOrRefundOrPriceException",
+      ),
+      legal_or_privacy: t("platformGeminiProposalHandoffLegalOrPrivacy"),
+      guarantee_request: t(
+        "platformGeminiProposalHandoffGuaranteeRequest",
+      ),
+      opt_out: t("platformGeminiProposalHandoffOptOut"),
+      unsafe_content: t("platformGeminiProposalHandoffUnsafeContent"),
+      ambiguous_request: t(
+        "platformGeminiProposalHandoffAmbiguousRequest",
+      ),
+      staff_takeover: t("platformGeminiProposalHandoffStaffTakeover"),
+      media_only: t("platformGeminiProposalHandoffMediaOnly"),
+    },
+    failureLabels: {
+      configuration_missing: t(
+        "platformGeminiProposalFailureConfigurationMissing",
+      ),
+      provider_timeout: t("platformGeminiProposalFailureProviderTimeout"),
+      provider_rate_limited: t(
+        "platformGeminiProposalFailureProviderRateLimited",
+      ),
+      provider_authentication_failed: t(
+        "platformGeminiProposalFailureProviderAuthenticationFailed",
+      ),
+      provider_unavailable: t(
+        "platformGeminiProposalFailureProviderUnavailable",
+      ),
+      provider_rejected: t("platformGeminiProposalFailureProviderRejected"),
+      provider_error: t("platformGeminiProposalFailureProviderError"),
+      empty_response: t("platformGeminiProposalFailureEmptyResponse"),
+      output_truncated: t("platformGeminiProposalFailureOutputTruncated"),
+      malformed_response: t("platformGeminiProposalFailureMalformedResponse"),
+      unsupported_language: t(
+        "platformGeminiProposalFailureUnsupportedLanguage",
+      ),
+      invalid_proposal: t("platformGeminiProposalFailureInvalidProposal"),
+      missing_evidence: t("platformGeminiProposalFailureMissingEvidence"),
+      unsafe_semantics: t("platformGeminiProposalFailureUnsafeSemantics"),
+    },
+    factLabels: {
+      preferred_country: t("platformAiMemoryFactPreferredCountry"),
+      preferred_program: t("platformAiMemoryFactPreferredProgram"),
+      budget_signal: t("platformAiMemoryFactBudgetSignal"),
+      intake_target: t("platformAiMemoryFactIntakeTarget"),
+      preferred_language: t("platformAiMemoryFactPreferredLanguage"),
+      urgency: t("platformAiMemoryFactUrgency"),
+      blockers: t("platformAiMemoryFactBlockers"),
+      promised_follow_up: t("platformAiMemoryFactPromisedFollowUp"),
+      unanswered_questions: t("platformAiMemoryFactUnansweredQuestions"),
+    },
+    qualificationLabels: {
+      collecting: t("platformAiMemoryQualificationCollecting"),
+      ready_for_staff_review: t(
+        "platformAiMemoryQualificationReadyForStaffReview",
+      ),
+      not_a_fit: t("platformAiMemoryQualificationNotAFit"),
+    },
+  };
 
   return (
     <div
@@ -521,6 +654,24 @@ export async function PlatformConversationView({
             </p>
           </section>
         )}
+
+        <details
+          className="border-b border-border bg-surface xl:hidden"
+          data-testid="platform-gemini-proposal-mobile-details"
+        >
+          <summary className="cursor-pointer px-4 py-2.5 text-[11px] font-bold text-fg">
+            {geminiProposalLabels.title}
+          </summary>
+          <div className="px-4 pb-3">
+            <PlatformGeminiProposalCard
+              labels={geminiProposalLabels}
+              locale={locale}
+              proposal={geminiProposal}
+              testIdSuffix="-mobile"
+              unavailable={geminiProposalUnavailable}
+            />
+          </div>
+        </details>
 
         <details
           className="border-b border-border bg-surface xl:hidden"
@@ -627,6 +778,12 @@ export async function PlatformConversationView({
             context={amocrmCanonicalContext}
             locale={locale}
             labels={amocrmLabels}
+          />
+          <PlatformGeminiProposalCard
+            labels={geminiProposalLabels}
+            locale={locale}
+            proposal={geminiProposal}
+            unavailable={geminiProposalUnavailable}
           />
           <PlatformAiMemoryCard
             capabilities={aiRetrievalCapabilities}

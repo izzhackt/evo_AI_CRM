@@ -670,6 +670,16 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_ai_memory_retrieval_rls.sql
   fi
+
+  # P5F2 binds a stateless Gemini proposal to the latest inbound Platform
+  # message and keeps its prompt/context/provider evidence private. Prove the
+  # exact service boundary, append-only audit, safe staff projection and zero
+  # autonomous authority at migration 066.
+  if [[ "$(basename "$migration")" == 066_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_gemini_proposals_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

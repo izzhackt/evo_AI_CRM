@@ -11,10 +11,11 @@ ingress, PR #133 merged the disabled-by-default P5B projection, PR #137 merged
 the P5C available-history reconciliation lane, and PR #138 merged the
 disabled-by-default P5D private WAHA media archive and accepted media display.
 PR #141 merged the disabled-by-default P5E ACK/session projection and private
-Realtime invalidation lane, and PR #142 merged the bounded P4R1 read-only
-canonical amoCRM context lane. Current `origin/main` is
-`8cf46a94b79e8bc24ad49b30606753a690ea5469`, migrations are contiguous
-`001-064`, and exact-main CI run `31402664864` is green for Main CRM, EVO Inbox
+Realtime invalidation lane, PR #142 merged the bounded P4R1 read-only
+canonical amoCRM context lane, and PR #144 merged the disabled-by-default P5F1
+Platform-owned memory/retrieval foundation. Current `origin/main` is
+`a930bfa1a3e3ad736cfa688201d157b3082cd80a`, migrations are contiguous
+`001-065`, and exact-main CI run `31427264318` is green for Main CRM, EVO Inbox
 and EVO Lead Agent; Changed range is skipped on the push event as expected.
 
 P4B implementation is preserved on remote branch
@@ -25,11 +26,11 @@ failed closed in the real Auth/PostgREST hook before Playwright and is
 failed/non-evidence. The owner keeps P4B activation/writes deferred but resumes
 a bounded read-mostly P4R lane after the messaging foundation. P9 remains
 removed. Lead Agent, the legacy webhook/session path and rollback path remain
-deployed/frozen. P5A-P5E and P4R1 are merged without real-provider proof. The
-next required step is a docs-only P5F authority amendment for Platform-owned
-AI memory and the bounded autonomous reply lane before any further product
-implementation. It authorizes no amoCRM write, production mutation, provider
-cutover, live customer send or customer-data experiment. Updated 2026-08-10 in
+deployed/frozen. P5A-P5E, P4R1 and P5F1 are merged without real-provider proof.
+The active implementation step is P5F2: a stateless, disabled-by-default Gemini
+proposal adapter with private audit and a safe staff review surface. It
+authorizes no amoCRM write, memory mutation, production mutation, provider
+cutover, live customer send or customer-data experiment. Updated 2026-08-11 in
 the workspace timezone.
 
 This document is the execution contract for the current EVO Platform MVP lane in
@@ -55,12 +56,15 @@ slice. The superseding rule is:
 ## Current Goal Slice
 
 Active plan slice: Block
-`EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10`. This docs-only slice fixes the P5F
-memory, Gemini proposal and deterministic autonomous-reply implementation
-contract after merged P4R1. Before affected code can be merged, it must be independently
-reviewed, pass exact-head CI, and be merged only at the reviewed head SHA. It
-must not change application/runtime code, schema, migrations, credentials,
-providers, customer data, staging or production.
+`EVO-P5F2-GEMINI-PROPOSALS-2026-08-11`. This implementation slice adds only the
+stateless Gemini structured proposal adapter defined below and in the matching
+append-only `docs/PLAN_CHANGES.md` entry. It may add additive migration `066`,
+disabled-by-default server code, focused tests and a read-only staff review
+surface. It must not inject credentials, call a real provider without separate
+approved proof inputs, send WhatsApp, mutate memory or amoCRM, enable autonomy,
+touch customer data, or change staging/production. Before merge it must pass one
+fresh independent exact-head read-only review and exact-head CI, and only that
+reviewed head may be merged.
 
 ### Goal
 

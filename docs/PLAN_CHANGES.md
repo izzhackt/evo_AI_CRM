@@ -5146,3 +5146,132 @@ Blocked proof and rollback:
 - Rollback keeps enablement off and the kill switch engaged, safely holds
   queued intents, reverts application code and forward-fixes additive migration
   `067` without deleting audit history.
+
+## 2026-08-11 - Decompose P6 operations and Student Portal delivery
+
+Block-ID: `EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11`.
+
+This docs-only amendment supersedes the stale P5F3 active-checkpoint wording;
+it does not rewrite the accepted P5F3 implementation contract or authorize any
+runtime/provider action.
+
+Accepted baseline:
+
+- PR #146 merged the disabled-by-default deterministic P5F3 autonomous inbound-
+  reply lane;
+- current `origin/main` is
+  `81ae079594baaa4a453501a99ad0ed5c3ba408d6`;
+- migrations are contiguous `001-067`;
+- exact-main push CI run `31514964102` passed Main CRM, EVO Inbox and EVO Lead
+  Agent; Changed range was skipped as expected for a push event;
+- P5 synthetic local authorization/browser proof is accepted, while real
+  Gemini, real WAHA/customer send, managed Supabase and production enablement
+  remain blocked and unproved.
+
+Repository findings:
+
+- migration 043 already contains durable notification, delivery-intent and
+  append-only event state plus `platform.create_individual_notification(...)`,
+  `platform.my_notifications()` and
+  `platform.mark_own_notification_read(...)`;
+- the creator always persists one `in_app` and one consent-gated
+  `individual_whatsapp` intent, but explicitly performs no provider send and
+  returns `delivery_proof=false`;
+- the current public pair is therefore not an exact in-app-only Portal
+  contract, because the creator writes two channels and the reader expects both
+  channels to exist;
+- the accepted `/portal/notifications` page still renders
+  `student_portal_updates`, whose repository deliberately has no unread
+  receipt; no app path uses the durable notification read/acknowledgement RPCs;
+- the accepted Portal already derives visible next actions for rejected or
+  required documents, tasks, pending payments and overdue payments;
+- the staff `/notifications` surface is a separate legacy SQLite-derived
+  attention feed with no durable acknowledgement model;
+- existing P2D/P2E/BW7 foundations already cover scoped applications, visa,
+  reasoned case close/reopen, private document review, evidence-based manual
+  finance and Student Portal projections, but the full two-Student P6 exit path
+  has not been proved end to end.
+
+Decision:
+
+- Define `P6A` as a read-only overdue/attention Portal slice. It SHALL reuse
+  existing Platform task, document and finance projections, make their safe
+  overdue state explicit in the accepted Portal and perform no notification,
+  scheduler or provider side effect. A page read SHALL never create durable
+  state.
+- Define `P6B` as the thinnest real durable in-app-only Student notification
+  path. The accepted `/portal/notifications` surface SHALL use a new versioned
+  self-only projection and read-acknowledgement contract over the existing
+  durable tables; it SHALL NOT depend on the current two-channel public pair
+  unchanged.
+- The first producer SHALL be a reviewed human event already owned by the
+  Platform: document outcomes `correction_required` and `rejected`. Review and
+  publication SHALL be atomic or durably retriable against one immutable source
+  event, with deterministic dedupe and no duplicate Student notification.
+- Migration 043 remains immutable. Additive migration 068 MAY add a narrow
+  wrapper/projection/creator, append-only evidence and private Realtime
+  invalidation if needed to provide the in-app-only atomicity and authorization
+  contract.
+- Private Realtime SHALL broadcast only an authorization-bound invalidation;
+  the client refetches the safe RPC. Notification text, case identifiers,
+  provider state and private topics SHALL not be exposed in the broadcast
+  payload or DOM.
+- P6A-P6C SHALL NOT create a new `individual_whatsapp` intent, claim, route or
+  dispatch it, and SHALL NOT report it as sent/delivered. No WAHA call, phone
+  resolution, communication-message write or P5 transport reuse is authorized.
+- Individual WhatsApp notification delivery remains a separate future target;
+  this P6 amendment neither cancels nor activates it.
+- Define `P6C` as a separate disabled-by-default, idempotent overdue-transition
+  producer. It starts with explicit Platform task due times, then evidence-
+  backed payment-obligation due times. An application deadline participates
+  only after an authoritative Platform field and owner are proved. Page reads
+  SHALL never synthesize notification writes.
+- The P6C worker SHALL have one bounded scheduler/owner, an HMAC-authenticated
+  internal trigger, transition-version dedupe, durable request/result audit and
+  a same-transaction state recheck before publication.
+- Define `P6D` as the P6 closure gate: one accepted-UI path with two distinct
+  Students plus an unrelated organization across multiple applications,
+  assigned-Curator visa, reasoned close/reopen, private document review,
+  evidence-based manual finance, overdue Portal action and durable
+  notification/read state.
+- P6A-P6C do not complete broad P6. P6 is complete only after the P6D positive
+  path and negative isolation matrix pass together.
+- Do not migrate the legacy SQLite staff notification feed. Do not infer
+  identity, responsible Sales, stage, Portal activation or canonical handoff
+  from amoCRM/local shadow data. P4B activation/writes stay deferred and P4R
+  remains read-only context.
+- The accepted Claude Design frontend remains the sole Platform UI. P9 remains
+  removed; Lead Agent, legacy webhook/session and rollback remain
+  deployed/frozen.
+
+Validation impact:
+
+- Require exact typed RPC response contracts, actor-derived server actions and
+  fail-closed handling of malformed, stale or unavailable state.
+- Require disposable PostgreSQL/RLS tests for self-only reads, acknowledgement,
+  staff producer permission/object scope, idempotency, cross-Student and cross-
+  organization denial, private Realtime topic authorization and direct-table
+  denial.
+- Require a dedicated singleton local Supabase/browser partition proving
+  staff review to live Portal visibility and persisted self-read state, while
+  every unrelated partition keeps P6 runtime flags disabled.
+- P6C additionally requires before-due, first-overdue, duplicate, resolved,
+  reopened and concurrent-worker cases with no read-time write.
+- P6D requires the full two-Student/cross-organization staff-to-Portal path.
+- Each slice requires Node 22.23.1 focused/unit/security tests, diff check,
+  lint, route type generation, TypeScript, build, staged secret scan,
+  dependency audits, one fresh independent exact-head read-only review, all
+  four exact-head CI jobs, direct merge of only that reviewed head, and green
+  exact-main push CI before the next slice.
+
+Blocked proof and rollback:
+
+- This amendment authorizes no product/schema/runtime mutation. Subsequent
+  implementation PRs remain local/synthetic until separately authorized.
+- Production migration/deployment, credentials, customer data, WAHA session
+  mutation, live customer send, amoCRM write, provider cutover and service
+  retirement remain blocked.
+- Rollback keeps producer/scheduler flags disabled, removes application wiring
+  and forward-fixes additive migrations without deleting durable audit or
+  notification history. Migration 043 and its dormant consent-gated WhatsApp
+  intent model remain intact.

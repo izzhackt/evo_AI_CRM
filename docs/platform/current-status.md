@@ -1,7 +1,7 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-08-10
+- Snapshot date: 2026-08-11
 - Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 - P2A starting checkpoint: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
 - P2B starting checkpoint: `8ad755b5039390f418dbe12924a806f069f93b53`
@@ -13,9 +13,9 @@
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
 - Current accepted base for this block:
-  `8cf46a94b79e8bc24ad49b30606753a690ea5469`
+  `81ae079594baaa4a453501a99ad0ed5c3ba408d6`
 - Active plan block:
-  `EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10`
+  `EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -45,18 +45,19 @@ BW0, P3A-P3C, BW1-BW7, P2R0-P2R4 и P4A merged; PR #118 merged the P4B plan.
 PR #119 остаётся immutable history, но его in-repository Student Profile
 document reading/extraction/autofill/export scope superseded решением owner-а:
 эта автоматизация принадлежит отдельной системе вне `evo_AI_CRM`. PRs
-#125-#127 отменили зависимые PRs #124, #122 и #120, PR #128 controller-merged
+#125-#127 отменили зависимые PRs #124, #122 и #120, PR #128 merged
 корректную продуктовую границу, а PRs #129-#130 merged local-validation plan и
 repair. PR #131 merged P4 deferral/Lead Agent retention authority, PR #132
 merged receive-only P5A ingress, PR #133 merged P5B receive/project, PR #136
 merged direct exact-head governance, PR #137 merged P5C available-history
 reconciliation, PR #138 merged P5D private media, PR #140 синхронизировал
-MVP authority contract, PR #141 merged P5E ACK/session и private Realtime, а
-PR #142 merged bounded P4R1 read-only canonical amoCRM context. Текущий
-accepted base —
-`8cf46a94b79e8bc24ad49b30606753a690ea5469`, exact-main CI `31402664864`
-зелёный для Main CRM, EVO Inbox и EVO Lead Agent; Changed range ожидаемо
-skipped на push. Migrations contiguous `001-064`.
+MVP authority contract, PR #141 merged P5E ACK/session и private Realtime, PR
+#142 merged bounded P4R1 read-only canonical amoCRM context, PR #144 merged
+P5F1 memory/retrieval, PR #145 merged P5F2 stateless Gemini proposals, а PR
+#146 merged disabled-by-default P5F3 deterministic autonomous replies. Текущий
+accepted base — `81ae079594baaa4a453501a99ad0ed5c3ba408d6`, exact-main CI
+`31514964102` зелёный для Main CRM, EVO Inbox и EVO Lead Agent; Changed range
+ожидаемо skipped на push. Migrations contiguous `001-067`.
 
 P4B implementation сохранён на remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -70,7 +71,7 @@ bounded read-mostly amoCRM adapter; P4B writes, full mapping approval и cutover
 delivery остаются blocked до отдельной авторизации и доказательств. Former P2I
 restore duties остаются в P7.
 
-P5A-P5E merged, но provider-facing lanes disabled by default. PR #133
+P5A-P5F3 merged, но provider-facing lanes disabled by default. PR #133
 был принят как receive/project implementation, не AI/send implementation; PR
 #137 добавил resumable read-only reconciliation только той истории, которую
 может вернуть существующий WAHA store, а PR #138 — private media и безопасное
@@ -79,7 +80,10 @@ P5A-P5E merged, но provider-facing lanes disabled by default. PR #133
 добавил долговечный ACK/session state и private Realtime invalidation с
 авторизованным refetch вместо семисекундного polling. PR #142 добавил только
 disabled-by-default live read canonical amoCRM context; real amoCRM
-credential/test entities и provider proof пока отсутствуют.
+credential/test entities и provider proof пока отсутствуют. PRs #144-#146
+добавили Platform-owned memory, stateless structured proposal и deterministic
+reply-only transport gate с synthetic local proof. Это не real Gemini/WAHA
+proof, production enablement или customer send.
 
 ## Что подтверждено из репозитория
 
@@ -109,6 +113,12 @@ credential/test entities и provider proof пока отсутствуют.
 | P5A receive-only WAHA ingress | PR #132 merged signed HMAC/timestamp validation, raw-persist-before-process and pointer-only inbound work with migration 059 | P5A merge-baseline CI `31145596058` was green; current exact-main CI is tracked above; flags remain disabled by default and no real WAHA/Supabase/provider proof exists |
 | P5B receive/project | PR #133 merged as `18e0e0855fda31cba1fa837d81b3a75cedd585e9`; migration 060 and the private worker project verified inbound work into the accepted root UI data path | full local Supabase/browser gate and exact-main CI `31323907123` passed; flags remain off and there is no AI send, live WAHA or production proof |
 | P5C available history | PR #137 merged as `5b3754b2e0cdee2d340448bd95f5ce9647f14633`; migration 061 and the disabled server reconciliation lane project provider-available inbound/outbound history into the accepted root UI | focused security/RLS, full local Supabase/browser, exact-head CI and exact-main CI `31347918501` passed; media bytes, lifetime completeness, live provider and production remain unproved |
+| P5D private media | PR #138 merged as `0032a99439bdd1cafdbefa99301fab67a7fc8aeb`; migration 062, private Storage bindings, one-time audited download grants and accepted `/whatsapp` media display | local Storage/RLS/browser and exact-head evidence passed; current exact-main CI `31514964102` includes it, but synthetic WAHA bytes are not real-provider or production proof |
+| P5E ACK/session/Realtime | PR #141 merged as `88169c55935f0b66d0b58e844a5e6c4cac2cc285`; migration 063 projects monotonic ACK/session state and private authorization-bound invalidation | local PostgreSQL/browser and exact-head evidence passed; current exact-main CI includes it, while live WAHA ACK/session and production remain unproved |
+| P4R1 canonical amoCRM context | PR #142 merged as `8cf46a94b79e8bc24ad49b30606753a690ea5469`; migration 064 and disabled GET-only adapter expose bounded safe contact/lead/responsible/pipeline/status context | exact-main CI passed, but no sanctioned credential/test entity was exercised and no mapping activation, amoCRM write or handoff authority exists |
+| P5F1 memory/retrieval | PR #144 merged as `a930bfa1a3e3ad736cfa688201d157b3082cd80a`; migration 065 provides Platform-owned versioned memory, approved lexical retrieval evidence and pgvector foundation | local RLS/browser and exact-main evidence passed; embedding ingestion, semantic retrieval, Gemini and autonomy remained blocked in this slice |
+| P5F2 Gemini proposals | PR #145 merged as `5ac5b018d475117d13aff4607debcee60ec0cc7c`; migration 066 and disabled stateless adapter persist structured human-review proposals with `store=false` and no tools/send authority | SDK/request/schema/local adapter evidence and exact-main CI passed; no real Gemini credential/provider call or customer data was used |
+| P5F3 autonomous inbound replies | PR #146 merged as `81ae079594baaa4a453501a99ad0ed5c3ba408d6`; migration 067 adds explicit staff control, deterministic mutable gates, one-use intent/attempt evidence, exact WAHA `reply_to` transport and ACK linkage | full local Supabase/browser gate, independent exact-head review and exact-main CI `31514964102` passed; runtime remains disabled and no real Gemini/WAHA/customer send or production enablement is proved |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path, deployed/frozen вместе с legacy webhook/session и rollback path | P9 removed; deactivation, retirement и deletion запрещены в текущем scope |
@@ -143,6 +153,18 @@ P4A merged boundary and evidence ledger:
 [`p4a-amocrm-mapping-discovery.md`](p4a-amocrm-mapping-discovery.md).
 P4B docs-only selection/approval contract:
 [`p4b-amocrm-mapping-selection-approval.md`](p4b-amocrm-mapping-selection-approval.md).
+P4R1 read-only canonical context:
+[`p4r1-amocrm-canonical-context.md`](p4r1-amocrm-canonical-context.md).
+P5B-P5E messaging contracts:
+[`p5b-waha-work-projection.md`](p5b-waha-work-projection.md),
+[`p5c-waha-history-reconciliation.md`](p5c-waha-history-reconciliation.md),
+[`p5d-private-waha-media.md`](p5d-private-waha-media.md) and
+[`p5e-waha-ack-session-realtime.md`](p5e-waha-ack-session-realtime.md).
+P5F memory/proposal/autonomy contracts:
+[`p5f-ai-memory-reply-lane.md`](p5f-ai-memory-reply-lane.md) and
+[`p5f2-gemini-proposal-adapter.md`](p5f2-gemini-proposal-adapter.md).
+Current P6 docs-only contract:
+[`p6-operations-portal.md`](p6-operations-portal.md).
 
 ## Принятый target, ещё не cut over
 
@@ -166,8 +188,9 @@ P4B docs-only selection/approval contract:
   добавляет только forward migration 058 для private sanitized mapping
   discovery versions; PR #118's P4B plan, merged PR #128 boundary correction и
   PRs #129-#131 не добавляют migration; merged P5A добавляет migration 059;
-  merged P5B добавляет migration 060; следующий migration-кандидат обязан
-  подтвердить свободный номер 061 перед использованием;
+  merged P5B добавляет migration 060, P5C — 061, P5D — 062, P5E — 063,
+  P4R1 — 064, P5F1 — 065, P5F2 — 066 и P5F3 — 067; следующий migration-
+  кандидат обязан подтвердить свободный номер 068 перед использованием;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;
@@ -259,30 +282,36 @@ gate, но не выполнять mutation.
 ## Следующий безопасный gate
 
 Следующий gate — docs-only authority block
-`EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10`: update the authoritative plan,
-append-only `PLAN_CHANGES`, the long-run contract and this status snapshot, and
-create `docs/platform/p5f-ai-memory-reply-lane.md` as the focused implementation
-contract so the next slices are explicit before code starts. It changes no
-product code, migration, runtime config, credential, provider state or
-customer data.
+`EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11`: refresh the authoritative plan and
+append-only `PLAN_CHANGES`, and freeze the focused
+`docs/platform/p6-operations-portal.md` contract before implementation. It
+changes no product code, migration, runtime configuration, credential, provider
+state or customer data.
 
-P5F splits the next implementation lane into:
+P6 then executes in four independently reviewed slices:
 
-1. `P5F1` — Platform-owned durable memory, approved-knowledge chunks,
-   retrieval audit, RLS and pgvector foundation;
-2. `P5F2` — stateless Gemini structured RU/EN proposal adapter with
-   `store=false`, bounded context/token budgets and no WAHA access;
-3. `P5F3` — deterministic policy-only `reply_to` send intents and worker with
-   recheck-before-send, same-conversation/inbound trigger, `<=24h` window,
-   consent/opt-out, approved citations, language, confidence/risk,
-   business-hours, cooldown/rate, takeover/pause, session health, idempotency,
-   policy version, explicit autonomous-reply runtime enablement and an emergency
-   stop/kill switch that is not engaged.
+1. `P6A` — read-only overdue and attention state in the accepted Portal from
+   existing Platform task/document/payment projections only, with no
+   notification side effect;
+2. `P6B` — durable in-app-only Student Portal notifications through a new
+   versioned projection/acknowledgement contract, reviewed negative-document
+   outcomes as the first deduplicated producer and private Realtime
+   invalidation;
+3. `P6C` — disabled-by-default idempotent overdue-transition notifications from
+   explicit Platform task/payment due data, never from a page read or amoCRM
+   inference;
+4. `P6D` — two-Student plus cross-organization closure proof across multiple
+   applications, visa, reasoned close/reopen, private document review, manual
+   finance, overdue Portal action and notification/read state.
 
-Owner authority now allows autonomous-reply code, but production enablement,
-live customer sends, provider credentials and real provider proof remain
-separate blocked events. P6, P7, narrowed P8 and P10 follow only after P5F is
-accepted and then implemented in order.
+Migration 043 remains immutable. Its durable consent-gated
+`individual_whatsapp` intent is not dispatched and is not delivery proof, and
+the current two-channel public RPC pair is not reused unchanged for the new
+P6B in-app-only surface. The legacy SQLite staff notification feed is not
+copied into P6. Individual WhatsApp notification delivery remains a separate
+future target; P6 neither cancels nor activates it. Production migrations,
+live customer sends, provider credentials, amoCRM writes and real provider
+proof remain separate blocked events. P7 starts only after P6D is accepted.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой
 exact deployed revision, private network, provider readiness и full E2E.

@@ -8,6 +8,7 @@ import type {
   StudentPortalApplication,
   StudentPortalDocument,
   StudentPortalNextAction,
+  StudentPortalNotification,
   StudentPortalPayment,
   StudentPortalSection,
   StudentPortalSnapshot,
@@ -24,6 +25,7 @@ import type {
   TaskStatus,
   VisaStatus,
 } from "./domain";
+import { isPlatformP6BPortalNotificationsEnabled } from "./server/platform-p6b-portal-notifications.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,6 +33,7 @@ const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+const SINGLE_LINE_CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F]/;
 const PROFILE_FIELD_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Student portal data is unavailable.";
@@ -81,6 +84,7 @@ export type PlatformPortalRpcClient = Readonly<{
 export type PlatformPortalRepositoryOptions = Readonly<{
   client?: PlatformPortalRpcClient;
   generatedAt?: string;
+  notificationsEnabled?: boolean;
 }>;
 
 type PortalProfile = Readonly<{
@@ -135,6 +139,12 @@ export class PlatformPortalRepositoryError extends Error {
   }
 }
 
+export type PlatformStudentPortalNotificationAck = Readonly<{
+  notificationId: string;
+  isRead: true;
+  readAt: string;
+}>;
+
 function invalidShape(): never {
   throw new PlatformPortalRepositoryError();
 }
@@ -176,6 +186,13 @@ function requiredText(value: unknown, maxLength = 1000): string {
 
 function optionalText(value: unknown, maxLength = 1000): string | null {
   return value === null ? null : requiredText(value, maxLength);
+}
+
+function requiredSingleLineText(value: unknown, maxLength: number): string {
+  const normalized = requiredText(value, maxLength);
+  return SINGLE_LINE_CONTROL_CHARACTER_PATTERN.test(normalized)
+    ? invalidShape()
+    : normalized;
 }
 
 function requiredTimestamp(value: unknown): string {
@@ -551,6 +568,50 @@ function normalizeUpdate(
   };
 }
 
+function normalizePortalNotification(
+  value: unknown,
+): StudentPortalNotification {
+  if (!isRecord(value)) return invalidShape();
+  const readAt = optionalTimestamp(value.read_at);
+  return {
+    id: requiredUuid(value.notification_id),
+    category: oneOf(value.category, ["document.review"] as const),
+    decision: oneOf(value.review_decision, [
+      "correction_required",
+      "rejected",
+    ] as const),
+    requirementKey: requiredSingleLineText(value.requirement_key, 128),
+    requirementLabel: requiredSingleLineText(value.requirement_label, 300),
+    reason: requiredSingleLineText(value.reason, 2000),
+    createdAt: requiredTimestamp(value.created_at),
+    readAt,
+    isRead: readAt !== null,
+  };
+}
+
+export function normalizePlatformStudentPortalNotificationAck(
+  value: unknown,
+  expectedNotificationId: string,
+): PlatformStudentPortalNotificationAck {
+  if (!isRecord(value)) return invalidShape();
+  if (
+    Object.keys(value).sort().join(",") !==
+      "is_read,notification_id,read_at" ||
+    value.is_read !== true
+  ) {
+    return invalidShape();
+  }
+  const notificationId = requiredUuid(value.notification_id);
+  if (notificationId !== requiredUuid(expectedNotificationId)) {
+    return invalidShape();
+  }
+  return {
+    notificationId,
+    isRead: true,
+    readAt: requiredTimestamp(value.read_at),
+  };
+}
+
 function normalizePayment(
   value: unknown,
   profile: PortalProfile,
@@ -798,6 +859,7 @@ export function normalizePlatformStudentPortalSnapshot(input: Readonly<{
   tasks: unknown;
   updates: unknown;
   finance: unknown;
+  notifications?: unknown;
   generatedAt?: string;
 }>): StudentPortalSnapshot {
   const profile = normalizeProfile(input.profile);
@@ -828,6 +890,13 @@ export function normalizePlatformStudentPortalSnapshot(input: Readonly<{
     (row) => normalizeUpdate(row, profile),
     (row) => String(row.id),
   );
+  const notifications = input.notifications === undefined
+    ? undefined
+    : normalizeUniqueRows(
+        input.notifications,
+        normalizePortalNotification,
+        (notification) => notification.id,
+      );
   const payments = normalizeUniqueRows(
     input.finance,
     (row) => normalizePayment(row, profile),
@@ -889,6 +958,7 @@ export function normalizePlatformStudentPortalSnapshot(input: Readonly<{
     // Staff identity/contact columns are not present in the student RPCs.
     manager: null,
     curator: null,
+    ...(notifications ? { notifications } : {}),
     updates,
     applications,
     documents: documents.map(({ document }) => document),
@@ -926,6 +996,36 @@ async function readPortalRpc(
 }
 
 /**
+ * Reads the argument-free, actor-scoped P6B projection. Mapping creates the
+ * browser-safe DTO and deliberately drops every unapproved source column.
+ */
+export async function listPlatformStudentPortalNotifications(
+  actor: PlatformActor,
+  options: Pick<PlatformPortalRepositoryOptions, "client"> = {},
+): Promise<readonly StudentPortalNotification[]> {
+  try {
+    if (actor.platformRole !== "student") return invalidShape();
+    requiredUuid(actor.profileId);
+    requiredUuid(actor.authUserId);
+    requiredUuid(actor.membershipId);
+    requiredUuid(actor.organizationId);
+
+    const client = options.client ?? (await getPlatformPortalClient());
+    const rows = await readPortalRpc(
+      client,
+      "student_portal_notifications_v1",
+    );
+    return normalizeUniqueRows(
+      rows,
+      normalizePortalNotification,
+      (notification) => notification.id,
+    );
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+/**
  * Loads the complete RLS-scoped portal projection for the current student.
  * A missing profile means no connected case; every malformed, duplicate or
  * provider-error response fails closed.
@@ -951,7 +1051,18 @@ export async function getPlatformStudentPortalSnapshot(
     if (profileRows.length === 0) return null;
     if (profileRows.length !== 1) return invalidShape();
 
-    const [applications, visaCases, tasks, updates, documents, finance] =
+    const notificationsEnabled =
+      options.notificationsEnabled
+      ?? isPlatformP6BPortalNotificationsEnabled();
+    const [
+      applications,
+      visaCases,
+      tasks,
+      updates,
+      documents,
+      finance,
+      notifications,
+    ] =
       await Promise.all([
         readPortalRpc(client, "student_portal_applications"),
         readPortalRpc(client, "student_portal_visa_cases"),
@@ -959,6 +1070,9 @@ export async function getPlatformStudentPortalSnapshot(
         readPortalRpc(client, "student_portal_updates"),
         readPortalRpc(client, "student_portal_documents"),
         readPortalRpc(client, "student_portal_finance"),
+        notificationsEnabled
+          ? readPortalRpc(client, "student_portal_notifications_v1")
+          : Promise.resolve(undefined),
       ]);
 
     return normalizePlatformStudentPortalSnapshot({
@@ -969,6 +1083,7 @@ export async function getPlatformStudentPortalSnapshot(
       tasks,
       updates,
       finance,
+      notifications,
       generatedAt: options.generatedAt,
     });
   } catch (error) {

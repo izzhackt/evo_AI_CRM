@@ -44,6 +44,19 @@ type Fixture = Readonly<{
     overduePaymentLabel: string;
     overduePaymentNextAction: string;
   }>;
+  p6b: Readonly<{
+    organizationId: string;
+    studentCaseId: string;
+    documentSlotId: string;
+    documentVersionId: string;
+    recipientStudentMembershipId: string;
+    sameOrgOtherStudentMembershipId: string;
+    crossOrgOrganizationId: string;
+    crossOrgStudentMembershipId: string;
+    requirementKey: string;
+    requirementLabel: string;
+    reviewReason: string;
+  }>;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
@@ -54,6 +67,8 @@ type Fixture = Readonly<{
     finance: Identity;
     student: Identity;
     studentNoCase: Identity;
+    p6bStudent: Identity;
+    crossOrgStudent: Identity;
     lifecycleStudent: Identity;
     blocked: Identity;
     noMembership: Identity;
@@ -1850,6 +1865,308 @@ test("P6A exposes read-only overdue Portal attention without notification or pro
   await noCaseContext.close();
 
   expectLegacyDatabaseUntouched();
+});
+
+test("P6B turns an authenticated staff document review into one live durable Student notification", async ({
+  browser,
+}) => {
+  test.skip(
+    process.env.EVO_P6B_BROWSER_PROOF !== "1",
+    "P6B feature proof runs in its isolated browser partition.",
+  );
+  test.slow();
+  expectLegacyDatabaseUntouched();
+
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const studentToken = await localAccessToken(fixture.identities.p6bStudent);
+  const sameOrgOtherStudentToken = await localAccessToken(
+    fixture.identities.studentNoCase,
+  );
+  const crossOrgStudentToken = await localAccessToken(
+    fixture.identities.crossOrgStudent,
+  );
+  const communicationQueueBefore = await platformRpc(
+    adminToken,
+    "staff_communication_queue",
+    { p_organization_id: fixture.p6b.organizationId },
+  );
+  const wahaHealthBefore = await platformRpc(
+    adminToken,
+    "staff_waha_session_health",
+    { p_organization_id: fixture.p6b.organizationId },
+  );
+  const legacyNotificationsBefore = await platformRpc(
+    studentToken,
+    "my_notifications",
+    {},
+  );
+  const durableNotificationsBefore = await platformRpc(
+    studentToken,
+    "student_portal_notifications_v1",
+    {},
+  );
+
+  expect(communicationQueueBefore.status).toBe(200);
+  expect(wahaHealthBefore.status).toBe(200);
+  expect(legacyNotificationsBefore).toEqual({ status: 200, payload: [] });
+  expect(durableNotificationsBefore).toEqual({ status: 200, payload: [] });
+  expect(JSON.stringify(communicationQueueBefore.payload)).not.toContain(
+    fixture.p6b.studentCaseId,
+  );
+
+  for (const deniedToken of [
+    sameOrgOtherStudentToken,
+    crossOrgStudentToken,
+  ]) {
+    const denied = await platformRpc(
+      deniedToken,
+      "student_portal_notifications_v1",
+      {},
+    );
+    expect(denied).toEqual({ status: 200, payload: [] });
+  }
+
+  const anonymousResponse = await fetch(
+    `${fixture.apiUrl}/rest/v1/rpc/student_portal_notifications_v1`,
+    {
+      method: "POST",
+      headers: {
+        apikey: fixture.publishableKey,
+        Accept: "application/json",
+        "Accept-Profile": "platform",
+        "Content-Profile": "platform",
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    },
+  );
+  expect([401, 403]).toContain(anonymousResponse.status);
+
+  const studentContext = await browser.newContext();
+  const studentPage = await studentContext.newPage();
+  await login(studentPage, fixture.identities.p6bStudent);
+  await expect(studentPage).toHaveURL(/\/portal$/);
+  await studentPage.goto("/portal/notifications");
+  await expect(studentPage).toHaveURL(/\/portal\/notifications$/);
+  const realtime = studentPage.getByTestId("portal-notifications-realtime");
+  await expect(realtime).toHaveAttribute("data-realtime-state", "subscribed");
+  await expect(studentPage.getByTestId("portal-notification-row")).toHaveCount(0);
+  await expect(
+    studentPage.getByTestId("portal-notifications-unread-badge"),
+  ).toHaveCount(0);
+  const pageInstance = randomUUID();
+  await studentPage.evaluate((instance) => {
+    (window as typeof window & { __p6bPageInstance?: string })
+      .__p6bPageInstance = instance;
+  }, pageInstance);
+
+  const sameOrgContext = await browser.newContext();
+  const sameOrgPage = await sameOrgContext.newPage();
+  await login(sameOrgPage, fixture.identities.studentNoCase);
+  await expect.poll(() => new URL(sameOrgPage.url()).pathname).toBe(
+    "/platform-pending",
+  );
+  await sameOrgPage.goto("/portal/notifications");
+  await expect.poll(() => new URL(sameOrgPage.url()).pathname).toBe(
+    "/platform-pending",
+  );
+  await expect(sameOrgPage.getByTestId("portal-notification-row")).toHaveCount(0);
+  await sameOrgContext.close();
+
+  const crossOrgContext = await browser.newContext();
+  const crossOrgPage = await crossOrgContext.newPage();
+  await login(crossOrgPage, fixture.identities.crossOrgStudent);
+  await expect.poll(() => new URL(crossOrgPage.url()).pathname).toBe(
+    "/platform-pending",
+  );
+  await crossOrgPage.goto("/portal/notifications");
+  await expect.poll(() => new URL(crossOrgPage.url()).pathname).toBe(
+    "/platform-pending",
+  );
+  await expect(crossOrgPage.getByTestId("portal-notification-row")).toHaveCount(0);
+  await crossOrgContext.close();
+
+  const salesContext = await browser.newContext();
+  const salesPage = await salesContext.newPage();
+  await login(salesPage, fixture.identities.salesScoped);
+  await expect(salesPage).toHaveURL(/\/sales$/);
+  await salesPage.goto(`/clients/${fixture.p6b.studentCaseId}#documents`);
+  await expect(salesPage.getByTestId("platform-client-detail-page")).toBeVisible();
+  await expect(
+    salesPage.getByTestId("platform-document-review-form"),
+  ).toHaveCount(0);
+  await salesContext.close();
+
+  const adminContext = await browser.newContext();
+  const adminPage = await adminContext.newPage();
+  await login(adminPage, fixture.identities.admin);
+  await expect(adminPage).toHaveURL(/\/sales$/);
+  await adminPage.goto(`/clients/${fixture.p6b.studentCaseId}#documents`);
+  await expect(adminPage.getByTestId("platform-client-detail-page")).toBeVisible();
+  const reviewForm = adminPage.getByTestId("platform-document-review-form");
+  await expect(reviewForm).toHaveCount(1);
+  await expect(
+    reviewForm.locator('input[name="student_case_id"]'),
+  ).toHaveValue(fixture.p6b.studentCaseId);
+  await expect(
+    reviewForm.locator('input[name="document_version_id"]'),
+  ).toHaveValue(fixture.p6b.documentVersionId);
+  await expect(reviewForm.locator('input[name="request_id"]')).toHaveValue(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  await reviewForm
+    .locator('select[name="decision"]')
+    .selectOption("correction_required");
+  await reviewForm
+    .locator('[name="reason"]')
+    .fill(fixture.p6b.reviewReason);
+  await reviewForm.getByTestId("platform-document-review-submit").click();
+  await expect(adminPage).toHaveURL(
+    new RegExp(
+      `/clients/${fixture.p6b.studentCaseId}\\?result=saved#documents$`,
+    ),
+  );
+  await expect(
+    adminPage.getByTestId("platform-document-review-form"),
+  ).toHaveCount(0);
+  await expect(adminPage.locator("#documents")).toContainText(
+    fixture.p6b.reviewReason,
+  );
+
+  const notificationRow = studentPage.getByTestId("portal-notification-row");
+  await expect(notificationRow).toHaveCount(1);
+  await expect(notificationRow).toContainText(fixture.p6b.requirementLabel);
+  await expect(notificationRow).toContainText(fixture.p6b.reviewReason);
+  await expect(
+    studentPage.getByTestId("portal-notifications-unread-badge"),
+  ).toHaveText("1");
+  expect(
+    await studentPage.evaluate(
+      () =>
+        (window as typeof window & { __p6bPageInstance?: string })
+          .__p6bPageInstance,
+    ),
+  ).toBe(pageInstance);
+
+  const durableNotificationsAfterReview = await platformRpc(
+    studentToken,
+    "student_portal_notifications_v1",
+    {},
+  );
+  expect(durableNotificationsAfterReview.status).toBe(200);
+  const notificationRows = durableNotificationsAfterReview.payload as Array<
+    Record<string, unknown>
+  >;
+  expect(notificationRows).toHaveLength(1);
+  expect(Object.keys(notificationRows[0])).toEqual([
+    "notification_id",
+    "category",
+    "review_decision",
+    "requirement_key",
+    "requirement_label",
+    "reason",
+    "created_at",
+    "read_at",
+  ]);
+  expect(notificationRows[0]).toEqual({
+    notification_id: expect.stringMatching(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    ),
+    category: "document.review",
+    review_decision: "correction_required",
+    requirement_key: fixture.p6b.requirementKey,
+    requirement_label: fixture.p6b.requirementLabel,
+    reason: fixture.p6b.reviewReason,
+    created_at: expect.any(String),
+    read_at: null,
+  });
+  const notificationId = String(notificationRows[0].notification_id);
+  const privateTopic = `platform-portal-notifications:${fixture.p6b.organizationId}:${fixture.p6b.recipientStudentMembershipId}`;
+  for (const privateValue of [
+    notificationId,
+    fixture.p6b.organizationId,
+    fixture.p6b.studentCaseId,
+    fixture.p6b.documentSlotId,
+    fixture.p6b.documentVersionId,
+    fixture.p6b.recipientStudentMembershipId,
+    privateTopic,
+  ]) {
+    await expect(studentPage.locator("body")).not.toContainText(privateValue);
+  }
+  await expect(studentPage.locator("body")).not.toContainText(
+    /WAHA|amoCRM|Kommo|provider/i,
+  );
+
+  for (const deniedToken of [
+    sameOrgOtherStudentToken,
+    crossOrgStudentToken,
+  ]) {
+    const denied = await platformRpc(
+      deniedToken,
+      "student_portal_notifications_v1",
+      {},
+    );
+    expect(denied).toEqual({ status: 200, payload: [] });
+  }
+
+  await studentPage.getByTestId("portal-notification-mark-read").click();
+  await expect(studentPage).toHaveURL(
+    /\/portal\/notifications\?notification_result=read$/,
+  );
+  await expect(notificationRow).toHaveCount(1);
+  await expect(
+    studentPage.getByTestId("portal-notification-mark-read"),
+  ).toHaveCount(0);
+  await expect(
+    studentPage.getByTestId("portal-notifications-unread-badge"),
+  ).toHaveCount(0);
+  await studentPage.reload();
+  await expect(notificationRow).toHaveCount(1);
+  await expect(
+    studentPage.getByTestId("portal-notification-mark-read"),
+  ).toHaveCount(0);
+  await expect(
+    studentPage.getByTestId("portal-notifications-unread-badge"),
+  ).toHaveCount(0);
+
+  const durableNotificationsAfterAck = await platformRpc(
+    studentToken,
+    "student_portal_notifications_v1",
+    {},
+  );
+  expect(durableNotificationsAfterAck.status).toBe(200);
+  const ackRows = durableNotificationsAfterAck.payload as Array<
+    Record<string, unknown>
+  >;
+  expect(ackRows).toHaveLength(1);
+  expect(ackRows[0].notification_id).toBe(notificationId);
+  expect(ackRows[0].read_at).toEqual(expect.any(String));
+
+  const legacyNotificationsAfter = await platformRpc(
+    studentToken,
+    "my_notifications",
+    {},
+  );
+  const communicationQueueAfter = await platformRpc(
+    adminToken,
+    "staff_communication_queue",
+    { p_organization_id: fixture.p6b.organizationId },
+  );
+  const wahaHealthAfter = await platformRpc(
+    adminToken,
+    "staff_waha_session_health",
+    { p_organization_id: fixture.p6b.organizationId },
+  );
+  expect(legacyNotificationsAfter).toEqual({ status: 200, payload: [] });
+  expect(communicationQueueAfter).toEqual(communicationQueueBefore);
+  expect(wahaHealthAfter).toEqual(wahaHealthBefore);
+  expect(JSON.stringify(communicationQueueAfter.payload)).not.toContain(
+    fixture.p6b.studentCaseId,
+  );
+  expectLegacyDatabaseUntouched();
+
+  await adminContext.close();
+  await studentContext.close();
 });
 
 test("P5D archives private WAHA media into the accepted conversation UI", async ({

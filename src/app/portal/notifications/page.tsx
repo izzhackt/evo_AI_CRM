@@ -11,19 +11,28 @@ import {
   portalStyles as styles,
 } from "@/components/platform/portal/PortalPrimitives";
 import { PortalIcon } from "@/components/platform/portal/PortalIcon";
+import { PortalNotificationList } from "@/components/platform/portal/PortalNotificationList";
 import { getPortalCopy } from "@/components/platform/portal/portal-copy";
 import { getPortalPageData } from "@/lib/portal";
 import {
   isPlatformP6APortalAttentionEnabled,
   shouldShowPortalNextActionForP6A,
 } from "@/lib/server/platform-p6a-portal-attention";
+import { isPlatformP6BPortalNotificationsEnabled } from "@/lib/server/platform-p6b-portal-notifications";
 
-export default async function PortalNotificationsPage() {
+export default async function PortalNotificationsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ notification_result?: string }>;
+}) {
   const { snapshot, locale, t } = await getPortalPageData();
+  const query = searchParams ? await searchParams : undefined;
   const copy = getPortalCopy(locale);
   if (!snapshot) return <PortalMissingCase copy={copy} />;
 
   const portalAttentionEnabled = isPlatformP6APortalAttentionEnabled();
+  const durableNotificationsEnabled =
+    isPlatformP6BPortalNotificationsEnabled();
   const visibleNextAction =
     snapshot.nextAction &&
     shouldShowPortalNextActionForP6A(
@@ -33,19 +42,36 @@ export default async function PortalNotificationsPage() {
       ? snapshot.nextAction
       : null;
   const unreadUpdates = snapshot.updates.filter((update) => !update.isRead);
+  const durableNotifications = snapshot.notifications ?? [];
 
   return (
     <>
       <PortalPageHeader
         title={copy.notificationsTitle}
         description={
-          portalAttentionEnabled
+          durableNotificationsEnabled
+            ? copy.notificationsP6BDescription
+            : portalAttentionEnabled
             ? copy.notificationsP6ADescription
             : copy.notificationsDescription
         }
       />
       <div className={styles.twoColumn}>
         <div className={styles.stack}>
+          {durableNotificationsEnabled && query?.notification_result && (
+            <PortalNotice
+              title={
+                query.notification_result === "read"
+                  ? copy.notificationReadSuccess
+                  : copy.notificationReadFailure
+              }
+              body={
+                query.notification_result === "read"
+                  ? copy.notificationLiveBody
+                  : copy.notificationReadFailure
+              }
+            />
+          )}
           {visibleNextAction && (
             <section
               className={`${styles.panel} ${styles.panelPadding}`}
@@ -98,7 +124,13 @@ export default async function PortalNotificationsPage() {
                 {copy.recentNotifications}
               </h2>
             </div>
-            {unreadUpdates.length === 0 ? (
+            {durableNotificationsEnabled ? (
+              <PortalNotificationList
+                notifications={durableNotifications}
+                locale={locale}
+                copy={copy}
+              />
+            ) : unreadUpdates.length === 0 ? (
               <PortalEmptyState
                 icon="notifications"
                 title={copy.noNotificationsTitle}
@@ -129,8 +161,16 @@ export default async function PortalNotificationsPage() {
 
         <aside className={styles.stack}>
           <PortalNotice
-            title={copy.notificationReadOnlyTitle}
-            body={copy.notificationReadOnlyBody}
+            title={
+              durableNotificationsEnabled
+                ? copy.notificationLiveTitle
+                : copy.notificationReadOnlyTitle
+            }
+            body={
+              durableNotificationsEnabled
+                ? copy.notificationLiveBody
+                : copy.notificationReadOnlyBody
+            }
           />
           <Link href="/portal/messages" className={styles.buttonSecondary}>
             <PortalIcon name="messages" size={17} />

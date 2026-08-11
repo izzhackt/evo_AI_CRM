@@ -10,6 +10,10 @@ const storageGate = readFileSync(
   new URL("../scripts/test-p2h-storage-api.mjs", import.meta.url),
   "utf8",
 );
+const platformAuthSpec = readFileSync(
+  new URL("./platform-auth/platform-auth.spec.ts", import.meta.url),
+  "utf8",
+);
 
 test("Auth readiness is proven before the first mutating request", () => {
   const mainStart = authHook.indexOf("const main = async () => {");
@@ -80,6 +84,63 @@ test("Auth smoke emits one dedicated revocable browser actor", () => {
   assert.match(
     authHook.slice(fixtureWrite),
     /revocableMembershipId: revocableCuratorMembership\.id/,
+  );
+});
+
+test("P6B scope mutation refreshes Curator auth before downstream P3C writes", () => {
+  const p6bAssignment = authHook.indexOf(
+    '"p6b-curator-assignment"',
+  );
+  const refreshedCuratorSignIn = authHook.indexOf(
+    'await signIn(identities.curator, "curator");',
+    p6bAssignment,
+  );
+  const p3cRequest = authHook.indexOf(
+    '"p3c-org-a-ai-request"',
+    p6bAssignment,
+  );
+
+  assert.notEqual(p6bAssignment, -1);
+  assert.notEqual(refreshedCuratorSignIn, -1);
+  assert.notEqual(p3cRequest, -1);
+  assert.ok(p6bAssignment < refreshedCuratorSignIn);
+  assert.ok(refreshedCuratorSignIn < p3cRequest);
+});
+
+test("P6B keeps its Sales fixture isolated from the BW6 handoff owner", () => {
+  const p6bCaseStart = authHook.indexOf(
+    "const p6bStudentCase = serviceFunctionResult(",
+  );
+  const p6bCaseEnd = authHook.indexOf(
+    '"p6b-case-create"',
+    p6bCaseStart,
+  );
+  const p6bCaseFixture = authHook.slice(p6bCaseStart, p6bCaseEnd);
+  const p6bBrowserStart = platformAuthSpec.indexOf(
+    'test("P6B turns an authenticated staff document review',
+  );
+  const p6bBrowserEnd = platformAuthSpec.indexOf(
+    "\ntest(",
+    p6bBrowserStart + 1,
+  );
+  const p6bBrowserProof = platformAuthSpec.slice(
+    p6bBrowserStart,
+    p6bBrowserEnd,
+  );
+
+  assert.notEqual(p6bCaseStart, -1);
+  assert.notEqual(p6bCaseEnd, -1);
+  assert.match(p6bCaseFixture, /salesScopedMembership\.id/);
+  assert.doesNotMatch(p6bCaseFixture, /responsibleSalesMembership\.id/);
+  assert.notEqual(p6bBrowserStart, -1);
+  assert.notEqual(p6bBrowserEnd, -1);
+  assert.match(
+    p6bBrowserProof,
+    /login\(salesPage, fixture\.identities\.salesScoped\)/,
+  );
+  assert.doesNotMatch(
+    p6bBrowserProof,
+    /login\(salesPage, fixture\.identities\.responsibleSales\)/,
   );
 });
 

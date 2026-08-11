@@ -23,6 +23,7 @@ export async function getFixturePortalPageData() {
   return {
     user: { name: user.name },
     snapshot: studentPortalSnapshotForUser(user.id),
+    notificationsRealtimeScope: null,
     t,
     locale,
   };

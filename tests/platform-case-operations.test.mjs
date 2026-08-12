@@ -141,6 +141,14 @@ test("P6D actions bind the exact case and never accept browser amount or time fo
   assert.doesNotMatch(settleSource, /p_amount_minor/);
   assert.match(actionSource, /hasExactPlatformCaseOperationFormKeys\(form,/);
   assert.match(actionSource, /listPlatformCaseFinance\(actor, studentCaseId\)/);
+  assert.match(
+    actionSource,
+    /const anchor = operation === "visa" \? "visa" : "payments";/,
+  );
+  assert.match(
+    actionSource,
+    /redirect\(`\$\{path\}\?\$\{params\.toString\(\)\}#\$\{anchor\}`\);/,
+  );
 });
 
 test("Student 360 uses distinct Platform evidence forms and never prefills private evidence", () => {

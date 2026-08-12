@@ -145,7 +145,8 @@ function operationRedirect(
     params.set("p6d_retry_operation", operation);
     if (subjectId) params.set("p6d_subject_id", subjectId);
   }
-  redirect(`${path}?${params.toString()}`);
+  const anchor = operation === "visa" ? "visa" : "payments";
+  redirect(`${path}?${params.toString()}#${anchor}`);
 }
 
 function validVisaResult(

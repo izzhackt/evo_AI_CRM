@@ -107,6 +107,45 @@ test("P6B scope mutation refreshes Curator auth before downstream P3C writes", (
   assert.ok(refreshedCuratorSignIn < p3cRequest);
 });
 
+test("P6B seeds and proves an eligible Student Portal profile before browser handoff", () => {
+  const requirementApplication = authHook.indexOf(
+    '"p6b-country-requirement-application"',
+  );
+  const profileUpsert = authHook.indexOf(
+    '"p6b-student-profile-upsert"',
+    requirementApplication,
+  );
+  const profileProof = authHook.indexOf(
+    '"p6b-student-portal-profile-ready"',
+    profileUpsert,
+  );
+  const documentSubmission = authHook.indexOf(
+    '"p6b-document-version-record"',
+    profileProof,
+  );
+  const fixtureWrite = authHook.indexOf(
+    "writeFileSync(\n      browserFixturePath",
+  );
+
+  assert.notEqual(requirementApplication, -1);
+  assert.notEqual(profileUpsert, -1);
+  assert.notEqual(profileProof, -1);
+  assert.notEqual(documentSubmission, -1);
+  assert.notEqual(fixtureWrite, -1);
+  assert.ok(requirementApplication < profileUpsert);
+  assert.ok(profileUpsert < profileProof);
+  assert.ok(profileProof < documentSubmission);
+  assert.ok(documentSubmission < fixtureWrite);
+  assert.match(
+    authHook.slice(requirementApplication, profileProof),
+    /rpc\([\s\S]*"upsert_student_profile"[\s\S]*p6bStudentCaseId/,
+  );
+  assert.match(
+    authHook.slice(profileUpsert, documentSubmission),
+    /authenticatedPlatformRpcRows\([\s\S]*identities\.p6bStudent[\s\S]*"student_portal_profile"/,
+  );
+});
+
 test("P6B keeps its Sales fixture isolated from the BW6 handoff owner", () => {
   const p6bCaseStart = authHook.indexOf(
     "const p6bStudentCase = serviceFunctionResult(",

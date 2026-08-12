@@ -2381,6 +2381,57 @@ const main = async () => {
     "p6b-country-requirement-application",
   );
 
+  const p6bStudentProfile = await rpc(
+    identities.adminA,
+    "upsert_student_profile",
+    [
+      adminAMembership.organization_id,
+      p6bStudentCaseId,
+      0,
+      "P6B Synthetic Portal Student",
+      null,
+      null,
+      bw3Profile.communicationLanguage,
+      bw3Profile.citizenshipCountry,
+      bw3Profile.residencyCountry,
+      bw3Profile.currentEducationSummary,
+      bw3Profile.academicSummary,
+      bw3Profile.languageSummary,
+      bw3Profile.budgetBand,
+      bw3Profile.decisionParticipantLabels,
+      bw3Profile.consentStatus,
+      bw3Profile.consentEvidenceRef,
+      "Review the submitted synthetic document",
+      "Persist the dedicated P6B Student Portal profile",
+      randomUUID(),
+    ],
+  );
+  assert(
+    p6bStudentProfile?.student_case_id === p6bStudentCaseId &&
+      p6bStudentProfile?.revision === 1,
+    "p6b-student-profile-upsert",
+  );
+  const p6bStudentProfileId = p6bStudentProfile?.id;
+  sqlUuid(p6bStudentProfileId, "p6b-student-profile-id");
+
+  // Prove the same argument-free, RLS-scoped projection used by /portal is
+  // ready before handing this identity to Playwright. This prevents a role-
+  // only login redirect from masking an incomplete Student Portal fixture.
+  await signIn(identities.p6bStudent, "student");
+  const p6bStudentPortalProfileRows = await authenticatedPlatformRpcRows(
+    identities.p6bStudent,
+    "student_portal_profile",
+    {},
+    "p6b-student-portal-profile-ready",
+  );
+  assert(
+    p6bStudentPortalProfileRows.length === 1 &&
+      p6bStudentPortalProfileRows[0].case_id === p6bStudentCaseId &&
+      p6bStudentPortalProfileRows[0].student_profile_id ===
+        p6bStudentProfileId,
+    "p6b-student-portal-profile-ready-values",
+  );
+
   const p6bDocumentRowsBeforeSubmission = await authenticatedPlatformRpcRows(
     identities.adminA,
     "staff_student_case_documents",

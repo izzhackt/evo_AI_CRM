@@ -1,7 +1,7 @@
 # EVO Platform Long-Run Execution Contract
 
 Status: active repository implementation contract
-Version date: 2026-08-13 (Asia/Bishkek)
+Version date: 2026-08-12 (Asia/Bishkek)
 Initial kickoff baseline: GitHub `origin/main` at
 `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
@@ -966,9 +966,9 @@ and acceptance criteria are in `docs/platform/p6-operations-portal.md`.
 
 P7 executes only as `P7-PLAN -> P7A -> P7B -> P7C -> P7D`. The detailed
 authority, acceptance and stop conditions are append-only Block
-`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13` in `docs/PLAN_CHANGES.md`, expanded
+`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-12` in `docs/PLAN_CHANGES.md`, expanded
 by `docs/platform/p7-security-reliability.md` and supported by
-`docs/research/p7-official-evidence-2026-08-13.md`.
+`docs/research/p7-official-evidence-2026-08-12.md`.
 
 `P7A` connects the accepted Platform Settings presentation to a new safe
 Supabase-native audit seam. The expected next-free migration is `071`, subject

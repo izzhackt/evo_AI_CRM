@@ -38,7 +38,7 @@ production claim. The active step is the docs-only P7 security/reliability plan
 amendment. It decomposes P7 into safe audit search/export, private
 observability/runbooks, isolated database plus separate Storage restore and a
 capacity/accessibility gate. It adds no schema, application code, credential,
-provider call, customer data or environment mutation. Updated 2026-08-13 in
+provider call, customer data or environment mutation. Updated 2026-08-12 in
 the workspace timezone.
 
 This document is the execution contract for the current EVO Platform MVP lane in
@@ -64,7 +64,7 @@ slice. The superseding rule is:
 ## Current Goal Slice
 
 Active implementation slice: docs-only Block
-`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13`. P6A-P6D are merged and their
+`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-12`. P6A-P6D are merged and their
 exact-main gate is green. This amendment makes the broad P7 wording executable
 as four sequential blocks: P7A safe Admin-only Platform audit search/export,
 P7B private observability/alerts/runbooks, P7C isolated database plus separate
@@ -209,10 +209,10 @@ checkpoint is:
 ### P7 authority and sequence
 
 The implementation authority for P7 is append-only Block
-`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13` in `docs/PLAN_CHANGES.md` and the
+`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-12` in `docs/PLAN_CHANGES.md` and the
 P7 section of `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, expanded by
 `docs/platform/p7-security-reliability.md` and the primary-source note
-`docs/research/p7-official-evidence-2026-08-13.md`. P7A removes direct browser
+`docs/research/p7-official-evidence-2026-08-12.md`. P7A removes direct browser
 audit-table access and connects the accepted Platform Settings surface to a
 safe, bounded, replay-aware Supabase audit projection/export. P7B keeps
 readiness, metrics, internal routes and Lead Agent operational surfaces private.

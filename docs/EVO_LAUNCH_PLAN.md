@@ -10,17 +10,13 @@ prerequisite and repair, PR #132 merged the disabled-by-default P5A WAHA
 ingress, PR #133 merged the disabled-by-default P5B projection, PR #137 merged
 the P5C available-history reconciliation lane, and PR #138 merged the
 disabled-by-default P5D private WAHA media archive and accepted media display.
-PR #141 merged the disabled-by-default P5E ACK/session projection and private
-Realtime invalidation lane, PR #142 merged the bounded P4R1 read-only
-canonical amoCRM context lane, PR #144 merged the disabled-by-default P5F1
-Platform-owned memory/retrieval foundation, PR #145 merged the disabled-by-
-default P5F2 stateless Gemini proposal adapter, PR #146 merged the disabled-by-
-default P5F3 deterministic autonomous inbound-reply lane, and PR #147 merged
-the reviewed P6A-P6D implementation contract. Current `origin/main` is
-`fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`, migrations remain contiguous
-`001-067`, and exact-main CI run `31523285552` attempt 2 is green for Main CRM,
-EVO Inbox and EVO Lead Agent; Changed range is skipped on the push event as
-expected.
+PR #141 merged P5E ACK/session projection and private Realtime, PR #142 merged
+bounded P4R1 read-only canonical amoCRM context, PRs #144/#145/#146 merged
+P5F1-P5F3, and PRs #148/#149/#152/#153 merged the P6A-P6D implementation
+through migration `070`. Current `origin/main` is
+`1e53d93d8c70c286e56c5d057928e9f080c58a44`, migrations are contiguous
+`001-070`, and exact-main CI run `31650640795` is green for Main CRM,
+EVO Inbox and EVO Lead Agent.
 
 P4B implementation is preserved on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -30,11 +26,10 @@ failed closed in the real Auth/PostgREST hook before Playwright and is
 failed/non-evidence. The owner keeps P4B activation/writes deferred but resumes
 a bounded read-mostly P4R lane after the messaging foundation. P9 remains
 removed. Lead Agent, the legacy webhook/session path and rollback path remain
-deployed/frozen. P5A-P5F3 and P4R1 are merged without real-provider proof. The
-active step is P6A: a disabled-by-default read-only attention presentation over
-the existing RLS-bound Student Portal task, document and finance snapshot. P6A
-adds no schema, RPC, write, scheduler, durable notification, WhatsApp, amoCRM or
-provider path. Updated 2026-08-12 in the workspace timezone.
+deployed/frozen. P5A-P5F3, P4R1 and P6A-P6D are merged without real-provider
+proof. The active step is this docs-only P7 security/reliability amendment.
+It adds no schema, runtime, credential, provider, customer-data or production
+change. Updated 2026-08-12 in the workspace timezone.
 
 This document is the execution contract for the current EVO Platform MVP lane in
 this repo. The current detailed contract is
@@ -131,9 +126,10 @@ checkpoint is:
   P5C available-history reconciliation lane, PR #138 merged the P5D private
   WAHA media archive/display lane, PR #141 merged P5E ACK/session plus private
   Realtime, PR #142 merged bounded P4R1 read-only canonical amoCRM context,
-  PRs #144-#146 merged P5F1-P5F3, and PR #147 merged the P6A-P6D contract.
-  Current `origin/main` is `fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`.
-  Exact-main CI `31523285552` attempt 2 is green, and migrations end at `067`.
+  PRs #144-#146 merged P5F1-P5F3, PR #147 merged the P6A-P6D contract, and
+  PRs #148/#149/#152/#153 implemented that contract on main through
+  `1e53d93d8c70c286e56c5d057928e9f080c58a44`.
+  Exact-main CI `31650640795` is green, and migrations end at `070`.
 - P4B implementation is preserved on remote branch
   `izzhackt/evo-platform-p4b-mapping-approval` at
   `e53ba94954f147b295f596421a255591fa343ce8`, with no implementation PR.
@@ -177,21 +173,22 @@ checkpoint is:
 ### Immediate execution order
 
 0. PR #147 merged the P6A-P6D governance amendment as
-   `fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`; exact-main run `31523285552`
-   attempt 2 is green. Preserve this accepted contract.
+   `fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`, and PRs #148/#149/#152/#153 then
+   implemented that contract on main through `1e53d93d8c70c286e56c5d057928e9f080c58a44`.
+   Exact-main run `31650640795` is green. Preserve this accepted contract.
 1. Preserve P4B at
    `izzhackt/evo-platform-p4b-mapping-approval` / `e53ba94954f147b295f596421a255591fa343ce8`.
    Keep mapping activation and writes deferred. Merged P4R1 remains bounded
    read-only context without provider proof or mutation authority.
-2. Implement P6A now as the feature-flagged read-only Portal attention slice.
-   Reuse the existing Platform task/document/finance snapshot and do not add a
-   schema/RPC/write side effect.
-3. After P6A exact-main CI is green, implement P6B durable in-app-only Student
-   notifications, P6C overdue-transition publication and P6D cross-domain two-
-   Student closure in order. Do not copy the legacy SQLite staff notification
-   feed.
-4. Continue P7 only after P6D is accepted. Do not infer canonical sales
-   identity, responsible Sales, stage, Portal activation or contract handoff.
+2. Merge this docs-only P7 amendment before further implementation.
+3. After this amendment exact-main CI is green, implement P7A repo-owned admin
+   audit search/export, then P7B structured observability, then P7C isolated
+   database-plus-separate-Storage restore rehearsal, then P7D bounded load and
+   accessibility evidence. Use only documented WAHA health contracts and do not
+   claim managed Supabase restore or dashboard audit-log export where the
+   official docs say those are unavailable or plan-dependent.
+4. Do not infer canonical sales identity, responsible Sales, stage, Portal
+   activation or contract handoff from local Platform data.
 5. Run narrowed P8 only for executable P5-P7 plus proved P4R read paths. Report
    P4B activation/writes and unavailable provider segments as deferred, never
    passed or synthetically replaced.

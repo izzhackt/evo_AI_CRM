@@ -5706,3 +5706,61 @@ Validation and completion boundary:
   proof partition; additive durable schema is forward-fixed without deleting
   visa, finance, document, lifecycle, notification or read history. Existing
   Lead Agent, WAHA, amoCRM and legacy rollback paths remain unchanged.
+
+## 2026-08-12 - Decompose P7 into honest security/reliability slices
+
+Block-ID: `EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-12`
+
+Accepted baseline:
+
+- PR #153 merged the reviewed P6D cross-domain closure slice as
+  `1e53d93d8c70c286e56c5d057928e9f080c58a44`.
+- Exact-main CI run `31650640795` is green at that exact SHA for Main CRM,
+  EVO Inbox and EVO Lead Agent; Changed range is skipped on the push event as
+  expected.
+- Migrations are contiguous `001-070`.
+- Primary-source refresh for this amendment is recorded in
+  `docs/research/p7-official-evidence-2026-08-12.md`.
+
+Decision:
+
+- Make this docs-only P7 amendment the sole active block before further code.
+- Replace the older broad P7 wording with four sequential, reviewable slices:
+  - `P7A` — repo-owned admin audit search/export;
+  - `P7B` — structured observability and documented health;
+  - `P7C` — isolated database restore plus separate Storage restore rehearsal;
+  - `P7D` — bounded k6 load thresholds plus accessibility evidence that mixes
+    automated and human evaluation.
+- Freeze the official-source boundaries:
+  - Supabase database backups do not include Storage objects, so P7C must keep
+    database and Storage restore as separate acceptance paths.
+  - Supabase Platform Audit Log Drains are organization-level and the dashboard
+    currently offers no direct export, so P7A starts with repo-owned audit
+    search/export and records platform-audit drain work separately.
+  - Supabase project log drains are plan-gated, so P7B treats destination/tier
+    prerequisites as verified-or-blocked external inputs.
+  - PostgreSQL dump/restore proof must target disposable destinations only.
+  - k6 thresholds are the explicit pass/fail load gate.
+  - WCAG conformance evidence requires automated plus human evaluation.
+  - WAHA observability may rely only on documented endpoints such as
+    `GET /health`; this amendment does not authorize an undocumented WAHA
+    metrics/export claim.
+- Keep P4B activation/writes deferred, P4R1 bounded read-only, P8 narrowed,
+  P9 removed, and Lead Agent plus the legacy webhook/session and rollback path
+  deployed/frozen.
+
+Validation impact:
+
+- This amendment is docs-only. It changes no application code, migration,
+  runtime configuration, provider state, secret, customer data or production
+  service.
+- Required checks for the amendment PR remain `git diff --check`, focused docs
+  review, one fresh independent exact-head read-only review, green exact-head
+  GitHub CI, direct merge only of that reviewed head SHA, and green exact-main
+  push CI before P7A starts.
+
+Rollback:
+
+- Rollback is a docs-only revert of this amendment and its research note.
+- No runtime or schema rollback exists because this amendment changes no
+  implementation files.

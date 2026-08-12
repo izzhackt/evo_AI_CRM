@@ -1,7 +1,7 @@
 # EVO Platform Long-Run Execution Contract
 
 Status: active repository implementation contract
-Version date: 2026-08-11 (Asia/Bishkek)
+Version date: 2026-08-12 (Asia/Bishkek)
 Initial kickoff baseline: GitHub `origin/main` at
 `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
@@ -20,10 +20,12 @@ PR #138 merged the disabled-by-default P5D private media archive plus accepted
 media display. PR #141 merged P5E ACK/session projection and private Realtime,
 and PR #142 merged bounded P4R1 read-only canonical amoCRM context. PRs #144,
 #145 and #146 then merged P5F1 Platform memory/retrieval, P5F2 stateless Gemini
-proposals and P5F3 deterministic autonomous inbound replies. Current
-`origin/main` is `81ae079594baaa4a453501a99ad0ed5c3ba408d6`, migrations are
-contiguous `001-067`, and exact-main CI `31514964102` is green. The next gate is
-this docs-only P6 operations/Portal amendment; it does not inherit real-provider
+proposals and P5F3 deterministic autonomous inbound replies. PRs #148, #149,
+#152 and #153 then merged the P6A-P6D operations/Portal implementation through
+migration `070`. Current `origin/main` is
+`1e53d93d8c70c286e56c5d057928e9f080c58a44`, migrations are contiguous
+`001-070`, and exact-main CI `31650640795` is green. The next gate is this
+docs-only P7 security/reliability amendment; it does not inherit real-provider
 or production proof from the merged implementation lanes.
 
 P4B implementation is preserved, not merged, on remote branch
@@ -32,11 +34,10 @@ P4B implementation is preserved, not merged, on remote branch
 but its attempted full local Supabase gate failed closed in the real
 Auth/PostgREST hook before Playwright; it is failed/non-evidence. The owner has
 deferred broad P4/P4B writes and mapping activation. This docs-only amendment
-keeps that checkpoint preserved after merged P4R1 and completed P5F, and
-decomposes P6 into read-only overdue Portal actions, durable in-app-only
-Student notifications, overdue-transition publication and a cross-domain two-
-Student closure proof. P7, narrowed P8 and P10 follow P6. P9 remains removed
-and Lead Agent plus the
+keeps that checkpoint preserved after merged P4R1, completed P5F and completed
+P6, and decomposes P7 into repo-owned audit search/export, structured
+observability, isolated restore rehearsal and bounded load/accessibility proof.
+Narrowed P8 and P10 follow P7. P9 remains removed and Lead Agent plus the
 legacy rollback path remain deployed/frozen. It authorizes no application,
 schema, credential, provider, customer-data, staging or production action.
 
@@ -108,13 +109,14 @@ this contract.
 As of the version date:
 
 - GitHub `main` checkpoint before this amendment is
-  `81ae079594baaa4a453501a99ad0ed5c3ba408d6`; PR #128 supersedes PR #119 as
+  `1e53d93d8c70c286e56c5d057928e9f080c58a44`; PR #128 supersedes PR #119 as
   current product authority after corrective PRs #125-#127, PRs #129-#130
   merged the bounded local-validation repair, PRs #132/#133/#137/#138/#141
   merged P5A-P5E, and PR #142 merged bounded P4R1 read-only canonical amoCRM
-  context. PRs #144/#145/#146 merged P5F1-P5F3 through migration 067;
-- exact-main CI run `31514964102` is green for Main CRM, EVO Inbox and EVO Lead
-  Agent; Changed range is skipped on the push event as expected;
+  context. PRs #144/#145/#146 merged P5F1-P5F3 through migration `067`, and
+  PRs #148/#149/#152/#153 merged P6A-P6D through migration `070`;
+- exact-main CI run `31650640795` is green for Main CRM, EVO Inbox and EVO
+  Lead Agent; Changed range is skipped on the push event as expected;
 - the preserved P4B branch passed focused tests, unit tests, lint, Next typegen,
   TypeScript and a production build. Its later full local Supabase run failed
   closed in the real Auth/PostgREST hook before Playwright; the run is not P4B
@@ -145,15 +147,18 @@ After this amendment merges, implementation priority is intentionally narrow:
 1. Preserve P4B and defer mapping activation and amoCRM writes. Keep merged
    bounded read-only P4R1 as canonical context only; it authorizes no mapping
    activation, Sales ownership mutation or provider write.
-2. Implement P6A read-only overdue Portal actions, P6B durable in-app-only
-   Student notifications, P6C overdue-transition publication and P6D cross-
-   domain closure in order; then P7, narrowed P8 and P10.
-3. No mock, SQLite shim, hardcoded amoCRM mapping, fake provider or silent
+2. Merge this docs-only P7 amendment first. It is the only active block before
+   more code.
+3. After exact-main CI is green for this amendment, implement P7A repo-owned
+   admin audit search/export, P7B structured observability, P7C isolated
+   database-plus-separate-Storage restore rehearsal, and P7D bounded load and
+   accessibility evidence in order; then narrowed P8 and P10.
+4. No mock, SQLite shim, hardcoded amoCRM mapping, fake provider or silent
    fallback may replace P4. amoCRM identity, responsible Sales, canonical stage,
    contract-stage handoff, mapping approval and amoCRM E2E remain fail-closed.
-4. P9 is removed from the authorized execution scope. Lead Agent, the legacy
+5. P9 is removed from the authorized execution scope. Lead Agent, the legacy
    webhook/session path and rollback path remain deployed/frozen.
-5. Autonomous reply code ships disabled by default. Provider and production
+6. Autonomous reply code ships disabled by default. Provider and production
    claims remain evidence-gated and separately
    authorized.
 
@@ -418,8 +423,8 @@ deployment surfaces are sequential.
 | P2R4 | Local Supabase startup/readiness prerequisite | Two-file harness repair and exact-main CI; later run outcomes remain scoped to their exact branch | Merged in PRs #129-#130; no provider or production proof |
 | P4/P4R | Canonical amoCRM integration | Preserve P4B activation/write checkpoint; prove bounded read-only contact/lead/responsible/stage/tasks/call-chat references through versioned mappings, reconciliation and fail-closed degradation | P4B writes/activation deferred; bounded read-only P4R1 merged in PR #142 |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real persist-before-process, queue/projection, available history/media, ACK, realtime, staff takeover and structured AI proposal with deterministic reply-only send gates; no legacy cutover | P5A-P5F3 merged in PRs #132, #133, #137, #138, #141 and #144-#146; synthetic local proof only, provider/production proof blocked |
-| P6 | amoCRM-independent Admissions, Portal, Documents, Finance and Notifications | Two-student isolation E2E and staff-to-portal workflows that do not infer sales identity/stage/handoff | Active docs-only decomposition: P6A read-only overdue actions, P6B in-app notifications, P6C overdue transitions, P6D cross-domain closure |
-| P7 | Security, reliability and operations | Threat model, load evidence, backup plus Storage restore, RPO/RTO and rollback rehearsal, accessibility | Pending after P6 |
+| P6 | amoCRM-independent Admissions, Portal, Documents, Finance and Notifications | Two-student isolation E2E and staff-to-portal workflows that do not infer sales identity/stage/handoff | Merged in PRs #148, #149, #152 and #153 |
+| P7 | Security, reliability and operations | Repo-owned audit search/export, documented observability/health, isolated database-plus-separate-Storage restore rehearsal, and bounded load/accessibility evidence without fake provider or managed-restore claims | Active docs-only decomposition: P7A audit search/export, P7B observability, P7C isolated restore, P7D load/accessibility |
 | P8 | Narrowed controlled release-evidence gate | Real executable P5-P7 plus proved P4R read evidence; P4B writes/activation and unavailable provider segments reported deferred; no production action | Pending after P7 |
 | P9 | Removed from current execution scope | Lead Agent, legacy webhook/session and rollback path remain deployed/frozen; no retirement/deactivation PR | Removed by owner decision |
 | P10 | Authorized-scope audit | Map P4R/P5-P8 scope to evidence, list P4B writes/activation deferred and Lead Agent retained, separate verified/blocked/deferred; no full-platform completion claim | Pending directly after P8 |
@@ -957,10 +962,25 @@ and acceptance criteria are in `docs/platform/p6-operations-portal.md`.
 
 ### P7 — security and reliability
 
-Complete threat model, secret/redaction and private-network checks, structured
-observability and audit export. Use live-observed dashboard values only as a
-capacity baseline, never as exact company-wide truth. Prove production-like
-load, database and separate Storage restore, rollback and accessibility.
+P7 is decomposed by `docs/platform/p7-security-reliability.md`.
+
+The active P7 amendment is docs-only and changes no code. It narrows P7 into
+four sequential slices:
+
+1. `P7A` — repo-owned admin audit search/export only.
+2. `P7B` — structured observability and documented health contracts.
+3. `P7C` — isolated database restore plus separate Storage restore rehearsal.
+4. `P7D` — bounded k6 load thresholds and accessibility evidence that combines
+   automated and human evaluation.
+
+P7 must use official documented boundaries. Supabase database backups do not
+include Storage objects; Platform Audit Log Drains are organization-level and
+the dashboard currently offers no direct audit-log export; k6 thresholds are
+the pass/fail gate; WCAG conformance review requires automated plus human
+evaluation; and WAHA observability may rely only on documented endpoints such
+as `GET /health`. Managed restore, paid-plan drain/export setup, and any
+undocumented WAHA metrics remain verified only when later real authority and
+evidence exist.
 
 ### P8 — controlled release gate
 

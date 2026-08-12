@@ -36,6 +36,34 @@ export function PortalNotificationList({
   return (
     <div className={styles.listGrid} data-testid="portal-notification-list">
       {notifications.map((notification) => {
+        const isV2 = "eventCode" in notification;
+        const subjectLabel = isV2
+          ? notification.subjectLabel
+          : notification.requirementLabel;
+        const detail = isV2 ? notification.detail : notification.reason;
+        const title = notification.category === "task.overdue"
+          ? copy.taskOverdue
+          : notification.category === "payment.overdue"
+            ? copy.paymentOverdue
+            : (isV2 ? notification.eventCode : notification.decision) ===
+                "correction_required"
+              ? copy.documentCorrectionRequired
+              : copy.documentRejected;
+        const destination = notification.category === "task.overdue"
+          ? "/portal"
+          : notification.category === "payment.overdue"
+            ? "/portal/payments"
+            : "/portal/documents";
+        const destinationCopy = notification.category === "task.overdue"
+          ? copy.viewNotificationTask
+          : notification.category === "payment.overdue"
+            ? copy.viewNotificationPayment
+            : copy.viewNotificationDocument;
+        const icon = notification.category === "payment.overdue"
+          ? "payments"
+          : notification.category === "task.overdue"
+            ? "alert"
+            : "documents";
         const requestId = randomUUID();
         const markRead = markOwnStudentPortalNotificationReadAction.bind(
           null,
@@ -47,18 +75,20 @@ export function PortalNotificationList({
             key={notification.id}
             className={styles.notificationCard}
             data-testid="portal-notification-row"
+            data-notification-category={notification.category}
           >
             <div className={styles.cardIdentity}>
               <span className={styles.cardIcon} aria-hidden="true">
-                <PortalIcon name="documents" size={19} />
+                <PortalIcon name={icon} size={19} />
               </span>
               <div>
-                <div className={styles.cardTitle}>
-                  {notification.decision === "correction_required"
-                    ? copy.documentCorrectionRequired
-                    : copy.documentRejected}
+                <div
+                  className={styles.cardTitle}
+                  data-testid="portal-notification-subject"
+                >
+                  {title}
                   {": "}
-                  {notification.requirementLabel}
+                  {subjectLabel}
                 </div>
                 <div className={styles.cardMeta}>
                   {formatPortalDate(notification.createdAt, locale, true)}
@@ -67,12 +97,30 @@ export function PortalNotificationList({
                     ? copy.notificationMarkedRead
                     : copy.unread}
                 </div>
+                {isV2 && notification.dueAt && (
+                  <div
+                    className={styles.cardMeta}
+                    data-testid="portal-notification-due-at"
+                  >
+                    {copy.notificationDueAt}:{" "}
+                    {formatPortalDate(notification.dueAt, locale, true)}
+                  </div>
+                )}
               </div>
             </div>
-            <div className={styles.comment}>{notification.reason}</div>
+            <div
+              className={styles.comment}
+              data-testid="portal-notification-detail"
+            >
+              {detail}
+            </div>
             <div className={styles.teamActions}>
-              <Link href="/portal/documents" className={styles.buttonSecondary}>
-                {copy.viewNotificationDocument}
+              <Link
+                href={destination}
+                className={styles.buttonSecondary}
+                data-testid="portal-notification-destination"
+              >
+                {destinationCopy}
               </Link>
               {!notification.isRead && (
                 <form action={markRead}>
@@ -80,7 +128,7 @@ export function PortalNotificationList({
                     type="submit"
                     className={styles.buttonSecondary}
                     data-testid="portal-notification-mark-read"
-                    aria-label={`${copy.markNotificationRead}: ${notification.requirementLabel}`}
+                    aria-label={`${copy.markNotificationRead}: ${subjectLabel}`}
                   >
                     {copy.markNotificationRead}
                   </button>

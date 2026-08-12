@@ -57,6 +57,21 @@ type Fixture = Readonly<{
     requirementLabel: string;
     reviewReason: string;
   }>;
+  p6c: Readonly<{
+    organizationId: string;
+    supabaseSecretKey: string;
+    workerTriggerSecret: string;
+    taskStudentCaseId: string;
+    taskStudentMembershipId: string;
+    taskId: string;
+    taskTitle: string;
+    taskDueAt: string;
+    paymentStudentCaseId: string;
+    paymentStudentMembershipId: string;
+    paymentObligationId: string;
+    paymentLabel: string;
+    paymentDueAt: string;
+  }>;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
@@ -2172,6 +2187,489 @@ test("P6B turns an authenticated staff document review into one live durable Stu
 
   await adminContext.close();
   await studentContext.close();
+});
+
+test("P6C publishes deterministic overdue task and payment notifications through the signed worker", async ({
+  browser,
+}) => {
+  test.skip(
+    process.env.EVO_P6C_BROWSER_PROOF !== "1",
+    "P6C feature proof runs in its isolated browser partition.",
+  );
+  test.slow();
+  expectLegacyDatabaseUntouched();
+
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const taskStudentToken = await localAccessToken(
+    fixture.identities.p6bStudent,
+  );
+  const paymentStudentToken = await localAccessToken(
+    fixture.identities.student,
+  );
+  const crossOrgStudentToken = await localAccessToken(
+    fixture.identities.crossOrgStudent,
+  );
+  const v2Keys = [
+    "notification_id",
+    "category",
+    "event_code",
+    "subject_label",
+    "detail",
+    "due_at",
+    "created_at",
+    "read_at",
+  ];
+
+  let taskStudentBefore = await platformRpc(
+    taskStudentToken,
+    "student_portal_notifications_v2",
+    {},
+  );
+  expect(taskStudentBefore.status).toBe(200);
+  let taskStudentBeforeRows = taskStudentBefore.payload as Array<
+    Record<string, unknown>
+  >;
+
+  // Make this partition independently runnable while retaining the accepted
+  // P6B compatibility row when the full gate has already executed P6B.
+  if (!taskStudentBeforeRows.some((row) => row.category === "document.review")) {
+    const documentReview = await platformRpc(
+      adminToken,
+      "review_document_version_with_portal_notification_v1",
+      {
+        p_organization_id: fixture.p6b.organizationId,
+        p_document_version_id: fixture.p6b.documentVersionId,
+        p_decision: "correction_required",
+        p_reason: fixture.p6b.reviewReason,
+        p_request_id: randomUUID(),
+      },
+    );
+    expect(documentReview.status).toBe(200);
+    taskStudentBefore = await platformRpc(
+      taskStudentToken,
+      "student_portal_notifications_v2",
+      {},
+    );
+    expect(taskStudentBefore.status).toBe(200);
+    taskStudentBeforeRows = taskStudentBefore.payload as Array<
+      Record<string, unknown>
+    >;
+  }
+
+  const documentRowsBefore = taskStudentBeforeRows.filter(
+    (row) => row.category === "document.review",
+  );
+  expect(documentRowsBefore).toHaveLength(1);
+  expect(Object.keys(documentRowsBefore[0])).toEqual(v2Keys);
+  expect(documentRowsBefore[0]).toMatchObject({
+    category: "document.review",
+    event_code: "correction_required",
+    subject_label: fixture.p6b.requirementLabel,
+    detail: fixture.p6b.reviewReason,
+    due_at: null,
+  });
+  expect(
+    taskStudentBeforeRows.some(
+      (row) =>
+        row.category === "task.overdue" ||
+        row.category === "payment.overdue",
+    ),
+  ).toBe(false);
+
+  const paymentStudentBefore = await platformRpc(
+    paymentStudentToken,
+    "student_portal_notifications_v2",
+    {},
+  );
+  const crossOrgBefore = await platformRpc(
+    crossOrgStudentToken,
+    "student_portal_notifications_v2",
+    {},
+  );
+  expect(paymentStudentBefore).toEqual({ status: 200, payload: [] });
+  expect(crossOrgBefore).toEqual({ status: 200, payload: [] });
+
+  const anonymousResponse = await fetch(
+    `${fixture.apiUrl}/rest/v1/rpc/student_portal_notifications_v2`,
+    {
+      method: "POST",
+      headers: {
+        apikey: fixture.publishableKey,
+        Accept: "application/json",
+        "Accept-Profile": "platform",
+        "Content-Profile": "platform",
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    },
+  );
+  expect([401, 403]).toContain(anonymousResponse.status);
+
+  const taskContext = await browser.newContext();
+  const taskPage = await taskContext.newPage();
+  await login(taskPage, fixture.identities.p6bStudent);
+  await expect(taskPage).toHaveURL(/\/portal$/);
+  await taskPage.goto("/portal/notifications");
+  await expect(taskPage).toHaveURL(/\/portal\/notifications$/);
+  await expect(
+    taskPage.getByTestId("portal-notifications-realtime"),
+  ).toHaveAttribute("data-realtime-state", "subscribed");
+  await expect(
+    taskPage.locator('[data-notification-category="document.review"]'),
+  ).toHaveCount(1);
+  await expect(
+    taskPage.locator('[data-notification-category="task.overdue"]'),
+  ).toHaveCount(0);
+  const taskPageInstance = randomUUID();
+  await taskPage.evaluate((instance) => {
+    (window as typeof window & { __p6cTaskPageInstance?: string })
+      .__p6cTaskPageInstance = instance;
+  }, taskPageInstance);
+
+  const paymentContext = await browser.newContext();
+  const paymentPage = await paymentContext.newPage();
+  await login(paymentPage, fixture.identities.student);
+  await expect(paymentPage).toHaveURL(/\/portal$/);
+  await paymentPage.goto("/portal/notifications");
+  await expect(paymentPage).toHaveURL(/\/portal\/notifications$/);
+  await expect(
+    paymentPage.getByTestId("portal-notifications-realtime"),
+  ).toHaveAttribute("data-realtime-state", "subscribed");
+  await expect(paymentPage.getByTestId("portal-notification-row")).toHaveCount(
+    0,
+  );
+  const paymentPageInstance = randomUUID();
+  await paymentPage.evaluate((instance) => {
+    (window as typeof window & { __p6cPaymentPageInstance?: string })
+      .__p6cPaymentPageInstance = instance;
+  }, paymentPageInstance);
+
+  const crossOrgContext = await browser.newContext();
+  const crossOrgPage = await crossOrgContext.newPage();
+  await login(crossOrgPage, fixture.identities.crossOrgStudent);
+  await expect.poll(() => new URL(crossOrgPage.url()).pathname).toBe(
+    "/platform-pending",
+  );
+  await crossOrgPage.goto("/portal/notifications");
+  await expect.poll(() => new URL(crossOrgPage.url()).pathname).toBe(
+    "/platform-pending",
+  );
+  await expect(crossOrgPage.getByTestId("portal-notification-row")).toHaveCount(
+    0,
+  );
+
+  const appOrigin = new URL(taskPage.url()).origin;
+  const unsignedResponse = await fetch(
+    `${appOrigin}/api/internal/platform-operations/portal-overdue`,
+    { method: "POST" },
+  );
+  expect(unsignedResponse.status).toBe(401);
+
+  const requestId = randomUUID();
+  const timestamp = String(Date.now());
+  const workerResponse = await fetch(
+    `${appOrigin}/api/internal/platform-operations/portal-overdue`,
+    {
+      method: "POST",
+      headers: {
+        "x-evo-portal-overdue-request-id": requestId,
+        "x-evo-portal-overdue-timestamp": timestamp,
+        "x-evo-portal-overdue-hmac-algorithm": "sha256",
+        "x-evo-portal-overdue-hmac": createHmac(
+          "sha256",
+          fixture.p6c.workerTriggerSecret,
+        )
+          .update(`${requestId}.${timestamp}`)
+          .digest("hex"),
+      },
+    },
+  );
+  expect(workerResponse.status).toBe(200);
+  const workerPayload = (await workerResponse.json()) as Record<
+    string,
+    unknown
+  >;
+  expect(Object.keys(workerPayload)).toEqual([
+    "ok",
+    "requestId",
+    "status",
+    "organizationsProcessed",
+    "taskCandidates",
+    "taskPublished",
+    "taskResolved",
+    "paymentCandidates",
+    "paymentPublished",
+    "paymentResolved",
+  ]);
+  expect(workerPayload).toEqual({
+    ok: true,
+    requestId,
+    status: "completed",
+    organizationsProcessed: 1,
+    taskCandidates: 1,
+    taskPublished: 1,
+    taskResolved: 0,
+    paymentCandidates: 1,
+    paymentPublished: 1,
+    paymentResolved: 0,
+  });
+
+  const replayTimestamp = String(Date.now());
+  const replayResponse = await fetch(
+    `${appOrigin}/api/internal/platform-operations/portal-overdue`,
+    {
+      method: "POST",
+      headers: {
+        "x-evo-portal-overdue-request-id": requestId,
+        "x-evo-portal-overdue-timestamp": replayTimestamp,
+        "x-evo-portal-overdue-hmac-algorithm": "sha256",
+        "x-evo-portal-overdue-hmac": createHmac(
+          "sha256",
+          fixture.p6c.workerTriggerSecret,
+        )
+          .update(`${requestId}.${replayTimestamp}`)
+          .digest("hex"),
+      },
+    },
+  );
+  expect(replayResponse.status).toBe(200);
+  expect(await replayResponse.json()).toEqual(workerPayload);
+
+  const noOpRequestId = randomUUID();
+  const noOpTimestamp = String(Date.now());
+  const noOpResponse = await fetch(
+    `${appOrigin}/api/internal/platform-operations/portal-overdue`,
+    {
+      method: "POST",
+      headers: {
+        "x-evo-portal-overdue-request-id": noOpRequestId,
+        "x-evo-portal-overdue-timestamp": noOpTimestamp,
+        "x-evo-portal-overdue-hmac-algorithm": "sha256",
+        "x-evo-portal-overdue-hmac": createHmac(
+          "sha256",
+          fixture.p6c.workerTriggerSecret,
+        )
+          .update(`${noOpRequestId}.${noOpTimestamp}`)
+          .digest("hex"),
+      },
+    },
+  );
+  expect(noOpResponse.status).toBe(200);
+  expect(await noOpResponse.json()).toEqual({
+    ok: true,
+    requestId: noOpRequestId,
+    status: "completed",
+    organizationsProcessed: 1,
+    taskCandidates: 0,
+    taskPublished: 0,
+    taskResolved: 0,
+    paymentCandidates: 0,
+    paymentPublished: 0,
+    paymentResolved: 0,
+  });
+
+  const taskRow = taskPage.locator(
+    '[data-notification-category="task.overdue"]',
+  );
+  await expect(taskRow).toHaveCount(1);
+  await expect(taskRow.getByTestId("portal-notification-subject")).toContainText(
+    fixture.p6c.taskTitle,
+  );
+  await expect(taskRow.getByTestId("portal-notification-detail")).toContainText(
+    "task due time has passed",
+  );
+  await expect(taskRow.getByTestId("portal-notification-due-at")).toBeVisible();
+  await expect(
+    taskRow.getByTestId("portal-notification-destination"),
+  ).toHaveAttribute("href", "/portal");
+  await expect(
+    taskPage.locator('[data-notification-category="payment.overdue"]'),
+  ).toHaveCount(0);
+  expect(
+    await taskPage.evaluate(
+      () =>
+        (window as typeof window & { __p6cTaskPageInstance?: string })
+          .__p6cTaskPageInstance,
+    ),
+  ).toBe(taskPageInstance);
+
+  const paymentRow = paymentPage.locator(
+    '[data-notification-category="payment.overdue"]',
+  );
+  await expect(paymentRow).toHaveCount(1);
+  await expect(
+    paymentRow.getByTestId("portal-notification-subject"),
+  ).toContainText(fixture.p6c.paymentLabel);
+  await expect(
+    paymentRow.getByTestId("portal-notification-detail"),
+  ).toContainText("payment due time has passed");
+  await expect(
+    paymentRow.getByTestId("portal-notification-due-at"),
+  ).toBeVisible();
+  await expect(
+    paymentRow.getByTestId("portal-notification-destination"),
+  ).toHaveAttribute("href", "/portal/payments");
+  await expect(
+    paymentPage.locator('[data-notification-category="task.overdue"]'),
+  ).toHaveCount(0);
+  expect(
+    await paymentPage.evaluate(
+      () =>
+        (window as typeof window & { __p6cPaymentPageInstance?: string })
+          .__p6cPaymentPageInstance,
+    ),
+  ).toBe(paymentPageInstance);
+
+  const taskFeed = await platformRpc(
+    taskStudentToken,
+    "student_portal_notifications_v2",
+    {},
+  );
+  const paymentFeed = await platformRpc(
+    paymentStudentToken,
+    "student_portal_notifications_v2",
+    {},
+  );
+  const crossOrgFeed = await platformRpc(
+    crossOrgStudentToken,
+    "student_portal_notifications_v2",
+    {},
+  );
+  expect(taskFeed.status).toBe(200);
+  expect(paymentFeed.status).toBe(200);
+  expect(crossOrgFeed).toEqual({ status: 200, payload: [] });
+
+  const taskFeedRows = taskFeed.payload as Array<Record<string, unknown>>;
+  const paymentFeedRows = paymentFeed.payload as Array<Record<string, unknown>>;
+  const taskNotification = taskFeedRows.find(
+    (row) => row.category === "task.overdue",
+  );
+  const paymentNotification = paymentFeedRows.find(
+    (row) => row.category === "payment.overdue",
+  );
+  expect(taskNotification).toBeDefined();
+  expect(paymentNotification).toBeDefined();
+  expect(Object.keys(taskNotification ?? {})).toEqual(v2Keys);
+  expect(Object.keys(paymentNotification ?? {})).toEqual(v2Keys);
+  expect(taskNotification).toMatchObject({
+    category: "task.overdue",
+    event_code: "overdue",
+    subject_label: fixture.p6c.taskTitle,
+    due_at: expect.any(String),
+    read_at: null,
+  });
+  expect(paymentNotification).toMatchObject({
+    category: "payment.overdue",
+    event_code: "overdue",
+    subject_label: fixture.p6c.paymentLabel,
+    due_at: expect.any(String),
+    read_at: null,
+  });
+  const taskNotificationId = String(taskNotification?.notification_id);
+  const paymentNotificationId = String(paymentNotification?.notification_id);
+  for (const [deniedToken, deniedNotificationId] of [
+    [paymentStudentToken, taskNotificationId],
+    [taskStudentToken, paymentNotificationId],
+    [crossOrgStudentToken, taskNotificationId],
+  ] as const) {
+    const deniedAck = await platformRpc(
+      deniedToken,
+      "mark_own_student_portal_notification_read_v2",
+      {
+        p_notification_id: deniedNotificationId,
+        p_request_id: randomUUID(),
+      },
+    );
+    expect([400, 403]).toContain(deniedAck.status);
+  }
+  expect(
+    Date.parse(String(taskNotification?.created_at)),
+  ).toBeLessThanOrEqual(Date.parse(String(paymentNotification?.created_at)));
+  expect(taskFeedRows.some((row) => row.category === "payment.overdue")).toBe(
+    false,
+  );
+  expect(paymentFeedRows.some((row) => row.category !== "payment.overdue")).toBe(
+    false,
+  );
+
+  const publicEvidence = JSON.stringify([taskFeedRows, paymentFeedRows]);
+  for (const privateValue of [
+    fixture.p6c.organizationId,
+    fixture.p6c.taskStudentCaseId,
+    fixture.p6c.taskStudentMembershipId,
+    fixture.p6c.taskId,
+    fixture.p6c.paymentStudentCaseId,
+    fixture.p6c.paymentStudentMembershipId,
+    fixture.p6c.paymentObligationId,
+    `platform-portal-notifications:${fixture.p6c.organizationId}:${fixture.p6c.taskStudentMembershipId}`,
+    `platform-portal-notifications:${fixture.p6c.organizationId}:${fixture.p6c.paymentStudentMembershipId}`,
+  ]) {
+    expect(publicEvidence).not.toContain(privateValue);
+    await expect(taskPage.locator("body")).not.toContainText(privateValue);
+    await expect(paymentPage.locator("body")).not.toContainText(privateValue);
+  }
+  expect(publicEvidence).not.toMatch(
+    /source_kind|source_record_id|transition_version|amount_minor|WAHA|amoCRM|Kommo|provider/i,
+  );
+  expect(publicEvidence).not.toContain("125000");
+  await expect(taskPage.locator("body")).not.toContainText(
+    /WAHA|amoCRM|Kommo|provider/i,
+  );
+  await expect(paymentPage.locator("body")).not.toContainText(
+    /WAHA|amoCRM|Kommo|provider/i,
+  );
+
+  await taskRow.getByTestId("portal-notification-mark-read").click();
+  await expect(taskPage).toHaveURL(
+    /\/portal\/notifications\?notification_result=read$/,
+  );
+  const persistedTaskRow = taskPage.locator(
+    '[data-notification-category="task.overdue"]',
+  );
+  await expect(persistedTaskRow).toHaveCount(1);
+  await expect(
+    persistedTaskRow.getByTestId("portal-notification-mark-read"),
+  ).toHaveCount(0);
+
+  await paymentRow.getByTestId("portal-notification-mark-read").click();
+  await expect(paymentPage).toHaveURL(
+    /\/portal\/notifications\?notification_result=read$/,
+  );
+  const persistedPaymentRow = paymentPage.locator(
+    '[data-notification-category="payment.overdue"]',
+  );
+  await expect(persistedPaymentRow).toHaveCount(1);
+  await expect(
+    persistedPaymentRow.getByTestId("portal-notification-mark-read"),
+  ).toHaveCount(0);
+
+  const taskAfterAck = await platformRpc(
+    taskStudentToken,
+    "student_portal_notifications_v2",
+    {},
+  );
+  const paymentAfterAck = await platformRpc(
+    paymentStudentToken,
+    "student_portal_notifications_v2",
+    {},
+  );
+  expect(taskAfterAck.status).toBe(200);
+  expect(paymentAfterAck.status).toBe(200);
+  expect(
+    (taskAfterAck.payload as Array<Record<string, unknown>>).find(
+      (row) => row.category === "task.overdue",
+    )?.read_at,
+  ).toEqual(expect.any(String));
+  expect(
+    (paymentAfterAck.payload as Array<Record<string, unknown>>).find(
+      (row) => row.category === "payment.overdue",
+    )?.read_at,
+  ).toEqual(expect.any(String));
+
+  expectLegacyDatabaseUntouched();
+  await crossOrgContext.close();
+  await taskContext.close();
+  await paymentContext.close();
 });
 
 test("P5D archives private WAHA media into the accepted conversation UI", async ({

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { requirePlatformStudentPortalActor } from "./platform-guards";
 import { normalizePlatformStudentPortalNotificationAck } from "./platform-portal";
 import { isPlatformP6BPortalNotificationsEnabled } from "./server/platform-p6b-portal-notifications";
+import { isPlatformP6COverdueNotificationsEnabled } from "./server/platform-p6c-overdue-config";
 import { createSupabaseServerClient } from "./supabase/server";
 
 const UUID_PATTERN =
@@ -32,7 +33,8 @@ export async function markOwnStudentPortalNotificationReadAction(
   // React supplies FormData after the server-bound notification id. P6B has no
   // browser-controlled mutation fields, so the form body is intentionally unused.
   void formData;
-  if (!isPlatformP6BPortalNotificationsEnabled()) {
+  const p6cEnabled = isPlatformP6COverdueNotificationsEnabled();
+  if (!isPlatformP6BPortalNotificationsEnabled() && !p6cEnabled) {
     outcomeRedirect("unavailable");
   }
 
@@ -44,10 +46,15 @@ export async function markOwnStudentPortalNotificationReadAction(
   let response: { data: unknown; error: unknown };
   try {
     const client = await createSupabaseServerClient();
-    response = await client.schema("platform").rpc("mark_own_student_portal_notification_read_v1", {
-      p_notification_id: notificationId,
-      p_request_id: requestId,
-    });
+    response = p6cEnabled
+      ? await client.schema("platform").rpc("mark_own_student_portal_notification_read_v2", {
+          p_notification_id: notificationId,
+          p_request_id: requestId,
+        })
+      : await client.schema("platform").rpc("mark_own_student_portal_notification_read_v1", {
+          p_notification_id: notificationId,
+          p_request_id: requestId,
+        });
   } catch {
     outcomeRedirect("unavailable");
   }

@@ -52,6 +52,21 @@ type Fixture = Readonly<{
     requirementLabel: string;
     reviewReason: string;
   }>;
+  p6c: Readonly<{
+    organizationId: string;
+    supabaseSecretKey: string;
+    workerTriggerSecret: string;
+    taskStudentCaseId: string;
+    taskStudentMembershipId: string;
+    taskId: string;
+    taskTitle: string;
+    taskDueAt: string;
+    paymentStudentCaseId: string;
+    paymentStudentMembershipId: string;
+    paymentObligationId: string;
+    paymentLabel: string;
+    paymentDueAt: string;
+  }>;
   identities: Readonly<Record<string, Identity>>;
 }>;
 
@@ -139,6 +154,15 @@ if (
   throw new Error("EVO_P6B_BROWSER_PROOF must be 0 or 1");
 }
 const p6bBrowserProof = p6bBrowserProofFlag === "1";
+const p6cBrowserProofFlag = process.env.EVO_P6C_BROWSER_PROOF;
+if (
+  p6cBrowserProofFlag !== undefined &&
+  p6cBrowserProofFlag !== "0" &&
+  p6cBrowserProofFlag !== "1"
+) {
+  throw new Error("EVO_P6C_BROWSER_PROOF must be 0 or 1");
+}
+const p6cBrowserProof = p6cBrowserProofFlag === "1";
 const platformAuthDevRunKey = process.env.EVO_PLATFORM_AUTH_DEV_RUN_KEY;
 const platformAuthBrowserPartition =
   process.env.EVO_PLATFORM_AUTH_BROWSER_PARTITION;
@@ -165,6 +189,7 @@ if (
     "p5f3",
     "p6a",
     "p6b",
+    "p6c",
     "remaining",
   ].includes(
     platformAuthBrowserPartition,
@@ -190,11 +215,12 @@ if (
     Number(p5f1BrowserProof) +
     Number(p5f3BrowserProof) +
     Number(p6aBrowserProof) +
-    Number(p6bBrowserProof) >
+    Number(p6bBrowserProof) +
+    Number(p6cBrowserProof) >
   1
 ) {
   throw new Error(
-    "P5B, P5C, P5D, P5E, P5F1, P5F3, P6A and P6B browser proof partitions are mutually exclusive",
+    "P5B, P5C, P5D, P5E, P5F1, P5F3, P6A, P6B and P6C browser proof partitions are mutually exclusive",
   );
 }
 if (
@@ -232,6 +258,11 @@ if ((platformAuthBrowserPartition === "p6a") !== p6aBrowserProof) {
 if ((platformAuthBrowserPartition === "p6b") !== p6bBrowserProof) {
   throw new Error(
     "EVO_P6B_BROWSER_PROOF must be enabled only for the p6b browser partition",
+  );
+}
+if ((platformAuthBrowserPartition === "p6c") !== p6cBrowserProof) {
+  throw new Error(
+    "EVO_P6C_BROWSER_PROOF must be enabled only for the p6c browser partition",
   );
 }
 if (
@@ -335,6 +366,24 @@ if (
 ) {
   throw new Error("P6B browser proof fixture is invalid");
 }
+if (
+  p6cBrowserProof &&
+  (!uuidPattern.test(fixture.p6c.organizationId) ||
+    fixture.p6c.supabaseSecretKey.length === 0 ||
+    !uuidPattern.test(fixture.p6c.taskStudentCaseId) ||
+    !uuidPattern.test(fixture.p6c.taskStudentMembershipId) ||
+    !uuidPattern.test(fixture.p6c.taskId) ||
+    fixture.p6c.taskTitle.length === 0 ||
+    !Number.isFinite(Date.parse(fixture.p6c.taskDueAt)) ||
+    !uuidPattern.test(fixture.p6c.paymentStudentCaseId) ||
+    !uuidPattern.test(fixture.p6c.paymentStudentMembershipId) ||
+    !uuidPattern.test(fixture.p6c.paymentObligationId) ||
+    fixture.p6c.paymentLabel.length === 0 ||
+    !Number.isFinite(Date.parse(fixture.p6c.paymentDueAt)) ||
+    Buffer.byteLength(fixture.p6c.workerTriggerSecret, "utf8") < 32)
+) {
+  throw new Error("P6C browser proof fixture is invalid");
+}
 
 const platformMessagingProof =
   p5bBrowserProof ||
@@ -383,7 +432,14 @@ export default defineConfig({
       EVO_UI_CONTRACT_FIXTURES: "0",
       EVO_DB_PATH: legacySentinel,
       EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED: p6aBrowserProof ? "1" : "0",
-      EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED: p6bBrowserProof ? "1" : "0",
+      EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED:
+        p6bBrowserProof || p6cBrowserProof ? "1" : "0",
+      EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED: p6cBrowserProof
+        ? "1"
+        : "0",
+      EVO_PLATFORM_P6C_OVERDUE_TRIGGER_SECRET: p6cBrowserProof
+        ? fixture.p6c.workerTriggerSecret
+        : "",
       EVO_PLATFORM_WAHA_INGRESS_ENABLED:
         p5bBrowserProof ||
         p5dBrowserProof ||
@@ -404,11 +460,14 @@ export default defineConfig({
           ? fixture.p5d.organizationId
           : fixture.p5b.organizationId
         : "",
-      EVO_PLATFORM_SUPABASE_SECRET_KEY: platformMessagingProof
-        ? p5dBrowserProof
-          ? fixture.p5d.supabaseSecretKey
-          : fixture.p5b.supabaseSecretKey
-        : "",
+      EVO_PLATFORM_SUPABASE_SECRET_KEY:
+        platformMessagingProof || p6cBrowserProof
+          ? p5dBrowserProof
+            ? fixture.p5d.supabaseSecretKey
+            : p6cBrowserProof
+              ? fixture.p6c.supabaseSecretKey
+              : fixture.p5b.supabaseSecretKey
+          : "",
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET:
         p5bBrowserProof || p5dBrowserProof || p5eBrowserProof || p5f3BrowserProof
         ? p5dBrowserProof

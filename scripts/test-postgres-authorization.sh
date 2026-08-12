@@ -16,8 +16,17 @@ p2h_download_order_mutation_log="$(
 p2h_review_order_mutation_log="$(
   mktemp -t evo-p2h-review-order-mutation.XXXXXX
 )"
+p6c_concurrency_setup_log="$(mktemp -t evo-p6c-concurrency-setup.XXXXXX)"
+p6c_concurrency_worker_a_log="$(mktemp -t evo-p6c-concurrency-a.XXXXXX)"
+p6c_concurrency_worker_b_log="$(mktemp -t evo-p6c-concurrency-b.XXXXXX)"
+p6c_concurrency_assert_log="$(mktemp -t evo-p6c-concurrency-assert.XXXXXX)"
+p6c_concurrency_worker_a_pid=""
 
 cleanup() {
+  if [[ -n "$p6c_concurrency_worker_a_pid" ]]; then
+    kill "$p6c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
+    wait "$p6c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
+  fi
   node "$deadline_runner" 30000 docker rm -f "$container_name" \
     >/dev/null 2>&1 || true
   rm -f -- \
@@ -25,7 +34,11 @@ cleanup() {
     "$p2h_acl_mutation_log" \
     "$p2h_policy_mutation_log" \
     "$p2h_download_order_mutation_log" \
-    "$p2h_review_order_mutation_log"
+    "$p2h_review_order_mutation_log" \
+    "$p6c_concurrency_setup_log" \
+    "$p6c_concurrency_worker_a_log" \
+    "$p6c_concurrency_worker_b_log" \
+    "$p6c_concurrency_assert_log"
 }
 trap cleanup EXIT
 
@@ -699,6 +712,119 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_student_portal_notifications_rls.sql
+  fi
+
+  # P6C adds a disabled-by-default transition producer over explicit task and
+  # payment due data. Prove bounded task-before-payment processing, immutable
+  # replay, episode resolution/reopen, self-only v2 read/ack and zero delivery
+  # intent at migration 069.
+  if [[ "$(basename "$migration")" == 069_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_portal_overdue_notifications_rls.sql
+
+    # Exercise the cross-worker lease with two genuinely overlapping database
+    # sessions. Worker A owns the enabled organization's control-row lock;
+    # worker B must finish a distinct request with zero work while that lock is
+    # still held. A transaction-scoped advisory lock is only a readiness marker
+    # for this harness; production arbitration remains the control-row lock.
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v p6c_concurrency_setup=1 \
+      -f /workspace/supabase/tests/platform_student_portal_overdue_notifications_concurrency.sql \
+      >"$p6c_concurrency_setup_log" 2>&1
+
+    node "$deadline_runner" 30000 docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -c "BEGIN;
+          SELECT control.organization_id
+          FROM platform_private.student_portal_overdue_notification_runtime_controls AS control
+          JOIN platform.case_tasks AS task
+            ON task.organization_id = control.organization_id
+          WHERE task.id = '46906900-0000-4000-8000-000000000010'
+          FOR UPDATE OF control;
+          SELECT pg_advisory_xact_lock(469069001);
+          SELECT pg_sleep(12);
+          SET LOCAL request.jwt.claims = '{\"role\":\"service_role\"}';
+          SET LOCAL ROLE service_role;
+          SELECT platform.process_student_portal_overdue_notifications_v1(
+            '46906900-0000-4000-8000-000000000020',
+            'p6c:concurrent-a'
+          );
+          COMMIT;" \
+      >"$p6c_concurrency_worker_a_log" 2>&1 &
+    p6c_concurrency_worker_a_pid=$!
+
+    p6c_concurrency_ready=0
+    for _ in {1..50}; do
+      p6c_concurrency_marker="$({
+        node "$deadline_runner" 3000 docker exec "$container_name" \
+          psql -X -qAt -v ON_ERROR_STOP=1 \
+          -h 127.0.0.1 -U postgres -d "$test_database" \
+          -c "SELECT count(*)
+              FROM pg_locks
+              WHERE locktype = 'advisory'
+                AND database = (
+                  SELECT oid FROM pg_database WHERE datname = current_database()
+                )
+                AND classid = 0
+                AND objid = 469069001
+                AND objsubid = 1
+                AND granted;" 2>/dev/null
+      } || true)"
+      if [[ "$p6c_concurrency_marker" == "1" ]]; then
+        p6c_concurrency_ready=1
+        break
+      fi
+      sleep 0.1
+    done
+
+    if [[ "$p6c_concurrency_ready" != "1" ]]; then
+      echo "P6C lock-owning worker did not reach the overlap marker." >&2
+      cat "$p6c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! node "$deadline_runner" 8000 docker exec "$container_name" \
+      psql -X -qAt -v ON_ERROR_STOP=1 \
+      -h 127.0.0.1 -U postgres -d "$test_database" \
+      -c "BEGIN;
+          SET LOCAL request.jwt.claims = '{\"role\":\"service_role\"}';
+          SET LOCAL ROLE service_role;
+          SELECT platform.process_student_portal_overdue_notifications_v1(
+            '46906900-0000-4000-8000-000000000021',
+            'p6c:concurrent-b'
+          );
+          COMMIT;" \
+      >"$p6c_concurrency_worker_b_log" 2>&1; then
+      echo "P6C overlapping worker did not finish within its bound." >&2
+      cat "$p6c_concurrency_worker_b_log" >&2
+      exit 1
+    fi
+
+    if ! kill -0 "$p6c_concurrency_worker_a_pid" >/dev/null 2>&1; then
+      echo "P6C lock-owning worker ended before the overlapping call." >&2
+      cat "$p6c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! wait "$p6c_concurrency_worker_a_pid"; then
+      p6c_concurrency_worker_a_pid=""
+      echo "P6C lock-owning worker failed." >&2
+      cat "$p6c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+    p6c_concurrency_worker_a_pid=""
+
+    if ! docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v p6c_concurrency_assert=1 \
+      -f /workspace/supabase/tests/platform_student_portal_overdue_notifications_concurrency.sql \
+      >"$p6c_concurrency_assert_log" 2>&1; then
+      echo "P6C concurrent-worker durable-state assertions failed." >&2
+      cat "$p6c_concurrency_assert_log" >&2
+      exit 1
+    fi
   fi
 done < <(
   cd "$repo_root"

@@ -24,6 +24,8 @@ const PLATFORM_WAHA_MEDIA_PATH =
   "/api/internal/platform-messaging/waha/media";
 const PLATFORM_WAHA_AUTONOMOUS_REPLY_PATH =
   "/api/internal/platform-messaging/waha/autonomous-reply";
+const PLATFORM_PORTAL_OVERDUE_PATH =
+  "/api/internal/platform-operations/portal-overdue";
 
 function nextResponse(requestHeaders: Headers) {
   return NextResponse.next({
@@ -122,7 +124,8 @@ export async function proxy(request: NextRequest) {
     path === PLATFORM_WAHA_WORKER_PATH ||
     path === PLATFORM_WAHA_HISTORY_PATH ||
     path === PLATFORM_WAHA_MEDIA_PATH ||
-    path === PLATFORM_WAHA_AUTONOMOUS_REPLY_PATH
+    path === PLATFORM_WAHA_AUTONOMOUS_REPLY_PATH ||
+    path === PLATFORM_PORTAL_OVERDUE_PATH
   ) {
     // These exact private service-to-service endpoints own their own HMAC or
     // bearer-secret checks. They must not be redirected into the staff-cookie

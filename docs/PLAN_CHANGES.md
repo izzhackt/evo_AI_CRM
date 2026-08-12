@@ -5563,3 +5563,72 @@ Blocked proof and rollback:
   application-safe 128-character `requirement_key` boundary before projection.
   The synthetic P6B fixture alone enables the private organization control;
   production and every unrelated environment remain disabled.
+
+## 2026-08-12 - Implement P6C as one bounded task-then-payment overdue producer
+
+Block-ID: `EVO-P6C-OVERDUE-NOTIFICATIONS-2026-08-12`
+
+Accepted prerequisite and scope:
+
+- PR `#149` merged P6B as
+  `a31d2753aa94e90f6155c9cf6d5602d984befc65`; exact-main CI run
+  `31614233491` passed all four jobs. P6C therefore starts from the accepted
+  durable self-only Portal notification/read/Realtime contract.
+- The already merged P6 contract authorizes one P6C implementation slice with
+  explicit Platform tasks first and explicit payment obligations second. It
+  does not authorize inferred application deadlines, read-time synthesis,
+  WhatsApp delivery, amoCRM inference or production scheduler activation.
+
+Implementation decision:
+
+- Add additive migration `069` with private forced-RLS runtime controls,
+  transition state and bounded run audit plus an overdue-specific notification
+  projection. No organization is enabled by the migration. An enabled
+  organization must name one live Admin automation-owner membership; the run
+  audit also records the service worker identity.
+- A task is overdue only when it is Student-visible, has an explicit due time
+  before the transaction clock and remains `open`, `in_progress` or `blocked`.
+  A payment is overdue only when its explicit due time has passed and exact
+  evidence-backed outstanding minor units remain after confirmed payments and
+  refunds. Application deadlines stay excluded.
+- Treat each false-to-true transition as a new overdue episode. Increment a
+  per-source transition version and publish exactly one durable notification
+  for that version. Repeated true observations are no-ops; true-to-false marks
+  the private state resolved without deleting notification or audit history;
+  a later false-to-true transition publishes the next version.
+- Lock and recheck every candidate in the same transaction that records its
+  transition and publishes the notification. Process a fixed maximum of 50
+  tasks first and then 50 payments in one run. Exact request replay is
+  immutable and concurrent workers cannot duplicate an episode.
+- Add actor-derived `student_portal_notifications_v2()` and v2 read
+  acknowledgement over the union of accepted P6B document-review rows and P6C
+  task/payment rows. Preserve the v1 RPCs. Reuse the accepted private
+  membership-scoped Realtime topic with an empty invalidation payload; no
+  source, case, organization, member, amount or provider identifier enters the
+  public DTO or DOM.
+- Add one disabled-by-default server worker and bodyless internal trigger. The
+  exact runtime flag must equal `1`, the private organization control must be
+  enabled, and the request UUID, 13-digit timestamp and lowercase HMAC over
+  `<request-id>.<timestamp>` must pass the accepted bounded-skew contract. The
+  caller supplies no organization, batch size, clock, source ID or content.
+- The dedicated disposable P6C browser partition alone enables the runtime and
+  one synthetic organization control. Every other partition keeps P6C off.
+  No production cron, scheduler, environment mutation or customer data is in
+  scope.
+
+Validation and rollback:
+
+- Prove disabled/absent controls, before-due, first-overdue, exact replay,
+  duplicate/concurrent run, resolution and reopened episodes for tasks and
+  payments; partial payment, full settlement and evidence-backed refund;
+  task-before-payment ordering; P6B compatibility; two same-organization
+  Students and one cross-organization Student; private topic/read denial; live
+  invalidation and persisted acknowledgement; and absence of delivery intent,
+  WAHA, amoCRM, SQLite or provider writes.
+- Require Node `22.23.1` focused/unit/security tests, disposable PostgreSQL/RLS,
+  the singleton full Supabase/browser gate, lint, typegen, TypeScript, build,
+  scenario tests, staged secret scan, dependency audits, one fresh exact-head
+  independent review, all four exact-head CI jobs and green exact-main CI.
+- Rollback keeps both application and database controls disabled, removes only
+  application/scheduler wiring, and forward-fixes additive schema without
+  deleting transition, notification, read or audit history.

@@ -9,6 +9,7 @@ import type {
   StudentPortalDocument,
   StudentPortalNextAction,
   StudentPortalNotification,
+  StudentPortalNotificationV2,
   StudentPortalPayment,
   StudentPortalSection,
   StudentPortalSnapshot,
@@ -26,6 +27,7 @@ import type {
   VisaStatus,
 } from "./domain";
 import { isPlatformP6BPortalNotificationsEnabled } from "./server/platform-p6b-portal-notifications.ts";
+import { isPlatformP6COverdueNotificationsEnabled } from "./server/platform-p6c-overdue-config.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -85,6 +87,7 @@ export type PlatformPortalRepositoryOptions = Readonly<{
   client?: PlatformPortalRpcClient;
   generatedAt?: string;
   notificationsEnabled?: boolean;
+  notificationsVersion?: "v1" | "v2";
 }>;
 
 type PortalProfile = Readonly<{
@@ -589,6 +592,50 @@ function normalizePortalNotification(
   };
 }
 
+function normalizePortalNotificationV2(
+  value: unknown,
+): StudentPortalNotificationV2 {
+  if (!isRecord(value)) return invalidShape();
+  if (
+    Object.keys(value).sort().join(",") !==
+    "category,created_at,detail,due_at,event_code,notification_id,read_at,subject_label"
+  ) {
+    return invalidShape();
+  }
+  const category = oneOf(value.category, [
+    "document.review",
+    "task.overdue",
+    "payment.overdue",
+  ] as const);
+  const readAt = optionalTimestamp(value.read_at);
+  const common = {
+    id: requiredUuid(value.notification_id),
+    subjectLabel: requiredSingleLineText(value.subject_label, 300),
+    detail: requiredSingleLineText(value.detail, 2000),
+    createdAt: requiredTimestamp(value.created_at),
+    readAt,
+    isRead: readAt !== null,
+  };
+  if (category === "document.review") {
+    if (value.due_at !== null) return invalidShape();
+    return {
+      ...common,
+      category,
+      eventCode: oneOf(value.event_code, [
+        "correction_required",
+        "rejected",
+      ] as const),
+      dueAt: null,
+    };
+  }
+  return {
+    ...common,
+    category,
+    eventCode: oneOf(value.event_code, ["overdue"] as const),
+    dueAt: requiredTimestamp(value.due_at),
+  };
+}
+
 export function normalizePlatformStudentPortalNotificationAck(
   value: unknown,
   expectedNotificationId: string,
@@ -860,6 +907,7 @@ export function normalizePlatformStudentPortalSnapshot(input: Readonly<{
   updates: unknown;
   finance: unknown;
   notifications?: unknown;
+  notificationsVersion?: "v1" | "v2";
   generatedAt?: string;
 }>): StudentPortalSnapshot {
   const profile = normalizeProfile(input.profile);
@@ -894,7 +942,9 @@ export function normalizePlatformStudentPortalSnapshot(input: Readonly<{
     ? undefined
     : normalizeUniqueRows(
         input.notifications,
-        normalizePortalNotification,
+        input.notificationsVersion === "v2"
+          ? normalizePortalNotificationV2
+          : normalizePortalNotification,
         (notification) => notification.id,
       );
   const payments = normalizeUniqueRows(
@@ -1025,6 +1075,29 @@ export async function listPlatformStudentPortalNotifications(
   }
 }
 
+/** Reads only the actor-derived P6C union and rejects every extra SQL key. */
+export async function listPlatformStudentPortalNotificationsV2(
+  actor: PlatformActor,
+  options: Pick<PlatformPortalRepositoryOptions, "client"> = {},
+): Promise<readonly StudentPortalNotificationV2[]> {
+  try {
+    if (actor.platformRole !== "student") return invalidShape();
+    requiredUuid(actor.profileId);
+    requiredUuid(actor.authUserId);
+    requiredUuid(actor.membershipId);
+    requiredUuid(actor.organizationId);
+    const client = options.client ?? (await getPlatformPortalClient());
+    const rows = await readPortalRpc(client, "student_portal_notifications_v2");
+    return normalizeUniqueRows(
+      rows,
+      normalizePortalNotificationV2,
+      (notification) => notification.id,
+    );
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
 /**
  * Loads the complete RLS-scoped portal projection for the current student.
  * A missing profile means no connected case; every malformed, duplicate or
@@ -1053,7 +1126,11 @@ export async function getPlatformStudentPortalSnapshot(
 
     const notificationsEnabled =
       options.notificationsEnabled
-      ?? isPlatformP6BPortalNotificationsEnabled();
+      ?? (isPlatformP6BPortalNotificationsEnabled()
+        || isPlatformP6COverdueNotificationsEnabled());
+    const notificationsVersion =
+      options.notificationsVersion
+      ?? (isPlatformP6COverdueNotificationsEnabled() ? "v2" : "v1");
     const [
       applications,
       visaCases,
@@ -1071,7 +1148,12 @@ export async function getPlatformStudentPortalSnapshot(
         readPortalRpc(client, "student_portal_documents"),
         readPortalRpc(client, "student_portal_finance"),
         notificationsEnabled
-          ? readPortalRpc(client, "student_portal_notifications_v1")
+          ? readPortalRpc(
+              client,
+              notificationsVersion === "v2"
+                ? "student_portal_notifications_v2"
+                : "student_portal_notifications_v1",
+            )
           : Promise.resolve(undefined),
       ]);
 
@@ -1084,6 +1166,7 @@ export async function getPlatformStudentPortalSnapshot(
       updates,
       finance,
       notifications,
+      notificationsVersion,
       generatedAt: options.generatedAt,
     });
   } catch (error) {

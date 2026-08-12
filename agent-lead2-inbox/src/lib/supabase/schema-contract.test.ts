@@ -138,6 +138,13 @@ const platformStudentPortalNotificationsMigration = readFileSync(
   join(migrationsDir, '068_platform_student_portal_notifications.sql'),
   'utf8'
 )
+const platformStudentPortalOverdueNotificationsMigration = readFileSync(
+  join(
+    migrationsDir,
+    '069_platform_student_portal_overdue_notifications.sql'
+  ),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -155,7 +162,7 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '068_platform_student_portal_notifications.sql'
+      '069_platform_student_portal_overdue_notifications.sql'
     )
     for (const table of [
       'waha_history_reconciliation_runs',
@@ -545,6 +552,79 @@ describe('Supabase companion schema contract', () => {
     )
     expect(platformStudentPortalNotificationsMigration).not.toMatch(
       /INSERT\s+INTO\s+platform\.notification_delivery_intents/i
+    )
+  })
+
+  it('keeps P6C overdue publication bounded, private, and actor-derived', () => {
+    for (const table of [
+      'student_portal_overdue_notification_runtime_controls',
+      'student_portal_overdue_transition_state',
+      'student_portal_overdue_notification_runs',
+    ]) {
+      expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+        new RegExp(
+          `CREATE\\s+TABLE\\s+platform_private\\.${table}`,
+          'i'
+        )
+      )
+      expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY[\\s\\S]*?ALTER\\s+TABLE\\s+platform_private\\.${table}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+    expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+      /CREATE\s+TABLE\s+platform_private\.student_portal_overdue_notification_runtime_controls\s*\([\s\S]*?enabled\s+BOOLEAN\s+NOT\s+NULL\s+DEFAULT\s+FALSE[\s\S]*?automation_owner_membership_id\s+UUID\s+NOT\s+NULL/i
+    )
+    expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.process_student_portal_overdue_notifications_v1\s*\(\s*p_request_id\s+UUID,\s*p_worker_id\s+TEXT\s*\)[\s\S]*?FOR\s+UPDATE\s+OF\s+control\s+SKIP\s+LOCKED[\s\S]*?LIMIT\s+50[\s\S]*?FOR\s+UPDATE\s+OF\s+task\s+SKIP\s+LOCKED[\s\S]*?LIMIT\s+50[\s\S]*?FOR\s+UPDATE\s+OF\s+obligation\s+SKIP\s+LOCKED/i
+    )
+    expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+      /SELECT\s+run\.result,\s*run\.worker_id\s+INTO\s+replayed,\s*replay_worker_id[\s\S]*?replay_worker_id\s+IS\s+DISTINCT\s+FROM\s+p_worker_id[\s\S]*?ERRCODE\s*=\s*'22023'/i
+    )
+    for (const trigger of [
+      'student_portal_overdue_runs_append_only',
+      'student_portal_overdue_runs_no_truncate',
+      'student_portal_overdue_projection_append_only',
+      'student_portal_overdue_projection_no_truncate',
+    ]) {
+      expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+        new RegExp(
+          `CREATE\\s+TRIGGER\\s+${trigger}[\\s\\S]*?platform_private\\.block_append_only_mutation\\s*\\(\\s*\\)`,
+          'i'
+        )
+      )
+    }
+    expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+      /CREATE\s+INDEX\s+case_tasks_student_overdue_scan_idx\s+ON\s+platform\.case_tasks\s*\(\s*organization_id,\s*due_at,\s*id\s*\)[\s\S]*?WHERE\s+student_visible[\s\S]*?status\s+IN\s*\(\s*'open',\s*'in_progress',\s*'blocked'\s*\)/i
+    )
+    expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+      /CREATE\s+INDEX\s+payment_obligations_overdue_scan_idx\s+ON\s+platform\.payment_obligations\s*\(\s*organization_id,\s*due_at,\s*id\s*\)[\s\S]*?amount_minor\s*-\s*total_paid_minor\s*\+\s*total_refunded_minor\s*>\s*0/i
+    )
+    expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+      /SET\s+is_overdue\s*=\s*FALSE,[\s\S]*?observed_due_at\s*=\s*COALESCE\s*\(\s*candidate\.due_at,\s*state\.observed_due_at\s*\)/i
+    )
+    expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.student_portal_notifications_v2\s*\(\s*\)[\s\S]*?notification_id\s+UUID,\s*category\s+TEXT,\s*event_code\s+TEXT,\s*subject_label\s+TEXT,\s*detail\s+TEXT,\s*due_at\s+TIMESTAMPTZ,\s*created_at\s+TIMESTAMPTZ,\s*read_at\s+TIMESTAMPTZ/i
+    )
+    expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.mark_own_student_portal_notification_read_v2\s*\(\s*p_notification_id\s+UUID,\s*p_request_id\s+UUID\s*\)[\s\S]*?platform_can_read_student_portal_case/i
+    )
+    expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.process_student_portal_overdue_notifications_v1\s*\(\s*UUID,\s*TEXT\s*\)\s+TO\s+service_role/i
+    )
+    expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.student_portal_notifications_v2\s*\(\s*\)\s+TO\s+authenticated/i
+    )
+    expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
+      /student_portal_notification_projection_v1[\s\S]*?student_portal_overdue_notification_projection_v1[\s\S]*?ERRCODE\s*=\s*'42501'/i
+    )
+    expect(platformStudentPortalOverdueNotificationsMigration).not.toMatch(
+      /INSERT\s+INTO\s+platform\.notification_delivery_intents/i
+    )
+    expect(platformStudentPortalOverdueNotificationsMigration).not.toMatch(
+      /(?:waha|amocrm|sqlite)/i
     )
   })
 

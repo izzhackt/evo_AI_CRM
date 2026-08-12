@@ -2489,6 +2489,37 @@ const main = async () => {
     "p6b-staff-document-after-submission-values",
   );
 
+  const p6cTaskTitle = "Synthetic overdue document follow-up";
+  const p6cTaskDueAt = new Date(
+    Date.now() - 2 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const p6cTask = await rpc(
+    identities.adminA,
+    "create_case_task",
+    [
+      adminAMembership.organization_id,
+      p6bStudentCaseId,
+      "document_follow_up",
+      p6cTaskTitle,
+      roleMembers.curator.id,
+      "high",
+      p6cTaskDueAt,
+      "open",
+      true,
+      randomUUID(),
+    ],
+  );
+  const p6cTaskId = p6cTask?.case_task_id;
+  sqlUuid(p6cTaskId, "p6c-overdue-task-id");
+  assert(
+      p6cTask?.student_case_id === p6bStudentCaseId &&
+      p6cTask?.title === p6cTaskTitle &&
+      Date.parse(p6cTask?.due_at) === Date.parse(p6cTaskDueAt) &&
+      p6cTask?.status === "open" &&
+      p6cTask?.student_visible === true,
+    "p6c-overdue-task-create",
+  );
+
   const orgAConversation = createSyntheticConversationFixture({
     organizationId: adminAMembership.organization_id,
     studentCaseId: orgAStudentCaseId,
@@ -3823,6 +3854,7 @@ const main = async () => {
     const p5dIngressHmacSecret = randomBytes(48).toString("base64url");
     const p5dWorkerTriggerSecret = randomBytes(48).toString("base64url");
     const p5f3AutonomousReplyTriggerSecret = randomBytes(48).toString("base64url");
+    const p6cWorkerTriggerSecret = randomBytes(48).toString("base64url");
     writeFileSync(
       browserFixturePath,
       JSON.stringify({
@@ -3869,6 +3901,21 @@ const main = async () => {
           requirementKey: bw3Document.requirementKey,
           requirementLabel: bw3Document.label,
           reviewReason: p6bReviewReason,
+        },
+        p6c: {
+          organizationId: adminAMembership.organization_id,
+          supabaseSecretKey: serviceRoleKey,
+          workerTriggerSecret: p6cWorkerTriggerSecret,
+          taskStudentCaseId: p6bStudentCaseId,
+          taskStudentMembershipId: p6bStudentMembership.id,
+          taskId: p6cTaskId,
+          taskTitle: p6cTaskTitle,
+          taskDueAt: p6cTaskDueAt,
+          paymentStudentCaseId: orgAStudentCaseId,
+          paymentStudentMembershipId: roleMembers.student.id,
+          paymentObligationId: p6aOverduePaymentObligationId,
+          paymentLabel: p6aOverduePaymentLabel,
+          paymentDueAt: p6aOverduePaymentDueAt,
         },
         p5f3: {
           autonomousReplyTriggerSecret: p5f3AutonomousReplyTriggerSecret,

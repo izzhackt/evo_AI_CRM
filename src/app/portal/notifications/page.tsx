@@ -19,6 +19,7 @@ import {
   shouldShowPortalNextActionForP6A,
 } from "@/lib/server/platform-p6a-portal-attention";
 import { isPlatformP6BPortalNotificationsEnabled } from "@/lib/server/platform-p6b-portal-notifications";
+import { isPlatformP6COverdueNotificationsEnabled } from "@/lib/server/platform-p6c-overdue-config";
 
 export default async function PortalNotificationsPage({
   searchParams,
@@ -31,8 +32,10 @@ export default async function PortalNotificationsPage({
   if (!snapshot) return <PortalMissingCase copy={copy} />;
 
   const portalAttentionEnabled = isPlatformP6APortalAttentionEnabled();
+  const overdueNotificationsEnabled =
+    isPlatformP6COverdueNotificationsEnabled();
   const durableNotificationsEnabled =
-    isPlatformP6BPortalNotificationsEnabled();
+    isPlatformP6BPortalNotificationsEnabled() || overdueNotificationsEnabled;
   const visibleNextAction =
     snapshot.nextAction &&
     shouldShowPortalNextActionForP6A(
@@ -49,8 +52,10 @@ export default async function PortalNotificationsPage({
       <PortalPageHeader
         title={copy.notificationsTitle}
         description={
-          durableNotificationsEnabled
-            ? copy.notificationsP6BDescription
+          overdueNotificationsEnabled
+            ? copy.notificationsP6CDescription
+            : durableNotificationsEnabled
+              ? copy.notificationsP6BDescription
             : portalAttentionEnabled
             ? copy.notificationsP6ADescription
             : copy.notificationsDescription

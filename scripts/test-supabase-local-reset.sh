@@ -49,6 +49,7 @@ readonly P5F1_BROWSER_TEST="P5F1 persists staff-controlled memory and degraded l
 readonly P5F3_BROWSER_TEST="P5F3 persists and reconciles one synthetic autonomous reply in the accepted conversation UI"
 readonly P6A_BROWSER_TEST="P6A exposes read-only overdue Portal attention without notification or provider controls"
 readonly P6B_BROWSER_TEST="P6B turns an authenticated staff document review into one live durable Student notification"
+readonly P6C_BROWSER_TEST="P6C publishes deterministic overdue task and payment notifications through the signed worker"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -57,6 +58,7 @@ stack_owned=false
 inbox_fingerprint_recorded=false
 browser_gate_started=false
 p5f3_policy_clock_overridden=false
+p6c_runtime_control_enabled=false
 
 run_with_deadline() {
   local timeout_ms=$1
@@ -69,7 +71,7 @@ prepare_platform_auth_tsconfig() {
   local tsconfig_path="${BROWSER_BUILD_DIR}/tsconfig-platform-auth-${partition}.json"
 
   case "${partition}" in
-    provider|p5b|p5c|p5d|p5e|p5f1|p5f3|p6a|p6b|remaining) ;;
+    provider|p5b|p5c|p5d|p5e|p5f1|p5f3|p6a|p6b|p6c|remaining) ;;
     *) return 1 ;;
   esac
 
@@ -91,6 +93,82 @@ fs.writeFileSync(outputPath, JSON.stringify(payload, null, 2) + "\n", {
 });
 fs.chmodSync(outputPath, 0o600);
 NODE
+}
+
+set_p6c_runtime_control() {
+  local mode=$1
+  local control_log="${TEMP_DIR}/p6c-runtime-control-${mode}.log"
+
+  if [[ "${mode}" == "enable" ]]; then
+    if ! run_with_deadline 30000 docker exec -i \
+      "${DATABASE_CONTAINER}" \
+      psql \
+      -X \
+      --no-psqlrc \
+      -qAt \
+      -v ON_ERROR_STOP=1 \
+      -U postgres \
+      -d postgres \
+      >"${control_log}" 2>&1 <<'SQL'
+WITH synthetic_control AS (
+  SELECT
+    organization.id AS organization_id,
+    membership.id AS automation_owner_membership_id
+  FROM platform.organizations AS organization
+  JOIN platform.organization_memberships AS membership
+    ON membership.organization_id = organization.id
+   AND membership."current_role" = 'admin'::platform.business_role
+   AND membership.status = 'active'::platform.membership_status
+  WHERE organization.name = 'EVO P2C Synthetic Organization A'
+  ORDER BY membership.created_at, membership.id
+  LIMIT 1
+)
+INSERT INTO platform_private.student_portal_overdue_notification_runtime_controls (
+  organization_id,
+  enabled,
+  automation_owner_membership_id,
+  updated_at
+)
+SELECT
+  synthetic_control.organization_id,
+  TRUE,
+  synthetic_control.automation_owner_membership_id,
+  statement_timestamp()
+FROM synthetic_control
+ON CONFLICT (organization_id) DO UPDATE
+SET enabled = EXCLUDED.enabled,
+    automation_owner_membership_id = EXCLUDED.automation_owner_membership_id,
+    updated_at = EXCLUDED.updated_at;
+SQL
+    then
+      return 1
+    fi
+    p6c_runtime_control_enabled=true
+    return 0
+  fi
+
+  [[ "${mode}" == "disable" ]] || return 1
+  if ! run_with_deadline 30000 docker exec -i \
+    "${DATABASE_CONTAINER}" \
+    psql \
+    -X \
+    --no-psqlrc \
+    -qAt \
+    -v ON_ERROR_STOP=1 \
+    -U postgres \
+    -d postgres \
+    >"${control_log}" 2>&1 <<'SQL'
+DELETE FROM platform_private.student_portal_overdue_notification_runtime_controls
+WHERE organization_id = (
+  SELECT organization.id
+  FROM platform.organizations AS organization
+  WHERE organization.name = 'EVO P2C Synthetic Organization A'
+);
+SQL
+  then
+    return 1
+  fi
+  p6c_runtime_control_enabled=false
 }
 
 refresh_synthetic_browser_health() {
@@ -545,6 +623,12 @@ cleanup() {
 
   if [[ "${p5f3_policy_clock_overridden}" == true ]]; then
     if ! restore_p5f3_policy_clock; then
+      cleanup_failed=true
+    fi
+  fi
+
+  if [[ "${p6c_runtime_control_enabled}" == true ]]; then
+    if ! set_p6c_runtime_control disable; then
       cleanup_failed=true
     fi
   fi
@@ -1097,7 +1181,7 @@ fi
   || fail "Storage gate did not delete the credential-bearing local status file."
 
 refresh_synthetic_browser_health
-for browser_partition in provider p5b p5c p5d p5e p5f1 p5f3 p6a p6b remaining; do
+for browser_partition in provider p5b p5c p5d p5e p5f1 p5f3 p6a p6b p6c remaining; do
   prepare_platform_auth_tsconfig "${browser_partition}" \
     || fail "Unable to create the disposable ${browser_partition} browser tsconfig."
 done
@@ -1114,8 +1198,10 @@ if ! run_with_deadline 240000 env \
   EVO_P5F3_BROWSER_PROOF=0 \
   EVO_P6A_BROWSER_PROOF=0 \
   EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=provider \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-provider.json" \
@@ -1138,8 +1224,10 @@ if ! run_with_deadline 240000 env \
   EVO_P5F3_BROWSER_PROOF=0 \
   EVO_P6A_BROWSER_PROOF=0 \
   EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5b \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5b.json" \
@@ -1163,8 +1251,10 @@ if ! run_with_deadline 240000 env \
   EVO_P5F3_BROWSER_PROOF=0 \
   EVO_P6A_BROWSER_PROOF=0 \
   EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5d \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5d.json" \
@@ -1188,8 +1278,10 @@ if ! run_with_deadline 240000 env \
   EVO_P5F3_BROWSER_PROOF=0 \
   EVO_P6A_BROWSER_PROOF=0 \
   EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5c \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5c.json" \
@@ -1213,8 +1305,10 @@ if ! run_with_deadline 240000 env \
   EVO_P5F3_BROWSER_PROOF=0 \
   EVO_P6A_BROWSER_PROOF=0 \
   EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5e \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5e.json" \
@@ -1238,8 +1332,10 @@ if ! run_with_deadline 240000 env \
   EVO_P5F3_BROWSER_PROOF=0 \
   EVO_P6A_BROWSER_PROOF=0 \
   EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5f1 \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5f1.json" \
@@ -1266,8 +1362,10 @@ if ! run_with_deadline 240000 env \
   EVO_P5F3_BROWSER_PROOF=1 \
   EVO_P6A_BROWSER_PROOF=0 \
   EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5f3 \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p5f3.json" \
@@ -1294,8 +1392,10 @@ if ! run_with_deadline 240000 env \
   EVO_P5F3_BROWSER_PROOF=0 \
   EVO_P6A_BROWSER_PROOF=1 \
   EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=1 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_AMOCRM_READ_ENABLED=0 \
   EVO_PLATFORM_GEMINI_PROPOSALS_ENABLED=0 \
   EVO_PLATFORM_WAHA_INGRESS_ENABLED=0 \
@@ -1328,8 +1428,10 @@ if ! run_with_deadline 240000 env \
   EVO_P5F3_BROWSER_PROOF=0 \
   EVO_P6A_BROWSER_PROOF=0 \
   EVO_P6B_BROWSER_PROOF=1 \
+  EVO_P6C_BROWSER_PROOF=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=1 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_AMOCRM_READ_ENABLED=0 \
   EVO_PLATFORM_GEMINI_PROPOSALS_ENABLED=0 \
   EVO_PLATFORM_WAHA_INGRESS_ENABLED=0 \
@@ -1353,6 +1455,48 @@ fi
 if ! stop_exact_browser_server; then
   fail "The exact-worktree Platform browser server did not stop after the P6B browser partition."
 fi
+if ! set_p6c_runtime_control enable; then
+  fail "Unable to enable the exact synthetic P6C organization runtime control; output was withheld."
+fi
+if ! run_with_deadline 240000 env \
+  EVO_P5B_BROWSER_PROOF=0 \
+  EVO_P5C_BROWSER_PROOF=0 \
+  EVO_P5D_BROWSER_PROOF=0 \
+  EVO_P5E_BROWSER_PROOF=0 \
+  EVO_P5F1_BROWSER_PROOF=0 \
+  EVO_P5F3_BROWSER_PROOF=0 \
+  EVO_P6A_BROWSER_PROOF=0 \
+  EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=1 \
+  EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
+  EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=1 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=1 \
+  EVO_PLATFORM_AMOCRM_READ_ENABLED=0 \
+  EVO_PLATFORM_GEMINI_PROPOSALS_ENABLED=0 \
+  EVO_PLATFORM_WAHA_INGRESS_ENABLED=0 \
+  EVO_PLATFORM_WAHA_WORKER_ENABLED=0 \
+  EVO_PLATFORM_WAHA_HISTORY_ENABLED=0 \
+  EVO_PLATFORM_WAHA_MEDIA_ENABLED=0 \
+  EVO_PLATFORM_AI_MEMORY_ENABLED=0 \
+  EVO_PLATFORM_AUTONOMOUS_REPLIES_ENABLED=0 \
+  EVO_PLATFORM_AUTONOMOUS_REPLIES_KILL_SWITCH=1 \
+  EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
+  EVO_PLATFORM_AUTH_BROWSER_PARTITION=p6c \
+  EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p6c.json" \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep "${P6C_BROWSER_TEST}"; then
+  fail "P6C signed overdue task/payment notification browser proof failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop after the P6C browser partition."
+fi
+if ! set_p6c_runtime_control disable; then
+  fail "Unable to disable the exact synthetic P6C organization runtime control; output was withheld."
+fi
 if ! run_with_deadline 660000 env \
   EVO_P5B_BROWSER_PROOF=0 \
   EVO_P5C_BROWSER_PROOF=0 \
@@ -1362,8 +1506,10 @@ if ! run_with_deadline 660000 env \
   EVO_P5F3_BROWSER_PROOF=0 \
   EVO_P6A_BROWSER_PROOF=0 \
   EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
   EVO_PLATFORM_AUTH_BROWSER_PARTITION=remaining \
   EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-remaining.json" \
@@ -1372,7 +1518,7 @@ if ! run_with_deadline 660000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}"; then
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}"; then
   fail "Remaining real browser Platform Auth/staff-shell gate failed."
 fi
 if ! stop_exact_browser_server; then
@@ -1397,3 +1543,4 @@ printf 'Verified real local PGMQ claims, visibility, retries, terminal unknown h
 printf 'Verified signed WAHA ACK/session projection and private Realtime invalidation update the accepted UI without a page reload; provider execution remains unproved.\n'
 printf 'Verified staff-controlled P5F1 memory, facts, qualification, takeover controls and degraded lexical evidence in the accepted UI; provider execution and autonomous authority remain unproved.\n'
 printf 'Verified one synthetic Student P6A read-only overdue Portal attention path plus same-organization no-case and query-swap denials; this is not the P6D two-positive-Student matrix.\n'
+printf 'Verified the disabled-by-default P6C signed worker publishes isolated durable task/payment notifications in task-first order for two same-organization Students without provider or outbound execution.\n'

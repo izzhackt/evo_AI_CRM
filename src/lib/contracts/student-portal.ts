@@ -50,7 +50,7 @@ export type StudentPortalUpdate = {
  * A durable, student-owned in-app notification. Source record, provider,
  * reviewer, topic and document-version identifiers are intentionally absent.
  */
-export type StudentPortalNotification = {
+export type StudentPortalDocumentReviewNotification = {
   readonly id: string;
   readonly category: "document.review";
   readonly decision: "correction_required" | "rejected";
@@ -61,6 +61,35 @@ export type StudentPortalNotification = {
   readonly readAt: DateTimeString | null;
   readonly isRead: boolean;
 };
+
+type StudentPortalNotificationV2Base = {
+  readonly id: string;
+  readonly subjectLabel: string;
+  readonly detail: string;
+  readonly createdAt: DateTimeString;
+  readonly readAt: DateTimeString | null;
+  readonly isRead: boolean;
+};
+
+/**
+ * The P6C browser-safe union. It deliberately has no source, case,
+ * organization, membership, amount, provider, task or payment identifiers.
+ */
+export type StudentPortalNotificationV2 =
+  | (StudentPortalNotificationV2Base & {
+      readonly category: "document.review";
+      readonly eventCode: "correction_required" | "rejected";
+      readonly dueAt: null;
+    })
+  | (StudentPortalNotificationV2Base & {
+      readonly category: "task.overdue" | "payment.overdue";
+      readonly eventCode: "overdue";
+      readonly dueAt: DateTimeString;
+    });
+
+export type StudentPortalNotification =
+  | StudentPortalDocumentReviewNotification
+  | StudentPortalNotificationV2;
 
 export type StudentPortalContact = {
   readonly id: StudentPortalEntityId;

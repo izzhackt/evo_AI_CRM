@@ -6,6 +6,7 @@ import { requirePlatformStudentPortalActor } from "./platform-guards";
 import { getPlatformStudentPortalSnapshot } from "./platform-portal";
 import { isUiContractFixtureMode } from "./runtime-mode";
 import { isPlatformP6BPortalNotificationsEnabled } from "./server/platform-p6b-portal-notifications";
+import { isPlatformP6COverdueNotificationsEnabled } from "./server/platform-p6c-overdue-config";
 
 /**
  * Request-memoized page facade for every accepted /portal page.
@@ -28,7 +29,10 @@ export const getPortalPageData = cache(async () => {
   return {
     user: { name: snapshot.student.name },
     snapshot,
-    notificationsRealtimeScope: isPlatformP6BPortalNotificationsEnabled()
+    notificationsRealtimeScope: (
+      isPlatformP6BPortalNotificationsEnabled()
+      || isPlatformP6COverdueNotificationsEnabled()
+    )
       ? {
           organizationId: actor.organizationId,
           membershipId: actor.membershipId,

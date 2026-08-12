@@ -1387,6 +1387,31 @@ const main = async () => {
     await signIn(identity, "sales");
   }
 
+  const p6dCrossOrgStudentCase = serviceFunctionResult(
+    `platform.create_pending_student_case(
+      ${sqlUuid(adminBMembership.organization_id, "p6d-cross-org-case-org")},
+      ${sqlUuid(crossOrgStudentMembership.id, "p6d-cross-org-case-student")},
+      ${sqlUuid(salesBMembership.id, "p6d-cross-org-case-sales")},
+      'synthetic-local-fixture-p6d-cross-org',
+      'synthetic-contract:p6d-cross-org:confirmed',
+      statement_timestamp(),
+      'P6D Cross-organization Student',
+      'Germany',
+      'Master',
+      'Synthetic cross-organization program',
+      '2027',
+      'en',
+      'self-funded',
+      'contract_confirmed',
+      'Remain isolated from the Organization A P6D proof',
+      ${sqlUuid(randomUUID(), "p6d-cross-org-case-request")}
+    )`,
+    "p6d-cross-org-case-create",
+  );
+  const p6dCrossOrgStudentCaseId =
+    p6dCrossOrgStudentCase?.student_case_id;
+  sqlUuid(p6dCrossOrgStudentCaseId, "p6d-cross-org-student-case-id");
+
   // P4A: prove the real local PostgREST grant boundary without contacting an
   // amoCRM provider. Only the service JWT may persist a sanitized immutable
   // snapshot; only a live same-organization Admin may read it.
@@ -1826,6 +1851,38 @@ const main = async () => {
     ),
     "p6a-student-portal-finance-overdue",
   );
+
+  const p6dApplicationLabels = [
+    "P6D Synthetic North University — Applied Computing",
+    "P6D Synthetic West Institute — Data Systems",
+  ];
+  const p6dApplications = [];
+  for (const [index, label] of p6dApplicationLabels.entries()) {
+    const [institutionName, programName] = label.split(" — ");
+    const application = await rpc(
+      identities.adminA,
+      "create_university_application",
+      [
+        adminAMembership.organization_id,
+        orgAStudentCaseId,
+        institutionName,
+        programName,
+        index === 0 ? "submitted" : "under_review",
+        `synthetic:p6d:application:${index + 1}`,
+        "Synthetic local application fixture; no provider was contacted",
+        randomUUID(),
+      ],
+    );
+    const applicationId = application?.university_application_id;
+    sqlUuid(applicationId, `p6d-application-${index + 1}-id`);
+    assert(
+      application?.student_case_id === orgAStudentCaseId &&
+        application?.institution_name === institutionName &&
+        application?.program_name === programName,
+      `p6d-application-${index + 1}-create`,
+    );
+    p6dApplications.push(applicationId);
+  }
 
   const bw3Checklist = {
     targetCountry: "Malaysia",
@@ -2282,6 +2339,8 @@ const main = async () => {
   );
   const bw3DocumentSlotId = bw3DocumentRows[0].document_slot_id;
   sqlUuid(bw3DocumentSlotId, "bw3-document-slot-id");
+  const p6dDocumentReviewReason =
+    "Synthetic P6D correction required: replace the cropped passport page.";
   const noCasePortalRows = await authenticatedPlatformRpcRows(
     identities.studentNoCase,
     "student_portal_profile",
@@ -3916,6 +3975,25 @@ const main = async () => {
           paymentObligationId: p6aOverduePaymentObligationId,
           paymentLabel: p6aOverduePaymentLabel,
           paymentDueAt: p6aOverduePaymentDueAt,
+        },
+        p6d: {
+          organizationId: adminAMembership.organization_id,
+          primaryStudentCaseId: orgAStudentCaseId,
+          primaryStudentMembershipId: roleMembers.student.id,
+          secondaryStudentCaseId: p6bStudentCaseId,
+          secondaryStudentMembershipId: p6bStudentMembership.id,
+          crossOrgOrganizationId: adminBMembership.organization_id,
+          crossOrgStudentCaseId: p6dCrossOrgStudentCaseId,
+          crossOrgStudentMembershipId: crossOrgStudentMembership.id,
+          applicationIds: p6dApplications,
+          applicationLabels: p6dApplicationLabels,
+          documentSlotId: bw3DocumentSlotId,
+          documentRequirementLabel: bw3Document.label,
+          documentReviewReason: p6dDocumentReviewReason,
+          taskId: p6cTaskId,
+          taskTitle: p6cTaskTitle,
+          paymentObligationId: p6aOverduePaymentObligationId,
+          paymentLabel: p6aOverduePaymentLabel,
         },
         p5f3: {
           autonomousReplyTriggerSecret: p5f3AutonomousReplyTriggerSecret,

@@ -113,6 +113,7 @@ type PresentationStudentRoute = Readonly<{
   nextAction: string | null;
 }>;
 type PresentationVisa = Readonly<{
+  id?: EntityId;
   country: string;
   status: string;
   appointment_at: string | null;
@@ -125,6 +126,11 @@ type PresentationPayment = Readonly<{
   currency: string;
   due_date: string | null;
   status: string;
+  category?: "evo_service_fee" | "third_party_cost";
+  next_action?: string;
+  outstanding_minor?: number;
+  settlement_request_id?: string;
+  settlement_retry?: boolean;
 }>;
 type PresentationTask = Readonly<{
   id: EntityId;
@@ -168,8 +174,11 @@ type PresentationActions = Readonly<{
   setApplicationStatus?: ServerFormAction;
   addDocument?: ServerFormAction;
   upsertVisa?: ServerFormAction;
+  upsertPlatformVisa?: ServerFormAction;
   addPayment?: ServerFormAction;
+  addPlatformPayment?: ServerFormAction;
   markPaymentPaid?: ServerFormAction;
+  markPlatformPaymentPaid?: ServerFormAction;
   addTask?: ServerFormAction;
   moveTask?: ServerFormAction;
   postUpdate?: ServerFormAction;
@@ -224,6 +233,9 @@ export type ClientPagePresentationData =
       blocker?: Readonly<{ label: string; detail: string; href: string }> | null;
       result?: "saved" | "invalid" | "unavailable";
       lifecycleRequestId?: string;
+      platformVisaRequestId?: string;
+      platformVisaMutationId?: string | null;
+      platformPaymentCreateRequestId?: string;
       warning?: Readonly<{ title: string; description: string }>;
       studentRoute?: PresentationStudentRoute;
       studentProfile?: PresentationStudentProfile;
@@ -466,6 +478,9 @@ export default async function ClientPageContent({
     routeRequestId,
     profileRequestId,
     checklistRequestId,
+    platformVisaRequestId,
+    platformVisaMutationId,
+    platformPaymentCreateRequestId,
     contractWorkspace,
     contractActions,
     contractRequestIdFor,
@@ -1555,7 +1570,47 @@ export default async function ClientPageContent({
         {/* Visa */}
         <section id="visa" className="min-w-0 scroll-mt-24">
           <Card title={t("visaCase")}>
-          {actions.upsertVisa ? (
+          {actions.upsertPlatformVisa && platformVisaRequestId ? (
+          <form
+            action={actions.upsertPlatformVisa}
+            className="grid gap-3 sm:grid-cols-2"
+            data-testid="platform-visa-form"
+          >
+            <input type="hidden" name="student_case_id" value={client.id} />
+            <input type="hidden" name="visa_case_id" value={platformVisaMutationId ?? ""} />
+            <input type="hidden" name="request_id" value={platformVisaRequestId} />
+            <label className={labelCls}>
+              {t("country")}
+              <input
+                value={visa?.country ?? client.target_country ?? ""}
+                readOnly
+                className={cn(inputCls, "mt-1")}
+              />
+            </label>
+            <label className={labelCls}>
+              {t("status")}
+              <select name="status" defaultValue={visa?.status ?? "not_started"} className={cn(inputCls, "mt-1")}>
+                {VISA_STATUSES.map((s) => <option key={s} value={s}>{t(`visa.${s}`)}</option>)}
+              </select>
+            </label>
+            <label className={cn(labelCls, "sm:col-span-2")}>
+              {t("platformDecisionEvidenceRef")}
+              <input
+                name="evidence_reference"
+                required
+                autoComplete="off"
+                className={cn(inputCls, "mt-1")}
+              />
+            </label>
+            <label className={cn(labelCls, "sm:col-span-2")}>
+              {t("platformDecisionReason")}
+              <input name="note" defaultValue="" className={cn(inputCls, "mt-1")} />
+            </label>
+            <div className="sm:col-span-2">
+              <button type="submit" className={btnCls}>{visa ? t("save") : `+ ${t("addVisaCase")}`}</button>
+            </div>
+          </form>
+          ) : actions.upsertVisa ? (
           <form action={actions.upsertVisa} className="grid gap-3 sm:grid-cols-2">
             <input type="hidden" name="client_id" value={client.id} />
             <label className={labelCls}>
@@ -1670,17 +1725,52 @@ export default async function ClientPageContent({
           <Card title={t("payments")}>
           <ul className="divide-y divide-border">
             {payments.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0">
+              <li
+                key={p.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0"
+                data-testid={p.settlement_request_id ? `platform-payment-${p.id}` : undefined}
+              >
                 <div className="min-w-0">
                   <div className="text-[13.5px] font-medium text-fg">{p.title}</div>
                   <div className="font-mono text-[12px] text-fg-3">
                     {num(p.amount)} {p.currency}
                     {p.due_date ? ` · ${t("dueDate")}: ${p.due_date}` : ""}
                   </div>
+                  {p.next_action ? (
+                    <div className="mt-1 text-[12px] text-fg-3">
+                      {t("nextAction")}: {p.next_action}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge value={p.status} label={t(`pay.${p.status}`)} />
-                  {canMutatePayments && actions.markPaymentPaid && p.status !== "paid" && (
+                  {canMutatePayments
+                    && actions.markPlatformPaymentPaid
+                    && (p.status !== "paid" || p.settlement_retry)
+                    && p.settlement_request_id && (
+                    <form
+                      action={actions.markPlatformPaymentPaid}
+                      className="grid w-full gap-2 rounded-ctl border border-border bg-surface-2 p-2 sm:w-72"
+                      data-testid={`platform-payment-settle-form-${p.id}`}
+                    >
+                      <input type="hidden" name="student_case_id" value={client.id} />
+                      <input type="hidden" name="payment_obligation_id" value={p.id} />
+                      <input type="hidden" name="request_id" value={p.settlement_request_id} />
+                      <label className={cn(labelCls, "mb-0")}>
+                        {t("platformDecisionEvidenceRef")}
+                        <input name="evidence_ref" required autoComplete="off" className={cn(inputCls, "mt-1")} />
+                      </label>
+                      <label className={cn(labelCls, "mb-0")}>
+                        {t("platformDecisionReason")}
+                        <input name="reason" required minLength={3} className={cn(inputCls, "mt-1")} />
+                      </label>
+                      <button type="submit" className={btnGhostCls}>{t("markPaid")}</button>
+                    </form>
+                  )}
+                  {canMutatePayments
+                    && !actions.markPlatformPaymentPaid
+                    && actions.markPaymentPaid
+                    && p.status !== "paid" && (
                     <form action={actions.markPaymentPaid}>
                       <input type="hidden" name="id" value={p.id} />
                       <input type="hidden" name="client_id" value={client.id} />
@@ -1692,7 +1782,57 @@ export default async function ClientPageContent({
             ))}
           </ul>
           {payments.length === 0 && <EmptyState text={t("noResults")} />}
-          {canMutatePayments && actions.addPayment && (
+          {canMutatePayments && actions.addPlatformPayment && platformPaymentCreateRequestId ? (
+            <details className="mt-3 border-t border-border pt-3">
+              <summary className={cn(btnGhostCls, "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>
+                + {t("addPayment")}
+              </summary>
+              <form
+                action={actions.addPlatformPayment}
+                className="mt-3 grid gap-2 sm:grid-cols-2"
+                data-testid="platform-payment-create-form"
+              >
+                <input type="hidden" name="student_case_id" value={client.id} />
+                <input type="hidden" name="request_id" value={platformPaymentCreateRequestId} />
+                <label className={cn(labelCls, "mb-0 sm:col-span-2")}>
+                  {t("payment")}
+                  <input name="label" required placeholder={t("payment")} className={cn(inputCls, "mt-1")} />
+                </label>
+                <label className={cn(labelCls, "mb-0")}>
+                  {t("paymentCategory")}
+                  <select name="category" defaultValue="evo_service_fee" className={cn(inputCls, "mt-1")}>
+                    <option value="evo_service_fee">{t("paymentCategory.evo_service_fee")}</option>
+                    <option value="third_party_cost">{t("paymentCategory.third_party_cost")}</option>
+                  </select>
+                </label>
+                <label className={cn(labelCls, "mb-0")}>
+                  {t("amount")}
+                  <input name="amount" type="number" min="0.01" step="0.01" required className={cn(inputCls, "mt-1")} />
+                </label>
+                <label className={cn(labelCls, "mb-0")}>
+                  KGS / USD / EUR
+                  <select name="currency" defaultValue="KGS" className={cn(inputCls, "mt-1")}>
+                    <option value="KGS">KGS</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                  </select>
+                </label>
+                <label className={cn(labelCls, "mb-0")}>
+                  {t("dueDate")}
+                  <input name="due_date" type="date" required className={cn(inputCls, "mt-1 font-mono")} />
+                </label>
+                <label className={cn(labelCls, "mb-0 sm:col-span-2")}>
+                  {t("nextAction")}
+                  <input name="next_action" required className={cn(inputCls, "mt-1")} />
+                </label>
+                <label className={cn(labelCls, "mb-0 sm:col-span-2")}>
+                  {t("platformDecisionReason")}
+                  <input name="reason" required minLength={3} className={cn(inputCls, "mt-1")} />
+                </label>
+                <button type="submit" className={btnCls}>+ {t("addPayment")}</button>
+              </form>
+            </details>
+          ) : canMutatePayments && actions.addPayment && (
             <details className="mt-3 border-t border-border pt-3">
               <summary className={cn(btnGhostCls, "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>
                 + {t("addPayment")}

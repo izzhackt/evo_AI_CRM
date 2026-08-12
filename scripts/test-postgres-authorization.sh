@@ -21,11 +21,19 @@ p6c_concurrency_worker_a_log="$(mktemp -t evo-p6c-concurrency-a.XXXXXX)"
 p6c_concurrency_worker_b_log="$(mktemp -t evo-p6c-concurrency-b.XXXXXX)"
 p6c_concurrency_assert_log="$(mktemp -t evo-p6c-concurrency-assert.XXXXXX)"
 p6c_concurrency_worker_a_pid=""
+p6d_concurrency_worker_a_log="$(mktemp -t evo-p6d-concurrency-a.XXXXXX)"
+p6d_concurrency_worker_b_log="$(mktemp -t evo-p6d-concurrency-b.XXXXXX)"
+p6d_concurrency_assert_log="$(mktemp -t evo-p6d-concurrency-assert.XXXXXX)"
+p6d_concurrency_worker_a_pid=""
 
 cleanup() {
   if [[ -n "$p6c_concurrency_worker_a_pid" ]]; then
     kill "$p6c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
     wait "$p6c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$p6d_concurrency_worker_a_pid" ]]; then
+    kill "$p6d_concurrency_worker_a_pid" >/dev/null 2>&1 || true
+    wait "$p6d_concurrency_worker_a_pid" >/dev/null 2>&1 || true
   fi
   node "$deadline_runner" 30000 docker rm -f "$container_name" \
     >/dev/null 2>&1 || true
@@ -38,7 +46,10 @@ cleanup() {
     "$p6c_concurrency_setup_log" \
     "$p6c_concurrency_worker_a_log" \
     "$p6c_concurrency_worker_b_log" \
-    "$p6c_concurrency_assert_log"
+    "$p6c_concurrency_assert_log" \
+    "$p6d_concurrency_worker_a_log" \
+    "$p6d_concurrency_worker_b_log" \
+    "$p6d_concurrency_assert_log"
 }
 trap cleanup EXIT
 
@@ -823,6 +834,468 @@ SQL
       >"$p6c_concurrency_assert_log" 2>&1; then
       echo "P6C concurrent-worker durable-state assertions failed." >&2
       cat "$p6c_concurrency_assert_log" >&2
+      exit 1
+    fi
+  fi
+
+  # P6D adds only exact-case staff projections over accepted visa/finance
+  # state and a database-derived full-settlement wrapper. Prove two-Student
+  # object scope, cross-organization isolation, safe DTOs, evidence/replay and
+  # case-before-obligation lock order at migration 070.
+  if [[ "$(basename "$migration")" == 070_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_portal_cross_domain_closure_rls.sql
+
+    # A direct ledger writer acquires Finance authority before the parent case,
+    # matching the production writer and P6D wrapper. Hold both locks while a
+    # second authorized worker starts so the proof exercises the shared
+    # authority -> case -> obligation order without manufacturing an inverse-
+    # order deadlock in the harness itself.
+    node "$deadline_runner" 30000 docker exec "$container_name" \
+      psql -X -qAt -v ON_ERROR_STOP=1 \
+      -h 127.0.0.1 -U postgres -d "$test_database" \
+      -c "BEGIN;
+          DO \$\$
+          DECLARE
+            target_count BIGINT;
+            finance_count BIGINT;
+            target_organization_id UUID;
+            target_case_id UUID;
+            target_obligation_id UUID;
+            target_currency TEXT;
+            finance_auth_user_id UUID;
+            finance_access_version BIGINT;
+          BEGIN
+            SELECT
+              count(*),
+              (array_agg(student_case.organization_id ORDER BY student_case.id))[1],
+              (array_agg(student_case.id ORDER BY student_case.id))[1],
+              (array_agg(obligation.id ORDER BY student_case.id))[1],
+              (array_agg(obligation.currency ORDER BY student_case.id))[1]
+            INTO
+              target_count,
+              target_organization_id,
+              target_case_id,
+              target_obligation_id,
+              target_currency
+            FROM platform.student_cases AS student_case
+            JOIN platform.payment_obligations AS obligation
+              ON obligation.organization_id = student_case.organization_id
+              AND obligation.student_case_id = student_case.id
+            WHERE student_case.source_key = 'synthetic:amocrm:lead:b'
+              AND obligation.label = 'Synthetic third-party study cost';
+
+            IF target_count <> 1 THEN
+              RAISE EXCEPTION
+                'P6D worker A expected exactly one Student B payment target, found %',
+                target_count;
+            END IF;
+
+            SELECT
+              count(*),
+              (array_agg(profile.auth_user_id ORDER BY membership.id))[1],
+              (array_agg(profile.access_version ORDER BY membership.id))[1]
+            INTO
+              finance_count,
+              finance_auth_user_id,
+              finance_access_version
+            FROM platform.organization_memberships AS membership
+            JOIN platform.profiles AS profile
+              ON profile.id = membership.profile_id
+            WHERE membership.organization_id = target_organization_id
+              AND membership.\"current_role\" = 'finance'
+              AND membership.status = 'active';
+
+            IF finance_count <> 1 THEN
+              RAISE EXCEPTION
+                'P6D worker A expected exactly one active Finance actor in Student B organization %, found %',
+                target_organization_id,
+                finance_count;
+            END IF;
+
+            PERFORM set_config(
+              'evo.p6d_organization_id',
+              target_organization_id::TEXT,
+              TRUE
+            );
+            PERFORM set_config(
+              'evo.p6d_case_id',
+              target_case_id::TEXT,
+              TRUE
+            );
+            PERFORM set_config(
+              'evo.p6d_obligation_id',
+              target_obligation_id::TEXT,
+              TRUE
+            );
+            PERFORM set_config(
+              'evo.p6d_currency',
+              target_currency,
+              TRUE
+            );
+            PERFORM set_config(
+              'evo.p6d_finance_auth_user_id',
+              finance_auth_user_id::TEXT,
+              TRUE
+            );
+            PERFORM set_config(
+              'evo.p6d_finance_access_version',
+              finance_access_version::TEXT,
+              TRUE
+            );
+          END
+          \$\$;
+
+          DO \$\$
+          BEGIN
+            PERFORM set_config(
+              'request.jwt.claims',
+              jsonb_build_object(
+                'sub', current_setting('evo.p6d_finance_auth_user_id')::UUID,
+                'role', 'authenticated',
+                'platform_role', 'finance',
+                'platform_access_version',
+                  current_setting('evo.p6d_finance_access_version')::BIGINT
+              )::TEXT,
+              TRUE
+            );
+
+            PERFORM 1
+            FROM platform_private.require_finance_actor(
+              current_setting('evo.p6d_organization_id')::UUID,
+              'finance.event.confirm'
+            );
+          END
+          \$\$;
+
+          DO \$\$
+          DECLARE
+            locked_case_id UUID;
+          BEGIN
+            SELECT student_case.id
+            INTO locked_case_id
+            FROM platform.student_cases AS student_case
+            WHERE student_case.organization_id =
+                current_setting('evo.p6d_organization_id')::UUID
+              AND student_case.id = current_setting('evo.p6d_case_id')::UUID
+            FOR UPDATE;
+
+            IF locked_case_id IS NULL THEN
+              RAISE EXCEPTION
+                'P6D worker A could not lock frozen Student B case % in organization %',
+                current_setting('evo.p6d_case_id'),
+                current_setting('evo.p6d_organization_id');
+            END IF;
+
+            PERFORM pg_advisory_xact_lock(470070001);
+            PERFORM pg_sleep(8);
+          END
+          \$\$;
+
+          SET LOCAL ROLE authenticated;
+          WITH worker_a_call AS MATERIALIZED (
+            SELECT platform.record_payment_event(
+              current_setting('evo.p6d_organization_id')::UUID,
+              current_setting('evo.p6d_obligation_id')::UUID,
+              'payment',
+              NULL,
+              100,
+              current_setting('evo.p6d_currency'),
+              transaction_timestamp(),
+              'synthetic:p6d:concurrency:direct',
+              'synthetic:p6d:evidence:concurrency:direct',
+              'Synthetic P6D direct writer overlap',
+              '47007000-0000-4000-8000-000000000001'
+            ) AS receipt
+          )
+          SELECT 'P6D_WORKER_A_RECEIPT=' || receipt::TEXT
+          FROM worker_a_call
+          WHERE jsonb_typeof(receipt) = 'object'
+            AND receipt ->> 'organization_id' =
+              current_setting('evo.p6d_organization_id')
+            AND receipt ->> 'student_case_id' =
+              current_setting('evo.p6d_case_id')
+            AND receipt ->> 'payment_obligation_id' =
+              current_setting('evo.p6d_obligation_id')
+            AND (receipt ->> 'amount_minor')::BIGINT = 100
+            AND receipt ->> 'currency' = current_setting('evo.p6d_currency');
+          COMMIT;" \
+      >"$p6d_concurrency_worker_a_log" 2>&1 &
+    p6d_concurrency_worker_a_pid=$!
+
+    p6d_concurrency_ready=0
+    for _ in {1..50}; do
+      p6d_concurrency_marker="$({
+        node "$deadline_runner" 3000 docker exec "$container_name" \
+          psql -X -qAt -v ON_ERROR_STOP=1 \
+          -h 127.0.0.1 -U postgres -d "$test_database" \
+          -c "SELECT count(*)
+              FROM pg_locks
+              WHERE locktype = 'advisory'
+                AND database = (
+                  SELECT oid FROM pg_database WHERE datname = current_database()
+                )
+                AND classid = 0
+                AND objid = 470070001
+                AND objsubid = 1
+                AND granted;" 2>/dev/null
+      } || true)"
+      if [[ "$p6d_concurrency_marker" == "1" ]]; then
+        p6d_concurrency_ready=1
+        break
+      fi
+      sleep 0.1
+    done
+
+    if [[ "$p6d_concurrency_ready" != "1" ]]; then
+      echo "P6D direct writer did not acquire the parent-case proof lock." >&2
+      cat "$p6d_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! node "$deadline_runner" 30000 docker exec "$container_name" \
+      psql -X -qAt -v ON_ERROR_STOP=1 \
+      -h 127.0.0.1 -U postgres -d "$test_database" \
+      -c "BEGIN;
+          DO \$\$
+          DECLARE
+            target_count BIGINT;
+            finance_count BIGINT;
+            target_organization_id UUID;
+            target_case_id UUID;
+            target_obligation_id UUID;
+            target_currency TEXT;
+            finance_auth_user_id UUID;
+            finance_access_version BIGINT;
+          BEGIN
+            SELECT
+              count(*),
+              (array_agg(student_case.organization_id ORDER BY student_case.id))[1],
+              (array_agg(student_case.id ORDER BY student_case.id))[1],
+              (array_agg(obligation.id ORDER BY student_case.id))[1],
+              (array_agg(obligation.currency ORDER BY student_case.id))[1]
+            INTO
+              target_count,
+              target_organization_id,
+              target_case_id,
+              target_obligation_id,
+              target_currency
+            FROM platform.student_cases AS student_case
+            JOIN platform.payment_obligations AS obligation
+              ON obligation.organization_id = student_case.organization_id
+              AND obligation.student_case_id = student_case.id
+            WHERE student_case.source_key = 'synthetic:amocrm:lead:b'
+              AND obligation.label = 'Synthetic third-party study cost';
+
+            IF target_count <> 1 THEN
+              RAISE EXCEPTION
+                'P6D worker B expected exactly one Student B payment target, found %',
+                target_count;
+            END IF;
+
+            SELECT
+              count(*),
+              (array_agg(profile.auth_user_id ORDER BY membership.id))[1],
+              (array_agg(profile.access_version ORDER BY membership.id))[1]
+            INTO
+              finance_count,
+              finance_auth_user_id,
+              finance_access_version
+            FROM platform.organization_memberships AS membership
+            JOIN platform.profiles AS profile
+              ON profile.id = membership.profile_id
+            WHERE membership.organization_id = target_organization_id
+              AND membership.\"current_role\" = 'finance'
+              AND membership.status = 'active';
+
+            IF finance_count <> 1 THEN
+              RAISE EXCEPTION
+                'P6D worker B expected exactly one active Finance actor in Student B organization %, found %',
+                target_organization_id,
+                finance_count;
+            END IF;
+
+            PERFORM set_config(
+              'evo.p6d_organization_id',
+              target_organization_id::TEXT,
+              TRUE
+            );
+            PERFORM set_config(
+              'evo.p6d_case_id',
+              target_case_id::TEXT,
+              TRUE
+            );
+            PERFORM set_config(
+              'evo.p6d_obligation_id',
+              target_obligation_id::TEXT,
+              TRUE
+            );
+            PERFORM set_config(
+              'evo.p6d_currency',
+              target_currency,
+              TRUE
+            );
+            PERFORM set_config(
+              'evo.p6d_finance_auth_user_id',
+              finance_auth_user_id::TEXT,
+              TRUE
+            );
+            PERFORM set_config(
+              'evo.p6d_finance_access_version',
+              finance_access_version::TEXT,
+              TRUE
+            );
+            PERFORM set_config(
+              'request.jwt.claims',
+              jsonb_build_object(
+                'sub', finance_auth_user_id,
+                'role', 'authenticated',
+                'platform_role', 'finance',
+                'platform_access_version', finance_access_version
+              )::TEXT,
+              TRUE
+            );
+          END
+          \$\$;
+          SET LOCAL ROLE authenticated;
+          WITH worker_b_call AS MATERIALIZED (
+            SELECT platform.settle_payment_obligation(
+              current_setting('evo.p6d_organization_id')::UUID,
+              current_setting('evo.p6d_case_id')::UUID,
+              current_setting('evo.p6d_obligation_id')::UUID,
+              'synthetic:p6d:concurrency:settle',
+              'synthetic:p6d:evidence:concurrency:settle',
+              'Synthetic P6D wrapper overlap',
+              '47007000-0000-4000-8000-000000000002'
+            ) AS receipt
+          )
+          SELECT 'P6D_WORKER_B_RECEIPT=' || receipt::TEXT
+          FROM worker_b_call
+          WHERE jsonb_typeof(receipt) = 'object'
+            AND receipt ->> 'organization_id' =
+              current_setting('evo.p6d_organization_id')
+            AND receipt ->> 'student_case_id' =
+              current_setting('evo.p6d_case_id')
+            AND receipt ->> 'payment_obligation_id' =
+              current_setting('evo.p6d_obligation_id')
+            AND (receipt ->> 'amount_minor')::BIGINT = 400
+            AND receipt ->> 'currency' = current_setting('evo.p6d_currency');
+          COMMIT;" \
+      >"$p6d_concurrency_worker_b_log" 2>&1; then
+      echo "P6D wrapper failed during the overlapping lock-order proof." >&2
+      cat "$p6d_concurrency_worker_b_log" >&2
+      cat "$p6d_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    p6d_worker_b_receipt_rows="$(
+      grep -c '^P6D_WORKER_B_RECEIPT=' "$p6d_concurrency_worker_b_log" || true
+    )"
+    if [[ "$p6d_worker_b_receipt_rows" != "1" ]] \
+      || ! grep -Eq '^P6D_WORKER_B_RECEIPT=\{.+\}$' \
+        "$p6d_concurrency_worker_b_log"; then
+      echo "P6D wrapper did not return exactly one validated settlement receipt." >&2
+      cat "$p6d_concurrency_worker_b_log" >&2
+      cat "$p6d_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! wait "$p6d_concurrency_worker_a_pid"; then
+      echo "P6D direct writer failed during the overlapping proof." >&2
+      cat "$p6d_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+    p6d_concurrency_worker_a_pid=""
+
+    p6d_worker_a_receipt_rows="$(
+      grep -c '^P6D_WORKER_A_RECEIPT=' "$p6d_concurrency_worker_a_log" || true
+    )"
+    if [[ "$p6d_worker_a_receipt_rows" != "1" ]] \
+      || ! grep -Eq '^P6D_WORKER_A_RECEIPT=\{.+\}$' \
+        "$p6d_concurrency_worker_a_log"; then
+      echo "P6D direct writer did not return exactly one validated payment receipt." >&2
+      cat "$p6d_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! docker exec "$container_name" \
+      psql -X -qAt -v ON_ERROR_STOP=1 \
+      -h 127.0.0.1 -U postgres -d "$test_database" \
+      -c "DO \$\$
+          DECLARE
+            target_rows BIGINT;
+            direct_rows BIGINT;
+            wrapper_rows BIGINT;
+            target_outstanding BIGINT;
+            direct_amount BIGINT;
+            wrapper_amount BIGINT;
+          BEGIN
+            SELECT
+              count(*),
+              min(
+                obligation.amount_minor
+                  - (obligation.total_paid_minor - obligation.total_refunded_minor)
+              )
+            INTO target_rows, target_outstanding
+            FROM platform.payment_obligations AS obligation
+            JOIN platform.student_cases AS student_case
+              ON student_case.id = obligation.student_case_id
+            WHERE obligation.label = 'Synthetic third-party study cost'
+              AND student_case.source_key = 'synthetic:amocrm:lead:b';
+
+            SELECT count(*), min(event.amount_minor)
+            INTO direct_rows, direct_amount
+            FROM platform.payment_events AS event
+            WHERE event.request_id =
+              '47007000-0000-4000-8000-000000000001';
+
+            SELECT count(*), min(event.amount_minor)
+            INTO wrapper_rows, wrapper_amount
+            FROM platform.payment_events AS event
+            WHERE event.request_id =
+              '47007000-0000-4000-8000-000000000002';
+
+            IF target_rows <> 1 THEN
+              RAISE EXCEPTION
+                'P6D durable-state assertion failed: expected one Student B obligation, found %',
+                target_rows;
+            END IF;
+
+            IF direct_rows <> 1 THEN
+              RAISE EXCEPTION
+                'P6D durable-state assertion failed: expected one direct writer event, found %',
+                direct_rows;
+            END IF;
+
+            IF wrapper_rows <> 1 THEN
+              RAISE EXCEPTION
+                'P6D durable-state assertion failed: expected one wrapper event, found %',
+                wrapper_rows;
+            END IF;
+
+            IF COALESCE(target_outstanding, -1) <> 0 THEN
+              RAISE EXCEPTION
+                'P6D durable-state assertion failed: obligation balance mismatch (outstanding=%)',
+                target_outstanding;
+            END IF;
+
+            IF COALESCE(direct_amount, -1) <> 100 THEN
+              RAISE EXCEPTION
+                'P6D durable-state assertion failed: direct writer event mismatch (amount=%)',
+                direct_amount;
+            END IF;
+
+            IF COALESCE(wrapper_amount, -1) <> 400 THEN
+              RAISE EXCEPTION
+                'P6D durable-state assertion failed: wrapper settle event mismatch (amount=%)',
+                wrapper_amount;
+            END IF;
+          END
+          \$\$;" \
+      >"$p6d_concurrency_assert_log" 2>&1; then
+      echo "P6D overlapping settlement durable-state assertion failed." >&2
+      cat "$p6d_concurrency_assert_log" >&2
       exit 1
     fi
   fi

@@ -765,10 +765,10 @@ test("the isolated browser build admits the P5C, P6B and P6C partitions", async 
   ]);
   assert.match(
     nextConfigSource,
-    /new Set\(\[\s*"provider",\s*"p5b",\s*"p5c",\s*"p5d",\s*"p5e",\s*"p5f1",\s*"p5f3",\s*"p6a",\s*"p6b",\s*"p6c",\s*"remaining",?\s*\]\)/,
+    /new Set\(\[\s*"provider",\s*"p5b",\s*"p5c",\s*"p5d",\s*"p5e",\s*"p5f1",\s*"p5f3",\s*"p6a",\s*"p6b",\s*"p6c",\s*"p6d",\s*"remaining",?\s*\]\)/,
   );
   assert.match(
     resetHarnessSource,
-    /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|p6a\|p6b\|p6c\|remaining/,
+    /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|p6a\|p6b\|p6c\|p6d\|remaining/,
   );
 });

@@ -67,6 +67,25 @@ type Fixture = Readonly<{
     paymentLabel: string;
     paymentDueAt: string;
   }>;
+  p6d: Readonly<{
+    organizationId: string;
+    primaryStudentCaseId: string;
+    primaryStudentMembershipId: string;
+    secondaryStudentCaseId: string;
+    secondaryStudentMembershipId: string;
+    crossOrgOrganizationId: string;
+    crossOrgStudentCaseId: string;
+    crossOrgStudentMembershipId: string;
+    applicationIds: readonly [string, string];
+    applicationLabels: readonly [string, string];
+    documentSlotId: string;
+    documentRequirementLabel: string;
+    documentReviewReason: string;
+    taskId: string;
+    taskTitle: string;
+    paymentObligationId: string;
+    paymentLabel: string;
+  }>;
   identities: Readonly<Record<string, Identity>>;
 }>;
 
@@ -163,6 +182,15 @@ if (
   throw new Error("EVO_P6C_BROWSER_PROOF must be 0 or 1");
 }
 const p6cBrowserProof = p6cBrowserProofFlag === "1";
+const p6dBrowserProofFlag = process.env.EVO_P6D_BROWSER_PROOF;
+if (
+  p6dBrowserProofFlag !== undefined &&
+  p6dBrowserProofFlag !== "0" &&
+  p6dBrowserProofFlag !== "1"
+) {
+  throw new Error("EVO_P6D_BROWSER_PROOF must be 0 or 1");
+}
+const p6dBrowserProof = p6dBrowserProofFlag === "1";
 const platformAuthDevRunKey = process.env.EVO_PLATFORM_AUTH_DEV_RUN_KEY;
 const platformAuthBrowserPartition =
   process.env.EVO_PLATFORM_AUTH_BROWSER_PARTITION;
@@ -190,6 +218,7 @@ if (
     "p6a",
     "p6b",
     "p6c",
+    "p6d",
     "remaining",
   ].includes(
     platformAuthBrowserPartition,
@@ -216,11 +245,12 @@ if (
     Number(p5f3BrowserProof) +
     Number(p6aBrowserProof) +
     Number(p6bBrowserProof) +
-    Number(p6cBrowserProof) >
+    Number(p6cBrowserProof) +
+    Number(p6dBrowserProof) >
   1
 ) {
   throw new Error(
-    "P5B, P5C, P5D, P5E, P5F1, P5F3, P6A, P6B and P6C browser proof partitions are mutually exclusive",
+    "P5B, P5C, P5D, P5E, P5F1, P5F3, P6A, P6B, P6C and P6D browser proof partitions are mutually exclusive",
   );
 }
 if (
@@ -263,6 +293,11 @@ if ((platformAuthBrowserPartition === "p6b") !== p6bBrowserProof) {
 if ((platformAuthBrowserPartition === "p6c") !== p6cBrowserProof) {
   throw new Error(
     "EVO_P6C_BROWSER_PROOF must be enabled only for the p6c browser partition",
+  );
+}
+if ((platformAuthBrowserPartition === "p6d") !== p6dBrowserProof) {
+  throw new Error(
+    "EVO_P6D_BROWSER_PROOF must be enabled only for the p6d browser partition",
   );
 }
 if (
@@ -384,6 +419,38 @@ if (
 ) {
   throw new Error("P6C browser proof fixture is invalid");
 }
+if (
+  p6dBrowserProof &&
+  (!uuidPattern.test(fixture.p6d.organizationId) ||
+    !uuidPattern.test(fixture.p6d.primaryStudentCaseId) ||
+    !uuidPattern.test(fixture.p6d.primaryStudentMembershipId) ||
+    !uuidPattern.test(fixture.p6d.secondaryStudentCaseId) ||
+    !uuidPattern.test(fixture.p6d.secondaryStudentMembershipId) ||
+    !uuidPattern.test(fixture.p6d.crossOrgOrganizationId) ||
+    !uuidPattern.test(fixture.p6d.crossOrgStudentCaseId) ||
+    !uuidPattern.test(fixture.p6d.crossOrgStudentMembershipId) ||
+    fixture.p6d.applicationIds.length !== 2 ||
+    fixture.p6d.applicationIds.some((id) => !uuidPattern.test(id)) ||
+    fixture.p6d.applicationLabels.length !== 2 ||
+    fixture.p6d.applicationLabels.some((label) => label.length === 0) ||
+    !uuidPattern.test(fixture.p6d.documentSlotId) ||
+    fixture.p6d.documentRequirementLabel.length === 0 ||
+    fixture.p6d.documentReviewReason.length === 0 ||
+    !uuidPattern.test(fixture.p6d.taskId) ||
+    fixture.p6d.taskTitle.length === 0 ||
+    !uuidPattern.test(fixture.p6d.paymentObligationId) ||
+    fixture.p6d.paymentLabel.length === 0 ||
+    fixture.p6c.supabaseSecretKey.length === 0 ||
+    Buffer.byteLength(fixture.p6c.workerTriggerSecret, "utf8") < 32 ||
+    !fixture.identities.admin ||
+    !fixture.identities.curator ||
+    !fixture.identities.student ||
+    !fixture.identities.p6bStudent ||
+    !fixture.identities.crossOrgAdmin ||
+    !fixture.identities.crossOrgStudent)
+) {
+  throw new Error("P6D browser proof fixture is invalid");
+}
 
 const platformMessagingProof =
   p5bBrowserProof ||
@@ -431,15 +498,16 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: fixture.publishableKey,
       EVO_UI_CONTRACT_FIXTURES: "0",
       EVO_DB_PATH: legacySentinel,
-      EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED: p6aBrowserProof ? "1" : "0",
+      EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED:
+        p6aBrowserProof || p6dBrowserProof ? "1" : "0",
       EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED:
-        p6bBrowserProof || p6cBrowserProof ? "1" : "0",
-      EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED: p6cBrowserProof
-        ? "1"
-        : "0",
-      EVO_PLATFORM_P6C_OVERDUE_TRIGGER_SECRET: p6cBrowserProof
-        ? fixture.p6c.workerTriggerSecret
-        : "",
+        p6bBrowserProof || p6cBrowserProof || p6dBrowserProof ? "1" : "0",
+      EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED:
+        p6cBrowserProof || p6dBrowserProof ? "1" : "0",
+      EVO_PLATFORM_P6C_OVERDUE_TRIGGER_SECRET:
+        p6cBrowserProof || p6dBrowserProof
+          ? fixture.p6c.workerTriggerSecret
+          : "",
       EVO_PLATFORM_WAHA_INGRESS_ENABLED:
         p5bBrowserProof ||
         p5dBrowserProof ||
@@ -461,10 +529,10 @@ export default defineConfig({
           : fixture.p5b.organizationId
         : "",
       EVO_PLATFORM_SUPABASE_SECRET_KEY:
-        platformMessagingProof || p6cBrowserProof
+        platformMessagingProof || p6cBrowserProof || p6dBrowserProof
           ? p5dBrowserProof
             ? fixture.p5d.supabaseSecretKey
-            : p6cBrowserProof
+            : p6cBrowserProof || p6dBrowserProof
               ? fixture.p6c.supabaseSecretKey
               : fixture.p5b.supabaseSecretKey
           : "",

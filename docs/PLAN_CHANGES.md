@@ -5632,3 +5632,77 @@ Validation and rollback:
 - Rollback keeps both application and database controls disabled, removes only
   application/scheduler wiring, and forward-fixes additive schema without
   deleting transition, notification, read or audit history.
+
+## 2026-08-13 - Close P6 through one Platform-owned cross-domain Student 360 path
+
+Block-ID: `EVO-P6D-PORTAL-CLOSURE-2026-08-13`
+
+Accepted prerequisite and discovered gap:
+
+- PR `#152` merged P6C as
+  `ae434a0a8b0b1ed46edd0f4dc657ef5d59d7e823`; exact-main CI run
+  `31630205976` passed the full Main CRM, EVO Inbox and EVO Lead Agent push
+  gates. P6D therefore starts from the accepted P6B/P6C durable Portal
+  notification, Realtime and self-read contract.
+- The accepted Platform Student 360 already uses Supabase-backed application,
+  lifecycle and current-version document operations. Its Platform presentation
+  still deliberately supplies `visa: null`, `payments: []` and
+  `canMutatePayments: false`. The visually similar staff `/visa`, `/finance`
+  and legacy client actions are SQLite-backed and cannot be used as proof of a
+  Platform-to-Portal path.
+
+Implementation decision:
+
+- Add only the missing bounded Platform repository/action seams needed to show
+  the exact Student case visa state and evidence-backed manual finance state in
+  the accepted Student 360 layout. Reuse the existing migration-042 visa and
+  migration-043 finance sources, permissions, request replay and case/object
+  scopes. If their existing public functions cannot produce one strict safe
+  staff DTO, add a forward migration with narrow actor-derived RPCs rather than
+  reading private tables or copying the legacy SQLite actions.
+- Visa mutation is limited to the already authorized Admin or assigned Curator
+  for the exact case and requires explicit evidence and a bounded operator
+  note. Manual finance mutation is limited to the existing Finance/Admin case
+  authority, exact currency/minor-unit invariants and explicit evidence. The
+  browser never supplies organization, membership, provider or amoCRM
+  authority.
+- Preserve the accepted Claude Design Student 360 and Portal surfaces. Adapt
+  the safe Platform DTOs into those existing cards/forms; do not add a parallel
+  CRM, a new Portal page, or a legacy fallback. Lifecycle close/reopen remains
+  the accepted Platform action and document review remains the accepted P6B
+  current-version action.
+- Add no new notification category. The controlled path composes the accepted
+  `document.review`, `task.overdue` and `payment.overdue` projections and their
+  durable self-read state. A manual payment resolution may change the safe
+  Portal payment state and resolve a later overdue episode, but reading a page
+  never creates or resolves durable state.
+- Add one dedicated disposable `p6d` browser partition. It alone seeds the
+  synthetic cross-domain fixture and proof selector; every provider, WAHA,
+  Gemini, autonomous-send and amoCRM-write lane remains disabled. The proof
+  uses two distinct Students in one organization plus an unrelated Student in
+  another organization and never uses production/customer data.
+
+Validation and completion boundary:
+
+- Prove multiple applications, assigned-Curator visa read/mutation, reasoned
+  close and reopen, current private document negative review, evidence-backed
+  manual finance, explicit overdue task/payment Portal actions, durable
+  notification visibility and persisted self-read state through one accepted
+  staff-to-Portal browser path.
+- Prove same-organization other-Student, unrelated-organization, Sales,
+  unassigned-Curator, stale/inactive and malformed-object denial at the
+  applicable boundaries. Public RPCs and visible DOM must contain no raw WAHA,
+  amoCRM, provider, private Realtime topic or private evidence identifier.
+- Require Node `22.23.1` focused repository/action/UI/reset tests, unit and
+  security-node suites, disposable PostgreSQL/RLS, one singleton full local
+  Supabase/browser gate, `git diff --check`, lint, route type generation,
+  TypeScript, production build, staged secret scan and dependency audits.
+  Require one fresh independent exact-head review, all four exact-head CI jobs,
+  direct merge of only that reviewed head and green exact-main push CI before
+  P7 begins.
+- Real provider, managed Supabase, staging, production migration/deployment,
+  customer data and customer delivery remain blocked. Local synthetic evidence
+  is not production proof. Rollback removes only the Student 360 wiring and
+  proof partition; additive durable schema is forward-fixed without deleting
+  visa, finance, document, lifecycle, notification or read history. Existing
+  Lead Agent, WAHA, amoCRM and legacy rollback paths remain unchanged.

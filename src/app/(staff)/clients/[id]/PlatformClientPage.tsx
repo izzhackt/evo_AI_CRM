@@ -21,6 +21,16 @@ import {
   updatePlatformPostContractItemAction,
 } from "@/lib/platform-contract-actions";
 import { reviewPlatformDocumentVersionAction } from "@/lib/platform-document-review-actions";
+import {
+  createPlatformPaymentObligationAction,
+  settlePlatformPaymentObligationAction,
+  upsertPlatformCaseVisaAction,
+} from "@/lib/platform-case-operations-actions";
+import {
+  getPlatformCaseVisa,
+  listPlatformCaseFinance,
+  PLATFORM_VISA_STATUSES,
+} from "@/lib/platform-case-operations";
 import { isPlatformP6BPortalNotificationsEnabled } from "@/lib/server/platform-p6b-portal-notifications";
 import {
   getPlatformStudentCaseView,
@@ -52,6 +62,10 @@ type Query = {
   bw6_retry_request_id?: string;
   bw6_retry_operation?: string;
   bw6_subject_id?: string;
+  p6d_result?: string;
+  p6d_retry_request_id?: string;
+  p6d_retry_operation?: string;
+  p6d_subject_id?: string;
 };
 
 function result(value: string | undefined) {
@@ -112,6 +126,8 @@ export async function loadPlatformClientPageData(
     contractWorkspace,
     assignmentState,
     curatorOptions,
+    caseVisa,
+    caseFinance,
   ] =
     await Promise.all([
       listPlatformApplications(actor),
@@ -125,6 +141,8 @@ export async function loadPlatformClientPageData(
       actor.platformRole === "admin"
         ? listPlatformActiveCurators(actor)
         : Promise.resolve([]),
+      getPlatformCaseVisa(actor, studentCase.studentCaseId),
+      listPlatformCaseFinance(actor, studentCase.studentCaseId),
     ]);
   if (!assignmentState) return null;
   const appliedCountryRequirement =
@@ -168,6 +186,49 @@ export async function loadPlatformClientPageData(
   const checklistRequestId = retryRequestId ?? randomUUID();
   const lifecycleRequestId = retryRequestId ?? randomUUID();
   const routeRequestId = retryRequestId ?? randomUUID();
+  const p6dRetryRequestId = parsePlatformAdmissionsUuid(
+    query.p6d_retry_request_id,
+  );
+  const p6dRetrySubjectId = parsePlatformAdmissionsUuid(query.p6d_subject_id);
+  const p6dRequestIdFor = (
+    operation: "visa" | "payment-create" | "payment-settle",
+    subjectId: string,
+  ): string => query.p6d_retry_operation === operation
+    && p6dRetryRequestId
+    && p6dRetrySubjectId === subjectId
+      ? p6dRetryRequestId
+      : randomUUID();
+  const platformVisaMutationId = query.p6d_retry_operation === "visa"
+    && p6dRetryRequestId
+    && p6dRetrySubjectId === studentCase.studentCaseId
+      ? null
+      : caseVisa?.visaCaseId ?? null;
+  const platformVisaRequestId = p6dRequestIdFor(
+    "visa",
+    platformVisaMutationId ?? studentCase.studentCaseId,
+  );
+  const platformPaymentCreateRequestId = p6dRequestIdFor(
+    "payment-create",
+    studentCase.studentCaseId,
+  );
+  const payments = caseFinance.map((payment) => ({
+    id: payment.paymentObligationId,
+    title: payment.label,
+    amount: payment.amountMinor / 100,
+    currency: payment.currency,
+    due_date: payment.dueAt.slice(0, 10),
+    status: payment.status,
+    category: payment.category,
+    next_action: payment.nextAction,
+    outstanding_minor: payment.outstandingMinor,
+    settlement_request_id: p6dRequestIdFor(
+      "payment-settle",
+      payment.paymentObligationId,
+    ),
+    settlement_retry: query.p6d_retry_operation === "payment-settle"
+      && p6dRetryRequestId !== null
+      && p6dRetrySubjectId === payment.paymentObligationId,
+  }));
   const contractRetryRequestId = parsePlatformAdmissionsUuid(query.bw6_retry_request_id);
   const contractRetrySubjectId = parsePlatformAdmissionsUuid(query.bw6_subject_id);
   const contractRequestIdFor = (operation: string, subjectId?: string): string => {
@@ -224,8 +285,14 @@ export async function loadPlatformClientPageData(
     },
     applications,
     documents,
-    visa: null,
-    payments: [],
+    visa: caseVisa ? {
+      id: caseVisa.visaCaseId,
+      country: studentCase.targetCountry,
+      status: caseVisa.status,
+      appointment_at: null,
+      notes: caseVisa.note,
+    } : null,
+    payments,
     tasks: [],
     updates: [],
     taskAssignees: [],
@@ -263,8 +330,14 @@ export async function loadPlatformClientPageData(
         name: document.name,
         status: document.status,
       })),
-      payments: [],
-      visa: null,
+      payments: payments.map((payment) => ({
+        title: payment.title,
+        status: payment.status,
+      })),
+      visa: caseVisa ? {
+        country: studentCase.targetCountry,
+        status: caseVisa.status,
+      } : null,
     },
     stageItems: [
       { key: "pending", label: "Ожидает назначения" },
@@ -274,7 +347,7 @@ export async function loadPlatformClientPageData(
     applicationStatuses: [],
     taskColumns: [],
     taskPriorities: [],
-    visaStatuses: [],
+    visaStatuses: [...PLATFORM_VISA_STATUSES],
     actions: {
       assignCurator: actor.platformRole === "admin"
         ? assignPlatformStudentCaseCuratorAction
@@ -286,10 +359,20 @@ export async function loadPlatformClientPageData(
       reviewPlatformDocument: canReviewDocuments
         ? reviewPlatformDocumentVersionAction
         : undefined,
+      upsertPlatformVisa:
+        actor.platformRole === "admin" || actor.platformRole === "curator"
+          ? upsertPlatformCaseVisaAction
+          : undefined,
+      addPlatformPayment: actor.platformRole === "admin"
+        ? createPlatformPaymentObligationAction
+        : undefined,
+      markPlatformPaymentPaid: actor.platformRole === "admin"
+        ? settlePlatformPaymentObligationAction
+        : undefined,
     },
     canManageLifecycle,
     canViewCaseAudit: false,
-    canMutatePayments: false,
+    canMutatePayments: actor.platformRole === "admin",
     canUseAiSummary: false,
     studentRoute: {
       targetCountry: studentCase.targetCountry,
@@ -352,6 +435,9 @@ export async function loadPlatformClientPageData(
     routeRequestId,
     profileRequestId,
     checklistRequestId,
+    platformVisaRequestId,
+    platformVisaMutationId,
+    platformPaymentCreateRequestId,
     contractWorkspace: contractWorkspace ?? undefined,
     contractActions: contractWorkspace ? {
       createTemplate: createPlatformContractTemplateVersionAction,
@@ -383,7 +469,7 @@ export async function loadPlatformClientPageData(
     blocker: riskSignals.length > 0
       ? { label: "Требует внимания", detail: riskSignals.join(" · "), href: "#overview" }
       : null,
-    result: result(query.result),
+    result: result(query.p6d_result) ?? result(query.result),
     lifecycleRequestId,
     warning: !studentCase.appliedOzoWorkflowContractVersionId
       ? {

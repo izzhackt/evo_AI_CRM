@@ -145,6 +145,10 @@ const platformStudentPortalOverdueNotificationsMigration = readFileSync(
   ),
   'utf8'
 )
+const platformPortalCrossDomainClosureMigration = readFileSync(
+  join(migrationsDir, '070_platform_portal_cross_domain_closure.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -162,7 +166,7 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '069_platform_student_portal_overdue_notifications.sql'
+      '070_platform_portal_cross_domain_closure.sql'
     )
     for (const table of [
       'waha_history_reconciliation_runs',
@@ -625,6 +629,36 @@ describe('Supabase companion schema contract', () => {
     )
     expect(platformStudentPortalOverdueNotificationsMigration).not.toMatch(
       /(?:waha|amocrm|sqlite)/i
+    )
+  })
+
+  it('keeps P6D visa and finance closure exact-case and provider-free', () => {
+    expect(platformPortalCrossDomainClosureMigration).toMatch(
+      /platform\.staff_case_visa\s*\(\s*p_student_case_id\s+UUID\s*\)[\s\S]*?private\.platform_can_read_student_case[\s\S]*?private\.platform_has_permission\s*\([\s\S]*?'visa\.manage'/i
+    )
+    expect(platformPortalCrossDomainClosureMigration).toMatch(
+      /platform\.staff_case_finance\s*\(\s*p_student_case_id\s+UUID\s*\)[\s\S]*?private\.platform_can_read_finance_full[\s\S]*?private\.platform_can_read_student_case[\s\S]*?'finance\.read\.summary'/i
+    )
+    expect(platformPortalCrossDomainClosureMigration).toMatch(
+      /platform\.settle_payment_obligation\s*\(\s*p_organization_id\s+UUID,\s*p_student_case_id\s+UUID,\s*p_payment_obligation_id\s+UUID,\s*p_source_key\s+TEXT,\s*p_evidence_ref\s+TEXT,\s*p_reason\s+TEXT,\s*p_request_id\s+UUID\s*\)/i
+    )
+    expect(platformPortalCrossDomainClosureMigration).toMatch(
+      /FROM\s+platform\.student_cases\s+AS\s+student_case[\s\S]*?FOR\s+UPDATE[\s\S]*?FROM\s+platform\.payment_obligations\s+AS\s+obligation[\s\S]*?obligation\.student_case_id\s*=\s*p_student_case_id[\s\S]*?FOR\s+UPDATE/i
+    )
+    expect(platformPortalCrossDomainClosureMigration).toMatch(
+      /outstanding_minor\s*:=\s*obligation_row\.amount_minor\s*-\s*\(\s*obligation_row\.total_paid_minor\s*-\s*obligation_row\.total_refunded_minor\s*\)/i
+    )
+    expect(platformPortalCrossDomainClosureMigration).toMatch(
+      /platform\.record_payment_event\s*\([\s\S]*?outstanding_minor,[\s\S]*?obligation_row\.currency,[\s\S]*?transaction_timestamp\(\)/i
+    )
+    expect(platformPortalCrossDomainClosureMigration).toMatch(
+      /char_length\(p_source_key\)\s+NOT\s+BETWEEN\s+1\s+AND\s+512[\s\S]*?p_source_key\s*~\s*'\[\[:cntrl:\]\]'/i
+    )
+    expect(platformPortalCrossDomainClosureMigration).not.toMatch(
+      /(?:waha|whatsapp|amocrm|provider)_(?:id|ref|message|status)/i
+    )
+    expect(platformPortalCrossDomainClosureMigration).not.toMatch(
+      /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE|ALL)\s+ON\s+(?:TABLE\s+)?platform/i
     )
   })
 

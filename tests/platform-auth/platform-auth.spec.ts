@@ -72,6 +72,25 @@ type Fixture = Readonly<{
     paymentLabel: string;
     paymentDueAt: string;
   }>;
+  p6d: Readonly<{
+    organizationId: string;
+    primaryStudentCaseId: string;
+    primaryStudentMembershipId: string;
+    secondaryStudentCaseId: string;
+    secondaryStudentMembershipId: string;
+    crossOrgOrganizationId: string;
+    crossOrgStudentCaseId: string;
+    crossOrgStudentMembershipId: string;
+    applicationIds: readonly [string, string];
+    applicationLabels: readonly [string, string];
+    documentSlotId: string;
+    documentRequirementLabel: string;
+    documentReviewReason: string;
+    taskId: string;
+    taskTitle: string;
+    paymentObligationId: string;
+    paymentLabel: string;
+  }>;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
@@ -831,13 +850,39 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
   ).toBeVisible();
 
   await page.goto("/applications");
-  await expect(page.getByTestId("platform-applications-page")).toBeVisible();
+  const applicationsPage = page.getByTestId("platform-applications-page");
+  await expect(applicationsPage).toBeVisible();
   await expect(
     page.getByRole("navigation", {
       name: /Статусы заявок|Арыз статустары|Application statuses/,
     }),
   ).toBeVisible();
-  await expect(page.getByText("Заявок по выбранному фильтру нет.")).toBeVisible();
+  for (const [index, applicationLabel] of fixture.p6d.applicationLabels.entries()) {
+    const [institution, program] = applicationLabel.split(" — ");
+    const applicationRow = applicationsPage.getByRole("row").filter({
+      has: page.getByRole("link", {
+        name: institution,
+        exact: true,
+      }),
+    });
+    await expect(applicationRow).toHaveCount(1);
+    await expect(applicationRow).toContainText(program);
+    await expect(applicationRow).not.toContainText(
+      fixture.p6d.applicationIds[index],
+    );
+  }
+  await expect(
+    page.getByText("Заявок по выбранному фильтру нет."),
+  ).toHaveCount(0);
+  await expect(applicationsPage).not.toContainText(
+    "synthetic:p6d:application:1",
+  );
+  await expect(applicationsPage).not.toContainText(
+    "synthetic:p6d:application:2",
+  );
+  await expect(
+    applicationsPage.locator('input[name="evidence_reference"]'),
+  ).toHaveValue("");
 
   await page.goto("/whatsapp");
   await expect(page).toHaveURL(/\/whatsapp$/);
@@ -2670,6 +2715,479 @@ test("P6C publishes deterministic overdue task and payment notifications through
   await crossOrgContext.close();
   await taskContext.close();
   await paymentContext.close();
+});
+
+test("P6D closes the real Student 360 and Portal cross-domain loop with tenant isolation", async ({
+  browser,
+}) => {
+  test.skip(
+    process.env.EVO_P6D_BROWSER_PROOF !== "1",
+    "P6D feature proof runs in its isolated browser partition.",
+  );
+  test.setTimeout(180_000);
+  expectLegacyDatabaseUntouched();
+
+  const primaryPath = `/clients/${fixture.p6d.primaryStudentCaseId}`;
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const curatorToken = await localAccessToken(fixture.identities.curator);
+  const primaryStudentToken = await localAccessToken(
+    fixture.identities.student,
+  );
+  const secondaryStudentToken = await localAccessToken(
+    fixture.identities.p6bStudent,
+  );
+  const crossOrgAdminToken = await localAccessToken(
+    fixture.identities.crossOrgAdmin,
+  );
+  const exactVisaKeys = [
+    "case_id",
+    "note",
+    "updated_at",
+    "visa_case_id",
+    "visa_status",
+  ];
+  const exactFinanceKeys = [
+    "amount_minor",
+    "case_id",
+    "category",
+    "currency",
+    "derived_status",
+    "due_at",
+    "next_action",
+    "obligation_label",
+    "outstanding_minor",
+    "overdue",
+    "payment_obligation_id",
+  ];
+  const exactPortalNotificationKeys = [
+    "category",
+    "created_at",
+    "detail",
+    "due_at",
+    "event_code",
+    "notification_id",
+    "read_at",
+    "subject_label",
+  ];
+
+  const crossOrgVisa = await platformRpc(
+    crossOrgAdminToken,
+    "staff_case_visa",
+    { p_student_case_id: fixture.p6d.primaryStudentCaseId },
+  );
+  expect(crossOrgVisa.status).toBe(200);
+  expect(crossOrgVisa.payload).toEqual([]);
+  const crossOrgFinance = await platformRpc(
+    crossOrgAdminToken,
+    "staff_case_finance",
+    { p_student_case_id: fixture.p6d.primaryStudentCaseId },
+  );
+  expect(crossOrgFinance.status).toBe(200);
+  expect(crossOrgFinance.payload).toEqual([]);
+
+  const curatorContext = await browser.newContext();
+  const curatorPage = await curatorContext.newPage();
+  await login(curatorPage, fixture.identities.curator);
+  await expect(curatorPage).toHaveURL(/\/clients$/);
+  await curatorPage.goto(`${primaryPath}#applications`);
+  await expect(curatorPage).toHaveURL(
+    new RegExp(`${primaryPath}#applications$`),
+  );
+  for (const applicationLabel of fixture.p6d.applicationLabels) {
+    const [institution, program] = applicationLabel.split(" — ");
+    await expect(curatorPage.locator("#applications")).toContainText(
+      institution,
+    );
+    await expect(curatorPage.locator("#applications")).toContainText(program);
+  }
+  for (const privateId of fixture.p6d.applicationIds) {
+    await expect(curatorPage.locator("body")).not.toContainText(privateId);
+  }
+
+  await curatorPage.goto(`${primaryPath}#visa`);
+  const visaForm = curatorPage.getByTestId("platform-visa-form");
+  await expect(visaForm).toBeVisible();
+  await expect(visaForm.locator('input[name="student_case_id"]')).toHaveValue(
+    fixture.p6d.primaryStudentCaseId,
+  );
+  const visaEvidence = `synthetic:p6d:visa:${randomUUID()}`;
+  const visaNote = "Prepare the verified local visa-document package";
+  await visaForm.locator('select[name="status"]').selectOption("docs");
+  await visaForm
+    .locator('input[name="evidence_reference"]')
+    .fill(visaEvidence);
+  await visaForm.locator('input[name="note"]').fill(visaNote);
+  await visaForm.getByRole("button").click();
+  await expect(curatorPage).toHaveURL(/p6d_result=saved.*#visa$/);
+  const visaRows = await platformRpc(curatorToken, "staff_case_visa", {
+    p_student_case_id: fixture.p6d.primaryStudentCaseId,
+  });
+  expect(visaRows.status).toBe(200);
+  expect(visaRows.payload).toHaveLength(1);
+  const visaRow = (visaRows.payload as Array<Record<string, unknown>>)[0];
+  expect(Object.keys(visaRow).sort()).toEqual(exactVisaKeys);
+  expect(visaRow).toMatchObject({
+    case_id: fixture.p6d.primaryStudentCaseId,
+    visa_status: "docs",
+    note: visaNote,
+  });
+  expect(visaRow).not.toHaveProperty("evidence_reference");
+  await expect(curatorPage.locator("body")).not.toContainText(visaEvidence);
+
+  await curatorPage.goto(`${primaryPath}#case-lifecycle`);
+  const closeForm = curatorPage.getByTestId("student-case-close-form");
+  await expect(closeForm).toBeVisible();
+  await closeForm
+    .locator('textarea[name="reason"]')
+    .fill("Close the synthetic P6D case after the bounded review");
+  await closeForm.getByRole("button").click();
+  await expect(curatorPage).toHaveURL(/result=saved.*#case-lifecycle$/);
+  const reopenForm = curatorPage.getByTestId("student-case-reopen-form");
+  await expect(reopenForm).toBeVisible();
+  await reopenForm
+    .locator('textarea[name="reason"]')
+    .fill("Reopen the synthetic P6D case for continued admissions work");
+  await reopenForm.getByRole("button").click();
+  await expect(curatorPage).toHaveURL(/result=saved.*#case-lifecycle$/);
+  await expect(
+    curatorPage.getByTestId("student-case-close-form"),
+  ).toBeVisible();
+
+  const p6dDocumentSeed = await platformRpc(
+    fixture.p6c.supabaseSecretKey,
+    "record_document_version_metadata",
+    {
+      p_organization_id: fixture.p6d.organizationId,
+      p_document_slot_id: fixture.p6d.documentSlotId,
+      p_submitted_by_membership_id: fixture.p6d.primaryStudentMembershipId,
+      p_original_filename: "p6d-synthetic-current-passport.pdf",
+      p_declared_mime_type: "application/pdf",
+      p_byte_size: 4096,
+      p_sha256_hex: "7".repeat(64),
+      p_ingest_evidence_ref: "synthetic-non-storage:p6d-browser-proof",
+      p_request_id: randomUUID(),
+    },
+    fixture.p6c.supabaseSecretKey,
+  );
+  expect(p6dDocumentSeed.status).toBe(200);
+  const p6dDocumentVersionId = (
+    p6dDocumentSeed.payload as Record<string, unknown>
+  ).document_version_id;
+  expect(p6dDocumentVersionId).toEqual(expect.any(String));
+  if (typeof p6dDocumentVersionId !== "string") {
+    throw new Error("P6D current private document version was unavailable");
+  }
+  await curatorPage.goto(`${primaryPath}#documents`);
+  const reviewForm = curatorPage.getByTestId("platform-document-review-form");
+  await expect(reviewForm).toBeVisible();
+  await expect(
+    reviewForm.locator('input[name="document_version_id"]'),
+  ).toHaveValue(p6dDocumentVersionId);
+  await reviewForm
+    .locator('select[name="decision"]')
+    .selectOption("correction_required");
+  await reviewForm
+    .locator('input[name="reason"]')
+    .fill(fixture.p6d.documentReviewReason);
+  await reviewForm.getByTestId("platform-document-review-submit").click();
+  await expect(curatorPage).toHaveURL(/result=saved.*#documents$/);
+  await expect(curatorPage.locator("#documents")).toContainText(
+    fixture.p6d.documentReviewReason,
+  );
+  await curatorContext.close();
+
+  const primaryNotificationsAfterReview = await platformRpc(
+    primaryStudentToken,
+    "student_portal_notifications_v2",
+    {},
+  );
+  expect(primaryNotificationsAfterReview.status).toBe(200);
+  const documentRowsAfterReview = (
+    primaryNotificationsAfterReview.payload as Array<Record<string, unknown>>
+  ).filter((row) => row.category === "document.review");
+  expect(documentRowsAfterReview).toHaveLength(1);
+  expect(Object.keys(documentRowsAfterReview[0]).sort()).toEqual(
+    exactPortalNotificationKeys,
+  );
+  expect(documentRowsAfterReview[0]).toMatchObject({
+    category: "document.review",
+    event_code: "correction_required",
+    subject_label: fixture.p6d.documentRequirementLabel,
+    detail: fixture.p6d.documentReviewReason,
+    due_at: null,
+  });
+
+  const ensureOverdueNotifications = async () => {
+    const [primary, secondary] = await Promise.all([
+      platformRpc(primaryStudentToken, "student_portal_notifications_v2", {}),
+      platformRpc(
+        secondaryStudentToken,
+        "student_portal_notifications_v2",
+        {},
+      ),
+    ]);
+    const primaryRows = primary.payload as Array<Record<string, unknown>>;
+    const secondaryRows = secondary.payload as Array<Record<string, unknown>>;
+    if (
+      primaryRows.some((row) => row.category === "payment.overdue") &&
+      secondaryRows.some((row) => row.category === "task.overdue")
+    ) {
+      return;
+    }
+    const requestId = randomUUID();
+    const timestamp = String(Date.now());
+    const response = await fetch(
+      `${appOrigin}/api/internal/platform-operations/portal-overdue`,
+      {
+        method: "POST",
+        headers: {
+          "x-evo-portal-overdue-request-id": requestId,
+          "x-evo-portal-overdue-timestamp": timestamp,
+          "x-evo-portal-overdue-hmac-algorithm": "sha256",
+          "x-evo-portal-overdue-hmac": createHmac(
+            "sha256",
+            fixture.p6c.workerTriggerSecret,
+          )
+            .update(`${requestId}.${timestamp}`)
+            .digest("hex"),
+        },
+      },
+    );
+    expect(response.status).toBe(200);
+  };
+  await ensureOverdueNotifications();
+
+  const primaryNotificationsAfterOverdue = await platformRpc(
+    primaryStudentToken,
+    "student_portal_notifications_v2",
+    {},
+  );
+  expect(primaryNotificationsAfterOverdue.status).toBe(200);
+  const primaryNotificationRows =
+    primaryNotificationsAfterOverdue.payload as Array<Record<string, unknown>>;
+  expect(
+    primaryNotificationRows.filter((row) => row.category === "document.review"),
+  ).toHaveLength(1);
+  expect(
+    primaryNotificationRows.filter((row) => row.category === "payment.overdue"),
+  ).toHaveLength(1);
+
+  const assertPersistedRead = async (page: Page, category: string) => {
+    const row = page.locator(`[data-notification-category="${category}"]`);
+    await expect(row).toHaveCount(1);
+    const markRead = row.getByTestId("portal-notification-mark-read");
+    if ((await markRead.count()) === 1) {
+      await markRead.click();
+      await expect(page).toHaveURL(/notification_result=read/);
+    }
+    await page.reload();
+    await expect(
+      page
+        .locator(`[data-notification-category="${category}"]`)
+        .getByTestId("portal-notification-mark-read"),
+    ).toHaveCount(0);
+  };
+
+  const primaryStudentContext = await browser.newContext();
+  const primaryStudentPage = await primaryStudentContext.newPage();
+  await login(primaryStudentPage, fixture.identities.student);
+  await expect(primaryStudentPage).toHaveURL(/\/portal$/);
+  await primaryStudentPage.goto("/portal/notifications");
+  await expect(primaryStudentPage).toHaveURL(/\/portal\/notifications$/);
+  const documentNotification = primaryStudentPage.locator(
+    '[data-notification-category="document.review"]',
+  );
+  const paymentNotification = primaryStudentPage.locator(
+    '[data-notification-category="payment.overdue"]',
+  );
+  await expect(documentNotification).toHaveCount(1);
+  await expect(paymentNotification).toHaveCount(1);
+  await expect(documentNotification).toContainText(
+    fixture.p6d.documentRequirementLabel,
+  );
+  await expect(documentNotification).toContainText(
+    fixture.p6d.documentReviewReason,
+  );
+  await expect(
+    documentNotification.getByTestId("portal-notification-destination"),
+  ).toHaveAttribute("href", "/portal/documents");
+  await expect(paymentNotification).toContainText(fixture.p6d.paymentLabel);
+  await expect(
+    paymentNotification.getByTestId("portal-notification-destination"),
+  ).toHaveAttribute("href", "/portal/payments");
+  for (const privateValue of [
+    fixture.p6d.organizationId,
+    fixture.p6d.primaryStudentCaseId,
+    fixture.p6d.primaryStudentMembershipId,
+    fixture.p6d.paymentObligationId,
+    p6dDocumentVersionId,
+    "125000",
+    "USD",
+    "WAHA",
+    "amoCRM",
+    "Gemini",
+    "manual_platform_p6d",
+  ]) {
+    await expect(primaryStudentPage.getByTestId("portal-notification-list"))
+      .not.toContainText(privateValue);
+  }
+  await assertPersistedRead(primaryStudentPage, "document.review");
+  await assertPersistedRead(primaryStudentPage, "payment.overdue");
+
+  const secondaryStudentContext = await browser.newContext();
+  const secondaryStudentPage = await secondaryStudentContext.newPage();
+  await login(secondaryStudentPage, fixture.identities.p6bStudent);
+  await expect(secondaryStudentPage).toHaveURL(/\/portal$/);
+  await secondaryStudentPage.goto("/portal/notifications");
+  await expect(secondaryStudentPage).toHaveURL(/\/portal\/notifications$/);
+  const taskNotification = secondaryStudentPage.locator(
+    '[data-notification-category="task.overdue"]',
+  );
+  await expect(taskNotification).toContainText(fixture.p6d.taskTitle);
+  await expect(
+    taskNotification.getByTestId("portal-notification-destination"),
+  ).toHaveAttribute("href", "/portal");
+  for (const privateValue of [
+    fixture.p6d.organizationId,
+    fixture.p6d.primaryStudentCaseId,
+    fixture.p6d.secondaryStudentCaseId,
+    fixture.p6d.secondaryStudentMembershipId,
+    fixture.p6d.taskId,
+    "WAHA",
+    "amoCRM",
+    "Gemini",
+  ]) {
+    await expect(secondaryStudentPage.getByTestId("portal-notification-list"))
+      .not.toContainText(privateValue);
+  }
+  await assertPersistedRead(secondaryStudentPage, "task.overdue");
+
+  const adminContext = await browser.newContext();
+  const adminPage = await adminContext.newPage();
+  await login(adminPage, fixture.identities.admin);
+  await expect(adminPage).toHaveURL(/\/sales$/);
+  await adminPage.goto(`${primaryPath}#payments`);
+  const paymentCreateForm = adminPage.getByTestId(
+    "platform-payment-create-form",
+  );
+  await paymentCreateForm.locator("xpath=..").locator("summary").click();
+  const manualPaymentLabel = `P6D manual evidence fee ${randomUUID()}`;
+  const dueDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  await paymentCreateForm.locator('input[name="label"]').fill(manualPaymentLabel);
+  await paymentCreateForm.locator('input[name="amount"]').fill("250.00");
+  await paymentCreateForm.locator('select[name="currency"]').selectOption("USD");
+  await paymentCreateForm.locator('input[name="due_date"]').fill(dueDate);
+  await paymentCreateForm
+    .locator('input[name="next_action"]')
+    .fill("Record the verified manual payment evidence");
+  await paymentCreateForm
+    .locator('input[name="reason"]')
+    .fill("Create the bounded P6D manual finance obligation");
+  await paymentCreateForm.getByRole("button").click();
+  await expect(adminPage).toHaveURL(/p6d_result=saved.*#payments$/);
+
+  let financeRows = await platformRpc(adminToken, "staff_case_finance", {
+    p_student_case_id: fixture.p6d.primaryStudentCaseId,
+  });
+  expect(financeRows.status).toBe(200);
+  const createdPayment = (
+    financeRows.payload as Array<Record<string, unknown>>
+  ).find((row) => row.obligation_label === manualPaymentLabel);
+  expect(createdPayment).toBeTruthy();
+  if (!createdPayment) throw new Error("P6D payment was not created");
+  expect(Object.keys(createdPayment).sort()).toEqual(exactFinanceKeys);
+  expect(createdPayment).toMatchObject({
+    case_id: fixture.p6d.primaryStudentCaseId,
+    amount_minor: 25_000,
+    currency: "USD",
+    derived_status: "pending",
+    outstanding_minor: 25_000,
+  });
+  const createdPaymentId = createdPayment.payment_obligation_id;
+  expect(createdPaymentId).toEqual(expect.any(String));
+  if (typeof createdPaymentId !== "string") {
+    throw new Error("P6D payment ID was unavailable");
+  }
+
+  const wrongCaseSettlement = await platformRpc(
+    adminToken,
+    "settle_payment_obligation",
+    {
+      p_organization_id: fixture.p6d.organizationId,
+      p_student_case_id: fixture.p6d.secondaryStudentCaseId,
+      p_payment_obligation_id: createdPaymentId,
+      p_source_key: "manual_platform_p6d",
+      p_evidence_ref: `synthetic:p6d:wrong-case:${randomUUID()}`,
+      p_reason: "Prove same-organization wrong-case binding is denied",
+      p_request_id: randomUUID(),
+    },
+  );
+  expect(wrongCaseSettlement.status).toBeGreaterThanOrEqual(400);
+
+  const settlementEvidence = `synthetic:p6d:payment:${randomUUID()}`;
+  const settlementForm = adminPage.getByTestId(
+    `platform-payment-settle-form-${createdPaymentId}`,
+  );
+  await expect(settlementForm).toBeVisible();
+  await settlementForm
+    .locator('input[name="evidence_ref"]')
+    .fill(settlementEvidence);
+  await settlementForm
+    .locator('input[name="reason"]')
+    .fill("Settle the P6D obligation from verified manual evidence");
+  await settlementForm.getByRole("button").click();
+  await expect(adminPage).toHaveURL(/p6d_result=saved.*#payments$/);
+  await expect(adminPage.locator("body")).not.toContainText(settlementEvidence);
+  await expect(
+    adminPage.getByTestId(`platform-payment-settle-form-${createdPaymentId}`),
+  ).toHaveCount(0);
+  financeRows = await platformRpc(adminToken, "staff_case_finance", {
+    p_student_case_id: fixture.p6d.primaryStudentCaseId,
+  });
+  const settledPayment = (
+    financeRows.payload as Array<Record<string, unknown>>
+  ).find((row) => row.payment_obligation_id === createdPaymentId);
+  expect(settledPayment).toMatchObject({
+    derived_status: "paid",
+    outstanding_minor: 0,
+    overdue: false,
+  });
+  expect(Object.keys(settledPayment ?? {}).sort()).toEqual(exactFinanceKeys);
+
+  const crossOrgContext = await browser.newContext();
+  const crossOrgPage = await crossOrgContext.newPage();
+  await login(crossOrgPage, fixture.identities.crossOrgAdmin);
+  await expect(crossOrgPage).toHaveURL(/\/sales$/);
+  await crossOrgPage.goto(primaryPath);
+  await expect(crossOrgPage.getByTestId("platform-visa-form")).toHaveCount(0);
+  await expect(crossOrgPage.locator("body")).not.toContainText(
+    manualPaymentLabel,
+  );
+  await expect(crossOrgPage.locator("body")).not.toContainText(
+    fixture.p6d.documentReviewReason,
+  );
+
+  const crossOrgStudentContext = await browser.newContext();
+  const crossOrgStudentPage = await crossOrgStudentContext.newPage();
+  await login(crossOrgStudentPage, fixture.identities.crossOrgStudent);
+  await expect.poll(() => new URL(crossOrgStudentPage.url()).pathname).toBe(
+    "/platform-pending",
+  );
+  await crossOrgStudentPage.goto("/portal/notifications");
+  await expect.poll(() => new URL(crossOrgStudentPage.url()).pathname).toBe(
+    "/platform-pending",
+  );
+  await expect(crossOrgStudentPage.getByTestId("portal-notification-row"))
+    .toHaveCount(0);
+
+  expectLegacyDatabaseUntouched();
+  await crossOrgStudentContext.close();
+  await crossOrgContext.close();
+  await adminContext.close();
+  await secondaryStudentContext.close();
+  await primaryStudentContext.close();
 });
 
 test("P5D archives private WAHA media into the accepted conversation UI", async ({

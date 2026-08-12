@@ -31,6 +31,17 @@ export type PlatformApplicationStatus =
 export type PlatformStudentCaseState = "pending" | "active" | "closed";
 export type PlatformRouteApprovalStatus = "draft" | "approved" | "rework";
 
+export function buildPlatformAdmissionsRedirectUrl(
+  path: string,
+  outcome: "saved" | "invalid" | "unavailable",
+  retryRequestId?: string | null,
+  anchor?: "case-lifecycle",
+): string {
+  const params = new URLSearchParams({ result: outcome });
+  if (retryRequestId) params.set("retry_request_id", retryRequestId);
+  return `${path}?${params.toString()}${anchor ? `#${anchor}` : ""}`;
+}
+
 export type PlatformOpWorkflowContract = Readonly<{
   organizationId: string;
   workflowContractId: string;

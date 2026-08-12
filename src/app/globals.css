@@ -76,6 +76,8 @@
 /* Back-compat aliases for components outside the staff redesign scope
    (e.g. /portal, AI drawer). They resolve live to the themed tokens. */
 :root {
+  --font-golos: "Golos Text Variable";
+  --font-jbmono: "JetBrains Mono Variable";
   --evo-bg: var(--bg);
   --evo-bg-elevated: var(--surface);
   --evo-bg-subtle: var(--surface-2);

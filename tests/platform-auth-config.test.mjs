@@ -35,6 +35,14 @@ const platformSessionRouteSource = readFileSync(
   new URL("../src/app/auth/platform-session/route.ts", import.meta.url),
   "utf8",
 );
+const rootLayoutSource = readFileSync(
+  new URL("../src/app/layout.tsx", import.meta.url),
+  "utf8",
+);
+const globalStylesSource = readFileSync(
+  new URL("../src/app/globals.css", import.meta.url),
+  "utf8",
+);
 
 const originalEnv = {
   NODE_ENV: process.env.NODE_ENV,
@@ -52,6 +60,26 @@ function restoreEnv() {
 }
 
 test.afterEach(restoreEnv);
+
+test("root fonts are self-hosted and cannot block startup on Google Fonts", () => {
+  assert.match(
+    rootLayoutSource,
+    /import "@fontsource-variable\/golos-text\/wght\.css";/,
+  );
+  assert.match(
+    rootLayoutSource,
+    /import "@fontsource-variable\/jetbrains-mono\/wght\.css";/,
+  );
+  assert.doesNotMatch(rootLayoutSource, /next\/font\/google/);
+  assert.match(
+    globalStylesSource,
+    /--font-golos:\s*"Golos Text Variable";/,
+  );
+  assert.match(
+    globalStylesSource,
+    /--font-jbmono:\s*"JetBrains Mono Variable";/,
+  );
+});
 
 function jwtForRole(role) {
   const header = Buffer.from(JSON.stringify({ alg: "none" })).toString(

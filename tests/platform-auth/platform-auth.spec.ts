@@ -1991,7 +1991,12 @@ test("P6B turns an authenticated staff document review into one live durable Stu
   await login(salesPage, fixture.identities.salesScoped);
   await expect(salesPage).toHaveURL(/\/sales$/);
   await salesPage.goto(`/clients/${fixture.p6b.studentCaseId}#documents`);
-  await expect(salesPage.getByTestId("platform-client-detail-page")).toBeVisible();
+  await expect(
+    salesPage.getByTestId("platform-sales-handoff-summary"),
+  ).toBeVisible();
+  await expect(
+    salesPage.getByTestId("platform-client-detail-page"),
+  ).toHaveCount(0);
   await expect(
     salesPage.getByTestId("platform-document-review-form"),
   ).toHaveCount(0);

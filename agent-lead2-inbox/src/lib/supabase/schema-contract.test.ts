@@ -134,6 +134,10 @@ const platformAutonomousRepliesMigration = readFileSync(
   join(migrationsDir, '067_platform_autonomous_inbound_replies.sql'),
   'utf8'
 )
+const platformStudentPortalNotificationsMigration = readFileSync(
+  join(migrationsDir, '068_platform_student_portal_notifications.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -151,7 +155,7 @@ function expectRlsEnabled(table: string) {
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '067_platform_autonomous_inbound_replies.sql'
+      '068_platform_student_portal_notifications.sql'
     )
     for (const table of [
       'waha_history_reconciliation_runs',
@@ -449,6 +453,98 @@ describe('Supabase companion schema contract', () => {
     )
     expect(supabaseConfig).not.toMatch(
       /schemas\s*=.*(?:platform_private|pgmq_public)/
+    )
+  })
+
+  it('keeps P6B Student Portal notifications in-app-only and actor-derived', () => {
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /CREATE\s+TABLE\s+platform\.student_portal_notification_projection_v1/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /ALTER\s+TABLE\s+platform\.student_portal_notification_projection_v1\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /ALTER\s+TABLE\s+platform\.student_portal_notification_projection_v1\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /CREATE\s+TABLE\s+platform_private\.student_portal_notification_runtime_controls\s*\([\s\S]*?organization_id\s+UUID\s+PRIMARY\s+KEY[\s\S]*?enabled\s+BOOLEAN\s+NOT\s+NULL\s+DEFAULT\s+FALSE[\s\S]*?updated_at\s+TIMESTAMPTZ\s+NOT\s+NULL\s+DEFAULT\s+statement_timestamp\s*\(\s*\)/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /ALTER\s+TABLE\s+platform_private\.student_portal_notification_runtime_controls\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY[\s\S]*?ALTER\s+TABLE\s+platform_private\.student_portal_notification_runtime_controls\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /ALTER\s+FUNCTION\s+platform\.review_document_version\s*\(\s*UUID,\s*UUID,\s*platform\.document_review_decision,\s*TEXT,\s*UUID\s*\)\s+SET\s+SCHEMA\s+platform_private[\s\S]*?ALTER\s+FUNCTION\s+platform_private\.review_document_version\s*\(\s*UUID,\s*UUID,\s*platform\.document_review_decision,\s*TEXT,\s*UUID\s*\)\s+RENAME\s+TO\s+review_document_version_legacy_043/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.review_document_version_with_portal_notification_v1\s*\(\s*p_organization_id\s+UUID,\s*p_document_version_id\s+UUID,\s*p_decision\s+platform\.document_review_decision,\s*p_reason\s+TEXT,\s*p_request_id\s+UUID\s*\)[\s\S]*?platform_private\.student_portal_notification_runtime_controls[\s\S]*?platform_private\.review_document_version_legacy_043/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.review_document_version\s*\([\s\S]*?set_config\s*\(\s*'platform_private\.p6b_portal_notification_context',\s*''[\s\S]*?platform_private\.review_document_version_legacy_043/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /current_setting\s*\(\s*'platform_private\.p6b_portal_notification_context',\s*TRUE\s*\)[\s\S]*?set_config\s*\(\s*'platform_private\.p6b_portal_notification_context'/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.student_portal_notifications_v1\s*\(\s*\)[\s\S]*?RETURNS\s+TABLE\s*\(\s*notification_id\s+UUID,\s*category\s+TEXT,\s*review_decision\s+platform\.document_review_decision,\s*requirement_key\s+TEXT,\s*requirement_label\s+TEXT,\s*reason\s+TEXT,\s*created_at\s+TIMESTAMPTZ,\s*read_at\s+TIMESTAMPTZ\s*\)/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /WITH\s+authority\s+AS\s+MATERIALIZED[\s\S]*?readable_cases\s+AS\s+MATERIALIZED[\s\S]*?platform_can_read_student_portal_case\s*\(\s*student_case\.organization_id,\s*student_case\.id\s*\)[\s\S]*?JOIN\s+readable_cases\s+AS\s+readable_case/i
+    )
+    expect(platformStudentPortalNotificationsMigration).not.toMatch(
+      /platform_can_read_student_portal_case\s*\(\s*projection\./i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.mark_own_student_portal_notification_read_v1\s*\(\s*p_notification_id\s+UUID,\s*p_request_id\s+UUID\s*\)[\s\S]*?RETURNS\s+JSONB/i
+    )
+    expect(platformStudentPortalNotificationsMigration).not.toContain(
+      "'student_portal.notification.read'"
+    )
+    expect(
+      platformStudentPortalNotificationsMigration.match(
+        /'notification\.read'/g
+      )
+    ).toHaveLength(2)
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /CREATE\s+TRIGGER\s+document_reviews_publish_student_portal_notification[\s\S]*?AFTER\s+INSERT[\s\S]*?ON\s+platform\.document_reviews/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /CREATE\s+POLICY\s+student_portal_notifications_broadcast_read[\s\S]*?ON\s+realtime\.messages[\s\S]*?FOR\s+SELECT[\s\S]*?TO\s+authenticated/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform_private\.can_subscribe_student_portal_notifications\s*\(\s*TEXT\s*\)\s+TO\s+authenticated/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /NEW\.reason\s*~\s*'\[\[:cntrl:\]\]'/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /char_length\s*\(\s*btrim\s*\(\s*requirement_key\s*\)\s*\)\s+NOT\s+BETWEEN\s+1\s+AND\s+128/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /student_case\.state\s+IN\s*\(\s*'active',\s*'closed'\s*\)[\s\S]*?student_case\.portal_activated_at\s+IS\s+NOT\s+NULL/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /permission_key\s*=\s*'portal\.read\.self'[\s\S]*?permission_key\s*=\s*'notification\.read\.self'/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /scope_assignment\.granted[\s\S]*?later_assignment\.assignment_version\s*>\s*scope_assignment\.assignment_version/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /ORDER\s+BY\s+notification\.created_at\s+DESC,\s*notification\.id\s+DESC\s+LIMIT\s+500/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /REVOKE\s+ALL\s+ON\s+TABLE\s+platform_private\.student_portal_notification_runtime_controls\s+FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role,\s*supabase_auth_admin/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.review_document_version_with_portal_notification_v1\s*\(\s*UUID,\s*UUID,\s*platform\.document_review_decision,\s*TEXT,\s*UUID\s*\)\s+TO\s+authenticated/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /ALTER\s+FUNCTION\s+platform\.mark_own_notification_read_legacy_043\s*\(\s*UUID,\s*UUID,\s*UUID\s*\)\s+SET\s+SCHEMA\s+platform_private/i
+    )
+    expect(platformStudentPortalNotificationsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.mark_own_notification_read\s*\([\s\S]*?student_portal_notification_projection_v1[\s\S]*?ERRCODE\s*=\s*'42501'/i
+    )
+    expect(platformStudentPortalNotificationsMigration).not.toMatch(
+      /INSERT\s+INTO\s+platform\.notification_delivery_intents/i
     )
   })
 

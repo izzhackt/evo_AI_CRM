@@ -690,6 +690,16 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_autonomous_inbound_replies_rls.sql
   fi
+
+  # P6B adds one in-app-only Student Portal notification/read lifecycle over
+  # negative document-review source events. Prove the exact additive schema,
+  # atomic producer, current-version staff read, self-only RPCs and private
+  # membership-scoped Realtime policy at migration 068.
+  if [[ "$(basename "$migration")" == 068_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_portal_notifications_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

@@ -13,9 +13,9 @@
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
 - Current accepted base for this block:
-  `fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`
+  `6a90d9a1f00263dedfa33fb7543bd176a96d46a4`
 - Active plan block:
-  `EVO-P6A-PORTAL-ATTENTION-2026-08-12`
+  `EVO-P6B-PORTAL-NOTIFICATIONS-2026-08-12`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -55,12 +55,14 @@ MVP authority contract, PR #141 merged P5E ACK/session и private Realtime, PR
 #142 merged bounded P4R1 read-only canonical amoCRM context, PR #144 merged
 P5F1 memory/retrieval, PR #145 merged P5F2 stateless Gemini proposals, а PR
 #146 merged disabled-by-default P5F3 deterministic autonomous replies, а PR
-#147 merged reviewed P6A-P6D implementation contract. Текущий accepted base —
-`fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`; exact-main CI
-`31523285552` attempt 2 зелёный для Main CRM, EVO Inbox и EVO Lead Agent;
-Changed range ожидаемо skipped на push. Первый Main CRM attempt был
-non-evidence из-за единичного 31.2-second Playwright timeout при 30-second
-лимите; rerun того же exact SHA прошёл. Migrations contiguous `001-067`.
+#147 merged reviewed P6A-P6D implementation contract, а PR #148 merged P6A
+read-only Portal attention. Текущий accepted base —
+`6a90d9a1f00263dedfa33fb7543bd176a96d46a4`; exact-main CI
+`31538299201` зелёный для Main CRM, EVO Inbox и EVO Lead Agent; Changed range
+ожидаемо skipped на push. Main CRM прошёл полный disposable Supabase, Storage,
+PGMQ и browser contract, frontend contracts, build, все CRM scenarios и
+audits. Migrations contiguous `001-067`; активный P6B block резервирует
+additive migration `068`.
 
 P4B implementation сохранён на remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -286,30 +288,39 @@ gate, но не выполнять mutation.
 ## Текущий безопасный gate
 
 Текущий gate — implementation block
-`EVO-P6A-PORTAL-ATTENTION-2026-08-12` под merged contract
+`EVO-P6B-PORTAL-NOTIFICATIONS-2026-08-12` под merged contract
 `EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11`. Он feature-flagged и по умолчанию
-выключен. P6A читает только существующий argument-free actor-derived Student
-Portal snapshot и в accepted Claude Design UI явно группирует urgent/high task,
-rejected document и overdue payment. Он не добавляет migration, RPC, DTO,
-write, scheduler, durable notification, acknowledgement, WAHA/amoCRM/provider
-call или production mutation.
+выключен. P6B добавляет только durable in-app Student notification/read path:
+точный отрицательный human document review, одна атомарно опубликованная
+notification, self-only acknowledgement и private authorization-bound
+Realtime invalidation. Он не создаёт WhatsApp intent, не вызывает WAHA,
+amoCRM или Gemini и не использует legacy SQLite review/feed.
+После pre-merge review gate усилен до двух независимых ключей: exact server
+flag и enabled row точной организации в private FORCE-RLS runtime-control
+table. Migration `068` не включает ни одну организацию. Legacy
+`review_document_version` остаётся notification-silent; новый P6B wrapper
+требует database control и transaction-local producer context, иначе review и
+notification не выполняются.
 
-Локальный workstation runtime gate пока не является доказательством: две
-singleton попытки `npm run test:supabase:local` остановились до P6A Playwright
-на OrbStack container lifecycle (`post-reset recovery` и initial reset timeout
-`124`). SQL migrations `001-067` не показали ошибки, а focused PostgreSQL/RLS
-gate зелёный. Точные disposable ресурсы очищены, Inbox и соседние frontend/API
-сервисы восстановлены.
+P6A принят PR #148 как
+`6a90d9a1f00263dedfa33fb7543bd176a96d46a4`. Exact-main CI
+`31538299201` прошёл полный disposable Supabase, Storage, PGMQ и browser
+contract, frontend contracts, build, все CRM scenarios и audits. Поэтому
+прежние красные P6A local/exact-head попытки остаются историческим
+non-evidence, а не текущим blocker-ом. P6B начинается только от этого
+проверенного exact-main SHA.
 
-Exact-head CI run `31534003041` также пока красный и является non-evidence.
-Attempt 1 остановился на transient P5F3 Next.js/Turbopack font resolution;
-same-head attempt 2 прошёл P5F3 и выявил точную P6A bootstrap-ошибку:
-`next.config.ts` не разрешал partition `p6a`. Исправление
-`EVO-P6A-PARTITION-BOOTSTRAP-FIX-2026-08-12` добавляет только этот literal и
-регрессию, связывающую Next.js allowlist со всеми singleton browser
-partitions. Новый exact head обязан пройти полный неизменённый
-Auth/PostgREST/Storage/PGMQ/P6A browser command с exit `0`; до этого
-runtime/browser acceptance остаётся pending.
+Локальная workstation-попытка P6B PostgreSQL authorization gate от
+2026-08-12 завершилась `124` до старта SQL: OrbStack Docker API завис на
+создании точного disposable-контейнера
+`evo-platform-authz-17184-27405`, оставив его в состоянии `Created`;
+единственная bounded exact-only попытка удалить этот ресурс также завершилась
+таймаутом. Это инфраструктурный non-evidence, а не ошибка migration `068`.
+Broad cleanup и restart OrbStack не выполнялись, чтобы не затронуть Inbox и
+другие локальные сервисы. Поэтому PostgreSQL/RLS и полный local-Supabase/browser
+runtime обязаны пройти в свежем exact-head GitHub CI до merge; focused Node,
+schema/history, lint, typegen, TypeScript, build, secret scan и dependency
+audits уже зелёные локально.
 
 P6 исполняется в четырёх независимо проверяемых slices:
 

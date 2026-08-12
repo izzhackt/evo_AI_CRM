@@ -20,6 +20,8 @@ import {
   seedPlatformPostContractItemsAction,
   updatePlatformPostContractItemAction,
 } from "@/lib/platform-contract-actions";
+import { reviewPlatformDocumentVersionAction } from "@/lib/platform-document-review-actions";
+import { isPlatformP6BPortalNotificationsEnabled } from "@/lib/server/platform-p6b-portal-notifications";
 import {
   getPlatformStudentCaseView,
   listPlatformApplications,
@@ -137,6 +139,8 @@ export async function loadPlatformClientPageData(
       deadline: null,
       status: application.status,
     }));
+  const canReviewDocuments = isPlatformP6BPortalNotificationsEnabled()
+    && (actor.platformRole === "admin" || actor.platformRole === "curator");
   const documents = documentRows.map((document) => ({
     id: document.documentSlotId,
     name: document.requirementLabel,
@@ -147,6 +151,17 @@ export async function loadPlatformClientPageData(
           : document.slotStatus,
     comment: document.reworkReason ?? document.nextAction ?? document.instructions,
     connected: false,
+    documentVersionId: document.documentVersionId,
+    reviewRequestId:
+      canReviewDocuments
+      && document.slotStatus === "submitted"
+      && document.documentVersionId
+        ? randomUUID()
+        : null,
+    canReview:
+      canReviewDocuments
+      && document.slotStatus === "submitted"
+      && document.documentVersionId !== null,
   }));
   const retryRequestId = parsePlatformAdmissionsUuid(query.retry_request_id);
   const profileRequestId = retryRequestId ?? randomUUID();
@@ -268,6 +283,9 @@ export async function loadPlatformClientPageData(
       updateStudentRoute: updatePlatformStudentCaseRouteAction,
       updateStudentProfile: updatePlatformStudentProfileAction,
       applyCountryRequirementVersion: applyPlatformCountryRequirementVersionAction,
+      reviewPlatformDocument: canReviewDocuments
+        ? reviewPlatformDocumentVersionAction
+        : undefined,
     },
     canManageLifecycle,
     canViewCaseAudit: false,

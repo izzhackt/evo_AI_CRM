@@ -71,6 +71,9 @@ type PresentationDocument = Readonly<{
   status: string;
   comment: string | null;
   connected?: boolean;
+  documentVersionId?: string | null;
+  reviewRequestId?: string | null;
+  canReview?: boolean;
 }>;
 type PresentationStudentProfile = Readonly<{
   revision: number;
@@ -177,6 +180,7 @@ type PresentationActions = Readonly<{
   updateStudentRoute?: ServerFormAction;
   updateStudentProfile?: ServerFormAction;
   applyCountryRequirementVersion?: ServerFormAction;
+  reviewPlatformDocument?: ServerFormAction;
 }>;
 
 export type ClientPagePresentationData =
@@ -1472,6 +1476,60 @@ export default async function ClientPageContent({
                     {t("documentDetail")}
                   </Link>
                 )}
+                {d.connected === false &&
+                  d.canReview &&
+                  d.documentVersionId &&
+                  d.reviewRequestId &&
+                  actions.reviewPlatformDocument && (
+                    <form
+                      action={actions.reviewPlatformDocument}
+                      className="grid w-full gap-2 rounded-nav border border-border bg-surface-2 p-3 sm:max-w-md sm:grid-cols-2"
+                      data-testid="platform-document-review-form"
+                    >
+                      <input type="hidden" name="student_case_id" value={client.id} />
+                      <input
+                        type="hidden"
+                        name="document_version_id"
+                        value={d.documentVersionId}
+                      />
+                      <input
+                        type="hidden"
+                        name="request_id"
+                        value={d.reviewRequestId}
+                      />
+                      <label className={labelCls}>
+                        {t("status")}
+                        <select
+                          name="decision"
+                          defaultValue="correction_required"
+                          className={cn(selectCls, "mt-1 w-full")}
+                        >
+                          <option value="correction_required">
+                            {t("correctionRequired")}
+                          </option>
+                          <option value="rejected">{t("doc.rejected")}</option>
+                        </select>
+                      </label>
+                      <label className={labelCls}>
+                        {t("platformReviewReason")}
+                        <input
+                          type="text"
+                          name="reason"
+                          required
+                          minLength={1}
+                          maxLength={2000}
+                          className={cn(inputCls, "mt-1 w-full")}
+                        />
+                      </label>
+                      <button
+                        type="submit"
+                        className={cn(btnCls, "sm:col-span-2")}
+                        data-testid="platform-document-review-submit"
+                      >
+                        {t("save")}
+                      </button>
+                    </form>
+                  )}
               </li>
             ))}
           </ul>

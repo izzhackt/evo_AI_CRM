@@ -5426,3 +5426,140 @@ Scope and rollback remain unchanged:
   mutation or new public route.
 - Rollback removes the single `p6a` bootstrap value and its regression
   assertion together with the P6A harness if the entire slice is reverted.
+
+## 2026-08-12 - Implement P6B durable Student Portal notifications
+
+Block-ID: `EVO-P6B-PORTAL-NOTIFICATIONS-2026-08-12`
+
+Accepted baseline:
+
+- PR #148 merged the reviewed P6A read-only attention slice as
+  `6a90d9a1f00263dedfa33fb7543bd176a96d46a4`.
+- Exact-main CI run `31538299201` is green at that exact SHA for Main CRM,
+  EVO Inbox and EVO Lead Agent; Changed range is skipped on the push event as
+  expected. Main CRM passed the full disposable Supabase, Storage, PGMQ and
+  browser contract, frontend contracts, build, all CRM scenarios and audits.
+- Migrations remain contiguous `001-067`; this block owns additive migration
+  `068` and does not edit migration `043` or `053` history.
+
+Decision:
+
+- Implement P6B as the first durable, in-app-only Student notification/read
+  lifecycle. Add `platform.student_portal_notification_projection_v1` over
+  the existing `platform.notifications` and `platform.notification_events`
+  tables. The projection is FORCE-RLS, has no direct browser policy or grant,
+  and is exposed only through narrow authenticated RPCs.
+- Freeze the browser read contract as argument-free
+  `platform.student_portal_notifications_v1()`. It derives the active Student
+  organization, membership and readable case from current Auth authority and
+  returns only notification id, category, negative review decision, safe
+  requirement key/label, review reason, created time and read time. It returns
+  no case/source/version/reviewer/provider/phone/consent or Realtime topic
+  identifier.
+- Freeze acknowledgement as
+  `platform.mark_own_student_portal_notification_read_v1(notification_id,
+  request_id)`. It derives authority server-side, locks the exact self-owned
+  notification, performs the one-way read transition through the accepted
+  audited notification contract and returns only notification id, read state
+  and read time. Same-organization other Students, cross-organization actors,
+  inactive or wrong-role actors and malformed identifiers fail closed.
+- Publish only from an `AFTER INSERT` trigger on the immutable
+  `platform.document_reviews` source event for `correction_required` and
+  `rejected`. The trigger resolves one live Student recipient and inserts one
+  notification, one P6B projection and one created event in the review
+  transaction. Exact source uniqueness provides dedupe. Publication failure
+  rolls back the review; no partial success or orphan is accepted.
+- Insert no `notification_delivery_intents` row and do not call the existing
+  two-channel creator/list pair. P6B performs no WhatsApp intent, WAHA call,
+  provider claim, communication write, delivery claim or send.
+- Add membership-scoped private Realtime invalidation on projection creation
+  and the exact read transition. Topic authorization requires the exact active
+  Student organization and membership plus a live Portal-readable case.
+  Broadcast payload is ID-free invalidation only; the browser refetches the
+  safe RPC. Safe localized notification text may be rendered in the accepted
+  Portal, but notification text is never placed in the Realtime payload and
+  case identifiers/private topics are never rendered in the DOM.
+- Current official Supabase Realtime
+  [Authorization](https://supabase.com/docs/guides/realtime/authorization) and
+  [Broadcast](https://supabase.com/docs/guides/realtime/broadcast) contracts
+  require a client private channel, a `SELECT` RLS policy over
+  `realtime.messages` using `realtime.topic()`, and matching database-send
+  privacy. P6B reuses that already accepted migration-063 pattern and grants no
+  authenticated `INSERT` or `realtime.send` capability.
+- Redefine the existing
+  `platform.staff_student_case_documents(student_case_id)` function only in
+  migration `068` so it joins `document_slots.current_version_id`. This fixes
+  the current multi-version ambiguity without editing migration `053` or
+  widening staff authority.
+- Add the first Supabase-native staff review control to the accepted Student
+  360 document section for submitted current Platform versions. It calls the
+  existing audited `platform.review_document_version(...)` RPC for only
+  `correction_required` or `rejected`, requires a bounded reason and exact
+  request id, and remains unavailable to Sales, unassigned Curators and
+  legacy SQLite documents. The legacy `/documents` workflow is not reused or
+  migrated.
+- Add exact fail-closed runtime flag
+  `EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED`, enabled only by `1`, and a
+  harness-only `EVO_P6B_BROWSER_PROOF` selector. Every unrelated browser
+  partition keeps both disabled. When runtime is disabled, preserve the
+  accepted P6A/Portal behavior.
+- Preserve the accepted Claude Design layout. Keep P6A read-only attention
+  above the new durable feed; derive the Portal unread badge from the durable
+  notification projection; add localized RU/KY/EN copy and an accessible
+  per-notification read action without copying Inbox CRM surfaces.
+
+Validation required before merge:
+
+- Node `22.23.1` focused SQL-contract, repository/action, UI/Realtime and reset
+  harness tests; unit/security Node suites; `git diff --check`; ESLint; Next
+  route type generation; TypeScript; production build; staged secret scan and
+  dependency audits.
+- One singleton disposable PostgreSQL authorization gate proving additive
+  migration `068`, forced RLS/direct-access denial, current-version staff
+  document reads, atomic negative-review publication, approved-review silence,
+  exact idempotency, self-only read/ack and private topic authorization.
+- One singleton full local Supabase/browser gate. Its dedicated P6B partition
+  must prove accepted Student 360 negative review to one live Portal
+  notification without reload, a persisted self-read transition and unread
+  badge update, plus same-organization other-Student, cross-organization,
+  anonymous, inactive/wrong-role and malformed-topic denial. The proof must
+  assert there is no WhatsApp intent, provider/communication state or private
+  identifier in the response or visible DOM.
+- One fresh independent exact-head read-only review, all four exact-head CI
+  jobs, direct merge of only that reviewed head and green exact-main push CI
+  before P6C begins.
+
+Blocked proof and rollback:
+
+- Real provider, managed Supabase, staging, production migration/deployment,
+  customer data and customer delivery remain blocked. Synthetic local
+  review-to-Portal evidence is not production proof.
+- Rollback disables the runtime flag and removes application/realtime wiring.
+  Additive migration state is forward-fixed without deleting durable review,
+  notification, event or read history. Migration `043`, dormant WhatsApp
+  intents, Lead Agent and legacy rollback path remain intact.
+
+### P6B pre-merge review correction: enforce the disabled database boundary
+
+- The application flag alone is not a database authorization boundary. P6B
+  therefore also requires an enabled row for the exact organization in the
+  private FORCE-RLS
+  `platform_private.student_portal_notification_runtime_controls` table.
+  Migration `068` creates no enabled row, so a configured Supabase project and
+  the accepted legacy review RPC remain notification-silent by default.
+- Preserve `platform.review_document_version(...)` as the legacy review-only
+  contract. The P6B staff action instead calls
+  `platform.review_document_version_with_portal_notification_v1(...)`. That
+  gated wrapper requires the private organization control and sets a
+  transaction-local producer context only around the accepted immutable review
+  operation. The trigger requires both controls; a missing control rolls back
+  the P6B wrapper before any review or notification write.
+- Publication additionally requires the Student case to be Portal-readable:
+  `active|closed`, Portal activated, a current granted case scope and published
+  Student bundle permissions for both Portal and self-notification reads. This
+  prevents successful publication of a row that its intended recipient cannot
+  read or acknowledge.
+- Bound the safe feed deterministically to the latest 500 rows and enforce the
+  application-safe 128-character `requirement_key` boundary before projection.
+  The synthetic P6B fixture alone enables the private organization control;
+  production and every unrelated environment remain disabled.

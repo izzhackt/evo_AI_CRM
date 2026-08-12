@@ -441,6 +441,38 @@ test("repository calls only the seven read-only portal RPCs", async () => {
   );
 });
 
+test("repository adds the durable P6B notification RPC only when explicitly enabled", async () => {
+  const snapshot = await getPlatformStudentPortalSnapshot(actor(), {
+    client: rpcClient({
+      student_portal_profile: { data: [profileRow()], error: null },
+      student_portal_applications: { data: [], error: null },
+      student_portal_visa_cases: { data: [], error: null },
+      student_portal_tasks: { data: [], error: null },
+      student_portal_updates: { data: [], error: null },
+      student_portal_documents: { data: [], error: null },
+      student_portal_finance: { data: [], error: null },
+      student_portal_notifications_v1: {
+        data: [{
+          notification_id: UPDATE_ID,
+          category: "document.review",
+          review_decision: "rejected",
+          requirement_key: "passport_copy",
+          requirement_label: "Passport copy",
+          reason: "Wrong document.",
+          created_at: AT,
+          read_at: null,
+        }],
+        error: null,
+      },
+    }),
+    generatedAt: AT,
+    notificationsEnabled: true,
+  });
+
+  assert.equal(snapshot.notifications?.length, 1);
+  assert.equal(snapshot.notifications?.[0]?.id, UPDATE_ID);
+});
+
 test("normal connected portal modules have no static legacy auth or SQLite reachability", () => {
   for (const file of [
     "src/lib/portal.ts",

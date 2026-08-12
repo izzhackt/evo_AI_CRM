@@ -46,6 +46,22 @@ export type StudentPortalUpdate = {
   readonly isRead: boolean;
 };
 
+/**
+ * A durable, student-owned in-app notification. Source record, provider,
+ * reviewer, topic and document-version identifiers are intentionally absent.
+ */
+export type StudentPortalNotification = {
+  readonly id: string;
+  readonly category: "document.review";
+  readonly decision: "correction_required" | "rejected";
+  readonly requirementKey: string;
+  readonly requirementLabel: string;
+  readonly reason: string;
+  readonly createdAt: DateTimeString;
+  readonly readAt: DateTimeString | null;
+  readonly isRead: boolean;
+};
+
 export type StudentPortalContact = {
   readonly id: StudentPortalEntityId;
   readonly name: string;
@@ -155,6 +171,7 @@ export type StudentPortalSnapshot = {
   readonly nextAction: StudentPortalNextAction | null;
   readonly manager: StudentPortalContact | null;
   readonly curator: StudentPortalContact | null;
+  readonly notifications?: readonly StudentPortalNotification[];
   readonly updates: readonly StudentPortalUpdate[];
   readonly applications: readonly StudentPortalApplication[];
   readonly documents: readonly StudentPortalDocument[];

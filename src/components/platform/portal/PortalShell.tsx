@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
-import type { StudentPortalSnapshot } from "@/lib/contracts/student-portal";
 import { LOCALES, type Locale } from "@/lib/i18n-data";
 import { setPlatformLocaleAction } from "@/lib/platform-admissions-actions";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
@@ -224,17 +223,17 @@ function PortalMobileNavigation({
 
 export function PortalShell({
   user,
-  snapshot,
+  unreadNotificationCount,
   locale,
   children,
 }: {
   user: Readonly<{ name: string }>;
-  snapshot: StudentPortalSnapshot | undefined;
+  unreadNotificationCount: number;
   locale: Locale;
   children: ReactNode;
 }) {
   const copy = getPortalCopy(locale);
-  const unreadCount = snapshot?.updates.filter((update) => !update.isRead).length ?? 0;
+  const unreadCount = Math.max(0, Math.min(unreadNotificationCount, 99));
 
   const allNavigation: readonly PortalNavigationItem[] = [
     { href: "/portal", label: copy.home, icon: "home" },
@@ -287,7 +286,12 @@ export function PortalShell({
               >
                 <PortalIcon name="notifications" size={20} />
                 {unreadCount > 0 && (
-                  <span className={styles.notificationBadge}>{Math.min(unreadCount, 99)}</span>
+                  <span
+                    className={styles.notificationBadge}
+                    data-testid="portal-notifications-unread-badge"
+                  >
+                    {unreadCount}
+                  </span>
                 )}
               </Link>
               <div className={styles.identity}>

@@ -1238,6 +1238,8 @@ const main = async () => {
     finance: syntheticIdentity("finance"),
     student: syntheticIdentity("student"),
     studentNoCase: syntheticIdentity("student-no-case"),
+    p6bStudent: syntheticIdentity("p6b-student"),
+    crossOrgStudent: syntheticIdentity("cross-org-student"),
     lifecycleStudent: syntheticIdentity("lifecycle-student"),
     revocableCurator: syntheticIdentity("revocable-curator"),
     blocked: syntheticIdentity("blocked"),
@@ -1319,6 +1321,15 @@ const main = async () => {
   sqlUuid(noCaseStudentMembership.profile_id, "student-no-case-profile-id");
   await signIn(identities.studentNoCase, "student");
 
+  const p6bStudentMembership = await provisionMembership(
+    identities.adminA,
+    adminAMembership.organization_id,
+    identities.p6bStudent,
+    "student",
+  );
+  sqlUuid(p6bStudentMembership.profile_id, "p6b-student-profile-id");
+  await signIn(identities.p6bStudent, "student");
+
   const lifecycleStudentMembership = await provisionMembership(
     identities.adminA,
     adminAMembership.organization_id,
@@ -1357,6 +1368,17 @@ const main = async () => {
     identities.salesB,
     "sales",
   );
+  const crossOrgStudentMembership = await provisionMembership(
+    identities.adminB,
+    adminBMembership.organization_id,
+    identities.crossOrgStudent,
+    "student",
+  );
+  sqlUuid(
+    crossOrgStudentMembership.profile_id,
+    "cross-org-student-profile-id",
+  );
+  await signIn(identities.crossOrgStudent, "student");
   for (const identity of [
     identities.responsibleSales,
     identities.salesScoped,
@@ -2269,6 +2291,202 @@ const main = async () => {
   assert(
     noCasePortalRows.length === 0,
     "bw3-student-no-case-portal-profile-empty",
+  );
+
+  const p6bReviewReason =
+    "Synthetic P6B correction required: replace the unreadable passport scan.";
+  runSql(
+    `INSERT INTO platform_private.student_portal_notification_runtime_controls (
+      organization_id,
+      enabled,
+      updated_at
+    )
+    VALUES (
+      ${sqlUuid(adminAMembership.organization_id, "p6b-runtime-control-org")},
+      TRUE,
+      statement_timestamp()
+    )
+    ON CONFLICT (organization_id) DO UPDATE
+    SET enabled = EXCLUDED.enabled,
+        updated_at = EXCLUDED.updated_at;`,
+    "p6b-runtime-control-enable",
+  );
+  const p6bStudentCase = serviceFunctionResult(
+    `platform.create_pending_student_case(
+      ${sqlUuid(adminAMembership.organization_id, "p6b-case-org")},
+      ${sqlUuid(p6bStudentMembership.id, "p6b-case-student")},
+      ${sqlUuid(
+        salesScopedMembership.id,
+        "p6b-case-responsible-sales",
+      )},
+      'synthetic-local-fixture-p6b-student',
+      'synthetic-contract:p6b:confirmed',
+      '2026-08-05T08:00:00Z'::timestamptz,
+      'P6B Synthetic Portal Student',
+      ${sqlText(bw3Checklist.targetCountry)},
+      ${sqlText(bw3Checklist.targetDegree)},
+      ${sqlText(bw3Checklist.programDirection)},
+      '2027',
+      'ru',
+      'self-funded',
+      'contract_confirmed',
+      'Create a dedicated case for the P6B local browser proof',
+      ${sqlUuid(randomUUID(), "p6b-case-request")}
+    )`,
+    "p6b-case-create",
+  );
+  const p6bStudentCaseId = p6bStudentCase?.student_case_id;
+  sqlUuid(p6bStudentCaseId, "p6b-student-case-id");
+
+  const p6bCuratorAssignment = authenticatedFunctionResult(
+    decodeClaims(
+      identities.adminA.accessToken,
+      "p6b-admin-claims-for-curator-assignment",
+    ),
+    `platform.assign_student_case_curator(
+      ${sqlUuid(adminAMembership.organization_id, "p6b-assign-org")},
+      ${sqlUuid(p6bStudentCaseId, "p6b-assign-case")},
+      ${sqlUuid(roleMembers.curator.id, "p6b-assign-curator")},
+      'Activate the dedicated P6B local browser proof case',
+      ${sqlUuid(randomUUID(), "p6b-assign-request")}
+    )`,
+    "p6b-curator-assignment",
+  );
+  assert(
+    p6bCuratorAssignment?.student_case_id === p6bStudentCaseId &&
+      p6bCuratorAssignment?.case_state === "active",
+    "p6b-curator-assignment-result",
+  );
+
+  // Assigning the P6B case appends a Curator scope event and bumps the live
+  // access version. Refresh this synthetic actor before later P3C RPCs so the
+  // smoke keeps proving current authority instead of reusing a stale JWT.
+  await signIn(identities.curator, "curator");
+
+  const p6bRequirementApplication = await rpc(
+    identities.adminA,
+    "apply_country_requirement_version",
+    [
+      adminAMembership.organization_id,
+      p6bStudentCaseId,
+      bw3CountryRequirementVersionId,
+      "Apply the approved checklist to the dedicated P6B case",
+      randomUUID(),
+    ],
+  );
+  assert(
+    p6bRequirementApplication?.student_case_id === p6bStudentCaseId &&
+      p6bRequirementApplication?.country_requirement_version_id ===
+        bw3CountryRequirementVersionId,
+    "p6b-country-requirement-application",
+  );
+
+  const p6bStudentProfile = await rpc(
+    identities.adminA,
+    "upsert_student_profile",
+    [
+      adminAMembership.organization_id,
+      p6bStudentCaseId,
+      0,
+      "P6B Synthetic Portal Student",
+      null,
+      null,
+      bw3Profile.communicationLanguage,
+      bw3Profile.citizenshipCountry,
+      bw3Profile.residencyCountry,
+      bw3Profile.currentEducationSummary,
+      bw3Profile.academicSummary,
+      bw3Profile.languageSummary,
+      bw3Profile.budgetBand,
+      bw3Profile.decisionParticipantLabels,
+      bw3Profile.consentStatus,
+      bw3Profile.consentEvidenceRef,
+      "Review the submitted synthetic document",
+      "Persist the dedicated P6B Student Portal profile",
+      randomUUID(),
+    ],
+  );
+  assert(
+    p6bStudentProfile?.student_case_id === p6bStudentCaseId &&
+      p6bStudentProfile?.revision === 1,
+    "p6b-student-profile-upsert",
+  );
+  const p6bStudentProfileId = p6bStudentProfile?.id;
+  sqlUuid(p6bStudentProfileId, "p6b-student-profile-id");
+
+  // Prove the same argument-free, RLS-scoped projection used by /portal is
+  // ready before handing this identity to Playwright. This prevents a role-
+  // only login redirect from masking an incomplete Student Portal fixture.
+  await signIn(identities.p6bStudent, "student");
+  const p6bStudentPortalProfileRows = await authenticatedPlatformRpcRows(
+    identities.p6bStudent,
+    "student_portal_profile",
+    {},
+    "p6b-student-portal-profile-ready",
+  );
+  assert(
+    p6bStudentPortalProfileRows.length === 1 &&
+      p6bStudentPortalProfileRows[0].case_id === p6bStudentCaseId &&
+      p6bStudentPortalProfileRows[0].student_profile_id ===
+        p6bStudentProfileId,
+    "p6b-student-portal-profile-ready-values",
+  );
+
+  const p6bDocumentRowsBeforeSubmission = await authenticatedPlatformRpcRows(
+    identities.adminA,
+    "staff_student_case_documents",
+    { p_student_case_id: p6bStudentCaseId },
+    "p6b-staff-document-before-submission",
+  );
+  assert(
+    p6bDocumentRowsBeforeSubmission.length === 1 &&
+      p6bDocumentRowsBeforeSubmission[0].requirement_key ===
+        bw3Document.requirementKey &&
+      p6bDocumentRowsBeforeSubmission[0].slot_status === "required" &&
+      p6bDocumentRowsBeforeSubmission[0].document_version_id === null,
+    "p6b-staff-document-before-submission-values",
+  );
+  const p6bDocumentSlotId =
+    p6bDocumentRowsBeforeSubmission[0].document_slot_id;
+  sqlUuid(p6bDocumentSlotId, "p6b-document-slot-id");
+
+  const p6bDocumentVersion = serviceFunctionResult(
+    `platform.record_document_version_metadata(
+      ${sqlUuid(adminAMembership.organization_id, "p6b-document-org")},
+      ${sqlUuid(p6bDocumentSlotId, "p6b-document-slot")},
+      ${sqlUuid(p6bStudentMembership.id, "p6b-document-submitter")},
+      'p6b-synthetic-passport.pdf',
+      'application/pdf',
+      4096,
+      '${"6".repeat(64)}',
+      'synthetic-non-storage:p6b-browser-proof',
+      ${sqlUuid(randomUUID(), "p6b-document-request")}
+    )`,
+    "p6b-document-version-record",
+  );
+  const p6bDocumentVersionId = p6bDocumentVersion?.document_version_id;
+  sqlUuid(p6bDocumentVersionId, "p6b-document-version-id");
+  assert(
+    p6bDocumentVersion?.student_case_id === p6bStudentCaseId &&
+      p6bDocumentVersion?.document_slot_id === p6bDocumentSlotId &&
+      p6bDocumentVersion?.version_no === 1,
+    "p6b-document-version-record-result",
+  );
+
+  const p6bDocumentRows = await authenticatedPlatformRpcRows(
+    identities.adminA,
+    "staff_student_case_documents",
+    { p_student_case_id: p6bStudentCaseId },
+    "p6b-staff-document-after-submission",
+  );
+  assert(
+    p6bDocumentRows.length === 1 &&
+      p6bDocumentRows[0].document_slot_id === p6bDocumentSlotId &&
+      p6bDocumentRows[0].document_version_id === p6bDocumentVersionId &&
+      p6bDocumentRows[0].slot_status === "submitted" &&
+      p6bDocumentRows[0].original_filename ===
+        "p6b-synthetic-passport.pdf",
+    "p6b-staff-document-after-submission-values",
   );
 
   const orgAConversation = createSyntheticConversationFixture({
@@ -3639,6 +3857,19 @@ const main = async () => {
           overduePaymentLabel: p6aOverduePaymentLabel,
           overduePaymentNextAction: p6aOverduePaymentNextAction,
         },
+        p6b: {
+          organizationId: adminAMembership.organization_id,
+          studentCaseId: p6bStudentCaseId,
+          documentSlotId: p6bDocumentSlotId,
+          documentVersionId: p6bDocumentVersionId,
+          recipientStudentMembershipId: p6bStudentMembership.id,
+          sameOrgOtherStudentMembershipId: noCaseStudentMembership.id,
+          crossOrgOrganizationId: adminBMembership.organization_id,
+          crossOrgStudentMembershipId: crossOrgStudentMembership.id,
+          requirementKey: bw3Document.requirementKey,
+          requirementLabel: bw3Document.label,
+          reviewReason: p6bReviewReason,
+        },
         p5f3: {
           autonomousReplyTriggerSecret: p5f3AutonomousReplyTriggerSecret,
         },
@@ -3678,6 +3909,14 @@ const main = async () => {
           studentNoCase: {
             email: identities.studentNoCase.email,
             password: identities.studentNoCase.password,
+          },
+          p6bStudent: {
+            email: identities.p6bStudent.email,
+            password: identities.p6bStudent.password,
+          },
+          crossOrgStudent: {
+            email: identities.crossOrgStudent.email,
+            password: identities.crossOrgStudent.password,
           },
           lifecycleStudent: {
             email: identities.lifecycleStudent.email,

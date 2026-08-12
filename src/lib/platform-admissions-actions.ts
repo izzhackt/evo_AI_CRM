@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import {
+  buildPlatformAdmissionsRedirectUrl,
   PLATFORM_APPLICATION_EVIDENCE_STATUSES,
   PLATFORM_APPLICATION_STATUSES,
   parsePlatformAdmissionsUuid,
@@ -79,10 +80,16 @@ function safeRedirect(
   path: string,
   outcome: "saved" | "invalid" | "unavailable",
   retryRequestId?: string | null,
+  anchor?: "case-lifecycle",
 ): never {
-  const params = new URLSearchParams({ result: outcome });
-  if (retryRequestId) params.set("retry_request_id", retryRequestId);
-  redirect(`${path}?${params.toString()}`);
+  redirect(
+    buildPlatformAdmissionsRedirectUrl(
+      path,
+      outcome,
+      retryRequestId,
+      anchor,
+    ),
+  );
 }
 
 export async function setPlatformLocaleAction(form: FormData): Promise<void> {
@@ -130,7 +137,7 @@ export async function changePlatformStudentCaseStateAction(
     (newStateValue !== "active" && newStateValue !== "closed") ||
     !reason
   ) {
-    safeRedirect(targetPath, "invalid", requestId);
+    safeRedirect(targetPath, "invalid", requestId, "case-lifecycle");
   }
 
   try {
@@ -154,16 +161,16 @@ export async function changePlatformStudentCaseStateAction(
         studentCaseId ||
       response.data.case_state !== newStateValue
     ) {
-      safeRedirect(targetPath, "unavailable", requestId);
+      safeRedirect(targetPath, "unavailable", requestId, "case-lifecycle");
     }
   } catch {
-    safeRedirect(targetPath, "unavailable", requestId);
+    safeRedirect(targetPath, "unavailable", requestId, "case-lifecycle");
   }
 
   revalidatePath("/clients");
   revalidatePath(targetPath);
   revalidatePath("/applications");
-  safeRedirect(targetPath, "saved");
+  safeRedirect(targetPath, "saved", null, "case-lifecycle");
 }
 
 export async function assignPlatformStudentCaseCuratorAction(

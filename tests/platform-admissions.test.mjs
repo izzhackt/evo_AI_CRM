@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  buildPlatformAdmissionsRedirectUrl,
   PlatformAdmissionsRepositoryError,
   getPlatformOpWorkflowContract,
   listPlatformApplications,
@@ -28,6 +29,27 @@ const HANDOFF_ID = "66666666-6666-4666-8666-666666666666";
 const CURATOR_MEMBERSHIP_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const CURATOR_PROFILE_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const AT = "2026-08-01T05:00:00+00:00";
+
+test("case lifecycle redirects preserve the originating Student 360 section", () => {
+  assert.equal(
+    buildPlatformAdmissionsRedirectUrl(
+      `/clients/${CASE_ID}`,
+      "saved",
+      null,
+      "case-lifecycle",
+    ),
+    `/clients/${CASE_ID}?result=saved#case-lifecycle`,
+  );
+  assert.equal(
+    buildPlatformAdmissionsRedirectUrl(
+      `/clients/${CASE_ID}`,
+      "unavailable",
+      APPLICATION_ID,
+      "case-lifecycle",
+    ),
+    `/clients/${CASE_ID}?result=unavailable&retry_request_id=${APPLICATION_ID}#case-lifecycle`,
+  );
+});
 
 function actor(platformRole) {
   return {
@@ -414,7 +436,12 @@ test("mutation forms preserve a validated render-time request id across uncertai
     new URL("../src/lib/platform-admissions-actions.ts", import.meta.url),
     "utf8",
   );
-  assert.match(actionSource, /retry_request_id/);
+  const redirectSource = readFileSync(
+    new URL("../src/lib/platform-admissions.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(actionSource, /buildPlatformAdmissionsRedirectUrl/);
+  assert.match(redirectSource, /retry_request_id/);
   for (const file of [
     "src/app/(staff)/clients/[id]/PlatformClientPage.tsx",
     "src/app/(staff)/applications/PlatformApplicationsPage.tsx",

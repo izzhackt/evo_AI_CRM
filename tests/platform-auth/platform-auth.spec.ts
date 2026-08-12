@@ -860,7 +860,7 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
   for (const [index, applicationLabel] of fixture.p6d.applicationLabels.entries()) {
     const [institution, program] = applicationLabel.split(" — ");
     const applicationRow = applicationsPage.getByRole("row").filter({
-      has: applicationsPage.getByRole("link", {
+      has: page.getByRole("link", {
         name: institution,
         exact: true,
       }),

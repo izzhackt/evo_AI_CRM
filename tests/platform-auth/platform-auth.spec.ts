@@ -2759,6 +2759,16 @@ test("P6D closes the real Student 360 and Portal cross-domain loop with tenant i
     "overdue",
     "payment_obligation_id",
   ];
+  const exactPortalNotificationKeys = [
+    "category",
+    "created_at",
+    "detail",
+    "due_at",
+    "event_code",
+    "notification_id",
+    "read_at",
+    "subject_label",
+  ];
 
   const crossOrgVisa = await platformRpc(
     crossOrgAdminToken,
@@ -2886,6 +2896,27 @@ test("P6D closes the real Student 360 and Portal cross-domain loop with tenant i
   );
   await curatorContext.close();
 
+  const primaryNotificationsAfterReview = await platformRpc(
+    primaryStudentToken,
+    "student_portal_notifications_v2",
+    {},
+  );
+  expect(primaryNotificationsAfterReview.status).toBe(200);
+  const documentRowsAfterReview = (
+    primaryNotificationsAfterReview.payload as Array<Record<string, unknown>>
+  ).filter((row) => row.category === "document.review");
+  expect(documentRowsAfterReview).toHaveLength(1);
+  expect(Object.keys(documentRowsAfterReview[0]).sort()).toEqual(
+    exactPortalNotificationKeys,
+  );
+  expect(documentRowsAfterReview[0]).toMatchObject({
+    category: "document.review",
+    event_code: "correction_required",
+    subject_label: fixture.p6d.documentRequirementLabel,
+    detail: fixture.p6d.documentReviewReason,
+    due_at: null,
+  });
+
   const ensureOverdueNotifications = async () => {
     const [primary, secondary] = await Promise.all([
       platformRpc(primaryStudentToken, "student_portal_notifications_v2", {}),
@@ -2926,6 +2957,21 @@ test("P6D closes the real Student 360 and Portal cross-domain loop with tenant i
   };
   await ensureOverdueNotifications();
 
+  const primaryNotificationsAfterOverdue = await platformRpc(
+    primaryStudentToken,
+    "student_portal_notifications_v2",
+    {},
+  );
+  expect(primaryNotificationsAfterOverdue.status).toBe(200);
+  const primaryNotificationRows =
+    primaryNotificationsAfterOverdue.payload as Array<Record<string, unknown>>;
+  expect(
+    primaryNotificationRows.filter((row) => row.category === "document.review"),
+  ).toHaveLength(1);
+  expect(
+    primaryNotificationRows.filter((row) => row.category === "payment.overdue"),
+  ).toHaveLength(1);
+
   const assertPersistedRead = async (page: Page, category: string) => {
     const row = page.locator(`[data-notification-category="${category}"]`);
     await expect(row).toHaveCount(1);
@@ -2945,13 +2991,17 @@ test("P6D closes the real Student 360 and Portal cross-domain loop with tenant i
   const primaryStudentContext = await browser.newContext();
   const primaryStudentPage = await primaryStudentContext.newPage();
   await login(primaryStudentPage, fixture.identities.student);
+  await expect(primaryStudentPage).toHaveURL(/\/portal$/);
   await primaryStudentPage.goto("/portal/notifications");
+  await expect(primaryStudentPage).toHaveURL(/\/portal\/notifications$/);
   const documentNotification = primaryStudentPage.locator(
     '[data-notification-category="document.review"]',
   );
   const paymentNotification = primaryStudentPage.locator(
     '[data-notification-category="payment.overdue"]',
   );
+  await expect(documentNotification).toHaveCount(1);
+  await expect(paymentNotification).toHaveCount(1);
   await expect(documentNotification).toContainText(
     fixture.p6d.documentRequirementLabel,
   );
@@ -2987,7 +3037,9 @@ test("P6D closes the real Student 360 and Portal cross-domain loop with tenant i
   const secondaryStudentContext = await browser.newContext();
   const secondaryStudentPage = await secondaryStudentContext.newPage();
   await login(secondaryStudentPage, fixture.identities.p6bStudent);
+  await expect(secondaryStudentPage).toHaveURL(/\/portal$/);
   await secondaryStudentPage.goto("/portal/notifications");
+  await expect(secondaryStudentPage).toHaveURL(/\/portal\/notifications$/);
   const taskNotification = secondaryStudentPage.locator(
     '[data-notification-category="task.overdue"]',
   );
@@ -3013,6 +3065,7 @@ test("P6D closes the real Student 360 and Portal cross-domain loop with tenant i
   const adminContext = await browser.newContext();
   const adminPage = await adminContext.newPage();
   await login(adminPage, fixture.identities.admin);
+  await expect(adminPage).toHaveURL(/\/sales$/);
   await adminPage.goto(`${primaryPath}#payments`);
   const paymentCreateForm = adminPage.getByTestId(
     "platform-payment-create-form",
@@ -3106,6 +3159,7 @@ test("P6D closes the real Student 360 and Portal cross-domain loop with tenant i
   const crossOrgContext = await browser.newContext();
   const crossOrgPage = await crossOrgContext.newPage();
   await login(crossOrgPage, fixture.identities.crossOrgAdmin);
+  await expect(crossOrgPage).toHaveURL(/\/sales$/);
   await crossOrgPage.goto(primaryPath);
   await expect(crossOrgPage.getByTestId("platform-visa-form")).toHaveCount(0);
   await expect(crossOrgPage.locator("body")).not.toContainText(
@@ -3118,7 +3172,13 @@ test("P6D closes the real Student 360 and Portal cross-domain loop with tenant i
   const crossOrgStudentContext = await browser.newContext();
   const crossOrgStudentPage = await crossOrgStudentContext.newPage();
   await login(crossOrgStudentPage, fixture.identities.crossOrgStudent);
+  await expect.poll(() => new URL(crossOrgStudentPage.url()).pathname).toBe(
+    "/platform-pending",
+  );
   await crossOrgStudentPage.goto("/portal/notifications");
+  await expect.poll(() => new URL(crossOrgStudentPage.url()).pathname).toBe(
+    "/platform-pending",
+  );
   await expect(crossOrgStudentPage.getByTestId("portal-notification-row"))
     .toHaveCount(0);
 

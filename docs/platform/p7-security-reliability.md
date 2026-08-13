@@ -1,6 +1,7 @@
 # P7 security, reliability and operations contract
 
-Status: authoritative implementation contract; P7A accepted, P7B next
+Status: authoritative implementation contract; P7A accepted, P7B build
+contract frozen
 
 Version date: 2026-08-13 (Asia/Bishkek)
 
@@ -21,11 +22,18 @@ Accepted progress:
   `47e2e211ba77d36e3296b12ad0b8087276ca712d`, including migration `071`;
 - exact-main push CI run `31688954104` passed Main CRM, EVO Inbox and EVO
   Lead Agent; Changed range was skipped on the push event as expected;
+- PR #157 merged the accepted-status refresh and OrbStack-only local runtime
+  policy as `e4d10b96d0ef4061fdb03ec85430cb65d86e39fd`;
+- exact-main push CI run `31701995589` passed Main CRM, EVO Inbox and EVO Lead
+  Agent; Changed range was skipped on the push event as expected;
 - P7A evidence is repository/disposable-local only. Its runtime remains
   disabled by default, and it proves no managed Supabase, production or
   real-provider behavior;
 - P7B is the next authorized block. P7C follows, while P7D remains blocked
   until the owner supplies its numeric capacity and human accessibility inputs.
+- the build-ready P7B route, SQL, signal, alert and proof details are frozen in
+  `docs/platform/p7b-observability-contract.md`; its independently reviewed
+  merge is the authority gate for P7B implementation.
 
 This contract expands the append-only Block-ID above. If wording conflicts,
 `docs/PLAN_CHANGES.md` and `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` take

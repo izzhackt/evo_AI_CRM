@@ -21,8 +21,8 @@ then merged P6A read-only attention, P6B durable Student Portal notifications,
 P6C overdue-transition publication and P6D cross-domain Student 360 closure.
 PR #154 merged the P7 security/reliability contract and PR #156 merged P7A
 safe Admin-only audit search/export. Current `origin/main` is
-`47e2e211ba77d36e3296b12ad0b8087276ca712d`, migrations remain contiguous
-`001-071`, and exact-main push CI run `31688954104` is green for Main CRM,
+`e4d10b96d0ef4061fdb03ec85430cb65d86e39fd`, migrations remain contiguous
+`001-071`, and exact-main push CI run `31701995589` is green for Main CRM,
 EVO Inbox and EVO Lead Agent; Changed range is skipped on the push event as
 expected.
 
@@ -66,13 +66,15 @@ slice. The superseding rule is:
 ## Current Goal Slice
 
 Active implementation slice: `P7B` under merged Block
-`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13`. P6A-P6D and P7A are merged,
-and their exact-main gate is green. P7 continues sequentially as P7B private
-observability/alerts/runbooks, P7C isolated database plus separate private
-Storage restore, and gated P7D approved-capacity load plus automated and human
-accessibility closure. Each block still requires its own fresh exact-head
-review, exact-head CI, exact-base recheck, reviewed merge and green exact-main
-push CI. No P7 block inherits managed, provider or production proof.
+`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13` and companion contract
+`docs/platform/p7b-observability-contract.md`. P6A-P6D and P7A are merged,
+and PR #157 plus exact-main run `31701995589` are green. P7 continues
+sequentially as P7B private observability/alerts/runbooks, P7C isolated database
+plus separate private Storage restore, and gated P7D approved-capacity load plus
+automated and human accessibility closure. Each block still requires its own
+fresh exact-head review, exact-head CI, exact-base recheck, reviewed merge and
+green exact-main push CI. No P7 block inherits managed, provider or production
+proof.
 
 ### Goal
 
@@ -133,9 +135,10 @@ checkpoint is:
   Realtime, PR #142 merged bounded P4R1 read-only canonical amoCRM context,
   PRs #144-#146 merged P5F1-P5F3, PR #147 merged the P6A-P6D contract,
   and PRs #148/#149/#152/#153 completed P6A-P6D. PR #154 merged the P7
-  contract and PR #156 completed P7A. Current `origin/main` is
-  `47e2e211ba77d36e3296b12ad0b8087276ca712d`. Exact-main push CI
-  `31688954104` is green, and migrations end at `071`.
+  contract and PR #156 completed P7A; PR #157 refreshed the accepted status
+  and OrbStack-only rule. Current `origin/main` is
+  `e4d10b96d0ef4061fdb03ec85430cb65d86e39fd`. Exact-main push CI
+  `31701995589` is green, and migrations end at `071`.
 - P4B implementation is preserved on remote branch
   `izzhackt/evo-platform-p4b-mapping-approval` at
   `e53ba94954f147b295f596421a255591fa343ce8`, with no implementation PR.
@@ -179,9 +182,10 @@ checkpoint is:
 ### Immediate execution order
 
 0. PRs #148, #149, #152 and #153 completed P6A-P6D, PR #154 merged the P7
-   contract and PR #156 completed P7A. Current main is
-   `47e2e211ba77d36e3296b12ad0b8087276ca712d`, migrations end at `071`,
-   and exact-main push run `31688954104` is green. Preserve this accepted
+   contract, PR #156 completed P7A and PR #157 refreshed accepted status plus
+   the OrbStack-only rule. Current main is
+   `e4d10b96d0ef4061fdb03ec85430cb65d86e39fd`, migrations end at `071`,
+   and exact-main push run `31701995589` is green. Preserve this accepted
    repository/local evidence and its non-production truth boundary.
 1. Preserve P4B at
    `izzhackt/evo-platform-p4b-mapping-approval` / `e53ba94954f147b295f596421a255591fa343ce8`.

@@ -20,12 +20,13 @@ PR #147 merged the reviewed P6A-P6D contract, and PRs #148, #149, #152 and
 notifications, P6C overdue-transition publication and P6D cross-domain Student
 360 closure. PR #154 merged the P7 contract and PR #156 merged P7A safe
 Admin-only audit search/export. Current `origin/main` is
-`47e2e211ba77d36e3296b12ad0b8087276ca712d`, migrations are contiguous
-`001-071`, and exact-main push CI run `31688954104` is green for Main CRM,
+`e4d10b96d0ef4061fdb03ec85430cb65d86e39fd`, migrations are contiguous
+`001-071`, and exact-main push CI run `31701995589` is green for Main CRM,
 EVO Inbox and EVO Lead Agent; Changed range is skipped on the push event as
 expected. The next implementation gate is P7B private observability, alerts and
-runbooks. It does not inherit real-provider, managed-environment or production
-proof from the merged implementation lanes.
+runbooks under `docs/platform/p7b-observability-contract.md`. It does not
+inherit real-provider, managed-environment or production proof from the merged
+implementation lanes.
 
 P4B implementation is preserved, not merged, on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -109,14 +110,14 @@ this contract.
 As of the version date:
 
 - GitHub `main` is
-  `47e2e211ba77d36e3296b12ad0b8087276ca712d`; PR #128 supersedes PR #119 as
+  `e4d10b96d0ef4061fdb03ec85430cb65d86e39fd`; PR #128 supersedes PR #119 as
   current product authority after corrective PRs #125-#127, PRs #129-#130
   merged the bounded local-validation repair, PRs #132/#133/#137/#138/#141 and
   #144-#146 merged P5A-P5F3, and PR #142 merged bounded P4R1 read-only canonical
   amoCRM context. PRs #148/#149/#152/#153 completed P6A-P6D through migration
   070, PR #154 merged the P7 contract and PR #156 completed P7A as migration
-  071;
-- exact-main push CI run `31688954104` is green for Main CRM, EVO Inbox and EVO
+  071, and PR #157 refreshed the accepted status plus OrbStack-only rule;
+- exact-main push CI run `31701995589` is green for Main CRM, EVO Inbox and EVO
   Lead Agent; Changed range is skipped on the push event as expected;
 - the preserved P4B branch passed focused tests, unit tests, lint, Next typegen,
   TypeScript and a production build. Its later full local Supabase run failed
@@ -970,7 +971,8 @@ and acceptance criteria are in `docs/platform/p6-operations-portal.md`.
 P7 executes only as `P7-PLAN -> P7A -> P7B -> P7C -> P7D`. The detailed
 authority, acceptance and stop conditions are append-only Block
 `EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13` in `docs/PLAN_CHANGES.md`, expanded
-by `docs/platform/p7-security-reliability.md` and supported by
+by `docs/platform/p7-security-reliability.md`, with P7B details in
+`docs/platform/p7b-observability-contract.md`, and supported by
 `docs/research/p7-official-evidence-2026-08-13.md`.
 
 `P7-PLAN` merged in PR #154 and `P7A` merged in PR #156 as migration `071`.

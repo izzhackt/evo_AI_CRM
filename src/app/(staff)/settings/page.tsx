@@ -33,6 +33,8 @@ export default async function SettingsPage({
     return <PlatformAuditSettingsPage searchParams={params} />;
   }
 
-  const { default: LegacySettingsPage } = await import("./LegacySettingsPage");
-  return <LegacySettingsPage searchParams={Promise.resolve(params)} />;
+  const { renderLegacySettingsPage } = await import("./LegacySettingsPage");
+  return renderLegacySettingsPage({
+    searchParams: Promise.resolve(params),
+  });
 }

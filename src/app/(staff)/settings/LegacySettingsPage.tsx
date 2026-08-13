@@ -38,7 +38,7 @@ type SettingsTab = "overview" | "users" | "roles" | "integrations" | "audit";
 
 const SETTINGS_TABS: SettingsTab[] = ["overview", "users", "roles", "integrations", "audit"];
 
-export default async function LegacySettingsPage({
+export async function renderLegacySettingsPage({
   searchParams,
 }: {
   searchParams: Promise<{ tab?: string }>;
@@ -590,3 +590,5 @@ export default async function LegacySettingsPage({
     </div>
   );
 }
+
+export default renderLegacySettingsPage;

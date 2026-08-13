@@ -43,6 +43,22 @@ test("connected audit settings returns before the isolated legacy SQLite module 
   assert.match(legacySource, /@\/lib\/queries/);
 });
 
+test("fixture Settings awaits the isolated legacy renderer before returning raw form HTML", () => {
+  assert.match(
+    entrySource,
+    /const \{ renderLegacySettingsPage \} = await import\("\.\/LegacySettingsPage"\)/,
+  );
+  assert.match(
+    entrySource,
+    /return renderLegacySettingsPage\(\{[\s\S]*searchParams: Promise\.resolve\(params\)[\s\S]*\}\)/,
+  );
+  assert.doesNotMatch(entrySource, /return <LegacySettingsPage/);
+  assert.match(
+    legacySource,
+    /export async function renderLegacySettingsPage\(/,
+  );
+});
+
 test("connected audit tab is Admin guarded and exposes only safe Platform fields", () => {
   assert.match(platformSource, /requirePlatformAuditAdminActor/);
   assert.match(platformSource, /searchPlatformAudit/);

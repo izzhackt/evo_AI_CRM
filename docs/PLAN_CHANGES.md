@@ -6029,3 +6029,59 @@ Official tooling basis:
   <https://docs.orbstack.dev/install>
 - OrbStack command-line start/stop guidance:
   <https://docs.orbstack.dev/headless>
+
+## 2026-08-13 - Add a protected WAHA knowledge-source export lane
+
+Block-ID: `EVO-WAHA-KNOWLEDGE-EXPORT-2026-08-13`
+
+Change type: bounded operational tooling and production dependency patch.
+
+Reason: the owner authorized a one-time full export of the linked EVO WhatsApp
+history as source material for a separately curated Obsidian knowledge base.
+WAHA `2026.6.2` returned HTTP 500 from the WEBJS chats API after successful
+pairing. Production was therefore updated to the immutable digest for WAHA
+`2026.7.1`, whose release fixes the WEBJS chats endpoint.
+
+Authorized implementation:
+
+- Add a local, resumable exporter that executes API access inside the existing
+  private lead-agent container. The WAHA API key must never cross SSH, appear in
+  arguments, logs, manifests or exported files.
+- Read chat and message history only. Do not send, mark read, edit, archive or
+  delete WhatsApp data.
+- Store raw exports outside the repository and outside the Obsidian vault in an
+  owner-only `0700` directory with `0600` files. Never commit customer data.
+- Use opaque SHA-256 chat filenames, atomic per-chat replacement, SHA-256
+  manifests and a checkpoint. A rerun skips unchanged chats and replaces a
+  changed chat snapshot without creating duplicates.
+- Export message JSON with `downloadMedia=false` first. Record media references
+  and counts; downloading private media bytes is a separate bounded step after
+  the message archive is verified.
+- Keep raw WhatsApp content out of canonical knowledge notes. Extraction creates
+  review candidates only; the existing owner-approval and official-source rules
+  govern publication to the knowledge base.
+- Pin the production WAHA digest to
+  `sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c`
+  so a later release cannot silently roll production back to `2026.6.2`.
+
+Acceptance:
+
+- Both production WAHA containers are healthy on the pinned digest and the
+  primary `crm_primary` session returns to `WORKING` without losing pairing.
+- The live WEBJS chats endpoint returns HTTP 200.
+- A full real export completes with no unreported chat errors; the report,
+  checkpoint and per-chat checksums agree with files on disk.
+- A second real run exports zero unchanged chats and leaves checksums stable.
+- Console output and committed files contain no chat identifiers, names,
+  message bodies, phone numbers or credentials.
+
+Rollback restores only the previous immutable WAHA digest and exporter code.
+Raw owner-authorized export artifacts are retained in protected storage unless
+the owner separately authorizes deletion.
+
+Primary sources:
+
+- WAHA chats and message pagination:
+  <https://waha.devlike.pro/docs/how-to/chats/>
+- WAHA `2026.7.1` release:
+  <https://github.com/devlikeapro/waha/releases/tag/2026.7.1>

@@ -91,6 +91,24 @@ Inspection on `hermes-vps` made no changes:
   from the server. DNS remains an owner-controlled blocker; fallback `sslip.io`
   routes were used for non-mutating header/status inspection.
 
+## Production WAHA patch (2026-08-13 Asia/Bishkek)
+
+The July baseline above remains historical evidence. On 2026-08-13 both WAHA
+services were updated to WAHA `2026.7.1` at immutable digest
+`sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c`.
+The update fixed the live WEBJS chats API failure observed on `2026.6.2`.
+
+Post-update evidence:
+
+- both WAHA containers reported `healthy` on the new digest;
+- `crm_primary` returned to `WORKING` with the existing linked identity;
+- `GET /api/crm_primary/chats` returned HTTP 200;
+- a protected full archive read 541 chats without API errors;
+- an immediate second pass skipped all 541 unchanged chats.
+
+No WhatsApp message was sent, read, edited, archived or deleted during this
+patch and export validation.
+
 ## Pre-deploy and rollback evidence
 
 From a clean exact-SHA release worktree, run:

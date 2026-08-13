@@ -69,7 +69,7 @@ export EVO_INBOX_WAHA_ENV_FILE='/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.waha
 
 export EVO_CADDY_NETWORK='evo_public_web'
 export EVO_WAHA_IMAGE_REPOSITORY='devlikeapro/waha'
-export EVO_WAHA_IMAGE_DIGEST='sha256:f3c33e8e70a78eb37af4f4e2eb655849d42d8ffdc4b8254f9de38069e906a146'
+export EVO_WAHA_IMAGE_DIGEST='sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c'
 export EVO_CADDY_IMAGE_REPOSITORY='caddy'
 export EVO_CADDY_IMAGE_DIGEST='sha256:86deaf5e3d3408a6ccec08fbb79989783dd26e206ae10bcf78a801dc8c9ab794'
 ```

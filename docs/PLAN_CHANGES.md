@@ -5706,3 +5706,274 @@ Validation and completion boundary:
   proof partition; additive durable schema is forward-fixed without deleting
   visa, finance, document, lifecycle, notification or read history. Existing
   Lead Agent, WAHA, amoCRM and legacy rollback paths remain unchanged.
+
+## 2026-08-13 - Decompose P7 security, reliability and operations
+
+Block-ID: `EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13`
+
+Detailed implementation contract:
+`docs/platform/p7-security-reliability.md`. Primary-source evidence:
+`docs/research/p7-official-evidence-2026-08-13.md`.
+
+This docs-only amendment replaces the broad P7 wording with four sequential,
+reviewable gates. It authorizes no schema, application, credential, provider,
+managed-Supabase, customer-data, staging or production mutation.
+
+Accepted baseline:
+
+- PR `#153` merged P6D as
+  `1e53d93d8c70c286e56c5d057928e9f080c58a44`; migrations are contiguous
+  `001-070`. Exact-main push CI run `31650640795` passed Main CRM, EVO Inbox
+  and EVO Lead Agent; Changed range was skipped on the push event as expected.
+- P5-P6 evidence is synthetic/local. Real WAHA, Gemini, amoCRM-write, managed
+  Supabase, customer-send and production proof remain blocked.
+- `platform.audit_events` is append-only and `audit.read` belongs only to the
+  Admin bundle, but authenticated browsers still have direct RLS-filtered table
+  `SELECT` and the accepted Platform runtime has no safe audit presentation or
+  export seam. `/settings?tab=audit` still reads legacy SQLite and is not an
+  authorized Platform data source.
+- `/api/health`, request correlation, bounded JSON logging, private edge paths,
+  Compose limits and retained Lead Agent health exist. Platform readiness,
+  safe operational metrics, alert evaluation and current runbooks remain
+  incomplete.
+- Database backup does not include private Storage object bytes. Database and
+  Storage restore therefore remain separate evidence tracks.
+- DEC-009, DEC-010, DEC-012 and DEC-017 remain open. Repository work may
+  proceed around them, but affected managed, numeric, retention and release
+  claims remain blocked.
+
+P7 SHALL execute only in this order:
+
+1. `P7-PLAN` - this docs-only authority amendment.
+2. `P7A` - safe Admin-only Platform audit search and export.
+3. `P7B` - private structured observability, controlled alerts and runbooks.
+4. `P7C` - real isolated database restore plus separate private Storage-object
+   restore using synthetic data.
+5. `P7D` - approved-capacity load evidence and automated plus human
+   accessibility closure.
+
+### P7A - safe Platform audit search/export
+
+Implementation seams:
+
+- Use expected next-free migration `071` only after a fresh ownership check at
+  implementation time; this amendment does not reserve the ordinal. Add
+  actor-derived Admin-only search/export RPCs. The caller never supplies
+  organization or membership authority.
+- Revoke browser-role direct table reads of `platform.audit_events`; all
+  browser access uses the safe RPC projection. Stop if any accepted Platform
+  consumer is discovered to depend on direct table access.
+- Search uses a stable `(created_at,id)` descending cursor, an immutable
+  `(created_at,id)` snapshot boundary, UTC start-inclusive/end-exclusive
+  timestamps, exact action/resource-type/Platform-resource-UUID filters, page
+  size `1..100`, and rejects malformed or out-of-scope input.
+- Export uses the same snapshot and filters, requires an explicit window no
+  longer than 31 days, is capped at 5,000 rows, and fails visibly instead of
+  truncating. A private replay ledger binds the request UUID to the canonical
+  filters, snapshot, row count and row-set hash.
+- Safe row fields are limited to Platform event UUID/time, action, resource
+  type/Platform UUID, actor kind/safe staff display label, request UUID, one
+  fixed safe reason code or `restricted`, and allowlisted changed-field codes.
+  Raw `before_state`, `after_state`, free-text reason, actor principal, secret
+  references, provider payloads, object keys, private Realtime topics and
+  phone-bearing identifiers never enter RPC output, DOM or CSV.
+- Export is one same-origin authenticated `POST`; `GET` cannot create an audit
+  event. It writes exactly one replay-safe `audit.export` event containing only
+  canonical filters, snapshot, row count and row-set hash.
+- CSV generation is deterministic, `private, no-store`, never persisted to
+  Storage, uses a fixed column order and neutralizes spreadsheet formula
+  prefixes after leading whitespace (`=`, `+`, `-`, `@`) plus CR/LF injection.
+- Connect only the accepted Platform `/settings?tab=audit` presentation and
+  Admin navigation. Other Platform roles fail closed. Legacy SQLite settings
+  remain available solely to explicit non-production fixture mode and are
+  never a connected-runtime fallback.
+- Use dedicated Platform audit contract/repository/action modules, route
+  contract/guard changes, i18n, migration/RLS tests and a dedicated `p7a`
+  disposable browser partition.
+
+Acceptance:
+
+- Active Admin can search and export only the exact organization bound to the
+  verified live actor.
+- Sales, Curator, Finance, Student, anonymous, inactive, stale-authority and
+  cross-organization actors are denied at SQL, action, route and visible-DOM
+  boundaries.
+- Direct table access and malformed/oversized filters are denied.
+- Pagination remains deterministic while new events append after the captured
+  snapshot.
+- Identical export request replay appends no duplicate audit event and returns
+  the same row-set hash; changed input under the same request UUID fails.
+- DOM and CSV pass secret/private-field/phone-pattern scans and CSV
+  formula-injection tests.
+- No SQLite, service-role browser access, provider call or production mutation
+  exists.
+
+Rollback removes Platform settings/export wiring and forward-fixes the
+additive implementation migration without deleting audit or export history.
+
+### P7B - private observability and runbooks
+
+Implementation seams:
+
+- Keep `/api/health` as fixed process liveness with no dependency or provider
+  call.
+- Replace the legacy SQLite readiness path in connected Platform runtime with
+  bounded Supabase/Platform readiness. Keep `/api/readiness`, `/metrics`,
+  `/api/internal/*` and Lead Agent admin/readiness surfaces private; the public
+  edge must continue returning `404`, and no new public port is introduced.
+- Expose only allowlisted aggregate status/count/age values. Never emit tenant,
+  user, case, message, phone, provider payload, object key, token or secret
+  labels.
+- Reuse the existing request-ID contract and structured JSON logging. Logs may
+  contain event code, service, method, route template, status class and elapsed
+  time only; query strings, bodies, cookies, authorization values and customer
+  content remain forbidden.
+- Add deterministic alert evaluation for readiness failure, unknown delivery,
+  queue/dead-letter state, audit-append failure and missing/failed restore
+  evidence. External pager/log-drain delivery remains blocked until its
+  destination, credentials, cost and owner are approved.
+- Update the runtime-hardening validator and runbooks for Supabase unavailable,
+  queue growth, unknown delivery, WAHA degraded, AI unavailable, private media
+  failure, audit failure, restore failure and rollback/kill-switch handling.
+  Existing Lead Agent frozen/readiness semantics remain unchanged.
+
+Acceptance:
+
+- Private readiness returns `503` with a safe component code on missing or
+  failed Platform dependencies and never converts missing provider proof into
+  green status.
+- Public requests to readiness, metrics, internal and Lead Agent admin routes
+  receive `404`; private synthetic probes receive only safe fields.
+- Controlled local failures produce the expected severity, owner category,
+  correlation UUID and runbook reference without sending an external alert.
+- Runtime/Compose/Caddy tests prove private networking, no published WAHA or
+  Lead Agent port, bounded logs/resources and credential-header redaction.
+- No production probe, provider call, log-drain mutation or public metrics
+  endpoint occurs.
+
+Rollback disables the new collectors/routes and reverts application/runbook
+wiring; additive audit/operations state is forward-fixed and retained.
+
+### P7C - isolated database and separate Storage restore
+
+Implementation seams:
+
+- Add one fail-closed drill orchestrator and runbook using two distinctly named,
+  empty, disposable local Supabase environments and synthetic data only.
+- Produce a database artifact and manifest separately from a private
+  Storage-object artifact and manifest. Manifests contain schema/version,
+  object count/size, checksums, source/destination identities and measured
+  timestamps, never credentials or object contents.
+- Restore PostgreSQL into the empty destination, then restore Storage bytes
+  through supported Storage APIs rather than direct writes to Storage catalog
+  tables.
+- Refuse non-loopback sources/destinations, identical source/destination,
+  existing unowned destinations, missing checksums, plaintext credential
+  arguments, production environment markers and destructive cleanup.
+- Backup artifacts use a per-run private `0700` location and an encrypted
+  mechanism with an ephemeral test key. Operational key ownership remains a
+  managed-environment gate.
+- Cleanup may remove only exact drill-owned resources and artifacts.
+
+Acceptance:
+
+- Restored migration/schema state, synthetic Auth actors, organization/object
+  isolation, append-only audit history and representative P5-P6 records match
+  the source.
+- Private document and media object counts, byte sizes and SHA-256 hashes match;
+  authorized access works and cross-user/cross-organization access remains
+  denied after restore.
+- Database restore and Storage restore produce two distinct reports with
+  measured recovery duration and observed data-loss window. These observations
+  are not claimed as approved RPO/RTO.
+- An absent, corrupt, partial or wrong-destination artifact fails closed.
+- Managed Supabase/PITR and S3/versioning/deleted-object recovery are reported
+  blocked unless distinct approved project/bucket credentials exist.
+- No production backup, restore, migration, retention deletion or customer data
+  is touched.
+
+Rollback removes only drill scripts/runbook wiring and exact owned disposable
+artifacts; it changes no production state.
+
+### P7D - capacity and accessibility closure
+
+Entry gate:
+
+- The owner must approve a numeric capacity profile: staff/concurrent sessions,
+  cases/messages/files, request mix, test duration and allowed error rate.
+- An approved human accessibility reviewer and browser/device/screen-reader
+  matrix must be available.
+- Without either input, P7D is `BLOCKED`; a default load or Axe-only result
+  cannot complete it.
+
+Implementation and acceptance:
+
+- Add a bounded k6 harness that refuses production/public-provider targets,
+  missing numeric limits, unbounded duration and non-synthetic credentials.
+- Run only against an isolated synthetic Platform with every WAHA, Gemini,
+  amoCRM-write and autonomous-send/provider lane disabled.
+- At the approved profile, prove the TZ read/write latency budgets, no
+  unexplained duplicate/lost update, no cross-tenant disclosure and stable
+  queue/audit invariants. Record observed results; do not invent a company SLO.
+- Run Axe WCAG 2.2 A/AA checks plus responsive evidence at `1440x1024`,
+  `834x1194` and `390x844` over critical accepted P5-P7 staff and Portal routes.
+- Complete human keyboard, focus order/visibility, dialog semantics, zoom,
+  screen-reader announcement and responsive inspection. Axe alone is not a
+  WCAG conformance claim.
+- Fix only verified regressions within the accepted Claude Design. Any finding
+  requiring a new design system, workflow or architecture stops for a separate
+  amendment.
+
+### Global P7 stop conditions and external inputs
+
+Stop before:
+
+- reusing SQLite audit/settings data or exposing raw audit JSON/provider IDs;
+- widening Admin audit authority or retaining direct-table browser access;
+- making readiness/metrics/internal/Lead Agent admin routes public;
+- touching a production or managed project, provider, customer record, DNS,
+  WAHA session, live send, amoCRM write, retention deletion or deployed service;
+- restoring into a non-empty, same, unidentified or non-isolated destination;
+- running load without the approved numeric profile or against a public target;
+- claiming accessibility completion without human evidence;
+- continuing after a discovered consumer depends on direct audit-table access,
+  or after an accessibility/security finding changes architecture or accepted
+  product flow.
+
+Open external inputs remain:
+
+1. DEC-009: Supabase region/plan/PITR/cost owner plus a distinct managed restore
+   project, direct database credential and separate Storage/S3 destination
+   credentials.
+2. Alert/log-drain destination, paid-plan authority and operational owner.
+3. DEC-010: capacity profile and numeric SLO/RPO/RTO.
+4. DEC-012: privacy, residency, retention/legal deletion and provider DPA.
+5. DEC-017: release window, freeze rules and rollback authority.
+6. Dedicated sanitized private WAHA test identity/session authority for later
+   provider evidence.
+7. Human accessibility reviewer and approved assistive-technology/browser/device
+   matrix.
+
+P8 remains blocked until P7D is complete and every unavailable managed,
+provider or production segment is explicitly recorded as blocked/deferred.
+No mock, configured-equals-working result or local fixture may replace it.
+
+Primary sources rechecked for this amendment:
+
+- Supabase database backups and PITR:
+  <https://supabase.com/docs/guides/platform/backups>
+- Supabase Storage S3 compatibility:
+  <https://supabase.com/docs/guides/storage/s3/compatibility>
+- Supabase Log Drains:
+  <https://supabase.com/docs/guides/monitoring-and-debugging/log-drains>
+- Supabase Platform Audit Logs:
+  <https://supabase.com/docs/guides/security/platform-audit-logs>
+- PostgreSQL `pg_dump` and `pg_restore`:
+  <https://www.postgresql.org/docs/current/app-pgdump.html> and
+  <https://www.postgresql.org/docs/current/app-pgrestore.html>
+- Grafana k6 thresholds:
+  <https://grafana.com/docs/k6/latest/using-k6/thresholds/>
+- W3C WCAG 2.2 conformance:
+  <https://www.w3.org/WAI/WCAG22/Understanding/conformance.html>
+- WAHA observability:
+  <https://waha.devlike.pro/docs/how-to/observability/>

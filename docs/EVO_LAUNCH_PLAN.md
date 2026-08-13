@@ -16,11 +16,13 @@ canonical amoCRM context lane, PR #144 merged the disabled-by-default P5F1
 Platform-owned memory/retrieval foundation, PR #145 merged the disabled-by-
 default P5F2 stateless Gemini proposal adapter, PR #146 merged the disabled-by-
 default P5F3 deterministic autonomous inbound-reply lane, and PR #147 merged
-the reviewed P6A-P6D implementation contract. Current `origin/main` is
-`fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`, migrations remain contiguous
-`001-067`, and exact-main CI run `31523285552` attempt 2 is green for Main CRM,
-EVO Inbox and EVO Lead Agent; Changed range is skipped on the push event as
-expected.
+the reviewed P6A-P6D implementation contract. PRs #148, #149, #152 and #153
+then merged P6A read-only attention, P6B durable Student Portal notifications,
+P6C overdue-transition publication and P6D cross-domain Student 360 closure.
+Current `origin/main` is `1e53d93d8c70c286e56c5d057928e9f080c58a44`,
+migrations remain contiguous `001-070`, and exact-main push CI run
+`31650640795` is green for Main CRM, EVO Inbox and EVO Lead Agent; Changed
+range is skipped on the push event as expected.
 
 P4B implementation is preserved on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -31,10 +33,13 @@ failed/non-evidence. The owner keeps P4B activation/writes deferred but resumes
 a bounded read-mostly P4R lane after the messaging foundation. P9 remains
 removed. Lead Agent, the legacy webhook/session path and rollback path remain
 deployed/frozen. P5A-P5F3 and P4R1 are merged without real-provider proof. The
-active step is P6A: a disabled-by-default read-only attention presentation over
-the existing RLS-bound Student Portal task, document and finance snapshot. P6A
-adds no schema, RPC, write, scheduler, durable notification, WhatsApp, amoCRM or
-provider path. Updated 2026-08-12 in the workspace timezone.
+completed P6A-P6D evidence is synthetic/local and authorizes no managed or
+production claim. The active step is the docs-only P7 security/reliability plan
+amendment. It decomposes P7 into safe audit search/export, private
+observability/runbooks, isolated database plus separate Storage restore and a
+capacity/accessibility gate. It adds no schema, application code, credential,
+provider call, customer data or environment mutation. Updated 2026-08-13 in
+the workspace timezone.
 
 This document is the execution contract for the current EVO Platform MVP lane in
 this repo. The current detailed contract is
@@ -58,21 +63,18 @@ slice. The superseding rule is:
 
 ## Current Goal Slice
 
-Active implementation slice: Block
-`EVO-P6A-PORTAL-ATTENTION-2026-08-12`, under the merged
-`EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11` contract. P6A reuses the existing
-argument-free, actor-derived Portal snapshot and accepted Claude Design pages.
-Its exact server flag is `EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED`; it fails
-closed unless exactly `1`. Test-only selector `EVO_P6A_BROWSER_PROOF` exists
-only in the local Playwright harness, is never read by product runtime, and
-selects the sole partition allowed to enable the server flag. Every unrelated
-partition keeps both values off.
-P6A may present only authoritative urgent/warning task, rejected-document and
-overdue-payment attention. It must not add a migration, RPC, write, scheduler,
-durable notification, acknowledgement, provider call or production mutation.
-The slice requires one fresh independent exact-head read-only review,
-exact-head CI, direct merge of only that reviewed head and green exact-main push
-CI before P6B begins.
+Active implementation slice: docs-only Block
+`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13`. P6A-P6D are merged and their
+exact-main gate is green. This amendment makes the broad P7 wording executable
+as four sequential blocks: P7A safe Admin-only Platform audit search/export,
+P7B private observability/alerts/runbooks, P7C isolated database plus separate
+private Storage restore, and P7D approved-capacity load plus automated and
+human accessibility closure.
+No P7 implementation starts until this docs-only amendment receives one fresh
+independent exact-head read-only review, green exact-head CI, direct merge of
+only that reviewed head and green exact-main push CI. This plan PR itself adds
+no migration, RPC, route, UI behavior, credential, provider call, customer data,
+managed-environment action or production mutation.
 
 ### Goal
 
@@ -131,9 +133,10 @@ checkpoint is:
   P5C available-history reconciliation lane, PR #138 merged the P5D private
   WAHA media archive/display lane, PR #141 merged P5E ACK/session plus private
   Realtime, PR #142 merged bounded P4R1 read-only canonical amoCRM context,
-  PRs #144-#146 merged P5F1-P5F3, and PR #147 merged the P6A-P6D contract.
-  Current `origin/main` is `fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`.
-  Exact-main CI `31523285552` attempt 2 is green, and migrations end at `067`.
+  PRs #144-#146 merged P5F1-P5F3, PR #147 merged the P6A-P6D contract,
+  and PRs #148/#149/#152/#153 completed P6A-P6D. Current `origin/main` is
+  `1e53d93d8c70c286e56c5d057928e9f080c58a44`. Exact-main push CI
+  `31650640795` is green, and migrations end at `070`.
 - P4B implementation is preserved on remote branch
   `izzhackt/evo-platform-p4b-mapping-approval` at
   `e53ba94954f147b295f596421a255591fa343ce8`, with no implementation PR.
@@ -176,29 +179,53 @@ checkpoint is:
 
 ### Immediate execution order
 
-0. PR #147 merged the P6A-P6D governance amendment as
-   `fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`; exact-main run `31523285552`
-   attempt 2 is green. Preserve this accepted contract.
+0. PRs #148, #149, #152 and #153 completed the merged P6A-P6D contract.
+   Current main is `1e53d93d8c70c286e56c5d057928e9f080c58a44`, migrations end
+   at `070`, and exact-main push run `31650640795` is green. Preserve this
+   accepted P6 evidence and its synthetic/local truth boundary.
 1. Preserve P4B at
    `izzhackt/evo-platform-p4b-mapping-approval` / `e53ba94954f147b295f596421a255591fa343ce8`.
    Keep mapping activation and writes deferred. Merged P4R1 remains bounded
    read-only context without provider proof or mutation authority.
-2. Implement P6A now as the feature-flagged read-only Portal attention slice.
-   Reuse the existing Platform task/document/finance snapshot and do not add a
-   schema/RPC/write side effect.
-3. After P6A exact-main CI is green, implement P6B durable in-app-only Student
-   notifications, P6C overdue-transition publication and P6D cross-domain two-
-   Student closure in order. Do not copy the legacy SQLite staff notification
-   feed.
-4. Continue P7 only after P6D is accepted. Do not infer canonical sales
-   identity, responsible Sales, stage, Portal activation or contract handoff.
-5. Run narrowed P8 only for executable P5-P7 plus proved P4R read paths. Report
+2. Merge this docs-only P7-PLAN amendment. Then implement P7A safe Admin-only
+   Platform audit search/export, P7B private observability/runbooks and P7C
+   isolated database plus separate Storage restore in order. Do not copy the
+   legacy SQLite audit feed or expose raw audit JSON.
+3. Start P7D only after the owner approves a numeric capacity profile and a
+   human accessibility reviewer plus assistive-technology/browser/device matrix
+   are available. A default load or Axe-only result cannot complete P7.
+4. Do not infer canonical sales identity, responsible Sales, stage, Portal
+   activation or contract handoff, and do not convert missing managed/provider
+   evidence into a passed P7 claim.
+5. Run narrowed P8 only after P7D and external-evidence accounting complete,
+   and only for executable P5-P7 plus proved P4R read paths. Report
    P4B activation/writes and unavailable provider segments as deferred, never
    passed or synthetically replaced.
 6. Skip P9. Keep Lead Agent, the legacy webhook/session and rollback path
    deployed/frozen. Run P10 directly after P8 as an authorized-scope audit that
    lists P4B activation/writes deferred and does not claim full Platform
    completion.
+
+### P7 authority and sequence
+
+The implementation authority for P7 is append-only Block
+`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13` in `docs/PLAN_CHANGES.md` and the
+P7 section of `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, expanded by
+`docs/platform/p7-security-reliability.md` and the primary-source note
+`docs/research/p7-official-evidence-2026-08-13.md`. P7A removes direct browser
+audit-table access and connects the accepted Platform Settings surface to a
+safe, bounded, replay-aware Supabase audit projection/export. P7B keeps
+readiness, metrics, internal routes and Lead Agent operational surfaces private.
+P7C proves database and Storage recovery separately in disposable loopback
+environments with synthetic data. P7D is the only load/accessibility completion
+gate and remains blocked until its numeric and human-review inputs exist.
+
+No P7 block authorizes managed Supabase mutation, production backup/restore,
+public metrics, provider calls, customer data, live sends, amoCRM writes,
+retention deletion, service retirement or deployment. DEC-009, DEC-010,
+DEC-012 and DEC-017 remain explicit external gates. P8 remains blocked until
+P7D completes and every unavailable managed, provider and production segment
+is recorded as blocked/deferred.
 
 ### P5B authority and rollback contract
 
@@ -405,8 +432,9 @@ Block `EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10` was the accepted docs-only
 authority gate after merged P4R1. It preserves the accepted Claude Design
 frontend as the sole UI contract, keeps P4B activation/writes deferred, keeps
 P9 removed, and retains Lead Agent plus the legacy rollback path as
-deployed/frozen. Its P5F1-P5F3 implementation slices are now merged; P6 is the
-next active plan group, followed by P7, the narrowed P8 and P10.
+deployed/frozen. Its P5F1-P5F3 implementation slices are merged, and P6A-P6D
+are now complete. The active plan group is P7-PLAN followed by P7A-P7D, the
+narrowed P8 and P10.
 
 P5F SHALL be implemented in three independently reviewed slices:
 
@@ -531,6 +559,12 @@ copy the legacy SQLite staff notification feed or infer sales identity, stage,
 responsible Sales, Portal activation or canonical handoff. P6 is complete only
 after P6D passes. Individual WhatsApp notification delivery remains a separate
 future target; this P6 plan neither cancels nor activates it.
+
+P6A-P6D merged in PRs #148, #149, #152 and #153. Exact-main push run
+`31650640795` is green at
+`1e53d93d8c70c286e56c5d057928e9f080c58a44`; this completes the repository
+and synthetic/local P6 gate without creating managed, provider or production
+proof.
 
 ### Merged P2R3 acceptance record
 

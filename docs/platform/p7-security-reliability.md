@@ -71,6 +71,8 @@ P7A starts first because it is the thinnest truthful slice.
 - Search/filter/export only data that already exists inside the Platform data
   plane and is already authorized for staff administration.
 - Keep export bounded, authenticated, and reviewable. No unbounded raw dump.
+- Use actor-derived server reads and RPCs only. P7A must not rely on any
+  client-supplied actor identifier or role override.
 
 ### Boundaries
 
@@ -80,6 +82,33 @@ P7A starts first because it is the thinnest truthful slice.
   because the official docs say dashboard export is currently unavailable.
 - If owner plan or organization access for Supabase audit log drains is absent,
   record that as an external blocker rather than fabricating a substitute.
+- Do not read from legacy root-CRM SQLite tables or add a SQLite fallback.
+- Do not expose direct browser reads of private audit tables, arbitrary SQL,
+  arbitrary field selection, or unbounded pagination/export.
+
+### Required implementation shape
+
+- Reads must be actor-derived Admin-only RPCs or equivalent server-only
+  handlers over repository-owned audit tables. Direct table access from the
+  browser is denied.
+- Query inputs must be allowlisted and bounded: approved filters only, stable
+  sort order, explicit page-size caps, and a stable cursor or snapshot token so
+  pagination does not skip or duplicate rows within one reviewed result set.
+- Response fields must come from a fixed safe-field allowlist. Arbitrary column
+  projection is out of scope.
+- Export must use a replay-safe, audited `POST` path bound to the reviewed
+  actor, filters and snapshot/cursor. A bare unaudited `GET` dump is out of
+  scope.
+- CSV export must neutralize spreadsheet-formula injection for cells beginning
+  with `=`, `+`, `-` or `@`.
+
+### External gates and stop conditions
+
+- Stop if repository-owned audit rows are too incomplete to produce an honest
+  Admin surface; document the gap instead of implying Supabase organization-log
+  parity.
+- Stop if the only viable path would require direct table exposure, SQLite
+  fallback, or a broad raw dump without an audited bounded snapshot.
 
 ### Acceptance
 
@@ -87,6 +116,9 @@ P7A starts first because it is the thinnest truthful slice.
 - Search/filter/export path is deterministic, auditable and bounded.
 - Export contains only allowed fields and excludes secrets, tokens and private
   provider credentials.
+- Stable cursor/snapshot pagination and replay-safe audited export are explicit
+  in the implementation/report.
+- CSV output is safe against spreadsheet-formula execution.
 - Validation includes repo security/RLS checks, exact affected browser proof,
   and a separate negative export-authorization case.
 
@@ -110,6 +142,14 @@ P7B starts only after P7A is accepted.
 - Do not claim Supabase audit-log export through the dashboard.
 - Do not bind implementation to a paid drain destination before the owner
   confirms the destination and plan authority.
+
+### External gates and stop conditions
+
+- Stop if the required log-drain destination, destination credentials, or plan
+  tier are unavailable; report P7B blocked rather than claiming complete
+  observability from local logs alone.
+- Stop if the only way forward would require undocumented WAHA endpoints or
+  private-dashboard scraping as source of truth.
 
 ### Acceptance
 
@@ -138,6 +178,13 @@ P7C starts only after P7B is accepted.
 - Do not imply managed Supabase PITR or dashboard restore authority from local
   `pg_dump`/`pg_restore` proof.
 
+### External gates and stop conditions
+
+- Stop if the rehearsal requires production restore authority or unsafe secret
+  handling outside the approved isolated environment.
+- Stop if any required Storage backup inventory/export path is missing; report
+  the missing artifact instead of implying that database restore covered it.
+
 ### Acceptance
 
 - Database restore path uses a documented archive format suitable for
@@ -152,8 +199,8 @@ P7D starts only after P7C is accepted.
 
 ### Scope
 
-- Add a small production-like load harness for the approved Platform slice with
-  explicit k6 thresholds.
+- Add a small approved-capacity load harness for the approved Platform slice
+  with explicit k6 thresholds.
 - Add an accessibility review that combines automated checks with human
   evaluation against the accepted frontend states.
 
@@ -162,13 +209,29 @@ P7D starts only after P7C is accepted.
 - No “scale proof” claim beyond the measured bounded scenario.
 - No WCAG conformance claim from automation alone.
 - No hidden production traffic generation.
+- No invented numeric capacity, SLO, RPO or RTO target while DEC-010 remains
+  open.
+
+### External gates and stop conditions
+
+- P7D does not start until the owner-approved NFR-005 capacity profile exists.
+  If the approved staff/case/message/file volume profile is missing, P7D is
+  blocked and the report must say so explicitly.
+- Stop if the only available load target would generate hidden production
+  traffic or exceed the approved bounded test window.
+- Stop if human accessibility review cannot include keyboard, focus-order and
+  screen-reader spot checks on the approved browser states.
 
 ### Acceptance
 
 - k6 thresholds are explicit, versioned and gate pass/fail for the tested
   scenario.
-- Accessibility evidence covers keyboard/focus flows and other human-reviewed
-  states that automation alone cannot prove.
+- The report names the exact owner-approved capacity profile used for the test
+  and separates measured bounded results from still-open DEC-010 company
+  targets.
+- Accessibility evidence combines automation with human keyboard, focus-order,
+  visible-focus and screen-reader spot checks across the accepted browser
+  states/routes.
 - The report separates verified issues, blocked checks and deferred broader
   work.
 

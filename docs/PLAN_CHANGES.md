@@ -5764,3 +5764,40 @@ Rollback:
 - Rollback is a docs-only revert of this amendment and its research note.
 - No runtime or schema rollback exists because this amendment changes no
   implementation files.
+
+## 2026-08-12 - Tighten P7A and P7D execution constraints after exact-head review
+
+Block-ID: `EVO-P7-SECURITY-RELIABILITY-REVIEW-FIX-2026-08-12`
+
+Accepted baseline:
+
+- PR #154 remains a docs-only amendment over exact base/current main
+  `1e53d93d8c70c286e56c5d057928e9f080c58a44`.
+- The first independent exact-head review requested narrower execution
+  constraints before merge.
+
+Decision:
+
+- Replace the stale P6A "current slice" text in `docs/EVO_LAUNCH_PLAN.md` with
+  the active docs-only P7 amendment.
+- Tighten `docs/platform/p7-security-reliability.md` so P7A explicitly requires
+  actor-derived Admin-only reads, direct-table denial, stable bounded
+  cursor/snapshot pagination, safe field allowlists, replay-safe audited export
+  and CSV-injection neutralization, with an explicit no-SQLite-fallback
+  boundary.
+- Tighten P7B-P7D stop conditions so missing external drain authority blocks
+  observability claims, missing separate Storage backup inventory blocks restore
+  completeness claims, and P7D cannot start without the owner-approved NFR-005
+  capacity profile plus manual keyboard/focus/screen-reader accessibility
+  checks required by the accepted spec.
+
+Validation impact:
+
+- Still docs-only: no runtime, schema, credential, provider or customer-data
+  mutation.
+- The amendment PR requires refreshed independent exact-head review and green
+  exact-head CI after these clarifications.
+
+Rollback:
+
+- Docs-only revert of this refinement entry and the aligned contract wording.

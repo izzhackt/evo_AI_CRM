@@ -54,20 +54,18 @@ slice. The superseding rule is:
 ## Current Goal Slice
 
 Active implementation slice: Block
-`EVO-P6A-PORTAL-ATTENTION-2026-08-12`, under the merged
-`EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11` contract. P6A reuses the existing
-argument-free, actor-derived Portal snapshot and accepted Claude Design pages.
-Its exact server flag is `EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED`; it fails
-closed unless exactly `1`. Test-only selector `EVO_P6A_BROWSER_PROOF` exists
-only in the local Playwright harness, is never read by product runtime, and
-selects the sole partition allowed to enable the server flag. Every unrelated
-partition keeps both values off.
-P6A may present only authoritative urgent/warning task, rejected-document and
-overdue-payment attention. It must not add a migration, RPC, write, scheduler,
-durable notification, acknowledgement, provider call or production mutation.
-The slice requires one fresh independent exact-head read-only review,
-exact-head CI, direct merge of only that reviewed head and green exact-main push
-CI before P6B begins.
+`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-12`, under
+`docs/platform/p7-security-reliability.md`. This is a docs-only amendment that
+decomposes broad P7 language into the four sequential slices P7A repo-owned
+admin audit search/export, P7B structured observability, P7C isolated database
+plus separate Storage restore rehearsal, and P7D bounded load plus
+accessibility evidence. It changes no migration, runtime path, credential,
+provider state, customer data, production service, or Lead Agent deployment.
+Its purpose is to make the next implementation blocks reviewable and honest
+about what the official docs, current repo, and owner-approved gates do and do
+not prove. The slice requires one fresh independent exact-head read-only
+review, exact-head CI, direct merge of only that reviewed head and green
+exact-main push CI before P7A begins.
 
 ### Goal
 

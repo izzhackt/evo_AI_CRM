@@ -25,8 +25,14 @@ const NAV_ICON: Record<string, IconName> = {
 
 export type NavGroup = { label: string; items: Array<{ href: string; label: string }> };
 
+function navPath(href: string) {
+  const boundary = href.search(/[?#]/u);
+  return boundary === -1 ? href : href.slice(0, boundary);
+}
+
 function isCurrentPath(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
+  const path = navPath(href);
+  return pathname === path || pathname.startsWith(`${path}/`);
 }
 
 export function StaffNav({
@@ -63,7 +69,7 @@ export function StaffNav({
                       )}
                     >
                       <Icon
-                        name={NAV_ICON[item.href] ?? "grid"}
+                        name={NAV_ICON[navPath(item.href)] ?? "grid"}
                         size={18}
                         className="shrink-0"
                       />
@@ -139,7 +145,7 @@ export function MobileStaffNav({
                   aria-current={active ? "page" : undefined}
                   className={cn("mobile-staff-nav__item", active && "mobile-staff-nav__item--active")}
                 >
-                  <Icon name={NAV_ICON[item.href] ?? "grid"} size={21} />
+                  <Icon name={NAV_ICON[navPath(item.href)] ?? "grid"} size={21} />
                   <span>{item.label}</span>
                 </Link>
               </li>
@@ -197,7 +203,10 @@ export function MobileStaffNav({
                             onClick={closeMenu}
                             className={cn("staff-menu-sheet__link", active && "staff-menu-sheet__link--active")}
                           >
-                            <Icon name={NAV_ICON[item.href] ?? "grid"} size={19} />
+                            <Icon
+                              name={NAV_ICON[navPath(item.href)] ?? "grid"}
+                              size={19}
+                            />
                             <span>{item.label}</span>
                           </Link>
                         </li>

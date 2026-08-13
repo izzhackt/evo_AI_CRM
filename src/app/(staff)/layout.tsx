@@ -26,6 +26,8 @@ const CONNECTED_STAFF_ROUTES = new Set([
   "/whatsapp",
 ]);
 
+const PLATFORM_AUDIT_SETTINGS_HREF = "/settings?tab=audit";
+
 const SHELL_COPY: Record<
   Locale,
   MobileNavCopy & {
@@ -140,10 +142,11 @@ async function loadFixtureShellProvider(): Promise<ShellProvider> {
 }
 
 async function loadConnectedShellProvider(): Promise<ShellProvider> {
-  const [guards, actions, language] = await Promise.all([
+  const [guards, actions, language, auditConfig] = await Promise.all([
     import("@/lib/platform-guards"),
     import("@/lib/platform-admissions-actions"),
     import("@/components/platform/PlatformLangSwitcher"),
+    import("@/lib/platform-audit-config"),
   ]);
   const actor = await guards.requirePlatformStaffActor();
   if (!isStaffRole(actor.role)) {
@@ -153,7 +156,10 @@ async function loadConnectedShellProvider(): Promise<ShellProvider> {
   return {
     user: { name: actor.displayName, role: actor.role },
     homeHref: guards.platformHomeRoute(actor.platformRole),
-    availableRoutes: CONNECTED_STAFF_ROUTES,
+    availableRoutes: new Set([
+      ...CONNECTED_STAFF_ROUTES,
+      ...(auditConfig.isPlatformP7AAuditEnabled() ? ["/settings"] : []),
+    ]),
     logout: actions.logoutPlatformAction,
     LanguageSwitcher: language.PlatformLangSwitcher,
     notifications: [],
@@ -193,7 +199,13 @@ export default async function StaffLayout({
       label: t(group.key),
       items: group.hrefs
         .filter((href) => allowed.has(href))
-        .map((href) => ({ href, label: allowed.get(href)! })),
+        .map((href) => ({
+          href:
+            provider.connectedRoutesOnly && href === "/settings"
+              ? PLATFORM_AUDIT_SETTINGS_HREF
+              : href,
+          label: allowed.get(href)!,
+        })),
     }))
     .filter((group) => group.items.length > 0);
 

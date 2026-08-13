@@ -381,6 +381,117 @@ test("the P6D browser partition has its own bounded deadline and exact composite
   assert.match(nextConfig, /"p6d"/);
 });
 
+test("the P7A browser partition is singleton, bounded, and audit-only", () => {
+  const title =
+    "P7A searches and exports safe organization audit evidence through connected Settings";
+  const p7aPartition = executableLines.indexOf(
+    "EVO_PLATFORM_AUTH_BROWSER_PARTITION=p7a",
+  );
+  const p7aCommand = executableLines.lastIndexOf(
+    "run_with_deadline 240000 env",
+    p7aPartition,
+  );
+  const p7aGrep = executableLines.indexOf(
+    '--grep "${P7A_BROWSER_TEST}"',
+    p7aPartition,
+  );
+  const p7aCleanup = executableLines.indexOf(
+    'fail "The exact-worktree Platform browser server did not stop after the P7A browser partition."',
+    p7aPartition,
+  );
+  const p6dPartition = executableLines.indexOf(
+    "EVO_PLATFORM_AUTH_BROWSER_PARTITION=p6d",
+  );
+  const p6dRuntimeDisable = executableLines.indexOf(
+    'fail "Unable to disable the exact synthetic P6D organization overdue runtime control; output was withheld."',
+    p6dPartition,
+  );
+
+  assert.notEqual(p7aPartition, -1);
+  assert.notEqual(p7aCommand, -1);
+  assert.notEqual(p7aGrep, -1);
+  assert.notEqual(p7aCleanup, -1);
+  assert.notEqual(p6dPartition, -1);
+  assert.notEqual(p6dRuntimeDisable, -1);
+  assert.ok(p7aCommand < p7aPartition);
+  assert.ok(p7aPartition < p7aGrep);
+  assert.ok(p7aGrep < p7aCleanup);
+  assert.ok(p6dPartition < p6dRuntimeDisable);
+  assert.ok(p6dRuntimeDisable < p7aCommand);
+  assert.ok(harness.includes(`readonly P7A_BROWSER_TEST="${title}"`));
+  assert.equal(platformAuthSpec.split(`test("${title}"`).length - 1, 1);
+  assert.match(
+    platformAuthConfig,
+    /\(platformAuthBrowserPartition === "p7a"\) !== p7aBrowserProof/,
+  );
+  assert.match(
+    platformAuthConfig,
+    /EVO_PLATFORM_P7A_AUDIT_ENABLED: p7aBrowserProof \? "1" : "0"/,
+  );
+  assert.match(nextConfig, /"p7a"/);
+  assert.match(authHook, /"p7a-browser-safe-audit-fixture"/);
+  assert.match(authHook, /p7a:\s*\{/);
+  assert.match(platformAuthSpec, /safeAuditSearch\(adminToken/);
+  for (const privateFixtureField of [
+    "privatePrincipal",
+    "privatePhone",
+    "privateReason",
+    "privateBefore",
+    "privateAfter",
+  ]) {
+    assert.match(authHook, new RegExp(privateFixtureField), privateFixtureField);
+    assert.match(
+      platformAuthSpec,
+      new RegExp(`fixture\\.p7a\\.${privateFixtureField}`),
+      privateFixtureField,
+    );
+  }
+
+  const p7aSource = executableLines.slice(p7aCommand, p7aCleanup);
+  assert.match(p7aSource, /EVO_P7A_BROWSER_PROOF=1/);
+  assert.match(p7aSource, /EVO_PLATFORM_P7A_AUDIT_ENABLED=1/);
+  for (const disabledProof of [
+    "EVO_P5B_BROWSER_PROOF",
+    "EVO_P5C_BROWSER_PROOF",
+    "EVO_P5D_BROWSER_PROOF",
+    "EVO_P5E_BROWSER_PROOF",
+    "EVO_P5F1_BROWSER_PROOF",
+    "EVO_P5F3_BROWSER_PROOF",
+    "EVO_P6A_BROWSER_PROOF",
+    "EVO_P6B_BROWSER_PROOF",
+    "EVO_P6C_BROWSER_PROOF",
+    "EVO_P6D_BROWSER_PROOF",
+  ]) {
+    assert.match(p7aSource, new RegExp(`${disabledProof}=0`), disabledProof);
+  }
+  for (const disabledFlag of [
+    "EVO_PLATFORM_WAHA_INGRESS_ENABLED",
+    "EVO_PLATFORM_WAHA_WORKER_ENABLED",
+    "EVO_PLATFORM_WAHA_HISTORY_ENABLED",
+    "EVO_PLATFORM_WAHA_MEDIA_ENABLED",
+    "EVO_PLATFORM_AMOCRM_READ_ENABLED",
+    "EVO_PLATFORM_AI_MEMORY_ENABLED",
+    "EVO_PLATFORM_GEMINI_PROPOSALS_ENABLED",
+    "EVO_PLATFORM_AUTONOMOUS_REPLIES_ENABLED",
+    "EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED",
+    "EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED",
+    "EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED",
+  ]) {
+    assert.match(p7aSource, new RegExp(`${disabledFlag}=0`), disabledFlag);
+  }
+  assert.match(p7aSource, /EVO_PLATFORM_AUTONOMOUS_REPLIES_KILL_SWITCH=1/);
+  assert.equal(
+    executableLines.match(/EVO_PLATFORM_AUTH_BROWSER_PARTITION=p7a/g)?.length,
+    1,
+  );
+  assert.equal(executableLines.match(/EVO_P7A_BROWSER_PROOF=1/g)?.length, 1);
+  assert.equal(executableLines.match(/EVO_P7A_BROWSER_PROOF=0/g)?.length, 12);
+  assert.equal(
+    executableLines.match(/EVO_PLATFORM_P7A_AUDIT_ENABLED=0/g)?.length,
+    12,
+  );
+});
+
 test("Main CRM CI installs the locked Chromium runtime before the full browser gate", () => {
   const mainCrmJobStart = ciWorkflow.indexOf("\n  crm:\n");
   const inboxJobStart = ciWorkflow.indexOf("\n  inbox:\n", mainCrmJobStart);
@@ -671,7 +782,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
   );
   assert.match(
     harness.slice(remainingPass, remainingCleanup),
-    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_P6B_BROWSER_PROOF=0[\s\S]*EVO_P6C_BROWSER_PROOF=0[\s\S]*EVO_P6D_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0[\s\S]*EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}\|\$\{P5C_BROWSER_TEST\}\|\$\{P5D_BROWSER_TEST\}\|\$\{P5E_BROWSER_TEST\}\|\$\{P5F1_BROWSER_TEST\}\|\$\{P5F3_BROWSER_TEST\}\|\$\{P6A_BROWSER_TEST\}\|\$\{P6B_BROWSER_TEST\}\|\$\{P6C_BROWSER_TEST\}\|\$\{P6D_BROWSER_TEST\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_P6B_BROWSER_PROOF=0[\s\S]*EVO_P6C_BROWSER_PROOF=0[\s\S]*EVO_P6D_BROWSER_PROOF=0[\s\S]*EVO_P7A_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P7A_AUDIT_ENABLED=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0[\s\S]*EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}\|\$\{P5C_BROWSER_TEST\}\|\$\{P5D_BROWSER_TEST\}\|\$\{P5E_BROWSER_TEST\}\|\$\{P5F1_BROWSER_TEST\}\|\$\{P5F3_BROWSER_TEST\}\|\$\{P6A_BROWSER_TEST\}\|\$\{P6B_BROWSER_TEST\}\|\$\{P6C_BROWSER_TEST\}\|\$\{P6D_BROWSER_TEST\}\|\$\{P7A_BROWSER_TEST\}"/,
   );
   assert.equal(
     harness.slice(providerPass, finalCleanup).match(/EVO_P5B_BROWSER_PROOF=1/g)
@@ -1555,6 +1666,10 @@ test("post-migration reset recovery stays exact-project and proves parity", () =
 
   assert.match(
     harness,
+    /readonly KNOWN_STORAGE_GATEWAY_ERROR_CODE="LegacyStorageGatewayStatusError"/,
+  );
+  assert.match(
+    harness,
     /readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"/,
   );
   assert.match(
@@ -1563,6 +1678,7 @@ test("post-migration reset recovery stays exact-project and proves parity", () =
   );
   assert.match(detector, /grep -Fq "Restarting containers"/);
   assert.match(detector, /last_nonempty_line/);
+  assert.match(detector, /KNOWN_STORAGE_GATEWAY_ERROR_CODE/);
   assert.match(detector, /KNOWN_STORAGE_GATEWAY_502_STATUS/);
   assert.match(detector, /KNOWN_STORAGE_GATEWAY_502_MESSAGE/);
   assert.match(migrationHistory, /migration list \\\n+\s+--local/);
@@ -1588,29 +1704,33 @@ test("post-migration reset recovery stays exact-project and proves parity", () =
   assert.doesNotMatch(reload, /docker restart[^\n]*\$\{[A-Z_]*CONTAINERS?\[@\]\}/);
   assert.match(
     recover,
-    /reset_reached_post_migration_restart_failure "\$\{progress_log\}"[\s\S]*reload_exact_local_kong[\s\S]*wait_for_local_stack_readiness[\s\S]*assert_local_migration_history recovery/,
+    /reset_reached_post_migration_restart_failure[\s\S]*"\$\{progress_log\}" "\$\{result_file\}"[\s\S]*reload_exact_local_kong[\s\S]*wait_for_local_stack_readiness[\s\S]*assert_local_migration_history recovery/,
   );
 });
 
 test("post-migration recovery rejects unrelated errors after restart", () => {
   const { detector } = extractResetRecoverySource();
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "evo-reset-detector-"));
-  const runDetector = (name, contents) => {
+  const runDetector = (name, contents, resultContents = "") => {
     const progressLog = join(temporaryDirectory, `${name}.log`);
+    const resultFile = join(temporaryDirectory, `${name}.json`);
     writeFileSync(progressLog, contents, { mode: 0o600 });
+    writeFileSync(resultFile, resultContents, { mode: 0o600 });
     return spawnSync(
       "bash",
       [
         "-c",
         `
 set -Eeuo pipefail
+readonly KNOWN_STORAGE_GATEWAY_ERROR_CODE="LegacyStorageGatewayStatusError"
 readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"
 readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"
 ${detector}
-reset_reached_post_migration_restart_failure "$1"
+reset_reached_post_migration_restart_failure "$1" "$2"
 `,
         "bash",
         progressLog,
+        resultFile,
       ],
       { encoding: "utf8" },
     );
@@ -1626,6 +1746,14 @@ reset_reached_post_migration_restart_failure "$1"
       runDetector(
         "known-502",
         "Restarting containers...\nError status 502:\nAn invalid response was received from the upstream server\n",
+      ).status,
+      0,
+    );
+    assert.equal(
+      runDetector(
+        "known-502-split-output",
+        "Applying migration 071_platform_audit_search_export.sql...\nRestarting containers...\nerror running container: exit 1\n",
+        '{"_tag":"Error","error":{"code":"LegacyStorageGatewayStatusError","message":"Error status 502: An invalid response was received from the upstream server"}}\n',
       ).status,
       0,
     );
@@ -1868,7 +1996,7 @@ test("browser partitions keep Next type includes out of the tracked root tsconfi
   assert.match(harness, /prepare_platform_auth_tsconfig\(\)/);
   assert.match(
     harness,
-    /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|p6a\|p6b\|p6c\|p6d\|remaining\) ;;/,
+    /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|p6a\|p6b\|p6c\|p6d\|p7a\|remaining\) ;;/,
   );
   assert.match(
     harness,
@@ -1886,6 +2014,7 @@ test("browser partitions keep Next type includes out of the tracked root tsconfi
     "p6b",
     "p6c",
     "p6d",
+    "p7a",
     "remaining",
   ]) {
     assert.match(
@@ -1928,6 +2057,7 @@ test("post-migration reset recovery proves parity at a narrowly classified bound
     /recover_post_migration_restart_failure\(\)[\s\S]*reset_reached_post_migration_restart_failure[\s\S]*reload_exact_local_kong[\s\S]*wait_for_local_stack_readiness[\s\S]*assert_local_migration_history/,
   );
   assert.match(executableLines, /last_nonempty_line/);
+  assert.match(executableLines, /KNOWN_STORAGE_GATEWAY_ERROR_CODE/);
   assert.match(executableLines, /KNOWN_STORAGE_GATEWAY_502_STATUS/);
   assert.match(executableLines, /KNOWN_STORAGE_GATEWAY_502_MESSAGE/);
 });

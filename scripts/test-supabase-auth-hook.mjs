@@ -932,12 +932,14 @@ const provisionMembership = async (adminIdentity, organizationId, identity, role
     randomUUID(),
   ]);
   const membership = membershipFor(identity);
-  await rpc(adminIdentity, "assign_organization_scope", [
-    organizationId,
-    membership.id,
-    "local Auth hook smoke organization scope",
-    randomUUID(),
-  ]);
+  if (role !== "admin") {
+    await rpc(adminIdentity, "assign_organization_scope", [
+      organizationId,
+      membership.id,
+      "local Auth hook smoke organization scope",
+      randomUUID(),
+    ]);
+  }
   return membershipFor(identity);
 };
 
@@ -1242,6 +1244,8 @@ const main = async () => {
     crossOrgStudent: syntheticIdentity("cross-org-student"),
     lifecycleStudent: syntheticIdentity("lifecycle-student"),
     revocableCurator: syntheticIdentity("revocable-curator"),
+    staleAdmin: syntheticIdentity("p7a-stale-admin"),
+    inactiveAdmin: syntheticIdentity("p7a-inactive-admin"),
     blocked: syntheticIdentity("blocked"),
     noMembership: syntheticIdentity("no-membership"),
     adminB: syntheticIdentity("admin-b"),
@@ -3356,13 +3360,32 @@ const main = async () => {
     "sales-scoped-synthetic-conversation-denial",
   );
 
+  const staleAdminMembership = await provisionMembership(
+    identities.adminA,
+    adminAMembership.organization_id,
+    identities.staleAdmin,
+    "admin",
+  );
+  await signIn(identities.staleAdmin, "admin");
+  const staleAdminAccessToken = identities.staleAdmin.accessToken;
+
+  const inactiveAdminMembership = await provisionMembership(
+    identities.adminA,
+    adminAMembership.organization_id,
+    identities.inactiveAdmin,
+    "admin",
+  );
+  await signIn(identities.inactiveAdmin, "admin");
+  const inactiveAdminAccessToken = identities.inactiveAdmin.accessToken;
+
   const blockedMembership = await provisionMembership(
     identities.adminA,
     adminAMembership.organization_id,
     identities.blocked,
-    "sales",
+    "admin",
   );
-  await signIn(identities.blocked, "sales");
+  await signIn(identities.blocked, "admin");
+  const blockedAdminAccessToken = identities.blocked.accessToken;
   await signIn(identities.noMembership, null);
 
   for (const [role, identity] of [
@@ -3461,6 +3484,27 @@ const main = async () => {
     identities.sales.accessToken,
     "sales-old-claims",
   );
+  const staleAdminOldClaims = decodeClaims(
+    staleAdminAccessToken,
+    "p7a-stale-admin-old-claims",
+  );
+  await rpc(identities.adminA, "change_membership_role", [
+    adminAMembership.organization_id,
+    staleAdminMembership.id,
+    "finance",
+    "P7A local browser stale Admin proof",
+    randomUUID(),
+  ]);
+  await assertNoPlatformRows(
+    identities.staleAdmin,
+    "p7a-stale-admin-token-read",
+  );
+  const staleAdminNewClaims = await refresh(identities.staleAdmin, "finance");
+  assert(
+    staleAdminNewClaims.platform_access_version >
+      staleAdminOldClaims.platform_access_version,
+    "p7a-stale-admin-version-increment",
+  );
   await rpc(identities.adminA, "change_membership_role", [
     adminAMembership.organization_id,
     roleMembers.sales.id,
@@ -3497,6 +3541,23 @@ const main = async () => {
     formerSalesWorkflowDenied.status === 401 ||
       formerSalesWorkflowDenied.status === 403,
     "p3c-org-a-former-sales-workflow-denied",
+  );
+
+  await rpc(identities.adminA, "change_membership_status", [
+    adminAMembership.organization_id,
+    inactiveAdminMembership.id,
+    "inactive",
+    "P7A local browser inactive Admin proof",
+    randomUUID(),
+  ]);
+  await assertNoPlatformRows(
+    identities.inactiveAdmin,
+    "p7a-inactive-admin-held-token-read",
+  );
+  await refresh(identities.inactiveAdmin, null);
+  await assertNoPlatformRows(
+    identities.inactiveAdmin,
+    "p7a-inactive-admin-refreshed-read",
   );
 
   await rpc(identities.adminA, "change_membership_status", [
@@ -3914,6 +3975,60 @@ const main = async () => {
     const p5dWorkerTriggerSecret = randomBytes(48).toString("base64url");
     const p5f3AutonomousReplyTriggerSecret = randomBytes(48).toString("base64url");
     const p6cWorkerTriggerSecret = randomBytes(48).toString("base64url");
+    const p7aEventId = randomUUID();
+    const p7aRequestId = randomUUID();
+    const p7aResourceId = randomUUID();
+    const p7aStartAt = "2026-08-13T00:00:00Z";
+    const p7aEndAt = "2026-08-14T00:00:00Z";
+    const p7aPrivatePrincipal = "p7a-private-principal@example.invalid";
+    const p7aPrivatePhone = "+996555009900";
+    const p7aPrivateReason = "P7A PRIVATE FREE-TEXT REASON MUST NEVER LEAK";
+    const p7aPrivateBefore = "P7A PRIVATE BEFORE STATE MUST NEVER LEAK";
+    const p7aPrivateAfter = "=P7A_PRIVATE_AFTER_FORMULA_MUST_NEVER_LEAK";
+
+    // This local-only row proves the browser and CSV projection against known
+    // unsafe source fields. The 0600 fixture is deleted by the reset harness.
+    runSql(
+      `
+        INSERT INTO platform.audit_events (
+          id,
+          organization_id,
+          actor_kind,
+          actor_profile_id,
+          actor_principal,
+          action,
+          resource_type,
+          resource_id,
+          before_state,
+          after_state,
+          reason,
+          request_id,
+          created_at
+        )
+        VALUES (
+          ${sqlUuid(p7aEventId, "p7a-event-id")},
+          ${sqlUuid(adminAMembership.organization_id, "p7a-organization-id")},
+          'user',
+          ${sqlUuid(adminAMembership.profile_id, "p7a-actor-profile-id")},
+          ${sqlText(p7aPrivatePrincipal)},
+          'student.profile.upsert',
+          'student_profile',
+          ${sqlUuid(p7aResourceId, "p7a-resource-id")},
+          jsonb_build_object(
+            'private_before', ${sqlText(p7aPrivateBefore)},
+            'phone', ${sqlText(p7aPrivatePhone)}
+          ),
+          jsonb_build_object(
+            'private_after', ${sqlText(p7aPrivateAfter)},
+            'phone', ${sqlText(p7aPrivatePhone)}
+          ),
+          ${sqlText(p7aPrivateReason)},
+          ${sqlUuid(p7aRequestId, "p7a-request-id")},
+          TIMESTAMPTZ '2026-08-13 12:00:00+00'
+        );
+      `,
+      "p7a-browser-safe-audit-fixture",
+    );
     writeFileSync(
       browserFixturePath,
       JSON.stringify({
@@ -3995,6 +4110,23 @@ const main = async () => {
           paymentObligationId: p6aOverduePaymentObligationId,
           paymentLabel: p6aOverduePaymentLabel,
         },
+        p7a: {
+          eventId: p7aEventId,
+          requestId: p7aRequestId,
+          resourceId: p7aResourceId,
+          action: "student.profile.upsert",
+          resourceType: "student_profile",
+          startAt: p7aStartAt,
+          endAt: p7aEndAt,
+          privatePrincipal: p7aPrivatePrincipal,
+          privatePhone: p7aPrivatePhone,
+          privateReason: p7aPrivateReason,
+          privateBefore: p7aPrivateBefore,
+          privateAfter: p7aPrivateAfter,
+          staleAdminAccessToken,
+          inactiveAdminAccessToken,
+          blockedAdminAccessToken,
+        },
         p5f3: {
           autonomousReplyTriggerSecret: p5f3AutonomousReplyTriggerSecret,
         },
@@ -4010,6 +4142,14 @@ const main = async () => {
           crossOrgAdmin: {
             email: identities.adminB.email,
             password: identities.adminB.password,
+          },
+          staleAdmin: {
+            email: identities.staleAdmin.email,
+            password: identities.staleAdmin.password,
+          },
+          inactiveAdmin: {
+            email: identities.inactiveAdmin.email,
+            password: identities.inactiveAdmin.password,
           },
           salesScoped: {
             email: identities.salesScoped.email,
@@ -4224,7 +4364,7 @@ const main = async () => {
   }
 
   console.log(
-    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; 14 admin-provisioned synthetic users, 5 roles, 2 organizations, expired/stale-token and blocked-claim invalidation; synthetic readiness rows are contract fixtures only and are not live provider proof.",
+    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; admin-provisioned synthetic users cover 5 roles, 2 organizations, expired/stale-token and inactive/blocked-claim invalidation; synthetic readiness rows are contract fixtures only and are not live provider proof.",
   );
 };
 

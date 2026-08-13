@@ -91,10 +91,29 @@ type Fixture = Readonly<{
     paymentObligationId: string;
     paymentLabel: string;
   }>;
+  p7a: Readonly<{
+    eventId: string;
+    requestId: string;
+    resourceId: string;
+    action: string;
+    resourceType: string;
+    startAt: string;
+    endAt: string;
+    privatePrincipal: string;
+    privatePhone: string;
+    privateReason: string;
+    privateBefore: string;
+    privateAfter: string;
+    staleAdminAccessToken: string;
+    inactiveAdminAccessToken: string;
+    blockedAdminAccessToken: string;
+  }>;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
     crossOrgAdmin: Identity;
+    staleAdmin: Identity;
+    inactiveAdmin: Identity;
     salesScoped: Identity;
     responsibleSales: Identity;
     p5dSales: Identity;
@@ -307,6 +326,42 @@ function isCurrentPlatformAuthCookie(name: string) {
     /^\d+$/.test(name.slice(chunkPrefix.length))
   );
 }
+
+function p7aPlatformSessionCookie(accessToken: string): string {
+  const parts = accessToken.split(".");
+  if (parts.length !== 3) throw new Error("P7A proof token is not a JWT");
+
+  let claims: { exp?: unknown };
+  try {
+    claims = JSON.parse(
+      Buffer.from(parts[1], "base64url").toString("utf8"),
+    ) as { exp?: unknown };
+  } catch {
+    throw new Error("P7A proof token claims are invalid");
+  }
+  if (typeof claims.exp !== "number" || !Number.isSafeInteger(claims.exp)) {
+    throw new Error("P7A proof token expiry is invalid");
+  }
+
+  const session = JSON.stringify({
+    access_token: accessToken,
+    refresh_token: "p7a-local-proof-refresh-disabled",
+    expires_at: claims.exp,
+    token_type: "bearer",
+  });
+  return `base64-${Buffer.from(session, "utf8").toString("base64url")}`;
+}
+
+async function installP7APlatformSession(page: Page, accessToken: string) {
+  await page.context().addCookies([
+    {
+      name: platformAuthCookieBaseName,
+      value: p7aPlatformSessionCookie(accessToken),
+      url: appOrigin,
+      sameSite: "Lax",
+    },
+  ]);
+}
 const configuredLegacyDatabaseSentinel =
   process.env.EVO_PLATFORM_LEGACY_DB_SENTINEL;
 if (
@@ -368,28 +423,15 @@ async function applicationCreateAudit(
   applicationId: string,
   requestId: string,
 ) {
-  const query = new URLSearchParams({
-    select:
-      "organization_id,action,resource_type,resource_id,request_id",
-    organization_id: `eq.${fixture.p3c.orgA.organizationId}`,
-    action: "eq.application.create",
-    resource_type: "eq.university_application",
-    resource_id: `eq.${applicationId}`,
-    request_id: `eq.${requestId}`,
+  const result = await safeAuditSearch(token, {
+    actions: ["application.create"],
+    resourceTypes: ["university_application"],
+    resourceId: applicationId,
   });
-  const response = await fetch(
-    `${fixture.apiUrl}/rest/v1/audit_events?${query.toString()}`,
-    {
-      headers: {
-        apikey: fixture.publishableKey,
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-        "Accept-Profile": "platform",
-      },
-    },
+  expect(result.status).toBe(200);
+  return safeAuditRows(result.payload).filter(
+    (row) => row.request_id === requestId,
   );
-  expect(response.status).toBe(200);
-  return (await response.json()) as unknown;
 }
 
 function escapePathForRegex(pathname: string) {
@@ -456,6 +498,43 @@ async function platformRpc(
   let payload: unknown = null;
   if (text) payload = JSON.parse(text);
   return { status: response.status, payload };
+}
+
+type SafeAuditSearchOptions = Readonly<{
+  actions?: readonly string[];
+  resourceTypes?: readonly string[];
+  resourceId?: string;
+  startAt?: string;
+  endAt?: string;
+}>;
+
+async function safeAuditSearch(
+  token: string,
+  options: SafeAuditSearchOptions = {},
+) {
+  return platformRpc(token, "search_audit_events", {
+    p_start_at: options.startAt ?? null,
+    p_end_at: options.endAt ?? null,
+    p_actions: options.actions ?? null,
+    p_resource_types: options.resourceTypes ?? null,
+    p_resource_id: options.resourceId ?? null,
+    p_page_size: 100,
+    p_snapshot_created_at: null,
+    p_snapshot_id: null,
+    p_cursor_created_at: null,
+    p_cursor_id: null,
+  });
+}
+
+function safeAuditRows(payload: unknown): Array<Record<string, unknown>> {
+  expect(payload).toEqual(
+    expect.objectContaining({ rows: expect.any(Array) }),
+  );
+  const rows = (payload as { rows: unknown }).rows;
+  if (!Array.isArray(rows)) {
+    throw new Error("Safe audit search did not return a row array");
+  }
+  return rows as Array<Record<string, unknown>>;
 }
 
 async function platformRows(
@@ -3190,6 +3269,367 @@ test("P6D closes the real Student 360 and Portal cross-domain loop with tenant i
   await primaryStudentContext.close();
 });
 
+test("P7A searches and exports safe organization audit evidence through connected Settings", async ({
+  browser,
+  page,
+}) => {
+  test.skip(
+    process.env.EVO_P7A_BROWSER_PROOF !== "1",
+    "Runs only in the dedicated local P7A browser-proof partition.",
+  );
+  test.setTimeout(120_000);
+  expectLegacyDatabaseUntouched();
+
+  const exportPath = "/api/platform-audit/export";
+  const settingsPath = "/settings?tab=audit";
+  const safePrivateValues = [
+    fixture.p7a.privatePrincipal,
+    fixture.p7a.privatePhone,
+    fixture.p7a.privateReason,
+    fixture.p7a.privateBefore,
+    fixture.p7a.privateAfter,
+  ];
+  const postExport = async (
+    targetPage: Page,
+    body: URLSearchParams,
+    origin = appOrigin,
+  ) => targetPage.request.post(`${appOrigin}${exportPath}`, {
+    data: body.toString(),
+    headers: {
+      origin,
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    maxRedirects: 0,
+  });
+
+  await login(page, fixture.identities.admin);
+  await expect(page).toHaveURL(/\/sales$/);
+  const settingsNav = page
+    .locator(".staff-sidebar")
+    .getByRole("link", { name: "Настройки", exact: true });
+  await expect(settingsNav).toHaveAttribute("href", settingsPath);
+  await settingsNav.click();
+  await expect(page).toHaveURL(new RegExp(`${escapePathForRegex(settingsPath)}$`));
+  await expect(
+    page
+      .locator(".staff-sidebar")
+      .getByRole("link", { name: "Настройки", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("platform-audit-settings")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Журнал аудита EVO Platform" }),
+  ).toBeVisible();
+
+  const searchForm = page.getByRole("form", {
+    name: "Фильтры журнала аудита",
+  });
+  await searchForm.locator('input[name="start_at"]').fill(fixture.p7a.startAt);
+  await searchForm.locator('input[name="end_at"]').fill(fixture.p7a.endAt);
+  await searchForm.locator('select[name="actions"]').selectOption(
+    fixture.p7a.action,
+  );
+  await searchForm.locator('select[name="resource_types"]').selectOption(
+    fixture.p7a.resourceType,
+  );
+  await searchForm.locator('input[name="resource_id"]').fill(
+    fixture.p7a.resourceId,
+  );
+  await searchForm.locator('input[name="page_size"]').fill("1");
+  await searchForm.getByRole("button", { name: "Найти" }).click();
+
+  await expect(page).toHaveURL(/\/settings\?[^#]*tab=audit/);
+  const auditTable = page.getByRole("table", {
+    name: "Безопасные события аудита EVO Platform",
+  });
+  await expect(auditTable).toBeVisible();
+  await expect(auditTable.locator("tbody tr")).toHaveCount(1);
+  const safeRow = auditTable.locator("tbody tr").first();
+  await expect(safeRow).toContainText(fixture.p7a.action);
+  await expect(safeRow).toContainText(fixture.p7a.resourceType);
+  await expect(safeRow).toContainText(fixture.p7a.resourceId);
+  await expect(safeRow).toContainText(fixture.p7a.eventId);
+  await expect(safeRow).toContainText(fixture.p7a.requestId);
+  await expect(safeRow).toContainText("Staff");
+  await expect(safeRow).toContainText("restricted");
+  await expect(safeRow).toContainText("record_status");
+  for (const privateValue of safePrivateValues) {
+    await expect(page.locator("body")).not.toContainText(privateValue);
+  }
+  const exportForm = page.getByRole("form", {
+    name: "Экспорт журнала аудита в CSV",
+  });
+  await expect(exportForm).toHaveAttribute("action", exportPath);
+  await expect(exportForm).toHaveAttribute("method", "post");
+  await expect(exportForm).toHaveAttribute(
+    "enctype",
+    "application/x-www-form-urlencoded",
+  );
+  const exportFields = await exportForm.locator("input").evaluateAll(
+    (inputs) => Object.fromEntries(
+      inputs.map((input) => {
+        const field = input as HTMLInputElement;
+        return [field.name, field.value];
+      }),
+    ),
+  );
+  const exportBody = new URLSearchParams(exportFields);
+  const exportRequestId = exportBody.get("request_id");
+  expect(exportRequestId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  expect(exportBody.get("snapshot_created_at")).toBeTruthy();
+  expect(exportBody.get("snapshot_id")).toBe(fixture.p7a.eventId);
+
+  const downloadPromise = page.waitForEvent("download");
+  await exportForm.getByRole("button", { name: "Скачать CSV" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("evo-platform-audit.csv");
+  expect(await download.failure()).toBeNull();
+  const downloadedPath = await download.path();
+  expect(downloadedPath).toBeTruthy();
+  if (!downloadedPath) throw new Error("P7A CSV download path was unavailable");
+  const firstCsv = readFileSync(downloadedPath, "utf8");
+  const expectedHeader =
+    '"audit_event_id","created_at","action","resource_type","resource_id","actor_kind","actor_display_label","request_id","reason_code","changed_field_codes"\r\n';
+  expect(firstCsv.startsWith(expectedHeader)).toBe(true);
+  expect(firstCsv.endsWith("\r\n")).toBe(true);
+  expect(firstCsv.split("\r\n")).toHaveLength(3);
+  for (const allowedValue of [
+    fixture.p7a.eventId,
+    fixture.p7a.requestId,
+    fixture.p7a.resourceId,
+    fixture.p7a.action,
+    fixture.p7a.resourceType,
+    "Staff",
+    "restricted",
+    "record_status",
+  ]) {
+    expect(firstCsv).toContain(allowedValue);
+  }
+  for (const privateValue of safePrivateValues) {
+    expect(firstCsv).not.toContain(privateValue);
+  }
+
+  const replay = await postExport(page, exportBody);
+  expect(replay.status()).toBe(200);
+  expect(replay.headers()["content-type"]).toBe("text/csv; charset=utf-8");
+  expect(replay.headers()["content-disposition"]).toBe(
+    'attachment; filename="evo-platform-audit.csv"',
+  );
+  expect(replay.headers()["cache-control"]).toBe("private, no-store");
+  expect(replay.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(await replay.text()).toBe(firstCsv);
+
+  const conflictingBody = new URLSearchParams(exportBody);
+  conflictingBody.set("resource_id", randomUUID());
+  expect((await postExport(page, conflictingBody)).status()).toBe(400);
+  expect(
+    (await postExport(page, exportBody, "https://attacker.invalid")).status(),
+  ).toBe(403);
+  expect((await page.request.get(`${appOrigin}${exportPath}`)).status()).toBe(405);
+  expect(
+    (
+      await page.request.post(`${appOrigin}${exportPath}/near`, {
+        data: exportBody.toString(),
+        headers: {
+          origin: appOrigin,
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        maxRedirects: 0,
+      })
+    ).status(),
+  ).toBe(403);
+
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const exportAudit = await safeAuditSearch(adminToken, {
+    actions: ["audit.export"],
+    resourceTypes: ["audit_export"],
+    resourceId: exportRequestId ?? undefined,
+  });
+  expect(exportAudit.status).toBe(200);
+  expect(safeAuditRows(exportAudit.payload)).toEqual([
+    expect.objectContaining({
+      action: "audit.export",
+      resource_type: "audit_export",
+      resource_id: exportRequestId,
+      request_id: exportRequestId,
+      actor_kind: "user",
+      actor_display_label: "Staff",
+      reason_code: "audit_export_requested",
+      changed_field_codes: [
+        "export_filters",
+        "export_row_count",
+        "export_row_set_sha256",
+      ],
+    }),
+  ]);
+
+  // Intentional negative seam: post-071 browser actors must not be able to
+  // bypass the safe RPC projection by selecting the raw audit table.
+  const rawAdminRead = await platformRows(
+    adminToken,
+    "audit_events",
+    new URLSearchParams({ select: "id", limit: "1" }),
+  );
+  expect([401, 403]).toContain(rawAdminRead.status);
+
+  for (const [label, identity] of [
+    ["curator", fixture.identities.curator],
+    ["sales", fixture.identities.salesScoped],
+    ["finance", fixture.identities.finance],
+    ["student", fixture.identities.student],
+  ] as const) {
+    const token = await localAccessToken(identity);
+    const deniedRpc = await safeAuditSearch(token, {
+      actions: [fixture.p7a.action],
+      resourceTypes: [fixture.p7a.resourceType],
+      resourceId: fixture.p7a.resourceId,
+    });
+    expect(deniedRpc.status, label).toBe(403);
+
+    const context = await browser.newContext();
+    const deniedPage = await context.newPage();
+    await login(deniedPage, identity);
+    await expect(deniedPage).toHaveURL(expectedStaffHome(identity));
+    await deniedPage.goto(settingsPath);
+    await expect(deniedPage.getByTestId("platform-audit-settings")).toHaveCount(0);
+    await expect(deniedPage).not.toHaveURL(
+      new RegExp(`${escapePathForRegex(settingsPath)}$`),
+    );
+    expect((await postExport(deniedPage, exportBody)).status(), label).toBe(403);
+    await context.close();
+  }
+
+  for (const [label, accessToken] of [
+    ["stale Admin", fixture.p7a.staleAdminAccessToken],
+    ["inactive Admin", fixture.p7a.inactiveAdminAccessToken],
+    ["blocked Admin", fixture.p7a.blockedAdminAccessToken],
+  ] as const) {
+    const deniedSearch = await safeAuditSearch(accessToken, {
+      actions: [fixture.p7a.action],
+      resourceTypes: [fixture.p7a.resourceType],
+      resourceId: fixture.p7a.resourceId,
+    });
+    expect(deniedSearch.status, label).toBe(403);
+
+    const deniedContext = await browser.newContext();
+    const deniedPage = await deniedContext.newPage();
+    await installP7APlatformSession(deniedPage, accessToken);
+    const deniedExport = await postExport(deniedPage, exportBody);
+    expect(deniedExport.status(), label).toBe(403);
+    expect(deniedExport.headers()["content-type"], label).not.toBe(
+      "text/csv; charset=utf-8",
+    );
+    expect(await deniedExport.text(), label).toBe("");
+
+    await installP7APlatformSession(deniedPage, accessToken);
+    await deniedPage.goto(settingsPath);
+    await expect
+      .poll(() => new URL(deniedPage.url()).pathname, { message: label })
+      .toBe("/login");
+    await expect(
+      deniedPage.getByTestId("platform-audit-settings"),
+      label,
+    ).toHaveCount(0);
+    for (const privateValue of safePrivateValues) {
+      await expect(deniedPage.locator("body"), label).not.toContainText(
+        privateValue,
+      );
+    }
+    await deniedContext.close();
+  }
+
+  const crossOrgToken = await localAccessToken(fixture.identities.crossOrgAdmin);
+  const crossOrgSearch = await safeAuditSearch(crossOrgToken, {
+    actions: [fixture.p7a.action],
+    resourceTypes: [fixture.p7a.resourceType],
+    resourceId: fixture.p7a.resourceId,
+  });
+  expect(crossOrgSearch.status).toBe(200);
+  expect(safeAuditRows(crossOrgSearch.payload)).toEqual([]);
+  const crossOrgContext = await browser.newContext();
+  const crossOrgPage = await crossOrgContext.newPage();
+  await login(crossOrgPage, fixture.identities.crossOrgAdmin);
+  await expect(crossOrgPage).toHaveURL(/\/sales$/);
+  await crossOrgPage.goto(
+    `${settingsPath}&actions=${encodeURIComponent(fixture.p7a.action)}` +
+      `&resource_types=${encodeURIComponent(fixture.p7a.resourceType)}` +
+      `&resource_id=${fixture.p7a.resourceId}`,
+  );
+  await expect(crossOrgPage.getByTestId("platform-audit-settings")).toBeVisible();
+  await expect(crossOrgPage.locator("tbody tr")).toHaveCount(0);
+  await expect(crossOrgPage.locator("body")).not.toContainText(
+    fixture.p7a.resourceId,
+  );
+
+  const crossOrgExportBody = new URLSearchParams(exportBody);
+  const crossOrgExportRequestId = randomUUID();
+  crossOrgExportBody.set("request_id", crossOrgExportRequestId);
+  const crossOrgExport = await postExport(crossOrgPage, crossOrgExportBody);
+  expect(crossOrgExport.status()).toBe(400);
+  expect(crossOrgExport.headers()["content-type"]).not.toBe(
+    "text/csv; charset=utf-8",
+  );
+  const crossOrgExportBodyText = await crossOrgExport.text();
+  expect(crossOrgExportBodyText).not.toContain(fixture.p7a.resourceId);
+  for (const privateValue of safePrivateValues) {
+    expect(crossOrgExportBodyText).not.toContain(privateValue);
+  }
+  await crossOrgContext.close();
+
+  const orgAUnexpectedCrossOrgExportAudit = await safeAuditSearch(adminToken, {
+    actions: ["audit.export"],
+    resourceTypes: ["audit_export"],
+    resourceId: crossOrgExportRequestId,
+  });
+  expect(orgAUnexpectedCrossOrgExportAudit.status).toBe(200);
+  expect(safeAuditRows(orgAUnexpectedCrossOrgExportAudit.payload)).toEqual([]);
+  const orgAOriginalExportAudit = await safeAuditSearch(adminToken, {
+    actions: ["audit.export"],
+    resourceTypes: ["audit_export"],
+    resourceId: exportRequestId ?? undefined,
+  });
+  expect(orgAOriginalExportAudit.status).toBe(200);
+  expect(safeAuditRows(orgAOriginalExportAudit.payload)).toHaveLength(1);
+
+  const anonymousContext = await browser.newContext();
+  const anonymousPage = await anonymousContext.newPage();
+  await anonymousPage.goto(settingsPath);
+  await expect(anonymousPage).toHaveURL(/\/login$/);
+  await expect(anonymousPage.getByTestId("platform-audit-settings")).toHaveCount(0);
+  expect((await postExport(anonymousPage, exportBody)).status()).toBe(403);
+  // Repeat the raw-table negative without any resident Auth session.
+  const anonymousRawRead = await fetch(
+    `${fixture.apiUrl}/rest/v1/audit_events?select=id&limit=1`,
+    {
+      headers: {
+        apikey: fixture.publishableKey,
+        Accept: "application/json",
+        "Accept-Profile": "platform",
+      },
+    },
+  );
+  expect([401, 403]).toContain(anonymousRawRead.status);
+  const anonymousRpc = await fetch(
+    `${fixture.apiUrl}/rest/v1/rpc/search_audit_events`,
+    {
+      method: "POST",
+      headers: {
+        apikey: fixture.publishableKey,
+        Accept: "application/json",
+        "Accept-Profile": "platform",
+        "Content-Profile": "platform",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ p_page_size: 1 }),
+    },
+  );
+  expect([401, 403]).toContain(anonymousRpc.status);
+  await anonymousContext.close();
+
+  expectLegacyDatabaseUntouched();
+});
+
 test("P5D archives private WAHA media into the accepted conversation UI", async ({
   page,
 }) => {
@@ -4672,14 +5112,14 @@ test("admin creates a preparation application with one RLS-visible audit event",
     requestId,
   );
   expect(audit).toEqual([
-    {
-      organization_id: fixture.p3c.orgA.organizationId,
+    expect.objectContaining({
       action: "application.create",
       resource_type: "university_application",
       resource_id: applicationId,
       request_id: requestId,
-    },
+    }),
   ]);
+  expect(audit[0]).not.toHaveProperty("organization_id");
 });
 
 test("admin promotes a reviewed catalog batch before creating a catalog-linked application", async ({
@@ -5097,17 +5537,13 @@ test("BW6 keeps contract drafts and post-contract reports versioned, authorized,
     ).toEqual([]);
   };
   const expectOneAuditEvent = async (requestId: string) => {
-    const rows = await platformRows(
-      adminToken,
-      "audit_events",
-      new URLSearchParams({
-        select: "action,resource_type,resource_id,request_id",
-        organization_id: `eq.${fixture.bw6.orgA.organizationId}`,
-        request_id: `eq.${requestId}`,
-      }),
-    );
-    expect(rows.status).toBe(200);
-    expect(rows.payload).toEqual([
+    const result = await safeAuditSearch(adminToken);
+    expect(result.status).toBe(200);
+    expect(
+      safeAuditRows(result.payload).filter(
+        (row) => row.request_id === requestId,
+      ),
+    ).toEqual([
       expect.objectContaining({ request_id: requestId }),
     ]);
   };
@@ -5677,23 +6113,24 @@ test("BW7 proves one Supabase case from Sales draft through Admin handoff to Cur
   });
   expect(caseRows.payload[0].handoff_at).toEqual(expect.any(String));
   expect(caseRows.payload[0].portal_activated_at).toEqual(expect.any(String));
-  const assignmentAudit = await platformRows(
-    adminToken,
-    "audit_events",
-    new URLSearchParams({
-      select: "action,resource_type,resource_id,request_id",
-      action: "eq.case.curator.set",
-      resource_id: `eq.${fixture.bw7.orgA.studentCaseId}`,
-      request_id: `eq.${assignmentRequestId}`,
-    }),
-  );
+  const assignmentAudit = await safeAuditSearch(adminToken, {
+    actions: ["case.curator.set"],
+    resourceTypes: ["student_case"],
+    resourceId: fixture.bw7.orgA.studentCaseId,
+  });
   expect(assignmentAudit.status).toBe(200);
-  expect(assignmentAudit.payload).toEqual([{
-    action: "case.curator.set",
-    resource_type: "student_case",
-    resource_id: fixture.bw7.orgA.studentCaseId,
-    request_id: assignmentRequestId,
-  }]);
+  expect(
+    safeAuditRows(assignmentAudit.payload).filter(
+      (row) => row.request_id === assignmentRequestId,
+    ),
+  ).toEqual([
+    expect.objectContaining({
+      action: "case.curator.set",
+      resource_type: "student_case",
+      resource_id: fixture.bw7.orgA.studentCaseId,
+      request_id: assignmentRequestId,
+    }),
+  ]);
   await adminContext.close();
 
   const curatorContext = await browser.newContext();

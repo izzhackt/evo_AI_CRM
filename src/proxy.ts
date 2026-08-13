@@ -3,8 +3,11 @@ import { requestId } from "@/lib/request-id";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 import {
   isConnectedPlatformApi,
+  isConnectedPlatformAuditExportApi,
+  isConnectedPlatformAuditSettingsRequest,
   isConnectedPlatformPage,
 } from "@/lib/platform-route-contract";
+import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
 import {
   SupabaseConfigurationError,
 } from "@/lib/supabase/config";
@@ -131,6 +134,22 @@ export async function proxy(request: NextRequest) {
     // bearer-secret checks. They must not be redirected into the staff-cookie
     // flow, while every other legacy/internal API route remains disconnected.
     return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+  const auditEnabled = isPlatformP7AAuditEnabled();
+  if (
+    path === "/settings" &&
+    (
+      !auditEnabled ||
+      !isConnectedPlatformAuditSettingsRequest(path, request.nextUrl.searchParams)
+    )
+  ) {
+    return blockedPlatformRoute(request, id);
+  }
+  if (
+    isConnectedPlatformAuditExportApi(path) &&
+    !auditEnabled
+  ) {
+    return blockedPlatformRoute(request, id);
   }
   if (!isConnectedPlatformPage(path) && !isConnectedPlatformApi(path)) {
     return blockedPlatformRoute(request, id);

@@ -108,6 +108,10 @@ type Fixture = Readonly<{
     inactiveAdminAccessToken: string;
     blockedAdminAccessToken: string;
   }>;
+  p7b: Readonly<{
+    supabaseSecretKey: string;
+    observabilitySecret: string;
+  }>;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
@@ -436,6 +440,31 @@ async function applicationCreateAudit(
 
 function escapePathForRegex(pathname: string) {
   return pathname.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function p7bObservabilityHeaders(
+  pathname: "/api/readiness" | "/metrics",
+  overrides: Readonly<{
+    requestId?: string;
+    timestamp?: string;
+    secret?: string;
+  }> = {},
+) {
+  const requestId = overrides.requestId ?? randomUUID();
+  const timestamp = overrides.timestamp ?? Date.now().toString();
+  const secret = overrides.secret ?? fixture.p7b.observabilitySecret;
+
+  return Object.freeze({
+    requestId,
+    headers: Object.freeze({
+      "x-evo-observability-request-id": requestId,
+      "x-evo-observability-timestamp": timestamp,
+      "x-evo-observability-hmac-algorithm": "sha256",
+      "x-evo-observability-hmac": createHmac("sha256", secret)
+        .update(`GET\n${pathname}\n${requestId}\n${timestamp}`)
+        .digest("hex"),
+    }),
+  });
 }
 
 async function expectDeniedConversationRoute(page: Page, pathname: string) {
@@ -3626,6 +3655,303 @@ test("P7A searches and exports safe organization audit evidence through connecte
   );
   expect([401, 403]).toContain(anonymousRpc.status);
   await anonymousContext.close();
+
+  expectLegacyDatabaseUntouched();
+});
+
+test("P7B exposes signed private readiness and metrics without claiming provider health", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.EVO_P7B_BROWSER_PROOF !== "1",
+    "Runs only in the dedicated local P7B browser-proof partition.",
+  );
+  test.setTimeout(120_000);
+  expectLegacyDatabaseUntouched();
+
+  const readinessPath = "/api/readiness" as const;
+  const metricsPath = "/metrics" as const;
+  const expectHidden = async (response: Awaited<ReturnType<typeof page.request.get>>) => {
+    expect(response.status()).toBe(404);
+    expect(response.headers()["cache-control"]).toBe("no-store");
+    expect(await response.text()).toBe("");
+  };
+
+  await expectHidden(await page.request.get(`${appOrigin}${readinessPath}`));
+  await expectHidden(await page.request.get(`${appOrigin}${metricsPath}`));
+
+  const badSignature = p7bObservabilityHeaders(readinessPath, {
+    secret: `${fixture.p7b.observabilitySecret}-wrong`,
+  });
+  await expectHidden(
+    await page.request.get(`${appOrigin}${readinessPath}`, {
+      headers: badSignature.headers,
+    }),
+  );
+
+  const staleSignature = p7bObservabilityHeaders(readinessPath, {
+    timestamp: (Date.now() - 300_001).toString(),
+  });
+  await expectHidden(
+    await page.request.get(`${appOrigin}${readinessPath}`, {
+      headers: staleSignature.headers,
+    }),
+  );
+
+  const querySignature = p7bObservabilityHeaders(readinessPath);
+  await expectHidden(
+    await page.request.get(`${appOrigin}${readinessPath}?probe=1`, {
+      headers: querySignature.headers,
+    }),
+  );
+
+  const methodSignature = p7bObservabilityHeaders(readinessPath);
+  await expectHidden(
+    await page.request.post(`${appOrigin}${readinessPath}`, {
+      headers: methodSignature.headers,
+    }),
+  );
+
+  expect((await page.request.get(`${appOrigin}/api/readiness-near`)).status()).toBe(
+    404,
+  );
+  expect((await page.request.get(`${appOrigin}/metrics/near`)).status()).toBe(
+    404,
+  );
+
+  const readinessSignature = p7bObservabilityHeaders(readinessPath);
+  const metricsSignature = p7bObservabilityHeaders(metricsPath);
+  const [readinessResponse, metricsResponse] = await Promise.all([
+    page.request.get(`${appOrigin}${readinessPath}`, {
+      headers: readinessSignature.headers,
+    }),
+    page.request.get(`${appOrigin}${metricsPath}`, {
+      headers: metricsSignature.headers,
+    }),
+  ]);
+
+  expect(readinessResponse.status()).toBe(503);
+  expect(readinessResponse.headers()["cache-control"]).toBe("no-store");
+  expect(readinessResponse.headers()["x-content-type-options"]).toBe(
+    "nosniff",
+  );
+  expect(readinessResponse.headers()["content-type"]).toMatch(
+    /^application\/json(?:;|$)/,
+  );
+
+  const readiness = (await readinessResponse.json()) as Record<string, unknown>;
+  expect(Object.keys(readiness).sort()).toEqual(
+    [
+      "alerts",
+      "components",
+      "observed_at",
+      "ok",
+      "request_id",
+      "schema_version",
+      "service",
+      "signals",
+      "status",
+    ].sort(),
+  );
+  expect(readiness.schema_version).toBe("p7b-v1");
+  expect(readiness.ok).toBe(false);
+  expect(readiness.status).toBe("not_ready");
+  expect(readiness.service).toBe("evo-crm");
+  expect(readiness.request_id).toBe(readinessSignature.requestId);
+  expect(Number.isNaN(Date.parse(String(readiness.observed_at)))).toBe(false);
+
+  const components = readiness.components as Record<
+    string,
+    Record<string, unknown>
+  >;
+  expect(Object.keys(components).sort()).toEqual(
+    [
+      "ai",
+      "audit_append",
+      "restore_database",
+      "restore_storage",
+      "supabase",
+      "waha",
+    ].sort(),
+  );
+  const componentStatuses = new Set([
+    "ready",
+    "failed",
+    "unavailable",
+    "missing",
+    "unverified",
+    "stale",
+  ]);
+  for (const component of Object.values(components)) {
+    expect(Object.keys(component).sort()).toEqual([
+      "age_seconds",
+      "status",
+    ]);
+    expect(componentStatuses.has(String(component.status))).toBe(true);
+    expect(
+      component.age_seconds === null ||
+        (Number.isSafeInteger(component.age_seconds) &&
+          Number(component.age_seconds) >= 0 &&
+          Number(component.age_seconds) <= 31_536_000),
+    ).toBe(true);
+  }
+  expect(components.supabase.status).toBe("ready");
+  expect(components.audit_append.status).toBe("ready");
+  expect(components.waha.status).toBe("unverified");
+  expect(components.ai.status).toBe("unverified");
+  expect(components.restore_database.status).toBe("missing");
+  expect(components.restore_storage.status).toBe("missing");
+
+  const expectedSignalKeys = [
+    "ai_age_seconds",
+    "ai_evidence_future",
+    "ai_evidence_kind",
+    "ai_readiness",
+    "audit_append_status",
+    "autonomy_dispatching_count",
+    "autonomy_manual_review_count",
+    "autonomy_oldest_dispatching_age_seconds",
+    "autonomy_oldest_queued_age_seconds",
+    "autonomy_queued_count",
+    "autonomy_unknown_count",
+    "dead_letter_count",
+    "observed_at",
+    "private_media_expired_lease_count",
+    "private_media_oldest_unarchived_age_seconds",
+    "private_media_pending_count",
+    "private_media_processing_count",
+    "private_media_retryable_error_count",
+    "private_media_terminal_error_count",
+    "provider_conflict_open_count",
+    "queue_expired_lease_count",
+    "queue_leased_count",
+    "queue_oldest_ready_age_seconds",
+    "queue_oldest_retry_wait_age_seconds",
+    "queue_ready_count",
+    "queue_retry_wait_count",
+    "saturated",
+    "schema_version",
+    "unknown_delivery_open_count",
+    "waha_age_seconds",
+    "waha_evidence_future",
+    "waha_evidence_kind",
+    "waha_readiness",
+  ].sort();
+  const signals = readiness.signals as Record<string, unknown>;
+  expect(Object.keys(signals).sort()).toEqual(expectedSignalKeys);
+  expect(signals.schema_version).toBe("p7b-v1");
+  expect(signals.waha_readiness).toBe("ready");
+  expect(signals.waha_evidence_kind).toBe("local_non_provider");
+  expect(signals.ai_readiness).toBe("ready");
+  expect(signals.ai_evidence_kind).toBe("local_non_provider");
+  expect(typeof signals.saturated).toBe("boolean");
+  for (const [key, value] of Object.entries(signals)) {
+    if (key.endsWith("_count")) {
+      expect(Number.isSafeInteger(value), key).toBe(true);
+      expect(Number(value), key).toBeGreaterThanOrEqual(0);
+      expect(Number(value), key).toBeLessThanOrEqual(1_000_000);
+    }
+    if (key.endsWith("_age_seconds") && value !== null) {
+      expect(Number.isSafeInteger(value), key).toBe(true);
+      expect(Number(value), key).toBeGreaterThanOrEqual(0);
+      expect(Number(value), key).toBeLessThanOrEqual(31_536_000);
+    }
+  }
+
+  const alertContract = new Map<string, readonly [string, string, string]>([
+    ["supabase_unavailable", ["critical", "server_operator", "RB-P7B-SUPABASE-UNAVAILABLE"]],
+    ["audit_append_failed", ["critical", "server_operator", "RB-P7B-AUDIT-APPEND"]],
+    ["waha_unavailable", ["critical", "whatsapp_operator", "RB-P7B-WAHA-DEGRADED"]],
+    ["ai_unavailable", ["critical", "ai_operator", "RB-P7B-AI-UNAVAILABLE"]],
+    ["queue_backlog_warning", ["warning", "server_operator", "RB-P7B-QUEUE-BACKLOG"]],
+    ["queue_backlog_critical", ["critical", "server_operator", "RB-P7B-QUEUE-BACKLOG"]],
+    ["queue_expired_lease", ["critical", "server_operator", "RB-P7B-QUEUE-BACKLOG"]],
+    ["queue_dead_letter", ["critical", "server_operator", "RB-P7B-QUEUE-BACKLOG"]],
+    ["unknown_delivery_open", ["critical", "whatsapp_operator", "RB-P7B-UNKNOWN-DELIVERY"]],
+    ["provider_conflict_open", ["critical", "whatsapp_operator", "RB-P7B-UNKNOWN-DELIVERY"]],
+    ["private_media_backlog", ["warning", "whatsapp_operator", "RB-P7B-PRIVATE-MEDIA"]],
+    ["private_media_expired_lease", ["critical", "whatsapp_operator", "RB-P7B-PRIVATE-MEDIA"]],
+    ["private_media_terminal_error", ["critical", "whatsapp_operator", "RB-P7B-PRIVATE-MEDIA"]],
+    ["autonomy_queue_stalled_warning", ["warning", "whatsapp_operator", "RB-P7B-ROLLBACK-KILL-SWITCH"]],
+    ["autonomy_queue_stalled_critical", ["critical", "whatsapp_operator", "RB-P7B-ROLLBACK-KILL-SWITCH"]],
+    ["autonomy_dispatch_stalled", ["critical", "whatsapp_operator", "RB-P7B-ROLLBACK-KILL-SWITCH"]],
+    ["autonomy_unknown", ["critical", "whatsapp_operator", "RB-P7B-ROLLBACK-KILL-SWITCH"]],
+    ["autonomy_manual_review", ["warning", "whatsapp_operator", "RB-P7B-ROLLBACK-KILL-SWITCH"]],
+    ["restore_evidence_missing", ["warning", "data_recovery_owner", "RB-P7B-RESTORE-EVIDENCE"]],
+    ["restore_evidence_failed", ["critical", "data_recovery_owner", "RB-P7B-RESTORE-EVIDENCE"]],
+    ["signal_saturated", ["critical", "server_operator", "RB-P7B-QUEUE-BACKLOG"]],
+  ]);
+  const alerts = readiness.alerts as Array<Record<string, unknown>>;
+  expect(alerts.length).toBeGreaterThan(0);
+  expect(new Set(alerts.map((alert) => alert.code)).size).toBe(alerts.length);
+  for (const alert of alerts) {
+    expect(Object.keys(alert).sort()).toEqual([
+      "code",
+      "owner_category",
+      "runbook_id",
+      "severity",
+    ]);
+    const expected = alertContract.get(String(alert.code));
+    expect(expected, String(alert.code)).toBeDefined();
+    expect([
+      alert.severity,
+      alert.owner_category,
+      alert.runbook_id,
+    ]).toEqual(expected);
+  }
+
+  expect(metricsResponse.status()).toBe(200);
+  expect(metricsResponse.headers()["cache-control"]).toBe("no-store");
+  expect(metricsResponse.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(metricsResponse.headers()["content-type"]).toBe(
+    "text/plain; version=0.0.4; charset=utf-8",
+  );
+  const metrics = await metricsResponse.text();
+  expect(metrics.endsWith("\n")).toBe(true);
+  expect(metrics).toMatch(/^evo_platform_readiness 0$/m);
+  expect(metrics).toMatch(
+    /^evo_platform_component_ready\{component="supabase"\} 1$/m,
+  );
+  expect(metrics).toMatch(/^evo_platform_active_alerts\{severity="warning"\} /m);
+  expect(metrics).toMatch(/^evo_platform_active_alerts\{severity="critical"\} /m);
+
+  const allowedMetricFamilies = new Set([
+    "evo_platform_readiness",
+    "evo_platform_component_ready",
+    "evo_platform_component_age_seconds",
+    "evo_platform_queue_items",
+    "evo_platform_queue_oldest_age_seconds",
+    "evo_platform_review_items",
+    "evo_platform_private_media_items",
+    "evo_platform_private_media_oldest_age_seconds",
+    "evo_platform_autonomy_items",
+    "evo_platform_autonomy_oldest_queued_age_seconds",
+    "evo_platform_autonomy_oldest_dispatching_age_seconds",
+    "evo_platform_signal_saturated",
+    "evo_platform_active_alerts",
+  ]);
+  for (const line of metrics.split("\n")) {
+    if (!line || line.startsWith("#")) continue;
+    expect(line).toMatch(/^[a-z_:][a-zA-Z0-9_:]*(?:\{[^\r\n]*\})? -?\d+(?:\.\d+)?$/);
+    const family = line.slice(0, line.search(/[ {]/));
+    expect(allowedMetricFamilies.has(family), line).toBe(true);
+  }
+
+  const safeBodies = [JSON.stringify(readiness), metrics];
+  for (const body of safeBodies) {
+    for (const privateValue of [
+      fixture.p7b.observabilitySecret,
+      fixture.p7b.supabaseSecretKey,
+      fixture.p5b.organizationId,
+      fixture.p6b.studentCaseId,
+    ]) {
+      expect(body).not.toContain(privateValue);
+    }
+    expect(body).not.toMatch(
+      /organization_id|student_case_id|provider_reference|object_key|phone|stack|exception/i,
+    );
+    expect(body).not.toContain(metricsSignature.requestId);
+  }
 
   expectLegacyDatabaseUntouched();
 });

@@ -9,6 +9,10 @@ import {
 import { LOCALE_STORAGE_KEY, translate } from '@/lib/i18n'
 
 export async function middleware(request: NextRequest) {
+  if (request.nextUrl.pathname === '/api/readiness') {
+    return NextResponse.next({ request: { headers: request.headers } })
+  }
+
   const incomingId = request.headers.get('x-request-id')
   const requestId =
     incomingId && /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(incomingId)
@@ -28,10 +32,7 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  if (
-    request.nextUrl.pathname === '/api/health' ||
-    request.nextUrl.pathname === '/api/readiness'
-  ) {
+  if (request.nextUrl.pathname === '/api/health') {
     return withRequestId(
       NextResponse.next({ request: { headers: request.headers } }),
     )

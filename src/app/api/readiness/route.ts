@@ -1,27 +1,11 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { platformReadinessRoute } from "@/lib/server/platform-observability-routes";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  let database = false;
-  try {
-    database = db().prepare("SELECT 1 AS ok").get() !== undefined;
-  } catch {
-    database = false;
-  }
-
-  const ready = database;
-  return NextResponse.json(
-    {
-      ok: ready,
-      status: ready ? "ready" : "not_ready",
-      service: "evo-crm",
-      checks: { database },
-    },
-    {
-      status: ready ? 200 : 503,
-      headers: { "Cache-Control": "no-store" },
-    },
-  );
-}
+export const GET = platformReadinessRoute;
+export const HEAD = platformReadinessRoute;
+export const POST = platformReadinessRoute;
+export const PUT = platformReadinessRoute;
+export const PATCH = platformReadinessRoute;
+export const DELETE = platformReadinessRoute;
+export const OPTIONS = platformReadinessRoute;

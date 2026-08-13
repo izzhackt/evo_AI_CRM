@@ -108,6 +108,30 @@ test("Auth smoke relies on atomic Admin scope provisioning without a duplicate a
   );
 });
 
+test("P7B browser proof receives a runtime-random private collector secret", () => {
+  const generation = authHook.indexOf(
+    'const p7bObservabilitySecret = randomBytes(48).toString("base64url")',
+  );
+  const fixtureWrite = authHook.indexOf(
+    "writeFileSync(\n      browserFixturePath",
+  );
+  const fixtureBinding = authHook.indexOf(
+    "observabilitySecret: p7bObservabilitySecret", // gitleaks:allow -- source-code binding, not a credential
+    generation,
+  );
+
+  assert.notEqual(generation, -1);
+  assert.notEqual(fixtureWrite, -1);
+  assert.notEqual(fixtureBinding, -1);
+  assert.ok(generation < fixtureWrite);
+  assert.ok(fixtureWrite < fixtureBinding);
+  assert.equal(authHook.match(/p7bObservabilitySecret\s*=/g)?.length, 1);
+  assert.doesNotMatch(
+    authHook.slice(generation, fixtureWrite),
+    /EVO_PLATFORM_P7B_OBSERVABILITY_SECRET/,
+  );
+});
+
 test("P7A proves stale, inactive and blocked authority with otherwise-authorized Admin tokens", () => {
   const staleActor = authHook.indexOf(
     'staleAdmin: syntheticIdentity("p7a-stale-admin")',

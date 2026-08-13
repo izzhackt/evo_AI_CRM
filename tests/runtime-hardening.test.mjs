@@ -17,10 +17,72 @@ function requireCaddyHardening(value) {
   assert.match(value, /Content-Security-Policy-Report-Only/);
   assert.match(
     value,
-    /@private path \/api\/internal \/api\/internal\/\* \/api\/readiness \/api\/readiness\/\* \/admin \/admin\/\* \/metrics/,
+    /@private path \/api\/internal \/api\/internal\/\* \/api\/readiness \/api\/readiness\/\* \/admin \/admin\/\* \/metrics \/metrics\/\*/,
   );
   assert.match(value, /respond @private 404/);
   assert.match(value, /max_header_size 32KB/);
+}
+
+const p7bCredentialHeaders = [
+  "Cookie",
+  "Authorization",
+  "Proxy-Authorization",
+  "X-Evo-Observability-Request-Id",
+  "X-Evo-Observability-Timestamp",
+  "X-Evo-Observability-Hmac-Algorithm",
+  "X-Evo-Observability-Hmac",
+  "X-Api-Key",
+  "X-Hub-Signature-256",
+  "X-Webhook-Hmac",
+  "X-Webhook-Hmac-Algorithm",
+  "X-Cron-Secret",
+  "Idempotency-Key",
+  "X-Evo-Agent-Admin-Key",
+  "X-Evo-Agent-Signature",
+  "X-Evo-Agent-Signature-Algorithm",
+  "X-Evo-Worker-Hmac",
+  "X-Evo-Worker-Hmac-Algorithm",
+  "X-Evo-Autonomous-Reply-Hmac",
+  "X-Evo-Autonomous-Reply-Hmac-Algorithm",
+  "X-Evo-Portal-Overdue-Hmac",
+  "X-Evo-Portal-Overdue-Hmac-Algorithm",
+  "X-Evo-Gemini-Hmac",
+  "X-Evo-Gemini-Hmac-Algorithm",
+  "X-Evo-History-Hmac",
+  "X-Evo-History-Hmac-Algorithm",
+  "X-Evo-Media-Hmac",
+  "X-Evo-Media-Hmac-Algorithm",
+];
+
+function serviceBlock(compose, service) {
+  const match = compose.match(
+    new RegExp(
+      `^  ${service}:\\n[\\s\\S]*?(?=^  [a-z][a-z0-9-]+:\\n|^networks:\\n|^volumes:\\n)`,
+      "m",
+    ),
+  );
+  assert.ok(match, `missing ${service} service`);
+  return match[0];
+}
+
+function requireP7bEdgeHardening(value) {
+  assert.match(
+    value,
+    /@private path[^\n]*\/api\/readiness[^\n]*\/metrics \/metrics\/\*/,
+  );
+  assert.match(value, /respond @private 404/);
+  for (const header of p7bCredentialHeaders) {
+    assert.match(
+      value,
+      new RegExp(`request>headers>${header} delete`),
+      `Caddy access logs must delete ${header}`,
+    );
+  }
+}
+
+function requireInboxReadinessFailureStatus(value) {
+  assert.match(value, /const status = ready \? 200 : 503/);
+  assert.match(value, /status,/);
 }
 
 test("production Compose pins third parties and identifies first-party releases", async () => {
@@ -93,8 +155,69 @@ test("liveness and readiness remain separate contracts", async () => {
     "src/app/api/readiness/route.ts",
     "agent-lead2-inbox/src/app/api/readiness/route.ts",
   ]) {
-    assert.match(await read(path), /503/);
+    const route = await read(path);
+    const implementation = path.startsWith("src/")
+      ? await read("src/lib/server/platform-observability-routes.ts")
+      : "";
+    assert.match(`${route}\n${implementation}`, /503/);
   }
+});
+
+test("P7B edge, WAHA liveness, and empty-secret defaults fail closed", async () => {
+  const rootCompose = await read("docker-compose.prod.yml");
+  const inboxCompose = await read(
+    "agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml",
+  );
+  for (const compose of [rootCompose, inboxCompose]) {
+    const waha = serviceBlock(compose, "waha");
+    assert.match(waha, /127\.0\.0\.1:3000\/ping/);
+    assert.doesNotMatch(waha, /127\.0\.0\.1:3000\/health/);
+  }
+
+  for (const path of [
+    "deploy/env.waha.example",
+    "agent-lead2-inbox/deploy/env.waha.example",
+  ]) {
+    const value = await read(path);
+    assert.match(value, /^WAHA_API_KEY_EXCLUDE_PATH=ping$/m);
+    assert.doesNotMatch(value, /WAHA_API_KEY_EXCLUDE_PATH=.*health/);
+  }
+
+  for (const path of [
+    "agent-lead2-inbox/.env.local.example",
+    "agent-lead2-inbox/deploy/env.production.example",
+  ]) {
+    const value = await read(path);
+    assert.match(value, /^EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0$/m);
+    assert.match(value, /^EVO_INBOX_P7B_OBSERVABILITY_SECRET=$/m);
+  }
+
+  requireP7bEdgeHardening(
+    await read("agent-lead2-inbox/deploy/Caddyfile.evo-edge"),
+  );
+});
+
+test("P7B operations runbook defines every frozen response procedure", async () => {
+  const runbook = await read("docs/runbooks/p7b-operations.md");
+  const runbookIds = [
+    "RB-P7B-SUPABASE-UNAVAILABLE",
+    "RB-P7B-QUEUE-BACKLOG",
+    "RB-P7B-UNKNOWN-DELIVERY",
+    "RB-P7B-WAHA-DEGRADED",
+    "RB-P7B-AI-UNAVAILABLE",
+    "RB-P7B-PRIVATE-MEDIA",
+    "RB-P7B-AUDIT-APPEND",
+    "RB-P7B-RESTORE-EVIDENCE",
+    "RB-P7B-ROLLBACK-KILL-SWITCH",
+  ];
+
+  const headings = runbook.match(/^## RB-P7B-[A-Z-]+$/gm) ?? [];
+  assert.equal(headings.length, runbookIds.length);
+  for (const runbookId of runbookIds) {
+    assert.match(runbook, new RegExp(`^## ${runbookId}$`, "m"));
+  }
+  assert.match(runbook, /Do not delete or rewrite operational evidence/);
+  assert.match(runbook, /do not retry an unknown send result/i);
 });
 
 test("negative fixtures fail closed when required deployment controls disappear", async () => {
@@ -118,7 +241,19 @@ test("negative fixtures fail closed when required deployment controls disappear"
   ]) {
     assert.throws(() => requireCaddyHardening(caddy.replace(pattern, "")));
   }
+  assert.throws(() =>
+    requireP7bEdgeHardening(
+      caddy.replace(
+        /request>headers>X-Evo-Observability-Hmac delete/,
+        "",
+      ),
+    ),
+  );
 
   const readiness = await read("agent-lead2-inbox/src/app/api/readiness/route.ts");
-  assert.doesNotMatch(readiness.replace(/status: ready \? 200 : 503/, ""), /503/);
+  assert.throws(() =>
+    requireInboxReadinessFailureStatus(
+      readiness.replace(/const status = ready \? 200 : 503;/, ""),
+    ),
+  );
 });

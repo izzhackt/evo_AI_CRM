@@ -1,43 +1,76 @@
-import { NextResponse } from 'next/server'
+import {
+  readInboxObservabilitySecret,
+  readInboxProbeConfig,
+} from '@/lib/observability/config';
+import {
+  probeSupabaseHealth,
+  probeWahaHealth,
+} from '@/lib/observability/health-probes';
+import { logInboxReadinessRequest } from '@/lib/observability/logging';
+import { authenticateReadinessRequest } from '@/lib/observability/request-auth';
 
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-async function reachable(url: string, headers?: HeadersInit): Promise<boolean> {
-  try {
-    const response = await fetch(url, {
-      headers,
-      cache: 'no-store',
-      signal: AbortSignal.timeout(3_000),
-    })
-    return response.ok
-  } catch {
-    return false
-  }
+const SAFE_HEADERS = {
+  'Cache-Control': 'no-store',
+  'X-Content-Type-Options': 'nosniff',
+} as const;
+
+function hiddenNotFound(): Response {
+  return new Response(null, { status: 404, headers: SAFE_HEADERS });
 }
 
-export async function GET() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '')
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const wahaUrl = process.env.EVO_INBOX_WAHA_BASE_URL?.replace(/\/$/, '')
+export const HEAD = hiddenNotFound;
+export const POST = hiddenNotFound;
+export const PUT = hiddenNotFound;
+export const PATCH = hiddenNotFound;
+export const DELETE = hiddenNotFound;
+export const OPTIONS = hiddenNotFound;
 
+export async function GET(request: Request): Promise<Response> {
+  const secret = readInboxObservabilitySecret();
+  if (!secret) {
+    return hiddenNotFound();
+  }
+
+  const nowMs = Date.now();
+  const authenticated = authenticateReadinessRequest(request, secret, nowMs);
+  if (!authenticated) {
+    return hiddenNotFound();
+  }
+
+  const config = readInboxProbeConfig();
   const [supabase, waha] = await Promise.all([
-    supabaseUrl && supabaseKey
-      ? reachable(`${supabaseUrl}/auth/v1/health`, { apikey: supabaseKey })
-      : false,
-    wahaUrl ? reachable(`${wahaUrl}/ping`) : false,
-  ])
-  const ready = supabase && waha
+    probeSupabaseHealth(config.supabase),
+    probeWahaHealth(config.waha),
+  ]);
+  const ready = supabase === 'ready' && waha === 'ready';
+  const status = ready ? 200 : 503;
 
-  return NextResponse.json(
+  logInboxReadinessRequest({
+    requestId: authenticated.requestId,
+    status,
+    startedAtMs: nowMs,
+    completedAtMs: Date.now(),
+  });
+
+  return Response.json(
     {
+      schema_version: 'p7b-v1',
       ok: ready,
       status: ready ? 'ready' : 'not_ready',
       service: 'evo-inbox-companion',
-      checks: { supabase, waha },
+      request_id: authenticated.requestId,
+      observed_at: new Date(nowMs).toISOString(),
+      components: {
+        supabase: { status: supabase, age_seconds: null },
+        waha: { status: waha, age_seconds: null },
+      },
     },
     {
-      status: ready ? 200 : 503,
-      headers: { 'Cache-Control': 'no-store' },
-    },
-  )
+      status,
+      headers: SAFE_HEADERS,
+    }
+  );
 }

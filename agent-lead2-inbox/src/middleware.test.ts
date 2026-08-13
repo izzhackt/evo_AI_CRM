@@ -133,4 +133,21 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     expect(authCalls).toBe(0);
     expect(res.headers.get("x-request-id")).toBeTruthy();
   });
+
+  it("passes exact private readiness to its route without generic request logging", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+    const res = await middleware(
+      new NextRequest("https://app.test/api/readiness", {
+        headers: {
+          "x-evo-observability-request-id":
+            "123e4567-e89b-42d3-a456-426614174000",
+        },
+      }),
+    );
+
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+    expect(authCalls).toBe(0);
+    expect(info).not.toHaveBeenCalled();
+  });
 });

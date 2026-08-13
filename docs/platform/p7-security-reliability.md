@@ -96,6 +96,9 @@ base row contains private `actor_principal`, raw `before_state`, raw
   and `@`.
 - Connect the accepted Platform Settings presentation only. Connected runtime
   has no SQLite or service-role browser fallback.
+- Runtime activation uses the exact server-only
+  `EVO_PLATFORM_P7A_AUDIT_ENABLED=1` flag. The committed example remains `0`,
+  so repository configuration alone cannot expose the connected audit surface.
 
 ### Required acceptance
 

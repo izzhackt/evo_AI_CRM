@@ -1299,6 +1299,14 @@ SQL
       exit 1
     fi
   fi
+
+  # P7A removes authenticated raw audit-table reads and exposes only the
+  # actor-derived, safe search/export projection with immutable replay.
+  if [[ "$(basename "$migration")" == 071_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_audit_search_export_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

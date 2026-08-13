@@ -87,6 +87,149 @@ test("Auth smoke emits one dedicated revocable browser actor", () => {
   );
 });
 
+test("Auth smoke relies on atomic Admin scope provisioning without a duplicate assignment", () => {
+  const helperStart = authHook.indexOf("const provisionMembership = async");
+  const helperEnd = authHook.indexOf(
+    "const persistSyntheticFixtureEvent",
+    helperStart,
+  );
+  const helper = authHook.slice(helperStart, helperEnd);
+
+  assert.notEqual(helperStart, -1);
+  assert.notEqual(helperEnd, -1);
+  assert.match(helper, /if \(role !== "admin"\) \{/);
+  assert.equal(
+    (helper.match(/"assign_organization_scope"/g) ?? []).length,
+    1,
+  );
+  assert.ok(
+    helper.indexOf('if (role !== "admin") {') <
+      helper.indexOf('"assign_organization_scope"'),
+  );
+});
+
+test("P7A proves stale, inactive and blocked authority with otherwise-authorized Admin tokens", () => {
+  const staleActor = authHook.indexOf(
+    'staleAdmin: syntheticIdentity("p7a-stale-admin")',
+  );
+  const staleProvision = authHook.indexOf(
+    "const staleAdminMembership = await provisionMembership(",
+  );
+  const staleSignIn = authHook.indexOf(
+    'await signIn(identities.staleAdmin, "admin");',
+  );
+  const staleCapture = authHook.indexOf(
+    "const staleAdminAccessToken = identities.staleAdmin.accessToken;",
+  );
+  const staleMutation = authHook.indexOf(
+    'await rpc(identities.adminA, "change_membership_role", [',
+    staleCapture,
+  );
+  const inactiveActor = authHook.indexOf(
+    'inactiveAdmin: syntheticIdentity("p7a-inactive-admin")',
+  );
+  const inactiveProvision = authHook.indexOf(
+    "const inactiveAdminMembership = await provisionMembership(",
+  );
+  const inactiveSignIn = authHook.indexOf(
+    'await signIn(identities.inactiveAdmin, "admin");',
+  );
+  const inactiveCapture = authHook.indexOf(
+    "const inactiveAdminAccessToken = identities.inactiveAdmin.accessToken;",
+  );
+  const inactiveReason = authHook.indexOf(
+    '"P7A local browser inactive Admin proof"',
+    inactiveCapture,
+  );
+  const inactiveMutation = authHook.lastIndexOf(
+    'await rpc(identities.adminA, "change_membership_status", [',
+    inactiveReason,
+  );
+  const blockedProvision = authHook.indexOf(
+    "const blockedMembership = await provisionMembership(",
+  );
+  const blockedSignIn = authHook.indexOf(
+    'await signIn(identities.blocked, "admin");',
+  );
+  const blockedCapture = authHook.indexOf(
+    "const blockedAdminAccessToken = identities.blocked.accessToken;",
+  );
+  const blockedReason = authHook.indexOf(
+    '"local Auth hook smoke block"',
+    blockedCapture,
+  );
+  const blockedMutation = authHook.lastIndexOf(
+    'await rpc(identities.adminA, "change_membership_status", [',
+    blockedReason,
+  );
+
+  for (const location of [
+    staleActor,
+    staleProvision,
+    staleSignIn,
+    staleCapture,
+    staleMutation,
+    inactiveActor,
+    inactiveProvision,
+    inactiveSignIn,
+    inactiveCapture,
+    inactiveReason,
+    inactiveMutation,
+    blockedProvision,
+    blockedSignIn,
+    blockedCapture,
+    blockedReason,
+    blockedMutation,
+  ]) {
+    assert.notEqual(location, -1);
+  }
+  assert.ok(staleActor < staleProvision);
+  assert.ok(staleProvision < staleSignIn);
+  assert.ok(staleSignIn < staleCapture);
+  assert.ok(staleCapture < staleMutation);
+  assert.ok(inactiveActor < inactiveProvision);
+  assert.ok(inactiveProvision < inactiveSignIn);
+  assert.ok(inactiveSignIn < inactiveCapture);
+  assert.ok(inactiveCapture < inactiveMutation);
+  assert.ok(inactiveMutation < inactiveReason);
+  assert.ok(blockedProvision < blockedSignIn);
+  assert.ok(blockedSignIn < blockedCapture);
+  assert.ok(blockedCapture < blockedMutation);
+  assert.ok(blockedMutation < blockedReason);
+  assert.match(
+    authHook.slice(staleProvision, staleSignIn),
+    /identities\.staleAdmin,[\s\S]*"admin"/,
+  );
+  assert.match(
+    authHook.slice(inactiveProvision, inactiveSignIn),
+    /identities\.inactiveAdmin,[\s\S]*"admin"/,
+  );
+  assert.match(
+    authHook.slice(inactiveMutation, inactiveReason),
+    /inactiveAdminMembership\.id,[\s\S]*"inactive"/,
+  );
+  assert.match(
+    authHook.slice(blockedProvision, blockedSignIn),
+    /identities\.blocked,[\s\S]*"admin"/,
+  );
+  assert.match(
+    authHook.slice(blockedMutation, blockedReason),
+    /blockedMembership\.id,[\s\S]*"blocked"/,
+  );
+  assert.match(
+    platformAuthSpec,
+    /\["stale Admin", fixture\.p7a\.staleAdminAccessToken\][\s\S]*\["inactive Admin", fixture\.p7a\.inactiveAdminAccessToken\][\s\S]*\["blocked Admin", fixture\.p7a\.blockedAdminAccessToken\]/,
+  );
+  assert.match(
+    platformAuthSpec,
+    /installP7APlatformSession\(deniedPage, accessToken\)[\s\S]*postExport\(deniedPage, exportBody\)[\s\S]*deniedPage\.goto\(settingsPath\)/,
+  );
+  assert.match(
+    platformAuthSpec,
+    /crossOrgExportBody\.set\("request_id", crossOrgExportRequestId\)[\s\S]*postExport\(crossOrgPage, crossOrgExportBody\)[\s\S]*orgAUnexpectedCrossOrgExportAudit/,
+  );
+});
+
 test("P6B scope mutation refreshes Curator auth before downstream P3C writes", () => {
   const p6bAssignment = authHook.indexOf(
     '"p6b-curator-assignment"',

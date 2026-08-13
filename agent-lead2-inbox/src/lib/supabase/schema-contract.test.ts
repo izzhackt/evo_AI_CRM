@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -149,6 +150,10 @@ const platformPortalCrossDomainClosureMigration = readFileSync(
   join(migrationsDir, '070_platform_portal_cross_domain_closure.sql'),
   'utf8'
 )
+const platformAuditSearchExportMigration = readFileSync(
+  join(migrationsDir, '071_platform_audit_search_export.sql'),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -163,11 +168,266 @@ function expectRlsEnabled(table: string) {
   )
 }
 
+function sqlProtectedRegionEnd(sql: string, start: number): number | null {
+  if (sql.startsWith('--', start)) {
+    const newline = sql.indexOf('\n', start + 2)
+    return newline === -1 ? sql.length : newline + 1
+  }
+
+  if (sql.startsWith('/*', start)) {
+    let depth = 1
+    let cursor = start + 2
+    while (cursor < sql.length && depth > 0) {
+      if (sql.startsWith('/*', cursor)) {
+        depth += 1
+        cursor += 2
+      } else if (sql.startsWith('*/', cursor)) {
+        depth -= 1
+        cursor += 2
+      } else {
+        cursor += 1
+      }
+    }
+    return cursor
+  }
+
+  const quote = sql[start]
+  if (quote === "'" || quote === '"') {
+    let cursor = start + 1
+    while (cursor < sql.length) {
+      if (sql[cursor] === quote) {
+        if (sql[cursor + 1] === quote) {
+          cursor += 2
+          continue
+        }
+        return cursor + 1
+      }
+      cursor += 1
+    }
+    return sql.length
+  }
+
+  if (sql[start] === '$') {
+    const tag = sql.slice(start).match(/^\$[A-Za-z0-9_]*\$/)?.[0]
+    if (tag) {
+      const end = sql.indexOf(tag, start + tag.length)
+      return end === -1 ? sql.length : end + tag.length
+    }
+  }
+
+  return null
+}
+
+function findMatchingParenthesis(sql: string, start: number): number {
+  let depth = 0
+  for (let cursor = start; cursor < sql.length; cursor += 1) {
+    const protectedEnd = sqlProtectedRegionEnd(sql, cursor)
+    if (protectedEnd !== null) {
+      cursor = protectedEnd - 1
+      continue
+    }
+    if (sql[cursor] === '(') depth += 1
+    if (sql[cursor] === ')' && --depth === 0) return cursor
+  }
+  throw new Error('Unbalanced SQL parenthesis in audit producer inventory')
+}
+
+function splitTopLevelSqlList(sql: string): string[] {
+  const parts: string[] = []
+  let start = 0
+  let depth = 0
+  for (let cursor = 0; cursor < sql.length; cursor += 1) {
+    const protectedEnd = sqlProtectedRegionEnd(sql, cursor)
+    if (protectedEnd !== null) {
+      cursor = protectedEnd - 1
+      continue
+    }
+    if ('([{'.includes(sql[cursor])) depth += 1
+    if (')]}'.includes(sql[cursor])) depth -= 1
+    if (sql[cursor] === ',' && depth === 0) {
+      parts.push(sql.slice(start, cursor))
+      start = cursor + 1
+    }
+  }
+  parts.push(sql.slice(start))
+  return parts
+}
+
+function findTopLevelFrom(sql: string, start: number): number {
+  let depth = 0
+  for (let cursor = start; cursor < sql.length; cursor += 1) {
+    const protectedEnd = sqlProtectedRegionEnd(sql, cursor)
+    if (protectedEnd !== null) {
+      cursor = protectedEnd - 1
+      continue
+    }
+    if (sql[cursor] === '(') depth += 1
+    if (sql[cursor] === ')') depth -= 1
+    if (
+      depth === 0 &&
+      sql.slice(cursor, cursor + 4).toUpperCase() === 'FROM' &&
+      !/[A-Za-z0-9_]/.test(sql[cursor - 1] ?? '') &&
+      !/[A-Za-z0-9_]/.test(sql[cursor + 4] ?? '')
+    ) {
+      return cursor
+    }
+  }
+  throw new Error('Top-level FROM missing from audit producer INSERT')
+}
+
+function sqlTextLiterals(sql: string, pattern: RegExp): string[] {
+  return [...sql.matchAll(/'((?:''|[^'])*)'/g)]
+    .map((match) => match[1].replaceAll("''", "'"))
+    .filter((value) => pattern.test(value))
+}
+
+function inventoryPreP7AuditProducerPairs() {
+  const producerPairs = new Set<string>()
+  const unresolved: string[] = []
+  const producerMigrationFiles = migrationFiles.filter((file) => {
+    const sequence = Number.parseInt(file.slice(0, 3), 10)
+    return sequence >= 41 && sequence <= 70
+  })
+
+  for (const file of producerMigrationFiles) {
+    const sql = readFileSync(join(migrationsDir, file), 'utf8')
+    const actionVariables = new Map<string, string[]>()
+    for (const variable of ['action_name', 'audit_action']) {
+      const actions: string[] = []
+      const assignment = new RegExp(
+        `\\b${variable}\\s*:=\\s*([\\s\\S]*?);`,
+        'gi'
+      )
+      for (const match of sql.matchAll(assignment)) {
+        actions.push(
+          ...sqlTextLiterals(match[1], /^[a-z][a-z0-9]*(?:\.[a-z0-9]+)+$/)
+        )
+      }
+      actionVariables.set(variable, actions)
+    }
+
+    const insert = /INSERT\s+INTO\s+platform\.audit_events\s*\(/gi
+    for (const match of sql.matchAll(insert)) {
+      const columnsStart = match.index + match[0].lastIndexOf('(')
+      const columnsEnd = findMatchingParenthesis(sql, columnsStart)
+      const columns = splitTopLevelSqlList(
+        sql.slice(columnsStart + 1, columnsEnd)
+      ).map((column) => column.trim())
+      let cursor = columnsEnd + 1
+      while (/\s/.test(sql[cursor] ?? '')) cursor += 1
+
+      let expressions: string[]
+      if (sql.slice(cursor).match(/^VALUES\b/i)) {
+        cursor += sql.slice(cursor).match(/^VALUES\b/i)![0].length
+        while (/\s/.test(sql[cursor] ?? '')) cursor += 1
+        const valuesEnd = findMatchingParenthesis(sql, cursor)
+        expressions = splitTopLevelSqlList(sql.slice(cursor + 1, valuesEnd))
+      } else if (sql.slice(cursor).match(/^SELECT\b/i)) {
+        cursor += sql.slice(cursor).match(/^SELECT\b/i)![0].length
+        expressions = splitTopLevelSqlList(
+          sql.slice(cursor, findTopLevelFrom(sql, cursor))
+        )
+      } else {
+        unresolved.push(`${file}: unsupported INSERT source`)
+        continue
+      }
+
+      const actionExpression = expressions[columns.indexOf('action')]
+      const resourceExpression = expressions[columns.indexOf('resource_type')]
+      if (actionExpression === undefined || resourceExpression === undefined) {
+        unresolved.push(`${file}: action/resource column missing`)
+        continue
+      }
+      let actions = sqlTextLiterals(
+        actionExpression,
+        /^[a-z][a-z0-9]*(?:\.[a-z0-9]+)+$/
+      )
+      if (actions.length === 0) {
+        const variable = actionExpression
+          .trim()
+          .match(/^(action_name|audit_action)(?:::\w+)?$/i)?.[1]
+          ?.toLowerCase()
+        if (variable) actions = actionVariables.get(variable) ?? []
+      }
+      const resources = sqlTextLiterals(resourceExpression, /^[a-z][a-z0-9_]*$/)
+      if (actions.length === 0 || resources.length === 0) {
+        unresolved.push(`${file}: unresolved action/resource expression`)
+        continue
+      }
+      for (const action of new Set(actions)) {
+        for (const resource of new Set(resources)) {
+          producerPairs.add(`${action}|${resource}`)
+        }
+      }
+    }
+  }
+
+  return { producerPairs, unresolved }
+}
+
+function p7aAllowlist(functionName: string): Set<string> {
+  const body = platformAuditSearchExportMigration.match(
+    new RegExp(
+      `FUNCTION\\s+platform_private\\.${functionName}\\(\\)[\\s\\S]*?SELECT\\s+ARRAY\\[([\\s\\S]*?)\\]::TEXT\\[\\]`,
+      'i'
+    )
+  )?.[1]
+  if (!body) throw new Error(`P7A allowlist function missing: ${functionName}`)
+  return new Set(sqlTextLiterals(body, /./))
+}
+
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
-    expect(migrationFiles.at(-1)).toBe(
-      '070_platform_portal_cross_domain_closure.sql'
+    expect(migrationFiles.at(-1)).toBe('071_platform_audit_search_export.sql')
+    expect(platformAuditSearchExportMigration).toMatch(
+      /DROP\s+POLICY\s+IF\s+EXISTS\s+audit_events_read\s+ON\s+platform\.audit_events/i
     )
+    expect(platformAuditSearchExportMigration).toMatch(
+      /REVOKE\s+ALL\s+ON\s+TABLE\s+platform\.audit_events\s+FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role,\s*supabase_auth_admin/i
+    )
+    expect(platformAuditSearchExportMigration).not.toMatch(
+      /GRANT\s+SELECT\s+ON(?:\s+TABLE)?[\s\S]*?platform\.audit_events/i
+    )
+    expect(platformAuditSearchExportMigration).toMatch(
+      /CREATE\s+INDEX\s+audit_events_org_resource_created_id_idx\s+ON\s+platform\.audit_events\s*\(\s*organization_id,\s*resource_id,\s*created_at\s+DESC,\s*id\s+DESC\s*\)/i
+    )
+    expect(platformAuditSearchExportMigration).toMatch(
+      /CREATE\s+TABLE\s+platform_private\.audit_export_replays/i
+    )
+    for (const rlsMode of ['ENABLE', 'FORCE']) {
+      expect(platformAuditSearchExportMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+platform_private\\.audit_export_replays\\s+${rlsMode}\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          'i'
+        )
+      )
+    }
+    expect(platformAuditSearchExportMigration).toMatch(
+      /REVOKE\s+ALL\s+ON\s+TABLE\s+platform_private\.audit_export_replays\s+FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role,\s*supabase_auth_admin/i
+    )
+    expect(platformAuditSearchExportMigration).not.toMatch(
+      /CREATE\s+POLICY[\s\S]*?ON\s+platform_private\.audit_export_replays/i
+    )
+    for (const rpc of ['search_audit_events', 'export_audit_events']) {
+      expect(platformAuditSearchExportMigration).toMatch(
+        new RegExp(
+          `CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+platform\\.${rpc}\\s*\\([\\s\\S]*?SECURITY\\s+DEFINER[\\s\\S]*?SET\\s+search_path\\s*=\\s*''`,
+          'i'
+        )
+      )
+      expect(platformAuditSearchExportMigration).toMatch(
+        new RegExp(
+          `REVOKE\\s+ALL\\s+ON\\s+FUNCTION\\s+platform\\.${rpc}\\s*\\([\\s\\S]*?FROM\\s+PUBLIC,\\s*anon,\\s*authenticated,\\s*service_role,\\s*supabase_auth_admin`,
+          'i'
+        )
+      )
+      expect(platformAuditSearchExportMigration).toMatch(
+        new RegExp(
+          `GRANT\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+platform\\.${rpc}\\s*\\([\\s\\S]*?TO\\s+authenticated`,
+          'i'
+        )
+      )
+    }
     for (const table of [
       'waha_history_reconciliation_runs',
       'waha_history_reconciliation_lifecycle',
@@ -465,6 +725,102 @@ describe('Supabase companion schema contract', () => {
     expect(supabaseConfig).not.toMatch(
       /schemas\s*=.*(?:platform_private|pgmq_public)/
     )
+  })
+
+  it('classifies every pre-P7A audit producer as projected or intentionally private', () => {
+    const requiredBusinessPairs = [
+      'ai.draft.language.resolve|ai_draft',
+      'ai.draft.request.knowledge|ai_draft_request_knowledge_selection',
+      'catalog.import.batch.create|catalog_import_batch',
+      'catalog.import.batch.review|catalog_import_batch',
+      'catalog.import.batch.validate|catalog_import_batch',
+      'catalog.import.candidate.stage|catalog_import_candidate',
+      'communication.waha.history.pause|waha_history_reconciliation_run',
+      'contract.draft.generate|student_case_contract_draft',
+      'contract.draft.review|student_case_contract_draft',
+      'contract.template.version.approve|contract_template_version',
+      'contract.template.version.create|contract_template_version',
+      'contract.template.version.retire|contract_template_version',
+      'country.requirement.apply|student_case',
+      'country.requirement.source.link|country_requirement_version_source',
+      'country.requirement.version.approve|country_requirement_version',
+      'country.requirement.version.create|country_requirement_version',
+      'country.requirement.version.retire|country_requirement_version',
+      'decision.backlog.create|decision_backlog',
+      'decision.backlog.transition|decision_backlog',
+      'knowledge.chunkset.publish|approved_knowledge_chunk_set',
+      'knowledge.version.publish|approved_knowledge_version',
+      'knowledge.version.retire|approved_knowledge_version',
+      'post.contract.item.update|post_contract_item',
+      'post.contract.items.seed|post_contract_item_set',
+      'post.contract.report.generate|post_contract_report',
+      'post.contract.report.review|post_contract_report',
+      'workflow.contract.create|workflow_contract',
+      'workflow.source.link|workflow_contract_version_source',
+      'workflow.source.register|source_registry',
+      'workflow.source.retire|source_registry',
+      'workflow.source.review|source_registry',
+      'workflow.version.approve|workflow_contract_version',
+      'workflow.version.create|workflow_contract_version',
+      'workflow.version.retire|workflow_contract_version',
+    ]
+    const intentionallyPrivatePairs = [
+      'communication.webhook.persist|provider_webhook_event',
+      'integration.amocrm.mapping.discovery.persist|amocrm_mapping_discovery_version',
+      'media.archive.claim|communication_media',
+      'media.archive.finish|communication_media',
+      'media.download.consume|communication_media',
+      'media.download.grant|communication_media',
+      'prompt.artifact.publish|ai_prompt_artifact_version',
+      'prompt.artifact.retire|ai_prompt_artifact_version',
+      'work.claim|durable_work_item',
+      'work.conflict.review|durable_work_item',
+      'work.dead.letter|durable_work_item',
+      'work.enqueue.deduplicate|durable_work_item',
+      'work.enqueue|durable_work_item',
+      'work.lease.extend|durable_work_item',
+      'work.retry.schedule|durable_work_item',
+      'work.review.resolve|work_review_case',
+      'work.succeed|durable_work_item',
+      'work.unknown.review|durable_work_item',
+    ]
+    const reviewedOmissions = new Set([
+      ...requiredBusinessPairs,
+      ...intentionallyPrivatePairs,
+    ])
+    const { producerPairs, unresolved } = inventoryPreP7AuditProducerPairs()
+    const sortedProducerPairs = [...producerPairs].sort()
+    const safeActions = p7aAllowlist('p7a_safe_audit_actions')
+    const safeResources = p7aAllowlist('p7a_safe_audit_resource_types')
+    const isProjected = (pair: string) => {
+      const [action, resource] = pair.split('|')
+      return safeActions.has(action) && safeResources.has(resource)
+    }
+
+    expect(unresolved).toEqual([])
+    expect(sortedProducerPairs).toHaveLength(112)
+    expect(
+      createHash('sha256').update(sortedProducerPairs.join('\n')).digest('hex')
+    ).toBe(
+      'd3a2d42e476d64e5cb96950312b0a969276ab8bd06828aaa166ecce8c1297a2a'
+    )
+    expect(requiredBusinessPairs).toHaveLength(34)
+    expect(intentionallyPrivatePairs).toHaveLength(18)
+    expect(reviewedOmissions.size).toBe(52)
+    expect(
+      [...reviewedOmissions].filter((pair) => !producerPairs.has(pair))
+    ).toEqual([])
+    expect(requiredBusinessPairs.filter((pair) => !isProjected(pair))).toEqual(
+      []
+    )
+    expect(intentionallyPrivatePairs.filter(isProjected)).toEqual([])
+    expect(
+      sortedProducerPairs.filter(
+        (pair) =>
+          !isProjected(pair) && !intentionallyPrivatePairs.includes(pair)
+      )
+    ).toEqual([])
+    expect(sortedProducerPairs.filter(isProjected)).toHaveLength(94)
   })
 
   it('keeps P6B Student Portal notifications in-app-only and actor-derived', () => {

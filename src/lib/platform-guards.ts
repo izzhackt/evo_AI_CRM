@@ -75,3 +75,11 @@ export async function requirePlatformSalesActor(): Promise<PlatformActor> {
   }
   return actor;
 }
+
+export async function requirePlatformAuditAdminActor(): Promise<PlatformActor> {
+  const actor = await requirePlatformStaffActor();
+  if (actor.platformRole !== "admin") {
+    redirect("/platform-pending?from=%2Fsettings%3Ftab%3Daudit");
+  }
+  return actor;
+}

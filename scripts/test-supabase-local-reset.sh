@@ -22,6 +22,7 @@ readonly STORAGE_CONTAINER="supabase_storage_${SUPABASE_PROJECT_ID}"
 readonly KONG_CONTAINER="supabase_kong_${SUPABASE_PROJECT_ID}"
 readonly STACK_LABEL="com.supabase.cli.project=${SUPABASE_PROJECT_ID}"
 readonly INBOX_STACK_LABEL="com.supabase.cli.project=inbox"
+readonly KNOWN_STORAGE_GATEWAY_ERROR_CODE="LegacyStorageGatewayStatusError"
 readonly KNOWN_STORAGE_GATEWAY_502_STATUS="Error status 502:"
 readonly KNOWN_STORAGE_GATEWAY_502_MESSAGE="An invalid response was received from the upstream server"
 readonly EXCLUDED_SERVICES="imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
@@ -51,6 +52,7 @@ readonly P6A_BROWSER_TEST="P6A exposes read-only overdue Portal attention withou
 readonly P6B_BROWSER_TEST="P6B turns an authenticated staff document review into one live durable Student notification"
 readonly P6C_BROWSER_TEST="P6C publishes deterministic overdue task and payment notifications through the signed worker"
 readonly P6D_BROWSER_TEST="P6D closes the real Student 360 and Portal cross-domain loop with tenant isolation"
+readonly P7A_BROWSER_TEST="P7A searches and exports safe organization audit evidence through connected Settings"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -72,7 +74,7 @@ prepare_platform_auth_tsconfig() {
   local tsconfig_path="${BROWSER_BUILD_DIR}/tsconfig-platform-auth-${partition}.json"
 
   case "${partition}" in
-    provider|p5b|p5c|p5d|p5e|p5f1|p5f3|p6a|p6b|p6c|p6d|remaining) ;;
+    provider|p5b|p5c|p5d|p5e|p5f1|p5f3|p6a|p6b|p6c|p6d|p7a|remaining) ;;
     *) return 1 ;;
   esac
 
@@ -754,7 +756,6 @@ wait_for_local_stack_readiness() {
         break
       fi
     done
-
     remaining_seconds=$((deadline - SECONDS))
     (( remaining_seconds > 0 )) || break
     probe_timeout_ms=$((remaining_seconds * 1000))
@@ -830,7 +831,9 @@ NODE
 
 reset_reached_post_migration_restart_failure() {
   local progress_log=$1
+  local result_file=${2:-}
   local last_nonempty_line
+  local unexpected_progress
 
   # The CLI emits this banner only after it has recreated and migrated the
   # database and entered its service-restart phase. Accept only a timeout whose
@@ -849,11 +852,31 @@ reset_reached_post_migration_restart_failure() {
     return 0
   fi
 
-  [[ "${last_nonempty_line}" == \
-    "${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" ]] || return 1
+  if [[ -n "${result_file}" && -s "${result_file}" ]]; then
+    grep -Fq "\"code\":\"${KNOWN_STORAGE_GATEWAY_ERROR_CODE}\"" \
+      "${result_file}" || return 1
+    grep -Fq "${KNOWN_STORAGE_GATEWAY_502_STATUS}" \
+      "${result_file}" || return 1
+    grep -Fq "${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" \
+      "${result_file}" || return 1
+  else
+    grep -Fq "${KNOWN_STORAGE_GATEWAY_502_STATUS}" \
+      "${progress_log}" || return 1
+    grep -Fq "${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" \
+      "${progress_log}" || return 1
+  fi
 
-  grep -Fq "${KNOWN_STORAGE_GATEWAY_502_STATUS}" "${progress_log}" \
-    && grep -Fq "${KNOWN_STORAGE_GATEWAY_502_MESSAGE}" "${progress_log}"
+  unexpected_progress="$(
+    awk '
+      /Restarting containers/ { after_restart = 1 }
+      after_restart { print }
+    ' "${progress_log}" \
+      | sed -e 's/\r$//' -e '/^[[:space:]]*$/d' \
+      | grep -Ev \
+        '^Restarting containers\.\.\.$|^Error status 502:$|^An invalid response was received from the upstream server$|^error running container: exit [0-9]+$|^Try rerunning the command with --debug to troubleshoot the error\.$|^A new version of Supabase CLI is available: v[0-9]+\.[0-9]+\.[0-9]+ \(currently installed v[0-9]+\.[0-9]+\.[0-9]+\)$|^We recommend updating regularly for new features and bug fixes: https://supabase\.com/docs/guides/cli/getting-started#updating-the-supabase-cli$' \
+      || true
+  )"
+  [[ -z "${unexpected_progress}" ]]
 }
 
 reload_exact_local_kong() {
@@ -890,8 +913,10 @@ reload_exact_local_kong() {
 
 recover_post_migration_restart_failure() {
   local progress_log=$1
+  local result_file=${2:-}
 
-  reset_reached_post_migration_restart_failure "${progress_log}" \
+  reset_reached_post_migration_restart_failure \
+    "${progress_log}" "${result_file}" \
     || return 1
   reload_exact_local_kong || return 1
   wait_for_local_stack_readiness || return 1
@@ -1021,9 +1046,9 @@ if (( reset_exit_code != 0 )); then
   show_safe_failure_log "${TEMP_DIR}/reset.log"
   show_safe_database_deadlock_log
   if reset_reached_post_migration_restart_failure \
-    "${TEMP_DIR}/reset.log"; then
+    "${TEMP_DIR}/reset.log" "${TEMP_DIR}/reset.json"; then
     recover_post_migration_restart_failure \
-      "${TEMP_DIR}/reset.log" \
+      "${TEMP_DIR}/reset.log" "${TEMP_DIR}/reset.json" \
       || fail "Post-migration reset recovery failed for the exact disposable stack."
   else
     fail "Initial disposable Supabase reset failed before the proved post-migration recovery boundary. Exit code ${reset_exit_code}."
@@ -1111,9 +1136,11 @@ if (( post_queue_reset_exit_code != 0 )); then
   show_safe_failure_log "${TEMP_DIR}/post-queue-reset.log"
   show_safe_database_deadlock_log
   if reset_reached_post_migration_restart_failure \
-    "${TEMP_DIR}/post-queue-reset.log"; then
+    "${TEMP_DIR}/post-queue-reset.log" \
+    "${TEMP_DIR}/post-queue-reset.json"; then
     recover_post_migration_restart_failure \
       "${TEMP_DIR}/post-queue-reset.log" \
+      "${TEMP_DIR}/post-queue-reset.json" \
       || fail "Post-queue post-migration recovery failed for the exact disposable stack."
   else
     fail "Post-queue disposable Supabase reset failed before the proved post-migration recovery boundary. Exit code ${post_queue_reset_exit_code}."
@@ -1182,7 +1209,7 @@ fi
   || fail "Storage gate did not delete the credential-bearing local status file."
 
 refresh_synthetic_browser_health
-for browser_partition in provider p5b p5c p5d p5e p5f1 p5f3 p6a p6b p6c p6d remaining; do
+for browser_partition in provider p5b p5c p5d p5e p5f1 p5f3 p6a p6b p6c p6d p7a remaining; do
   prepare_platform_auth_tsconfig "${browser_partition}" \
     || fail "Unable to create the disposable ${browser_partition} browser tsconfig."
 done
@@ -1201,6 +1228,8 @@ if ! run_with_deadline 240000 env \
   EVO_P6B_BROWSER_PROOF=0 \
   EVO_P6C_BROWSER_PROOF=0 \
   EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
@@ -1217,7 +1246,6 @@ if ! run_with_deadline 240000 env \
 fi
 if ! stop_exact_browser_server; then
   fail "The exact-worktree Platform browser server did not stop between browser partitions."
-fi
 if ! run_with_deadline 240000 env \
   EVO_P5B_BROWSER_PROOF=1 \
   EVO_P5C_BROWSER_PROOF=0 \
@@ -1228,6 +1256,8 @@ if ! run_with_deadline 240000 env \
   EVO_P6B_BROWSER_PROOF=0 \
   EVO_P6C_BROWSER_PROOF=0 \
   EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
@@ -1256,6 +1286,8 @@ if ! run_with_deadline 240000 env \
   EVO_P6B_BROWSER_PROOF=0 \
   EVO_P6C_BROWSER_PROOF=0 \
   EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
@@ -1284,6 +1316,8 @@ if ! run_with_deadline 240000 env \
   EVO_P6B_BROWSER_PROOF=0 \
   EVO_P6C_BROWSER_PROOF=0 \
   EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
@@ -1312,6 +1346,8 @@ if ! run_with_deadline 240000 env \
   EVO_P6B_BROWSER_PROOF=0 \
   EVO_P6C_BROWSER_PROOF=0 \
   EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
@@ -1340,6 +1376,8 @@ if ! run_with_deadline 240000 env \
   EVO_P6B_BROWSER_PROOF=0 \
   EVO_P6C_BROWSER_PROOF=0 \
   EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
@@ -1371,6 +1409,8 @@ if ! run_with_deadline 240000 env \
   EVO_P6B_BROWSER_PROOF=0 \
   EVO_P6C_BROWSER_PROOF=0 \
   EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
@@ -1402,6 +1442,8 @@ if ! run_with_deadline 240000 env \
   EVO_P6B_BROWSER_PROOF=0 \
   EVO_P6C_BROWSER_PROOF=0 \
   EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=1 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
@@ -1439,6 +1481,8 @@ if ! run_with_deadline 240000 env \
   EVO_P6B_BROWSER_PROOF=1 \
   EVO_P6C_BROWSER_PROOF=0 \
   EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=1 \
   EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
@@ -1479,6 +1523,8 @@ if ! run_with_deadline 240000 env \
   EVO_P6B_BROWSER_PROOF=0 \
   EVO_P6C_BROWSER_PROOF=1 \
   EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=1 \
   EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=1 \
@@ -1519,6 +1565,8 @@ if ! run_with_deadline 660000 env \
   EVO_P6B_BROWSER_PROOF=0 \
   EVO_P6C_BROWSER_PROOF=0 \
   EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
   EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
@@ -1530,7 +1578,7 @@ if ! run_with_deadline 660000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}"; then
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}"; then
   fail "Remaining real browser Platform Auth/staff-shell gate failed."
 fi
 if ! stop_exact_browser_server; then
@@ -1550,6 +1598,8 @@ if ! run_with_deadline 660000 env \
   EVO_P6B_BROWSER_PROOF=0 \
   EVO_P6C_BROWSER_PROOF=0 \
   EVO_P6D_BROWSER_PROOF=1 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
   EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=1 \
   EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=1 \
   EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=1 \
@@ -1579,6 +1629,46 @@ fi
 if ! set_p6c_runtime_control disable; then
   fail "Unable to disable the exact synthetic P6D organization overdue runtime control; output was withheld."
 fi
+fi
+if ! run_with_deadline 240000 env \
+  EVO_P5B_BROWSER_PROOF=0 \
+  EVO_P5C_BROWSER_PROOF=0 \
+  EVO_P5D_BROWSER_PROOF=0 \
+  EVO_P5E_BROWSER_PROOF=0 \
+  EVO_P5F1_BROWSER_PROOF=0 \
+  EVO_P5F3_BROWSER_PROOF=0 \
+  EVO_P6A_BROWSER_PROOF=0 \
+  EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
+  EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=1 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=1 \
+  EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
+  EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_AMOCRM_READ_ENABLED=0 \
+  EVO_PLATFORM_GEMINI_PROPOSALS_ENABLED=0 \
+  EVO_PLATFORM_WAHA_INGRESS_ENABLED=0 \
+  EVO_PLATFORM_WAHA_WORKER_ENABLED=0 \
+  EVO_PLATFORM_WAHA_HISTORY_ENABLED=0 \
+  EVO_PLATFORM_WAHA_MEDIA_ENABLED=0 \
+  EVO_PLATFORM_AI_MEMORY_ENABLED=0 \
+  EVO_PLATFORM_AUTONOMOUS_REPLIES_ENABLED=0 \
+  EVO_PLATFORM_AUTONOMOUS_REPLIES_KILL_SWITCH=1 \
+  EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
+  EVO_PLATFORM_AUTH_BROWSER_PARTITION=p7a \
+  EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-p7a.json" \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep "${P7A_BROWSER_TEST}"; then
+  fail "P7A safe audit search and export browser proof failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop after the P7A browser partition."
+fi
 browser_gate_started=false
 
 rm -f -- "${PLATFORM_AUTH_BROWSER_FIXTURE}"
@@ -1600,3 +1690,4 @@ printf 'Verified staff-controlled P5F1 memory, facts, qualification, takeover co
 printf 'Verified one synthetic Student P6A read-only overdue Portal attention path plus same-organization no-case and query-swap denials; this is not the P6D two-positive-Student matrix.\n'
 printf 'Verified the disabled-by-default P6C signed worker publishes isolated durable task/payment notifications in task-first order for two same-organization Students without provider or outbound execution.\n'
 printf 'Verified the dedicated disabled-by-default P6D browser partition closes the accepted Student 360 and Portal loop for two same-organization Students with cross-tenant and wrong-object denials; this remains synthetic local evidence only.\n'
+printf 'Verified the dedicated disabled-by-default P7A browser partition searches and deterministically exports only the safe organization audit projection with role, tenant, raw-table and route denials; this remains synthetic local evidence only.\n'

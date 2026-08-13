@@ -1,9 +1,9 @@
 # P7 official evidence note
 
-Checked: 2026-08-12 (Asia/Bishkek)
+Checked: 2026-08-13 (Asia/Bishkek)
 
 Purpose: record the primary-source constraints used by Block
-`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-12`. This is research evidence, not
+`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13`. This is research evidence, not
 provider, managed-environment, customer-data or production proof.
 
 ## Supabase database backups and PITR

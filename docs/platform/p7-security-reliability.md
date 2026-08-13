@@ -2,16 +2,16 @@
 
 Status: authoritative docs-only implementation contract
 
-Version date: 2026-08-12 (Asia/Bishkek)
+Version date: 2026-08-13 (Asia/Bishkek)
 
-Plan Block-ID: `EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-12`
+Plan Block-ID: `EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13`
 
 Accepted baseline:
 
 - merged P6D main SHA: `1e53d93d8c70c286e56c5d057928e9f080c58a44`;
 - exact-main push CI run: `31650640795`;
 - contiguous migrations: `001-070`;
-- primary-source evidence: `docs/research/p7-official-evidence-2026-08-12.md`.
+- primary-source evidence: `docs/research/p7-official-evidence-2026-08-13.md`.
 
 This contract expands the append-only Block-ID above. If wording conflicts,
 `docs/PLAN_CHANGES.md` and `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` take

@@ -5707,13 +5707,13 @@ Validation and completion boundary:
   visa, finance, document, lifecycle, notification or read history. Existing
   Lead Agent, WAHA, amoCRM and legacy rollback paths remain unchanged.
 
-## 2026-08-12 - Decompose P7 security, reliability and operations
+## 2026-08-13 - Decompose P7 security, reliability and operations
 
-Block-ID: `EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-12`
+Block-ID: `EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13`
 
 Detailed implementation contract:
 `docs/platform/p7-security-reliability.md`. Primary-source evidence:
-`docs/research/p7-official-evidence-2026-08-12.md`.
+`docs/research/p7-official-evidence-2026-08-13.md`.
 
 This docs-only amendment replaces the broad P7 wording with four sequential,
 reviewable gates. It authorizes no schema, application, credential, provider,

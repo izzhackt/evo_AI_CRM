@@ -6029,3 +6029,79 @@ Official tooling basis:
   <https://docs.orbstack.dev/install>
 - OrbStack command-line start/stop guidance:
   <https://docs.orbstack.dev/headless>
+
+## 2026-08-13 - Freeze the P7B private observability build contract
+
+Block-ID: `EVO-P7B-OBSERVABILITY-CONTRACT-2026-08-13`
+
+Detailed build contract: `docs/platform/p7b-observability-contract.md`.
+
+This docs-only amendment resolves the P7B decisions that were intentionally
+left open by the parent P7 plan. It authorizes no implementation until this
+exact amendment is independently reviewed and merged. It changes no schema,
+application, credential, provider, customer data, managed environment or
+production state.
+
+Accepted baseline:
+
+- PR #157 merged the P7A status refresh and OrbStack-only local runtime policy
+  as `e4d10b96d0ef4061fdb03ec85430cb65d86e39fd`;
+- exact-main push CI run `31701995589` passed Main CRM, EVO Inbox and EVO Lead
+  Agent; Changed range was skipped for the push event as expected;
+- P7A is accepted and migrations remain contiguous `001-071`.
+
+Frozen implementation boundary:
+
+1. P7B executes as P7B1 service-only safe Platform signals plus private CRM
+   routes and a pure alert evaluator, P7B2 Inbox WAHA `/health` alignment,
+   logging/runbooks/edge hardening, then P7B3 real disposable OrbStack-backed
+   acceptance. P7C waits for all three.
+2. The feature is enabled only by exact server-side flag
+   `EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=1`. CRM and Inbox use distinct
+   32..128-byte runtime-random probe secrets.
+3. Exact private `GET /api/readiness` and `GET /metrics` use path-bound,
+   request-UUID/timestamp HMAC-SHA256. Disabled, malformed, stale, future,
+   unsigned, wrong-signature, query-bearing, body-bearing and near-path
+   requests return empty `404` before SQL/provider work. The public edge keeps
+   readiness, metrics, internal and Lead Agent admin surfaces at `404`.
+4. Expected next migration `072`, after a fresh ownership check, adds only
+   service-role executable
+   `platform.platform_operational_signals_v1(p_request_id uuid)`. It returns
+   one global, bounded aggregate snapshot with fixed queue/review/media/
+   autonomy/dependency/audit-probe fields and no tenant or raw identifiers.
+   Counts clamp at 1,000,000, ages at 31,536,000 seconds, and saturation is
+   explicit. Browser roles receive no RPC/private-table/PGMQ grant.
+5. Dependency readiness requires recent `provider_observed` plus `ready`
+   evidence. Missing, local-only, configuration-only, unverified, blocked or
+   stale evidence cannot become green. The audit append check is a rolled-back
+   transactional insert probe that creates no durable audit noise.
+6. Database and Storage restore evidence remains visibly `missing` until P7C
+   supplies reviewed real evidence. P7B does not create a fake evidence row or
+   configured-equals-passed escape hatch.
+7. The alert thresholds, exact two severities, four owner categories and nine
+   runbook IDs are fixed in the detailed contract. They are operational
+   escalation rules, not an SLO/SLA, capacity result or approved production
+   tuning. Evaluation has no external delivery.
+8. Prometheus text output is deterministic format 0.0.4 with `evo_platform_`
+   metric names, seconds as the time unit and fixed low-cardinality labels
+   only. Readiness JSON and structured logs use fixed safe codes and exclude
+   tenant/user/case/message/phone/provider/object/credential/customer data.
+9. Inbox uses documented WAHA `GET /health` semantics through private,
+   separately signed access. Lead Agent frozen/readiness semantics remain
+   unchanged. Local proof uses loopback stubs and synthetic data, never a real
+   provider.
+10. P7B acceptance requires Node/SQL/static gates plus the genuine repository
+    disposable Supabase/Compose path under verified OrbStack context, a
+    truthful signed CRM `503` while real-provider evidence is absent, safe
+    controlled failures, public `404`, safe private metrics with readiness `0`
+    and no external alert/provider/production mutation.
+
+Official metric-format basis:
+
+- Prometheus exposition formats:
+  <https://prometheus.io/docs/instrumenting/exposition_formats/>
+- Prometheus metric and label naming:
+  <https://prometheus.io/docs/practices/naming/>
+
+Merging this amendment proves only a reviewed plan boundary. It is not P7B
+implementation, runtime, provider, managed-environment or production evidence.

@@ -6085,3 +6085,52 @@ Primary sources:
   <https://waha.devlike.pro/docs/how-to/chats/>
 - WAHA `2026.7.1` release:
   <https://github.com/devlikeapro/waha/releases/tag/2026.7.1>
+
+## 2026-08-13 - Place the complete WhatsApp source archive in Obsidian
+
+Block-ID: `EVO-WHATSAPP-OBSIDIAN-CLOSED-ARCHIVE-2026-08-13`
+
+Change type: owner-authorized sensitive-data location expansion and media
+analysis lane.
+
+Reason: after the protected text export was verified, the owner explicitly
+instructed the agent to download all available WhatsApp media, analyze all
+content and store the complete source archive in the EVO Obsidian vault.
+
+Authorized implementation:
+
+- Create `90_Закрытый архив/WhatsApp` inside the EVO vault with owner-only
+  `0700` directories and `0600` files. This folder is outside the client AI
+  publication boundary and must never be copied to `30_Утверждено для ИИ`.
+- Copy the verified raw chat archive into the closed Obsidian area and generate
+  Russian Markdown transcripts with opaque chat filenames. Preserve the raw
+  source unchanged alongside derived files.
+- Download every media item that WAHA can still retrieve. Keep opaque filenames,
+  original metadata, checksums, per-item status and resumable checkpoints.
+- Extract local text/metadata from supported PDF, DOCX, PPTX, image, audio and
+  video sources. Keep failures explicit; an expired or unavailable WhatsApp
+  media object is not silently treated as analyzed.
+- Produce Russian analysis notes and knowledge candidates only in
+  `10_На проверке`. Candidate notes cite closed source IDs but do not reveal
+  customer names or phone numbers in titles.
+- Do not infer official truth from chat frequency. WhatsApp evidence remains an
+  internal source that requires conflict review plus the existing official-source
+  and owner/head approval rules before canonical publication.
+
+Risk accepted by owner instruction:
+
+- Obsidian stores ordinary local files. Closed WhatsApp content is therefore
+  visible to the local Obsidian process and may be visible to installed plugins
+  or any separately configured vault sync. Filesystem permissions reduce local
+  account exposure but do not encrypt the vault.
+
+Acceptance:
+
+- The count of copied chat files and hashes matches the verified protected
+  archive.
+- Every one of the 655 known media references has a manifest state of downloaded
+  or an explicit provider error; downloaded bytes match recorded SHA-256 and
+  expected size when WAHA provides it.
+- Derived transcripts and extraction reports resolve to existing raw sources.
+- `30_Утверждено для ИИ` receives zero files from this operation.
+- A rerun downloads and derives zero unchanged items.

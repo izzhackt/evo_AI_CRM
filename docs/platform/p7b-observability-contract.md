@@ -64,16 +64,29 @@ The CRM collector reuses exact server-side Platform connection inputs
 never exposed despite the former's existing public name. It does not require or
 reuse the WAHA-ingress enable flag or one organization ID. Inbox uses its
 existing `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-`EVO_INBOX_WAHA_BASE_URL` and `EVO_INBOX_WAHA_API_KEY`. Every Supabase URL is an
-origin-only absolute URL: no userinfo, non-root path, query or fragment; HTTPS
-is required except HTTP loopback in non-production, reusing the accepted
-`src/lib/supabase/config.ts` predicate. The Inbox WAHA URL is also origin-only.
-In production it must be exactly `http://evo-inbox-waha:3000`; in tests it may
-be HTTP on `localhost`, any `127.0.0.0/8` address or `[::1]` with one explicit
-port from `1` through `65535`. HTTPS, userinfo, paths, queries, fragments,
-non-loopback test hosts and every other production origin fail before the plain
-WAHA API key or any network request is created. No new browser-visible
-credential is created.
+`EVO_INBOX_WAHA_BASE_URL` and `EVO_INBOX_WAHA_API_KEY`.
+
+Every P7B Supabase URL is an origin-only absolute URL: no userinfo, non-root
+path, query or fragment. Production admits only exact
+`https://<project-ref>.supabase.co` with no explicit port, where `project-ref`
+is exactly 20 lowercase ASCII alphanumeric characters. Non-production admits
+only HTTP on `localhost`, any `127.0.0.0/8` address or `[::1]` with one explicit
+port from `1` through `65535`. Custom domains, arbitrary HTTPS hosts, private
+network names and every other origin are rejected. Both the CRM RPC transport
+and Inbox Auth-health request use `redirect: "error"`; no Supabase key follows
+a redirect. This is intentionally stricter than the existing browser/public
+URL validator because the CRM collector carries a server secret. The official
+project-reference/API-origin shape is documented at:
+
+- <https://supabase.com/docs/guides/graphql#project-reference-project_ref>
+- <https://supabase.com/docs/guides/api>
+
+The Inbox WAHA URL is also origin-only. In production it must be exactly
+`http://evo-inbox-waha:3000`; in tests it may be HTTP on `localhost`, any
+`127.0.0.0/8` address or `[::1]` with one explicit port from `1` through
+`65535`. HTTPS, userinfo, paths, queries, fragments, non-loopback test hosts and
+every other production origin fail before the plain WAHA API key or any network
+request is created. No new browser-visible credential is created.
 
 ## Exact private HTTP contract
 

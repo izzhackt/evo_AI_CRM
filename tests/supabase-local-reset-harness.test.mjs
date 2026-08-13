@@ -485,11 +485,131 @@ test("the P7A browser partition is singleton, bounded, and audit-only", () => {
     1,
   );
   assert.equal(executableLines.match(/EVO_P7A_BROWSER_PROOF=1/g)?.length, 1);
-  assert.equal(executableLines.match(/EVO_P7A_BROWSER_PROOF=0/g)?.length, 12);
+  assert.equal(executableLines.match(/EVO_P7A_BROWSER_PROOF=0/g)?.length, 13);
   assert.equal(
     executableLines.match(/EVO_PLATFORM_P7A_AUDIT_ENABLED=0/g)?.length,
-    12,
+    13,
   );
+});
+
+test("the P7B browser partition is singleton, bounded, and observability-only", () => {
+  const title =
+    "P7B exposes signed private readiness and metrics without claiming provider health";
+  const p7bPartition = executableLines.indexOf(
+    "EVO_PLATFORM_AUTH_BROWSER_PARTITION=p7b",
+  );
+  const p7bCommand = executableLines.lastIndexOf(
+    "run_with_deadline 660000 env",
+    p7bPartition,
+  );
+  const p7bGrep = executableLines.indexOf(
+    '--grep "${P7B_BROWSER_TEST}"',
+    p7bPartition,
+  );
+  const p7bCleanup = executableLines.indexOf(
+    'fail "The exact-worktree Platform browser server did not stop after the P7B browser partition."',
+    p7bPartition,
+  );
+  const p7aPartition = executableLines.indexOf(
+    "EVO_PLATFORM_AUTH_BROWSER_PARTITION=p7a",
+  );
+
+  assert.notEqual(p7bPartition, -1);
+  assert.notEqual(p7bCommand, -1);
+  assert.notEqual(p7bGrep, -1);
+  assert.notEqual(p7bCleanup, -1);
+  assert.notEqual(p7aPartition, -1);
+  assert.ok(p7aPartition < p7bCommand);
+  assert.ok(p7bCommand < p7bPartition);
+  assert.ok(p7bPartition < p7bGrep);
+  assert.ok(p7bGrep < p7bCleanup);
+  assert.ok(harness.includes(`readonly P7B_BROWSER_TEST="${title}"`));
+  assert.equal(platformAuthSpec.split(`test("${title}"`).length - 1, 1);
+  assert.match(
+    platformAuthConfig,
+    /\(platformAuthBrowserPartition === "p7b"\) !== p7bBrowserProof/,
+  );
+  assert.match(
+    platformAuthConfig,
+    /EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: p7bBrowserProof \? "1" : "0"/,
+  );
+  assert.match(nextConfig, /"p7b"/);
+  assert.match(
+    harness,
+    /if \[\[ "\$\(uname -s\)" == "Darwin" \]\]; then[\s\S]*command -v orb[\s\S]*orb status[\s\S]*== "Running"[\s\S]*docker_context[\s\S]*== "orbstack"/,
+  );
+
+  const p7bSource = executableLines.slice(p7bCommand, p7bCleanup);
+  assert.match(p7bSource, /EVO_P7B_BROWSER_PROOF=1/);
+  assert.match(p7bSource, /EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=1/);
+  assert.match(
+    platformAuthConfig,
+    /EVO_PLATFORM_P7B_OBSERVABILITY_SECRET:[\s\S]*fixture\.p7b\.observabilitySecret/,
+  );
+  assert.match(p7bSource, /EVO_PLATFORM_AUTONOMOUS_REPLIES_KILL_SWITCH=1/);
+  for (const disabledProof of [
+    "EVO_P5B_BROWSER_PROOF",
+    "EVO_P5C_BROWSER_PROOF",
+    "EVO_P5D_BROWSER_PROOF",
+    "EVO_P5E_BROWSER_PROOF",
+    "EVO_P5F1_BROWSER_PROOF",
+    "EVO_P5F3_BROWSER_PROOF",
+    "EVO_P6A_BROWSER_PROOF",
+    "EVO_P6B_BROWSER_PROOF",
+    "EVO_P6C_BROWSER_PROOF",
+    "EVO_P6D_BROWSER_PROOF",
+    "EVO_P7A_BROWSER_PROOF",
+  ]) {
+    assert.match(p7bSource, new RegExp(`${disabledProof}=0`), disabledProof);
+  }
+  assert.equal(
+    executableLines.match(/EVO_PLATFORM_AUTH_BROWSER_PARTITION=p7b/g)?.length,
+    1,
+  );
+  assert.equal(executableLines.match(/EVO_P7B_BROWSER_PROOF=1/g)?.length, 1);
+  assert.equal(executableLines.match(/EVO_P7B_BROWSER_PROOF=0/g)?.length, 13);
+  assert.equal(
+    executableLines.match(/EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0/g)?.length,
+    13,
+  );
+});
+
+test("the P7B acceptance runs one pinned disposable Caddy denial proof", () => {
+  const runtimeScript = readFileSync(
+    new URL("../scripts/test-p7b-caddy-runtime.sh", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    harness,
+    /run_with_deadline 240000 bash[\s\S]*scripts\/test-p7b-caddy-runtime\.sh/,
+  );
+  assert.match(
+    runtimeScript,
+    /readonly CADDY_IMAGE="caddy@sha256:[0-9a-f]{64}"/,
+  );
+  assert.match(
+    runtimeScript,
+    /awk '[\s\S]*admin off[\s\S]*auto_https off[\s\S]*SOURCE_CADDYFILE[\s\S]*TEST_CADDYFILE/,
+  );
+  assert.doesNotMatch(runtimeScript, /import \/source\/Caddyfile\.evo-edge/);
+  assert.match(runtimeScript, /--read-only/);
+  assert.match(runtimeScript, /--memory 128m/);
+  assert.match(runtimeScript, /--pids-limit 64/);
+  assert.match(runtimeScript, /--log-opt max-size=1m/);
+  assert.match(
+    runtimeScript,
+    /\/api\/readiness[\s\S]*\/api\/readiness\/near[\s\S]*\/metrics[\s\S]*\/metrics\/near[\s\S]*\/api\/internal\/p7b[\s\S]*\/admin\/p7b/,
+  );
+  assert.match(runtimeScript, /Authorization: Bearer \$\{AUTH_SENTINEL\}/);
+  assert.match(runtimeScript, /x-evo-observability-hmac: \$\{HMAC_SENTINEL\}/);
+  assert.ok(
+    runtimeScript.indexOf("container_cleanup_armed=true") <
+      runtimeScript.indexOf("docker run --detach"),
+    "exact-name cleanup must be armed before Docker can create the container",
+  );
+  assert.match(runtimeScript, /docker rm -f "\$\{CONTAINER_NAME\}"/);
+  assert.doesNotMatch(runtimeScript, /docker (?:rm|stop) -f? --all/);
 });
 
 test("Main CRM CI installs the locked Chromium runtime before the full browser gate", () => {
@@ -782,7 +902,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
   );
   assert.match(
     harness.slice(remainingPass, remainingCleanup),
-    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_P6B_BROWSER_PROOF=0[\s\S]*EVO_P6C_BROWSER_PROOF=0[\s\S]*EVO_P6D_BROWSER_PROOF=0[\s\S]*EVO_P7A_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P7A_AUDIT_ENABLED=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0[\s\S]*EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}\|\$\{P5C_BROWSER_TEST\}\|\$\{P5D_BROWSER_TEST\}\|\$\{P5E_BROWSER_TEST\}\|\$\{P5F1_BROWSER_TEST\}\|\$\{P5F3_BROWSER_TEST\}\|\$\{P6A_BROWSER_TEST\}\|\$\{P6B_BROWSER_TEST\}\|\$\{P6C_BROWSER_TEST\}\|\$\{P6D_BROWSER_TEST\}\|\$\{P7A_BROWSER_TEST\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_P6B_BROWSER_PROOF=0[\s\S]*EVO_P6C_BROWSER_PROOF=0[\s\S]*EVO_P6D_BROWSER_PROOF=0[\s\S]*EVO_P7A_BROWSER_PROOF=0[\s\S]*EVO_P7B_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P7A_AUDIT_ENABLED=0[\s\S]*EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0[\s\S]*EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}\|\$\{P5C_BROWSER_TEST\}\|\$\{P5D_BROWSER_TEST\}\|\$\{P5E_BROWSER_TEST\}\|\$\{P5F1_BROWSER_TEST\}\|\$\{P5F3_BROWSER_TEST\}\|\$\{P6A_BROWSER_TEST\}\|\$\{P6B_BROWSER_TEST\}\|\$\{P6C_BROWSER_TEST\}\|\$\{P6D_BROWSER_TEST\}\|\$\{P7A_BROWSER_TEST\}\|\$\{P7B_BROWSER_TEST\}"/,
   );
   assert.equal(
     harness.slice(providerPass, finalCleanup).match(/EVO_P5B_BROWSER_PROOF=1/g)
@@ -1391,7 +1511,7 @@ test("empty-queue proof is reset before Auth, Storage, and terminal browser vali
 test("browser health refresh is exact-local and preserves Org A AI negative proof", () => {
   const refreshStart = harness.indexOf("refresh_synthetic_browser_health() {");
   const refreshEnd = harness.indexOf(
-    "\n}\n\nlist_exact_stack_containers() {",
+    "\n}\n\nappend_p7b_non_provider_health_boundary() {",
     refreshStart,
   );
   const refreshSource = harness.slice(refreshStart, refreshEnd);
@@ -1432,6 +1552,53 @@ test("browser health refresh is exact-local and preserves Org A AI negative proo
   assert.doesNotMatch(refreshSource, /org_a,\n\s+'ai'/);
   assert.doesNotMatch(refreshSource, /https?:\/\//);
   assert.doesNotMatch(refreshSource, /SUPABASE_SERVICE_ROLE(?:_KEY)?/);
+});
+
+test("P7B appends a local-non-provider boundary after provider-dependent browser proofs", () => {
+  const boundaryStart = harness.indexOf(
+    "append_p7b_non_provider_health_boundary() {",
+  );
+  const boundaryEnd = harness.indexOf(
+    "\n}\n\noverride_p5f3_policy_clock() {",
+    boundaryStart,
+  );
+  const boundarySource = harness.slice(boundaryStart, boundaryEnd);
+  const p7aCleanup = harness.indexOf(
+    'fail "The exact-worktree Platform browser server did not stop after the P7A browser partition."',
+  );
+  const boundaryCall = harness.indexOf(
+    "\nappend_p7b_non_provider_health_boundary\n",
+    p7aCleanup,
+  );
+  const p7bPartition = harness.indexOf(
+    "EVO_PLATFORM_AUTH_BROWSER_PARTITION=p7b",
+    boundaryCall,
+  );
+
+  assert.notEqual(boundaryStart, -1);
+  assert.notEqual(boundaryEnd, -1);
+  assert.ok(p7aCleanup < boundaryCall);
+  assert.ok(boundaryCall < p7bPartition);
+  assert.equal(
+    boundarySource.match(/record_messaging_integration_health_event/g)?.length,
+    1,
+  );
+  assert.equal(
+    boundarySource.match(/'local_non_provider'/g)?.length,
+    1,
+  );
+  assert.doesNotMatch(boundarySource, /'provider_observed'/);
+  assert.match(
+    boundarySource,
+    /FROM platform\.organizations[\s\S]*status = 'active'[\s\S]*ORDER BY id/,
+  );
+  assert.match(
+    boundarySource,
+    /ARRAY\['ai', 'waha'\]::platform\.messaging_integration_target\[\]/,
+  );
+  assert.match(boundarySource, /organization_record\.id,\n\s+target_value,/);
+  assert.doesNotMatch(boundarySource, /EVO P2C Synthetic Organization [AB]/);
+  assert.doesNotMatch(boundarySource, /https?:\/\//);
 });
 
 test("browser process matching is exact to this worktree, host, and port", () => {
@@ -1960,6 +2127,10 @@ test("browser partitions isolate Next dev artifacts by disposable run and partit
     "p5f3",
     "p6a",
     "p6b",
+    "p6c",
+    "p6d",
+    "p7a",
+    "p7b",
     "remaining",
   ]) {
     assert.match(
@@ -1996,7 +2167,7 @@ test("browser partitions keep Next type includes out of the tracked root tsconfi
   assert.match(harness, /prepare_platform_auth_tsconfig\(\)/);
   assert.match(
     harness,
-    /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|p6a\|p6b\|p6c\|p6d\|p7a\|remaining\) ;;/,
+    /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|p6a\|p6b\|p6c\|p6d\|p7a\|p7b\|remaining\) ;;/,
   );
   assert.match(
     harness,
@@ -2015,6 +2186,7 @@ test("browser partitions keep Next type includes out of the tracked root tsconfi
     "p6c",
     "p6d",
     "p7a",
+    "p7b",
     "remaining",
   ]) {
     assert.match(

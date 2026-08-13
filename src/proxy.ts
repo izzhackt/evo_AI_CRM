@@ -98,21 +98,42 @@ export async function proxy(request: NextRequest) {
   const id = requestId(request.headers.get("x-request-id"));
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-request-id", id);
-
-  console.info(JSON.stringify({
-    event: "http_request",
-    request_id: id,
-    method: request.method,
-    path: request.nextUrl.pathname,
-    service: "evo-crm",
-  }));
-
   const path = request.nextUrl.pathname;
+  const observabilityPathCandidate =
+    path.startsWith("/api/readiness") || path.startsWith("/metrics");
+
+  if (!observabilityPathCandidate) {
+    console.info(JSON.stringify({
+      event: "http_request",
+      request_id: id,
+      method: request.method,
+      path,
+      service: "evo-crm",
+    }));
+  }
+
   if (path === "/auth/platform-session") {
     // The Route Handler owns response-writable session recovery. It repeats
     // getClaims() plus live authority and must not be blocked or pre-refreshed
     // by the connected-page proxy contract.
     return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+
+  if (path === "/api/readiness" || path === "/metrics") {
+    // These exact private endpoints own their feature flag, request signature,
+    // method, query, body and response decisions. Bypass only staff-cookie
+    // refresh; near paths continue through the disconnected-route boundary.
+    const response = nextResponse(requestHeaders);
+    response.headers.set("x-request-id", id);
+    return response;
+  }
+  if (path.startsWith("/api/readiness") || path.startsWith("/metrics")) {
+    // Do not let lookalike observability paths inherit the generic Platform
+    // redirect/403 behavior. They are deliberately hidden as empty 404s.
+    const response = new NextResponse(null, { status: 404 });
+    response.headers.set("x-request-id", id);
+    response.headers.set("Cache-Control", "no-store");
+    return response;
   }
 
   if (isUiContractFixtureMode()) {

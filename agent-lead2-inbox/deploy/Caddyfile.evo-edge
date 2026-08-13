@@ -5,7 +5,7 @@
 }
 
 (evo_app) {
-	@private path /api/internal /api/internal/* /api/readiness /api/readiness/* /admin /admin/* /metrics
+	@private path /api/internal /api/internal/* /api/readiness /api/readiness/* /admin /admin/* /metrics /metrics/*
 	respond @private 404
 
 	@health path /api/health
@@ -26,6 +26,31 @@
 			request>headers>Cookie delete
 			request>headers>Authorization delete
 			request>headers>Proxy-Authorization delete
+			request>headers>X-Evo-Observability-Request-Id delete
+			request>headers>X-Evo-Observability-Timestamp delete
+			request>headers>X-Evo-Observability-Hmac-Algorithm delete
+			request>headers>X-Evo-Observability-Hmac delete
+			request>headers>X-Api-Key delete
+			request>headers>X-Hub-Signature-256 delete
+			request>headers>X-Webhook-Hmac delete
+			request>headers>X-Webhook-Hmac-Algorithm delete
+			request>headers>X-Cron-Secret delete
+			request>headers>Idempotency-Key delete
+			request>headers>X-Evo-Agent-Admin-Key delete
+			request>headers>X-Evo-Agent-Signature delete
+			request>headers>X-Evo-Agent-Signature-Algorithm delete
+			request>headers>X-Evo-Worker-Hmac delete
+			request>headers>X-Evo-Worker-Hmac-Algorithm delete
+			request>headers>X-Evo-Autonomous-Reply-Hmac delete
+			request>headers>X-Evo-Autonomous-Reply-Hmac-Algorithm delete
+			request>headers>X-Evo-Portal-Overdue-Hmac delete
+			request>headers>X-Evo-Portal-Overdue-Hmac-Algorithm delete
+			request>headers>X-Evo-Gemini-Hmac delete
+			request>headers>X-Evo-Gemini-Hmac-Algorithm delete
+			request>headers>X-Evo-History-Hmac delete
+			request>headers>X-Evo-History-Hmac-Algorithm delete
+			request>headers>X-Evo-Media-Hmac delete
+			request>headers>X-Evo-Media-Hmac-Algorithm delete
 		}
 	}
 }

@@ -133,4 +133,38 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     expect(authCalls).toBe(0);
     expect(res.headers.get("x-request-id")).toBeTruthy();
   });
+
+  it("passes exact private readiness to its route without generic request logging", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+    const res = await middleware(
+      new NextRequest("https://app.test/api/readiness", {
+        headers: {
+          "x-evo-observability-request-id":
+            "123e4567-e89b-42d3-a456-426614174000",
+        },
+      }),
+    );
+
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+    expect(authCalls).toBe(0);
+    expect(info).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "/api/readiness/",
+    "/api/readiness/private",
+    "/api/readiness-near",
+  ])("rejects the private readiness near path %s before auth or logging", async (path) => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+    const res = await middleware(new NextRequest(`https://app.test${path}`));
+
+    expect(res.status).toBe(404);
+    expect(await res.text()).toBe("");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(authCalls).toBe(0);
+    expect(info).not.toHaveBeenCalled();
+  });
 });

@@ -154,6 +154,19 @@ const platformAuditSearchExportMigration = readFileSync(
   join(migrationsDir, '071_platform_audit_search_export.sql'),
   'utf8'
 )
+const platformOperationalSignalsMigration = readFileSync(
+  join(migrationsDir, '072_platform_operational_signals.sql'),
+  'utf8'
+)
+const platformOperationalSignalsAuthorizationTest = readFileSync(
+  fileURLToPath(
+    new URL(
+      '../../../../supabase/tests/platform_observability_rls.sql',
+      import.meta.url
+    )
+  ),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -378,7 +391,56 @@ function p7aAllowlist(functionName: string): Set<string> {
 
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
-    expect(migrationFiles.at(-1)).toBe('071_platform_audit_search_export.sql')
+    expect(migrationFiles.at(-1)).toBe('072_platform_operational_signals.sql')
+    expect(platformOperationalSignalsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.platform_operational_signals_v1\s*\(\s*p_request_id\s+UUID\s*\)\s*RETURNS\s+JSONB[\s\S]*?SECURITY\s+DEFINER[\s\S]*?SET\s+search_path\s*=\s*''[\s\S]*?SET\s+statement_timeout\s*=\s*'3000ms'[\s\S]*?SET\s+lock_timeout\s*=\s*'1000ms'/i
+    )
+    expect(platformOperationalSignalsMigration).toMatch(
+      /ALTER\s+FUNCTION\s+platform\.platform_operational_signals_v1\s*\(\s*UUID\s*\)\s+OWNER\s+TO\s+postgres/i
+    )
+    expect(platformOperationalSignalsMigration).toMatch(
+      /REVOKE\s+ALL\s+ON\s+FUNCTION\s+platform\.platform_operational_signals_v1\s*\(\s*UUID\s*\)\s+FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role,\s*supabase_auth_admin/i
+    )
+    expect(platformOperationalSignalsMigration).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+platform\.platform_operational_signals_v1\s*\(\s*UUID\s*\)\s+TO\s+service_role/i
+    )
+    expect(platformOperationalSignalsMigration).not.toMatch(
+      /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE|ALL)[\s\S]*?(?:platform_private\.(?:durable_work|messaging_integration_health|waha_media_archive|autonomous_reply)|platform\.(?:work_review_cases|audit_events))/i
+    )
+    expect(platformOperationalSignalsMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform_private\.p7b_observability_clock\s*\(\s*\)[\s\S]*?SELECT\s+pg_catalog\.statement_timestamp\s*\(\s*\)/i
+    )
+    expect(platformOperationalSignalsMigration).toMatch(
+      /REVOKE\s+ALL\s+ON\s+FUNCTION\s+platform_private\.p7b_observability_clock\s*\(\s*\)\s+FROM\s+PUBLIC,\s*anon,\s*authenticated,\s*service_role,\s*supabase_auth_admin/i
+    )
+    expect(
+      platformOperationalSignalsMigration.match(/LIMIT\s+1000001/gi)
+    ).toHaveLength(16)
+    for (const indexContract of [
+      /CREATE\s+INDEX\s+durable_work_items_p7b_ready_idx\s+ON\s+platform_private\.durable_work_items\s*\(\s*organization_id,\s*available_at,\s*id\s*\)\s*WHERE\s+state\s*=\s*'queued'/i,
+      /CREATE\s+INDEX\s+durable_work_items_p7b_retry_wait_idx\s+ON\s+platform_private\.durable_work_items\s*\(\s*organization_id,\s*updated_at,\s*id\s*\)\s*WHERE\s+state\s*=\s*'retry_wait'/i,
+      /CREATE\s+INDEX\s+durable_work_items_p7b_leased_idx\s+ON\s+platform_private\.durable_work_items\s*\(\s*organization_id,\s*id\s*\)\s*WHERE\s+state\s*=\s*'leased'/i,
+      /CREATE\s+INDEX\s+durable_work_items_p7b_expired_lease_idx\s+ON\s+platform_private\.durable_work_items\s*\(\s*organization_id,\s*leased_until,\s*id\s*\)\s*WHERE\s+state\s*=\s*'leased'\s+AND\s+leased_until\s+IS\s+NOT\s+NULL/i,
+      /CREATE\s+INDEX\s+waha_media_archive_work_p7b_state_idx\s+ON\s+platform_private\.waha_media_archive_work\s*\(\s*organization_id,\s*state,\s*id\s*\)\s*WHERE\s+state\s*<>\s*'archived'/i,
+      /CREATE\s+INDEX\s+waha_media_archive_work_p7b_oldest_idx\s+ON\s+platform_private\.waha_media_archive_work\s*\(\s*organization_id,\s*created_at,\s*id\s*\)\s*WHERE\s+state\s*<>\s*'archived'/i,
+      /CREATE\s+INDEX\s+autonomous_reply_lifecycle_p7b_state_time_idx\s+ON\s+platform_private\.autonomous_reply_intent_lifecycle\s*\(\s*organization_id,\s*state,\s*created_at,\s*id,\s*intent_id\s*\)/i,
+    ]) {
+      expect(platformOperationalSignalsMigration).toMatch(indexContract)
+    }
+    for (const operationalSource of [
+      'durable_work_items',
+      'durable_work_dead_letters',
+      'work_review_cases',
+      'waha_media_archive_work',
+      'autonomous_reply_intent_lifecycle',
+    ]) {
+      expect(platformOperationalSignalsMigration).toMatch(
+        new RegExp(
+          `applicable_organization_ids[\\s\\S]*?${operationalSource}`,
+          'i'
+        )
+      )
+    }
     expect(platformAuditSearchExportMigration).toMatch(
       /DROP\s+POLICY\s+IF\s+EXISTS\s+audit_events_read\s+ON\s+platform\.audit_events/i
     )
@@ -724,6 +786,15 @@ describe('Supabase companion schema contract', () => {
     )
     expect(supabaseConfig).not.toMatch(
       /schemas\s*=.*(?:platform_private|pgmq_public)/
+    )
+  })
+
+  it('keeps new P7B runtime evidence explicitly non-provider', () => {
+    expect(platformOperationalSignalsAuthorizationTest).not.toMatch(
+      /provider_observed/i
+    )
+    expect(platformOperationalSignalsAuthorizationTest).toMatch(
+      /local_non_provider/i
     )
   })
 

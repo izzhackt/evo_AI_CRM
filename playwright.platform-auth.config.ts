@@ -103,6 +103,10 @@ type Fixture = Readonly<{
     inactiveAdminAccessToken: string;
     blockedAdminAccessToken: string;
   }>;
+  p7b: Readonly<{
+    supabaseSecretKey: string;
+    observabilitySecret: string;
+  }>;
   identities: Readonly<Record<string, Identity>>;
 }>;
 
@@ -220,6 +224,15 @@ if (
   throw new Error("EVO_P7A_BROWSER_PROOF must be 0 or 1");
 }
 const p7aBrowserProof = p7aBrowserProofFlag === "1";
+const p7bBrowserProofFlag = process.env.EVO_P7B_BROWSER_PROOF;
+if (
+  p7bBrowserProofFlag !== undefined &&
+  p7bBrowserProofFlag !== "0" &&
+  p7bBrowserProofFlag !== "1"
+) {
+  throw new Error("EVO_P7B_BROWSER_PROOF must be 0 or 1");
+}
+const p7bBrowserProof = p7bBrowserProofFlag === "1";
 const platformAuthDevRunKey = process.env.EVO_PLATFORM_AUTH_DEV_RUN_KEY;
 const platformAuthBrowserPartition =
   process.env.EVO_PLATFORM_AUTH_BROWSER_PARTITION;
@@ -249,6 +262,7 @@ if (
     "p6c",
     "p6d",
     "p7a",
+    "p7b",
     "remaining",
   ].includes(
     platformAuthBrowserPartition,
@@ -277,11 +291,12 @@ if (
     Number(p6bBrowserProof) +
     Number(p6cBrowserProof) +
     Number(p6dBrowserProof) +
-    Number(p7aBrowserProof) >
+    Number(p7aBrowserProof) +
+    Number(p7bBrowserProof) >
   1
 ) {
   throw new Error(
-    "P5B, P5C, P5D, P5E, P5F1, P5F3, P6A, P6B, P6C, P6D and P7A browser proof partitions are mutually exclusive",
+    "P5B, P5C, P5D, P5E, P5F1, P5F3, P6A, P6B, P6C, P6D, P7A and P7B browser proof partitions are mutually exclusive",
   );
 }
 if (
@@ -334,6 +349,11 @@ if ((platformAuthBrowserPartition === "p6d") !== p6dBrowserProof) {
 if ((platformAuthBrowserPartition === "p7a") !== p7aBrowserProof) {
   throw new Error(
     "EVO_P7A_BROWSER_PROOF must be enabled only for the p7a browser partition",
+  );
+}
+if ((platformAuthBrowserPartition === "p7b") !== p7bBrowserProof) {
+  throw new Error(
+    "EVO_P7B_BROWSER_PROOF must be enabled only for the p7b browser partition",
   );
 }
 if (
@@ -519,6 +539,17 @@ if (
 ) {
   throw new Error("P7A browser proof fixture is invalid");
 }
+if (
+  p7bBrowserProof &&
+  (!fixture.p7b ||
+    !nonEmptyString(fixture.p7b.supabaseSecretKey) ||
+    !nonEmptyString(fixture.p7b.observabilitySecret) ||
+    Buffer.byteLength(fixture.p7b.observabilitySecret, "utf8") < 32 ||
+    Buffer.byteLength(fixture.p7b.observabilitySecret, "utf8") > 128 ||
+    /[\u0000-\u001f\u007f]/.test(fixture.p7b.observabilitySecret))
+) {
+  throw new Error("P7B browser proof fixture is invalid");
+}
 
 const platformMessagingProof =
   p5bBrowserProof ||
@@ -577,6 +608,10 @@ export default defineConfig({
           ? fixture.p6c.workerTriggerSecret
           : "",
       EVO_PLATFORM_P7A_AUDIT_ENABLED: p7aBrowserProof ? "1" : "0",
+      EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: p7bBrowserProof ? "1" : "0",
+      EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: p7bBrowserProof
+        ? fixture.p7b.observabilitySecret
+        : "",
       EVO_PLATFORM_WAHA_INGRESS_ENABLED:
         p5bBrowserProof ||
         p5dBrowserProof ||
@@ -598,12 +633,14 @@ export default defineConfig({
           : fixture.p5b.organizationId
         : "",
       EVO_PLATFORM_SUPABASE_SECRET_KEY:
-        platformMessagingProof || p6cBrowserProof || p6dBrowserProof
+        platformMessagingProof || p6cBrowserProof || p6dBrowserProof || p7bBrowserProof
           ? p5dBrowserProof
             ? fixture.p5d.supabaseSecretKey
             : p6cBrowserProof || p6dBrowserProof
               ? fixture.p6c.supabaseSecretKey
-              : fixture.p5b.supabaseSecretKey
+              : p7bBrowserProof
+                ? fixture.p7b.supabaseSecretKey
+                : fixture.p5b.supabaseSecretKey
           : "",
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET:
         p5bBrowserProof || p5dBrowserProof || p5eBrowserProof || p5f3BrowserProof

@@ -3975,6 +3975,7 @@ const main = async () => {
     const p5dWorkerTriggerSecret = randomBytes(48).toString("base64url");
     const p5f3AutonomousReplyTriggerSecret = randomBytes(48).toString("base64url");
     const p6cWorkerTriggerSecret = randomBytes(48).toString("base64url");
+    const p7bObservabilitySecret = randomBytes(48).toString("base64url");
     const p7aEventId = randomUUID();
     const p7aRequestId = randomUUID();
     const p7aResourceId = randomUUID();
@@ -4126,6 +4127,10 @@ const main = async () => {
           staleAdminAccessToken,
           inactiveAdminAccessToken,
           blockedAdminAccessToken,
+        },
+        p7b: {
+          supabaseSecretKey: serviceRoleKey,
+          observabilitySecret: p7bObservabilitySecret,
         },
         p5f3: {
           autonomousReplyTriggerSecret: p5f3AutonomousReplyTriggerSecret,

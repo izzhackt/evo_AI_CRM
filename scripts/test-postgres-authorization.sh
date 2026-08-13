@@ -1307,6 +1307,15 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_audit_search_export_rls.sql
   fi
+
+  # P7B1 exposes one bounded global operational snapshot to service_role only.
+  # Prove exact grants, safe aggregation, the operational-organization union,
+  # transactional audit probing and the tenant/state/time query plans at 072.
+  if [[ "$(basename "$migration")" == 072_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_observability_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

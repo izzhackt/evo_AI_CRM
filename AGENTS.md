@@ -27,6 +27,23 @@
 - Keep WAHA, the lead-agent, and their dashboards/APIs private unless explicit
   authenticated public access is added.
 
+## Local Container Runtime
+
+- On macOS, use OrbStack as the only allowed local container runtime for this
+  repository. Do not use Docker Desktop, Colima, Rancher Desktop, or another
+  local Docker engine for EVO builds, tests, Compose stacks, Supabase, or
+  disposable databases.
+- Before any local `docker`, `docker compose`, or container-backed Supabase
+  command, verify `orb status` reports `Running` and `docker context show`
+  returns exactly `orbstack`. If OrbStack is stopped, start it with
+  `orb start`, select it with `docker context use orbstack`, and verify both
+  checks again before continuing.
+- Fail closed if the OrbStack preflight does not pass. Never fall back to
+  `desktop-linux`, `default`, or another container context, and do not claim
+  local container validation unless it ran on OrbStack.
+- This policy applies only to local macOS execution. It does not change the
+  remote Docker Compose runtime on `hermes-vps`.
+
 ## Production Server
 
 - Target server: `hermes-vps` (`root@72.62.119.112` via SSH config).

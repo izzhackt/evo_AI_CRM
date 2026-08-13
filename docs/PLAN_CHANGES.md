@@ -5977,3 +5977,55 @@ Primary sources rechecked for this amendment:
   <https://www.w3.org/WAI/WCAG22/Understanding/conformance.html>
 - WAHA observability:
   <https://waha.devlike.pro/docs/how-to/observability/>
+
+## 2026-08-13 - Record P7A acceptance and OrbStack-only local execution
+
+Block-ID: `EVO-P7A-ACCEPTANCE-HOUSEKEEPING-2026-08-13`
+
+This status-only amendment records already merged evidence and fixes the local
+macOS container-runtime rule. It changes no product scope, architecture,
+schema, API, feature flag, credential, provider, customer data, managed
+environment or production state.
+
+Accepted checkpoint:
+
+- PR #154 merged the P7 contract as
+  `b9faadd24686a22bf70db176c6192304c942b2dd`.
+- PR #156 merged P7A safe Admin-only audit search/export as
+  `47e2e211ba77d36e3296b12ad0b8087276ca712d`, including migration `071`.
+- Exact-main push CI run `31688954104` passed Main CRM, EVO Inbox and EVO
+  Lead Agent; Changed range was skipped on the push event as expected.
+- P7A remains disabled by default. Its accepted evidence is
+  repository/disposable-local proof, not managed Supabase, production,
+  provider or customer-data proof.
+
+Current execution order:
+
+1. P7B private structured observability, alert evaluation and runbooks is the
+   next authorized implementation block under the existing P7 contract.
+2. P7C isolated database restore and separate private Storage restore follows
+   only after P7B acceptance.
+3. P7D remains blocked until the owner supplies a numeric capacity profile, a
+   human accessibility reviewer and the approved assistive-technology,
+   browser and device matrix.
+4. P8 remains blocked until P7D and explicit external-evidence accounting are
+   complete. P9 remains removed; P10 follows P8.
+
+Local runtime rule:
+
+- On macOS, OrbStack is the only allowed local container engine for this
+  repository. Before local Docker, Compose or container-backed Supabase work,
+  `orb status` must report `Running` and `docker context show` must return
+  exactly `orbstack`.
+- A failed preflight blocks the container-backed step. Agents must not fall
+  back to Docker Desktop, Colima, Rancher Desktop, `default`,
+  `desktop-linux` or another engine/context.
+- This local tooling rule does not change the remote Docker Compose runtime on
+  `hermes-vps`.
+
+Official tooling basis:
+
+- OrbStack replacement and context guidance:
+  <https://docs.orbstack.dev/install>
+- OrbStack command-line start/stop guidance:
+  <https://docs.orbstack.dev/headless>

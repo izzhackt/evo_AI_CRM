@@ -318,7 +318,8 @@ ALTER FUNCTION platform_private.p7b_observability_clock()
 REVOKE ALL ON FUNCTION platform_private.p7b_observability_clock()
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
--- Pin newer provider-observed health for every previously active organization.
+-- Pin newer local, explicitly non-provider health for every previously active
+-- organization.
 -- The future test clock makes these rows deterministically newer than fixtures
 -- retained by earlier authorization phases. The work-only organization is
 -- intentionally excluded until after its missing-evidence proof.
@@ -336,9 +337,9 @@ SELECT
   organization.id,
   target.value::platform.messaging_integration_target,
   'ready',
-  'provider_observed',
-  'Synthetic P7B baseline provider-observed fixture',
-  'synthetic:p7b:baseline-provider-observed',
+  'local_non_provider',
+  'Synthetic P7B baseline local-only fixture',
+  'synthetic:p7b:baseline-local-only',
   pg_catalog.gen_random_uuid(),
   platform_private.p7b_observability_clock() - INTERVAL '20 seconds'
 FROM platform.organizations AS organization
@@ -570,10 +571,10 @@ VALUES (
   '72000000-0000-4000-8000-000000000008'
 );
 
--- Complete the work-only organization's provider evidence. Every previously
+-- Complete the work-only organization's local-only evidence. Every previously
 -- active organization already received deterministic baseline health above,
--- so the global reduction must now become ready without assuming a fixed
--- number of organizations in the shared authorization database.
+-- so the raw health reduction can be exercised without assuming a fixed
+-- number of organizations or pretending a provider was observed.
 INSERT INTO platform_private.messaging_integration_health_events (
   id,
   organization_id,
@@ -590,9 +591,9 @@ SELECT
   :'p7b_org_work_id',
   fixture.target::platform.messaging_integration_target,
   'ready',
-  'provider_observed',
-  'Synthetic P7B provider-observed fixture',
-  'synthetic:p7b:provider-observed',
+  'local_non_provider',
+  'Synthetic P7B local-only fixture',
+  'synthetic:p7b:local-only',
   fixture.request_id,
   platform_private.p7b_observability_clock()
     - pg_catalog.make_interval(secs => fixture.age_seconds)
@@ -697,11 +698,11 @@ SELECT pg_temp.assert_true(
     AND signals->'provider_conflict_open_count' =
       baseline->'provider_conflict_open_count'
     AND signals->>'waha_readiness' = 'ready'
-    AND signals->>'waha_evidence_kind' = 'provider_observed'
+    AND signals->>'waha_evidence_kind' = 'local_non_provider'
     AND signals->>'waha_age_seconds' = '30'
     AND signals->>'waha_evidence_future' = 'false'
     AND signals->>'ai_readiness' = 'ready'
-    AND signals->>'ai_evidence_kind' = 'provider_observed'
+    AND signals->>'ai_evidence_kind' = 'local_non_provider'
     AND signals->>'ai_age_seconds' = '30'
     AND signals->>'ai_evidence_future' = 'false'
     AND signals->>'audit_append_status' = 'ready'
@@ -752,7 +753,7 @@ VALUES (
   :'p7b_org_work_id',
   'waha',
   'ready',
-  'provider_observed',
+  'local_non_provider',
   'Synthetic P7B future-evidence fixture',
   'synthetic:p7b:future',
   '72000000-0000-4000-8700-000000000007',

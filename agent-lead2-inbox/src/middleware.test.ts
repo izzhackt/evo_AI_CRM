@@ -150,4 +150,21 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     expect(authCalls).toBe(0);
     expect(info).not.toHaveBeenCalled();
   });
+
+  it.each([
+    "/api/readiness/",
+    "/api/readiness/private",
+    "/api/readiness-near",
+  ])("rejects the private readiness near path %s before auth or logging", async (path) => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+    const res = await middleware(new NextRequest(`https://app.test${path}`));
+
+    expect(res.status).toBe(404);
+    expect(await res.text()).toBe("");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(authCalls).toBe(0);
+    expect(info).not.toHaveBeenCalled();
+  });
 });

@@ -9,8 +9,20 @@ import {
 import { LOCALE_STORAGE_KEY, translate } from '@/lib/i18n'
 
 export async function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname === '/api/readiness') {
+  const pathname = request.nextUrl.pathname
+
+  if (pathname === '/api/readiness') {
     return NextResponse.next({ request: { headers: request.headers } })
+  }
+
+  if (pathname.startsWith('/api/readiness')) {
+    return new NextResponse(null, {
+      status: 404,
+      headers: {
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      },
+    })
   }
 
   const incomingId = request.headers.get('x-request-id')
@@ -32,13 +44,13 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  if (request.nextUrl.pathname === '/api/health') {
+  if (pathname === '/api/health') {
     return withRequestId(
       NextResponse.next({ request: { headers: request.headers } }),
     )
   }
 
-  const disabled = resolveFirstLaunchDisabledPath(request.nextUrl.pathname)
+  const disabled = resolveFirstLaunchDisabledPath(pathname)
   if (disabled) {
     const locale = resolveLocale(request.cookies.get(LOCALE_STORAGE_KEY)?.value)
     if (disabled.surface === 'api') {

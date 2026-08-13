@@ -158,6 +158,15 @@ const platformOperationalSignalsMigration = readFileSync(
   join(migrationsDir, '072_platform_operational_signals.sql'),
   'utf8'
 )
+const platformOperationalSignalsAuthorizationTest = readFileSync(
+  fileURLToPath(
+    new URL(
+      '../../../../supabase/tests/platform_observability_rls.sql',
+      import.meta.url
+    )
+  ),
+  'utf8'
+)
 const supabaseConfig = readFileSync(
   fileURLToPath(new URL('../../../../supabase/config.toml', import.meta.url)),
   'utf8'
@@ -777,6 +786,15 @@ describe('Supabase companion schema contract', () => {
     )
     expect(supabaseConfig).not.toMatch(
       /schemas\s*=.*(?:platform_private|pgmq_public)/
+    )
+  })
+
+  it('keeps new P7B runtime evidence explicitly non-provider', () => {
+    expect(platformOperationalSignalsAuthorizationTest).not.toMatch(
+      /provider_observed/i
+    )
+    expect(platformOperationalSignalsAuthorizationTest).toMatch(
+      /local_non_provider/i
     )
   })
 

@@ -115,7 +115,19 @@ green before testing real leads. `ai_decision_review` is the safe stage for
 `receive_only_rollout` is the first live proof gate. Only use
 `live_whatsapp_outbound` for a later controlled send test.
 
-Docker:
+Containers (OrbStack on macOS):
+
+Before any local Docker or Compose command on macOS, run this fail-closed
+preflight:
+
+```bash
+test "$(orb status)" = "Running"
+test "$(docker context show)" = "orbstack"
+```
+
+If either command fails, run `orb start` and
+`docker context use orbstack`, then repeat both checks. Do not continue with
+Docker Desktop, `default`, `desktop-linux`, or another local engine/context.
 
 ```bash
 cp .env.example .env
@@ -137,12 +149,12 @@ client.
 Compose passes only the explicit lead-agent environment allowlist into the
 lead-agent container; `WAHA_API_KEY` is scoped to the WAHA container.
 
-For local Docker testing, set `EVO_AGENT_WAHA_BASE_URL` based on where WAHA is
-running:
+For local container testing, set `EVO_AGENT_WAHA_BASE_URL` based on where WAHA
+is running:
 
 - WAHA from this Compose profile: `http://evo-crm-waha:3000`
 - same production Docker network: `http://evo-crm-waha:3000`
-- WAHA running on your host/Docker Desktop: `http://host.docker.internal:3000`
+- WAHA running on your host/OrbStack: `http://host.docker.internal:3000`
 - WAHA as another local Compose service: use that Compose service name
 
 No-secrets Docker smoke:
@@ -237,8 +249,9 @@ credentials are working.
 ## Reusable Answer Memory
 
 The lead agent can use a local SQLite knowledge base of approved Q/A examples
-from amoCRM chats. Do not commit real customer exports. Import curated entries
-into the running local Docker service:
+from amoCRM chats. Do not commit real customer exports. After the OrbStack
+preflight above, import curated entries into the running local container
+service:
 
 ```bash
 curl -X POST http://127.0.0.1:8088/admin/knowledge/import \
@@ -247,7 +260,7 @@ curl -X POST http://127.0.0.1:8088/admin/knowledge/import \
   --data @knowledge-export.json
 ```
 
-Or import directly into the Docker-mounted SQLite DB from the host:
+Or import directly into the container-mounted SQLite DB from the host:
 
 ```bash
 uv run evo-lead-agent-import-knowledge examples/knowledge-template.json \

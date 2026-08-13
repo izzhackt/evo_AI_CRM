@@ -1,7 +1,7 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-08-12
+- Snapshot date: 2026-08-13
 - Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 - P2A starting checkpoint: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
 - P2B starting checkpoint: `8ad755b5039390f418dbe12924a806f069f93b53`
@@ -13,9 +13,10 @@
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
 - Current accepted base for this block:
-  `6a90d9a1f00263dedfa33fb7543bd176a96d46a4`
+  `47e2e211ba77d36e3296b12ad0b8087276ca712d`
 - Active plan block:
-  `EVO-P6B-PORTAL-NOTIFICATIONS-2026-08-12`
+  `EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13`
+- Active implementation block: `P7B`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -54,15 +55,16 @@ reconciliation, PR #138 merged P5D private media, PR #140 синхронизир
 MVP authority contract, PR #141 merged P5E ACK/session и private Realtime, PR
 #142 merged bounded P4R1 read-only canonical amoCRM context, PR #144 merged
 P5F1 memory/retrieval, PR #145 merged P5F2 stateless Gemini proposals, а PR
-#146 merged disabled-by-default P5F3 deterministic autonomous replies, а PR
-#147 merged reviewed P6A-P6D implementation contract, а PR #148 merged P6A
-read-only Portal attention. Текущий accepted base —
-`6a90d9a1f00263dedfa33fb7543bd176a96d46a4`; exact-main CI
-`31538299201` зелёный для Main CRM, EVO Inbox и EVO Lead Agent; Changed range
-ожидаемо skipped на push. Main CRM прошёл полный disposable Supabase, Storage,
-PGMQ и browser contract, frontend contracts, build, все CRM scenarios и
-audits. Migrations contiguous `001-067`; активный P6B block резервирует
-additive migration `068`.
+#146 merged disabled-by-default P5F3 deterministic autonomous replies, PR #147
+merged reviewed P6A-P6D implementation contract, а PRs #148, #149, #152 и #153
+завершили P6A-P6D. PR #154 merged P7 security/reliability contract, а PR #156
+merged P7A safe Admin-only audit search/export. Текущий accepted base —
+`47e2e211ba77d36e3296b12ad0b8087276ca712d`; exact-main CI
+`31688954104` зелёный для Main CRM, EVO Inbox и EVO Lead Agent; Changed range
+ожидаемо skipped на push. Main CRM прошёл PostgreSQL authorization и полный
+disposable Supabase, Storage, PGMQ и browser contract, frontend contracts,
+build, CRM scenarios и audits. Migrations contiguous `001-071`; следующий
+block — P7B private observability/alerts/runbooks.
 
 P4B implementation сохранён на remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -125,6 +127,9 @@ proof, production enablement или customer send.
 | P5F2 Gemini proposals | PR #145 merged as `5ac5b018d475117d13aff4607debcee60ec0cc7c`; migration 066 and disabled stateless adapter persist structured human-review proposals with `store=false` and no tools/send authority | SDK/request/schema/local adapter evidence and exact-main CI passed; no real Gemini credential/provider call or customer data was used |
 | P5F3 autonomous inbound replies | PR #146 merged as `81ae079594baaa4a453501a99ad0ed5c3ba408d6`; migration 067 adds explicit staff control, deterministic mutable gates, one-use intent/attempt evidence, exact WAHA `reply_to` transport and ACK linkage | full local Supabase/browser gate, independent exact-head review and exact-main CI `31514964102` passed; runtime remains disabled and no real Gemini/WAHA/customer send or production enablement is proved |
 | P6 operations/Portal contract | PR #147 merged as `fcbb01b9c3918f1b570d3de5f86575110c2ee3f1`; freezes P6A read-only attention, P6B in-app-only notifications, P6C overdue-transition producer and P6D closure proof as separate reviewed slices | docs-only plan passed independent exact-head review and exact-main CI `31523285552` attempt 2; it did not mutate schema, runtime, providers, customer data or production |
+| P6A-P6D operations/Portal implementation | PRs #148, #149, #152 and #153 completed read-only Portal attention, durable Student notifications, overdue-transition publication and cross-domain Student 360 through migrations 068-070 | exact-head and exact-main CI plus disposable local Supabase/browser evidence passed; no managed Supabase, provider or production claim |
+| P7 security/reliability contract | PR #154 merged the ordered P7A-P7D contract as `b9faadd24686a22bf70db176c6192304c942b2dd` | authorizes only sequential repository/disposable-local work; production, managed, provider and customer-data mutation remain blocked |
+| P7A safe audit search/export | PR #156 merged as `47e2e211ba77d36e3296b12ad0b8087276ca712d`; migration 071 revokes direct browser audit-table reads and connects bounded Admin-only search/export to accepted Settings | exact-main CI `31688954104` passed the full local Supabase/browser contract; runtime remains disabled by default and no managed or production proof exists |
 | Root CRM | использует SQLite, собственную auth-модель и локальные WhatsApp shadow tables; P1D добавил object-scope containment | не Supabase target и не unified history |
 | EVO Inbox | имеет отдельный Supabase model и конфигурацию session `evo-inbox` | наличие кода не доказывает текущую production session |
 | EVO Lead Agent | остаётся в repository и production Compose path, deployed/frozen вместе с legacy webhook/session и rollback path | P9 removed; deactivation, retirement и deletion запрещены в текущем scope |
@@ -195,8 +200,10 @@ Current P6 docs-only contract:
   discovery versions; PR #118's P4B plan, merged PR #128 boundary correction и
   PRs #129-#131 не добавляют migration; merged P5A добавляет migration 059;
   merged P5B добавляет migration 060, P5C — 061, P5D — 062, P5E — 063,
-  P4R1 — 064, P5F1 — 065, P5F2 — 066 и P5F3 — 067; следующий migration-
-  кандидат обязан подтвердить свободный номер 068 перед использованием;
+  P4R1 — 064, P5F1 — 065, P5F2 — 066 и P5F3 — 067; merged P6B/P6C/P6D
+  добавили migrations 068–070, а merged P7A добавил migration 071;
+  следующий migration-кандидат обязан подтвердить свободный номер после 071
+  перед использованием;
 - `public` остаётся legacy Inbox compatibility, `platform` — exposed RLS
   schema, `platform_private` — backend-only вне Data API;
 - legacy Inbox roles/signup не создают Platform business authority;
@@ -287,65 +294,31 @@ gate, но не выполнять mutation.
 
 ## Текущий безопасный gate
 
-Текущий gate — implementation block
-`EVO-P6B-PORTAL-NOTIFICATIONS-2026-08-12` под merged contract
-`EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11`. Он feature-flagged и по умолчанию
-выключен. P6B добавляет только durable in-app Student notification/read path:
-точный отрицательный human document review, одна атомарно опубликованная
-notification, self-only acknowledgement и private authorization-bound
-Realtime invalidation. Он не создаёт WhatsApp intent, не вызывает WAHA,
-amoCRM или Gemini и не использует legacy SQLite review/feed.
-После pre-merge review gate усилен до двух независимых ключей: exact server
-flag и enabled row точной организации в private FORCE-RLS runtime-control
-table. Migration `068` не включает ни одну организацию. Legacy
-`review_document_version` остаётся notification-silent; новый P6B wrapper
-требует database control и transaction-local producer context, иначе review и
-notification не выполняются.
+P7-PLAN принят PR #154, а P7A принят PR #156 как
+`47e2e211ba77d36e3296b12ad0b8087276ca712d`. Exact-main push CI
+`31688954104` прошёл PostgreSQL authorization, полный disposable Supabase,
+Storage, PGMQ и browser contract, frontend contracts, build, CRM scenarios и
+audits. Migration history contiguous `001-071`.
 
-P6A принят PR #148 как
-`6a90d9a1f00263dedfa33fb7543bd176a96d46a4`. Exact-main CI
-`31538299201` прошёл полный disposable Supabase, Storage, PGMQ и browser
-contract, frontend contracts, build, все CRM scenarios и audits. Поэтому
-прежние красные P6A local/exact-head попытки остаются историческим
-non-evidence, а не текущим blocker-ом. P6B начинается только от этого
-проверенного exact-main SHA.
+P7A заменяет connected `/settings?tab=audit` legacy SQLite fallback на
+ограниченный Admin-only Supabase search/export contract. Direct browser read
+`platform.audit_events` отозван; raw before/after state, free-text reason,
+actor principal, provider payload, object key, private topic и phone-bearing
+identifiers не входят в RPC, DOM или CSV. Runtime остаётся disabled by default.
+Это repository/disposable-local доказательство, а не managed Supabase,
+production или provider proof.
 
-Локальная workstation-попытка P6B PostgreSQL authorization gate от
-2026-08-12 завершилась `124` до старта SQL: OrbStack Docker API завис на
-создании точного disposable-контейнера
-`evo-platform-authz-17184-27405`, оставив его в состоянии `Created`;
-единственная bounded exact-only попытка удалить этот ресурс также завершилась
-таймаутом. Это инфраструктурный non-evidence, а не ошибка migration `068`.
-Broad cleanup и restart OrbStack не выполнялись, чтобы не затронуть Inbox и
-другие локальные сервисы. Поэтому PostgreSQL/RLS и полный local-Supabase/browser
-runtime обязаны пройти в свежем exact-head GitHub CI до merge; focused Node,
-schema/history, lint, typegen, TypeScript, build, secret scan и dependency
-audits уже зелёные локально.
+Следующий implementation block — `P7B`: private structured observability,
+controlled alert evaluation и актуальные runbooks. Operational endpoints и
+metrics должны оставаться private и не содержать tenant/customer/provider
+payload, object-key или secret labels. External pager/log-drain delivery
+остаётся blocked до выбора destination, plan/cost и operational owner.
 
-P6 исполняется в четырёх независимо проверяемых slices:
-
-1. `P6A` — read-only overdue and attention state in the accepted Portal from
-   existing Platform task/document/payment projections only, with no
-   notification side effect;
-2. `P6B` — durable in-app-only Student Portal notifications through a new
-   versioned projection/acknowledgement contract, reviewed negative-document
-   outcomes as the first deduplicated producer and private Realtime
-   invalidation;
-3. `P6C` — disabled-by-default idempotent overdue-transition notifications from
-   explicit Platform task/payment due data, never from a page read or amoCRM
-   inference;
-4. `P6D` — two-Student plus cross-organization closure proof across multiple
-   applications, visa, reasoned close/reopen, private document review, manual
-   finance, overdue Portal action and notification/read state.
-
-Migration 043 remains immutable. Its durable consent-gated
-`individual_whatsapp` intent is not dispatched and is not delivery proof, and
-the current two-channel public RPC pair is not reused unchanged for the new
-P6B in-app-only surface. The legacy SQLite staff notification feed is not
-copied into P6. Individual WhatsApp notification delivery remains a separate
-future target; P6 neither cancels nor activates it. Production migrations,
-live customer sends, provider credentials, amoCRM writes and real provider
-proof remain separate blocked events. P7 starts only after P6D is accepted.
+После принятого P7B следует P7C с отдельными isolated database и private
+Storage restore tracks. P7D остаётся blocked, пока owner не предоставит
+numeric capacity profile, human accessibility reviewer и утверждённую
+assistive-technology/browser/device matrix. P8 остаётся blocked до P7D; P9
+removed; P10 следует после P8.
 
 Перед любым production claim нужно обновить этот snapshot реальной проверкой
 exact deployed revision, private network, provider readiness и full E2E.

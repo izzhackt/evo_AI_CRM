@@ -53,6 +53,15 @@ nvm use
 npm ci
 ```
 
+On macOS, OrbStack is the only supported local container engine for this
+repository. Before any local `docker`, `docker compose`, or container-backed
+Supabase command, verify `orb status` reports `Running` and
+`docker context show` returns exactly `orbstack`. If either check fails,
+start OrbStack with `orb start`, select it with
+`docker context use orbstack`, and verify both checks again. Do not continue
+or fall back to Docker Desktop or another local context; see
+[`AGENTS.md`](./AGENTS.md#local-container-runtime).
+
 Create local environment files only from committed `*.example` files. Replace
 placeholders locally, never in a tracked file. Do not use production customer
 data to make local development convenient.

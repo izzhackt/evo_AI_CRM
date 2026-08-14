@@ -21,13 +21,14 @@ then merged P6A read-only attention, P6B durable Student Portal notifications,
 P6C overdue-transition publication and P6D cross-domain Student 360 closure.
 PR #154 merged the P7 security/reliability contract, PR #156 merged P7A safe
 Admin-only audit search/export, PR #157 refreshed accepted status and the
-OrbStack-only rule, PR #160 merged P7B private observability, and PR #163
-merged the P7C authority contract plus the `evo-platform-prod` organization
-and name consolidation. Current `origin/main` is
-`e9443bd25be5a7aaebe6eea08f48f35e2965e617`, migrations remain contiguous
-`001-072`, and exact-main push CI run `31795764829` is green for Main CRM,
-EVO Inbox and EVO Lead Agent; Changed range is skipped on the push event as
-expected.
+OrbStack-only rule, PR #160 merged P7B private observability, PR #163 merged
+the P7C authority contract plus the `evo-platform-prod` organization and name
+consolidation, PR #164 deferred the P7C drill, and PR #165 merged the local
+knowledge-ingestion contract. Current `origin/main` is
+`f363630cd2296da32930f18e64c2895e60475818`, and migrations remain contiguous
+`001-072`. Its exact-main push CI run is `31804372439`; that run was still in
+progress when this docs head was created, so PR exact-head CI and the final
+base recheck remain the merge authority.
 
 P4B implementation is preserved on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -56,6 +57,106 @@ until their plan and `docs/PLAN_CHANGES.md` amendment are independently
 reviewed and merged. If scope, architecture, API/schema, acceptance criteria,
 file ownership or merge order changes, stop the affected code change and merge
 a separate plan amendment first.
+
+## Lead-processing real-proof lane
+
+Block-ID: `EVO-LEAD-PROCESSING-REAL-PROOF-PLAN-2026-08-14`.
+Tracking issue: [#168](https://github.com/izzhackt/evo_AI_CRM/issues/168).
+
+This lane converts the merged, disabled Platform messaging capabilities into a
+reviewable sequence for later real-provider proof. It authorizes documentation
+only. It does not authorize deployment, a managed Supabase migration, WAHA
+webhook/session changes, WhatsApp messages, amoCRM writes, Gemini calls,
+autonomous replies or provider-side configuration.
+
+### Verified baseline
+
+- Current GitHub `main` is `f363630cd2296da32930f18e64c2895e60475818`.
+  Push CI run `31804372439` was still in progress when this docs head was
+  created. PR #166 merged the separate knowledge-ingestion K2 implementation
+  while this plan was under review; its files remain outside this lane. No
+  lead-processing implementation PR was open when this refreshed baseline was
+  recorded.
+- P5A-P5F3 and P4R1 are merged and disabled by default. Repository contracts
+  cover signed raw ingress, idempotent projection, history/media handling,
+  ACK/session state, read-only canonical amoCRM context, Platform-owned memory
+  and approved-knowledge retrieval, structured Gemini proposals,
+  qualification, deterministic send eligibility, staff takeover/pause/resume
+  and append-only audit evidence.
+- Production `/opt/evo-crm` was inspected read-only on 2026-08-14. Its running
+  app image and source revision are
+  `564332b420a1fb1bd6232dda945d044bb922d3f0`, started 2026-07-24. The running
+  app and `.env.production` expose none of the Platform enablement flags. The
+  merged Platform lane is therefore not deployed or enabled there.
+- No accepted evidence proves the real chain from WhatsApp through Platform
+  persistence, amoCRM context, approved-knowledge retrieval, Gemini proposal,
+  governed reply or handoff, WAHA ACK and staff-visible audit. Local and CI
+  fixtures remain repository proof only.
+
+### External contracts rechecked
+
+- WAHA documents `message` as inbound, `message.any` as every message creation
+  including messages sent through its API, `message.ack` as delivery/read/error
+  progression, and `session.status` as the session lifecycle. The Platform must
+  keep inbound identity, outbound observation, ACK and session reconciliation
+  distinct: <https://waha.devlike.pro/docs/how-to/events/>.
+- Kommo documents contacts as people, leads as sales opportunities and explicit
+  links between them. P4R1 may read canonical linked context; creation, linking
+  or stage mutation remains a separately approved write:
+  <https://developers.kommo.com/reference/link-entities>.
+- Gemini structured outputs constrain the final JSON shape but do not make its
+  facts or reply safe. The deterministic Platform policy remains the only send
+  authority: <https://ai.google.dev/gemini-api/docs/structured-output>.
+
+### Approval-gated execution order
+
+1. **L0 — contract (this block).** Merge this docs-only baseline after
+   independent exact-head review and CI. No runtime or provider action.
+2. **L1 — deploy disabled capability.** With explicit action-time deployment
+   approval, deploy an exact reviewed Git SHA and apply the already-merged
+   additive migrations. Keep every Platform enablement flag off and the
+   autonomous-reply kill switch engaged. Prove revision, migration inventory,
+   private routing, health and rollback without provider calls.
+3. **L2 — receive-only intake.** With explicit WAHA webhook/session-cutover and
+   managed-Supabase approval, use one EVO-controlled sanitized sender. Prove
+   HMAC verification, raw persistence before processing, replay safety,
+   operator-visible text and media, history reconciliation and private
+   Realtime. Send no reply and write nothing to amoCRM.
+4. **L3 — canonical context and retrieval.** With explicit approval for one
+   real amoCRM read and the approved-knowledge publication contract available,
+   resolve the sanitized sender to canonical contact/lead context or record a
+   fail-closed human handoff. Consume only versioned approved knowledge and
+   persist retrieval evidence; never read the raw ingestion archive directly.
+5. **L4 — structured proposal and governance.** With explicit Gemini-call
+   approval, produce one schema-valid proposal bound to the exact message,
+   memory version, qualification version, amoCRM-context observation and
+   knowledge evidence. Exercise forced-human, staff takeover/pause and audited
+   resume without sending WhatsApp.
+6. **L5 — one governed outbound proof.** Only if the owner separately approves
+   a real WhatsApp send, queue one eligible single-use reply to the sanitized
+   number, reconcile `message.any`, ACK and session evidence, and prove that an
+   unknown transport outcome cannot retry automatically. Otherwise L5 remains
+   blocked and the accepted milestone is receive-only plus draft/handoff.
+
+Every block requires its own linked issue/PR, exact-head independent review,
+green exact-head CI, real-path evidence, rollback record and final provider-
+state recheck. A block must stop before the first externally visible action if
+its action-time approval or credential is absent.
+
+### Inputs and blockers
+
+- deployment approval for `/opt/evo-crm` and the managed Supabase target;
+- explicit ownership/cutover choice for the single target `evo-inbox` WAHA
+  session and webhook, without altering the retained Lead Agent rollback path;
+- sanitized EVO-controlled test sender and an identifiable test lead;
+- backend-only WAHA, Supabase, amoCRM-read and Gemini credentials;
+- approved, versioned knowledge artifacts and their retrieval publication
+  interface from the independent ingestion lane;
+- separate action-time approvals for one amoCRM read, one Gemini call and, if
+  L5 is attempted, one WhatsApp send.
+
+The default milestone is L4 with no send. No amoCRM write is required or
+authorized anywhere in L0-L5.
 
 ## Local EVO Knowledge Ingestion Lane
 

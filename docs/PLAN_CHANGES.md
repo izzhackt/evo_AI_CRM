@@ -6259,3 +6259,45 @@ Validation impact: each block requires focused tests, a real owner-supplied
 source run where applicable, an idempotent second run, an independent exact-head
 review, green exact-head CI, exact-base recheck and reviewed merge. No block may
 claim production CRM, provider, or complete-corpus success from local evidence.
+
+## 2026-08-14 — Decompose real lead-processing proof
+
+Block-ID: `EVO-LEAD-PROCESSING-REAL-PROOF-PLAN-2026-08-14`.
+Tracking issue: [#168](https://github.com/izzhackt/evo_AI_CRM/issues/168).
+
+Change type: docs-only plan freshness, production-gap audit and approval-gated
+real-provider validation sequence.
+
+Affected plan section: `Lead-processing real-proof lane` in
+`docs/EVO_LAUNCH_PLAN.md`.
+
+Reason: P5A-P5F3 and P4R1 are merged with repository/CI evidence, but a
+read-only production inspection found `/opt/evo-crm` still running revision
+`564332b420a1fb1bd6232dda945d044bb922d3f0` with no Platform enablement flags.
+No accepted evidence proves the real WhatsApp-to-audit chain. The launch plan
+also cited an older `main` SHA and CI run after later P7C and knowledge-contract
+documentation merged.
+
+Decision: preserve all merged lanes disabled by default and split advancement
+into L0 contract, L1 disabled deployment, L2 receive-only intake, L3 canonical
+amoCRM-read context plus approved-knowledge retrieval, L4 Gemini proposal plus
+handoff/takeover governance without send, and optional L5 one governed outbound
+proof. Each external action requires separate action-time approval. The default
+accepted milestone stops after L4. No block authorizes an amoCRM write.
+
+Knowledge-lane boundary: this plan does not edit, duplicate or publish ingestion
+artifacts. It consumes only a later versioned approved-knowledge interface and
+stores retrieval evidence already owned by the Platform lane.
+
+Research: WAHA's official event contract distinguishes inbound `message`, all-
+creation `message.any`, `message.ack` and `session.status`; Kommo's official
+entity contract keeps person/contact and sales-opportunity/lead identity linked
+but distinct; Gemini's official structured-output contract constrains JSON
+shape without replacing deterministic policy. The launch plan links the exact
+official sources.
+
+Validation impact: L0 requires Markdown/diff validation, independent exact-head
+review, green exact-head CI and exact-base recheck. L1-L5 require new linked
+issues and PRs, real service evidence, explicit rollback proof and a stop before
+any unapproved externally visible action. Mocks and synthetic fixtures cannot
+replace provider proof.

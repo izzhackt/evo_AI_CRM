@@ -83,7 +83,7 @@ def extract_pptx(path: Path) -> str:
 def ocr_image(path: Path) -> str:
     with tempfile.TemporaryDirectory(prefix="evo-ocr-") as temporary:
         source = path
-        if path.suffix.casefold() == ".heic":
+        if path.suffix.casefold() in {".heic", ".webp"}:
             converted = Path(temporary) / "converted.png"
             subprocess.run(["sips", "-s", "format", "png", str(path), "--out", str(converted)], check=True, capture_output=True)
             source = converted

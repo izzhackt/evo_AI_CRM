@@ -6134,3 +6134,35 @@ Acceptance:
 - Derived transcripts and extraction reports resolve to existing raw sources.
 - `30_Утверждено для ИИ` receives zero files from this operation.
 - A rerun downloads and derives zero unchanged items.
+
+## 2026-08-14 - Import the China curator WhatsApp account
+
+Block-ID: `EVO-WHATSAPP-CHINA-CURATOR-ARCHIVE-2026-08-14`
+
+Change type: owner-authorized additional read-only knowledge source.
+
+Reason: the owner requested a separate QR connection for the China curator's
+WhatsApp account and a complete chat/media export into the closed Obsidian
+archive.
+
+Authorized implementation:
+
+- Create the independent WAHA session `china_curator`; do not alter
+  `crm_primary` or its webhook configuration.
+- Export all chats and available history through the private WAHA network.
+- Store raw data, opaque Markdown transcripts, media, OCR, document text and
+  local Whisper transcripts under `90_Закрытый архив` with `0700` directories
+  and `0600` files.
+- Record every unavailable media object explicitly and retry group timeouts
+  individually before declaring the final count.
+- Keep derived knowledge candidates in `10_На проверке`; publish no curator
+  content directly into `30_Утверждено для ИИ`.
+
+Observed result:
+
+- 184 chats, 601 messages, 442 text messages and 197 media references.
+- 187 media objects downloaded with verified hashes; 10 remained unavailable
+  after individual retries.
+- 184 chat transcripts, 187 extraction/OCR notes and 91 local Whisper drafts.
+- WAHA session remained `WORKING`; the pre-existing `crm_primary` session was
+  not modified.

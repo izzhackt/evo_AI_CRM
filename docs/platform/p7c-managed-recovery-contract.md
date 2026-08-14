@@ -1,7 +1,7 @@
 # P7C managed recovery and Supabase consolidation contract
 
-Status: docs-only authority gate; implementation and destructive retirement are
-not yet authorized by merge
+Status: merged authority contract; recovery execution deferred by the owner on
+2026-08-14 until functional Platform completion and concrete operation
 
 Version date: 2026-08-14 (Asia/Bishkek)
 
@@ -9,10 +9,29 @@ Plan Block-ID: `EVO-P7C-MANAGED-RECOVERY-2026-08-14`
 
 Issue: #162
 
+## Superseding owner decision — 2026-08-14
+
+- Do not migrate, pause, retire or delete `inbox-prod`. It belongs to a separate
+  owned Inbox SaaS product and is not a legacy EVO Platform database.
+- Defer creation of a recovery project and the managed database plus separate
+  Storage restore drill until the EVO Platform is functionally complete and
+  concretely operating.
+- Keep the existing Supabase Pro scheduled database backups enabled. Their
+  presence is protection, not proof that restoration works, and database
+  backups still do not contain Storage object bytes.
+- Do not mark P7C accepted, do not mark disaster recovery verified, and do not
+  create temporary billed recovery infrastructure under this deferral.
+- When the owner resumes P7C, refresh the source, destination, credential,
+  Storage, cost and retention inventory before any recovery action.
+
+This section supersedes every retirement or deletion statement about
+`inbox-prod` below. The remaining recovery safety boundaries stay applicable
+when P7C resumes.
+
 ## Verified baseline
 
-- GitHub `main` is `a6077ad6b7642deceead31dd11ed463548216d58`.
-- Exact-main push CI run `31753423736` passed Main CRM, EVO Inbox and EVO Lead
+- GitHub `main` is `e9443bd25be5a7aaebe6eea08f48f35e2965e617`.
+- Exact-main push CI run `31795764829` passed Main CRM, EVO Inbox and EVO Lead
   Agent; Changed range was skipped on the push event as expected.
 - Repository migrations are contiguous through `072`.
 - The owner authorized the live organization consolidation on 2026-08-14.
@@ -31,10 +50,11 @@ Issue: #162
 - Storage currently contains bucket metadata but zero object bytes. An empty
   Storage inventory is real evidence of emptiness, not evidence that non-empty
   object recovery works.
-- The legacy managed project `inbox-prod` remains healthy and active. The
+- The separate managed project `inbox-prod` remains healthy and active. The
   dashboard recorded 5,582 requests in the preceding 24 hours, two monthly
   active users in the current cycle, and a recent physical backup. A separate
-  live application still references it, so deletion is blocked.
+  live Inbox SaaS application references it. It is intentionally retained and
+  is not an EVO Platform recovery or retirement target.
 
 The precise credential inventory and infrastructure exposure findings remain
 private operational evidence. They must not be copied into this public
@@ -42,18 +62,17 @@ repository, PR text or GitHub issues.
 
 ## Outcome
 
-P7C produces one canonical managed EVO production project and independently
-verified recovery evidence without treating a provider backup badge as a
-successful restore. It retires `inbox-prod` only after its consumer and required
-data have moved, real traffic has stopped, rollback remains possible and the
-owner confirms the exact permanent deletion at action time.
+When resumed, P7C produces independently verified recovery evidence for the
+canonical managed EVO production project without treating a provider backup
+badge as a successful restore. It does not migrate, pause, retire or delete the
+separate Inbox SaaS project `inbox-prod`.
 
 The intended steady state is:
 
 - `evo-platform-prod`: canonical managed production project;
 - one temporary `evo-platform-recovery-<date>` project only while a restore
   drill is running;
-- no active `inbox-prod` project after verified cutover and deletion;
+- `inbox-prod` retained as the separate Inbox SaaS managed project;
 - database backups and Storage-object backups treated as separate systems.
 
 ## Non-negotiable boundaries
@@ -77,8 +96,8 @@ The intended steady state is:
   bytes move only through supported Storage or S3 APIs.
 - Do not enable PITR, custom domains, IPv4, larger compute or another paid
   add-on without a separate cost decision.
-- Do not delete or pause a production project merely to reduce cost. Retirement
-  requires the gates below and fresh action-time owner confirmation.
+- Do not delete or pause either production project under P7C. `inbox-prod` is a
+  separate product boundary, not a cost-reduction or retirement target.
 
 ## Cost contract
 
@@ -93,7 +112,7 @@ Expected states:
 | Before consolidation | `inbox-prod` only in Pro | about `$25` |
 | Current transition | `inbox-prod` + `evo-platform-prod` | about `$35` |
 | Temporary restore drill | both above + one recovery project | about `$45` while all three run |
-| Final steady state | `evo-platform-prod` only | about `$25` |
+| Retained steady state | `inbox-prod` + `evo-platform-prod` | about `$35` |
 
 The transfer occurred four days before the billing-cycle end. The dashboard
 showed a projected current-cycle total of `$26.36`; project changes may take up
@@ -118,9 +137,8 @@ project lifetime must still be bounded and recorded.
 3. Export a separate Storage inventory through the supported API with explicit
    pagination. For zero objects, record a canonical empty manifest. Do not add a
    test object merely to make the proof non-empty.
-4. Produce a private encrypted legacy `inbox-prod` export before any consumer
-   cutover or deletion work. The public report records only aggregate counts,
-   artifact hashes, timestamps and pass/fail status.
+4. Do not access or export `inbox-prod`; it is outside the EVO Platform source
+   and recovery boundary.
 5. Fail closed on any dump error, incomplete pagination, plaintext durable
    artifact, unexpected customer-data output, version mismatch or missing key.
 
@@ -180,30 +198,14 @@ blindly.
 5. Production migration remains a later action-time approval. P7C planning and
    restore evidence do not themselves authorize it.
 
-## Block P7C5 - retire `inbox-prod`
+## Block P7C5 - preserve the Inbox SaaS boundary
 
-Deletion is blocked until all conditions are true:
-
-1. Identify every live consumer, runtime secret location, callback, scheduled
-   job and operator workflow that references the legacy project.
-2. Decide whether each legacy table/object is required by the canonical Platform
-   domain. Migrate required data through reviewed domain mappings; do not merge
-   databases wholesale or silently discard incompatible records.
-3. Cut the live consumer over to the reviewed canonical destination and verify
-   its real production workflows, restart persistence and rollback.
-4. Keep the legacy project available for rollback while monitoring at least 72
-   consecutive hours. Its application/API/Auth/Realtime/Storage traffic must be
-   zero except explicitly identified operator verification, and the former
-   consumer must remain healthy on the new project.
-5. Reconfirm an encrypted legacy database export, separate Storage manifest,
-   recent provider physical backup and documented rollback point.
-6. Present the exact project name/reference, observation evidence, recoverability
-   evidence and projected bill to the owner. Obtain fresh confirmation
-   immediately before permanent deletion.
-7. Delete only `inbox-prod`. Verify the canonical application, organization
-   project inventory, billing projection and backup schedule afterward.
-
-No implementation or reviewer may waive these deletion gates to save `$10`.
+1. Treat `inbox-prod` and its live consumers as a separate product boundary.
+2. Do not read, migrate, cut over, pause or delete that project as part of P7C.
+3. Do not claim its traffic, data, backup or cost as EVO Platform recovery
+   evidence.
+4. Any future Inbox SaaS migration or retirement requires a new owner decision
+   and a separate plan outside this contract.
 
 ## Evidence and acceptance
 
@@ -216,16 +218,14 @@ Each block has its own PR and exact-head review. Evidence must include:
 - destination isolation and outbound-provider denial;
 - independent database and Storage report statuses;
 - production health and backup state after every provider mutation;
-- actual and projected provider cost after transfer, drill creation and final
-  retirement;
+- actual and projected provider cost after transfer and drill creation;
 - explicit `blocked` status for non-empty Storage recovery, PITR, production
-  migration or deletion whenever their prerequisites are absent.
+  migration whenever its prerequisites are absent.
 
 P7C is complete only after the managed database restore and separate Storage
-restore are independently reviewed, the canonical production migration decision
-is resolved, and `inbox-prod` is either safely deleted or explicitly retained
-with its owner, reason and cost recorded. A backup listing without a restore is
-not completion.
+restore are independently reviewed and the canonical production migration
+decision is resolved. `inbox-prod` remains outside P7C. A backup listing without
+a restore is not completion.
 
 ## Official basis
 

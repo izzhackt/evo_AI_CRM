@@ -20,13 +20,15 @@ PR #147 merged the reviewed P6A-P6D contract, and PRs #148, #149, #152 and
 notifications, P6C overdue-transition publication and P6D cross-domain Student
 360 closure. PR #154 merged the P7 contract, PR #156 merged P7A safe
 Admin-only audit search/export, PR #157 refreshed the accepted status and
-OrbStack-only rule, and PR #160 merged P7B private observability. Current
-`origin/main` is `a6077ad6b7642deceead31dd11ed463548216d58`, migrations are
-contiguous `001-072`, and exact-main push CI run `31753423736` is green for
+OrbStack-only rule, PR #160 merged P7B private observability, and PR #163
+merged the P7C authority contract plus managed project consolidation. Current
+`origin/main` is `e9443bd25be5a7aaebe6eea08f48f35e2965e617`, migrations are
+contiguous `001-072`, and exact-main push CI run `31795764829` is green for
 Main CRM, EVO Inbox and EVO Lead Agent; Changed range is skipped on the push
-event as expected. The next implementation gate is P7C managed recovery under
-`docs/platform/p7c-managed-recovery-contract.md`. It does not inherit PITR,
-non-empty Storage recovery or production migration proof from earlier lanes.
+event as expected. The owner deferred P7C managed recovery under
+`docs/platform/p7c-managed-recovery-contract.md`; the next planning gate is
+P7D. The deferral does not inherit PITR, non-empty Storage recovery or
+production migration proof from earlier lanes.
 
 P4B implementation is preserved, not merged, on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -111,15 +113,16 @@ this contract.
 As of the version date:
 
 - GitHub `main` is
-  `a6077ad6b7642deceead31dd11ed463548216d58`; PR #128 supersedes PR #119 as
+  `e9443bd25be5a7aaebe6eea08f48f35e2965e617`; PR #128 supersedes PR #119 as
   current product authority after corrective PRs #125-#127, PRs #129-#130
   merged the bounded local-validation repair, PRs #132/#133/#137/#138/#141 and
   #144-#146 merged P5A-P5F3, and PR #142 merged bounded P4R1 read-only canonical
   amoCRM context. PRs #148/#149/#152/#153 completed P6A-P6D through migration
   070, PR #154 merged the P7 contract, PR #156 completed P7A as migration 071,
   PR #157 refreshed the accepted status plus OrbStack-only rule, and PR #160
-  completed P7B as migration 072;
-- exact-main push CI run `31753423736` is green for Main CRM, EVO Inbox and EVO
+  completed P7B as migration 072, and PR #163 merged the managed P7C authority
+  contract plus the `evo-platform-prod` organization/name consolidation;
+- exact-main push CI run `31795764829` is green for Main CRM, EVO Inbox and EVO
   Lead Agent; Changed range is skipped on the push event as expected;
 - the preserved P4B branch passed focused tests, unit tests, lint, Next typegen,
   TypeScript and a production build. Its later full local Supabase run failed
@@ -151,11 +154,13 @@ After this amendment merges, implementation priority is intentionally narrow:
 1. Preserve P4B and defer mapping activation and amoCRM writes. Keep merged
    bounded read-only P4R1 as canonical context only; it authorizes no mapping
    activation, Sales ownership mutation or provider write.
-2. Preserve completed P6A-P6D and implement P7A safe audit search/export, P7B
-   private observability/runbooks and P7C isolated database plus separate
-   Storage restore in order. P7D begins only after its numeric capacity profile
-   and human accessibility evidence matrix are approved. Narrowed P8 and P10
-   follow completed P7.
+2. Preserve completed P6A-P6D, P7A safe audit search/export and P7B private
+   observability/runbooks. The owner deferred P7C isolated database plus
+   separate Storage restore until the Platform is functionally complete and
+   concretely operating. Plan P7D next, but begin its execution only after its
+   numeric capacity profile and human accessibility evidence matrix are
+   approved. Narrowed P8 and P10 follow the executable P7D scope; P7C remains a
+   later recovery-readiness requirement and is not silently marked complete.
 3. No mock, SQLite shim, hardcoded amoCRM mapping, fake provider or silent
    fallback may replace P4. amoCRM identity, responsible Sales, canonical stage,
    contract-stage handoff, mapping approval and amoCRM E2E remain fail-closed.
@@ -1006,12 +1011,11 @@ recovery destination, while Storage bytes use supported Storage APIs and never
 direct Storage catalog writes. The current production Storage inventory is
 empty, so an empty-manifest check is valid but non-empty byte-restore proof
 remains missing and no fake object is created. The production migration gap
-`039 -> 072` is first analyzed and exercised on the recovery target before any
-production schema promotion. Measured recovery duration/data-loss window are
-observations, not approved RPO/RTO or PITR evidence. The legacy `inbox-prod`
-project may be deleted only after its real consumers are cut over, rollback is
-available, 72 hours of zero legacy traffic are observed and the owner confirms
-the permanent deletion immediately before it occurs.
+When P7C resumes, `039 -> 072` is first analyzed and exercised on the recovery
+target before any production schema promotion. Measured recovery
+duration/data-loss window are observations, not approved RPO/RTO or PITR
+evidence. The separate `inbox-prod` project belongs to Inbox SaaS and is not a
+P7C migration, recovery or retirement target.
 
 `P7D` is gated by an owner-approved numeric capacity profile and an approved
 human accessibility reviewer plus browser/device/screen-reader matrix. Its k6
@@ -1022,9 +1026,11 @@ WCAG 2.2 A/AA/Axe and responsive checks are followed by human keyboard, focus,
 zoom, dialog and screen-reader evaluation; Axe alone cannot complete or claim
 WCAG conformance.
 
-P7 authorizes only the exact managed project transfer, rename, temporary
-recovery project, encrypted recovery drill and gated legacy retirement defined
-by `docs/platform/p7c-managed-recovery-contract.md`. It authorizes no public
+P7 has completed only the exact managed project transfer and rename defined by
+`docs/platform/p7c-managed-recovery-contract.md`. The owner has deferred the
+temporary recovery project and encrypted recovery drill; no billed recovery
+infrastructure is currently authorized, and `inbox-prod` is outside the EVO
+Platform boundary. P7 authorizes no public
 metrics/readiness, provider call, customer-data publication, live send, amoCRM
 write, retention deletion, in-place production restore or premature service
 retirement. DEC-009, DEC-010, DEC-012 and DEC-017 remain open until the managed

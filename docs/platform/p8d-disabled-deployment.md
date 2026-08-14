@@ -108,20 +108,49 @@ The CRM values live only in `/opt/evo-crm/.env.production`; Lead Agent values
 live only in `/opt/evo-crm/.env.lead-agent`; and the Inbox observability value
 lives only in `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production`.
 Compose overrides may pin the same values but must not disagree with those
-files. The two P7B secrets must already exist and be nonempty in their owned
-secret files; P8D does not generate or copy them. EVO Inbox has no separate
-autonomous-send activation flag in this candidate: P8D must not call its send,
-AI-test or configuration-mutation endpoints, and must not mutate its encrypted
-per-account provider settings.
+files. EVO Inbox has no separate autonomous-send activation flag in this
+candidate: P8D must not call its send, AI-test or configuration-mutation
+endpoints, and must not mutate its encrypted per-account provider settings.
 
 If a required disabled flag is absent from the live secret files, append only
 that non-secret boolean setting under mode `0600`, record the file hash before
 and after, and never print the file. P8D also explicitly authorizes appending
 the single non-secret line `EVO_AGENT_GEMINI_MODEL=gemini-3.5-flash` to
 `/opt/evo-crm/.env.lead-agent` when that setting is absent; no Gemini request is
-made. Any other missing non-boolean setting or any existing conflicting value
-is a stop condition rather than an invitation to add or override configuration
-through an unreviewed layer.
+made.
+
+The first fail-closed preflight at `2026-08-14T22:12:22Z` found one exact
+existing conflict before any production mutation:
+`EVO_AGENT_AUTOREPLY_ENABLED=true` in `/opt/evo-crm/.env.lead-agent`, while the
+existing Compose override keeps the running container at `false`. Issue #186
+authorizes one atomic safety correction of that exact file setting from
+`true` to `false`. Before editing, copy the mode-`0600` file to a root-only
+rollback file beside the live env file, outside every release/evidence
+directory; record only an opaque backup identifier, success state and the
+before hash in redacted evidence, and require exactly one active assignment.
+Delete that secret-bearing rollback copy only after all three deployed services
+and the final disabled-state checks pass; delete it immediately after a
+successful rollback, or retain it root-only while a failed rollback is
+escalated. After editing, preserve root ownership and mode `0600`, record only
+the after hash, require exactly one active `false` assignment, and render
+Compose to confirm the container value remains `false`. Do not print or retain
+the file contents in redacted evidence. Any other missing non-boolean setting
+or any other existing conflicting value remains a stop condition rather than
+an invitation to add or override configuration through an unreviewed layer.
+
+The same preflight proved that the two distinct private-readiness HMAC settings
+are absent. Issue #186 authorizes generation on Hermes of exactly two distinct
+32-byte random values with `openssl rand -hex 32`: one stored only as
+`EVO_PLATFORM_P7B_OBSERVABILITY_SECRET` in `/opt/evo-crm/.env.production`, and
+one stored only as `EVO_INBOX_P7B_OBSERVABILITY_SECRET` in
+`/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production`. Back up each file to a
+root-only mode-`0600` sibling outside evidence, require the key to be absent
+before insertion, update atomically in the same directory, and preserve root
+ownership/mode. Values exist only in process memory and those files: never
+print, transmit, hash into evidence, or copy them between services. Redacted
+evidence records only `present=true`, `length=64`, `distinct=true`, update
+success and the env-file before/after hashes. The rollback copies follow the
+same deletion/failed-rollback retention rule as the Lead Agent env backup.
 
 ## Pre-mutation gate
 

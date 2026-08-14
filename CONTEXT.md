@@ -368,5 +368,57 @@ The deliberate transfer from AI-assisted qualification to a responsible EVO empl
 _Avoid_: failed reply, silent abandonment
 
 **Sensitive Applicant Document**:
-A passport, education record, medical form, bank statement, criminal-record certificate, or other file that must not be collected through an ordinary chat or committed to Git.
+A passport, education record, medical form, bank statement, criminal-record certificate, or other personal case file whose archive metadata may be classified but whose contents must not be extracted into an AI knowledge base.
 _Avoid_: knowledge-base content, public brochure
+
+**EVO Business Message**:
+An email or other communication whose substance concerns EVO services, applicants, universities, partners, employees, operations, or decisions and may contain candidate business knowledge.
+_Avoid_: every account message, automatically approved knowledge
+
+**Restricted Account Message**:
+A personal message, spam item, login or password-reset message, security code, payment credential, or unrelated automated notification that must remain outside the AI knowledge bases.
+_Avoid_: irrelevant knowledge, safe training data
+
+**Uncertain Message**:
+A message whose business relevance or sensitivity cannot be determined confidently and therefore requires human review before any knowledge is extracted from it.
+_Avoid_: automatically approved message, harmless message
+
+**Knowledge Candidate**:
+An extracted business statement about EVO, admissions, countries, universities, partners, services, costs, processes, responsibilities, or recurring client questions that has not yet been approved as current knowledge.
+_Avoid_: approved fact, raw message, personal case file
+
+**Anonymized Case Pattern**:
+A reusable lesson derived from an individual applicant case after names, contact details, identifiers, documents, and other personal data have been removed.
+_Avoid_: client profile, redacted document copy
+
+**Routine Knowledge Approval**:
+An agent decision that promotes clear, non-sensitive, well-sourced, and non-conflicting business knowledge without waiting for separate owner confirmation.
+_Avoid_: automatic approval of every extraction, owner-only approval
+
+**Escalated Knowledge Decision**:
+A decision reserved for the user or EVO director because sources conflict, confidence is low, or the claim affects legal terms, prices, guarantees, refunds, credentials, or personal data.
+_Avoid_: routine review, agent guess
+
+**Excluded Trash Content**:
+Any file located in an exported Google Drive or Gmail trash folder; it remains preserved in the raw archive but is outside knowledge analysis regardless of apparent business relevance.
+_Avoid_: historical knowledge source, lower-priority candidate
+
+**Business Attachment**:
+An email attachment containing EVO operational, contractual, university, country, service, process, or partner information that is eligible for knowledge analysis under the same sensitivity rules as other sources.
+_Avoid_: every attachment, applicant document
+
+**Duplicate Source File**:
+Two or more source files with identical content confirmed by SHA-256; they represent one analysis item while retaining every source location in provenance.
+_Avoid_: same filename, repeated knowledge
+
+**Internal Employee Profile**:
+An employee's name, work role, responsibility area, and work contact information used by staff and the internal AI without including private, financial, credential, or unrelated correspondence data.
+_Avoid_: personnel file, public biography
+
+**Public Team Profile**:
+An employee name, photograph, role, and biography explicitly permitted for the client knowledge base or public website.
+_Avoid_: internal employee profile, inferred consent
+
+**Knowledge Authority Order**:
+The precedence used to resolve competing claims: latest user or EVO director confirmation, applicable signed agreement, current official external source, newest active EVO document, latest confirmed email or WhatsApp agreement, then legacy Notion or draft material.
+_Avoid_: newest file wins, all sources are equal

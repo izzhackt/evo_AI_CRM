@@ -51,6 +51,92 @@ reviewed and merged. If scope, architecture, API/schema, acceptance criteria,
 file ownership or merge order changes, stop the affected code change and merge
 a separate plan amendment first.
 
+## Local EVO Knowledge Ingestion Lane
+
+Proposed independent slice: `EVO-KNOWLEDGE-INGESTION-LOCAL-2026-08-14`.
+This slice does not modify or deploy the production CRM, EVO Inbox, WAHA,
+amoCRM, Supabase, or any managed provider. It creates a local, resumable
+pipeline that prepares the owner-supplied Gmail and Google Drive Takeout data
+for semantic review by the authenticated Codex app or CLI without using the
+OpenAI API or storing an API key.
+
+### Scope
+
+1. Add a Python CLI under `scripts/knowledge_ingestion/` and focused tests under
+   `tests/knowledge_ingestion/`.
+2. Read source roots without modifying them. The first real sources are the
+   Gmail MBOX and Google Drive snapshot in
+   `/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Сырой архив ЭВО`.
+3. Write generated manifests, checkpoints, extracted business text and Codex
+   review queues only beneath a caller-supplied output root. The default
+   operational output is the internal Obsidian vault's `Входящие кандидаты`.
+4. Use SHA-256 as content identity, preserve every source path as provenance,
+   and avoid re-extracting content that a completed checkpoint already covers.
+5. Exclude every Google Drive path beneath `Корзина` and every Gmail message
+   labelled Spam or Trash from analysis.
+6. Detect sensitive applicant files conservatively from path, filename and file
+   type. Record only archive metadata for them; do not extract document text,
+   OCR, previews, or attachment bodies.
+7. Extract supported business content locally from plain text, HTML, PDF,
+   DOCX, XLSX and PPTX. Unsupported or failed files remain explicit manifest
+   records; there is no fake or empty-text success.
+8. Extract Gmail business attachments under the same rules as Drive files and
+   deduplicate them by SHA-256 across all sources.
+9. Generate bounded Codex review batches and a Russian instruction contract.
+   The preparation CLI must never call an LLM API. An optional operator command
+   may invoke the installed authenticated `codex exec` CLI, so usage remains
+   Codex-plan usage rather than OpenAI API billing.
+10. Keep the client-facing Obsidian vault outside direct ingestion. Only
+    reviewed outputs may be promoted there under the knowledge authority rules
+    in `AGENTS.md`, `CONTEXT.md`, and ADR 0014.
+
+### Delivery blocks
+
+- **K1 — Contract and fixtures:** merge this plan amendment, domain vocabulary,
+  ADR and repository rules before implementation.
+- **K2 — Deterministic preparation:** implement source discovery, exclusions,
+  sensitive classification, local extraction, SHA-256 deduplication,
+  checkpoints, manifests and bounded review batches.
+- **K3 — Codex review and Obsidian publication:** add the authenticated Codex
+  CLI operator command, structured review schema, authority resolution and
+  idempotent Russian Markdown publication to the internal vault.
+- **K4 — Real corpus completion:** run K2 and K3 against all accepted source
+  material, record counts and failures, resolve escalated conflicts, and verify
+  that prohibited content never enters either AI vault.
+
+### K2 acceptance criteria
+
+- The CLI runs against the real Gmail and Drive roots and exits non-zero for a
+  missing source, extraction failure that was incorrectly marked successful,
+  corrupt checkpoint, or output outside the caller-authorized root.
+- Re-running unchanged real inputs produces no duplicate extraction or review
+  item and reports a zero-new-work result.
+- No item beneath Drive `Корзина`, no Gmail Spam/Trash item, and no extracted
+  sensitive applicant content appears in generated text or review batches.
+- The manifest preserves source path, source kind, size, modified time,
+  SHA-256, classification, extraction status and all duplicate locations.
+- Tests cover the real supported parsers with repository-owned non-sensitive
+  files; the end-to-end gate additionally runs against the owner-supplied real
+  Takeout roots and reports real counts without printing personal content.
+
+### K2 validation commands
+
+- `python3 -m unittest discover -s tests/knowledge_ingestion -v`
+- `python3 scripts/knowledge_ingestion/prepare.py --help`
+- a real preparation run with explicit Gmail, Drive and output roots;
+- the same real command a second time to prove resumability and idempotence;
+- a manifest audit that fails if excluded or sensitive content entered a review
+  batch.
+
+### Stop conditions
+
+- Stop before reading source content if the expected real roots are missing or
+  their recorded Takeout checksums no longer verify.
+- Stop before Codex execution if CLI authentication is unavailable or the
+  prepared batch contains a prohibited classification.
+- Stop before client-vault publication when authority is unresolved, a source
+  conflict is escalated, or the destination is not the configured client vault.
+
 For the currently active owner-authorized MVP lane, older references in this
 file to a scheduled Launch Auditor, controller-only merge, or globally
 draft-only/manual-send AI are historical unless restated inside the active

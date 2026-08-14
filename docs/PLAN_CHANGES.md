@@ -6451,3 +6451,54 @@ Change type: release-evidence implementation detail
   amoCRM, call Gemini with customer content or create billed resources.
 - Keep P8D behind a separate action-time owner approval after the P8C report
   and independent review are complete.
+
+## 2026-08-15 - Persist owner decisions in the EVO knowledge pipeline
+
+Plan Block-ID: `EVO-KNOWLEDGE-OWNER-DECISIONS-2026-08-15`
+
+Change type: knowledge publication policy, source precedence and vault lifecycle
+
+### Decision
+
+- Add a closed, auditable owner-decisions manifest to the existing knowledge
+  publication path. Decisions bind to the deterministic item identity already
+  used in managed filenames; unknown identities, duplicate identities, unknown
+  fields and invalid actions fail closed.
+- Support only `approve` and `exclude`. `exclude` keeps the immutable raw source
+  and provenance manifest but removes the managed derived note from every AI
+  publication area. `approve` may override material-claim escalation only when
+  the reviewed item and its source fingerprints still validate.
+- Keep raw archives, source manifests and review JSON immutable. Owner decisions
+  operate only on derived managed publication files and may not move or delete
+  unmanaged Obsidian content.
+- Resolve competing reviewed claims by the newest source `modified_at` recorded
+  in the ingestion manifest when exactly one claim has the newest timestamp.
+  Equal or missing timestamps remain unresolved. Generated-file mtimes never
+  participate in precedence.
+- Record the 2026-08-15 owner policy: exclude the complete current sensitive and
+  individual-material queue; guarantee admission and visa for all countries and
+  packages; if the promised outcome is not achieved, provide a free repeat
+  application to another university or country; the client AI may state this
+  directly. A replacement master contract remains a later owner-supplied input.
+- Publish the newest real EVO China workbook (`Новая таблица(6).xlsx`, source
+  modified 2026-01-16) as active internal working knowledge for intake 2026.
+  Preserve CNY as the contractual/source amount and add an explicitly
+  approximate USD equivalent. A later owner/director source supersedes it.
+- Add USD equivalents beside source-currency prices using an explicit,
+  reviewable rate table. Preserve the source amount and currency; never rewrite
+  a contract amount or claim an approximate USD value is contractually binding.
+
+### Acceptance criteria
+
+- Re-publishing the same real review set does not recreate excluded identities.
+- Approved owner decisions publish with approved status and retain exact source
+  SHA-256 provenance.
+- Corrupt/traversal/unknown decision manifests fail before any publication or
+  deletion.
+- Stale cleanup remains restricted to files in the prior managed publication
+  manifest; raw and unmanaged files survive.
+- Tests cover exclusion persistence, approval override, unknown identity,
+  malformed schema, newest-source conflict resolution and tied timestamps.
+- The real EVO vault is re-published, dashboard counts are regenerated, no
+  sensitive queue item is present in AI-approved content, and a final audit
+  reports managed counts and remaining decisions.

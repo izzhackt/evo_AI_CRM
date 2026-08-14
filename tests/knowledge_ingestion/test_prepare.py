@@ -344,6 +344,41 @@ class ReviewPublicationTests(unittest.TestCase):
         self.assertIn("статус: требует_решения", text)
         self.assertNotIn("статус: утверждено_для_внутреннего_ИИ", text)
 
+    def test_owner_decisions_are_closed_and_bound_to_known_identities(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            vault = Path(directory) / "Утверждено для внутреннего ИИ"
+            vault.mkdir()
+            path = vault / ".Решения владельца Codex.json"
+            identity = "a" * 12
+            path.write_text(json.dumps({
+                "version": 1,
+                "decisions": [{
+                    "identity": identity,
+                    "action": "exclude",
+                    "reason": "Чувствительный индивидуальный материал.",
+                    "decided_at": "2026-08-15",
+                    "decided_by": "владелец EVO",
+                }],
+            }, ensure_ascii=False), encoding="utf-8")
+            self.assertEqual(publish.load_owner_decisions(path, vault, {identity}), {identity: "exclude"})
+            with self.assertRaises(ValueError):
+                publish.load_owner_decisions(path, vault, {"b" * 12})
+
+    def test_owner_decisions_reject_unknown_fields_before_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            vault = Path(directory) / "Утверждено для внутреннего ИИ"
+            vault.mkdir()
+            path = vault / ".Решения владельца Codex.json"
+            path.write_text(json.dumps({
+                "version": 1,
+                "decisions": [{
+                    "identity": "a" * 12, "action": "approve", "reason": "Решение владельца.",
+                    "decided_at": "2026-08-15", "decided_by": "владелец EVO", "extra": True,
+                }],
+            }, ensure_ascii=False), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                publish.load_owner_decisions(path, vault, {"a" * 12})
+
     def test_api_credentials_are_removed_from_codex_environment(self) -> None:
         original = dict(review.os.environ)
         try:
@@ -371,7 +406,7 @@ class ReviewPublicationTests(unittest.TestCase):
             (root / ".evo-vault.json").write_text(json.dumps({"kind": "evo_internal_knowledge", "canonical_path": str(root.resolve())}), encoding="utf-8")
             publish.validate_internal_vault(vault, root)
 
-    def test_publication_removes_only_stale_managed_note(self) -> None:
+    def test_owner_approval_and_exclusion_move_only_managed_notes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             root = base / "Внутренняя база знаний ЭВО"
@@ -391,9 +426,9 @@ class ReviewPublicationTests(unittest.TestCase):
             (pipeline / "Манифест источников.jsonl").write_text(json.dumps({"sha256": source, "classification": "деловой_материал", "extraction_status": "извлечено"}) + "\n", encoding="utf-8")
             (pipeline / "Манифест пакетов Codex.json").write_text(json.dumps({"version": prepare.VERSION, "batches": {batch.name: batch_fingerprint}}), encoding="utf-8")
             item = {
-                "decision": "approve", "title": "Рабочий процесс", "section": "Процессы",
-                "claim_key": "working-process", "authority": "evo_active_document",
-                "summary": "Внутренний порядок работы.", "facts": ["Порядок описан."],
+                "decision": "approve", "title": "Гарантия визы", "section": "Услуги",
+                "claim_key": "visa-guarantee", "authority": "evo_active_document",
+                "summary": "EVO гарантирует визу.", "facts": ["Гарантия действует."],
                 "sources": [source], "reason": "Ясный деловой материал."
             }
             result = reviews / "Пакет 0001.json"
@@ -403,12 +438,27 @@ class ReviewPublicationTests(unittest.TestCase):
             self.assertEqual(publish.main(arguments), 0)
             managed = json.loads((vault / ".Манифест публикации Codex.json").read_text(encoding="utf-8"))["files"]
             self.assertEqual(len(managed), 1)
+            self.assertTrue(managed[0].startswith("Требует решения/"))
             unmanaged = vault / "Моя ручная заметка.md"
             unmanaged.write_text("Не удалять", encoding="utf-8")
-            item["decision"] = "ignore"
-            result.write_text(json.dumps({"items": [item]}, ensure_ascii=False), encoding="utf-8")
+            identity = publish.item_identity(item)
+            decisions_path = vault / ".Решения владельца Codex.json"
+            decision = {
+                "identity": identity, "action": "approve", "reason": "Решение владельца.",
+                "decided_at": "2026-08-15", "decided_by": "владелец EVO",
+            }
+            decisions_path.write_text(json.dumps({"version": 1, "decisions": [decision]}, ensure_ascii=False), encoding="utf-8")
             self.assertEqual(publish.main(arguments), 0)
             self.assertFalse((vault / managed[0]).exists())
+            approved = json.loads((vault / ".Манифест публикации Codex.json").read_text(encoding="utf-8"))["files"]
+            self.assertEqual(len(approved), 1)
+            self.assertTrue(approved[0].startswith("Услуги/"))
+            self.assertIn("статус: утверждено_для_внутреннего_ИИ", (vault / approved[0]).read_text(encoding="utf-8"))
+            decision["action"] = "exclude"
+            decisions_path.write_text(json.dumps({"version": 1, "decisions": [decision]}, ensure_ascii=False), encoding="utf-8")
+            self.assertEqual(publish.main(arguments), 0)
+            self.assertFalse((vault / approved[0]).exists())
+            self.assertEqual(json.loads((vault / ".Манифест публикации Codex.json").read_text(encoding="utf-8"))["files"], [])
             self.assertTrue(unmanaged.exists())
 
     def test_higher_authority_escalation_blocks_lower_approval(self) -> None:
@@ -423,6 +473,24 @@ class ReviewPublicationTests(unittest.TestCase):
             "sources": ["b" * 64], "reason": "Нужно подтверждение"
         }
         self.assertTrue(publish.conflict_blocks(low, [low, high]))
+
+    def test_newest_source_wins_a_conflict_and_ties_remain_blocked(self) -> None:
+        old = {
+            "decision": "approve", "claim_key": "price", "authority": "official_source",
+            "title": "Старая цена", "summary": "Цена 100.", "facts": ["100"], "sources": ["a" * 64],
+        }
+        new = {
+            "decision": "approve", "claim_key": "price", "authority": "evo_active_document",
+            "title": "Новая цена", "summary": "Цена 120.", "facts": ["120"], "sources": ["b" * 64],
+        }
+        times = {
+            "a" * 64: publish.datetime.fromisoformat("2026-01-01T00:00:00+00:00"),
+            "b" * 64: publish.datetime.fromisoformat("2026-02-01T00:00:00+00:00"),
+        }
+        self.assertTrue(publish.conflict_blocks(old, [old, new], times))
+        self.assertFalse(publish.conflict_blocks(new, [old, new], times))
+        times["a" * 64] = times["b" * 64]
+        self.assertTrue(publish.conflict_blocks(new, [old, new], times))
 
 
 if __name__ == "__main__":

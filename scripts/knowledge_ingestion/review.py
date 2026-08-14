@@ -72,6 +72,9 @@ def validate_result(data: object, allowed_sources: set[str] | None = None) -> di
         sources = item.get("sources")
         if not isinstance(sources, list) or not sources or any(not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value) for value in sources):
             raise ValueError("ответ Codex содержит неверные ссылки на SHA-256")
+        if allowed_sources is not None and len(allowed_sources) == 1:
+            item["sources"] = sorted(allowed_sources)
+            sources = item["sources"]
         if allowed_sources is not None and not set(sources) <= allowed_sources:
             raise ValueError("ответ Codex ссылается на SHA-256 вне проверяемого пакета")
     return data

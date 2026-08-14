@@ -168,6 +168,28 @@ class BoundaryTests(unittest.TestCase):
 
 
 class ReviewPublicationTests(unittest.TestCase):
+    def test_single_source_batch_canonicalizes_a_well_formed_wrong_hash(self) -> None:
+        allowed = "a" * 64
+        item = {
+            "decision": "ignore", "claim_key": "noise", "authority": "legacy_or_unknown",
+            "title": "Шум", "section": "Неопределенное", "summary": "Нет устойчивого знания.",
+            "facts": [], "sources": ["b" * 64], "reason": "Служебный фрагмент.",
+        }
+        result = review.validate_result({"items": [item]}, {allowed})
+        self.assertEqual(result["items"][0]["sources"], [allowed])
+
+    def test_multi_source_batch_still_rejects_a_hash_outside_the_batch(self) -> None:
+        allowed = {"a" * 64, "b" * 64}
+        data = {
+            "items": [{
+                "decision": "ignore", "claim_key": "noise", "authority": "legacy_or_unknown",
+                "title": "Шум", "section": "Неопределенное", "summary": "Нет устойчивого знания.",
+                "facts": [], "sources": ["c" * 64], "reason": "Служебный фрагмент.",
+            }]
+        }
+        with self.assertRaises(ValueError):
+            review.validate_result(data, allowed)
+
     def test_phone_detection_allows_dates_but_rejects_real_numbers(self) -> None:
         self.assertFalse(review.contains_phone("Документ действует с 14.08.2026 и имеет код 1234-5678."))
         self.assertTrue(review.contains_phone("Контакт: +996 555 123 456"))

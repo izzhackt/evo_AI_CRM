@@ -9,9 +9,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["decision", "title", "section", "summary", "facts", "sources", "reason"],
+        "required": ["decision", "claim_key", "authority", "title", "section", "summary", "facts", "sources", "reason"],
         "properties": {
           "decision": {"enum": ["approve", "escalate", "ignore"]},
+          "claim_key": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+          "authority": {"enum": ["owner_director", "signed_contract", "official_source", "evo_active_document", "confirmed_correspondence", "legacy_or_unknown"]},
           "title": {"type": "string", "minLength": 1},
           "section": {"enum": ["Страны", "Университеты", "Услуги", "Процессы", "Продажи и ответы", "Компания", "Команда", "Партнеры", "Неопределенное"]},
           "summary": {"type": "string"},

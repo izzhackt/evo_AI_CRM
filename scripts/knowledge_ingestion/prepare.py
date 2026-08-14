@@ -472,6 +472,11 @@ class Pipeline:
                 chars += len(entry)
         if batch:
             self._write_batch(number, batch)
+        batch_manifest = {
+            path.name: sha256_file(path)
+            for path in sorted(self.batches.glob("Пакет *.md"))
+        }
+        atomic_json(self.output / "Манифест пакетов Codex.json", {"version": VERSION, "batches": batch_manifest})
         atomic_json(self.output / "Отчет последнего запуска.json", {"версия": VERSION, "завершено": datetime.now(timezone.utc).isoformat(), **self.stats})
 
     def _write_batch(self, number: int, entries: list[str]) -> None:

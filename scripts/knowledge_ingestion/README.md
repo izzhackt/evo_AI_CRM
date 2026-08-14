@@ -56,6 +56,10 @@ python3 scripts/knowledge_ingestion/review.py \
 ```bash
 python3 scripts/knowledge_ingestion/publish.py \
   --reviews "/путь/к/Результаты проверки Codex" \
+  --queue "/путь/к/Конвейер импорта/Очередь проверки Codex" \
   --authorized-root "/путь/к/Внутренняя база знаний ЭВО" \
   --vault "/путь/к/Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ"
 ```
+
+Корень внутреннего vault дополнительно привязан marker-файлом `.evo-vault.json`
+к своему точному canonical path. Копия marker в другой папке проверку не пройдёт.

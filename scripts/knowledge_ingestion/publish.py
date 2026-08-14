@@ -10,9 +10,10 @@ import re
 import sys
 from pathlib import Path
 
-from review import validate_result
+from review import load_allowed_sources, review_fingerprint, validate_result
 
 MATERIAL = ("гарант", "guarantee", "возврат", "refund", "цена", "стоимост", "тариф", "оплат", "договор", "контракт", "contract", "обязательств", "виза", "visa", "пароль", "токен", "секрет")
+AUTHORITY = {"legacy_or_unknown": 0, "confirmed_correspondence": 1, "evo_active_document": 2, "official_source": 3, "signed_contract": 4, "owner_director": 5}
 
 
 def safe_name(value: str) -> str:
@@ -26,8 +27,14 @@ def material(item: dict) -> bool:
 
 
 def validate_internal_vault(vault: Path, root: Path) -> None:
-    if root.name != "Внутренняя база знаний ЭВО" or vault.name != "Утверждено для внутреннего ИИ" or root not in vault.parents:
+    root = root.expanduser().resolve()
+    vault = vault.expanduser().resolve()
+    marker = root / ".evo-vault.json"
+    if root.name != "Внутренняя база знаний ЭВО" or vault.name != "Утверждено для внутреннего ИИ" or root not in vault.parents or not marker.is_file():
         raise ValueError("публикация разрешена только в 'Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ'")
+    data = json.loads(marker.read_text(encoding="utf-8"))
+    if data != {"kind": "evo_internal_knowledge", "canonical_path": str(root)}:
+        raise ValueError("marker внутреннего vault не совпадает с его canonical path")
 
 
 def render(item: dict, status: str) -> str:
@@ -44,27 +51,42 @@ def render(item: dict, status: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Опубликовать одобренные русские заметки во внутренний Obsidian vault.")
     parser.add_argument("--reviews", type=Path, required=True)
+    parser.add_argument("--queue", type=Path, required=True)
     parser.add_argument("--vault", type=Path, required=True)
     parser.add_argument("--authorized-root", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         reviews = args.reviews.expanduser().resolve()
+        queue = args.queue.expanduser().resolve()
         vault = args.vault.expanduser().resolve()
         root = args.authorized_root.expanduser().resolve()
         if not reviews.is_dir():
             raise FileNotFoundError(f"результаты проверки не найдены: {reviews}")
         validate_internal_vault(vault, root)
+        allowed_sources, batch_hashes = load_allowed_sources(queue, reviews.parent)
         approved = escalated = ignored = 0
         escalation = vault / "Требует решения"
         all_items: list[dict] = []
         for review in sorted(reviews.glob("Пакет *.json")):
-            if not review.with_suffix(".sha256").is_file():
+            fingerprint_path = review.with_suffix(".sha256")
+            batch_name = f"{review.stem}.md"
+            batch = queue / batch_name
+            if not fingerprint_path.is_file() or not batch.is_file():
                 raise ValueError(f"у результата нет fingerprint проверенного пакета: {review.name}")
-            data = validate_result(json.loads(review.read_text(encoding="utf-8")))
+            fingerprint = fingerprint_path.read_text(encoding="utf-8").strip()
+            batch_text = batch.read_text(encoding="utf-8")
+            actual_batch = hashlib.sha256(batch_text.encode()).hexdigest()
+            expected_review = review_fingerprint(batch_text)
+            if not re.fullmatch(r"[a-f0-9]{64}", fingerprint) or fingerprint != expected_review or batch_hashes.get(batch_name) != actual_batch:
+                raise ValueError(f"fingerprint результата не совпадает с текущим K2-пакетом: {review.name}")
+            batch_sources = set(re.findall(r"(?m)^## ([a-f0-9]{64})", batch_text))
+            if not batch_sources <= allowed_sources:
+                raise ValueError(f"пакет содержит запрещённый источник: {batch_name}")
+            data = validate_result(json.loads(review.read_text(encoding="utf-8")), batch_sources)
             all_items.extend(data["items"])
         claim_groups: dict[str, set[str]] = {}
         for item in all_items:
-            key = item["section"].casefold()
+            key = item["claim_key"]
             content = f"{item['summary'].strip()}::{json.dumps(item['facts'], ensure_ascii=False, sort_keys=True)}"
             claim_groups.setdefault(key, set()).add(content)
         manifest_path = vault / ".Манифест публикации Codex.json"
@@ -80,8 +102,12 @@ def main(argv: list[str] | None = None) -> int:
             if decision == "ignore":
                 ignored += 1
                 continue
-            conflict_key = item["section"].casefold()
-            if decision != "approve" or material(item) or len(claim_groups[conflict_key]) > 1:
+            conflict_key = item["claim_key"]
+            group_items = [candidate for candidate in all_items if candidate.get("decision") == "approve" and candidate["claim_key"] == conflict_key]
+            max_authority = max((AUTHORITY[candidate["authority"]] for candidate in group_items), default=-1)
+            highest = [candidate for candidate in group_items if AUTHORITY[candidate["authority"]] == max_authority]
+            unresolved_conflict = len(claim_groups[conflict_key]) > 1 and (len(highest) != 1 or item is not highest[0])
+            if decision != "approve" or material(item) or unresolved_conflict:
                 target_dir = escalation
                 status = "требует_решения"
                 escalated += 1

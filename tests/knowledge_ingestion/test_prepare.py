@@ -118,6 +118,9 @@ class BoundaryTests(unittest.TestCase):
             first.process_drive(drive)
             first.finish()
             self.assertEqual(first.stats["новая_работа"], 1)
+            batch_manifest = json.loads((output / "Манифест пакетов Codex.json").read_text(encoding="utf-8"))
+            batch_file = next((output / "Очередь проверки Codex").glob("Пакет *.md"))
+            self.assertEqual(batch_manifest["batches"][batch_file.name], prepare.sha256_file(batch_file))
             second = prepare.Pipeline(output, 100_000, 25)
             second.process_drive(drive)
             second.finish()
@@ -170,6 +173,16 @@ class ReviewPublicationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             review.validate_result(data, {"b" * 64})
 
+    def test_orphan_review_result_and_fingerprint_are_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            result = output / "Пакет 9999.json"
+            result.write_text("{}", encoding="utf-8")
+            result.with_suffix(".sha256").write_text("a" * 64, encoding="utf-8")
+            self.assertEqual(review.remove_orphan_results(output, {"Пакет 0001.md"}), 1)
+            self.assertFalse(result.exists())
+            self.assertFalse(result.with_suffix(".sha256").exists())
+
     def test_material_claim_is_forced_to_escalation(self) -> None:
         for title in ("Гарантия визы", "Visa guarantee", "Тариф и оплата", "Refund", "Контракт"):
             with self.subTest(title=title):
@@ -205,32 +218,47 @@ class ReviewPublicationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "Внутренняя база знаний ЭВО"
             vault = root / "Утверждено для внутреннего ИИ"
+            root.mkdir()
+            (root / ".evo-vault.json").write_text(json.dumps({"kind": "evo_internal_knowledge", "canonical_path": str(root.resolve())}), encoding="utf-8")
             publish.validate_internal_vault(vault, root)
 
     def test_publication_removes_only_stale_managed_note(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            reviews = base / "reviews"
-            reviews.mkdir()
             root = base / "Внутренняя база знаний ЭВО"
+            incoming = root / "Входящие кандидаты"
+            reviews = incoming / "Результаты проверки Codex"
+            reviews.mkdir(parents=True)
             vault = root / "Утверждено для внутреннего ИИ"
+            (root / ".evo-vault.json").write_text(json.dumps({"kind": "evo_internal_knowledge", "canonical_path": str(root.resolve())}), encoding="utf-8")
             source = "a" * 64
+            pipeline = incoming / "Конвейер импорта"
+            queue = pipeline / "Очередь проверки Codex"
+            queue.mkdir(parents=True)
+            batch = queue / "Пакет 0001.md"
+            batch.write_text(f"## {source}\n\nРеальный источник", encoding="utf-8")
+            batch_fingerprint = prepare.sha256_file(batch)
+            fingerprint = review.review_fingerprint(batch.read_text(encoding="utf-8"))
+            (pipeline / "Манифест источников.jsonl").write_text(json.dumps({"sha256": source, "classification": "деловой_материал", "extraction_status": "извлечено"}) + "\n", encoding="utf-8")
+            (pipeline / "Манифест пакетов Codex.json").write_text(json.dumps({"version": prepare.VERSION, "batches": {batch.name: batch_fingerprint}}), encoding="utf-8")
             item = {
                 "decision": "approve", "title": "Рабочий процесс", "section": "Процессы",
+                "claim_key": "working-process", "authority": "evo_active_document",
                 "summary": "Внутренний порядок работы.", "facts": ["Порядок описан."],
                 "sources": [source], "reason": "Ясный деловой материал."
             }
             result = reviews / "Пакет 0001.json"
             result.write_text(json.dumps({"items": [item]}, ensure_ascii=False), encoding="utf-8")
-            result.with_suffix(".sha256").write_text("b" * 64, encoding="utf-8")
-            self.assertEqual(publish.main(["--reviews", str(reviews), "--authorized-root", str(root), "--vault", str(vault)]), 0)
+            result.with_suffix(".sha256").write_text(fingerprint, encoding="utf-8")
+            arguments = ["--reviews", str(reviews), "--queue", str(queue), "--authorized-root", str(root), "--vault", str(vault)]
+            self.assertEqual(publish.main(arguments), 0)
             managed = json.loads((vault / ".Манифест публикации Codex.json").read_text(encoding="utf-8"))["files"]
             self.assertEqual(len(managed), 1)
             unmanaged = vault / "Моя ручная заметка.md"
             unmanaged.write_text("Не удалять", encoding="utf-8")
             item["decision"] = "ignore"
             result.write_text(json.dumps({"items": [item]}, ensure_ascii=False), encoding="utf-8")
-            self.assertEqual(publish.main(["--reviews", str(reviews), "--authorized-root", str(root), "--vault", str(vault)]), 0)
+            self.assertEqual(publish.main(arguments), 0)
             self.assertFalse((vault / managed[0]).exists())
             self.assertTrue(unmanaged.exists())
 

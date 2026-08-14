@@ -6502,3 +6502,39 @@ Change type: knowledge publication policy, source precedence and vault lifecycle
 - The real EVO vault is re-published, dashboard counts are regenerated, no
   sensitive queue item is present in AI-approved content, and a final audit
   reports managed counts and remaining decisions.
+
+## 2026-08-15 - Freeze P8D disabled production deployment
+
+Plan Block-ID: `EVO-P8D-DISABLED-PRODUCTION-DEPLOYMENT-2026-08-15`
+
+Issue: #184
+
+Change type: production release authority and execution contract
+
+### Decision
+
+- Accept the owner's 2026-08-15 “do all of it” instruction as action-time
+  approval for P8D's disabled deployment only. It does not approve WhatsApp
+  send, WAHA cutover, customer-content Gemini calls, amoCRM writes, autonomous
+  send, DNS changes, billed resources, production restore or legacy retirement.
+- Preserve P8B application provenance at commit `050514...`, tree `056363...`
+  and the three recorded image IDs. Use current reviewed `main` only as the
+  release-control source. The intervening P8C/CI commits changed no application
+  source, Dockerfile, production Compose/Caddy file, migration or runtime
+  example, so no rebuild or repeated P8C is justified.
+- Deploy only the frozen CRM, Inbox and Lead Agent first-party images. Keep both
+  WAHA containers, the edge Caddy container, DNS, sessions, webhooks and legacy
+  ownership untouched.
+- Freeze Lead Agent with worker, autoreply and outbound disabled; keep Platform
+  ingress and all provider-write/autonomous paths disabled. This is a health and
+  rollback release, not a live provider proof.
+- Treat the already-verified managed migration ledger `001-072` as an expected
+  no-op. Any drift stops P8D; do not repair or push migrations during this
+  release.
+- Require pre-state capture, immutable image transfer/verification, rollback
+  rendering, one-service-at-a-time recreation, disabled-mode health checks and
+  redacted evidence under the exact contract in
+  `docs/platform/p8d-disabled-deployment.md`.
+- Allow a maximum 120-minute action window beginning at the recorded UTC start
+  after this plan merges and exact-main CI is green. Stop or roll back on expiry
+  or any frozen-identity, topology, health, security, privacy or rollback drift.

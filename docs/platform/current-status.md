@@ -1,7 +1,7 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-08-13
+- Snapshot date: 2026-08-15
 - Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 - P2A starting checkpoint: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
 - P2B starting checkpoint: `8ad755b5039390f418dbe12924a806f069f93b53`
@@ -13,10 +13,10 @@
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
 - Current accepted base for this block:
-  `47e2e211ba77d36e3296b12ad0b8087276ca712d`
+`33d745121208bdaf30fceeda25e9c87ab346db8e`
 - Active plan block:
-  `EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13`
-- Active implementation block: `P7B`
+  `EVO-P8D-DISABLED-PRODUCTION-DEPLOYMENT-2026-08-15`
+- Active implementation block: `P8D plan and disabled deployment`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -57,14 +57,15 @@ MVP authority contract, PR #141 merged P5E ACK/session и private Realtime, PR
 P5F1 memory/retrieval, PR #145 merged P5F2 stateless Gemini proposals, а PR
 #146 merged disabled-by-default P5F3 deterministic autonomous replies, PR #147
 merged reviewed P6A-P6D implementation contract, а PRs #148, #149, #152 и #153
-завершили P6A-P6D. PR #154 merged P7 security/reliability contract, а PR #156
-merged P7A safe Admin-only audit search/export. Текущий accepted base —
-`47e2e211ba77d36e3296b12ad0b8087276ca712d`; exact-main CI
-`31688954104` зелёный для Main CRM, EVO Inbox и EVO Lead Agent; Changed range
-ожидаемо skipped на push. Main CRM прошёл PostgreSQL authorization и полный
-disposable Supabase, Storage, PGMQ и browser contract, frontend contracts,
-build, CRM scenarios и audits. Migrations contiguous `001-071`; следующий
-block — P7B private observability/alerts/runbooks.
+завершили P6A-P6D. PR #154 merged P7 security/reliability contract, PR #156
+merged P7A safe Admin-only audit search/export, а последующие принятые блоки
+завершили P7B, focused P7D и P8A-P8C. Текущий accepted base —
+`33d745121208bdaf30fceeda25e9c87ab346db8e`; exact-main CI run
+`31843405338` завершён успешно. Managed
+migration ledger contiguous `001-072` по последнему P8C evidence и повторно
+проверяется непосредственно перед deployment mutation.
+P8C честно зафиксировал production drift без mutations. Следующий block —
+P8D disabled deployment по `docs/platform/p8d-disabled-deployment.md`.
 
 P4B implementation сохранён на remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at

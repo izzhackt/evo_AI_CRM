@@ -2435,3 +2435,26 @@ their own explicit authorization.
   evidence, architecture boundaries and acceptance criteria before merge.
 - No production deployment, provider mutation, database migration, live
   WhatsApp send or amoCRM write occurs in this slice.
+
+## Current P8D Disabled Deployment Slice
+
+Current accepted release-control base:
+`33d745121208bdaf30fceeda25e9c87ab346db8e`. Its exact-main CI run
+`31843405338` completed successfully. P8C reconciled
+the real environments without mutation and retained P8B application provenance at
+`0505143657858e710acdd5029f1cc77c5524083e`.
+
+The owner authorized the P8D disabled deployment on 2026-08-15. The exact
+scope, immutable image IDs, no-op migration rule, disabled flags, 120-minute
+action window, evidence boundary, stop conditions and rollback procedure are
+frozen in `docs/platform/p8d-disabled-deployment.md` under issue #184. P8D may
+deploy only the three first-party candidate images. WAHA/Caddy/DNS, sessions,
+webhooks, provider writes, autonomous send, customer-content Gemini calls,
+amoCRM writes, WhatsApp sends, billed resources, production restore and legacy
+retirement remain outside this authorization.
+
+The current preflight records Inbox WAHA as `SCAN_QR_CODE`, canonical DNS as
+absent, amoCRM credentials as incomplete and the candidate rollback bundle as
+unstaged. P8D must preserve those external blockers truthfully rather than
+silently fixing or relabelling them. The deployment may proceed only after the
+contract PR merges with independent approval and exact-main green CI.

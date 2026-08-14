@@ -6538,3 +6538,40 @@ Change type: production release authority and execution contract
 - Allow a maximum 120-minute action window beginning at the recorded UTC start
   after this plan merges and exact-main CI is green. Stop or roll back on expiry
   or any frozen-identity, topology, health, security, privacy or rollback drift.
+
+## 2026-08-15 - Authorize exact P8D Lead Agent safety correction
+
+Plan Block-ID: `EVO-P8D-LEAD-AGENT-SAFETY-FLAG-CORRECTION-2026-08-15`
+
+Issue: #186
+
+Change type: fail-closed production preflight amendment
+
+### Decision
+
+- Record that the first P8D preflight stopped before production mutation after
+  finding one exact non-secret conflict in `/opt/evo-crm/.env.lead-agent`:
+  `EVO_AGENT_AUTOREPLY_ENABLED=true`. The existing Compose override and running
+  container remain `false`; no message or provider call occurred.
+- Authorize only an atomic correction of that one file assignment from `true`
+  to `false`, after a root-only mode-`0600` rollback copy outside all evidence
+  directories and before/after SHA-256 recording. Preserve root ownership and
+  mode `0600`; redacted evidence retains only an opaque backup identifier,
+  success state and hashes, never file contents. Delete the rollback copy after
+  final success or successful rollback; retain it root-only only while a failed
+  rollback is escalated.
+- Require exactly one active assignment before and after the correction, then
+  require Compose rendering and the recreated container to resolve the value to
+  `false`.
+- Keep every other P8D identity, disabled-setting value, stop condition,
+  provider prohibition, rollback rule and the original 120-minute window
+  unchanged. Any additional conflict requires another reviewed decision.
+- Record the second pre-mutation finding: both distinct private-readiness HMAC
+  settings are absent. Authorize process-only generation on Hermes of exactly
+  two distinct 32-byte random values, stored only under their exact owned names
+  in the CRM and Inbox mode-`0600` env files through atomic same-directory
+  replacement and root-only rollback copies outside evidence.
+- Never print, transmit, reuse or place either secret or its hash in evidence.
+  Redacted proof is limited to presence, 64-character length, distinctness,
+  update status and the env-file before/after hashes. The rollback-copy
+  lifecycle matches the Lead Agent safety correction.

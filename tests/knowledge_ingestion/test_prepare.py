@@ -29,6 +29,8 @@ def load_module(name: str, filename: str):
 
 review = load_module("review", "review.py")
 publish = load_module("knowledge_publish", "publish.py")
+sys.modules["publish"] = publish
+sort_decisions = load_module("knowledge_sort_decisions", "sort_decisions.py")
 
 
 class ClassificationTests(unittest.TestCase):
@@ -168,6 +170,15 @@ class BoundaryTests(unittest.TestCase):
 
 
 class ReviewPublicationTests(unittest.TestCase):
+    def test_decision_categories_keep_sensitive_and_commercial_items_separate(self) -> None:
+        base = {"title": "", "summary": "", "reason": "", "facts": [], "section": "Услуги", "authority": "evo_active_document"}
+        sensitive = {**base, "title": "Анкета заявителя", "reason": "Есть персональные данные"}
+        price = {**base, "title": "Стоимость обучения", "summary": "Указана цена программы"}
+        legal = {**base, "title": "Гарантия визы", "summary": "Обещание клиенту"}
+        self.assertEqual(sort_decisions.category(sensitive), "Исключить из базы ИИ")
+        self.assertEqual(sort_decisions.category(price), "Цены и финансовые условия")
+        self.assertEqual(sort_decisions.category(legal), "Обещания, визы и договоры")
+
     def test_single_source_batch_canonicalizes_a_well_formed_wrong_hash(self) -> None:
         allowed = "a" * 64
         item = {

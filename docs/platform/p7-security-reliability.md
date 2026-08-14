@@ -1,9 +1,9 @@
 # P7 security, reliability and operations contract
 
-Status: authoritative implementation contract; P7A accepted, P7B build
-contract frozen
+Status: authoritative implementation contract; P7A and P7B accepted, P7C
+managed-recovery amendment proposed
 
-Version date: 2026-08-13 (Asia/Bishkek)
+Version date: 2026-08-14 (Asia/Bishkek)
 
 Plan Block-ID: `EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13`
 
@@ -26,19 +26,25 @@ Accepted progress:
   policy as `e4d10b96d0ef4061fdb03ec85430cb65d86e39fd`;
 - exact-main push CI run `31701995589` passed Main CRM, EVO Inbox and EVO Lead
   Agent; Changed range was skipped on the push event as expected;
+- PR #160 merged P7B as
+  `a6077ad6b7642deceead31dd11ed463548216d58`, including migration `072`;
+- exact-main push CI run `31753423736` passed Main CRM, EVO Inbox and EVO Lead
+  Agent; Changed range was skipped on the push event as expected;
 - P7A evidence is repository/disposable-local only. Its runtime remains
   disabled by default, and it proves no managed Supabase, production or
   real-provider behavior;
-- P7B is the next authorized block. P7C follows, while P7D remains blocked
-  until the owner supplies its numeric capacity and human accessibility inputs.
-- the build-ready P7B route, SQL, signal, alert and proof details are frozen in
-  `docs/platform/p7b-observability-contract.md`; its independently reviewed
-  merge is the authority gate for P7B implementation.
+- P7B is accepted. P7C is next, while P7D remains blocked until the owner
+  supplies its numeric capacity and human accessibility inputs;
+- the real managed P7C provider, recovery, legacy-retirement and cost boundary
+  is frozen in `docs/platform/p7c-managed-recovery-contract.md` and tracked by
+  issue #162.
 
 This contract expands the append-only Block-ID above. If wording conflicts,
 `docs/PLAN_CHANGES.md` and `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` take
-precedence. This amendment changes no application code, schema, runtime,
-credential, provider, customer data, managed environment or production state.
+precedence. This documentation change modifies no application code, schema,
+runtime credential or customer data. It records the separately owner-authorized
+completed organization transfer and display-name change described by the P7C
+contract.
 
 ## Outcome and sequence
 
@@ -49,7 +55,8 @@ only as:
 1. `P7-PLAN` - this reviewed docs-only authority gate;
 2. `P7A` - safe Admin-only Platform audit search/export;
 3. `P7B` - private structured observability, alert evaluation and runbooks;
-4. `P7C` - isolated database restore plus a separate private Storage restore;
+4. `P7C` - managed database restore plus a separate private Storage restore,
+   Platform schema-promotion proof and gated legacy-project retirement;
 5. `P7D` - owner-approved-capacity load evidence and automated plus human
    accessibility closure.
 
@@ -65,7 +72,9 @@ as blocked or deferred.
   production, real-provider or customer-data proof.
 - No P7 block authorizes production deployment/migration, DNS, WAHA session or
   QR mutation, live WhatsApp send, amoCRM write, broad outbound automation,
-  service deletion, retention deletion or destructive production restore.
+  retention deletion or destructive production restore. The exact P7C managed
+  project operations and legacy-retirement gates are the only superseding
+  provider/service exception.
 - Lead Agent and the rollback path remain deployed/frozen. P4B mapping
   activation and writes remain deferred.
 - DEC-009, DEC-010, DEC-012 and DEC-017 remain open. Work may proceed around
@@ -171,34 +180,36 @@ base row contains private `actor_principal`, raw `before_state`, raw
 - Compose/Caddy tests prove private networks, no published WAHA/Lead Agent port,
   and bounded resources/logging.
 
-## P7C - isolated database and separate Storage restore
+## P7C - managed recovery, Platform promotion and legacy retirement
 
 ### Required implementation
 
-- Use two distinctly named, empty, disposable loopback Supabase environments
-  and synthetic data only. Refuse non-loopback, identical source/destination,
-  non-empty unowned destination, production markers and destructive cleanup.
-- Create a PostgreSQL archive/manifest separately from a private Storage-object
-  archive/manifest. Each manifest records schema/version, count/size, SHA-256,
-  exact source/destination identity and measured timestamps, never credentials
-  or object contents.
-- Restore PostgreSQL into the empty destination. Restore private Storage bytes
-  through supported Storage APIs, never by writing Storage catalog tables.
-- Keep artifacts in an exact per-run `0700` location using an encrypted
-  mechanism with an ephemeral test key. Managed key ownership remains blocked.
-- Cleanup removes exact drill-owned resources/artifacts only.
+- Follow `docs/platform/p7c-managed-recovery-contract.md` and issue #162.
+- Use the real managed source, encrypted PostgreSQL export and separate Storage
+  manifest. Restore only into a newly created, distinctly named, empty managed
+  recovery project in the approved Pro organization and Singapore region.
+- Keep the source project reference/region/credentials stable. The completed
+  display-name and organization transfer is not a database migration.
+- Prove current managed migration `039` compatibility and repository migrations
+  through `072` on the recovery destination before seeking production migration
+  authority.
+- Retire `inbox-prod` only after its live consumer and required data are moved,
+  real workflows and rollback pass, 72 consecutive hours show zero legacy
+  traffic, and the owner reconfirms permanent deletion at action time.
 
 ### Required acceptance
 
-- Destination migration/schema state, synthetic Auth actors, tenant/object
-  isolation, append-only audit history and representative P5-P6 records match.
-- Private document/media counts, sizes and byte SHA-256 values match;
-  authorized reads work and cross-user/cross-organization reads fail.
-- Database and Storage produce separate reports. Measured duration/data-loss
-  window are observations, not approved RPO/RTO.
+- Destination schema, migration history, safe aggregate counts, Auth identity
+  counts, RLS/grants and required application reads match the source contract
+  without exposing customer values.
+- Database and Storage produce separate reports and encrypted artifact/manifest
+  hashes. The current zero-object Storage result does not claim non-empty byte
+  recovery.
+- Managed restore duration/data-loss-window observations are not an approved
+  RPO/RTO or PITR claim.
 - Absent, corrupt, partial or wrong-destination artifacts fail closed.
-- Managed Supabase/PITR and S3/versioning/deleted-object recovery remain blocked
-  without separately approved projects, buckets and credentials.
+- Production migration, PITR, non-empty Storage recovery and legacy deletion
+  remain blocked until their exact contract prerequisites pass.
 
 ## P7D - capacity and accessibility closure
 

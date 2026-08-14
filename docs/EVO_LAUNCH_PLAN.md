@@ -19,10 +19,11 @@ default P5F3 deterministic autonomous inbound-reply lane, and PR #147 merged
 the reviewed P6A-P6D implementation contract. PRs #148, #149, #152 and #153
 then merged P6A read-only attention, P6B durable Student Portal notifications,
 P6C overdue-transition publication and P6D cross-domain Student 360 closure.
-PR #154 merged the P7 security/reliability contract and PR #156 merged P7A
-safe Admin-only audit search/export. Current `origin/main` is
-`e4d10b96d0ef4061fdb03ec85430cb65d86e39fd`, migrations remain contiguous
-`001-071`, and exact-main push CI run `31701995589` is green for Main CRM,
+PR #154 merged the P7 security/reliability contract, PR #156 merged P7A safe
+Admin-only audit search/export, PR #157 refreshed accepted status and the
+OrbStack-only rule, and PR #160 merged P7B private observability. Current
+`origin/main` is `a6077ad6b7642deceead31dd11ed463548216d58`, migrations remain
+contiguous `001-072`, and exact-main push CI run `31753423736` is green for Main CRM,
 EVO Inbox and EVO Lead Agent; Changed range is skipped on the push event as
 expected.
 
@@ -36,11 +37,10 @@ a bounded read-mostly P4R lane after the messaging foundation. P9 remains
 removed. Lead Agent, the legacy webhook/session path and rollback path remain
 deployed/frozen. P5A-P5F3 and P4R1 are merged without real-provider proof. The
 completed P6A-P6D evidence is synthetic/local and authorizes no managed or
-production claim. P7A is also repository/local evidence only, remains disabled
-by default and authorizes no managed or production claim. The active
-implementation step is P7B private observability/alerts/runbooks under the
-already merged P7 contract; P7C follows, while P7D remains gated by approved
-capacity and human accessibility inputs. Updated 2026-08-13 in the workspace
+production claim. P7A and P7B are repository/local evidence only and remain
+disabled by default. The active step is the P7C managed-recovery authority gate
+in `docs/platform/p7c-managed-recovery-contract.md`; P7D remains gated by
+approved capacity and human accessibility inputs. Updated 2026-08-14 in the workspace
 timezone.
 
 This document is the execution contract for the current EVO Platform MVP lane in
@@ -65,12 +65,12 @@ slice. The superseding rule is:
 
 ## Current Goal Slice
 
-Active implementation slice: `P7B` under merged Block
-`EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13` and companion contract
-`docs/platform/p7b-observability-contract.md`. P6A-P6D and P7A are merged,
-and PR #157 plus exact-main run `31701995589` are green. P7 continues
-sequentially as P7B private observability/alerts/runbooks, P7C isolated database
-plus separate private Storage restore, and gated P7D approved-capacity load plus
+Active implementation slice: P7C docs-only authority gate
+`EVO-P7C-MANAGED-RECOVERY-2026-08-14` under the merged P7 contract and
+`docs/platform/p7c-managed-recovery-contract.md`. P6A-P6D, P7A and P7B are
+merged, and exact-main run `31753423736` is green. P7 continues as P7C managed
+database plus separate private Storage recovery, Platform schema-promotion proof
+and gated legacy retirement, followed by P7D approved-capacity load plus
 automated and human accessibility closure. Each block still requires its own
 fresh exact-head review, exact-head CI, exact-base recheck, reviewed merge and
 green exact-main push CI. No P7 block inherits managed, provider or production
@@ -135,10 +135,10 @@ checkpoint is:
   Realtime, PR #142 merged bounded P4R1 read-only canonical amoCRM context,
   PRs #144-#146 merged P5F1-P5F3, PR #147 merged the P6A-P6D contract,
   and PRs #148/#149/#152/#153 completed P6A-P6D. PR #154 merged the P7
-  contract and PR #156 completed P7A; PR #157 refreshed the accepted status
-  and OrbStack-only rule. Current `origin/main` is
-  `e4d10b96d0ef4061fdb03ec85430cb65d86e39fd`. Exact-main push CI
-  `31701995589` is green, and migrations end at `071`.
+  contract, PR #156 completed P7A, PR #157 refreshed the accepted status and
+  OrbStack-only rule, and PR #160 completed P7B. Current `origin/main` is
+  `a6077ad6b7642deceead31dd11ed463548216d58`. Exact-main push CI
+  `31753423736` is green, and migrations end at `072`.
 - P4B implementation is preserved on remote branch
   `izzhackt/evo-platform-p4b-mapping-approval` at
   `e53ba94954f147b295f596421a255591fa343ce8`, with no implementation PR.
@@ -182,17 +182,18 @@ checkpoint is:
 ### Immediate execution order
 
 0. PRs #148, #149, #152 and #153 completed P6A-P6D, PR #154 merged the P7
-   contract, PR #156 completed P7A and PR #157 refreshed accepted status plus
-   the OrbStack-only rule. Current main is
-   `e4d10b96d0ef4061fdb03ec85430cb65d86e39fd`, migrations end at `071`,
-   and exact-main push run `31701995589` is green. Preserve this accepted
+   contract, PR #156 completed P7A, PR #157 refreshed accepted status plus the
+   OrbStack-only rule, and PR #160 completed P7B. Current main is
+   `a6077ad6b7642deceead31dd11ed463548216d58`, migrations end at `072`,
+   and exact-main push run `31753423736` is green. Preserve this accepted
    repository/local evidence and its non-production truth boundary.
 1. Preserve P4B at
    `izzhackt/evo-platform-p4b-mapping-approval` / `e53ba94954f147b295f596421a255591fa343ce8`.
    Keep mapping activation and writes deferred. Merged P4R1 remains bounded
    read-only context without provider proof or mutation authority.
-2. Implement P7B private observability/runbooks next, then P7C isolated
-   database plus separate Storage restore. Preserve P7A's safe projection and
+2. Merge the P7C managed-recovery authority gate, then implement encrypted
+   database plus separate Storage recovery, managed schema-promotion proof and
+   gated `inbox-prod` retirement. Preserve P7A's safe projection and
    never restore direct browser audit-table access, copy the legacy SQLite
    audit feed or expose raw audit JSON.
 3. Start P7D only after the owner approves a numeric capacity profile and a
@@ -220,16 +221,18 @@ P7 section of `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, expanded by
 audit-table access and connects the accepted Platform Settings surface to a
 safe, bounded, replay-aware Supabase audit projection/export. P7B keeps
 readiness, metrics, internal routes and Lead Agent operational surfaces private.
-P7C proves database and Storage recovery separately in disposable loopback
-environments with synthetic data. P7D is the only load/accessibility completion
-gate and remains blocked until its numeric and human-review inputs exist.
+P7C follows `docs/platform/p7c-managed-recovery-contract.md`: it uses the real
+managed source, a newly owned empty managed destination, encrypted database and
+separate Storage evidence, and a deletion gate for `inbox-prod`. P7D is the only
+load/accessibility completion gate and remains blocked until its numeric and
+human-review inputs exist.
 
-No P7 block authorizes managed Supabase mutation, production backup/restore,
-public metrics, provider calls, customer data, live sends, amoCRM writes,
-retention deletion, service retirement or deployment. DEC-009, DEC-010,
-DEC-012 and DEC-017 remain explicit external gates. P8 remains blocked until
-P7D completes and every unavailable managed, provider and production segment
-is recorded as blocked/deferred.
+No P7 block authorizes public metrics, provider calls, customer-data exposure,
+live sends, amoCRM writes, retention deletion or deployment. Only the exact
+managed Supabase operations and retirement gates in the P7C contract supersede
+the earlier blanket provider/service prohibition. Production migration,
+destructive restore and deletion still require their action-time gates. P8
+remains blocked until P7D completes and unavailable evidence is recorded.
 
 ### P5B authority and rollback contract
 
@@ -437,8 +440,8 @@ authority gate after merged P4R1. It preserves the accepted Claude Design
 frontend as the sole UI contract, keeps P4B activation/writes deferred, keeps
 P9 removed, and retains Lead Agent plus the legacy rollback path as
 deployed/frozen. Its P5F1-P5F3 implementation slices are merged, and P6A-P6D
-are now complete. P7-PLAN and P7A are also complete. The active plan group is
-P7B followed by P7C, gated P7D, narrowed P8 and P10.
+are now complete. P7-PLAN, P7A and P7B are also complete. The active plan group
+is P7C, gated P7D, narrowed P8 and P10.
 
 P5F SHALL be implemented in three independently reviewed slices:
 

@@ -26,7 +26,7 @@ def load_module(name: str, filename: str):
     return module
 
 
-review = load_module("knowledge_review", "review.py")
+review = load_module("review", "review.py")
 publish = load_module("knowledge_publish", "publish.py")
 
 
@@ -171,14 +171,68 @@ class ReviewPublicationTests(unittest.TestCase):
             review.validate_result(data, {"b" * 64})
 
     def test_material_claim_is_forced_to_escalation(self) -> None:
-        item = {"title": "Гарантия визы", "summary": "", "facts": []}
-        self.assertTrue(publish.material(item))
+        for title in ("Гарантия визы", "Visa guarantee", "Тариф и оплата", "Refund", "Контракт"):
+            with self.subTest(title=title):
+                item = {"title": title, "summary": "", "facts": []}
+                self.assertTrue(publish.material(item))
 
     def test_escalated_note_is_not_marked_approved(self) -> None:
         item = {"title": "Вопрос", "summary": "Нужно решение", "facts": [], "sources": ["a" * 64]}
         text = publish.render(item, "требует_решения")
         self.assertIn("статус: требует_решения", text)
         self.assertNotIn("статус: утверждено_для_внутреннего_ИИ", text)
+
+    def test_api_credentials_are_removed_from_codex_environment(self) -> None:
+        original = dict(review.os.environ)
+        try:
+            review.os.environ["OPENAI_API_KEY"] = "must-not-pass"
+            review.os.environ["SOME_PROVIDER_TOKEN"] = "must-not-pass"
+            environment = review.codex_environment()
+            self.assertNotIn("OPENAI_API_KEY", environment)
+            self.assertNotIn("SOME_PROVIDER_TOKEN", environment)
+        finally:
+            review.os.environ.clear()
+            review.os.environ.update(original)
+
+    def test_client_vault_boundary_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "Клиентская база знаний ЭВО"
+            vault = root / "Утверждено для внутреннего ИИ"
+            with self.assertRaises(ValueError):
+                publish.validate_internal_vault(vault, root)
+
+    def test_internal_vault_boundary_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "Внутренняя база знаний ЭВО"
+            vault = root / "Утверждено для внутреннего ИИ"
+            publish.validate_internal_vault(vault, root)
+
+    def test_publication_removes_only_stale_managed_note(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            reviews = base / "reviews"
+            reviews.mkdir()
+            root = base / "Внутренняя база знаний ЭВО"
+            vault = root / "Утверждено для внутреннего ИИ"
+            source = "a" * 64
+            item = {
+                "decision": "approve", "title": "Рабочий процесс", "section": "Процессы",
+                "summary": "Внутренний порядок работы.", "facts": ["Порядок описан."],
+                "sources": [source], "reason": "Ясный деловой материал."
+            }
+            result = reviews / "Пакет 0001.json"
+            result.write_text(json.dumps({"items": [item]}, ensure_ascii=False), encoding="utf-8")
+            result.with_suffix(".sha256").write_text("b" * 64, encoding="utf-8")
+            self.assertEqual(publish.main(["--reviews", str(reviews), "--authorized-root", str(root), "--vault", str(vault)]), 0)
+            managed = json.loads((vault / ".Манифест публикации Codex.json").read_text(encoding="utf-8"))["files"]
+            self.assertEqual(len(managed), 1)
+            unmanaged = vault / "Моя ручная заметка.md"
+            unmanaged.write_text("Не удалять", encoding="utf-8")
+            item["decision"] = "ignore"
+            result.write_text(json.dumps({"items": [item]}, ensure_ascii=False), encoding="utf-8")
+            self.assertEqual(publish.main(["--reviews", str(reviews), "--authorized-root", str(root), "--vault", str(vault)]), 0)
+            self.assertFalse((vault / managed[0]).exists())
+            self.assertTrue(unmanaged.exists())
 
 
 if __name__ == "__main__":

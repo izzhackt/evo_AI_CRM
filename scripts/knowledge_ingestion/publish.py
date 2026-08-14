@@ -10,7 +10,9 @@ import re
 import sys
 from pathlib import Path
 
-MATERIAL = ("гарант", "возврат", "цена", "стоимост", "договор", "обязательств", "виза", "пароль", "токен", "секрет")
+from review import validate_result
+
+MATERIAL = ("гарант", "guarantee", "возврат", "refund", "цена", "стоимост", "тариф", "оплат", "договор", "контракт", "contract", "обязательств", "виза", "visa", "пароль", "токен", "секрет")
 
 
 def safe_name(value: str) -> str:
@@ -21,6 +23,11 @@ def safe_name(value: str) -> str:
 def material(item: dict) -> bool:
     text = " ".join([item.get("title", ""), item.get("summary", ""), *item.get("facts", [])]).casefold()
     return any(word in text for word in MATERIAL)
+
+
+def validate_internal_vault(vault: Path, root: Path) -> None:
+    if root.name != "Внутренняя база знаний ЭВО" or vault.name != "Утверждено для внутреннего ИИ" or root not in vault.parents:
+        raise ValueError("публикация разрешена только в 'Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ'")
 
 
 def render(item: dict, status: str) -> str:
@@ -46,29 +53,53 @@ def main(argv: list[str] | None = None) -> int:
         root = args.authorized_root.expanduser().resolve()
         if not reviews.is_dir():
             raise FileNotFoundError(f"результаты проверки не найдены: {reviews}")
-        if vault == root or root not in vault.parents:
-            raise ValueError(f"vault должен находиться внутри разрешённого корня: {root}")
+        validate_internal_vault(vault, root)
         approved = escalated = ignored = 0
         escalation = vault / "Требует решения"
+        all_items: list[dict] = []
         for review in sorted(reviews.glob("Пакет *.json")):
-            data = json.loads(review.read_text(encoding="utf-8"))
-            for item in data.get("items", []):
-                decision = item.get("decision")
-                if decision == "ignore":
-                    ignored += 1
-                    continue
-                if decision != "approve" or material(item):
-                    target_dir = escalation
-                    status = "требует_решения"
-                    escalated += 1
-                else:
-                    target_dir = vault / safe_name(item.get("section", "Неопределенное"))
-                    status = "утверждено_для_внутреннего_ИИ"
-                    approved += 1
-                identity = hashlib.sha256((item.get("title", "") + "\n" + "\n".join(sorted(item.get("sources", [])))).encode()).hexdigest()[:12]
-                target_dir.mkdir(parents=True, exist_ok=True)
-                target = target_dir / f"{safe_name(item.get('title', 'Без названия'))} — {identity}.md"
-                target.write_text(render(item, status), encoding="utf-8")
+            if not review.with_suffix(".sha256").is_file():
+                raise ValueError(f"у результата нет fingerprint проверенного пакета: {review.name}")
+            data = validate_result(json.loads(review.read_text(encoding="utf-8")))
+            all_items.extend(data["items"])
+        claim_groups: dict[str, set[str]] = {}
+        for item in all_items:
+            key = item["section"].casefold()
+            content = f"{item['summary'].strip()}::{json.dumps(item['facts'], ensure_ascii=False, sort_keys=True)}"
+            claim_groups.setdefault(key, set()).add(content)
+        manifest_path = vault / ".Манифест публикации Codex.json"
+        previous_paths: set[str] = set()
+        if manifest_path.is_file():
+            previous = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if not isinstance(previous, dict) or not isinstance(previous.get("files"), list):
+                raise ValueError("повреждён манифест публикации Codex")
+            previous_paths = {value for value in previous["files"] if isinstance(value, str)}
+        current_paths: set[str] = set()
+        for item in all_items:
+            decision = item.get("decision")
+            if decision == "ignore":
+                ignored += 1
+                continue
+            conflict_key = item["section"].casefold()
+            if decision != "approve" or material(item) or len(claim_groups[conflict_key]) > 1:
+                target_dir = escalation
+                status = "требует_решения"
+                escalated += 1
+            else:
+                target_dir = vault / safe_name(item.get("section", "Неопределенное"))
+                status = "утверждено_для_внутреннего_ИИ"
+                approved += 1
+            identity = hashlib.sha256((item.get("title", "") + "\n" + "\n".join(sorted(item.get("sources", [])))).encode()).hexdigest()[:12]
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target = target_dir / f"{safe_name(item.get('title', 'Без названия'))} — {identity}.md"
+            target.write_text(render(item, status), encoding="utf-8")
+            current_paths.add(str(target.relative_to(vault)))
+        for relative in previous_paths - current_paths:
+            stale = (vault / relative).resolve()
+            if vault in stale.parents and stale.is_file():
+                stale.unlink()
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(json.dumps({"files": sorted(current_paths)}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(json.dumps({"утверждено": approved, "требует_решения": escalated, "игнорировано": ignored}, ensure_ascii=False))
         return 0
     except (FileNotFoundError, ValueError, json.JSONDecodeError) as error:

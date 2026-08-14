@@ -168,6 +168,12 @@ class BoundaryTests(unittest.TestCase):
 
 
 class ReviewPublicationTests(unittest.TestCase):
+    def test_phone_detection_allows_dates_but_rejects_real_numbers(self) -> None:
+        self.assertFalse(review.contains_phone("Документ действует с 14.08.2026 и имеет код 1234-5678."))
+        self.assertTrue(review.contains_phone("Контакт: +996 555 123 456"))
+        self.assertTrue(review.contains_phone("Контакт: 0555 123 456"))
+        self.assertTrue(review.contains_phone("Идентификатор: 1234567890123456"))
+
     def test_review_timeout_retries_then_fails_closed_and_cleans_up(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "Внутренняя база знаний ЭВО" / "Входящие кандидаты"

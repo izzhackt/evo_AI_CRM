@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8c-environment-reconciliation.schema.json",
+  "title": "EVO P8C environment reconciliation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["candidate", "generated_at", "overall_status", "schema_version", "segments"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "overall_status": { "enum": ["verified", "blocked", "deferred"] },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image_digests", "merged_main_commit", "merged_main_tree", "p8b_evidence_index_sha256", "pr_head_commit", "pr_head_tree", "pr_number", "trees_equal"],
+      "properties": {
+        "pr_number": { "type": "integer", "minimum": 1 },
+        "pr_head_commit": { "$ref": "#/$defs/git_sha" },
+        "merged_main_commit": { "$ref": "#/$defs/git_sha" },
+        "pr_head_tree": { "$ref": "#/$defs/git_sha" },
+        "merged_main_tree": { "$ref": "#/$defs/git_sha" },
+        "p8b_evidence_index_sha256": { "$ref": "#/$defs/sha256" },
+        "image_digests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["evo_inbox", "lead_agent", "main_crm"],
+          "properties": {
+            "main_crm": { "$ref": "#/$defs/digest" },
+            "evo_inbox": { "$ref": "#/$defs/digest" },
+            "lead_agent": { "$ref": "#/$defs/digest" }
+          }
+        },
+        "trees_equal": { "const": true }
+      }
+    },
+    "segments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["amocrm", "gemini", "github", "hermes", "managed_supabase", "rollback", "waha"],
+      "properties": {
+        "github": { "$ref": "#/$defs/segment" },
+        "hermes": { "$ref": "#/$defs/segment" },
+        "managed_supabase": { "$ref": "#/$defs/segment" },
+        "waha": { "$ref": "#/$defs/segment" },
+        "amocrm": { "$ref": "#/$defs/segment" },
+        "gemini": { "$ref": "#/$defs/segment" },
+        "rollback": { "$ref": "#/$defs/segment" }
+      }
+    }
+  },
+  "$defs": {
+    "git_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence", "observed_at", "operation", "result_code", "status"],
+      "properties": {
+        "status": { "enum": ["verified", "blocked", "deferred", "not_applicable"] },
+        "observed_at": { "type": "string", "format": "date-time" },
+        "operation": { "type": "string", "minLength": 1 },
+        "result_code": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "sha256"],
+          "properties": {
+            "path": { "type": "string", "pattern": "^[a-z0-9-]+\\.json$" },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      }
+    }
+  }
+}

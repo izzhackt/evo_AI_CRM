@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -167,6 +168,47 @@ class BoundaryTests(unittest.TestCase):
 
 
 class ReviewPublicationTests(unittest.TestCase):
+    def test_review_timeout_retries_then_fails_closed_and_cleans_up(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "Внутренняя база знаний ЭВО" / "Входящие кандидаты"
+            pipeline = root / "Конвейер импорта"
+            queue = pipeline / "Очередь проверки Codex"
+            output = root / "Результаты проверки Codex"
+            queue.mkdir(parents=True)
+            source = "a" * 64
+            batch = queue / "Пакет 0001.md"
+            batch.write_text(f"## {source}\n\nРабочий материал", encoding="utf-8")
+            (pipeline / "Манифест источников.jsonl").write_text(
+                json.dumps({"sha256": source, "classification": "деловой_материал", "extraction_status": "извлечено"}) + "\n",
+                encoding="utf-8",
+            )
+            (pipeline / "Манифест пакетов Codex.json").write_text(
+                json.dumps({"version": prepare.VERSION, "batches": {batch.name: prepare.sha256_file(batch)}}),
+                encoding="utf-8",
+            )
+            temporary_paths: list[Path] = []
+            original_named_temporary_file = tempfile.NamedTemporaryFile
+
+            def tracked_temporary_file(*args, **kwargs):
+                handle = original_named_temporary_file(*args, **kwargs)
+                temporary_paths.append(Path(handle.name))
+                return handle
+
+            timeout = review.subprocess.TimeoutExpired(cmd=["codex", "exec"], timeout=1)
+            arguments = [
+                "--queue", str(queue), "--output", str(output), "--authorized-root", str(root),
+                "--max-attempts", "2", "--timeout-seconds", "1",
+            ]
+            with mock.patch.object(review.shutil, "which", return_value="/usr/bin/codex"), \
+                 mock.patch.object(review.tempfile, "NamedTemporaryFile", side_effect=tracked_temporary_file), \
+                 mock.patch.object(review.subprocess, "run", side_effect=timeout) as run:
+                self.assertEqual(review.main(arguments), 2)
+
+            self.assertEqual(run.call_count, 2)
+            self.assertTrue(all(not path.exists() for path in temporary_paths))
+            self.assertFalse((output / "Пакет 0001.json").exists())
+            self.assertFalse((output / "Пакет 0001.sha256").exists())
+
     def test_review_rejects_source_outside_current_batch(self) -> None:
         source = "a" * 64
         data = {"items": [{"decision": "approve", "sources": [source]}]}

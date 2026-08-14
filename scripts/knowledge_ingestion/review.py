@@ -122,6 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--authorized-root", type=Path, required=True)
     parser.add_argument("--limit", type=int, help="максимум новых пакетов за запуск")
     parser.add_argument("--max-attempts", type=int, default=2, choices=range(1, 4), help="1-3 попытки строгой проверки пакета")
+    parser.add_argument("--timeout-seconds", type=int, default=600, help="лимит времени одной попытки Codex")
     args = parser.parse_args(argv)
     try:
         queue = args.queue.expanduser().resolve()
@@ -161,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     command = [codex, "exec", "--ephemeral", "--ignore-user-config", "--sandbox", "read-only", "--skip-git-repo-check", "--output-schema", str(SCHEMA), "--output-last-message", str(temp), "-"]
                     allowed_line = "Разрешённые SHA-256: " + ", ".join(sorted(allowed_sources))
-                    result = subprocess.run(command, input=PROMPT + "\n" + allowed_line + "\n\n" + batch_text, text=True, capture_output=True, check=False, env=codex_environment())
+                    result = subprocess.run(command, input=PROMPT + "\n" + allowed_line + "\n\n" + batch_text, text=True, capture_output=True, check=False, env=codex_environment(), timeout=args.timeout_seconds)
                     if result.returncode:
                         raise RuntimeError(f"Codex завершился с кодом {result.returncode}: {result.stderr[-1000:]}")
                     data = validate_result(json.loads(temp.read_text(encoding="utf-8")), allowed_sources)
@@ -170,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
                     processed += 1
                     last_error = None
                     break
-                except (RuntimeError, ValueError, json.JSONDecodeError) as error:
+                except (RuntimeError, ValueError, json.JSONDecodeError, subprocess.TimeoutExpired) as error:
                     last_error = error
                 finally:
                     temp.unlink(missing_ok=True)

@@ -48,6 +48,17 @@ def render(item: dict, status: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def conflict_blocks(item: dict, all_items: list[dict]) -> bool:
+    item_content = f"{item['summary'].strip()}::{json.dumps(item['facts'], ensure_ascii=False, sort_keys=True)}"
+    competing = [
+        candidate for candidate in all_items
+        if candidate.get("decision") != "ignore"
+        and candidate["claim_key"] == item["claim_key"]
+        and f"{candidate['summary'].strip()}::{json.dumps(candidate['facts'], ensure_ascii=False, sort_keys=True)}" != item_content
+    ]
+    return any(AUTHORITY[candidate["authority"]] >= AUTHORITY[item["authority"]] for candidate in competing)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Опубликовать одобренные русские заметки во внутренний Obsidian vault.")
     parser.add_argument("--reviews", type=Path, required=True)
@@ -84,11 +95,6 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError(f"пакет содержит запрещённый источник: {batch_name}")
             data = validate_result(json.loads(review.read_text(encoding="utf-8")), batch_sources)
             all_items.extend(data["items"])
-        claim_groups: dict[str, set[str]] = {}
-        for item in all_items:
-            key = item["claim_key"]
-            content = f"{item['summary'].strip()}::{json.dumps(item['facts'], ensure_ascii=False, sort_keys=True)}"
-            claim_groups.setdefault(key, set()).add(content)
         manifest_path = vault / ".Манифест публикации Codex.json"
         previous_paths: set[str] = set()
         if manifest_path.is_file():
@@ -102,11 +108,7 @@ def main(argv: list[str] | None = None) -> int:
             if decision == "ignore":
                 ignored += 1
                 continue
-            conflict_key = item["claim_key"]
-            group_items = [candidate for candidate in all_items if candidate.get("decision") == "approve" and candidate["claim_key"] == conflict_key]
-            max_authority = max((AUTHORITY[candidate["authority"]] for candidate in group_items), default=-1)
-            highest = [candidate for candidate in group_items if AUTHORITY[candidate["authority"]] == max_authority]
-            unresolved_conflict = len(claim_groups[conflict_key]) > 1 and (len(highest) != 1 or item is not highest[0])
+            unresolved_conflict = conflict_blocks(item, all_items)
             if decision != "approve" or material(item) or unresolved_conflict:
                 target_dir = escalation
                 status = "требует_решения"

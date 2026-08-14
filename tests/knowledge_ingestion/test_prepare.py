@@ -262,6 +262,19 @@ class ReviewPublicationTests(unittest.TestCase):
             self.assertFalse((vault / managed[0]).exists())
             self.assertTrue(unmanaged.exists())
 
+    def test_higher_authority_escalation_blocks_lower_approval(self) -> None:
+        low = {
+            "decision": "approve", "claim_key": "country-deadline", "authority": "legacy_or_unknown",
+            "title": "Срок подачи", "section": "Страны", "summary": "Срок A", "facts": ["A"],
+            "sources": ["a" * 64], "reason": "Старый документ"
+        }
+        high = {
+            "decision": "escalate", "claim_key": "country-deadline", "authority": "owner_director",
+            "title": "Срок подачи", "section": "Страны", "summary": "Срок B", "facts": ["B"],
+            "sources": ["b" * 64], "reason": "Нужно подтверждение"
+        }
+        self.assertTrue(publish.conflict_blocks(low, [low, high]))
+
 
 if __name__ == "__main__":
     unittest.main()

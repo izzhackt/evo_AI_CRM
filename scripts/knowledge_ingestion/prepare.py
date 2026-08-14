@@ -39,6 +39,9 @@ SENSITIVE_WORDS = (
     "медицин", "photo", "фото", "visa", "виза", "affidavit", "нотари",
     "свидетельств", "certificate", "сертификат", "credit", "кредит",
     "bank", "банк", "payment", "оплат", "чек", "emgs",
+    "student", "студент", "client", "клиент", "applicant", "заявител",
+    "ученик", "лид", "lead", "cv", "resume", "резюме", "recommend",
+    "рекоменд", "motivation", "мотивац", "toefl", "ielts", "duolingo",
 )
 SECRET_WORDS = (
     "доступ", "credential", "password", "пароль", "secret", "token",
@@ -106,7 +109,21 @@ def classify(name_and_path: str) -> tuple[str, str | None]:
         return "чувствительные_данные_заявителя", "название или путь указывает на личные документы"
     if contains_word(name_and_path, ("договор", "contract")) and not contains_word(name_and_path, GENERIC_CONTRACT_WORDS):
         return "чувствительные_данные_заявителя", "возможный индивидуальный договор без признака шаблона"
+    stem = Path(name_and_path).stem
+    titled_words = re.findall(r"(?u)(?:^|[\s_()-])([A-ZА-ЯЁ][a-zа-яё]{2,})(?=$|[\s_().-])", stem)
+    if len(titled_words) >= 2:
+        return "чувствительные_данные_заявителя", "название похоже на ФИО заявителя"
     return "деловой_материал", None
+
+
+def body_is_sensitive(value: str) -> bool:
+    return contains_word(value, SENSITIVE_WORDS) or bool(
+        re.search(r"(?iu)\b(?:passport|паспорт|personal id|дата рождения|date of birth|address|адрес)\b", value)
+    )
+
+
+def gmail_labels_excluded(labels: str) -> bool:
+    return bool({normalized(item.strip()) for item in labels.split(",")} & SPAM_LABELS)
 
 
 def safe_decode(value: str | None) -> str:
@@ -260,14 +277,20 @@ class Pipeline:
     def add_record(self, record: Record, text: str | None = None) -> None:
         existing = self.records.get(record.sha256)
         if existing:
+            locations = list(existing.source_paths)
             for location in record.source_paths:
-                if location not in existing.source_paths:
-                    existing.source_paths.append(location)
-            if record.classification in {"секреты_и_доступы", "чувствительные_данные_заявителя"} and existing.classification == "деловой_материал":
-                existing.classification = record.classification
+                if location not in locations:
+                    locations.append(location)
+            priority = {"исключено_корзина": 0, "исключено_спам_или_корзина": 0, "деловой_материал": 1, "чувствительные_данные_заявителя": 2, "секреты_и_доступы": 3}
+            if priority.get(record.classification, 0) > priority.get(existing.classification, 0):
+                record.source_paths = locations
+                self.records[record.sha256] = record
+                existing = record
+            else:
+                existing.source_paths = locations
+            if existing.classification in {"секреты_и_доступы", "чувствительные_данные_заявителя"}:
                 existing.extraction_status = "только_метаданные"
                 existing.extracted_path = None
-                existing.reason = record.reason
                 (self.extracted / f"{record.sha256}.txt").unlink(missing_ok=True)
                 self.completed.pop(record.sha256, None)
             self.stats["дубликаты"] += 1
@@ -338,8 +361,7 @@ class Pipeline:
             labels = safe_decode(message.get("X-Gmail-Labels"))
             subject = safe_decode(message.get("Subject"))
             source = f"{path.name}#сообщение-{index + 1}"
-            label_set = {normalized(item.strip()) for item in labels.split(",")}
-            if label_set & SPAM_LABELS:
+            if gmail_labels_excluded(labels):
                 self.stats["исключено"] += 1
                 self.add_record(Record(digest, "gmail", [source], len(raw), None, "исключено_спам_или_корзина", "не_извлекалось", "message/rfc822", reason="метка Gmail Spam/Trash"))
                 continue
@@ -354,7 +376,14 @@ class Pipeline:
                 self.add_record(Record(digest, "gmail", [source], len(raw), None, classification, "извлечено", "message/rfc822", str(target.relative_to(self.output)), metadata=metadata))
             else:
                 try:
-                    text = redact_review_text(extract_message_text(message))
+                    raw_text = extract_message_text(message)
+                    if body_is_sensitive(raw_text):
+                        self.stats["чувствительное"] += 1
+                        self.completed.pop(digest, None)
+                        target.unlink(missing_ok=True)
+                        self.add_record(Record(digest, "gmail", [source], len(raw), None, "чувствительные_данные_заявителя", "только_метаданные", "message/rfc822", reason="тело письма содержит признаки данных заявителя", metadata=metadata))
+                        continue
+                    text = redact_review_text(raw_text)
                     if not text:
                         self.completed[digest] = "нет_текстового_содержимого"
                         self.add_record(Record(digest, "gmail", [source], len(raw), None, classification, "нет_текстового_содержимого", "message/rfc822", reason="сообщение не содержит поддерживаемого текста", metadata=metadata))
@@ -417,8 +446,9 @@ class Pipeline:
         self.batches.mkdir(parents=True, exist_ok=True)
         for old in self.batches.glob("Пакет *.md"):
             old.unlink()
+        header = self._batch_header()
         batch: list[str] = []
-        chars = 0
+        chars = len(header)
         number = 1
         review_items: list[tuple[Record, str]] = []
         for record in self.records.values():
@@ -427,21 +457,28 @@ class Pipeline:
             extracted_path = self.output / record.extracted_path
             if extracted_path.is_file():
                 review_items.append((record, extracted_path.read_text(encoding="utf-8")))
+        max_content = max(1000, self.batch_chars - len(header) - 500)
         for record, content in sorted(review_items, key=lambda item: item[0].sha256):
-            entry = f"## {record.sha256}\n\nИсточник: `{record.source_kind}` — `{record.source_paths[0]}`\n\n{content}\n"
-            if batch and (len(batch) >= self.batch_items or chars + len(entry) > self.batch_chars):
-                self._write_batch(number, batch)
-                number += 1
-                batch, chars = [], 0
-            batch.append(entry)
-            chars += len(entry)
+            chunks = [content[index:index + max_content] for index in range(0, len(content), max_content)] or [""]
+            for chunk_number, chunk in enumerate(chunks, 1):
+                chunk_label = f" — часть {chunk_number} из {len(chunks)}" if len(chunks) > 1 else ""
+                entry = f"## {record.sha256}{chunk_label}\n\nИсточник: `{record.source_kind}` — `{record.source_paths[0]}`\n\n{chunk}\n"
+                if batch and (len(batch) >= self.batch_items or chars + len(entry) > self.batch_chars):
+                    self._write_batch(number, batch)
+                    number += 1
+                    batch, chars = [], len(header)
+                batch.append(entry)
+                chars += len(entry)
         if batch:
             self._write_batch(number, batch)
         atomic_json(self.output / "Отчет последнего запуска.json", {"версия": VERSION, "завершено": datetime.now(timezone.utc).isoformat(), **self.stats})
 
     def _write_batch(self, number: int, entries: list[str]) -> None:
-        header = "# Пакет проверки Codex\n\nПроверь только факты EVO. Не публикуй персональные данные, секреты или неподтверждённые выводы. Пиши по-русски и сохраняй ссылки на SHA-256 и источник.\n\n"
-        (self.batches / f"Пакет {number:04d}.md").write_text(header + "\n".join(entries), encoding="utf-8")
+        (self.batches / f"Пакет {number:04d}.md").write_text(self._batch_header() + "\n".join(entries), encoding="utf-8")
+
+    @staticmethod
+    def _batch_header() -> str:
+        return "# Пакет проверки Codex\n\nПроверь только факты EVO. Не публикуй персональные данные, секреты или неподтверждённые выводы. Пиши по-русски и сохраняй ссылки на SHA-256 и источник.\n\n"
 
 
 def ensure_output(output: Path, authorized_root: Path) -> tuple[Path, Path]:

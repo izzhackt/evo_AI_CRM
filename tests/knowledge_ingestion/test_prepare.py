@@ -38,6 +38,18 @@ class ClassificationTests(unittest.TestCase):
         classification, _ = prepare.classify("Китай/Шаблон договора.docx")
         self.assertEqual(classification, "деловой_материал")
 
+    def test_student_directory_is_sensitive(self) -> None:
+        classification, _ = prepare.classify("Студенты/Документы/Обычное название.pdf")
+        self.assertEqual(classification, "чувствительные_данные_заявителя")
+
+    def test_sensitive_email_body_is_detected(self) -> None:
+        self.assertTrue(prepare.body_is_sensitive("Applicant passport details are attached"))
+
+    def test_gmail_spam_and_trash_labels_are_excluded(self) -> None:
+        self.assertTrue(prepare.gmail_labels_excluded("Inbox,Spam"))
+        self.assertTrue(prepare.gmail_labels_excluded("Корзина"))
+        self.assertFalse(prepare.gmail_labels_excluded("Inbox,Important"))
+
 
 class RealParserTests(unittest.TestCase):
     def test_repository_docx_is_parsed(self) -> None:
@@ -91,6 +103,43 @@ class BoundaryTests(unittest.TestCase):
             self.assertEqual(second.stats["новая_работа"], 0)
             report = json.loads((output / "Отчет последнего запуска.json").read_text(encoding="utf-8"))
             self.assertEqual(report["новая_работа"], 0)
+
+    def test_active_copy_wins_over_identical_trash_copy(self) -> None:
+        source = ROOT / "docs" / "specs" / "EVO_PLATFORM_TZ.docx"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            drive = root / "drive"
+            trash = drive / "Корзина"
+            trash.mkdir(parents=True)
+            (trash / source.name).symlink_to(source)
+            (drive / source.name).symlink_to(source)
+            output = root / "output"
+            pipeline = prepare.Pipeline(output, 100_000, 25)
+            pipeline.process_drive(drive)
+            pipeline.finish()
+            record = next(iter(pipeline.records.values()))
+            self.assertEqual(record.classification, "деловой_материал")
+            self.assertEqual(record.extraction_status, "извлечено")
+            self.assertEqual(len(record.source_paths), 2)
+
+    def test_batches_never_exceed_character_limit(self) -> None:
+        source = ROOT / "docs" / "specs" / "EVO_PLATFORM_TZ.docx"
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            pipeline = prepare.Pipeline(output, 5000, 25)
+            digest = prepare.sha256_file(source)
+            pipeline.extracted.mkdir(parents=True)
+            extracted = pipeline.extracted / f"{digest}.txt"
+            extracted.write_text(prepare.extract_docx(source), encoding="utf-8")
+            pipeline.records[digest] = prepare.Record(
+                digest, "google_drive", [source.name], source.stat().st_size,
+                None, "деловой_материал", "извлечено", ".docx",
+                str(extracted.relative_to(output)),
+            )
+            pipeline.finish()
+            sizes = [len(path.read_text(encoding="utf-8")) for path in pipeline.batches.glob("*.md")]
+            self.assertTrue(sizes)
+            self.assertLessEqual(max(sizes), 5000)
 
 
 if __name__ == "__main__":

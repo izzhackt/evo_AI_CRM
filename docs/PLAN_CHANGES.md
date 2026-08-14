@@ -6185,3 +6185,45 @@ planning plus reviewed P7C implementation PRs. It does not authorize immediate
 PITR, larger compute, public infrastructure changes, provider messages or
 customer-data publication. Each such action retains its contract gate and any
 required action-time approval.
+
+## 2026-08-14 — P7C recovery drill deferred; separate Inbox SaaS retained
+
+Plan Block-ID: `EVO-P7C-DEFER-RECOVERY-2026-08-14`
+
+Change type: owner scope correction and execution-order change
+
+### Decision
+
+- The owner clarified that `inbox-prod` belongs to a separate owned Inbox SaaS
+  product. It is not a legacy EVO Platform database. Remove its migration,
+  pause, retirement and deletion from P7C scope; leave the project and its live
+  consumers untouched.
+- The canonical EVO Platform managed project remains `evo-platform-prod`.
+- Defer the real managed database restore and separate Storage-object recovery
+  drill until the Platform is functionally complete and concretely operating.
+- Keep Supabase Pro scheduled database backups enabled during the deferral.
+  Their presence does not satisfy restore acceptance, and database backups do
+  not contain Storage object bytes.
+- Do not create the temporary recovery project now. This avoids temporary
+  compute spend until the drill is resumed.
+- P7C remains incomplete and must be resumed before disaster recovery can be
+  described as verified. On resumption, refresh the managed source,
+  destination, credentials, Storage inventory, retention and cost evidence.
+
+### Execution order
+
+1. Continue with a separately reviewed P7D contract and obtain the approved
+   capacity profile plus human accessibility inputs required by that phase.
+2. Continue the remaining release/cutover work only under its own real-service
+   evidence and production-authorization gates.
+3. Resume P7C after functional Platform completion and concrete operation;
+   perform the real isolated database restore and separate Storage-byte restore
+   before claiming disaster-recovery readiness.
+
+### Boundaries
+
+- This amendment authorizes no production migration, restore, deletion,
+  provider message, deployment or temporary billed project.
+- `inbox-prod` is explicitly outside EVO Platform consolidation scope.
+- Existing automatic backups are retained, but no restore-success claim is
+  inherited from a dashboard backup indicator.

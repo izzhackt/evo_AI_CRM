@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Iterable
 from xml.etree import ElementTree
 
-VERSION = 1
+VERSION = 2
 SUPPORTED = {".txt", ".md", ".csv", ".html", ".htm", ".pdf", ".docx", ".xlsx", ".pptx"}
 SENSITIVE_WORDS = (
     "passport", "паспорт", "attestat", "аттестат", "diploma", "диплом",
@@ -268,9 +268,10 @@ class Pipeline:
         if self.checkpoint_path.exists():
             try:
                 data = json.loads(self.checkpoint_path.read_text(encoding="utf-8"))
-                if data.get("version") != VERSION or not isinstance(data.get("completed"), dict):
+                stored_version = data.get("version")
+                if not isinstance(stored_version, int) or not isinstance(data.get("completed"), dict):
                     raise ValueError("неверная версия или структура")
-                self.completed = data["completed"]
+                self.completed = data["completed"] if stored_version == VERSION else {}
             except (OSError, json.JSONDecodeError, ValueError) as error:
                 raise RuntimeError(f"повреждён checkpoint: {self.checkpoint_path}: {error}") from error
 

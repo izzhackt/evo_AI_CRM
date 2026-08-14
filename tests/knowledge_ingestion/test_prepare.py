@@ -83,6 +83,14 @@ class BoundaryTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 prepare.Pipeline(output, 1000, 2)
 
+    def test_older_policy_checkpoint_is_safely_invalidated(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            checkpoint = {"version": prepare.VERSION - 1, "completed": {"old-sha": "извлечено"}}
+            (output / "Состояние обработки.json").write_text(json.dumps(checkpoint), encoding="utf-8")
+            pipeline = prepare.Pipeline(output, 1000, 2)
+            self.assertEqual(pipeline.completed, {})
+
     def test_second_run_has_zero_new_work(self) -> None:
         source = ROOT / "docs" / "specs" / "EVO_PLATFORM_TZ.docx"
         with tempfile.TemporaryDirectory() as directory:

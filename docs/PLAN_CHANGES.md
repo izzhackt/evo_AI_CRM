@@ -6227,3 +6227,35 @@ Change type: owner scope correction and execution-order change
 - `inbox-prod` is explicitly outside EVO Platform consolidation scope.
 - Existing automatic backups are retained, but no restore-success claim is
   inherited from a dashboard backup indicator.
+
+## 2026-08-14 — Add local Codex-driven EVO knowledge ingestion lane
+
+Change type: plan amendment, local knowledge ingestion, privacy boundary, and
+operator workflow.
+
+Affected plan section: new independent
+`EVO-KNOWLEDGE-INGESTION-LOCAL-2026-08-14` slice.
+
+Reason: the owner supplied real Gmail, Chrome and Google Drive Takeout exports,
+the existing Notion and WhatsApp archives, and two physically separated
+Obsidian vaults. The source corpus is too large and sensitive for ad hoc manual
+copying, but the owner does not want a separately billed LLM API integration.
+
+Decision: implement a local deterministic preparation pipeline and use the
+authenticated Codex app or `codex exec` only for bounded semantic review. Local
+code owns hashing, extraction, exclusion, sensitive classification,
+deduplication, checkpoints and manifests. Codex owns business interpretation,
+authority resolution and Russian Obsidian writing. Drive and Gmail trash,
+spam, sensitive applicant content, credentials and secrets are excluded from
+semantic batches. Clear non-sensitive knowledge may be approved by an agent;
+same-authority conflicts and material legal, price, guarantee, refund,
+credential or personal-data decisions escalate to the owner or EVO director.
+
+Delivery impact: K1 is docs-only and must merge before K2 implementation. K2
+then ships deterministic preparation and real-corpus proof. K3 adds the Codex
+operator command and publication, and K4 completes the accepted corpus.
+
+Validation impact: each block requires focused tests, a real owner-supplied
+source run where applicable, an idempotent second run, an independent exact-head
+review, green exact-head CI, exact-base recheck and reviewed merge. No block may
+claim production CRM, provider, or complete-corpus success from local evidence.

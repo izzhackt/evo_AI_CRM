@@ -44,6 +44,35 @@
 - This policy applies only to local macOS execution. It does not change the
   remote Docker Compose runtime on `hermes-vps`.
 
+## EVO Knowledge Base Conventions
+
+- The local EVO knowledge workspace is
+  `/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания`.
+- Use Russian names for human-facing folders and files. Do not add ordering
+  prefixes such as `01_`, `02_`, `10_`, or `30_` to knowledge-base names.
+- Keep `Внутренняя база знаний ЭВО`, `Клиентская база знаний ЭВО`,
+  `Сырой архив ЭВО`, and `Секреты и доступы ЭВО` physically separate.
+- Preserve Gmail, WhatsApp, Notion, Drive, Chrome, OCR, transcript and
+  attachment originals unchanged in the raw archive with provenance and
+  checksums. Do not publish raw material directly to an AI knowledge base.
+- An agent may approve and publish clear, non-sensitive, well-sourced,
+  non-conflicting routine knowledge. Escalate low-confidence or same-authority
+  conflicts and material legal, price, guarantee, refund, credential, or
+  personal-data decisions to the user or EVO director.
+- Resolve competing knowledge using this order: latest user or EVO director
+  confirmation; applicable signed agreement for its legal scope; current
+  official university, embassy, or government source; newest active EVO
+  document outside trash; latest confirmed Gmail or WhatsApp agreement; then
+  legacy Notion pages and drafts.
+- Do not analyze content under exported Google Drive or Gmail trash folders or
+  Gmail Spam. Classify sensitive applicant files only by archive metadata; do
+  not extract their content, OCR, or text into an AI knowledge base.
+- Analyze eligible business attachments, deduplicate identical files by
+  SHA-256, and retain every source location as provenance.
+- Store credentials and tokens only in the encrypted
+  `Секреты и доступы ЭВО` workflow. Never put secret values in Obsidian notes,
+  source manifests, Git, chat output, or raw export indexes.
+
 ## Production Server
 
 - Target server: `hermes-vps` (`root@72.62.119.112` via SSH config).

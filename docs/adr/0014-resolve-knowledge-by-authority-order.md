@@ -1,0 +1,3 @@
+# Resolve EVO knowledge by authority order
+
+When sources disagree, EVO knowledge is resolved by business authority rather than file recency alone: the latest user or EVO director confirmation takes precedence, followed by an applicable signed agreement, a current official external source, the newest active EVO document, the latest confirmed Gmail or WhatsApp agreement, and finally legacy Notion pages or drafts. Agents may resolve routine unambiguous cases, while unresolved conflicts at the same authority level are escalated because silently keeping multiple current answers would make both internal and client-facing AI unreliable.

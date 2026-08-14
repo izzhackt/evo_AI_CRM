@@ -17,6 +17,19 @@ sys.modules[SPEC.name] = prepare
 SPEC.loader.exec_module(prepare)
 
 
+def load_module(name: str, filename: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / "knowledge_ingestion" / filename)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+review = load_module("knowledge_review", "review.py")
+publish = load_module("knowledge_publish", "publish.py")
+
+
 class ClassificationTests(unittest.TestCase):
     def test_sensitive_applicant_document_is_metadata_only(self) -> None:
         classification, _ = prepare.classify("Студенты/Иван/Паспорт.pdf")
@@ -148,6 +161,24 @@ class BoundaryTests(unittest.TestCase):
             sizes = [len(path.read_text(encoding="utf-8")) for path in pipeline.batches.glob("*.md")]
             self.assertTrue(sizes)
             self.assertLessEqual(max(sizes), 5000)
+
+
+class ReviewPublicationTests(unittest.TestCase):
+    def test_review_rejects_source_outside_current_batch(self) -> None:
+        source = "a" * 64
+        data = {"items": [{"decision": "approve", "sources": [source]}]}
+        with self.assertRaises(ValueError):
+            review.validate_result(data, {"b" * 64})
+
+    def test_material_claim_is_forced_to_escalation(self) -> None:
+        item = {"title": "Гарантия визы", "summary": "", "facts": []}
+        self.assertTrue(publish.material(item))
+
+    def test_escalated_note_is_not_marked_approved(self) -> None:
+        item = {"title": "Вопрос", "summary": "Нужно решение", "facts": [], "sources": ["a" * 64]}
+        text = publish.render(item, "требует_решения")
+        self.assertIn("статус: требует_решения", text)
+        self.assertNotIn("статус: утверждено_для_внутреннего_ИИ", text)
 
 
 if __name__ == "__main__":

@@ -25,14 +25,16 @@ the P7C authority contract plus managed project consolidation, PR #164 deferred
 its recovery execution, PRs #165-#166 established the local knowledge lane and
 deterministic Takeout preparation pipeline, PR #170 merged the real
 lead-processing proof plan, and PR #171 merged Codex review plus Obsidian
-publication. Current
-`origin/main` is `8d16a551111add9d5e299db66bb519812473a89a`, migrations are
-contiguous `001-072`, and exact-main push CI run `31810033100` is green for
+publication. PR #169 merged the focused P7D accessibility contract, and PRs
+#172-#174 hardened the local knowledge-ingestion path. Current `origin/main` is
+`a8474eb57f94f952711e953be21b5e6041d2f36e`, migrations are contiguous
+`001-072`, and exact-main push CI run `31820931774` is green for
 Main CRM, EVO Inbox and EVO Lead Agent; Changed range is skipped on the push
 event as expected. The owner deferred P7C managed recovery under
-`docs/platform/p7c-managed-recovery-contract.md`; the next planning gate is
-P7D. The deferral does not inherit PITR, non-empty Storage recovery or
-production migration proof from earlier lanes.
+`docs/platform/p7c-managed-recovery-contract.md`; the next planning gate is P8A
+under `docs/platform/p8-controlled-release-candidate.md`. The deferral does not
+inherit PITR, non-empty Storage recovery or production migration proof from
+earlier lanes.
 
 P4B implementation is preserved, not merged, on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -118,7 +120,7 @@ this contract.
 As of the version date:
 
 - GitHub `main` is
-  `8d16a551111add9d5e299db66bb519812473a89a`; PR #128 supersedes PR #119 as
+  `a8474eb57f94f952711e953be21b5e6041d2f36e`; PR #128 supersedes PR #119 as
   current product authority after corrective PRs #125-#127, PRs #129-#130
   merged the bounded local-validation repair, PRs #132/#133/#137/#138/#141 and
   #144-#146 merged P5A-P5F3, and PR #142 merged bounded P4R1 read-only canonical
@@ -126,8 +128,10 @@ As of the version date:
   070, PR #154 merged the P7 contract, PR #156 completed P7A as migration 071,
   PR #157 refreshed the accepted status plus OrbStack-only rule, and PR #160
   completed P7B as migration 072, and PR #163 merged the managed P7C authority
-  contract plus the `evo-platform-prod` organization/name consolidation;
-- exact-main push CI run `31810033100` is green for Main CRM, EVO Inbox and EVO
+  contract plus the `evo-platform-prod` organization/name consolidation, PR
+  #169 merged focused P7D and PRs #170-#174 merged the current lead/knowledge
+  planning and hardening changes;
+- exact-main push CI run `31820931774` is green for Main CRM, EVO Inbox and EVO
   Lead Agent; Changed range is skipped on the push event as expected;
 - the preserved P4B branch passed focused tests, unit tests, lint, Next typegen,
   TypeScript and a production build. Its later full local Supabase run failed
@@ -443,8 +447,8 @@ deployment surfaces are sequential.
 | P4/P4R | Canonical amoCRM integration | Preserve P4B activation/write checkpoint; prove bounded read-only contact/lead/responsible/stage/tasks/call-chat references through versioned mappings, reconciliation and fail-closed degradation | P4B writes/activation deferred; bounded read-only P4R1 merged in PR #142 |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real persist-before-process, queue/projection, available history/media, ACK, realtime, staff takeover and structured AI proposal with deterministic reply-only send gates; no legacy cutover | P5A-P5F3 merged in PRs #132, #133, #137, #138, #141 and #144-#146; synthetic local proof only, provider/production proof blocked |
 | P6 | amoCRM-independent Admissions, Portal, Documents, Finance and Notifications | Two-student isolation E2E and staff-to-portal workflows that do not infer sales identity/stage/handoff | P6A-P6D merged in PRs #148, #149, #152 and #153; synthetic/local proof only |
-| P7 | Security, reliability and operations | Safe audit search/export, private observability, deferred managed recovery/capacity, and focused automated plus human accessibility evidence | P7-PLAN, P7A and P7B merged; P7C recovery and large capacity stress deferred; focused P7D next |
-| P8 | Narrowed controlled release-evidence gate | Prepare the exact real candidate, prove executable P5-P7 plus P4R reads, and record unavailable segments; no production action without approval | Candidate preparation follows the P7D contract; release decision waits for focused accessibility and external-evidence accounting |
+| P7 | Security, reliability and operations | Safe audit search/export, private observability, deferred managed recovery/capacity, and focused automated plus human accessibility evidence | P7-PLAN, P7A, P7B and the focused P7D contract merged; P7C recovery and large capacity stress deferred; exact-candidate evidence remains in P8 |
+| P8 | Narrowed controlled release-evidence gate | Prepare one immutable candidate, prove executable P5-P7 plus P4R reads, and record unavailable segments; no production action without approval | P8A contract tracked in #175; P8B-P8F follow only under `docs/platform/p8-controlled-release-candidate.md` |
 | P9 | Removed from current execution scope | Lead Agent, legacy webhook/session and rollback path remain deployed/frozen; no retirement/deactivation PR | Removed by owner decision |
 | P10 | Authorized-scope audit | Map P4R/P5-P8 scope to evidence, list P4B writes/activation deferred and Lead Agent retained, separate verified/blocked/deferred; no full-platform completion claim | Pending directly after P8 |
 
@@ -1046,6 +1050,13 @@ accessibility completes and every unavailable managed, provider and production
 segment is explicitly recorded as blocked/deferred.
 
 ### P8 — controlled release gate
+
+The exact executable contract is
+`docs/platform/p8-controlled-release-candidate.md`, tracked by issue #175.
+P8 is split into P8A contract/baseline, P8B deterministic manifest, P8C
+non-mutating environment reconciliation, P8D approval-gated disabled
+deployment, P8E exact-candidate accessibility and P8F real-service accounting.
+No earlier P8 wording authorizes production mutation.
 
 Prepare reconciliation, snapshot, freeze and rollback artifacts for the real
 executable P5-P7 and bounded P4R scope. Where credentials and authority exist,

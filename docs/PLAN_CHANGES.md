@@ -6346,3 +6346,38 @@ Change type: owner scope reduction, evidence boundary and execution order
   human evidence remain required.
 - P8 preparation may start after this contract; production release still needs
   its real-service evidence and explicit action-time authorization.
+
+## 2026-08-14 - Freeze the P8 controlled release candidate
+
+Plan Block-ID: `EVO-P8-CONTROLLED-RELEASE-CANDIDATE-2026-08-14`
+
+Issue: #175
+
+Change type: release-candidate identity, evidence boundary and approval gates
+
+### Decision
+
+- Create one immutable candidate identified by exact Git/base commits,
+  migration hashes, application image digests, safe deployment/configuration
+  hashes and validation evidence.
+- Split P8 into contract/baseline, deterministic manifest, non-mutating
+  environment reconciliation, approval-gated disabled deployment,
+  exact-candidate accessibility and real-service accounting.
+- Use only `verified`, `blocked`, `deferred` and `not_applicable` for release
+  evidence. A mock, fixture or local substitute cannot prove a real provider or
+  production segment.
+- Require fresh owner approval before every production/provider mutation.
+  Preparing and inspecting a candidate is not permission to deploy it.
+- Keep Lead Agent, the legacy webhook/session path and rollback path deployed.
+  Keep P4B writes, autonomous send, P7C recovery, large-load capacity and formal
+  WCAG conformance deferred/unproved.
+
+### Execution order
+
+1. Merge this P8A docs-only contract after independent exact-head review and
+   green CI.
+2. Implement P8B candidate manifest/evidence tooling in a separate block.
+3. Run P8C read-only reconciliation against the real owned environments.
+4. Ask for action-time approval before P8D deployment or managed migration.
+5. Run P8E accessibility on the exact deployed candidate, then P8F accounting.
+6. Run P10 directly after P8; P9 remains removed.

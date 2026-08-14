@@ -6381,3 +6381,43 @@ Change type: release-candidate identity, evidence boundary and approval gates
 4. Ask for action-time approval before P8D deployment or managed migration.
 5. Run P8E accessibility on the exact deployed candidate, then P8F accounting.
 6. Run P10 directly after P8; P9 remains removed.
+## 2026-08-14 - Implement the P8B deterministic candidate manifest
+
+Plan Block-ID: `EVO-P8B-DETERMINISTIC-CANDIDATE-MANIFEST-2026-08-14`
+
+Issue: #177
+
+Change type: release-evidence implementation detail
+
+### Decision
+
+- Add one repository-owned command that accepts an exact candidate/base SHA,
+  explicit timestamp and retained validation/build evidence, directly inspects
+  the three exact candidate-tagged images in OrbStack, and writes deterministic JSON under the ignored
+  `.evo-release-evidence/` directory.
+- Require every first-party image to carry the candidate SHA in its OCI revision
+  label, and retain hashed build logs plus the real `docker image inspect`
+  result. Reject output or input evidence outside the repository evidence root.
+- Require an exact successful Compose build marker for each candidate-tagged
+  image and embed a closed, candidate/base-bound per-image build record in the
+  image evidence. A pre-existing tag without its own retained build proof fails.
+- Hash the contiguous `001-072` migration inventory and the reviewed Compose,
+  Caddy and safe environment-example files. Treat any changed hash as a new
+  candidate.
+- Keep the manifest schema closed and keep the evidence index result vocabulary
+  limited to `verified`, `blocked`, `deferred` and `not_applicable`.
+- Reject duplicate JSON keys after escape decoding, and require the supplied
+  base commit to exist as the candidate's exact Git parent and merge base.
+- Reject symlinks in every existing evidence-path component and verify real
+  input/output paths remain beneath the repository's real evidence root.
+- Reject secret-like values, JWTs, email addresses and credential assignments
+  from retained evidence before writing a manifest. Record only SHA-256 values
+  for separately retained redacted validation output.
+- Inventory required runtime setting names, ownership and example-file presence
+  without recording values. Bind every validation record and retained log to
+  both the exact base SHA and candidate SHA so old evidence cannot be reused.
+- Use BuildKit's locked npm cache mount for both Node image dependency stages
+  and suppress install-time funding/audit network work. `npm ci` remains the
+  lockfile-enforcing clean install; the existing separate audit gate is unchanged.
+- P8B does not read providers or production, deploy images, alter configuration,
+  apply migrations or enable any Platform runtime flag. Those remain P8C/P8D.

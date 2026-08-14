@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8-evidence-index.schema.json",
+  "title": "EVO P8 redacted evidence index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["candidate_commit", "schema_version", "segments"],
+  "properties": {
+    "candidate_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "schema_version": { "const": 1 },
+    "segments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configuration_identity",
+        "image_identity",
+        "migration_identity",
+        "repository_identity",
+        "runtime_setting_inventory",
+        "validation_identity"
+      ],
+      "properties": {
+        "configuration_identity": { "$ref": "#/$defs/result" },
+        "image_identity": { "$ref": "#/$defs/result" },
+        "migration_identity": { "$ref": "#/$defs/result" },
+        "repository_identity": { "$ref": "#/$defs/result" },
+        "runtime_setting_inventory": { "$ref": "#/$defs/result" },
+        "validation_identity": { "$ref": "#/$defs/result" }
+      }
+    }
+  },
+  "$defs": {
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_commit", "evidence", "operation", "result", "status", "timestamp"],
+      "properties": {
+        "candidate_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "sha256"],
+          "properties": {
+            "path": { "type": "string", "pattern": "^[a-z0-9-]+\\.json$" },
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        },
+        "operation": { "type": "string", "minLength": 1 },
+        "result": { "type": "string", "minLength": 1 },
+        "status": {
+          "enum": ["verified", "blocked", "deferred", "not_applicable"]
+        },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

@@ -14,6 +14,7 @@
 /coverage
 /output/
 /tmp/
+/.evo-release-evidence/
 /.playwright-mcp/
 /scripts/__pycache__/
 

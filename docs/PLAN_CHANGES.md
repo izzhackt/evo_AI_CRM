@@ -6301,3 +6301,48 @@ review, green exact-head CI and exact-base recheck. L1-L5 require new linked
 issues and PRs, real service evidence, explicit rollback proof and a stop before
 any unapproved externally visible action. Mocks and synthetic fixtures cannot
 replace provider proof.
+
+## 2026-08-14 - P7D focused accessibility; large capacity stress deferred
+
+Plan Block-ID: `EVO-P7D-FOCUSED-ACCESSIBILITY-2026-08-14`
+
+Issue: #167
+
+Change type: owner scope reduction, evidence boundary and execution order
+
+### Decision
+
+- Defer the former 2,000-active-student, 100-concurrent-session stress test and
+  temporary managed load-test project. Do not call capacity or DEC-010 passed.
+- Use a small-launch monitoring envelope of at most 10 routine staff accounts,
+  200 active students, normally 20 simultaneous users, approximately 1,000
+  daily message records and 100 daily document uploads.
+- Reopen formal capacity work before planned growth beyond any envelope value,
+  a major campaign or compute/topology change, or when real monitoring shows
+  readiness, connection, queue, error or latency pressure.
+- Retain the existing automated accessibility suite as a repository regression
+  gate. Run it on the exact real release candidate; do not treat fixture/local
+  output alone as live-release or WCAG-conformance proof.
+- The owner will perform one focused human review using macOS Chrome keyboard
+  and zoom, macOS Safari plus VoiceOver, iPhone Safari and Android Chrome.
+- Fix release-blocking workflow, keyboard, focus, screen-reader, mobile,
+  security and privacy defects. Record lesser findings for later work.
+
+### Execution order
+
+1. Merge the separately reviewed P7D contract.
+2. P8 may prepare the exact real release candidate needed for the automated and
+   human accessibility evidence.
+3. Run the retained automated gate and focused human matrix on that candidate.
+4. Fix and recheck launch-blocking findings before a release decision.
+5. Keep high-load capacity, P7C recovery and formal WCAG conformance explicitly
+   deferred/unproved.
+
+### Boundaries
+
+- No temporary billed project, load against production, deployment, provider
+  send/write, customer-data access or production mutation is authorized here.
+- Merging the contract does not complete P7D. Exact-candidate automated and
+  human evidence remain required.
+- P8 preparation may start after this contract; production release still needs
+  its real-service evidence and explicit action-time authorization.

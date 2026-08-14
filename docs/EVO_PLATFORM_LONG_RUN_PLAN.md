@@ -20,10 +20,14 @@ PR #147 merged the reviewed P6A-P6D contract, and PRs #148, #149, #152 and
 notifications, P6C overdue-transition publication and P6D cross-domain Student
 360 closure. PR #154 merged the P7 contract, PR #156 merged P7A safe
 Admin-only audit search/export, PR #157 refreshed the accepted status and
-OrbStack-only rule, PR #160 merged P7B private observability, and PR #163
-merged the P7C authority contract plus managed project consolidation. Current
-`origin/main` is `e9443bd25be5a7aaebe6eea08f48f35e2965e617`, migrations are
-contiguous `001-072`, and exact-main push CI run `31795764829` is green for
+OrbStack-only rule, PR #160 merged P7B private observability, PR #163 merged
+the P7C authority contract plus managed project consolidation, PR #164 deferred
+its recovery execution, PRs #165-#166 established the local knowledge lane and
+deterministic Takeout preparation pipeline, PR #170 merged the real
+lead-processing proof plan, and PR #171 merged Codex review plus Obsidian
+publication. Current
+`origin/main` is `8d16a551111add9d5e299db66bb519812473a89a`, migrations are
+contiguous `001-072`, and exact-main push CI run `31810033100` is green for
 Main CRM, EVO Inbox and EVO Lead Agent; Changed range is skipped on the push
 event as expected. The owner deferred P7C managed recovery under
 `docs/platform/p7c-managed-recovery-contract.md`; the next planning gate is
@@ -38,8 +42,9 @@ Auth/PostgREST hook before Playwright; it is failed/non-evidence. The owner has
 deferred broad P4/P4B writes and mapping activation. The merged P7 contract
 keeps that checkpoint preserved after P4R1, P5 and P6 and decomposes P7 into
 safe audit search/export, private observability, managed database plus separate
-Storage recovery, and gated capacity/accessibility closure. P7A and P7B are
-complete; P7C is next. Narrowed P8 and P10 follow P7. P9 remains removed, and
+Storage recovery, and capacity/accessibility closure. P7A and P7B are complete;
+P7C recovery and large P7D capacity stress are owner-deferred, while focused
+P7D accessibility is next. Narrowed P8 and P10 follow. P9 remains removed, and
 Lead Agent plus the legacy rollback path remain deployed/frozen. The exact
 managed operations authorized for P7C are limited by
 `docs/platform/p7c-managed-recovery-contract.md`; other credential, provider,
@@ -113,7 +118,7 @@ this contract.
 As of the version date:
 
 - GitHub `main` is
-  `e9443bd25be5a7aaebe6eea08f48f35e2965e617`; PR #128 supersedes PR #119 as
+  `8d16a551111add9d5e299db66bb519812473a89a`; PR #128 supersedes PR #119 as
   current product authority after corrective PRs #125-#127, PRs #129-#130
   merged the bounded local-validation repair, PRs #132/#133/#137/#138/#141 and
   #144-#146 merged P5A-P5F3, and PR #142 merged bounded P4R1 read-only canonical
@@ -122,7 +127,7 @@ As of the version date:
   PR #157 refreshed the accepted status plus OrbStack-only rule, and PR #160
   completed P7B as migration 072, and PR #163 merged the managed P7C authority
   contract plus the `evo-platform-prod` organization/name consolidation;
-- exact-main push CI run `31795764829` is green for Main CRM, EVO Inbox and EVO
+- exact-main push CI run `31810033100` is green for Main CRM, EVO Inbox and EVO
   Lead Agent; Changed range is skipped on the push event as expected;
 - the preserved P4B branch passed focused tests, unit tests, lint, Next typegen,
   TypeScript and a production build. Its later full local Supabase run failed
@@ -157,9 +162,11 @@ After this amendment merges, implementation priority is intentionally narrow:
 2. Preserve completed P6A-P6D, P7A safe audit search/export and P7B private
    observability/runbooks. The owner deferred P7C isolated database plus
    separate Storage restore until the Platform is functionally complete and
-   concretely operating. Plan P7D next, but begin its execution only after its
-   numeric capacity profile and human accessibility evidence matrix are
-   approved. Narrowed P8 and P10 follow the executable P7D scope; P7C remains a
+   concretely operating. Execute the focused P7D accessibility contract next;
+   the owner deferred the large capacity stress test and temporary load
+   environment without calling capacity passed. P8 may prepare the exact
+   release candidate needed for automated and human accessibility evidence.
+   Narrowed P8 and P10 follow the executable P7D scope; P7C remains a
    later recovery-readiness requirement and is not silently marked complete.
 3. No mock, SQLite shim, hardcoded amoCRM mapping, fake provider or silent
    fallback may replace P4. amoCRM identity, responsible Sales, canonical stage,
@@ -436,8 +443,8 @@ deployment surfaces are sequential.
 | P4/P4R | Canonical amoCRM integration | Preserve P4B activation/write checkpoint; prove bounded read-only contact/lead/responsible/stage/tasks/call-chat references through versioned mappings, reconciliation and fail-closed degradation | P4B writes/activation deferred; bounded read-only P4R1 merged in PR #142 |
 | P5 | Narrow Inbox/WAHA/Lead Agent capability absorption and controlled proof | Real persist-before-process, queue/projection, available history/media, ACK, realtime, staff takeover and structured AI proposal with deterministic reply-only send gates; no legacy cutover | P5A-P5F3 merged in PRs #132, #133, #137, #138, #141 and #144-#146; synthetic local proof only, provider/production proof blocked |
 | P6 | amoCRM-independent Admissions, Portal, Documents, Finance and Notifications | Two-student isolation E2E and staff-to-portal workflows that do not infer sales identity/stage/handoff | P6A-P6D merged in PRs #148, #149, #152 and #153; synthetic/local proof only |
-| P7 | Security, reliability and operations | Safe audit search/export, private observability, managed database plus separate Storage recovery, approved-capacity load and automated plus human accessibility evidence | P7-PLAN, P7A and P7B merged in PRs #154, #156 and #160; P7C next, then gated P7D |
-| P8 | Narrowed controlled release-evidence gate | Real executable P5-P7 plus proved P4R read evidence; P4B writes/activation and unavailable provider segments reported deferred; no production action | Blocked until P7D and external-evidence accounting complete |
+| P7 | Security, reliability and operations | Safe audit search/export, private observability, deferred managed recovery/capacity, and focused automated plus human accessibility evidence | P7-PLAN, P7A and P7B merged; P7C recovery and large capacity stress deferred; focused P7D next |
+| P8 | Narrowed controlled release-evidence gate | Prepare the exact real candidate, prove executable P5-P7 plus P4R reads, and record unavailable segments; no production action without approval | Candidate preparation follows the P7D contract; release decision waits for focused accessibility and external-evidence accounting |
 | P9 | Removed from current execution scope | Lead Agent, legacy webhook/session and rollback path remain deployed/frozen; no retirement/deactivation PR | Removed by owner decision |
 | P10 | Authorized-scope audit | Map P4R/P5-P8 scope to evidence, list P4B writes/activation deferred and Lead Agent retained, separate verified/blocked/deferred; no full-platform completion claim | Pending directly after P8 |
 
@@ -975,7 +982,8 @@ and acceptance criteria are in `docs/platform/p6-operations-portal.md`.
 
 ### P7 — security and reliability
 
-P7 executes only as `P7-PLAN -> P7A -> P7B -> P7C -> P7D`. The detailed
+P7A and P7B are complete. P7C recovery and large P7D capacity stress are
+owner-deferred. Focused P7D accessibility now precedes P8 candidate proof. The detailed
 authority, acceptance and stop conditions are append-only Block
 `EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13` in `docs/PLAN_CHANGES.md`, expanded
 by `docs/platform/p7-security-reliability.md`, with P7B details in
@@ -1017,14 +1025,12 @@ duration/data-loss window are observations, not approved RPO/RTO or PITR
 evidence. The separate `inbox-prod` project belongs to Inbox SaaS and is not a
 P7C migration, recovery or retirement target.
 
-`P7D` is gated by an owner-approved numeric capacity profile and an approved
-human accessibility reviewer plus browser/device/screen-reader matrix. Its k6
-harness must refuse production/public-provider targets and unbounded or
-non-synthetic input. At the approved profile it records threshold, consistency,
-tenant-isolation and queue/audit evidence without inventing an SLO. Automated
-WCAG 2.2 A/AA/Axe and responsive checks are followed by human keyboard, focus,
-zoom, dialog and screen-reader evaluation; Axe alone cannot complete or claim
-WCAG conformance.
+`P7D` follows `docs/platform/p7d-focused-accessibility-contract.md`. The owner
+deferred the large k6 profile and temporary managed load target; capacity and
+DEC-010 remain unproved. The exact real release candidate must run the retained
+automated accessibility gate and then receive the focused owner-led keyboard,
+focus, zoom, dialog, VoiceOver and mobile review. Neither automation nor the
+focused review claims formal WCAG conformance.
 
 P7 has completed only the exact managed project transfer and rename defined by
 `docs/platform/p7c-managed-recovery-contract.md`. The owner has deferred the
@@ -1034,9 +1040,10 @@ Platform boundary. P7 authorizes no public
 metrics/readiness, provider call, customer-data publication, live send, amoCRM
 write, retention deletion, in-place production restore or premature service
 retirement. DEC-009, DEC-010, DEC-012 and DEC-017 remain open until the managed
-drill supplies their required evidence. P8 stays blocked until P7D completes
-and every unavailable managed, provider and production segment is explicitly
-recorded as blocked/deferred.
+drill supplies their required evidence. P8 may prepare the candidate after the
+focused P7D contract merges, but release remains blocked until focused
+accessibility completes and every unavailable managed, provider and production
+segment is explicitly recorded as blocked/deferred.
 
 ### P8 — controlled release gate
 

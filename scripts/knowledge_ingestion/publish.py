@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import hashlib
 import json
 import re
@@ -14,6 +15,8 @@ from review import load_allowed_sources, review_fingerprint, validate_result
 
 MATERIAL = ("гарант", "guarantee", "возврат", "refund", "цена", "стоимост", "тариф", "оплат", "договор", "контракт", "contract", "обязательств", "виза", "visa", "пароль", "токен", "секрет")
 AUTHORITY = {"legacy_or_unknown": 0, "confirmed_correspondence": 1, "evo_active_document": 2, "official_source": 3, "signed_contract": 4, "owner_director": 5}
+DECISION_FIELDS = {"identity", "action", "reason", "decided_at", "decided_by"}
+DECISION_ACTIONS = {"approve", "exclude"}
 
 
 def safe_name(value: str) -> str:
@@ -24,6 +27,58 @@ def safe_name(value: str) -> str:
 def material(item: dict) -> bool:
     text = " ".join([item.get("title", ""), item.get("summary", ""), *item.get("facts", [])]).casefold()
     return any(word in text for word in MATERIAL)
+
+
+def item_identity(item: dict) -> str:
+    payload = item.get("title", "") + "\n" + "\n".join(sorted(item.get("sources", [])))
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
+
+
+def load_owner_decisions(path: Path, vault: Path, known_identities: set[str]) -> dict[str, str]:
+    if path.name != ".Решения владельца Codex.json" or path.parent.resolve() != vault.resolve():
+        raise ValueError("решения владельца разрешены только в корне внутреннего vault")
+    if not path.exists():
+        return {}
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("файл решений владельца должен быть обычным файлом")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or set(data) != {"version", "decisions"} or data["version"] != 1 or not isinstance(data["decisions"], list):
+        raise ValueError("повреждён файл решений владельца")
+    decisions: dict[str, str] = {}
+    for entry in data["decisions"]:
+        if not isinstance(entry, dict) or set(entry) != DECISION_FIELDS:
+            raise ValueError("решение владельца имеет неизвестные или отсутствующие поля")
+        identity = entry["identity"]
+        action = entry["action"]
+        if not isinstance(identity, str) or not re.fullmatch(r"[a-f0-9]{12}", identity) or identity not in known_identities:
+            raise ValueError(f"решение ссылается на неизвестный материал: {identity}")
+        if identity in decisions:
+            raise ValueError(f"решение владельца продублировано: {identity}")
+        if action not in DECISION_ACTIONS:
+            raise ValueError(f"неизвестное действие владельца: {action}")
+        if not all(isinstance(entry[field], str) and entry[field].strip() for field in ("reason", "decided_at", "decided_by")):
+            raise ValueError("обоснование, дата и автор решения обязательны")
+        try:
+            datetime.fromisoformat(entry["decided_at"])
+        except ValueError as error:
+            raise ValueError("дата решения владельца должна быть ISO-8601") from error
+        decisions[identity] = action
+    return decisions
+
+
+def source_modified_at(queue: Path) -> dict[str, datetime]:
+    values: dict[str, datetime] = {}
+    manifest = queue.parent / "Манифест источников.jsonl"
+    for line in manifest.read_text(encoding="utf-8").splitlines():
+        row = json.loads(line)
+        sha = row.get("sha256")
+        modified = row.get("modified_at")
+        if isinstance(sha, str) and isinstance(modified, str):
+            try:
+                values[sha] = datetime.fromisoformat(modified)
+            except ValueError as error:
+                raise ValueError(f"неверная дата источника: {sha}") from error
+    return values
 
 
 def validate_internal_vault(vault: Path, root: Path) -> None:
@@ -48,7 +103,7 @@ def render(item: dict, status: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def conflict_blocks(item: dict, all_items: list[dict]) -> bool:
+def conflict_blocks(item: dict, all_items: list[dict], modified_at: dict[str, datetime] | None = None) -> bool:
     item_content = f"{item['summary'].strip()}::{json.dumps(item['facts'], ensure_ascii=False, sort_keys=True)}"
     competing = [
         candidate for candidate in all_items
@@ -56,6 +111,19 @@ def conflict_blocks(item: dict, all_items: list[dict]) -> bool:
         and candidate["claim_key"] == item["claim_key"]
         and f"{candidate['summary'].strip()}::{json.dumps(candidate['facts'], ensure_ascii=False, sort_keys=True)}" != item_content
     ]
+    if modified_at is not None and competing:
+        group = [item, *competing]
+        timestamps = []
+        for candidate in group:
+            sources = candidate.get("sources", [])
+            if not sources or any(source not in modified_at for source in sources):
+                return True
+            timestamps.append(max(modified_at[source] for source in sources))
+        newest = max(timestamps)
+        winners = [index for index, value in enumerate(timestamps) if value == newest]
+        if len(winners) == 1:
+            return winners[0] != 0
+        return True
     return any(AUTHORITY[candidate["authority"]] >= AUTHORITY[item["authority"]] for candidate in competing)
 
 
@@ -65,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--queue", type=Path, required=True)
     parser.add_argument("--vault", type=Path, required=True)
     parser.add_argument("--authorized-root", type=Path, required=True)
+    parser.add_argument("--decisions", type=Path)
     args = parser.parse_args(argv)
     try:
         reviews = args.reviews.expanduser().resolve()
@@ -75,7 +144,8 @@ def main(argv: list[str] | None = None) -> int:
             raise FileNotFoundError(f"результаты проверки не найдены: {reviews}")
         validate_internal_vault(vault, root)
         allowed_sources, batch_hashes = load_allowed_sources(queue, reviews.parent)
-        approved = escalated = ignored = 0
+        modified_at = source_modified_at(queue)
+        approved = escalated = ignored = owner_excluded = 0
         escalation = vault / "Требует решения"
         all_items: list[dict] = []
         for review in sorted(reviews.glob("Пакет *.json")):
@@ -95,6 +165,9 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError(f"пакет содержит запрещённый источник: {batch_name}")
             data = validate_result(json.loads(review.read_text(encoding="utf-8")), batch_sources)
             all_items.extend(data["items"])
+        identities = {item_identity(item) for item in all_items if item.get("decision") != "ignore"}
+        decision_path = args.decisions.expanduser().resolve() if args.decisions else vault / ".Решения владельца Codex.json"
+        owner_decisions = load_owner_decisions(decision_path, vault, identities)
         manifest_path = vault / ".Манифест публикации Codex.json"
         previous_paths: set[str] = set()
         if manifest_path.is_file():
@@ -108,8 +181,13 @@ def main(argv: list[str] | None = None) -> int:
             if decision == "ignore":
                 ignored += 1
                 continue
-            unresolved_conflict = conflict_blocks(item, all_items)
-            if decision != "approve" or material(item) or unresolved_conflict:
+            identity = item_identity(item)
+            owner_action = owner_decisions.get(identity)
+            if owner_action == "exclude":
+                owner_excluded += 1
+                continue
+            unresolved_conflict = conflict_blocks(item, all_items, modified_at)
+            if owner_action != "approve" and (decision != "approve" or material(item) or unresolved_conflict):
                 target_dir = escalation
                 status = "требует_решения"
                 escalated += 1
@@ -117,7 +195,6 @@ def main(argv: list[str] | None = None) -> int:
                 target_dir = vault / safe_name(item.get("section", "Неопределенное"))
                 status = "утверждено_для_внутреннего_ИИ"
                 approved += 1
-            identity = hashlib.sha256((item.get("title", "") + "\n" + "\n".join(sorted(item.get("sources", [])))).encode()).hexdigest()[:12]
             target_dir.mkdir(parents=True, exist_ok=True)
             target = target_dir / f"{safe_name(item.get('title', 'Без названия'))} — {identity}.md"
             target.write_text(render(item, status), encoding="utf-8")
@@ -128,7 +205,7 @@ def main(argv: list[str] | None = None) -> int:
                 stale.unlink()
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         manifest_path.write_text(json.dumps({"files": sorted(current_paths)}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(json.dumps({"утверждено": approved, "требует_решения": escalated, "игнорировано": ignored}, ensure_ascii=False))
+        print(json.dumps({"утверждено": approved, "требует_решения": escalated, "исключено_владельцем": owner_excluded, "игнорировано": ignored}, ensure_ascii=False))
         return 0
     except (FileNotFoundError, ValueError, json.JSONDecodeError) as error:
         print(f"Ошибка: {error}", file=sys.stderr)

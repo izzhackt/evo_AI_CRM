@@ -44,7 +44,7 @@ def inside(path: Path, root: Path) -> Path:
 
 
 def contains_phone(value: str) -> bool:
-    for match in re.finditer(r"(?<!\w)(?:\+?\d[\s().-]*){8,15}(?!\w)", value):
+    for match in re.finditer(r"(?<!\w)(?:\+?\d[\s().-]*){8,}(?!\w)", value):
         candidate = match.group()
         digit_count = len(re.sub(r"\D", "", candidate))
         if candidate.lstrip().startswith("+") or digit_count >= 10:

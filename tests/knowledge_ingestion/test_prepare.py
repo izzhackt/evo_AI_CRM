@@ -172,6 +172,7 @@ class ReviewPublicationTests(unittest.TestCase):
         self.assertFalse(review.contains_phone("Документ действует с 14.08.2026 и имеет код 1234-5678."))
         self.assertTrue(review.contains_phone("Контакт: +996 555 123 456"))
         self.assertTrue(review.contains_phone("Контакт: 0555 123 456"))
+        self.assertTrue(review.contains_phone("Идентификатор: 1234567890123456"))
 
     def test_review_timeout_retries_then_fails_closed_and_cleans_up(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

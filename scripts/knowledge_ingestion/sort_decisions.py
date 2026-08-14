@@ -90,6 +90,13 @@ def main(argv: list[str] | None = None) -> int:
 
         dashboard = vault / "Панель решений"
         dashboard.mkdir(exist_ok=True)
+        manifest_path = dashboard / ".Манифест панели решений.json"
+        previous_generated: set[str] = set()
+        if manifest_path.is_file():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict) or not isinstance(manifest.get("files"), list):
+                raise ValueError("повреждён манифест панели решений")
+            previous_generated = {name for name in manifest["files"] if isinstance(name, str)}
         generated = {"Главная панель.md"}
         for name, (priority, action) in CATEGORIES.items():
             rows = sorted(grouped.get(name, []), key=lambda pair: (pair[1].get("section", ""), pair[1]["title"].casefold()))
@@ -107,9 +114,9 @@ def main(argv: list[str] | None = None) -> int:
             lines.append(f"- [[Панель решений/{name}|{name}]] — **{counts[name]}**; {priority}.")
         lines.extend(["", "## Что означает решение", "", "- **Утвердить** — информация становится доступной внутреннему ИИ.", "- **Исключить** — источник остаётся в закрытом архиве, но не становится знанием ИИ.", "- **Обновить** — старая заметка заменяется подтверждённой формулировкой с новым источником.", "- **Архивировать** — материал сохраняется для истории и не используется в ответах."])
         (dashboard / "Главная панель.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-        for stale in dashboard.glob("*.md"):
-            if stale.name not in generated:
-                stale.unlink()
+        for stale_name in previous_generated - generated:
+            (dashboard / stale_name).unlink(missing_ok=True)
+        manifest_path.write_text(json.dumps({"version": 1, "files": sorted(generated)}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(json.dumps({"всего": sum(counts.values()), "категории": counts}, ensure_ascii=False))
         return 0
     except (FileNotFoundError, ValueError, json.JSONDecodeError) as error:

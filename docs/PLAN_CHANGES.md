@@ -6421,3 +6421,33 @@ Change type: release-evidence implementation detail
   lockfile-enforcing clean install; the existing separate audit gate is unchanged.
 - P8B does not read providers or production, deploy images, alter configuration,
   apply migrations or enable any Platform runtime flag. Those remain P8C/P8D.
+
+## 2026-08-14 - Implement P8C non-mutating environment reconciliation
+
+Plan Block-ID: `EVO-P8C-ENVIRONMENT-RECONCILIATION-2026-08-14`
+
+Issue: #180
+
+Change type: release-evidence implementation detail
+
+### Decision
+
+- Add a deterministic P8C report command and closed schema for the seven
+  required real-environment segments: GitHub, Hermes, managed Supabase, WAHA,
+  amoCRM, Gemini and rollback.
+- Keep image provenance bound to P8B pull-request head
+  `0505143657858e710acdd5029f1cc77c5524083e`; separately record squash-main
+  `6ee93bd308aa478357279dd71511c7dc479b1f69` and require both commits to resolve
+  to the identical tree `0563636057a19949a8927abc3ce02b32ba65896c`.
+- Consume only separately retained, redacted, candidate-bound read-only
+  evidence below `.evo-release-evidence/`; reject symlinks, hash drift,
+  secret-like content, local substitutes for verified real checks, missing or
+  extra segments and non-canonical timestamps.
+- Derive the overall result mechanically: any blocked segment blocks the
+  report; otherwise any deferred segment defers it; otherwise verified and
+  not-applicable segments produce verified.
+- Record current production drift truthfully. P8C does not deploy images,
+  apply migrations, alter settings, restart services, send messages, write to
+  amoCRM, call Gemini with customer content or create billed resources.
+- Keep P8D behind a separate action-time owner approval after the P8C report
+  and independent review are complete.

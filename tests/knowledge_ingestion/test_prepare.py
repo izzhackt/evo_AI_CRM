@@ -17,6 +17,19 @@ sys.modules[SPEC.name] = prepare
 SPEC.loader.exec_module(prepare)
 
 
+def load_module(name: str, filename: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / "knowledge_ingestion" / filename)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+review = load_module("review", "review.py")
+publish = load_module("knowledge_publish", "publish.py")
+
+
 class ClassificationTests(unittest.TestCase):
     def test_sensitive_applicant_document_is_metadata_only(self) -> None:
         classification, _ = prepare.classify("Студенты/Иван/Паспорт.pdf")
@@ -105,6 +118,9 @@ class BoundaryTests(unittest.TestCase):
             first.process_drive(drive)
             first.finish()
             self.assertEqual(first.stats["новая_работа"], 1)
+            batch_manifest = json.loads((output / "Манифест пакетов Codex.json").read_text(encoding="utf-8"))
+            batch_file = next((output / "Очередь проверки Codex").glob("Пакет *.md"))
+            self.assertEqual(batch_manifest["batches"][batch_file.name], prepare.sha256_file(batch_file))
             second = prepare.Pipeline(output, 100_000, 25)
             second.process_drive(drive)
             second.finish()
@@ -148,6 +164,116 @@ class BoundaryTests(unittest.TestCase):
             sizes = [len(path.read_text(encoding="utf-8")) for path in pipeline.batches.glob("*.md")]
             self.assertTrue(sizes)
             self.assertLessEqual(max(sizes), 5000)
+
+
+class ReviewPublicationTests(unittest.TestCase):
+    def test_review_rejects_source_outside_current_batch(self) -> None:
+        source = "a" * 64
+        data = {"items": [{"decision": "approve", "sources": [source]}]}
+        with self.assertRaises(ValueError):
+            review.validate_result(data, {"b" * 64})
+
+    def test_orphan_review_result_and_fingerprint_are_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            result = output / "Пакет 9999.json"
+            result.write_text("{}", encoding="utf-8")
+            result.with_suffix(".sha256").write_text("a" * 64, encoding="utf-8")
+            self.assertEqual(review.remove_orphan_results(output, {"Пакет 0001.md"}), 1)
+            self.assertFalse(result.exists())
+            self.assertFalse(result.with_suffix(".sha256").exists())
+
+    def test_material_claim_is_forced_to_escalation(self) -> None:
+        for title in ("Гарантия визы", "Visa guarantee", "Тариф и оплата", "Refund", "Контракт"):
+            with self.subTest(title=title):
+                item = {"title": title, "summary": "", "facts": []}
+                self.assertTrue(publish.material(item))
+
+    def test_escalated_note_is_not_marked_approved(self) -> None:
+        item = {"title": "Вопрос", "summary": "Нужно решение", "facts": [], "sources": ["a" * 64]}
+        text = publish.render(item, "требует_решения")
+        self.assertIn("статус: требует_решения", text)
+        self.assertNotIn("статус: утверждено_для_внутреннего_ИИ", text)
+
+    def test_api_credentials_are_removed_from_codex_environment(self) -> None:
+        original = dict(review.os.environ)
+        try:
+            review.os.environ["OPENAI_API_KEY"] = "must-not-pass"
+            review.os.environ["SOME_PROVIDER_TOKEN"] = "must-not-pass"
+            environment = review.codex_environment()
+            self.assertNotIn("OPENAI_API_KEY", environment)
+            self.assertNotIn("SOME_PROVIDER_TOKEN", environment)
+        finally:
+            review.os.environ.clear()
+            review.os.environ.update(original)
+
+    def test_client_vault_boundary_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "Клиентская база знаний ЭВО"
+            vault = root / "Утверждено для внутреннего ИИ"
+            with self.assertRaises(ValueError):
+                publish.validate_internal_vault(vault, root)
+
+    def test_internal_vault_boundary_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "Внутренняя база знаний ЭВО"
+            vault = root / "Утверждено для внутреннего ИИ"
+            root.mkdir()
+            (root / ".evo-vault.json").write_text(json.dumps({"kind": "evo_internal_knowledge", "canonical_path": str(root.resolve())}), encoding="utf-8")
+            publish.validate_internal_vault(vault, root)
+
+    def test_publication_removes_only_stale_managed_note(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "Внутренняя база знаний ЭВО"
+            incoming = root / "Входящие кандидаты"
+            reviews = incoming / "Результаты проверки Codex"
+            reviews.mkdir(parents=True)
+            vault = root / "Утверждено для внутреннего ИИ"
+            (root / ".evo-vault.json").write_text(json.dumps({"kind": "evo_internal_knowledge", "canonical_path": str(root.resolve())}), encoding="utf-8")
+            source = "a" * 64
+            pipeline = incoming / "Конвейер импорта"
+            queue = pipeline / "Очередь проверки Codex"
+            queue.mkdir(parents=True)
+            batch = queue / "Пакет 0001.md"
+            batch.write_text(f"## {source}\n\nРеальный источник", encoding="utf-8")
+            batch_fingerprint = prepare.sha256_file(batch)
+            fingerprint = review.review_fingerprint(batch.read_text(encoding="utf-8"))
+            (pipeline / "Манифест источников.jsonl").write_text(json.dumps({"sha256": source, "classification": "деловой_материал", "extraction_status": "извлечено"}) + "\n", encoding="utf-8")
+            (pipeline / "Манифест пакетов Codex.json").write_text(json.dumps({"version": prepare.VERSION, "batches": {batch.name: batch_fingerprint}}), encoding="utf-8")
+            item = {
+                "decision": "approve", "title": "Рабочий процесс", "section": "Процессы",
+                "claim_key": "working-process", "authority": "evo_active_document",
+                "summary": "Внутренний порядок работы.", "facts": ["Порядок описан."],
+                "sources": [source], "reason": "Ясный деловой материал."
+            }
+            result = reviews / "Пакет 0001.json"
+            result.write_text(json.dumps({"items": [item]}, ensure_ascii=False), encoding="utf-8")
+            result.with_suffix(".sha256").write_text(fingerprint, encoding="utf-8")
+            arguments = ["--reviews", str(reviews), "--queue", str(queue), "--authorized-root", str(root), "--vault", str(vault)]
+            self.assertEqual(publish.main(arguments), 0)
+            managed = json.loads((vault / ".Манифест публикации Codex.json").read_text(encoding="utf-8"))["files"]
+            self.assertEqual(len(managed), 1)
+            unmanaged = vault / "Моя ручная заметка.md"
+            unmanaged.write_text("Не удалять", encoding="utf-8")
+            item["decision"] = "ignore"
+            result.write_text(json.dumps({"items": [item]}, ensure_ascii=False), encoding="utf-8")
+            self.assertEqual(publish.main(arguments), 0)
+            self.assertFalse((vault / managed[0]).exists())
+            self.assertTrue(unmanaged.exists())
+
+    def test_higher_authority_escalation_blocks_lower_approval(self) -> None:
+        low = {
+            "decision": "approve", "claim_key": "country-deadline", "authority": "legacy_or_unknown",
+            "title": "Срок подачи", "section": "Страны", "summary": "Срок A", "facts": ["A"],
+            "sources": ["a" * 64], "reason": "Старый документ"
+        }
+        high = {
+            "decision": "escalate", "claim_key": "country-deadline", "authority": "owner_director",
+            "title": "Срок подачи", "section": "Страны", "summary": "Срок B", "facts": ["B"],
+            "sources": ["b" * 64], "reason": "Нужно подтверждение"
+        }
+        self.assertTrue(publish.conflict_blocks(low, [low, high]))
 
 
 if __name__ == "__main__":

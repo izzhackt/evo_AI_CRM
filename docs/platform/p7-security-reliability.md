@@ -1,7 +1,7 @@
 # P7 security, reliability and operations contract
 
 Status: authoritative implementation contract; P7A and P7B accepted, P7C
-managed-recovery amendment proposed
+deferred by owner decision, focused P7D contract active
 
 Version date: 2026-08-14 (Asia/Bishkek)
 
@@ -33,11 +33,12 @@ Accepted progress:
 - P7A evidence is repository/disposable-local only. Its runtime remains
   disabled by default, and it proves no managed Supabase, production or
   real-provider behavior;
-- P7B is accepted. P7C is next, while P7D remains blocked until the owner
-  supplies its numeric capacity and human accessibility inputs;
-- the real managed P7C provider, recovery, legacy-retirement and cost boundary
-  is frozen in `docs/platform/p7c-managed-recovery-contract.md` and tracked by
-  issue #162.
+- P7B is accepted. The owner deferred P7C recovery and the large P7D capacity
+  stress test. Focused P7D accessibility is next under
+  `docs/platform/p7d-focused-accessibility-contract.md` and issue #167;
+- the managed P7C recovery and cost boundary remains frozen in
+  `docs/platform/p7c-managed-recovery-contract.md` and issue #162;
+  `inbox-prod` is a separate retained Inbox SaaS product outside P7C.
 
 This contract expands the append-only Block-ID above. If wording conflicts,
 `docs/PLAN_CHANGES.md` and `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` take
@@ -55,16 +56,17 @@ only as:
 1. `P7-PLAN` - this reviewed docs-only authority gate;
 2. `P7A` - safe Admin-only Platform audit search/export;
 3. `P7B` - private structured observability, alert evaluation and runbooks;
-4. `P7C` - managed database restore plus a separate private Storage restore,
-   Platform schema-promotion proof and gated legacy-project retirement;
-5. `P7D` - owner-approved-capacity load evidence and automated plus human
-   accessibility closure.
+4. `P7C` - owner-deferred managed database plus separate private Storage
+   recovery and Platform schema-promotion proof;
+5. `P7D` - focused automated plus owner-led human accessibility closure, with
+   large capacity stress explicitly deferred/unproved.
 
 Each implementation block requires its own fresh worktree, focused tests,
 independent exact-head review, green exact-head CI, direct merge of only that
-reviewed head and green exact-main push CI. P8 remains blocked until P7D is
-complete and every unavailable managed/provider/production segment is recorded
-as blocked or deferred.
+reviewed head and green exact-main push CI. P8 candidate preparation may follow
+the focused P7D contract; release remains blocked until focused accessibility
+is complete and every unavailable managed/provider/production segment is
+recorded as blocked or deferred.
 
 ## Global truth and safety boundary
 
@@ -72,9 +74,9 @@ as blocked or deferred.
   production, real-provider or customer-data proof.
 - No P7 block authorizes production deployment/migration, DNS, WAHA session or
   QR mutation, live WhatsApp send, amoCRM write, broad outbound automation,
-  retention deletion or destructive production restore. The exact P7C managed
-  project operations and legacy-retirement gates are the only superseding
-  provider/service exception.
+  retention deletion or destructive production restore. The completed P7C
+  managed project transfer and rename are the only superseding provider/service
+  exception. Deferred recovery requires fresh authority.
 - Lead Agent and the rollback path remain deployed/frozen. P4B mapping
   activation and writes remain deferred.
 - DEC-009, DEC-010, DEC-012 and DEC-017 remain open. Work may proceed around
@@ -180,7 +182,7 @@ base row contains private `actor_principal`, raw `before_state`, raw
 - Compose/Caddy tests prove private networks, no published WAHA/Lead Agent port,
   and bounded resources/logging.
 
-## P7C - managed recovery, Platform promotion and legacy retirement
+## P7C - deferred managed recovery and Platform promotion
 
 ### Required implementation
 
@@ -193,9 +195,8 @@ base row contains private `actor_principal`, raw `before_state`, raw
 - Prove current managed migration `039` compatibility and repository migrations
   through `072` on the recovery destination before seeking production migration
   authority.
-- Retire `inbox-prod` only after its live consumer and required data are moved,
-  real workflows and rollback pass, 72 consecutive hours show zero legacy
-  traffic, and the owner reconfirms permanent deletion at action time.
+- Leave `inbox-prod` untouched. It is a separate owned Inbox SaaS product and
+  is not a P7C source, destination, migration or retirement target.
 
 ### Required acceptance
 
@@ -211,30 +212,25 @@ base row contains private `actor_principal`, raw `before_state`, raw
 - Production migration, PITR, non-empty Storage recovery and legacy deletion
   remain blocked until their exact contract prerequisites pass.
 
-## P7D - capacity and accessibility closure
+## P7D - focused accessibility closure; capacity deferred
 
 ### Entry gate
 
-The owner must first approve a numeric capacity profile covering staff and
-concurrent sessions, cases/messages/files, request mix, duration and allowed
-error rate. A human accessibility reviewer and explicit
-assistive-technology/browser/device matrix must also be available. Without both
-inputs P7D is `BLOCKED`; no default load or Axe-only result can complete it.
+The owner deferred the large capacity stress test and approved the focused
+small-launch/accessibility contract in
+`docs/platform/p7d-focused-accessibility-contract.md`. Capacity remains
+unproved. The owner is the human accessibility reviewer and approved the
+Mac/iPhone/Android browser and assistive-technology matrix.
 
 ### Required implementation and acceptance
 
-- A bounded k6 harness refuses production/public-provider targets, absent
-  numeric limits, unbounded duration and non-synthetic credentials.
-- Run only against an isolated synthetic Platform with WAHA, Gemini,
-  amoCRM-write and autonomous-send/provider lanes disabled.
-- At the approved profile, explicit k6 thresholds gate pass/fail and record
-  latency, errors, consistency, tenant isolation and queue/audit invariants.
-  Results are observations, not an invented company SLO.
-- Run Axe WCAG 2.2 A/AA plus responsive evidence at `1440x1024`, `834x1194`
-  and `390x844` over critical accepted P5-P7 staff and Portal routes.
-- Complete human keyboard, focus order/visibility, dialog semantics, zoom,
-  screen-reader announcement and responsive evaluation. Accessibility
-  conformance cannot be claimed from automation or a partial page alone.
+- Do not create a temporary load project or run the former large k6 profile.
+  Reopen formal load testing only under the triggers and fresh authority in the
+  focused contract; do not call capacity passed.
+- Run the existing automated accessibility suite on the exact real release
+  candidate and record its exact evidence without claiming formal conformance.
+- Complete the focused human keyboard, focus, zoom, dialog, VoiceOver and
+  mobile review on that same candidate.
 - Fix only verified regressions inside the accepted Claude Design. Any finding
   requiring a new workflow, design system or architecture stops for a separate
   amendment.
@@ -246,12 +242,13 @@ Open inputs:
 1. DEC-009 managed Supabase region/plan/PITR/cost owner, distinct restore
    project, direct database credential and separate Storage/S3 destination.
 2. Log-drain/pager destination, supported paid plan and operational owner.
-3. DEC-010 numeric capacity plus SLO/RPO/RTO decisions.
+3. DEC-010 numeric capacity plus SLO/RPO/RTO decisions remains deferred.
 4. DEC-012 privacy, residency, retention/legal deletion and provider DPA.
 5. DEC-017 release window, freeze rules and rollback authority.
 6. Dedicated sanitized private WAHA identity/session authority for later real
    provider evidence.
-7. Human accessibility reviewer and approved AT/browser/device matrix.
+7. Human accessibility evidence on the exact real release candidate; the owner
+   and Mac/iPhone/Android matrix are approved, but the review has not run.
 
 Stop before any raw audit/provider exposure, widened audit authority, public
 operational endpoint, managed/production/customer/provider mutation,

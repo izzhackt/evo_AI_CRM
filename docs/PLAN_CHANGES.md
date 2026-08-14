@@ -6105,3 +6105,83 @@ Official metric-format basis:
 
 Merging this amendment proves only a reviewed plan boundary. It is not P7B
 implementation, runtime, provider, managed-environment or production evidence.
+
+## 2026-08-14 - Consolidate managed Supabase and freeze real P7C recovery
+
+Decision Block-ID: `EVO-P7C-MANAGED-RECOVERY-2026-08-14`
+
+Issue: #162
+
+### Why this amendment exists
+
+P7B is accepted on `main` at
+`a6077ad6b7642deceead31dd11ed463548216d58`, migrations are contiguous through
+`072`, and exact-main push CI run `31753423736` is green. The prior P7C wording
+authorized only isolated local restore mechanics and explicitly withheld
+managed/production claims. It no longer captures the owner-authorized provider
+decision made on 2026-08-14 or the real topology discovered before execution.
+
+The real EVO production Supabase source existed and was healthy, but it belonged
+to a Free organization with no evidenced managed-backup list at the time of the
+audit. A separate Pro organization already existed. The owner authorized moving
+the exact EVO project into that Pro organization, retaining its project
+reference and Singapore region, and renaming only its dashboard display name.
+
+The provider transfer and rename are now completed facts:
+
+- `evo-platform-prod` is the canonical project display name;
+- its immutable project reference remains `iosckaqtovbbnssqcpde`;
+- it belongs to `Isko's org` on Pro and reports healthy;
+- the dashboard exposes a scheduled physical database backup;
+- production applications continue using the unchanged project URL/keys;
+- the repository is at migration `072`, while the managed application history
+  reports migration `039`; no Platform promotion is claimed;
+- the separate `inbox-prod` project is still active and cannot be treated as
+  disposable. It showed real traffic and active users during the audit and a
+  live application still references it.
+
+### Superseding P7C decision
+
+Replace the earlier synthetic/local-only P7C execution assumption with the
+real managed recovery contract in
+`docs/platform/p7c-managed-recovery-contract.md`.
+
+1. P7C uses the real owned managed source, real encrypted exports and a newly
+   created empty managed recovery destination. Local stacks, mocks, fake
+   projects and synthetic records are not acceptance evidence.
+2. Database and Storage recovery remain separate. The current real Storage
+   inventory is empty, so empty-manifest verification is valid but non-empty
+   byte-restore evidence stays visibly missing; no test object is fabricated.
+3. The managed production migration gap `039 -> 072` is first analyzed and run
+   against the recovered destination. It is not blindly applied to production.
+4. `inbox-prod` retirement is a migration/cutover block, not an immediate cost
+   cleanup. It requires an encrypted backup, domain mapping, real consumer
+   cutover, rollback, 72 hours of zero legacy traffic and fresh owner
+   confirmation immediately before permanent deletion.
+5. Precise credentials, customer data, backup contents and unresolved
+   infrastructure exposure remain private evidence and never enter GitHub.
+
+### Cost decision
+
+- Existing Pro subscription: approximately `$25/month`.
+- Current transition with `inbox-prod` and `evo-platform-prod` active:
+  approximately `$35/month` for a full cycle.
+- Current partial-cycle provider projection immediately after transfer:
+  `$26.36`, subject to the dashboard's documented one-hour refresh delay.
+- Temporary Micro recovery project: approximately `$0.01344/hour`, or `$0.32`
+  for 24 hours; no new subscription or optional add-on is authorized.
+- Final expected steady state after safe legacy retirement:
+  approximately `$25/month` with only `evo-platform-prod` active.
+
+Spend Cap remains enabled, but compute is billed independently of Spend Cap.
+The recovery project therefore has an explicit bounded lifetime and exact-target
+cleanup gate.
+
+### Scope and proof boundary
+
+This amendment records the completed organization/name mutation and authorizes
+planning plus reviewed P7C implementation PRs. It does not authorize immediate
+`inbox-prod` deletion, production migrations `040-072`, production restore,
+PITR, larger compute, public infrastructure changes, provider messages or
+customer-data publication. Each such action retains its contract gate and any
+required action-time approval.

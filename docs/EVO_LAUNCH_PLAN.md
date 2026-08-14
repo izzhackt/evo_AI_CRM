@@ -26,10 +26,12 @@ the P7C authority contract plus the `evo-platform-prod` organization and name
 consolidation, PR #164 deferred the P7C drill, PR #165 merged the local
 knowledge-ingestion contract, PR #166 merged its deterministic Takeout
 preparation pipeline, PR #170 merged the real lead-processing proof plan, and
-PR #171 merged Codex review plus Obsidian publication.
-Current `origin/main` is `8d16a551111add9d5e299db66bb519812473a89a`,
+PR #171 merged Codex review plus Obsidian publication. PR #169 merged the
+focused P7D accessibility contract, and PRs #172-#174 hardened the local
+knowledge-ingestion path.
+Current `origin/main` is `a8474eb57f94f952711e953be21b5e6041d2f36e`,
 migrations remain contiguous `001-072`, and exact-main push CI run
-`31810033100` is green for Main CRM, EVO Inbox and EVO Lead Agent; Changed
+`31820931774` is green for Main CRM, EVO Inbox and EVO Lead Agent; Changed
 range is skipped on the push event as expected.
 
 P4B implementation is preserved on remote branch
@@ -49,10 +51,9 @@ Supabase Pro scheduled database backups remain enabled, but they are not
 restore evidence and do not include Storage object bytes. `inbox-prod` is a
 separate owned Inbox SaaS product and is explicitly retained outside EVO
 Platform consolidation and retirement scope. The active next planning slice
-is the focused P7D accessibility contract in
-`docs/platform/p7d-focused-accessibility-contract.md`. The owner deferred the
-large capacity stress test and approved a small-launch monitoring envelope plus
-focused human review.
+is P8A under `docs/platform/p8-controlled-release-candidate.md`. The owner
+deferred the large capacity stress test and approved a small-launch monitoring
+envelope plus focused human review on the exact P8 candidate.
 Updated 2026-08-14 in the workspace timezone.
 
 This document is the execution contract for the current EVO Platform MVP lane in
@@ -263,16 +264,16 @@ slice. The superseding rule is:
 
 ## Current Goal Slice
 
-Active next planning slice: P7D focused automated and human accessibility
-closure under `EVO-P7D-FOCUSED-ACCESSIBILITY-2026-08-14`. P6A-P6D, P7A and
+Active next planning slice: P8 controlled release-candidate preparation under
+`EVO-P8-CONTROLLED-RELEASE-CANDIDATE-2026-08-14`. P6A-P6D, P7A and
 P7B are merged, PR #163 merged the P7C authority contract and managed project
-consolidation, PR #164 merged its deferral, and exact-main run `31810033100` is
+consolidation, PR #164 merged its deferral, and exact-main run `31820931774` is
 green. The owner has deferred P7C database plus separate
 private Storage recovery execution and the large P7D capacity stress test; those
-deferrals do not count as recovery or capacity acceptance. P8 may prepare the
-real release candidate only after this focused contract merges. Accessibility
-closure still requires exact-candidate automated evidence and the approved
-human review before a release decision.
+deferrals do not count as recovery or capacity acceptance. The P7D contract is
+merged; P8 now prepares the exact candidate. Accessibility closure still
+requires exact-candidate automated evidence and the approved human review
+before a release decision.
 Each block still requires its own
 fresh exact-head review, exact-head CI, exact-base recheck, reviewed merge and
 green exact-main push CI. No P7 block inherits managed, provider or production
@@ -388,8 +389,8 @@ checkpoint is:
    contract, PR #156 completed P7A, PR #157 refreshed accepted status plus the
    OrbStack-only rule, PR #160 completed P7B, and PR #163 merged the P7C
    authority contract plus managed project consolidation. Current main is
-   `8d16a551111add9d5e299db66bb519812473a89a`, migrations end at `072`,
-   and exact-main push run `31810033100` is green. Preserve this accepted
+   `a8474eb57f94f952711e953be21b5e6041d2f36e`, migrations end at `072`,
+   and exact-main push run `31820931774` is green. Preserve this accepted
    repository/local evidence and its non-production truth boundary.
 1. Preserve P4B at
    `izzhackt/evo-platform-p4b-mapping-approval` / `e53ba94954f147b295f596421a255591fa343ce8`.
@@ -399,9 +400,9 @@ checkpoint is:
    the Platform is functionally complete and concretely operating. Keep
    automatic database backups enabled, do not create a billed recovery project,
    and leave the separate Inbox SaaS project `inbox-prod` untouched.
-3. Merge the focused P7D contract. Defer the large load test and temporary
-   managed load environment without calling capacity passed. Prepare the real
-   P8 candidate, then run the existing automated accessibility gate and the
+3. Preserve the merged focused P7D contract. Defer the large load test and
+   temporary managed load environment without calling capacity passed. Prepare
+   the real P8 candidate, then run the existing automated accessibility gate and the
    owner-led Mac/iPhone/Android human matrix on that exact candidate.
 4. Do not infer canonical sales identity, responsible Sales, stage, Portal
    activation or contract handoff, and do not convert missing managed/provider

@@ -492,6 +492,23 @@ class ReviewPublicationTests(unittest.TestCase):
         times["a" * 64] = times["b" * 64]
         self.assertTrue(publish.conflict_blocks(new, [old, new], times))
 
+    def test_missing_or_partial_source_dates_leave_conflict_blocked(self) -> None:
+        high = {
+            "decision": "approve", "claim_key": "price", "authority": "owner_director",
+            "title": "Цена владельца", "summary": "Цена 120.", "facts": ["120"],
+            "sources": ["a" * 64, "c" * 64],
+        }
+        low = {
+            "decision": "approve", "claim_key": "price", "authority": "legacy_or_unknown",
+            "title": "Старая цена", "summary": "Цена 100.", "facts": ["100"], "sources": ["b" * 64],
+        }
+        self.assertTrue(publish.conflict_blocks(high, [high, low], {}))
+        partial = {
+            "a" * 64: publish.datetime.fromisoformat("2026-02-01T00:00:00+00:00"),
+            "b" * 64: publish.datetime.fromisoformat("2026-01-01T00:00:00+00:00"),
+        }
+        self.assertTrue(publish.conflict_blocks(high, [high, low], partial))
+
 
 if __name__ == "__main__":
     unittest.main()

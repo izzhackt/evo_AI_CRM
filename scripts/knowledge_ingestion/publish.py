@@ -111,17 +111,19 @@ def conflict_blocks(item: dict, all_items: list[dict], modified_at: dict[str, da
         and candidate["claim_key"] == item["claim_key"]
         and f"{candidate['summary'].strip()}::{json.dumps(candidate['facts'], ensure_ascii=False, sort_keys=True)}" != item_content
     ]
-    if modified_at and competing:
+    if modified_at is not None and competing:
         group = [item, *competing]
         timestamps = []
         for candidate in group:
-            source_times = [modified_at[source] for source in candidate.get("sources", []) if source in modified_at]
-            timestamps.append(max(source_times) if source_times else None)
-        if all(value is not None for value in timestamps):
-            newest = max(timestamps)
-            winners = [index for index, value in enumerate(timestamps) if value == newest]
-            if len(winners) == 1:
-                return winners[0] != 0
+            sources = candidate.get("sources", [])
+            if not sources or any(source not in modified_at for source in sources):
+                return True
+            timestamps.append(max(modified_at[source] for source in sources))
+        newest = max(timestamps)
+        winners = [index for index, value in enumerate(timestamps) if value == newest]
+        if len(winners) == 1:
+            return winners[0] != 0
+        return True
     return any(AUTHORITY[candidate["authority"]] >= AUTHORITY[item["authority"]] for candidate in competing)
 
 

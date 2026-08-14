@@ -208,7 +208,7 @@ class ReviewPublicationTests(unittest.TestCase):
             unmanaged = dashboard / "Моя ручная заметка.md"
             unmanaged.write_text("Не удалять", encoding="utf-8")
             stale = dashboard / "Старая управляемая.md"
-            stale.write_text("Удалить", encoding="utf-8")
+            stale.write_text("---\nтип: панель_решений\n---\nУдалить", encoding="utf-8")
             manifest_path = dashboard / ".Манифест панели решений.json"
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             manifest["files"].append(stale.name)
@@ -217,6 +217,35 @@ class ReviewPublicationTests(unittest.TestCase):
             self.assertEqual(note.read_text(encoding="utf-8"), note_content)
             self.assertTrue(unmanaged.is_file())
             self.assertFalse(stale.exists())
+
+    def test_decision_dashboard_rejects_manifest_path_traversal(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "Внутренняя база знаний ЭВО"
+            vault = root / "Утверждено для внутреннего ИИ"
+            unresolved = vault / "Требует решения"
+            reviews = root / "Входящие кандидаты" / "Результаты проверки Codex"
+            dashboard = vault / "Панель решений"
+            unresolved.mkdir(parents=True)
+            reviews.mkdir(parents=True)
+            dashboard.mkdir(parents=True)
+            (root / ".evo-vault.json").write_text(
+                json.dumps({"kind": "evo_internal_knowledge", "canonical_path": str(root.resolve())}), encoding="utf-8"
+            )
+            source = "a" * 64
+            note = unresolved / "Не удалять.md"
+            note.write_text(f"---\nисточники:\n  - {source}\n---\n# Не удалять\n", encoding="utf-8")
+            item = {
+                "decision": "escalate", "claim_key": "keep", "authority": "legacy_or_unknown",
+                "title": "Не удалять", "section": "Неопределенное", "summary": "Контекст.",
+                "facts": [], "sources": [source], "reason": "Нужно уточнение.",
+            }
+            (reviews / "Пакет 0001.json").write_text(json.dumps({"items": [item]}, ensure_ascii=False), encoding="utf-8")
+            (dashboard / ".Манифест панели решений.json").write_text(
+                json.dumps({"version": 1, "files": ["../Требует решения/Не удалять.md"]}, ensure_ascii=False), encoding="utf-8"
+            )
+            arguments = ["--reviews", str(reviews), "--vault", str(vault), "--authorized-root", str(root)]
+            self.assertEqual(sort_decisions.main(arguments), 2)
+            self.assertTrue(note.is_file())
 
     def test_single_source_batch_canonicalizes_a_well_formed_wrong_hash(self) -> None:
         allowed = "a" * 64

@@ -63,6 +63,15 @@ def load_items(reviews: Path) -> dict[tuple[str, tuple[str, ...]], dict]:
     return result
 
 
+def managed_path(dashboard: Path, name: str) -> Path:
+    if not name or Path(name).name != name or not name.endswith(".md") or name.startswith(".") or ".." in name:
+        raise ValueError("манифест панели содержит небезопасное имя файла")
+    target = (dashboard / name).resolve()
+    if target.parent != dashboard.resolve():
+        raise ValueError("манифест панели выходит за разрешённую папку")
+    return target
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Отсортировать заметки 'Требует решения' в Obsidian.")
     parser.add_argument("--reviews", type=Path, required=True)
@@ -96,7 +105,11 @@ def main(argv: list[str] | None = None) -> int:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             if not isinstance(manifest, dict) or not isinstance(manifest.get("files"), list):
                 raise ValueError("повреждён манифест панели решений")
-            previous_generated = {name for name in manifest["files"] if isinstance(name, str)}
+            if any(not isinstance(name, str) for name in manifest["files"]):
+                raise ValueError("манифест панели содержит неверное имя файла")
+            previous_generated = set(manifest["files"])
+            for name in previous_generated:
+                managed_path(dashboard, name)
         generated = {"Главная панель.md"}
         for name, (priority, action) in CATEGORIES.items():
             rows = sorted(grouped.get(name, []), key=lambda pair: (pair[1].get("section", ""), pair[1]["title"].casefold()))
@@ -115,7 +128,11 @@ def main(argv: list[str] | None = None) -> int:
         lines.extend(["", "## Что означает решение", "", "- **Утвердить** — информация становится доступной внутреннему ИИ.", "- **Исключить** — источник остаётся в закрытом архиве, но не становится знанием ИИ.", "- **Обновить** — старая заметка заменяется подтверждённой формулировкой с новым источником.", "- **Архивировать** — материал сохраняется для истории и не используется в ответах."])
         (dashboard / "Главная панель.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
         for stale_name in previous_generated - generated:
-            (dashboard / stale_name).unlink(missing_ok=True)
+            stale = managed_path(dashboard, stale_name)
+            if stale.is_file():
+                if "тип: панель_решений" not in stale.read_text(encoding="utf-8"):
+                    raise ValueError(f"отказ удаления неуправляемого файла: {stale.name}")
+                stale.unlink()
         manifest_path.write_text(json.dumps({"version": 1, "files": sorted(generated)}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(json.dumps({"всего": sum(counts.values()), "категории": counts}, ensure_ascii=False))
         return 0

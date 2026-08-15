@@ -51,10 +51,7 @@ const platformAdmissionsMigration = readFileSync(
   'utf8'
 )
 const platformDocumentsFinanceNotificationsMigration = readFileSync(
-  join(
-    migrationsDir,
-    '043_platform_documents_finance_notifications.sql'
-  ),
+  join(migrationsDir, '043_platform_documents_finance_notifications.sql'),
   'utf8'
 )
 const platformCommunicationsMigration = readFileSync(
@@ -85,10 +82,7 @@ const platformMessagingControllerHardeningMigration = readFileSync(
   'utf8'
 )
 const platformBusinessWorkflowContractsMigration = readFileSync(
-  join(
-    migrationsDir,
-    '051_platform_business_workflow_contracts.sql'
-  ),
+  join(migrationsDir, '051_platform_business_workflow_contracts.sql'),
   'utf8'
 )
 const platformWorkflowCaseBindingsMigration = readFileSync(
@@ -140,10 +134,7 @@ const platformStudentPortalNotificationsMigration = readFileSync(
   'utf8'
 )
 const platformStudentPortalOverdueNotificationsMigration = readFileSync(
-  join(
-    migrationsDir,
-    '069_platform_student_portal_overdue_notifications.sql'
-  ),
+  join(migrationsDir, '069_platform_student_portal_overdue_notifications.sql'),
   'utf8'
 )
 const platformPortalCrossDomainClosureMigration = readFileSync(
@@ -156,6 +147,10 @@ const platformAuditSearchExportMigration = readFileSync(
 )
 const platformOperationalSignalsMigration = readFileSync(
   join(migrationsDir, '072_platform_operational_signals.sql'),
+  'utf8'
+)
+const aiKnowledgeAudienceMigration = readFileSync(
+  join(migrationsDir, '073_ai_knowledge_audience_isolation.sql'),
   'utf8'
 )
 const platformOperationalSignalsAuthorizationTest = readFileSync(
@@ -391,7 +386,9 @@ function p7aAllowlist(functionName: string): Set<string> {
 
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
-    expect(migrationFiles.at(-1)).toBe('072_platform_operational_signals.sql')
+    expect(migrationFiles.at(-1)).toBe(
+      '073_ai_knowledge_audience_isolation.sql'
+    )
     expect(platformOperationalSignalsMigration).toMatch(
       /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.platform_operational_signals_v1\s*\(\s*p_request_id\s+UUID\s*\)\s*RETURNS\s+JSONB[\s\S]*?SECURITY\s+DEFINER[\s\S]*?SET\s+search_path\s*=\s*''[\s\S]*?SET\s+statement_timeout\s*=\s*'3000ms'[\s\S]*?SET\s+lock_timeout\s*=\s*'1000ms'/i
     )
@@ -499,10 +496,7 @@ describe('Supabase companion schema contract', () => {
       'waha_history_reconciliation_checkpoints',
     ]) {
       expect(platformWahaHistoryMigration).toMatch(
-        new RegExp(
-          `CREATE\\s+TABLE\\s+platform_private\\.${table}`,
-          'i'
-        )
+        new RegExp(`CREATE\\s+TABLE\\s+platform_private\\.${table}`, 'i')
       )
       expect(platformWahaHistoryMigration).toMatch(
         new RegExp(
@@ -554,10 +548,7 @@ describe('Supabase companion schema contract', () => {
       'waha_event_projection_requests',
     ]) {
       expect(platformWahaAckSessionRealtimeMigration).toMatch(
-        new RegExp(
-          `CREATE\\s+TABLE\\s+platform_private\\.${table}`,
-          'i'
-        )
+        new RegExp(`CREATE\\s+TABLE\\s+platform_private\\.${table}`, 'i')
       )
       expect(platformWahaAckSessionRealtimeMigration).toMatch(
         new RegExp(
@@ -653,7 +644,10 @@ describe('Supabase companion schema contract', () => {
       'staff_case_contract_workspace',
     ]) {
       expect(platformContractDraftReportMigration).toMatch(
-        new RegExp(`CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+platform\\.${rpc}`, 'i')
+        new RegExp(
+          `CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+platform\\.${rpc}`,
+          'i'
+        )
       )
     }
     expect(platformContractDraftReportMigration).toMatch(
@@ -789,6 +783,27 @@ describe('Supabase companion schema contract', () => {
     )
   })
 
+  it('enforces account-scoped client and internal knowledge audiences', () => {
+    expect(aiKnowledgeAudienceMigration).toMatch(
+      /ALTER\s+TABLE\s+public\.ai_knowledge_documents[\s\S]*ADD\s+COLUMN\s+audience\s+TEXT\s+NOT\s+NULL\s+DEFAULT\s+'internal'[\s\S]*CHECK\s*\(audience\s+IN\s*\('client',\s*'internal'\)\)/i
+    )
+    expect(aiKnowledgeAudienceMigration).toMatch(
+      /FOREIGN\s+KEY\s*\(document_id,\s*account_id,\s*audience\)[\s\S]*REFERENCES\s+public\.ai_knowledge_documents\s*\(id,\s*account_id,\s*audience\)/i
+    )
+    expect(aiKnowledgeAudienceMigration).toMatch(
+      /CREATE\s+POLICY\s+ai_knowledge_documents_select[\s\S]*private\.is_account_member\s*\(account_id,\s*'agent'\)/i
+    )
+    expect(aiKnowledgeAudienceMigration).toMatch(
+      /CREATE\s+POLICY\s+ai_knowledge_documents_insert[\s\S]*audience\s*=\s*'internal'[\s\S]*private\.is_account_member\s*\(account_id,\s*'admin'\)/i
+    )
+    expect(aiKnowledgeAudienceMigration).toMatch(
+      /CREATE\s+FUNCTION\s+public\.match_ai_knowledge_fts\s*\(\s*p_account_id\s+UUID,\s*p_audience\s+TEXT,[\s\S]*SECURITY\s+INVOKER[\s\S]*chunk\.audience\s*=\s*p_audience/i
+    )
+    expect(aiKnowledgeAudienceMigration).toMatch(
+      /CREATE\s+FUNCTION\s+public\.match_ai_knowledge_semantic\s*\(\s*p_account_id\s+UUID,\s*p_audience\s+TEXT,[\s\S]*SECURITY\s+INVOKER[\s\S]*chunk\.audience\s*=\s*p_audience/i
+    )
+  })
+
   it('keeps new P7B runtime evidence explicitly non-provider', () => {
     expect(platformOperationalSignalsAuthorizationTest).not.toMatch(
       /provider_observed/i
@@ -872,9 +887,7 @@ describe('Supabase companion schema contract', () => {
     expect(sortedProducerPairs).toHaveLength(112)
     expect(
       createHash('sha256').update(sortedProducerPairs.join('\n')).digest('hex')
-    ).toBe(
-      'd3a2d42e476d64e5cb96950312b0a969276ab8bd06828aaa166ecce8c1297a2a'
-    )
+    ).toBe('d3a2d42e476d64e5cb96950312b0a969276ab8bd06828aaa166ecce8c1297a2a')
     expect(requiredBusinessPairs).toHaveLength(34)
     expect(intentionallyPrivatePairs).toHaveLength(18)
     expect(reviewedOmissions.size).toBe(52)
@@ -938,9 +951,7 @@ describe('Supabase companion schema contract', () => {
       "'student_portal.notification.read'"
     )
     expect(
-      platformStudentPortalNotificationsMigration.match(
-        /'notification\.read'/g
-      )
+      platformStudentPortalNotificationsMigration.match(/'notification\.read'/g)
     ).toHaveLength(2)
     expect(platformStudentPortalNotificationsMigration).toMatch(
       /CREATE\s+TRIGGER\s+document_reviews_publish_student_portal_notification[\s\S]*?AFTER\s+INSERT[\s\S]*?ON\s+platform\.document_reviews/i
@@ -993,10 +1004,7 @@ describe('Supabase companion schema contract', () => {
       'student_portal_overdue_notification_runs',
     ]) {
       expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
-        new RegExp(
-          `CREATE\\s+TABLE\\s+platform_private\\.${table}`,
-          'i'
-        )
+        new RegExp(`CREATE\\s+TABLE\\s+platform_private\\.${table}`, 'i')
       )
       expect(platformStudentPortalOverdueNotificationsMigration).toMatch(
         new RegExp(
@@ -1527,10 +1535,7 @@ describe('Supabase companion schema contract', () => {
       'durable_work_idempotency',
     ]) {
       expect(platformQueuesMigration).toMatch(
-        new RegExp(
-          `CREATE\\s+TABLE\\s+platform_private\\.${table}\\b`,
-          'i'
-        )
+        new RegExp(`CREATE\\s+TABLE\\s+platform_private\\.${table}\\b`, 'i')
       )
     }
 
@@ -1883,10 +1888,7 @@ describe('Supabase companion schema contract', () => {
       'amocrm_canonical_context_observations',
     ]) {
       expect(platformAmoCrmCanonicalContextMigration).toMatch(
-        new RegExp(
-          `CREATE\\s+TABLE\\s+platform_private\\.${table}`,
-          'i'
-        )
+        new RegExp(`CREATE\\s+TABLE\\s+platform_private\\.${table}`, 'i')
       )
       expect(platformAmoCrmCanonicalContextMigration).toMatch(
         new RegExp(
@@ -2190,9 +2192,8 @@ describe('Supabase companion schema contract', () => {
       /inside_reply_window[\s\S]*?policy_now\s*-\s*INTERVAL\s*'24 hours'\s+AND\s+policy_now[\s\S]*?business_hours[\s\S]*?policy_now\s+AT\s+TIME\s+ZONE\s+'Asia\/Bishkek'/i
     )
     expect(
-      platformAutonomousRepliesMigration.match(
-        /evo:p5f3:conversation:/gi
-      )?.length
+      platformAutonomousRepliesMigration.match(/evo:p5f3:conversation:/gi)
+        ?.length
     ).toBeGreaterThanOrEqual(4)
     expect(platformAutonomousRepliesMigration).toMatch(
       /'mutable_gate_blocked'[\s\S]*?INSERT\s+INTO\s+platform\.conversation_autonomous_reply_state[\s\S]*?'manual_review'[\s\S]*?autonomous_authority\s*=\s*FALSE/i

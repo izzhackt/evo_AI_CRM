@@ -1,9 +1,5 @@
 import { NextResponse } from 'next/server'
-import {
-  getCurrentAccount,
-  requireRole,
-  toErrorResponse,
-} from '@/lib/auth/account'
+import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { loadEmbeddingsConfigForAccount } from '@/lib/ai/config'
 import { ingestDocument } from '@/lib/ai/knowledge'
@@ -12,22 +8,20 @@ import { AiError } from '@/lib/ai/types'
 /**
  * GET /api/ai/knowledge
  *
- * List the account's knowledge-base documents (any member).
+ * List the account's manually managed internal knowledge (admin+).
  */
 export async function GET() {
   try {
-    const { supabase, accountId } = await getCurrentAccount()
+    const { supabase, accountId } = await requireRole('admin')
     const { data, error } = await supabase
       .from('ai_knowledge_documents')
       .select('id, title, updated_at')
       .eq('account_id', accountId)
+      .eq('audience', 'internal')
       .order('updated_at', { ascending: false })
     if (error) {
       console.error('[ai/knowledge GET] error:', error)
-      return NextResponse.json(
-        { error: 'Failed to load knowledge base' },
-        { status: 500 },
-      )
+      return NextResponse.json({ error: 'Failed to load knowledge base' }, { status: 500 })
     }
     return NextResponse.json({ documents: data ?? [] })
   } catch (err) {
@@ -48,26 +42,29 @@ export async function POST(request: Request) {
     if (!limit.success) return rateLimitResponse(limit)
 
     const body = await request.json().catch(() => null)
+    if (body && typeof body === 'object' && 'audience' in body) {
+      return NextResponse.json({ error: 'audience is controlled by the server' }, { status: 400 })
+    }
     const title = typeof body?.title === 'string' ? body.title.trim() : ''
     const content = typeof body?.content === 'string' ? body.content.trim() : ''
     if (!title || !content) {
-      return NextResponse.json(
-        { error: 'title and content are required' },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: 'title and content are required' }, { status: 400 })
     }
 
     const { data: doc, error } = await supabase
       .from('ai_knowledge_documents')
-      .insert({ account_id: accountId, created_by: userId, title, content })
+      .insert({
+        account_id: accountId,
+        audience: 'internal',
+        created_by: userId,
+        title,
+        content,
+      })
       .select('id')
       .single()
     if (error || !doc) {
       console.error('[ai/knowledge POST] insert error:', error)
-      return NextResponse.json(
-        { error: 'Failed to save document' },
-        { status: 500 },
-      )
+      return NextResponse.json({ error: 'Failed to save document' }, { status: 500 })
     }
 
     const {
@@ -79,6 +76,7 @@ export async function POST(request: Request) {
       await ingestDocument(
         supabase,
         accountId,
+        'internal',
         { embeddingsProvider, embeddingsApiKey },
         doc.id,
         content,

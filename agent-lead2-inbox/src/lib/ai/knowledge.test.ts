@@ -14,6 +14,7 @@ interface FakeState {
   fts: { id: string; content: string }[]
   chunkCount: number
   rpcCalls: string[]
+  rpcArgs: Record<string, unknown>[]
   inserted: Record<string, unknown>[] | null
   deletedFor: string | null
 }
@@ -24,12 +25,14 @@ function makeDb() {
     fts: [],
     chunkCount: 5, // account has a non-empty KB by default
     rpcCalls: [],
+    rpcArgs: [],
     inserted: null,
     deletedFor: null,
   }
   const db = {
-    rpc: (name: string) => {
+    rpc: (name: string, args: Record<string, unknown>) => {
       state.rpcCalls.push(name)
+      state.rpcArgs.push(args)
       if (name === 'match_ai_knowledge_semantic')
         return Promise.resolve({ data: state.semantic, error: null })
       if (name === 'match_ai_knowledge_fts')
@@ -39,7 +42,9 @@ function makeDb() {
     from: () => ({
       // retrieveKnowledge's empty-KB count guard.
       select: () => ({
-        eq: () => Promise.resolve({ count: state.chunkCount, error: null }),
+        eq: () => ({
+          eq: () => Promise.resolve({ count: state.chunkCount, error: null }),
+        }),
       }),
       delete: () => ({
         eq: (_col: string, val: string) => {
@@ -70,6 +75,7 @@ describe('retrieveKnowledge', () => {
       await retrieveKnowledge(
         db,
         'acct',
+        'client',
         { embeddingsProvider: 'keyword', embeddingsApiKey: null },
         '  ',
       ),
@@ -83,6 +89,7 @@ describe('retrieveKnowledge', () => {
     const out = await retrieveKnowledge(
       db,
       'acct',
+      'client',
       { embeddingsProvider: 'gemini', embeddingsApiKey: 'AIza-x' },
       'q',
     )
@@ -97,11 +104,15 @@ describe('retrieveKnowledge', () => {
     const out = await retrieveKnowledge(
       db,
       'acct',
+      'client',
       { embeddingsProvider: 'keyword', embeddingsApiKey: 'sk-unused' },
       'q',
     )
     expect(out).toEqual(['F1'])
     expect(state.rpcCalls).toEqual(['match_ai_knowledge_fts'])
+    expect(state.rpcArgs[0]).toEqual(
+      expect.objectContaining({ p_account_id: 'acct', p_audience: 'client' }),
+    )
     expect(h.embedTexts).not.toHaveBeenCalled()
   })
 
@@ -111,6 +122,7 @@ describe('retrieveKnowledge', () => {
     const out = await retrieveKnowledge(
       db,
       'acct',
+      'client',
       { embeddingsProvider: 'gemini', embeddingsApiKey: null },
       'q',
     )
@@ -129,6 +141,7 @@ describe('retrieveKnowledge', () => {
     const out = await retrieveKnowledge(
       db,
       'acct',
+      'client',
       { embeddingsProvider: 'gemini', embeddingsApiKey: 'AIza-x' },
       'q',
       3,
@@ -156,6 +169,7 @@ describe('retrieveKnowledge', () => {
     const out = await retrieveKnowledge(
       db,
       'acct',
+      'client',
       { embeddingsProvider: 'gemini', embeddingsApiKey: 'AIza-x' },
       'Салам, Германияга окууга кантип тапшырсам болот?',
       1,
@@ -185,15 +199,13 @@ describe('retrieveKnowledge', () => {
     const out = await retrieveKnowledge(
       db,
       'acct',
+      'client',
       { embeddingsProvider: 'openai', embeddingsApiKey: 'sk-x' },
       'q',
       3,
     )
     expect(out).toEqual(['S1', 'S2', 'F1'])
-    expect(state.rpcCalls).toEqual([
-      'match_ai_knowledge_semantic',
-      'match_ai_knowledge_fts',
-    ])
+    expect(state.rpcCalls).toEqual(['match_ai_knowledge_semantic', 'match_ai_knowledge_fts'])
   })
 
   it('returns the exact chunk ids used as immutable draft evidence', async () => {
@@ -207,6 +219,7 @@ describe('retrieveKnowledge', () => {
       retrieveKnowledgeWithEvidence(
         db,
         'acct',
+        'client',
         { embeddingsProvider: 'keyword', embeddingsApiKey: null },
         'Italy scholarship',
       ),
@@ -223,6 +236,7 @@ describe('ingestDocument', () => {
     await ingestDocument(
       db,
       'acct',
+      'client',
       { embeddingsProvider: 'openai', embeddingsApiKey: 'sk-x' },
       'doc-1',
       'hello world',
@@ -236,6 +250,7 @@ describe('ingestDocument', () => {
     expect(state.inserted).toHaveLength(1)
     expect(state.inserted![0].embedding).toBe('[0,0]') // literal from mocked embed
     expect(state.inserted![0].account_id).toBe('acct')
+    expect(state.inserted![0].audience).toBe('client')
   })
 
   it('stores chunks without embeddings when there is no key', async () => {
@@ -243,6 +258,7 @@ describe('ingestDocument', () => {
     await ingestDocument(
       db,
       'acct',
+      'client',
       { embeddingsProvider: 'keyword', embeddingsApiKey: null },
       'doc-1',
       'hello world',
@@ -256,6 +272,7 @@ describe('ingestDocument', () => {
     await ingestDocument(
       db,
       'acct',
+      'client',
       { embeddingsProvider: 'openai', embeddingsApiKey: 'sk-x' },
       'doc-1',
       '   ',
@@ -272,6 +289,7 @@ describe('ingestDocument', () => {
       ingestDocument(
         db,
         'acct',
+        'client',
         { embeddingsProvider: 'gemini', embeddingsApiKey: 'AIza-x' },
         'doc-1',
         'hello world',

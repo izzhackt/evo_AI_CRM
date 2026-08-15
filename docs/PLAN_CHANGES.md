@@ -6904,3 +6904,27 @@ Proof and stop boundary:
   extra evidence files or unavailable real images.
 - Require focused gates, real OrbStack generation/load proof, independent
   exact-head review, four green PR jobs and green exact-main CI.
+
+## 2026-08-15 - Enforce client and internal knowledge audiences
+
+Plan Block-ID: `EVO-PLATFORM-KNOWLEDGE-K2-2026-08-15`
+
+Change type: authorized database and retrieval isolation implementation.
+
+Decision: implement only K2 from `/goal-evo-platform-knowledge`. Migration 073
+adds required `client`/`internal` audience checks to knowledge documents and
+chunks, classifies every existing row as `internal`, replaces the retrieval RPCs
+with audience-required SECURITY INVOKER forms, and narrows table RLS/object
+grants to account members at `agent` or higher while retaining admin mutation.
+Chunk ingestion receives an explicit audience and writes it on every chunk.
+The client draft and playground hard-code `client`. Existing manual knowledge
+CRUD/reindex becomes admin-only, hard-codes `internal`, and cannot read or mutate
+client rows. No request body may choose an audience.
+
+Named write set: `supabase/migrations/073_ai_knowledge_audience_isolation.sql`,
+`agent-lead2-inbox/src/lib/ai/knowledge.ts`, the existing AI draft/playground/
+knowledge route files and their focused tests, Supabase authorization/schema
+tests, `docs/EVO_LAUNCH_PLAN.md`, and this log. K2 does not implement the sync
+RPC, bundle tooling, internal assistant, provider call, production migration or
+deployment. Real validation is the focused Inbox test set plus the repository's
+local Supabase authorization/schema gates on OrbStack, lint, typecheck and build.

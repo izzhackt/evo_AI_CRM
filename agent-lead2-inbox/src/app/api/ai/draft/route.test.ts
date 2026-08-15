@@ -28,9 +28,7 @@ vi.mock('@/lib/auth/account', () => ({
 vi.mock('@/lib/rate-limit', () => ({
   RATE_LIMITS: { aiDraft: {}, aiDraftAccount: {} },
   checkRateLimit: h.checkRateLimit,
-  rateLimitResponse: vi.fn(() =>
-    NextResponse.json({ error: 'rate_limited' }, { status: 429 }),
-  ),
+  rateLimitResponse: vi.fn(() => NextResponse.json({ error: 'rate_limited' }, { status: 429 })),
 }))
 
 vi.mock('@/lib/ai/config', () => ({
@@ -48,7 +46,9 @@ vi.mock('@/lib/ai/knowledge', () => ({
 vi.mock('@/lib/ai/draft-audit', () => ({
   recordAiDraftAudit: h.recordAiDraftAudit,
 }))
-vi.mock('@/lib/ai/defaults', () => ({ buildSystemPrompt: h.buildSystemPrompt }))
+vi.mock('@/lib/ai/defaults', () => ({
+  buildSystemPrompt: h.buildSystemPrompt,
+}))
 vi.mock('@/lib/ai/generate', () => ({ generateReply: h.generateReply }))
 
 import { POST } from './route'
@@ -99,7 +99,10 @@ beforeEach(() => {
   h.integrationsAdminClient.mockReturnValue({ kind: 'service-role-db' })
   h.recordAiDraftAudit.mockResolvedValue('draft-1')
   h.buildSystemPrompt.mockReturnValue('system prompt')
-  h.generateReply.mockResolvedValue({ text: 'Yes, we can help.', handoff: false })
+  h.generateReply.mockResolvedValue({
+    text: 'Yes, we can help.',
+    handoff: false,
+  })
 
   h.requireRole.mockResolvedValue({
     supabase: supabaseForConversation({ id: 'conv-1' }),
@@ -109,6 +112,17 @@ beforeEach(() => {
 })
 
 describe('POST /api/ai/draft', () => {
+  it('rejects attempts to select the internal knowledge audience', async () => {
+    const response = await POST(request({ conversation_id: 'conv-1', audience: 'internal' }))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'audience is controlled by the server',
+    })
+    expect(h.retrieveKnowledgeWithEvidence).not.toHaveBeenCalled()
+    expect(h.generateReply).not.toHaveBeenCalled()
+  })
+
   it('returns an explicit missing-config error before generating', async () => {
     h.loadAiConfigForAccount.mockResolvedValue(null)
 
@@ -128,9 +142,7 @@ describe('POST /api/ai/draft', () => {
 
   it('grounds and audits a draft reply before returning it', async () => {
     h.retrieveKnowledgeWithEvidence.mockResolvedValue({
-      excerpts: [
-        'EVO supports applications to universities in Italy and scholarship review.',
-      ],
+      excerpts: ['EVO supports applications to universities in Italy and scholarship review.'],
       chunkIds: ['chunk-1'],
     })
     h.buildSystemPrompt.mockReturnValue('system prompt with knowledge')
@@ -146,15 +158,14 @@ describe('POST /api/ai/draft', () => {
     expect(h.retrieveKnowledgeWithEvidence).toHaveBeenCalledWith(
       expect.anything(),
       'acct-1',
+      'client',
       expect.objectContaining({ provider: 'openai' }),
       'Do you help with universities in Italy?',
     )
     expect(h.buildSystemPrompt).toHaveBeenCalledWith({
       userPrompt: 'Use EVO admissions tone.',
       mode: 'draft',
-      knowledge: [
-        'EVO supports applications to universities in Italy and scholarship review.',
-      ],
+      knowledge: ['EVO supports applications to universities in Italy and scholarship review.'],
     })
     expect(h.generateReply).toHaveBeenCalledWith({
       config: expect.objectContaining({ provider: 'openai' }),

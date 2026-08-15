@@ -7357,3 +7357,43 @@ Execution gate:
 - Require exact-main green CI and a fresh deterministic 11/291 rebuild before
   the first Gemini embedding call. No mock, fallback, partial content set or old
   10/286 result is acceptable.
+
+## 2026-08-16 - Close the isolated Inbox importer Compose env boundary
+
+Plan Block-ID: `EVO-PLATFORM-P8D4D-INBOX-WAHA-ENV-2026-08-16`
+
+GitHub issue: `#227`
+
+Status: narrow execution correction authorized; knowledge publication remains
+blocked until this exact correction passes independent review, CI, merge and
+exact-main CI
+
+Reason: the first real Phase D `docker compose run --no-deps` attempt stopped
+before container creation because Compose still parses the declared WAHA
+service and its `env_file`. The frozen command bound the WAHA image digest but
+omitted `EVO_INBOX_WAHA_ENV_FILE`, causing an invalid fallback to a missing
+release-relative `.env.waha`. No container, provider call, production restart
+or knowledge write occurred.
+
+Decision:
+
+- Preserve every P8D4/P8D4C identity, knowledge, deployment, rollback,
+  provider-call and outbound-action boundary.
+- Bind the existing exact source
+  `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.waha` through
+  `EVO_INBOX_WAHA_ENV_FILE` in the isolated Phase D Compose command. Require it
+  to be root-owned, root-group, mode `0600`, regular and non-symlink before
+  rendering Compose. Never print, copy or record its values.
+- Retain `run -d --no-deps` and the exact importer name/image checks. This path
+  only satisfies Compose interpolation; it grants no authority to create,
+  recreate, reload, restart or otherwise mutate WAHA.
+- Add executable source-contract coverage for the exact path, file precondition
+  and no-WAHA-mutation boundary.
+
+Execution gate:
+
+- Pass the focused behavioral test, full applicable Node gates, independent
+  exact-head review and exact-head CI; merge only on green.
+- Require exact-main green CI before retrying the same isolated importer
+  command. Reuse the already hash-verified staged bundles only if their bytes,
+  modes, frozen vaults and singular live-account binding remain exact.

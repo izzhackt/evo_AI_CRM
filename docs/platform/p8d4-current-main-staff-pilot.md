@@ -106,8 +106,22 @@ responses, knowledge bodies, or customer/provider identifiers.
    for every exact image. Apply the existing closed privacy scanner and schema
    validators. Retain the ignored evidence directory mode `0700` and every file
    mode `0600`.
-6. Save each exact tag to a new portable archive, derive and verify its complete
-   OCI graph, and write a closed collection index. Hash every retained artifact.
+6. Run `npm run p8d4:portable-identity -- --output <new-reviewed-root>`.
+   This P8D4 wrapper uses the historical P8B3 verifier with the exact candidate
+   and image matrix below, saves each exact tag to a new portable archive,
+   derives and verifies its complete OCI graph, and writes a closed collection
+   index. Hash every retained artifact. The historical P8B3 defaults remain
+   frozen to their old candidate and are never relabelled.
+
+| Boundary | Exact OCI index/image ID | Exact platform manifest |
+| --- | --- | --- |
+| CRM | `sha256:2d3009047bccb9c619028560d764d48b6565a7707bac022e269d99041a2086ca` | `sha256:f9718c71b222749874c2cb01fd8c88ef278cad36195c56fb88457489b9d2d44f` |
+| Inbox | `sha256:b4fea6174bb62f8fac90fd034ede4a1d2134b372bfd805a34f71cf0592a50596` | `sha256:4ff3dc9640d4e047fef4b70b8d608cae2eb73413a4419d9a94e33babad9b870a` |
+| Lead Agent | `sha256:cf48fc41d73755eb154f4a00f3bd10d238874e0abf006620c447a9f816fe7bf0` | `sha256:243ea75173e086ead21991df3f61c2c5e0db4bb65d0a37505e9324a7f743cb7f` |
+
+   Validate the generated identity against
+   `docs/schemas/p8d4-portable-image-identity.schema.json` and run the real
+   retained-archive test with `EVO_P8D4_EVIDENCE_ROOT` set to that exact root.
 
 The builder output is exactly
 `.evo-release-evidence/p8b2-input-d5657acc6c1df1abc790a96778ca71df36687b24-linux-amd64/`.

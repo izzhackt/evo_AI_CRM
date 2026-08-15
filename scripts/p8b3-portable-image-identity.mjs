@@ -38,14 +38,14 @@ function verifyDescriptor(archive, descriptor, label) {
   if (bytes.length !== descriptor.size || sha(bytes) !== descriptor.digest) fail(`descriptor mismatch: ${label}`);
   return bytes;
 }
-export function validatePortableMetadata({ index, descriptor, manifest, config, spec, tag }) {
-  const expectedRef = `${CANDIDATE}-linux-amd64`;
+export function validatePortableMetadata({ index, descriptor, manifest, config, spec, tag, candidate = CANDIDATE }) {
+  const expectedRef = `${candidate}-linux-amd64`;
   if (descriptor.mediaType !== "application/vnd.oci.image.manifest.v1+json" || descriptor.platform?.os !== "linux" || descriptor.platform?.architecture !== "amd64" || (descriptor.platform?.variant ?? "") !== "" || descriptor.digest !== spec.manifest) fail(`platform manifest mismatch: ${spec.name}`);
   if (descriptor.annotations?.["io.containerd.image.name"] !== `docker.io/library/${tag}` || descriptor.annotations?.["org.opencontainers.image.ref.name"] !== expectedRef) fail(`archive tag mismatch: ${spec.name}`);
   if (manifest.config?.mediaType !== CONFIG_MEDIA) fail(`config media type mismatch: ${spec.name}`);
   if (!Array.isArray(manifest.layers) || manifest.layers.length === 0 || manifest.layers.some((layer) => !LAYER_MEDIA.has(layer.mediaType))) fail(`layer media type mismatch: ${spec.name}`);
   if (config.os !== "linux" || config.architecture !== "amd64") fail(`config platform mismatch: ${spec.name}`);
-  if (config.config?.Labels?.["org.opencontainers.image.revision"] !== CANDIDATE || config.config?.Labels?.["org.opencontainers.image.source"] !== "https://github.com/izzhackt/evo_AI_CRM") fail(`archive source mismatch: ${spec.name}`);
+  if (config.config?.Labels?.["org.opencontainers.image.revision"] !== candidate || config.config?.Labels?.["org.opencontainers.image.source"] !== "https://github.com/izzhackt/evo_AI_CRM") fail(`archive source mismatch: ${spec.name}`);
   if (!Array.isArray(index.manifests) || index.manifests.length !== 1) fail(`manifest cardinality mismatch: ${spec.name}`);
 }
 export function readPortableMetadata(archive) {
@@ -56,10 +56,10 @@ export function readPortableMetadata(archive) {
   const config = json(tarEntry(archive, `blobs/sha256/${manifest.config?.digest?.slice(7)}`), "config");
   return { index, descriptor, manifest, config };
 }
-export function verifyPortableArchive(archive, spec, tag) {
+export function verifyPortableArchive(archive, spec, tag, candidate = CANDIDATE) {
   verifyTarEntrySafety(archive, spec.name);
   const { index, descriptor, manifest, config } = readPortableMetadata(archive);
-  validatePortableMetadata({ index, descriptor, manifest, config, spec, tag });
+  validatePortableMetadata({ index, descriptor, manifest, config, spec, tag, candidate });
   const manifestBytes = verifyDescriptor(archive, descriptor, `${spec.name}/manifest`);
   const configBytes = verifyDescriptor(archive, manifest.config, `${spec.name}/config`);
   for (const [indexValue, layer] of manifest.layers.entries()) verifyDescriptor(archive, layer, `${spec.name}/layer/${indexValue}`);
@@ -71,31 +71,31 @@ export function verifyPortableArchive(archive, spec, tag) {
 }
 function write0600(path, value) { writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600, flag: "wx" }); chmodSync(path, 0o600); }
 
-export function createPortableIdentity(output) {
+export function createPortableIdentity(output, { candidate = CANDIDATE, imageSpecs = specs } = {}) {
   if (run("orb", ["status"], { encoding: "utf8" }).trim() !== "Running") fail("OrbStack must be Running");
   if (run("docker", ["context", "show"], { encoding: "utf8" }).trim() !== "orbstack") fail("Docker context must be exactly orbstack");
   mkdirSync(output, { mode: 0o700 });
   chmodSync(output, 0o700);
   const images = [];
-  for (const spec of specs) {
-    const tag = `${spec.prefix}:${CANDIDATE}-linux-amd64`;
+  for (const spec of imageSpecs) {
+    const tag = `${spec.prefix}:${candidate}-linux-amd64`;
     const inspect = JSON.parse(run("docker", ["image", "inspect", tag], { encoding: "utf8" }))[0];
     if (inspect?.Descriptor?.mediaType !== "application/vnd.oci.image.index.v1+json" || inspect.Id !== spec.index || inspect.Descriptor.digest !== spec.index) fail(`OCI index mismatch: ${spec.name}`);
     if (inspect.Os !== "linux" || inspect.Architecture !== "amd64" || (inspect.Variant ?? "") !== "") fail(`platform mismatch: ${spec.name}`);
-    if (inspect.Config?.Labels?.["org.opencontainers.image.revision"] !== CANDIDATE) fail(`revision mismatch: ${spec.name}`);
+    if (inspect.Config?.Labels?.["org.opencontainers.image.revision"] !== candidate) fail(`revision mismatch: ${spec.name}`);
     if (inspect.Config?.Labels?.["org.opencontainers.image.source"] !== "https://github.com/izzhackt/evo_AI_CRM") fail(`source mismatch: ${spec.name}`);
     const archive = join(output, spec.archive);
     run("docker", ["image", "save", "--platform=linux/amd64", "--output", archive, tag]);
     chmodSync(archive, 0o600);
-    const { descriptor, manifest } = verifyPortableArchive(archive, spec, tag);
+    const { descriptor, manifest } = verifyPortableArchive(archive, spec, tag, candidate);
     const archiveBytes = readFileSync(archive);
-    images.push({ name: spec.name, tag, source_commit: CANDIDATE, platform: { os: "linux", architecture: "amd64", variant: "" }, oci_index_digest: spec.index, platform_manifest: { digest: descriptor.digest, media_type: descriptor.mediaType, size: descriptor.size }, config: { digest: manifest.config.digest, media_type: manifest.config.mediaType, size: manifest.config.size }, layers: manifest.layers.map((layer) => ({ digest: layer.digest, media_type: layer.mediaType, size: layer.size })), archive: { file: spec.archive, sha256: sha(archiveBytes).slice(7), size: archiveBytes.length, mode: 600 } });
+    images.push({ name: spec.name, tag, source_commit: candidate, platform: { os: "linux", architecture: "amd64", variant: "" }, oci_index_digest: spec.index, platform_manifest: { digest: descriptor.digest, media_type: descriptor.mediaType, size: descriptor.size }, config: { digest: manifest.config.digest, media_type: manifest.config.mediaType, size: manifest.config.size }, layers: manifest.layers.map((layer) => ({ digest: layer.digest, media_type: layer.mediaType, size: layer.size })), archive: { file: spec.archive, sha256: sha(archiveBytes).slice(7), size: archiveBytes.length, mode: 600 } });
   }
-  const identity = { schema_version: 1, candidate_commit: CANDIDATE, target_platform: { os: "linux", architecture: "amd64", variant: "" }, images };
+  const identity = { schema_version: 1, candidate_commit: candidate, target_platform: { os: "linux", architecture: "amd64", variant: "" }, images };
   const identityPath = join(output, "portable-image-identity.json");
   write0600(identityPath, identity);
   const files = [...images.map(({ archive }) => archive.file), basename(identityPath)].sort().map((file) => { const bytes = readFileSync(join(output, file)); return { file, mode: 600, sha256: sha(bytes).slice(7), size: bytes.length }; });
-  write0600(join(output, "collection-index.json"), { schema_version: 1, candidate_commit: CANDIDATE, files });
+  write0600(join(output, "collection-index.json"), { schema_version: 1, candidate_commit: candidate, files });
   if ((statSync(output).mode & 0o777) !== 0o700) fail("unsafe output mode");
   return identity;
 }

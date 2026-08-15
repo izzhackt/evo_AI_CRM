@@ -1,7 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AiConfig } from './types'
 import { chunkText } from './chunk'
-import { embedTexts, type EmbeddingRequestConfig, toVectorLiteral } from './embeddings'
+import {
+  embedTexts,
+  type EmbeddingRequestConfig,
+  toVectorLiteral,
+} from './embeddings'
 
 // ============================================================
 // Knowledge base: ingest (chunk + optionally embed) and hybrid
@@ -17,6 +21,7 @@ export interface KnowledgeMatch {
 export interface KnowledgeRetrieval {
   excerpts: string[]
   chunkIds: string[]
+  sources: Array<{ chunk_id: string; source_path: string }>
 }
 
 export type KnowledgeAudience = 'client' | 'internal'
@@ -37,7 +42,7 @@ export async function ingestDocument(
   audience: KnowledgeAudience,
   config: Pick<AiConfig, 'embeddingsProvider' | 'embeddingsApiKey'>,
   documentId: string,
-  content: string,
+  content: string
 ): Promise<void> {
   const chunks = chunkText(content)
 
@@ -97,9 +102,17 @@ export async function retrieveKnowledge(
   audience: KnowledgeAudience,
   config: Pick<AiConfig, 'embeddingsProvider' | 'embeddingsApiKey'>,
   queryText: string,
-  k = 5,
+  k = 5
 ): Promise<string[]> {
-  const result = await retrieveKnowledgeWithEvidence(db, accountId, audience, config, queryText, k)
+  const result = await retrieveKnowledgeWithEvidence(
+    db,
+    accountId,
+    audience,
+    config,
+    queryText,
+    k,
+    false
+  )
   return result.excerpts
 }
 
@@ -116,9 +129,10 @@ export async function retrieveKnowledgeWithEvidence(
   config: Pick<AiConfig, 'embeddingsProvider' | 'embeddingsApiKey'>,
   queryText: string,
   k = 5,
+  requireSourceBindings = true
 ): Promise<KnowledgeRetrieval> {
   const query = queryText.trim()
-  if (!query || k <= 0) return { excerpts: [], chunkIds: [] }
+  if (!query || k <= 0) return { excerpts: [], chunkIds: [], sources: [] }
 
   // Skip everything when the account has no knowledge base — otherwise
   // every draft / auto-reply would pay for a query embedding + two RPCs
@@ -130,9 +144,9 @@ export async function retrieveKnowledgeWithEvidence(
       .select('id', { count: 'exact', head: true })
       .eq('account_id', accountId)
       .eq('audience', audience)
-    if (error || !count) return { excerpts: [], chunkIds: [] }
+    if (error || !count) return { excerpts: [], chunkIds: [], sources: [] }
   } catch {
-    return { excerpts: [], chunkIds: [] }
+    return { excerpts: [], chunkIds: [], sources: [] }
   }
 
   const picked = new Map<string, string>() // id → content, preserves order
@@ -141,7 +155,11 @@ export async function retrieveKnowledgeWithEvidence(
   const semanticConfig = toSemanticEmbeddingConfig(config)
   if (semanticConfig) {
     try {
-      const [queryEmbedding] = await embedTexts(semanticConfig, [query], 'query')
+      const [queryEmbedding] = await embedTexts(
+        semanticConfig,
+        [query],
+        'query'
+      )
       if (queryEmbedding) {
         const { data, error } = await db.rpc('match_ai_knowledge_semantic', {
           p_account_id: accountId,
@@ -156,7 +174,10 @@ export async function retrieveKnowledgeWithEvidence(
         }
       }
     } catch (err) {
-      console.error('[ai knowledge] semantic retrieval failed, falling back to FTS:', err)
+      console.error(
+        '[ai knowledge] semantic retrieval failed, falling back to FTS:',
+        err
+      )
     }
   }
 
@@ -184,14 +205,51 @@ export async function retrieveKnowledgeWithEvidence(
     .slice(0, k)
     .map(([id, content]) => ({ id, content }))
 
+  const paths = new Map<string, string>()
+  if (matches.length > 0) {
+    try {
+      const { data, error } = await db
+        .from('ai_knowledge_chunks')
+        .select('id, ai_knowledge_documents!inner(source_path)')
+        .eq('account_id', accountId)
+        .eq('audience', audience)
+        .in(
+          'id',
+          matches.map((match) => match.id)
+        )
+      if (!error && Array.isArray(data)) {
+        for (const row of data) {
+          const document = Array.isArray(row.ai_knowledge_documents)
+            ? row.ai_knowledge_documents[0]
+            : row.ai_knowledge_documents
+          if (
+            typeof document?.source_path === 'string' &&
+            document.source_path
+          ) {
+            paths.set(row.id, document.source_path.normalize('NFC'))
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[ai knowledge] source identity lookup failed:', err)
+    }
+  }
+
+  const usedMatches = requireSourceBindings
+    ? matches.filter((match) => paths.has(match.id))
+    : matches
   return {
-    excerpts: matches.map((match) => match.content),
-    chunkIds: matches.map((match) => match.id),
+    excerpts: usedMatches.map((match) => match.content),
+    chunkIds: usedMatches.map((match) => match.id),
+    sources: usedMatches.flatMap((match) => {
+      const source_path = paths.get(match.id)
+      return source_path ? [{ chunk_id: match.id, source_path }] : []
+    }),
   }
 }
 
 function toSemanticEmbeddingConfig(
-  config: Pick<AiConfig, 'embeddingsProvider' | 'embeddingsApiKey'>,
+  config: Pick<AiConfig, 'embeddingsProvider' | 'embeddingsApiKey'>
 ): EmbeddingRequestConfig | null {
   if (config.embeddingsProvider === 'keyword' || !config.embeddingsApiKey) {
     return null

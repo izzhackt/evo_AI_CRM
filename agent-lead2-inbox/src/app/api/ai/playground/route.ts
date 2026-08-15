@@ -1,12 +1,21 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit'
 import { loadAiConfigForAccount } from '@/lib/ai/config'
-import { retrieveKnowledge } from '@/lib/ai/knowledge'
+import { retrieveKnowledgeWithEvidence } from '@/lib/ai/knowledge'
 import { generateReply } from '@/lib/ai/generate'
 import { buildSystemPrompt } from '@/lib/ai/defaults'
 import { latestUserMessage } from '@/lib/ai/query'
 import { AiError, type ChatMessage } from '@/lib/ai/types'
+import { supabaseAdminClient } from '@/lib/supabase/admin-client'
+import {
+  AssistantAuditError,
+  recordAssistantAudit,
+} from '@/lib/ai/assistant-audit'
 
 // Keep the tested transcript bounded, mirroring the live context window.
 const MAX_TURNS = 20
@@ -29,27 +38,37 @@ export async function POST(request: Request) {
     if (!limit.success) return rateLimitResponse(limit)
 
     const body = await request.json().catch(() => null)
-    if (body && typeof body === 'object' && 'audience' in body) {
-      return NextResponse.json({ error: 'audience is controlled by the server' }, { status: 400 })
-    }
-    const rawMessages = Array.isArray(body?.messages) ? body.messages : null
-    if (!rawMessages) {
-      return NextResponse.json({ error: 'messages is required' }, { status: 400 })
-    }
-
-    const messages: ChatMessage[] = rawMessages
-      .filter(
-        (m: unknown): m is ChatMessage =>
-          !!m &&
-          typeof m === 'object' &&
-          ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant') &&
-          typeof (m as ChatMessage).content === 'string' &&
-          (m as ChatMessage).content.trim().length > 0,
+    if (!body || typeof body !== 'object' || Array.isArray(body))
+      return badRequest()
+    const keys = Object.keys(body).sort()
+    if (keys.some((key) => !['evaluation_case_id', 'messages'].includes(key)))
+      return badRequest()
+    const evaluationCaseId = body.evaluation_case_id ?? null
+    if (
+      evaluationCaseId !== null &&
+      evaluationCaseId !== 'client_china_documents'
+    )
+      return badRequest()
+    if (
+      !Array.isArray(body.messages) ||
+      body.messages.length < 1 ||
+      body.messages.length > MAX_TURNS
+    )
+      return badRequest()
+    const messages: ChatMessage[] = []
+    for (const item of body.messages) {
+      if (
+        !item ||
+        typeof item !== 'object' ||
+        Array.isArray(item) ||
+        Object.keys(item).sort().join(',') !== 'content,role' ||
+        !['user', 'assistant'].includes(item.role) ||
+        typeof item.content !== 'string'
       )
-      .slice(-MAX_TURNS)
-
-    if (messages.length === 0) {
-      return NextResponse.json({ error: 'Send a message to test the agent.' }, { status: 400 })
+        return badRequest()
+      const content = item.content.trim()
+      if (content.length < 1 || content.length > 4000) return badRequest()
+      messages.push({ role: item.role, content })
     }
 
     const config = await loadAiConfigForAccount(accountId, {
@@ -67,33 +86,69 @@ export async function POST(request: Request) {
           error: 'No agent configured yet. Add your provider key in Setup.',
           code: 'ai_not_configured',
         },
-        { status: 400 },
+        { status: 400 }
       )
     }
 
-    const knowledge = await retrieveKnowledge(
+    const retrieval = await retrieveKnowledgeWithEvidence(
       supabase,
       accountId,
       'client',
       config,
-      latestUserMessage(messages),
+      latestUserMessage(messages)
     )
     const systemPrompt = buildSystemPrompt({
       userPrompt: config.systemPrompt,
       mode: 'draft',
-      knowledge,
+      knowledge: retrieval.excerpts,
     })
+    if (retrieval.sources.length === 0)
+      throw new AiError('Не найдены управляемые источники знаний.', {
+        code: 'knowledge_sources_missing',
+        status: 502,
+      })
 
     const { text, handoff } = await generateReply({
       config,
       systemPrompt,
       messages,
     })
-    return NextResponse.json({ reply: text, handoff })
+    const auditId = await recordAssistantAudit(supabaseAdminClient(), {
+      accountId,
+      audience: 'client',
+      evaluationCaseId,
+      provider: config.provider,
+      model: config.model,
+      sources: retrieval.sources,
+      response: text,
+      handoff,
+      actorUserId: userId,
+    })
+    return NextResponse.json({
+      reply: text,
+      handoff,
+      sources: retrieval.sources,
+      audit_id: auditId,
+    })
   } catch (err) {
+    if (err instanceof AssistantAuditError)
+      return NextResponse.json(
+        { error: err.message, code: err.code },
+        { status: err.status }
+      )
     if (err instanceof AiError) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status })
+      return NextResponse.json(
+        { error: err.message, code: err.code },
+        { status: err.status }
+      )
     }
     return toErrorResponse(err)
   }
+}
+
+function badRequest() {
+  return NextResponse.json(
+    { error: 'Некорректный запрос.', code: 'invalid_request' },
+    { status: 400 }
+  )
 }

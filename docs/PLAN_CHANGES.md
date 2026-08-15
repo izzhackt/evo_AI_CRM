@@ -7228,3 +7228,79 @@ Decision:
   transfer.
 - Obtain an independent exact-head review, green CI, merge and exact-main green
   CI before resuming P8D4 Phase B.
+
+## 2026-08-16 - Use temporary Supabase CLI credentials for P8D4 migrations
+
+Plan Block-ID: `EVO-PLATFORM-P8D4B-PAT-MIGRATIONS-2026-08-16`
+
+GitHub issue: `#223`
+
+Status: implementation authorized; this amendment and runner validation perform
+no production schema write, database-password rotation, SSL/JIT configuration,
+Hermes restart, knowledge publication or provider/customer action
+
+Reason: the ignored EVO handoff contains a valid owner Management API PAT but
+its historical database password no longer authenticates. Real read-only
+Management API checks against project `iosckaqtovbbnssqcpde` returned HTTP 200
+for the migration list and HTTP 201 for the read-only SQL endpoint; both report
+exactly 72 migrations from `001` through `072`. Supabase CLI `2.110.0` has an
+official passwordless linked-project path which obtains a short-lived login
+role from `POST /v1/projects/{ref}/cli/login-role`. Changing the persistent
+database password is therefore unnecessary. The separate PAT-as-Postgres JIT
+feature is not usable without enabling SSL enforcement, which would trigger a
+database reboot and is outside the minimum release action.
+
+Decision:
+
+- Preserve the P8D4 candidate source at
+  `d5657acc6c1df1abc790a96778ca71df36687b24` and exact migration sequence
+  `001-076`; this block changes only migration transport and evidence.
+- Use the owner PAT only through `SUPABASE_ACCESS_TOKEN`; never print, persist,
+  copy to Hermes or place it in command arguments.
+- Resolve and validate the exact project and remote ledger through the official
+  Management API before any temporary credential or schema write.
+- Require the lockfile Supabase CLI `2.110.0`, a clean exact candidate worktree,
+  exact SHA-256 for migrations `073`-`076`, and absence of database-password
+  environment variables.
+- Run the CLI linked-project dry-run with its provider-issued temporary login
+  role. From exact `001-072`, accept only the full ordered set `073`-`076`;
+  exact `001-076` is a verified no-op. Reject gaps, partial application, extra
+  remote versions, timestamp versions, duplicate versions, reordered
+  migrations, modified SQL, prompt output, seed/role operations or an already
+  linked different project.
+- Apply the accepted set once with `--linked --yes`, then require both the
+  Management API migration list and read-only SQL summary to report exact
+  contiguous `001-076` before P8D4 continues.
+- Require an exclusive migration window with no concurrent Supabase CLI
+  link/push session for this project, because cleanup revokes the project's
+  temporary CLI roles. Revoke those roles in a `finally` block. An operation
+  error with verified cleanup records `operation_failed`; a cleanup error
+  records `cleanup_failed`. Both block knowledge publication and deployment; no
+  fallback to a persistent password, manual SQL, Dashboard SQL, migration
+  repair, SSL enforcement or JIT is allowed.
+- Emit only a closed mode-`0600` JSON result with fixed project/candidate/CLI,
+  migration identifiers and SHA-256 values, normalized phase statuses and
+  cleanup state. No token, temporary role/password, DB URL, SQL body, email,
+  user ID or customer data may enter evidence or logs.
+
+Official basis:
+
+- Supabase Management API authentication and migration-history endpoints:
+  `https://supabase.com/docs/reference/api/introduction` and
+  `https://supabase.com/docs/reference/api/v1-list-migration-history`.
+- Supabase temporary CLI login-role endpoint and current CLI `2.110.0` source:
+  `https://supabase.com/docs/reference/api/getting-started` and
+  `https://github.com/supabase/cli/tree/v2.110.0`.
+- Supabase migration tracking contract:
+  `https://supabase.com/docs/guides/deployment/database-migrations`.
+
+Execution gate:
+
+- Merge this plan/runner only after focused tests, full applicable Node gates,
+  independent exact-head approval and exact-head CI are green.
+- Require exact-main green CI and a fresh read-only production preflight before
+  invoking apply mode.
+- The owner-approved P8D4 production window covers only the temporary login-role
+  lifecycle and reviewed migrations `073`-`076` at this step. Stop before
+  knowledge publication, container recreation, Gemini generation, amoCRM write,
+  WAHA change or WhatsApp send.

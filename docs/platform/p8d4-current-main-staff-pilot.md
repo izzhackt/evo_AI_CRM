@@ -225,27 +225,50 @@ prove the three retained old application images remain healthy against schema
 ## Phase C — managed Supabase migrations
 
 Use the approved EVO Platform production project only. Obtain the exact ledger
-with database credentials; service-role REST is not accepted as migration-ledger
-proof. Run `supabase db push --dry-run` or the reviewed equivalent first. The
+through the Supabase Management API with the owner-held PAT; service-role REST
+is not accepted as migration-ledger proof. Run the reviewed P8D4B migration
+runner in read-only preflight mode first. The
 only acceptable result is:
 
 - the frozen range is already complete, producing a verified no-op; or
 - only the frozen missing sequential migrations are listed in order.
 
 Apply only that reviewed missing sequence once. Never use `db reset --linked`,
-`migration repair`, `--include-seed`, Dashboard SQL, or direct manual edits.
+`migration repair`, `--include-seed`, Dashboard SQL, direct manual edits, the
+stored database password, a password reset, JIT configuration or an SSL-
+enforcement change.
 Re-read the ledger and require the exact frozen contiguous range before any app
 recreation or knowledge import.
 
-The CLI is the lockfile-installed Supabase CLI `2.110.0`, executed from the
-exact candidate source root. The target must first resolve through the
-Management API to project ref `iosckaqtovbbnssqcpde`; the database URL and
-password remain process-only. Exact commands are
-`./node_modules/.bin/supabase db push --db-url "$EVO_PLATFORM_DB_URL" --dry-run`
-and, only after the dry-run artifact lists exactly missing `073`, `074`, `075`, `076`
-in order (or their missing suffix), the same command without `--dry-run`.
-Stdout is reduced to migration identifiers/status before it enters the mode
-`0600` evidence file; connection material is never logged.
+The CLI is the lockfile-installed Supabase CLI `2.110.0`. The reviewed runner
+executes from the merged release-control checkout while passing the exact clean
+candidate source root at commit
+`d5657acc6c1df1abc790a96778ca71df36687b24` as `--workdir`. The target must
+resolve through the Management API to project ref
+`iosckaqtovbbnssqcpde`. Password-like database environment variables must be
+absent. The CLI's official linked-project flow obtains a short-lived login role
+from `POST /v1/projects/{ref}/cli/login-role`; no persistent database password
+is supplied or changed. The migration window is exclusive: no other Supabase
+CLI link/push session may run for this project because the cleanup endpoint
+revokes the project's temporary CLI roles. The runner performs that cleanup
+through `DELETE /v1/projects/{ref}/cli/login-role` in a `finally` block after
+every apply attempt. Cleanup failure blocks every later P8D4 phase even though
+the roles also have a provider-enforced TTL.
+
+The runner first checks the Management API ledger and read-only SQL summary,
+links only the exact project, and executes `supabase db push --linked --dry-run`.
+Only when the remote ledger is exactly `001-072` and that output lists exactly
+`073`, `074`, `075`, `076` in order may it execute
+`supabase db push --linked --yes`. Exact `001-076` is a verified no-op. A
+partial `073-075` state is an incident and stops for review rather than being
+automatically resumed.
+The runner then re-reads both independent ledger views and requires exact
+contiguous `001-076`. Stdout is reduced to migration identifiers/status before
+it enters the mode-`0600` closed evidence file; access tokens, temporary role
+credentials, connection material, SQL bodies, emails and user identifiers are
+never logged or persisted.
+An apply-path error with successful cleanup records `operation_failed`; failed
+cleanup records `cleanup_failed`. Both stop publication and deployment.
 
 ## Phase D — real approved knowledge publication
 

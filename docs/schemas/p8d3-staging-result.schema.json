@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8d3-staging-result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "release", "source_commit", "started_at", "completed_at", "result_code", "p8b3", "images", "running_state", "rollback"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "release": { "const": "2026-08-15.p8d3.1" },
+    "source_commit": { "const": "0505143657858e710acdd5029f1cc77c5524083e" },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "result_code": { "enum": ["staged_verified", "preflight_blocked", "checkpoint_mismatch", "rollback_failed", "evidence_transfer_failed", "running_state_changed"] },
+    "p8b3": {
+      "type": "object", "additionalProperties": false,
+      "required": ["identity_sha256", "collection_sha256", "archive_sha256"],
+      "properties": {
+        "identity_sha256": { "const": "d931ebdcf17dce16018e85780a67e569fcaa8d2ca53d70b7fe49f4db1cc7f785" },
+        "collection_sha256": { "const": "f2f080baf53d237996b910eaa7991d0ab93b18457cc116b13f9e6b97ba4f92b3" },
+        "archive_sha256": { "$ref": "#/$defs/archive_hashes" }
+      }
+    },
+    "images": { "$ref": "#/$defs/image_records" },
+    "running_state": {
+      "type": "object", "additionalProperties": false,
+      "required": ["unchanged", "pre", "post"],
+      "properties": { "unchanged": { "type": "boolean" }, "pre": { "$ref": "#/$defs/container_records" }, "post": { "$ref": "#/$defs/container_records" } }
+    },
+    "rollback": {
+      "type": "object", "additionalProperties": false,
+      "required": ["image_archives", "environment_files"],
+      "properties": { "image_archives": { "$ref": "#/$defs/rollback_image_records" }, "environment_files": { "$ref": "#/$defs/rollback_environment_records" } }
+    }
+  },
+  "allOf": [{
+    "if": { "properties": { "result_code": { "const": "staged_verified" } }, "required": ["result_code"] },
+    "then": { "properties": {
+      "images": { "minItems": 3, "maxItems": 3 },
+      "running_state": { "properties": {
+        "unchanged": { "const": true },
+        "pre": { "minItems": 5, "maxItems": 5 },
+        "post": { "minItems": 5, "maxItems": 5 }
+      } },
+      "rollback": { "properties": {
+        "image_archives": { "minItems": 3, "maxItems": 3 },
+        "environment_files": { "minItems": 3, "maxItems": 3 }
+      } }
+    } }
+  }],
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "archive_hashes": {
+      "type": "object", "additionalProperties": false,
+      "required": ["main_crm", "evo_inbox", "lead_agent"],
+      "properties": { "main_crm": { "const": "51e2945406fdd569a2d5e9e227ae7fc1e088a28126da2b30cc1a925179d2e21d" }, "evo_inbox": { "const": "16a536ccfb0132fb3efde05e62a42af8788d7fd21acd5b2bbe614b92d941836a" }, "lead_agent": { "const": "5534265bfd8822f512beb66ad72bbabe09f5795ed16c3d1881050c91b0b6f889" } }
+    },
+    "main_crm_image": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "tag", "manifest_id", "platform", "revision"],
+      "properties": { "name": { "const": "main_crm" }, "tag": { "const": "evo-crm:0505143657858e710acdd5029f1cc77c5524083e-linux-amd64" }, "manifest_id": { "const": "sha256:b965ac5c41d4e8bddc6d6bb7baaa7bcec101af4083b8ca861f9e9904cec9eafd" }, "platform": { "const": "linux/amd64" }, "revision": { "const": "0505143657858e710acdd5029f1cc77c5524083e" } }
+    },
+    "evo_inbox_image": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "tag", "manifest_id", "platform", "revision"],
+      "properties": { "name": { "const": "evo_inbox" }, "tag": { "const": "evo-inbox:0505143657858e710acdd5029f1cc77c5524083e-linux-amd64" }, "manifest_id": { "const": "sha256:e15c5e07b4232e39622616cb76ed84e1e5b6a7c9145728a42a7701a3238e6b92" }, "platform": { "const": "linux/amd64" }, "revision": { "const": "0505143657858e710acdd5029f1cc77c5524083e" } }
+    },
+    "lead_agent_image": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "tag", "manifest_id", "platform", "revision"],
+      "properties": { "name": { "const": "lead_agent" }, "tag": { "const": "evo-lead-agent:0505143657858e710acdd5029f1cc77c5524083e-linux-amd64" }, "manifest_id": { "const": "sha256:572d01c6f2a0824e56607f41d4376e927ccdf41c5218c6dd65930f95cd6593cd" }, "platform": { "const": "linux/amd64" }, "revision": { "const": "0505143657858e710acdd5029f1cc77c5524083e" } }
+    },
+    "image_records": { "type": "array", "prefixItems": [{ "$ref": "#/$defs/main_crm_image" }, { "$ref": "#/$defs/evo_inbox_image" }, { "$ref": "#/$defs/lead_agent_image" }], "items": false },
+    "container_record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "image_id", "health", "restart_count", "started_at"],
+      "properties": { "name": { "type": "string" }, "image_id": { "$ref": "#/$defs/digest" }, "health": { "const": "healthy" }, "restart_count": { "const": 0 }, "started_at": { "type": "string", "format": "date-time" } }
+    },
+    "container_records": { "type": "array", "prefixItems": [
+      { "allOf": [{ "$ref": "#/$defs/container_record" }, { "properties": { "name": { "const": "evo-crm-app-1" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/container_record" }, { "properties": { "name": { "const": "evo-crm-lead-agent-1" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/container_record" }, { "properties": { "name": { "const": "evo-inbox-app-1" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/container_record" }, { "properties": { "name": { "const": "evo-crm-waha-1" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/container_record" }, { "properties": { "name": { "const": "evo-inbox-waha" } } }] }
+    ], "items": false },
+    "hash_record": { "type": "object", "additionalProperties": false, "required": ["file", "sha256", "mode"], "properties": { "file": { "type": "string" }, "sha256": { "$ref": "#/$defs/sha" }, "mode": { "const": 600 } } },
+    "rollback_image_records": { "type": "array", "prefixItems": [
+      { "allOf": [{ "$ref": "#/$defs/hash_record" }, { "properties": { "file": { "const": "rollback-evo-crm-current.tar" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/hash_record" }, { "properties": { "file": { "const": "rollback-evo-lead-agent-current.tar" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/hash_record" }, { "properties": { "file": { "const": "rollback-evo-inbox-current.tar" } } }] }
+    ], "items": false },
+    "rollback_environment_records": { "type": "array", "prefixItems": [
+      { "allOf": [{ "$ref": "#/$defs/hash_record" }, { "properties": { "file": { "const": "env-crm-production.rollback" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/hash_record" }, { "properties": { "file": { "const": "env-lead-agent.rollback" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/hash_record" }, { "properties": { "file": { "const": "env-inbox-production.rollback" } } }] }
+    ], "items": false }
+  }
+}

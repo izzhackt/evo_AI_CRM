@@ -29,9 +29,9 @@ preparation pipeline, PR #170 merged the real lead-processing proof plan, and
 PR #171 merged Codex review plus Obsidian publication. PR #169 merged the
 focused P7D accessibility contract, and PRs #172-#174 hardened the local
 knowledge-ingestion path.
-Current `origin/main` is `a8474eb57f94f952711e953be21b5e6041d2f36e`,
-migrations remain contiguous `001-072`, and exact-main push CI run
-`31820931774` is green for Main CRM, EVO Inbox and EVO Lead Agent; Changed
+Current `origin/main` is `81ef7a6cb6d16404fbba53af695a80b04140cfa3`,
+migrations remain contiguous `001-073`, and exact-main push CI run
+`31894158294` is green for Main CRM, EVO Inbox and EVO Lead Agent; Changed
 range is skipped on the push event as expected.
 
 P4B implementation is preserved on remote branch
@@ -2445,13 +2445,14 @@ P8B2 under issue #188 produced the exact platform-bound `linux/amd64`
 candidate. P8C2 then bound its real retained manifest, evidence, SBOM/smoke
 identities and current environment reconciliation. P8D2 under issue #202 loaded
 the verified archives but stopped without restarts because its contract compared
-platform-manifest digests with their parent OCI-index digests. The active next
-slice is P8B3 under issue #205 and
-`docs/platform/p8b3-portable-image-identity.md`.
+platform-manifest digests with their parent OCI-index digests. P8B3 under issue
+#205 then bound both identities and the exact portable archive graph. The active
+next slice is staging-only P8D3 under issue #209 and
+`docs/platform/p8d3-portable-amd64-staging.md`.
 
 Current accepted release-control main:
-`a6dc6df1d3c6e2986d63cd4ecc12e0877b2d0057`. Its exact-main CI run
-`31887238363` completed successfully. P8C2 reconciled the real environments
+`81ef7a6cb6d16404fbba53af695a80b04140cfa3`. Its exact-main CI run
+`31894158294` completed successfully. P8C2 reconciled the real environments
 without mutation, retained P8B application provenance at `050514...`, bound
 the exact AMD64 image identities, and truthfully returned `blocked` because
 portable identity, fresh staging, provider prerequisites, and deployment remain
@@ -2464,10 +2465,14 @@ OCI index and its portable AMD64 manifest plus archive/config/layer bytes. It is
 local evidence generation only and grants no Hermes retry.
 
 The current preflight records Inbox WAHA as `SCAN_QR_CODE`, canonical DNS as
-absent, amoCRM credentials as incomplete and the candidate rollback bundle as
-unstaged. P8D must preserve those external blockers truthfully rather than
-silently fixing or relabelling them. Another staging attempt requires completed
-P8B3 evidence, a new reviewed P8D3 contract and fresh owner approval.
+absent and amoCRM credentials as incomplete. P8D must preserve those external
+blockers truthfully rather than silently fixing or relabelling them. P8D3 may
+reuse only the freshly hash-proven P8D2 transfer/load checkpoint, creates a new
+rollback/evidence boundary and may not change a running service. Application
+activation remains a later separately approved block. Current main now includes
+migration `073` and updated future-candidate inventory; P8D3 does not relabel or
+rebuild the frozen pre-`073` P8B3 application candidate. P8D4 must reconcile
+that database/application compatibility before any deployment authorization.
 
 ## EVO Knowledge Launch Finalization
 

@@ -17,7 +17,7 @@ const MAX_TIMEOUT_MS = 60_000;
 export { PLATFORM_GEMINI_PROPOSAL_MODEL };
 
 export const PLATFORM_GEMINI_PROPOSAL_PROMPT_POLICY_VERSION =
-  "p5f2-gemini-proposal-v1" as const;
+  "p5f2-consultative-sales-v2" as const;
 export const PLATFORM_GEMINI_PROPOSAL_MAX_OUTPUT_TOKENS = 2_048;
 export const PLATFORM_GEMINI_PROPOSAL_MAX_REQUEST_BODY_BYTES = 4_096;
 

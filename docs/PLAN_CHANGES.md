@@ -7100,3 +7100,44 @@ bundles, bounded real embedding calls, exact retrieval cases, two real Gemini
 drafts, body-free audit verification and a closed redacted result. Stop before
 the first real WhatsApp/customer lead test, which remains a separately approved
 block.
+
+## 2026-08-16 - Unify intake memory with consultative Platform drafts
+
+Plan Block-ID: `EVO-PLATFORM-AI-INTAKE-MEMORY-PROMPT-V2-2026-08-16`
+
+Issue: #217
+
+Change type: additive Platform memory schema and draft-only prompt integration
+
+Decision:
+
+- Extend the existing Supabase-native Platform memory instead of creating
+  per-client files, a second database or a legacy SQLite bridge. Add the four
+  missing intake facts: age, English level, current education and countries
+  considered. Contact name continues to come from canonical read-only amoCRM
+  context and is not duplicated as model-authored memory.
+- Keep every fact conversation-scoped, versioned, source-message-bound and
+  staff-reviewable. Gemini may propose a change but cannot commit it; no staff
+  edit or model output automatically changes future behavior.
+- Upgrade the Platform Gemini proposal prompt from qualification-only v1 to the
+  consultative-sales v2 policy: answer first, use known context, never re-ask a
+  known intake field, ask at most two material questions, provide one natural
+  next step and preserve grounding, privacy and handoff gates.
+- Reuse the existing closed context package: latest inbound trigger, 12 recent
+  messages, short/long memory summaries, allowlisted facts, qualification,
+  control state, approved retrieval evidence and read-only amoCRM context.
+- Add migration `076` and advance only the future candidate migration inventory
+  to contiguous `001-076`. Do not alter P8D4's frozen exact-SHA `001-075`
+  production contract or claim that migration `076` is deployed.
+- This block performs no provider call, embedding call, production migration,
+  deployment, WhatsApp send, WAHA mutation, amoCRM write, autonomous-reply
+  enablement or knowledge-base edit.
+
+Research basis:
+
+- Gemini prompt guidance requires explicit system behavior, relevant context
+  and iterative evaluation:
+  https://ai.google.dev/gemini-api/docs/prompting-strategies
+- Gemini embeddings are retrieval representations, not durable client memory;
+  the application remains responsible for storing facts and vectors:
+  https://ai.google.dev/gemini-api/docs/embeddings

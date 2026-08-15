@@ -5138,7 +5138,7 @@ test("P5F3 persists and reconciles one synthetic autonomous reply in the accepte
         p_request_id: randomUUID(),
         p_model_ref: "gemini-3.5-flash",
         p_schema_version: 1,
-        p_prompt_policy_version: "p5f2-gemini-proposal-v1",
+        p_prompt_policy_version: "p5f2-consultative-sales-v2",
       },
       serviceToken,
     );

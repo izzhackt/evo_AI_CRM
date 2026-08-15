@@ -340,6 +340,11 @@ test("prompt stays bounded, contains only server context, and makes Gemini non-a
   assert.ok(prompt.length > 0 && prompt.length <= 65_536);
   assert.match(prompt, /proposal only/i);
   assert.match(prompt, /must not authorize or send/i);
+  assert.match(prompt, /Answer the client's direct question first/i);
+  assert.match(prompt, /Ask no more than two material follow-up questions/i);
+  assert.match(prompt, /Never ask again.*name,[\s\S]*age, English level/i);
+  assert.match(prompt, /never through pressure, manipulation/i);
+  assert.match(prompt, /Require staff handoff/i);
   assert.match(prompt, /Хочу поступить в Китай/);
   assert.doesNotMatch(prompt, /waha_chat_id|provider_message_id|phone/i);
   assert.doesNotMatch(prompt, new RegExp(CONVERSATION_ID, "i"));
@@ -529,7 +534,7 @@ test("service repository binds exact begin and finish RPCs and normalizes safe i
     requestId: REQUEST_ID,
     modelRef: "gemini-3.5-flash",
     schemaVersion: 1,
-    promptPolicyVersion: "p5f2-gemini-proposal-v1",
+    promptPolicyVersion: "p5f2-consultative-sales-v2",
   });
   assert.equal(begun.context.source_message.direction, "inbound");
   assert.deepEqual(begun.context.memory.facts[0].value, [
@@ -559,7 +564,7 @@ test("service repository binds exact begin and finish RPCs and normalizes safe i
         p_request_id: REQUEST_ID,
         p_model_ref: "gemini-3.5-flash",
         p_schema_version: 1,
-        p_prompt_policy_version: "p5f2-gemini-proposal-v1",
+        p_prompt_policy_version: "p5f2-consultative-sales-v2",
       },
     },
     {

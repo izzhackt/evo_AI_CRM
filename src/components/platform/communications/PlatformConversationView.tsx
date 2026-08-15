@@ -446,6 +446,10 @@ export async function PlatformConversationView({
     sourceMessage: t("platformAiMemorySourceMessage"),
     sourceMessageHint: t("platformAiMemorySourceMessageHint"),
     factLabels: {
+      age: t("platformAiMemoryFactAge"),
+      english_level: t("platformAiMemoryFactEnglishLevel"),
+      current_education: t("platformAiMemoryFactCurrentEducation"),
+      countries_considered: t("platformAiMemoryFactCountriesConsidered"),
       preferred_country: t("platformAiMemoryFactPreferredCountry"),
       preferred_program: t("platformAiMemoryFactPreferredProgram"),
       budget_signal: t("platformAiMemoryFactBudgetSignal"),
@@ -574,6 +578,10 @@ export async function PlatformConversationView({
       unsafe_semantics: t("platformGeminiProposalFailureUnsafeSemantics"),
     },
     factLabels: {
+      age: t("platformAiMemoryFactAge"),
+      english_level: t("platformAiMemoryFactEnglishLevel"),
+      current_education: t("platformAiMemoryFactCurrentEducation"),
+      countries_considered: t("platformAiMemoryFactCountriesConsidered"),
       preferred_country: t("platformAiMemoryFactPreferredCountry"),
       preferred_program: t("platformAiMemoryFactPreferredProgram"),
       budget_signal: t("platformAiMemoryFactBudgetSignal"),

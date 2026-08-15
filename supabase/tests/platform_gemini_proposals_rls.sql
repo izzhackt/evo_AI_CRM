@@ -599,7 +599,7 @@ SELECT * FROM platform.begin_gemini_proposal(
   '66000000-0000-4000-8000-000000000200',
   'gemini-3.5-flash',
   1,
-  'p5f2-gemini-proposal-v1'
+  'p5f2-consultative-sales-v2'
 );
 \set p5f2_authenticated_begin_state :SQLSTATE
 SELECT * FROM platform_private.gemini_proposal_requests;
@@ -622,7 +622,7 @@ FROM platform.begin_gemini_proposal(
   '66000000-0000-4000-8000-000000000200',
   'gemini-3.5-flash',
   1,
-  'p5f2-gemini-proposal-v1'
+  'p5f2-consultative-sales-v2'
 )
 \gset p5f2_begin_
 
@@ -662,7 +662,7 @@ FROM platform.begin_gemini_proposal(
   '66000000-0000-4000-8000-000000000200',
   'gemini-3.5-flash',
   1,
-  'p5f2-gemini-proposal-v1'
+  'p5f2-consultative-sales-v2'
 )
 \gset p5f2_replay_
 
@@ -681,7 +681,7 @@ SELECT * FROM platform.begin_gemini_proposal(
   '66000000-0000-4000-8000-000000000200',
   'gemini-3.5-flash',
   1,
-  'p5f2-gemini-proposal-v1'
+  'p5f2-consultative-sales-v2'
 );
 \set p5f2_reuse_mismatch_state :SQLSTATE
 SELECT * FROM platform.begin_gemini_proposal(
@@ -691,7 +691,7 @@ SELECT * FROM platform.begin_gemini_proposal(
   '66000000-0000-4000-8000-000000000201',
   'gemini-3.5-flash',
   1,
-  'p5f2-gemini-proposal-v1'
+  'p5f2-consultative-sales-v2'
 );
 \set p5f2_wrong_source_state :SQLSTATE
 SELECT * FROM platform.begin_gemini_proposal(
@@ -701,7 +701,7 @@ SELECT * FROM platform.begin_gemini_proposal(
   '66000000-0000-4000-8000-000000000202',
   'gemini-3.6-flash',
   1,
-  'p5f2-gemini-proposal-v1'
+  'p5f2-consultative-sales-v2'
 );
 \set p5f2_wrong_model_state :SQLSTATE
 SELECT * FROM platform_private.gemini_proposal_requests;
@@ -905,7 +905,7 @@ FROM platform.begin_gemini_proposal(
   '66000000-0000-4000-8000-000000000205',
   'gemini-3.5-flash',
   1,
-  'p5f2-gemini-proposal-v1'
+  'p5f2-consultative-sales-v2'
 )
 \gset p5f2_failure_begin_
 \set ON_ERROR_STOP off
@@ -1008,7 +1008,7 @@ FROM platform.begin_gemini_proposal(
   '66000000-0000-4000-8000-000000000210',
   'gemini-3.5-flash',
   1,
-  'p5f2-gemini-proposal-v1'
+  'p5f2-consultative-sales-v2'
 )
 \gset p5f2_pending_
 RESET ROLE;

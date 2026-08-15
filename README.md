@@ -130,6 +130,20 @@ WAHA → amoCRM → CRM не проверен и отправка сообщен
 5. Slack сейчас не используется как источник информации. Решения и задачи
    фиксируются в GitHub, а устойчивый контекст — в этом репозитории.
 
+## Проверка поиска в базах знаний
+
+Детерминированная локальная проверка подтверждает, что контрольные русские
+запросы находят ожидаемые заметки только в утверждённой внутренней и клиентской
+базах. Сырой архив и хранилище секретов не сканируются.
+
+```bash
+python3 scripts/knowledge_ingestion/check_retrieval.py \
+  --internal-vault "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ" \
+  --client-vault "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Клиентская база знаний ЭВО" \
+  --cases scripts/knowledge_ingestion/retrieval_cases.json \
+  --report "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Панель управления/Отчёт проверки поиска.json"
+```
+
 ## Production-контур
 
 - Сервер: `hermes-vps`.

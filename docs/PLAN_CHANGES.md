@@ -6716,3 +6716,54 @@ Change type: evaluation, prompt-governance and privacy contract
    candidate evaluation harness.
 4. Run an explicitly authorized real Gemini draft evaluation, followed later
    by a separately authorized controlled production-conversation proof.
+
+## 2026-08-15 - Stage the exact P8B2 Linux/AMD64 candidate on Hermes without restart
+
+Plan Block-ID: `EVO-P8D2-LINUX-AMD64-HERMES-STAGING-2026-08-15`
+
+Change type: owner-authorized production-host staging contract; no running
+service or provider mutation.
+
+Reason: P8B2 produced three real Linux/AMD64 images from the frozen P8B
+application tree, and P8C2 bound their retained manifest/evidence/SBOM/smoke
+artifacts. The prior P8D directory contains the failed ARM64 attempt and cannot
+be reused. The owner approved staging at `2026-08-15T13:26:01Z`, but did not
+authorize container recreation or provider actions.
+
+Decision:
+
+- Freeze the exact image IDs and manifest/evidence/report hashes in
+  `docs/platform/p8d2-amd64-staging.md` under issue #202.
+- Use OrbStack only for local `docker image save --platform=linux/amd64` and
+  verify full IDs/platform/revision before transfer.
+- On Hermes, create a new non-colliding root-only release, evidence and rollback
+  identity named `2026-08-15.p8d2.1`; never overwrite the retained ARM64
+  `2026-08-15.p8d.1` attempt.
+- Freeze the exact three image tags and archive filenames, the single retained
+  local P8C2 evidence root and its explicit 31-file transfer allowlist, and the
+  exact three-file production env rollback matrix. Use no globs or recursive
+  copy; validate every source and destination type, owner, mode, collision and
+  hash without printing secret bytes.
+- Capture the three current application image archives and exact production env
+  files into the segregated root-only rollback directory before loading the
+  candidate. Evidence records only hashes and safe status/identity fields.
+- Transfer and hash-verify candidate archives and the self-contained evidence,
+  then load only exact Linux/AMD64 images whose tags are absent. Do not retag,
+  substitute, recreate, restart, stop, pause, or signal a running container.
+- Re-prove all running app and WAHA containers use their original image IDs,
+  remain healthy, retain restart count zero and keep original start timestamps.
+- No WAHA/Caddy/DNS/session/QR mutation, WhatsApp send, Gemini content call,
+  amoCRM access, Supabase write, customer-data inspection, billed resource,
+  Docker prune or unrelated cleanup is authorized.
+- After staging, rerun read-only P8C2. Deployment requires a separate fresh
+  owner window and an updated exact AMD64 deployment contract.
+
+Proof and stop boundary:
+
+- Independent exact-head review, green exact-head CI, stable base and green
+  exact-main CI are mandatory before staging begins.
+- Identity/hash/mode/ownership/health/capacity/topology drift, destination
+  collision, fewer than 20 GiB conservative remaining disk, or any need to
+  touch a running service stops the block.
+- A partially created staging bundle is retained root-only with a redacted
+  failure code and is never silently deleted, repaired or reused.

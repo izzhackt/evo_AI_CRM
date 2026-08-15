@@ -2441,30 +2441,35 @@ their own explicit authorization.
 The first P8D attempt stopped safely before CRM or Inbox recreation because the
 retained P8B images were `linux/arm64` while Hermes is `linux/amd64`. Lead Agent
 was restored healthy and all production configuration was rolled back. The
-active correction is P8B2 under issue #188 and
-`docs/platform/p8b2-amd64-candidate.md`: construct a new platform-bound
-`linux/amd64` candidate, redo P8C, then request a fresh P8D action window.
+P8B2 under issue #188 produced the exact platform-bound `linux/amd64`
+candidate. P8C2 then bound its real retained manifest, evidence, SBOM/smoke
+identities and current environment reconciliation. The active next slice is
+staging-only P8D2 under issue #202 and
+`docs/platform/p8d2-amd64-staging.md`.
 
-Current accepted release-control base:
-`33d745121208bdaf30fceeda25e9c87ab346db8e`. Its exact-main CI run
-`31843405338` completed successfully. P8C reconciled
-the real environments without mutation and retained P8B application provenance at
-`0505143657858e710acdd5029f1cc77c5524083e`.
+Current accepted release-control main:
+`a6dc6df1d3c6e2986d63cd4ecc12e0877b2d0057`. Its exact-main CI run
+`31887238363` completed successfully. P8C2 reconciled the real environments
+without mutation, retained P8B application provenance at `050514...`, bound
+the exact AMD64 image identities, and truthfully returned `blocked` because
+Hermes staging, provider prerequisites, and deployment remain incomplete.
 
-The owner authorized the P8D disabled deployment on 2026-08-15. The exact
-scope, immutable image IDs, no-op migration rule, disabled flags, 120-minute
-action window, evidence boundary, stop conditions and rollback procedure are
-frozen in `docs/platform/p8d-disabled-deployment.md` under issue #184. P8D may
-deploy only the three first-party candidate images. WAHA/Caddy/DNS, sessions,
-webhooks, provider writes, autonomous send, customer-content Gemini calls,
-amoCRM writes, WhatsApp sends, billed resources, production restore and legacy
-retirement remain outside this authorization.
+The owner authorized exact staging only at `2026-08-15T13:26:01Z`. The exact
+AMD64 IDs, evidence hashes, non-reused release identity, preflight, rollback
+capture, transfer/load procedure and no-restart boundary are frozen in
+`docs/platform/p8d2-amd64-staging.md`. This authority does not deploy or
+recreate any application container. WAHA/Caddy/DNS, sessions, webhooks,
+provider reads or writes, autonomous send, customer-content Gemini calls,
+amoCRM access, WhatsApp sends, Supabase writes, billed resources, production
+restore and legacy retirement remain outside this authorization.
 
 The current preflight records Inbox WAHA as `SCAN_QR_CODE`, canonical DNS as
 absent, amoCRM credentials as incomplete and the candidate rollback bundle as
 unstaged. P8D must preserve those external blockers truthfully rather than
-silently fixing or relabelling them. The deployment may proceed only after the
+silently fixing or relabelling them. Staging may proceed only after the P8D2
 contract PR merges with independent approval and exact-main green CI.
+Deployment then requires a separate fresh owner window and an updated exact
+AMD64 deployment matrix.
 
 ## EVO Knowledge Launch Finalization
 

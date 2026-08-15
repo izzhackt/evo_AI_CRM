@@ -6871,3 +6871,36 @@ the existing conversation audit. Bundle delivery is exact-file SCP over the
 existing SSH boundary into root-only collision-free host/container staging,
 verified at each boundary and removed from local/host/container on every exit;
 only the redacted operational report persists.
+
+## 2026-08-15 - Bind portable AMD64 manifests before another Hermes staging attempt
+
+Plan Block-ID: `EVO-P8B3-PORTABLE-IMAGE-IDENTITY-2026-08-15`
+
+Change type: evidence/tooling correction; local real-image execution only.
+
+Reason: P8D2 proved that P8B2 recorded the OCI index digest while platform-
+selected Docker save/load transports the referenced AMD64 manifest. The exact
+archive bytes were valid, but comparing different OCI graph levels stopped
+staging correctly.
+
+Decision:
+
+- Preserve P8B2 and P8D2 evidence as immutable history; never relabel their
+  digests or reuse release `2026-08-15.p8d2.1`.
+- Add a closed P8B3 generator/schema that binds index and AMD64 manifest
+  digests and verifies raw manifest, config, ordered layers and archive bytes.
+- Run it only on OrbStack against the real retained P8B2 images and prove the
+  archives load to the recorded platform-manifest identities without providers
+  or customer data.
+- Retain a mode-`0700` ignored evidence root with mode-`0600` files and bind its
+  collection-index hash in the PR body.
+- P8B3 authorizes no Hermes/provider/DNS/WAHA/Supabase/container mutation. A new
+  P8D3 contract, directories and fresh owner approval are required for retry.
+
+Proof and stop boundary:
+
+- Reject archive path escape, unsafe tar entries, missing/extra descriptors,
+  platform/tag/revision/source drift, digest/size mismatch, bad mode/symlink,
+  extra evidence files or unavailable real images.
+- Require focused gates, real OrbStack generation/load proof, independent
+  exact-head review, four green PR jobs and green exact-main CI.

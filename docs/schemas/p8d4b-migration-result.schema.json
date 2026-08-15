@@ -18,6 +18,7 @@
     "missing_migrations",
     "dry_run_status",
     "apply_status",
+    "local_temp_cleanup_status",
     "temporary_login_role"
   ],
   "properties": {
@@ -71,6 +72,7 @@
     },
     "dry_run_status": { "enum": ["not_run", "verified"] },
     "apply_status": { "enum": ["not_run", "verified"] },
+    "local_temp_cleanup_status": { "enum": ["not_required", "verified", "failed"] },
     "temporary_login_role": {
       "type": "object",
       "additionalProperties": false,
@@ -92,6 +94,7 @@
           "ledger_after": { "type": "null" },
           "dry_run_status": { "const": "not_run" },
           "apply_status": { "const": "not_run" },
+          "local_temp_cleanup_status": { "const": "not_required" },
           "temporary_login_role": { "$ref": "#/$defs/noTemporaryRole" }
         }
       }
@@ -106,6 +109,7 @@
           "missing_migrations": { "type": "array", "maxItems": 0 },
           "dry_run_status": { "const": "not_run" },
           "apply_status": { "const": "not_run" },
+          "local_temp_cleanup_status": { "const": "not_required" },
           "temporary_login_role": { "$ref": "#/$defs/noTemporaryRole" }
         }
       }
@@ -120,6 +124,7 @@
           "ledger_after": { "$ref": "#/$defs/ledger076" },
           "dry_run_status": { "const": "verified" },
           "apply_status": { "const": "verified" },
+          "local_temp_cleanup_status": { "const": "verified" },
           "temporary_login_role": {
             "type": "object",
             "additionalProperties": false,
@@ -139,6 +144,7 @@
         "properties": {
           "mode": { "const": "apply" },
           "ledger_before": { "$ref": "#/$defs/ledger072" },
+          "local_temp_cleanup_status": { "enum": ["verified", "failed"] },
           "temporary_login_role": {
             "type": "object",
             "additionalProperties": false,

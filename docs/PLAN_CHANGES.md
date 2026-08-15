@@ -7273,9 +7273,11 @@ Decision:
   contiguous `001-076` before P8D4 continues.
 - Require an exclusive migration window with no concurrent Supabase CLI
   link/push session for this project, because cleanup revokes the project's
-  temporary CLI roles. Revoke those roles in a `finally` block. An operation
-  error with verified cleanup records `operation_failed`; a cleanup error
-  records `cleanup_failed`. Both block knowledge publication and deployment; no
+  temporary CLI roles. Revoke those roles and remove only the runner-owned
+  local `supabase/.temp` directory in guarded `finally` cleanup. An operation
+  or local-temp cleanup error with verified role cleanup records
+  `operation_failed`; a role cleanup error records `cleanup_failed`. Evidence
+  records both cleanup statuses. Either result blocks publication/deployment; no
   fallback to a persistent password, manual SQL, Dashboard SQL, migration
   repair, SSL enforcement or JIT is allowed.
 - Emit only a closed mode-`0600` JSON result with fixed project/candidate/CLI,

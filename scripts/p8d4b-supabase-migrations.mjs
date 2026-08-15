@@ -274,7 +274,7 @@ function safeChildEnv(accessToken, environment) {
   return child;
 }
 
-function makeEvidence({ mode, resultCode, observedAt, files, before, after, missing, dryRunStatus, applyStatus, temporaryRoleCreationAttempted, cleanupStatus }) {
+function makeEvidence({ mode, resultCode, observedAt, files, before, after, missing, dryRunStatus, applyStatus, temporaryRoleCreationAttempted, cleanupStatus, localTempCleanupStatus }) {
   const evidence = {
     schema_version: "p8d4b-v1",
     result_code: resultCode,
@@ -289,6 +289,7 @@ function makeEvidence({ mode, resultCode, observedAt, files, before, after, miss
     missing_migrations: missing,
     dry_run_status: dryRunStatus,
     apply_status: applyStatus,
+    local_temp_cleanup_status: localTempCleanupStatus,
     temporary_login_role: {
       creation_attempted: temporaryRoleCreationAttempted,
       cleanup_status: cleanupStatus,
@@ -302,7 +303,7 @@ export function validateEvidenceInvariants(evidence) {
   exactKeys(evidence, [
     "apply_status", "candidate_commit", "cli_version", "dry_run_status", "ledger_after",
     "ledger_before", "migration_files", "missing_migrations", "mode", "observed_at",
-    "project_ref", "result_code", "schema_version", "temporary_login_role",
+    "local_temp_cleanup_status", "project_ref", "result_code", "schema_version", "temporary_login_role",
   ], "migration evidence");
   if (!RESULT_CODES.has(evidence.result_code)) fail("migration evidence has invalid result code");
   if (!UTC_PATTERN.test(evidence.observed_at) || Number.isNaN(Date.parse(evidence.observed_at))) fail("migration evidence timestamp is invalid");
@@ -312,17 +313,19 @@ export function validateEvidenceInvariants(evidence) {
   if (missing.length === 4 && JSON.stringify(missing) !== JSON.stringify(P8D4B.migrationFiles.map((item) => item.name))) fail("migration evidence missing sequence mismatch");
   if (evidence.result_code === "preflight_verified") {
     if (evidence.mode !== "preflight" || evidence.ledger_before.last_version !== "072" || evidence.ledger_after !== null || missing.length !== 4) fail("invalid preflight evidence");
-    if (evidence.dry_run_status !== "not_run" || evidence.apply_status !== "not_run" || evidence.temporary_login_role.creation_attempted || evidence.temporary_login_role.cleanup_status !== "not_required") fail("preflight evidence records an external mutation");
+    if (evidence.dry_run_status !== "not_run" || evidence.apply_status !== "not_run" || evidence.local_temp_cleanup_status !== "not_required" || evidence.temporary_login_role.creation_attempted || evidence.temporary_login_role.cleanup_status !== "not_required") fail("preflight evidence records an external mutation");
   } else if (evidence.result_code === "already_complete") {
     if (evidence.ledger_before.last_version !== "076" || evidence.ledger_after.last_version !== "076" || missing.length !== 0) fail("invalid already-complete evidence");
-    if (evidence.dry_run_status !== "not_run" || evidence.apply_status !== "not_run" || evidence.temporary_login_role.creation_attempted || evidence.temporary_login_role.cleanup_status !== "not_required") fail("already-complete evidence records an external mutation");
+    if (evidence.dry_run_status !== "not_run" || evidence.apply_status !== "not_run" || evidence.local_temp_cleanup_status !== "not_required" || evidence.temporary_login_role.creation_attempted || evidence.temporary_login_role.cleanup_status !== "not_required") fail("already-complete evidence records an external mutation");
   } else if (evidence.result_code === "applied_verified") {
     if (evidence.mode !== "apply" || evidence.ledger_before.last_version !== "072" || evidence.ledger_after.last_version !== "076" || missing.length !== 4) fail("invalid applied evidence ledger");
-    if (evidence.dry_run_status !== "verified" || evidence.apply_status !== "verified" || !evidence.temporary_login_role.creation_attempted || evidence.temporary_login_role.cleanup_status !== "verified") fail("invalid applied evidence phases");
+    if (evidence.dry_run_status !== "verified" || evidence.apply_status !== "verified" || evidence.local_temp_cleanup_status !== "verified" || !evidence.temporary_login_role.creation_attempted || evidence.temporary_login_role.cleanup_status !== "verified") fail("invalid applied evidence phases");
   } else if (evidence.result_code === "operation_failed") {
     if (evidence.mode !== "apply" || evidence.ledger_before.last_version !== "072" || missing.length !== 4) fail("invalid operation-failed evidence ledger");
-    if (!evidence.temporary_login_role.creation_attempted || evidence.temporary_login_role.cleanup_status !== "verified") fail("invalid operation-failed cleanup evidence");
-    if (evidence.apply_status === "verified" && evidence.ledger_after?.last_version === "076") fail("operation-failed evidence cannot describe completed migration application");
+    if (!["failed", "verified"].includes(evidence.local_temp_cleanup_status) || !evidence.temporary_login_role.creation_attempted || evidence.temporary_login_role.cleanup_status !== "verified") fail("invalid operation-failed cleanup evidence");
+    if (evidence.apply_status === "verified" && evidence.ledger_after?.last_version === "076" && evidence.local_temp_cleanup_status !== "failed") {
+      fail("operation-failed evidence cannot describe completed migration application without a local cleanup failure");
+    }
   } else if (evidence.result_code === "cleanup_failed") {
     if (evidence.mode !== "apply" || !evidence.temporary_login_role.creation_attempted || evidence.temporary_login_role.cleanup_status !== "failed") fail("invalid cleanup-failed evidence");
   }
@@ -363,6 +366,7 @@ export async function runP8D4BMigrations({
   environment = process.env,
   fetchImpl = fetch,
   runCommand = defaultRunCommand,
+  cleanupTempRoot = (path) => rmSync(path, { recursive: true, force: false }),
   now = () => new Date(),
 }) {
   if (!["apply", "preflight"].includes(mode)) fail("mode must be preflight or apply");
@@ -386,6 +390,7 @@ export async function runP8D4BMigrations({
       applyStatus: "not_run",
       temporaryRoleCreationAttempted: false,
       cleanupStatus: "not_required",
+      localTempCleanupStatus: "not_required",
     });
     writeEvidence(outputPath, evidence);
     return evidence;
@@ -404,6 +409,7 @@ export async function runP8D4BMigrations({
       applyStatus: "not_run",
       temporaryRoleCreationAttempted: false,
       cleanupStatus: "not_required",
+      localTempCleanupStatus: "not_required",
     });
     writeEvidence(outputPath, evidence);
     return evidence;
@@ -418,6 +424,7 @@ export async function runP8D4BMigrations({
   let after = null;
   let operationError = null;
   let cleanupStatus = "not_required";
+  let localTempCleanupStatus = "not_required";
   try {
     temporaryRoleCreationAttempted = true;
     runCommand("supabase-link", candidate.cliPath, [
@@ -449,7 +456,13 @@ export async function runP8D4BMigrations({
         if (!operationError) operationError = error;
       }
     }
-    if (existsSync(tempRoot)) rmSync(tempRoot, { recursive: true, force: false });
+    try {
+      if (existsSync(tempRoot)) cleanupTempRoot(tempRoot);
+      localTempCleanupStatus = "verified";
+    } catch (error) {
+      localTempCleanupStatus = "failed";
+      if (!operationError) operationError = error;
+    }
   }
 
   if (cleanupStatus === "failed") {
@@ -465,6 +478,7 @@ export async function runP8D4BMigrations({
       applyStatus,
       temporaryRoleCreationAttempted,
       cleanupStatus,
+      localTempCleanupStatus,
     });
     writeEvidence(outputPath, evidence);
     throw Object.assign(new Error("temporary CLI login-role cleanup failed; P8D4 is blocked"), { evidence });
@@ -482,6 +496,7 @@ export async function runP8D4BMigrations({
       applyStatus,
       temporaryRoleCreationAttempted,
       cleanupStatus,
+      localTempCleanupStatus,
     });
     writeEvidence(outputPath, evidence);
     throw Object.assign(operationError, { evidence });
@@ -499,6 +514,7 @@ export async function runP8D4BMigrations({
     applyStatus,
     temporaryRoleCreationAttempted,
     cleanupStatus,
+    localTempCleanupStatus,
   });
   writeEvidence(outputPath, evidence);
   return evidence;

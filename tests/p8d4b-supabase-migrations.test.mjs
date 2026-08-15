@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -15,8 +15,13 @@ import {
 
 const repoRoot = process.cwd();
 const cliPath = join(repoRoot, "node_modules", ".bin", "supabase");
+const testCandidateRoot = mkdtempSync(join(tmpdir(), "evo-p8d4b-candidate-"));
+mkdirSync(join(testCandidateRoot, "supabase"), { recursive: true });
+cpSync(join(repoRoot, "supabase", "migrations"), join(testCandidateRoot, "supabase", "migrations"), { recursive: true });
 const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4b-migration-result.schema.json", import.meta.url), "utf8"));
 const validateSchema = new Ajv2020({ allErrors: true, strict: true }).compile(schema);
+
+test.after(() => rmSync(testCandidateRoot, { recursive: true, force: true }));
 
 function ledger(last) {
   return expectedVersions(last).map((version) => ({ version, name: `migration_${version}` }));
@@ -77,7 +82,7 @@ function evidenceOutput() {
 }
 
 const baseOptions = {
-  sourceRoot: repoRoot,
+  sourceRoot: testCandidateRoot,
   cliPath,
   accessToken: `sbp_${"a".repeat(40)}`,
   environment: {},
@@ -222,6 +227,35 @@ test("cleanup failure produces truthful blocking evidence", async () => {
   }
 });
 
+test("local Supabase temp cleanup failure produces blocking evidence", async () => {
+  const harness = createHarness();
+  const target = evidenceOutput();
+  try {
+    await assert.rejects(
+      runP8D4BMigrations({
+        ...baseOptions,
+        mode: "apply",
+        confirmation: P8D4B.applyConfirmation,
+        outputPath: target.output,
+        fetchImpl: harness.fetchImpl,
+        runCommand: harness.runCommand,
+        cleanupTempRoot: () => {
+          throw new Error("simulated local temp cleanup failure");
+        },
+      }),
+      /simulated local temp cleanup failure/,
+    );
+    const evidence = JSON.parse(readFileSync(target.output, "utf8"));
+    assert.equal(evidence.result_code, "operation_failed");
+    assert.equal(evidence.local_temp_cleanup_status, "failed");
+    assert.equal(evidence.temporary_login_role.cleanup_status, "verified");
+    assert.equal(validateSchema(evidence), true, JSON.stringify(validateSchema.errors));
+  } finally {
+    rmSync(join(testCandidateRoot, "supabase", ".temp"), { recursive: true, force: true });
+    rmSync(target.root, { recursive: true, force: true });
+  }
+});
+
 test("schema rejects false success and secret-shaped extra fields", () => {
   const harness = createHarness();
   assert.ok(harness);
@@ -239,6 +273,7 @@ test("schema rejects false success and secret-shaped extra fields", () => {
     missing_migrations: P8D4B.migrationFiles.map((item) => item.name),
     dry_run_status: "verified",
     apply_status: "verified",
+    local_temp_cleanup_status: "verified",
     temporary_login_role: { creation_attempted: true, cleanup_status: "verified" },
     access_token: "forbidden",
   };

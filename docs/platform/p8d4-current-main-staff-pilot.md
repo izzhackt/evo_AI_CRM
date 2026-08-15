@@ -267,8 +267,10 @@ contiguous `001-076`. Stdout is reduced to migration identifiers/status before
 it enters the mode-`0600` closed evidence file; access tokens, temporary role
 credentials, connection material, SQL bodies, emails and user identifiers are
 never logged or persisted.
-An apply-path error with successful cleanup records `operation_failed`; failed
-cleanup records `cleanup_failed`. Both stop publication and deployment.
+An apply-path or local temporary-directory cleanup error with successful role
+cleanup records `operation_failed`; failed role cleanup records
+`cleanup_failed`. The evidence records both cleanup statuses, and either result
+stops publication and deployment.
 
 ## Phase D — real approved knowledge publication
 

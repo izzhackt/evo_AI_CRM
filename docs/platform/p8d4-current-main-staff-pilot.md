@@ -148,6 +148,28 @@ Rollback env destinations are exactly `crm.env.production`,
 `lead-agent.env.production`, and `inbox.env.production`; rollback image archives
 are exactly `prior-crm.tar`, `prior-lead-agent.tar`, and `prior-inbox.tar`.
 
+The pre-deploy Compose rollback inputs are also closed. Their source paths must
+still be root-owned regular non-symlink files at execution time; any drift stops
+the release. Copy them with `install -o root -g root -m 0600` into the rollback
+root before any migration, tag, or container mutation:
+
+| Boundary | Exact current source | Rollback destination |
+| --- | --- | --- |
+| CRM | `/opt/evo-releases/564332b420a1fb1bd6232dda945d044bb922d3f0/repo/docker-compose.prod.yml` | `crm.compose.yml` |
+| Inbox | `/opt/evo-releases/a09a72fc55d869c861df520f76d62413a2315fc1/repo/agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml` | `inbox.compose.yml` |
+| Lead Agent | `/opt/evo-releases/b2303eccb78b7c102ec702e9821f765f6dfaba88/repo/docker-compose.prod.yml` | `lead-agent.compose.yml` |
+
+Record the current three application image IDs and exact Compose revision
+values without printing env contents. After saving and hashing the three prior
+archives, prove each can map back to its recorded prior revision tag. The
+rollback order is Lead Agent, CRM, then Inbox. For each boundary, load its
+retained archive, atomically restore its env file, restore the recorded prior
+revision tag only when absent or already mapped to the same image ID, and run
+the retained Compose file with the recorded revision, project, and service.
+Stop on tag collision. Reinspect all five exact containers and require healthy
+state and unchanged restart counts after the complete unwind. No current
+checkout or discovered Compose file may be used during rollback.
+
 The release root contains an exact clean Git archive in `repo/`. Deployment is
 closed to these commands and env sources; no glob or discovered Compose file is
 accepted:
@@ -275,8 +297,8 @@ Write a closed `p8d4-result.json` validated against
 `docs/schemas/p8d4-result.schema.json`, plus SHA-256, under the new
 redacted evidence root using mode-`0600` temporary files and atomic rename. It
 records exact source/tree/CI, migration ledger before/after, image and rollback
-hashes, safe bundle revisions/counts, fixed test IDs/results, container health
-before/after, and a fixed result code. It contains no arbitrary logs or secret,
+image/env/Compose hashes, safe bundle revisions/counts, fixed test IDs/results,
+ordered container health before/after, and a fixed result code. It contains no arbitrary logs or secret,
 prompt, response, knowledge, provider or customer values.
 
 `pilot_verified` requires every phase and invariant above. Other exact codes are

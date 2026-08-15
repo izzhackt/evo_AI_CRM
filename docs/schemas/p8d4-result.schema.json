@@ -4,7 +4,7 @@
   "title": "EVO P8D4 redacted result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "result_code", "candidate", "migrations", "bundles", "images", "containers", "pilot"],
+  "required": ["schema_version", "result_code", "candidate", "migrations", "bundles", "images", "containers_before", "containers_after", "rollback", "pilot"],
   "properties": {
     "schema_version": { "const": "p8d4-v1" },
     "result_code": {
@@ -55,7 +55,7 @@
         }
       }
     },
-    "containers": {
+    "containers_before": {
       "type": "array", "maxItems": 5,
       "items": {
         "type": "object", "additionalProperties": false,
@@ -66,6 +66,29 @@
           "restart_count": { "type": ["integer", "null"], "minimum": 0 },
           "status": { "enum": ["verified", "not_run", "failed", "rolled_back"] }
         }
+      }
+    },
+    "containers_after": {
+      "type": "array", "maxItems": 5,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "healthy", "restart_count", "status"],
+        "properties": {
+          "name": { "enum": ["evo-inbox-app-1", "evo-crm-app-1", "evo-crm-lead-agent-1", "evo-crm-waha-1", "evo-inbox-waha"] },
+          "healthy": { "type": ["boolean", "null"] },
+          "restart_count": { "type": ["integer", "null"], "minimum": 0 },
+          "status": { "enum": ["verified", "not_run", "failed", "rolled_back"] }
+        }
+      }
+    },
+    "rollback": {
+      "type": "object", "additionalProperties": false,
+      "required": ["images", "env_files", "compose_files", "status"],
+      "properties": {
+        "images": { "type": "array", "maxItems": 3, "items": { "type": "object", "additionalProperties": false, "required": ["name", "sha256"], "properties": { "name": { "enum": ["prior-crm.tar", "prior-inbox.tar", "prior-lead-agent.tar"] }, "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } } } },
+        "env_files": { "type": "array", "maxItems": 3, "items": { "type": "object", "additionalProperties": false, "required": ["name", "sha256"], "properties": { "name": { "enum": ["crm.env.production", "inbox.env.production", "lead-agent.env.production"] }, "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } } } },
+        "compose_files": { "type": "array", "maxItems": 3, "items": { "type": "object", "additionalProperties": false, "required": ["name", "sha256"], "properties": { "name": { "enum": ["crm.compose.yml", "inbox.compose.yml", "lead-agent.compose.yml"] }, "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } } } },
+        "status": { "enum": ["verified", "not_run", "failed"] }
       }
     },
     "pilot": {
@@ -90,36 +113,42 @@
     "then": {
       "properties": {
         "migrations": { "properties": { "after": { "const": "001-075" }, "status": { "const": "verified" } } },
-        "bundles": {
-          "minItems": 2, "maxItems": 2,
-          "items": { "properties": { "status": { "const": "verified" } } },
-          "allOf": [
-            { "contains": { "properties": { "audience": { "const": "client" } }, "required": ["audience"] } },
-            { "contains": { "properties": { "audience": { "const": "internal" } }, "required": ["audience"] } }
-          ]
-        },
-        "images": {
-          "minItems": 3, "maxItems": 3,
-          "items": { "properties": { "status": { "const": "verified" } } },
-          "allOf": [
-            { "contains": { "properties": { "name": { "const": "main_crm" } }, "required": ["name"] } },
-            { "contains": { "properties": { "name": { "const": "evo_inbox" } }, "required": ["name"] } },
-            { "contains": { "properties": { "name": { "const": "lead_agent" } }, "required": ["name"] } }
-          ]
-        },
-        "containers": {
-          "minItems": 5, "maxItems": 5,
-          "items": { "properties": { "status": { "const": "verified" }, "healthy": { "const": true }, "restart_count": { "const": 0 } } }
-        },
-        "pilot": {
-          "minItems": 2, "maxItems": 2,
-          "items": { "properties": { "status": { "const": "verified" }, "expected_source_match": { "const": true }, "cross_audience_sources": { "const": 0 }, "audit_body_free": { "const": true } } },
-          "allOf": [
-            { "contains": { "properties": { "case_id": { "const": "client_china_documents" }, "audience": { "const": "client" } }, "required": ["case_id", "audience"] } },
-            { "contains": { "properties": { "case_id": { "const": "internal_malaysia_handoff" }, "audience": { "const": "internal" } }, "required": ["case_id", "audience"] } }
-          ]
-        }
+        "bundles": { "minItems": 2, "maxItems": 2, "prefixItems": [
+          { "properties": { "audience": { "const": "client" }, "status": { "const": "verified" } } },
+          { "properties": { "audience": { "const": "internal" }, "status": { "const": "verified" } } }
+        ], "items": false },
+        "images": { "minItems": 3, "maxItems": 3, "prefixItems": [
+          { "properties": { "name": { "const": "main_crm" }, "status": { "const": "verified" } } },
+          { "properties": { "name": { "const": "evo_inbox" }, "status": { "const": "verified" } } },
+          { "properties": { "name": { "const": "lead_agent" }, "status": { "const": "verified" } } }
+        ], "items": false },
+        "containers_before": { "$ref": "#/$defs/verifiedContainers" },
+        "containers_after": { "$ref": "#/$defs/verifiedContainers" },
+        "rollback": { "properties": { "status": { "const": "verified" }, "images": { "$ref": "#/$defs/rollbackImages" }, "env_files": { "$ref": "#/$defs/rollbackEnvs" }, "compose_files": { "$ref": "#/$defs/rollbackCompose" } } },
+        "pilot": { "minItems": 2, "maxItems": 2, "prefixItems": [
+          { "properties": { "case_id": { "const": "client_china_documents" }, "audience": { "const": "client" }, "http_status": { "const": 200 }, "status": { "const": "verified" }, "expected_source_match": { "const": true }, "cross_audience_sources": { "const": 0 }, "audit_body_free": { "const": true } } },
+          { "properties": { "case_id": { "const": "internal_malaysia_handoff" }, "audience": { "const": "internal" }, "http_status": { "const": 200 }, "status": { "const": "verified" }, "expected_source_match": { "const": true }, "cross_audience_sources": { "const": 0 }, "audit_body_free": { "const": true } } }
+        ], "items": false }
       }
     }
-  }]
+  }],
+  "$defs": {
+    "verifiedContainer": { "properties": { "status": { "const": "verified" }, "healthy": { "const": true }, "restart_count": { "const": 0 } } },
+    "verifiedContainers": { "minItems": 5, "maxItems": 5, "prefixItems": [
+      { "allOf": [{ "$ref": "#/$defs/verifiedContainer" }, { "properties": { "name": { "const": "evo-inbox-app-1" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/verifiedContainer" }, { "properties": { "name": { "const": "evo-crm-app-1" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/verifiedContainer" }, { "properties": { "name": { "const": "evo-crm-lead-agent-1" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/verifiedContainer" }, { "properties": { "name": { "const": "evo-crm-waha-1" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/verifiedContainer" }, { "properties": { "name": { "const": "evo-inbox-waha" } } }] }
+    ], "items": false },
+    "rollbackImages": { "minItems": 3, "maxItems": 3, "prefixItems": [
+      { "properties": { "name": { "const": "prior-crm.tar" } } }, { "properties": { "name": { "const": "prior-inbox.tar" } } }, { "properties": { "name": { "const": "prior-lead-agent.tar" } } }
+    ], "items": false },
+    "rollbackEnvs": { "minItems": 3, "maxItems": 3, "prefixItems": [
+      { "properties": { "name": { "const": "crm.env.production" } } }, { "properties": { "name": { "const": "inbox.env.production" } } }, { "properties": { "name": { "const": "lead-agent.env.production" } } }
+    ], "items": false },
+    "rollbackCompose": { "minItems": 3, "maxItems": 3, "prefixItems": [
+      { "properties": { "name": { "const": "crm.compose.yml" } } }, { "properties": { "name": { "const": "inbox.compose.yml" } } }, { "properties": { "name": { "const": "lead-agent.compose.yml" } } }
+    ], "items": false }
+  }
 }

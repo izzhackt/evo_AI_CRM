@@ -6655,3 +6655,13 @@ committed versioned cases in `scripts/knowledge_ingestion/retrieval_cases.json`
 and a machine-readable real-vault report in `Панель управления/Отчёт проверки
 поиска.json`. Each Russian case names the vault, top-k and exact expected paths;
 all cases and explicit raw/secrets forbidden-root assertions must pass.
+
+Review amendment 2: keyword matching is not an authority boundary. Add required
+closed allowlist fields `content_class` (`stable_evo_policy` or
+`mutable_official_fact`) and `personal_data_reviewed: true`. Stable policy is
+owner-decision-only; mutable facts are official-source-only. Reuse the ingestion
+email/phone detectors as an unconditional publication rejection. Bind the
+approved source to the exact non-symlink approved child of the marked internal
+root, validate raw path components before resolve, and require exact typed
+authority-reference frontmatter. Resolve and read every managed stale candidate
+before the first output write so all input failures preserve zero mutation.

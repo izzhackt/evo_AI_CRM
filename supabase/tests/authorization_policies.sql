@@ -697,4 +697,173 @@ SELECT :'forged_media_audit_state' = '42501' AS expected \gset
 
 RESET ROLE;
 
+-- K3 managed-bundle mutation is service-role-only and commits as one RPC.
+DO $$
+BEGIN
+  IF has_function_privilege(
+       'authenticated',
+       'public.sync_ai_knowledge_bundle(uuid,text,text,jsonb)',
+       'EXECUTE'
+     )
+     OR has_function_privilege(
+       'anon',
+       'public.sync_ai_knowledge_bundle(uuid,text,text,jsonb)',
+       'EXECUTE'
+     )
+     OR NOT has_function_privilege(
+       'service_role',
+       'public.sync_ai_knowledge_bundle(uuid,text,text,jsonb)',
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'Managed knowledge sync RPC grants are unsafe';
+  END IF;
+END
+$$;
+
+SET ROLE service_role;
+SELECT public.sync_ai_knowledge_bundle(
+  :'account_one_id',
+  'client',
+  repeat('b', 64),
+  jsonb_build_object(
+    'version', 1,
+    'documents', jsonb_build_array(jsonb_build_object(
+      'source_path', 'Услуги/Проверка.md',
+      'source_sha256', encode(sha256(convert_to('Проверенное содержание', 'UTF8')), 'hex'),
+      'title', 'Проверка',
+      'content', 'Проверенное содержание',
+      'chunks', jsonb_build_array(jsonb_build_object(
+        'chunk_index', 0,
+        'content', 'Проверенное содержание',
+        'content_sha256', encode(sha256(convert_to('Проверенное содержание', 'UTF8')), 'hex'),
+        'embedding', (SELECT jsonb_agg(0.0) FROM generate_series(1, 1536))
+      ))
+    ))
+  )
+);
+RESET ROLE;
+
+SELECT count(*) = 1 AS expected
+FROM public.ai_knowledge_documents
+WHERE account_id = :'account_one_id'
+  AND audience = 'client'
+  AND managed_by = 'evo_obsidian_sync'
+  AND source_path = 'Услуги/Проверка.md'
+\gset
+\if :expected
+\else
+  \echo 'FAIL: atomic managed knowledge sync did not publish its document'
+  SELECT 1 / 0;
+\endif
+
+\set ON_ERROR_STOP off
+SET ROLE service_role;
+SELECT public.sync_ai_knowledge_bundle(
+  :'account_one_id',
+  'client',
+  repeat('c', 64),
+  jsonb_build_object(
+    'version', 1,
+    'documents', jsonb_build_array(jsonb_build_object(
+      'source_path', 'Услуги/Не должно сохраниться.md',
+      'source_sha256', repeat('0', 64),
+      'title', 'Отклонить',
+      'content', 'Несовпадающий SHA',
+      'chunks', jsonb_build_array(jsonb_build_object(
+        'chunk_index', 0,
+        'content', 'Несовпадающий SHA',
+        'content_sha256', repeat('0', 64),
+        'embedding', (SELECT jsonb_agg(0.0) FROM generate_series(1, 1536))
+      ))
+    ))
+  )
+);
+\set failed_bundle_state :SQLSTATE
+RESET ROLE;
+\set ON_ERROR_STOP on
+SELECT :'failed_bundle_state' <> '00000'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.ai_knowledge_documents
+    WHERE account_id = :'account_one_id'
+      AND source_path = 'Услуги/Не должно сохраниться.md'
+  ) AS expected
+\gset
+\if :expected
+\else
+  \echo 'FAIL: rejected managed bundle left partial state'
+  SELECT 1 / 0;
+\endif
+
+\set ON_ERROR_STOP off
+SET ROLE service_role;
+SELECT public.sync_ai_knowledge_bundle(
+  :'account_one_id',
+  'client',
+  repeat('d', 64),
+  jsonb_build_object(
+    'version', 1,
+    'documents', jsonb_build_array(jsonb_build_object(
+      'source_path', 'Сырой архив ЭВО/Запрещено.md',
+      'source_sha256', encode(sha256(convert_to('Корректный SHA', 'UTF8')), 'hex'),
+      'title', 'Запрещено',
+      'content', 'Корректный SHA',
+      'chunks', jsonb_build_array(jsonb_build_object(
+        'chunk_index', 0,
+        'content', 'Корректный SHA',
+        'content_sha256', encode(sha256(convert_to('Корректный SHA', 'UTF8')), 'hex'),
+        'embedding', (SELECT jsonb_agg(0.0) FROM generate_series(1, 1536))
+      ))
+    ))
+  )
+);
+\set forbidden_bundle_state :SQLSTATE
+RESET ROLE;
+\set ON_ERROR_STOP on
+SELECT :'forbidden_bundle_state' <> '00000'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.ai_knowledge_documents
+    WHERE account_id = :'account_one_id'
+      AND source_path = 'Сырой архив ЭВО/Запрещено.md'
+  ) AS expected
+\gset
+\if :expected
+\else
+  \echo 'FAIL: forbidden raw-root managed path reached runtime storage'
+  SELECT 1 / 0;
+\endif
+
+\set ON_ERROR_STOP off
+SET ROLE service_role;
+SELECT public.sync_ai_knowledge_bundle(
+  :'account_one_id',
+  'client',
+  repeat('e', 64),
+  jsonb_build_object(
+    'version', 1,
+    'documents', jsonb_build_array(jsonb_build_object(
+      'source_path', U&'Страны/Китаи\0306.md',
+      'source_sha256', encode(sha256(convert_to('Корректный SHA', 'UTF8')), 'hex'),
+      'title', 'Не NFC',
+      'content', 'Корректный SHA',
+      'chunks', jsonb_build_array(jsonb_build_object(
+        'chunk_index', 0,
+        'content', 'Корректный SHA',
+        'content_sha256', encode(sha256(convert_to('Корректный SHA', 'UTF8')), 'hex'),
+        'embedding', (SELECT jsonb_agg(0.0) FROM generate_series(1, 1536))
+      ))
+    ))
+  )
+);
+\set non_nfc_bundle_state :SQLSTATE
+RESET ROLE;
+\set ON_ERROR_STOP on
+SELECT :'non_nfc_bundle_state' <> '00000' AS expected
+\gset
+\if :expected
+\else
+  \echo 'FAIL: non-NFC managed path reached runtime storage'
+  SELECT 1 / 0;
+\endif
+
 \echo 'PASS: real PostgreSQL role/RLS authorization policy suite'

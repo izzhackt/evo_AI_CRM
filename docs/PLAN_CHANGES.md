@@ -6966,3 +6966,39 @@ Decision:
 
 The executable contract is `docs/platform/p8d3-portable-amd64-staging.md`.
 Application activation remains a later separately approved block.
+
+## 2026-08-15 - Build deterministic Obsidian bundles and atomic runtime sync
+
+Plan Block-ID: `EVO-PLATFORM-KNOWLEDGE-K3-2026-08-15`
+
+Change type: authorized local bundle and server-side import implementation.
+
+Decision: implement K3 from `/goal-evo-platform-knowledge` without production
+execution. Add canonical fail-closed bundle construction for the exact marked
+client vault and exact internal approved child; reject PII, hidden/control/raw/
+secret content, invalid UTF-8 and symlink traversal. Add migration `074` with
+managed-source metadata, bundle revision evidence and the closed service-role-
+only transactional sync RPC. Add an EVO Inbox CLI that validates bundle and
+manifest, precomputes every deterministic chunk and real embedding, then makes
+one RPC call; it never uses the partial legacy ingestion sequence.
+
+Named write set: migration `074`, knowledge-ingestion builder/tests/README,
+EVO Inbox importer and focused tests/scripts, Supabase schema/authorization
+tests, P8 migration inventory, and this plan log. No bundle transfer, managed
+Supabase write, provider call, VPS mutation, deployment, WAHA change or
+WhatsApp send is authorized in K3.
+
+Validation amendment: migration `074` advances the deterministic P8 candidate
+migration inventory from contiguous `001-073` to contiguous `001-074` without
+changing historical evidence. The sync RPC uses PostgreSQL's built-in
+`sha256(bytea)` rather than enabling `pgcrypto`, so it does not expand the
+authenticated function surface. The real authorization gate exercises the
+exact service-role-only signature and commits a 1,536-dimensional managed
+document through the RPC.
+
+Review amendment: reject symlinks in every raw CLI ancestor before resolving
+the vault, reject visible non-Markdown files and unreadable traversal rather
+than silently omitting them, and assert zero output for every failed local
+build. The final PostgreSQL boundary now independently rejects non-NFC and
+raw/secrets path components; real service-role regression calls prove both are
+rolled back with no managed row.

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "cases": [
+    {"case_id":"client_china_documents","audience":"client","question":"Какие документы нужно подготовить для поступления в университеты Китая?","expected_source_path":"Страны/Китай/Документы для поступления — порядок уточнения.md"},
+    {"case_id":"internal_malaysia_handoff","audience":"internal","question":"Как отдел продаж должен передать студента по Малайзии в отдел зарубежного образования?","expected_source_path":"Процессы/Передача студента из ОП в ОЗО по Малайзии — 68fe88af5a26.md"}
+  ]
+}

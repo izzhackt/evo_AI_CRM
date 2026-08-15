@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8d4-result.schema.json",
+  "title": "EVO P8D4 redacted result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "result_code", "candidate", "migrations", "bundles", "images", "containers", "pilot"],
+  "properties": {
+    "schema_version": { "const": "p8d4-v1" },
+    "result_code": {
+      "enum": ["pilot_verified", "preflight_blocked", "build_failed", "migration_failed", "knowledge_failed", "deployment_failed", "pilot_failed", "rollback_failed"]
+    },
+    "candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_commit", "tree", "ci_run", "platform"],
+      "properties": {
+        "source_commit": { "const": "472cc58115b7e6a459d089fd082081fa8da15610" },
+        "tree": { "const": "afadf3248ff696c0cf70388cfe06a9b5a8eebc22" },
+        "ci_run": { "const": 31897719155 },
+        "platform": { "const": "linux/amd64" }
+      }
+    },
+    "migrations": {
+      "type": "object", "additionalProperties": false,
+      "required": ["before", "after", "status"],
+      "properties": {
+        "before": { "type": "string", "pattern": "^001-[0-9]{3}$" },
+        "after": { "enum": ["001-075", null] },
+        "status": { "enum": ["verified", "not_run", "failed"] }
+      }
+    },
+    "bundles": {
+      "type": "array", "maxItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["audience", "bundle_sha256", "document_count", "chunk_count", "status"],
+        "properties": {
+          "audience": { "enum": ["client", "internal"] },
+          "bundle_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+          "document_count": { "type": ["integer", "null"], "minimum": 0 },
+          "chunk_count": { "type": ["integer", "null"], "minimum": 0 },
+          "status": { "enum": ["verified", "not_run", "failed"] }
+        }
+      }
+    },
+    "images": {
+      "type": "array", "maxItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "image_id", "status"],
+        "properties": {
+          "name": { "enum": ["main_crm", "evo_inbox", "lead_agent"] },
+          "image_id": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" },
+          "status": { "enum": ["verified", "not_run", "failed", "rolled_back"] }
+        }
+      }
+    },
+    "containers": {
+      "type": "array", "maxItems": 5,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "healthy", "restart_count", "status"],
+        "properties": {
+          "name": { "enum": ["evo-inbox-app-1", "evo-crm-app-1", "evo-crm-lead-agent-1", "evo-crm-waha-1", "evo-inbox-waha"] },
+          "healthy": { "type": ["boolean", "null"] },
+          "restart_count": { "type": ["integer", "null"], "minimum": 0 },
+          "status": { "enum": ["verified", "not_run", "failed", "rolled_back"] }
+        }
+      }
+    },
+    "pilot": {
+      "type": "array", "maxItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["case_id", "audience", "http_status", "expected_source_match", "cross_audience_sources", "audit_body_free", "status"],
+        "properties": {
+          "case_id": { "enum": ["client_china_documents", "internal_malaysia_handoff"] },
+          "audience": { "enum": ["client", "internal"] },
+          "http_status": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
+          "expected_source_match": { "type": ["boolean", "null"] },
+          "cross_audience_sources": { "type": ["integer", "null"], "minimum": 0 },
+          "audit_body_free": { "type": ["boolean", "null"] },
+          "status": { "enum": ["verified", "not_run", "failed"] }
+        }
+      }
+    }
+  },
+  "allOf": [{
+    "if": { "properties": { "result_code": { "const": "pilot_verified" } } },
+    "then": {
+      "properties": {
+        "migrations": { "properties": { "after": { "const": "001-075" }, "status": { "const": "verified" } } },
+        "bundles": {
+          "minItems": 2, "maxItems": 2,
+          "items": { "properties": { "status": { "const": "verified" } } },
+          "allOf": [
+            { "contains": { "properties": { "audience": { "const": "client" } }, "required": ["audience"] } },
+            { "contains": { "properties": { "audience": { "const": "internal" } }, "required": ["audience"] } }
+          ]
+        },
+        "images": {
+          "minItems": 3, "maxItems": 3,
+          "items": { "properties": { "status": { "const": "verified" } } },
+          "allOf": [
+            { "contains": { "properties": { "name": { "const": "main_crm" } }, "required": ["name"] } },
+            { "contains": { "properties": { "name": { "const": "evo_inbox" } }, "required": ["name"] } },
+            { "contains": { "properties": { "name": { "const": "lead_agent" } }, "required": ["name"] } }
+          ]
+        },
+        "containers": {
+          "minItems": 5, "maxItems": 5,
+          "items": { "properties": { "status": { "const": "verified" }, "healthy": { "const": true }, "restart_count": { "const": 0 } } }
+        },
+        "pilot": {
+          "minItems": 2, "maxItems": 2,
+          "items": { "properties": { "status": { "const": "verified" }, "expected_source_match": { "const": true }, "cross_audience_sources": { "const": 0 }, "audit_body_free": { "const": true } } },
+          "allOf": [
+            { "contains": { "properties": { "case_id": { "const": "client_china_documents" }, "audience": { "const": "client" } }, "required": ["case_id", "audience"] } },
+            { "contains": { "properties": { "case_id": { "const": "internal_malaysia_handoff" }, "audience": { "const": "internal" } }, "required": ["case_id", "audience"] } }
+          ]
+        }
+      }
+    }
+  }]
+}

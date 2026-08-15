@@ -1,7 +1,7 @@
 # P8D4 Current-Main Staff Pilot Contract
 
-Date: 2026-08-15
-Issue: #213
+Date: 2026-08-16
+Issues: #213, #219
 Status: planning gate; no production mutation until this contract is
 independently reviewed, merged, and exact-main CI is green
 
@@ -21,11 +21,11 @@ WAHA session/webhook change, DNS change, or customer-content provider request.
 ## Prerequisite identities
 
 - K3 merged commit: `7a0bdb665836ed55c56d4f1af6044a45518b91a8`.
-- Required candidate source: `7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a`.
-- Required candidate tree: `d9b170396364a8dcf0efcd28779fc416c8c2f65e`.
-- Required candidate parent: `472cc58115b7e6a459d089fd082081fa8da15610`.
-- Required exact-main CI run: `31900296274`.
-- Required migration range: contiguous `001-075`.
+- Required candidate source: `d5657acc6c1df1abc790a96778ca71df36687b24`.
+- Required candidate tree: `9dfe44fd1c477a9a4af823ba2a37bdb398878919`.
+- Required candidate parent: `a05e22b42e31b441ebc5f2274deddab4f3022317`.
+- Required exact-main CI run: `31902903078`.
+- Required migration range: contiguous `001-076`.
 - Target platform: exact `linux/amd64`, empty variant.
 - Build runtime: local OrbStack only after `orb status` is `Running` and
   `docker context show` is exactly `orbstack`.
@@ -33,7 +33,7 @@ WAHA session/webhook change, DNS change, or customer-content provider request.
   transfer and before each container recreation.
 
 The frozen pre-knowledge P8B3 images remain retained rollback/history evidence.
-They are not deployed or relabelled because they predate migrations 073–075 and
+They are not deployed or relabelled because they predate migrations 073–076 and
 the K3/K4 runtime.
 
 The executed P8D3 roots remain present and verified at
@@ -95,7 +95,7 @@ responses, knowledge bodies, or customer/provider identifiers.
    Require clean status, exact parent/tree identity, the frozen exact-main green
    run, and no open conflicting release PR.
 2. Use the reviewed P8B2/P8B3 build and portable-identity tooling with exact
-   build tags suffixed `7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a-linux-amd64`;
+   build tags suffixed `d5657acc6c1df1abc790a96778ca71df36687b24-linux-amd64`;
    refuse every pre-existing target tag and output path.
 3. Build CRM, Inbox, and Lead Agent with real Buildx
    `--platform linux/amd64 --load`. Record real exit status and BuildKit metadata;
@@ -110,13 +110,13 @@ responses, knowledge bodies, or customer/provider identifiers.
    OCI graph, and write a closed collection index. Hash every retained artifact.
 
 The builder output is exactly
-`.evo-release-evidence/p8b2-input-7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a-linux-amd64/`.
+`.evo-release-evidence/p8b2-input-d5657acc6c1df1abc790a96778ca71df36687b24-linux-amd64/`.
 After validation, install only its closed indexed files into
-`.evo-release-evidence/p8d4-7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a-reviewed/`.
+`.evo-release-evidence/p8d4-d5657acc6c1df1abc790a96778ca71df36687b24-reviewed/`.
 Its three archives are exactly
-`evo-crm-7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a-linux-amd64.tar`,
-`evo-inbox-7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a-linux-amd64.tar`, and
-`evo-lead-agent-7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a-linux-amd64.tar`.
+`evo-crm-d5657acc6c1df1abc790a96778ca71df36687b24-linux-amd64.tar`,
+`evo-inbox-d5657acc6c1df1abc790a96778ca71df36687b24-linux-amd64.tar`, and
+`evo-lead-agent-d5657acc6c1df1abc790a96778ca71df36687b24-linux-amd64.tar`.
 
 ## Phase B — Hermes preflight, rollback, and transfer
 
@@ -131,10 +131,10 @@ Immediately before mutation, re-read and record only safe metadata:
   management/database credentials;
 - release, rollback, evidence and incoming destination absence.
 
-Use exact release ID `2026-08-15.p8d4.1` and roots
-`/opt/evo-releases/7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a/2026-08-15.p8d4.1`,
-`/opt/evo-release-rollback/2026-08-15.p8d4.1`, and
-`/opt/evo-release-evidence/7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a/2026-08-15.p8d4.1`.
+Use exact release ID `2026-08-16.p8d4.1` and roots
+`/opt/evo-releases/d5657acc6c1df1abc790a96778ca71df36687b24/2026-08-16.p8d4.1`,
+`/opt/evo-release-rollback/2026-08-16.p8d4.1`, and
+`/opt/evo-release-evidence/d5657acc6c1df1abc790a96778ca71df36687b24/2026-08-16.p8d4.1`.
 All must be absent before execution. Copy the three exact current
 production image archives and the exact three env files into the rollback-secret
 root using explicit paths and mode `0600`; evidence retains only fixed labels,
@@ -183,7 +183,7 @@ accepted:
 
 Each exact env source must be a root-owned regular non-symlink mode-`0600`
 file. Run from the release root `repo/` with `EVO_RELEASE_REVISION` set to the
-frozen full commit, `EVO_RELEASE_VERSION=p8d4-current-main-20260815`,
+frozen full commit, `EVO_RELEASE_VERSION=p8d4-current-main-20260816`,
 `EVO_WAHA_IMAGE_DIGEST=sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c`,
 and these exact absolute interpolation values:
 
@@ -204,9 +204,9 @@ amendment records the three pre-deploy Compose working directories, revisions,
 images and archive hashes. If a later boundary fails, roll back every already
 deployed P8D4 boundary in reverse order using those exact retained Compose
 files/revisions and verify the complete five-container safe state. Migrations
-075 and earlier are additive and forward-only; the real compatibility gate must
+076 and earlier are additive and forward-only; the real compatibility gate must
 prove the three retained old application images remain healthy against schema
-001-075 before execution. Database history is never rolled back.
+001-076 before execution. Database history is never rolled back.
 
 ## Phase C — managed Supabase migrations
 
@@ -228,7 +228,7 @@ exact candidate source root. The target must first resolve through the
 Management API to project ref `iosckaqtovbbnssqcpde`; the database URL and
 password remain process-only. Exact commands are
 `./node_modules/.bin/supabase db push --db-url "$EVO_PLATFORM_DB_URL" --dry-run`
-and, only after the dry-run artifact lists exactly missing `073`, `074`, `075`
+and, only after the dry-run artifact lists exactly missing `073`, `074`, `075`, `076`
 in order (or their missing suffix), the same command without `--dry-run`.
 Stdout is reduced to migration identifiers/status before it enters the mode
 `0600` evidence file; connection material is never logged.
@@ -262,7 +262,7 @@ Stdout is reduced to migration identifiers/status before it enters the mode
    so it is never used for publication. From the new release `repo/`, run an
    isolated one-off container from the already verified candidate Inbox image
    without replacing the running service. Create it with
-   `EVO_RELEASE_REVISION=7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a EVO_RELEASE_VERSION=p8d4-current-main-20260815 EVO_WAHA_IMAGE_DIGEST=sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c EVO_INBOX_APP_ENV_FILE=/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production docker compose --env-file /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name evo-p8d4-knowledge-import --entrypoint tail app -f /dev/null`;
+   `EVO_RELEASE_REVISION=d5657acc6c1df1abc790a96778ca71df36687b24 EVO_RELEASE_VERSION=p8d4-current-main-20260816 EVO_WAHA_IMAGE_DIGEST=sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c EVO_INBOX_APP_ENV_FILE=/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production docker compose --env-file /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name evo-p8d4-knowledge-import --entrypoint tail app -f /dev/null`;
    require that exact name to be absent first. Use the merged K5 `docker cp`
    and in-container hash verification, then run only
    `docker exec evo-p8d4-knowledge-import npm run knowledge:import -- --audience <client|internal> --bundle <exact-container-path> --manifest <exact-container-path> --account-id "$EVO_KNOWLEDGE_ACCOUNT_ID"`.

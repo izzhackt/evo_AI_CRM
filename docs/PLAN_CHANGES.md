@@ -7141,3 +7141,57 @@ Research basis:
 - Gemini embeddings are retrieval representations, not durable client memory;
   the application remains responsible for storing facts and vectors:
   https://ai.google.dev/gemini-api/docs/embeddings
+
+## 2026-08-16 - Refresh P8D4 to the unified memory and knowledge candidate
+
+Plan Block-ID: `EVO-PLATFORM-P8D4-UNIFIED-CANDIDATE-2026-08-16`
+
+Issue: #219
+
+Change type: release-candidate identity and production execution-order
+amendment; no production mutation in this block.
+
+Reason: the historical P8D4 contract correctly froze pre-076 source
+`7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a`. PR #218 subsequently merged the
+reviewed draft-only Platform memory and consultative-sales proposal pipeline as
+current main. Deploying the older candidate first would create an obsolete
+double deployment and would not verify the final combined employee workflow.
+
+Decision:
+
+- Supersede the unexecuted P8D4 candidate identity for future execution only;
+  preserve the historical decision and its evidence. The refreshed source is
+  exact main `d5657acc6c1df1abc790a96778ca71df36687b24`, tree
+  `9dfe44fd1c477a9a4af823ba2a37bdb398878919`, parent
+  `a05e22b42e31b441ebc5f2274deddab4f3022317`, exact-main CI run
+  `31902903078`, and contiguous migrations `001-076`.
+- Rebuild all three first-party `linux/amd64` images from this one source so the
+  first production promotion still moves CRM, EVO Inbox and Lead Agent from
+  their older deployed versions to one coherent release. PR #218 itself changes
+  the CRM/Platform application and migration 076; it adds no Inbox runtime,
+  Python Lead Agent, environment-variable, API-key or secret change relative
+  to the prior unexecuted P8D4 candidate.
+- Apply only the exact missing forward suffix through migration 076. Migration
+  history is never repaired, reset or rolled back. Migration 076 remains
+  unapplied until the separately reviewed execution reaches its managed-
+  Supabase phase.
+- Publish the exact approved client and internal knowledge bundles only after
+  the migration ledger and candidate identities verify. Then exercise the two
+  frozen staff-owned real Gemini draft cases against the combined amoCRM
+  context, durable Platform memory, approved retrieval evidence and
+  consultative-sales prompt.
+- Keep autonomous replies, WhatsApp sends, WAHA/session/webhook mutation,
+  amoCRM writes, DNS changes and customer-content provider calls disabled.
+  Gemini may produce drafts and memory proposals but cannot send messages or
+  commit memory.
+- Advance the closed P8D4 result schema, behavioral test, collision-free
+  release/evidence roots and exact commands to the refreshed identities. Old
+  candidate evidence must fail the refreshed schema.
+
+Execution gate:
+
+- This amendment PR performs no production, provider or customer-data action.
+- Before production, require independent exact-head approval, all required PR
+  checks green, merge, exact-main green CI, a fresh read-only Hermes/managed-
+  Supabase preflight, real OrbStack builds, rollback proof and the existing
+  P8D4 action-time authority.

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8-smoke-identity.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["candidate_commit", "records", "schema_version"],
+  "properties": {
+    "candidate_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "schema_version": { "const": 1 },
+    "records": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        { "$ref": "#/$defs/mainCrm" },
+        { "$ref": "#/$defs/evoInbox" },
+        { "$ref": "#/$defs/leadAgent" }
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exit_code", "finished_at", "image_id", "image_tag", "log_sha256", "name", "network", "platform", "restart_count", "result_code", "route", "started_at"],
+      "properties": {
+        "exit_code": { "const": 0 },
+        "finished_at": { "type": "string", "format": "date-time" },
+        "image_id": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "image_tag": { "type": "string" },
+        "log_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "name": { "type": "string" },
+        "network": { "const": "none" },
+        "platform": { "const": "linux/amd64" },
+        "restart_count": { "const": 0 },
+        "result_code": { "const": "liveness_verified" },
+        "route": { "type": "string", "enum": ["/api/health", "/health"] },
+        "started_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "mainCrm": { "allOf": [{ "$ref": "#/$defs/base" }, { "properties": { "name": { "const": "main_crm" }, "image_tag": { "pattern": "^evo-crm:[0-9a-f]{40}-linux-amd64$" }, "route": { "const": "/api/health" } } }] },
+    "evoInbox": { "allOf": [{ "$ref": "#/$defs/base" }, { "properties": { "name": { "const": "evo_inbox" }, "image_tag": { "pattern": "^evo-inbox:[0-9a-f]{40}-linux-amd64$" }, "route": { "const": "/api/health" } } }] },
+    "leadAgent": { "allOf": [{ "$ref": "#/$defs/base" }, { "properties": { "name": { "const": "lead_agent" }, "image_tag": { "pattern": "^evo-lead-agent:[0-9a-f]{40}-linux-amd64$" }, "route": { "const": "/health" } } }] }
+  }
+}

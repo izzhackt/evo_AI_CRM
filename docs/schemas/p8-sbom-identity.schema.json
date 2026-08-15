@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8-sbom-identity.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["candidate_commit", "records", "schema_version"],
+  "properties": {
+    "candidate_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "schema_version": { "const": 1 },
+    "records": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        { "$ref": "#/$defs/mainCrm" },
+        { "$ref": "#/$defs/evoInbox" },
+        { "$ref": "#/$defs/leadAgent" }
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "exit_code", "file", "file_sha256", "format", "image_id", "image_tag", "name", "platform", "tool"],
+      "properties": {
+        "command": { "const": "docker sbom --format spdx-json <image-tag>" },
+        "exit_code": { "const": 0 },
+        "file": { "type": "string", "pattern": "^sbom-[a-z-]+\\.spdx\\.json$" },
+        "file_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "format": { "const": "spdx-json" },
+        "image_id": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "image_tag": { "type": "string" },
+        "name": { "type": "string" },
+        "platform": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["architecture", "os", "variant"],
+          "properties": {
+            "architecture": { "const": "amd64" },
+            "os": { "const": "linux" },
+            "variant": { "const": "" }
+          }
+        },
+        "tool": { "type": "string", "pattern": "^docker-sbom [0-9]+\\.[0-9]+\\.[0-9]+$" }
+      }
+    },
+    "mainCrm": { "allOf": [{ "$ref": "#/$defs/base" }, { "properties": { "name": { "const": "main_crm" }, "image_tag": { "pattern": "^evo-crm:[0-9a-f]{40}-linux-amd64$" }, "file": { "const": "sbom-crm.spdx.json" } } }] },
+    "evoInbox": { "allOf": [{ "$ref": "#/$defs/base" }, { "properties": { "name": { "const": "evo_inbox" }, "image_tag": { "pattern": "^evo-inbox:[0-9a-f]{40}-linux-amd64$" }, "file": { "const": "sbom-inbox.spdx.json" } } }] },
+    "leadAgent": { "allOf": [{ "$ref": "#/$defs/base" }, { "properties": { "name": { "const": "lead_agent" }, "image_tag": { "pattern": "^evo-lead-agent:[0-9a-f]{40}-linux-amd64$" }, "file": { "const": "sbom-lead-agent.spdx.json" } } }] }
+  }
+}

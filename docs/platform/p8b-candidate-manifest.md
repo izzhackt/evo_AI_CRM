@@ -40,6 +40,17 @@ EVO_P8_BUILD_EVIDENCE="$(scripts/p8b2-build-amd64.sh)"
 export EVO_P8_BUILD_EVIDENCE
 ```
 
+After the build succeeds, generate or verify the three local SPDX SBOMs and
+rerun the exact provider-disabled, network-none liveness checks. The collector
+writes only closed mode-`0600` SBOM/smoke identities and fixed redacted logs,
+then scans the complete retained input directory with Gitleaks:
+
+```bash
+EVO_RELEASE_REVISION="$EVO_RELEASE_REVISION" \
+EVO_P8_BUILD_EVIDENCE="$EVO_P8_BUILD_EVIDENCE" \
+npm run p8:evidence
+```
+
 The P8B2 generator runs real `docker image inspect` against
 `evo-crm:$EVO_RELEASE_REVISION-linux-amd64`,
 `evo-inbox:$EVO_RELEASE_REVISION-linux-amd64` and

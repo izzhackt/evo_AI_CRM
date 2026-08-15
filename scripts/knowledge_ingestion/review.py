@@ -52,6 +52,10 @@ def contains_phone(value: str) -> bool:
     return False
 
 
+def contains_email(value: str) -> bool:
+    return bool(re.search(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", value))
+
+
 def validate_result(data: object, allowed_sources: set[str] | None = None) -> dict:
     if not isinstance(data, dict) or not isinstance(data.get("items"), list):
         raise ValueError("ответ Codex не соответствует ожидаемой структуре")
@@ -67,7 +71,7 @@ def validate_result(data: object, allowed_sources: set[str] | None = None) -> di
         if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", item["claim_key"]) or item["authority"] not in {"owner_director", "signed_contract", "official_source", "evo_active_document", "confirmed_correspondence", "legacy_or_unknown"}:
             raise ValueError("ответ Codex содержит неверный claim_key или уровень источника")
         output_text = " ".join([item["title"], item["summary"], item["reason"], *item["facts"]])
-        if re.search(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", output_text) or contains_phone(output_text):
+        if contains_email(output_text) or contains_phone(output_text):
             raise ValueError("ответ Codex содержит email или телефон")
         sources = item.get("sources")
         if not isinstance(sources, list) or not sources or any(not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value) for value in sources):

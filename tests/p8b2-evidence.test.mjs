@@ -24,6 +24,9 @@ test("P8B2 evidence collector is fail-closed and provider-isolated", () => {
     assert.match(source, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
   assert.doesNotMatch(source, /--network\s+(?:bridge|host)|-p\s|--publish|--mount|-v\s/);
+  assert.doesNotMatch(source, /if \[\[ ! -e \"\$sbom_file\" \]\]/);
+  assert.match(source, /AbortSignal\.timeout\(2000\)/);
+  assert.match(source, /collection-index\.json/);
 });
 
 test("P8B2 SBOM and smoke evidence schemas are closed and exact", () => {

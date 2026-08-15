@@ -28,9 +28,13 @@ specs=(
 sbom_records="$(mktemp)"
 smoke_records="$(mktemp)"
 active_container=""
+active_file=""
 cleanup_all() {
   if [[ -n "$active_container" ]]; then
     docker rm -f "$active_container" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$active_file" ]]; then
+    rm -f "$active_file"
   fi
   rm -f "$sbom_records" "$smoke_records"
 }
@@ -47,12 +51,12 @@ for spec in "${specs[@]}"; do
   [[ "$(jq -r '.Config.Labels["org.opencontainers.image.revision"]' <<<"$inspect")" == "$candidate" ]]
 
   sbom_file="$evidence_dir/sbom-$file_name.spdx.json"
-  if [[ ! -e "$sbom_file" ]]; then
-    tmp="$sbom_file.tmp.$$"
-    docker sbom --format spdx-json "$tag" >"$tmp"
-    chmod 0600 "$tmp"
-    mv "$tmp" "$sbom_file"
-  fi
+  tmp="$sbom_file.tmp.$$"
+  active_file="$tmp"
+  docker sbom --format spdx-json "$tag" >"$tmp"
+  chmod 0600 "$tmp"
+  mv "$tmp" "$sbom_file"
+  active_file=""
   chmod 0600 "$sbom_file"
   jq -e '.spdxVersion | startswith("SPDX-")' "$sbom_file" >/dev/null
   jq -e --arg expected "${tag/:/-}" '.name == $expected' "$sbom_file" >/dev/null
@@ -102,7 +106,7 @@ for spec in "${specs[@]}"; do
     else
       expected_service=evo-crm
       [[ "$name" == evo_inbox ]] && expected_service=evo-inbox-companion
-      docker exec "$container" node -e 'const s=process.argv[1];fetch("http://127.0.0.1:3000/api/health").then(async r=>{const j=await r.json();if(r.status!==200||JSON.stringify(j)!==JSON.stringify({ok:true,status:"live",service:s}))process.exit(2)}).catch(()=>process.exit(3))' "$expected_service" >/dev/null 2>&1 && smoke_ok=1 && break
+      docker exec "$container" node -e 'const s=process.argv[1];fetch("http://127.0.0.1:3000/api/health",{signal:AbortSignal.timeout(2000)}).then(async r=>{const j=await r.json();if(r.status!==200||JSON.stringify(j)!==JSON.stringify({ok:true,status:"live",service:s}))process.exit(2)}).catch(()=>process.exit(3))' "$expected_service" >/dev/null 2>&1 && smoke_ok=1 && break
     fi
     sleep 1
   done
@@ -127,4 +131,15 @@ jq -s --arg candidate "$candidate" '{schema_version:1,candidate_commit:$candidat
 chmod 0600 "$evidence_dir/sbom-identity.json" "$evidence_dir/smoke-identity.json"
 
 gitleaks detect --no-git --source "$evidence_dir" --redact --exit-code 1 >/dev/null
+index_tmp="$evidence_dir/collection-index.json.tmp.$$"
+active_file="$index_tmp"
+find "$evidence_dir" -maxdepth 1 -type f \
+  ! -name 'collection-index.json' ! -name 'collection-index.json.tmp.*' \
+  -print0 | sort -z | while IFS= read -r -d '' file; do
+    jq -nc --arg file "$(basename "$file")" --arg sha "$(shasum -a 256 "$file" | awk '{print $1}')" \
+      --argjson mode "$(stat -f %Lp "$file")" '{file:$file,mode:$mode,sha256:$sha}'
+  done | jq -s --arg candidate "$candidate" '{schema_version:1,candidate_commit:$candidate,files:.}' >"$index_tmp"
+chmod 0600 "$index_tmp"
+mv "$index_tmp" "$evidence_dir/collection-index.json"
+active_file=""
 printf '%s\n' "$evidence_dir"

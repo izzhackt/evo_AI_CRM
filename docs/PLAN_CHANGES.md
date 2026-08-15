@@ -6767,3 +6767,39 @@ Proof and stop boundary:
   touch a running service stops the block.
 - A partially created staging bundle is retained root-only with a redacted
   failure code and is never silently deleted, repaired or reused.
+
+## 2026-08-15 - Author owner-review answers for the real WhatsApp Top-50
+
+Plan Block-ID: `EVO-LEAD-AGENT-GOLDEN-ANSWER-DRAFTS-2026-08-15`
+
+Issue: #194
+
+Change type: evaluation-content and sales-governance contract
+
+### Decision
+
+- Add one owner-review worksheet entry for every committed real-WhatsApp
+  Top-50 intent. Each entry defines the response goal, recommended draft,
+  mandatory discovery questions and staff-handoff conditions.
+- Ground stable EVO claims in the approved client knowledge base. Treat
+  university, program, price, deadline, visa, work-right and recognition facts
+  as time-sensitive: the draft must request the missing profile and require
+  current approved knowledge or staff verification instead of inventing an
+  answer.
+- Use a consultative pattern: answer the immediate concern first, explain the
+  value of the next question, ask only the minimum useful questions and offer
+  one natural next step. Do not use pressure, artificial scarcity, guaranteed
+  outcomes or unsupported social proof.
+- Keep every answer at `owner_review_required`. This block does not promote the
+  worksheet to a golden acceptance set, change a runtime prompt, call a model,
+  expose customer data, send WhatsApp messages, mutate amoCRM/Supabase or
+  modify either knowledge-base workspace.
+
+### Acceptance gates
+
+1. Exactly the 50 ranked intents exist once each and every entry has all four
+   required review fields.
+2. Automated checks reject phone/email/URL leakage, unconditional visa or
+   admission guarantees, and unreviewed numeric price/deadline claims.
+3. The EVO owner edits and explicitly approves the desired answers before they
+   become sealed golden cases or are used to score a consultative-sales prompt.

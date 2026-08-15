@@ -263,6 +263,8 @@ BEGIN
     AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
     AND p.proname NOT IN (
       'filter_contacts_by_tags',
+      'match_ai_knowledge_fts',
+      'match_ai_knowledge_semantic',
       'peek_invitation',
       'redeem_invitation',
       'remove_account_member',
@@ -277,16 +279,19 @@ BEGIN
       unexpected_authenticated_rpc;
   END IF;
 
-  IF has_function_privilege(
-    'authenticated',
-    'public.match_ai_knowledge_fts(uuid,text,integer)',
-    'EXECUTE'
-  ) OR has_function_privilege(
-    'authenticated',
-    'public.match_ai_knowledge_semantic(uuid,text,integer)',
-    'EXECUTE'
-  ) THEN
-    RAISE EXCEPTION 'Cross-account knowledge RPCs remain client executable';
+  IF to_regprocedure('public.match_ai_knowledge_fts(uuid,text,integer)') IS NOT NULL
+     OR to_regprocedure('public.match_ai_knowledge_semantic(uuid,text,integer)') IS NOT NULL
+     OR NOT has_function_privilege(
+       'authenticated',
+       'public.match_ai_knowledge_fts(uuid,text,text,integer)',
+       'EXECUTE'
+     )
+     OR NOT has_function_privilege(
+       'authenticated',
+       'public.match_ai_knowledge_semantic(uuid,text,text,integer)',
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'Knowledge retrieval RPC signatures/grants are unsafe';
   END IF;
 
   IF to_regprocedure(

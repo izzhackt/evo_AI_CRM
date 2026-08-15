@@ -1,11 +1,11 @@
-# Real WhatsApp Golden Dataset
+# Real WhatsApp Consultative-Sales Evaluation Set
 
 Issue: #194
 
-The current Lead Agent prompts are safety and qualification baselines. They do
-not yet prove human-quality consultative selling. This lane derives a Top-50
-intent inventory from the real protected EVO WhatsApp archive before any sales
-prompt is tuned.
+The Top-50 inventory is real protected WhatsApp coverage for prompt evaluation.
+It is not a library of canned replies. Human-quality consultative selling is
+judged against the shared rubric in `CONSULTATIVE_SALES_EVALUATION_RU.md` using
+the context that was actually available in each conversation.
 
 ## Private discovery
 
@@ -23,13 +23,16 @@ report. Generalized questions come from the reviewed intent catalog, not from
 customer quotations. Counts are multi-label discovery signals, not evidence
 that a historical claim or staff answer is correct.
 
-## Golden approval
+## Evaluation approval
 
-Every candidate begins as `owner_review_required`. For each one, the owner must
-approve the generalized client question, desired answer, allowed knowledge and
-freshness rule, discovery objective, at most two qualification questions, one
-natural next step, forbidden claims and handoff conditions.
+Every catalog entry begins as `owner_review_required`. The owner approves the
+generalized intent and question plus its eligibility for evaluation. Each
+evaluation run supplies an independently reviewed, de-identified context bundle
+with known memory, allowed knowledge, stage, missing facts and handoff boundary.
+There is deliberately no fixed desired answer.
 
 Only approved cases enter a sealed baseline-versus-candidate evaluation. The
-response runner must not receive desired answers, and held-out cases must not be
-used for prompt tuning.
+response runner receives conversation inputs, not grader notes or scores, and
+held-out cases must not be used for prompt tuning. Staff-reviewed production
+drafts become candidate learning material only after owner review; they never
+modify the prompt automatically.

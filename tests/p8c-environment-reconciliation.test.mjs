@@ -43,7 +43,8 @@ function fixture(statuses = {}) {
   const imageIdentityBody = `${JSON.stringify({ base_commit: "a".repeat(40), build_records: buildRecords, candidate_commit: candidate, images, release_control_commit: "b".repeat(40) })}\n`;
   writeFileSync(imageIdentityPath, imageIdentityBody, { mode: 0o600 });
   const sbomRecords = images.map(({ digest, name }) => {
-    const file = { main_crm: "sbom-crm.spdx.json", evo_inbox: "sbom-inbox.spdx.json", lead_agent: "sbom-lead-agent.spdx.json" }[name]; const body = `${JSON.stringify({ name })}\n`;
+    const file = { main_crm: "sbom-crm.spdx.json", evo_inbox: "sbom-inbox.spdx.json", lead_agent: "sbom-lead-agent.spdx.json" }[name];
+    const body = `${JSON.stringify({ name, packages: [{ downloadLocation: "git@github.com:upstream/package.git", originator: "Person: Upstream Maintainer <maintainer@example.com>" }] })}\n`;
     writeFileSync(join(evidenceRoot, file), body, { mode: 0o600 });
     return { command: "docker sbom --format spdx-json <image-tag>", exit_code: 0, file, file_sha256: sha(body), format: "spdx-json", image_id: digest, image_tag: `${tagPrefix[name]}:${candidate}-linux-amd64`, name, platform: targetPlatform, tool: "docker-sbom 0.6.0" };
   });
@@ -67,6 +68,15 @@ function rehashCollection(f, file) {
   const collection = JSON.parse(readFileSync(f.collectionIndexPath));
   collection.files.find((entry) => entry.file === file).sha256 = sha(readFileSync(join(f.evidenceRoot, file)));
   writeFileSync(f.collectionIndexPath, `${JSON.stringify(collection)}\n`, { mode: 0o600 });
+}
+function rewriteSbom(f, file, body) {
+  writeFileSync(join(f.evidenceRoot, file), body, { mode: 0o600 });
+  const identityPath = join(f.evidenceRoot, "sbom-identity.json");
+  const identity = JSON.parse(readFileSync(identityPath, "utf8"));
+  identity.records.find((record) => record.file === file).file_sha256 = sha(body);
+  writeFileSync(identityPath, `${JSON.stringify(identity)}\n`, { mode: 0o600 });
+  rehashCollection(f, file);
+  rehashCollection(f, "sbom-identity.json");
 }
 
 test("derives closed overall-status precedence", () => {
@@ -203,6 +213,29 @@ test("rejects evidence tampering, sensitive-looking values, and unknown segments
   const parsed = JSON.parse(readFileSync(extra.inputPath, "utf8")); parsed.segments.other = parsed.segments.github;
   writeFileSync(extra.inputPath, `${JSON.stringify(parsed)}\n`);
   assert.throws(() => createP8CReport(baseArgs(extra)), /exact keys/);
+});
+
+test("allows canonical SPDX contact metadata while retaining credential scanning", () => {
+  const accepted = fixture();
+  assert.equal(createP8CReport(baseArgs(accepted)).overall_status, "verified");
+
+  const rejected = fixture();
+  const credentialMarker = ["api", "key=should-never-pass"].join("_");
+  const body = `${JSON.stringify({ marker: credentialMarker, name: "main_crm" })}\n`;
+  rewriteSbom(rejected, "sbom-crm.spdx.json", body);
+  assert.throws(() => createP8CReport(baseArgs(rejected)), /sensitive-looking content/);
+
+  const arbitraryContact = fixture();
+  rewriteSbom(arbitraryContact, "sbom-crm.spdx.json", `${JSON.stringify({ comment: "customer@example.com", name: "main_crm" })}\n`);
+  assert.throws(() => createP8CReport(baseArgs(arbitraryContact)), /sensitive-looking content/);
+
+  const nestedPhone = fixture();
+  rewriteSbom(nestedPhone, "sbom-crm.spdx.json", `${JSON.stringify({ name: "main_crm", nested: { annotation: "+996555123456" } })}\n`);
+  assert.throws(() => createP8CReport(baseArgs(nestedPhone)), /sensitive-looking content/);
+
+  const originatorPhone = fixture();
+  rewriteSbom(originatorPhone, "sbom-crm.spdx.json", `${JSON.stringify({ name: "main_crm", packages: [{ originator: "Person: Customer <customer@example.com> +996555123456" }] })}\n`);
+  assert.throws(() => createP8CReport(baseArgs(originatorPhone)), /sensitive-looking content/);
 });
 
 test("rejects a verified segment whose retained evidence contains a blocker", () => {

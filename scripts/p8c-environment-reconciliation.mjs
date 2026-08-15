@@ -35,14 +35,37 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 const RESULT_CODE = /^[a-z0-9_]+$/;
 const FILE_NAME = /^[a-z0-9-]+\.json$/;
-const SENSITIVE = [
+const CREDENTIAL_SENSITIVE = [
   /sb_(?:secret|publishable)_[A-Za-z0-9_-]{12,}/i,
   /sbp_[A-Za-z0-9_-]{12,}/i,
   /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/,
   /(?:password|secret|token|api[_-]?key)\s*[:=]\s*\S+/i,
-  /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
-  /\+\d{9,15}\b/,
 ];
+const EMAIL_CONTACT = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+const PHONE_CONTACT = /(?<![A-Z0-9._%+-])\+\d{9,15}\b/i;
+const CONTACT_SENSITIVE = [EMAIL_CONTACT, PHONE_CONTACT];
+const SENSITIVE = [...CREDENTIAL_SENSITIVE, ...CONTACT_SENSITIVE];
+
+function isCanonicalSpdxContact(path, value) {
+  if (path.length !== 3 || path[0] !== "packages" || !Number.isInteger(path[1])) return false;
+  if (path[2] === "originator") return /^Person: [^\r\n]{1,2048}$/i.test(value) && EMAIL_CONTACT.test(value) && !PHONE_CONTACT.test(value);
+  if (path[2] === "downloadLocation") return /^git@[a-z0-9.-]+:[a-z0-9._/-]+(?:\.git)?$/i.test(value);
+  return false;
+}
+
+function rejectNoncanonicalSpdxContacts(value, label, path = []) {
+  if (typeof value === "string") {
+    if (CONTACT_SENSITIVE.some((pattern) => pattern.test(value)) && !isCanonicalSpdxContact(path, value)) fail(`${label} contains sensitive-looking content`);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => rejectNoncanonicalSpdxContacts(item, label, [...path, index]));
+    return;
+  }
+  if (value && typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) rejectNoncanonicalSpdxContacts(item, label, [...path, key]);
+  }
+}
 
 function fail(message) { throw new Error(message); }
 function exactKeys(value, expected, label) {
@@ -90,7 +113,7 @@ function safeFile(root, name) {
   if (!inside(realpathSync(root), real)) fail(`evidence resolves outside evidence root: ${name}`);
   return real;
 }
-function readArtifact(root, path, label, parseJson = true) {
+function readArtifact(root, path, label, parseJson = true, allowCanonicalSpdxContacts = false) {
   const resolved = resolve(path);
   if (!inside(root, resolved)) fail(`${label} must be below the evidence root`);
   rejectSymlinkAncestors(root, resolved, label);
@@ -98,8 +121,11 @@ function readArtifact(root, path, label, parseJson = true) {
   if (!inside(realpathSync(root), real) || !lstatSync(real).isFile()) fail(`${label} must be a regular file below the evidence root`);
   const bytes = readFileSync(real);
   const text = bytes.toString("utf8");
-  if (SENSITIVE.some((pattern) => pattern.test(text))) fail(`${label} contains sensitive-looking content`);
-  return { hash: hash(bytes), path: real, value: parseJson ? parseJsonRejectingDuplicates(text, label) : undefined };
+  if (CREDENTIAL_SENSITIVE.some((pattern) => pattern.test(text))) fail(`${label} contains sensitive-looking content`);
+  const value = parseJson ? parseJsonRejectingDuplicates(text, label) : undefined;
+  if (allowCanonicalSpdxContacts) rejectNoncanonicalSpdxContacts(value, label);
+  else if (CONTACT_SENSITIVE.some((pattern) => pattern.test(text))) fail(`${label} contains sensitive-looking content`);
+  return { hash: hash(bytes), path: real, value };
 }
 
 function validateEvidence(value, name, candidateCommit) {
@@ -181,7 +207,8 @@ export function createP8CReport({ candidateCommit, candidateManifestPath, collec
   for (const entry of collection.files) {
     exactKeys(entry, ["file", "mode", "sha256"], "P8B2 collection entry");
     if (indexed.has(entry.file) || !SHA256.test(entry.sha256)) fail("invalid P8B2 collection entry");
-    const artifact = readArtifact(evidence, resolve(dirname(collectionArtifact.path), entry.file), `P8B2 artifact ${entry.file}`, entry.file.endsWith(".json"));
+    const isSpdxPayload = /^sbom-(?:crm|inbox|lead-agent)\.spdx\.json$/.test(entry.file);
+    const artifact = readArtifact(evidence, resolve(dirname(collectionArtifact.path), entry.file), `P8B2 artifact ${entry.file}`, entry.file.endsWith(".json"), isSpdxPayload);
     if (entry.mode !== 600 || (lstatSync(artifact.path).mode & 0o777) !== 0o600) fail(`P8B2 collection mode mismatch: ${entry.file}`);
     if (artifact.hash !== entry.sha256) fail(`P8B2 collection hash mismatch: ${entry.file}`);
     indexed.set(entry.file, artifact);

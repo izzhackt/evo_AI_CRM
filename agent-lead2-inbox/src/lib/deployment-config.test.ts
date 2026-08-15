@@ -21,6 +21,37 @@ describe('EVO Inbox production deployment config', () => {
     expect(dockerfile).toContain('CMD ["node", "server.js"]');
   });
 
+  it('packages a self-contained non-root production knowledge importer', () => {
+    const dockerfile = read('Dockerfile');
+    const packageJson = JSON.parse(read('package.json')) as {
+      scripts: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    const importer = read('scripts/import-knowledge-bundle.ts');
+
+    expect(packageJson.devDependencies.esbuild).toBe('0.28.2');
+    expect(packageJson.scripts.build).toBe(
+      'next build && npm run build:knowledge-import'
+    );
+    expect(packageJson.scripts['build:knowledge-import']).toBe(
+      'esbuild scripts/import-knowledge-bundle.ts --bundle --platform=node --target=node20 --format=esm --outfile=.next/knowledge-import.mjs'
+    );
+    expect(packageJson.scripts['knowledge:import']).toBe(
+      'node .next/knowledge-import.mjs'
+    );
+    expect(dockerfile).toContain(
+      'COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/knowledge-import.mjs ./.next/knowledge-import.mjs'
+    );
+    expect(dockerfile).not.toMatch(
+      /COPY --from=builder[^\n]+\/app\/node_modules/
+    );
+    expect(dockerfile).not.toMatch(/COPY --from=builder[^\n]+\/app\/scripts/);
+    expect(importer).toContain("'--verify-runtime'");
+    expect(importer).toContain('knowledge_import_runtime_verified');
+    expect(importer).toContain('safeImportResult(result)');
+    expect(importer).not.toContain('JSON.stringify(result)');
+  });
+
   it('keeps the app behind Caddy without public container ports', () => {
     const compose = read('deploy/docker-compose.inbox.prod.yml');
     const caddy = read('deploy/Caddyfile.inbox.evoadmissions.com');

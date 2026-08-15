@@ -444,3 +444,24 @@ This amendment changes no provider-call allowance, image, deployment order,
 rollback rule or outbound-message prohibition. The vault owner must keep both
 publishable roots frozen until production import finishes and the rollout owner
 explicitly releases the freeze.
+
+## P8D4E importer-image correction
+
+The first P8D4D isolated container was created from the exact d565 Inbox image,
+but the run stopped before any provider call because the production runner had
+a dead `knowledge:import` script: Next standalone packaging omitted the
+TypeScript entrypoint, `tsx` and its dependency graph. Cleanup completed and no
+knowledge row or running production container changed.
+
+Issue `#229` and Plan Block-ID
+`EVO-PLATFORM-P8D4E-IMPORTER-IMAGE-2026-08-16` replace that packaging seam with
+one build-time-bundled Node 20 ESM importer copied into the non-root Inbox
+runner. A fixed `--verify-runtime` path must succeed with container networking
+disabled and without credentials, while normal import behavior remains the
+same service-role/Gemini/transactional path.
+
+The d565 application images are not reusable after this correction. Another
+production import is blocked until the correction is reviewed, merged and
+green on exact main, a new current-main three-image candidate is frozen and
+reconciled, and the 11/291 vaults freshly reproduce the exact production-bound
+hashes. This correction itself authorizes no production or provider mutation.

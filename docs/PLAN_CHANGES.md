@@ -7397,3 +7397,73 @@ Execution gate:
 - Require exact-main green CI before retrying the same isolated importer
   command. Reuse the already hash-verified staged bundles only if their bytes,
   modes, frozen vaults and singular live-account binding remain exact.
+
+## 2026-08-16 - Package the knowledge importer in the Inbox runner image
+
+Plan Block-ID: `EVO-PLATFORM-P8D4E-IMPORTER-IMAGE-2026-08-16`
+
+GitHub issue: `#229`
+
+Status: implementation authorized; production retry remains blocked on this
+correction's independent review, merge, exact-main CI, a new reviewed candidate
+image and fresh staging evidence
+
+Observed failure:
+
+- The reviewed P8D4D Compose correction created the isolated
+  `evo-p8d4-knowledge-import` container from the exact d565 Inbox candidate.
+- The provider step stopped before Gemini because the production runner image
+  contained only Next standalone output. Its copied `package.json` advertised
+  `knowledge:import`, but the image contained neither the TypeScript entrypoint,
+  `tsx`, nor the importer's dependency graph.
+- No embedding request or Supabase knowledge write occurred. The exact
+  disposable container, in-container bundle copies and two Hermes staging
+  directories were removed; the five running production containers were not
+  restarted or changed.
+
+Decision:
+
+- Keep the importer implementation and service-role-only SQL boundary
+  unchanged. Do not install npm packages, copy a source checkout, or introduce
+  an alternate importer on Hermes.
+- Add esbuild `0.28.2` as an exact direct development dependency and compile
+  `scripts/import-knowledge-bundle.ts` after `next build` into one bundled
+  Node 20 ESM artifact at `.next/knowledge-import.mjs`. Node built-ins remain
+  external; application and npm dependencies are bundled into the artifact.
+- Change the repository `knowledge:import` script to execute that built
+  artifact and copy only the mode-`0555` artifact into the same `.next` path in
+  the non-root production runner. Do not copy full development `node_modules`,
+  source trees, package-manager caches or credentials into the runner.
+- Add an exact `--verify-runtime` mode which loads the real bundled dependency
+  graph, emits only a fixed body-free success record and performs no network,
+  provider or database operation. All normal arguments and transactional
+  import behavior remain fail closed.
+- Keep the RPC's internal account-ID equality validation, but serialize only a
+  closed UUID-free CLI result: fixed status/version, audience, bundle hash and
+  document/chunk counters. Neither `account_id` nor any UUID may enter stdout.
+- Prove the source/build/Dockerfile contract in registered tests, run the
+  normal Inbox lint/typecheck/test/build gates, and build the real image on
+  local OrbStack only. In that image, require `linux/amd64`, the exact OCI
+  revision, a non-root user, absence of the TypeScript source/tsx runtime, and
+  a successful `npm run knowledge:import -- --verify-runtime` with network
+  disabled.
+- Because runner bytes change, d565 image identities are retired for future
+  deployment. After this correction merges and exact-main CI is green, freeze
+  and review a new current-main candidate, rebuild and transfer the exact three
+  application images through the existing P8B/P8D evidence chain, then repeat
+  P8C reconciliation before another Phase D attempt.
+- The final 11/291 vault freeze remains in force. The next attempt must again
+  resolve exactly one active production Gemini account without outputting its
+  UUID, perform two fresh deterministic builds per audience, and reproduce the
+  frozen production-bound hashes before any embedding call.
+
+The correction grants no production deployment, Gemini call, Supabase write,
+WAHA action, amoCRM write, WhatsApp send, DNS change or customer-data access.
+Those actions remain governed by the existing P8D4 gates and fresh exact-main
+candidate evidence.
+
+Official basis: esbuild's Node bundling documentation specifies
+`--bundle --platform=node`, automatic external treatment for Node built-ins and
+explicit ESM output for `.mjs` execution:
+`https://esbuild.github.io/api/#platform` and
+`https://esbuild.github.io/api/#format`.

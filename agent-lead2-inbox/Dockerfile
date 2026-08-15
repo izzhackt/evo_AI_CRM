@@ -50,6 +50,7 @@ RUN groupadd --system --gid 1001 nodejs \
 # Next standalone output intentionally omits these asset directories.
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/knowledge-import.mjs ./.next/knowledge-import.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 USER nextjs

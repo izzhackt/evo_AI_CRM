@@ -7074,9 +7074,11 @@ Change type: production release and bounded real-provider acceptance contract.
 
 Decision: execute issue #213 only through
 `docs/platform/p8d4-current-main-staff-pilot.md`. Freeze application source at
-K4 merged-main `472cc58115b7e6a459d089fd082081fa8da15610`, tree
-`afadf3248ff696c0cf70388cfe06a9b5a8eebc22`, contiguous migrations `001-075`
-and exact-main run `31897719155`. Build new real OrbStack `linux/amd64` images;
+current main `7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a`, tree
+`d9b170396364a8dcf0efcd28779fc416c8c2f65e`, parent K4
+`472cc58115b7e6a459d089fd082081fa8da15610`, contiguous migrations `001-075`
+and exact-main run `31900296274`. This includes PR #216's supervised
+consultative sales policy in the Lead Agent candidate. Build new real OrbStack `linux/amd64` images;
 never deploy or relabel the pre-knowledge P8B3 candidate. Apply only missing
 forward migrations, publish each approved knowledge audience through its own
 atomic/idempotent sync, recreate Inbox/CRM/Lead Agent one boundary at a time,

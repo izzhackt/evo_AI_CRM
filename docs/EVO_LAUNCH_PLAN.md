@@ -29,9 +29,9 @@ preparation pipeline, PR #170 merged the real lead-processing proof plan, and
 PR #171 merged Codex review plus Obsidian publication. PR #169 merged the
 focused P7D accessibility contract, and PRs #172-#174 hardened the local
 knowledge-ingestion path.
-Current `origin/main` is `472cc58115b7e6a459d089fd082081fa8da15610`,
+Current `origin/main` is `7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a`,
 migrations remain contiguous `001-075`, and exact-main push CI run
-`31897719155` is green for Main CRM, EVO Inbox and EVO Lead Agent; Changed
+`31900296274` is the exact-main push gate for Main CRM, EVO Inbox and EVO Lead Agent; Changed
 range is skipped on the push event as expected.
 
 P4B implementation is preserved on remote branch

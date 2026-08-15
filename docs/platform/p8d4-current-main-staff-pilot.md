@@ -21,10 +21,10 @@ WAHA session/webhook change, DNS change, or customer-content provider request.
 ## Prerequisite identities
 
 - K3 merged commit: `7a0bdb665836ed55c56d4f1af6044a45518b91a8`.
-- Required candidate source: `472cc58115b7e6a459d089fd082081fa8da15610`.
-- Required candidate tree: `afadf3248ff696c0cf70388cfe06a9b5a8eebc22`.
-- Required candidate parent: `7a0bdb665836ed55c56d4f1af6044a45518b91a8`.
-- Required exact-main CI run: `31897719155`, completed success.
+- Required candidate source: `7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a`.
+- Required candidate tree: `d9b170396364a8dcf0efcd28779fc416c8c2f65e`.
+- Required candidate parent: `472cc58115b7e6a459d089fd082081fa8da15610`.
+- Required exact-main CI run: `31900296274`.
 - Required migration range: contiguous `001-075`.
 - Target platform: exact `linux/amd64`, empty variant.
 - Build runtime: local OrbStack only after `orb status` is `Running` and
@@ -90,11 +90,12 @@ responses, knowledge bodies, or customer/provider identifiers.
 
 ## Phase A — fresh immutable candidate
 
-1. Create a clean detached source worktree at the frozen K4 merged-main commit.
+1. Create a clean detached source worktree at the frozen current-main commit,
+   including PR #216's supervised consultative Lead Agent policy.
    Require clean status, exact parent/tree identity, the frozen exact-main green
    run, and no open conflicting release PR.
 2. Use the reviewed P8B2/P8B3 build and portable-identity tooling with exact
-   build tags suffixed `472cc58115b7e6a459d089fd082081fa8da15610-linux-amd64`;
+   build tags suffixed `7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a-linux-amd64`;
    refuse every pre-existing target tag and output path.
 3. Build CRM, Inbox, and Lead Agent with real Buildx
    `--platform linux/amd64 --load`. Record real exit status and BuildKit metadata;
@@ -109,13 +110,13 @@ responses, knowledge bodies, or customer/provider identifiers.
    OCI graph, and write a closed collection index. Hash every retained artifact.
 
 The builder output is exactly
-`.evo-release-evidence/p8b2-input-472cc58115b7e6a459d089fd082081fa8da15610-linux-amd64/`.
+`.evo-release-evidence/p8b2-input-7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a-linux-amd64/`.
 After validation, install only its closed indexed files into
-`.evo-release-evidence/p8d4-472cc58115b7e6a459d089fd082081fa8da15610-reviewed/`.
+`.evo-release-evidence/p8d4-7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a-reviewed/`.
 Its three archives are exactly
-`evo-crm-472cc58115b7e6a459d089fd082081fa8da15610-linux-amd64.tar`,
-`evo-inbox-472cc58115b7e6a459d089fd082081fa8da15610-linux-amd64.tar`, and
-`evo-lead-agent-472cc58115b7e6a459d089fd082081fa8da15610-linux-amd64.tar`.
+`evo-crm-7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a-linux-amd64.tar`,
+`evo-inbox-7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a-linux-amd64.tar`, and
+`evo-lead-agent-7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a-linux-amd64.tar`.
 
 ## Phase B — Hermes preflight, rollback, and transfer
 
@@ -131,9 +132,9 @@ Immediately before mutation, re-read and record only safe metadata:
 - release, rollback, evidence and incoming destination absence.
 
 Use exact release ID `2026-08-15.p8d4.1` and roots
-`/opt/evo-releases/472cc58115b7e6a459d089fd082081fa8da15610/2026-08-15.p8d4.1`,
+`/opt/evo-releases/7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a/2026-08-15.p8d4.1`,
 `/opt/evo-release-rollback/2026-08-15.p8d4.1`, and
-`/opt/evo-release-evidence/472cc58115b7e6a459d089fd082081fa8da15610/2026-08-15.p8d4.1`.
+`/opt/evo-release-evidence/7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a/2026-08-15.p8d4.1`.
 All must be absent before execution. Copy the three exact current
 production image archives and the exact three env files into the rollback-secret
 root using explicit paths and mode `0600`; evidence retains only fixed labels,
@@ -261,7 +262,7 @@ Stdout is reduced to migration identifiers/status before it enters the mode
    so it is never used for publication. From the new release `repo/`, run an
    isolated one-off container from the already verified candidate Inbox image
    without replacing the running service. Create it with
-   `EVO_RELEASE_REVISION=472cc58115b7e6a459d089fd082081fa8da15610 EVO_RELEASE_VERSION=p8d4-current-main-20260815 EVO_WAHA_IMAGE_DIGEST=sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c EVO_INBOX_APP_ENV_FILE=/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production docker compose --env-file /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name evo-p8d4-knowledge-import --entrypoint tail app -f /dev/null`;
+   `EVO_RELEASE_REVISION=7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a EVO_RELEASE_VERSION=p8d4-current-main-20260815 EVO_WAHA_IMAGE_DIGEST=sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c EVO_INBOX_APP_ENV_FILE=/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production docker compose --env-file /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name evo-p8d4-knowledge-import --entrypoint tail app -f /dev/null`;
    require that exact name to be absent first. Use the merged K5 `docker cp`
    and in-container hash verification, then run only
    `docker exec evo-p8d4-knowledge-import npm run knowledge:import -- --audience <client|internal> --bundle <exact-container-path> --manifest <exact-container-path> --account-id "$EVO_KNOWLEDGE_ACCOUNT_ID"`.

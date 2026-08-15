@@ -12,7 +12,7 @@ const image = `sha256:${hash}`;
 const containers = ["evo-inbox-app-1", "evo-crm-app-1", "evo-crm-lead-agent-1", "evo-crm-waha-1", "evo-inbox-waha"].map((name) => ({ name, healthy: true, restart_count: 0, status: "verified" }));
 const canonical = {
   schema_version: "p8d4-v1", result_code: "pilot_verified",
-  candidate: { source_commit: "472cc58115b7e6a459d089fd082081fa8da15610", tree: "afadf3248ff696c0cf70388cfe06a9b5a8eebc22", ci_run: 31897719155, platform: "linux/amd64" },
+  candidate: { source_commit: "7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a", tree: "d9b170396364a8dcf0efcd28779fc416c8c2f65e", ci_run: 31900296274, platform: "linux/amd64" },
   migrations: { before: "001-075", after: "001-075", status: "verified" },
   bundles: [{ audience: "client", bundle_sha256: hash, document_count: 10, chunk_count: 10, status: "verified" }, { audience: "internal", bundle_sha256: hash, document_count: 286, chunk_count: 286, status: "verified" }],
   images: [{ name: "main_crm", image_id: image, status: "verified" }, { name: "evo_inbox", image_id: image, status: "verified" }, { name: "lead_agent", image_id: image, status: "verified" }],

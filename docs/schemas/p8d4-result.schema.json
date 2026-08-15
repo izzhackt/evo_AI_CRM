@@ -14,9 +14,9 @@
       "type": "object", "additionalProperties": false,
       "required": ["source_commit", "tree", "ci_run", "platform"],
       "properties": {
-        "source_commit": { "const": "472cc58115b7e6a459d089fd082081fa8da15610" },
-        "tree": { "const": "afadf3248ff696c0cf70388cfe06a9b5a8eebc22" },
-        "ci_run": { "const": 31897719155 },
+        "source_commit": { "const": "7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a" },
+        "tree": { "const": "d9b170396364a8dcf0efcd28779fc416c8c2f65e" },
+        "ci_run": { "const": 31900296274 },
         "platform": { "const": "linux/amd64" }
       }
     },

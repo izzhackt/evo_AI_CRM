@@ -301,7 +301,7 @@ stops publication and deployment.
    so it is never used for publication. From the new release `repo/`, run an
    isolated one-off container from the already verified candidate Inbox image
    without replacing the running service. Create it with
-   `EVO_RELEASE_REVISION=d5657acc6c1df1abc790a96778ca71df36687b24 EVO_RELEASE_VERSION=p8d4-current-main-20260816 EVO_WAHA_IMAGE_DIGEST=sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c EVO_INBOX_APP_ENV_FILE=/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production docker compose --env-file /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name evo-p8d4-knowledge-import --entrypoint tail app -f /dev/null`;
+   `EVO_RELEASE_REVISION=d5657acc6c1df1abc790a96778ca71df36687b24 EVO_RELEASE_VERSION=p8d4-current-main-20260816 EVO_WAHA_IMAGE_DIGEST=sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c EVO_INBOX_APP_ENV_FILE=/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production EVO_INBOX_WAHA_ENV_FILE=/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.waha docker compose --env-file /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name evo-p8d4-knowledge-import --entrypoint tail app -f /dev/null`;
    require that exact name to be absent first. Use the merged K5 `docker cp`
    and in-container hash verification, then run only
    `docker exec evo-p8d4-knowledge-import npm run knowledge:import -- --audience <client|internal> --bundle <exact-container-path> --manifest <exact-container-path> --account-id "$EVO_KNOWLEDGE_ACCOUNT_ID"`.
@@ -432,6 +432,13 @@ and generated-manifest hashes, client allowlist and publication-manifest
 counts/hashes, the PII/boundary result, retrieval pass/fail counts and the
 review-bound source count. `pilot_verified` pins every value above exactly.
 The production account UUID is never stored in that evidence.
+
+Before rendering the isolated Phase D Compose command, require
+`/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.waha` to be an existing root-owned,
+root-group, mode-`0600`, regular non-symlink file. Its exact path is supplied
+only through `EVO_INBOX_WAHA_ENV_FILE` so Compose can validate the declared WAHA
+service while `run --no-deps` still creates only the importer. This does not
+authorize a WAHA create, recreate, reload, restart or provider call.
 
 This amendment changes no provider-call allowance, image, deployment order,
 rollback rule or outbound-message prohibition. The vault owner must keep both

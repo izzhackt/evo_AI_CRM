@@ -5,6 +5,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 
 const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4-result.schema.json", import.meta.url), "utf8"));
 const cases = JSON.parse(readFileSync(new URL("../scripts/knowledge_ingestion/platform_eval_cases.json", import.meta.url), "utf8"));
+const contract = readFileSync(new URL("../docs/platform/p8d4-current-main-staff-pilot.md", import.meta.url), "utf8");
 const success = schema.allOf[0].then.properties;
 const validate = new Ajv2020({ strict: false }).compile(schema);
 const hash = "a".repeat(64);
@@ -107,4 +108,10 @@ test("P8D4 pilot cases are a closed body-safe two-case set", () => {
   ]);
   assert.ok(cases.cases.every((entry) => Object.keys(entry).sort().join(",") === "audience,case_id,expected_source_path,question"));
   assert.doesNotMatch(JSON.stringify(cases), /(?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|\+?\d[\d\s().-]{7,}\d)/i);
+});
+
+test("Phase D binds the exact private WAHA env only for Compose rendering", () => {
+  assert.match(contract, /EVO_INBOX_WAHA_ENV_FILE=\/opt\/evo-inbox\/agent-lead2-crmwhatsapp\/\.env\.waha docker compose[\s\S]*run -d --no-deps --name evo-p8d4-knowledge-import/);
+  assert.match(contract, /\.env\.waha` to be an existing root-owned,[\s\S]*mode-`0600`, regular non-symlink file/);
+  assert.match(contract, /does not[\s\S]*authorize a WAHA create, recreate, reload, restart or provider call/);
 });

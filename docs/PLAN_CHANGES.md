@@ -6928,3 +6928,9 @@ tests, `docs/EVO_LAUNCH_PLAN.md`, and this log. K2 does not implement the sync
 RPC, bundle tooling, internal assistant, provider call, production migration or
 deployment. Real validation is the focused Inbox test set plus the repository's
 local Supabase authorization/schema gates on OrbStack, lint, typecheck and build.
+
+Validation amendment: because K2 adds canonical migration `073`, advance the
+deterministic P8 candidate migration inventory from contiguous `001-072` to
+contiguous `001-073` and update its focused contract test. Historical P8
+evidence remains unchanged; this amendment only makes future candidate
+generation bind the current complete migration set.

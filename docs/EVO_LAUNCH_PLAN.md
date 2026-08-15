@@ -2504,7 +2504,14 @@ documents, process Gmail, retry WhatsApp media, or expose raw/sensitive content.
 - Allowlist path: `<client vault>/.Публикация клиентской базы.json`. It is a
   closed version-1 object with only `version` and `entries`. Every entry has
   exactly: `source_relative_path`, `source_sha256`, `destination_relative_path`,
-  `authority`, `authority_reference`, `official_url`, and `verified_at`.
+  `content_class`, `personal_data_reviewed`, `authority`,
+  `authority_reference`, `official_url`, and `verified_at`.
+- `content_class` is only `stable_evo_policy` or `mutable_official_fact`, and
+  `personal_data_reviewed` must be the JSON boolean `true`. Stable policy accepts
+  only `owner_decision`; mutable facts accept only `official_source`. A source
+  containing an email address or phone-like sequence is rejected regardless of
+  the review flag. The publisher does not infer or downgrade a content class
+  from keywords.
 - `authority` is only `owner_decision` or `official_source`. Owner decisions
   require a non-empty internal decision-note reference; their `official_url`
   and `verified_at` are JSON null. Official-source entries require an HTTPS URL
@@ -2515,6 +2522,13 @@ documents, process Gmail, retry WhatsApp media, or expose raw/sensitive content.
   internal vault, must name regular non-symlink Markdown files and must match
   `source_sha256`. Destination paths are normalized Russian `.md` paths beneath
   the exact client vault and may not overwrite unmanaged files.
+- The approved source is accepted only at the exact non-symlink path
+  `<marked internal root>/Утверждено для внутреннего ИИ`; raw CLI path
+  components are checked before canonicalization. Authority references are safe
+  relative regular non-symlink Markdown paths in that approved vault. Owner
+  references require exact frontmatter `тип: решение_владельца` and
+  `статус: решено`; official references require `тип: протокол_проверки` and a
+  valid `дата_проверки` ISO date.
 - Published frontmatter contains exactly traceable fields for publication:
   `тип: клиентское_знание`, `управляется: evo_client_publisher`, source relative
   path/SHA, authority/reference, official URL and verification date. Null
@@ -2525,6 +2539,7 @@ documents, process Gmail, retry WhatsApp media, or expose raw/sensitive content.
   the prior valid manifest whose current file still has the managed marker.
 - The publisher validates marker, allowlist, all sources, all destinations,
   provenance and the existing managed manifest before any write or deletion.
+  It also resolves and reads every stale managed candidate before mutation.
   Missing/malformed/traversal/symlink/hash/provenance errors fail with zero
   mutation.
 
@@ -2557,6 +2572,9 @@ documents, process Gmail, retry WhatsApp media, or expose raw/sensitive content.
 - Marker tests reject missing, malformed, symlinked and canonical-path-mismatched
   client markers; allowlist tests reject unknown fields, wrong SHA, invalid
   provenance and destinations outside the exact client vault before mutation.
+- Tests also reject symlinked approved/client roots or path components,
+  misclassified stable/mutable material, false personal-data review flags,
+  email/phone content and unreadable stale candidates with zero mutation.
 - Every published client note is Russian, has provenance and is either stable
   owner-approved EVO knowledge or has an official URL plus verification date.
 - Actual internal and client vault retrieval checks pass every committed case's

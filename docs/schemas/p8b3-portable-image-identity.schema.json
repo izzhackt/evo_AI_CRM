@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8b3-portable-image-identity.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "candidate_commit", "target_platform", "images"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "candidate_commit": { "const": "0505143657858e710acdd5029f1cc77c5524083e" },
+    "target_platform": { "$ref": "#/$defs/platform" },
+    "images": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "prefixItems": [
+        { "$ref": "#/$defs/crm" }, { "$ref": "#/$defs/inbox" }, { "$ref": "#/$defs/lead" }
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "hex": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "platform": { "type": "object", "additionalProperties": false, "required": ["os", "architecture", "variant"], "properties": { "os": { "const": "linux" }, "architecture": { "const": "amd64" }, "variant": { "const": "" } } },
+    "manifest_descriptor": { "type": "object", "additionalProperties": false, "required": ["digest", "media_type", "size"], "properties": { "digest": { "$ref": "#/$defs/sha" }, "media_type": { "const": "application/vnd.oci.image.manifest.v1+json" }, "size": { "type": "integer", "minimum": 1 } } },
+    "config_descriptor": { "type": "object", "additionalProperties": false, "required": ["digest", "media_type", "size"], "properties": { "digest": { "$ref": "#/$defs/sha" }, "media_type": { "const": "application/vnd.oci.image.config.v1+json" }, "size": { "type": "integer", "minimum": 1 } } },
+    "layer_descriptor": { "type": "object", "additionalProperties": false, "required": ["digest", "media_type", "size"], "properties": { "digest": { "$ref": "#/$defs/sha" }, "media_type": { "enum": ["application/vnd.oci.image.layer.v1.tar", "application/vnd.oci.image.layer.v1.tar+gzip", "application/vnd.oci.image.layer.v1.tar+zstd"] }, "size": { "type": "integer", "minimum": 1 } } },
+    "archive": { "type": "object", "additionalProperties": false, "required": ["file", "sha256", "size", "mode"], "properties": { "file": { "type": "string" }, "sha256": { "$ref": "#/$defs/hex" }, "size": { "type": "integer", "minimum": 1 }, "mode": { "const": 600 } } },
+    "base": { "type": "object", "additionalProperties": false, "required": ["name", "tag", "source_commit", "platform", "oci_index_digest", "platform_manifest", "config", "layers", "archive"], "properties": { "name": { "type": "string" }, "tag": { "type": "string" }, "source_commit": { "const": "0505143657858e710acdd5029f1cc77c5524083e" }, "platform": { "$ref": "#/$defs/platform" }, "oci_index_digest": { "$ref": "#/$defs/sha" }, "platform_manifest": { "$ref": "#/$defs/manifest_descriptor" }, "config": { "$ref": "#/$defs/config_descriptor" }, "layers": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/layer_descriptor" } }, "archive": { "$ref": "#/$defs/archive" } } },
+    "crm": { "allOf": [{ "$ref": "#/$defs/base" }, { "properties": { "name": { "const": "main_crm" }, "tag": { "const": "evo-crm:0505143657858e710acdd5029f1cc77c5524083e-linux-amd64" }, "oci_index_digest": { "const": "sha256:a5421b190e4db827df7333666a9d95a2c01adcb01e2ebb848ee8cfe11ad803dd" }, "platform_manifest": { "properties": { "digest": { "const": "sha256:b965ac5c41d4e8bddc6d6bb7baaa7bcec101af4083b8ca861f9e9904cec9eafd" } } }, "archive": { "properties": { "file": { "const": "evo-crm-0505143657858e710acdd5029f1cc77c5524083e-linux-amd64.tar" } } } } }] },
+    "inbox": { "allOf": [{ "$ref": "#/$defs/base" }, { "properties": { "name": { "const": "evo_inbox" }, "tag": { "const": "evo-inbox:0505143657858e710acdd5029f1cc77c5524083e-linux-amd64" }, "oci_index_digest": { "const": "sha256:bed40447beb0255a9fe64f75446fb7259cd02d219a89c4e01627b980fc0e154c" }, "platform_manifest": { "properties": { "digest": { "const": "sha256:e15c5e07b4232e39622616cb76ed84e1e5b6a7c9145728a42a7701a3238e6b92" } } }, "archive": { "properties": { "file": { "const": "evo-inbox-0505143657858e710acdd5029f1cc77c5524083e-linux-amd64.tar" } } } } }] },
+    "lead": { "allOf": [{ "$ref": "#/$defs/base" }, { "properties": { "name": { "const": "lead_agent" }, "tag": { "const": "evo-lead-agent:0505143657858e710acdd5029f1cc77c5524083e-linux-amd64" }, "oci_index_digest": { "const": "sha256:6cac77644b4824ac31e53aea35d8d6598426cb5b75862d324a17e171d4a5f1a5" }, "platform_manifest": { "properties": { "digest": { "const": "sha256:572d01c6f2a0824e56607f41d4376e927ccdf41c5218c6dd65930f95cd6593cd" } } }, "archive": { "properties": { "file": { "const": "evo-lead-agent-0505143657858e710acdd5029f1cc77c5524083e-linux-amd64.tar" } } } } }] }
+  }
+}

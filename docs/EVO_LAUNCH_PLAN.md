@@ -2443,33 +2443,31 @@ retained P8B images were `linux/arm64` while Hermes is `linux/amd64`. Lead Agent
 was restored healthy and all production configuration was rolled back. The
 P8B2 under issue #188 produced the exact platform-bound `linux/amd64`
 candidate. P8C2 then bound its real retained manifest, evidence, SBOM/smoke
-identities and current environment reconciliation. The active next slice is
-staging-only P8D2 under issue #202 and
-`docs/platform/p8d2-amd64-staging.md`.
+identities and current environment reconciliation. P8D2 under issue #202 loaded
+the verified archives but stopped without restarts because its contract compared
+platform-manifest digests with their parent OCI-index digests. The active next
+slice is P8B3 under issue #205 and
+`docs/platform/p8b3-portable-image-identity.md`.
 
 Current accepted release-control main:
 `a6dc6df1d3c6e2986d63cd4ecc12e0877b2d0057`. Its exact-main CI run
 `31887238363` completed successfully. P8C2 reconciled the real environments
 without mutation, retained P8B application provenance at `050514...`, bound
 the exact AMD64 image identities, and truthfully returned `blocked` because
-Hermes staging, provider prerequisites, and deployment remain incomplete.
+portable identity, fresh staging, provider prerequisites, and deployment remain
+incomplete.
 
-The owner authorized exact staging only at `2026-08-15T13:26:01Z`. The exact
-AMD64 IDs, evidence hashes, non-reused release identity, preflight, rollback
-capture, transfer/load procedure and no-restart boundary are frozen in
-`docs/platform/p8d2-amd64-staging.md`. This authority does not deploy or
-recreate any application container. WAHA/Caddy/DNS, sessions, webhooks,
-provider reads or writes, autonomous send, customer-content Gemini calls,
-amoCRM access, WhatsApp sends, Supabase writes, billed resources, production
-restore and legacy retirement remain outside this authorization.
+The owner-authorized P8D2 attempt is closed as failed-safe evidence. All running
+CRM, Inbox, Lead Agent and WAHA identities, start times, health and zero restart
+counts remained unchanged; no provider call occurred. P8B3 now binds both the
+OCI index and its portable AMD64 manifest plus archive/config/layer bytes. It is
+local evidence generation only and grants no Hermes retry.
 
 The current preflight records Inbox WAHA as `SCAN_QR_CODE`, canonical DNS as
 absent, amoCRM credentials as incomplete and the candidate rollback bundle as
 unstaged. P8D must preserve those external blockers truthfully rather than
-silently fixing or relabelling them. Staging may proceed only after the P8D2
-contract PR merges with independent approval and exact-main green CI.
-Deployment then requires a separate fresh owner window and an updated exact
-AMD64 deployment matrix.
+silently fixing or relabelling them. Another staging attempt requires completed
+P8B3 evidence, a new reviewed P8D3 contract and fresh owner approval.
 
 ## EVO Knowledge Launch Finalization
 

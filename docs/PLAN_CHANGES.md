@@ -6575,3 +6575,44 @@ Change type: fail-closed production preflight amendment
   Redacted proof is limited to presence, 64-character length, distinctness,
   update status and the env-file before/after hashes. The rollback-copy
   lifecycle matches the Lead Agent safety correction.
+
+## 2026-08-15 - Replace the architecture-mismatched P8B images
+
+Plan Block-ID: `EVO-P8B2-LINUX-AMD64-CANDIDATE-2026-08-15`
+
+Issue: #188
+
+Change type: release-candidate identity, image provenance and execution order
+
+### Decision
+
+- Record the fail-closed first P8D attempt: the retained P8B images were
+  `linux/arm64`, while Hermes is `linux/amd64`. Lead Agent failed with an
+  executable-format error and was immediately restored to its prior healthy
+  image. CRM and Inbox were never recreated; environment files were restored;
+  no provider/customer/DNS/Supabase mutation occurred.
+- Treat operating system, architecture and variant as mandatory immutable image
+  identity. Never retag or relabel the ARM64 evidence as AMD64 evidence.
+- Freeze a new P8B2 candidate from the same reviewed application source commit
+  `0505143657858e710acdd5029f1cc77c5524083e` and tree
+  `0563636057a19949a8927abc3ce02b32ba65896c`, targeting exact
+  `linux/amd64` through OrbStack Buildx.
+- Extend the closed manifest/tooling before construction, use distinct
+  `-linux-amd64` tags, inspect architecture and OCI revision both locally and
+  on Hermes, and require real disabled-provider smoke checks.
+- Retain one mode-`0600` SPDX-JSON SBOM per exact image, generated locally by
+  `docker sbom`, bound by image ID/tool version/SHA-256 and screened before it
+  enters the safe evidence index. Uploading SBOMs or images is not authorized.
+- Run each real image with network mode `none` and the exact closed disabled
+  settings, then execute only its dependency-free loopback liveness route from
+  inside the container. This proves process/architecture compatibility without
+  a mock dependency or any provider/customer call; it is not readiness proof.
+- Redo deterministic candidate evidence, P8C reconciliation, independent
+  review and exact-head/exact-main CI before a fresh action-time P8D window.
+- Preserve every P8D safety boundary: no WAHA/Caddy/DNS/session/QR mutation,
+  message send, customer-content Gemini call, amoCRM write, autonomous send,
+  Supabase write, customer-data inspection or billed resource.
+
+The detailed executable contract is
+`docs/platform/p8b2-amd64-candidate.md`. Merging this amendment authorizes no
+production restart by itself.

@@ -2438,6 +2438,13 @@ their own explicit authorization.
 
 ## Current P8D Disabled Deployment Slice
 
+The first P8D attempt stopped safely before CRM or Inbox recreation because the
+retained P8B images were `linux/arm64` while Hermes is `linux/amd64`. Lead Agent
+was restored healthy and all production configuration was rolled back. The
+active correction is P8B2 under issue #188 and
+`docs/platform/p8b2-amd64-candidate.md`: construct a new platform-bound
+`linux/amd64` candidate, redo P8C, then request a fresh P8D action window.
+
 Current accepted release-control base:
 `33d745121208bdaf30fceeda25e9c87ab346db8e`. Its exact-main CI run
 `31843405338` completed successfully. P8C reconciled

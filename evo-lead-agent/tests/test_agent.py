@@ -6,6 +6,7 @@ import pytest
 
 from evo_lead_agent.agent import decide_reply
 from evo_lead_agent.config import Settings
+from evo_lead_agent.sales_prompt import SALES_PROMPT_VERSION, SYSTEM_PROMPT
 from evo_lead_agent.schemas import InboundMessage
 
 
@@ -99,6 +100,8 @@ async def test_decide_reply_includes_knowledge_matches_in_prompt(
     assert captured["model"] == "gemini-3.5-flash"
     assert captured["closed"] is True
     assert getattr(captured["config"], "response_mime_type") == "application/json"
+    assert getattr(captured["config"], "system_instruction") == SYSTEM_PROMPT
+    assert SALES_PROMPT_VERSION == "evo-consultative-sales-v1"
     user_payload = captured["contents"]
     parsed_payload = json.loads(user_payload)
     assert "knowledge_matches" in user_payload

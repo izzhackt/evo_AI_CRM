@@ -250,6 +250,33 @@ Exit criteria:
   live-preflight stage while outbound remains disabled;
 - `uv run pytest` and `uv run ruff check .` pass.
 
+## Phase 4.3 - Supervised Consultative-Sales Prompt Candidate
+
+Goal: replace context-free answer scripts with a versioned consultant behavior
+policy that can be evaluated and improved from staff-reviewed real drafts.
+
+Implementation slice:
+
+1. Move the Lead Agent system instruction into a versioned prompt module.
+2. Define the EVO personality, consultative discovery, ethical objection
+   handling, canonical-memory use, grounding and human-handoff rules.
+3. Retain the protected real Top-50 intent catalog as evaluation coverage, but
+   replace fixed desired wording with a common scored rubric.
+4. Use the existing Platform AI draft review record as the supervised feedback
+   source: generated draft, reviewed text, reviewer, time and review reason.
+5. Require owner-approved aggregation, held-out evaluation and a new prompt
+   version before any recurring staff edit changes agent behavior.
+
+Exit criteria:
+
+- deterministic tests prove the prompt answers first, does not re-ask known
+  intake fields, uses only supplied knowledge and remains draft-only;
+- deterministic tests prove the evaluation artifact has all 50 real intent
+  cases as coverage and contains no fixed-answer worksheet;
+- focused Python and Node tests, full Lead Agent tests and repository checks pass;
+- no provider call, WhatsApp send, autonomous-reply activation, database write,
+  deployment or production mutation occurs in this phase.
+
 ## Phase 4.2 - Non-Destructive Live-Service Preflight
 
 Goal: before the user points a real WhatsApp number at Docker, verify live

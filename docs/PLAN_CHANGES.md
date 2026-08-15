@@ -7033,3 +7033,35 @@ Review amendment: ranked chunks without an exact managed `source_path` are
 removed from excerpts, chunk ids and source identities together before prompt
 construction. Mixed managed/manual retrieval can no longer expose an untracked
 manual excerpt to the model while recording only the managed source.
+
+## 2026-08-15 - Replace fixed golden answers with supervised sales learning
+
+Plan Block-ID: `EVO-LEAD-AGENT-SUPERVISED-SALES-PROMPT-2026-08-15`
+
+Issue: #194
+
+Change type: prompt policy, conversation-memory and evaluation contract
+
+### Decision
+
+- Retire the Top-50 fixed-answer worksheet. Keep the real generalized intents
+  as coverage cases, but grade behavior against a common rubric instead of
+  comparing wording with one context-free answer.
+- Add a versioned consultative-sales system prompt. It must answer first,
+  personalize from canonical memory, ask only the smallest useful next
+  question, move the conversation toward a helpful next step without pressure,
+  and preserve all knowledge, guarantee, privacy and handoff boundaries.
+- Treat the standard intake fields (name, age, English level, current
+  education and countries under consideration) as known only when the client
+  actually supplied them. Never ask a known field again unless it is missing,
+  ambiguous, contradicted or changed.
+- Run an initial supervised-learning period in draft/shadow mode. A designated
+  EVO employee reviews every draft and the existing Platform draft record keeps
+  generated text, reviewed text, reviewer, time and review reason. These edits
+  are training candidates, not automatic instructions.
+- Promote recurring, owner-approved lessons only through a new versioned prompt
+  or curated few-shot set, held-out evaluation, independent review and CI. Do
+  not fine-tune or alter runtime behavior directly from one employee edit.
+- This block changes repository prompt/evaluation artifacts only. It does not
+  edit either knowledge base, enable autonomous replies, send WhatsApp, call a
+  provider, write amoCRM/Supabase, deploy or mutate production.

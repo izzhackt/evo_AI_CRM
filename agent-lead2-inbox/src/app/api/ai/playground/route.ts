@@ -29,6 +29,9 @@ export async function POST(request: Request) {
     if (!limit.success) return rateLimitResponse(limit)
 
     const body = await request.json().catch(() => null)
+    if (body && typeof body === 'object' && 'audience' in body) {
+      return NextResponse.json({ error: 'audience is controlled by the server' }, { status: 400 })
+    }
     const rawMessages = Array.isArray(body?.messages) ? body.messages : null
     if (!rawMessages) {
       return NextResponse.json({ error: 'messages is required' }, { status: 400 })
@@ -39,18 +42,14 @@ export async function POST(request: Request) {
         (m: unknown): m is ChatMessage =>
           !!m &&
           typeof m === 'object' &&
-          ((m as ChatMessage).role === 'user' ||
-            (m as ChatMessage).role === 'assistant') &&
+          ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant') &&
           typeof (m as ChatMessage).content === 'string' &&
           (m as ChatMessage).content.trim().length > 0,
       )
       .slice(-MAX_TURNS)
 
     if (messages.length === 0) {
-      return NextResponse.json(
-        { error: 'Send a message to test the agent.' },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: 'Send a message to test the agent.' }, { status: 400 })
     }
 
     const config = await loadAiConfigForAccount(accountId, {
@@ -75,6 +74,7 @@ export async function POST(request: Request) {
     const knowledge = await retrieveKnowledge(
       supabase,
       accountId,
+      'client',
       config,
       latestUserMessage(messages),
     )
@@ -84,14 +84,15 @@ export async function POST(request: Request) {
       knowledge,
     })
 
-    const { text, handoff } = await generateReply({ config, systemPrompt, messages })
+    const { text, handoff } = await generateReply({
+      config,
+      systemPrompt,
+      messages,
+    })
     return NextResponse.json({ reply: text, handoff })
   } catch (err) {
     if (err instanceof AiError) {
-      return NextResponse.json(
-        { error: err.message, code: err.code },
-        { status: err.status },
-      )
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status })
     }
     return toErrorResponse(err)
   }

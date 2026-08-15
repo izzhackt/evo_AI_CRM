@@ -1,9 +1,5 @@
 import { NextResponse } from 'next/server'
-import {
-  getCurrentAccount,
-  requireRole,
-  toErrorResponse,
-} from '@/lib/auth/account'
+import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { loadEmbeddingsConfigForAccount } from '@/lib/ai/config'
 import { ingestDocument } from '@/lib/ai/knowledge'
@@ -12,16 +8,17 @@ import { AiError } from '@/lib/ai/types'
 type Params = { params: Promise<{ id: string }> }
 
 /**
- * GET /api/ai/knowledge/[id] — full document (any member).
+ * GET /api/ai/knowledge/[id] — full internal manual document (admin+).
  */
 export async function GET(_request: Request, { params }: Params) {
   try {
-    const { supabase, accountId } = await getCurrentAccount()
+    const { supabase, accountId } = await requireRole('admin')
     const { id } = await params
     const { data, error } = await supabase
       .from('ai_knowledge_documents')
       .select('id, title, content, updated_at')
       .eq('account_id', accountId)
+      .eq('audience', 'internal')
       .eq('id', id)
       .maybeSingle()
     if (error) {
@@ -47,6 +44,9 @@ export async function PATCH(request: Request, { params }: Params) {
 
     const { id } = await params
     const body = await request.json().catch(() => null)
+    if (body && typeof body === 'object' && 'audience' in body) {
+      return NextResponse.json({ error: 'audience is controlled by the server' }, { status: 400 })
+    }
     const title = typeof body?.title === 'string' ? body.title.trim() : undefined
     const content = typeof body?.content === 'string' ? body.content.trim() : undefined
     if (title === undefined && content === undefined) {
@@ -67,6 +67,7 @@ export async function PATCH(request: Request, { params }: Params) {
       .from('ai_knowledge_documents')
       .update(update)
       .eq('account_id', accountId)
+      .eq('audience', 'internal')
       .eq('id', id)
       .select('id')
       .maybeSingle()
@@ -86,6 +87,7 @@ export async function PATCH(request: Request, { params }: Params) {
         await ingestDocument(
           supabase,
           accountId,
+          'internal',
           { embeddingsProvider, embeddingsApiKey },
           id,
           content,
@@ -127,6 +129,7 @@ export async function DELETE(_request: Request, { params }: Params) {
       .from('ai_knowledge_documents')
       .delete()
       .eq('account_id', accountId)
+      .eq('audience', 'internal')
       .eq('id', id)
     if (error) {
       console.error('[ai/knowledge/[id] DELETE] error:', error)

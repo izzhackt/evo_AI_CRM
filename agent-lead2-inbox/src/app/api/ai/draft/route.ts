@@ -29,20 +29,17 @@ export async function POST(request: Request) {
     const userLimit = checkRateLimit(`ai-draft:${userId}`, RATE_LIMITS.aiDraft)
     if (!userLimit.success) return rateLimitResponse(userLimit)
     // Also cap the whole team's draws on the shared BYO provider key.
-    const accountLimit = checkRateLimit(
-      `ai-draft-acct:${accountId}`,
-      RATE_LIMITS.aiDraftAccount,
-    )
+    const accountLimit = checkRateLimit(`ai-draft-acct:${accountId}`, RATE_LIMITS.aiDraftAccount)
     if (!accountLimit.success) return rateLimitResponse(accountLimit)
 
     const body = await request.json().catch(() => null)
+    if (body && typeof body === 'object' && 'audience' in body) {
+      return NextResponse.json({ error: 'audience is controlled by the server' }, { status: 400 })
+    }
     const conversationId =
       body && typeof body.conversation_id === 'string' ? body.conversation_id : ''
     if (!conversationId) {
-      return NextResponse.json(
-        { error: 'conversation_id is required' },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: 'conversation_id is required' }, { status: 400 })
     }
 
     // RLS scopes the SSR client to the caller's account, so a missing
@@ -97,6 +94,7 @@ export async function POST(request: Request) {
     const knowledge = await retrieveKnowledgeWithEvidence(
       supabase,
       accountId,
+      'client',
       config,
       latestUserMessage(messages),
     )
@@ -121,22 +119,16 @@ export async function POST(request: Request) {
       })
     } catch (err) {
       console.error('[ai/draft] audit persistence failed:', err)
-      throw new AiError(
-        'The AI draft could not be saved for operator review. Please try again.',
-        {
-          code: 'ai_draft_audit_failed',
-          status: 503,
-        },
-      )
+      throw new AiError('The AI draft could not be saved for operator review. Please try again.', {
+        code: 'ai_draft_audit_failed',
+        status: 503,
+      })
     }
 
     return NextResponse.json({ draft: text, draft_id: draftId })
   } catch (err) {
     if (err instanceof AiError) {
-      return NextResponse.json(
-        { error: err.message, code: err.code },
-        { status: err.status },
-      )
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status })
     }
     return toErrorResponse(err)
   }

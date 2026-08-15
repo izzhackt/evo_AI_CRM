@@ -64,6 +64,135 @@ VALUES (
   'Other account'
 );
 
+-- K2 knowledge audiences are enforced by RLS and SECURITY INVOKER retrieval,
+-- not merely by route code. Seed both audiences as the database owner, then
+-- exercise the exact authenticated roles used by the application.
+INSERT INTO public.ai_knowledge_documents (
+  id, account_id, created_by, audience, title, content
+)
+VALUES
+  ('20000000-0000-0000-0000-000000000001', :'account_one_id', :'owner_id', 'client', 'Client knowledge', 'clienttoken'),
+  ('20000000-0000-0000-0000-000000000002', :'account_one_id', :'owner_id', 'internal', 'Internal knowledge', 'internaltoken'),
+  ('20000000-0000-0000-0000-000000000003', :'account_two_id', :'outsider_id', 'client', 'Other account knowledge', 'othertoken');
+
+INSERT INTO public.ai_knowledge_chunks (
+  id, document_id, account_id, audience, chunk_index, content
+)
+VALUES
+  ('21000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', :'account_one_id', 'client', 0, 'clienttoken'),
+  ('21000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', :'account_one_id', 'internal', 0, 'internaltoken'),
+  ('21000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000003', :'account_two_id', 'client', 0, 'othertoken');
+
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000003","role":"authenticated"}',
+  false
+);
+
+SELECT (
+  SELECT count(*) = 2 FROM public.ai_knowledge_documents
+) AND (
+  SELECT count(*) = 2 FROM public.ai_knowledge_chunks
+) AS expected \gset
+\if :expected
+\else
+  \echo 'FAIL: same-account agent cannot read both knowledge audiences or can read another account'
+  SELECT 1 / 0;
+\endif
+
+SELECT (
+  SELECT count(*) = 1
+  FROM public.match_ai_knowledge_fts(:'account_one_id', 'client', 'clienttoken', 5)
+) AND (
+  SELECT count(*) = 0
+  FROM public.match_ai_knowledge_fts(:'account_one_id', 'client', 'internaltoken', 5)
+) AND (
+  SELECT count(*) = 0
+  FROM public.match_ai_knowledge_fts(:'account_two_id', 'client', 'othertoken', 5)
+) AND (
+  SELECT count(*) = 0
+  FROM public.match_ai_knowledge_fts(:'account_one_id', 'invalid', 'clienttoken', 5)
+) AS expected \gset
+\if :expected
+\else
+  \echo 'FAIL: knowledge retrieval crossed audience/account boundaries'
+  SELECT 1 / 0;
+\endif
+
+RESET ROLE;
+UPDATE public.profiles
+SET account_role = 'viewer'
+WHERE user_id = :'agent_id';
+
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000003","role":"authenticated"}',
+  false
+);
+SELECT (
+  SELECT count(*) = 0 FROM public.ai_knowledge_documents
+) AND (
+  SELECT count(*) = 0
+  FROM public.match_ai_knowledge_fts(:'account_one_id', 'client', 'clienttoken', 5)
+) AS expected \gset
+\if :expected
+\else
+  \echo 'FAIL: viewer read staff-only knowledge'
+  SELECT 1 / 0;
+\endif
+
+RESET ROLE;
+UPDATE public.profiles
+SET account_role = 'agent'
+WHERE user_id = :'agent_id';
+
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  false
+);
+
+\set ON_ERROR_STOP off
+INSERT INTO public.ai_knowledge_documents (
+  account_id, created_by, audience, title, content
+) VALUES (
+  :'account_one_id', :'admin_id', 'client', 'Forbidden client write', 'blocked'
+);
+\set client_insert_state :SQLSTATE
+UPDATE public.ai_knowledge_documents
+SET content = 'blocked update'
+WHERE id = '20000000-0000-0000-0000-000000000001';
+\set client_update_state :SQLSTATE
+DELETE FROM public.ai_knowledge_documents
+WHERE id = '20000000-0000-0000-0000-000000000001';
+\set client_delete_state :SQLSTATE
+\set ON_ERROR_STOP on
+
+SELECT :'client_insert_state' = '42501'
+  AND :'client_update_state' = '00000'
+  AND :'client_delete_state' = '00000'
+  AND EXISTS (
+    SELECT 1 FROM public.ai_knowledge_documents
+    WHERE id = '20000000-0000-0000-0000-000000000001'
+      AND content = 'clienttoken'
+  ) AS expected \gset
+\if :expected
+\else
+  \echo 'FAIL: authenticated admin mutated client-managed knowledge'
+  SELECT 1 / 0;
+\endif
+
+INSERT INTO public.ai_knowledge_documents (
+  account_id, created_by, audience, title, content
+) VALUES (
+  :'account_one_id', :'admin_id', 'internal', 'Allowed internal write', 'allowed'
+);
+
+RESET ROLE;
+
 -- Catalog inventory and hardening assertions. These query the migrated
 -- database, not SQL source text.
 DO $$
@@ -140,6 +269,10 @@ BEGIN
       'set_member_role',
       'touch_presence',
       'transfer_account_ownership'
+    )
+    AND p.oid::regprocedure::TEXT NOT IN (
+      'match_ai_knowledge_fts(uuid,text,text,integer)',
+      'match_ai_knowledge_semantic(uuid,text,text,integer)'
     );
 
   IF unexpected_authenticated_rpc IS NOT NULL THEN
@@ -148,16 +281,28 @@ BEGIN
       unexpected_authenticated_rpc;
   END IF;
 
-  IF has_function_privilege(
-    'authenticated',
-    'public.match_ai_knowledge_fts(uuid,text,integer)',
-    'EXECUTE'
-  ) OR has_function_privilege(
-    'authenticated',
-    'public.match_ai_knowledge_semantic(uuid,text,integer)',
-    'EXECUTE'
-  ) THEN
-    RAISE EXCEPTION 'Cross-account knowledge RPCs remain client executable';
+  IF to_regprocedure('public.match_ai_knowledge_fts(uuid,text,integer)') IS NOT NULL
+     OR to_regprocedure('public.match_ai_knowledge_semantic(uuid,text,integer)') IS NOT NULL
+     OR NOT has_function_privilege(
+       'authenticated',
+       'public.match_ai_knowledge_fts(uuid,text,text,integer)',
+       'EXECUTE'
+     )
+     OR NOT has_function_privilege(
+       'authenticated',
+       'public.match_ai_knowledge_semantic(uuid,text,text,integer)',
+       'EXECUTE'
+     )
+     OR EXISTS (
+       SELECT 1
+       FROM pg_proc
+       WHERE oid IN (
+         'public.match_ai_knowledge_fts(uuid,text,text,integer)'::regprocedure,
+         'public.match_ai_knowledge_semantic(uuid,text,text,integer)'::regprocedure
+       )
+         AND prosecdef
+     ) THEN
+    RAISE EXCEPTION 'Knowledge retrieval RPC signatures/grants are unsafe';
   END IF;
 
   IF to_regprocedure(

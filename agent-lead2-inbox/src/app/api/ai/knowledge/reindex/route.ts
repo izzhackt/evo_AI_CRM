@@ -23,12 +23,10 @@ export async function POST() {
       .from('ai_knowledge_documents')
       .select('id, content')
       .eq('account_id', accountId)
+      .eq('audience', 'internal')
     if (error) {
       console.error('[ai/knowledge/reindex] fetch error:', error)
-      return NextResponse.json(
-        { error: 'Failed to load documents' },
-        { status: 500 },
-      )
+      return NextResponse.json({ error: 'Failed to load documents' }, { status: 500 })
     }
 
     const {
@@ -57,6 +55,7 @@ export async function POST() {
         await ingestDocument(
           supabase,
           accountId,
+          'internal',
           { embeddingsProvider, embeddingsApiKey },
           doc.id,
           doc.content,

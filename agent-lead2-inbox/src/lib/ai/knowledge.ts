@@ -19,6 +19,8 @@ export interface KnowledgeRetrieval {
   chunkIds: string[]
 }
 
+export type KnowledgeAudience = 'client' | 'internal'
+
 /**
  * (Re)build the chunks for one document. Deletes the document's
  * existing chunks, re-chunks the content, and — when the account has an
@@ -32,6 +34,7 @@ export interface KnowledgeRetrieval {
 export async function ingestDocument(
   db: SupabaseClient,
   accountId: string,
+  audience: KnowledgeAudience,
   config: Pick<AiConfig, 'embeddingsProvider' | 'embeddingsApiKey'>,
   documentId: string,
   content: string,
@@ -67,6 +70,7 @@ export async function ingestDocument(
   const rows = chunks.map((content, i) => ({
     document_id: documentId,
     account_id: accountId,
+    audience,
     chunk_index: i,
     content,
     embedding: embeddings ? toVectorLiteral(embeddings[i]) : null,
@@ -90,11 +94,12 @@ export async function ingestDocument(
 export async function retrieveKnowledge(
   db: SupabaseClient,
   accountId: string,
+  audience: KnowledgeAudience,
   config: Pick<AiConfig, 'embeddingsProvider' | 'embeddingsApiKey'>,
   queryText: string,
   k = 5,
 ): Promise<string[]> {
-  const result = await retrieveKnowledgeWithEvidence(db, accountId, config, queryText, k)
+  const result = await retrieveKnowledgeWithEvidence(db, accountId, audience, config, queryText, k)
   return result.excerpts
 }
 
@@ -107,6 +112,7 @@ export async function retrieveKnowledge(
 export async function retrieveKnowledgeWithEvidence(
   db: SupabaseClient,
   accountId: string,
+  audience: KnowledgeAudience,
   config: Pick<AiConfig, 'embeddingsProvider' | 'embeddingsApiKey'>,
   queryText: string,
   k = 5,
@@ -123,6 +129,7 @@ export async function retrieveKnowledgeWithEvidence(
       .from('ai_knowledge_chunks')
       .select('id', { count: 'exact', head: true })
       .eq('account_id', accountId)
+      .eq('audience', audience)
     if (error || !count) return { excerpts: [], chunkIds: [] }
   } catch {
     return { excerpts: [], chunkIds: [] }
@@ -138,6 +145,7 @@ export async function retrieveKnowledgeWithEvidence(
       if (queryEmbedding) {
         const { data, error } = await db.rpc('match_ai_knowledge_semantic', {
           p_account_id: accountId,
+          p_audience: audience,
           p_query_embedding: toVectorLiteral(queryEmbedding),
           p_match_count: k,
         })
@@ -157,6 +165,7 @@ export async function retrieveKnowledgeWithEvidence(
     try {
       const { data, error } = await db.rpc('match_ai_knowledge_fts', {
         p_account_id: accountId,
+        p_audience: audience,
         p_query: query,
         p_match_count: k,
       })

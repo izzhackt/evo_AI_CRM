@@ -17,12 +17,15 @@ function parseWorksheetSections(markdown) {
     rank: Number(match[1]),
     intent: match[2],
     body: markdown.slice(match.index, matches[index + 1]?.index ?? markdown.indexOf("\n## Что должен сделать", match.index)),
+    clientQuestion: markdown
+      .slice(match.index, matches[index + 1]?.index ?? markdown.indexOf("\n## Что должен сделать", match.index))
+      .match(/- \*\*Вопрос клиента:\*\* (.+)/u)?.[1],
   }));
 }
 
 function parseRankedIntents(markdown) {
-  return [...markdown.matchAll(/^\| (\d+) \| `([a-z0-9_]+)` \|/gmu)]
-    .map((match) => ({ rank: Number(match[1]), intent: match[2] }));
+  return [...markdown.matchAll(/^\| (\d+) \| `([a-z0-9_]+)` \| ([^|]+?) \|/gmu)]
+    .map((match) => ({ rank: Number(match[1]), intent: match[2], clientQuestion: match[3].trim() }));
 }
 
 test("owner worksheet covers the exact real WhatsApp Top-50 in rank order", () => {
@@ -31,13 +34,14 @@ test("owner worksheet covers the exact real WhatsApp Top-50 in rank order", () =
   assert.equal(sections.length, 50);
   assert.equal(new Set(sections.map((section) => section.intent)).size, 50);
   assert.deepEqual(
-    sections.map(({ rank, intent }) => ({ rank, intent })),
+    sections.map(({ rank, intent, clientQuestion }) => ({ rank, intent, clientQuestion })),
     rankedIntents,
   );
 });
 
 test("every draft has the required owner-review fields", () => {
   for (const section of parseWorksheetSections(worksheet)) {
+    assert.match(section.body, /- \*\*Вопрос клиента:\*\* .+/u, `${section.intent}: client question`);
     assert.match(section.body, /- \*\*Цель:\*\* .+/u, `${section.intent}: goal`);
     assert.match(section.body, /- \*\*Рекомендуемый ответ:\*\* .+/u, `${section.intent}: answer`);
     assert.match(section.body, /- \*\*Обязательные вопросы:\*\* .+/u, `${section.intent}: questions`);

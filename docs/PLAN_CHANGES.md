@@ -6600,6 +6600,13 @@ Change type: release-candidate identity, image provenance and execution order
 - Extend the closed manifest/tooling before construction, use distinct
   `-linux-amd64` tags, inspect architecture and OCI revision both locally and
   on Hermes, and require real disabled-provider smoke checks.
+- Retain one mode-`0600` SPDX-JSON SBOM per exact image, generated locally by
+  `docker sbom`, bound by image ID/tool version/SHA-256 and screened before it
+  enters the safe evidence index. Uploading SBOMs or images is not authorized.
+- Run each real image with network mode `none` and the exact closed disabled
+  settings, then execute only its dependency-free loopback liveness route from
+  inside the container. This proves process/architecture compatibility without
+  a mock dependency or any provider/customer call; it is not readiness proof.
 - Redo deterministic candidate evidence, P8C reconciliation, independent
   review and exact-head/exact-main CI before a fresh action-time P8D window.
 - Preserve every P8D safety boundary: no WAHA/Caddy/DNS/session/QR mutation,

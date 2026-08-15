@@ -47,15 +47,56 @@ and deployment but may not be substituted for the application source identity.
    detached source tree. Record the real command outcome and build log for each
    image. Do not use a registry/cloud builder or billed service.
 4. Require each loaded image to report `Os=linux`, `Architecture=amd64`, an
-   empty variant and the exact application revision label. Require a real
-   container/process smoke check for each image with all provider-write and
-   autonomous-send paths disabled.
-5. Generate a new deterministic manifest/evidence index. The old ARM64 evidence
+   empty variant and the exact application revision label.
+5. Generate one SPDX-JSON SBOM per exact image with the locally installed
+   `docker sbom`/Syft provider. Record tool versions, image ID, command, file
+   SHA-256 and successful exit in closed per-image evidence. SBOM files remain
+   mode `0600` under ignored `.evo-release-evidence/`; they may contain package
+   and image filesystem metadata but must pass the existing secret/customer
+   data rejection before indexing. No SBOM is uploaded to a registry/service.
+6. Generate a new deterministic manifest/evidence index. The old ARM64 evidence
    remains retained history and is never relabelled as AMD64 evidence.
 
 BuildKit emulation is accepted only as a construction mechanism. A successful
 build is not deployment proof; Hermes must independently inspect the transferred
 images as `linux/amd64` before any container recreation.
+
+## Exact provider-disabled smoke procedure
+
+The smoke gate proves that the real image starts and serves its intentionally
+dependency-free liveness route on the target instruction set. It does not claim
+Supabase, WAHA, Gemini or amoCRM readiness. No mock server or substitute
+dependency is used.
+
+For each exact loaded image, start a new disposable container with Docker
+network mode `none`, no mounts, no customer data and no provider credentials.
+Use a unique container name and remove it after evidence capture. Inspect the
+container image ID and platform before starting it, wait only for its bounded
+health deadline, and run the liveness request inside that same container:
+
+- CRM: port `3000`, `GET http://127.0.0.1:3000/api/health`, exact safe JSON
+  `{ok:true,status:"live",service:"evo-crm"}` and HTTP `200`.
+- Inbox: port `3000`, `GET http://127.0.0.1:3000/api/health`, exact safe JSON
+  `{ok:true,status:"live",service:"evo-inbox-companion"}` and HTTP `200`.
+- Lead Agent: port `8000`, `GET http://127.0.0.1:8000/health`, HTTP `200`,
+  `ok:true`, `status:"live"`, `frozen:true`, and `ready:false`.
+
+CRM receives the complete closed P8D Main CRM disabled matrix from
+`docs/platform/p8d-disabled-deployment.md`; the kill switch remains `1` and
+P7B observability remains enabled with a new process-only smoke HMAC value.
+Lead Agent receives exact `EVO_AGENT_FROZEN=true`,
+`EVO_AGENT_WORKER_ENABLED=false`, `EVO_AGENT_OUTBOUND_ENABLED=false`, and
+`EVO_AGENT_AUTOREPLY_ENABLED=false`. Inbox receives
+`EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=1` plus a distinct process-only smoke
+HMAC value. Values exist only in the container process and are never retained.
+
+The container must remain running with restart count zero through the check.
+Evidence records image ID, platform, fixed service/route/result codes, start and
+finish times, exit status, restart count and a SHA-256 of the redacted log. It
+must not record environment values, container inspect environment, arbitrary
+logs, tokens, URLs, request contents or filesystem data. Any outbound network
+requirement, non-liveness call, timeout, crash, restart, wrong JSON/platform or
+secret-like evidence fails the candidate.
 
 ## Validation and review order
 
@@ -64,8 +105,8 @@ images as `linux/amd64` before any container recreation.
 2. Implement platform-aware manifest/schema/tests in a separate PR; independent
    review, exact-head CI and exact-main CI are mandatory.
 3. Build the real three-image P8B2 candidate on OrbStack, retain evidence, and
-   commit only safe deterministic metadata/tooling changes. Secrets and build
-   arguments remain process-only.
+   generate the three exact SBOMs; commit only safe deterministic
+   metadata/tooling changes. Secrets and build arguments remain process-only.
 4. Redo P8C environment reconciliation using the P8B2 image IDs and platform
    fields.
 5. Ask for a fresh action-time deployment window after every candidate identity
@@ -81,4 +122,3 @@ not authorize WAHA container/session/webhook/QR changes, Caddy or DNS changes,
 WhatsApp sends, Gemini customer-content calls, amoCRM reads/writes, autonomous
 send, Supabase schema/data writes, customer-record inspection, billed resources
 or removal of rollback artifacts.
-

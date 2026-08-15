@@ -4,7 +4,7 @@
   "title": "EVO P8 candidate manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["base_commit", "candidate_commit", "evidence_index", "generated_at", "images", "runtime_settings", "schema_version"],
+  "required": ["base_commit", "candidate_commit", "evidence_index", "generated_at", "images", "release_control_commit", "runtime_settings", "schema_version", "target_platform"],
   "properties": {
     "base_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "candidate_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
@@ -27,6 +27,7 @@
         "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
       }
     },
+    "release_control_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "runtime_settings": {
       "type": "object",
       "additionalProperties": false,
@@ -36,6 +37,16 @@
         "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
       }
     },
-    "schema_version": { "const": 1 }
+    "schema_version": { "const": 2 },
+    "target_platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["architecture", "os", "variant"],
+      "properties": {
+        "architecture": { "const": "amd64" },
+        "os": { "const": "linux" },
+        "variant": { "const": "" }
+      }
+    }
   }
 }

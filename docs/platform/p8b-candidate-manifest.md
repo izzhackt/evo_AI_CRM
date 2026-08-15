@@ -6,8 +6,10 @@ Platform runtime flag.
 
 ## Preconditions
 
-Use a clean branch checkout at the exact reviewed candidate commit. The base
-must be the exact accepted `origin/main` commit. On macOS, verify the only
+Use two clean checkouts: the current release-control checkout containing this
+tool, and a detached application-source checkout at the frozen candidate. The
+application base is its exact parent `5c948aa8e6b8de402523ccd949a67001a7275f68`;
+it is not current `origin/main`. On macOS, verify the only
 permitted container runtime before any build:
 
 ```bash
@@ -25,36 +27,27 @@ evidence root, with both exact commits in every log header:
 
 ```bash
 export EVO_RELEASE_REVISION='<full-candidate-sha>'
-export EVO_P8_BASE_COMMIT='<full-origin-main-sha>'
+export EVO_P8_SOURCE_ROOT='/absolute/clean/detached/source-worktree'
+export EVO_P8_BASE_COMMIT='5c948aa8e6b8de402523ccd949a67001a7275f68'
+export EVO_P8_RELEASE_CONTROL_COMMIT="$(git rev-parse HEAD)"
 export EVO_RELEASE_VERSION='<candidate-name>'
 export EVO_IMAGE_SOURCE='https://github.com/izzhackt/evo_AI_CRM'
-export EVO_CADDY_NETWORK='evo_public_web'
-export EVO_WAHA_IMAGE_DIGEST='sha256:f3c33e8e70a78eb37af4f4e2eb655849d42d8ffdc4b8254f9de38069e906a146'
-export EVO_P8_BUILD_EVIDENCE="$PWD/.evo-release-evidence/p8b-input-$EVO_RELEASE_REVISION"
-mkdir -p "$EVO_P8_BUILD_EVIDENCE"
-chmod 0700 "$PWD/.evo-release-evidence" "$EVO_P8_BUILD_EVIDENCE"
+export NEXT_PUBLIC_SUPABASE_URL='<process-only-real-managed-url>'
+export NEXT_PUBLIC_SUPABASE_ANON_KEY='<process-only-real-publishable-key>'
+export NEXT_PUBLIC_SITE_URL='https://inbox.evoadmissions.com'
 
-printf 'base_commit=%s\ncandidate_commit=%s\n' "$EVO_P8_BASE_COMMIT" "$EVO_RELEASE_REVISION" \
-  > "$EVO_P8_BUILD_EVIDENCE/build-crm.log"
-docker compose -p evo-crm -f docker-compose.prod.yml build app lead-agent \
-  >> "$EVO_P8_BUILD_EVIDENCE/build-crm.log" 2>&1
-printf 'exit_code=0\n' >> "$EVO_P8_BUILD_EVIDENCE/build-crm.log"
-
-printf 'base_commit=%s\ncandidate_commit=%s\n' "$EVO_P8_BASE_COMMIT" "$EVO_RELEASE_REVISION" \
-  > "$EVO_P8_BUILD_EVIDENCE/build-inbox.log"
-docker compose -p evo-inbox \
-  --env-file agent-lead2-inbox/deploy/env.production.example \
-  -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml build app \
-  >> "$EVO_P8_BUILD_EVIDENCE/build-inbox.log" 2>&1
-printf 'exit_code=0\n' >> "$EVO_P8_BUILD_EVIDENCE/build-inbox.log"
-chmod 0600 "$EVO_P8_BUILD_EVIDENCE"/*
+EVO_P8_BUILD_EVIDENCE="$(scripts/p8b2-build-amd64.sh)"
+export EVO_P8_BUILD_EVIDENCE
 ```
 
-The generator itself runs real `docker image inspect` against
-`evo-crm:$EVO_RELEASE_REVISION`, `evo-inbox:$EVO_RELEASE_REVISION` and
-`evo-lead-agent:$EVO_RELEASE_REVISION`. Each image ID must be a full content
-digest and each OCI `org.opencontainers.image.revision` label must equal the
-candidate commit. The retained output records the inspected ID, tag, revision
+The P8B2 generator runs real `docker image inspect` against
+`evo-crm:$EVO_RELEASE_REVISION-linux-amd64`,
+`evo-inbox:$EVO_RELEASE_REVISION-linux-amd64` and
+`evo-lead-agent:$EVO_RELEASE_REVISION-linux-amd64`. Each image ID must be a full
+content digest, each OCI `org.opencontainers.image.revision` label must equal
+the candidate commit, and the inspect result must be exact `Os=linux`,
+`Architecture=amd64`, `Variant=""`. The retained output records the inspected
+ID, platform, tag, revision
 and a per-image build record containing the exact successful Compose marker and
 SHA-256 of its corresponding build log. A pre-existing image without that exact
 retained marker fails. Do not supply digest JSON and do not rebuild after
@@ -95,16 +88,23 @@ Use an explicit UTC timestamp so identical inputs produce identical output:
 npm run p8:candidate -- \
   --base "$EVO_P8_BASE_COMMIT" \
   --commit "$EVO_RELEASE_REVISION" \
+  --release-control '<exact-current-main-sha>' \
+  --source-root '/absolute/clean/detached/source-worktree' \
   --timestamp '<ISO-8601-UTC-timestamp>' \
   --build-evidence-dir "$EVO_P8_BUILD_EVIDENCE" \
   --validations '/absolute/repo/.evo-release-evidence/.../validations.json' \
   --output-dir ".evo-release-evidence/$EVO_RELEASE_REVISION"
 ```
 
-Build, validation and output paths must all be beneath this repository's
+Run the command from the clean exact release-control checkout. `--source-root`
+must be a separate clean detached checkout at the frozen application commit;
+the generator binds both Git identities and its own SHA-256. Build, validation
+and output paths must all be beneath the source checkout's
 `.evo-release-evidence/` directory, and the output directory must not already
 exist. It is ignored by Git and contains mode `0600` JSON evidence,
-`evidence-index.json`, and `candidate-manifest.json`. The command fails closed
+`evidence-index.json`, and `candidate-manifest.json`. Candidate manifest schema
+version 2 records the closed target platform; `image-identity.json` is closed by
+[p8-image-identity.schema.json](../schemas/p8-image-identity.schema.json). The command fails closed
 on a dirty checkout, a different `HEAD`, a migration range other than contiguous
 `001-072`, a missing reviewed configuration file, a non-OrbStack Docker context,
 a missing or mislabeled candidate image, an unbound/unsafe retained log, or an

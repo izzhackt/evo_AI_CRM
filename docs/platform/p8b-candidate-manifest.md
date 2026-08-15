@@ -6,8 +6,10 @@ Platform runtime flag.
 
 ## Preconditions
 
-Use a clean branch checkout at the exact reviewed candidate commit. The base
-must be the exact accepted `origin/main` commit. On macOS, verify the only
+Use two clean checkouts: the current release-control checkout containing this
+tool, and a detached application-source checkout at the frozen candidate. The
+application base is its exact parent `5c948aa8e6b8de402523ccd949a67001a7275f68`;
+it is not current `origin/main`. On macOS, verify the only
 permitted container runtime before any build:
 
 ```bash
@@ -25,52 +27,17 @@ evidence root, with both exact commits in every log header:
 
 ```bash
 export EVO_RELEASE_REVISION='<full-candidate-sha>'
-export EVO_P8_BASE_COMMIT='<full-origin-main-sha>'
+export EVO_P8_SOURCE_ROOT='/absolute/clean/detached/source-worktree'
+export EVO_P8_BASE_COMMIT='5c948aa8e6b8de402523ccd949a67001a7275f68'
+export EVO_P8_RELEASE_CONTROL_COMMIT="$(git rev-parse HEAD)"
 export EVO_RELEASE_VERSION='<candidate-name>'
 export EVO_IMAGE_SOURCE='https://github.com/izzhackt/evo_AI_CRM'
-export EVO_P8_BUILD_EVIDENCE="$PWD/.evo-release-evidence/p8b-input-$EVO_RELEASE_REVISION"
-mkdir -p "$EVO_P8_BUILD_EVIDENCE"
-chmod 0700 "$PWD/.evo-release-evidence" "$EVO_P8_BUILD_EVIDENCE"
+export NEXT_PUBLIC_SUPABASE_URL='<process-only-real-managed-url>'
+export NEXT_PUBLIC_SUPABASE_ANON_KEY='<process-only-real-publishable-key>'
+export NEXT_PUBLIC_SITE_URL='https://inbox.evoadmissions.com'
 
-printf 'base_commit=%s\ncandidate_commit=%s\n' "$EVO_P8_BASE_COMMIT" "$EVO_RELEASE_REVISION" \
-  > "$EVO_P8_BUILD_EVIDENCE/build-crm.log"
-docker buildx build --platform linux/amd64 --load \
-  --build-arg "EVO_IMAGE_SOURCE=$EVO_IMAGE_SOURCE" \
-  --build-arg "EVO_IMAGE_REVISION=$EVO_RELEASE_REVISION" \
-  --build-arg "EVO_IMAGE_VERSION=$EVO_RELEASE_VERSION" \
-  --tag "evo-crm:$EVO_RELEASE_REVISION-linux-amd64" . \
-  >> "$EVO_P8_BUILD_EVIDENCE/build-crm.log" 2>&1
-printf 'Image evo-crm:%s-linux-amd64 Built\n' "$EVO_RELEASE_REVISION" \
-  >> "$EVO_P8_BUILD_EVIDENCE/build-crm.log"
-printf 'exit_code=0\n' >> "$EVO_P8_BUILD_EVIDENCE/build-crm.log"
-
-printf 'base_commit=%s\ncandidate_commit=%s\n' "$EVO_P8_BASE_COMMIT" "$EVO_RELEASE_REVISION" \
-  > "$EVO_P8_BUILD_EVIDENCE/build-inbox.log"
-docker buildx build --platform linux/amd64 --load \
-  --build-arg "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
-  --build-arg "NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
-  --build-arg "NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL" \
-  --build-arg "EVO_IMAGE_SOURCE=$EVO_IMAGE_SOURCE" \
-  --build-arg "EVO_IMAGE_REVISION=$EVO_RELEASE_REVISION" \
-  --build-arg "EVO_IMAGE_VERSION=$EVO_RELEASE_VERSION" \
-  --tag "evo-inbox:$EVO_RELEASE_REVISION-linux-amd64" agent-lead2-inbox \
-  >> "$EVO_P8_BUILD_EVIDENCE/build-inbox.log" 2>&1
-printf 'Image evo-inbox:%s-linux-amd64 Built\n' "$EVO_RELEASE_REVISION" \
-  >> "$EVO_P8_BUILD_EVIDENCE/build-inbox.log"
-printf 'exit_code=0\n' >> "$EVO_P8_BUILD_EVIDENCE/build-inbox.log"
-
-printf 'base_commit=%s\ncandidate_commit=%s\n' "$EVO_P8_BASE_COMMIT" "$EVO_RELEASE_REVISION" \
-  > "$EVO_P8_BUILD_EVIDENCE/build-lead-agent.log"
-docker buildx build --platform linux/amd64 --load \
-  --build-arg "EVO_IMAGE_SOURCE=$EVO_IMAGE_SOURCE" \
-  --build-arg "EVO_IMAGE_REVISION=$EVO_RELEASE_REVISION" \
-  --build-arg "EVO_IMAGE_VERSION=$EVO_RELEASE_VERSION" \
-  --tag "evo-lead-agent:$EVO_RELEASE_REVISION-linux-amd64" evo-lead-agent \
-  >> "$EVO_P8_BUILD_EVIDENCE/build-lead-agent.log" 2>&1
-printf 'Image evo-lead-agent:%s-linux-amd64 Built\n' "$EVO_RELEASE_REVISION" \
-  >> "$EVO_P8_BUILD_EVIDENCE/build-lead-agent.log"
-printf 'exit_code=0\n' >> "$EVO_P8_BUILD_EVIDENCE/build-lead-agent.log"
-chmod 0600 "$EVO_P8_BUILD_EVIDENCE"/*
+EVO_P8_BUILD_EVIDENCE="$(scripts/p8b2-build-amd64.sh)"
+export EVO_P8_BUILD_EVIDENCE
 ```
 
 The P8B2 generator runs real `docker image inspect` against

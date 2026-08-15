@@ -110,21 +110,45 @@ export function validateImageInspection(inspected, { candidateCommit, tag }) {
 }
 
 export function validateImageEvidence(value) {
-  assertExactKeys(value, ["base_commit", "build_records", "candidate_commit", "images"], "image evidence");
+  assertExactKeys(value, ["base_commit", "build_records", "candidate_commit", "images", "release_control_commit"], "image evidence");
   if (!Array.isArray(value.build_records) || value.build_records.length !== 3) {
     fail("image evidence must contain exactly 3 build records");
   }
   if (!Array.isArray(value.images) || value.images.length !== 3) {
     fail("image evidence must contain exactly 3 images");
   }
+  const seenTags = new Set();
+  const seenLogs = new Set();
+  const seenDigests = new Set();
   for (const [index, record] of value.build_records.entries()) {
+    const spec = IMAGE_SPECS[index];
     assertExactKeys(
       record,
-      ["base_commit", "candidate_commit", "image_name", "image_tag", "log_name", "log_sha256", "result_marker"],
+      ["base_commit", "candidate_commit", "image_name", "image_tag", "log_name", "log_sha256", "release_control_commit", "result_marker"],
       `image build record ${index}`,
     );
+    const expectedTag = `${spec.tagPrefix}:${value.candidate_commit}-linux-amd64`;
+    if (
+      record.base_commit !== value.base_commit
+      || record.candidate_commit !== value.candidate_commit
+      || record.image_name !== spec.name
+      || record.image_tag !== expectedTag
+      || record.log_name !== spec.buildLog
+      || record.release_control_commit !== value.release_control_commit
+      || record.result_marker !== `Image ${expectedTag} Built`
+      || !/^[0-9a-f]{64}$/.test(record.log_sha256)
+    ) {
+      fail(`image build record ${index} is not bound to its exact source image`);
+    }
+    if (seenTags.has(record.image_tag) || seenLogs.has(record.log_name)) {
+      fail("image build records must use distinct tags and logs");
+    }
+    seenTags.add(record.image_tag);
+    seenLogs.add(record.log_name);
   }
   for (const [index, image] of value.images.entries()) {
+    const spec = IMAGE_SPECS[index];
+    const record = value.build_records[index];
     assertExactKeys(
       image,
       ["build_record", "digest", "name", "platform", "revision", "source", "tag", "version"],
@@ -134,6 +158,17 @@ export function validateImageEvidence(value) {
     if (stableJson(image.platform) !== stableJson(P8B2_TARGET_PLATFORM)) {
       fail(`image ${index} platform must be exactly linux/amd64 with no variant`);
     }
+    if (
+      image.name !== spec.name
+      || image.tag !== record.image_tag
+      || image.revision !== value.candidate_commit
+      || stableJson(image.build_record) !== stableJson(record)
+      || !DIGEST_PATTERN.test(image.digest)
+    ) {
+      fail(`image ${index} is not bound one-to-one to its exact build record`);
+    }
+    if (seenDigests.has(image.digest)) fail("candidate images must have distinct immutable IDs");
+    seenDigests.add(image.digest);
   }
   return value;
 }
@@ -242,6 +277,23 @@ export function validateReleaseControlIdentity(toolRoot, releaseControlCommit) {
   if (git(toolRoot, ["status", "--porcelain=v1", "--untracked-files=all"])) {
     fail("release-control repository must be clean");
   }
+}
+
+export function validateCandidateRepositories({
+  baseCommit,
+  candidateCommit,
+  releaseControlCommit,
+  sourceRoot,
+  toolRoot,
+}) {
+  validateGitIdentity(sourceRoot, { baseCommit, candidateCommit });
+  if (git(sourceRoot, ["rev-parse", "HEAD"]) !== candidateCommit) {
+    fail("candidate commit does not match source HEAD");
+  }
+  if (git(sourceRoot, ["status", "--porcelain=v1", "--untracked-files=all"])) {
+    fail("candidate source repository must be clean");
+  }
+  validateReleaseControlIdentity(toolRoot, releaseControlCommit);
 }
 
 export function resolveEvidencePath(repoRoot, path, label) {
@@ -367,7 +419,7 @@ export function validateValidationRecords(records, { baseCommit, candidateCommit
   });
 }
 
-export function collectBuildRecords({ baseCommit, buildEvidenceDir, candidateCommit }) {
+export function collectBuildRecords({ baseCommit, buildEvidenceDir, candidateCommit, releaseControlCommit }) {
   const buildDirectory = resolve(buildEvidenceDir);
   requireMode(buildDirectory, 0o700, "build evidence directory");
   const logs = new Map();
@@ -377,10 +429,13 @@ export function collectBuildRecords({ baseCommit, buildEvidenceDir, candidateCom
     requireMode(path, 0o600, name);
     const content = readFileSync(path, "utf8");
     assertSafeMetadata(content, name);
-    if (!content.includes(candidateCommit) || !content.includes(baseCommit)) {
-      fail(`${name} is not bound to the exact base and candidate commits`);
+    if (!content.includes(candidateCommit) || !content.includes(baseCommit) || !content.includes(releaseControlCommit)) {
+      fail(`${name} is not bound to the exact base, candidate and release-control commits`);
     }
-    if (!content.includes("exit_code=0")) fail(`${name} does not record a successful build exit`);
+    const exitLines = content.split("\n").filter((line) => line.startsWith("exit_code="));
+    if (stableJson(exitLines) !== stableJson(["exit_code=0"])) {
+      fail(`${name} does not record exactly one successful build exit`);
+    }
     logs.set(name, { content, sha256: sha256File(path) });
   }
   return IMAGE_SPECS.map((spec) => {
@@ -395,16 +450,17 @@ export function collectBuildRecords({ baseCommit, buildEvidenceDir, candidateCom
       image_tag: imageTag,
       log_name: spec.buildLog,
       log_sha256: log.sha256,
+      release_control_commit: releaseControlCommit,
       result_marker: resultMarker,
     };
   });
 }
 
-function collectImageEvidence({ baseCommit, buildEvidenceDir, candidateCommit }) {
+function collectImageEvidence({ baseCommit, buildEvidenceDir, candidateCommit, releaseControlCommit }) {
   if (execFileSync("docker", ["context", "show"], { encoding: "utf8" }).trim() !== "orbstack") {
     fail("Docker context must be exactly orbstack");
   }
-  const buildRecords = collectBuildRecords({ baseCommit, buildEvidenceDir, candidateCommit });
+  const buildRecords = collectBuildRecords({ baseCommit, buildEvidenceDir, candidateCommit, releaseControlCommit });
   const images = IMAGE_SPECS.map((spec) => {
     const tag = `${spec.tagPrefix}:${candidateCommit}-linux-amd64`;
     const buildRecord = buildRecords.find((record) => record.image_name === spec.name);
@@ -421,7 +477,13 @@ function collectImageEvidence({ baseCommit, buildEvidenceDir, candidateCommit })
       version: identity.version,
     };
   });
-  const evidence = { base_commit: baseCommit, build_records: buildRecords, candidate_commit: candidateCommit, images };
+  const evidence = {
+    base_commit: baseCommit,
+    build_records: buildRecords,
+    candidate_commit: candidateCommit,
+    images,
+    release_control_commit: releaseControlCommit,
+  };
   validateImageEvidence(evidence);
   assertSafeMetadata(evidence, "image evidence");
   return evidence;
@@ -450,10 +512,13 @@ export function createCandidateManifest({
   if (![candidateCommit, baseCommit, releaseControlCommit].every((value) => SHA_PATTERN.test(value))) {
     fail("commits must be full lowercase Git SHAs");
   }
-  validateGitIdentity(root, { baseCommit, candidateCommit });
-  if (git(root, ["rev-parse", "HEAD"]) !== candidateCommit) fail("candidate commit does not match HEAD");
-  if (git(root, ["status", "--porcelain=v1", "--untracked-files=all"])) fail("candidate repository must be clean");
-  validateReleaseControlIdentity(controlRoot, releaseControlCommit);
+  validateCandidateRepositories({
+    baseCommit,
+    candidateCommit,
+    releaseControlCommit,
+    sourceRoot: root,
+    toolRoot: controlRoot,
+  });
   if (existsSync(output)) fail("output directory must not already exist");
 
   requireMode(validations, 0o600, "validations file");
@@ -462,7 +527,7 @@ export function createCandidateManifest({
     candidateCommit,
     repoRoot: root,
   });
-  const images = collectImageEvidence({ baseCommit, buildEvidenceDir: builds, candidateCommit });
+  const images = collectImageEvidence({ baseCommit, buildEvidenceDir: builds, candidateCommit, releaseControlCommit });
   const migrations = collectMigrationInventory(root);
   const configuration = CONFIG_FILES.map((path) => ({ path, sha256: sha256File(join(root, path)) }));
   const runtimeSettings = collectRuntimeSettingInventory(root);

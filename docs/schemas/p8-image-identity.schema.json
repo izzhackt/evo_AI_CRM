@@ -4,21 +4,34 @@
   "title": "EVO P8B2 image identity evidence",
   "type": "object",
   "additionalProperties": false,
-  "required": ["base_commit", "build_records", "candidate_commit", "images"],
+  "required": ["base_commit", "build_records", "candidate_commit", "images", "release_control_commit"],
   "properties": {
     "base_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "candidate_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "release_control_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "build_records": {
       "type": "array",
       "minItems": 3,
       "maxItems": 3,
-      "items": { "$ref": "#/$defs/build_record" }
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/build_record" },
+      "allOf": [
+        { "contains": { "type": "object", "required": ["image_name"], "properties": { "image_name": { "const": "main_crm" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["image_name"], "properties": { "image_name": { "const": "evo_inbox" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["image_name"], "properties": { "image_name": { "const": "lead_agent" } } }, "minContains": 1, "maxContains": 1 }
+      ]
     },
     "images": {
       "type": "array",
       "minItems": 3,
       "maxItems": 3,
-      "items": { "$ref": "#/$defs/image" }
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/image" },
+      "allOf": [
+        { "contains": { "type": "object", "required": ["name"], "properties": { "name": { "const": "main_crm" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["name"], "properties": { "name": { "const": "evo_inbox" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["name"], "properties": { "name": { "const": "lead_agent" } } }, "minContains": 1, "maxContains": 1 }
+      ]
     }
   },
   "$defs": {
@@ -35,7 +48,7 @@
     "build_record": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["base_commit", "candidate_commit", "image_name", "image_tag", "log_name", "log_sha256", "result_marker"],
+      "required": ["base_commit", "candidate_commit", "image_name", "image_tag", "log_name", "log_sha256", "release_control_commit", "result_marker"],
       "properties": {
         "base_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "candidate_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
@@ -43,6 +56,7 @@
         "image_tag": { "type": "string", "pattern": "^evo-(crm|inbox|lead-agent):[0-9a-f]{40}-linux-amd64$" },
         "log_name": { "type": "string" },
         "log_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "release_control_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "result_marker": { "type": "string" }
       }
     },

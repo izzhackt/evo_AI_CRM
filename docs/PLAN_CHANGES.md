@@ -6665,3 +6665,54 @@ approved source to the exact non-symlink approved child of the marked internal
 root, validate raw path components before resolve, and require exact typed
 authority-reference frontmatter. Resolve and read every managed stale candidate
 before the first output write so all input failures preserve zero mutation.
+
+## 2026-08-15 - Build the Lead Agent real-message golden evaluation lane
+
+Plan Block-ID: `EVO-LEAD-AGENT-REAL-WHATSAPP-GOLDEN-EVAL-2026-08-15`
+
+Issue: #194
+
+Change type: evaluation, prompt-governance and privacy contract
+
+### Decision
+
+- Treat the current Lead Agent prompts as safety/qualification baselines, not
+  proof of human-quality consultative selling. No prompt is sales-ready until
+  it passes an owner-approved real-message golden evaluation and controlled
+  real-provider draft proof.
+- Derive the first Top-50 intent inventory only from the protected EVO WhatsApp
+  archive. Eligible source rows are real inbound, non-group, non-system text
+  messages. Exclude staff-authored, media-only, empty, system, status and
+  obvious non-lead noise before analysis.
+- Keep raw messages, chat/message/provider identifiers, phone numbers, names,
+  email addresses, media and surrounding personal context outside Git with
+  owner-only permissions. Committed cases contain generalized questions,
+  aggregate counts and non-reversible source-set hashes only; never verbatim
+  customer excerpts or one-customer provenance.
+- Separate dataset discovery from answer authoring. Block A produces draft
+  intent/question candidates and frequency evidence. Block B requires explicit
+  owner approval of each desired answer, allowed knowledge sources,
+  qualification goal, CTA, forbidden claims and handoff conditions. A draft
+  case is never a golden answer.
+- Evaluate factual grounding, source use, privacy, language, natural WhatsApp
+  tone, discovery quality, value communication, objection handling, one useful
+  next step, non-manipulation and correct handoff as separate dimensions. A
+  high aggregate score cannot hide a factual, privacy, guarantee or handoff
+  failure.
+- Version prompts and datasets independently. Compare the existing baseline
+  with a candidate prompt on the same sealed approved cases; do not tune on the
+  held-out acceptance split or expose desired answers to the response runner.
+- This lane performs no WhatsApp send, provider/customer-data request, amoCRM
+  write, knowledge-vault mutation, deployment or runtime-flag activation. The
+  active knowledge-publication and linux/amd64 release lanes retain ownership
+  of their files and production actions.
+
+### Delivery blocks
+
+1. Add deterministic privacy-preserving extraction and Top-50 candidate
+   generation with private evidence from the real archive.
+2. Review and approve desired answers and per-case rubrics with the EVO owner.
+3. Implement the versioned consultative-sales prompt and blind baseline versus
+   candidate evaluation harness.
+4. Run an explicitly authorized real Gemini draft evaluation, followed later
+   by a separately authorized controlled production-conversation proof.

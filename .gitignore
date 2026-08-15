@@ -54,6 +54,7 @@ data/
 # local reference/prototype copies
 /.twenty-reference/
 /evo_website/
+/.evo-private-eval/
 
 # Private company originals. Keep the tracked README and safe manifest only.
 /docs/company/private-source-documents/*.pdf

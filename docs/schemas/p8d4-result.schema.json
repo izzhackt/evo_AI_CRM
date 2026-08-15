@@ -14,9 +14,9 @@
       "type": "object", "additionalProperties": false,
       "required": ["source_commit", "tree", "ci_run", "platform"],
       "properties": {
-        "source_commit": { "const": "7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a" },
-        "tree": { "const": "d9b170396364a8dcf0efcd28779fc416c8c2f65e" },
-        "ci_run": { "const": 31900296274 },
+        "source_commit": { "const": "d5657acc6c1df1abc790a96778ca71df36687b24" },
+        "tree": { "const": "9dfe44fd1c477a9a4af823ba2a37bdb398878919" },
+        "ci_run": { "const": 31902903078 },
         "platform": { "const": "linux/amd64" }
       }
     },
@@ -25,7 +25,7 @@
       "required": ["before", "after", "status"],
       "properties": {
         "before": { "type": "string", "pattern": "^001-[0-9]{3}$" },
-        "after": { "enum": ["001-075", null] },
+        "after": { "enum": ["001-076", null] },
         "status": { "enum": ["verified", "not_run", "failed"] }
       }
     },
@@ -112,7 +112,7 @@
     "if": { "properties": { "result_code": { "const": "pilot_verified" } } },
     "then": {
       "properties": {
-        "migrations": { "properties": { "before": { "enum": ["001-072", "001-073", "001-074", "001-075"] }, "after": { "const": "001-075" }, "status": { "const": "verified" } } },
+        "migrations": { "properties": { "before": { "enum": ["001-072", "001-073", "001-074", "001-075", "001-076"] }, "after": { "const": "001-076" }, "status": { "const": "verified" } } },
         "bundles": { "minItems": 2, "maxItems": 2, "prefixItems": [
           { "properties": { "audience": { "const": "client" }, "bundle_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "document_count": { "const": 10 }, "chunk_count": { "type": "integer", "minimum": 1 }, "status": { "const": "verified" } } },
           { "properties": { "audience": { "const": "internal" }, "bundle_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "document_count": { "const": 286 }, "chunk_count": { "type": "integer", "minimum": 1 }, "status": { "const": "verified" } } }

@@ -12,8 +12,8 @@ const image = `sha256:${hash}`;
 const containers = ["evo-inbox-app-1", "evo-crm-app-1", "evo-crm-lead-agent-1", "evo-crm-waha-1", "evo-inbox-waha"].map((name) => ({ name, healthy: true, restart_count: 0, status: "verified" }));
 const canonical = {
   schema_version: "p8d4-v1", result_code: "pilot_verified",
-  candidate: { source_commit: "7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a", tree: "d9b170396364a8dcf0efcd28779fc416c8c2f65e", ci_run: 31900296274, platform: "linux/amd64" },
-  migrations: { before: "001-075", after: "001-075", status: "verified" },
+  candidate: { source_commit: "d5657acc6c1df1abc790a96778ca71df36687b24", tree: "9dfe44fd1c477a9a4af823ba2a37bdb398878919", ci_run: 31902903078, platform: "linux/amd64" },
+  migrations: { before: "001-076", after: "001-076", status: "verified" },
   bundles: [{ audience: "client", bundle_sha256: hash, document_count: 10, chunk_count: 10, status: "verified" }, { audience: "internal", bundle_sha256: hash, document_count: 286, chunk_count: 286, status: "verified" }],
   images: [{ name: "main_crm", image_id: image, status: "verified" }, { name: "evo_inbox", image_id: image, status: "verified" }, { name: "lead_agent", image_id: image, status: "verified" }],
   containers_before: containers, containers_after: containers,
@@ -22,8 +22,8 @@ const canonical = {
 };
 
 test("P8D4 success evidence is exact and cannot use null identities", () => {
-  assert.deepEqual(success.migrations.properties.before.enum, ["001-072", "001-073", "001-074", "001-075"]);
-  assert.equal(success.migrations.properties.after.const, "001-075");
+  assert.deepEqual(success.migrations.properties.before.enum, ["001-072", "001-073", "001-074", "001-075", "001-076"]);
+  assert.equal(success.migrations.properties.after.const, "001-076");
   assert.deepEqual(success.bundles.prefixItems.map((entry) => entry.properties.document_count.const), [10, 286]);
   assert.ok(success.bundles.prefixItems.every((entry) => entry.properties.bundle_sha256.type === "string"));
   assert.ok(success.bundles.prefixItems.every((entry) => entry.properties.chunk_count.minimum === 1));
@@ -36,6 +36,10 @@ test("P8D4 success evidence is exact and cannot use null identities", () => {
 test("Draft 2020-12 validation rejects false success and contradictory failure", () => {
   assert.equal(validate(canonical), true, JSON.stringify(validate.errors));
   for (const mutate of [
+    (value) => { value.candidate.source_commit = "7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a"; },
+    (value) => { value.candidate.tree = "d9b170396364a8dcf0efcd28779fc416c8c2f65e"; },
+    (value) => { value.candidate.ci_run = 31900296274; },
+    (value) => { value.migrations.after = "001-075"; },
     (value) => { value.migrations.before = "001-999"; },
     (value) => { value.bundles[0].bundle_sha256 = null; },
     (value) => { value.bundles[0].document_count = null; },

@@ -28,10 +28,14 @@ knowledge-ingestion contract, PR #166 merged its deterministic Takeout
 preparation pipeline, PR #170 merged the real lead-processing proof plan, and
 PR #171 merged Codex review plus Obsidian publication. PR #169 merged the
 focused P7D accessibility contract, and PRs #172-#174 hardened the local
-knowledge-ingestion path.
-Current `origin/main` is `7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a`,
-migrations remain contiguous `001-075`, and exact-main push CI run
-`31900296274` is the exact-main push gate for Main CRM, EVO Inbox and EVO Lead Agent; Changed
+knowledge-ingestion path. PRs #208, #212 and #214 then merged knowledge
+audience isolation, atomic Obsidian bundle sync and audited staff assistants;
+PR #215 merged the P8D4 staff-pilot contract, PR #216 merged the supervised
+Lead Agent sales policy, and PR #218 unified Platform intake memory with the
+draft-only consultative-sales proposal path.
+Current `origin/main` is `d5657acc6c1df1abc790a96778ca71df36687b24`,
+migrations remain contiguous `001-076`, and exact-main push CI run
+`31902903078` is the exact-main push gate for Main CRM, EVO Inbox and EVO Lead Agent; Changed
 range is skipped on the push event as expected.
 
 P4B implementation is preserved on remote branch
@@ -54,7 +58,7 @@ Platform consolidation and retirement scope. The active next planning slice
 is P8A under `docs/platform/p8-controlled-release-candidate.md`. The owner
 deferred the large capacity stress test and approved a small-launch monitoring
 envelope plus focused human review on the exact P8 candidate.
-Updated 2026-08-14 in the workspace timezone.
+Updated 2026-08-16 in the workspace timezone.
 
 This document is the execution contract for the current EVO Platform MVP lane in
 this repo. The current detailed contract is

@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseJsonRejectingDuplicates } from "./p8-candidate-manifest.mjs";
+import { parseJsonRejectingDuplicates, validateImageEvidence } from "./p8-candidate-manifest.mjs";
 
 export { parseJsonRejectingDuplicates };
 
@@ -56,6 +56,19 @@ function utc(value, label) {
   return value;
 }
 function hash(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
+function validateP8EvidenceIndex(value, candidateCommit, label) {
+  const names = ["configuration_identity", "image_identity", "migration_identity", "repository_identity", "runtime_setting_inventory", "validation_identity"];
+  exactKeys(value, ["candidate_commit", "schema_version", "segments"], label);
+  if (value.schema_version !== 1 || value.candidate_commit !== candidateCommit) fail(`${label} candidate binding mismatch`);
+  exactKeys(value.segments, names, `${label} segments`);
+  for (const name of names) {
+    const segment = value.segments[name];
+    exactKeys(segment, ["candidate_commit", "evidence", "operation", "result", "status", "timestamp"], `${label} ${name}`);
+    exactKeys(segment.evidence, ["path", "sha256"], `${label} ${name} evidence`);
+    if (segment.candidate_commit !== candidateCommit || segment.status !== "verified" || typeof segment.operation !== "string" || !segment.operation || typeof segment.result !== "string" || !segment.result || !FILE_NAME.test(segment.evidence.path) || !SHA256.test(segment.evidence.sha256)) fail(`${label} contains a malformed or nonverified segment`);
+    utc(segment.timestamp, `${label} ${name} timestamp`);
+  }
+}
 function git(repoRoot, args) { return execFileSync("git", args, { cwd: repoRoot, encoding: "utf8" }).trim(); }
 function inside(root, path) { return path === root || path.startsWith(`${root}${sep}`); }
 function rejectSymlinkAncestors(baseRoot, targetPath, label) {
@@ -76,6 +89,17 @@ function safeFile(root, name) {
   const real = realpathSync(path);
   if (!inside(realpathSync(root), real)) fail(`evidence resolves outside evidence root: ${name}`);
   return real;
+}
+function readArtifact(root, path, label, parseJson = true) {
+  const resolved = resolve(path);
+  if (!inside(root, resolved)) fail(`${label} must be below the evidence root`);
+  rejectSymlinkAncestors(root, resolved, label);
+  const real = realpathSync(resolved);
+  if (!inside(realpathSync(root), real) || !lstatSync(real).isFile()) fail(`${label} must be a regular file below the evidence root`);
+  const bytes = readFileSync(real);
+  const text = bytes.toString("utf8");
+  if (SENSITIVE.some((pattern) => pattern.test(text))) fail(`${label} contains sensitive-looking content`);
+  return { hash: hash(bytes), path: real, value: parseJson ? parseJsonRejectingDuplicates(text, label) : undefined };
 }
 
 function validateEvidence(value, name, candidateCommit) {
@@ -115,12 +139,9 @@ function deriveSegmentStatus(checks) {
   return "verified";
 }
 
-export function createP8CReport({ candidateCommit, evidenceRoot, imageDigests, inputPath, mergedMainCommit, outputPath, p8bEvidenceIndexSha256, prNumber, repoRoot, timestamp }) {
+export function createP8CReport({ candidateCommit, candidateManifestPath, collectionIndexPath, evidenceIndexPath, evidenceRoot, inputPath, mergedMainCommit, outputPath, p8bEvidenceIndexPath, prNumber, repoRoot, timestamp }) {
   for (const [label, value] of [["candidate commit", candidateCommit], ["merged main commit", mergedMainCommit]]) if (!SHA.test(value)) fail(`${label} must be a full lowercase Git SHA`);
   if (!Number.isInteger(prNumber) || prNumber < 1) fail("PR number must be positive");
-  exactKeys(imageDigests, ["evo_inbox", "lead_agent", "main_crm"], "image digests");
-  for (const [name, digest] of Object.entries(imageDigests)) if (!DIGEST.test(digest)) fail(`${name} image digest is invalid`);
-  if (!SHA256.test(p8bEvidenceIndexSha256)) fail("P8B evidence-index SHA-256 is invalid");
   utc(timestamp, "timestamp");
   const root = realpathSync(resolve(repoRoot));
   const evidenceResolved = resolve(evidenceRoot);
@@ -128,6 +149,75 @@ export function createP8CReport({ candidateCommit, evidenceRoot, imageDigests, i
   rejectSymlinkAncestors(root, evidenceResolved, "evidence root");
   const evidence = realpathSync(evidenceResolved);
   if (!inside(root, evidence)) fail("evidence root must be inside the repository");
+  const p8bIndexArtifact = readArtifact(evidence, p8bEvidenceIndexPath, "P8B evidence index");
+  validateP8EvidenceIndex(p8bIndexArtifact.value, candidateCommit, "P8B evidence index");
+  const manifestArtifact = readArtifact(evidence, candidateManifestPath, "candidate manifest");
+  const manifest = manifestArtifact.value;
+  exactKeys(manifest, ["base_commit", "candidate_commit", "evidence_index", "generated_at", "images", "release_control_commit", "runtime_settings", "schema_version", "target_platform"], "candidate manifest");
+  exactKeys(manifest.target_platform, ["architecture", "os", "variant"], "candidate target platform");
+  if (manifest.schema_version !== 2 || manifest.candidate_commit !== candidateCommit || manifest.target_platform.os !== "linux" || manifest.target_platform.architecture !== "amd64" || manifest.target_platform.variant !== "") fail("candidate manifest does not bind the exact linux/amd64 candidate");
+  exactKeys(manifest.evidence_index, ["path", "sha256"], "candidate evidence index binding");
+  const indexArtifact = readArtifact(evidence, evidenceIndexPath, "candidate evidence index");
+  if (manifest.evidence_index.path !== "evidence-index.json" || resolve(dirname(manifestArtifact.path), manifest.evidence_index.path) !== indexArtifact.path || manifest.evidence_index.sha256 !== indexArtifact.hash) fail("candidate evidence index binding mismatch");
+  validateP8EvidenceIndex(indexArtifact.value, candidateCommit, "candidate evidence index");
+  const imageArtifact = readArtifact(evidence, resolve(dirname(manifestArtifact.path), manifest.images.path), "image identity");
+  if (manifest.images.sha256 !== imageArtifact.hash) fail("image identity binding mismatch");
+  const imageEvidence = imageArtifact.value;
+  validateImageEvidence(imageEvidence);
+  if (imageEvidence.candidate_commit !== candidateCommit || !Array.isArray(imageEvidence.images) || imageEvidence.images.length !== 3) fail("image identity candidate binding mismatch");
+  const expectedNames = ["evo_inbox", "lead_agent", "main_crm"];
+  const names = imageEvidence.images.map((item) => item.name).sort();
+  const ids = imageEvidence.images.map((item) => item.digest);
+  if (JSON.stringify(names) !== JSON.stringify(expectedNames) || new Set(ids).size !== 3 || ids.some((id) => !DIGEST.test(id))) fail("image identity must contain exactly three distinct candidate images");
+  for (const item of imageEvidence.images) {
+    exactKeys(item.platform, ["architecture", "os", "variant"], `${item.name} platform`);
+    if (item.revision !== candidateCommit || item.platform.os !== "linux" || item.platform.architecture !== "amd64" || item.platform.variant !== "") fail("image identity platform or revision mismatch");
+  }
+  const collectionArtifact = readArtifact(evidence, collectionIndexPath, "P8B2 collection index");
+  const collection = collectionArtifact.value;
+  exactKeys(collection, ["candidate_commit", "files", "schema_version"], "P8B2 collection index");
+  if (collection.schema_version !== 1 || collection.candidate_commit !== candidateCommit || !Array.isArray(collection.files)) fail("P8B2 collection index candidate binding mismatch");
+  const indexed = new Map();
+  for (const entry of collection.files) {
+    exactKeys(entry, ["file", "mode", "sha256"], "P8B2 collection entry");
+    if (indexed.has(entry.file) || !SHA256.test(entry.sha256)) fail("invalid P8B2 collection entry");
+    const artifact = readArtifact(evidence, resolve(dirname(collectionArtifact.path), entry.file), `P8B2 artifact ${entry.file}`, entry.file.endsWith(".json"));
+    if (entry.mode !== 600 || (lstatSync(artifact.path).mode & 0o777) !== 0o600) fail(`P8B2 collection mode mismatch: ${entry.file}`);
+    if (artifact.hash !== entry.sha256) fail(`P8B2 collection hash mismatch: ${entry.file}`);
+    indexed.set(entry.file, artifact);
+  }
+  for (const required of ["sbom-identity.json", "smoke-identity.json"]) if (!indexed.has(required)) fail(`P8B2 collection is missing ${required}`);
+  for (const identityName of ["sbom-identity.json", "smoke-identity.json"]) {
+    const identity = indexed.get(identityName).value;
+    exactKeys(identity, ["candidate_commit", "records", "schema_version"], identityName);
+    if (identity.schema_version !== 1 || identity.candidate_commit !== candidateCommit || !Array.isArray(identity.records) || identity.records.length !== 3) fail(`${identityName} candidate binding mismatch`);
+    const identitySpecs = [
+      { name: "main_crm", sbomFile: "sbom-crm.spdx.json", tag: `evo-crm:${candidateCommit}-linux-amd64`, route: "/api/health", smokeFile: "smoke-crm.log" },
+      { name: "evo_inbox", sbomFile: "sbom-inbox.spdx.json", tag: `evo-inbox:${candidateCommit}-linux-amd64`, route: "/api/health", smokeFile: "smoke-inbox.log" },
+      { name: "lead_agent", sbomFile: "sbom-lead-agent.spdx.json", tag: `evo-lead-agent:${candidateCommit}-linux-amd64`, route: "/health", smokeFile: "smoke-lead-agent.log" },
+    ];
+    for (const [recordIndex, record] of identity.records.entries()) {
+      const spec = identitySpecs[recordIndex];
+      if (identityName === "sbom-identity.json") {
+        exactKeys(record, ["command", "exit_code", "file", "file_sha256", "format", "image_id", "image_tag", "name", "platform", "tool"], "SBOM identity record");
+        exactKeys(record.platform, ["architecture", "os", "variant"], "SBOM identity platform");
+        if (record.name !== spec.name || record.image_tag !== spec.tag || record.file !== spec.sbomFile || !SHA256.test(record.file_sha256) || !/^docker-sbom [0-9]+\.[0-9]+\.[0-9]+$/.test(record.tool) || record.exit_code !== 0 || record.format !== "spdx-json" || record.command !== "docker sbom --format spdx-json <image-tag>" || record.platform.os !== "linux" || record.platform.architecture !== "amd64" || record.platform.variant !== "") fail("SBOM identity record violates its closed service schema");
+      } else {
+        exactKeys(record, ["exit_code", "finished_at", "image_id", "image_tag", "log_sha256", "name", "network", "platform", "restart_count", "result_code", "route", "started_at"], "smoke identity record");
+        const validDateTime = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(value) && !Number.isNaN(Date.parse(value));
+        if (record.name !== spec.name || record.image_tag !== spec.tag || record.route !== spec.route || !SHA256.test(record.log_sha256) || !validDateTime(record.started_at) || !validDateTime(record.finished_at) || record.exit_code !== 0 || record.restart_count !== 0 || record.network !== "none" || record.platform !== "linux/amd64" || record.result_code !== "liveness_verified") fail("smoke identity record violates its closed service schema");
+      }
+    }
+    const identityNames = identity.records.map((record) => record.name).sort();
+    const identityIds = identity.records.map((record) => record.image_id).sort();
+    if (JSON.stringify(identityNames) !== JSON.stringify(expectedNames) || JSON.stringify(identityIds) !== JSON.stringify([...ids].sort())) fail(`${identityName} image identity mismatch`);
+    for (const [recordIndex, record] of identity.records.entries()) {
+      const retainedName = identityName === "sbom-identity.json" ? record.file : identitySpecs[recordIndex].smokeFile;
+      const retainedHash = identityName === "sbom-identity.json" ? record.file_sha256 : record.log_sha256;
+      if (!indexed.has(retainedName) || indexed.get(retainedName).hash !== retainedHash) fail(`${identityName} retained artifact hash mismatch`);
+    }
+  }
+  const imageDigests = Object.fromEntries(imageEvidence.images.map((item) => [item.name, item.digest]));
   const inputResolved = resolve(inputPath);
   if (!inside(evidence, inputResolved)) fail("input must be a regular file below the evidence root");
   rejectSymlinkAncestors(evidence, inputResolved, "input");
@@ -169,10 +259,10 @@ export function createP8CReport({ candidateCommit, evidenceRoot, imageDigests, i
   if (prHeadTree !== mergedMainTree) fail("candidate PR head and merged main trees differ");
   git(root, ["merge-base", "--is-ancestor", mergedMainCommit, "origin/main"]);
   const report = {
-    candidate: { image_digests: imageDigests, merged_main_commit: mergedMainCommit, merged_main_tree: mergedMainTree, p8b_evidence_index_sha256: p8bEvidenceIndexSha256, pr_head_commit: candidateCommit, pr_head_tree: prHeadTree, pr_number: prNumber, trees_equal: true },
+    candidate: { candidate_evidence_index_sha256: indexArtifact.hash, candidate_manifest_sha256: manifestArtifact.hash, image_digests: imageDigests, merged_main_commit: mergedMainCommit, merged_main_tree: mergedMainTree, p8b2_collection_index_sha256: collectionArtifact.hash, p8b_evidence_index_sha256: p8bIndexArtifact.hash, pr_head_commit: candidateCommit, pr_head_tree: prHeadTree, pr_number: prNumber, target_platform: manifest.target_platform, trees_equal: true },
     generated_at: timestamp,
     overall_status: deriveOverallStatus(segments),
-    schema_version: 1,
+    schema_version: 2,
     segments,
   };
   const output = resolve(outputPath);
@@ -191,7 +281,7 @@ function args(argv) {
     if (!key?.startsWith("--") || value === undefined) fail(`invalid argument: ${key ?? "<missing>"}`);
     out[key.slice(2)] = value;
   }
-  for (const key of ["candidate", "crm-image-digest", "evidence-root", "inbox-image-digest", "input", "lead-agent-image-digest", "merged-main", "output", "p8b-evidence-index-sha256", "pr-number", "timestamp"]) if (!out[key]) fail(`--${key} is required`);
+  for (const key of ["candidate", "candidate-manifest", "collection-index", "evidence-index", "evidence-root", "input", "merged-main", "output", "p8b-evidence-index", "pr-number", "timestamp"]) if (out[key] === undefined) fail(`--${key} is required`);
   return out;
 }
 
@@ -199,7 +289,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const values = args(process.argv.slice(2));
     const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-    const report = createP8CReport({ candidateCommit: values.candidate, evidenceRoot: values["evidence-root"], imageDigests: { evo_inbox: values["inbox-image-digest"], lead_agent: values["lead-agent-image-digest"], main_crm: values["crm-image-digest"] }, inputPath: values.input, mergedMainCommit: values["merged-main"], outputPath: values.output, p8bEvidenceIndexSha256: values["p8b-evidence-index-sha256"], prNumber: Number(values["pr-number"]), repoRoot, timestamp: values.timestamp });
+    const report = createP8CReport({ candidateCommit: values.candidate, candidateManifestPath: values["candidate-manifest"], collectionIndexPath: values["collection-index"], evidenceIndexPath: values["evidence-index"], evidenceRoot: values["evidence-root"], inputPath: values.input, mergedMainCommit: values["merged-main"], outputPath: values.output, p8bEvidenceIndexPath: values["p8b-evidence-index"], prNumber: Number(values["pr-number"]), repoRoot, timestamp: values.timestamp });
     process.stdout.write(`${JSON.stringify({ overall_status: report.overall_status, output: relative(repoRoot, resolve(values.output)) })}\n`);
   } catch (error) {
     process.stderr.write(`${error.message}\n`); process.exitCode = 1;

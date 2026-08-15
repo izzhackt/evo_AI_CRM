@@ -7,7 +7,11 @@ vi.mock('./embeddings', () => ({
   toVectorLiteral: (v: number[]) => `[${v.join(',')}]`,
 }))
 
-import { ingestDocument, retrieveKnowledge, retrieveKnowledgeWithEvidence } from './knowledge'
+import {
+  ingestDocument,
+  retrieveKnowledge,
+  retrieveKnowledgeWithEvidence,
+} from './knowledge'
 
 interface FakeState {
   semantic: { id: string; content: string }[]
@@ -17,6 +21,7 @@ interface FakeState {
   rpcArgs: Record<string, unknown>[]
   inserted: Record<string, unknown>[] | null
   deletedFor: string | null
+  sourcePaths: Record<string, string>
 }
 
 function makeDb() {
@@ -28,6 +33,7 @@ function makeDb() {
     rpcArgs: [],
     inserted: null,
     deletedFor: null,
+    sourcePaths: {},
   }
   const db = {
     rpc: (name: string, args: Record<string, unknown>) => {
@@ -43,7 +49,28 @@ function makeDb() {
       // retrieveKnowledge's empty-KB count guard.
       select: () => ({
         eq: () => ({
-          eq: () => Promise.resolve({ count: state.chunkCount, error: null }),
+          eq: () => ({
+            then: (resolve: (value: unknown) => unknown) =>
+              Promise.resolve({ count: state.chunkCount, error: null }).then(
+                resolve
+              ),
+            in: (_column: string, ids: string[]) =>
+              Promise.resolve({
+                data: ids.flatMap((id) =>
+                  state.sourcePaths[id]
+                    ? [
+                        {
+                          id,
+                          ai_knowledge_documents: {
+                            source_path: state.sourcePaths[id],
+                          },
+                        },
+                      ]
+                    : []
+                ),
+                error: null,
+              }),
+          }),
         }),
       }),
       delete: () => ({
@@ -64,7 +91,7 @@ function makeDb() {
 beforeEach(() => {
   h.embedTexts.mockReset()
   h.embedTexts.mockImplementation(async (_config: unknown, inputs: string[]) =>
-    inputs.map((_, i) => [i, i]),
+    inputs.map((_, i) => [i, i])
   )
 })
 
@@ -77,8 +104,8 @@ describe('retrieveKnowledge', () => {
         'acct',
         'client',
         { embeddingsProvider: 'keyword', embeddingsApiKey: null },
-        '  ',
-      ),
+        '  '
+      )
     ).toEqual([])
     expect(state.rpcCalls).toEqual([])
   })
@@ -91,7 +118,7 @@ describe('retrieveKnowledge', () => {
       'acct',
       'client',
       { embeddingsProvider: 'gemini', embeddingsApiKey: 'AIza-x' },
-      'q',
+      'q'
     )
     expect(out).toEqual([])
     expect(h.embedTexts).not.toHaveBeenCalled()
@@ -106,12 +133,12 @@ describe('retrieveKnowledge', () => {
       'acct',
       'client',
       { embeddingsProvider: 'keyword', embeddingsApiKey: 'sk-unused' },
-      'q',
+      'q'
     )
     expect(out).toEqual(['F1'])
     expect(state.rpcCalls).toEqual(['match_ai_knowledge_fts'])
     expect(state.rpcArgs[0]).toEqual(
-      expect.objectContaining({ p_account_id: 'acct', p_audience: 'client' }),
+      expect.objectContaining({ p_account_id: 'acct', p_audience: 'client' })
     )
     expect(h.embedTexts).not.toHaveBeenCalled()
   })
@@ -124,7 +151,7 @@ describe('retrieveKnowledge', () => {
       'acct',
       'client',
       { embeddingsProvider: 'gemini', embeddingsApiKey: null },
-      'q',
+      'q'
     )
     expect(out).toEqual(['F1'])
     expect(state.rpcCalls).toEqual(['match_ai_knowledge_fts'])
@@ -144,13 +171,13 @@ describe('retrieveKnowledge', () => {
       'client',
       { embeddingsProvider: 'gemini', embeddingsApiKey: 'AIza-x' },
       'q',
-      3,
+      3
     )
     expect(out).toEqual(['S1', 'S2', 'S3'])
     expect(h.embedTexts).toHaveBeenCalledWith(
       { provider: 'gemini', apiKey: 'AIza-x' },
       ['q'],
-      'query',
+      'query'
     )
     // Enough semantic hits → no FTS top-up.
     expect(state.rpcCalls).toEqual(['match_ai_knowledge_semantic'])
@@ -172,7 +199,7 @@ describe('retrieveKnowledge', () => {
       'client',
       { embeddingsProvider: 'gemini', embeddingsApiKey: 'AIza-x' },
       'Салам, Германияга окууга кантип тапшырсам болот?',
-      1,
+      1
     )
 
     expect(out).toEqual([
@@ -181,7 +208,7 @@ describe('retrieveKnowledge', () => {
     expect(h.embedTexts).toHaveBeenCalledWith(
       { provider: 'gemini', apiKey: 'AIza-x' },
       ['Салам, Германияга окууга кантип тапшырсам болот?'],
-      'query',
+      'query'
     )
     expect(state.rpcCalls).toEqual(['match_ai_knowledge_semantic'])
   })
@@ -202,10 +229,13 @@ describe('retrieveKnowledge', () => {
       'client',
       { embeddingsProvider: 'openai', embeddingsApiKey: 'sk-x' },
       'q',
-      3,
+      3
     )
     expect(out).toEqual(['S1', 'S2', 'F1'])
-    expect(state.rpcCalls).toEqual(['match_ai_knowledge_semantic', 'match_ai_knowledge_fts'])
+    expect(state.rpcCalls).toEqual([
+      'match_ai_knowledge_semantic',
+      'match_ai_knowledge_fts',
+    ])
   })
 
   it('returns the exact chunk ids used as immutable draft evidence', async () => {
@@ -214,6 +244,10 @@ describe('retrieveKnowledge', () => {
       { id: 'chunk-1', content: 'Italy admissions evidence' },
       { id: 'chunk-2', content: 'Scholarship evidence' },
     ]
+    state.sourcePaths = {
+      'chunk-1': 'Страны/Италия.md',
+      'chunk-2': 'Услуги/Стипендии.md',
+    }
 
     await expect(
       retrieveKnowledgeWithEvidence(
@@ -221,11 +255,40 @@ describe('retrieveKnowledge', () => {
         'acct',
         'client',
         { embeddingsProvider: 'keyword', embeddingsApiKey: null },
-        'Italy scholarship',
-      ),
+        'Italy scholarship'
+      )
     ).resolves.toEqual({
       excerpts: ['Italy admissions evidence', 'Scholarship evidence'],
       chunkIds: ['chunk-1', 'chunk-2'],
+      sources: [
+        { chunk_id: 'chunk-1', source_path: 'Страны/Италия.md' },
+        { chunk_id: 'chunk-2', source_path: 'Услуги/Стипендии.md' },
+      ],
+    })
+  })
+
+  it('excludes an unbound manual chunk from excerpts and audit identities', async () => {
+    const { db, state } = makeDb()
+    state.fts = [
+      { id: 'managed', content: 'Проверенный управляемый источник' },
+      { id: 'manual', content: 'Старая ручная заметка без provenance' },
+    ]
+    state.sourcePaths = { managed: 'Процессы/Проверенный процесс.md' }
+
+    await expect(
+      retrieveKnowledgeWithEvidence(
+        db,
+        'acct',
+        'internal',
+        { embeddingsProvider: 'keyword', embeddingsApiKey: null },
+        'Процесс',
+      ),
+    ).resolves.toEqual({
+      excerpts: ['Проверенный управляемый источник'],
+      chunkIds: ['managed'],
+      sources: [
+        { chunk_id: 'managed', source_path: 'Процессы/Проверенный процесс.md' },
+      ],
     })
   })
 })
@@ -239,12 +302,12 @@ describe('ingestDocument', () => {
       'client',
       { embeddingsProvider: 'openai', embeddingsApiKey: 'sk-x' },
       'doc-1',
-      'hello world',
+      'hello world'
     )
     expect(h.embedTexts).toHaveBeenCalledWith(
       { provider: 'openai', apiKey: 'sk-x' },
       ['hello world'],
-      'document',
+      'document'
     )
     expect(state.deletedFor).toBe('doc-1')
     expect(state.inserted).toHaveLength(1)
@@ -261,7 +324,7 @@ describe('ingestDocument', () => {
       'client',
       { embeddingsProvider: 'keyword', embeddingsApiKey: null },
       'doc-1',
-      'hello world',
+      'hello world'
     )
     expect(h.embedTexts).not.toHaveBeenCalled()
     expect(state.inserted![0].embedding).toBeNull()
@@ -275,7 +338,7 @@ describe('ingestDocument', () => {
       'client',
       { embeddingsProvider: 'openai', embeddingsApiKey: 'sk-x' },
       'doc-1',
-      '   ',
+      '   '
     )
     expect(state.deletedFor).toBe('doc-1')
     expect(state.inserted).toBeNull()
@@ -292,8 +355,8 @@ describe('ingestDocument', () => {
         'client',
         { embeddingsProvider: 'gemini', embeddingsApiKey: 'AIza-x' },
         'doc-1',
-        'hello world',
-      ),
+        'hello world'
+      )
     ).rejects.toThrow('rate limited')
     // Chunks were inserted (lexical search works) despite the embed failure…
     expect(state.inserted).toHaveLength(1)

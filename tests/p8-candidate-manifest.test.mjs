@@ -30,9 +30,9 @@ const releaseControlCommit = "4".repeat(40);
 
 test("migration and runtime-setting inventories are deterministic and value-free", () => {
   const migrations = collectMigrationInventory(repoRoot);
-  assert.equal(migrations.length, 74);
+  assert.equal(migrations.length, 75);
   assert.equal(migrations[0].name.slice(0, 3), "001");
-  assert.equal(migrations.at(-1).name.slice(0, 3), "074");
+  assert.equal(migrations.at(-1).name.slice(0, 3), "075");
   assert.equal(stableJson(migrations), stableJson(collectMigrationInventory(repoRoot)));
 
   const settings = collectRuntimeSettingInventory(repoRoot);

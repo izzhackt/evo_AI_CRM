@@ -866,4 +866,121 @@ SELECT :'non_nfc_bundle_state' <> '00000' AS expected
   SELECT 1 / 0;
 \endif
 
+SET ROLE service_role;
+INSERT INTO public.ai_assistant_audits (
+  id, account_id, audience, evaluation_case_id, provider, model,
+  knowledge_sources, response_sha256, handoff, success, actor_user_id
+)
+SELECT
+  '22000000-0000-4000-8000-000000000001',
+  :'account_one_id',
+  'client',
+  'client_china_documents',
+  'gemini',
+  'gemini-3.5-flash',
+  jsonb_build_array(jsonb_build_object(
+    'chunk_id', chunk.id,
+    'source_path', document.source_path
+  )),
+  repeat('f', 64),
+  false,
+  true,
+  :'admin_id'
+FROM public.ai_knowledge_documents AS document
+JOIN public.ai_knowledge_chunks AS chunk ON chunk.document_id = document.id
+WHERE document.account_id = :'account_one_id'
+  AND document.audience = 'client'
+  AND document.source_path = 'Услуги/Проверка.md'
+LIMIT 1;
+RESET ROLE;
+
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  false
+);
+SELECT count(*) = 1 AS expected
+FROM public.ai_assistant_audits
+WHERE account_id = :'account_one_id'
+\gset
+\if :expected
+\else
+  \echo 'FAIL: account agent cannot read body-free assistant audit'
+  SELECT 1 / 0;
+\endif
+
+\set ON_ERROR_STOP off
+INSERT INTO public.ai_assistant_audits (
+  account_id, audience, provider, model, knowledge_sources,
+  response_sha256, handoff, success, actor_user_id
+) SELECT
+  :'account_one_id', 'client', 'gemini', 'gemini-3.5-flash',
+  knowledge_sources, repeat('a', 64), false, true, :'admin_id'
+FROM public.ai_assistant_audits LIMIT 1;
+\set authenticated_audit_insert_state :SQLSTATE
+\set ON_ERROR_STOP on
+RESET ROLE;
+SELECT :'authenticated_audit_insert_state' = '42501' AS expected
+\gset
+\if :expected
+\else
+  \echo 'FAIL: authenticated caller inserted assistant audit'
+  SELECT 1 / 0;
+\endif
+
+\set ON_ERROR_STOP off
+SET ROLE service_role;
+UPDATE public.ai_assistant_audits
+SET success = false
+WHERE id = '22000000-0000-4000-8000-000000000001';
+\set immutable_audit_update_state :SQLSTATE
+DELETE FROM public.ai_assistant_audits
+WHERE id = '22000000-0000-4000-8000-000000000001';
+\set premature_audit_delete_state :SQLSTATE
+RESET ROLE;
+\set ON_ERROR_STOP on
+SELECT :'immutable_audit_update_state' <> '00000'
+  AND :'premature_audit_delete_state' <> '00000'
+  AND EXISTS (
+    SELECT 1 FROM public.ai_assistant_audits
+    WHERE id = '22000000-0000-4000-8000-000000000001'
+      AND success
+  ) AS expected
+\gset
+\if :expected
+\else
+  \echo 'FAIL: assistant audit is mutable or deletable before expiry'
+  SELECT 1 / 0;
+\endif
+
+SET ROLE service_role;
+INSERT INTO public.ai_assistant_audits (
+  id, account_id, audience, provider, model, knowledge_sources,
+  response_sha256, handoff, success, actor_user_id, created_at
+) SELECT
+  '22000000-0000-4000-8000-000000000002', account_id, audience,
+  provider, model, knowledge_sources, repeat('b', 64), false, true,
+  :'admin_id', now() - interval '91 days'
+FROM public.ai_assistant_audits
+WHERE id = '22000000-0000-4000-8000-000000000001';
+SELECT public.purge_expired_ai_assistant_audits() = 1 AS expected
+\gset
+RESET ROLE;
+\if :expected
+\else
+  \echo 'FAIL: service-only assistant audit expiry purge is incorrect'
+  SELECT 1 / 0;
+\endif
+
+SELECT count(*) = 1 AS expected
+FROM public.ai_assistant_audits
+WHERE account_id = :'account_one_id'
+\gset
+\if :expected
+\else
+  \echo 'FAIL: audit purge removed unexpired evidence or retained expired evidence'
+  SELECT 1 / 0;
+\endif
+
 \echo 'PASS: real PostgreSQL role/RLS authorization policy suite'

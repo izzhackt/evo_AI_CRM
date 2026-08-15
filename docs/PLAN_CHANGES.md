@@ -7002,3 +7002,34 @@ than silently omitting them, and assert zero output for every failed local
 build. The final PostgreSQL boundary now independently rejects non-NFC and
 raw/secrets path components; real service-role regression calls prove both are
 rolled back with no managed row.
+
+## 2026-08-15 - Add audience-safe AI assistants and immutable audits
+
+Plan Block-ID: `EVO-PLATFORM-KNOWLEDGE-K4-2026-08-15`
+
+Change type: authorized assistant API and audit implementation.
+
+Decision: implement K4 from `/goal-evo-platform-knowledge`. Keep the existing
+staff playground strictly `client`, add a staff-only `internal` assistant, and
+return normalized chunk/source identities with every draft. Add migration `075`
+for body-free immutable 90-day `ai_assistant_audits`, agent-scoped read RLS,
+service-role-only insert and expiry purge. Both routes validate closed request
+and response shapes, generate drafts only, never call WAHA, and fail rather than
+returning a generation whose audit insert did not commit.
+
+Named write set: migration `075`, assistant retrieval/audit helpers, playground
+and internal-assistant routes/tests, Supabase schema/authorization tests, P8
+migration inventory, and this log. K4 performs no provider acceptance call,
+bundle transfer, production migration/deploy, auto-reply enablement or send;
+those remain K5.
+
+Validation amendment: migration `075` advances the deterministic P8 candidate
+inventory from contiguous `001-074` to `001-075`. The real PostgreSQL suite
+must prove same-account agent read, authenticated insert denial, source
+account/audience/path binding, immutable update, pre-expiry delete denial and
+service-only deletion of exactly the expired 90-day audit.
+
+Review amendment: ranked chunks without an exact managed `source_path` are
+removed from excerpts, chunk ids and source identities together before prompt
+construction. Mixed managed/manual retrieval can no longer expose an untracked
+manual excerpt to the model while recording only the managed source.

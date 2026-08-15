@@ -157,6 +157,10 @@ const aiKnowledgeBundleSyncMigration = readFileSync(
   join(migrationsDir, '074_ai_knowledge_managed_bundle_sync.sql'),
   'utf8'
 );
+const aiAssistantAuditMigration = readFileSync(
+  join(migrationsDir, '075_ai_assistant_immutable_audits.sql'),
+  'utf8'
+);
 const platformOperationalSignalsAuthorizationTest = readFileSync(
   fileURLToPath(
     new URL(
@@ -393,9 +397,7 @@ function p7aAllowlist(functionName: string): Set<string> {
 
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
-    expect(migrationFiles.at(-1)).toBe(
-      '074_ai_knowledge_managed_bundle_sync.sql'
-    );
+    expect(migrationFiles.at(-1)).toBe('075_ai_assistant_immutable_audits.sql');
     expect(platformOperationalSignalsMigration).toMatch(
       /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.platform_operational_signals_v1\s*\(\s*p_request_id\s+UUID\s*\)\s*RETURNS\s+JSONB[\s\S]*?SECURITY\s+DEFINER[\s\S]*?SET\s+search_path\s*=\s*''[\s\S]*?SET\s+statement_timeout\s*=\s*'3000ms'[\s\S]*?SET\s+lock_timeout\s*=\s*'1000ms'/i
     );
@@ -832,6 +834,24 @@ describe('Supabase companion schema contract', () => {
     );
     expect(aiKnowledgeBundleSyncMigration).not.toMatch(
       /CREATE\s+EXTENSION\s+.*pgcrypto/i
+    );
+  });
+
+  it('stores immutable body-free assistant audits for ninety days', () => {
+    expect(aiAssistantAuditMigration).toMatch(
+      /CREATE\s+TABLE\s+public\.ai_assistant_audits/i
+    );
+    expect(aiAssistantAuditMigration).toMatch(
+      /expires_at[\s\S]*created_at\s*\+\s*interval\s*'90 days'/i
+    );
+    expect(aiAssistantAuditMigration).toMatch(
+      /CREATE\s+POLICY\s+ai_assistant_audits_select[\s\S]*private\.is_account_member\(account_id,\s*'agent'\)/i
+    );
+    expect(aiAssistantAuditMigration).toMatch(
+      /GRANT\s+SELECT,\s*INSERT,\s*DELETE[\s\S]*TO\s+service_role/i
+    );
+    expect(aiAssistantAuditMigration).not.toMatch(
+      /response_body|message_body|content_text/i
     );
   });
 

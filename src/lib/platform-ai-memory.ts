@@ -61,6 +61,10 @@ const EVIDENCE_ROW_KEYS = [
 ] as const;
 
 export const PLATFORM_AI_FACT_KEYS = [
+  "age",
+  "english_level",
+  "current_education",
+  "countries_considered",
   "preferred_country",
   "preferred_program",
   "budget_signal",

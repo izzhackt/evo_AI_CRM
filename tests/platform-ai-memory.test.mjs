@@ -117,6 +117,10 @@ function validEvidenceRow(overrides = {}) {
 
 test("freezes the exact P5F1 fact, qualification and staff-only control vocabulary", () => {
   assert.deepEqual(PLATFORM_AI_FACT_KEYS, [
+    "age",
+    "english_level",
+    "current_education",
+    "countries_considered",
     "preferred_country",
     "preferred_program",
     "budget_signal",

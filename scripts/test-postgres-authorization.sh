@@ -1316,6 +1316,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_observability_rls.sql
   fi
+
+  # P5F2 consultative-sales v2 extends the exact proposal policy and memory
+  # fact vocabulary after the historical migration-066 boundary has passed.
+  if [[ "$(basename "$migration")" == 076_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_consultative_sales_memory.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

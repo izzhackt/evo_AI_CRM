@@ -204,7 +204,10 @@ function parseCitations(
 function parseMemoryChanges(
   value: unknown,
 ): PlatformGeminiProposalPayload["memory_changes"] {
-  if (!Array.isArray(value) || value.length > 9) return invalid();
+  if (
+    !Array.isArray(value) ||
+    value.length > PLATFORM_GEMINI_PROPOSAL_FACT_KEYS.length
+  ) return invalid();
   const seen = new Set<string>();
   return value.map((item) => {
     if (!isRecord(item) || !exactKeys(item, MEMORY_CHANGE_KEYS)) return invalid();
@@ -279,7 +282,7 @@ export const PLATFORM_GEMINI_PROPOSAL_JSON_SCHEMA = Object.freeze({
     },
     memory_changes: {
       type: "array",
-      maxItems: 9,
+      maxItems: PLATFORM_GEMINI_PROPOSAL_FACT_KEYS.length,
       items: {
         type: "object",
         additionalProperties: false,
@@ -307,7 +310,7 @@ export const PLATFORM_GEMINI_PROPOSAL_JSON_SCHEMA = Object.freeze({
         completeness: { type: "integer", minimum: 0, maximum: 100 },
         missing_fact_keys: {
           type: "array",
-          maxItems: 9,
+          maxItems: PLATFORM_GEMINI_PROPOSAL_FACT_KEYS.length,
           items: {
             type: "string",
             enum: [...PLATFORM_GEMINI_PROPOSAL_FACT_KEYS],

@@ -161,6 +161,10 @@ const aiAssistantAuditMigration = readFileSync(
   join(migrationsDir, '075_ai_assistant_immutable_audits.sql'),
   'utf8'
 );
+const platformConsultativeSalesMemoryMigration = readFileSync(
+  join(migrationsDir, '076_platform_consultative_sales_memory.sql'),
+  'utf8'
+);
 const platformOperationalSignalsAuthorizationTest = readFileSync(
   fileURLToPath(
     new URL(
@@ -397,7 +401,23 @@ function p7aAllowlist(functionName: string): Set<string> {
 
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
-    expect(migrationFiles.at(-1)).toBe('075_ai_assistant_immutable_audits.sql');
+    expect(migrationFiles.at(-1)).toBe('076_platform_consultative_sales_memory.sql');
+    for (const factKey of [
+      'age',
+      'english_level',
+      'current_education',
+      'countries_considered',
+    ]) {
+      expect(platformConsultativeSalesMemoryMigration).toContain(
+        `ADD VALUE IF NOT EXISTS '${factKey}'`
+      );
+    }
+    expect(platformConsultativeSalesMemoryMigration).toContain(
+      "'p5f2-consultative-sales-v2'"
+    );
+    expect(platformConsultativeSalesMemoryMigration).toMatch(
+      /This migration grants no send, provider, amoCRM-write or autonomy authority/i
+    );
     expect(platformOperationalSignalsMigration).toMatch(
       /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.platform_operational_signals_v1\s*\(\s*p_request_id\s+UUID\s*\)\s*RETURNS\s+JSONB[\s\S]*?SECURITY\s+DEFINER[\s\S]*?SET\s+search_path\s*=\s*''[\s\S]*?SET\s+statement_timeout\s*=\s*'3000ms'[\s\S]*?SET\s+lock_timeout\s*=\s*'1000ms'/i
     );

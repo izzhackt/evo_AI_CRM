@@ -101,6 +101,10 @@ export type PlatformGeminiFailureCode =
   (typeof PLATFORM_GEMINI_FAILURE_CODES)[number];
 
 export const PLATFORM_GEMINI_PROPOSAL_FACT_KEYS = [
+  "age",
+  "english_level",
+  "current_education",
+  "countries_considered",
   "preferred_country",
   "preferred_program",
   "budget_signal",
@@ -285,7 +289,10 @@ function parseCitations(value: unknown): readonly PlatformGeminiProposalCitation
 function parseMemoryChanges(
   value: unknown,
 ): readonly PlatformGeminiProposalMemoryChange[] {
-  if (!Array.isArray(value) || value.length > 9) invalidShape();
+  if (
+    !Array.isArray(value) ||
+    value.length > PLATFORM_GEMINI_PROPOSAL_FACT_KEYS.length
+  ) invalidShape();
   const parsed = value.map((item) => {
     if (!isRecord(item) || !hasExactKeys(item, MEMORY_CHANGE_KEYS)) invalidShape();
     const action = parseEnum(item.action, ["set", "clear"] as const);

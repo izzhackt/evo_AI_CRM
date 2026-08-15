@@ -7195,3 +7195,36 @@ Execution gate:
   checks green, merge, exact-main green CI, a fresh read-only Hermes/managed-
   Supabase preflight, real OrbStack builds, rollback proof and the existing
   P8D4 action-time authority.
+
+## 2026-08-16 - Bind P8D4 portable archives to the unified candidate
+
+Plan Block-ID: `EVO-PLATFORM-P8D4A-PORTABLE-D565-2026-08-16`
+
+GitHub issue: `#221`
+
+Status: implementation authorized; no Hermes, Supabase, provider, DNS, WAHA or
+production mutation in this block
+
+Reason: the real OrbStack build, SPDX/privacy scan and network-none smoke gates
+for the unified `d5657acc6c1df1abc790a96778ca71df36687b24` candidate succeeded,
+but the historical P8B3 archive generator is intentionally frozen to candidate
+`0505143657858e710acdd5029f1cc77c5524083e`. Reusing it unchanged would either
+fail or falsely attest the old identities; a manual `docker image save` would
+bypass the reviewed OCI graph checks.
+
+Decision:
+
+- Preserve the historical P8B3 CLI defaults, schema and retained evidence.
+- Parameterize only the shared verifier with an explicit candidate/spec matrix,
+  while keeping the historical matrix as the default.
+- Add a P8D4-specific wrapper and closed schema pinning the exact ordered CRM,
+  Inbox and Lead Agent tags, OCI index/image IDs and platform-manifest digests
+  produced by the real OrbStack build.
+- Require exact `linux/amd64`, empty variant, EVO source label, d565 revision,
+  tag annotations, OCI/Docker manifests, descriptor digests/sizes, closed media
+  types, exact tar entry set, mode `0600`, absent output and collision refusal.
+- Exercise schema/candidate/order/digest negatives in normal CI and run the
+  retained real-archive suite against all three generated archives before any
+  transfer.
+- Obtain an independent exact-head review, green CI, merge and exact-main green
+  CI before resuming P8D4 Phase B.

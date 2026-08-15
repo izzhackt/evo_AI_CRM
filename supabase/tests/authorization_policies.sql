@@ -263,14 +263,16 @@ BEGIN
     AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
     AND p.proname NOT IN (
       'filter_contacts_by_tags',
-      'match_ai_knowledge_fts',
-      'match_ai_knowledge_semantic',
       'peek_invitation',
       'redeem_invitation',
       'remove_account_member',
       'set_member_role',
       'touch_presence',
       'transfer_account_ownership'
+    )
+    AND p.oid::regprocedure::TEXT NOT IN (
+      'match_ai_knowledge_fts(uuid,text,text,integer)',
+      'match_ai_knowledge_semantic(uuid,text,text,integer)'
     );
 
   IF unexpected_authenticated_rpc IS NOT NULL THEN
@@ -290,6 +292,15 @@ BEGIN
        'authenticated',
        'public.match_ai_knowledge_semantic(uuid,text,text,integer)',
        'EXECUTE'
+     )
+     OR EXISTS (
+       SELECT 1
+       FROM pg_proc
+       WHERE oid IN (
+         'public.match_ai_knowledge_fts(uuid,text,text,integer)'::regprocedure,
+         'public.match_ai_knowledge_semantic(uuid,text,text,integer)'::regprocedure
+       )
+         AND prosecdef
      ) THEN
     RAISE EXCEPTION 'Knowledge retrieval RPC signatures/grants are unsafe';
   END IF;

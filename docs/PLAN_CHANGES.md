@@ -6616,3 +6616,42 @@ Change type: release-candidate identity, image provenance and execution order
 The detailed executable contract is
 `docs/platform/p8b2-amd64-candidate.md`. Merging this amendment authorizes no
 production restart by itself.
+
+## 2026-08-15 - Finalize the Obsidian knowledge bases for first AI use
+
+Plan Block-ID: `EVO-KNOWLEDGE-LAUNCH-FINALIZE-2026-08-15`
+
+Change type: owner scope decision, local knowledge publication and readiness
+criteria.
+
+Reason: the owner wants the already collected Notion, Drive, documents and
+WhatsApp text to become a practical first knowledge release. Semantic processing
+of the preserved 2,589-message Gmail MBOX and retries for 386 main-account plus
+10 China-curator WhatsApp media failures are explicitly deferred until later
+improvement and must not block first use.
+
+Decision: extend the local ingestion lane with a client-vault publication and
+two-vault retrieval-validation block. Client publication is explicit-allowlist
+only and rejects unresolved, sensitive, personal, secret or internal-only
+material. Mutable university, programme, intake, deadline, visa and price facts
+require a dated official source; stable owner-approved EVO policies may cite
+the recorded owner decision. Preserve unmanaged Obsidian content and raw source
+boundaries. Resolve the remaining human review notes without analyzing Gmail or
+retrying WhatsApp downloads. Validate against the real EVO vault files and
+report only artifact/retrieval readiness, not a live LLM, production deployment
+or provider success.
+
+Review amendment: the client root is bound by a closed non-symlink
+`.evo-vault.json` marker with kind `evo_client_knowledge` and its exact resolved
+canonical path. The version-1 allowlist `.Публикация клиентской базы.json`
+binds every approved internal relative path and SHA to one Russian destination
+plus a closed authority/provenance form: either owner decision/reference with
+null official fields, or official HTTPS URL/date/reference. Managed outputs are
+tracked in `.Манифест клиентской публикации.json`; all inputs validate before
+mutation and stale cleanup touches only still-marked prior managed files.
+
+Retrieval is fixed at `scripts/knowledge_ingestion/check_retrieval.py` with
+committed versioned cases in `scripts/knowledge_ingestion/retrieval_cases.json`
+and a machine-readable real-vault report in `Панель управления/Отчёт проверки
+поиска.json`. Each Russian case names the vault, top-k and exact expected paths;
+all cases and explicit raw/secrets forbidden-root assertions must pass.

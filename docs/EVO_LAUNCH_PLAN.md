@@ -2465,3 +2465,102 @@ absent, amoCRM credentials as incomplete and the candidate rollback bundle as
 unstaged. P8D must preserve those external blockers truthfully rather than
 silently fixing or relabelling them. The deployment may proceed only after the
 contract PR merges with independent approval and exact-main green CI.
+
+## EVO Knowledge Launch Finalization
+
+Block-ID: `EVO-KNOWLEDGE-LAUNCH-FINALIZE-2026-08-15`.
+
+The owner authorizes finalizing the current Obsidian knowledge bases for first
+AI use without making semantic Gmail processing or missing WhatsApp media a
+launch blocker. Those archived sources remain preserved for later incremental
+improvement. This block does not deploy an AI, send messages, inspect applicant
+documents, process Gmail, retry WhatsApp media, or expose raw/sensitive content.
+
+### Delivery blocks
+
+1. Resolve the remaining manually created review notes by archiving status-only
+   checklists and promoting only current, non-personal, sourced facts.
+2. Create the client-vault marker `.evo-vault.json` with the closed object
+   `{"kind":"evo_client_knowledge","canonical_path":"<resolved exact path>"}`.
+   Publication rejects a missing, malformed, extra-key, symlinked or path-
+   mismatched marker and any destination outside that exact marked vault.
+3. Add a deterministic client-publication command that reads only approved
+   internal Markdown, requires an explicit Russian allowlist, rejects sensitive
+   or unresolved material, preserves provenance, and writes only beneath the
+   marked client vault.
+4. Publish a useful Russian client set covering EVO, services, admissions,
+   countries, universities, prices and response policies. Mutable external
+   facts must carry an official source and verification date; otherwise the
+   client note must instruct staff to verify before quoting it.
+5. Add a deterministic local retrieval check for both marked vaults and run
+   real Russian control questions against the actual published Markdown. This
+   proves the local knowledge artifacts are retrievable; it is not proof of a
+   deployed model or provider integration.
+6. Record an operational readiness report with exact counts, exclusions,
+   deferred Gmail/WhatsApp work and remaining risks.
+
+### Closed publication contract
+
+- Allowlist path: `<client vault>/.Публикация клиентской базы.json`. It is a
+  closed version-1 object with only `version` and `entries`. Every entry has
+  exactly: `source_relative_path`, `source_sha256`, `destination_relative_path`,
+  `authority`, `authority_reference`, `official_url`, and `verified_at`.
+- `authority` is only `owner_decision` or `official_source`. Owner decisions
+  require a non-empty internal decision-note reference; their `official_url`
+  and `verified_at` are JSON null. Official-source entries require an HTTPS URL
+  and ISO `YYYY-MM-DD` verification date; their `authority_reference` names the
+  internal verification note. No missing/extra fields or mixed authority form
+  is accepted.
+- Source paths are normalized relative paths beneath the exact approved
+  internal vault, must name regular non-symlink Markdown files and must match
+  `source_sha256`. Destination paths are normalized Russian `.md` paths beneath
+  the exact client vault and may not overwrite unmanaged files.
+- Published frontmatter contains exactly traceable fields for publication:
+  `тип: клиентское_знание`, `управляется: evo_client_publisher`, source relative
+  path/SHA, authority/reference, official URL and verification date. Null
+  provenance remains explicit for owner decisions.
+- Managed state lives at `<client vault>/.Манифест клиентской публикации.json`,
+  a closed version-1 object containing the exact generated destination paths
+  and their source/output SHA values. Stale deletion is restricted to paths in
+  the prior valid manifest whose current file still has the managed marker.
+- The publisher validates marker, allowlist, all sources, all destinations,
+  provenance and the existing managed manifest before any write or deletion.
+  Missing/malformed/traversal/symlink/hash/provenance errors fail with zero
+  mutation.
+
+### Deterministic retrieval gate
+
+- CLI: `scripts/knowledge_ingestion/check_retrieval.py`; committed cases:
+  `scripts/knowledge_ingestion/retrieval_cases.json`; report:
+  `<internal vault>/Панель управления/Отчёт проверки поиска.json`.
+- Cases use a closed version-1 schema with `vault` (`internal` or `client`),
+  Russian `query`, `top_k`, and one or more exact expected relative paths. A
+  case passes only when an expected path is in the deterministic top-k result.
+- The initial fixed cases cover client questions about EVO, result wording,
+  China documents, study price and admissions; internal cases cover client
+  handoff, source authority, review flow and China working data.
+- The checker accepts only the two exact marked roots, walks regular non-symlink
+  Markdown beneath the selected root and records result paths/scores. It rejects
+  any case/path resolving into `Сырой архив ЭВО` or `Секреты и доступы ЭВО`,
+  any root/marker mismatch and any unexpected fixture field. Exit is non-zero
+  if any expected top-k result or forbidden-root assertion fails.
+
+### Acceptance criteria
+
+- Gmail semantic processing and 396 failed WhatsApp media downloads are marked
+  deferred, not complete and not required for first launch.
+- Raw exports, correspondence, applicant files, credentials, contracts with
+  personal fields, and internal-only process notes never enter the client vault.
+- Client publication is allowlist-only, fail-closed, repeatable and tested for
+  traversal, unmanaged-file preservation, sensitive-content rejection and
+  deterministic stale cleanup.
+- Marker tests reject missing, malformed, symlinked and canonical-path-mismatched
+  client markers; allowlist tests reject unknown fields, wrong SHA, invalid
+  provenance and destinations outside the exact client vault before mutation.
+- Every published client note is Russian, has provenance and is either stable
+  owner-approved EVO knowledge or has an official URL plus verification date.
+- Actual internal and client vault retrieval checks pass every committed case's
+  expected-path-in-top-k assertion and the machine-readable report confirms
+  that neither raw nor secrets roots were searched.
+- Focused tests pass, an independent reviewer approves the exact PR head, CI is
+  green and the final report does not claim a live AI/provider deployment.

@@ -7065,3 +7065,38 @@ Change type: prompt policy, conversation-memory and evaluation contract
 - This block changes repository prompt/evaluation artifacts only. It does not
   edit either knowledge base, enable autonomous replies, send WhatsApp, call a
   provider, write amoCRM/Supabase, deploy or mutate production.
+
+## 2026-08-15 - Deploy current-main staff-only knowledge pilot
+
+Plan Block-ID: `EVO-PLATFORM-P8D4-STAFF-PILOT-2026-08-15`
+
+Change type: production release and bounded real-provider acceptance contract.
+
+Decision: execute issue #213 only through
+`docs/platform/p8d4-current-main-staff-pilot.md`. Freeze application source at
+current main `7c2e03cdbfbb54b85c4eef5454c31bb846c3c38a`, tree
+`d9b170396364a8dcf0efcd28779fc416c8c2f65e`, parent K4
+`472cc58115b7e6a459d089fd082081fa8da15610`, contiguous migrations `001-075`
+and exact-main run `31900296274`. This includes PR #216's supervised
+consultative sales policy in the Lead Agent candidate. Build new real OrbStack `linux/amd64` images;
+never deploy or relabel the pre-knowledge P8B3 candidate. Apply only missing
+forward migrations, publish each approved knowledge audience through its own
+atomic/idempotent sync, recreate Inbox/CRM/Lead Agent one boundary at a time,
+and prove the two K4 staff-owned evaluation cases through real production
+retrieval and Gemini. Automatic reply and every WhatsApp/amoCRM/WAHA/DNS
+mutation remain excluded.
+
+Failure amendment: a completed audience sync is a safe approved partial state
+if the other audience fails; application deployment cannot begin until both
+exact revisions verify. Any application failure rolls back every already
+deployed P8D4 application boundary in reverse. Migrations are additive and
+forward-only; retained old images must first pass compatibility against schema
+001-075, and migration history is never reversed or repaired.
+
+Validation impact: require independent review and exact-head/main CI for this
+contract; then real OrbStack build/SBOM/smoke/archive evidence, read-only Hermes
+preflight, managed Supabase dry-run/ledger proof, deterministic real-vault
+bundles, bounded real embedding calls, exact retrieval cases, two real Gemini
+drafts, body-free audit verification and a closed redacted result. Stop before
+the first real WhatsApp/customer lead test, which remains a separately approved
+block.

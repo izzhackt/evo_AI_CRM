@@ -31,11 +31,12 @@ focused P7D accessibility contract, and PRs #172-#174 hardened the local
 knowledge-ingestion path. PRs #208, #212 and #214 then merged knowledge
 audience isolation, atomic Obsidian bundle sync and audited staff assistants;
 PR #215 merged the P8D4 staff-pilot contract, PR #216 merged the supervised
-Lead Agent sales policy, and PR #218 unified Platform intake memory with the
-draft-only consultative-sales proposal path.
-Current `origin/main` is `d5657acc6c1df1abc790a96778ca71df36687b24`,
+Lead Agent sales policy, PR #218 unified Platform intake memory with the
+draft-only consultative-sales proposal path, and PRs #220 and #222 refreshed
+and bound the unified P8D4 portable candidate.
+Current `origin/main` is `e39565b23084a26ad3b7a081550d5ad227b7e19c`,
 migrations remain contiguous `001-076`, and exact-main push CI run
-`31902903078` is the exact-main push gate for Main CRM, EVO Inbox and EVO Lead Agent; Changed
+`31907634668` is the exact-main push gate for Main CRM, EVO Inbox and EVO Lead Agent; Changed
 range is skipped on the push event as expected.
 
 P4B implementation is preserved on remote branch

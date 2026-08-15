@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8d4b-migration-result.schema.json",
+  "title": "EVO Platform P8D4B migration result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "result_code",
+    "mode",
+    "project_ref",
+    "candidate_commit",
+    "cli_version",
+    "observed_at",
+    "migration_files",
+    "ledger_before",
+    "ledger_after",
+    "missing_migrations",
+    "dry_run_status",
+    "apply_status",
+    "local_temp_cleanup_status",
+    "temporary_login_role"
+  ],
+  "properties": {
+    "schema_version": { "const": "p8d4b-v1" },
+    "result_code": {
+      "enum": ["preflight_verified", "already_complete", "applied_verified", "operation_failed", "cleanup_failed"]
+    },
+    "mode": { "enum": ["preflight", "apply"] },
+    "project_ref": { "const": "iosckaqtovbbnssqcpde" },
+    "candidate_commit": { "const": "d5657acc6c1df1abc790a96778ca71df36687b24" },
+    "cli_version": { "const": "2.110.0" },
+    "observed_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "migration_files": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        { "$ref": "#/$defs/migration073" },
+        { "$ref": "#/$defs/migration074" },
+        { "$ref": "#/$defs/migration075" },
+        { "$ref": "#/$defs/migration076" }
+      ],
+      "items": false
+    },
+    "ledger_before": { "$ref": "#/$defs/ledger" },
+    "ledger_after": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/ledger" }
+      ]
+    },
+    "missing_migrations": {
+      "oneOf": [
+        { "type": "array", "maxItems": 0 },
+        {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            { "const": "073_ai_knowledge_audience_isolation.sql" },
+            { "const": "074_ai_knowledge_managed_bundle_sync.sql" },
+            { "const": "075_ai_assistant_immutable_audits.sql" },
+            { "const": "076_platform_consultative_sales_memory.sql" }
+          ],
+          "items": false
+        }
+      ]
+    },
+    "dry_run_status": { "enum": ["not_run", "verified"] },
+    "apply_status": { "enum": ["not_run", "verified"] },
+    "local_temp_cleanup_status": { "enum": ["not_required", "verified", "failed"] },
+    "temporary_login_role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["creation_attempted", "cleanup_status"],
+      "properties": {
+        "creation_attempted": { "type": "boolean" },
+        "cleanup_status": { "enum": ["not_required", "verified", "failed"] }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "type": "object", "properties": { "result_code": { "const": "preflight_verified" } }, "required": ["result_code"] },
+      "then": {
+        "type": "object",
+        "properties": {
+          "mode": { "const": "preflight" },
+          "ledger_before": { "$ref": "#/$defs/ledger072" },
+          "ledger_after": { "type": "null" },
+          "dry_run_status": { "const": "not_run" },
+          "apply_status": { "const": "not_run" },
+          "local_temp_cleanup_status": { "const": "not_required" },
+          "temporary_login_role": { "$ref": "#/$defs/noTemporaryRole" }
+        }
+      }
+    },
+    {
+      "if": { "type": "object", "properties": { "result_code": { "const": "already_complete" } }, "required": ["result_code"] },
+      "then": {
+        "type": "object",
+        "properties": {
+          "ledger_before": { "$ref": "#/$defs/ledger076" },
+          "ledger_after": { "$ref": "#/$defs/ledger076" },
+          "missing_migrations": { "type": "array", "maxItems": 0 },
+          "dry_run_status": { "const": "not_run" },
+          "apply_status": { "const": "not_run" },
+          "local_temp_cleanup_status": { "const": "not_required" },
+          "temporary_login_role": { "$ref": "#/$defs/noTemporaryRole" }
+        }
+      }
+    },
+    {
+      "if": { "type": "object", "properties": { "result_code": { "const": "applied_verified" } }, "required": ["result_code"] },
+      "then": {
+        "type": "object",
+        "properties": {
+          "mode": { "const": "apply" },
+          "ledger_before": { "$ref": "#/$defs/ledger072" },
+          "ledger_after": { "$ref": "#/$defs/ledger076" },
+          "dry_run_status": { "const": "verified" },
+          "apply_status": { "const": "verified" },
+          "local_temp_cleanup_status": { "const": "verified" },
+          "temporary_login_role": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["creation_attempted", "cleanup_status"],
+            "properties": {
+              "creation_attempted": { "const": true },
+              "cleanup_status": { "const": "verified" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "type": "object", "properties": { "result_code": { "const": "operation_failed" } }, "required": ["result_code"] },
+      "then": {
+        "type": "object",
+        "properties": {
+          "mode": { "const": "apply" },
+          "ledger_before": { "$ref": "#/$defs/ledger072" },
+          "local_temp_cleanup_status": { "enum": ["verified", "failed"] },
+          "temporary_login_role": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["creation_attempted", "cleanup_status"],
+            "properties": {
+              "creation_attempted": { "const": true },
+              "cleanup_status": { "const": "verified" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "type": "object", "properties": { "result_code": { "const": "cleanup_failed" } }, "required": ["result_code"] },
+      "then": {
+        "type": "object",
+        "properties": {
+          "mode": { "const": "apply" },
+          "temporary_login_role": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["creation_attempted", "cleanup_status"],
+            "properties": {
+              "creation_attempted": { "const": true },
+              "cleanup_status": { "const": "failed" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "migrationBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "name", "sha256"],
+      "properties": {
+        "version": { "type": "string", "pattern": "^[0-9]{3}$" },
+        "name": { "type": "string" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "migration073": {
+      "allOf": [
+        { "$ref": "#/$defs/migrationBase" },
+        { "type": "object", "properties": { "version": { "const": "073" }, "name": { "const": "073_ai_knowledge_audience_isolation.sql" }, "sha256": { "const": "c1f71b00b7402e28581e1d1223910450b1f973c1c18c56b9e3cdb9e33e17abb3" } } }
+      ]
+    },
+    "migration074": {
+      "allOf": [
+        { "$ref": "#/$defs/migrationBase" },
+        { "type": "object", "properties": { "version": { "const": "074" }, "name": { "const": "074_ai_knowledge_managed_bundle_sync.sql" }, "sha256": { "const": "f161b995a7bd71c432a032814d7ae01fdba644b0ba19c180000135b7d759091b" } } }
+      ]
+    },
+    "migration075": {
+      "allOf": [
+        { "$ref": "#/$defs/migrationBase" },
+        { "type": "object", "properties": { "version": { "const": "075" }, "name": { "const": "075_ai_assistant_immutable_audits.sql" }, "sha256": { "const": "303bc08a1a685e5e8ad0d3acb9492fd2f65e8895c55ca87af218a7e3b897b6cd" } } }
+      ]
+    },
+    "migration076": {
+      "allOf": [
+        { "$ref": "#/$defs/migrationBase" },
+        { "type": "object", "properties": { "version": { "const": "076" }, "name": { "const": "076_platform_consultative_sales_memory.sql" }, "sha256": { "const": "497ea2bf3b0ea3d8b6b0a28aef82889170a19dcdbbf0cd9abeb2fe5b37c735fa" } } }
+      ]
+    },
+    "ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "first_version", "last_version", "versions_sha256"],
+      "properties": {
+        "count": { "enum": [72, 76] },
+        "first_version": { "const": "001" },
+        "last_version": { "enum": ["072", "076"] },
+        "versions_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "ledger072": {
+      "allOf": [
+        { "$ref": "#/$defs/ledger" },
+        { "type": "object", "properties": { "count": { "const": 72 }, "last_version": { "const": "072" } } }
+      ]
+    },
+    "ledger076": {
+      "allOf": [
+        { "$ref": "#/$defs/ledger" },
+        { "type": "object", "properties": { "count": { "const": 76 }, "last_version": { "const": "076" } } }
+      ]
+    },
+    "noTemporaryRole": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["creation_attempted", "cleanup_status"],
+      "properties": {
+        "creation_attempted": { "const": false },
+        "cleanup_status": { "const": "not_required" }
+      }
+    }
+  }
+}

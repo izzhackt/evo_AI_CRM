@@ -393,3 +393,47 @@ root and Inbox lint/typecheck/build, all required GitHub CI at exact head, an
 independent launch-control review, merge, and exact-main green CI. Runtime claims
 must then come only from the real OrbStack, managed Supabase, Gemini, and Hermes
 paths described above.
+
+## P8D4C final knowledge-freeze amendment
+
+The Phase D inventory sentence above is historical and is superseded only for
+the still-unexecuted knowledge publication. The knowledge owner completed the
+approved Poland and Malaysia delta batch and froze both publishable vaults at
+`2026-08-16T04:16:05+06:00`. The exact final inventory is **11 client** and
+**291 internal** Markdown documents. No production knowledge sync or Gemini
+call occurred during that batch.
+
+The frozen client bundle SHA-256 is
+`c20acf2a3ecdf321d9120ca97e1389b5883ef9cfd5d97dc5b1d2235c56a05c23`;
+the frozen internal bundle SHA-256 is
+`a3a1092c10ec3a8768c6f8ac63f32f81b0fa9e9c313d820d034ad084565b6184`.
+The client allowlist has 8 entries and SHA-256
+`3c35e8dbe8a6ad751ea6497d2a5a9b4abb035bd974cfa14e602aabecbb99557e`;
+the 8-file client publication manifest has SHA-256
+`5f1ad3b95b4c8c8b25dfbddcb698c6676b8c176d5220b9ab07462074178cf374`.
+All allowlist source hashes match their published outputs, the full-vault
+PII/boundary gate passed, retrieval passed 10/10, forbidden raw/secret roots
+were excluded, and all 912 extracted business sources have review binding.
+
+Immediately before transfer, resolve exactly one active Gemini account through
+the production service-role boundary without printing or persisting its UUID.
+Two fresh builds per audience using that live account must reproduce the exact
+bundle hashes above. The deterministic generated K3 manifest hashes are
+`6c6c88ef430d91b4ee8c8d694bd69fc73d01cb1067088a2586e7b0c388ca3f8c`
+for client and
+`6964354ab201daf1cce174aa48aa4aee3db757d091d96c050d88725df04caf33`
+for internal. Any count, bundle, manifest, allowlist, publication-manifest or
+vault-freeze drift stops before the first embedding request.
+
+The closed `p8d4-result.json` records these non-secret gates in a required
+`knowledge_freeze` object: freeze time and status, redacted
+`exactly_one_active` account-resolution status, both document counts, bundle
+and generated-manifest hashes, client allowlist and publication-manifest
+counts/hashes, the PII/boundary result, retrieval pass/fail counts and the
+review-bound source count. `pilot_verified` pins every value above exactly.
+The production account UUID is never stored in that evidence.
+
+This amendment changes no provider-call allowance, image, deployment order,
+rollback rule or outbound-message prohibition. The vault owner must keep both
+publishable roots frozen until production import finishes and the rollout owner
+explicitly releases the freeze.

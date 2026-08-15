@@ -9,12 +9,34 @@ const success = schema.allOf[0].then.properties;
 const validate = new Ajv2020({ strict: false }).compile(schema);
 const hash = "a".repeat(64);
 const image = `sha256:${hash}`;
+const clientBundleHash = "c20acf2a3ecdf321d9120ca97e1389b5883ef9cfd5d97dc5b1d2235c56a05c23";
+const internalBundleHash = "a3a1092c10ec3a8768c6f8ac63f32f81b0fa9e9c313d820d034ad084565b6184";
+const knowledgeFreeze = {
+  status: "verified",
+  frozen_at: "2026-08-16T04:16:05+06:00",
+  account_resolution_status: "exactly_one_active",
+  client_document_count: 11,
+  internal_document_count: 291,
+  client_bundle_sha256: clientBundleHash,
+  internal_bundle_sha256: internalBundleHash,
+  client_bundle_manifest_sha256: "6c6c88ef430d91b4ee8c8d694bd69fc73d01cb1067088a2586e7b0c388ca3f8c",
+  internal_bundle_manifest_sha256: "6964354ab201daf1cce174aa48aa4aee3db757d091d96c050d88725df04caf33",
+  client_allowlist_count: 8,
+  client_allowlist_sha256: "3c35e8dbe8a6ad751ea6497d2a5a9b4abb035bd974cfa14e602aabecbb99557e",
+  client_publication_manifest_count: 8,
+  client_publication_manifest_sha256: "5f1ad3b95b4c8c8b25dfbddcb698c6676b8c176d5220b9ab07462074178cf374",
+  pii_boundary_status: "verified",
+  retrieval_passed: 10,
+  retrieval_failed: 0,
+  review_bound_source_count: 912,
+};
 const containers = ["evo-inbox-app-1", "evo-crm-app-1", "evo-crm-lead-agent-1", "evo-crm-waha-1", "evo-inbox-waha"].map((name) => ({ name, healthy: true, restart_count: 0, status: "verified" }));
 const canonical = {
   schema_version: "p8d4-v1", result_code: "pilot_verified",
   candidate: { source_commit: "d5657acc6c1df1abc790a96778ca71df36687b24", tree: "9dfe44fd1c477a9a4af823ba2a37bdb398878919", ci_run: 31902903078, platform: "linux/amd64" },
   migrations: { before: "001-076", after: "001-076", status: "verified" },
-  bundles: [{ audience: "client", bundle_sha256: hash, document_count: 10, chunk_count: 10, status: "verified" }, { audience: "internal", bundle_sha256: hash, document_count: 286, chunk_count: 286, status: "verified" }],
+  knowledge_freeze: knowledgeFreeze,
+  bundles: [{ audience: "client", bundle_sha256: clientBundleHash, document_count: 11, chunk_count: 11, status: "verified" }, { audience: "internal", bundle_sha256: internalBundleHash, document_count: 291, chunk_count: 291, status: "verified" }],
   images: [{ name: "main_crm", image_id: image, status: "verified" }, { name: "evo_inbox", image_id: image, status: "verified" }, { name: "lead_agent", image_id: image, status: "verified" }],
   containers_before: containers, containers_after: containers,
   rollback: { images: ["prior-crm.tar", "prior-inbox.tar", "prior-lead-agent.tar"].map((name) => ({ name, sha256: hash })), env_files: ["crm.env.production", "inbox.env.production", "lead-agent.env.production"].map((name) => ({ name, sha256: hash })), compose_files: ["crm.compose.yml", "inbox.compose.yml", "lead-agent.compose.yml"].map((name) => ({ name, sha256: hash })), status: "verified" },
@@ -24,8 +46,9 @@ const canonical = {
 test("P8D4 success evidence is exact and cannot use null identities", () => {
   assert.deepEqual(success.migrations.properties.before.enum, ["001-072", "001-073", "001-074", "001-075", "001-076"]);
   assert.equal(success.migrations.properties.after.const, "001-076");
-  assert.deepEqual(success.bundles.prefixItems.map((entry) => entry.properties.document_count.const), [10, 286]);
-  assert.ok(success.bundles.prefixItems.every((entry) => entry.properties.bundle_sha256.type === "string"));
+  assert.deepEqual(Object.fromEntries(Object.entries(success.knowledge_freeze.properties).map(([key, definition]) => [key, definition.const])), knowledgeFreeze);
+  assert.deepEqual(success.bundles.prefixItems.map((entry) => entry.properties.document_count.const), [11, 291]);
+  assert.deepEqual(success.bundles.prefixItems.map((entry) => entry.properties.bundle_sha256.const), [clientBundleHash, internalBundleHash]);
   assert.ok(success.bundles.prefixItems.every((entry) => entry.properties.chunk_count.minimum === 1));
   assert.ok(success.images.prefixItems.every((entry) => entry.properties.image_id.type === "string"));
   assert.deepEqual(success.images.prefixItems.map((entry) => entry.properties.name.const), ["main_crm", "evo_inbox", "lead_agent"]);
@@ -41,7 +64,26 @@ test("Draft 2020-12 validation rejects false success and contradictory failure",
     (value) => { value.candidate.ci_run = 31900296274; },
     (value) => { value.migrations.after = "001-075"; },
     (value) => { value.migrations.before = "001-999"; },
+    (value) => { value.knowledge_freeze.frozen_at = null; },
+    (value) => { value.knowledge_freeze.account_resolution_status = "not_run"; },
+    (value) => { value.knowledge_freeze.client_document_count = 10; },
+    (value) => { value.knowledge_freeze.internal_document_count = 286; },
+    (value) => { value.knowledge_freeze.client_bundle_sha256 = hash; },
+    (value) => { value.knowledge_freeze.internal_bundle_sha256 = hash; },
+    (value) => { value.knowledge_freeze.client_bundle_manifest_sha256 = hash; },
+    (value) => { value.knowledge_freeze.internal_bundle_manifest_sha256 = hash; },
+    (value) => { value.knowledge_freeze.client_allowlist_count = 7; },
+    (value) => { value.knowledge_freeze.client_allowlist_sha256 = hash; },
+    (value) => { value.knowledge_freeze.client_publication_manifest_count = 7; },
+    (value) => { value.knowledge_freeze.client_publication_manifest_sha256 = hash; },
+    (value) => { value.knowledge_freeze.pii_boundary_status = "not_run"; },
+    (value) => { value.knowledge_freeze.retrieval_passed = 9; },
+    (value) => { value.knowledge_freeze.retrieval_failed = 1; },
+    (value) => { value.knowledge_freeze.review_bound_source_count = 911; },
     (value) => { value.bundles[0].bundle_sha256 = null; },
+    (value) => { value.bundles[0].bundle_sha256 = hash; },
+    (value) => { value.bundles[0].document_count = 10; },
+    (value) => { value.bundles[1].document_count = 286; },
     (value) => { value.bundles[0].document_count = null; },
     (value) => { value.images[0].image_id = null; },
   ]) {

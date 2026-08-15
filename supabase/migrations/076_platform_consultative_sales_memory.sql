@@ -41,9 +41,23 @@ BEGIN
   INTO function_definition;
 
   updated_definition := pg_catalog.replace(function_definition, '> 9', '> 13');
+  updated_definition := pg_catalog.replace(
+    updated_definition,
+    $old$allowed_fact_keys CONSTANT TEXT[] := ARRAY[
+    'preferred_country',$old$,
+    $new$allowed_fact_keys CONSTANT TEXT[] := ARRAY[
+    'age',
+    'english_level',
+    'current_education',
+    'countries_considered',
+    'preferred_country',$new$
+  );
 
-  IF updated_definition = function_definition THEN
-    RAISE EXCEPTION 'Expected Gemini memory_changes bound was not found';
+  IF updated_definition = function_definition
+    OR pg_catalog.strpos(updated_definition, '''age''') = 0
+    OR pg_catalog.strpos(updated_definition, '> 13') = 0
+  THEN
+    RAISE EXCEPTION 'Expected Gemini fact vocabulary and bounds were not found';
   END IF;
 
   EXECUTE updated_definition;

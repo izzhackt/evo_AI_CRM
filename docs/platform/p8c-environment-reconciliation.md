@@ -95,3 +95,46 @@ P8C stops with a truthful blocked report if access is missing or drift exists.
 P8D remains a separate action-time approval: it may deploy only the exact
 candidate with provider-write and autonomous-send controls disabled. This
 contract grants no P8D authority.
+
+## P8B2 amd64 extension
+
+Issue [#197](https://github.com/izzhackt/evo_AI_CRM/issues/197) extends this
+contract without changing the historical P8B reconciliation described above.
+For the rebuilt P8B2 candidate, the closed report schema is version `2`; the
+version-discriminated schema continues to validate historical version `1`
+reports against their original closed shape. The P8C command accepts retained
+artifact paths below its evidence root, not caller assertions for hashes,
+platforms, or image identities. It reads and hashes `candidate-manifest.json`,
+its bound `evidence-index.json`, the P8B2 `collection-index.json`, and the
+retained historical P8B evidence index used for lineage. The historical index
+must also be a closed version `1` document bound to the candidate commit. P8C
+then derives the following report values, including
+`p8b_evidence_index_sha256`, from those bytes:
+
+- `target_platform`, with exactly `os: linux`, `architecture: amd64`, and an
+  empty `variant`;
+- `candidate_manifest_sha256`, the SHA-256 of the deterministic candidate
+  manifest;
+- `candidate_evidence_index_sha256`, the SHA-256 of that manifest's evidence
+  index;
+- `p8b2_collection_index_sha256`, the SHA-256 of the retained P8B2 build,
+  smoke, and SBOM collection index.
+
+Missing fields, symlinks, paths outside the evidence root, extra or unknown
+platform fields, any architecture other than `amd64`, a non-empty platform
+variant, hash mismatches, and candidate/image mismatches are hard input
+failures. The collection index must hash the retained image, SBOM, and smoke
+identities, and all three identities must agree on exactly the three distinct
+CRM, Inbox, and Lead Agent image IDs. These bindings ensure P8C inventories the
+exact P8B2 linux/amd64 candidate and cannot silently fall back to the earlier
+arm64 artifacts.
+
+Each consumed JSON artifact is checked against its repository-owned closed
+shape. Evidence-index segments must all be `verified`; SBOM records must be
+successful `linux/amd64` records; smoke records must be successful, isolated on
+network `none`, and have zero restarts. Every collection entry must declare
+mode `600`, and the retained file must actually have mode `0600`.
+SBOM and smoke records retain the closed service order `main_crm`, `evo_inbox`,
+`lead_agent`. Their candidate-bound tags, SBOM filenames and tool version,
+smoke routes, timestamps, hashes, and service names must match the corresponding
+schema exactly; reordering records cannot transfer evidence between services.

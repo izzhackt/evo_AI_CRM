@@ -131,6 +131,30 @@
         ], "items": false }
       }
     }
+  }, {
+    "if": { "properties": { "result_code": { "enum": ["preflight_blocked", "build_failed", "migration_failed", "knowledge_failed", "deployment_failed"] } } },
+    "then": { "properties": { "pilot": { "items": { "properties": { "status": { "enum": ["not_run", "failed"] } } } } } }
+  }, {
+    "if": { "properties": { "result_code": { "const": "preflight_blocked" } } },
+    "then": { "properties": { "migrations": { "properties": { "status": { "const": "not_run" } } }, "bundles": { "maxItems": 0 }, "images": { "maxItems": 0 }, "containers_after": { "maxItems": 0 }, "rollback": { "properties": { "status": { "const": "not_run" } } }, "pilot": { "maxItems": 0 } } }
+  }, {
+    "if": { "properties": { "result_code": { "const": "build_failed" } } },
+    "then": { "properties": { "images": { "contains": { "properties": { "status": { "const": "failed" } }, "required": ["status"] } }, "migrations": { "properties": { "status": { "const": "not_run" } } }, "bundles": { "maxItems": 0 }, "containers_after": { "maxItems": 0 }, "pilot": { "maxItems": 0 } } }
+  }, {
+    "if": { "properties": { "result_code": { "const": "migration_failed" } } },
+    "then": { "properties": { "migrations": { "properties": { "status": { "const": "failed" } } }, "bundles": { "maxItems": 0 }, "containers_after": { "maxItems": 0 }, "pilot": { "maxItems": 0 } } }
+  }, {
+    "if": { "properties": { "result_code": { "const": "knowledge_failed" } } },
+    "then": { "properties": { "bundles": { "contains": { "properties": { "status": { "const": "failed" } }, "required": ["status"] } }, "containers_after": { "maxItems": 0 }, "pilot": { "maxItems": 0 } } }
+  }, {
+    "if": { "properties": { "result_code": { "const": "deployment_failed" } } },
+    "then": { "properties": { "images": { "contains": { "properties": { "status": { "enum": ["failed", "rolled_back"] } }, "required": ["status"] } }, "pilot": { "maxItems": 0 } } }
+  }, {
+    "if": { "properties": { "result_code": { "const": "pilot_failed" } } },
+    "then": { "properties": { "pilot": { "contains": { "properties": { "status": { "const": "failed" } }, "required": ["status"] } } } }
+  }, {
+    "if": { "properties": { "result_code": { "const": "rollback_failed" } } },
+    "then": { "properties": { "rollback": { "properties": { "status": { "const": "failed" } } } } }
   }],
   "$defs": {
     "verifiedContainer": { "properties": { "status": { "const": "verified" }, "healthy": { "const": true }, "restart_count": { "const": 0 } } },

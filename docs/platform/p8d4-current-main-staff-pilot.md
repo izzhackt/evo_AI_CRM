@@ -182,17 +182,23 @@ accepted:
 
 Each exact env source must be a root-owned regular non-symlink mode-`0600`
 file. Run from the release root `repo/` with `EVO_RELEASE_REVISION` set to the
-frozen full commit and these exact absolute interpolation values:
+frozen full commit, `EVO_RELEASE_VERSION=p8d4-current-main-20260815`,
+`EVO_WAHA_IMAGE_DIGEST=sha256:f3c33e8e70a78eb37af4f4e2eb655849d42d8ffdc4b8254f9de38069e906a146`,
+and these exact absolute interpolation values:
 
 - `EVO_CRM_APP_ENV_FILE=/opt/evo-crm/.env.production`;
 - `EVO_CRM_LEAD_AGENT_ENV_FILE=/opt/evo-crm/.env.lead-agent`;
 - `EVO_INBOX_APP_ENV_FILE=/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production`.
 
-Run only `docker compose -p <project> -f <file> up -d --no-deps <service>` with
-the applicable variable exported. The retained-Compose rollback commands use
+Run only `docker compose --env-file <exact-env-source> -p <project> -f <file>
+up -d --no-deps <service>` with the applicable absolute service-env variable
+also exported. `--env-file` supplies required Compose-time values such as the
+Inbox public Supabase URL/key without copying or printing them. The
+retained-Compose rollback commands use
 the same three absolute variable values, their recorded prior
-`EVO_RELEASE_REVISION`, the rollback root as working directory, and the exact
-project/file/service matrix. The execution
+`EVO_RELEASE_REVISION`, the same fixed release-version and WAHA digest values,
+the matching exact env source via `--env-file`, the rollback root as working
+directory, and the exact project/file/service matrix. The execution
 amendment records the three pre-deploy Compose working directories, revisions,
 images and archive hashes. If a later boundary fails, roll back every already
 deployed P8D4 boundary in reverse order using those exact retained Compose
@@ -255,7 +261,7 @@ Stdout is reduced to migration identifiers/status before it enters the mode
    so it is never used for publication. From the new release `repo/`, run an
    isolated one-off container from the already verified candidate Inbox image
    without replacing the running service. Create it with
-   `EVO_RELEASE_REVISION=472cc58115b7e6a459d089fd082081fa8da15610 EVO_INBOX_APP_ENV_FILE=/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production docker compose -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name evo-p8d4-knowledge-import --entrypoint tail app -f /dev/null`;
+   `EVO_RELEASE_REVISION=472cc58115b7e6a459d089fd082081fa8da15610 EVO_RELEASE_VERSION=p8d4-current-main-20260815 EVO_WAHA_IMAGE_DIGEST=sha256:f3c33e8e70a78eb37af4f4e2eb655849d42d8ffdc4b8254f9de38069e906a146 EVO_INBOX_APP_ENV_FILE=/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production docker compose --env-file /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name evo-p8d4-knowledge-import --entrypoint tail app -f /dev/null`;
    require that exact name to be absent first. Use the merged K5 `docker cp`
    and in-container hash verification, then run only
    `docker exec evo-p8d4-knowledge-import npm run knowledge:import -- --audience <client|internal> --bundle <exact-container-path> --manifest <exact-container-path> --account-id "$EVO_KNOWLEDGE_ACCOUNT_ID"`.

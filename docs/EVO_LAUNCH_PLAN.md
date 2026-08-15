@@ -2577,6 +2577,214 @@ documents, process Gmail, retry WhatsApp media, or expose raw/sensitive content.
 - Marker tests reject missing, malformed, symlinked and canonical-path-mismatched
   client markers; allowlist tests reject unknown fields, wrong SHA, invalid
   provenance and destinations outside the exact client vault before mutation.
+
+## Active slice: `/goal-evo-platform-knowledge`
+
+### Outcome
+
+Connect the two approved Obsidian knowledge layers to the production EVO Inbox
+without exposing raw archives or internal notes to client-reply generation.
+Obsidian remains the owner-edited source; Supabase is the account-scoped runtime
+index; Gemini produces operator-reviewed drafts only. No autonomous WhatsApp
+send is authorized.
+
+### Delivery blocks
+
+1. `K1` records this architecture and its closed publication, database,
+   retrieval, deployment and real-evaluation contract. It changes no runtime.
+2. `K2` adds an explicit `client` / `internal` audience to knowledge documents,
+   chunks and retrieval RPCs; existing unclassified production documents become
+   `internal`. Client draft and playground paths request only `client` chunks.
+3. `K3` adds deterministic bundle construction from the two exact marked local
+   vaults and a one-shot server-side importer. The client bundle contains all
+   regular non-symlink Markdown in the exact client vault except `.obsidian`,
+   publication journals and hidden control files. The internal bundle contains
+   only regular non-symlink Markdown under `Утверждено для внутреннего ИИ`.
+4. `K4` adds an authenticated staff-only internal assistant surface. It retrieves
+   only `internal` chunks, calls the account's existing active Gemini config,
+   returns a draft plus source-note identities, records the same provider and
+   retrieval audit metadata used by client drafts, and cannot send WhatsApp.
+5. `K5` deploys only after reviewed PRs, green exact-head/main CI and the current
+   release gate. It applies the migration, imports both real bundles, reindexes,
+   runs fixed Russian retrieval cases and executes one explicitly authorized
+   real Gemini draft for each audience. Automatic reply remains disabled.
+
+### Closed data and sync contract
+
+- `ai_knowledge_documents.audience` and `ai_knowledge_chunks.audience` are
+  required text values restricted to `client` or `internal`. Chunk audience is
+  copied from its parent document; retrieval RPCs require an audience argument
+  and filter it together with `account_id` before ranking.
+- Managed documents also carry `source_path`, `source_sha256` and
+  `managed_by = 'evo_obsidian_sync'`. A closed check constraint requires all
+  three to be non-null for managed rows and all three to be null for manual
+  rows. The unique partial managed identity is
+  `(account_id, audience, source_path)`. Existing/manual documents remain
+  preserved but migrate to `internal`; they are never silently promoted to
+  client knowledge.
+- A bundle is UTF-8 canonical JSON (`sort_keys=true`, compact separators, one
+  final LF) named `evo-knowledge-<audience>.json`. It is a closed version-1
+  object with `version`, `account_id`, `audience`, `vault_kind`, `marker_sha256`,
+  and `documents`; it contains no clock-derived field. Each
+  document has exactly `source_path`, `source_sha256`, `title`, and `content`.
+  `source_path` is NFC-normalized POSIX syntax relative to the exact marked
+  client root for `client`, and relative to the exact approved child for
+  `internal`. It must be a non-empty visible `.md` path with no absolute form,
+  backslash, dot segment, hidden segment or symlink component and must resolve
+  to a regular file strictly inside that lexical root.
+- Its manifest is exactly `evo-knowledge-<audience>.sha256.json`, canonicalized
+  the same way, with only `version`, `account_id`, `audience`, `bundle_file`,
+  and `bundle_sha256`; the SHA covers the exact bundle bytes. The importer
+  requires exact account/audience/file agreement and re-hashes before parsing.
+  `marker_sha256` binds the exact local `.evo-vault.json` bytes; the server does
+  not treat the workstation absolute path inside that marker as authorization.
+  Generation time belongs only to the unhashed operational report. Rebuilding
+  the same account/audience/vault bytes produces byte-identical bundle and
+  manifest files and the same SHA.
+- Bundle creation validates the exact non-symlink vault marker and every path,
+  rejects symlink components, invalid UTF-8, non-Markdown files, duplicate
+  paths, wrong hashes and any path containing raw/secrets roots. Both audiences
+  unconditionally reuse `contains_email()` and `contains_phone()` from
+  `scripts/knowledge_ingestion/review.py`; either match aborts the entire bundle.
+  Tests include formatted/international phones, continuous 10/16-digit runs,
+  email case variants, invalid UTF-8 and symlinked parent components.
+- The importer runs inside the private EVO Inbox execution boundary with the
+  existing service-role credential. It requires an explicit account id, validates
+  the complete bundle before mutation, upserts only managed identities for the
+  declared audience, rebuilds their chunks, and deletes stale documents only
+  when they are still marked `evo_obsidian_sync` for that audience. Manual and
+  opposite-audience documents are never deleted.
+- Before database mutation, the importer deterministically chunks every document
+  and obtains/validates every required embedding in memory. It then calls the
+  single service-role-only Postgres function
+  `public.sync_ai_knowledge_bundle(uuid,text,text,jsonb)`, passing account,
+  audience, bundle SHA and the fully materialized documents/chunks. The function
+  revokes `PUBLIC`/`anon`/`authenticated`, grants only `service_role`, validates
+  the closed payload again, takes `pg_advisory_xact_lock` on the account/audience
+  identity, upserts documents, replaces their chunks, deletes only stale managed
+  rows for that audience, records the bundle SHA, and returns counts in its one
+  database transaction. Any exception rolls back every write. The existing
+  delete-then-insert `ingestDocument()` is not used by this importer.
+- The fourth RPC argument is a closed JSON object with exactly `version: 1` and
+  `documents`. Each document has exactly `source_path`, `source_sha256`, `title`,
+  `content`, and `chunks`. Each chunk has exactly `chunk_index`, `content`,
+  `content_sha256`, and `embedding`; indices are consecutive integers from zero,
+  content is non-empty and SHA-256 matches its UTF-8 bytes, and embedding is an
+  array of exactly 1,536 finite JSON numbers. Document identity is the managed
+  `(account_id,audience,source_path)` row; chunk identity is that document plus
+  `chunk_index`. Empty documents/chunks, duplicate paths/indices and extra keys
+  reject the whole RPC. The lock is exactly
+  `pg_advisory_xact_lock(hashtextextended(account_id::text || chr(31) || audience, 0))`.
+  The RPC returns exactly `version`, `account_id`, `audience`, `bundle_sha256`,
+  `documents_upserted`, `documents_deleted`, and `chunks_replaced`; counts are
+  non-negative integers and are committed in the same transaction.
+- A failed validation, embedding/provider error or database error is reported as
+  failure. There is no keyword, mock or partial-success fallback during import.
+
+### Security and behavior invariants
+
+- Client reply generation, playground evaluation and any later auto-reply path
+  can retrieve only `client` knowledge. Internal retrieval is available only to
+  authenticated EVO staff and never enters a client reply prompt.
+- `owner`, `admin` and `agent` are staff for this slice; `viewer` has no direct
+  document/chunk/RPC or assistant access. Direct table SELECT and retrieval RPCs
+  require `is_account_member(account_id, 'agent')`; document mutation remains
+  admin/owner-only. Retrieval RPCs remain `authenticated` but are SECURITY
+  INVOKER and RLS-bound. The sync RPC is service-role-only. Client draft and
+  playground routes require `agent` and hard-code `client`; the internal route
+  requires `agent` and hard-codes `internal`; manual knowledge CRUD requires
+  `admin`, always creates/updates `internal` manual rows, and cannot accept an
+  audience override. Negative route/RLS tests cover
+  anonymous, viewer, cross-account, client-to-internal parameter injection and
+  direct internal table/RPC reads.
+- `Сырой архив ЭВО`, `Секреты и доступы ЭВО`, WhatsApp originals, Gmail MBOX,
+  applicant files and unapproved review notes are rejected at bundle creation
+  and absent from runtime storage.
+- Gemini credentials stay encrypted in the existing account configuration.
+  Logs, reports, bundles, Git and chat output never contain keys, message bodies
+  or customer personal data.
+- All generated answers are drafts. No endpoint in this slice calls WAHA or
+  changes the existing disabled automatic-reply state.
+
+### Assistant API and immutable audit contract
+
+- Existing `POST /api/ai/playground` remains agent-or-higher and accepts only
+  `{messages,evaluation_case_id?}`. `messages` contains 1–20 exact objects with
+  only `role` (`user` or `assistant`) and trimmed `content` (1–4,000 characters).
+  The optional id is only `client_china_documents`; unknown/extra fields return
+  HTTP 400. It hard-codes `client` retrieval.
+- New `POST /api/ai/internal-assistant` is agent-or-higher and accepts only
+  `{message,evaluation_case_id?}` with trimmed `message` of 1–4,000 characters;
+  the optional id is only `internal_malaysia_handoff`. It hard-codes `internal`.
+  Both success responses contain exactly `reply`, `handoff`, `sources`, and
+  `audit_id`; each source has only UUID `chunk_id` and normalized `source_path`.
+  Errors contain only `error` and stable `code`, with 400 validation/config,
+  401 unauthenticated, 403 insufficient role, 429 limit, or 502 provider/audit
+  failure. A generation is never returned if its audit insert fails.
+- `ai_assistant_audits` has UUID `id`, required account FK, audience check,
+  nullable evaluation-case id restricted to the case matching its audience,
+  provider/model text, and non-empty closed JSONB `knowledge_sources`; every
+  element has exactly UUID `chunk_id` and normalized `source_path`, chunk ids
+  are unique and repeated source paths are allowed. It also has 64-lowercase-hex
+  `response_sha256`, boolean
+  `handoff`/`success`, required actor FK, `created_at`, and `expires_at` fixed to
+  `created_at + interval '90 days'`. It stores no prompt or response body.
+  Account agents may SELECT through RLS. `anon`/`authenticated` cannot
+  INSERT/UPDATE/DELETE; server routes insert with service role after role checks.
+  UPDATE always raises; DELETE raises before expiry. A service-role-only
+  `purge_expired_ai_assistant_audits()` deletes only expired rows and returns a
+  count. Existing conversation-bound `ai_drafts` remains unchanged.
+
+### Bundle transport and retention
+
+- The builder writes the bundle, manifest and body-free generation report to a
+  fresh `mktemp -d` directory under local `/private/tmp`, directory mode 0700
+  and files 0600. It never writes them to Git, an Obsidian vault or an image.
+- The operator transfers exactly the bundle and manifest over the existing SSH
+  host `hermes-vps` into a collision-free
+  `/opt/evo-inbox/knowledge-imports/<UTC>-<bundle-sha-prefix>/` directory owned
+  by root mode 0700 with files mode 0600. The import id is strict UTC basic time
+  plus the first 12 lowercase bundle-SHA characters; no glob is accepted.
+  Host SHA and manifest/account/audience are verified before `docker cp` copies
+  the two exact files into `/tmp/evo-knowledge-import/<import-id>/` in the exact
+  Inbox app container with the same modes. The importer re-verifies before RPC.
+- A trap runs on success and failure and removes only the two exact files and
+  their now-empty exact staging directory from container, host and local temp;
+  cleanup failure makes K5 fail. Bundles never persist in an image or volume.
+  Only a root-owned 0600 redacted report containing hashes, counts, statuses and
+  no note body remains under `/opt/evo-inbox/evidence/knowledge/`.
+
+### Acceptance and real proof
+
+- Migration/RLS/grant tests prove account and audience isolation, required
+  audience filtering and fail-closed invalid values.
+- Unit/integration tests use the real local Supabase stack on OrbStack; no mocked
+  database/provider result counts as acceptance. UI/build/type/lint checks pass.
+- Real vault bundle reports include exact document counts and hashes while
+  excluding raw, secrets, hidden controls and symlinks. Repeated import is
+  idempotent; a removed managed note is deleted only from its own audience.
+- Production proof records image/revision, migration state, managed document and
+  chunk counts per audience, retrieval case results, active provider/model,
+  auto-reply disabled state and source identities for two real Gemini drafts.
+  Fixed committed cases live in
+  `scripts/knowledge_ingestion/platform_eval_cases.json`: client case
+  `client_china_documents` asks in Russian which China-admission documents to
+  prepare and requires exact source `Страны/Китай/Документы для поступления — порядок уточнения.md`;
+  internal case `internal_malaysia_handoff` asks in Russian how sales hands a
+  Malaysia student to the overseas-education team and requires exact source
+  `Процессы/Передача студента из ОП в ОЗО по Малайзии — 68fe88af5a26.md`.
+  Both run through authenticated admin playground/assistant routes with synthetic
+  non-customer messages, never a real conversation. Each route writes an
+  immutable `ai_assistant_audits` row containing account, audience, case id,
+  provider, model, closed knowledge sources, response SHA-256, success, actor and
+  timestamp but no prompt or draft body. Rows are retained 90 days. The report
+  `docs/evidence/evo-platform-knowledge-k5-eval.json` contains only those safe
+  fields plus HTTP status, expected-source match, cross-audience-source count
+  (must be zero), auto-reply state and send-endpoint-call count (must be zero).
+  Draft text and private source contents are neither committed nor logged.
+- Any missing credential, migration drift, account ambiguity, provider failure,
+  retrieval leakage, unexpected production image, failed CI or release-gate
+  conflict stops deployment and is reported plainly.
 - Tests also reject symlinked approved/client roots or path components,
   misclassified stable/mutable material, false personal-data review flags,
   email/phone content and unreadable stale candidates with zero mutation.

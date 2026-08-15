@@ -6934,3 +6934,35 @@ deterministic P8 candidate migration inventory from contiguous `001-072` to
 contiguous `001-073` and update its focused contract test. Historical P8
 evidence remains unchanged; this amendment only makes future candidate
 generation bind the current complete migration set.
+
+## 2026-08-15 - Resume portable AMD64 staging from the verified P8D2 checkpoint
+
+Plan Block-ID: `EVO-P8D3-PORTABLE-AMD64-HERMES-STAGING-2026-08-15`
+
+Issue: #209
+
+Change type: production staging contract; no running-service change.
+
+Decision:
+
+- Use P8B3 portable manifest digests, not their parent OCI-index digests, as
+  the expected IDs after cross-daemon `docker image load`.
+- Preserve P8D2 as failed-safe history. Reuse its real transfer/load checkpoint
+  only after exact archive hashes, tag/manifest/platform/revision and current
+  running-service state are freshly verified.
+- Create a new collision-free `2026-08-15.p8d3.1` release, evidence and rollback
+  boundary. Capture the same closed three-application rollback and environment
+  matrix before staging evidence.
+- Do not repeat a valid image transfer/load. Copy only hash-proven archive
+  bytes into the new release root and transfer the two closed P8B3 JSON files.
+- Bind completion to a closed P8D3 result schema and atomic mode-`0600`
+  evidence writes. Do not rerun P8C2 because its provider/credential checks
+  remain outside staging authority; retain its truthful blocked result.
+- Require all CRM, Lead Agent, Inbox and both WAHA containers to retain exact
+  image IDs, health, zero restart counts and start timestamps.
+- No deploy/recreate/restart, provider access, customer data, WAHA/session/
+  webhook/QR mutation, message send, Gemini content call, amoCRM access,
+  Supabase write, DNS, billed resource, prune or unrelated cleanup is allowed.
+
+The executable contract is `docs/platform/p8d3-portable-amd64-staging.md`.
+Application activation remains a later separately approved block.

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8-image-identity.schema.json",
+  "title": "EVO P8B2 image identity evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["base_commit", "build_records", "candidate_commit", "images"],
+  "properties": {
+    "base_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "candidate_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "build_records": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/build_record" }
+    },
+    "images": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/image" }
+    }
+  },
+  "$defs": {
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["architecture", "os", "variant"],
+      "properties": {
+        "architecture": { "const": "amd64" },
+        "os": { "const": "linux" },
+        "variant": { "const": "" }
+      }
+    },
+    "build_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_commit", "candidate_commit", "image_name", "image_tag", "log_name", "log_sha256", "result_marker"],
+      "properties": {
+        "base_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "candidate_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "image_name": { "enum": ["evo_inbox", "lead_agent", "main_crm"] },
+        "image_tag": { "type": "string", "pattern": "^evo-(crm|inbox|lead-agent):[0-9a-f]{40}-linux-amd64$" },
+        "log_name": { "type": "string" },
+        "log_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "result_marker": { "type": "string" }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["build_record", "digest", "name", "platform", "revision", "source", "tag", "version"],
+      "properties": {
+        "build_record": { "$ref": "#/$defs/build_record" },
+        "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "name": { "enum": ["evo_inbox", "lead_agent", "main_crm"] },
+        "platform": { "$ref": "#/$defs/platform" },
+        "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "source": { "type": "string" },
+        "tag": { "type": "string", "pattern": "^evo-(crm|inbox|lead-agent):[0-9a-f]{40}-linux-amd64$" },
+        "version": { "type": "string" }
+      }
+    }
+  }
+}

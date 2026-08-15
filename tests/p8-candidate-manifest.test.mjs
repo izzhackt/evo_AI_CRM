@@ -11,11 +11,15 @@ import {
   collectMigrationInventory,
   collectRuntimeSettingInventory,
   parseJsonRejectingDuplicates,
+  P8B2_TARGET_PLATFORM,
   RESULT_STATUSES,
   resolveEvidencePath,
   stableJson,
   validateValidationRecords,
   validateGitIdentity,
+  validateImageInspection,
+  validateImageEvidence,
+  validateReleaseControlIdentity,
 } from "../scripts/p8-candidate-manifest.mjs";
 
 const repoRoot = resolve(import.meta.dirname, "..");
@@ -85,18 +89,19 @@ test("lead-agent candidate tag without its retained build marker is rejected", (
   const header = `base_commit=${baseCommit}\ncandidate_commit=${candidateCommit}\nexit_code=0\n`;
   writeFileSync(
     join(buildDirectory, "build-crm.log"),
-    `${header}Image evo-crm:${candidateCommit} Built\n`,
+    `${header}Image evo-crm:${candidateCommit}-linux-amd64 Built\n`,
     { mode: 0o600 },
   );
   writeFileSync(
     join(buildDirectory, "build-inbox.log"),
-    `${header}Image evo-inbox:${candidateCommit} Built\n`,
+    `${header}Image evo-inbox:${candidateCommit}-linux-amd64 Built\n`,
     { mode: 0o600 },
   );
+  writeFileSync(join(buildDirectory, "build-lead-agent.log"), header, { mode: 0o600 });
 
   assert.throws(
     () => collectBuildRecords({ baseCommit, buildEvidenceDir: buildDirectory, candidateCommit }),
-    new RegExp(`build-crm\\.log does not prove evo-lead-agent:${candidateCommit} was built`),
+    new RegExp(`build-lead-agent\\.log does not prove evo-lead-agent:${candidateCommit}-linux-amd64 was built`),
   );
 });
 
@@ -138,6 +143,22 @@ test("Git identity requires the candidate's real exact parent", () => {
   );
 });
 
+test("release-control identity requires its own clean exact checkout", () => {
+  const root = mkdtempSync(join(tmpdir(), "evo-p8-control-git-"));
+  execFileSync("git", ["-C", root, "init", "--quiet"]);
+  execFileSync("git", ["-C", root, "config", "user.email", "release-control@example.invalid"]);
+  execFileSync("git", ["-C", root, "config", "user.name", "Release Control"]);
+  writeFileSync(join(root, "tool.txt"), "tool\n");
+  execFileSync("git", ["-C", root, "add", "tool.txt"]);
+  execFileSync("git", ["-C", root, "commit", "--quiet", "-m", "tool"]);
+  const commit = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+
+  assert.doesNotThrow(() => validateReleaseControlIdentity(root, commit));
+  assert.throws(() => validateReleaseControlIdentity(root, "3".repeat(40)), /does not match tool HEAD/);
+  writeFileSync(join(root, "dirty.txt"), "dirty\n");
+  assert.throws(() => validateReleaseControlIdentity(root, commit), /must be clean/);
+});
+
 test("evidence input and output paths reject symlink escapes", () => {
   const root = mkdtempSync(join(tmpdir(), "evo-p8-symlink-"));
   const evidenceRoot = join(root, ".evo-release-evidence");
@@ -159,11 +180,86 @@ test("evidence input and output paths reject symlink escapes", () => {
 
 test("manifest schemas are closed and share the approved result vocabulary", () => {
   const manifestSchema = JSON.parse(readFileSync(join(repoRoot, "docs/schemas/p8-candidate-manifest.schema.json"), "utf8"));
+  const imageSchema = JSON.parse(readFileSync(join(repoRoot, "docs/schemas/p8-image-identity.schema.json"), "utf8"));
   const indexSchema = JSON.parse(readFileSync(join(repoRoot, "docs/schemas/p8-evidence-index.schema.json"), "utf8"));
   assert.equal(manifestSchema.additionalProperties, false);
+  assert.equal(imageSchema.additionalProperties, false);
   assert.equal(indexSchema.additionalProperties, false);
+  assert.equal(manifestSchema.properties.schema_version.const, 2);
+  assert.deepEqual(manifestSchema.properties.target_platform.properties, {
+    architecture: { const: "amd64" },
+    os: { const: "linux" },
+    variant: { const: "" },
+  });
   assert.deepEqual(indexSchema.$defs.result.properties.status.enum, RESULT_STATUSES);
   assert.ok(manifestSchema.required.includes("images"));
   assert.ok(manifestSchema.required.includes("runtime_settings"));
   assert.ok(indexSchema.properties.segments.required.includes("runtime_setting_inventory"));
+});
+
+test("image identity accepts only the exact linux amd64 target", () => {
+  const tag = `evo-crm:${candidateCommit}-linux-amd64`;
+  const inspected = {
+    Architecture: "amd64",
+    Config: {
+      Labels: {
+        "org.opencontainers.image.revision": candidateCommit,
+        "org.opencontainers.image.source": "https://github.com/izzhackt/evo_AI_CRM",
+        "org.opencontainers.image.version": "p8b2",
+      },
+    },
+    Id: `sha256:${"a".repeat(64)}`,
+    Os: "linux",
+    Variant: "",
+  };
+
+  const identity = validateImageInspection(inspected, { candidateCommit, tag });
+  assert.deepEqual(identity.platform, P8B2_TARGET_PLATFORM);
+  assert.throws(
+    () => validateImageInspection({ ...inspected, Architecture: "arm64" }, { candidateCommit, tag }),
+    /platform must be exactly linux\/amd64 with no variant/,
+  );
+  assert.throws(
+    () => validateImageInspection({ ...inspected, Os: "windows" }, { candidateCommit, tag }),
+    /platform must be exactly linux\/amd64 with no variant/,
+  );
+  assert.throws(
+    () => validateImageInspection({ ...inspected, Variant: "v2" }, { candidateCommit, tag }),
+    /platform must be exactly linux\/amd64 with no variant/,
+  );
+});
+
+test("image evidence is closed and rejects platform drift", () => {
+  const buildRecord = {
+    base_commit: baseCommit,
+    candidate_commit: candidateCommit,
+    image_name: "main_crm",
+    image_tag: `evo-crm:${candidateCommit}-linux-amd64`,
+    log_name: "build-crm.log",
+    log_sha256: "b".repeat(64),
+    result_marker: `Image evo-crm:${candidateCommit}-linux-amd64 Built`,
+  };
+  const image = {
+    build_record: buildRecord,
+    digest: `sha256:${"a".repeat(64)}`,
+    name: "main_crm",
+    platform: P8B2_TARGET_PLATFORM,
+    revision: candidateCommit,
+    source: "https://github.com/izzhackt/evo_AI_CRM",
+    tag: `evo-crm:${candidateCommit}-linux-amd64`,
+    version: "p8b2",
+  };
+  const evidence = {
+    base_commit: baseCommit,
+    build_records: [buildRecord, buildRecord, buildRecord],
+    candidate_commit: candidateCommit,
+    images: [image, image, image],
+  };
+
+  assert.equal(validateImageEvidence(evidence), evidence);
+  assert.throws(() => validateImageEvidence({ ...evidence, unexpected: true }), /must contain exactly/);
+  assert.throws(
+    () => validateImageEvidence({ ...evidence, images: [{ ...image, platform: { ...P8B2_TARGET_PLATFORM, architecture: "arm64" } }, image, image] }),
+    /platform must be exactly linux\/amd64 with no variant/,
+  );
 });

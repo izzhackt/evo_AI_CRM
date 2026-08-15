@@ -1,7 +1,7 @@
 # P8B2 Linux/AMD64 Candidate Contract
 
-Date: 2026-08-15  
-Issue: #188  
+Date: 2026-08-15
+Issue: #188
 Status: planning gate
 
 ## Why a new candidate is required

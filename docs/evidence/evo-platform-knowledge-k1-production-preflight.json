@@ -1,0 +1,27 @@
+{
+  "captured_at": "2026-08-15T14:04:28Z",
+  "checks": {
+    "account_count": 1,
+    "active_ai_configs": [
+      {
+        "embeddings_provider": "gemini",
+        "is_active": true,
+        "model": "gemini-3.5-flash",
+        "provider": "gemini"
+      }
+    ],
+    "knowledge_account_count": 1,
+    "knowledge_document_count": 2,
+    "production_container": {
+      "health": "healthy",
+      "image_id": "sha256:6d5e0a9d5ea073737bdd8c2c5621818ca7bdb76dd5b16ca5e44563d39833cb6b",
+      "image_tag": "evo-inbox:a09a72fc55d869c861df520f76d62413a2315fc1",
+      "started_at": "2026-07-24T01:50:39.371773629Z"
+    }
+  },
+  "contains_customer_content": false,
+  "contains_secret_values": false,
+  "evidence_kind": "read_only_production_preflight",
+  "target": "hermes-vps:/opt/evo-inbox",
+  "version": 1
+}

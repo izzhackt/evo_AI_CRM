@@ -6803,3 +6803,71 @@ Change type: evaluation-content and sales-governance contract
    admission guarantees, and unreviewed numeric price/deadline claims.
 3. The EVO owner edits and explicitly approves the desired answers before they
    become sealed golden cases or are used to score a consultative-sales prompt.
+
+## 2026-08-15 - Connect approved Obsidian knowledge to EVO Inbox
+
+Plan Block-ID: `EVO-PLATFORM-KNOWLEDGE-K1-2026-08-15`
+
+Change type: owner-authorized architecture and production integration contract.
+
+Reason: the owner selected the recommended operating model: Codex maintains and
+reviews the local Obsidian workspace, while the production EVO Inbox on Hermes
+uses the approved knowledge at runtime and the existing account Gemini provider
+to create staff-reviewed drafts. The current production account has an active
+Gemini configuration and two legacy knowledge documents, but the schema has no
+client/internal audience boundary and production runs an older image. Copying
+vault files into a container would be non-durable and unsafe.
+
+Decision: add `/goal-evo-platform-knowledge` to `docs/EVO_LAUNCH_PLAN.md` and
+deliver it through `K1` plan, `K2` audience isolation, `K3` deterministic
+Obsidian bundle/import, `K4` protected internal assistant, and `K5` reviewed
+production deployment/evaluation. Existing unclassified documents migrate to
+`internal`; client drafts explicitly retrieve `client`; internal drafts are
+staff-authenticated and cannot send WhatsApp. Only the exact client vault and
+the internal approved subtree may enter runtime storage. Raw archives, secrets,
+correspondence and applicant material stay excluded.
+
+Research basis: Gemini requires authenticated provider calls and structured
+outputs still require application-side semantic validation; Supabase recommends
+account-filtered Postgres full-text/vector search with explicit indexed filters.
+The existing EVO Inbox already implements encrypted account-level Gemini,
+knowledge chunking and operator-reviewed drafts, so this block extends that
+system rather than creating a parallel agent or new provider.
+
+- Gemini API authentication and generation:
+  <https://ai.google.dev/api>
+- Gemini structured-output validation boundary:
+  <https://ai.google.dev/gemini-api/docs/generate-content/structured-output>
+- Supabase hybrid keyword/vector search:
+  <https://supabase.com/docs/guides/ai/hybrid-search>
+
+Scope of this PR: documentation only. It authorizes no migration, Supabase
+write, Gemini call, image build, deployment, container restart, WAHA change or
+WhatsApp send. Each later block requires its own exact-head review and green CI.
+
+Review amendment: close the implementation choices identified at the K1 gate.
+K3 precomputes all chunks/embeddings and uses one service-role-only transactional
+Postgres sync RPC with an account/audience advisory transaction lock; it never
+uses the existing partial `ingestDocument()` sequence. The database and routes
+use the existing `agent` minimum for staff retrieval, `admin` for manual CRUD,
+hard-coded audiences per route, RLS-bound authenticated retrieval RPCs and a
+service-role-only sync RPC. Bundles, manifests, path identity, canonical JSON,
+managed/manual nullability and hash binding now have closed version-1 forms.
+Client PII rejection reuses the existing `contains_email()`/`contains_phone()`
+validators and fails the whole bundle on invalid UTF-8 or a match. K5 uses two
+fixed synthetic Russian cases, immutable body-free audit rows and a redacted
+closed evidence report; it does not inspect a customer conversation or invoke a
+send endpoint. The timestamped preflight evidence for the production claims is
+`docs/evidence/evo-platform-knowledge-k1-production-preflight.json`.
+
+Review amendment 2: remove the clock from hashed bundle identity and require
+same-input byte determinism. Close the RPC JSONB document/chunk/result schemas,
+1,536-value embedding contract, document/chunk identities and exact advisory
+lock expression. Both internal and client bundles now fail on the same existing
+email/phone validators and invalid UTF-8. Close the client playground and new
+internal-assistant request/response/error forms, the immutable body-free
+`ai_assistant_audits` schema/RLS/90-day purge behavior, and compatibility with
+the existing conversation audit. Bundle delivery is exact-file SCP over the
+existing SSH boundary into root-only collision-free host/container staging,
+verified at each boundary and removed from local/host/container on every exit;
+only the redacted operational report persists.

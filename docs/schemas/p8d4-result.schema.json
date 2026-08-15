@@ -4,7 +4,7 @@
   "title": "EVO P8D4 redacted result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "result_code", "candidate", "migrations", "bundles", "images", "containers_before", "containers_after", "rollback", "pilot"],
+  "required": ["schema_version", "result_code", "candidate", "migrations", "knowledge_freeze", "bundles", "images", "containers_before", "containers_after", "rollback", "pilot"],
   "properties": {
     "schema_version": { "const": "p8d4-v1" },
     "result_code": {
@@ -27,6 +27,29 @@
         "before": { "type": "string", "pattern": "^001-[0-9]{3}$" },
         "after": { "enum": ["001-076", null] },
         "status": { "enum": ["verified", "not_run", "failed"] }
+      }
+    },
+    "knowledge_freeze": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "frozen_at", "account_resolution_status", "client_document_count", "internal_document_count", "client_bundle_sha256", "internal_bundle_sha256", "client_bundle_manifest_sha256", "internal_bundle_manifest_sha256", "client_allowlist_count", "client_allowlist_sha256", "client_publication_manifest_count", "client_publication_manifest_sha256", "pii_boundary_status", "retrieval_passed", "retrieval_failed", "review_bound_source_count"],
+      "properties": {
+        "status": { "enum": ["verified", "not_run", "failed"] },
+        "frozen_at": { "type": ["string", "null"] },
+        "account_resolution_status": { "enum": ["exactly_one_active", "not_run", "failed"] },
+        "client_document_count": { "type": ["integer", "null"], "minimum": 0 },
+        "internal_document_count": { "type": ["integer", "null"], "minimum": 0 },
+        "client_bundle_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "internal_bundle_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "client_bundle_manifest_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "internal_bundle_manifest_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "client_allowlist_count": { "type": ["integer", "null"], "minimum": 0 },
+        "client_allowlist_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "client_publication_manifest_count": { "type": ["integer", "null"], "minimum": 0 },
+        "client_publication_manifest_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "pii_boundary_status": { "enum": ["verified", "not_run", "failed"] },
+        "retrieval_passed": { "type": ["integer", "null"], "minimum": 0 },
+        "retrieval_failed": { "type": ["integer", "null"], "minimum": 0 },
+        "review_bound_source_count": { "type": ["integer", "null"], "minimum": 0 }
       }
     },
     "bundles": {
@@ -113,9 +136,28 @@
     "then": {
       "properties": {
         "migrations": { "properties": { "before": { "enum": ["001-072", "001-073", "001-074", "001-075", "001-076"] }, "after": { "const": "001-076" }, "status": { "const": "verified" } } },
+        "knowledge_freeze": { "properties": {
+          "status": { "const": "verified" },
+          "frozen_at": { "const": "2026-08-16T04:16:05+06:00" },
+          "account_resolution_status": { "const": "exactly_one_active" },
+          "client_document_count": { "const": 11 },
+          "internal_document_count": { "const": 291 },
+          "client_bundle_sha256": { "const": "c20acf2a3ecdf321d9120ca97e1389b5883ef9cfd5d97dc5b1d2235c56a05c23" },
+          "internal_bundle_sha256": { "const": "a3a1092c10ec3a8768c6f8ac63f32f81b0fa9e9c313d820d034ad084565b6184" },
+          "client_bundle_manifest_sha256": { "const": "6c6c88ef430d91b4ee8c8d694bd69fc73d01cb1067088a2586e7b0c388ca3f8c" },
+          "internal_bundle_manifest_sha256": { "const": "6964354ab201daf1cce174aa48aa4aee3db757d091d96c050d88725df04caf33" },
+          "client_allowlist_count": { "const": 8 },
+          "client_allowlist_sha256": { "const": "3c35e8dbe8a6ad751ea6497d2a5a9b4abb035bd974cfa14e602aabecbb99557e" },
+          "client_publication_manifest_count": { "const": 8 },
+          "client_publication_manifest_sha256": { "const": "5f1ad3b95b4c8c8b25dfbddcb698c6676b8c176d5220b9ab07462074178cf374" },
+          "pii_boundary_status": { "const": "verified" },
+          "retrieval_passed": { "const": 10 },
+          "retrieval_failed": { "const": 0 },
+          "review_bound_source_count": { "const": 912 }
+        } },
         "bundles": { "minItems": 2, "maxItems": 2, "prefixItems": [
-          { "properties": { "audience": { "const": "client" }, "bundle_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "document_count": { "const": 10 }, "chunk_count": { "type": "integer", "minimum": 1 }, "status": { "const": "verified" } } },
-          { "properties": { "audience": { "const": "internal" }, "bundle_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "document_count": { "const": 286 }, "chunk_count": { "type": "integer", "minimum": 1 }, "status": { "const": "verified" } } }
+          { "properties": { "audience": { "const": "client" }, "bundle_sha256": { "const": "c20acf2a3ecdf321d9120ca97e1389b5883ef9cfd5d97dc5b1d2235c56a05c23" }, "document_count": { "const": 11 }, "chunk_count": { "type": "integer", "minimum": 1 }, "status": { "const": "verified" } } },
+          { "properties": { "audience": { "const": "internal" }, "bundle_sha256": { "const": "a3a1092c10ec3a8768c6f8ac63f32f81b0fa9e9c313d820d034ad084565b6184" }, "document_count": { "const": 291 }, "chunk_count": { "type": "integer", "minimum": 1 }, "status": { "const": "verified" } } }
         ], "items": false },
         "images": { "minItems": 3, "maxItems": 3, "prefixItems": [
           { "properties": { "name": { "const": "main_crm" }, "image_id": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }, "status": { "const": "verified" } } },

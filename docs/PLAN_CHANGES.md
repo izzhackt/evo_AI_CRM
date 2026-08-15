@@ -7306,3 +7306,54 @@ Execution gate:
   lifecycle and reviewed migrations `073`-`076` at this step. Stop before
   knowledge publication, container recreation, Gemini generation, amoCRM write,
   WAHA change or WhatsApp send.
+
+## 2026-08-16 - Refresh P8D4 to the final frozen knowledge inventory
+
+Plan Block-ID: `EVO-PLATFORM-P8D4C-KNOWLEDGE-FREEZE-2026-08-16`
+
+GitHub issue: `#225`
+
+Status: contract correction authorized; production knowledge publication stays
+blocked until this exact amendment passes independent review, CI, merge and
+exact-main CI
+
+Reason: the separately owned knowledge lane completed its approved Poland and
+Malaysia delta batch after P8D4 froze an inventory of 10 client and 286 internal
+documents. The final publishable vaults are now deliberately frozen at 11
+client and 291 internal documents. Continuing with the old counts would either
+discard reviewed knowledge or produce false completion evidence. No production
+knowledge sync or Gemini call occurred while the vault changed.
+
+Decision:
+
+- Preserve every prior P8D4 source, image, migration, rollback, deployment,
+  pilot and outbound-action boundary. This block supersedes only the stale
+  Phase D document inventory and bundle evidence.
+- Bind the freeze time `2026-08-16T04:16:05+06:00`, exact client/internal counts
+  `11`/`291`, exact bundle SHA-256 values `c20acf2a...`/`a3a1092c...`, client
+  allowlist count/hash `8`/`3c35e8db...`, and client publication-manifest
+  count/hash `8`/`5f1ad3b9...` in the active contract. Full values live in that
+  contract and the closed result schema; abbreviations here are descriptive.
+- Require a fresh service-role query to resolve exactly one active production
+  Gemini account without printing or persisting its UUID. Rebuild each frozen
+  vault twice with that exact account and require the full bundle hashes above,
+  plus exact generated manifest SHA-256 values `6c6c88ef...` and `6964354a...`.
+  This live check closes the knowledge lane's earlier unverified account-context
+  assumption without exposing the account identifier.
+- Require 11/291 and the two exact account-bound bundle hashes for
+  `pilot_verified` in `docs/schemas/p8d4-result.schema.json`; retain truthful
+  partial failure evidence for pre-provider drift or later failures.
+- Preserve the verified PII/boundary result, 10/10 retrieval result, raw/secret
+  exclusions, 912-source review binding and unchanged raw archives as mandatory
+  pre-import evidence. Any drift stops before embeddings.
+- Keep the knowledge owner freeze in force through both transactional audience
+  syncs and retrieval verification. Release it only after the rollout owner
+  confirms production import completion.
+
+Execution gate:
+
+- Pass the focused Draft 2020-12 behavioral test, full applicable Node gates,
+  independent exact-head review and exact-head CI; merge only on green.
+- Require exact-main green CI and a fresh deterministic 11/291 rebuild before
+  the first Gemini embedding call. No mock, fallback, partial content set or old
+  10/286 result is acceptable.

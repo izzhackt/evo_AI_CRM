@@ -112,15 +112,15 @@
     "if": { "properties": { "result_code": { "const": "pilot_verified" } } },
     "then": {
       "properties": {
-        "migrations": { "properties": { "after": { "const": "001-075" }, "status": { "const": "verified" } } },
+        "migrations": { "properties": { "before": { "enum": ["001-072", "001-073", "001-074", "001-075"] }, "after": { "const": "001-075" }, "status": { "const": "verified" } } },
         "bundles": { "minItems": 2, "maxItems": 2, "prefixItems": [
-          { "properties": { "audience": { "const": "client" }, "status": { "const": "verified" } } },
-          { "properties": { "audience": { "const": "internal" }, "status": { "const": "verified" } } }
+          { "properties": { "audience": { "const": "client" }, "bundle_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "document_count": { "const": 10 }, "chunk_count": { "type": "integer", "minimum": 1 }, "status": { "const": "verified" } } },
+          { "properties": { "audience": { "const": "internal" }, "bundle_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "document_count": { "const": 286 }, "chunk_count": { "type": "integer", "minimum": 1 }, "status": { "const": "verified" } } }
         ], "items": false },
         "images": { "minItems": 3, "maxItems": 3, "prefixItems": [
-          { "properties": { "name": { "const": "main_crm" }, "status": { "const": "verified" } } },
-          { "properties": { "name": { "const": "evo_inbox" }, "status": { "const": "verified" } } },
-          { "properties": { "name": { "const": "lead_agent" }, "status": { "const": "verified" } } }
+          { "properties": { "name": { "const": "main_crm" }, "image_id": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }, "status": { "const": "verified" } } },
+          { "properties": { "name": { "const": "evo_inbox" }, "image_id": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }, "status": { "const": "verified" } } },
+          { "properties": { "name": { "const": "lead_agent" }, "image_id": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }, "status": { "const": "verified" } } }
         ], "items": false },
         "containers_before": { "$ref": "#/$defs/verifiedContainers" },
         "containers_after": { "$ref": "#/$defs/verifiedContainers" },

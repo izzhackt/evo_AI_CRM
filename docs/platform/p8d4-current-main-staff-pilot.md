@@ -181,8 +181,18 @@ accepted:
 | Lead Agent | `evo-crm`; `repo/docker-compose.prod.yml`; `lead-agent` | `/opt/evo-crm/.env.lead-agent` |
 
 Each exact env source must be a root-owned regular non-symlink mode-`0600`
-file. With `EVO_RELEASE_REVISION` set to the frozen full commit, run only
-`docker compose -p <project> -f <file> up -d --no-deps <service>`. The execution
+file. Run from the release root `repo/` with `EVO_RELEASE_REVISION` set to the
+frozen full commit and these exact absolute interpolation values:
+
+- `EVO_CRM_APP_ENV_FILE=/opt/evo-crm/.env.production`;
+- `EVO_CRM_LEAD_AGENT_ENV_FILE=/opt/evo-crm/.env.lead-agent`;
+- `EVO_INBOX_APP_ENV_FILE=/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production`.
+
+Run only `docker compose -p <project> -f <file> up -d --no-deps <service>` with
+the applicable variable exported. The retained-Compose rollback commands use
+the same three absolute variable values, their recorded prior
+`EVO_RELEASE_REVISION`, the rollback root as working directory, and the exact
+project/file/service matrix. The execution
 amendment records the three pre-deploy Compose working directories, revisions,
 images and archive hashes. If a later boundary fails, roll back every already
 deployed P8D4 boundary in reverse order using those exact retained Compose
@@ -241,9 +251,20 @@ Stdout is reduced to migration identifiers/status before it enters the mode
    only. No customer text is permitted.
 4. Invoke one service-role-only transactional sync per audience. A provider,
    validation, or SQL failure must leave the prior audience unchanged.
-   Inside the exact Inbox app container run only
-   `npm run knowledge:import -- --audience <client|internal> --bundle <exact> --manifest <exact> --account-id "$EVO_KNOWLEDGE_ACCOUNT_ID"`
-   after the merged K5 transfer and hash checks; no alternate importer exists.
+   The currently running legacy Inbox image does not contain the K5 importer,
+   so it is never used for publication. From the new release `repo/`, run an
+   isolated one-off container from the already verified candidate Inbox image
+   without replacing the running service. Create it with
+   `EVO_RELEASE_REVISION=472cc58115b7e6a459d089fd082081fa8da15610 EVO_INBOX_APP_ENV_FILE=/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production docker compose -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name evo-p8d4-knowledge-import --entrypoint tail app -f /dev/null`;
+   require that exact name to be absent first. Use the merged K5 `docker cp`
+   and in-container hash verification, then run only
+   `docker exec evo-p8d4-knowledge-import npm run knowledge:import -- --audience <client|internal> --bundle <exact-container-path> --manifest <exact-container-path> --account-id "$EVO_KNOWLEDGE_ACCOUNT_ID"`.
+   Before the first provider call, inspect the one-off container image and
+   require the frozen candidate image ID/revision/platform. The merged K5
+   transfer copies the exact files into that one-off container, re-verifies
+   their hashes, and removes them before `docker rm -f
+   evo-p8d4-knowledge-import`. No alternate
+   importer or running-service recreation is permitted in Phase D.
 5. Re-read only safe counts/revisions/hashes and prove that client retrieval
    returns only `client` chunks and internal retrieval only `internal` chunks.
    Run the frozen Russian retrieval cases through the real production RPC.

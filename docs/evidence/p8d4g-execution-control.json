@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "implementation_commit": "cf0479bc7e306ad17c4090149dc65ff533f0a821",
+  "implementation_tree": "dd4cf5b2caca612e0eea1deb1c7a484feb0bba0d",
+  "implementation_ci_run": 31923446174,
+  "files": [
+    {
+      "path": "scripts/p8d4g-production-runner.mjs",
+      "sha256": "4e50d3c253e8e06fa628abac16202f019915a713af34fea40721498a03caac9e"
+    },
+    {
+      "path": "scripts/p8d4g-production-operations.mjs",
+      "sha256": "29dd6171b4280f8e582fd51db6025a3a042c4b762ce700c55c9ef8dca74fd30a"
+    },
+    {
+      "path": "docs/schemas/p8d4g-result.schema.json",
+      "sha256": "4f8363f51a2559e9423361c4b4e7598a99fa8d399b2d83c4a1d20a1ca1cf4b36"
+    },
+    {
+      "path": "docs/schemas/p8d4g-execution-control.schema.json",
+      "sha256": "18e318aaae4b7df17e6de0988af311db7d967c98dc5fc569de1ddb8504c556d9"
+    },
+    {
+      "path": "package.json",
+      "sha256": "c7d9580e85aa3da05113e052f8ca9e3102c80e001862026b2f1a945b6c1893bf"
+    }
+  ]
+}

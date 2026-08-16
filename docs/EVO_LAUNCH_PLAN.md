@@ -38,10 +38,10 @@ production migrations `073-076` and froze the final 11/291 knowledge identity,
 PR #228 repaired the isolated importer Compose invocation, PR #230 packaged
 the importer as a runnable, UUID-redacting production-image artifact, and PRs
 #232-#233 built and independently verified the exact P8D4F `linux/amd64`
-candidate. Current `origin/main` is
-`a43fc7b182dd0fa3fbd3e02104dff1b1c26bbad2`, tree
-`239cb8d5cf2f51805205a4aceb6df6084b2d415e`, migrations remain contiguous
-`001-076`, and exact-main push CI run `31918619142` is the exact-main push gate
+candidate, and PR #235 authorized the closed P8D4G production execution order.
+Current `origin/main` is
+`bd5a33fc424a3a06a3c25f3cfa4bcedbb6786240`, migrations remain contiguous
+`001-076`, and exact-main push CI run `31919990560` is the exact-main push gate
 for Main CRM, EVO Inbox and EVO Lead Agent; Changed range is skipped on the push
 event as expected.
 
@@ -62,7 +62,10 @@ Supabase Pro scheduled database backups remain enabled, but they are not
 restore evidence and do not include Storage object bytes. `inbox-prod` is a
 separate owned Inbox SaaS product and is explicitly retained outside EVO
 Platform consolidation and retirement scope. The active next execution slice
-is P8D4G under issue #234: stage the reviewed P8D4F images on Hermes, rebuild
+is the P8D4H correction under issue #236: close the unavoidable account UUID
+artifact boundary in the immutable knowledge bundle format before implementing
+the P8D4G runner. After that correction merges, P8D4G under issue #234 may stage
+the reviewed P8D4F images on Hermes, rebuild
 the frozen 11/291 knowledge bundles against the one live production account,
 publish them transactionally, deploy the three application boundaries with
 outbound behavior disabled, and run only the two fixed staff draft pilots under

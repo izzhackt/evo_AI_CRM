@@ -7579,3 +7579,49 @@ This block authorizes only the production effects above. It does not authorize
 a WhatsApp send, WAHA session/webhook/QR mutation, amoCRM read or write, DNS
 change, autonomous reply, customer-content provider call, destructive database
 change, billed resource or deletion of historical evidence.
+
+## 2026-08-16 - Correct the P8D4G knowledge account artifact boundary
+
+Plan Block-ID: `EVO-PLATFORM-P8D4H-KNOWLEDGE-UUID-ARTIFACT-2026-08-16`
+
+Issue: #236.
+
+Reason: the immutable `build_platform_bundle.py` schema deliberately places
+`account_id` in the canonical bundle and manifest so the service-role importer
+can reject an account mismatch. The preceding P8D4G block simultaneously said
+the live UUID could never enter a persisted file. Literal compliance would make
+the reviewed builder/importer impossible to use and would force an unreviewed
+format change during production execution.
+
+Decision:
+
+- preserve the immutable bundle, manifest and importer schemas. The live account
+  UUID may exist only inside the two deterministic local build copies of each
+  canonical bundle/manifest and their exact encrypted-transfer, root-owned
+  remote-incoming and isolated-container copies required for import;
+- require every UUID-bearing local directory to be a newly created mode-`0700`
+  temporary root and every file mode `0600`. Require the remote release and
+  container copies to remain root/private, absent-before-write and hash-bound;
+- never create a standalone account-ID file. Never put the UUID in stdout,
+  stderr, Git, shell history, command literals, redacted evidence, the retained
+  build report, or any importer result. The builder's UUID-bearing report is
+  validation-only temporary material and is neither transferred nor retained;
+- pass the UUID only through the already-authorized transient local builder argv
+  and encrypted SSH stdin to a root-only remote variable expanded into the
+  isolated importer argv. Continue to require the reviewed UUID-free importer
+  stdout projection;
+- use a finally-style cleanup path on every terminal success or failure after
+  any UUID-bearing artifact is created. Attempt to delete every created local
+  build-copy root (four on the complete two-audience/two-build path), every
+  created remote incoming bundle/manifest pair and every created in-container
+  copy. Cleanup must run after build/validation, transfer, container, import or
+  post-import verification failure as well as after success. Any cleanup failure
+  is a blocking, truthfully recorded result; no application deployment may begin
+  while a UUID-bearing temporary artifact remains;
+- keep the P8D4G redacted result/evidence schema completely UUID-free. It may
+  retain only safe audience, counts, hashes, status codes and cleanup status.
+
+This correction changes no provider, production, Hermes, Supabase, deployment,
+customer-data or outbound authority. No execution may begin until the correction
+and then the dedicated P8D4G runner are independently reviewed, merged and green
+on exact main.

@@ -662,3 +662,36 @@ flag, ledger, provider, privacy, health, restart, network, evidence or rollback
 drift stops; application changes are fully unwound where possible and the
 database/knowledge state is reported truthfully rather than destructively
 rolled back.
+
+## P8D4H knowledge UUID artifact correction
+
+Issue `#236` and Plan Block-ID
+`EVO-PLATFORM-P8D4H-KNOWLEDGE-UUID-ARTIFACT-2026-08-16` correct one literal
+conflict in P8D4G without changing its candidate, ordering or external authority.
+The immutable builder writes `account_id` into the canonical bundle and manifest,
+and the importer validates that identity before the service-role transaction.
+Those exact files therefore cannot be both valid and UUID-free.
+
+The production account UUID may appear only inside the two deterministic local
+build copies of each canonical bundle/manifest and the exact encrypted-transfer,
+root-owned remote-incoming and isolated-container copies needed to import them.
+Local roots are newly created mode `0700`; files are mode `0600`; remote and
+container destinations are absent before use, private and hash-bound. The
+UUID-bearing builder report is temporary validation material only: do not
+transfer or retain it.
+
+Do not create a standalone UUID file or expose the value through stdout, stderr,
+Git, shell history, command literals, retained reports, redacted evidence or
+importer output. Transport remains transient local argv plus encrypted SSH stdin
+to a root-only variable expanded only in the isolated importer argv. The reviewed
+`safeImportResult` remains the only allowed importer output.
+
+Use a finally-style cleanup path on every terminal success or failure after any
+UUID-bearing artifact is created. Attempt to remove every created local
+build-copy root (four on the complete two-audience/two-build path), every
+created remote incoming bundle/manifest pair and every created in-container
+copy, including after build validation, transfer, container, import or
+post-import verification failure. Verify absence before application deployment.
+Cleanup failure is blocking and must be represented by a closed UUID-free result
+code. P8D4G retained evidence may contain only safe audience names, counts,
+SHA-256 values, fixed statuses and cleanup state.

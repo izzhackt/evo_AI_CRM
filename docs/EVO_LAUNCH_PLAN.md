@@ -33,10 +33,13 @@ audience isolation, atomic Obsidian bundle sync and audited staff assistants;
 PR #215 merged the P8D4 staff-pilot contract, PR #216 merged the supervised
 Lead Agent sales policy, PR #218 unified Platform intake memory with the
 draft-only consultative-sales proposal path, and PRs #220 and #222 refreshed
-and bound the unified P8D4 portable candidate.
-Current `origin/main` is `e39565b23084a26ad3b7a081550d5ad227b7e19c`,
+and bound the unified P8D4 portable candidate. PRs #224 and #226 then applied
+production migrations `073-076` and froze the final 11/291 knowledge identity,
+PR #228 repaired the isolated importer Compose invocation, and PR #230 packaged
+the importer as a runnable, UUID-redacting production-image artifact.
+Current `origin/main` is `aaa9f618131f604f79c694e4b332a0b13afd7a30`,
 migrations remain contiguous `001-076`, and exact-main push CI run
-`31907634668` is the exact-main push gate for Main CRM, EVO Inbox and EVO Lead Agent; Changed
+`31916279374` is the exact-main push gate for Main CRM, EVO Inbox and EVO Lead Agent; Changed
 range is skipped on the push event as expected.
 
 P4B implementation is preserved on remote branch
@@ -55,8 +58,9 @@ until the Platform is functionally complete and concretely operating.
 Supabase Pro scheduled database backups remain enabled, but they are not
 restore evidence and do not include Storage object bytes. `inbox-prod` is a
 separate owned Inbox SaaS product and is explicitly retained outside EVO
-Platform consolidation and retirement scope. The active next planning slice
-is P8A under `docs/platform/p8-controlled-release-candidate.md`. The owner
+Platform consolidation and retirement scope. The active next execution slice
+is the P8D4F current-main `linux/amd64` candidate refresh under issue #231 and
+`docs/platform/p8d4-current-main-staff-pilot.md`. The owner
 deferred the large capacity stress test and approved a small-launch monitoring
 envelope plus focused human review on the exact P8 candidate.
 Updated 2026-08-16 in the workspace timezone.

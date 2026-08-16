@@ -465,3 +465,43 @@ production import is blocked until the correction is reviewed, merged and
 green on exact main, a new current-main three-image candidate is frozen and
 reconciled, and the 11/291 vaults freshly reproduce the exact production-bound
 hashes. This correction itself authorizes no production or provider mutation.
+
+## P8D4F post-importer candidate refresh
+
+PR #230 merged the importer-image correction as exact main
+`aaa9f618131f604f79c694e4b332a0b13afd7a30`; its tree is
+`36632068dbfa5ae3d11fdd5bb6876940ca7fc14a` and its exact parent is
+`e8e1b0e41c17b8e55f75edd34afedd551c1d57f8`. Exact-main CI run
+`31916279374` passed Main CRM, EVO Inbox and EVO Lead Agent. Issue #231 and
+Plan Block-ID `EVO-PLATFORM-P8D4F-CANDIDATE-AAA9-2026-08-16` replace only the
+obsolete Phase A candidate identity; all later production gates remain closed.
+
+Use a clean detached source checkout at the exact commit above and a separate
+clean reviewed release-control checkout. Run the existing fail-closed P8B2
+builder on OrbStack with `--platform linux/amd64 --load`, refusing pre-existing
+target tags and output paths. The exact tags are:
+
+- `evo-crm:aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64`;
+- `evo-inbox:aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64`;
+- `evo-lead-agent:aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64`.
+
+The builder output is exactly
+`.evo-release-evidence/p8b2-input-aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64/`.
+After the real build, add a candidate-specific wrapper, closed schema and
+behavioral tests that bind the three observed OCI index IDs and platform
+manifest IDs without altering the historical P8D4/d565 identities. Generate a
+new portable archive set under exactly
+`.evo-release-evidence/p8d4f-aaa9f618131f604f79c694e4b332a0b13afd7a30-reviewed/`.
+The directory is mode `0700`; every retained file is mode `0600`; all archive,
+SBOM, smoke, identity and collection-index bytes are SHA-256 bound.
+
+The Inbox candidate must additionally pass its packaged
+`knowledge:import -- --verify-runtime` seam as UID 1001 with networking
+disabled and no env file, credentials or mounts. Normal import must remain
+fail-closed without its exact required arguments. No P8D4F command may use a
+managed-provider key, customer data, Hermes, or a production hostname.
+
+P8D4F completes only after independent exact-head review, 4/4 PR CI, merge,
+and exact-main CI. It authorizes local candidate construction only: no
+production transfer, load, restart, deployment, knowledge import, Gemini call,
+Supabase write, WAHA/amoCRM/WhatsApp/DNS action or billed resource.

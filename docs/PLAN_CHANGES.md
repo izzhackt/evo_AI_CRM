@@ -7467,3 +7467,44 @@ Official basis: esbuild's Node bundling documentation specifies
 explicit ESM output for `.mjs` execution:
 `https://esbuild.github.io/api/#platform` and
 `https://esbuild.github.io/api/#format`.
+
+## 2026-08-16 - Rebuild the unified candidate after importer packaging
+
+Plan Block-ID: `EVO-PLATFORM-P8D4F-CANDIDATE-AAA9-2026-08-16`
+
+Issue: #231.
+
+Reason: PR #230 fixed the production Inbox image so its reviewed knowledge
+importer is actually runnable. The frozen d565 candidate predates that fix and
+is immutable historical evidence; reusing it would reproduce the exact
+pre-provider failure already observed. Production publication also cannot use
+a new Inbox image beside older CRM and Lead Agent images because P8D4 requires
+one source-consistent release set.
+
+Decision:
+
+- freeze exact source commit
+  `aaa9f618131f604f79c694e4b332a0b13afd7a30`, tree
+  `36632068dbfa5ae3d11fdd5bb6876940ca7fc14a`, parent
+  `e8e1b0e41c17b8e55f75edd34afedd551c1d57f8`, and exact-main CI run
+  `31916279374`;
+- use only OrbStack and the reviewed P8B2/P8B3 build, SBOM, smoke and portable
+  archive machinery; reject stale tags/evidence, any non-`linux/amd64`
+  platform, identity drift, privacy findings or unverified bytes;
+- build the exact CRM, Inbox and Lead Agent tags suffixed
+  `aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64`, recording distinct
+  observed OCI index and platform-manifest IDs rather than predicting them;
+- preserve every historical candidate wrapper/schema/evidence unchanged and
+  add a P8D4F-specific closed wrapper/schema/test set for the observed images;
+- require the real candidate Inbox image to execute the fixed network-none,
+  credential-free, non-root `--verify-runtime` path and to fail closed on a
+  normal incomplete import invocation;
+- retain only hash-bound build logs, SPDX SBOM, smoke identities, portable OCI
+  archives and closed indexes in a new ignored mode-`0700` evidence root with
+  mode-`0600` files;
+- require independent exact-head approval, 4/4 PR CI, merge and exact-main CI
+  before any Hermes staging or P8C reconciliation.
+
+This is local candidate construction only. It does not authorize a production
+transfer/load/restart/deploy, knowledge import, Gemini call, Supabase write,
+WAHA, amoCRM, WhatsApp, DNS, customer-data access or billed resource.

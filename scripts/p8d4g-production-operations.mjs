@@ -18,8 +18,8 @@ import { fileURLToPath } from "node:url";
 
 const CANDIDATE = "aaa9f618131f604f79c694e4b332a0b13afd7a30";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
-const RELEASE_ID = "2026-08-16.p8d4l.1";
-const RELEASE_VERSION = "p8d4l-20260816";
+const RELEASE_ID = "2026-08-16.p8d4m.1";
+const RELEASE_VERSION = "p8d4m-20260816";
 const PILOT_ORIGIN = "https://evo-inbox.72.62.119.112.sslip.io";
 const WAHA_DIGEST = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const HERMES = "hermes-vps";
@@ -262,7 +262,9 @@ function remote(run, script, { input = "", deadlineAt, label = "Hermes operation
 
 function safeContainerRows(text) {
   const rows = text.trim().split("\n").filter(Boolean).map((line) => {
-    const [name, image_id, healthy, restart_count] = line.split("\t");
+    const fields = line.split("|");
+    if (fields.length !== 4) fail("container preflight output is invalid");
+    const [name, image_id, healthy, restart_count] = fields;
     return { name, image_id, healthy: healthy === "healthy", restart_count: Number(restart_count) };
   });
   if (rows.length !== 5 || rows.some((row) => !row.name || !row.image_id || !Number.isInteger(row.restart_count))) fail("container preflight output is invalid");
@@ -309,7 +311,7 @@ for tag in '${IMAGES.crm.tag}' '${IMAGES.crm.composeTag}' '${IMAGES.inbox.tag}' 
 ${sourceChecks}
 docker network inspect evo_public_web evo_crm_private evo_inbox_private >/dev/null
 for name in '${CURRENT.crm.container}' '${CURRENT.inbox.container}' '${CURRENT.lead_agent.container}' '${CURRENT.crm_waha.container}' '${CURRENT.inbox_waha.container}'; do
-  docker inspect --format '{{.Name}}\t{{.Image}}\t{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}\t{{.RestartCount}}' "$name" | sed 's#^/##'
+  docker inspect --format '{{.Name}}|{{.Image}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}|{{.RestartCount}}' "$name" | sed 's#^/##'
 done
 `;
 }

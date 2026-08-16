@@ -6,10 +6,10 @@ import { test } from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 import { P8D4G, createP8D4GResult, runP8D4G, validateP8D4GResult } from "../scripts/p8d4g-production-runner.mjs";
 
-test("retry evidence uses the collision-free P8D4L identity", () => {
-  assert.equal(P8D4G.releaseId, "2026-08-16.p8d4l.1");
-  assert.match(P8D4G.productionEvidenceRoot, /p8d4g-2026-08-16\.p8d4l\.1$/);
-  assert.equal(P8D4G.confirmation, "EXECUTE-P8D4L-2026-08-16.P8D4L.1");
+test("retry evidence uses the collision-free P8D4M identity", () => {
+  assert.equal(P8D4G.releaseId, "2026-08-16.p8d4m.1");
+  assert.match(P8D4G.productionEvidenceRoot, /p8d4g-2026-08-16\.p8d4m\.1$/);
+  assert.equal(P8D4G.confirmation, "EXECUTE-P8D4M-2026-08-16.P8D4M.1");
 });
 
 const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4g-result.schema.json", import.meta.url), "utf8"));

@@ -7759,3 +7759,36 @@ Supabase data, Gemini call, WhatsApp/WAHA state, amoCRM state, DNS, Caddy,
 container, secret or autonomous-reply boundary. Production execution remains
 blocked until both reviewed PRs merge, exact-main CI is green, and the new
 read-only preflight passes.
+
+## 2026-08-16 - P8D4M Hermes container-row protocol correction
+
+Plan Block-ID: `EVO-PLATFORM-P8D4M-PREFLIGHT-CONTAINER-ROWS-2026-08-16`
+
+Issue: #248.
+
+Reason: the first P8D4L retry reached the complete read-only Hermes container
+check and stopped before any production or provider mutation. Docker emitted
+the characters `\t` from the Go-template format literally, while the closed
+parser expected actual tab bytes. A separate read-only inspection proved all
+five named containers have the exact expected image IDs, are healthy and have
+restart count zero; the failure was solely the verifier transport format.
+
+Decision:
+
+- preserve the P8D4L redacted `preflight_blocked` result and never overwrite or
+  relabel it;
+- replace only the closed container-row separator with literal `|` in both the
+  Docker format and parser, and cover the real emitted shape behaviorally;
+- advance the next attempt to release ID `2026-08-16.p8d4m.1`, release version
+  `p8d4m-20260816`, confirmation
+  `EXECUTE-P8D4M-2026-08-16.P8D4M.1`, and newly absent local/Hermes release,
+  rollback and evidence roots derived from that ID;
+- keep every image, migration, knowledge, source-mode, credential, provider,
+  deployment, rollback, cleanup, pilot and outbound boundary unchanged;
+- after the implementation merges and exact-main CI is green, replace the
+  execution-control metadata in a separate reviewed metadata-only PR before
+  another real preflight.
+
+This correction authorizes no Supabase mutation, knowledge import, Gemini call,
+container restart/recreate, WhatsApp/WAHA mutation, amoCRM write, DNS/Caddy
+change, customer-data access or autonomous reply.

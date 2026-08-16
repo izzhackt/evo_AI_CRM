@@ -7508,3 +7508,74 @@ Decision:
 This is local candidate construction only. It does not authorize a production
 transfer/load/restart/deploy, knowledge import, Gemini call, Supabase write,
 WAHA, amoCRM, WhatsApp, DNS, customer-data access or billed resource.
+
+## 2026-08-16 - Execute the reviewed P8D4F production staff pilot candidate
+
+Plan Block-ID: `EVO-PLATFORM-P8D4G-PRODUCTION-EXECUTION-2026-08-16`
+
+Issue: #234.
+
+Reason: PR #233 froze the real `linux/amd64` CRM, Inbox and Lead Agent archives,
+but no P8D4F byte has been transferred to Hermes and no production service has
+been recreated. Production already has an exact contiguous migration ledger
+`001-076`. The knowledge vault remains frozen at 11 client and 291 internal
+Markdown documents, but every retained bundle hash was built with an
+unverified or explicit non-production account UUID and is therefore not valid
+production evidence.
+
+Decision:
+
+- bind release control to main
+  `a43fc7b182dd0fa3fbd3e02104dff1b1c26bbad2`, tree
+  `239cb8d5cf2f51805205a4aceb6df6084b2d415e` and exact-main CI
+  `31918619142`, while preserving the immutable application candidate source
+  `aaa9f618131f604f79c694e4b332a0b13afd7a30` and its reviewed image/archive
+  identities;
+- use exact release ID `2026-08-16.p8d4g.1` and absent, root-owned release,
+  rollback and redacted-evidence roots. Transfer only the four files indexed by
+  the reviewed P8D4F collection index, prove local/remote hashes and load/tag
+  the three images without rebuilding on Hermes;
+- record the current three application images, three env files and three exact
+  retained Compose files before mutation. Correct or append only the closed
+  disabled matrix already authorized by P8D, including the known Lead Agent
+  autoreply `true` to `false` correction; never print an env value;
+- treat the Management API ledger `001-076` as a mandatory verified no-op. No
+  migration push, reset, repair, password change or temporary login role is
+  needed or allowed when that exact ledger is observed;
+- resolve exactly one active production Gemini configuration process-only. The
+  UUID must never enter logs, Git, evidence, shell history or a persisted file.
+  The frozen builder/importer require `--account-id`, so the only narrow
+  transport exception is transient argv in the private local build and the
+  root-owned one-off importer after encrypted SSH-stdin handoff; command text
+  contains only a variable reference. Rebuild both frozen vaults twice with
+  that UUID, require byte-identical pairs and 11/291 documents, and explicitly
+  reject all prior unverified/placeholder bundle and manifest hashes as
+  production proof;
+- publish `client` and then `internal` through the isolated reviewed Inbox
+  importer, one transaction per audience. Only approved knowledge chunks may
+  be sent for Gemini embeddings. A failed audience keeps its previous revision
+  and blocks deployment; a committed first audience may be retried only with
+  the identical failed-audience bytes;
+- recreate only Inbox app, CRM app and Lead Agent, in that order, from the
+  frozen images. Preserve WAHA and Caddy containers, sessions, webhooks,
+  networks and images. Roll back every completed application boundary in
+  reverse order on any later deployment failure;
+- run exactly the committed `client_china_documents` and
+  `internal_malaysia_handoff` non-customer draft cases with the real production
+  retrieval/Gemini path. Require source/audience/audit-body isolation and prove
+  no WhatsApp, WAHA, amoCRM, autonomous or customer-data side effect;
+- add a dedicated closed P8D4G result schema and executable cross-artifact
+  verifier. Fixed identities are schema constants; newly computed
+  production-account-bound hashes must match the two local builds, transferred
+  bytes, UUID-free importer results and safe database revision evidence. The
+  result must contain no account UUID, secret, URL, prompt, response, knowledge
+  body or customer/provider identifier;
+- require a reviewed implementation runner, focused/full gates, independent
+  exact-head approval, 4/4 PR CI, merge and exact-main green CI before the
+  120-minute production action window starts. Preserve truthful partial
+  evidence and stop or fully unwind application changes on any drift.
+
+This block authorizes only the production effects above. It does not authorize
+a WhatsApp send, WAHA session/webhook/QR mutation, amoCRM read or write, DNS
+change, autonomous reply, customer-content provider call, destructive database
+change, billed resource or deletion of historical evidence.

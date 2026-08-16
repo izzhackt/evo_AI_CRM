@@ -505,3 +505,160 @@ P8D4F completes only after independent exact-head review, 4/4 PR CI, merge,
 and exact-main CI. It authorizes local candidate construction only: no
 production transfer, load, restart, deployment, knowledge import, Gemini call,
 Supabase write, WAHA/amoCRM/WhatsApp/DNS action or billed resource.
+
+## P8D4G production execution amendment
+
+Issue `#234` and Plan Block-ID
+`EVO-PLATFORM-P8D4G-PRODUCTION-EXECUTION-2026-08-16` supersede the remaining
+historical d565 execution identities without rewriting them. Release control
+is exact main `a43fc7b182dd0fa3fbd3e02104dff1b1c26bbad2`, tree
+`239cb8d5cf2f51805205a4aceb6df6084b2d415e`, exact-main CI run
+`31918619142`. The immutable application source remains
+`aaa9f618131f604f79c694e4b332a0b13afd7a30`, tree
+`36632068dbfa5ae3d11fdd5bb6876940ca7fc14a`, parent
+`e8e1b0e41c17b8e55f75edd34afedd551c1d57f8`, exact-main candidate CI
+`31916279374`.
+
+The reviewed local source root is
+`/Users/iskhak.tazhibaev/.codex/worktrees/evo-p8d4f-source-aaa9`. The only
+authorized portable source is its mode-`0700` directory
+`.evo-release-evidence/p8d4f-aaa9f618131f604f79c694e4b332a0b13afd7a30-reviewed`.
+Its collection index SHA-256 is
+`a6bb5b51851d8338891846ff534fc25e774a739f5f656f010b707c398d7d63e7`
+and portable identity SHA-256 is
+`53fa00c63338a55925fa8d2c8d6e6faaa61d63b0f99251e50dabafd792755ccd`.
+The closed transfer matrix is:
+
+| Boundary | Exact build tag | Exact OCI index/image ID | Archive | SHA-256 |
+| --- | --- | --- | --- | --- |
+| CRM | `evo-crm:aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64` | `sha256:3174e8e35f27ca3983e971d6f4b94b6863a5b64a9ffd751042b3db5ed2f8c55a` | `evo-crm-aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64.tar` | `07c9341c0aeae456b2bd51ae66a8f0ba81645e49f064a212cdc1485df0db50b1` |
+| Inbox | `evo-inbox:aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64` | `sha256:d7be064bdd690ac42f9e18fbcb32b8fb42eac32f588256a983393ede9f8b79ca` | `evo-inbox-aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64.tar` | `6bbeadd9e7571db018e0d9932cddfd8f22503b0090c4a27467af9a071eef5a48` |
+| Lead Agent | `evo-lead-agent:aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64` | `sha256:9194b569df458a7a80792ca3f4aebfa417204961f229585178aa91c710d45c01` | `evo-lead-agent-aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64.tar` | `32b2937ef5bd2e23ae5c5b405242bade6e9af237165649f737d97a935c709063` |
+
+Every loaded image must also retain `linux/amd64`, empty variant, revision
+`aaa9f618131f604f79c694e4b332a0b13afd7a30` and its reviewed platform-manifest
+ID. Add only the unsuffixed Compose tags at that same full revision after
+proving each destination tag is absent. Retagging to any other name is
+forbidden.
+
+Use release ID `2026-08-16.p8d4g.1` and exactly these initially absent roots:
+
+- `/opt/evo-releases/aaa9f618131f604f79c694e4b332a0b13afd7a30/2026-08-16.p8d4g.1`;
+- `/opt/evo-release-rollback/2026-08-16.p8d4g.1`;
+- `/opt/evo-release-evidence/aaa9f618131f604f79c694e4b332a0b13afd7a30/2026-08-16.p8d4g.1`.
+
+Create them root-owned mode `0700`. Incoming archives use the exact filenames
+above under `release/incoming`, mode `0600`, absent destinations, explicit
+per-file transfer and local/remote hash equality. The release `repo/` is an
+exact clean Git archive of the application source commit. No discovery, glob,
+checkout substitution or remote build is permitted.
+
+The live preflight currently observes healthy/restart-`0` CRM, Inbox, Lead
+Agent and both WAHA containers; production applications still run the prior
+CRM `sha256:d4626208423df2c0df24262763917b82b1157b53a115b44f02478ecf7245f580`,
+Inbox `sha256:6d5e0a9d5ea073737bdd8c2c5621818ca7bdb76dd5b16ca5e44563d39833cb6b`
+and Lead Agent
+`sha256:3678747c1ea1c9b5655bb830296c9e4d4aedf60d3d193b438633b68eb3f97cc7`
+image IDs. The two WAHA containers both retain exact digest
+`sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c`.
+Re-read every value immediately before mutation. Reuse the exact Phase-B
+rollback env and Compose source matrix, save each prior application image to
+the exact rollback filenames, and require root-owned regular non-symlink
+mode-`0600` env inputs. Any drift stops.
+
+Before Compose rendering, apply the already-reviewed P8D disabled matrix to the
+three live env files using atomic same-directory replacement, root ownership
+and mode `0600`. Only missing named non-secret settings may be appended, and
+only the known single Lead Agent conflict
+`EVO_AGENT_AUTOREPLY_ENABLED=true` may be changed to `false`. Preserve
+secret-bearing before-images only in the rollback-secret root, never in
+redacted evidence. Require CRM Platform ingress/worker/history/media, amoCRM
+read, AI memory, Gemini proposal, autonomous reply, P6A/P6B/P6C and P7A flags
+`0`; kill switch `1`; CRM/Inbox P7B observability `1`; Lead Agent frozen
+`true`, worker/autoreply/outbound `false`, and model `gemini-3.5-flash`.
+
+The production Supabase project is exactly `iosckaqtovbbnssqcpde`. A fresh
+Management API read must return `ACTIVE_HEALTHY` and exact contiguous migration
+ledger `001-076`. That state is a mandatory no-op: do not link, create a CLI
+login role, run `db push`, reset, repair, seed, alter a password or execute SQL.
+Any other ledger stops before knowledge or deployment.
+
+The two vault roots remain the exact Phase-D paths and remain frozen at
+`2026-08-16T04:16:05+06:00` with 11 client and 291 internal Markdown documents.
+The previously recorded bundle/manifest pairs
+`c20acf2a3ecdf321d9120ca97e1389b5883ef9cfd5d97dc5b1d2235c56a05c23` /
+`6c6c88ef430d91b4ee8c8d694bd69fc73d01cb1067088a2586e7b0c388ca3f8c`,
+`a3a1092c10ec3a8768c6f8ac63f32f81b0fa9e9c313d820d034ad084565b6184` /
+`6964354ab201daf1cce174aa48aa4aee3db757d091d96c050d88725df04caf33`,
+`08a955db439163b0998c47722a949ed882e42aa78c3987b6965af31fa5df3494` /
+`1abb456300eccfdc5732489fd6856c7be04730949e19347f9ff1cdb550c6093f`,
+and
+`63a867bffc1c972dd28765d18906260090730a23e654531b7c34cd6d282d7dcb` /
+`78cf2c1c071b67c23b0c91632bdc4684f139c22c8b3a8cf9b6145531b2c47561`
+were built with unverified or explicit non-production account UUIDs. They are
+historical staging evidence only and are forbidden as production import
+identities.
+
+Resolve the live account by service-role read of active Gemini configuration:
+there must be exactly one row with provider `gemini`, model
+`gemini-3.5-flash`, embeddings provider `gemini`, active `true`, and autonomous
+reply `false`. Keep its UUID in process memory; never print it, interpolate it
+into shell history, write it to a file, or retain it in evidence. The immutable
+builder and candidate importer both require `--account-id`. Therefore the only
+authorized exception is transient process argv: the private local builder
+receives a shell-variable expansion, and the one-off Hermes importer receives
+the value over encrypted SSH stdin into a root-only shell variable whose
+command text contains no UUID. The value may appear transiently only in the
+local builder and one-off container importer argv; it must not be persisted by
+SSH, Docker, the shell or evidence. Build each audience twice into distinct
+absent mode-`0700` local directories with the merged builder and this UUID, then
+require byte-identical bundle, manifest and report bytes across both builds
+plus exact 11/291 counts. Newly computed hashes become the only production
+bundle identities.
+
+Transfer only each new bundle and manifest to absent root-owned mode-`0600`
+files under `release/knowledge-incoming`; prove local/remote hashes. Create the
+isolated `evo-p8d4-knowledge-import` container from the exact candidate Inbox
+image using the Phase-D `run -d --no-deps` command updated only to revision
+`aaa9f618...` and release version `p8d4g-20260816`. Reverify image, platform,
+runtime, networks and no running-service replacement; copy bytes into the
+container, rehash, and invoke client then internal. For each invocation, pipe
+the UUID only on SSH stdin; the fixed remote script reads one line into
+`EVO_KNOWLEDGE_ACCOUNT_ID`, validates canonical UUID syntax without output, and
+expands it only into the frozen importer argument
+`--account-id "$EVO_KNOWLEDGE_ACCOUNT_ID"`. No literal UUID may occur in the
+local or remote command text. Importer stdout must remain the reviewed closed
+UUID-free projection. Remove copied knowledge bytes, remove the one-off
+container, and remove remote incoming knowledge bytes after both safe database
+revisions/hashes/counts verify.
+
+Recreate only Inbox app, CRM app and Lead Agent, in that order, using exact
+Compose commands and interpolation paths already frozen in Phase B with
+revision `aaa9f618...`, version `p8d4g-20260816` and the unchanged WAHA digest.
+After every boundary require exact image, health, restart `0`, networks,
+disabled state and liveness. On failure, unwind every completed application
+boundary in reverse order. WAHA and Caddy are never recreated or reloaded.
+
+Run only the two committed non-customer cases after all deployments verify:
+`client_china_documents` at `POST /api/ai/playground` and
+`internal_malaysia_handoff` at `POST /api/ai/internal-assistant`. Use one
+existing active admin session process-only. Exactly the bounded embedding work
+for the 11/291 approved bundles and exactly two Gemini draft requests are
+authorized; no retry, fallback, WhatsApp, WAHA, amoCRM, autonomous or customer
+content call is allowed.
+
+Before production mutation, add a dedicated closed P8D4G result schema and
+executable runner/verifier. It must pin all fixed identities above and enforce
+cross-artifact equality for the newly computed bundle/manifest hashes across
+the two builds, transfer, UUID-free importer result and safe database evidence.
+It must support truthful partial failure, atomic mode-`0600` output and contain
+no UUID, secret, URL, prompt, response, knowledge body or customer/provider
+identifier. The obsolete P8D4 v1 constants are never used for completion.
+
+The production action window is 120 minutes from its recorded UTC start. It may
+begin only after the implementation PR has independent exact-head approval,
+4/4 CI, merge, exact-main green CI and a fresh preflight. Any identity, hash,
+flag, ledger, provider, privacy, health, restart, network, evidence or rollback
+drift stops; application changes are fully unwound where possible and the
+database/knowledge state is reported truthfully rather than destructively
+rolled back.

@@ -35,12 +35,15 @@ Lead Agent sales policy, PR #218 unified Platform intake memory with the
 draft-only consultative-sales proposal path, and PRs #220 and #222 refreshed
 and bound the unified P8D4 portable candidate. PRs #224 and #226 then applied
 production migrations `073-076` and froze the final 11/291 knowledge identity,
-PR #228 repaired the isolated importer Compose invocation, and PR #230 packaged
-the importer as a runnable, UUID-redacting production-image artifact.
-Current `origin/main` is `aaa9f618131f604f79c694e4b332a0b13afd7a30`,
-migrations remain contiguous `001-076`, and exact-main push CI run
-`31916279374` is the exact-main push gate for Main CRM, EVO Inbox and EVO Lead Agent; Changed
-range is skipped on the push event as expected.
+PR #228 repaired the isolated importer Compose invocation, PR #230 packaged
+the importer as a runnable, UUID-redacting production-image artifact, and PRs
+#232-#233 built and independently verified the exact P8D4F `linux/amd64`
+candidate. Current `origin/main` is
+`a43fc7b182dd0fa3fbd3e02104dff1b1c26bbad2`, tree
+`239cb8d5cf2f51805205a4aceb6df6084b2d415e`, migrations remain contiguous
+`001-076`, and exact-main push CI run `31918619142` is the exact-main push gate
+for Main CRM, EVO Inbox and EVO Lead Agent; Changed range is skipped on the push
+event as expected.
 
 P4B implementation is preserved on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -59,7 +62,10 @@ Supabase Pro scheduled database backups remain enabled, but they are not
 restore evidence and do not include Storage object bytes. `inbox-prod` is a
 separate owned Inbox SaaS product and is explicitly retained outside EVO
 Platform consolidation and retirement scope. The active next execution slice
-is the P8D4F current-main `linux/amd64` candidate refresh under issue #231 and
+is P8D4G under issue #234: stage the reviewed P8D4F images on Hermes, rebuild
+the frozen 11/291 knowledge bundles against the one live production account,
+publish them transactionally, deploy the three application boundaries with
+outbound behavior disabled, and run only the two fixed staff draft pilots under
 `docs/platform/p8d4-current-main-staff-pilot.md`. The owner
 deferred the large capacity stress test and approved a small-launch monitoring
 envelope plus focused human review on the exact P8 candidate.

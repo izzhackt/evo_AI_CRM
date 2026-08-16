@@ -6,6 +6,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4-result.schema.json", import.meta.url), "utf8"));
 const cases = JSON.parse(readFileSync(new URL("../scripts/knowledge_ingestion/platform_eval_cases.json", import.meta.url), "utf8"));
 const contract = readFileSync(new URL("../docs/platform/p8d4-current-main-staff-pilot.md", import.meta.url), "utf8");
+const importer = readFileSync(new URL("../agent-lead2-inbox/scripts/import-knowledge-bundle.ts", import.meta.url), "utf8");
 const success = schema.allOf[0].then.properties;
 const validate = new Ajv2020({ strict: false }).compile(schema);
 const hash = "a".repeat(64);
@@ -114,4 +115,29 @@ test("Phase D binds the exact private WAHA env only for Compose rendering", () =
   assert.match(contract, /EVO_INBOX_WAHA_ENV_FILE=\/opt\/evo-inbox\/agent-lead2-crmwhatsapp\/\.env\.waha docker compose[\s\S]*run -d --no-deps --name evo-p8d4-knowledge-import/);
   assert.match(contract, /\.env\.waha` to be an existing root-owned,[\s\S]*mode-`0600`, regular non-symlink file/);
   assert.match(contract, /does not[\s\S]*authorize a WAHA create, recreate, reload, restart or provider call/);
+});
+
+test("P8D4G freezes the production execution identity and rejects staging bundles", () => {
+  const amendment = contract.slice(contract.indexOf("## P8D4G production execution amendment"));
+  assert.ok(amendment.length > 0);
+  assert.match(amendment, /a43fc7b182dd0fa3fbd3e02104dff1b1c26bbad2[\s\S]*239cb8d5cf2f51805205a4aceb6df6084b2d415e[\s\S]*31918619142/);
+  assert.match(amendment, /aaa9f618131f604f79c694e4b332a0b13afd7a30[\s\S]*31916279374/);
+  assert.match(amendment, /2026-08-16\.p8d4g\.1/);
+  assert.match(amendment, /exact contiguous migration[\s\S]*`001-076`[\s\S]*mandatory no-op/);
+  assert.match(amendment, /exactly one row with provider `gemini`[\s\S]*autonomous[\s\S]*`false`/);
+  assert.match(amendment, /Keep its UUID in process memory; never print it[\s\S]*transient process argv/);
+  assert.match(amendment, /`c20acf[0-9a-f]+`[\s\S]*`08a955[0-9a-f]+`/);
+  assert.match(amendment, /historical staging evidence[\s\S]*forbidden[\s\S]*production import[\s\S]*identities/);
+  assert.match(amendment, /dedicated closed P8D4G result schema[\s\S]*cross-artifact equality/);
+  assert.doesNotMatch(amendment, /00000000-0000-4000-8000-000000000000/);
+});
+
+test("P8D4G UUID transport matches the immutable importer CLI and stays UUID-free in output", () => {
+  const amendment = contract.slice(contract.indexOf("## P8D4G production execution amendment"));
+  assert.match(importer, /arg\('--account-id'\)/);
+  assert.match(importer, /safeImportResult\(result\)/);
+  assert.match(amendment, /pipe[\s\S]*UUID only on SSH stdin/);
+  assert.match(amendment, /reads one line into[\s\S]*EVO_KNOWLEDGE_ACCOUNT_ID/);
+  assert.match(amendment, /--account-id \"\$EVO_KNOWLEDGE_ACCOUNT_ID\"/);
+  assert.match(amendment, /No literal UUID may occur in the[\s\S]*command text/);
 });

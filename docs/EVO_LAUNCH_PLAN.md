@@ -62,14 +62,17 @@ Supabase Pro scheduled database backups remain enabled, but they are not
 restore evidence and do not include Storage object bytes. `inbox-prod` is a
 separate owned Inbox SaaS product and is explicitly retained outside EVO
 Platform consolidation and retirement scope. The active next execution slice
-is P8D4P under issue #257. P8D4O safely staged the exact candidate and verified
-migrations `001-076`, but stopped with `knowledge_failed` before any
-application deployment or pilot because the isolated Inbox importer image
-declares `USER nextjs` while the adapter required the literal Docker metadata
-value `1001`. P8D4P preserves the immutable P8D4O failure evidence, accepts
-only the exact named non-root user whose runtime UID and GID are both `1001`,
-reuses only the six exact already-staged candidate tags after complete identity
-verification, and uses new collision-free release, rollback and evidence roots.
+is P8D4Q under issue #260. P8D4P safely staged and verified the exact candidate,
+migrations `001-076`, deterministic 11/291 knowledge builds and the isolated
+non-root importer, but stopped with `knowledge_failed` before any database
+import, application deployment or pilot when the first knowledge `scp`
+transfer failed. A post-failure real diagnostic rebuilt the same client input,
+transferred both unchanged artifacts through the same SSH route, reverified
+their bytes on Hermes and cleaned them without import. P8D4Q preserves the
+immutable P8D4P evidence and adds only a maximum of three attempts per unchanged
+knowledge artifact transfer inside the existing authorization deadline; all
+remote and container SHA-256 checks remain mandatory. It uses new
+collision-free release, rollback and evidence roots.
 After independent review, merge, exact-main CI, execution-control rebinding,
 fresh preflight and a new action-time confirmation, it may resume the frozen
 11/291 import, deploy the three application boundaries with outbound behavior
@@ -77,7 +80,7 @@ disabled, and run only the two fixed staff draft pilots under
 `docs/platform/p8d4-current-main-staff-pilot.md`. The owner
 deferred the large capacity stress test and approved a small-launch monitoring
 envelope plus focused human review on the exact P8 candidate.
-Updated 2026-08-16 in the workspace timezone.
+Updated 2026-08-17 in the workspace timezone.
 
 This document is the execution contract for the current EVO Platform MVP lane in
 this repo. The current detailed contract is
@@ -2966,3 +2969,32 @@ The retry uses release ID `2026-08-16.p8d4p.1`, release version
 `EXECUTE-P8D4P-2026-08-16.P8D4P.1`. A separate execution-control rebind and
 fresh successful preflight are mandatory before requesting the new action-time
 confirmation.
+
+### P8D4Q bounded knowledge transfer retry
+
+Issue #260 records the real P8D4P stop. P8D4P completed preflight, exact
+candidate staging, rollback capture, disabled configuration and a verified
+`001-076` migration no-op. It also resolved exactly one active production
+account, rebuilt both frozen 11/291 audiences twice, and verified the isolated
+`nextjs|1001|1001` importer. The first client knowledge `scp` failed before a
+remote audience pair was recorded. Finally-style cleanup removed every created
+local bundle root and the importer; no database import, deployment, restart,
+Gemini pilot, WhatsApp send or amoCRM write occurred.
+
+A later read-only diagnostic repeated the real client build and the same two
+SSH/SCP transfers without importing. Both remote hashes matched the locally
+built bytes and cleanup verified absence. P8D4Q therefore changes only that
+transport seam: each of the four unchanged knowledge bundle/manifest `scp`
+operations may be attempted at most three times, within the existing operation
+deadline. The source path, destination path and bytes cannot change between
+attempts. The existing remote and container SHA-256 comparisons remain
+mandatory before either import.
+
+The immutable P8D4P evidence remains retained. The retry uses release ID
+`2026-08-17.p8d4q.1`, release version `p8d4q-20260817`, importer
+`evo-p8d4q-knowledge-import`, and confirmation
+`EXECUTE-P8D4Q-2026-08-17.P8D4Q.1`. Independent review, merge, exact-main CI,
+a separate reviewed execution-control rebind, fresh successful preflight and
+new action-time confirmation are required before execution. No provider,
+deployment, send, customer-data, credential or knowledge-content authority is
+added.

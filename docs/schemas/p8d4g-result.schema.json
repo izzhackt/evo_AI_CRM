@@ -70,7 +70,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["release_id", "release_control_commit", "release_control_tree", "release_control_ci_run", "candidate_commit", "candidate_tree", "candidate_parent", "candidate_ci_run", "platform", "migration_range"],
       "properties": {
-        "release_id": { "const": "2026-08-16.p8d4p.1" },
+        "release_id": { "const": "2026-08-17.p8d4q.1" },
         "release_control_commit": { "const": "86303ad0f3a25b54395327c03974ef00a80140fa" },
         "release_control_tree": { "const": "150474f6f035a2ce29e8f404a655176970086549" },
         "release_control_ci_run": { "const": 31920969058 },

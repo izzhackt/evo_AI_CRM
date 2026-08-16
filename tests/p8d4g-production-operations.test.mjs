@@ -32,6 +32,7 @@ test("production adapter pins the exact Hermes release and three-image matrix", 
   assert.equal(P8D4G_PRODUCTION.candidate, "aaa9f618131f604f79c694e4b332a0b13afd7a30");
   assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-16.p8d4g.1`);
   assert.deepEqual(Object.fromEntries(Object.entries(P8D4G_PRODUCTION.images).map(([name, image]) => [name, image.id])), expectedIds);
+  assert.equal(P8D4G_PRODUCTION.pilotOrigin, "https://evo-inbox.72.62.119.112.sslip.io");
   for (const image of Object.values(P8D4G_PRODUCTION.images)) {
     assert.match(image.tag, new RegExp(`:${P8D4G_PRODUCTION.candidate}-linux-amd64$`));
     assert.match(image.composeTag, new RegExp(`:${P8D4G_PRODUCTION.candidate}$`));
@@ -117,6 +118,7 @@ test("real preflight adapter uses only the fixed SSH target and read-only manage
     fetchCalls.push({ url: String(url), method: options?.method ?? "GET" });
     if (String(url).endsWith(`/v1/projects/${P8D4G_PRODUCTION.projectRef}`)) return response({ status: "ACTIVE_HEALTHY" });
     if (String(url).endsWith(`/v1/projects/${P8D4G_PRODUCTION.projectRef}/database/migrations`)) return response(Array.from({ length: 76 }, (_, index) => ({ version: String(index + 1).padStart(3, "0") })));
+    if (String(url) === `${P8D4G_PRODUCTION.pilotOrigin}/`) return response(null, 307, { location: "/dashboard" });
     throw new Error("unexpected provider read");
   };
   const operations = await createP8D4GOperations({
@@ -131,7 +133,8 @@ test("real preflight adapter uses only the fixed SSH target and read-only manage
   assert.equal(record.status, "verified");
   assert.equal(record.migration_range, "001-076");
   assert.equal(record.containers.length, 5);
-  assert.deepEqual(fetchCalls.map((item) => item.method), ["GET", "GET"]);
+  assert.deepEqual(fetchCalls.map((item) => item.method), ["GET", "GET", "GET"]);
+  assert.equal(fetchCalls.at(-1).url, "https://evo-inbox.72.62.119.112.sslip.io/");
   assert.equal(calls.length, 1);
   assert.equal(calls[0].command, "ssh");
   assert.deepEqual(calls[0].args.slice(0, 4), ["-o", "BatchMode=yes", "hermes-vps", "bash"]);
@@ -154,6 +157,8 @@ test("CLI is bound to the committed production adapter and closed mutation comma
   assert.match(operations, /input: `\$\{state\.accountId\}\\n`/);
   assert.match(operations, /stable build report fields drifted/);
   assert.match(operations, /key !== "generated_at" && key !== "output_directory"/);
+  assert.match(operations, /https:\/\/evo-inbox\.72\.62\.119\.112\.sslip\.io/);
+  assert.doesNotMatch(operations, /https:\/\/inbox\.evoadmissions\.com/);
   assert.doesNotMatch(operations, /00000000-0000-4000-8000-000000000000/);
 });
 
@@ -279,10 +284,14 @@ test("pilot verifies exact status, audience-bound chunks, body-free audit and un
   const chunkId = "11111111-1111-4111-8111-111111111111";
   const documentId = "44444444-4444-4444-8444-444444444444";
   let countReads = 0;
+  let pilotUrl = null;
   const fetchImpl = async (url, options = {}) => {
     const target = String(url);
     if (options.method === "HEAD" && target.includes("/messages?")) { countReads += 1; return response(null, 200, { "content-range": "0-0/17" }); }
-    if (target.includes("/api/ai/playground")) return response({ reply: "Черновик", handoff: false, sources: [{ chunk_id: chunkId, source_path: P8D4G_PRODUCTION.pilots.client_china_documents.source }], audit_id: auditId });
+    if (target.includes("/api/ai/playground")) {
+      pilotUrl = target;
+      return response({ reply: "Черновик", handoff: false, sources: [{ chunk_id: chunkId, source_path: P8D4G_PRODUCTION.pilots.client_china_documents.source }], audit_id: auditId });
+    }
     if (target.includes("/ai_knowledge_chunks?")) return response([{ id: chunkId, audience: "client", document_id: documentId }]);
     if (target.includes("/ai_knowledge_documents?")) return response([{ id: documentId, source_path: P8D4G_PRODUCTION.pilots.client_china_documents.source }]);
     if (target.includes("/ai_assistant_audits?")) return response([{ id: auditId, audience: "client", evaluation_case_id: "client_china_documents", provider: "gemini", model: "gemini-3.5-flash", knowledge_sources: [{ chunk_id: chunkId, source_path: P8D4G_PRODUCTION.pilots.client_china_documents.source }], response_sha256: "a".repeat(64), handoff: false, success: true, actor_user_id: "33333333-3333-4333-8333-333333333333", created_at: "2026-08-16T00:00:00Z", expires_at: "2026-11-14T00:00:00Z" }]);
@@ -295,6 +304,8 @@ test("pilot verifies exact status, audience-bound chunks, body-free audit and un
   assert.equal(record.audit_body_free, true);
   assert.equal(record.side_effect_free, true);
   assert.equal(countReads, 2);
+  assert.equal(pilotUrl, "https://evo-inbox.72.62.119.112.sslip.io/api/ai/playground");
+  assert.ok(!pilotUrl.includes("inbox.evoadmissions.com"));
 });
 
 test("pilot rejects provider drift and database source-path drift", async () => {

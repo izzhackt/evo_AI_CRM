@@ -7625,3 +7625,65 @@ This correction changes no provider, production, Hermes, Supabase, deployment,
 customer-data or outbound authority. No execution may begin until the correction
 and then the dedicated P8D4G runner are independently reviewed, merged and green
 on exact main.
+
+## 2026-08-16 - Correct the deterministic knowledge report comparison
+
+Plan Block-ID: `EVO-PLATFORM-P8D4I-KNOWLEDGE-REPORT-DETERMINISM-2026-08-16`
+
+Issue: #238.
+
+Reason: `build_platform_bundle.py` deliberately writes `generated_at` and the
+new temporary `output_directory` into each validation report. Two independent
+builds therefore cannot have byte-identical report files even when their
+canonical bundle and manifest bytes are identical. Requiring literal report
+byte equality would make the reviewed production runner fail every valid build.
+
+Decision:
+
+- continue to require byte-for-byte equality of both canonical bundle copies
+  and both canonical manifest copies for each audience;
+- validate both temporary reports against the exact live account held in
+  process memory, audience, 11/291 document count, bundle hash and manifest
+  hash. Compare all stable report fields while explicitly excluding only
+  `generated_at` and `output_directory`;
+- do not transfer or retain either UUID-bearing report. Both remain inside the
+  four finally-cleaned mode-`0700` local build roots and must be absent before
+  application deployment;
+- keep every P8D4G/P8D4H production, provider, privacy, rollback and cleanup
+  boundary unchanged.
+
+This correction authorizes no additional provider call, production mutation,
+deployment, customer-data access or external effect.
+
+## 2026-08-16 - Bind the merged P8D4G execution identity
+
+Plan Block-ID: `EVO-PLATFORM-P8D4J-EXECUTION-CONTROL-2026-08-16`
+
+Issue: #239.
+
+Reason: the P8D4G implementation commit cannot know its own final squash-merge
+SHA. The historical release-control commit identifies the plan that authorized
+the lane, but does not contain the production runner. Without a second closed
+identity gate, later or dirty bytes could execute while reporting only the old
+plan commit.
+
+Decision:
+
+- merge the reviewed runner implementation first. It MUST fail closed while the
+  dedicated execution-control artifact is absent;
+- in a separate reviewed metadata-only PR, add a closed control artifact that
+  binds the merged implementation commit, tree, exact-main CI and exact ordered
+  SHA-256 values for the runner, production adapter, result schema and package
+  registration;
+- at execution time require a clean checkout whose HEAD equals current GitHub
+  `main`, whose tree is observed, whose required exact-main checks are green,
+  and which descends from the bound implementation commit. Recompute every
+  controlled file hash before any Hermes/provider operation;
+- retain both the bound implementation identity and the actual executing
+  commit/tree/CI in the UUID-free closed P8D4G result;
+- keep the immutable application candidate identity separate. The control
+  artifact authorizes no deployment by itself and changes no candidate image,
+  knowledge, provider, customer-data or outbound boundary.
+
+Production execution remains blocked until both PRs are independently reviewed,
+merged and green on exact main, followed by a fresh read-only preflight.

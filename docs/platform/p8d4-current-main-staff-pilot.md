@@ -842,3 +842,34 @@ All application, migration, knowledge, disabled-state, provider-call,
 side-effect, cleanup, rollback and privacy rules remain unchanged. A separate
 reviewed execution-control rebind is mandatory after this implementation
 merges and exact-main CI is green, followed by a new successful preflight.
+
+## P8D4P named non-root importer correction
+
+Issue #257 and Plan Block-ID
+`EVO-PLATFORM-P8D4P-NAMED-IMPORTER-IDENTITY-2026-08-16` correct only the
+isolated Inbox importer identity assertion and the collision-free retry state.
+P8D4O truthfully stopped at `knowledge_failed`: deterministic client/internal
+builds completed, but Docker reports the configured user as `nextjs` because
+the reviewed image uses `USER nextjs`. The image creates that account and its
+group with exact UID/GID `1001:1001`.
+
+The P8D4P importer must match the exact Inbox runtime image, configured user
+`nextjs`, and an in-container identity probe of `nextjs|1001|1001`; UID zero,
+wrong/empty/numeric-only configured user, wrong username/UID/GID, malformed
+output or command failure blocks before any bundle copy/import. This is a
+stronger real process-identity proof than comparing `.Config.User` with the
+string `1001`.
+
+The six exact candidate source/Compose tags created by successful P8D4O staging
+are preserved and reused only after closed inventory plus full
+ID/revision/`linux/amd64` validation. P8D4P performs no image load or retag,
+but transfers and re-verifies the four portable artifacts under its new root.
+The P8D4O result is immutable. P8D4P uses release ID
+`2026-08-16.p8d4p.1`, release version `p8d4p-20260816`, importer name
+`evo-p8d4p-knowledge-import`, confirmation
+`EXECUTE-P8D4P-2026-08-16.P8D4P.1`, and newly absent derived roots.
+
+No deployment, provider, WhatsApp, WAHA, amoCRM, autonomous-reply, customer
+send, DNS, credential or knowledge-content scope changes. Independent review,
+merge, exact-main CI, a separate execution-control rebind, fresh preflight and
+new action-time confirmation remain mandatory.

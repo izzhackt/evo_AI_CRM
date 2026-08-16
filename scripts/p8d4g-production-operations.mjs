@@ -20,6 +20,7 @@ const CANDIDATE = "aaa9f618131f604f79c694e4b332a0b13afd7a30";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
 const RELEASE_ID = "2026-08-16.p8d4g.1";
 const RELEASE_VERSION = "p8d4g-20260816";
+const PILOT_ORIGIN = "https://evo-inbox.72.62.119.112.sslip.io";
 const WAHA_DIGEST = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const HERMES = "hermes-vps";
 const LOCAL_SOURCE = "/Users/iskhak.tazhibaev/.codex/worktrees/evo-p8d4f-source-aaa9";
@@ -124,6 +125,7 @@ export const P8D4G_PRODUCTION = Object.freeze({
   current: CURRENT,
   envFiles: ENV_FILES,
   composeFiles: COMPOSE_FILES,
+  pilotOrigin: PILOT_ORIGIN,
   pilots: PILOTS,
 });
 
@@ -549,6 +551,15 @@ export async function createP8D4GOperations({
     return rows[0].account_id;
   }
 
+  async function verifyPilotOrigin() {
+    const response = await fetchImpl(`${PILOT_ORIGIN}/`, {
+      method: "GET",
+      redirect: "manual",
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (response.status !== 307) fail("staff pilot origin is not reachable");
+  }
+
   function buildAudience(audience, vault) {
     const roots = [0, 1].map(() => {
       const root = mkdtempSync(join(tmpdir(), `evo-p8d4g-${audience}-`));
@@ -614,6 +625,7 @@ docker exec '${IMPORTER}' npm run knowledge:import -- --audience '${item.audienc
       const executionControl = await validateExecutionControl();
       if (!staffCookie) fail("existing staff session credential is missing");
       const migrations = await ledger();
+      await verifyPilotOrigin();
       const rows = safeContainerRows(remote(run, preflightScript(), { deadlineAt: new Date(Date.now() + 60_000).toISOString(), label: "Hermes preflight" }).stdout);
       const expected = [CURRENT.crm, CURRENT.inbox, CURRENT.lead_agent];
       if (expected.some((item) => rows.find((row) => row.name === item.container)?.image_id !== item.id)) fail("running application identity drifted");
@@ -739,7 +751,7 @@ ${composeScript(name, true)}
       const body = spec.audience === "client"
         ? { evaluation_case_id: caseId, messages: [{ role: "user", content: spec.question }] }
         : { evaluation_case_id: caseId, message: spec.question };
-      const response = await fetchImpl(`https://inbox.evoadmissions.com${spec.path}`, {
+      const response = await fetchImpl(`${PILOT_ORIGIN}${spec.path}`, {
         method: "POST",
         headers: { "content-type": "application/json", cookie: staffCookie },
         body: JSON.stringify(body),

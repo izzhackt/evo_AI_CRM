@@ -2836,3 +2836,16 @@ must additionally prove a clean checkout at current GitHub `main` with green
 required checks and record the actual execution commit/tree/CI. This prevents a
 later or dirty runner from claiming the earlier reviewed identity and grants no
 production authority by itself.
+
+### P8D4K live Inbox pilot fallback correction
+
+Issue #242 corrects the pre-deployment connectivity gate discovered after the
+P8D4J control merged. `inbox.evoadmissions.com` currently has no DNS record,
+while the already-configured and TLS-valid EVO edge fallback
+`evo-inbox.72.62.119.112.sslip.io` reaches the same Inbox application. The two
+authorized draft-only staff pilot POSTs must use that exact fallback origin;
+all paths, cookie handling, call limits, body-free audit verification,
+side-effect checks and rollback rules remain unchanged. This correction makes
+no DNS, Caddy, WAHA, Supabase, container, customer-data or candidate change.
+Its merged operations hash must be rebound by a separate reviewed execution-
+control metadata update before a fresh preflight or production execution.

@@ -7687,3 +7687,35 @@ Decision:
 
 Production execution remains blocked until both PRs are independently reviewed,
 merged and green on exact main, followed by a fresh read-only preflight.
+
+## 2026-08-16 - P8D4K live Inbox pilot fallback correction
+
+Plan Block-ID: `EVO-PLATFORM-P8D4K-PILOT-FALLBACK-2026-08-16`
+
+Issue: #242.
+
+Reason: the post-merge P8D4G gate found that the runner's hardcoded pilot
+origin `https://inbox.evoadmissions.com` has no live A, AAAA or CNAME record.
+The already-reviewed EVO edge Caddy configuration serves the same Inbox
+application at `https://evo-inbox.72.62.119.112.sslip.io`; live read-only
+evidence resolves it to Hermes and verifies TLS with an HTTP 307 authentication
+redirect. Proceeding with the unresolved origin would defer a deterministic
+connectivity failure until after deployment.
+
+Decision:
+
+- bind both authorized draft-only staff pilot POSTs to the exact existing
+  fallback origin `https://evo-inbox.72.62.119.112.sslip.io`;
+- retain the exact paths, staff-cookie transport, request bodies, two-call cap,
+  audit/source/side-effect verification and all P8D4G rollback behavior;
+- do not change DNS, Caddy, WAHA, Supabase, customer data, containers or the
+  immutable application candidate in this correction;
+- add an executable behavior test that pins the exact pilot origin and rejects
+  accidental use of the unresolved canonical host;
+- after this operations change merges and exact-main CI is green, replace the
+  P8D4G execution-control metadata in a separate reviewed metadata-only PR so
+  preflight binds the new merged implementation bytes.
+
+Production execution remains blocked until the correction PR and its new
+execution-control PR are independently reviewed, merged and green on exact
+main, followed by a fresh real preflight.

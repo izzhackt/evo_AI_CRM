@@ -7719,3 +7719,43 @@ Decision:
 Production execution remains blocked until the correction PR and its new
 execution-control PR are independently reviewed, merged and green on exact
 main, followed by a fresh real preflight.
+
+## 2026-08-16 - P8D4L Hermes preflight source-mode correction
+
+Plan Block-ID: `EVO-PLATFORM-P8D4L-PREFLIGHT-SOURCE-MODES-2026-08-16`
+
+Issue: #245.
+
+Reason: the first real P8D4G preflight reached Hermes and stopped before any
+Supabase, Gemini, knowledge, deployment, restart or provider effect. The runner
+incorrectly required every retained source file to be `root:root 0600`. Live
+read-only evidence shows the four secret environment sources are correctly
+`root:root 0600`; the exact retained CRM and Inbox Compose YAML sources are
+non-secret `root:root 0644`; and the exact retained Lead Agent Compose source is
+`root:root 0600`. The active P8D4 contract requires strict `0600` for secret
+environment files, not for every retained Compose YAML source.
+
+Decision:
+
+- preserve the first redacted failed-preflight result and never overwrite or
+  relabel it;
+- advance the retry identity to release ID `2026-08-16.p8d4l.1`, release
+  version `p8d4l-20260816`, and new absent release, rollback, local-evidence and
+  Hermes-evidence roots derived from that ID;
+- require every source to remain a regular, non-symlink `root:root` file and
+  enforce this exact mode matrix: all four frozen environment sources `0600`;
+  retained CRM Compose `0644`; retained Inbox Compose `0644`; retained Lead
+  Agent Compose `0600`;
+- reject any missing file, symlink, owner/group drift, mode drift, path drift,
+  pre-existing retry root or pre-existing candidate tag before provider or
+  production mutation;
+- add executable contract coverage for the exact matrix and retry identity;
+- after the implementation merges and exact-main CI is green, replace the
+  execution-control metadata in a separate reviewed metadata-only PR so the
+  runner binds the corrected merged bytes before another real preflight.
+
+This correction changes no candidate image bytes, migration, knowledge bytes,
+Supabase data, Gemini call, WhatsApp/WAHA state, amoCRM state, DNS, Caddy,
+container, secret or autonomous-reply boundary. Production execution remains
+blocked until both reviewed PRs merge, exact-main CI is green, and the new
+read-only preflight passes.

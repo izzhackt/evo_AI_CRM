@@ -2849,3 +2849,20 @@ side-effect checks and rollback rules remain unchanged. This correction makes
 no DNS, Caddy, WAHA, Supabase, container, customer-data or candidate change.
 Its merged operations hash must be rebound by a separate reviewed execution-
 control metadata update before a fresh preflight or production execution.
+
+### P8D4L Hermes preflight source-mode correction
+
+Issue #245 records the first real P8D4G preflight's safe stop before any
+provider or production mutation. The corrected preflight keeps the four secret
+environment sources at exact `root:root 0600`, accepts only the observed exact
+retained Compose modes (CRM `0644`, Inbox `0644`, Lead Agent `0600`), and keeps
+regular-file, non-symlink, ownership, path, root-absence and candidate-tag
+checks fail closed. The failed result remains preserved. A retry uses the new
+collision-free release/evidence identity `2026-08-16.p8d4l.1` and release
+version `p8d4l-20260816`.
+
+No candidate, migration, knowledge, secret, Supabase, Gemini, WhatsApp/WAHA,
+amoCRM, DNS, Caddy, container or autonomous-reply boundary changes. The
+corrected implementation and then its separate execution-control metadata must
+each be independently reviewed, merged and green on exact main before a fresh
+read-only production preflight.

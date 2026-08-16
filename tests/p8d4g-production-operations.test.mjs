@@ -30,7 +30,20 @@ test("production adapter pins the exact Hermes release and three-image matrix", 
   assert.equal(P8D4G_PRODUCTION.hermes, "hermes-vps");
   assert.equal(P8D4G_PRODUCTION.projectRef, "iosckaqtovbbnssqcpde");
   assert.equal(P8D4G_PRODUCTION.candidate, "aaa9f618131f604f79c694e4b332a0b13afd7a30");
-  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-16.p8d4g.1`);
+  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-16.p8d4l.1");
+  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-16.p8d4l.1`);
+  assert.deepEqual(
+    P8D4G_PRODUCTION.sourceFiles.map(({ name, path, mode }) => [name, path, mode]),
+    [
+      ["crm_env", "/opt/evo-crm/.env.production", "600"],
+      ["lead_agent_env", "/opt/evo-crm/.env.lead-agent", "600"],
+      ["inbox_env", "/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production", "600"],
+      ["inbox_waha_env", "/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.waha", "600"],
+      ["crm_compose", "/opt/evo-releases/564332b420a1fb1bd6232dda945d044bb922d3f0/repo/docker-compose.prod.yml", "644"],
+      ["inbox_compose", "/opt/evo-releases/a09a72fc55d869c861df520f76d62413a2315fc1/repo/agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml", "644"],
+      ["lead_agent_compose", "/opt/evo-releases/b2303eccb78b7c102ec702e9821f765f6dfaba88/repo/docker-compose.prod.yml", "600"],
+    ],
+  );
   assert.deepEqual(Object.fromEntries(Object.entries(P8D4G_PRODUCTION.images).map(([name, image]) => [name, image.id])), expectedIds);
   assert.equal(P8D4G_PRODUCTION.pilotOrigin, "https://evo-inbox.72.62.119.112.sslip.io");
   for (const image of Object.values(P8D4G_PRODUCTION.images)) {
@@ -139,6 +152,10 @@ test("real preflight adapter uses only the fixed SSH target and read-only manage
   assert.equal(calls[0].command, "ssh");
   assert.deepEqual(calls[0].args.slice(0, 4), ["-o", "BatchMode=yes", "hermes-vps", "bash"]);
   assert.doesNotMatch(calls[0].input, /management-test-value|service-test-value|staff-test-value/);
+  for (const source of P8D4G_PRODUCTION.sourceFiles) {
+    assert.match(calls[0].input, new RegExp(`${source.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*root:root ${source.mode}`));
+  }
+  assert.doesNotMatch(calls[0].input, /for path in .*COMPOSE/);
 });
 
 test("CLI is bound to the committed production adapter and closed mutation commands", () => {

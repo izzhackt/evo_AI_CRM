@@ -1,0 +1,376 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8d4g-result.schema.json",
+  "title": "EVO Platform P8D4G production execution result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "result_code", "observed_at", "release", "window", "phases", "proof", "knowledge", "deployments", "pilots", "rollback", "cleanup"],
+  "properties": {
+    "schema_version": { "const": "p8d4g-v1" },
+    "result_code": {
+      "enum": [
+        "preflight_verified", "pilot_verified", "preflight_blocked",
+        "staging_failed", "config_failed", "migration_drift",
+        "knowledge_failed", "cleanup_failed", "deployment_failed",
+        "rollback_failed", "pilot_failed", "operation_failed"
+      ]
+    },
+    "observed_at": { "$ref": "#/$defs/timestamp" },
+    "release": { "$ref": "#/$defs/release" },
+    "window": { "$ref": "#/$defs/window" },
+    "phases": { "$ref": "#/$defs/phases" },
+    "proof": { "$ref": "#/$defs/proof" },
+    "knowledge": { "$ref": "#/$defs/knowledge" },
+    "deployments": { "$ref": "#/$defs/deployments" },
+    "pilots": { "$ref": "#/$defs/pilots" },
+    "rollback": { "$ref": "#/$defs/rollback" },
+    "cleanup": { "$ref": "#/$defs/cleanup" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "result_code": { "const": "preflight_verified" } } },
+      "then": {
+        "properties": {
+          "window": { "properties": { "status": { "const": "not_started" }, "started_at": { "type": "null" }, "deadline_at": { "type": "null" } } },
+          "phases": { "properties": { "preflight": { "const": "verified" }, "staging": { "const": "not_run" }, "configuration": { "const": "not_run" }, "migrations": { "const": "not_run" }, "knowledge": { "const": "not_run" }, "deployment": { "const": "not_run" }, "pilot": { "const": "not_run" } } },
+          "proof": { "$ref": "#/$defs/preflightProof" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "result_code": { "const": "pilot_verified" } } },
+      "then": {
+        "properties": {
+          "window": { "properties": { "status": { "const": "within_limit" }, "started_at": { "$ref": "#/$defs/timestamp" }, "deadline_at": { "$ref": "#/$defs/timestamp" } } },
+          "phases": { "properties": { "preflight": { "const": "verified" }, "staging": { "const": "verified" }, "configuration": { "const": "verified" }, "migrations": { "const": "verified_noop" }, "knowledge": { "const": "verified" }, "deployment": { "const": "verified" }, "pilot": { "const": "verified" } } },
+          "proof": { "$ref": "#/$defs/verifiedProof" },
+          "knowledge": { "$ref": "#/$defs/verifiedKnowledge" },
+          "deployments": { "$ref": "#/$defs/verifiedDeployments" },
+          "pilots": { "$ref": "#/$defs/verifiedPilots" },
+          "rollback": { "properties": { "status": { "const": "not_required" }, "boundaries": { "maxItems": 0 } } },
+          "cleanup": { "properties": { "status": { "const": "verified" }, "local_roots_removed": { "const": 4 }, "remote_pairs_removed": { "const": 2 }, "container_pairs_removed": { "const": 2 }, "importer_removed": { "const": true } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "result_code": { "const": "cleanup_failed" } } },
+      "then": { "properties": { "cleanup": { "properties": { "status": { "const": "failed" } } } } }
+    },
+    {
+      "if": { "properties": { "result_code": { "const": "rollback_failed" } } },
+      "then": { "properties": { "rollback": { "properties": { "status": { "const": "failed" } } } } }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "imageId": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "phaseStatus": { "enum": ["not_run", "verified", "verified_noop", "failed", "rolled_back"] },
+    "release": {
+      "type": "object", "additionalProperties": false,
+      "required": ["release_id", "release_control_commit", "release_control_tree", "release_control_ci_run", "candidate_commit", "candidate_tree", "candidate_parent", "candidate_ci_run", "platform", "migration_range"],
+      "properties": {
+        "release_id": { "const": "2026-08-16.p8d4g.1" },
+        "release_control_commit": { "const": "86303ad0f3a25b54395327c03974ef00a80140fa" },
+        "release_control_tree": { "const": "150474f6f035a2ce29e8f404a655176970086549" },
+        "release_control_ci_run": { "const": 31920969058 },
+        "candidate_commit": { "const": "aaa9f618131f604f79c694e4b332a0b13afd7a30" },
+        "candidate_tree": { "const": "36632068dbfa5ae3d11fdd5bb6876940ca7fc14a" },
+        "candidate_parent": { "const": "e8e1b0e41c17b8e55f75edd34afedd551c1d57f8" },
+        "candidate_ci_run": { "const": 31916279374 },
+        "platform": { "const": "linux/amd64" },
+        "migration_range": { "const": "001-076" }
+      }
+    },
+    "window": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "started_at", "deadline_at"],
+      "properties": {
+        "status": { "enum": ["not_started", "within_limit", "expired"] },
+        "started_at": { "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "deadline_at": { "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] }
+      }
+    },
+    "phases": {
+      "type": "object", "additionalProperties": false,
+      "required": ["preflight", "staging", "configuration", "migrations", "knowledge", "deployment", "pilot"],
+      "properties": {
+        "preflight": { "$ref": "#/$defs/phaseStatus" },
+        "staging": { "$ref": "#/$defs/phaseStatus" },
+        "configuration": { "$ref": "#/$defs/phaseStatus" },
+        "migrations": { "$ref": "#/$defs/phaseStatus" },
+        "knowledge": { "$ref": "#/$defs/phaseStatus" },
+        "deployment": { "$ref": "#/$defs/phaseStatus" },
+        "pilot": { "$ref": "#/$defs/phaseStatus" }
+      }
+    },
+    "preflightContainer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "image_id", "healthy", "restart_count"],
+      "properties": {
+        "name": { "enum": ["evo-crm-app-1", "evo-inbox-app-1", "evo-crm-lead-agent-1", "evo-crm-waha-1", "evo-inbox-waha"] },
+        "image_id": { "$ref": "#/$defs/imageId" },
+        "healthy": { "type": "boolean" },
+        "restart_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "preflightContainers": {
+      "type": "array", "maxItems": 5,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/preflightContainer" }, { "properties": { "name": { "const": "evo-crm-app-1" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/preflightContainer" }, { "properties": { "name": { "const": "evo-inbox-app-1" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/preflightContainer" }, { "properties": { "name": { "const": "evo-crm-lead-agent-1" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/preflightContainer" }, { "properties": { "name": { "const": "evo-crm-waha-1" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/preflightContainer" }, { "properties": { "name": { "const": "evo-inbox-waha" } } }] }
+      ], "items": false
+    },
+    "verifiedPreflightContainers": {
+      "type": "array", "minItems": 5, "maxItems": 5,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/preflightContainer" }, { "properties": { "name": { "const": "evo-crm-app-1" }, "image_id": { "const": "sha256:d4626208423df2c0df24262763917b82b1157b53a115b44f02478ecf7245f580" }, "healthy": { "const": true }, "restart_count": { "const": 0 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/preflightContainer" }, { "properties": { "name": { "const": "evo-inbox-app-1" }, "image_id": { "const": "sha256:6d5e0a9d5ea073737bdd8c2c5621818ca7bdb76dd5b16ca5e44563d39833cb6b" }, "healthy": { "const": true }, "restart_count": { "const": 0 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/preflightContainer" }, { "properties": { "name": { "const": "evo-crm-lead-agent-1" }, "image_id": { "const": "sha256:3678747c1ea1c9b5655bb830296c9e4d4aedf60d3d193b438633b68eb3f97cc7" }, "healthy": { "const": true }, "restart_count": { "const": 0 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/preflightContainer" }, { "properties": { "name": { "const": "evo-crm-waha-1" }, "image_id": { "const": "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c" }, "healthy": { "const": true }, "restart_count": { "const": 0 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/preflightContainer" }, { "properties": { "name": { "const": "evo-inbox-waha" }, "image_id": { "const": "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c" }, "healthy": { "const": true }, "restart_count": { "const": 0 } } }] }
+      ], "items": false
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "filename", "sha256", "image_id"],
+      "properties": {
+        "kind": { "enum": ["portable_identity", "image_archive"] },
+        "filename": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "image_id": { "anyOf": [{ "$ref": "#/$defs/imageId" }, { "type": "null" }] }
+      }
+    },
+    "artifacts": {
+      "type": "array", "maxItems": 4,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/artifact" }, { "properties": { "kind": { "const": "portable_identity" }, "filename": { "const": "portable-image-identity.json" }, "sha256": { "const": "53fa00c63338a55925fa8d2c8d6e6faaa61d63b0f99251e50dabafd792755ccd" }, "image_id": { "type": "null" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/artifact" }, { "properties": { "kind": { "const": "image_archive" }, "filename": { "const": "evo-crm-aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64.tar" }, "sha256": { "const": "07c9341c0aeae456b2bd51ae66a8f0ba81645e49f064a212cdc1485df0db50b1" }, "image_id": { "const": "sha256:3174e8e35f27ca3983e971d6f4b94b6863a5b64a9ffd751042b3db5ed2f8c55a" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/artifact" }, { "properties": { "kind": { "const": "image_archive" }, "filename": { "const": "evo-inbox-aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64.tar" }, "sha256": { "const": "6bbeadd9e7571db018e0d9932cddfd8f22503b0090c4a27467af9a071eef5a48" }, "image_id": { "const": "sha256:d7be064bdd690ac42f9e18fbcb32b8fb42eac32f588256a983393ede9f8b79ca" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/artifact" }, { "properties": { "kind": { "const": "image_archive" }, "filename": { "const": "evo-lead-agent-aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64.tar" }, "sha256": { "const": "32b2937ef5bd2e23ae5c5b405242bade6e9af237165649f737d97a935c709063" }, "image_id": { "const": "sha256:9194b569df458a7a80792ca3f4aebfa417204961f229585178aa91c710d45c01" } } }] }
+      ], "items": false
+    },
+    "rollbackFile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "name", "sha256", "image_id"],
+      "properties": {
+        "kind": { "enum": ["image", "env", "compose"] },
+        "name": { "enum": ["crm", "inbox", "lead_agent"] },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "image_id": { "anyOf": [{ "$ref": "#/$defs/imageId" }, { "type": "null" }] }
+      }
+    },
+    "rollbackFiles": {
+      "type": "array", "maxItems": 9,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/rollbackFile" }, { "properties": { "kind": { "const": "image" }, "name": { "const": "crm" }, "image_id": { "const": "sha256:d4626208423df2c0df24262763917b82b1157b53a115b44f02478ecf7245f580" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/rollbackFile" }, { "properties": { "kind": { "const": "image" }, "name": { "const": "inbox" }, "image_id": { "const": "sha256:6d5e0a9d5ea073737bdd8c2c5621818ca7bdb76dd5b16ca5e44563d39833cb6b" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/rollbackFile" }, { "properties": { "kind": { "const": "image" }, "name": { "const": "lead_agent" }, "image_id": { "const": "sha256:3678747c1ea1c9b5655bb830296c9e4d4aedf60d3d193b438633b68eb3f97cc7" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/rollbackFile" }, { "properties": { "kind": { "const": "env" }, "name": { "const": "crm" }, "image_id": { "type": "null" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/rollbackFile" }, { "properties": { "kind": { "const": "env" }, "name": { "const": "inbox" }, "image_id": { "type": "null" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/rollbackFile" }, { "properties": { "kind": { "const": "env" }, "name": { "const": "lead_agent" }, "image_id": { "type": "null" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/rollbackFile" }, { "properties": { "kind": { "const": "compose" }, "name": { "const": "crm" }, "image_id": { "type": "null" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/rollbackFile" }, { "properties": { "kind": { "const": "compose" }, "name": { "const": "inbox" }, "image_id": { "type": "null" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/rollbackFile" }, { "properties": { "kind": { "const": "compose" }, "name": { "const": "lead_agent" }, "image_id": { "type": "null" } } }] }
+      ], "items": false
+    },
+    "migrationProof": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "before_range", "before_count", "after_range", "after_count", "applied_count", "project_status"],
+      "properties": {
+        "status": { "enum": ["not_run", "before_verified", "verified_noop", "failed"] },
+        "before_range": { "type": ["string", "null"] }, "before_count": { "type": ["integer", "null"], "minimum": 0 },
+        "after_range": { "type": ["string", "null"] }, "after_count": { "type": ["integer", "null"], "minimum": 0 },
+        "applied_count": { "type": ["integer", "null"], "minimum": 0 }, "project_status": { "type": ["string", "null"] }
+      }
+    },
+    "executionFile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": { "path": { "type": "string" }, "sha256": { "$ref": "#/$defs/sha256" } }
+    },
+    "executionFiles": {
+      "type": "array", "maxItems": 5,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/executionFile" }, { "properties": { "path": { "const": "scripts/p8d4g-production-runner.mjs" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/executionFile" }, { "properties": { "path": { "const": "scripts/p8d4g-production-operations.mjs" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/executionFile" }, { "properties": { "path": { "const": "docs/schemas/p8d4g-result.schema.json" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/executionFile" }, { "properties": { "path": { "const": "docs/schemas/p8d4g-execution-control.schema.json" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/executionFile" }, { "properties": { "path": { "const": "package.json" } } }] }
+      ], "items": false
+    },
+    "executionControl": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "implementation_commit", "implementation_tree", "implementation_ci_run", "execution_commit", "execution_tree", "execution_ci_run", "files"],
+      "properties": {
+        "status": { "enum": ["not_run", "verified", "failed"] },
+        "implementation_commit": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+        "implementation_tree": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+        "implementation_ci_run": { "type": ["integer", "null"], "minimum": 1 },
+        "execution_commit": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+        "execution_tree": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+        "execution_ci_run": { "type": ["integer", "null"], "minimum": 1 },
+        "files": { "$ref": "#/$defs/executionFiles" }
+      }
+    },
+    "verifiedExecutionControl": {
+      "allOf": [{ "$ref": "#/$defs/executionControl" }, { "properties": {
+        "status": { "const": "verified" },
+        "implementation_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }, "implementation_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" }, "implementation_ci_run": { "type": "integer", "minimum": 1 },
+        "execution_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }, "execution_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" }, "execution_ci_run": { "type": "integer", "minimum": 1 },
+        "files": { "allOf": [{ "$ref": "#/$defs/executionFiles" }, { "minItems": 5 }] }
+      } }]
+    },
+    "proof": {
+      "type": "object", "additionalProperties": false,
+      "required": ["execution_control", "preflight_containers", "transferred_artifacts", "rollback_files", "migrations"],
+      "properties": {
+        "execution_control": { "$ref": "#/$defs/executionControl" },
+        "preflight_containers": { "$ref": "#/$defs/preflightContainers" },
+        "transferred_artifacts": { "$ref": "#/$defs/artifacts" },
+        "rollback_files": { "$ref": "#/$defs/rollbackFiles" },
+        "migrations": { "$ref": "#/$defs/migrationProof" }
+      }
+    },
+    "preflightProof": {
+      "allOf": [{ "$ref": "#/$defs/proof" }, { "properties": {
+        "execution_control": { "$ref": "#/$defs/verifiedExecutionControl" },
+        "preflight_containers": { "$ref": "#/$defs/verifiedPreflightContainers" },
+        "transferred_artifacts": { "maxItems": 0 }, "rollback_files": { "maxItems": 0 },
+        "migrations": { "properties": { "status": { "const": "before_verified" }, "before_range": { "const": "001-076" }, "before_count": { "const": 76 }, "after_range": { "type": "null" }, "after_count": { "type": "null" }, "applied_count": { "type": "null" }, "project_status": { "const": "ACTIVE_HEALTHY" } } }
+      } }]
+    },
+    "verifiedProof": {
+      "allOf": [{ "$ref": "#/$defs/proof" }, { "properties": {
+        "execution_control": { "$ref": "#/$defs/verifiedExecutionControl" },
+        "preflight_containers": { "$ref": "#/$defs/verifiedPreflightContainers" },
+        "transferred_artifacts": { "allOf": [{ "$ref": "#/$defs/artifacts" }, { "minItems": 4 }] },
+        "rollback_files": { "allOf": [{ "$ref": "#/$defs/rollbackFiles" }, { "minItems": 9 }] },
+        "migrations": { "properties": { "status": { "const": "verified_noop" }, "before_range": { "const": "001-076" }, "before_count": { "const": 76 }, "after_range": { "const": "001-076" }, "after_count": { "const": 76 }, "applied_count": { "const": 0 }, "project_status": { "const": "ACTIVE_HEALTHY" } } }
+      } }]
+    },
+    "audience": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "status", "document_count", "chunk_count", "bundle_sha256", "manifest_sha256", "database_revision_sha256"],
+      "properties": {
+        "name": { "enum": ["client", "internal"] },
+        "status": { "enum": ["not_run", "verified", "failed"] },
+        "document_count": { "type": ["integer", "null"], "minimum": 1 },
+        "chunk_count": { "type": ["integer", "null"], "minimum": 1 },
+        "bundle_sha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "manifest_sha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "database_revision_sha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
+      }
+    },
+    "knowledge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["account_resolution", "deterministic_builds", "audiences"],
+      "properties": {
+        "account_resolution": { "enum": ["not_run", "exactly_one_active", "failed"] },
+        "deterministic_builds": { "enum": ["not_run", "verified", "failed"] },
+        "audiences": {
+          "type": "array", "maxItems": 2,
+          "prefixItems": [
+            { "allOf": [{ "$ref": "#/$defs/audience" }, { "properties": { "name": { "const": "client" } } }] },
+            { "allOf": [{ "$ref": "#/$defs/audience" }, { "properties": { "name": { "const": "internal" } } }] }
+          ],
+          "items": false
+        }
+      }
+    },
+    "verifiedKnowledge": {
+      "allOf": [
+        { "$ref": "#/$defs/knowledge" },
+        { "properties": {
+          "account_resolution": { "const": "exactly_one_active" },
+          "deterministic_builds": { "const": "verified" },
+          "audiences": {
+            "minItems": 2, "maxItems": 2,
+            "prefixItems": [
+              { "allOf": [{ "$ref": "#/$defs/audience" }, { "properties": { "name": { "const": "client" }, "status": { "const": "verified" }, "document_count": { "const": 11 }, "chunk_count": { "type": "integer", "minimum": 1 }, "bundle_sha256": { "$ref": "#/$defs/sha256" }, "manifest_sha256": { "$ref": "#/$defs/sha256" }, "database_revision_sha256": { "$ref": "#/$defs/sha256" } } }] },
+              { "allOf": [{ "$ref": "#/$defs/audience" }, { "properties": { "name": { "const": "internal" }, "status": { "const": "verified" }, "document_count": { "const": 291 }, "chunk_count": { "type": "integer", "minimum": 1 }, "bundle_sha256": { "$ref": "#/$defs/sha256" }, "manifest_sha256": { "$ref": "#/$defs/sha256" }, "database_revision_sha256": { "$ref": "#/$defs/sha256" } } }] }
+            ], "items": false
+          }
+        } }
+      ]
+    },
+    "deployment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "status", "image_id", "healthy", "restart_count", "disabled_state"],
+      "properties": {
+        "name": { "enum": ["inbox", "crm", "lead_agent"] },
+        "status": { "enum": ["not_run", "verified", "failed", "rolled_back"] },
+        "image_id": { "anyOf": [{ "$ref": "#/$defs/imageId" }, { "type": "null" }] },
+        "healthy": { "type": ["boolean", "null"] },
+        "restart_count": { "type": ["integer", "null"], "minimum": 0 },
+        "disabled_state": { "type": ["boolean", "null"] }
+      }
+    },
+    "deployments": {
+      "type": "array", "maxItems": 3,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/deployment" }, { "properties": { "name": { "const": "inbox" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/deployment" }, { "properties": { "name": { "const": "crm" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/deployment" }, { "properties": { "name": { "const": "lead_agent" } } }] }
+      ], "items": false
+    },
+    "verifiedDeployments": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/deployment" }, { "properties": { "name": { "const": "inbox" }, "status": { "const": "verified" }, "image_id": { "const": "sha256:d7be064bdd690ac42f9e18fbcb32b8fb42eac32f588256a983393ede9f8b79ca" }, "healthy": { "const": true }, "restart_count": { "const": 0 }, "disabled_state": { "const": true } } }] },
+        { "allOf": [{ "$ref": "#/$defs/deployment" }, { "properties": { "name": { "const": "crm" }, "status": { "const": "verified" }, "image_id": { "const": "sha256:3174e8e35f27ca3983e971d6f4b94b6863a5b64a9ffd751042b3db5ed2f8c55a" }, "healthy": { "const": true }, "restart_count": { "const": 0 }, "disabled_state": { "const": true } } }] },
+        { "allOf": [{ "$ref": "#/$defs/deployment" }, { "properties": { "name": { "const": "lead_agent" }, "status": { "const": "verified" }, "image_id": { "const": "sha256:9194b569df458a7a80792ca3f4aebfa417204961f229585178aa91c710d45c01" }, "healthy": { "const": true }, "restart_count": { "const": 0 }, "disabled_state": { "const": true } } }] }
+      ], "items": false
+    },
+    "pilot": {
+      "type": "object", "additionalProperties": false,
+      "required": ["case_id", "audience", "status", "http_status", "expected_source_match", "cross_audience_sources", "audit_body_free", "side_effect_free"],
+      "properties": {
+        "case_id": { "enum": ["client_china_documents", "internal_malaysia_handoff"] },
+        "audience": { "enum": ["client", "internal"] },
+        "status": { "enum": ["not_run", "verified", "failed"] },
+        "http_status": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
+        "expected_source_match": { "type": ["boolean", "null"] },
+        "cross_audience_sources": { "type": ["integer", "null"], "minimum": 0 },
+        "audit_body_free": { "type": ["boolean", "null"] },
+        "side_effect_free": { "type": ["boolean", "null"] }
+      }
+    },
+    "pilots": {
+      "type": "array", "maxItems": 2,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/pilot" }, { "properties": { "case_id": { "const": "client_china_documents" }, "audience": { "const": "client" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/pilot" }, { "properties": { "case_id": { "const": "internal_malaysia_handoff" }, "audience": { "const": "internal" } } }] }
+      ], "items": false
+    },
+    "verifiedPilots": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/pilot" }, { "properties": { "case_id": { "const": "client_china_documents" }, "audience": { "const": "client" }, "status": { "const": "verified" }, "http_status": { "const": 200 }, "expected_source_match": { "const": true }, "cross_audience_sources": { "const": 0 }, "audit_body_free": { "const": true }, "side_effect_free": { "const": true } } }] },
+        { "allOf": [{ "$ref": "#/$defs/pilot" }, { "properties": { "case_id": { "const": "internal_malaysia_handoff" }, "audience": { "const": "internal" }, "status": { "const": "verified" }, "http_status": { "const": 200 }, "expected_source_match": { "const": true }, "cross_audience_sources": { "const": 0 }, "audit_body_free": { "const": true }, "side_effect_free": { "const": true } } }] }
+      ], "items": false
+    },
+    "rollback": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "boundaries"],
+      "properties": {
+        "status": { "enum": ["not_required", "verified", "failed"] },
+        "boundaries": { "type": "array", "maxItems": 3, "items": { "enum": ["lead_agent", "crm", "inbox"] } }
+      }
+    },
+    "cleanup": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "local_roots_removed", "remote_pairs_removed", "container_pairs_removed", "importer_removed"],
+      "properties": {
+        "status": { "enum": ["not_required", "verified", "failed"] },
+        "local_roots_removed": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "remote_pairs_removed": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "container_pairs_removed": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "importer_removed": { "type": "boolean" }
+      }
+    }
+  }
+}

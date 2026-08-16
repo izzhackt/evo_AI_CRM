@@ -2816,3 +2816,23 @@ send is authorized.
   that neither raw nor secrets roots were searched.
 - Focused tests pass, an independent reviewer approves the exact PR head, CI is
   green and the final report does not claim a live AI/provider deployment.
+
+### P8D4I deterministic knowledge report correction
+
+Issue #238 corrects only the deterministic knowledge report comparison used by
+the production runner. Canonical bundle and manifest bytes must match exactly
+across the two builds. The reports must validate as closed objects and match on
+all stable fields; only their deliberately different generation time and
+temporary output directory are excluded. Reports remain UUID-bearing temporary
+validation artifacts and must be removed before deployment under P8D4H. This
+does not add provider, production, customer-data or outbound authority.
+
+### P8D4J merged-runner execution control
+
+Issue #239 requires P8D4G to remain blocked after the implementation merge
+until a separate reviewed control artifact binds that merged implementation's
+commit, tree, exact-main CI and exact runner-file hashes. A production preflight
+must additionally prove a clean checkout at current GitHub `main` with green
+required checks and record the actual execution commit/tree/CI. This prevents a
+later or dirty runner from claiming the earlier reviewed identity and grants no
+production authority by itself.

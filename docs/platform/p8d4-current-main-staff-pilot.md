@@ -695,3 +695,47 @@ post-import verification failure. Verify absence before application deployment.
 Cleanup failure is blocking and must be represented by a closed UUID-free result
 code. P8D4G retained evidence may contain only safe audience names, counts,
 SHA-256 values, fixed statuses and cleanup state.
+
+## P8D4I deterministic knowledge report correction
+
+Plan Block-ID:
+`EVO-PLATFORM-P8D4I-KNOWLEDGE-REPORT-DETERMINISM-2026-08-16` corrects one
+impossible comparison without changing the candidate or any production
+authority. The builder deliberately records a fresh `generated_at` value and
+the distinct temporary `output_directory` in each validation report. Those two
+reports therefore cannot be byte-identical even when their canonical outputs
+are identical.
+
+For each audience, the P8D4G runner MUST continue to build twice in distinct
+mode-`0700` temporary roots and MUST require byte-for-byte equality of both
+canonical bundle files and both canonical manifest files. It MUST validate both
+closed report shapes and compare every stable field exactly: version, live
+account held only in process memory, audience, marker root, document count,
+bundle SHA-256 and manifest SHA-256. Only `generated_at` and
+`output_directory` are excluded from equality because they describe the two
+separate executions. Both UUID-bearing reports remain temporary validation
+material, are never transferred or retained, and are removed by the P8D4H
+finally-style cleanup before deployment.
+
+This correction grants no new provider call, deployment, production mutation,
+customer-data access or outbound authority. All P8D4G and P8D4H stop, privacy,
+rollback and evidence requirements remain unchanged.
+
+## P8D4J merged-runner execution control
+
+Plan Block-ID `EVO-PLATFORM-P8D4J-EXECUTION-CONTROL-2026-08-16` makes the
+production runner fail closed until a second, reviewed control artifact binds
+the runner implementation after its squash merge. That closed artifact records
+the merged implementation commit, tree, exact-main CI and exact ordered hashes
+of the runner, production adapter, result schema and package registration.
+
+Immediately before any production effect, the runner MUST recompute those
+hashes, require a clean checkout at current GitHub `main`, prove that checkout
+descends from the bound implementation, and require its own exact-main required
+checks green. The retained result records the bound implementation and observed
+execution commit/tree/CI separately from the immutable application candidate.
+Missing control, dirty bytes, main drift, ancestry drift, file-hash drift or red
+CI stops before Hermes, Supabase or Gemini access.
+
+The later control artifact is metadata only. Neither this gate nor its control
+PR adds production, deployment, provider, customer-data or outbound authority.

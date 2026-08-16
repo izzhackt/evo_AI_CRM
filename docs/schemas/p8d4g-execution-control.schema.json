@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8d4g-execution-control.schema.json",
+  "title": "EVO Platform P8D4G merged-runner execution control",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "implementation_commit", "implementation_tree", "implementation_ci_run", "files"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "implementation_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "implementation_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "implementation_ci_run": { "type": "integer", "minimum": 1 },
+    "files": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        { "$ref": "#/$defs/runner" },
+        { "$ref": "#/$defs/operations" },
+        { "$ref": "#/$defs/resultSchema" },
+        { "$ref": "#/$defs/controlSchema" },
+        { "$ref": "#/$defs/package" }
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "runner": { "allOf": [{ "$ref": "#/$defs/file" }, { "properties": { "path": { "const": "scripts/p8d4g-production-runner.mjs" } } }] },
+    "operations": { "allOf": [{ "$ref": "#/$defs/file" }, { "properties": { "path": { "const": "scripts/p8d4g-production-operations.mjs" } } }] },
+    "resultSchema": { "allOf": [{ "$ref": "#/$defs/file" }, { "properties": { "path": { "const": "docs/schemas/p8d4g-result.schema.json" } } }] },
+    "controlSchema": { "allOf": [{ "$ref": "#/$defs/file" }, { "properties": { "path": { "const": "docs/schemas/p8d4g-execution-control.schema.json" } } }] },
+    "package": { "allOf": [{ "$ref": "#/$defs/file" }, { "properties": { "path": { "const": "package.json" } } }] }
+  }
+}

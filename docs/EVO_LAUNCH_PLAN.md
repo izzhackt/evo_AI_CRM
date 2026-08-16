@@ -40,8 +40,8 @@ the importer as a runnable, UUID-redacting production-image artifact, and PRs
 #232-#233 built and independently verified the exact P8D4F `linux/amd64`
 candidate, and PR #235 authorized the closed P8D4G production execution order.
 Current `origin/main` is
-`bd5a33fc424a3a06a3c25f3cfa4bcedbb6786240`, migrations remain contiguous
-`001-076`, and exact-main push CI run `31919990560` is the exact-main push gate
+`85fcfe94870ed05dc8a5df9ef82cf5eb7b7147d2`, migrations remain contiguous
+`001-076`, and exact-main push CI run `31941905553` is the exact-main push gate
 for Main CRM, EVO Inbox and EVO Lead Agent; Changed range is skipped on the push
 event as expected.
 
@@ -62,13 +62,18 @@ Supabase Pro scheduled database backups remain enabled, but they are not
 restore evidence and do not include Storage object bytes. `inbox-prod` is a
 separate owned Inbox SaaS product and is explicitly retained outside EVO
 Platform consolidation and retirement scope. The active next execution slice
-is the P8D4H correction under issue #236: close the unavoidable account UUID
-artifact boundary in the immutable knowledge bundle format before implementing
-the P8D4G runner. After that correction merges, P8D4G under issue #234 may stage
-the reviewed P8D4F images on Hermes, rebuild
-the frozen 11/291 knowledge bundles against the one live production account,
-publish them transactionally, deploy the three application boundaries with
-outbound behavior disabled, and run only the two fixed staff draft pilots under
+is P8D4P under issue #257. P8D4O safely staged the exact candidate and verified
+migrations `001-076`, but stopped with `knowledge_failed` before any
+application deployment or pilot because the isolated Inbox importer image
+declares `USER nextjs` while the adapter required the literal Docker metadata
+value `1001`. P8D4P preserves the immutable P8D4O failure evidence, accepts
+only the exact named non-root user whose runtime UID and GID are both `1001`,
+reuses only the six exact already-staged candidate tags after complete identity
+verification, and uses new collision-free release, rollback and evidence roots.
+After independent review, merge, exact-main CI, execution-control rebinding,
+fresh preflight and a new action-time confirmation, it may resume the frozen
+11/291 import, deploy the three application boundaries with outbound behavior
+disabled, and run only the two fixed staff draft pilots under
 `docs/platform/p8d4-current-main-staff-pilot.md`. The owner
 deferred the large capacity stress test and approved a small-launch monitoring
 envelope plus focused human review on the exact P8 candidate.
@@ -2929,3 +2934,35 @@ identity is release ID `2026-08-16.p8d4o.1`, release version
 `EXECUTE-P8D4O-2026-08-16.P8D4O.1`. Implementation and its separate
 execution-control metadata must pass independent review, merge and exact-main
 CI before another fresh read-only preflight.
+
+### P8D4P named non-root importer correction
+
+Issue #257 records the real P8D4O `knowledge_failed` stop. The exact 11-client
+and 291-internal production-account bundles rebuild twice with byte-identical
+frozen hashes, so neither the live account identity nor the knowledge vault is
+the failure. The isolated Inbox importer was created from exact runtime image
+`sha256:dfc1aae9743e2b6bf6d7e174933c36cd89e03e5d769b859f2aaaa557a7a68af3`,
+but Docker reports its configured user as the Dockerfile name `nextjs`; the
+adapter incorrectly required the literal string `1001`.
+That image creates `nextjs:nodejs` with UID/GID `1001:1001` before switching to
+`USER nextjs`.
+
+P8D4P must verify both layers: exact `.Config.User=nextjs`, then an actual
+container command proving username `nextjs`, UID `1001`, GID `1001`, and a
+non-root process. Empty, numeric-only, root, wrong-name, wrong-UID/GID, command
+failure, wrong image, platform or revision all fail closed before bundle copy.
+
+P8D4O staging left the exact source and Compose tags for CRM, Inbox and Lead
+Agent on Hermes while all running application containers remained unchanged.
+P8D4P therefore requires one exact inventory record for each of those six tags,
+full image/revision/platform validation, and performs no image load or retag.
+It still transfers and verifies the four reviewed portable artifacts under its
+new absent release root so the new result remains independently auditable.
+
+The P8D4O local and Hermes failure results remain immutable at SHA-256
+`35720cbdc88a9d4407d734c62a10f75f31dcaa6b58d88675a9a25587e1b87ce0`.
+The retry uses release ID `2026-08-16.p8d4p.1`, release version
+`p8d4p-20260816`, importer name `evo-p8d4p-knowledge-import`, and confirmation
+`EXECUTE-P8D4P-2026-08-16.P8D4P.1`. A separate execution-control rebind and
+fresh successful preflight are mandatory before requesting the new action-time
+confirmation.

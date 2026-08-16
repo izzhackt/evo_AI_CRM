@@ -7901,3 +7901,71 @@ This correction grants no new production or provider authority. The next
 attempt remains blocked until implementation review/merge/exact-main green,
 execution-control review/merge/exact-main green, and a fresh successful
 read-only preflight.
+
+## 2026-08-16 - P8D4P verify the named non-root Inbox importer
+
+Plan Block-ID: `EVO-PLATFORM-P8D4P-NAMED-IMPORTER-IDENTITY-2026-08-16`
+
+Issue: #257.
+
+Reason: the reviewed P8D4O preflight, staging, disabled configuration and
+migration `001-076` verification succeeded. Execution then stopped safely with
+`knowledge_failed`; application deployment and both draft pilots remained
+`not_run`, rollback was not required, and finally-style cleanup removed all
+four local bundle roots plus the isolated importer and remote knowledge
+directory. The local and root-only Hermes result bytes match SHA-256
+`35720cbdc88a9d4407d734c62a10f75f31dcaa6b58d88675a9a25587e1b87ce0`.
+
+Read-only diagnosis then proved:
+
+- one live production account resolves under the frozen Gemini/disabled-reply
+  predicate without exposing its UUID;
+- the client and internal vaults still contain exactly 11 and 291 documents;
+- two real builds per audience are byte-identical and reproduce frozen bundle
+  hashes `c20acf2a3ecdf321d9120ca97e1389b5883ef9cfd5d97dc5b1d2235c56a05c23`
+  and `a3a1092c10ec3a8768c6f8ac63f32f81b0fa9e9c313d820d034ad084565b6184`;
+- Compose renders successfully, the candidate Inbox image is exact
+  `linux/amd64` runtime ID `sha256:dfc1aae9743e2b6bf6d7e174933c36cd89e03e5d769b859f2aaaa557a7a68af3`,
+  and its Dockerfile/configured user is the name `nextjs`, not the literal
+  metadata string `1001`;
+- the Dockerfile creates `nextjs:nodejs` with UID/GID `1001:1001`, so the old
+  literal metadata assertion was a false negative, not a privilege boundary
+  violation;
+- P8D4O staging left exactly the CRM, Inbox and Lead Agent source and Compose
+  tags, each resolving to its frozen runtime manifest ID. The running
+  application containers remained on the prior exact images, healthy, with
+  restart count zero.
+
+Decision:
+
+- preserve every P8D4O local/Hermes release, rollback and evidence artifact;
+  never overwrite or relabel its `knowledge_failed` result;
+- advance to release ID `2026-08-16.p8d4p.1`, version `p8d4p-20260816`,
+  importer `evo-p8d4p-knowledge-import`, confirmation
+  `EXECUTE-P8D4P-2026-08-16.P8D4P.1`, and newly absent derived roots;
+- require a successful closed Docker inventory with exactly one record for
+  each of the six source/Compose tags already staged by P8D4O. Every pair must
+  resolve to the frozen CRM, Inbox or Lead Agent runtime ID, and full inspect
+  must prove revision `aaa9f618131f604f79c694e4b332a0b13afd7a30`, OS
+  `linux`, architecture `amd64`, and missing/empty variant;
+- do not load, delete, replace or retag those six images. Transfer the same
+  four reviewed portable artifacts to the new P8D4P release root, verify their
+  modes/hashes and OCI-index-to-runtime-manifest bindings, and bind the already
+  staged tags to those artifacts without image mutation;
+- after creating the isolated importer with `--no-deps`, require exact Inbox
+  runtime image ID and `.Config.User=nextjs`, then execute a bounded identity
+  probe inside it and require username `nextjs`, UID `1001`, GID `1001` and
+  non-root. Empty/root/numeric-only/wrong-name/wrong-UID/wrong-GID output,
+  malformed output or inspect/exec failure blocks before knowledge transfer;
+- retain the frozen 11/291 knowledge inputs, account-bound hashes, cleanup,
+  migration, disabled-state, rollback, evidence, privacy, two-call pilot cap,
+  no-WAHA-change, no-amoCRM-write, no-autonomous-send and no-customer-send
+  boundaries;
+- require implementation review/merge/exact-main green, a separate reviewed
+  execution-control rebind/merge/exact-main green, a fresh successful preflight
+  and a new owner action-time confirmation before retry execution.
+
+This correction grants no new provider, customer-data, outbound or production
+scope. It only makes the already-authorized isolated importer identity check
+match the exact reviewed image while retaining an actual runtime non-root UID
+and GID proof.

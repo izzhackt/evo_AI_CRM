@@ -18,8 +18,8 @@ import { fileURLToPath } from "node:url";
 
 const CANDIDATE = "aaa9f618131f604f79c694e4b332a0b13afd7a30";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
-const RELEASE_ID = "2026-08-16.p8d4o.1";
-const RELEASE_VERSION = "p8d4o-20260816";
+const RELEASE_ID = "2026-08-16.p8d4p.1";
+const RELEASE_VERSION = "p8d4p-20260816";
 const PILOT_ORIGIN = "https://evo-inbox.72.62.119.112.sslip.io";
 const WAHA_DIGEST = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const HERMES = "hermes-vps";
@@ -34,7 +34,7 @@ const RELEASE_ROOT = `/opt/evo-releases/${CANDIDATE}/${RELEASE_ID}`;
 const ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const EVIDENCE_ROOT = `/opt/evo-release-evidence/${CANDIDATE}/${RELEASE_ID}`;
 const KNOWLEDGE_REMOTE = `${RELEASE_ROOT}/knowledge-incoming`;
-const IMPORTER = "evo-p8d4-knowledge-import";
+const IMPORTER = "evo-p8d4p-knowledge-import";
 const PORTABLE_IDENTITY = "portable-image-identity.json";
 const PORTABLE_IDENTITY_SHA256 = "53fa00c63338a55925fa8d2c8d6e6faaa61d63b0f99251e50dabafd792755ccd";
 const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8d4g-result.json`;
@@ -126,6 +126,7 @@ export const P8D4G_PRODUCTION = Object.freeze({
   candidate: CANDIDATE,
   projectRef: PROJECT_REF,
   releaseId: RELEASE_ID,
+  releaseVersion: RELEASE_VERSION,
   releaseRoot: RELEASE_ROOT,
   rollbackRoot: ROLLBACK_ROOT,
   evidenceRoot: EVIDENCE_ROOT,
@@ -133,6 +134,7 @@ export const P8D4G_PRODUCTION = Object.freeze({
   portableRoot: PORTABLE_ROOT,
   portableIdentity: Object.freeze({ filename: PORTABLE_IDENTITY, sha256: PORTABLE_IDENTITY_SHA256 }),
   remoteResult: REMOTE_RESULT,
+  importer: IMPORTER,
   hermes: HERMES,
   images: IMAGES,
   current: CURRENT,
@@ -305,19 +307,35 @@ function validateLocalCandidate(run) {
 export function createCandidateTagBoundaryCheck() {
   return String.raw`
 candidate_image_inventory="$(docker image ls --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}')"
-existing_crm_candidate_present="$(printf '%s\n' "$candidate_image_inventory" | python3 -c 'import sys; crm_tag,crm_id,*forbidden=sys.argv[1:]; found={tag:[] for tag in [crm_tag,*forbidden]};
+printf '%s\n' "$candidate_image_inventory" | python3 -c 'import sys; args=sys.argv[1:]; expected=dict(zip(args[::2],args[1::2])); found={tag:[] for tag in expected};
 for line in sys.stdin:
  line=line.rstrip("\n")
  if not line: continue
  parts=line.rsplit("|",1)
  if len(parts)!=2: raise SystemExit(40)
  if parts[0] in found: found[parts[0]].append(parts[1])
-if len(found[crm_tag])>1 or (found[crm_tag] and found[crm_tag][0]!=crm_id) or any(found[tag] for tag in forbidden): raise SystemExit(41)
-print("1" if found[crm_tag] else "0")' '${IMAGES.crm.tag}' '${IMAGES.crm.runtimeId}' '${IMAGES.crm.composeTag}' '${IMAGES.inbox.tag}' '${IMAGES.inbox.composeTag}' '${IMAGES.lead_agent.tag}' '${IMAGES.lead_agent.composeTag}')"
-if [[ "$existing_crm_candidate_present" == '1' ]]; then
-  existing_crm_candidate="$(docker image inspect '${IMAGES.crm.tag}')"
-  printf '%s' "$existing_crm_candidate" | python3 -c 'import json,sys; v=json.load(sys.stdin); row=v[0] if isinstance(v,list) and len(v)==1 and isinstance(v[0],dict) else {}; config=row.get("Config") if isinstance(row.get("Config"),dict) else {}; labels=config.get("Labels") if isinstance(config.get("Labels"),dict) else {}; ok=row.get("Id")=="${IMAGES.crm.runtimeId}" and row.get("Os")=="linux" and row.get("Architecture")=="amd64" and row.get("Variant") in (None,"") and labels.get("org.opencontainers.image.revision")=="${CANDIDATE}"; raise SystemExit(0 if ok else 41)'
-fi
+if any(len(values)!=1 or values[0]!=expected[tag] for tag,values in found.items()): raise SystemExit(41)' \
+  '${IMAGES.crm.tag}' '${IMAGES.crm.runtimeId}' '${IMAGES.crm.composeTag}' '${IMAGES.crm.runtimeId}' \
+  '${IMAGES.inbox.tag}' '${IMAGES.inbox.runtimeId}' '${IMAGES.inbox.composeTag}' '${IMAGES.inbox.runtimeId}' \
+  '${IMAGES.lead_agent.tag}' '${IMAGES.lead_agent.runtimeId}' '${IMAGES.lead_agent.composeTag}' '${IMAGES.lead_agent.runtimeId}'
+for spec in \
+  '${IMAGES.crm.tag} ${IMAGES.crm.runtimeId}' \
+  '${IMAGES.inbox.tag} ${IMAGES.inbox.runtimeId}' \
+  '${IMAGES.lead_agent.tag} ${IMAGES.lead_agent.runtimeId}'; do
+  set -- $spec
+  candidate_image="$(docker image inspect "$1")"
+  printf '%s' "$candidate_image" | python3 -c 'import json,sys; v=json.load(sys.stdin); row=v[0] if isinstance(v,list) and len(v)==1 and isinstance(v[0],dict) else {}; config=row.get("Config") if isinstance(row.get("Config"),dict) else {}; labels=config.get("Labels") if isinstance(config.get("Labels"),dict) else {}; ok=row.get("Id")==sys.argv[1] and row.get("Os")=="linux" and row.get("Architecture")=="amd64" and row.get("Variant") in (None,"") and labels.get("org.opencontainers.image.revision")=="${CANDIDATE}"; raise SystemExit(0 if ok else 41)' "$2"
+done
+`;
+}
+
+export function createImporterIdentityCheck(importer = IMPORTER, expectedImageId = IMAGES.inbox.runtimeId) {
+  if (!/^[a-z0-9][a-z0-9_.-]+$/.test(importer) || !/^sha256:[0-9a-f]{64}$/.test(expectedImageId)) fail("importer identity arguments are invalid");
+  return String.raw`
+importer_config_identity="$(docker inspect --format '{{.Image}}|{{.Config.User}}' '${importer}')"
+if [[ "$importer_config_identity" != '${expectedImageId}|nextjs' ]]; then exit 54; fi
+importer_runtime_identity="$(docker exec '${importer}' sh -eu -c 'printf "%s|%s|%s\n" "$(id -un)" "$(id -u)" "$(id -g)"')"
+if [[ "$importer_runtime_identity" != 'nextjs|1001|1001' ]]; then exit 55; fi
 `;
 }
 
@@ -420,13 +438,10 @@ for spec in \
   '${IMAGES.lead_agent.archive} ${IMAGES.lead_agent.archiveSha256} ${IMAGES.lead_agent.tag} ${IMAGES.lead_agent.composeTag} ${IMAGES.lead_agent.ociIndexDigest} ${IMAGES.lead_agent.runtimeId}'; do
   set -- $spec
   [[ "$(sha256sum "${RELEASE_ROOT}/incoming/$1" | cut -d' ' -f1)" == "$2" ]]
-  docker load -i "${RELEASE_ROOT}/incoming/$1" >/dev/null
+  [[ "$(stat -c '%U:%G %a' "${RELEASE_ROOT}/incoming/$1")" == 'root:root 600' ]]
   [[ "$(docker image inspect --format '{{.Id}}' "$3")" == "$6" ]]
 ${createDockerImagePlatformCheck()}
   [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$3")" == '${CANDIDATE}' ]]
-  stage_image_tags="$(docker image ls --no-trunc --format '{{.Repository}}:{{.Tag}}')"
-  printf '%s\n' "$stage_image_tags" | python3 -c 'import sys; target=sys.argv[1]; raise SystemExit(43 if target in {line.rstrip("\n") for line in sys.stdin} else 0)' "$4"
-  docker image tag "$3" "$4"
   [[ "$(docker image inspect --format '{{.Id}}' "$4")" == "$6" ]]
 done
 `;
@@ -682,7 +697,18 @@ docker exec '${IMPORTER}' npm run knowledge:import -- --audience '${item.audienc
       const rollbackFiles = safeRollbackRows(remote(run, stageRemoteScript(), { deadlineAt, label: "Hermes rollback capture" }).stdout);
       for (const image of Object.values(IMAGES)) run("scp", [join(PORTABLE_ROOT, image.archive), `${HERMES}:${RELEASE_ROOT}/incoming/${image.archive}`], { timeout: remainingMs(deadlineAt), label: "candidate archive transfer" });
       run("scp", [join(PORTABLE_ROOT, PORTABLE_IDENTITY), `${HERMES}:${RELEASE_ROOT}/incoming/${PORTABLE_IDENTITY}`], { timeout: remainingMs(deadlineAt), label: "portable identity transfer" });
-      remote(run, `chmod 0600 '${RELEASE_ROOT}/incoming/${PORTABLE_IDENTITY}'`, { deadlineAt, label: "portable identity mode" });
+      remote(run, String.raw`
+chown root:root \
+  '${RELEASE_ROOT}/incoming/${PORTABLE_IDENTITY}' \
+  '${RELEASE_ROOT}/incoming/${IMAGES.crm.archive}' \
+  '${RELEASE_ROOT}/incoming/${IMAGES.inbox.archive}' \
+  '${RELEASE_ROOT}/incoming/${IMAGES.lead_agent.archive}'
+chmod 0600 \
+  '${RELEASE_ROOT}/incoming/${PORTABLE_IDENTITY}' \
+  '${RELEASE_ROOT}/incoming/${IMAGES.crm.archive}' \
+  '${RELEASE_ROOT}/incoming/${IMAGES.inbox.archive}' \
+  '${RELEASE_ROOT}/incoming/${IMAGES.lead_agent.archive}'
+`, { deadlineAt, label: "portable artifact metadata" });
       const repoArchive = join(tmpdir(), `evo-p8d4g-repo-${process.pid}.tar`);
       try {
         if (existsSync(repoArchive)) fail("local release archive collision");
@@ -717,8 +743,7 @@ printf '%s\n' "$importer_names" | python3 -c 'import sys; target=sys.argv[1]; ra
 install -d -o root -g root -m 0700 '${KNOWLEDGE_REMOTE}'
 cd '${RELEASE_ROOT}/repo'
 EVO_RELEASE_REVISION='${CANDIDATE}' EVO_RELEASE_VERSION='${RELEASE_VERSION}' EVO_WAHA_IMAGE_DIGEST='${WAHA_DIGEST}' EVO_INBOX_APP_ENV_FILE='${ENV_FILES.inbox}' EVO_INBOX_WAHA_ENV_FILE='${ENV_FILES.inbox_waha}' docker compose --env-file '${ENV_FILES.inbox}' -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name '${IMPORTER}' --entrypoint tail app -f /dev/null
-[[ "$(docker inspect --format '{{.Image}}' '${IMPORTER}')" == '${IMAGES.inbox.runtimeId}' ]]
-[[ "$(docker inspect --format '{{.Config.User}}' '${IMPORTER}')" == '1001' ]]
+${createImporterIdentityCheck()}
 `, { deadlineAt, label: "isolated importer creation" });
       state.importerCreated = true;
       const audiences = [];

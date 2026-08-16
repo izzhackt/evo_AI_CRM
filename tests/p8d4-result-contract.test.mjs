@@ -7,6 +7,7 @@ const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4-result.sche
 const cases = JSON.parse(readFileSync(new URL("../scripts/knowledge_ingestion/platform_eval_cases.json", import.meta.url), "utf8"));
 const contract = readFileSync(new URL("../docs/platform/p8d4-current-main-staff-pilot.md", import.meta.url), "utf8");
 const importer = readFileSync(new URL("../agent-lead2-inbox/scripts/import-knowledge-bundle.ts", import.meta.url), "utf8");
+const builder = readFileSync(new URL("../scripts/knowledge_ingestion/build_platform_bundle.py", import.meta.url), "utf8");
 const success = schema.allOf[0].then.properties;
 const validate = new Ajv2020({ strict: false }).compile(schema);
 const hash = "a".repeat(64);
@@ -140,4 +141,20 @@ test("P8D4G UUID transport matches the immutable importer CLI and stays UUID-fre
   assert.match(amendment, /reads one line into[\s\S]*EVO_KNOWLEDGE_ACCOUNT_ID/);
   assert.match(amendment, /--account-id \"\$EVO_KNOWLEDGE_ACCOUNT_ID\"/);
   assert.match(amendment, /No literal UUID may occur in the[\s\S]*command text/);
+});
+
+test("P8D4H permits UUID only in temporary canonical knowledge artifacts", () => {
+  const correction = contract.slice(contract.indexOf("## P8D4H knowledge UUID artifact correction"));
+  assert.ok(correction.length > 0);
+  assert.match(builder, /"account_id": account_id[\s\S]*bundle_bytes/);
+  assert.match(builder, /manifest = \{[\s\S]*"account_id": account_id/);
+  assert.match(correction, /only inside the two deterministic local[\s\S]*bundle\/manifest/);
+  assert.match(correction, /Do not create a standalone UUID file/);
+  assert.match(correction, /UUID-bearing builder report[\s\S]*do not[\s\S]*retain/);
+  assert.match(correction, /finally-style cleanup path[\s\S]*every terminal success or failure/);
+  assert.match(correction, /four on the complete two-audience\/two-build path/);
+  assert.match(correction, /remove every created local[\s\S]*remote incoming[\s\S]*in-container/);
+  assert.match(correction, /including after build validation[\s\S]*import[\s\S]*verification failure/);
+  assert.match(correction, /Cleanup failure is blocking/);
+  assert.match(importer, /safeImportResult\(result\)/);
 });

@@ -30,8 +30,8 @@ test("production adapter pins the exact Hermes release and three-image matrix", 
   assert.equal(P8D4G_PRODUCTION.hermes, "hermes-vps");
   assert.equal(P8D4G_PRODUCTION.projectRef, "iosckaqtovbbnssqcpde");
   assert.equal(P8D4G_PRODUCTION.candidate, "aaa9f618131f604f79c694e4b332a0b13afd7a30");
-  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-16.p8d4l.1");
-  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-16.p8d4l.1`);
+  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-16.p8d4m.1");
+  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-16.p8d4m.1`);
   assert.deepEqual(
     P8D4G_PRODUCTION.sourceFiles.map(({ name, path, mode }) => [name, path, mode]),
     [
@@ -120,7 +120,7 @@ test("real preflight adapter uses only the fixed SSH target and read-only manage
     ["evo-crm-lead-agent-1", P8D4G_PRODUCTION.current.lead_agent.id],
     ["evo-crm-waha-1", P8D4G_PRODUCTION.current.crm_waha.id],
     ["evo-inbox-waha", P8D4G_PRODUCTION.current.inbox_waha.id],
-  ].map(([name, id]) => `${name}\t${id}\thealthy\t0`).join("\n");
+  ].map(([name, id]) => `${name}|${id}|healthy|0`).join("\n");
   const run = (command, args, options = {}) => {
     calls.push({ command, args, input: options.input ?? "" });
     if (command === "ssh") return { stdout: `${rows}\n`, stderr: "" };
@@ -151,11 +151,26 @@ test("real preflight adapter uses only the fixed SSH target and read-only manage
   assert.equal(calls.length, 1);
   assert.equal(calls[0].command, "ssh");
   assert.deepEqual(calls[0].args.slice(0, 4), ["-o", "BatchMode=yes", "hermes-vps", "bash"]);
+  assert.match(calls[0].input, /\{\{\.Name\}\}\|\{\{\.Image\}\}\|/);
+  assert.doesNotMatch(calls[0].input, /\{\{\.Name\}\}\\t\{\{\.Image\}\}/);
   assert.doesNotMatch(calls[0].input, /management-test-value|service-test-value|staff-test-value/);
   for (const source of P8D4G_PRODUCTION.sourceFiles) {
     assert.match(calls[0].input, new RegExp(`${source.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*root:root ${source.mode}`));
   }
   assert.doesNotMatch(calls[0].input, /for path in .*COMPOSE/);
+
+  const malformedOperations = await createP8D4GOperations({
+    run: (command) => {
+      if (command === "ssh") return { stdout: `${rows}|unexpected\n`, stderr: "" };
+      throw new Error(`unexpected command ${command}`);
+    },
+    fetchImpl,
+    validateCandidate: () => {},
+    validateExecutionControl: () => testExecutionControl,
+    credentialFile: "/definitely/absent",
+    environment: testEnvironment,
+  });
+  await assert.rejects(() => malformedOperations.preflight(), /container preflight output is invalid/);
 });
 
 test("CLI is bound to the committed production adapter and closed mutation commands", () => {

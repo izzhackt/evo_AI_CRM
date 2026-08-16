@@ -7,7 +7,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { readFileSync } from "node:fs";
 
 export const P8D4G = Object.freeze({
-  releaseId: "2026-08-16.p8d4l.1",
+  releaseId: "2026-08-16.p8d4m.1",
   releaseControlCommit: "86303ad0f3a25b54395327c03974ef00a80140fa",
   releaseControlTree: "150474f6f035a2ce29e8f404a655176970086549",
   releaseControlCiRun: 31920969058,
@@ -17,11 +17,11 @@ export const P8D4G = Object.freeze({
   candidateCiRun: 31916279374,
   platform: "linux/amd64",
   migrationRange: "001-076",
-  confirmation: "EXECUTE-P8D4L-2026-08-16.P8D4L.1",
+  confirmation: "EXECUTE-P8D4M-2026-08-16.P8D4M.1",
   windowMs: 120 * 60 * 1000,
   deployments: Object.freeze(["inbox", "crm", "lead_agent"]),
   pilots: Object.freeze(["client_china_documents", "internal_malaysia_handoff"]),
-  productionEvidenceRoot: resolve(fileURLToPath(new URL("..", import.meta.url)), `.evo-release-evidence/p8d4g-${"2026-08-16.p8d4l.1"}`),
+  productionEvidenceRoot: resolve(fileURLToPath(new URL("..", import.meta.url)), `.evo-release-evidence/p8d4g-${"2026-08-16.p8d4m.1"}`),
 });
 
 const RESULT_CODES = new Set([

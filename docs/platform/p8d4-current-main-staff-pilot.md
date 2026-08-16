@@ -774,3 +774,25 @@ candidate, provider, pilot, cleanup, rollback and privacy rules remain exact.
 Because the operations, runner and result identity change, a separate reviewed
 execution-control metadata update must bind the merged P8D4L bytes before the
 next real preflight.
+
+## P8D4M Hermes container-row protocol correction
+
+Issue #248 and Plan Block-ID
+`EVO-PLATFORM-P8D4M-PREFLIGHT-CONTAINER-ROWS-2026-08-16` correct only the
+closed row transport used by the read-only Hermes container preflight. Docker
+prints backslash plus `t` literally for the prior template, while the parser
+expected actual tab bytes. The fixed protocol uses literal `|` separators in
+both producer and parser and rejects any row that does not retain the exact
+four-field shape.
+
+The prior P8D4L failed result remains immutable. The next attempt uses release
+ID `2026-08-16.p8d4m.1`, release version `p8d4m-20260816`, exact confirmation
+`EXECUTE-P8D4M-2026-08-16.P8D4M.1`, and newly absent roots derived from that
+identity. All candidate images, `001-076` migration boundary, 11/291 knowledge
+inputs, source modes, disabled flags, provider-call cap, rollback, cleanup,
+side-effect and privacy rules are unchanged.
+
+No production/provider mutation is authorized by this correction. The fixed
+implementation and a later metadata-only execution-control rebind must be
+independently reviewed, merged and green on exact main before the next real
+preflight.

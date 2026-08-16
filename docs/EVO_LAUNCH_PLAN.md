@@ -2866,3 +2866,19 @@ amoCRM, DNS, Caddy, container or autonomous-reply boundary changes. The
 corrected implementation and then its separate execution-control metadata must
 each be independently reviewed, merged and green on exact main before a fresh
 read-only production preflight.
+
+### P8D4M Hermes container-row protocol correction
+
+Issue #248 records the P8D4L preflight's second safe stop. All five named
+production containers were independently observed with their expected images,
+healthy state and restart count zero; only the verifier failed because Docker
+printed `\t` literally while the parser expected tab bytes. P8D4M uses one
+closed literal `|` row protocol with behavioral coverage and advances the retry
+to collision-free release ID `2026-08-16.p8d4m.1` and release version
+`p8d4m-20260816`.
+
+No application image, migration, knowledge, secret, provider, Supabase,
+Gemini, WhatsApp/WAHA, amoCRM, DNS/Caddy, container or autonomous-reply
+boundary changes. The verifier fix and its later execution-control rebind must
+each pass independent review, merge and exact-main CI before another read-only
+production preflight.

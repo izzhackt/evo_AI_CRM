@@ -6,10 +6,10 @@ import { test } from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 import { P8D4G, createP8D4GResult, runP8D4G, validateP8D4GResult } from "../scripts/p8d4g-production-runner.mjs";
 
-test("retry evidence uses the collision-free P8D4M identity", () => {
-  assert.equal(P8D4G.releaseId, "2026-08-16.p8d4m.1");
-  assert.match(P8D4G.productionEvidenceRoot, /p8d4g-2026-08-16\.p8d4m\.1$/);
-  assert.equal(P8D4G.confirmation, "EXECUTE-P8D4M-2026-08-16.P8D4M.1");
+test("retry evidence uses the collision-free P8D4N identity", () => {
+  assert.equal(P8D4G.releaseId, "2026-08-16.p8d4n.1");
+  assert.match(P8D4G.productionEvidenceRoot, /p8d4g-2026-08-16\.p8d4n\.1$/);
+  assert.equal(P8D4G.confirmation, "EXECUTE-P8D4N-2026-08-16.P8D4N.1");
 });
 
 const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4g-result.schema.json", import.meta.url), "utf8"));
@@ -48,7 +48,7 @@ function operations(overrides = {}) {
   const calls = [];
   const adapter = {
     calls,
-    async preflight() { calls.push("preflight"); return { status: "verified", execution_control: executionControl, containers: preflightContainers, migration_range: "001-076", migration_count: 76, candidate_tags_absent: true, roots_absent: true, rollback_inputs_verified: true }; },
+    async preflight() { calls.push("preflight"); return { status: "verified", execution_control: executionControl, containers: preflightContainers, migration_range: "001-076", migration_count: 76, candidate_tag_boundary_verified: true, roots_absent: true, rollback_inputs_verified: true }; },
     async stage() { calls.push("stage"); return { status: "verified", archives_verified: 3, images_verified: 3, rollback_verified: true, release_repo_verified: true, artifacts: stagedArtifacts, rollback_files: rollbackFiles }; },
     async configureDisabled() { calls.push("configureDisabled"); return { status: "verified", files_verified: 3, disabled_state_verified: true, waha_unchanged: true }; },
     async verifyMigrations() { calls.push("verifyMigrations"); return { status: "verified_noop", range: "001-076", count: 76, project_status: "ACTIVE_HEALTHY" }; },

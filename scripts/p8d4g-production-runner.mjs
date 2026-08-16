@@ -7,7 +7,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { readFileSync } from "node:fs";
 
 export const P8D4G = Object.freeze({
-  releaseId: "2026-08-16.p8d4m.1",
+  releaseId: "2026-08-16.p8d4n.1",
   releaseControlCommit: "86303ad0f3a25b54395327c03974ef00a80140fa",
   releaseControlTree: "150474f6f035a2ce29e8f404a655176970086549",
   releaseControlCiRun: 31920969058,
@@ -17,11 +17,11 @@ export const P8D4G = Object.freeze({
   candidateCiRun: 31916279374,
   platform: "linux/amd64",
   migrationRange: "001-076",
-  confirmation: "EXECUTE-P8D4M-2026-08-16.P8D4M.1",
+  confirmation: "EXECUTE-P8D4N-2026-08-16.P8D4N.1",
   windowMs: 120 * 60 * 1000,
   deployments: Object.freeze(["inbox", "crm", "lead_agent"]),
   pilots: Object.freeze(["client_china_documents", "internal_malaysia_handoff"]),
-  productionEvidenceRoot: resolve(fileURLToPath(new URL("..", import.meta.url)), `.evo-release-evidence/p8d4g-${"2026-08-16.p8d4m.1"}`),
+  productionEvidenceRoot: resolve(fileURLToPath(new URL("..", import.meta.url)), `.evo-release-evidence/p8d4g-${"2026-08-16.p8d4n.1"}`),
 });
 
 const RESULT_CODES = new Set([
@@ -110,8 +110,8 @@ function exactKeys(value, keys, label) {
 }
 
 function validatePreflight(record) {
-  exactKeys(record, ["status", "execution_control", "containers", "migration_range", "migration_count", "candidate_tags_absent", "roots_absent", "rollback_inputs_verified"], "preflight");
-  if (record.status !== "verified" || record.migration_range !== P8D4G.migrationRange || record.migration_count !== 76 || record.candidate_tags_absent !== true || record.roots_absent !== true || record.rollback_inputs_verified !== true) fail("preflight did not verify the frozen boundary", "preflight_blocked");
+  exactKeys(record, ["status", "execution_control", "containers", "migration_range", "migration_count", "candidate_tag_boundary_verified", "roots_absent", "rollback_inputs_verified"], "preflight");
+  if (record.status !== "verified" || record.migration_range !== P8D4G.migrationRange || record.migration_count !== 76 || record.candidate_tag_boundary_verified !== true || record.roots_absent !== true || record.rollback_inputs_verified !== true) fail("preflight did not verify the frozen boundary", "preflight_blocked");
   const expected = [
     ["evo-crm-app-1", "sha256:d4626208423df2c0df24262763917b82b1157b53a115b44f02478ecf7245f580"],
     ["evo-inbox-app-1", "sha256:6d5e0a9d5ea073737bdd8c2c5621818ca7bdb76dd5b16ca5e44563d39833cb6b"],

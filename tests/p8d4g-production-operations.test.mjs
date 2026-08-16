@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
-import { P8D4G_PRODUCTION, createAtomicEvidenceInstallScript, createP8D4GOperations, validateP8D4GExecutionControl } from "../scripts/p8d4g-production-operations.mjs";
+import { P8D4G_PRODUCTION, createAtomicEvidenceInstallScript, createCandidateTagBoundaryCheck, createDockerImagePlatformCheck, createP8D4GOperations, validateP8D4GExecutionControl } from "../scripts/p8d4g-production-operations.mjs";
 
 const expectedIds = {
   crm: "sha256:3174e8e35f27ca3983e971d6f4b94b6863a5b64a9ffd751042b3db5ed2f8c55a",
@@ -30,8 +30,8 @@ test("production adapter pins the exact Hermes release and three-image matrix", 
   assert.equal(P8D4G_PRODUCTION.hermes, "hermes-vps");
   assert.equal(P8D4G_PRODUCTION.projectRef, "iosckaqtovbbnssqcpde");
   assert.equal(P8D4G_PRODUCTION.candidate, "aaa9f618131f604f79c694e4b332a0b13afd7a30");
-  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-16.p8d4m.1");
-  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-16.p8d4m.1`);
+  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-16.p8d4n.1");
+  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-16.p8d4n.1`);
   assert.deepEqual(
     P8D4G_PRODUCTION.sourceFiles.map(({ name, path, mode }) => [name, path, mode]),
     [
@@ -144,6 +144,7 @@ test("real preflight adapter uses only the fixed SSH target and read-only manage
   });
   const record = await operations.preflight();
   assert.equal(record.status, "verified");
+  assert.equal(record.candidate_tag_boundary_verified, true);
   assert.equal(record.migration_range, "001-076");
   assert.equal(record.containers.length, 5);
   assert.deepEqual(fetchCalls.map((item) => item.method), ["GET", "GET", "GET"]);
@@ -158,6 +159,8 @@ test("real preflight adapter uses only the fixed SSH target and read-only manage
     assert.match(calls[0].input, new RegExp(`${source.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*root:root ${source.mode}`));
   }
   assert.doesNotMatch(calls[0].input, /for path in .*COMPOSE/);
+  assert.match(calls[0].input, new RegExp(P8D4G_PRODUCTION.images.crm.tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(calls[0].input, new RegExp(P8D4G_PRODUCTION.images.crm.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
   const malformedOperations = await createP8D4GOperations({
     run: (command) => {
@@ -177,6 +180,9 @@ test("CLI is bound to the committed production adapter and closed mutation comma
   const runner = readFileSync(new URL("../scripts/p8d4g-production-runner.mjs", import.meta.url), "utf8");
   const operations = readFileSync(new URL("../scripts/p8d4g-production-operations.mjs", import.meta.url), "utf8");
   assert.match(runner, /import\("\.\/p8d4g-production-operations\.mjs"\)/);
+  assert.doesNotMatch(operations, /!\s+docker (?:image )?inspect/);
+  assert.match(operations, /docker image ls --no-trunc/);
+  assert.match(operations, /docker container ls -a/);
   assert.doesNotMatch(runner, /operations-module|pathToFileURL/);
   assert.match(operations, /run -d --no-deps --name '\$\{IMPORTER\}'/);
   assert.match(operations, /up -d --no-deps '\$\{service\}'/);
@@ -239,6 +245,93 @@ test("staging verifies the transferred archive instead of treating git archive a
   assert.match(remoteScripts, /portable-image-identity\.json/);
   assert.equal(record.artifacts.length, 4);
   assert.equal(record.rollback_files.length, 9);
+});
+
+test("staging accepts omitted Docker Variant only for exact linux/amd64", () => {
+  const root = mkdtempSync(join(tmpdir(), "p8d4g-docker-platform-"));
+  const docker = join(root, "docker");
+  try {
+    writeFileSync(docker, "#!/bin/sh\nprintf '%s\\n' \"$FAKE_DOCKER_INSPECT_JSON\"\n");
+    chmodSync(docker, 0o755);
+    const script = `set -o pipefail\nset -- archive hash exact-tag compose-tag image-id\n${createDockerImagePlatformCheck()}`;
+    const executeRaw = (value) => spawnSync("bash", ["-c", script], {
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${root}:${process.env.PATH}`, FAKE_DOCKER_INSPECT_JSON: JSON.stringify(value) },
+    });
+    const execute = (value) => executeRaw([value]);
+    assert.equal(execute({ Os: "linux", Architecture: "amd64" }).status, 0);
+    assert.equal(execute({ Os: "linux", Architecture: "amd64", Variant: "" }).status, 0);
+    assert.notEqual(execute({ Os: "windows", Architecture: "amd64" }).status, 0);
+    assert.notEqual(execute({ Os: "linux", Architecture: "arm64" }).status, 0);
+    assert.notEqual(execute({ Os: "linux", Architecture: "amd64", Variant: "v8" }).status, 0);
+    assert.notEqual(execute({ Architecture: "amd64" }).status, 0);
+    assert.notEqual(executeRaw({ Os: "linux", Architecture: "amd64" }).status, 0);
+    assert.doesNotMatch(script, /\{\{\.Variant\}\}/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("retry boundary accepts only the exact previously loaded CRM source tag", () => {
+  const root = mkdtempSync(join(tmpdir(), "p8d4n-existing-crm-tag-"));
+  const docker = join(root, "docker");
+  const crmTag = P8D4G_PRODUCTION.images.crm.tag;
+  const exact = {
+    Id: P8D4G_PRODUCTION.images.crm.id,
+    Os: "linux",
+    Architecture: "amd64",
+    Config: { Labels: { "org.opencontainers.image.revision": P8D4G_PRODUCTION.candidate } },
+  };
+  try {
+    writeFileSync(docker, String.raw`#!/bin/sh
+if [ "$1 $2" = "image ls" ]; then
+  [ "$FAKE_LIST_ERROR" = "0" ] || exit 70
+  if [ "$FAKE_CRM_PRESENT" = "1" ]; then printf '%s|%s\n' "$FAKE_CRM_TAG" "$FAKE_CRM_LIST_ID"; fi
+  if [ -n "$FAKE_EXTRA_TAG" ]; then printf '%s|sha256:%064d\n' "$FAKE_EXTRA_TAG" 0; fi
+  exit 0
+fi
+tag=""
+for argument in "$@"; do tag="$argument"; done
+if [ "$tag" = "$FAKE_CRM_TAG" ]; then
+  [ "$FAKE_CRM_PRESENT" = "1" ] || exit 1
+  printf '%s\n' "$FAKE_CRM_JSON"
+  exit 0
+fi
+if [ -n "$FAKE_EXTRA_TAG" ] && [ "$tag" = "$FAKE_EXTRA_TAG" ]; then
+  printf '[]\n'
+  exit 0
+fi
+exit 1
+`);
+    chmodSync(docker, 0o755);
+    const script = `set -euo pipefail\n${createCandidateTagBoundaryCheck()}`;
+    const execute = ({ present = true, image = exact, listId = P8D4G_PRODUCTION.images.crm.id, extraTag = "", listError = false } = {}) => spawnSync("bash", ["-c", script], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${root}:${process.env.PATH}`,
+        FAKE_CRM_TAG: crmTag,
+        FAKE_CRM_PRESENT: present ? "1" : "0",
+        FAKE_CRM_LIST_ID: listId,
+        FAKE_CRM_JSON: JSON.stringify([image]),
+        FAKE_EXTRA_TAG: extraTag,
+        FAKE_LIST_ERROR: listError ? "1" : "0",
+      },
+    });
+
+    assert.equal(execute().status, 0);
+    assert.equal(execute({ present: false }).status, 0);
+    assert.notEqual(execute({ listError: true }).status, 0);
+    assert.notEqual(execute({ listId: `sha256:${"0".repeat(64)}` }).status, 0);
+    assert.notEqual(execute({ image: { ...exact, Id: `sha256:${"0".repeat(64)}` } }).status, 0);
+    assert.notEqual(execute({ image: { ...exact, Architecture: "arm64" } }).status, 0);
+    assert.notEqual(execute({ image: { ...exact, Variant: "v8" } }).status, 0);
+    assert.notEqual(execute({ image: { ...exact, Config: { Labels: { "org.opencontainers.image.revision": "0".repeat(40) } } } }).status, 0);
+    assert.notEqual(execute({ extraTag: P8D4G_PRODUCTION.images.inbox.tag }).status, 0);
+    assert.doesNotMatch(script, /for tag in '[^']*linux-amd64' '[^']*linux-amd64'/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("redacted result is hash-bound into the exact Hermes evidence root", async () => {

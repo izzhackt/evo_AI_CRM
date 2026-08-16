@@ -796,3 +796,27 @@ No production/provider mutation is authorized by this correction. The fixed
 implementation and a later metadata-only execution-control rebind must be
 independently reviewed, merged and green on exact main before the next real
 preflight.
+
+## P8D4N optional Docker image Variant correction
+
+Issue #251 and Plan Block-ID
+`EVO-PLATFORM-P8D4N-OPTIONAL-IMAGE-VARIANT-2026-08-16` correct only the staged
+image platform probe. The P8D4M attempt passed read-only preflight but stopped
+at candidate load because Hermes' valid `linux/amd64` inspect JSON omitted the
+optional `Variant` key and the Docker Go template errored on that missing key.
+
+The corrected probe parses full inspect JSON and requires exact OS `linux`,
+architecture `amd64`, and variant missing or empty. Wrong/non-empty/malformed
+values fail closed. The P8D4M result and its release, rollback and evidence
+roots remain immutable. Its already-loaded CRM source tag may be reused only
+after preflight verifies the frozen image ID, candidate revision and exact
+`linux/amd64` missing/empty-variant platform. The CRM Compose tag and every
+Inbox/Lead source and Compose tag must still be absent; any drift blocks before
+staging. The retry uses release ID `2026-08-16.p8d4n.1`, release version
+`p8d4n-20260816`, confirmation
+`EXECUTE-P8D4N-2026-08-16.P8D4N.1`, and newly absent derived roots.
+
+All application, migration, knowledge, disabled-state, provider-call,
+side-effect, cleanup, rollback and privacy rules remain unchanged. A separate
+reviewed execution-control rebind is mandatory after this implementation
+merges and exact-main CI is green, followed by a new successful preflight.

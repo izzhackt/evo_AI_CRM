@@ -7792,3 +7792,54 @@ Decision:
 This correction authorizes no Supabase mutation, knowledge import, Gemini call,
 container restart/recreate, WhatsApp/WAHA mutation, amoCRM write, DNS/Caddy
 change, customer-data access or autonomous reply.
+
+## 2026-08-16 - P8D4N optional Docker image Variant correction
+
+Plan Block-ID: `EVO-PLATFORM-P8D4N-OPTIONAL-IMAGE-VARIANT-2026-08-16`
+
+Issue: #251.
+
+Reason: the real P8D4M preflight passed and the authorized execution reached
+staging, then stopped fail-closed before configuration, migrations, knowledge
+publication, application deployment or Gemini pilots. Hermes Docker image
+metadata for the exact `linux/amd64` candidate omits the optional `Variant`
+key. The stage verifier addressed `.Variant` through Docker's Go template,
+which errors when that map key is absent. Read-only follow-up proved all five
+production containers remained on their prior exact images, healthy, with
+restart count zero. The attempt created only its private release, rollback and
+evidence roots and loaded the unused CRM candidate image.
+
+Decision:
+
+- preserve the P8D4M `staging_failed` local and Hermes evidence plus its release,
+  rollback and evidence roots as immutable failed-attempt evidence; do not
+  delete or overwrite those roots;
+- permit reuse of only the already-loaded exact CRM source tag
+  `evo-crm:aaa9f618131f604f79c694e4b332a0b13afd7a30-linux-amd64`, and only after
+  preflight verifies image ID
+  `sha256:3174e8e35f27ca3983e971d6f4b94b6863a5b64a9ffd751042b3db5ed2f8c55a`,
+  OCI revision `aaa9f618131f604f79c694e4b332a0b13afd7a30`, OS `linux`, architecture
+  `amd64`, and missing/empty variant; its Compose tag and all Inbox/Lead source
+  and Compose tags must remain absent, and any mismatch blocks before staging;
+- replace only the image-platform probe: parse the full inspect JSON, require
+  exactly `Os=linux` and `Architecture=amd64`, and map a missing `Variant` to
+  the required empty string; reject a non-empty variant, wrong architecture,
+  wrong OS or malformed inspect payload;
+- cover the exact shell probe behaviorally with omitted, empty, wrong and
+  malformed platform cases, plus the observed one-loaded-CRM-tag retry state,
+  absent-tag state, identity/revision drift and any unexpected second tag;
+- advance the next attempt to release ID `2026-08-16.p8d4n.1`, release version
+  `p8d4n-20260816`, confirmation
+  `EXECUTE-P8D4N-2026-08-16.P8D4N.1`, and newly absent local/Hermes release,
+  rollback and evidence roots derived from that identity;
+- retain the exact application candidate, migrations `001-076`, frozen 11/291
+  knowledge inputs, disabled flags, two-call pilot cap, cleanup, rollback,
+  privacy, side-effect and no-WAHA/no-amoCRM/no-autonomous-send boundaries;
+- after the implementation merges and exact-main CI is green, replace the
+  execution-control metadata in a separate reviewed metadata-only PR before a
+  fresh real preflight and any retry.
+
+This correction grants no new production or provider authority. The next
+attempt remains blocked until implementation review/merge/exact-main green,
+execution-control review/merge/exact-main green, and a fresh successful
+read-only preflight.

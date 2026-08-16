@@ -18,8 +18,8 @@ import { fileURLToPath } from "node:url";
 
 const CANDIDATE = "aaa9f618131f604f79c694e4b332a0b13afd7a30";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
-const RELEASE_ID = "2026-08-16.p8d4m.1";
-const RELEASE_VERSION = "p8d4m-20260816";
+const RELEASE_ID = "2026-08-16.p8d4n.1";
+const RELEASE_VERSION = "p8d4n-20260816";
 const PILOT_ORIGIN = "https://evo-inbox.72.62.119.112.sslip.io";
 const WAHA_DIGEST = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const HERMES = "hermes-vps";
@@ -299,15 +299,36 @@ function validateLocalCandidate(run) {
   assertLocalFile(join(LOCAL_SOURCE, "supabase/migrations/075_ai_assistant_immutable_audits.sql"), "303bc08a1a685e5e8ad0d3acb9492fd2f65e8895c55ca87af218a7e3b897b6cd");
 }
 
-function preflightScript() {
+export function createCandidateTagBoundaryCheck() {
+  return String.raw`
+candidate_image_inventory="$(docker image ls --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}')"
+existing_crm_candidate_present="$(printf '%s\n' "$candidate_image_inventory" | python3 -c 'import sys; crm_tag,crm_id,*forbidden=sys.argv[1:]; found={tag:[] for tag in [crm_tag,*forbidden]};
+for line in sys.stdin:
+ line=line.rstrip("\n")
+ if not line: continue
+ parts=line.rsplit("|",1)
+ if len(parts)!=2: raise SystemExit(40)
+ if parts[0] in found: found[parts[0]].append(parts[1])
+if len(found[crm_tag])>1 or (found[crm_tag] and found[crm_tag][0]!=crm_id) or any(found[tag] for tag in forbidden): raise SystemExit(41)
+print("1" if found[crm_tag] else "0")' '${IMAGES.crm.tag}' '${IMAGES.crm.id}' '${IMAGES.crm.composeTag}' '${IMAGES.inbox.tag}' '${IMAGES.inbox.composeTag}' '${IMAGES.lead_agent.tag}' '${IMAGES.lead_agent.composeTag}')"
+if [[ "$existing_crm_candidate_present" == '1' ]]; then
+  existing_crm_candidate="$(docker image inspect '${IMAGES.crm.tag}')"
+  printf '%s' "$existing_crm_candidate" | python3 -c 'import json,sys; v=json.load(sys.stdin); row=v[0] if isinstance(v,list) and len(v)==1 and isinstance(v[0],dict) else {}; config=row.get("Config") if isinstance(row.get("Config"),dict) else {}; labels=config.get("Labels") if isinstance(config.get("Labels"),dict) else {}; ok=row.get("Id")=="${IMAGES.crm.id}" and row.get("Os")=="linux" and row.get("Architecture")=="amd64" and row.get("Variant") in (None,"") and labels.get("org.opencontainers.image.revision")=="${CANDIDATE}"; raise SystemExit(0 if ok else 41)'
+fi
+`;
+}
+
+function preflightScript({ includeRetryBoundary = true } = {}) {
   const sourceChecks = SOURCE_FILES.map(({ path, mode }) =>
     `[[ -f '${path}' && ! -L '${path}' && "$(stat -c '%U:%G %a' '${path}')" == 'root:root ${mode}' ]]`,
   ).join("\n");
+  const retryBoundary = includeRetryBoundary ? String.raw`
+for path in '${RELEASE_ROOT}' '${ROLLBACK_ROOT}' '${EVIDENCE_ROOT}'; do [[ ! -e "$path" ]]; done
+${createCandidateTagBoundaryCheck()}` : "";
   return String.raw`
 set -o pipefail
 [[ "$(uname -m)" == "x86_64" ]]
-for path in '${RELEASE_ROOT}' '${ROLLBACK_ROOT}' '${EVIDENCE_ROOT}'; do [[ ! -e "$path" ]]; done
-for tag in '${IMAGES.crm.tag}' '${IMAGES.crm.composeTag}' '${IMAGES.inbox.tag}' '${IMAGES.inbox.composeTag}' '${IMAGES.lead_agent.tag}' '${IMAGES.lead_agent.composeTag}'; do ! docker image inspect "$tag" >/dev/null 2>&1; done
+${retryBoundary}
 ${sourceChecks}
 docker network inspect evo_public_web evo_crm_private evo_inbox_private >/dev/null
 for name in '${CURRENT.crm.container}' '${CURRENT.inbox.container}' '${CURRENT.lead_agent.container}' '${CURRENT.crm_waha.container}' '${CURRENT.inbox_waha.container}'; do
@@ -366,6 +387,10 @@ trap - ERR
 `;
 }
 
+export function createDockerImagePlatformCheck() {
+  return String.raw`  [[ "$(docker image inspect "$3" | python3 -c 'import json,sys; v=json.load(sys.stdin); row=v[0] if isinstance(v,list) and len(v)==1 and isinstance(v[0],dict) else {}; print("%s/%s/%s"%(row.get("Os",""),row.get("Architecture",""),row.get("Variant","")))')" == 'linux/amd64/' ]]`;
+}
+
 function stageVerifyScript() {
   return String.raw`
 set -o pipefail
@@ -393,9 +418,10 @@ for spec in \
   [[ "$(sha256sum "${RELEASE_ROOT}/incoming/$1" | cut -d' ' -f1)" == "$2" ]]
   docker load -i "${RELEASE_ROOT}/incoming/$1" >/dev/null
   [[ "$(docker image inspect --format '{{.Id}}' "$3")" == "$5" ]]
-  [[ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}/{{.Variant}}' "$3")" == 'linux/amd64/' ]]
+${createDockerImagePlatformCheck()}
   [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$3")" == '${CANDIDATE}' ]]
-  ! docker image inspect "$4" >/dev/null 2>&1
+  stage_image_tags="$(docker image ls --no-trunc --format '{{.Repository}}:{{.Tag}}')"
+  printf '%s\n' "$stage_image_tags" | python3 -c 'import sys; target=sys.argv[1]; raise SystemExit(43 if target in {line.rstrip("\n") for line in sys.stdin} else 0)' "$4"
   docker image tag "$3" "$4"
   [[ "$(docker image inspect --format '{{.Id}}' "$4")" == "$5" ]]
 done
@@ -644,7 +670,7 @@ docker exec '${IMPORTER}' npm run knowledge:import -- --audience '${item.audienc
       const expected = [CURRENT.crm, CURRENT.inbox, CURRENT.lead_agent];
       if (expected.some((item) => rows.find((row) => row.name === item.container)?.image_id !== item.id)) fail("running application identity drifted");
       if (rows.some((row) => !row.healthy || row.restart_count !== 0)) fail("running containers are not stable");
-      return { status: "verified", execution_control: executionControl, containers: rows.map(({ name, image_id, healthy, restart_count }) => ({ name, image_id, healthy, restart_count })), migration_range: migrations.range, migration_count: migrations.count, candidate_tags_absent: true, roots_absent: true, rollback_inputs_verified: true };
+      return { status: "verified", execution_control: executionControl, containers: rows.map(({ name, image_id, healthy, restart_count }) => ({ name, image_id, healthy, restart_count })), migration_range: migrations.range, migration_count: migrations.count, candidate_tag_boundary_verified: true, roots_absent: true, rollback_inputs_verified: true };
     },
 
     async stage({ deadlineAt }) {
@@ -682,7 +708,8 @@ docker exec '${IMPORTER}' npm run knowledge:import -- --audience '${item.audienc
 set -o pipefail
 umask 077
 [[ ! -e '${KNOWLEDGE_REMOTE}' ]]
-! docker inspect '${IMPORTER}' >/dev/null 2>&1
+importer_names="$(docker container ls -a --format '{{.Names}}')"
+printf '%s\n' "$importer_names" | python3 -c 'import sys; target=sys.argv[1]; raise SystemExit(51 if target in {line.rstrip("\n") for line in sys.stdin} else 0)' '${IMPORTER}'
 install -d -o root -g root -m 0700 '${KNOWLEDGE_REMOTE}'
 cd '${RELEASE_ROOT}/repo'
 EVO_RELEASE_REVISION='${CANDIDATE}' EVO_RELEASE_VERSION='${RELEASE_VERSION}' EVO_WAHA_IMAGE_DIGEST='${WAHA_DIGEST}' EVO_INBOX_APP_ENV_FILE='${ENV_FILES.inbox}' EVO_INBOX_WAHA_ENV_FILE='${ENV_FILES.inbox_waha}' docker compose --env-file '${ENV_FILES.inbox}' -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name '${IMPORTER}' --entrypoint tail app -f /dev/null
@@ -706,10 +733,12 @@ EVO_RELEASE_REVISION='${CANDIDATE}' EVO_RELEASE_VERSION='${RELEASE_VERSION}' EVO
       }
       try { remote(run, String.raw`
 set -o pipefail
-if docker inspect '${IMPORTER}' >/dev/null 2>&1; then docker exec '${IMPORTER}' sh -c "rm -f /tmp/evo-knowledge-client.json /tmp/evo-knowledge-client.sha256.json /tmp/evo-knowledge-internal.json /tmp/evo-knowledge-internal.sha256.json"; docker rm -f '${IMPORTER}' >/dev/null; fi
+cleanup_importer_names="$(docker container ls -a --format '{{.Names}}')"
+if printf '%s\n' "$cleanup_importer_names" | grep -Fxq '${IMPORTER}'; then docker exec '${IMPORTER}' sh -c "rm -f /tmp/evo-knowledge-client.json /tmp/evo-knowledge-client.sha256.json /tmp/evo-knowledge-internal.json /tmp/evo-knowledge-internal.sha256.json"; docker rm -f '${IMPORTER}' >/dev/null; fi
 rm -rf '${KNOWLEDGE_REMOTE}'
 [[ ! -e '${KNOWLEDGE_REMOTE}' ]]
-! docker inspect '${IMPORTER}' >/dev/null 2>&1
+cleanup_importer_names="$(docker container ls -a --format '{{.Names}}')"
+printf '%s\n' "$cleanup_importer_names" | python3 -c 'import sys; target=sys.argv[1]; raise SystemExit(52 if target in {line.rstrip("\n") for line in sys.stdin} else 0)' '${IMPORTER}'
 `, { deadlineAt: new Date(Date.now() + 5 * 60_000).toISOString(), label: "knowledge artifact cleanup" }); } catch { cleanupFailed = true; }
       const remotePairsRemoved = state.remoteAudiences.size;
       const containerPairsRemoved = state.containerAudiences.size;
@@ -753,7 +782,7 @@ install -o root -g root -m 0600 '${ROLLBACK_ROOT}/${name === "lead_agent" ? "lea
 ${composeScript(name, true)}
 `, { deadlineAt: new Date(Date.now() + 20 * 60 * 1000).toISOString(), label: `${name} rollback` });
       }
-      const rows = safeContainerRows(remote(run, preflightScript().replace(/for path in[\s\S]*?done\nfor tag in[\s\S]*?done\n/, ""), { deadlineAt: new Date(Date.now() + 120_000).toISOString(), label: "rollback verification" }).stdout);
+      const rows = safeContainerRows(remote(run, preflightScript({ includeRetryBoundary: false }), { deadlineAt: new Date(Date.now() + 120_000).toISOString(), label: "rollback verification" }).stdout);
       if (rows.some((row) => !row.healthy || row.restart_count !== 0)) fail("rollback did not restore stable containers");
       return { status: "verified", boundaries };
     },

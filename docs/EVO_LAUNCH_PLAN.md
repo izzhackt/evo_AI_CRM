@@ -2882,3 +2882,27 @@ Gemini, WhatsApp/WAHA, amoCRM, DNS/Caddy, container or autonomous-reply
 boundary changes. The verifier fix and its later execution-control rebind must
 each pass independent review, merge and exact-main CI before another read-only
 production preflight.
+
+### P8D4N optional Docker image Variant correction
+
+Issue #251 records the P8D4M staging stop. The read-only P8D4M preflight was
+green, but Hermes omitted the optional Docker image `Variant` key for the exact
+`linux/amd64` CRM candidate. Docker's Go template treated the missing key as an
+error, so execution stopped before configuration, migrations, knowledge,
+deployment or Gemini. All five running production containers remained healthy
+on their prior images with restart count zero.
+
+P8D4N parses full inspect JSON and accepts only `linux/amd64` with either an
+omitted or empty variant. Any other or malformed platform remains blocking.
+The P8D4M failure roots and result remain immutable. The already-loaded exact
+CRM source tag may be reused only after its frozen image ID, candidate revision
+and `linux/amd64` missing/empty-variant platform verify; the CRM Compose tag and
+all Inbox/Lead candidate tags must remain absent. The next attempt uses
+collision-free release ID `2026-08-16.p8d4n.1`, release version
+`p8d4n-20260816`, and confirmation
+`EXECUTE-P8D4N-2026-08-16.P8D4N.1`.
+
+Candidate images, `001-076`, frozen 11/291 knowledge, disabled outbound state,
+two staff-only draft pilots, cleanup, rollback and privacy boundaries do not
+change. Implementation and its separate execution-control metadata must pass
+independent review, merge and exact-main CI before another read-only preflight.

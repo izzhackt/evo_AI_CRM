@@ -18,8 +18,8 @@ import { fileURLToPath } from "node:url";
 
 const CANDIDATE = "aaa9f618131f604f79c694e4b332a0b13afd7a30";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
-const RELEASE_ID = "2026-08-16.p8d4g.1";
-const RELEASE_VERSION = "p8d4g-20260816";
+const RELEASE_ID = "2026-08-16.p8d4l.1";
+const RELEASE_VERSION = "p8d4l-20260816";
 const PILOT_ORIGIN = "https://evo-inbox.72.62.119.112.sslip.io";
 const WAHA_DIGEST = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const HERMES = "hermes-vps";
@@ -94,6 +94,16 @@ const COMPOSE_FILES = Object.freeze({
   lead_agent: "/opt/evo-releases/b2303eccb78b7c102ec702e9821f765f6dfaba88/repo/docker-compose.prod.yml",
 });
 
+const SOURCE_FILES = Object.freeze([
+  Object.freeze({ name: "crm_env", path: ENV_FILES.crm, mode: "600" }),
+  Object.freeze({ name: "lead_agent_env", path: ENV_FILES.lead_agent, mode: "600" }),
+  Object.freeze({ name: "inbox_env", path: ENV_FILES.inbox, mode: "600" }),
+  Object.freeze({ name: "inbox_waha_env", path: ENV_FILES.inbox_waha, mode: "600" }),
+  Object.freeze({ name: "crm_compose", path: COMPOSE_FILES.crm, mode: "644" }),
+  Object.freeze({ name: "inbox_compose", path: COMPOSE_FILES.inbox, mode: "644" }),
+  Object.freeze({ name: "lead_agent_compose", path: COMPOSE_FILES.lead_agent, mode: "600" }),
+]);
+
 const PILOTS = Object.freeze({
   client_china_documents: Object.freeze({
     audience: "client",
@@ -125,6 +135,7 @@ export const P8D4G_PRODUCTION = Object.freeze({
   current: CURRENT,
   envFiles: ENV_FILES,
   composeFiles: COMPOSE_FILES,
+  sourceFiles: SOURCE_FILES,
   pilotOrigin: PILOT_ORIGIN,
   pilots: PILOTS,
 });
@@ -287,14 +298,15 @@ function validateLocalCandidate(run) {
 }
 
 function preflightScript() {
+  const sourceChecks = SOURCE_FILES.map(({ path, mode }) =>
+    `[[ -f '${path}' && ! -L '${path}' && "$(stat -c '%U:%G %a' '${path}')" == 'root:root ${mode}' ]]`,
+  ).join("\n");
   return String.raw`
 set -o pipefail
 [[ "$(uname -m)" == "x86_64" ]]
 for path in '${RELEASE_ROOT}' '${ROLLBACK_ROOT}' '${EVIDENCE_ROOT}'; do [[ ! -e "$path" ]]; done
 for tag in '${IMAGES.crm.tag}' '${IMAGES.crm.composeTag}' '${IMAGES.inbox.tag}' '${IMAGES.inbox.composeTag}' '${IMAGES.lead_agent.tag}' '${IMAGES.lead_agent.composeTag}'; do ! docker image inspect "$tag" >/dev/null 2>&1; done
-for path in '${ENV_FILES.crm}' '${ENV_FILES.lead_agent}' '${ENV_FILES.inbox}' '${ENV_FILES.inbox_waha}' '${COMPOSE_FILES.crm}' '${COMPOSE_FILES.inbox}' '${COMPOSE_FILES.lead_agent}'; do
-  [[ -f "$path" && ! -L "$path" && "$(stat -c '%U:%G %a' "$path")" == 'root:root 600' ]]
-done
+${sourceChecks}
 docker network inspect evo_public_web evo_crm_private evo_inbox_private >/dev/null
 for name in '${CURRENT.crm.container}' '${CURRENT.inbox.container}' '${CURRENT.lead_agent.container}' '${CURRENT.crm_waha.container}' '${CURRENT.inbox_waha.container}'; do
   docker inspect --format '{{.Name}}\t{{.Image}}\t{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}\t{{.RestartCount}}' "$name" | sed 's#^/##'

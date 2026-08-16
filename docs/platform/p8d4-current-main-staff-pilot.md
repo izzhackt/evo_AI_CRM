@@ -739,3 +739,38 @@ CI stops before Hermes, Supabase or Gemini access.
 
 The later control artifact is metadata only. Neither this gate nor its control
 PR adds production, deployment, provider, customer-data or outbound authority.
+
+## P8D4L Hermes preflight source-mode correction
+
+Issue `#245` and Plan Block-ID
+`EVO-PLATFORM-P8D4L-PREFLIGHT-SOURCE-MODES-2026-08-16` correct only the
+preflight source-file matrix and retry identity. The first real preflight was a
+truthful `preflight_blocked` result and performed no Supabase, Gemini,
+knowledge, deployment, restart or provider mutation. Preserve that result.
+
+The next attempt uses release ID `2026-08-16.p8d4l.1`, release version
+`p8d4l-20260816`, and newly absent release, rollback and evidence roots derived
+from that ID. Do not reuse or overwrite the prior local failed-evidence root.
+
+Before any provider or production effect, require these exact existing sources
+to be regular, non-symlink `root:root` files with these exact modes:
+
+| purpose | exact source | mode |
+| --- | --- | --- |
+| CRM secret environment | `/opt/evo-crm/.env.production` | `0600` |
+| Lead Agent secret environment | `/opt/evo-crm/.env.lead-agent` | `0600` |
+| Inbox secret environment | `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production` | `0600` |
+| Inbox WAHA secret environment | `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.waha` | `0600` |
+| retained CRM Compose | `/opt/evo-releases/564332b420a1fb1bd6232dda945d044bb922d3f0/repo/docker-compose.prod.yml` | `0644` |
+| retained Inbox Compose | `/opt/evo-releases/a09a72fc55d869c861df520f76d62413a2315fc1/repo/agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml` | `0644` |
+| retained Lead Agent Compose | `/opt/evo-releases/b2303eccb78b7c102ec702e9821f765f6dfaba88/repo/docker-compose.prod.yml` | `0600` |
+
+Any missing file, symlink, owner/group drift, mode drift, path drift,
+pre-existing retry root or pre-existing candidate tag stops before effects.
+Rollback copies remain installed into the private rollback root at `0600`
+regardless of their non-secret source mode. All other P8D4G through P8D4K
+candidate, provider, pilot, cleanup, rollback and privacy rules remain exact.
+
+Because the operations, runner and result identity change, a separate reviewed
+execution-control metadata update must bind the merged P8D4L bytes before the
+next real preflight.

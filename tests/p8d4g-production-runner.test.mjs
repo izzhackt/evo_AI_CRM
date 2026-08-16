@@ -6,6 +6,12 @@ import { test } from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 import { P8D4G, createP8D4GResult, runP8D4G, validateP8D4GResult } from "../scripts/p8d4g-production-runner.mjs";
 
+test("retry evidence uses the collision-free P8D4L identity", () => {
+  assert.equal(P8D4G.releaseId, "2026-08-16.p8d4l.1");
+  assert.match(P8D4G.productionEvidenceRoot, /p8d4g-2026-08-16\.p8d4l\.1$/);
+  assert.equal(P8D4G.confirmation, "EXECUTE-P8D4L-2026-08-16.P8D4L.1");
+});
+
 const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4g-result.schema.json", import.meta.url), "utf8"));
 const validate = new Ajv2020({ strict: false, formats: { "date-time": true } }).compile(schema);
 const hashes = { client: "1".repeat(64), clientManifest: "2".repeat(64), clientRevision: "3".repeat(64), internal: "4".repeat(64), internalManifest: "5".repeat(64), internalRevision: "6".repeat(64) };

@@ -7843,3 +7843,61 @@ This correction grants no new production or provider authority. The next
 attempt remains blocked until implementation review/merge/exact-main green,
 execution-control review/merge/exact-main green, and a fresh successful
 read-only preflight.
+
+## 2026-08-16 - P8D4O bind OCI archive and Hermes runtime image identities
+
+Plan Block-ID: `EVO-PLATFORM-P8D4O-HERMES-RUNTIME-IMAGE-IDENTITY-2026-08-16`
+
+Issue: #254.
+
+Reason: the reviewed P8D4N retry stopped during its fresh read-only Hermes
+preflight before staging or any production/provider effect. The preserved CRM
+source tag is the exact reviewed archive, revision and `linux/amd64` platform,
+but the adapter compared Docker's Hermes runtime image ID with the archive's
+OCI index digest. OrbStack retains the multi-platform OCI index digest
+`sha256:3174e8e35f27ca3983e971d6f4b94b6863a5b64a9ffd751042b3db5ed2f8c55a`,
+whereas Hermes resolves the loaded single-platform CRM tag to its reviewed
+platform-manifest digest
+`sha256:34c0f3806a934c7b09c92cea6c4420a0c8ab3d2acb586e45a9b872f01f85d281`.
+Both values are already bound inside the immutable portable identity; they are
+different digest levels of the same archive and are not interchangeable.
+
+Decision:
+
+- preserve the P8D4N local `preflight_blocked` result and keep the absent
+  P8D4N Hermes release, rollback and evidence roots absent;
+- retain each reviewed OCI index digest for archive/portable provenance and
+  bind the corresponding platform-manifest digest as the exact Hermes runtime
+  image ID: CRM `sha256:34c0f3806a934c7b09c92cea6c4420a0c8ab3d2acb586e45a9b872f01f85d281`,
+  Inbox `sha256:dfc1aae9743e2b6bf6d7e174933c36cd89e03e5d769b859f2aaaa557a7a68af3`,
+  and Lead Agent
+  `sha256:a50289ffadf3e73b121a56fd1a5621164ddc9e723a58e8280a0a8536f7484ac3`;
+- require the portable identity to match both the OCI index and platform
+  manifest for every image before load; after load, tagging, importer creation
+  and deployment, require Docker's runtime `.Id`/container `.Image` to equal
+  the exact platform-manifest digest, while keeping revision and
+  `linux/amd64` missing/empty-variant checks unchanged;
+- the optional pre-existing CRM source tag is reusable only when the successful
+  closed Docker inventory and full inspect JSON prove the exact CRM runtime
+  manifest ID, revision and platform. The CRM Compose tag plus all Inbox/Lead
+  source and Compose tags remain absent;
+- record archive artifacts with their existing OCI index identities and record
+  deployed containers with the Hermes runtime manifest identities. Cover the
+  cross-runtime distinction behaviorally so an index/runtime substitution,
+  unknown digest, wrong platform, inventory error or unexpected tag remains
+  fail-closed;
+- advance the next attempt to release ID `2026-08-16.p8d4o.1`, release version
+  `p8d4o-20260816`, confirmation
+  `EXECUTE-P8D4O-2026-08-16.P8D4O.1`, and newly absent local/Hermes release,
+  rollback and evidence roots derived from that identity;
+- retain the exact application candidate, migrations `001-076`, frozen 11/291
+  knowledge inputs, disabled flags, two-call pilot cap, cleanup, rollback,
+  privacy, side-effect and no-WAHA/no-amoCRM/no-autonomous-send boundaries;
+- after the implementation merges and exact-main CI is green, replace the
+  execution-control metadata in a separate reviewed metadata-only PR before a
+  fresh real preflight and any retry.
+
+This correction grants no new production or provider authority. The next
+attempt remains blocked until implementation review/merge/exact-main green,
+execution-control review/merge/exact-main green, and a fresh successful
+read-only preflight.

@@ -2906,3 +2906,26 @@ Candidate images, `001-076`, frozen 11/291 knowledge, disabled outbound state,
 two staff-only draft pilots, cleanup, rollback and privacy boundaries do not
 change. Implementation and its separate execution-control metadata must pass
 independent review, merge and exact-main CI before another read-only preflight.
+
+### P8D4O Hermes runtime image identity correction
+
+Issue #254 records the safe P8D4N preflight stop. No staging, configuration,
+migration, knowledge import, Gemini call, application deployment, WhatsApp
+send or amoCRM write occurred. All five production containers remain on the
+prior exact images, healthy, with restart count zero.
+
+The immutable portable identity contains two distinct identities per image:
+the OCI index digest used by OrbStack/archive provenance and the selected
+`linux/amd64` platform-manifest digest used as Docker's runtime image ID on
+Hermes. P8D4O keeps both and checks them at their actual boundaries. Archive
+evidence remains bound to the OCI index; Hermes tag/container/importer/deploy
+evidence is bound to CRM `34c0f380...`, Inbox `dfc1aae9...`, and Lead Agent
+`a50289ff...`. Revision, platform, tag absence, rollback and disabled-state
+checks remain mandatory.
+
+The prior P8D4N local failure result is immutable. The next collision-free
+identity is release ID `2026-08-16.p8d4o.1`, release version
+`p8d4o-20260816`, and confirmation
+`EXECUTE-P8D4O-2026-08-16.P8D4O.1`. Implementation and its separate
+execution-control metadata must pass independent review, merge and exact-main
+CI before another fresh read-only preflight.

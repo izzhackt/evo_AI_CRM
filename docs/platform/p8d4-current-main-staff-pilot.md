@@ -816,6 +816,28 @@ staging. The retry uses release ID `2026-08-16.p8d4n.1`, release version
 `p8d4n-20260816`, confirmation
 `EXECUTE-P8D4N-2026-08-16.P8D4N.1`, and newly absent derived roots.
 
+## P8D4O OCI index versus Hermes runtime manifest correction
+
+Issue #254 and Plan Block-ID
+`EVO-PLATFORM-P8D4O-HERMES-RUNTIME-IMAGE-IDENTITY-2026-08-16` correct only the
+image-identity level used by the production adapter. The P8D4N read-only
+preflight proved the current containers and source files stable, then stopped
+because the loaded CRM tag's Hermes runtime ID is its platform-manifest digest
+while the adapter expected the parent OCI index digest.
+
+The portable identity remains authoritative and must bind both values for all
+three images. Archive artifact evidence uses `oci_index_digest`; Hermes
+inventory, inspect, Compose tag, importer and deployed-container checks use the
+corresponding `platform_manifest.digest`. Platform remains exactly
+`linux/amd64` with missing/empty `Variant`, and the candidate revision remains
+exact. No unknown digest or alternate tag is accepted.
+
+The P8D4N result remains immutable. P8D4O uses release ID
+`2026-08-16.p8d4o.1`, release version `p8d4o-20260816`, confirmation
+`EXECUTE-P8D4O-2026-08-16.P8D4O.1`, and newly absent derived roots. Every
+existing migration, knowledge, provider, disabled-state, cleanup, rollback,
+privacy and no-outbound boundary remains unchanged.
+
 All application, migration, knowledge, disabled-state, provider-call,
 side-effect, cleanup, rollback and privacy rules remain unchanged. A separate
 reviewed execution-control rebind is mandatory after this implementation

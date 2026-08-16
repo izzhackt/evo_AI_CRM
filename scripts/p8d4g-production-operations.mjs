@@ -18,8 +18,8 @@ import { fileURLToPath } from "node:url";
 
 const CANDIDATE = "aaa9f618131f604f79c694e4b332a0b13afd7a30";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
-const RELEASE_ID = "2026-08-16.p8d4n.1";
-const RELEASE_VERSION = "p8d4n-20260816";
+const RELEASE_ID = "2026-08-16.p8d4o.1";
+const RELEASE_VERSION = "p8d4o-20260816";
 const PILOT_ORIGIN = "https://evo-inbox.72.62.119.112.sslip.io";
 const WAHA_DIGEST = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const HERMES = "hermes-vps";
@@ -53,21 +53,24 @@ const IMAGES = Object.freeze({
   crm: Object.freeze({
     tag: `evo-crm:${CANDIDATE}-linux-amd64`,
     composeTag: `evo-crm:${CANDIDATE}`,
-    id: "sha256:3174e8e35f27ca3983e971d6f4b94b6863a5b64a9ffd751042b3db5ed2f8c55a",
+    ociIndexDigest: "sha256:3174e8e35f27ca3983e971d6f4b94b6863a5b64a9ffd751042b3db5ed2f8c55a",
+    runtimeId: "sha256:34c0f3806a934c7b09c92cea6c4420a0c8ab3d2acb586e45a9b872f01f85d281",
     archive: `evo-crm-${CANDIDATE}-linux-amd64.tar`,
     archiveSha256: "07c9341c0aeae456b2bd51ae66a8f0ba81645e49f064a212cdc1485df0db50b1",
   }),
   inbox: Object.freeze({
     tag: `evo-inbox:${CANDIDATE}-linux-amd64`,
     composeTag: `evo-inbox:${CANDIDATE}`,
-    id: "sha256:d7be064bdd690ac42f9e18fbcb32b8fb42eac32f588256a983393ede9f8b79ca",
+    ociIndexDigest: "sha256:d7be064bdd690ac42f9e18fbcb32b8fb42eac32f588256a983393ede9f8b79ca",
+    runtimeId: "sha256:dfc1aae9743e2b6bf6d7e174933c36cd89e03e5d769b859f2aaaa557a7a68af3",
     archive: `evo-inbox-${CANDIDATE}-linux-amd64.tar`,
     archiveSha256: "6bbeadd9e7571db018e0d9932cddfd8f22503b0090c4a27467af9a071eef5a48",
   }),
   lead_agent: Object.freeze({
     tag: `evo-lead-agent:${CANDIDATE}-linux-amd64`,
     composeTag: `evo-lead-agent:${CANDIDATE}`,
-    id: "sha256:9194b569df458a7a80792ca3f4aebfa417204961f229585178aa91c710d45c01",
+    ociIndexDigest: "sha256:9194b569df458a7a80792ca3f4aebfa417204961f229585178aa91c710d45c01",
+    runtimeId: "sha256:a50289ffadf3e73b121a56fd1a5621164ddc9e723a58e8280a0a8536f7484ac3",
     archive: `evo-lead-agent-${CANDIDATE}-linux-amd64.tar`,
     archiveSha256: "32b2937ef5bd2e23ae5c5b405242bade6e9af237165649f737d97a935c709063",
   }),
@@ -310,10 +313,10 @@ for line in sys.stdin:
  if len(parts)!=2: raise SystemExit(40)
  if parts[0] in found: found[parts[0]].append(parts[1])
 if len(found[crm_tag])>1 or (found[crm_tag] and found[crm_tag][0]!=crm_id) or any(found[tag] for tag in forbidden): raise SystemExit(41)
-print("1" if found[crm_tag] else "0")' '${IMAGES.crm.tag}' '${IMAGES.crm.id}' '${IMAGES.crm.composeTag}' '${IMAGES.inbox.tag}' '${IMAGES.inbox.composeTag}' '${IMAGES.lead_agent.tag}' '${IMAGES.lead_agent.composeTag}')"
+print("1" if found[crm_tag] else "0")' '${IMAGES.crm.tag}' '${IMAGES.crm.runtimeId}' '${IMAGES.crm.composeTag}' '${IMAGES.inbox.tag}' '${IMAGES.inbox.composeTag}' '${IMAGES.lead_agent.tag}' '${IMAGES.lead_agent.composeTag}')"
 if [[ "$existing_crm_candidate_present" == '1' ]]; then
   existing_crm_candidate="$(docker image inspect '${IMAGES.crm.tag}')"
-  printf '%s' "$existing_crm_candidate" | python3 -c 'import json,sys; v=json.load(sys.stdin); row=v[0] if isinstance(v,list) and len(v)==1 and isinstance(v[0],dict) else {}; config=row.get("Config") if isinstance(row.get("Config"),dict) else {}; labels=config.get("Labels") if isinstance(config.get("Labels"),dict) else {}; ok=row.get("Id")=="${IMAGES.crm.id}" and row.get("Os")=="linux" and row.get("Architecture")=="amd64" and row.get("Variant") in (None,"") and labels.get("org.opencontainers.image.revision")=="${CANDIDATE}"; raise SystemExit(0 if ok else 41)'
+  printf '%s' "$existing_crm_candidate" | python3 -c 'import json,sys; v=json.load(sys.stdin); row=v[0] if isinstance(v,list) and len(v)==1 and isinstance(v[0],dict) else {}; config=row.get("Config") if isinstance(row.get("Config"),dict) else {}; labels=config.get("Labels") if isinstance(config.get("Labels"),dict) else {}; ok=row.get("Id")=="${IMAGES.crm.runtimeId}" and row.get("Os")=="linux" and row.get("Architecture")=="amd64" and row.get("Variant") in (None,"") and labels.get("org.opencontainers.image.revision")=="${CANDIDATE}"; raise SystemExit(0 if ok else 41)'
 fi
 `;
 }
@@ -400,30 +403,31 @@ python3 - '${RELEASE_ROOT}/incoming/${PORTABLE_IDENTITY}' <<'PY'
 import json,sys
 v=json.load(open(sys.argv[1]))
 expected=[
- ('main_crm','${IMAGES.crm.tag}','${IMAGES.crm.id}'),
- ('evo_inbox','${IMAGES.inbox.tag}','${IMAGES.inbox.id}'),
- ('lead_agent','${IMAGES.lead_agent.tag}','${IMAGES.lead_agent.id}'),
+ ('main_crm','${IMAGES.crm.tag}','${IMAGES.crm.ociIndexDigest}','${IMAGES.crm.runtimeId}'),
+ ('evo_inbox','${IMAGES.inbox.tag}','${IMAGES.inbox.ociIndexDigest}','${IMAGES.inbox.runtimeId}'),
+ ('lead_agent','${IMAGES.lead_agent.tag}','${IMAGES.lead_agent.ociIndexDigest}','${IMAGES.lead_agent.runtimeId}'),
 ]
 if v.get('schema_version')!=1 or v.get('candidate_commit')!='${CANDIDATE}' or v.get('target_platform')!={'os':'linux','architecture':'amd64','variant':''}: raise SystemExit(31)
 images=v.get('images')
 if not isinstance(images,list) or len(images)!=3: raise SystemExit(32)
 for row,want in zip(images,expected):
-    if (row.get('name'),row.get('tag'),row.get('oci_index_digest'))!=want or row.get('source_commit')!='${CANDIDATE}' or row.get('platform')!={'os':'linux','architecture':'amd64','variant':''}: raise SystemExit(33)
+    platform_manifest=row.get('platform_manifest') if isinstance(row.get('platform_manifest'),dict) else {}
+    if (row.get('name'),row.get('tag'),row.get('oci_index_digest'),platform_manifest.get('digest'))!=want or row.get('source_commit')!='${CANDIDATE}' or row.get('platform')!={'os':'linux','architecture':'amd64','variant':''}: raise SystemExit(33)
 PY
 for spec in \
-  '${IMAGES.crm.archive} ${IMAGES.crm.archiveSha256} ${IMAGES.crm.tag} ${IMAGES.crm.composeTag} ${IMAGES.crm.id}' \
-  '${IMAGES.inbox.archive} ${IMAGES.inbox.archiveSha256} ${IMAGES.inbox.tag} ${IMAGES.inbox.composeTag} ${IMAGES.inbox.id}' \
-  '${IMAGES.lead_agent.archive} ${IMAGES.lead_agent.archiveSha256} ${IMAGES.lead_agent.tag} ${IMAGES.lead_agent.composeTag} ${IMAGES.lead_agent.id}'; do
+  '${IMAGES.crm.archive} ${IMAGES.crm.archiveSha256} ${IMAGES.crm.tag} ${IMAGES.crm.composeTag} ${IMAGES.crm.ociIndexDigest} ${IMAGES.crm.runtimeId}' \
+  '${IMAGES.inbox.archive} ${IMAGES.inbox.archiveSha256} ${IMAGES.inbox.tag} ${IMAGES.inbox.composeTag} ${IMAGES.inbox.ociIndexDigest} ${IMAGES.inbox.runtimeId}' \
+  '${IMAGES.lead_agent.archive} ${IMAGES.lead_agent.archiveSha256} ${IMAGES.lead_agent.tag} ${IMAGES.lead_agent.composeTag} ${IMAGES.lead_agent.ociIndexDigest} ${IMAGES.lead_agent.runtimeId}'; do
   set -- $spec
   [[ "$(sha256sum "${RELEASE_ROOT}/incoming/$1" | cut -d' ' -f1)" == "$2" ]]
   docker load -i "${RELEASE_ROOT}/incoming/$1" >/dev/null
-  [[ "$(docker image inspect --format '{{.Id}}' "$3")" == "$5" ]]
+  [[ "$(docker image inspect --format '{{.Id}}' "$3")" == "$6" ]]
 ${createDockerImagePlatformCheck()}
   [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$3")" == '${CANDIDATE}' ]]
   stage_image_tags="$(docker image ls --no-trunc --format '{{.Repository}}:{{.Tag}}')"
   printf '%s\n' "$stage_image_tags" | python3 -c 'import sys; target=sys.argv[1]; raise SystemExit(43 if target in {line.rstrip("\n") for line in sys.stdin} else 0)' "$4"
   docker image tag "$3" "$4"
-  [[ "$(docker image inspect --format '{{.Id}}' "$4")" == "$5" ]]
+  [[ "$(docker image inspect --format '{{.Id}}' "$4")" == "$6" ]]
 done
 `;
 }
@@ -523,7 +527,7 @@ function verifyDeploymentScript(name) {
   return String.raw`
 set -o pipefail
 for _ in $(seq 1 60); do [[ "$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' '${container}')" == 'healthy' ]] && break; sleep 2; done
-[[ "$(docker inspect --format '{{.Image}}' '${container}')" == '${IMAGES[name].id}' ]]
+[[ "$(docker inspect --format '{{.Image}}' '${container}')" == '${IMAGES[name].runtimeId}' ]]
 [[ "$(docker inspect --format '{{.RestartCount}}' '${container}')" == '0' ]]
 [[ "$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' '${container}' | sort)" == '${expectedNetworks}' ]]
 ${liveness}
@@ -689,7 +693,7 @@ docker exec '${IMPORTER}' npm run knowledge:import -- --audience '${item.audienc
       } finally { rmSync(repoArchive, { force: true }); }
       const artifacts = [
         { kind: "portable_identity", filename: PORTABLE_IDENTITY, sha256: PORTABLE_IDENTITY_SHA256, image_id: null },
-        ...Object.values(IMAGES).map((image) => ({ kind: "image_archive", filename: image.archive, sha256: image.archiveSha256, image_id: image.id })),
+        ...Object.values(IMAGES).map((image) => ({ kind: "image_archive", filename: image.archive, sha256: image.archiveSha256, image_id: image.ociIndexDigest })),
       ];
       return { status: "verified", archives_verified: 3, images_verified: 3, rollback_verified: true, release_repo_verified: true, artifacts, rollback_files: rollbackFiles };
     },
@@ -713,7 +717,7 @@ printf '%s\n' "$importer_names" | python3 -c 'import sys; target=sys.argv[1]; ra
 install -d -o root -g root -m 0700 '${KNOWLEDGE_REMOTE}'
 cd '${RELEASE_ROOT}/repo'
 EVO_RELEASE_REVISION='${CANDIDATE}' EVO_RELEASE_VERSION='${RELEASE_VERSION}' EVO_WAHA_IMAGE_DIGEST='${WAHA_DIGEST}' EVO_INBOX_APP_ENV_FILE='${ENV_FILES.inbox}' EVO_INBOX_WAHA_ENV_FILE='${ENV_FILES.inbox_waha}' docker compose --env-file '${ENV_FILES.inbox}' -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name '${IMPORTER}' --entrypoint tail app -f /dev/null
-[[ "$(docker inspect --format '{{.Image}}' '${IMPORTER}')" == '${IMAGES.inbox.id}' ]]
+[[ "$(docker inspect --format '{{.Image}}' '${IMPORTER}')" == '${IMAGES.inbox.runtimeId}' ]]
 [[ "$(docker inspect --format '{{.Config.User}}' '${IMPORTER}')" == '1001' ]]
 `, { deadlineAt, label: "isolated importer creation" });
       state.importerCreated = true;
@@ -768,7 +772,7 @@ printf '%s\n' "$cleanup_importer_names" | python3 -c 'import sys; target=sys.arg
     async deploy(name, { deadlineAt }) {
       if (!Object.hasOwn(IMAGES, name)) fail("unknown deployment boundary");
       remote(run, `${composeScript(name)}\n${verifyDeploymentScript(name)}`, { deadlineAt, label: `${name} deployment` });
-      return { name, status: "verified", image_id: IMAGES[name].id, healthy: true, restart_count: 0, disabled_state: true };
+      return { name, status: "verified", image_id: IMAGES[name].runtimeId, healthy: true, restart_count: 0, disabled_state: true };
     },
 
     async rollback(boundaries) {

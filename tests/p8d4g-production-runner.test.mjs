@@ -6,10 +6,10 @@ import { test } from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 import { P8D4G, createP8D4GResult, runP8D4G, validateP8D4GResult } from "../scripts/p8d4g-production-runner.mjs";
 
-test("retry evidence uses the collision-free P8D4N identity", () => {
-  assert.equal(P8D4G.releaseId, "2026-08-16.p8d4n.1");
-  assert.match(P8D4G.productionEvidenceRoot, /p8d4g-2026-08-16\.p8d4n\.1$/);
-  assert.equal(P8D4G.confirmation, "EXECUTE-P8D4N-2026-08-16.P8D4N.1");
+test("retry evidence uses the collision-free P8D4O identity", () => {
+  assert.equal(P8D4G.releaseId, "2026-08-16.p8d4o.1");
+  assert.match(P8D4G.productionEvidenceRoot, /p8d4g-2026-08-16\.p8d4o\.1$/);
+  assert.equal(P8D4G.confirmation, "EXECUTE-P8D4O-2026-08-16.P8D4O.1");
 });
 
 const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4g-result.schema.json", import.meta.url), "utf8"));
@@ -56,7 +56,7 @@ function operations(overrides = {}) {
       { name: "client", status: "verified", document_count: 11, chunk_count: 20, bundle_sha256: hashes.client, manifest_sha256: hashes.clientManifest, database_revision_sha256: hashes.clientRevision },
       { name: "internal", status: "verified", document_count: 291, chunk_count: 500, bundle_sha256: hashes.internal, manifest_sha256: hashes.internalManifest, database_revision_sha256: hashes.internalRevision },
     ] }; },
-    async deploy(name) { calls.push(`deploy:${name}`); const ids = { inbox: "sha256:d7be064bdd690ac42f9e18fbcb32b8fb42eac32f588256a983393ede9f8b79ca", crm: "sha256:3174e8e35f27ca3983e971d6f4b94b6863a5b64a9ffd751042b3db5ed2f8c55a", lead_agent: "sha256:9194b569df458a7a80792ca3f4aebfa417204961f229585178aa91c710d45c01" }; return { name, status: "verified", image_id: ids[name], healthy: true, restart_count: 0, disabled_state: true }; },
+    async deploy(name) { calls.push(`deploy:${name}`); const ids = { inbox: "sha256:dfc1aae9743e2b6bf6d7e174933c36cd89e03e5d769b859f2aaaa557a7a68af3", crm: "sha256:34c0f3806a934c7b09c92cea6c4420a0c8ab3d2acb586e45a9b872f01f85d281", lead_agent: "sha256:a50289ffadf3e73b121a56fd1a5621164ddc9e723a58e8280a0a8536f7484ac3" }; return { name, status: "verified", image_id: ids[name], healthy: true, restart_count: 0, disabled_state: true }; },
     async pilot(caseId) { calls.push(`pilot:${caseId}`); return { case_id: caseId, audience: caseId.startsWith("client_") ? "client" : "internal", status: "verified", http_status: 200, expected_source_match: true, cross_audience_sources: 0, audit_body_free: true, side_effect_free: true }; },
     async rollback(boundaries) { calls.push(`rollback:${boundaries.join(",")}`); return { status: "verified", boundaries }; },
     async cleanupKnowledge() { calls.push("cleanupKnowledge"); return { status: "verified", local_roots_removed: 4, remote_pairs_removed: 2, container_pairs_removed: 2, importer_removed: true }; },

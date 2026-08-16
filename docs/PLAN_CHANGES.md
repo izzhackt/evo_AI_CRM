@@ -7969,3 +7969,48 @@ This correction grants no new provider, customer-data, outbound or production
 scope. It only makes the already-authorized isolated importer identity check
 match the exact reviewed image while retaining an actual runtime non-root UID
 and GID proof.
+
+## 2026-08-17 - P8D4Q bound transient knowledge artifact transfer retries
+
+Plan Block-ID: `EVO-PLATFORM-P8D4Q-KNOWLEDGE-TRANSFER-RETRY-2026-08-17`
+
+Observed execution evidence:
+
+- P8D4P passed preflight, staging, configuration and the `001-076` migration
+  no-op, then stopped with `knowledge_failed` before deployment or either
+  pilot;
+- singular live-account resolution, two deterministic builds for both frozen
+  11/291 audiences, and exact isolated importer identity completed;
+- cleanup reported all four created local roots removed, no completed remote
+  or container audience pair, and the importer removed. The three application
+  containers remained healthy on their prior images with restart count zero;
+- a later non-importing diagnostic rebuilt the real client bundle, transferred
+  the bundle and manifest through the same SSH/SCP route, verified exact remote
+  byte hashes, and removed both remote files. This establishes a transient
+  transport failure; it does not establish an import or deployment result.
+
+Decision:
+
+- preserve the P8D4P local and Hermes evidence and all earlier release,
+  rollback and evidence roots as immutable;
+- advance to release ID `2026-08-17.p8d4q.1`, version `p8d4q-20260817`,
+  importer `evo-p8d4q-knowledge-import`, confirmation
+  `EXECUTE-P8D4Q-2026-08-17.P8D4Q.1`, and newly absent derived roots;
+- permit at most three attempts for each individual knowledge bundle or
+  manifest `scp`. Every attempt must use the same source path, destination
+  path and bytes and must remain inside the already-bounded authorization
+  deadline. No other command gains retries;
+- after a successful transfer, retain every existing remote and container
+  SHA-256 comparison before import. Exhausting the third attempt, deadline
+  expiry, hash drift, partial copy or cleanup failure remains blocking;
+- retain the exact candidate, six staged tag identities, portable artifacts,
+  11/291 knowledge contents, `001-076` migration boundary, disabled outbound
+  state, two-call pilot cap, cleanup, rollback, privacy, no-WAHA-change,
+  no-amoCRM-write, no-autonomous-send and no-customer-send boundaries;
+- require implementation review/merge/exact-main green, a separate reviewed
+  execution-control rebind/merge/exact-main green, a fresh successful preflight
+  and a new owner action-time confirmation before retry execution.
+
+This is a narrow resilience correction. It grants no new provider,
+customer-data, deployment, outbound, billed-resource or knowledge-content
+authority.

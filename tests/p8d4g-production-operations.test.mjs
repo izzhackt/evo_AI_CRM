@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
-import { P8D4G_PRODUCTION, createAtomicEvidenceInstallScript, createCandidateTagBoundaryCheck, createDockerImagePlatformCheck, createImporterIdentityCheck, createP8D4GOperations, validateP8D4GExecutionControl } from "../scripts/p8d4g-production-operations.mjs";
+import { P8D4G_PRODUCTION, createAtomicEvidenceInstallScript, createCandidateTagBoundaryCheck, createDockerImagePlatformCheck, createImporterIdentityCheck, createP8D4GOperations, runKnowledgeTransferWithRetry, validateP8D4GExecutionControl } from "../scripts/p8d4g-production-operations.mjs";
 
 const expectedOciIndexDigests = {
   crm: "sha256:3174e8e35f27ca3983e971d6f4b94b6863a5b64a9ffd751042b3db5ed2f8c55a",
@@ -35,10 +35,11 @@ test("production adapter pins the exact Hermes release and three-image matrix", 
   assert.equal(P8D4G_PRODUCTION.hermes, "hermes-vps");
   assert.equal(P8D4G_PRODUCTION.projectRef, "iosckaqtovbbnssqcpde");
   assert.equal(P8D4G_PRODUCTION.candidate, "aaa9f618131f604f79c694e4b332a0b13afd7a30");
-  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-16.p8d4p.1");
-  assert.equal(P8D4G_PRODUCTION.releaseVersion, "p8d4p-20260816");
-  assert.equal(P8D4G_PRODUCTION.importer, "evo-p8d4p-knowledge-import");
-  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-16.p8d4p.1`);
+  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-17.p8d4q.1");
+  assert.equal(P8D4G_PRODUCTION.releaseVersion, "p8d4q-20260817");
+  assert.equal(P8D4G_PRODUCTION.importer, "evo-p8d4q-knowledge-import");
+  assert.equal(P8D4G_PRODUCTION.knowledgeTransferAttempts, 3);
+  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-17.p8d4q.1`);
   assert.deepEqual(
     P8D4G_PRODUCTION.sourceFiles.map(({ name, path, mode }) => [name, path, mode]),
     [
@@ -59,6 +60,100 @@ test("production adapter pins the exact Hermes release and three-image matrix", 
     assert.match(image.tag, new RegExp(`:${P8D4G_PRODUCTION.candidate}-linux-amd64$`));
     assert.match(image.composeTag, new RegExp(`:${P8D4G_PRODUCTION.candidate}$`));
     assert.match(image.archiveSha256, /^[0-9a-f]{64}$/);
+  }
+});
+
+test("knowledge transfer retries only the unchanged scp operation and succeeds within the cap", () => {
+  const root = mkdtempSync(join(tmpdir(), "p8d4q-transfer-retry-"));
+  const source = join(root, "source.json");
+  const bytes = "unchanged knowledge bytes\n";
+  writeFileSync(source, bytes, { mode: 0o600 });
+  const calls = [];
+  const run = (command, args, options) => {
+    calls.push({ command, args, options });
+    if (calls.length < 3) throw new Error("transient scp failure");
+    return { stdout: "", stderr: "" };
+  };
+  try {
+    const result = runKnowledgeTransferWithRetry(run, source, "hermes-vps:/safe/destination.json", {
+      deadlineAt: new Date(Date.now() + 60_000).toISOString(),
+      expectedSha256: createHash("sha256").update(bytes).digest("hex"),
+      label: "client knowledge transfer",
+    });
+    assert.deepEqual(result, { stdout: "", stderr: "" });
+    assert.equal(calls.length, 3);
+    assert.ok(calls.every(({ command, args }) => command === "scp" && args.join("\0") === `${source}\0hermes-vps:/safe/destination.json`));
+    assert.deepEqual(calls.map(({ options }) => options.label), [
+      "client knowledge transfer attempt 1/3",
+      "client knowledge transfer attempt 2/3",
+      "client knowledge transfer attempt 3/3",
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("knowledge transfer fails closed after exactly three attempts", () => {
+  const root = mkdtempSync(join(tmpdir(), "p8d4q-transfer-exhausted-"));
+  const source = join(root, "source.json");
+  const bytes = "persistent knowledge bytes\n";
+  writeFileSync(source, bytes, { mode: 0o600 });
+  let calls = 0;
+  try {
+    assert.throws(
+      () => runKnowledgeTransferWithRetry(() => {
+        calls += 1;
+        throw new Error("persistent scp failure");
+      }, source, "hermes-vps:/safe/destination.json", {
+        deadlineAt: new Date(Date.now() + 60_000).toISOString(),
+        expectedSha256: createHash("sha256").update(bytes).digest("hex"),
+        label: "internal knowledge transfer",
+      }),
+      /persistent scp failure/,
+    );
+    assert.equal(calls, 3);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("knowledge transfer never attempts scp after its deadline", () => {
+  let calls = 0;
+  assert.throws(
+    () => runKnowledgeTransferWithRetry(() => {
+      calls += 1;
+    }, "/safe/source.json", "hermes-vps:/safe/destination.json", {
+      deadlineAt: new Date(Date.now() - 1_000).toISOString(),
+      expectedSha256: "a".repeat(64),
+      label: "client knowledge transfer",
+    }),
+    /deadline expired/,
+  );
+  assert.equal(calls, 0);
+});
+
+test("knowledge transfer stops before a retry when local bytes change", () => {
+  const root = mkdtempSync(join(tmpdir(), "p8d4q-transfer-drift-"));
+  const source = join(root, "source.json");
+  const original = "original knowledge bytes\n";
+  writeFileSync(source, original, { mode: 0o600 });
+  let calls = 0;
+  try {
+    assert.throws(
+      () => runKnowledgeTransferWithRetry(() => {
+        calls += 1;
+        writeFileSync(source, "changed knowledge bytes\n", { mode: 0o600 });
+        throw new Error("transient scp failure");
+      }, source, "hermes-vps:/safe/destination.json", {
+        deadlineAt: new Date(Date.now() + 60_000).toISOString(),
+        expectedSha256: createHash("sha256").update(original).digest("hex"),
+        label: "client knowledge transfer",
+      }),
+      /source bytes drifted/,
+    );
+    assert.equal(calls, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
 
@@ -297,7 +392,7 @@ test("staging accepts omitted Docker Variant only for exact linux/amd64", () => 
 });
 
 test("retry boundary requires all six exact P8D4O-staged tags", () => {
-  const root = mkdtempSync(join(tmpdir(), "p8d4p-existing-candidate-tags-"));
+  const root = mkdtempSync(join(tmpdir(), "p8d4q-existing-candidate-tags-"));
   const docker = join(root, "docker");
   const images = Object.values(P8D4G_PRODUCTION.images);
   const inventory = images.flatMap((image) => [[image.tag, image.runtimeId], [image.composeTag, image.runtimeId]]);
@@ -347,7 +442,7 @@ python3 -c 'import json,sys; rows=json.loads(sys.argv[1]); tag=sys.argv[2]; valu
 });
 
 test("isolated importer verifies the named nextjs user and runtime UID/GID", () => {
-  const root = mkdtempSync(join(tmpdir(), "p8d4p-importer-identity-"));
+  const root = mkdtempSync(join(tmpdir(), "p8d4q-importer-identity-"));
   const docker = join(root, "docker");
   try {
     writeFileSync(docker, String.raw`#!/bin/sh

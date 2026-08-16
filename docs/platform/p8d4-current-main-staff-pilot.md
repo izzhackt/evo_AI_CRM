@@ -873,3 +873,31 @@ No deployment, provider, WhatsApp, WAHA, amoCRM, autonomous-reply, customer
 send, DNS, credential or knowledge-content scope changes. Independent review,
 merge, exact-main CI, a separate execution-control rebind, fresh preflight and
 new action-time confirmation remain mandatory.
+
+## P8D4Q bounded knowledge transfer retry
+
+Issue #260 and Plan Block-ID
+`EVO-PLATFORM-P8D4Q-KNOWLEDGE-TRANSFER-RETRY-2026-08-17` correct only the
+knowledge artifact SCP seam observed in the real P8D4P execution. The failed
+run completed all gates through deterministic account-bound builds and exact
+non-root importer verification, but stopped on the first client artifact
+transfer. Cleanup removed every created local root and the importer; no remote
+audience pair, import, deployment or pilot completed.
+
+A later real diagnostic used the same frozen client vault, builder, live
+account resolution and SSH route without importing. Both artifact transfers
+and remote hash comparisons passed, followed by verified cleanup. P8D4Q may
+therefore call the unchanged `scp` operation no more than three times per
+bundle or manifest. It must keep the same source and destination arguments and
+the same local bytes for all attempts, honor the existing deadline, and fail
+after the third error. A transfer success is not sufficient: exact remote and
+container SHA-256 checks remain required before the import command.
+
+P8D4Q uses release ID `2026-08-17.p8d4q.1`, release version
+`p8d4q-20260817`, importer `evo-p8d4q-knowledge-import`, confirmation
+`EXECUTE-P8D4Q-2026-08-17.P8D4Q.1`, and newly absent derived roots. P8D4P and
+all prior evidence remain immutable. Candidate, migration, knowledge,
+disabled-state, cleanup, rollback, privacy, provider-call and no-outbound
+boundaries are unchanged. Review, merge, exact-main CI, separate
+execution-control rebinding, fresh preflight and new action-time confirmation
+remain mandatory.

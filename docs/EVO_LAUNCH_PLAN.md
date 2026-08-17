@@ -3171,6 +3171,19 @@ Auth activation still requires real Supabase URL/publishable key, authority,
 sign-in, RLS/object-scope, refresh and logout proof, followed by a separate
 release contract, fresh preflight and owner token.
 
+## P8U3 canonical SPDX namespace correction
+
+Issue #282 and `docs/platform/p8u3-spdx-namespace-correction.md` preserve the
+failed P8U2 evidence and local image unchanged. The sole observed blocker was
+the standard Syft UUID in top-level SPDX `documentNamespace`; no secret,
+contact, private path, provider, database or production effect occurred.
+
+P8U3 adds only an exact image-bound namespace exception while retaining the
+untouched credential/private-path scan and rejecting every other or duplicate
+UUID. A collision-free P8U3 tag/container/evidence root permits one new private
+OrbStack build only after review, merge and exact-main CI. All no-Auth,
+network-none, no-provider and no-production boundaries remain unchanged.
+
 ## P8U single-UI private preparation
 
 Issue #276 and `docs/platform/p8u-single-ui-private-preparation.md` supersede

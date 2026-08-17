@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8u3-root-candidate.schema.json",
+  "title": "P8U3 private root candidate result",
+  "oneOf": [
+    { "$ref": "#/$defs/success" },
+    { "$ref": "#/$defs/failure" }
+  ],
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "controlled_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "sha256"],
+      "properties": {
+        "file": { "type": "string" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "mode", "sha256", "size"],
+      "properties": {
+        "file": { "enum": ["build-crm.log", "image-identity.json", "sbom-crm.spdx.json", "smoke-crm.log"] },
+        "mode": { "const": 600 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ci_run", "commit", "parent", "tree"],
+      "properties": {
+        "commit": { "const": "b798c7d36be8e3325a9621d96e496ec0a2bb624f" },
+        "tree": { "const": "eb3a8a863e014606e707bd279f67d9194663e30a" },
+        "parent": { "const": "42dc877b6ce3a2c5c8f7f42c6adc192399322d07" },
+        "ci_run": { "const": 32072948258 }
+      }
+    },
+    "release_control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ci_run", "commit", "files", "tree"],
+      "properties": {
+        "commit": { "$ref": "#/$defs/sha" },
+        "tree": { "$ref": "#/$defs/sha" },
+        "ci_run": { "type": "integer", "minimum": 1 },
+        "files": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "prefixItems": [
+            { "allOf": [{ "$ref": "#/$defs/controlled_file" }, { "properties": { "file": { "const": "scripts/p8u3-root-candidate.mjs" } } }] },
+            { "allOf": [{ "$ref": "#/$defs/controlled_file" }, { "properties": { "file": { "const": "docs/schemas/p8u3-root-candidate.schema.json" } } }] },
+            { "allOf": [{ "$ref": "#/$defs/controlled_file" }, { "properties": { "file": { "const": "Dockerfile" } } }] },
+            { "allOf": [{ "$ref": "#/$defs/controlled_file" }, { "properties": { "file": { "const": "package.json" } } }] },
+            { "allOf": [{ "$ref": "#/$defs/controlled_file" }, { "properties": { "file": { "const": "package-lock.json" } } }] }
+          ],
+          "items": false
+        }
+      }
+    },
+    "success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application", "build", "cleanup", "collection", "generated_at", "privacy", "release_control", "result_code", "sbom", "schema_version", "smoke", "target"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "result_code": { "const": "candidate_verified" },
+        "generated_at": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
+        "application": { "$ref": "#/$defs/application" },
+        "release_control": { "$ref": "#/$defs/release_control" },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["configured_user", "image_id", "labels", "platform", "runtime_gid", "runtime_uid", "tag"],
+          "properties": {
+            "tag": { "const": "evo-crm:b798c7d36be8e3325a9621d96e496ec0a2bb624f-p8u3-linux-amd64" },
+            "image_id": { "$ref": "#/$defs/digest" },
+            "platform": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["architecture", "os", "variant"],
+              "properties": { "os": { "const": "linux" }, "architecture": { "const": "amd64" }, "variant": { "const": "" } }
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["revision", "source", "version"],
+              "properties": {
+                "source": { "const": "https://github.com/izzhackt/evo_AI_CRM" },
+                "revision": { "const": "b798c7d36be8e3325a9621d96e496ec0a2bb624f" },
+                "version": { "const": "p8u3-b798c7d3-20260818" }
+              }
+            },
+            "configured_user": { "const": "nextjs" },
+            "runtime_uid": { "const": 1001 },
+            "runtime_gid": { "const": 1001 }
+          }
+        },
+        "build": {
+          "type": "object", "additionalProperties": false,
+          "required": ["exit_code", "file", "sha256", "status"],
+          "properties": { "status": { "const": "verified" }, "exit_code": { "const": 0 }, "file": { "const": "build-crm.log" }, "sha256": { "$ref": "#/$defs/sha256" } }
+        },
+        "sbom": {
+          "type": "object", "additionalProperties": false,
+          "required": ["exit_code", "file", "format", "image_id", "sha256", "status", "tool"],
+          "properties": {
+            "status": { "const": "verified" }, "exit_code": { "const": 0 }, "file": { "const": "sbom-crm.spdx.json" },
+            "sha256": { "$ref": "#/$defs/sha256" }, "format": { "const": "spdx-json" },
+            "tool": { "type": "string", "pattern": "^docker-sbom [0-9]+\\.[0-9]+\\.[0-9]+$" }, "image_id": { "$ref": "#/$defs/digest" }
+          }
+        },
+        "smoke": {
+          "type": "object", "additionalProperties": false,
+          "required": ["assistant_disabled", "caller_credential_count", "container", "file", "health", "mount_count", "network", "restart_count", "restart_policy", "sha256", "status"],
+          "properties": {
+            "status": { "const": "verified" }, "file": { "const": "smoke-crm.log" }, "sha256": { "$ref": "#/$defs/sha256" },
+            "container": { "const": "evo-p8u3-smoke-b798c7d36be8" }, "network": { "const": "none" }, "mount_count": { "const": 0 },
+            "caller_credential_count": { "const": 0 }, "restart_policy": { "const": "no" }, "restart_count": { "const": 0 },
+            "health": {
+              "type": "object", "additionalProperties": false, "required": ["body", "http_status"],
+              "properties": { "http_status": { "const": 200 }, "body": { "const": { "ok": true, "status": "live", "service": "evo-crm" } } }
+            },
+            "assistant_disabled": {
+              "type": "object", "additionalProperties": false, "required": ["body", "http_status"],
+              "properties": { "http_status": { "const": 503 }, "body": { "const": { "error": { "code": "assistant_disabled" } } } }
+            }
+          }
+        },
+        "privacy": { "type": "object", "additionalProperties": false, "required": ["status"], "properties": { "status": { "const": "verified" } } },
+        "cleanup": {
+          "type": "object", "additionalProperties": false, "required": ["container_absent", "status", "temp_absent"],
+          "properties": { "status": { "const": "verified" }, "container_absent": { "const": true }, "temp_absent": { "const": true } }
+        },
+        "collection": {
+          "type": "object", "additionalProperties": false,
+          "required": ["artifacts", "index_file", "index_sha256", "retained_files", "status"],
+          "properties": {
+            "status": { "const": "verified" }, "index_file": { "const": "collection-index.json" }, "index_sha256": { "$ref": "#/$defs/sha256" },
+            "retained_files": { "const": ["build-crm.log", "candidate-result.json", "collection-index.json", "image-identity.json", "sbom-crm.spdx.json", "smoke-crm.log"] },
+            "artifacts": {
+              "type": "array", "minItems": 4, "maxItems": 4,
+              "prefixItems": [
+                { "allOf": [{ "$ref": "#/$defs/artifact" }, { "properties": { "file": { "const": "build-crm.log" } } }] },
+                { "allOf": [{ "$ref": "#/$defs/artifact" }, { "properties": { "file": { "const": "image-identity.json" } } }] },
+                { "allOf": [{ "$ref": "#/$defs/artifact" }, { "properties": { "file": { "const": "sbom-crm.spdx.json" } } }] },
+                { "allOf": [{ "$ref": "#/$defs/artifact" }, { "properties": { "file": { "const": "smoke-crm.log" } } }] }
+              ],
+              "items": false
+            }
+          }
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application", "cleanup", "failure_step", "generated_at", "release_control", "result_code", "schema_version"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "result_code": { "enum": ["build_failed", "identity_failed", "sbom_failed", "smoke_failed", "privacy_failed", "cleanup_failed", "operation_failed"] },
+        "generated_at": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
+        "failure_step": { "enum": ["build", "image_identity", "sbom", "smoke", "privacy", "cleanup", "operation"] },
+        "application": { "$ref": "#/$defs/application" },
+        "release_control": { "$ref": "#/$defs/release_control" },
+        "cleanup": {
+          "type": "object", "additionalProperties": false, "required": ["container_absent", "status", "temp_absent"],
+          "properties": { "status": { "enum": ["verified", "failed"] }, "container_absent": { "type": "boolean" }, "temp_absent": { "type": "boolean" } }
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            { "properties": { "result_code": { "const": "build_failed" }, "failure_step": { "const": "build" } } },
+            { "properties": { "result_code": { "const": "identity_failed" }, "failure_step": { "const": "image_identity" } } },
+            { "properties": { "result_code": { "const": "sbom_failed" }, "failure_step": { "const": "sbom" } } },
+            { "properties": { "result_code": { "const": "smoke_failed" }, "failure_step": { "const": "smoke" } } },
+            { "properties": { "result_code": { "const": "privacy_failed" }, "failure_step": { "const": "privacy" } } },
+            { "properties": { "result_code": { "const": "operation_failed" }, "failure_step": { "const": "operation" } } },
+            { "properties": { "result_code": { "const": "cleanup_failed" }, "failure_step": { "const": "cleanup" } } }
+          ]
+        },
+        {
+          "if": { "properties": { "result_code": { "const": "cleanup_failed" } }, "required": ["result_code"] },
+          "then": { "properties": { "cleanup": { "properties": { "status": { "const": "failed" } } } } },
+          "else": { "properties": { "cleanup": { "properties": { "status": { "const": "verified" }, "container_absent": { "const": true }, "temp_absent": { "const": true } } } } }
+        }
+      ]
+    }
+  }
+}

@@ -27,6 +27,8 @@ const PLATFORM_APPLICATION_PATH =
 const PLATFORM_MEDIA_DOWNLOAD_PATH =
   /^\/api\/platform-messaging\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
+const PLATFORM_STAFF_ASSISTANT_PATH =
+  "/api/platform-ai/staff-assistant";
 const PLATFORM_AUDIT_SETTINGS_QUERY_KEYS = new Set([
   "tab",
   "start_at",
@@ -103,9 +105,19 @@ export function isConnectedPlatformAuditExportApi(path: string): boolean {
 }
 
 /**
- * The only browser-facing Platform API currently connected through proxy.
- * Its route handler repeats getClaims(), live authority and record-scope
- * checks before issuing an audited one-time media grant.
+ * This exact route owns its complete configuration, same-origin, actor, role,
+ * organization and audit boundary. Proxy passes it through without performing
+ * the separate optimistic staff-cookie refresh first.
+ */
+export function isDirectPlatformStaffAssistantApi(path: string): boolean {
+  return path === PLATFORM_STAFF_ASSISTANT_PATH;
+}
+
+/**
+ * Browser-facing Platform APIs that use the proxy's optimistic staff-cookie
+ * refresh. Their handlers repeat live authority and record-scope checks. The
+ * staff assistant deliberately uses the separate direct-route predicate above
+ * because its handler owns the full disabled/configuration/Auth boundary.
  */
 export function isConnectedPlatformApi(path: string): boolean {
   return (

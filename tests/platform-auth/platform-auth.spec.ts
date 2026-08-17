@@ -1049,6 +1049,36 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
     );
   }
 
+  const staffAssistantBoundary = await page.evaluate(async () => {
+    const request = async (path: string) => {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          audience: "internal",
+          question: "Non-customer disabled-boundary check",
+        }),
+      });
+      return { path, status: response.status, body: await response.json() };
+    };
+    return Promise.all([
+      request("/api/platform-ai/staff-assistant"),
+      request("/api/platform-ai/staff-assistant/preview"),
+      request("/api/platform-ai/draft"),
+    ]);
+  });
+  expect(staffAssistantBoundary[0]).toEqual({
+    path: "/api/platform-ai/staff-assistant",
+    status: 503,
+    body: { error: { code: "assistant_disabled" } },
+  });
+  for (const result of staffAssistantBoundary.slice(1)) {
+    expect(result.status, result.path).toBe(403);
+    expect(result.body, result.path).toEqual(
+      expect.objectContaining({ error: "platform_route_not_connected" }),
+    );
+  }
+
   const privateWahaIngress = await page.evaluate(async () => {
     const response = await fetch(
       "/api/internal/platform-messaging/waha/events",

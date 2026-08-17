@@ -6,6 +6,7 @@ import {
   isConnectedPlatformAuditExportApi,
   isConnectedPlatformAuditSettingsRequest,
   isConnectedPlatformPage,
+  isDirectPlatformStaffAssistantApi,
 } from "@/lib/platform-route-contract";
 import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
 import {
@@ -141,6 +142,13 @@ export async function proxy(request: NextRequest) {
   }
 
   if (path === "/api/health") {
+    return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+  if (isDirectPlatformStaffAssistantApi(path)) {
+    // This exact route repeats the enabling-config, same-origin, actor, role,
+    // organization, rate-limit, retrieval, provider and audit checks. Passing
+    // it through here avoids the generic disconnected-route response and the
+    // separate optimistic cookie refresh; it does not authorize or draft.
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
   if (

@@ -3184,6 +3184,27 @@ UUID. A collision-free P8U3 tag/container/evidence root permits one new private
 OrbStack build only after review, merge and exact-main CI. All no-Auth,
 network-none, no-provider and no-production boundaries remain unchanged.
 
+## P8U4 root staff-assistant proxy correction
+
+Issue #284 and `docs/platform/p8u4-root-assistant-proxy.md` preserve the
+immutable P8U2 and P8U3 stopped attempts. P8U3 proved that the reviewed route
+handler was unreachable in the real candidate because the root proxy returned
+the generic disconnected-API `403` before the handler could return its exact
+disabled `503` contract.
+
+P8U4A connects only `/api/platform-ai/staff-assistant` to its existing repeated
+configuration, same-origin, actor, role, organization, retrieval, provider and
+audit checks. Auth and the enable flag remain absent, so the expected behavior
+is still fail-closed before actor, database or provider work. Descendants,
+siblings and every unrelated disconnected API stay blocked.
+
+P8U4A is repository-only. After its independently reviewed merge and green
+exact-main CI, a separate P8U4B contract must freeze the new application
+commit/tree/parent/CI and collision-free local candidate identities. Only then
+may one new private OrbStack `linux/amd64` candidate attempt run. No production,
+provider, customer-data, import, routing, Auth activation or deployment
+authority is granted.
+
 ## P8U single-UI private preparation
 
 Issue #276 and `docs/platform/p8u-single-ui-private-preparation.md` supersede

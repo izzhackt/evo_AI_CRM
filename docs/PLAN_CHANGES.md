@@ -8377,3 +8377,57 @@ Decision:
 - retain every other P8U2 safety and evidence condition unchanged;
 - stop after independent local evidence review, with no Auth, provider,
   production, transfer, deploy, customer-data or outbound authority.
+
+---
+
+## 2026-08-18 — P8U4 root staff-assistant proxy correction
+
+Plan Block-ID: `EVO-PLATFORM-P8U4-ROOT-ASSISTANT-PROXY-2026-08-18`
+
+Issue: #284
+
+Current main/release control: commit
+`a63236838964542f712639aae83597747fee639f`, tree
+`21132400fea64c9dee52121b129708bef88535bf`, exact-main CI
+`32079582674` completed successfully.
+
+Observed boundary:
+
+- immutable P8U3 stopped at `smoke_failed`; cleanup is verified and no
+  provider, database, production or customer-data boundary ran;
+- the existing route handler has the correct exact disabled response, but the
+  root proxy classifies `/api/platform-ai/staff-assistant` as disconnected and
+  returns its generic HTTP `403` before the handler;
+- preserve P8U2 result SHA-256
+  `c4416cbe6cfb78187275069035da248229594920624eb2c22d0811e24472a7ec`, tag and
+  image unchanged;
+- preserve P8U3 result SHA-256
+  `4f3200ef2951403bc2475b4c000ff8c98cc51dc969d77c110ca45cd2616e1396`, tag and
+  image unchanged.
+
+Decision:
+
+- make `docs/platform/p8u4-root-assistant-proxy.md` the active correction
+  contract;
+- split execution into repository-only P8U4A and later private-candidate
+  P8U4B so no unknown future merge identity is invented;
+- in P8U4A pass only the literal staff-assistant API path through the generic
+  proxy boundary to its existing repeated configuration, same-origin, actor,
+  role, organization, retrieval, provider and audit checks;
+- keep the enable flag and Auth configuration absent, require exact HTTP `503`
+  `assistant_disabled`, and prove descendant/sibling APIs remain blocked;
+- perform no Docker, provider, database, knowledge, production, customer-data,
+  routing or deployment action in P8U4A;
+- require independent review, exact-head CI, merge and exact-main CI before a
+  separate P8U4B issue/PR freezes the exact new application source identity;
+- in P8U4B preserve both prior failed-attempt roots/tags/images and use only
+  collision-free local tag/container/evidence identities for one reviewed
+  OrbStack `linux/amd64` candidate attempt;
+- retain all no-Auth, network-none, no-caller-credential, private-evidence,
+  no-provider and no-production boundaries.
+
+This amendment grants repository code/tests now and, only after the separate
+P8U4B gates, one private local candidate attempt. It grants no production,
+Hermes, public routing, Auth activation, Supabase mutation/import, Gemini,
+WAHA, WhatsApp, amoCRM, outbound, autonomous-reply, restart or customer-data
+authority.

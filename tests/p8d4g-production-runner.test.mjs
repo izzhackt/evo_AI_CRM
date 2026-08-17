@@ -6,10 +6,10 @@ import { test } from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 import { P8D4G, createP8D4GResult, runP8D4G, validateP8D4GResult } from "../scripts/p8d4g-production-runner.mjs";
 
-test("partial knowledge evidence uses the collision-free P8D4S identity", () => {
-  assert.equal(P8D4G.releaseId, "2026-08-17.p8d4s.1");
-  assert.match(P8D4G.productionEvidenceRoot, /p8d4g-2026-08-17\.p8d4s\.1$/);
-  assert.equal(P8D4G.confirmation, "EXECUTE-P8D4S-2026-08-17.P8D4S.1");
+test("transfer evidence uses the collision-free P8D4T identity", () => {
+  assert.equal(P8D4G.releaseId, "2026-08-18.p8d4t.1");
+  assert.match(P8D4G.productionEvidenceRoot, /p8d4g-2026-08-18\.p8d4t\.1$/);
+  assert.equal(P8D4G.confirmation, "EXECUTE-P8D4T-2026-08-18.P8D4T.1");
 });
 
 const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4g-result.schema.json", import.meta.url), "utf8"));
@@ -216,4 +216,15 @@ test("knowledge failure schema rejects contradictory partial progress", () => {
   impossibleTransfer.knowledge.failure_attempt = 1;
   impossibleTransfer.knowledge.audiences[0].status = "built";
   assert.throws(() => validateP8D4GResult(impossibleTransfer), /order is contradictory/);
+
+  const deadlineFailure = structuredClone(base);
+  deadlineFailure.knowledge.failure_step = "client_bundle_transfer_deadline";
+  deadlineFailure.knowledge.failure_attempt = null;
+  assert.equal(validate(deadlineFailure), true, JSON.stringify(validate.errors));
+  assert.doesNotThrow(() => validateP8D4GResult(deadlineFailure));
+
+  const deadlineWithAttempt = structuredClone(deadlineFailure);
+  deadlineWithAttempt.knowledge.failure_attempt = 2;
+  assert.equal(validate(deadlineWithAttempt), false, "deadline failures must never claim an scp attempt");
+  assert.throws(() => validateP8D4GResult(deadlineWithAttempt), /failure attempt is invalid/);
 });

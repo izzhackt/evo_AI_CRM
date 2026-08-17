@@ -969,3 +969,30 @@ disabled-state, cleanup, rollback, privacy, provider-call and no-outbound
 boundaries are unchanged. Review, merge, exact-main CI, separate
 execution-control rebinding, fresh preflight and new action-time confirmation
 remain mandatory.
+
+## P8D4T transfer evidence correction
+
+Issue #273 and Plan Block-ID
+`EVO-PLATFORM-P8D4T-TRANSFER-EVIDENCE-2026-08-18` correct two gaps found by
+the final review before P8D4S authorization. For each client/internal bundle or
+manifest, the closed failure enum must distinguish `transfer_backoff`,
+`transfer_deadline`, `transfer_bytes` and the real `transfer`. Backoff/wait,
+deadline and local-byte failures retain a null attempt; only a failed real
+`scp` records attempt `1..3`.
+
+The adapter must publish its existing UUID-free knowledge projection at every
+retry-state boundary before waiting, deadline validation, local-byte validation
+and `scp`. It continues to publish after account resolution, each deterministic
+build and each completed database revision. No progress artifact may contain a
+UUID, path, command, stderr, content, cookie, credential or provider payload.
+
+P8D4T uses release ID `2026-08-18.p8d4t.1`, release version
+`p8d4t-20260818`, importer `evo-p8d4t-knowledge-import`, confirmation
+`EXECUTE-P8D4T-2026-08-18.P8D4T.1`, and newly absent derived roots. Preserve
+the P8D4S preflight SHA-256
+`27bcb7e425b991051c462523414c46091f960f90abe8155cba5beadabbfc3a26`
+and all earlier evidence unchanged. Candidate, migration, frozen knowledge,
+disabled-state, cleanup, rollback, privacy, provider-call cap and no-outbound
+boundaries do not change. Review, merge, exact-main CI, separate execution-
+control rebinding, fresh preflight, process-only staff-session verification and
+new owner confirmation remain mandatory.

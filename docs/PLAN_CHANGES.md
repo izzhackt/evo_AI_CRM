@@ -8125,3 +8125,51 @@ Decision:
 
 This correction grants no new provider, production, customer-data,
 knowledge-content, outbound, billed-resource or credential authority.
+
+## 2026-08-18 - P8D4T close transfer deadline and progress evidence gaps
+
+Plan Block-ID: `EVO-PLATFORM-P8D4T-TRANSFER-EVIDENCE-2026-08-18`
+
+Issue: #273.
+
+Reason: the final read-only review before requesting a P8D4S owner token found
+two evidence-contract gaps. A retry deadline failure is currently reported as
+either a backoff or local-byte failure, and transfer-attempt state is updated
+inside the adapter without publishing the required safe progress checkpoint.
+Both paths still fail closed before deployment, but their evidence is less
+precise than the frozen P8D4S contract requires. The retained P8D4S preflight
+is immutable, mode `0600`, schema-valid and privacy-clean with SHA-256
+`27bcb7e425b991051c462523414c46091f960f90abe8155cba5beadabbfc3a26`;
+it proves no production effect and must not be reused as P8D4T authority.
+
+Decision:
+
+- preserve P8D4S and every earlier local/Hermes release, rollback, evidence and
+  preflight artifact unchanged;
+- add a distinct non-attempt `*_transfer_deadline` failure step for every
+  client/internal bundle/manifest transfer. Backoff/wait failures remain
+  `*_transfer_backoff`, local hash drift remains `*_transfer_bytes`, and only
+  a failed real `scp` attempt records `failure_attempt` in `1..3`;
+- publish the existing UUID-free knowledge progress projection at every
+  retry-state boundary before waiting, deadline verification, local-byte
+  verification and real `scp`, as well as after account resolution, each
+  deterministic build and each database revision verification;
+- require the runtime validator, closed Draft 2020-12 result schema and
+  behavioral tests to reject missing/contradictory deadline or attempt
+  evidence and to prove the ordered callback sequence without retaining paths,
+  commands, stderr, credentials, cookies, UUIDs or content;
+- advance to release ID `2026-08-18.p8d4t.1`, version `p8d4t-20260818`,
+  importer `evo-p8d4t-knowledge-import`, confirmation
+  `EXECUTE-P8D4T-2026-08-18.P8D4T.1`, and newly absent derived roots;
+- retain the exact application candidate, portable/staged image identities,
+  frozen 11/291 knowledge, migrations `001-076`, disabled outbound state,
+  cleanup, rollback, privacy, maximum two fixed staff draft calls,
+  no-WAHA-change, no-amoCRM-read/write, no-autonomous-send and
+  no-customer-send boundaries;
+- require implementation review/merge/exact-main green, a separate reviewed
+  execution-control rebind/merge/exact-main green, a fresh successful
+  read-only preflight, a fresh process-only staff-session check and one new
+  owner action-time confirmation before execution.
+
+This correction grants no production, provider, customer-data,
+knowledge-content, outbound, billed-resource or credential authority.

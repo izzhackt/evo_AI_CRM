@@ -3084,3 +3084,29 @@ reviewed execution-control metadata PR is merged and green; a new real
 read-only preflight passes; and the owner provides the exact new action-time
 confirmation. P8D4S grants no new production, provider, customer-data,
 knowledge-content, outbound or billed-resource authority.
+
+## P8D4T transfer evidence correction
+
+Issue #273 and Plan Block-ID
+`EVO-PLATFORM-P8D4T-TRANSFER-EVIDENCE-2026-08-18` close the final two
+read-only review findings before an owner token is requested. Every
+client/internal bundle/manifest transfer now distinguishes four safe states:
+backoff, authorization deadline, local bytes and the real `scp` attempt. Only
+the real `scp` failure may retain an attempt number. The adapter publishes the
+UUID-free knowledge progress projection at each retry-state boundary, so a
+terminal failure retains the exact safe step rather than an inferred one.
+
+P8D4T uses release ID `2026-08-18.p8d4t.1`, version `p8d4t-20260818`, importer
+`evo-p8d4t-knowledge-import` and confirmation
+`EXECUTE-P8D4T-2026-08-18.P8D4T.1`. The schema and behavioral tests pin the
+new deadline enum, null attempt on every non-`scp` state and ordered progress
+callbacks. P8D4S preflight SHA-256
+`27bcb7e425b991051c462523414c46091f960f90abe8155cba5beadabbfc3a26`
+and every earlier artifact remain immutable.
+
+Candidate images, `001-076`, frozen 11/291 knowledge, disabled outbound state,
+cleanup, reverse rollback, maximum two staff-only draft calls, no WAHA change,
+no amoCRM access and no customer send remain unchanged. Implementation review,
+merge, exact-main CI, a separate execution-control rebind, fresh read-only
+preflight, process-only staff-session verification and a new owner token remain
+mandatory before execution.

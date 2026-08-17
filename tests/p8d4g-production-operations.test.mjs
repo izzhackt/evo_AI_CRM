@@ -35,11 +35,11 @@ test("production adapter pins the exact Hermes release and three-image matrix", 
   assert.equal(P8D4G_PRODUCTION.hermes, "hermes-vps");
   assert.equal(P8D4G_PRODUCTION.projectRef, "iosckaqtovbbnssqcpde");
   assert.equal(P8D4G_PRODUCTION.candidate, "aaa9f618131f604f79c694e4b332a0b13afd7a30");
-  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-17.p8d4s.1");
-  assert.equal(P8D4G_PRODUCTION.releaseVersion, "p8d4s-20260817");
-  assert.equal(P8D4G_PRODUCTION.importer, "evo-p8d4s-knowledge-import");
+  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-18.p8d4t.1");
+  assert.equal(P8D4G_PRODUCTION.releaseVersion, "p8d4t-20260818");
+  assert.equal(P8D4G_PRODUCTION.importer, "evo-p8d4t-knowledge-import");
   assert.equal(P8D4G_PRODUCTION.knowledgeTransferAttempts, 3);
-  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-17.p8d4s.1`);
+  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-18.p8d4t.1`);
   assert.deepEqual(
     P8D4G_PRODUCTION.sourceFiles.map(({ name, path, mode }) => [name, path, mode]),
     [
@@ -121,9 +121,9 @@ test("knowledge transfer fails closed after exactly three backoff-bounded attemp
     assert.equal(calls, 3);
     assert.deepEqual(waits, [10_000, 30_000]);
     assert.deepEqual(states, [
-      { stage: "backoff", attempt: 1 }, { stage: "bytes", attempt: 1 }, { stage: "scp", attempt: 1 },
-      { stage: "backoff", attempt: 2 }, { stage: "bytes", attempt: 2 }, { stage: "scp", attempt: 2 },
-      { stage: "backoff", attempt: 3 }, { stage: "bytes", attempt: 3 }, { stage: "scp", attempt: 3 },
+      { stage: "backoff", attempt: 1 }, { stage: "deadline", attempt: 1 }, { stage: "bytes", attempt: 1 }, { stage: "scp", attempt: 1 },
+      { stage: "deadline", attempt: 2 }, { stage: "backoff", attempt: 2 }, { stage: "deadline", attempt: 2 }, { stage: "bytes", attempt: 2 }, { stage: "scp", attempt: 2 },
+      { stage: "deadline", attempt: 3 }, { stage: "backoff", attempt: 3 }, { stage: "deadline", attempt: 3 }, { stage: "bytes", attempt: 3 }, { stage: "scp", attempt: 3 },
     ]);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -133,6 +133,7 @@ test("knowledge transfer fails closed after exactly three backoff-bounded attemp
 test("knowledge transfer never waits or attempts scp after its deadline", async () => {
   let calls = 0;
   let waits = 0;
+  const states = [];
   await assert.rejects(
     runKnowledgeTransferWithRetry(() => {
       calls += 1;
@@ -141,11 +142,16 @@ test("knowledge transfer never waits or attempts scp after its deadline", async 
       expectedSha256: "a".repeat(64),
       label: "client knowledge transfer",
       wait: async () => { waits += 1; },
+      onState: (state) => states.push(state),
     }),
     /deadline expired/,
   );
   assert.equal(calls, 0);
   assert.equal(waits, 0);
+  assert.deepEqual(states, [
+    { stage: "backoff", attempt: 1 },
+    { stage: "deadline", attempt: 1 },
+  ]);
 });
 
 test("knowledge transfer stops before a retry call when local bytes change", async () => {
@@ -155,6 +161,7 @@ test("knowledge transfer stops before a retry call when local bytes change", asy
   writeFileSync(source, original, { mode: 0o600 });
   let calls = 0;
   const waits = [];
+  const states = [];
   try {
     await assert.rejects(
       runKnowledgeTransferWithRetry(() => {
@@ -166,11 +173,41 @@ test("knowledge transfer stops before a retry call when local bytes change", asy
         expectedSha256: createHash("sha256").update(original).digest("hex"),
         label: "client knowledge transfer",
         wait: async (milliseconds) => waits.push(milliseconds),
+        onState: (state) => states.push(state),
       }),
       /source bytes drifted/,
     );
     assert.equal(calls, 1);
     assert.deepEqual(waits, [10_000]);
+    assert.deepEqual(states.slice(-1), [{ stage: "bytes", attempt: 2 }]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("knowledge transfer records a rejected retry wait as backoff, not deadline", async () => {
+  const root = mkdtempSync(join(tmpdir(), "p8d4t-transfer-backoff-"));
+  const source = join(root, "source.json");
+  const bytes = "backoff-bound knowledge bytes\n";
+  writeFileSync(source, bytes, { mode: 0o600 });
+  const states = [];
+  let calls = 0;
+  try {
+    await assert.rejects(
+      runKnowledgeTransferWithRetry(() => {
+        calls += 1;
+        throw new Error("transient scp failure");
+      }, source, "hermes-vps:/safe/destination.json", {
+        deadlineAt: new Date(Date.now() + 60_000).toISOString(),
+        expectedSha256: createHash("sha256").update(bytes).digest("hex"),
+        label: "client knowledge transfer",
+        wait: async () => { throw new Error("timer rejected"); },
+        onState: (state) => states.push(state),
+      }),
+      /timer rejected/,
+    );
+    assert.equal(calls, 1);
+    assert.deepEqual(states.slice(-1), [{ stage: "backoff", attempt: 2 }]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -183,6 +220,7 @@ test("knowledge transfer stops before waiting when the deadline cannot cover the
   writeFileSync(source, bytes, { mode: 0o600 });
   let calls = 0;
   let waits = 0;
+  const states = [];
   try {
     await assert.rejects(
       runKnowledgeTransferWithRetry(() => {
@@ -194,11 +232,13 @@ test("knowledge transfer stops before waiting when the deadline cannot cover the
         label: "client knowledge transfer",
         now: () => 0,
         wait: async () => { waits += 1; },
+        onState: (state) => states.push(state),
       }),
       /deadline cannot cover knowledge transfer retry backoff/,
     );
     assert.equal(calls, 1);
     assert.equal(waits, 0);
+    assert.deepEqual(states.slice(-1), [{ stage: "deadline", attempt: 2 }]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -345,6 +385,7 @@ test("CLI is bound to the committed production adapter and closed mutation comma
   assert.match(operations, /bash", "-c", command/);
   assert.match(operations, /input: `\$\{state\.accountId\}\\n`/);
   assert.match(operations, /stable build report fields drifted/);
+  assert.match(operations, /knowledgeAttempt = stage === "scp" \? attempt : null;\s*reportKnowledge\(onProgress\);/);
   assert.match(operations, /key !== "generated_at" && key !== "output_directory"/);
   assert.match(operations, /https:\/\/evo-inbox\.72\.62\.119\.112\.sslip\.io/);
   assert.doesNotMatch(operations, /https:\/\/inbox\.evoadmissions\.com/);

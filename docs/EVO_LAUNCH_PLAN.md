@@ -3111,6 +3111,43 @@ merge, exact-main CI, a separate execution-control rebind, fresh read-only
 preflight, process-only staff-session verification and a new owner token remain
 mandatory before execution.
 
+## P8U1 root-owned staff knowledge seam
+
+Issue #278 implements the first repository block under the merged P8U private
+single-UI contract. The root CRM owns one protected
+`POST /api/platform-ai/staff-assistant` seam for the reviewed `client` and
+`internal` audiences and packages the deterministic knowledge importer in the
+root candidate. It does not copy, proxy or expose the companion UI.
+
+Auth activation remains deferred, not bypassed. Anonymous, invalid, Finance and
+Student actors fail before repository/provider access; only Admin, Sales and
+Curator may use the future configured route. Exact organization-to-knowledge
+account binding is server-owned, never supplied by a browser. Missing or
+conflicting configuration fails closed.
+
+The future enabling set is exact and deliberately absent now: public Supabase
+URL plus publishable key for the existing request-scoped Auth client, separate
+server secret for knowledge/audit access, configured Platform organization and
+knowledge account UUIDs, the Gemini server key and the sole `=1` feature flag.
+P8U1 freezes a `65,536`-byte request, `20` turns, `4,000` bytes per text,
+`32,000` transcript bytes, five lexical matches, `12,000` excerpt bytes,
+`60,000` prompt bytes, a `15,000` ms single Gemini call and `2,048` output
+tokens. Success and error bodies are closed; no runtime choice remains.
+
+Retrieval stays audience-scoped and source-bound. A Gemini response remains a
+staff-triggered draft, is returned only after body-free immutable audit
+storage, and has no send, WAHA, amoCRM, memory-write or autonomous authority.
+The root importer preserves the reviewed canonical bundle/manifest/account
+contract, materializes 1536-dimensional `gemini-embedding-2` vectors before one
+atomic sync RPC, and prints only the UUID-free safe result projection. It
+requires the CLI account to equal `EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID` and caps
+work before Gemini at 16 MiB bundle, 16 KiB manifest, 512 documents, 256 KiB
+per document, 12 MiB total content and 8,000 chunks.
+
+P8U1 is repository-only. Tests inject local seams and make no provider or
+production calls. Independent exact-head review, 4/4 CI, merge and exact-main
+CI are mandatory before P8U2 may build the private `linux/amd64` candidate.
+
 ## P8U single-UI private preparation
 
 Issue #276 and `docs/platform/p8u-single-ui-private-preparation.md` supersede

@@ -49,6 +49,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/bootstrap-admin.mjs ./scripts/bootstrap-admin.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/backup-sqlite.mjs ./scripts/backup-sqlite.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/transcribe_mlx_chunks.py ./scripts/transcribe_mlx_chunks.py
+COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/platform-knowledge-import.mjs ./scripts/import-platform-knowledge-bundle.mjs
 
 USER nextjs
 

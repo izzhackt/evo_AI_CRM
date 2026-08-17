@@ -8226,3 +8226,74 @@ Decision:
 This amendment grants repository implementation and local private-candidate
 authority only. It grants no production, provider, customer-data, credential,
 knowledge-import, outbound, billed-resource, DNS or public no-auth authority.
+
+---
+
+## 2026-08-18 — P8U1 root-owned staff knowledge seam
+
+Plan Block-ID: `EVO-PLATFORM-P8U1-ROOT-STAFF-KNOWLEDGE-2026-08-18`
+
+Issue: #278
+
+Base/source: merged main
+`42dc877b6ce3a2c5c8f7f42c6adc192399322d07`, tree
+`673ed32c3b03c656711743d1b07d8feede697e33`, exact-main CI
+`32066694337` completed successfully.
+
+Observed:
+
+- the root `/whatsapp` application already owns the accepted unified
+  conversation UI, durable memory, amoCRM context and structured draft review;
+- the remaining reviewed general staff knowledge flows and deterministic
+  knowledge importer still live under the companion source tree;
+- the owner deferred Auth activation but did not authorize anonymous access;
+- the root runtime is currently missing the complete Supabase browser/server
+  configuration, so any new route must be deploy-safe while disabled and fail
+  before data/provider access.
+
+Decision:
+
+- make `docs/platform/p8u1-root-staff-knowledge.md` the executable P8U1
+  implementation contract;
+- add one closed root-owned staff-assistant POST route for the `client` and
+  `internal` knowledge audiences; do not copy the Inbox UI;
+- admit only live Platform Admin, Sales and Curator actors through the existing
+  request-scoped auth seam. Add no demo, anonymous, bypass or fixture path;
+- keep the knowledge account binding in validated server configuration and
+  require it to match the authenticated actor's configured organization;
+- freeze the complete enabling configuration: `NEXT_PUBLIC_SUPABASE_URL` and
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` for the existing request-scoped Auth
+  client; separate `EVO_PLATFORM_SUPABASE_SECRET_KEY` for privileged
+  repository/audit access; exact `EVO_PLATFORM_ORGANIZATION_ID` and
+  `EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID`; server-only
+  `EVO_PLATFORM_GEMINI_API_KEY`; and the sole enabling value
+  `EVO_PLATFORM_STAFF_ASSISTANT_ENABLED=1`;
+- freeze the exact request/retrieval/provider bounds: `65,536` raw bytes,
+  twenty alternating client turns, `4,000` bytes per text, `32,000` transcript
+  bytes, one lexical RPC for five matches, `12,000` excerpt bytes, `60,000`
+  prompt bytes, fixed `gemini-3.5-flash`, `15,000` ms, `2,048` output tokens,
+  temperature `0.2`, one candidate, no tools/store/retry, plus the closed
+  success/error schemas in the contract;
+- require exact source identities and body-free immutable audit success before
+  returning a draft;
+- keep Gemini draft-only with no tools, storage, automatic retry, send, WAHA,
+  amoCRM or memory-write authority;
+- package a root-owned non-root deterministic importer that preserves the
+  canonical bundle, manifest, PII/path, account/audience, atomic-sync and
+  UUID-free output contract;
+- require the importer argument to equal the configured canonical account
+  before file/provider/database work, and freeze pre-provider ceilings of
+  `16,777,216` bundle bytes, `16,384` manifest bytes, `512` documents,
+  `262,144` bytes per document, `12,582,912` total content bytes and `8,000`
+  chunks;
+- execute TDD only at the route, repository, provider/audit, importer and
+  packaging seams approved in the parent P8U contract;
+- make no production, provider, knowledge-import, customer-data, Auth, DNS,
+  restart, outbound or billed-resource action in P8U1;
+- require independent plan review before implementation, then independent
+  exact-head review, 4/4 PR CI, squash merge and exact-main green CI.
+
+P8U2 remains a separate private OrbStack `linux/amd64` candidate block. Public
+activation remains a later Auth/provisioning and release contract with real
+sign-in, RLS/object-scope, refresh and logout proof plus a new action-time
+token.

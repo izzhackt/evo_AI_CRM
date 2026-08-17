@@ -8344,3 +8344,36 @@ OrbStack build/SBOM/network-none smoke only. It grants no production/Hermes,
 registry upload, Supabase, Gemini, knowledge import, customer data, Auth,
 DNS/Caddy, restart, WAHA, WhatsApp, amoCRM, outbound, autonomous-reply or
 billed-resource authority.
+
+---
+
+## 2026-08-18 — P8U3 canonical SPDX namespace correction
+
+Plan Block-ID: `EVO-PLATFORM-P8U3-SPDX-NAMESPACE-2026-08-18`
+
+Issue: #282
+
+Observed boundary:
+
+- preserve immutable P8U2 failure result SHA-256
+  `c4416cbe6cfb78187275069035da248229594920624eb2c22d0811e24472a7ec`;
+- preserve its retained image ID
+  `sha256:1483c286f7d4db3f3bfcfb6eb262416e92290cea1e3666321005f4c73873114e`;
+- the sole redacted diagnostic match was the canonical Syft UUID in top-level
+  SPDX `documentNamespace`; cleanup verified and no later boundary ran.
+
+Decision:
+
+- make `docs/platform/p8u3-spdx-namespace-correction.md` the correction
+  contract;
+- permit exactly one untouched-byte UUID only when the parsed top-level
+  namespace has the exact Anchore/Syft image form and its digest equals the
+  inspected immutable image ID;
+- keep credentials and private paths scanned on untouched bytes and reject
+  every other/duplicate UUID and non-allowlisted contact;
+- preserve the entire P8U2 root/tag/image without overwrite, retag or reuse;
+- use collision-free P8U3 tag/version/container/evidence identities and one
+  fresh build only after plan/code review, merge and exact-main CI;
+- retain every other P8U2 safety and evidence condition unchanged;
+- stop after independent local evidence review, with no Auth, provider,
+  production, transfer, deploy, customer-data or outbound authority.

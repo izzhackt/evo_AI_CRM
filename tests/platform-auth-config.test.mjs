@@ -13,6 +13,7 @@ import {
 import {
   isConnectedPlatformApi,
   isConnectedPlatformPage,
+  isDirectPlatformStaffAssistantApi,
   platformHomeRoute,
   platformStaffRedirect,
   platformStudentPortalRedirect,
@@ -203,6 +204,21 @@ test("proxy admits only the exact UUID media API route shape", () => {
     `/api/platform-messaging/messages/${id}`,
   ]) {
     assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+});
+
+test("proxy passes only the exact staff-assistant API to its own auth boundary", () => {
+  assert.equal(
+    isDirectPlatformStaffAssistantApi("/api/platform-ai/staff-assistant"),
+    true,
+  );
+  for (const path of [
+    "/api/platform-ai/staff-assistant/",
+    "/api/platform-ai/staff-assistant/preview",
+    "/api/platform-ai",
+    "/api/platform-ai/draft",
+  ]) {
+    assert.equal(isDirectPlatformStaffAssistantApi(path), false, path);
   }
 });
 

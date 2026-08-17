@@ -3110,3 +3110,24 @@ no amoCRM access and no customer send remain unchanged. Implementation review,
 merge, exact-main CI, a separate execution-control rebind, fresh read-only
 preflight, process-only staff-session verification and a new owner token remain
 mandatory before execution.
+
+## P8U single-UI private preparation
+
+Issue #276 and `docs/platform/p8u-single-ui-private-preparation.md` supersede
+P8D4T as the active next block. The owner deferred Auth activation and asked to
+prepare the product first. Preparation means repository implementation and a
+private candidate; it does not mean a public unauthenticated CRM.
+
+The accepted root EVO CRM remains the sole Platform UI. P8U ports only the
+remaining staff knowledge-assistant/importer capability still owned by the EVO
+Inbox companion into the root Platform boundary, then builds a private
+`linux/amd64` root candidate. It does not embed, proxy or revive the companion
+as a second UI. The current public CRM, companion Inbox, Lead Agent, WAHA,
+amoCRM, managed Supabase data, knowledge revisions, Gemini and outbound state
+remain unchanged.
+
+P8D4T's preflight is retained as no-effect evidence, but its action-time token
+is retired because the candidate and release contract change. A later Auth
+block must configure and prove the real Supabase sign-in/authority/RLS path.
+Only a new reviewed release contract, fresh preflight and new owner token may
+then authorize production mutation.

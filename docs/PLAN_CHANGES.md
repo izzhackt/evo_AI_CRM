@@ -8173,3 +8173,56 @@ Decision:
 
 This correction grants no production, provider, customer-data,
 knowledge-content, outbound, billed-resource or credential authority.
+
+## 2026-08-18 - Prepare one private Platform UI before Auth activation
+
+Plan Block-ID: `EVO-PLATFORM-P8U-SINGLE-UI-PRIVATE-PREPARATION-2026-08-18`
+
+Issue: #276
+
+Affected plan sections: unified product UI, P8 controlled release, staff
+knowledge assistant and production Auth activation.
+
+Reason:
+
+- The owner clarified that the desired product is the new unified Platform,
+  with Inbox capability inside EVO CRM rather than a separately operated
+  product UI.
+- The accepted architecture already makes the root frontend the sole UI and
+  limits the thin slice to messaging, context, draft, knowledge, audit and
+  health/settings. The companion remains only a donor/rollback boundary.
+- A fresh P8D4T preflight produced local mode-`0600` no-effect evidence with
+  SHA-256
+  `d9073cab6e768411aff6a9c449789a935ee7c30a8ee103496facae753dc5f165`.
+  Before mutation, read-only inspection found both the live CRM env and frozen
+  CRM image missing the public Supabase URL/publishable-key configuration
+  required by the root Platform login.
+- The owner deferred Auth activation and authorized preparation first. Public
+  no-auth access would expose real operational data and is not an acceptable
+  substitute.
+
+Decision:
+
+- retire `EXECUTE-P8D4T-2026-08-18.P8D4T.1`; it authorized no production
+  effect and cannot be reused for a changed candidate;
+- preserve the P8D4T preflight and every earlier release/rollback/evidence root
+  unchanged;
+- make `docs/platform/p8u-single-ui-private-preparation.md` the active contract;
+- keep the root `/whatsapp` workspace as the sole product UI and port only the
+  companion's remaining reviewed staff knowledge-assistant/importer seam;
+- do not embed the companion, add a multi-zone public route or copy its broad
+  CRM/dashboard surfaces;
+- keep Platform auth/RLS fail-closed even while Auth is unconfigured. Add no
+  bypass, anonymous staff, demo account or fallback data path;
+- build and validate a private root candidate on OrbStack only. Do not transfer,
+  load, route, recreate or restart production containers and do not mutate
+  Supabase, knowledge, Gemini, WAHA, amoCRM, DNS/Caddy or outbound state;
+- require separate independently reviewed P8U1 and P8U2 PRs, exact-head CI,
+  merge and exact-main CI;
+- defer public activation to a later reviewed Auth/provisioning and release
+  block with real login, RLS/object-scope and logout proof, fresh preflight and
+  a new action-time token.
+
+This amendment grants repository implementation and local private-candidate
+authority only. It grants no production, provider, customer-data, credential,
+knowledge-import, outbound, billed-resource, DNS or public no-auth authority.

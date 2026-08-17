@@ -62,17 +62,18 @@ Supabase Pro scheduled database backups remain enabled, but they are not
 restore evidence and do not include Storage object bytes. `inbox-prod` is a
 separate owned Inbox SaaS product and is explicitly retained outside EVO
 Platform consolidation and retirement scope. The active next execution slice
-is P8D4Q under issue #260. P8D4P safely staged and verified the exact candidate,
+is P8D4R under issue #267. P8D4Q safely verified the exact candidate,
 migrations `001-076`, deterministic 11/291 knowledge builds and the isolated
 non-root importer, but stopped with `knowledge_failed` before any database
-import, application deployment or pilot when the first knowledge `scp`
-transfer failed. A post-failure real diagnostic rebuilt the same client input,
-transferred both unchanged artifacts through the same SSH route, reverified
-their bytes on Hermes and cleaned them without import. P8D4Q preserves the
-immutable P8D4P evidence and adds only a maximum of three attempts per unchanged
-knowledge artifact transfer inside the existing authorization deadline; all
-remote and container SHA-256 checks remain mandatory. It uses new
-collision-free release, rollback and evidence roots.
+import, application deployment or pilot. Its three permitted `scp` attempts
+were immediate, so they did not span the temporary SSH/SFTP interruption. A
+post-failure real diagnostic rebuilt the same client input, transferred both
+unchanged artifacts through the same SSH route, reverified their bytes on
+Hermes and cleaned them without import. P8D4R preserves the immutable P8D4Q
+evidence and adds only bounded 10-second and 30-second pauses before attempts
+two and three. The local file hash and remaining authorization window are
+rechecked before each attempt; all remote and container SHA-256 checks remain
+mandatory. It uses new collision-free release, rollback and evidence roots.
 After independent review, merge, exact-main CI, execution-control rebinding,
 fresh preflight and a new action-time confirmation, it may resume the frozen
 11/291 import, deploy the three application boundaries with outbound behavior
@@ -2998,3 +2999,41 @@ a separate reviewed execution-control rebind, fresh successful preflight and
 new action-time confirmation are required before execution. No provider,
 deployment, send, customer-data, credential or knowledge-content authority is
 added.
+
+### P8D4R time-spaced knowledge transfer retry
+
+Issue #267 records the real P8D4Q stop. The run verified preflight, exact
+candidate staging, rollback capture, disabled configuration and the
+`001-076` migration no-op, then stopped with `knowledge_failed`. Cleanup
+removed all four local build roots and the isolated importer. No complete
+remote audience pair, database import, application deployment, restart,
+Gemini pilot, WhatsApp send or amoCRM write occurred. Its closed local result
+is retained at release identity `2026-08-17.p8d4q.1` with SHA-256
+`233d69ad88664500354be880e328a1618dffbd646085c08a1f5cb28f4064e90a`.
+
+The later bounded transfer-only diagnostic succeeded with the same live
+account resolution, frozen client input, builder, SSH route and exact remote
+hash checks, then removed every diagnostic artifact. This proves that a later
+transfer can succeed; it does not prove an import or deployment. P8D4R keeps
+the same maximum of three attempts per bundle or manifest, but schedules them
+at 0, 10 and 40 seconds from the start of that file's transfer sequence. Before
+each attempt it recomputes the source SHA-256 and the remaining authorization
+time. It must stop before sleeping or copying if the next pause cannot fit, and
+must recheck the deadline after the pause. Only the exact `scp` operation has
+this behavior; no build, import, migration, deployment, provider or pilot call
+gains retries. Node's documented promise-based timer is the implementation
+primitive, while `scp` remains the same SFTP-over-SSH command whose nonzero
+exit is treated as failure:
+https://nodejs.org/api/timers.html#timers-promises-api and
+https://man.openbsd.org/scp.1.
+
+The retry advances to release ID `2026-08-17.p8d4r.1`, release version
+`p8d4r-20260817`, importer `evo-p8d4r-knowledge-import`, and confirmation
+`EXECUTE-P8D4R-2026-08-17.P8D4R.1`. P8D4Q and all prior local/Hermes release,
+rollback and evidence roots remain immutable. The exact candidate, six staged
+image tags, portable artifacts, 11/291 knowledge contents, `001-076` migration
+boundary, disabled outbound state, two-call pilot cap, cleanup, rollback,
+privacy, no-WAHA-change, no-amoCRM-write, no-autonomous-send and
+no-customer-send boundaries are unchanged. Independent review, merge,
+exact-main CI, a separate reviewed execution-control rebind, fresh successful
+preflight and a new action-time confirmation are required before execution.

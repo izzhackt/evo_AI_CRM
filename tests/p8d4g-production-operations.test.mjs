@@ -35,11 +35,11 @@ test("production adapter pins the exact Hermes release and three-image matrix", 
   assert.equal(P8D4G_PRODUCTION.hermes, "hermes-vps");
   assert.equal(P8D4G_PRODUCTION.projectRef, "iosckaqtovbbnssqcpde");
   assert.equal(P8D4G_PRODUCTION.candidate, "aaa9f618131f604f79c694e4b332a0b13afd7a30");
-  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-17.p8d4q.1");
-  assert.equal(P8D4G_PRODUCTION.releaseVersion, "p8d4q-20260817");
-  assert.equal(P8D4G_PRODUCTION.importer, "evo-p8d4q-knowledge-import");
+  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-17.p8d4r.1");
+  assert.equal(P8D4G_PRODUCTION.releaseVersion, "p8d4r-20260817");
+  assert.equal(P8D4G_PRODUCTION.importer, "evo-p8d4r-knowledge-import");
   assert.equal(P8D4G_PRODUCTION.knowledgeTransferAttempts, 3);
-  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-17.p8d4q.1`);
+  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-17.p8d4r.1`);
   assert.deepEqual(
     P8D4G_PRODUCTION.sourceFiles.map(({ name, path, mode }) => [name, path, mode]),
     [
@@ -63,8 +63,8 @@ test("production adapter pins the exact Hermes release and three-image matrix", 
   }
 });
 
-test("knowledge transfer retries only the unchanged scp operation and succeeds within the cap", () => {
-  const root = mkdtempSync(join(tmpdir(), "p8d4q-transfer-retry-"));
+test("knowledge transfer retries identical bytes with bounded backoff and succeeds within the cap", async () => {
+  const root = mkdtempSync(join(tmpdir(), "p8d4r-transfer-retry-"));
   const source = join(root, "source.json");
   const bytes = "unchanged knowledge bytes\n";
   writeFileSync(source, bytes, { mode: 0o600 });
@@ -74,11 +74,13 @@ test("knowledge transfer retries only the unchanged scp operation and succeeds w
     if (calls.length < 3) throw new Error("transient scp failure");
     return { stdout: "", stderr: "" };
   };
+  const waits = [];
   try {
-    const result = runKnowledgeTransferWithRetry(run, source, "hermes-vps:/safe/destination.json", {
+    const result = await runKnowledgeTransferWithRetry(run, source, "hermes-vps:/safe/destination.json", {
       deadlineAt: new Date(Date.now() + 60_000).toISOString(),
       expectedSha256: createHash("sha256").update(bytes).digest("hex"),
       label: "client knowledge transfer",
+      wait: async (milliseconds) => waits.push(milliseconds),
     });
     assert.deepEqual(result, { stdout: "", stderr: "" });
     assert.equal(calls.length, 3);
@@ -88,59 +90,67 @@ test("knowledge transfer retries only the unchanged scp operation and succeeds w
       "client knowledge transfer attempt 2/3",
       "client knowledge transfer attempt 3/3",
     ]);
+    assert.deepEqual(waits, [10_000, 30_000]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("knowledge transfer fails closed after exactly three attempts", () => {
-  const root = mkdtempSync(join(tmpdir(), "p8d4q-transfer-exhausted-"));
+test("knowledge transfer fails closed after exactly three backoff-bounded attempts", async () => {
+  const root = mkdtempSync(join(tmpdir(), "p8d4r-transfer-exhausted-"));
   const source = join(root, "source.json");
   const bytes = "persistent knowledge bytes\n";
   writeFileSync(source, bytes, { mode: 0o600 });
   let calls = 0;
+  const waits = [];
   try {
-    assert.throws(
-      () => runKnowledgeTransferWithRetry(() => {
+    await assert.rejects(
+      runKnowledgeTransferWithRetry(() => {
         calls += 1;
         throw new Error("persistent scp failure");
       }, source, "hermes-vps:/safe/destination.json", {
         deadlineAt: new Date(Date.now() + 60_000).toISOString(),
         expectedSha256: createHash("sha256").update(bytes).digest("hex"),
         label: "internal knowledge transfer",
+        wait: async (milliseconds) => waits.push(milliseconds),
       }),
       /persistent scp failure/,
     );
     assert.equal(calls, 3);
+    assert.deepEqual(waits, [10_000, 30_000]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("knowledge transfer never attempts scp after its deadline", () => {
+test("knowledge transfer never waits or attempts scp after its deadline", async () => {
   let calls = 0;
-  assert.throws(
-    () => runKnowledgeTransferWithRetry(() => {
+  let waits = 0;
+  await assert.rejects(
+    runKnowledgeTransferWithRetry(() => {
       calls += 1;
     }, "/safe/source.json", "hermes-vps:/safe/destination.json", {
       deadlineAt: new Date(Date.now() - 1_000).toISOString(),
       expectedSha256: "a".repeat(64),
       label: "client knowledge transfer",
+      wait: async () => { waits += 1; },
     }),
     /deadline expired/,
   );
   assert.equal(calls, 0);
+  assert.equal(waits, 0);
 });
 
-test("knowledge transfer stops before a retry when local bytes change", () => {
-  const root = mkdtempSync(join(tmpdir(), "p8d4q-transfer-drift-"));
+test("knowledge transfer stops before a retry call when local bytes change", async () => {
+  const root = mkdtempSync(join(tmpdir(), "p8d4r-transfer-drift-"));
   const source = join(root, "source.json");
   const original = "original knowledge bytes\n";
   writeFileSync(source, original, { mode: 0o600 });
   let calls = 0;
+  const waits = [];
   try {
-    assert.throws(
-      () => runKnowledgeTransferWithRetry(() => {
+    await assert.rejects(
+      runKnowledgeTransferWithRetry(() => {
         calls += 1;
         writeFileSync(source, "changed knowledge bytes\n", { mode: 0o600 });
         throw new Error("transient scp failure");
@@ -148,10 +158,40 @@ test("knowledge transfer stops before a retry when local bytes change", () => {
         deadlineAt: new Date(Date.now() + 60_000).toISOString(),
         expectedSha256: createHash("sha256").update(original).digest("hex"),
         label: "client knowledge transfer",
+        wait: async (milliseconds) => waits.push(milliseconds),
       }),
       /source bytes drifted/,
     );
     assert.equal(calls, 1);
+    assert.deepEqual(waits, [10_000]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("knowledge transfer stops before waiting when the deadline cannot cover the next backoff", async () => {
+  const root = mkdtempSync(join(tmpdir(), "p8d4r-transfer-deadline-"));
+  const source = join(root, "source.json");
+  const bytes = "deadline-bound knowledge bytes\n";
+  writeFileSync(source, bytes, { mode: 0o600 });
+  let calls = 0;
+  let waits = 0;
+  try {
+    await assert.rejects(
+      runKnowledgeTransferWithRetry(() => {
+        calls += 1;
+        throw new Error("transient scp failure");
+      }, source, "hermes-vps:/safe/destination.json", {
+        deadlineAt: new Date(5_000).toISOString(),
+        expectedSha256: createHash("sha256").update(bytes).digest("hex"),
+        label: "client knowledge transfer",
+        now: () => 0,
+        wait: async () => { waits += 1; },
+      }),
+      /deadline cannot cover knowledge transfer retry backoff/,
+    );
+    assert.equal(calls, 1);
+    assert.equal(waits, 0);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

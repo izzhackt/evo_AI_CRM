@@ -901,3 +901,38 @@ disabled-state, cleanup, rollback, privacy, provider-call and no-outbound
 boundaries are unchanged. Review, merge, exact-main CI, separate
 execution-control rebinding, fresh preflight and new action-time confirmation
 remain mandatory.
+
+## P8D4R time-spaced knowledge transfer retry
+
+Issue #267 and Plan Block-ID
+`EVO-PLATFORM-P8D4R-KNOWLEDGE-TRANSFER-BACKOFF-2026-08-17` correct only the
+timing of the bounded knowledge `scp` attempts after the real P8D4Q run stopped
+with `knowledge_failed`. That run completed preflight, staging, rollback
+capture, disabled configuration, the `001-076` migration no-op, singular
+account resolution, deterministic 11/291 builds and importer identity. It
+completed no audience pair, import, deployment or pilot. Finally-style cleanup
+removed four local roots and the importer, and the five production containers
+remained healthy on their prior images with restart count zero. Its closed
+result SHA-256 is
+`233d69ad88664500354be880e328a1618dffbd646085c08a1f5cb28f4064e90a`.
+
+P8D4R retains exactly three attempts for each individual bundle or manifest,
+with delays `[0, 10000, 30000]` milliseconds before attempts one, two and
+three. The source and destination arguments remain identical. The exact local
+SHA-256 is recomputed immediately before each `scp`. The runner recomputes the
+authorization deadline before each delay and again after it; if the next delay
+does not fit, it stops before waiting or copying. A third failure, byte drift,
+deadline expiry, remote/container hash mismatch or cleanup failure remains
+blocking. Only `scp` has retries. The promise timer and SCP behavior are bound
+to the official Node and OpenBSD documentation:
+https://nodejs.org/api/timers.html#timers-promises-api and
+https://man.openbsd.org/scp.1.
+
+P8D4R uses release ID `2026-08-17.p8d4r.1`, release version
+`p8d4r-20260817`, importer `evo-p8d4r-knowledge-import`, confirmation
+`EXECUTE-P8D4R-2026-08-17.P8D4R.1`, and newly absent derived roots. P8D4Q and
+all earlier evidence remain immutable. Candidate, migration, knowledge,
+disabled-state, cleanup, rollback, privacy, provider-call and no-outbound
+boundaries are unchanged. Review, merge, exact-main CI, separate
+execution-control rebinding, fresh preflight and new action-time confirmation
+remain mandatory.

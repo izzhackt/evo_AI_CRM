@@ -8014,3 +8014,57 @@ Decision:
 This is a narrow resilience correction. It grants no new provider,
 customer-data, deployment, outbound, billed-resource or knowledge-content
 authority.
+
+## 2026-08-17 - P8D4R time-space transient knowledge transfers
+
+Plan Block-ID: `EVO-PLATFORM-P8D4R-KNOWLEDGE-TRANSFER-BACKOFF-2026-08-17`
+
+Observed execution evidence:
+
+- the real P8D4Q run verified preflight, staging, rollback capture, disabled
+  configuration and the `001-076` migration no-op, then stopped with
+  `knowledge_failed` before either audience import, application deployment or
+  pilot;
+- cleanup removed all four created local build roots and the isolated importer;
+  no complete remote or container audience pair remained. All five production
+  containers remained on their prior images, healthy, with restart count zero;
+- the closed P8D4Q result is retained under release identity
+  `2026-08-17.p8d4q.1`, mode `0600`, with SHA-256
+  `233d69ad88664500354be880e328a1618dffbd646085c08a1f5cb28f4064e90a`;
+- a later bounded transfer-only diagnostic rebuilt the same frozen client
+  input using singular live-account resolution and the same SSH/SCP route.
+  Both remote hashes matched and every diagnostic artifact was removed. No
+  import, provider call or deployment occurred;
+- P8D4Q's three attempts were immediate. They did not span the transient
+  interval, so the retry count alone did not provide useful resilience.
+
+Decision:
+
+- preserve P8D4Q and every earlier local/Hermes release, rollback and evidence
+  root as immutable;
+- advance to release ID `2026-08-17.p8d4r.1`, version `p8d4r-20260817`,
+  importer `evo-p8d4r-knowledge-import`, confirmation
+  `EXECUTE-P8D4R-2026-08-17.P8D4R.1`, and newly absent derived roots;
+- retain exactly three attempts per individual knowledge bundle or manifest,
+  with delays `[0, 10000, 30000]` milliseconds before attempts one, two and
+  three. This is a maximum 40-second pause budget per file and does not change
+  the existing 120-minute authorization window;
+- before every delay, require that the remaining authorization window exceeds
+  that delay. After the delay and immediately before `scp`, recompute the
+  remaining deadline and the exact local source SHA-256. Expiry, insufficient
+  remaining time or byte drift blocks before the next copy;
+- use Node's documented `node:timers/promises` `setTimeout` for awaited delays
+  (https://nodejs.org/api/timers.html#timers-promises-api). Keep the unchanged
+  SCP/SFTP-over-SSH operation and nonzero-exit failure semantics documented by
+  OpenBSD (https://man.openbsd.org/scp.1). No other command gains retries;
+- retain all remote and importer-container SHA-256 checks before import, and
+  keep the exact candidate, six staged tag identities, portable artifacts,
+  11/291 knowledge, `001-076` migration boundary, disabled outbound state,
+  two-call pilot cap, cleanup, rollback, privacy, no-WAHA-change,
+  no-amoCRM-write, no-autonomous-send and no-customer-send boundaries;
+- require implementation review/merge/exact-main green, a separate reviewed
+  execution-control rebind/merge/exact-main green, a fresh successful preflight
+  and a new owner action-time confirmation before retry execution.
+
+This correction grants no new provider, customer-data, deployment, outbound,
+billed-resource or knowledge-content authority.

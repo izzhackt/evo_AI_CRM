@@ -19,8 +19,8 @@ import { fileURLToPath } from "node:url";
 
 const CANDIDATE = "aaa9f618131f604f79c694e4b332a0b13afd7a30";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
-const RELEASE_ID = "2026-08-17.p8d4r.1";
-const RELEASE_VERSION = "p8d4r-20260817";
+const RELEASE_ID = "2026-08-17.p8d4s.1";
+const RELEASE_VERSION = "p8d4s-20260817";
 const PILOT_ORIGIN = "https://evo-inbox.72.62.119.112.sslip.io";
 const WAHA_DIGEST = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const HERMES = "hermes-vps";
@@ -35,7 +35,7 @@ const RELEASE_ROOT = `/opt/evo-releases/${CANDIDATE}/${RELEASE_ID}`;
 const ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const EVIDENCE_ROOT = `/opt/evo-release-evidence/${CANDIDATE}/${RELEASE_ID}`;
 const KNOWLEDGE_REMOTE = `${RELEASE_ROOT}/knowledge-incoming`;
-const IMPORTER = "evo-p8d4r-knowledge-import";
+const IMPORTER = "evo-p8d4s-knowledge-import";
 const KNOWLEDGE_TRANSFER_ATTEMPTS = 3;
 const KNOWLEDGE_TRANSFER_DELAYS_MS = Object.freeze([0, 10_000, 30_000]);
 const PORTABLE_IDENTITY = "portable-image-identity.json";
@@ -196,19 +196,23 @@ export async function runKnowledgeTransferWithRetry(runCommand, source, destinat
   label,
   now = Date.now,
   wait = delay,
+  onState = () => {},
 }) {
   if (!SHA256.test(expectedSha256)) fail("knowledge transfer expected SHA-256 is invalid");
   let lastError;
   for (let attempt = 1; attempt <= KNOWLEDGE_TRANSFER_ATTEMPTS; attempt += 1) {
     const backoffMs = KNOWLEDGE_TRANSFER_DELAYS_MS[attempt - 1];
+    onState({ stage: "backoff", attempt });
     if (backoffMs > 0) {
       if (remainingMs(deadlineAt, 20 * 60 * 1000, now) <= backoffMs) {
         fail("operation deadline cannot cover knowledge transfer retry backoff");
       }
       await wait(backoffMs);
     }
+    onState({ stage: "bytes", attempt });
     const timeout = remainingMs(deadlineAt, 20 * 60 * 1000, now);
     if (sha256(readFileSync(source)) !== expectedSha256) fail("knowledge transfer source bytes drifted");
+    onState({ stage: "scp", attempt });
     try {
       return runCommand("scp", [source, destination], {
         timeout,
@@ -608,6 +612,21 @@ export async function createP8D4GOperations({
   const staffCookie = environment.EVO_P8D4G_STAFF_COOKIE ?? null;
   const state = { localKnowledgeRoots: [], accountId: null, remoteAudiences: new Set(), containerAudiences: new Set(), importerCreated: false };
 
+  const knowledgeProgress = {
+    account_resolution: "not_run",
+    deterministic_builds: "not_run",
+    failure_step: null,
+    failure_attempt: null,
+    audiences: [
+      { name: "client", status: "not_run", document_count: null, chunk_count: null, bundle_sha256: null, manifest_sha256: null, database_revision_sha256: null },
+      { name: "internal", status: "not_run", document_count: null, chunk_count: null, bundle_sha256: null, manifest_sha256: null, database_revision_sha256: null },
+    ],
+  };
+  let knowledgeStep = "account_resolution";
+  let knowledgeAttempt = null;
+  const reportKnowledge = (onProgress) => onProgress?.(structuredClone(knowledgeProgress));
+  const builtAudience = (build) => ({ name: build.audience, status: "built", document_count: build.documentCount, chunk_count: null, bundle_sha256: build.bundleSha256, manifest_sha256: build.manifestSha256, database_revision_sha256: null });
+
   async function management(path) {
     const response = await fetchImpl(`https://api.supabase.com${path}`, { headers: { Authorization: `Bearer ${managementToken}` }, redirect: "error", signal: AbortSignal.timeout(15_000) });
     return boundedJson(response, "Supabase management read");
@@ -686,15 +705,25 @@ export async function createP8D4GOperations({
   }
 
   async function importAudience(item, deadlineAt) {
-    for (const [file, expectedSha256] of [[item.bundleName, item.bundleSha256], [item.manifestName, item.manifestSha256]]) {
+    for (const [kind, file, expectedSha256] of [["bundle", item.bundleName, item.bundleSha256], ["manifest", item.manifestName, item.manifestSha256]]) {
       await runKnowledgeTransferWithRetry(
         run,
         join(item.root, file),
         `${HERMES}:${KNOWLEDGE_REMOTE}/${file}`,
-        { deadlineAt, expectedSha256, label: `${item.audience} knowledge transfer` },
+        {
+          deadlineAt,
+          expectedSha256,
+          label: `${item.audience} knowledge transfer`,
+          onState({ stage, attempt }) {
+            knowledgeStep = `${item.audience}_${kind}_transfer${stage === "scp" ? "" : `_${stage}`}`;
+            knowledgeAttempt = stage === "scp" ? attempt : null;
+          },
+        },
       );
     }
     state.remoteAudiences.add(item.audience);
+    knowledgeStep = `${item.audience}_remote_copy`;
+    knowledgeAttempt = null;
     remote(run, String.raw`
 set -o pipefail
 [[ "$(sha256sum '${KNOWLEDGE_REMOTE}/${item.bundleName}' | cut -d' ' -f1)" == '${item.bundleSha256}' ]]
@@ -705,6 +734,7 @@ docker cp '${KNOWLEDGE_REMOTE}/${item.manifestName}' '${IMPORTER}:/tmp/${item.ma
 [[ "$(docker exec '${IMPORTER}' sha256sum '/tmp/${item.manifestName}' | cut -d' ' -f1)" == '${item.manifestSha256}' ]]
 `, { deadlineAt, label: `${item.audience} knowledge copy verification` });
     state.containerAudiences.add(item.audience);
+    knowledgeStep = `${item.audience}_import`;
     const command = String.raw`IFS= read -r EVO_KNOWLEDGE_ACCOUNT_ID
 [[ "$EVO_KNOWLEDGE_ACCOUNT_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]]
 docker exec '${IMPORTER}' npm run knowledge:import -- --audience '${item.audience}' --bundle '/tmp/${item.bundleName}' --manifest '/tmp/${item.manifestName}' --account-id "$EVO_KNOWLEDGE_ACCOUNT_ID"`;
@@ -712,6 +742,7 @@ docker exec '${IMPORTER}' npm run knowledge:import -- --audience '${item.audienc
     const safe = json(output, `${item.audience} importer`);
     exactKeys(safe, ["status", "version", "audience", "bundle_sha256", "documents_upserted", "documents_deleted", "chunks_replaced"], "safe importer result");
     if (safe.status !== "knowledge_import_verified" || safe.version !== 1 || safe.audience !== item.audience || safe.bundle_sha256 !== item.bundleSha256) fail(`${item.audience} importer result drifted`);
+    knowledgeStep = `${item.audience}_database_verification`;
     const params = new URLSearchParams({ select: "audience,bundle_sha256,document_count,chunk_count", account_id: `eq.${state.accountId}`, audience: `eq.${item.audience}` });
     const revisions = await rest(`/rest/v1/ai_knowledge_bundle_revisions?${params}`);
     if (!Array.isArray(revisions) || revisions.length !== 1 || revisions[0].bundle_sha256 !== item.bundleSha256 || Number(revisions[0].document_count) !== item.documentCount || !Number.isInteger(Number(revisions[0].chunk_count)) || Number(revisions[0].chunk_count) < 1) fail(`${item.audience} database revision did not verify`);
@@ -771,10 +802,29 @@ chmod 0600 \
 
     async verifyMigrations() { return ledger(); },
 
-    async publishKnowledge({ deadlineAt }) {
-      state.accountId = await resolveAccount();
-      const builds = [buildAudience("client", CLIENT_VAULT), buildAudience("internal", INTERNAL_VAULT)];
-      remote(run, String.raw`
+    async publishKnowledge({ deadlineAt, onProgress }) {
+      try {
+        knowledgeStep = "account_resolution";
+        knowledgeAttempt = null;
+        state.accountId = await resolveAccount();
+        knowledgeProgress.account_resolution = "exactly_one_active";
+        reportKnowledge(onProgress);
+
+        knowledgeStep = "client_build";
+        const clientBuild = buildAudience("client", CLIENT_VAULT);
+        knowledgeProgress.deterministic_builds = "partial";
+        knowledgeProgress.audiences[0] = builtAudience(clientBuild);
+        reportKnowledge(onProgress);
+
+        knowledgeStep = "internal_build";
+        const internalBuild = buildAudience("internal", INTERNAL_VAULT);
+        knowledgeProgress.deterministic_builds = "verified";
+        knowledgeProgress.audiences[1] = builtAudience(internalBuild);
+        reportKnowledge(onProgress);
+        const builds = [clientBuild, internalBuild];
+
+        knowledgeStep = "importer_creation";
+        remote(run, String.raw`
 set -o pipefail
 umask 077
 [[ ! -e '${KNOWLEDGE_REMOTE}' ]]
@@ -785,10 +835,27 @@ cd '${RELEASE_ROOT}/repo'
 EVO_RELEASE_REVISION='${CANDIDATE}' EVO_RELEASE_VERSION='${RELEASE_VERSION}' EVO_WAHA_IMAGE_DIGEST='${WAHA_DIGEST}' EVO_INBOX_APP_ENV_FILE='${ENV_FILES.inbox}' EVO_INBOX_WAHA_ENV_FILE='${ENV_FILES.inbox_waha}' docker compose --env-file '${ENV_FILES.inbox}' -p evo-inbox -f agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml run -d --no-deps --name '${IMPORTER}' --entrypoint tail app -f /dev/null
 ${createImporterIdentityCheck()}
 `, { deadlineAt, label: "isolated importer creation" });
-      state.importerCreated = true;
-      const audiences = [];
-      for (const build of builds) audiences.push(await importAudience(build, deadlineAt));
-      return { account_resolution: "exactly_one_active", deterministic_builds: "verified", artifacts_created: true, audiences };
+        state.importerCreated = true;
+        const audiences = [];
+        for (const build of builds) {
+          const audience = await importAudience(build, deadlineAt);
+          audiences.push(audience);
+          knowledgeProgress.audiences[build.audience === "client" ? 0 : 1] = audience;
+          reportKnowledge(onProgress);
+        }
+        knowledgeProgress.failure_step = null;
+        knowledgeProgress.failure_attempt = null;
+        return { ...structuredClone(knowledgeProgress), artifacts_created: true, audiences };
+      } catch (error) {
+        knowledgeProgress.failure_step = knowledgeStep;
+        knowledgeProgress.failure_attempt = knowledgeStep.endsWith("_transfer") ? knowledgeAttempt : null;
+        if (knowledgeStep === "account_resolution") knowledgeProgress.account_resolution = "failed";
+        if (knowledgeStep.endsWith("_build")) knowledgeProgress.deterministic_builds = "failed";
+        const failedAudience = knowledgeStep.startsWith("client_") ? 0 : knowledgeStep.startsWith("internal_") ? 1 : -1;
+        if (failedAudience >= 0 && knowledgeProgress.audiences[failedAudience].status === "built") knowledgeProgress.audiences[failedAudience].status = "failed";
+        reportKnowledge(onProgress);
+        throw error;
+      }
     },
 
     async cleanupKnowledge() {

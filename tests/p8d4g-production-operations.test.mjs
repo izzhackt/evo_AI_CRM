@@ -35,11 +35,11 @@ test("production adapter pins the exact Hermes release and three-image matrix", 
   assert.equal(P8D4G_PRODUCTION.hermes, "hermes-vps");
   assert.equal(P8D4G_PRODUCTION.projectRef, "iosckaqtovbbnssqcpde");
   assert.equal(P8D4G_PRODUCTION.candidate, "aaa9f618131f604f79c694e4b332a0b13afd7a30");
-  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-17.p8d4r.1");
-  assert.equal(P8D4G_PRODUCTION.releaseVersion, "p8d4r-20260817");
-  assert.equal(P8D4G_PRODUCTION.importer, "evo-p8d4r-knowledge-import");
+  assert.equal(P8D4G_PRODUCTION.releaseId, "2026-08-17.p8d4s.1");
+  assert.equal(P8D4G_PRODUCTION.releaseVersion, "p8d4s-20260817");
+  assert.equal(P8D4G_PRODUCTION.importer, "evo-p8d4s-knowledge-import");
   assert.equal(P8D4G_PRODUCTION.knowledgeTransferAttempts, 3);
-  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-17.p8d4r.1`);
+  assert.equal(P8D4G_PRODUCTION.releaseRoot, `/opt/evo-releases/${P8D4G_PRODUCTION.candidate}/2026-08-17.p8d4s.1`);
   assert.deepEqual(
     P8D4G_PRODUCTION.sourceFiles.map(({ name, path, mode }) => [name, path, mode]),
     [
@@ -103,6 +103,7 @@ test("knowledge transfer fails closed after exactly three backoff-bounded attemp
   writeFileSync(source, bytes, { mode: 0o600 });
   let calls = 0;
   const waits = [];
+  const states = [];
   try {
     await assert.rejects(
       runKnowledgeTransferWithRetry(() => {
@@ -113,11 +114,17 @@ test("knowledge transfer fails closed after exactly three backoff-bounded attemp
         expectedSha256: createHash("sha256").update(bytes).digest("hex"),
         label: "internal knowledge transfer",
         wait: async (milliseconds) => waits.push(milliseconds),
+        onState: (state) => states.push(state),
       }),
       /persistent scp failure/,
     );
     assert.equal(calls, 3);
     assert.deepEqual(waits, [10_000, 30_000]);
+    assert.deepEqual(states, [
+      { stage: "backoff", attempt: 1 }, { stage: "bytes", attempt: 1 }, { stage: "scp", attempt: 1 },
+      { stage: "backoff", attempt: 2 }, { stage: "bytes", attempt: 2 }, { stage: "scp", attempt: 2 },
+      { stage: "backoff", attempt: 3 }, { stage: "bytes", attempt: 3 }, { stage: "scp", attempt: 3 },
+    ]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

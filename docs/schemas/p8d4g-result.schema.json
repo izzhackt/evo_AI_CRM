@@ -53,6 +53,15 @@
       }
     },
     {
+      "if": { "properties": { "result_code": { "const": "knowledge_failed" } } },
+      "then": {
+        "properties": {
+          "phases": { "properties": { "knowledge": { "const": "failed" }, "deployment": { "const": "not_run" }, "pilot": { "const": "not_run" } } },
+          "knowledge": { "properties": { "failure_step": { "$ref": "#/$defs/knowledgeFailureStep" } } }
+        }
+      }
+    },
+    {
       "if": { "properties": { "result_code": { "const": "cleanup_failed" } } },
       "then": { "properties": { "cleanup": { "properties": { "status": { "const": "failed" } } } } }
     },
@@ -70,7 +79,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["release_id", "release_control_commit", "release_control_tree", "release_control_ci_run", "candidate_commit", "candidate_tree", "candidate_parent", "candidate_ci_run", "platform", "migration_range"],
       "properties": {
-        "release_id": { "const": "2026-08-17.p8d4r.1" },
+        "release_id": { "const": "2026-08-17.p8d4s.1" },
         "release_control_commit": { "const": "86303ad0f3a25b54395327c03974ef00a80140fa" },
         "release_control_tree": { "const": "150474f6f035a2ce29e8f404a655176970086549" },
         "release_control_ci_run": { "const": 31920969058 },
@@ -257,29 +266,89 @@
       "required": ["name", "status", "document_count", "chunk_count", "bundle_sha256", "manifest_sha256", "database_revision_sha256"],
       "properties": {
         "name": { "enum": ["client", "internal"] },
-        "status": { "enum": ["not_run", "verified", "failed"] },
+        "status": { "enum": ["not_run", "built", "verified", "failed"] },
         "document_count": { "type": ["integer", "null"], "minimum": 1 },
         "chunk_count": { "type": ["integer", "null"], "minimum": 1 },
         "bundle_sha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
         "manifest_sha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
         "database_revision_sha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "not_run" } } },
+          "then": { "properties": { "document_count": { "type": "null" }, "chunk_count": { "type": "null" }, "bundle_sha256": { "type": "null" }, "manifest_sha256": { "type": "null" }, "database_revision_sha256": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "status": { "enum": ["built", "failed"] } } },
+          "then": { "properties": { "document_count": { "type": "integer", "minimum": 1 }, "chunk_count": { "type": "null" }, "bundle_sha256": { "$ref": "#/$defs/sha256" }, "manifest_sha256": { "$ref": "#/$defs/sha256" }, "database_revision_sha256": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "verified" } } },
+          "then": { "properties": { "document_count": { "type": "integer", "minimum": 1 }, "chunk_count": { "type": "integer", "minimum": 1 }, "bundle_sha256": { "$ref": "#/$defs/sha256" }, "manifest_sha256": { "$ref": "#/$defs/sha256" }, "database_revision_sha256": { "$ref": "#/$defs/sha256" } } }
+        }
+      ]
+    },
+    "knowledgeFailureStep": {
+      "enum": [
+        "account_resolution", "client_build", "internal_build", "importer_creation",
+        "client_bundle_transfer_backoff", "client_bundle_transfer_bytes", "client_bundle_transfer",
+        "client_manifest_transfer_backoff", "client_manifest_transfer_bytes", "client_manifest_transfer",
+        "client_remote_copy", "client_import", "client_database_verification",
+        "internal_bundle_transfer_backoff", "internal_bundle_transfer_bytes", "internal_bundle_transfer",
+        "internal_manifest_transfer_backoff", "internal_manifest_transfer_bytes", "internal_manifest_transfer",
+        "internal_remote_copy", "internal_import", "internal_database_verification"
+      ]
     },
     "knowledge": {
       "type": "object", "additionalProperties": false,
-      "required": ["account_resolution", "deterministic_builds", "audiences"],
+      "required": ["account_resolution", "deterministic_builds", "failure_step", "failure_attempt", "audiences"],
       "properties": {
         "account_resolution": { "enum": ["not_run", "exactly_one_active", "failed"] },
-        "deterministic_builds": { "enum": ["not_run", "verified", "failed"] },
+        "deterministic_builds": { "enum": ["not_run", "partial", "verified", "failed"] },
+        "failure_step": { "anyOf": [{ "$ref": "#/$defs/knowledgeFailureStep" }, { "type": "null" }] },
+        "failure_attempt": { "type": ["integer", "null"], "minimum": 1, "maximum": 3 },
         "audiences": {
-          "type": "array", "maxItems": 2,
+          "type": "array", "minItems": 2, "maxItems": 2,
           "prefixItems": [
-            { "allOf": [{ "$ref": "#/$defs/audience" }, { "properties": { "name": { "const": "client" } } }] },
-            { "allOf": [{ "$ref": "#/$defs/audience" }, { "properties": { "name": { "const": "internal" } } }] }
+            { "allOf": [{ "$ref": "#/$defs/audience" }, { "properties": { "name": { "const": "client" } }, "if": { "properties": { "status": { "enum": ["built", "verified", "failed"] } } }, "then": { "properties": { "document_count": { "const": 11 } } } }] },
+            { "allOf": [{ "$ref": "#/$defs/audience" }, { "properties": { "name": { "const": "internal" } }, "if": { "properties": { "status": { "enum": ["built", "verified", "failed"] } } }, "then": { "properties": { "document_count": { "const": 291 } } } }] }
           ],
           "items": false
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "failure_step": { "enum": ["client_bundle_transfer", "client_manifest_transfer", "internal_bundle_transfer", "internal_manifest_transfer"] } } },
+          "then": { "properties": { "failure_attempt": { "type": "integer", "minimum": 1, "maximum": 3 } } },
+          "else": { "properties": { "failure_attempt": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "failure_step": { "type": "null" } } },
+          "then": {
+            "oneOf": [
+              { "properties": { "account_resolution": { "const": "not_run" }, "deterministic_builds": { "const": "not_run" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "not_run" } } }, { "properties": { "status": { "const": "not_run" } } }] } } },
+              { "properties": { "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "not_run" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "not_run" } } }, { "properties": { "status": { "const": "not_run" } } }] } } },
+              { "properties": { "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "partial" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "built" } } }, { "properties": { "status": { "const": "not_run" } } }] } } },
+              { "properties": { "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "verified" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "built" } } }, { "properties": { "status": { "const": "built" } } }] } } },
+              { "properties": { "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "verified" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "verified" } } }, { "properties": { "status": { "const": "built" } } }] } } },
+              { "properties": { "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "verified" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "verified" } } }, { "properties": { "status": { "const": "verified" } } }] } } }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "failure_step": { "$ref": "#/$defs/knowledgeFailureStep" } } },
+          "then": {
+            "oneOf": [
+              { "properties": { "failure_step": { "const": "account_resolution" }, "account_resolution": { "const": "failed" }, "deterministic_builds": { "const": "not_run" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "not_run" } } }, { "properties": { "status": { "const": "not_run" } } }] } } },
+              { "properties": { "failure_step": { "const": "client_build" }, "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "failed" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "not_run" } } }, { "properties": { "status": { "const": "not_run" } } }] } } },
+              { "properties": { "failure_step": { "const": "internal_build" }, "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "failed" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "built" } } }, { "properties": { "status": { "const": "not_run" } } }] } } },
+              { "properties": { "failure_step": { "const": "importer_creation" }, "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "verified" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "built" } } }, { "properties": { "status": { "const": "built" } } }] } } },
+              { "properties": { "failure_step": { "enum": ["client_bundle_transfer_backoff", "client_bundle_transfer_bytes", "client_bundle_transfer", "client_manifest_transfer_backoff", "client_manifest_transfer_bytes", "client_manifest_transfer", "client_remote_copy", "client_import", "client_database_verification"] }, "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "verified" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "failed" } } }, { "properties": { "status": { "const": "built" } } }] } } },
+              { "properties": { "failure_step": { "enum": ["internal_bundle_transfer_backoff", "internal_bundle_transfer_bytes", "internal_bundle_transfer", "internal_manifest_transfer_backoff", "internal_manifest_transfer_bytes", "internal_manifest_transfer", "internal_remote_copy", "internal_import", "internal_database_verification"] }, "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "verified" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "verified" } } }, { "properties": { "status": { "const": "failed" } } }] } } }
+            ]
+          }
+        }
+      ]
     },
     "verifiedKnowledge": {
       "allOf": [
@@ -287,6 +356,8 @@
         { "properties": {
           "account_resolution": { "const": "exactly_one_active" },
           "deterministic_builds": { "const": "verified" },
+          "failure_step": { "type": "null" },
+          "failure_attempt": { "type": "null" },
           "audiences": {
             "minItems": 2, "maxItems": 2,
             "prefixItems": [

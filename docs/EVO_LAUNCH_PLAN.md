@@ -62,18 +62,22 @@ Supabase Pro scheduled database backups remain enabled, but they are not
 restore evidence and do not include Storage object bytes. `inbox-prod` is a
 separate owned Inbox SaaS product and is explicitly retained outside EVO
 Platform consolidation and retirement scope. The active next execution slice
-is P8D4R under issue #267. P8D4Q safely verified the exact candidate,
-migrations `001-076`, deterministic 11/291 knowledge builds and the isolated
-non-root importer, but stopped with `knowledge_failed` before any database
-import, application deployment or pilot. Its three permitted `scp` attempts
-were immediate, so they did not span the temporary SSH/SFTP interruption. A
-post-failure real diagnostic rebuilt the same client input, transferred both
-unchanged artifacts through the same SSH route, reverified their bytes on
-Hermes and cleaned them without import. P8D4R preserves the immutable P8D4Q
-evidence and adds only bounded 10-second and 30-second pauses before attempts
-two and three. The local file hash and remaining authorization window are
-rechecked before each attempt; all remote and container SHA-256 checks remain
-mandatory. It uses new collision-free release, rollback and evidence roots.
+is P8D4S under issue #270. P8D4R safely verified the exact candidate,
+migrations `001-076`, staging, rollback capture and disabled configuration,
+then stopped with `knowledge_failed` before any database import, application
+deployment or pilot. Cleanup removed all four local build roots, the remote
+knowledge directory and the isolated importer; all five production containers
+retained their prior image IDs, healthy state and restart count zero. The
+immutable P8D4R result is retained with SHA-256
+`9217322cf48f96daadd8ef780732b8c29cc54e9234bc4c6e2b8ecfbe4c459577`.
+Its evidence incorrectly records account resolution and deterministic builds
+as `not_run` even though four removed build roots prove those pre-effect
+substeps ran. P8D4S corrects only this evidence integrity gap: partial
+knowledge progress and a fixed redacted failure step/attempt must be retained
+on failure, while credentials, UUIDs, content, stderr and private paths remain
+excluded. The existing three spaced `scp` attempts, byte/deadline checks and
+all remote/container SHA-256 gates remain unchanged. It uses new
+collision-free release, rollback and evidence roots.
 After independent review, merge, exact-main CI, execution-control rebinding,
 fresh preflight and a new action-time confirmation, it may resume the frozen
 11/291 import, deploy the three application boundaries with outbound behavior
@@ -3037,3 +3041,46 @@ privacy, no-WAHA-change, no-amoCRM-write, no-autonomous-send and
 no-customer-send boundaries are unchanged. Independent review, merge,
 exact-main CI, a separate reviewed execution-control rebind, fresh successful
 preflight and a new action-time confirmation are required before execution.
+
+### P8D4S truthful partial knowledge failure evidence
+
+Issue #270 records the real P8D4R stop and the independent review finding. The
+P8D4R result is retained unchanged at release identity
+`2026-08-17.p8d4r.1`, locally and on Hermes as a regular mode-`0600` file with
+SHA-256
+`9217322cf48f96daadd8ef780732b8c29cc54e9234bc4c6e2b8ecfbe4c459577`.
+It truthfully proves preflight, staging, disabled configuration and the
+`001-076 -> 001-076` migration no-op, plus `knowledge_failed`, verified
+cleanup, no deployment and no pilot. It does not truthfully preserve partial
+knowledge progress: `cleanup.local_roots_removed=4` proves both deterministic
+audience build paths created their two independent roots, while
+`knowledge.account_resolution`, `knowledge.deterministic_builds` and both
+audiences are recorded as `not_run`.
+
+P8D4S makes partial progress part of the closed result contract. The
+production adapter reports a UUID-free snapshot after singular account
+resolution, after every deterministic audience build, before each transfer
+attempt and after each completed audience import. On terminal knowledge
+failure the result retains only safe status, document counts, bundle/manifest
+SHA-256 values already approved for evidence, a fixed failure-step enum and a
+bounded attempt number when the failed step is an `scp` transfer. It never
+retains the account UUID, customer/staff content, command text, stderr,
+credentials, cookies, provider payloads or private filesystem paths. A
+successful result still requires two fully verified database revisions and no
+failure marker.
+
+The retry advances to release ID `2026-08-17.p8d4s.1`, release version
+`p8d4s-20260817`, importer `evo-p8d4s-knowledge-import`, and confirmation
+`EXECUTE-P8D4S-2026-08-17.P8D4S.1`. P8D4R and all prior local/Hermes release,
+rollback and evidence roots remain immutable. The exact candidate, portable
+artifacts, staged image identities, frozen 11/291 knowledge, migrations
+`001-076`, disabled outbound flags, cleanup, rollback, no-WAHA-change,
+no-amoCRM-write, no-autonomous-send, no-customer-send and maximum two fixed
+staff-only draft calls do not change.
+
+Another production attempt remains blocked until this implementation has an
+independently approved exact-head PR, merge and exact-main green CI; a separate
+reviewed execution-control metadata PR is merged and green; a new real
+read-only preflight passes; and the owner provides the exact new action-time
+confirmation. P8D4S grants no new production, provider, customer-data,
+knowledge-content, outbound or billed-resource authority.

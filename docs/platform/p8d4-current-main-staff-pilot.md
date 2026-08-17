@@ -902,6 +902,39 @@ boundaries are unchanged. Review, merge, exact-main CI, separate
 execution-control rebinding, fresh preflight and new action-time confirmation
 remain mandatory.
 
+## P8D4S partial knowledge evidence correction
+
+Issue #270 and Plan Block-ID
+`EVO-PLATFORM-P8D4S-PARTIAL-KNOWLEDGE-EVIDENCE-2026-08-17` correct the
+evidence-integrity gap found after the real P8D4R stop. Preserve the immutable
+P8D4R local/Hermes result SHA-256
+`9217322cf48f96daadd8ef780732b8c29cc54e9234bc4c6e2b8ecfbe4c459577`.
+It remains valid proof that staging/configuration/migration no-op completed,
+knowledge failed, cleanup verified, and deployment/pilots did not run. It is
+not valid proof that account resolution and deterministic builds were
+`not_run`, because cleanup removed four build roots.
+
+The production adapter must report a closed UUID-free progress snapshot after
+singular account resolution, each deterministic audience build, each transfer
+attempt boundary and each complete database revision verification. A failed
+result retains the latest safe audience status, fixed 11/291 document count,
+bundle/manifest SHA-256 where the build completed, a fixed failure-step enum,
+and an attempt in `1..3` only when an actual `scp` attempt failed. Backoff,
+deadline and local-byte failures use distinct non-attempt failure steps. The
+artifact must never contain the account UUID, content, credentials, cookies,
+stderr, command text, provider payloads or private paths. `pilot_verified`
+continues to require both audiences fully verified with database revision
+hashes and null failure fields.
+
+P8D4S uses release ID `2026-08-17.p8d4s.1`, release version
+`p8d4s-20260817`, importer `evo-p8d4s-knowledge-import`, confirmation
+`EXECUTE-P8D4S-2026-08-17.P8D4S.1`, and newly absent derived roots. The three
+spaced `scp` attempts, byte/deadline checks, remote/container SHA verification,
+candidate, migrations, frozen knowledge contents, disabled-state, cleanup,
+rollback, provider-call cap and no-outbound boundaries are unchanged. Review,
+merge, exact-main CI, separate execution-control rebinding, fresh preflight and
+new owner confirmation remain mandatory.
+
 ## P8D4R time-spaced knowledge transfer retry
 
 Issue #267 and Plan Block-ID

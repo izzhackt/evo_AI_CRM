@@ -8068,3 +8068,60 @@ Decision:
 
 This correction grants no new provider, customer-data, deployment, outbound,
 billed-resource or knowledge-content authority.
+
+## 2026-08-17 - P8D4S preserve truthful partial knowledge evidence
+
+Plan Block-ID: `EVO-PLATFORM-P8D4S-PARTIAL-KNOWLEDGE-EVIDENCE-2026-08-17`
+
+Issue: #270.
+
+Reason: the authorized P8D4R run stopped safely with `knowledge_failed`. Its
+immutable local and Hermes result is a regular mode-`0600` file with SHA-256
+`9217322cf48f96daadd8ef780732b8c29cc54e9234bc4c6e2b8ecfbe4c459577`.
+The result proves exact preflight/staging/configuration, migration no-op,
+verified cleanup, no deployment and no pilot. Live read-only checks prove the
+temporary remote knowledge directory and importer are absent and all five
+production containers retain their prior image IDs, healthy state and restart
+count zero. Independent review found one evidence-integrity defect: the result
+records account resolution and deterministic builds as `not_run`, while
+`cleanup.local_roots_removed=4` proves both two-root audience build paths ran.
+
+Decision:
+
+- preserve the P8D4R local/remote result and every P8D4R or earlier release,
+  rollback and evidence root unchanged;
+- extend the closed knowledge evidence with a fixed failure-step enum and a
+  nullable attempt number bounded to `1..3`; transfer steps require an attempt
+  and non-transfer steps prohibit one;
+- report a UUID-free progress snapshot after singular account resolution,
+  after each deterministic audience build, before each transfer attempt and
+  after each complete audience database verification. Safe partial audience
+  evidence may retain status, fixed document count and bundle/manifest
+  SHA-256; it must not retain the account UUID, content, stderr, command text,
+  credential, cookie, provider payload or private path;
+- on `knowledge_failed`, retain the latest progress snapshot and exact safe
+  failure step instead of reverting substeps to `not_run`. Require schema and
+  behavioral negatives for contradictory progress, missing transfer attempts,
+  attempts on non-transfer failures, hashes without a completed build, and a
+  false verified audience without a database revision;
+- keep exactly the reviewed three per-file `scp` attempts with delays
+  `[0, 10000, 30000]`, local byte rehash immediately before every attempt,
+  authorization deadline checks before and after each delay, and mandatory
+  remote/container SHA-256 verification. OpenSSH `scp` remains SFTP over SSH
+  and a nonzero exit remains failure as documented by
+  https://man.openbsd.org/scp.1; Node promise timers remain the bounded delay
+  primitive documented at https://nodejs.org/api/timers.html#timers-promises-api;
+- advance to release ID `2026-08-17.p8d4s.1`, version `p8d4s-20260817`,
+  importer `evo-p8d4s-knowledge-import`, confirmation
+  `EXECUTE-P8D4S-2026-08-17.P8D4S.1`, and newly absent derived roots;
+- retain the exact application candidate, portable/staged image identities,
+  frozen 11/291 knowledge, migrations `001-076`, disabled outbound state,
+  cleanup, rollback, privacy, maximum two fixed staff draft calls,
+  no-WAHA-change, no-amoCRM-write, no-autonomous-send and no-customer-send
+  boundaries;
+- require implementation review/merge/exact-main green, a separate reviewed
+  execution-control rebind/merge/exact-main green, a fresh successful
+  read-only preflight and a new owner action-time confirmation before retry.
+
+This correction grants no new provider, production, customer-data,
+knowledge-content, outbound, billed-resource or credential authority.

@@ -7,7 +7,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { readFileSync } from "node:fs";
 
 export const P8D4G = Object.freeze({
-  releaseId: "2026-08-17.p8d4r.1",
+  releaseId: "2026-08-17.p8d4s.1",
   releaseControlCommit: "86303ad0f3a25b54395327c03974ef00a80140fa",
   releaseControlTree: "150474f6f035a2ce29e8f404a655176970086549",
   releaseControlCiRun: 31920969058,
@@ -17,11 +17,11 @@ export const P8D4G = Object.freeze({
   candidateCiRun: 31916279374,
   platform: "linux/amd64",
   migrationRange: "001-076",
-  confirmation: "EXECUTE-P8D4R-2026-08-17.P8D4R.1",
+  confirmation: "EXECUTE-P8D4S-2026-08-17.P8D4S.1",
   windowMs: 120 * 60 * 1000,
   deployments: Object.freeze(["inbox", "crm", "lead_agent"]),
   pilots: Object.freeze(["client_china_documents", "internal_malaysia_handoff"]),
-  productionEvidenceRoot: resolve(fileURLToPath(new URL("..", import.meta.url)), `.evo-release-evidence/p8d4g-${"2026-08-17.p8d4r.1"}`),
+  productionEvidenceRoot: resolve(fileURLToPath(new URL("..", import.meta.url)), `.evo-release-evidence/p8d4g-${"2026-08-17.p8d4s.1"}`),
 });
 
 const RESULT_CODES = new Set([
@@ -32,6 +32,15 @@ const RESULT_CODES = new Set([
 ]);
 const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i;
 const FORBIDDEN_KEY_PATTERN = /(?:secret|token|password|cookie)|^(?:account_?id|prompt|response|body|url|provider_?id|customer_?id)$/i;
+const KNOWLEDGE_FAILURE_STEPS = new Set([
+  "account_resolution", "client_build", "internal_build", "importer_creation",
+  "client_bundle_transfer_backoff", "client_bundle_transfer_bytes", "client_bundle_transfer",
+  "client_manifest_transfer_backoff", "client_manifest_transfer_bytes", "client_manifest_transfer", "client_remote_copy",
+  "client_import", "client_database_verification", "internal_bundle_transfer",
+  "internal_bundle_transfer_backoff", "internal_bundle_transfer_bytes",
+  "internal_manifest_transfer_backoff", "internal_manifest_transfer_bytes", "internal_manifest_transfer", "internal_remote_copy", "internal_import",
+  "internal_database_verification",
+]);
 const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4g-result.schema.json", import.meta.url), "utf8"));
 const validateSchema = new Ajv2020({ strict: false, formats: { "date-time": true } }).compile(schema);
 
@@ -94,7 +103,7 @@ export function createP8D4GResult(now = new Date()) {
       rollback_files: [],
       migrations: { status: "not_run", before_range: null, before_count: null, after_range: null, after_count: null, applied_count: null, project_status: null },
     },
-    knowledge: { account_resolution: "not_run", deterministic_builds: "not_run", audiences: [emptyAudience("client"), emptyAudience("internal")] },
+    knowledge: { account_resolution: "not_run", deterministic_builds: "not_run", failure_step: null, failure_attempt: null, audiences: [emptyAudience("client"), emptyAudience("internal")] },
     deployments: [emptyDeployment("inbox"), emptyDeployment("crm"), emptyDeployment("lead_agent")],
     pilots: [emptyPilot("client_china_documents", "client"), emptyPilot("internal_malaysia_handoff", "internal")],
     rollback: { status: "not_required", boundaries: [] },
@@ -161,8 +170,8 @@ function validateMigrations(record) {
 }
 
 function validateKnowledge(record) {
-  exactKeys(record, ["account_resolution", "deterministic_builds", "audiences", "artifacts_created"], "knowledge");
-  if (record.account_resolution !== "exactly_one_active" || record.deterministic_builds !== "verified" || record.artifacts_created !== true) fail("knowledge identity did not verify", "knowledge_failed");
+  exactKeys(record, ["account_resolution", "deterministic_builds", "failure_step", "failure_attempt", "audiences", "artifacts_created"], "knowledge");
+  if (record.account_resolution !== "exactly_one_active" || record.deterministic_builds !== "verified" || record.failure_step !== null || record.failure_attempt !== null || record.artifacts_created !== true) fail("knowledge identity did not verify", "knowledge_failed");
   if (!Array.isArray(record.audiences) || record.audiences.length !== 2) fail("knowledge audiences are incomplete", "knowledge_failed");
   const expected = [["client", 11], ["internal", 291]];
   record.audiences.forEach((item, index) => {
@@ -170,6 +179,62 @@ function validateKnowledge(record) {
     if (item.name !== expected[index][0] || item.status !== "verified" || item.document_count !== expected[index][1] || !Number.isInteger(item.chunk_count) || item.chunk_count < 1) fail("knowledge audience result is invalid", "knowledge_failed");
     for (const field of ["bundle_sha256", "manifest_sha256", "database_revision_sha256"]) if (!/^[0-9a-f]{64}$/.test(item[field])) fail(`knowledge ${field} is invalid`, "knowledge_failed");
   });
+}
+
+function validateKnowledgeProgress(record) {
+  assertSafeValue(record, "knowledge progress");
+  exactKeys(record, ["account_resolution", "deterministic_builds", "failure_step", "failure_attempt", "audiences"], "knowledge progress");
+  if (!["not_run", "exactly_one_active", "failed"].includes(record.account_resolution)) fail("knowledge account progress is invalid", "knowledge_failed");
+  if (!["not_run", "partial", "verified", "failed"].includes(record.deterministic_builds)) fail("knowledge build progress is invalid", "knowledge_failed");
+  if (record.failure_step !== null && !KNOWLEDGE_FAILURE_STEPS.has(record.failure_step)) fail("knowledge failure step is invalid", "knowledge_failed");
+  const transferFailure = typeof record.failure_step === "string" && record.failure_step.endsWith("_transfer");
+  if (transferFailure ? !Number.isInteger(record.failure_attempt) || record.failure_attempt < 1 || record.failure_attempt > 3 : record.failure_attempt !== null) fail("knowledge failure attempt is invalid", "knowledge_failed");
+  const expected = [["client", 11], ["internal", 291]];
+  if (!Array.isArray(record.audiences) || record.audiences.length !== 2) fail("knowledge progress audiences are incomplete", "knowledge_failed");
+  record.audiences.forEach((item, index) => {
+    exactKeys(item, ["name", "status", "document_count", "chunk_count", "bundle_sha256", "manifest_sha256", "database_revision_sha256"], `knowledge progress audience ${index}`);
+    if (item.name !== expected[index][0] || !["not_run", "built", "verified", "failed"].includes(item.status)) fail("knowledge audience progress is invalid", "knowledge_failed");
+    if (item.status === "not_run") {
+      if ([item.document_count, item.chunk_count, item.bundle_sha256, item.manifest_sha256, item.database_revision_sha256].some((value) => value !== null)) fail("not-run knowledge audience contains evidence", "knowledge_failed");
+      return;
+    }
+    if (item.document_count !== expected[index][1] || !/^[0-9a-f]{64}$/.test(item.bundle_sha256 ?? "") || !/^[0-9a-f]{64}$/.test(item.manifest_sha256 ?? "")) fail("built knowledge audience evidence is invalid", "knowledge_failed");
+    if (item.status === "verified") {
+      if (!Number.isInteger(item.chunk_count) || item.chunk_count < 1 || !/^[0-9a-f]{64}$/.test(item.database_revision_sha256 ?? "")) fail("verified knowledge audience evidence is incomplete", "knowledge_failed");
+    } else if (item.chunk_count !== null || item.database_revision_sha256 !== null) fail("partial knowledge audience claims database evidence", "knowledge_failed");
+  });
+  if (record.deterministic_builds === "verified" && record.audiences.some((item) => item.status === "not_run")) fail("verified deterministic builds are incomplete", "knowledge_failed");
+  const statuses = record.audiences.map((item) => item.status).join(",");
+  if (record.failure_step === null) {
+    const validProgress = (
+      record.account_resolution === "not_run" && record.deterministic_builds === "not_run" && statuses === "not_run,not_run"
+    ) || (
+      record.account_resolution === "exactly_one_active" && record.deterministic_builds === "not_run" && statuses === "not_run,not_run"
+    ) || (
+      record.account_resolution === "exactly_one_active" && record.deterministic_builds === "partial" && statuses === "built,not_run"
+    ) || (
+      record.account_resolution === "exactly_one_active" && record.deterministic_builds === "verified" && ["built,built", "verified,built", "verified,verified"].includes(statuses)
+    );
+    if (!validProgress) fail("knowledge progress order is contradictory", "knowledge_failed");
+  } else {
+    const clientFailure = record.failure_step.startsWith("client_") && record.failure_step !== "client_build";
+    const internalFailure = record.failure_step.startsWith("internal_") && record.failure_step !== "internal_build";
+    const validFailure = (
+      record.failure_step === "account_resolution" && record.account_resolution === "failed" && record.deterministic_builds === "not_run" && statuses === "not_run,not_run"
+    ) || (
+      record.failure_step === "client_build" && record.account_resolution === "exactly_one_active" && record.deterministic_builds === "failed" && statuses === "not_run,not_run"
+    ) || (
+      record.failure_step === "internal_build" && record.account_resolution === "exactly_one_active" && record.deterministic_builds === "failed" && statuses === "built,not_run"
+    ) || (
+      record.failure_step === "importer_creation" && record.account_resolution === "exactly_one_active" && record.deterministic_builds === "verified" && statuses === "built,built"
+    ) || (
+      clientFailure && record.account_resolution === "exactly_one_active" && record.deterministic_builds === "verified" && statuses === "failed,built"
+    ) || (
+      internalFailure && record.account_resolution === "exactly_one_active" && record.deterministic_builds === "verified" && statuses === "verified,failed"
+    );
+    if (!validFailure) fail("knowledge failure order is contradictory", "knowledge_failed");
+  }
+  return true;
 }
 
 function validateDeployment(record, expectedName) {
@@ -184,6 +249,7 @@ function validatePilot(record, expectedCase) {
 
 export function validateP8D4GResult(result) {
   assertSafeValue(result);
+  validateKnowledgeProgress(result.knowledge);
   if (!RESULT_CODES.has(result.result_code)) fail("result code is invalid");
   const valid = validateSchema(result);
   if (!valid) fail(`result schema failed: ${JSON.stringify(validateSchema.errors)}`);
@@ -267,9 +333,15 @@ export async function runP8D4G({ mode, confirmation, outputPath, operations, now
     phase = "knowledge";
     knowledgeStarted = true;
     requireActiveWindow();
-    const knowledge = await operations.publishKnowledge(deadlineContext());
+    const knowledge = await operations.publishKnowledge({
+      ...deadlineContext(),
+      onProgress(progress) {
+        validateKnowledgeProgress(progress);
+        result.knowledge = structuredClone(progress);
+      },
+    });
     validateKnowledge(knowledge);
-    result.knowledge = { account_resolution: knowledge.account_resolution, deterministic_builds: knowledge.deterministic_builds, audiences: knowledge.audiences };
+    result.knowledge = { account_resolution: knowledge.account_resolution, deterministic_builds: knowledge.deterministic_builds, failure_step: null, failure_attempt: null, audiences: knowledge.audiences };
     result.phases.knowledge = "verified";
 
     // UUID-bearing bundles and manifests must be gone before the first app

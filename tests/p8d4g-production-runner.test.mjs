@@ -6,10 +6,10 @@ import { test } from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 import { P8D4G, createP8D4GResult, runP8D4G, validateP8D4GResult } from "../scripts/p8d4g-production-runner.mjs";
 
-test("backoff retry evidence uses the collision-free P8D4R identity", () => {
-  assert.equal(P8D4G.releaseId, "2026-08-17.p8d4r.1");
-  assert.match(P8D4G.productionEvidenceRoot, /p8d4g-2026-08-17\.p8d4r\.1$/);
-  assert.equal(P8D4G.confirmation, "EXECUTE-P8D4R-2026-08-17.P8D4R.1");
+test("partial knowledge evidence uses the collision-free P8D4S identity", () => {
+  assert.equal(P8D4G.releaseId, "2026-08-17.p8d4s.1");
+  assert.match(P8D4G.productionEvidenceRoot, /p8d4g-2026-08-17\.p8d4s\.1$/);
+  assert.equal(P8D4G.confirmation, "EXECUTE-P8D4S-2026-08-17.P8D4S.1");
 });
 
 const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4g-result.schema.json", import.meta.url), "utf8"));
@@ -38,6 +38,16 @@ const executionControl = {
   execution_commit: "c".repeat(40), execution_tree: "d".repeat(40), execution_ci_run: 102,
   files: ["scripts/p8d4g-production-runner.mjs", "scripts/p8d4g-production-operations.mjs", "docs/schemas/p8d4g-result.schema.json", "docs/schemas/p8d4g-execution-control.schema.json", "package.json"].map((path, index) => ({ path, sha256: String(index + 1).repeat(64) })),
 };
+const failedKnowledgeProgress = {
+  account_resolution: "exactly_one_active",
+  deterministic_builds: "verified",
+  failure_step: "client_bundle_transfer",
+  failure_attempt: 3,
+  audiences: [
+    { name: "client", status: "failed", document_count: 11, chunk_count: null, bundle_sha256: hashes.client, manifest_sha256: hashes.clientManifest, database_revision_sha256: null },
+    { name: "internal", status: "built", document_count: 291, chunk_count: null, bundle_sha256: hashes.internal, manifest_sha256: hashes.internalManifest, database_revision_sha256: null },
+  ],
+};
 
 function outputTarget() {
   const root = mkdtempSync(join(tmpdir(), "p8d4g-result-"));
@@ -52,7 +62,7 @@ function operations(overrides = {}) {
     async stage() { calls.push("stage"); return { status: "verified", archives_verified: 3, images_verified: 3, rollback_verified: true, release_repo_verified: true, artifacts: stagedArtifacts, rollback_files: rollbackFiles }; },
     async configureDisabled() { calls.push("configureDisabled"); return { status: "verified", files_verified: 3, disabled_state_verified: true, waha_unchanged: true }; },
     async verifyMigrations() { calls.push("verifyMigrations"); return { status: "verified_noop", range: "001-076", count: 76, project_status: "ACTIVE_HEALTHY" }; },
-    async publishKnowledge() { calls.push("publishKnowledge"); return { account_resolution: "exactly_one_active", deterministic_builds: "verified", artifacts_created: true, audiences: [
+    async publishKnowledge() { calls.push("publishKnowledge"); return { account_resolution: "exactly_one_active", deterministic_builds: "verified", failure_step: null, failure_attempt: null, artifacts_created: true, audiences: [
       { name: "client", status: "verified", document_count: 11, chunk_count: 20, bundle_sha256: hashes.client, manifest_sha256: hashes.clientManifest, database_revision_sha256: hashes.clientRevision },
       { name: "internal", status: "verified", document_count: 291, chunk_count: 500, bundle_sha256: hashes.internal, manifest_sha256: hashes.internalManifest, database_revision_sha256: hashes.internalRevision },
     ] }; },
@@ -114,20 +124,24 @@ test("a later deployment failure rolls back completed boundaries in reverse", as
   } finally { rmSync(target.root, { recursive: true, force: true }); }
 });
 
-test("knowledge cleanup runs when publication throws before returning evidence", async () => {
+test("knowledge failure retains safe partial progress before cleanup", async () => {
   const target = outputTarget();
   try {
-    const adapter = operations({ async publishKnowledge() { this.calls.push("publishKnowledge"); throw new Error("simulated import failure"); } });
+    const adapter = operations({ async publishKnowledge({ onProgress }) { this.calls.push("publishKnowledge"); onProgress(failedKnowledgeProgress); throw new Error("simulated transfer failure"); } });
     await assert.rejects(runP8D4G({ mode: "execute", confirmation: P8D4G.confirmation, outputPath: target.output, operations: adapter, now: clock() }));
     assert.equal(adapter.calls.at(-1), "cleanupKnowledge");
-    assert.equal(JSON.parse(readFileSync(target.output, "utf8")).cleanup.status, "verified");
+    const result = JSON.parse(readFileSync(target.output, "utf8"));
+    assert.equal(result.cleanup.status, "verified");
+    assert.equal(result.result_code, "knowledge_failed");
+    assert.deepEqual(result.knowledge, failedKnowledgeProgress);
+    assert.equal(validate(result), true, JSON.stringify(validate.errors));
   } finally { rmSync(target.root, { recursive: true, force: true }); }
 });
 
 test("cleanup failure overrides the primary error and blocks deployment", async () => {
   const target = outputTarget();
   try {
-    const adapter = operations({ async publishKnowledge() { this.calls.push("publishKnowledge"); throw new Error("simulated import failure"); }, async cleanupKnowledge() { this.calls.push("cleanupKnowledge"); throw new Error("simulated cleanup failure"); } });
+    const adapter = operations({ async publishKnowledge({ onProgress }) { this.calls.push("publishKnowledge"); onProgress(failedKnowledgeProgress); throw new Error("simulated transfer failure"); }, async cleanupKnowledge() { this.calls.push("cleanupKnowledge"); throw new Error("simulated cleanup failure"); } });
     await assert.rejects(runP8D4G({ mode: "execute", confirmation: P8D4G.confirmation, outputPath: target.output, operations: adapter, now: clock() }), (error) => error.code === "cleanup_failed");
     const result = JSON.parse(readFileSync(target.output, "utf8"));
     assert.equal(result.result_code, "cleanup_failed");
@@ -159,4 +173,47 @@ test("redacted evidence rejects UUIDs, secret-shaped keys and false success", ()
   delete result.extra;
   result.knowledge.account_id = "00000000-0000-4000-8000-000000000000";
   assert.throws(() => validateP8D4GResult(result), /forbidden/);
+});
+
+test("knowledge failure schema rejects contradictory partial progress", () => {
+  const base = createP8D4GResult(new Date("2026-08-17T17:23:08.000Z"));
+  base.result_code = "knowledge_failed";
+  base.phases.knowledge = "failed";
+  base.knowledge = structuredClone(failedKnowledgeProgress);
+  assert.equal(validate(base), true, JSON.stringify(validate.errors));
+
+  const cases = [
+    (value) => { value.knowledge.failure_attempt = null; },
+    (value) => { value.knowledge.failure_step = "importer_creation"; },
+    (value) => { value.knowledge.audiences[0].status = "not_run"; },
+    (value) => { value.knowledge.audiences[0].status = "verified"; },
+    (value) => { value.knowledge.failure_step = null; },
+    (value) => {
+      value.knowledge.account_resolution = "not_run";
+      value.knowledge.deterministic_builds = "not_run";
+      value.knowledge.failure_attempt = 1;
+      value.knowledge.audiences[0].status = "built";
+    },
+    (value) => {
+      value.knowledge.failure_step = "internal_bundle_transfer";
+      value.knowledge.failure_attempt = 1;
+    },
+    (value) => {
+      value.knowledge.failure_step = "account_resolution";
+      value.knowledge.failure_attempt = null;
+      value.knowledge.account_resolution = "failed";
+      value.knowledge.deterministic_builds = "not_run";
+    },
+  ];
+  for (const mutate of cases) {
+    const invalid = structuredClone(base);
+    mutate(invalid);
+    assert.equal(validate(invalid), false, "contradictory knowledge evidence must fail closed");
+  }
+  const impossibleTransfer = structuredClone(base);
+  impossibleTransfer.knowledge.account_resolution = "not_run";
+  impossibleTransfer.knowledge.deterministic_builds = "not_run";
+  impossibleTransfer.knowledge.failure_attempt = 1;
+  impossibleTransfer.knowledge.audiences[0].status = "built";
+  assert.throws(() => validateP8D4GResult(impossibleTransfer), /order is contradictory/);
 });

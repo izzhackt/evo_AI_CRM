@@ -79,7 +79,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["release_id", "release_control_commit", "release_control_tree", "release_control_ci_run", "candidate_commit", "candidate_tree", "candidate_parent", "candidate_ci_run", "platform", "migration_range"],
       "properties": {
-        "release_id": { "const": "2026-08-17.p8d4s.1" },
+        "release_id": { "const": "2026-08-18.p8d4t.1" },
         "release_control_commit": { "const": "86303ad0f3a25b54395327c03974ef00a80140fa" },
         "release_control_tree": { "const": "150474f6f035a2ce29e8f404a655176970086549" },
         "release_control_ci_run": { "const": 31920969058 },
@@ -291,11 +291,11 @@
     "knowledgeFailureStep": {
       "enum": [
         "account_resolution", "client_build", "internal_build", "importer_creation",
-        "client_bundle_transfer_backoff", "client_bundle_transfer_bytes", "client_bundle_transfer",
-        "client_manifest_transfer_backoff", "client_manifest_transfer_bytes", "client_manifest_transfer",
+        "client_bundle_transfer_backoff", "client_bundle_transfer_deadline", "client_bundle_transfer_bytes", "client_bundle_transfer",
+        "client_manifest_transfer_backoff", "client_manifest_transfer_deadline", "client_manifest_transfer_bytes", "client_manifest_transfer",
         "client_remote_copy", "client_import", "client_database_verification",
-        "internal_bundle_transfer_backoff", "internal_bundle_transfer_bytes", "internal_bundle_transfer",
-        "internal_manifest_transfer_backoff", "internal_manifest_transfer_bytes", "internal_manifest_transfer",
+        "internal_bundle_transfer_backoff", "internal_bundle_transfer_deadline", "internal_bundle_transfer_bytes", "internal_bundle_transfer",
+        "internal_manifest_transfer_backoff", "internal_manifest_transfer_deadline", "internal_manifest_transfer_bytes", "internal_manifest_transfer",
         "internal_remote_copy", "internal_import", "internal_database_verification"
       ]
     },
@@ -343,8 +343,8 @@
               { "properties": { "failure_step": { "const": "client_build" }, "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "failed" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "not_run" } } }, { "properties": { "status": { "const": "not_run" } } }] } } },
               { "properties": { "failure_step": { "const": "internal_build" }, "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "failed" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "built" } } }, { "properties": { "status": { "const": "not_run" } } }] } } },
               { "properties": { "failure_step": { "const": "importer_creation" }, "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "verified" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "built" } } }, { "properties": { "status": { "const": "built" } } }] } } },
-              { "properties": { "failure_step": { "enum": ["client_bundle_transfer_backoff", "client_bundle_transfer_bytes", "client_bundle_transfer", "client_manifest_transfer_backoff", "client_manifest_transfer_bytes", "client_manifest_transfer", "client_remote_copy", "client_import", "client_database_verification"] }, "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "verified" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "failed" } } }, { "properties": { "status": { "const": "built" } } }] } } },
-              { "properties": { "failure_step": { "enum": ["internal_bundle_transfer_backoff", "internal_bundle_transfer_bytes", "internal_bundle_transfer", "internal_manifest_transfer_backoff", "internal_manifest_transfer_bytes", "internal_manifest_transfer", "internal_remote_copy", "internal_import", "internal_database_verification"] }, "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "verified" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "verified" } } }, { "properties": { "status": { "const": "failed" } } }] } } }
+              { "properties": { "failure_step": { "enum": ["client_bundle_transfer_backoff", "client_bundle_transfer_deadline", "client_bundle_transfer_bytes", "client_bundle_transfer", "client_manifest_transfer_backoff", "client_manifest_transfer_deadline", "client_manifest_transfer_bytes", "client_manifest_transfer", "client_remote_copy", "client_import", "client_database_verification"] }, "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "verified" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "failed" } } }, { "properties": { "status": { "const": "built" } } }] } } },
+              { "properties": { "failure_step": { "enum": ["internal_bundle_transfer_backoff", "internal_bundle_transfer_deadline", "internal_bundle_transfer_bytes", "internal_bundle_transfer", "internal_manifest_transfer_backoff", "internal_manifest_transfer_deadline", "internal_manifest_transfer_bytes", "internal_manifest_transfer", "internal_remote_copy", "internal_import", "internal_database_verification"] }, "account_resolution": { "const": "exactly_one_active" }, "deterministic_builds": { "const": "verified" }, "audiences": { "prefixItems": [{ "properties": { "status": { "const": "verified" } } }, { "properties": { "status": { "const": "failed" } } }] } } }
             ]
           }
         }

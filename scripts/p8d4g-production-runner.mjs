@@ -7,7 +7,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { readFileSync } from "node:fs";
 
 export const P8D4G = Object.freeze({
-  releaseId: "2026-08-17.p8d4s.1",
+  releaseId: "2026-08-18.p8d4t.1",
   releaseControlCommit: "86303ad0f3a25b54395327c03974ef00a80140fa",
   releaseControlTree: "150474f6f035a2ce29e8f404a655176970086549",
   releaseControlCiRun: 31920969058,
@@ -17,11 +17,11 @@ export const P8D4G = Object.freeze({
   candidateCiRun: 31916279374,
   platform: "linux/amd64",
   migrationRange: "001-076",
-  confirmation: "EXECUTE-P8D4S-2026-08-17.P8D4S.1",
+  confirmation: "EXECUTE-P8D4T-2026-08-18.P8D4T.1",
   windowMs: 120 * 60 * 1000,
   deployments: Object.freeze(["inbox", "crm", "lead_agent"]),
   pilots: Object.freeze(["client_china_documents", "internal_malaysia_handoff"]),
-  productionEvidenceRoot: resolve(fileURLToPath(new URL("..", import.meta.url)), `.evo-release-evidence/p8d4g-${"2026-08-17.p8d4s.1"}`),
+  productionEvidenceRoot: resolve(fileURLToPath(new URL("..", import.meta.url)), `.evo-release-evidence/p8d4g-${"2026-08-18.p8d4t.1"}`),
 });
 
 const RESULT_CODES = new Set([
@@ -34,11 +34,11 @@ const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{
 const FORBIDDEN_KEY_PATTERN = /(?:secret|token|password|cookie)|^(?:account_?id|prompt|response|body|url|provider_?id|customer_?id)$/i;
 const KNOWLEDGE_FAILURE_STEPS = new Set([
   "account_resolution", "client_build", "internal_build", "importer_creation",
-  "client_bundle_transfer_backoff", "client_bundle_transfer_bytes", "client_bundle_transfer",
-  "client_manifest_transfer_backoff", "client_manifest_transfer_bytes", "client_manifest_transfer", "client_remote_copy",
+  "client_bundle_transfer_backoff", "client_bundle_transfer_deadline", "client_bundle_transfer_bytes", "client_bundle_transfer",
+  "client_manifest_transfer_backoff", "client_manifest_transfer_deadline", "client_manifest_transfer_bytes", "client_manifest_transfer", "client_remote_copy",
   "client_import", "client_database_verification", "internal_bundle_transfer",
-  "internal_bundle_transfer_backoff", "internal_bundle_transfer_bytes",
-  "internal_manifest_transfer_backoff", "internal_manifest_transfer_bytes", "internal_manifest_transfer", "internal_remote_copy", "internal_import",
+  "internal_bundle_transfer_backoff", "internal_bundle_transfer_deadline", "internal_bundle_transfer_bytes",
+  "internal_manifest_transfer_backoff", "internal_manifest_transfer_deadline", "internal_manifest_transfer_bytes", "internal_manifest_transfer", "internal_remote_copy", "internal_import",
   "internal_database_verification",
 ]);
 const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4g-result.schema.json", import.meta.url), "utf8"));

@@ -19,8 +19,8 @@ import { fileURLToPath } from "node:url";
 
 const CANDIDATE = "aaa9f618131f604f79c694e4b332a0b13afd7a30";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
-const RELEASE_ID = "2026-08-17.p8d4s.1";
-const RELEASE_VERSION = "p8d4s-20260817";
+const RELEASE_ID = "2026-08-18.p8d4t.1";
+const RELEASE_VERSION = "p8d4t-20260818";
 const PILOT_ORIGIN = "https://evo-inbox.72.62.119.112.sslip.io";
 const WAHA_DIGEST = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const HERMES = "hermes-vps";
@@ -35,7 +35,7 @@ const RELEASE_ROOT = `/opt/evo-releases/${CANDIDATE}/${RELEASE_ID}`;
 const ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const EVIDENCE_ROOT = `/opt/evo-release-evidence/${CANDIDATE}/${RELEASE_ID}`;
 const KNOWLEDGE_REMOTE = `${RELEASE_ROOT}/knowledge-incoming`;
-const IMPORTER = "evo-p8d4s-knowledge-import";
+const IMPORTER = "evo-p8d4t-knowledge-import";
 const KNOWLEDGE_TRANSFER_ATTEMPTS = 3;
 const KNOWLEDGE_TRANSFER_DELAYS_MS = Object.freeze([0, 10_000, 30_000]);
 const PORTABLE_IDENTITY = "portable-image-identity.json";
@@ -202,15 +202,19 @@ export async function runKnowledgeTransferWithRetry(runCommand, source, destinat
   let lastError;
   for (let attempt = 1; attempt <= KNOWLEDGE_TRANSFER_ATTEMPTS; attempt += 1) {
     const backoffMs = KNOWLEDGE_TRANSFER_DELAYS_MS[attempt - 1];
-    onState({ stage: "backoff", attempt });
     if (backoffMs > 0) {
+      onState({ stage: "deadline", attempt });
       if (remainingMs(deadlineAt, 20 * 60 * 1000, now) <= backoffMs) {
         fail("operation deadline cannot cover knowledge transfer retry backoff");
       }
+      onState({ stage: "backoff", attempt });
       await wait(backoffMs);
+    } else {
+      onState({ stage: "backoff", attempt });
     }
-    onState({ stage: "bytes", attempt });
+    onState({ stage: "deadline", attempt });
     const timeout = remainingMs(deadlineAt, 20 * 60 * 1000, now);
+    onState({ stage: "bytes", attempt });
     if (sha256(readFileSync(source)) !== expectedSha256) fail("knowledge transfer source bytes drifted");
     onState({ stage: "scp", attempt });
     try {
@@ -704,7 +708,7 @@ export async function createP8D4GOperations({
     return { audience, root: roots[0], bundleName, manifestName, documentCount: expectedCount, bundleSha256: sha256(bundle), manifestSha256: sha256(manifest) };
   }
 
-  async function importAudience(item, deadlineAt) {
+  async function importAudience(item, deadlineAt, onProgress) {
     for (const [kind, file, expectedSha256] of [["bundle", item.bundleName, item.bundleSha256], ["manifest", item.manifestName, item.manifestSha256]]) {
       await runKnowledgeTransferWithRetry(
         run,
@@ -717,6 +721,7 @@ export async function createP8D4GOperations({
           onState({ stage, attempt }) {
             knowledgeStep = `${item.audience}_${kind}_transfer${stage === "scp" ? "" : `_${stage}`}`;
             knowledgeAttempt = stage === "scp" ? attempt : null;
+            reportKnowledge(onProgress);
           },
         },
       );
@@ -838,7 +843,7 @@ ${createImporterIdentityCheck()}
         state.importerCreated = true;
         const audiences = [];
         for (const build of builds) {
-          const audience = await importAudience(build, deadlineAt);
+          const audience = await importAudience(build, deadlineAt, onProgress);
           audiences.push(audience);
           knowledgeProgress.audiences[build.audience === "client" ? 0 : 1] = audience;
           reportKnowledge(onProgress);

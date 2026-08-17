@@ -14,12 +14,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 const CANDIDATE = "aaa9f618131f604f79c694e4b332a0b13afd7a30";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
-const RELEASE_ID = "2026-08-17.p8d4q.1";
-const RELEASE_VERSION = "p8d4q-20260817";
+const RELEASE_ID = "2026-08-17.p8d4r.1";
+const RELEASE_VERSION = "p8d4r-20260817";
 const PILOT_ORIGIN = "https://evo-inbox.72.62.119.112.sslip.io";
 const WAHA_DIGEST = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const HERMES = "hermes-vps";
@@ -34,8 +35,9 @@ const RELEASE_ROOT = `/opt/evo-releases/${CANDIDATE}/${RELEASE_ID}`;
 const ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const EVIDENCE_ROOT = `/opt/evo-release-evidence/${CANDIDATE}/${RELEASE_ID}`;
 const KNOWLEDGE_REMOTE = `${RELEASE_ROOT}/knowledge-incoming`;
-const IMPORTER = "evo-p8d4q-knowledge-import";
+const IMPORTER = "evo-p8d4r-knowledge-import";
 const KNOWLEDGE_TRANSFER_ATTEMPTS = 3;
+const KNOWLEDGE_TRANSFER_DELAYS_MS = Object.freeze([0, 10_000, 30_000]);
 const PORTABLE_IDENTITY = "portable-image-identity.json";
 const PORTABLE_IDENTITY_SHA256 = "53fa00c63338a55925fa8d2c8d6e6faaa61d63b0f99251e50dabafd792755ccd";
 const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8d4g-result.json`;
@@ -181,18 +183,31 @@ function requireCredential(environment, credentials, names) {
   fail(`required credential class is missing: ${names[0]}`);
 }
 
-function remainingMs(deadlineAt, ceiling = 20 * 60 * 1000) {
+function remainingMs(deadlineAt, ceiling = 20 * 60 * 1000, now = Date.now) {
   if (!deadlineAt) fail("operation deadline is missing");
-  const remaining = Date.parse(deadlineAt) - Date.now();
+  const remaining = Date.parse(deadlineAt) - now();
   if (!Number.isFinite(remaining) || remaining <= 0) fail("operation deadline expired");
   return Math.max(1, Math.min(remaining, ceiling));
 }
 
-export function runKnowledgeTransferWithRetry(runCommand, source, destination, { deadlineAt, expectedSha256, label }) {
+export async function runKnowledgeTransferWithRetry(runCommand, source, destination, {
+  deadlineAt,
+  expectedSha256,
+  label,
+  now = Date.now,
+  wait = delay,
+}) {
   if (!SHA256.test(expectedSha256)) fail("knowledge transfer expected SHA-256 is invalid");
   let lastError;
   for (let attempt = 1; attempt <= KNOWLEDGE_TRANSFER_ATTEMPTS; attempt += 1) {
-    const timeout = remainingMs(deadlineAt);
+    const backoffMs = KNOWLEDGE_TRANSFER_DELAYS_MS[attempt - 1];
+    if (backoffMs > 0) {
+      if (remainingMs(deadlineAt, 20 * 60 * 1000, now) <= backoffMs) {
+        fail("operation deadline cannot cover knowledge transfer retry backoff");
+      }
+      await wait(backoffMs);
+    }
+    const timeout = remainingMs(deadlineAt, 20 * 60 * 1000, now);
     if (sha256(readFileSync(source)) !== expectedSha256) fail("knowledge transfer source bytes drifted");
     try {
       return runCommand("scp", [source, destination], {
@@ -672,7 +687,7 @@ export async function createP8D4GOperations({
 
   async function importAudience(item, deadlineAt) {
     for (const [file, expectedSha256] of [[item.bundleName, item.bundleSha256], [item.manifestName, item.manifestSha256]]) {
-      runKnowledgeTransferWithRetry(
+      await runKnowledgeTransferWithRetry(
         run,
         join(item.root, file),
         `${HERMES}:${KNOWLEDGE_REMOTE}/${file}`,

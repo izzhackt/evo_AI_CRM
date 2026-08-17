@@ -8297,3 +8297,50 @@ P8U2 remains a separate private OrbStack `linux/amd64` candidate block. Public
 activation remains a later Auth/provisioning and release contract with real
 sign-in, RLS/object-scope, refresh and logout proof plus a new action-time
 token.
+
+---
+
+## 2026-08-18 — P8U2 private root candidate
+
+Plan Block-ID: `EVO-PLATFORM-P8U2-PRIVATE-ROOT-CANDIDATE-2026-08-18`
+
+Issue: #280
+
+Base/application source: P8U1 merge
+`b798c7d36be8e3325a9621d96e496ec0a2bb624f`, tree
+`eb3a8a863e014606e707bd279f67d9194663e30a`, exact parent
+`42dc877b6ce3a2c5c8f7f42c6adc192399322d07`, exact-main CI
+`32072948258` completed successfully.
+
+Decision:
+
+- make `docs/platform/p8u2-private-root-candidate.md` the executable contract;
+- add only one closed root-candidate runner/schema/test seam, then review and
+  merge it before any local Docker effect;
+- require a separate clean detached application source and a clean
+  current-main release-control checkout whose exact commit/tree/push-CI and
+  controlled hashes are retained in evidence;
+- build exactly
+  `evo-crm:b798c7d36be8e3325a9621d96e496ec0a2bb624f-p8u2-linux-amd64`
+  on OrbStack with Buildx `--platform linux/amd64 --load`, exact OCI labels and
+  no stale tag/root/container/SBOM reuse;
+- generate one fresh image-bound SPDX-JSON SBOM and run the exact image on
+  `--network none`, no mounts, no caller credentials and as UID/GID
+  `1001:1001`;
+- require exact root health and exact fail-closed `503 assistant_disabled`
+  behavior while Auth/enabling settings remain absent; make no provider,
+  database, knowledge or customer-data call;
+- retain only the six closed regular mode-`0600` files under the new exact
+  mode-`0700` ignored evidence root, with atomic result/index writes, complete
+  hash/mode verification and privacy scanning;
+- independently review the exact retained evidence and local image, then stop;
+  do not transfer, deploy, route or expose it;
+- keep Auth activation/public release separate, with real login,
+  RLS/object-scope, refresh/logout proof, a new release contract, fresh
+  preflight and owner action-time token.
+
+This amendment authorizes repository tooling/tests and one private local
+OrbStack build/SBOM/network-none smoke only. It grants no production/Hermes,
+registry upload, Supabase, Gemini, knowledge import, customer data, Auth,
+DNS/Caddy, restart, WAHA, WhatsApp, amoCRM, outbound, autonomous-reply or
+billed-resource authority.

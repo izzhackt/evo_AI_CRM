@@ -3148,6 +3148,29 @@ P8U1 is repository-only. Tests inject local seams and make no provider or
 production calls. Independent exact-head review, 4/4 CI, merge and exact-main
 CI are mandatory before P8U2 may build the private `linux/amd64` candidate.
 
+## P8U2 private root candidate
+
+Issue #280 and `docs/platform/p8u2-private-root-candidate.md` freeze the next
+repository/local-only block. The application identity is P8U1 merge
+`b798c7d36be8e3325a9621d96e496ec0a2bb624f`, tree
+`eb3a8a863e014606e707bd279f67d9194663e30a`, parent
+`42dc877b6ce3a2c5c8f7f42c6adc192399322d07`, with successful exact-main CI
+`32072948258`. P8U2 produces exactly one private root image tagged
+`evo-crm:b798c7d36be8e3325a9621d96e496ec0a2bb624f-p8u2-linux-amd64` on OrbStack.
+
+The reviewed runner must prove exact `linux/amd64` identity, OCI labels,
+non-root execution, a fresh image-bound SPDX SBOM, network-none liveness and
+the exact `503 assistant_disabled` staff-route response with Auth and enabling
+configuration absent. All evidence stays under a new local mode-`0700` ignored
+root with a closed result schema and mode-`0600` files. Provider credentials,
+customer data and external networks are absent.
+
+P8U2 stops after independent evidence review. It does not transfer, route,
+deploy or expose the image and does not mutate production or providers. Later
+Auth activation still requires real Supabase URL/publishable key, authority,
+sign-in, RLS/object-scope, refresh and logout proof, followed by a separate
+release contract, fresh preflight and owner token.
+
 ## P8U single-UI private preparation
 
 Issue #276 and `docs/platform/p8u-single-ui-private-preparation.md` supersede

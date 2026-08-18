@@ -8431,3 +8431,56 @@ P8U4B gates, one private local candidate attempt. It grants no production,
 Hermes, public routing, Auth activation, Supabase mutation/import, Gemini,
 WAHA, WhatsApp, amoCRM, outbound, autonomous-reply, restart or customer-data
 authority.
+
+---
+
+## 2026-08-18 — P8U4B exact private-candidate freeze
+
+Plan Block-ID: `EVO-PLATFORM-P8U4B-PRIVATE-CANDIDATE-2026-08-18`
+
+Status: planning gate
+
+Issue: #284
+
+Observed boundary:
+
+- P8U4A merged as application commit
+  `93d07740e15b05067af31b4aa03c865b6b1cebda`, tree
+  `6ef0aea5eedaa26bd4d7de857bfa9bee9ff4e888`, parent
+  `a63236838964542f712639aae83597747fee639f`;
+- exact-main push CI `32081894062` completed successfully at that commit;
+- P8U2 and P8U3 remain immutable failed-attempt evidence with exact retained
+  roots, file allowlists/modes/hashes, tags and image IDs;
+- no Auth, provider, database, knowledge, production or customer-data effect
+  occurred in P8U4A.
+
+Decision:
+
+- build only the exact P8U4A application identity from the frozen clean
+  detached application checkout, using a separate clean current-main
+  release-control checkout containing the reviewed P8U4B tooling;
+- reserve only the collision-free P8U4 tag
+  `evo-crm:93d07740e15b05067af31b4aa03c865b6b1cebda-p8u4-linux-amd64`,
+  version `p8u4-93d07740-20260818`, container
+  `evo-p8u4-smoke-93d07740e15b`, and evidence root
+  `p8u4-root-93d07740e15b05067af31b4aa03c865b6b1cebda-20260818`;
+- make absence of the new tag, container and evidence root, exact OCI-version
+  labeling, and exact pre/post preservation of P8U2 and P8U3 evidence/images
+  mandatory and fail-closed;
+- route every Docker command through immediate OrbStack/context verification;
+- bind the build, immutable image ID, linux/amd64/no-variant labels, fresh SPDX
+  SBOM, network-none non-root liveness, exact disabled staff-route result,
+  cleanup and closed private evidence graph;
+- inject only the P7B observability enabled flag and a fresh random
+  process-only HMAC required by the candidate startup contract, never retain
+  the HMAC value, and prove zero staff-assistant, Supabase, Gemini, WAHA and
+  amoCRM settings plus zero caller credentials;
+- require plan review before implementation, then implementation review,
+  exact-head CI, merge and exact-main CI before one local candidate attempt;
+- stop after independent retained-evidence review.
+
+This amendment authorizes only the later reviewed one-time local OrbStack
+candidate attempt. It grants no image transfer, registry, Hermes/production,
+public routing, Auth activation, Supabase mutation/import, Gemini, WAHA,
+WhatsApp, amoCRM, outbound, autonomous-reply, restart, customer-data or billed
+provider authority.

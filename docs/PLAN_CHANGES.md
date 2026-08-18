@@ -8611,3 +8611,37 @@ no Docker build yet and grants no image transfer, production container change,
 database migration/import, credential creation/rotation, Gemini/provider call,
 WAHA/amoCRM mutation, customer data use, send, restart, DNS/Auth change or V3
 rollout authority.
+
+---
+
+## 2026-08-18 - Close P8V2 implementation and evidence-failure semantics
+
+Block-ID: `EVO-P8V2-PRODUCTION-PREPARATION-IMPLEMENTATION-2026-08-18`
+
+Decision: implement the reviewed V2 preparation adapter and keep production
+mutation authority closed. The runner operates from a clean current-main
+release-control checkout against the exact detached application commit, checks
+OrbStack immediately before every local Docker command, prepares immutable
+linux/amd64 image/SBOM/smoke/archive evidence, reads the frozen five-container
+production baseline, verifies the 001-076 production migration ledger, captures
+the exact rollback matrix, resolves live identities process-only, rebuilds both
+frozen knowledge audiences twice, removes every UUID-bearing build root, and
+finally evaluates configuration without printing or persisting UUIDs/secrets.
+
+The closed result state machine contains eight ordered steps, ending in
+`evidence_publication`. A prerequisite or configuration gap is
+`preparation_blocked`; atomic publication, privacy, graph or private-root cleanup
+failure is `evidence_failed`. Both schemas and runtime require exactly one
+terminal state and prohibit later evidence. The CLI is gated by exact token
+`PREPARE-P8V2-2026-08-18.P8V2.1`; this token authorizes V2 preparation only.
+
+SBOM and smoke commands use immutable image IDs. Docker archive serialization
+is the sole later canonical-tag read: immediate successful tag inventories
+before and after the save and exact archive descriptor-to-ID/tag/revision
+validation make concurrent retagging a blocking identity failure. Inbox public
+build settings are inherited only from process environment by named build args;
+their values never occur in command arguments or retained logs.
+
+No image transfer/load on Hermes, migration application, knowledge import,
+Gemini/provider call, container recreation/reload/restart, WhatsApp send, WAHA
+or amoCRM mutation, customer-data use, DNS/Auth change or V3 rollout is added.

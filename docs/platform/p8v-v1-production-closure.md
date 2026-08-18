@@ -185,8 +185,11 @@ be exactly `orbstack`. The three tags and every new evidence destination must
 be absent. The build uses `--platform linux/amd64`; retained identity must prove
 empty variant, exact OCI source/revision/version labels, exact tag to image ID,
 OCI-index to platform-manifest binding, closed archive entries, SBOM identity,
-and network-none smoke. No mutable tag is used after its immutable image ID is
-observed.
+and network-none smoke. SBOM and smoke always use the immutable image ID. The
+sole post-inspection tag use is Docker archive serialization, because the
+portable archive must retain the canonical tag; successful image inventories
+immediately before and after serialization plus exact archive descriptor-to-ID,
+revision and tag binding make any retag race fail closed.
 
 The local retained component roots are beneath the clean application checkout:
 
@@ -211,6 +214,12 @@ component artifacts are copied into it only after all success prerequisites
 pass. On a blocker, the final root contains only the closed
 `v2-preparation-result.json`, while completed component roots remain immutable
 and are referenced only by safe SHA-256 identities, never private paths.
+The ordered result state machine ends with a distinct `evidence_publication`
+step. Candidate, baseline, migration, rollback, identity, knowledge and
+configuration failures use `preparation_blocked`; an atomic-write, privacy,
+evidence-graph or UUID-bearing temporary-root cleanup failure uses
+`evidence_failed` and a terminal `failed` step. The two result classes cannot be
+interchanged by schema or runtime validation.
 
 The retained production pre-state is the following exact ordered container
 boundary, all required healthy with restart count zero before and after V2:

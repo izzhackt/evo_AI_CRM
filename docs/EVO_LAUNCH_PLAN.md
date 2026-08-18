@@ -3300,8 +3300,10 @@ and deterministic production-account-bound bundles from the unchanged
 account/organization proof blocks only the dependent record; independent image,
 rollback and vault-integrity work continues and is retained as component
 evidence. The final V2 result is `preparation_verified` only when every ordered
-record is verified. Otherwise it is `preparation_blocked`, contains no later
-effect, and grants no V3 authority.
+record, including final evidence publication, is verified. A normal prerequisite
+gap is `preparation_blocked`; an atomic-write, privacy, graph or cleanup failure
+is the distinct `evidence_failed` result. Both are truthful prefixes, contain no
+later effect, and grant no V3 authority.
 
 The observed production configuration does not currently satisfy the new
 Platform contract: root CRM lacks the new publishable/secret Supabase keys,

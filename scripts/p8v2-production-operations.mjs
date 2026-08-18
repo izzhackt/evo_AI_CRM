@@ -29,6 +29,17 @@ const SHA64 = /^[0-9a-f]{64}$/;
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
 const MAX_OUTPUT = 512 * 1024 * 1024;
 
+export const P8V2_KNOWLEDGE_SOURCES = Object.freeze({
+  client: Object.freeze({
+    path: "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Клиентская база знаний ЭВО",
+    documentCount: 11,
+  }),
+  internal: Object.freeze({
+    path: "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ",
+    documentCount: 291,
+  }),
+});
+
 const REMOTE_FILES = Object.freeze([
   ["/opt/evo-crm/docker-compose.prod.yml", "crm-current-docker-compose.prod.yml", 644],
   ["/opt/evo-crm/.env.production", "crm-env.production", 600],
@@ -391,7 +402,8 @@ function buildBundleDefault({ sourceRoot, vaultRoot, accountId, audience, output
 }
 
 function validateBuiltAudience(audience, roots, accountId) {
-  const count = audience === "client" ? 11 : 291;
+  const count = P8V2_KNOWLEDGE_SOURCES[audience]?.documentCount;
+  if (!Number.isInteger(count)) fail("unknown knowledge audience", "knowledge_build_failed");
   const bundleName = `evo-knowledge-${audience}.json`;
   const manifestName = `evo-knowledge-${audience}.sha256.json`;
   const bundleBytes = readFileSync(join(roots[0], bundleName));
@@ -590,7 +602,7 @@ export async function createP8V2Operations({
           assertDirectory(root);
           roots.push(root);
           state.knowledgeRoots.push(root);
-          await builder({ sourceRoot, vaultRoot: audience === "client" ? "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Knowledge_Vault/40_Клиентская_база" : "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Knowledge_Vault/30_Утверждено для ИИ", accountId: state.accountId, audience, outputRoot: root });
+          await builder({ sourceRoot, vaultRoot: P8V2_KNOWLEDGE_SOURCES[audience].path, accountId: state.accountId, audience, outputRoot: root });
           pair.push(root);
         }
         audiences.push(validateBuiltAudience(audience, pair, state.accountId));

@@ -8645,3 +8645,32 @@ their values never occur in command arguments or retained logs.
 No image transfer/load on Hermes, migration application, knowledge import,
 Gemini/provider call, container recreation/reload/restart, WhatsApp send, WAHA
 or amoCRM mutation, customer-data use, DNS/Auth change or V3 rollout is added.
+
+---
+
+## 2026-08-18 - Bind P8V2 to the final frozen knowledge vaults
+
+Block-ID: `EVO-P8V2-FINAL-VAULT-PATHS-2026-08-18`
+
+Issue: #294
+
+Decision: correct only the P8V2 local knowledge source binding before its first
+execution. The final frozen 11-document client vault is exactly
+`/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Клиентская база знаний ЭВО`.
+The final frozen 291-document internal source is exactly
+`/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ`.
+The old `EVO_Knowledge_Vault/40_Клиентская_база` and
+`EVO_Knowledge_Vault/30_Утверждено для ИИ` paths are obsolete and must never be
+used as production-preparation input.
+
+Reason: a read-only pre-execution check found that the merged runner would
+otherwise stop at knowledge build despite the frozen vaults being present and
+unchanged. The correction must keep the existing builder's canonical marker,
+non-symlink, PII, forbidden-root, 11/291 and deterministic two-build gates. It
+must add a focused regression that rejects the obsolete paths and binds the two
+exact final sources.
+
+The P8V2 token has not been consumed. This correction grants no image transfer,
+production write, migration/import, provider call, container change/restart,
+WhatsApp send, WAHA/amoCRM mutation, customer-data use, DNS/Auth change or V3
+rollout authority.

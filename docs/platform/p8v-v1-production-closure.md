@@ -161,6 +161,250 @@ The current staff-assistant code requires the new `sb_publishable_...` and
 satisfy that contract. Do not broaden or weaken the accepted credential
 formats merely to avoid obtaining the correct provider keys.
 
+### V2.1 exact execution contract
+
+Issue #290 binds V2 to application commit
+`0f1454d014bbc9eca9d7381dfe557e980965543e`, tree
+`19599bcf043dc4a555c8996c21e7801934b64633`, parent
+`a7c589c2c735d4ef2d15ab5153eb07dba07d6286`, and exact-main push CI
+`32093566626`. The release version is `2026-08-18.p8v2.1`. The only candidate
+source tags are, in order:
+
+1. `evo-crm:0f1454d014bbc9eca9d7381dfe557e980965543e-linux-amd64`;
+2. `evo-inbox:0f1454d014bbc9eca9d7381dfe557e980965543e-linux-amd64`;
+3. `evo-lead-agent:0f1454d014bbc9eca9d7381dfe557e980965543e-linux-amd64`.
+
+The matching archive names are respectively
+`evo-crm-0f1454d014bbc9eca9d7381dfe557e980965543e-linux-amd64.tar`,
+`evo-inbox-0f1454d014bbc9eca9d7381dfe557e980965543e-linux-amd64.tar`, and
+`evo-lead-agent-0f1454d014bbc9eca9d7381dfe557e980965543e-linux-amd64.tar`.
+The reviewed builder runs from a separate clean release-control checkout against
+a separate detached clean application checkout. Before every local Docker
+command, `orb status` must be exactly `Running` and `docker context show` must
+be exactly `orbstack`. The three tags and every new evidence destination must
+be absent. The build uses `--platform linux/amd64`; retained identity must prove
+empty variant, exact OCI source/revision/version labels, exact tag to image ID,
+OCI-index to platform-manifest binding, closed archive entries, SBOM identity,
+and network-none smoke. No mutable tag is used after its immutable image ID is
+observed.
+
+The local retained component roots are beneath the clean application checkout:
+
+- `.evo-release-evidence/p8v2-build-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`;
+- `.evo-release-evidence/p8v2-portable-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`;
+- `.evo-release-evidence/p8v2-knowledge-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`;
+- final `.evo-release-evidence/p8v2-preparation-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`.
+
+The secret-bearing rollback component root exists only on Hermes at exact path
+`/opt/evo-release-evidence/p8v2-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`.
+It is never copied to the controller, printed, committed or indexed by the safe
+final root. The controller retains only UUID/secret-free rollback identities.
+
+Each root must be newly created as a real non-symlink mode-`0700` directory;
+every retained artifact is a regular non-symlink mode-`0600` file. Paths are
+realpath-contained, writes are temporary-file plus atomic rename, destinations
+must be absent, and no glob is authorized. Intermediate component roots are
+validation evidence only. The retained knowledge root contains only the
+UUID-free `knowledge-build-result.json`; it never contains a bundle, manifest
+or raw builder report. The final root alone is the V2 completion result;
+component artifacts are copied into it only after all success prerequisites
+pass. On a blocker, the final root contains only the closed
+`v2-preparation-result.json`, while completed component roots remain immutable
+and are referenced only by safe SHA-256 identities, never private paths.
+
+The retained production pre-state is the following exact ordered container
+boundary, all required healthy with restart count zero before and after V2:
+
+1. `evo-crm-app-1`, container
+   `7b3b6d026c84055045a0e31d520d2946dbf2dc181d5829c6ea1088d872366c46`, image
+   `sha256:d4626208423df2c0df24262763917b82b1157b53a115b44f02478ecf7245f580`;
+2. `evo-crm-waha-1`, container
+   `0d1017e3304dfb3e1dce37ca00a2826b019429266763e211ed399b938baaa750`, image
+   `sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c`;
+3. `evo-crm-lead-agent-1`, container
+   `7e8539399eb69cee8b109c5b0580bf06dd77ff4648c9b0e622edd09af9743e88`, image
+   `sha256:3678747c1ea1c9b5655bb830296c9e4d4aedf60d3d193b438633b68eb3f97cc7`;
+4. `evo-inbox-app-1`, container
+   `c78a94b69114e24dba918db7bab574b20f85b83dd5756a3016b2c9652cfd2592`, image
+   `sha256:6d5e0a9d5ea073737bdd8c2c5621818ca7bdb76dd5b16ca5e44563d39833cb6b`;
+5. `evo-inbox-waha`, container
+   `048c820d3f607772ce6b4720832a53ce10e979c80af00ee53bbcaed628a8c7e9`, image
+   `sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c`.
+
+V2 may read these identities but may not load images, retag on Hermes, recreate,
+reload or restart any service. WAHA images, sessions and networks are immutable.
+The rollback capture uses explicit `install -m 0600` into the exact absent
+destination names below; each present source must be a regular non-symlink
+`root:root` file with the stated source mode. No variable-derived name or glob
+is allowed:
+
+1. `/opt/evo-crm/docker-compose.prod.yml` (`0644`) to
+   `crm-current-docker-compose.prod.yml`;
+2. `/opt/evo-crm/.env.production` (`0600`) to `crm-env.production`;
+3. `/opt/evo-crm/.env.lead-agent` (`0600`) to `crm-env.lead-agent`;
+4. `/opt/evo-crm/.env.waha` (`0600`) to `crm-env.waha`;
+5. `/opt/evo-inbox/docker-compose.prod.yml` (`0644`) to
+   `inbox-current-docker-compose.prod.yml`;
+6. `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production` (`0600`) to
+   `inbox-env.production`;
+7. `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.waha` (`0600`) to
+   `inbox-env.waha`.
+
+The eighth exact configuration row is
+`/opt/evo-crm/.env.manual-send-worker`. The observed pre-state requires it to be
+absent because the worker is not deployed. V2 records that absence. If it is
+present at action time, it must instead be a regular non-symlink `root:root`
+mode-`0600` source captured as `crm-env.manual-send-worker`, and the observation
+is a blocking baseline drift. V3 may create this file only from separately
+approved process-only values; on rollback it must stop/remove the new worker
+and restore this exact absent/present pre-state.
+
+It also captures the five exact Compose files named by the live container
+labels, all required regular non-symlink root-owned with the stated source
+mode:
+
+1. CRM app:
+   `/opt/evo-releases/564332b420a1fb1bd6232dda945d044bb922d3f0/repo/docker-compose.prod.yml`
+   (`0644`) to `crm-app-compose.prod.yml`;
+2. CRM WAHA:
+   `/opt/evo-releases/1f0d1a810014e2ecee496cb9c3a7217a70c86486/repo/docker-compose.prod.yml`
+   (`0644`) to `crm-waha-compose.prod.yml`;
+3. Lead Agent:
+   `/opt/evo-releases/b2303eccb78b7c102ec702e9821f765f6dfaba88/repo/docker-compose.prod.yml`
+   (`0600`) to `lead-agent-compose.prod.yml`;
+4. Inbox app:
+   `/opt/evo-releases/a09a72fc55d869c861df520f76d62413a2315fc1/repo/agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml`
+   (`0644`) to `inbox-app-compose.prod.yml`;
+5. Inbox WAHA:
+   `/opt/evo-releases/1f0d1a810014e2ecee496cb9c3a7217a70c86486/repo/agent-lead2-inbox/deploy/docker-compose.inbox.prod.yml`
+   (`0644`) to `inbox-waha-compose.prod.yml`.
+
+The three application rollback image references are exactly
+`evo-crm:564332b420a1fb1bd6232dda945d044bb922d3f0`,
+`evo-inbox:a09a72fc55d869c861df520f76d62413a2315fc1`, and
+`evo-lead-agent:rollback-2026-08-15.p8d.1`, bound respectively to the frozen
+image IDs above. V2 saves each immutable ID to an exact absent private rollback
+archive on Hermes, hashes it, and proves the exact reference still maps to the
+exact ID before and after save. The two WAHA references remain the exact digest
+`devlikeapro/waha@sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c`
+and are not saved, loaded, retagged or changed.
+
+The capture records only filename, source mode, retained mode, size and SHA-256;
+it never prints or parses secret values. Missing, extra, symlinked, wrong-owner,
+wrong-mode or colliding files block. The retained rollback record also binds the
+five exact container/image/network records above and these exact application
+selectors: CRM project `evo-crm`, working directory
+`/opt/evo-releases/564332b420a1fb1bd6232dda945d044bb922d3f0/repo`, service `app`;
+Inbox project `evo-inbox`, working directory
+`/opt/evo-releases/a09a72fc55d869c861df520f76d62413a2315fc1/repo/agent-lead2-inbox/deploy`,
+service `app`; Lead Agent project `evo-crm`, working directory
+`/opt/evo-releases/b2303eccb78b7c102ec702e9821f765f6dfaba88/repo`, service `lead-agent`.
+The exact render/rollback mapping is closed as follows. `$R` denotes only the
+literal retained rollback root above and is resolved/realpath-checked once; it
+is never supplied by an operator. Every render uses `docker compose config -q`
+so interpolated secrets are not printed, followed in V3 only by the same prefix
+and `up -d --no-deps <service>`:
+
+- CRM app: project `evo-crm`, file `$R/crm-app-compose.prod.yml`,
+  `--env-file $R/crm-env.production`, service `app`, with exact env selectors
+  `EVO_CRM_APP_ENV_FILE=$R/crm-env.production`,
+  `EVO_CRM_LEAD_AGENT_ENV_FILE=$R/crm-env.lead-agent`,
+  `EVO_CRM_WAHA_ENV_FILE=$R/crm-env.waha`,
+  `EVO_RELEASE_REVISION=564332b420a1fb1bd6232dda945d044bb922d3f0`,
+  `EVO_RELEASE_VERSION=2026-07-24.1`, repository source, live WAHA digest and
+  `EVO_CADDY_NETWORK=evo_public_web`;
+- Inbox app: project `evo-inbox`, file `$R/inbox-app-compose.prod.yml`,
+  `--env-file $R/inbox-env.production`, service `app`, with
+  `EVO_INBOX_APP_ENV_FILE=$R/inbox-env.production`,
+  `EVO_INBOX_WAHA_ENV_FILE=$R/inbox-env.waha`,
+  `EVO_RELEASE_REVISION=a09a72fc55d869c861df520f76d62413a2315fc1`,
+  `EVO_RELEASE_VERSION=2026-07-24.2`, repository source, live WAHA digest,
+  `EVO_CADDY_NETWORK=evo_public_web`, the retained production Inbox domain,
+  WAHA base URL and all three retained public build settings loaded only from
+  `$R/inbox-env.production`;
+- Lead Agent: project `evo-crm`, file `$R/lead-agent-compose.prod.yml`,
+  `--env-file $R/crm-env.production`, service `lead-agent`, with the same three
+  CRM env-file selectors, `EVO_RELEASE_REVISION` and `EVO_RELEASE_VERSION` both
+  exactly `rollback-2026-08-15.p8d.1`, repository source, live WAHA digest and
+  `EVO_CADDY_NETWORK=evo_public_web`.
+
+V2 verifies these three `config -q` renders and the exact image reference/ID
+mapping without executing `up`. V3 executes a selected rollback in reverse
+application order and then verifies frozen image ID, exact networks, health and
+restart count zero. No rollback command is executed in V2.
+
+The repository migration ledger must be exactly contiguous `001` through `077`.
+The observed managed-production ledger must be exactly contiguous `001` through
+`076` with exactly migration `077` pending; any other gap, duplicate or unknown
+version blocks. Managed production is read only in V2: record both exact ranges,
+counts, the singular pending version and project health without applying
+anything. Resolve exactly one
+live target account and exactly one active Platform organization using the
+existing server-side credential path. UUID values stay process-only: evidence
+records only `exactly_one_active` plus deterministic account-bound artifact
+hashes. The configured `EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID` and
+`EVO_PLATFORM_ORGANIZATION_ID` must parse as UUIDs and equal those singular live
+identities in process memory; the configured Supabase URL must resolve to the
+same exact production project used for resolution. Zero/multiple live rows,
+missing/malformed settings, identity mismatch or project mismatch block. UUIDs
+must never be taken from prior notes, a placeholder, literal command text,
+stdout, stderr or committed evidence.
+
+Build the still-frozen client vault of exactly 11 Markdown documents and the
+internal approved vault of exactly 291 Markdown documents twice each in four
+distinct newly created temporary mode-`0700` directories outside every retained
+evidence root. The live account UUID is passed directly
+from singular resolution into the existing builder process without printing or
+persistence outside the bundle/manifest format that requires it. Require
+byte-identical bundle and manifest outputs per audience, exact document/path/
+source-hash bindings, the existing PII/forbidden-root gate and zero vault drift.
+Every one of the four UUID-bearing temporary roots, including its bundle,
+manifest and report, is removed and absence-verified in a finally-style path on
+every success or failure after creation. Cleanup failure is a blocking
+`evidence_failed` result and cannot authorize import or deployment. Final safe knowledge
+evidence records only audience, 11/291 count, bundle SHA-256, manifest SHA-256,
+and frozen-vault validation statuses. It does not import or embed anything.
+
+Configuration evidence retains only safe presence/equality/format statuses and
+never retains values; in process, the validator still performs the exact
+format, identity and project cross-checks above. Root CRM requires
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+`EVO_PLATFORM_SUPABASE_SECRET_KEY`, `EVO_PLATFORM_ORGANIZATION_ID`,
+`EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID`, `EVO_PLATFORM_GEMINI_API_KEY`,
+`EVO_PLATFORM_STAFF_ASSISTANT_ENABLED`,
+`EVO_PLATFORM_MANUAL_SEND_WORKER_ENABLED`,
+`EVO_PLATFORM_MANUAL_SEND_TRIGGER_SECRET`,
+`EVO_PLATFORM_LEAD_AGENT_SYNC_ENABLED`, and `EVO_LEAD_AGENT_SYNC_SECRET`.
+The manual worker also requires its separate root-owned mode-`0600`
+`.env.manual-send-worker` containing only its dedicated trigger secret; the
+fixed endpoint remains the non-secret Compose environment value. Lead Agent
+additionally requires `EVO_AGENT_AMO_BASE_URL`,
+`EVO_AGENT_AMO_CLIENT_ID`, `EVO_AGENT_AMO_CLIENT_SECRET`,
+`EVO_AGENT_AMO_REDIRECT_URI`, exactly one valid `EVO_AGENT_AMO_TOKEN_FILE` or
+`EVO_AGENT_AMO_REFRESH_TOKEN`, `EVO_AGENT_AMO_PIPELINE_ID`,
+`EVO_AGENT_AMO_STATUS_ID`, `EVO_AGENT_AMO_RESPONSIBLE_USER_ID`,
+`EVO_AGENT_CRM_BASE_URL`, `EVO_AGENT_CRM_SYNC_PATH`,
+`EVO_AGENT_CRM_SYNC_SECRET`, and its separate `EVO_AGENT_WAHA_BASE_URL`,
+`EVO_AGENT_WAHA_API_KEY`, `EVO_AGENT_WAHA_SESSION` and
+`EVO_AGENT_WAHA_WEBHOOK_SECRET`. The
+new Supabase keys must pass their
+reviewed prefixes; a legacy anon/service-role JWT is reported as legacy, never
+accepted as a substitute. The observed 2026-08-18 state is currently blocked:
+the new root-CRM Platform settings are absent, and the configured Lead-Agent
+amoCRM token file/OAuth refresh material is absent. V2 records those facts and
+continues independent image, rollback, migration and vault-integrity work; it
+cannot return `preparation_verified` or authorize V3.
+
+The V2 implementation PR must add the closed result schema, runtime validator,
+injected command/filesystem seams and negative behavioral tests for symlinks,
+mode/owner drift, collisions, mutable-tag races, platform/label/hash drift,
+partial progression, multiple/no account or organization, vault drift,
+non-deterministic bundles, leaked UUID/private data and false success. Only
+after independent review, exact-head 4/4 CI, squash merge, exact-main green CI,
+a real read-only preflight and a separate action-time token may it perform the
+bounded local build and read-only production capture. This amendment grants no
+V3 production effect.
+
 ## Block V3 — one-boundary rollout
 
 Execute only after the preparation PR and evidence are independently approved:

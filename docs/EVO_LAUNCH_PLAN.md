@@ -3424,3 +3424,21 @@ identity to `p8v2c` / `2026-08-18.p8v2c.1` /
 changes no application candidate, production boundary, provider permission or
 deployment authority. A retry is blocked until implementation review, exact-head
 CI, merge, exact-main CI and the new exact token required after this code change.
+
+### V2.7 P8V2D CRM/Inbox smoke readiness correction
+
+P8V2C retained fail-closed result SHA-256
+`b22ab4614f893a0577d42976612e00cc4b74466886d27c31cf49f03d41642c2a`.
+It stopped during candidate images before any production baseline or later
+phase. The exact Inbox image subsequently passed six real OrbStack smoke
+starts, proving an initial cold-start timing defect in the single immediate
+CRM/Inbox health probe.
+
+P8V2D keeps the exact health response contract and adds at most 30 probes with
+a one-second request timeout and 500-millisecond waits only for the explicit
+transient connection/startup result. Exact owned container/image/running state
+is rechecked before every probe. Wrong HTTP/JSON, exit, identity, ownership,
+restart, OrbStack/context, exhaustion or cleanup drift stays fail-closed. All
+writable retry identities advance to `p8v2d` /
+`2026-08-18.p8v2d.1` / `PREPARE-P8V2D-2026-08-18.P8V2D.1`; P8V2C evidence is
+immutable. No production/provider/import/deployment authority is added.

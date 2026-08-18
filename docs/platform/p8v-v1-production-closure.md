@@ -672,3 +672,30 @@ All P8V2B paths/tags/artifacts are immutable. No production mutation, migration,
 import, provider, deploy, restart, outbound, WAHA, amoCRM or customer-data
 authority is introduced. Retry requires reviewed merge, exact-main green CI and
 the new exact owner token because the reviewed execution code changed.
+
+### V2.7 P8V2D CRM/Inbox smoke readiness retry contract
+
+The P8V2C result SHA-256
+`b22ab4614f893a0577d42976612e00cc4b74466886d27c31cf49f03d41642c2a`
+is immutable. It records `candidate_images` / `candidate_build_failed`, with
+production baseline and all later phases `not_run`; no production/provider
+effect occurred. P8V2C roots, artifacts and tags must not be changed or reused.
+
+For `main_crm` and `evo_inbox`, the runner performs at most 30 health probes.
+Each probe has a one-second timeout. Before every probe the exact container ID,
+immutable image ID, owner nonce and running state are required. Exit code `3`
+is the sole transient connection/startup state and is followed by exactly 500
+milliseconds before another attempt. Exit code `0` is accepted only for HTTP
+200 and the existing exact service JSON. Exit code `2`, any other exit code,
+container exit, ownership/image/restart drift, attempt exhaustion,
+OrbStack/context drift or cleanup failure is terminal. Finally cleanup remains
+bound to the exact owned container ID and proves absence.
+
+Writable identities are exactly release `2026-08-18.p8v2d.1`, version
+`p8v2d-0f1454d0-20260818`, token
+`PREPARE-P8V2D-2026-08-18.P8V2D.1`, `-p8v2d-linux-amd64` tags/archives,
+`p8v2d-` local roots, label `evo.p8v2d.owner`, and remote rollback root
+`/opt/evo-release-evidence/p8v2d-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`.
+All application, knowledge, production, privacy, rollback and no-provider
+boundaries are unchanged. Retry needs reviewed merge, exact-main green CI and
+one fresh exact owner token because execution code changed.

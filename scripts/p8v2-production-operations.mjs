@@ -22,12 +22,15 @@ import { readPortableMetadata, verifyPortableArchive } from "./p8b3-portable-ima
 import { P8V2, verifyP8V2FinalRoot, writeP8V2Result } from "./p8v2-production-preparation.mjs";
 
 const HERMES = "hermes-vps";
-const RELEASE_VERSION = "p8v2c-0f1454d0-20260818";
-const ROLLBACK_ROOT = `/opt/evo-release-evidence/p8v2c-rollback-${P8V2.applicationCommit}-20260818`;
-const SMOKE_OWNER_LABEL = "evo.p8v2c.owner";
+const RELEASE_VERSION = "p8v2d-0f1454d0-20260818";
+const ROLLBACK_ROOT = `/opt/evo-release-evidence/p8v2d-rollback-${P8V2.applicationCommit}-20260818`;
+const SMOKE_OWNER_LABEL = "evo.p8v2d.owner";
 export const PRODUCTION_ROW_TEMPLATE = "{{.Name}}|{{.Id}}|{{.Image}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}|{{.RestartCount}}";
 const LEAD_HEALTH_ATTEMPTS = 30;
 const LEAD_HEALTH_INTERVAL_MS = 500;
+const APP_HEALTH_ATTEMPTS = 30;
+const APP_HEALTH_INTERVAL_MS = 500;
+export const APP_HEALTH_PROBE = "(async()=>{const s=process.argv[1];let r;try{r=await fetch('http://127.0.0.1:3000/api/health',{signal:AbortSignal.timeout(1000)})}catch{process.exit(3)}let j;try{j=await r.json()}catch{process.exit(2)}if(r.status!==200||JSON.stringify(j)!==JSON.stringify({ok:true,status:'live',service:s}))process.exit(2)})()";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SHA64 = /^[0-9a-f]{64}$/;
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
@@ -290,8 +293,21 @@ function waitForLeadHealth(docker, containerId, ownerNonce, imageId, wait) {
   }
 }
 
+function waitForAppHealth(docker, containerId, ownerNonce, imageId, spec, wait) {
+  const service = spec.name === "main_crm" ? "evo-crm" : "evo-inbox-companion";
+  for (let attempt = 1; attempt <= APP_HEALTH_ATTEMPTS; attempt += 1) {
+    const owned = inspectOwnedSmoke(docker, containerId, ownerNonce, imageId);
+    if (owned?.State?.Running !== true || owned?.RestartCount !== 0) fail(`${spec.name} smoke runtime drifted`);
+    const health = docker(["exec", containerId, "node", "-e", APP_HEALTH_PROBE, service], { timeout: 5_000 });
+    if (health.status === 0) return;
+    if (health.status !== 3) fail(`${spec.name} liveness response drifted`);
+    if (attempt === APP_HEALTH_ATTEMPTS) fail(`${spec.name} liveness readiness timed out`);
+    wait(APP_HEALTH_INTERVAL_MS);
+  }
+}
+
 export function smokeImage(docker, spec, imageId, { wait = sleepSync } = {}) {
-  const name = `evo-p8v2c-smoke-${spec.name.replaceAll("_", "-")}-${P8V2.applicationCommit.slice(0, 12)}`;
+  const name = `evo-p8v2d-smoke-${spec.name.replaceAll("_", "-")}-${P8V2.applicationCommit.slice(0, 12)}`;
   const ownerNonce = randomBytes(16).toString("hex");
   const inventory = parseContainerList(requireSuccess(docker(["container", "ls", "-a", "--no-trunc", "--format", "{{.Names}}|{{.ID}}"]), "smoke container inventory"));
   if (inventory.has(name)) fail("smoke container collision", "candidate_build_failed");
@@ -314,8 +330,7 @@ export function smokeImage(docker, spec, imageId, { wait = sleepSync } = {}) {
     if (spec.name === "lead_agent") {
       waitForLeadHealth(docker, containerId, ownerNonce, imageId, wait);
     } else {
-      const health = docker(["exec", name, "node", "-e", "const s=process.argv[1];fetch('http://127.0.0.1:3000/api/health',{signal:AbortSignal.timeout(5000)}).then(async r=>{const j=await r.json();if(r.status!==200||JSON.stringify(j)!==JSON.stringify({ok:true,status:'live',service:s}))process.exit(2)}).catch(()=>process.exit(3))", spec.name === "main_crm" ? "evo-crm" : "evo-inbox-companion"], { timeout: 60_000 });
-      requireSuccess(health, `${spec.name} liveness`);
+      waitForAppHealth(docker, containerId, ownerNonce, imageId, spec, wait);
     }
     const after = inspectOwnedSmoke(docker, containerId, ownerNonce, imageId);
     if (after?.Id !== containerId || after?.Image !== imageId || after?.State?.Running !== true || after?.RestartCount !== 0) fail("smoke final identity drifted");
@@ -519,12 +534,12 @@ export async function createP8V2Operations({
   makeKnowledgeRoot,
   buildKnowledgeBundle,
 } = {}) {
-  if (environment.EVO_P8V2C_AUTHORIZATION !== P8V2.authorization) fail("exact P8V2C authorization is required");
+  if (environment.EVO_P8V2D_AUTHORIZATION !== P8V2.authorization) fail("exact P8V2D authorization is required");
   const evidenceParent = join(sourceRoot, ".evo-release-evidence");
-  const buildRoot = join(evidenceParent, `p8v2c-build-${P8V2.applicationCommit}-20260818`);
-  const portableRoot = join(evidenceParent, `p8v2c-portable-${P8V2.applicationCommit}-20260818`);
-  const knowledgeRoot = join(evidenceParent, `p8v2c-knowledge-${P8V2.applicationCommit}-20260818`);
-  const finalRoot = join(evidenceParent, `p8v2c-preparation-${P8V2.applicationCommit}-20260818`);
+  const buildRoot = join(evidenceParent, `p8v2d-build-${P8V2.applicationCommit}-20260818`);
+  const portableRoot = join(evidenceParent, `p8v2d-portable-${P8V2.applicationCommit}-20260818`);
+  const knowledgeRoot = join(evidenceParent, `p8v2d-knowledge-${P8V2.applicationCommit}-20260818`);
+  const finalRoot = join(evidenceParent, `p8v2d-preparation-${P8V2.applicationCommit}-20260818`);
   const docker = createDockerExecutor(run);
   const state = { accountId: null, organizationId: null, images: [], rollback: null, knowledge: null, knowledgeRoots: [] };
 
@@ -595,7 +610,7 @@ export async function createP8V2Operations({
         platform: { os: "linux", architecture: "amd64", variant: "" },
       });
     }
-    atomicJson(join(portableRoot, "portable-image-identity.json"), { version: "p8v2c-portable-image-identity.v1", source_commit: P8V2.applicationCommit, source_tree: P8V2.applicationTree, images: records });
+    atomicJson(join(portableRoot, "portable-image-identity.json"), { version: "p8v2d-portable-image-identity.v1", source_commit: P8V2.applicationCommit, source_tree: P8V2.applicationTree, images: records });
     state.images = records;
     return records;
   }
@@ -642,7 +657,7 @@ export async function createP8V2Operations({
     ensureEvidenceParent();
     createExclusiveDirectory(knowledgeRoot);
     const builder = buildKnowledgeBundle ?? ((args) => buildBundleDefault({ ...args, run }));
-    const makeRoot = makeKnowledgeRoot ?? (() => mkdtempSync(join(evidenceParent, "p8v2c-private-build-")));
+    const makeRoot = makeKnowledgeRoot ?? (() => mkdtempSync(join(evidenceParent, "p8v2d-private-build-")));
     const audiences = [];
     const roots = [];
     let primaryError;

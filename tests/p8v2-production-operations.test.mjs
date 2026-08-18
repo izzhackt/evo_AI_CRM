@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { mkdir, readFile, realpath, stat, symlink, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 
 import {
+  APP_HEALTH_PROBE,
   assertBuildLogSafe,
   createDockerExecutor,
   createP8V2Operations,
@@ -20,11 +24,12 @@ import {
 import { P8V2 } from "../scripts/p8v2-production-preparation.mjs";
 
 const IMAGE_ID = `sha256:${"a".repeat(64)}`;
+const execFileAsync = promisify(execFile);
 
-function leadSmokeHarness({ healthStatuses, running = true, cleanupName = null, foreignAtCleanup = false }) {
+function smokeHarness({ spec = P8V2.images[2], healthStatuses, running = true, cleanupName = null, foreignAtCleanup = false }) {
   const containerId = "c".repeat(64);
   const foreignId = "f".repeat(64);
-  const name = `evo-p8v2c-smoke-lead-agent-${P8V2.applicationCommit.slice(0, 12)}`;
+  const name = `evo-p8v2d-smoke-${spec.name.replaceAll("_", "-")}-${P8V2.applicationCommit.slice(0, 12)}`;
   const removed = [];
   const waits = [];
   const execTargets = [];
@@ -51,7 +56,7 @@ function leadSmokeHarness({ healthStatuses, running = true, cleanupName = null, 
         Id: containerId,
         Image: IMAGE_ID,
         State: { Running: running },
-        Config: { Labels: { "evo.p8v2c.owner": ownerNonce } },
+        Config: { Labels: { "evo.p8v2d.owner": ownerNonce } },
         HostConfig: { NetworkMode: "none", RestartPolicy: { Name: "no" } },
         Mounts: [],
         RestartCount: 0,
@@ -122,14 +127,14 @@ test("one shared producer renders the exact five-row baseline command", () => {
   assert.equal(renderProductionScript(), expected);
   assert.doesNotMatch(expected, /\(if|\(else|\(end/);
 
-  const fixtures = names.map((_, index) => `evo-p8v2c-baseline-${index}-${"a".repeat(24)}`);
+  const fixtures = names.map((_, index) => `evo-p8v2d-baseline-${index}-${"a".repeat(24)}`);
   assert.deepEqual(renderProductionInspectCommands(fixtures).map((args) => args[3]), fixtures);
   assert.throws(() => renderProductionInspectCommands([...fixtures.slice(0, 4), fixtures[0]]), /names are invalid/);
 });
 
 test("malformed docker run output still removes the exact newly-created smoke container", () => {
   const containerId = "d".repeat(64);
-  const name = `evo-p8v2c-smoke-main-crm-${P8V2.applicationCommit.slice(0, 12)}`;
+  const name = `evo-p8v2d-smoke-main-crm-${P8V2.applicationCommit.slice(0, 12)}`;
   const removed = [];
   let inventoryCall = 0;
   let ownerNonce = null;
@@ -139,7 +144,7 @@ test("malformed docker run output still removes the exact newly-created smoke co
       return { status: 0, stdout: inventoryCall === 1 || removed.length ? "" : `${name}|${containerId}\n`, stderr: "" };
     }
     if (args[0] === "run") { ownerNonce = args[args.indexOf("--label") + 1].split("=")[1]; return { status: 0, stdout: "noisy-output\n", stderr: "" }; }
-    if (args[0] === "container" && args[1] === "inspect") return { status: 0, stdout: JSON.stringify([{ Id: containerId, Image: IMAGE_ID, Config: { Labels: { "evo.p8v2c.owner": ownerNonce } } }]), stderr: "" };
+    if (args[0] === "container" && args[1] === "inspect") return { status: 0, stdout: JSON.stringify([{ Id: containerId, Image: IMAGE_ID, Config: { Labels: { "evo.p8v2d.owner": ownerNonce } } }]), stderr: "" };
     if (args[0] === "container" && args[1] === "rm") { removed.push(args.at(-1)); return { status: 0, stdout: "", stderr: "" }; }
     throw new Error(`unexpected docker call: ${args.join(" ")}`);
   };
@@ -149,13 +154,13 @@ test("malformed docker run output still removes the exact newly-created smoke co
 
 test("failed smoke run never removes a foreign container that races onto the reserved name", () => {
   const foreignId = "e".repeat(64);
-  const name = `evo-p8v2c-smoke-main-crm-${P8V2.applicationCommit.slice(0, 12)}`;
+  const name = `evo-p8v2d-smoke-main-crm-${P8V2.applicationCommit.slice(0, 12)}`;
   let inventoryCall = 0;
   const removed = [];
   const docker = (args) => {
     if (args[0] === "container" && args[1] === "ls") { inventoryCall += 1; return { status: 0, stdout: inventoryCall === 1 ? "" : `${name}|${foreignId}\n`, stderr: "" }; }
     if (args[0] === "run") return { status: 1, stdout: "", stderr: "synthetic failure", signal: null };
-    if (args[0] === "container" && args[1] === "inspect") return { status: 0, stdout: JSON.stringify([{ Id: foreignId, Image: IMAGE_ID, Config: { Labels: { "evo.p8v2c.owner": "foreign" } } }]), stderr: "" };
+    if (args[0] === "container" && args[1] === "inspect") return { status: 0, stdout: JSON.stringify([{ Id: foreignId, Image: IMAGE_ID, Config: { Labels: { "evo.p8v2d.owner": "foreign" } } }]), stderr: "" };
     if (args[0] === "container" && args[1] === "rm") { removed.push(args.at(-1)); return { status: 0, stdout: "", stderr: "" }; }
     throw new Error(`unexpected docker call: ${args.join(" ")}`);
   };
@@ -164,7 +169,7 @@ test("failed smoke run never removes a foreign container that races onto the res
 });
 
 test("Lead Agent smoke waits in exact 500ms intervals and accepts delayed exact health", () => {
-  const harness = leadSmokeHarness({ healthStatuses: [10, 10, 0] });
+  const harness = smokeHarness({ healthStatuses: [10, 10, 0] });
   const smoke = smokeImage(harness.docker, P8V2.images[2], IMAGE_ID, { wait: harness.wait });
   assert.match(smoke.toString(), /result_code=liveness_verified/);
   assert.equal(harness.healthCalls(), 3);
@@ -175,7 +180,7 @@ test("Lead Agent smoke waits in exact 500ms intervals and accepts delayed exact 
 });
 
 test("Lead Agent smoke blocks after exactly 30 startup failures and still cleans up", () => {
-  const harness = leadSmokeHarness({ healthStatuses: [10] });
+  const harness = smokeHarness({ healthStatuses: [10] });
   assert.throws(() => smokeImage(harness.docker, P8V2.images[2], IMAGE_ID, { wait: harness.wait }), /timed out/);
   assert.equal(harness.healthCalls(), 30);
   assert.equal(harness.waits.length, 29);
@@ -184,7 +189,7 @@ test("Lead Agent smoke blocks after exactly 30 startup failures and still cleans
 });
 
 test("Lead Agent smoke rejects malformed health immediately and still cleans up", () => {
-  const harness = leadSmokeHarness({ healthStatuses: [20] });
+  const harness = smokeHarness({ healthStatuses: [20] });
   assert.throws(() => smokeImage(harness.docker, P8V2.images[2], IMAGE_ID, { wait: harness.wait }), /response drifted/);
   assert.equal(harness.healthCalls(), 1);
   assert.deepEqual(harness.waits, []);
@@ -192,24 +197,75 @@ test("Lead Agent smoke rejects malformed health immediately and still cleans up"
 });
 
 test("Lead Agent smoke rejects an exited owned container before any health request", () => {
-  const harness = leadSmokeHarness({ healthStatuses: [0], running: false });
+  const harness = smokeHarness({ healthStatuses: [0], running: false });
   assert.throws(() => smokeImage(harness.docker, P8V2.images[2], IMAGE_ID, { wait: harness.wait }), /container exited/);
   assert.equal(harness.healthCalls(), 0);
   assert.deepEqual(harness.removed, ["c".repeat(64)]);
 });
 
 test("Lead Agent cleanup removes the captured ID after the owned container is renamed", () => {
-  const harness = leadSmokeHarness({ healthStatuses: [0], cleanupName: "renamed-owned-smoke" });
+  const harness = smokeHarness({ healthStatuses: [0], cleanupName: "renamed-owned-smoke" });
   const smoke = smokeImage(harness.docker, P8V2.images[2], IMAGE_ID, { wait: harness.wait });
   assert.match(smoke.toString(), /result_code=liveness_verified/);
   assert.deepEqual(harness.removed, [harness.containerId]);
 });
 
 test("Lead Agent cleanup removes only the owned ID and blocks a foreign name rebind", () => {
-  const harness = leadSmokeHarness({ healthStatuses: [0], cleanupName: "renamed-owned-smoke", foreignAtCleanup: true });
+  const harness = smokeHarness({ healthStatuses: [0], cleanupName: "renamed-owned-smoke", foreignAtCleanup: true });
   assert.throws(() => smokeImage(harness.docker, P8V2.images[2], IMAGE_ID, { wait: harness.wait }), /foreign smoke container/);
   assert.deepEqual(harness.removed, [harness.containerId]);
   assert.ok(!harness.removed.includes("f".repeat(64)));
+});
+
+test("Inbox smoke polls the immutable owned container through delayed startup", () => {
+  const spec = P8V2.images[1];
+  const harness = smokeHarness({ spec, healthStatuses: [3, 3, 0] });
+  const smoke = smokeImage(harness.docker, spec, IMAGE_ID, { wait: harness.wait });
+  assert.match(smoke.toString(), /result_code=liveness_verified/);
+  assert.equal(harness.healthCalls(), 3);
+  assert.deepEqual(harness.waits, [500, 500]);
+  assert.ok(harness.execTargets.every((target) => target === harness.containerId));
+  assert.ok(harness.inspectTargets.every((target) => target === harness.containerId));
+  assert.deepEqual(harness.removed, [harness.containerId]);
+});
+
+test("app probe classifies a real malformed response as terminal and smoke does not retry", async () => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/plain" });
+    response.end("not-json");
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const probe = APP_HEALTH_PROBE.replace("http://127.0.0.1:3000/api/health", `http://127.0.0.1:${address.port}/api/health`);
+    await assert.rejects(
+      execFileAsync(process.execPath, ["-e", probe, "evo-crm"]),
+      (error) => error?.code === 2,
+    );
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+
+  const spec = P8V2.images[0];
+  const harness = smokeHarness({ spec, healthStatuses: [2, 0] });
+  assert.throws(() => smokeImage(harness.docker, spec, IMAGE_ID, { wait: harness.wait }), /response drifted/);
+  assert.equal(harness.healthCalls(), 1);
+  assert.deepEqual(harness.waits, []);
+  assert.deepEqual(harness.removed, [harness.containerId]);
+});
+
+test("Inbox smoke blocks after 30 transient startup failures and still cleans up", () => {
+  const spec = P8V2.images[1];
+  const harness = smokeHarness({ spec, healthStatuses: [3] });
+  assert.throws(() => smokeImage(harness.docker, spec, IMAGE_ID, { wait: harness.wait }), /timed out/);
+  assert.equal(harness.healthCalls(), 30);
+  assert.equal(harness.waits.length, 29);
+  assert.ok(harness.waits.every((milliseconds) => milliseconds === 500));
+  assert.deepEqual(harness.removed, [harness.containerId]);
 });
 
 test("Inbox build output rejects every exact process-only configured value before retention", () => {
@@ -229,7 +285,7 @@ test("candidate identity requires immutable ID, exact labels and an empty varian
     Config: { Labels: {
       "org.opencontainers.image.revision": P8V2.applicationCommit,
       "org.opencontainers.image.source": P8V2.source,
-      "org.opencontainers.image.version": "p8v2c-0f1454d0-20260818",
+      "org.opencontainers.image.version": "p8v2d-0f1454d0-20260818",
     } },
   };
   assert.equal(validateCandidateImage(inspect, spec), IMAGE_ID);
@@ -277,7 +333,7 @@ test("knowledge builds remove every UUID-bearing root even when the second build
     toolRoot: process.cwd(),
     sourceRoot: process.cwd(),
     environment: {
-      EVO_P8V2C_AUTHORIZATION: P8V2.authorization,
+      EVO_P8V2D_AUTHORIZATION: P8V2.authorization,
       EVO_P8V2_SUPABASE_URL: "https://iosckaqtovbbnssqcpde.supabase.co",
       EVO_P8V2_SUPABASE_ACCESS_TOKEN: "process-only-management-token",
       EVO_P8V2_SUPABASE_SERVICE_ROLE_KEY: "process-only-service-key",
@@ -307,7 +363,7 @@ test("an existing symlinked evidence parent is rejected before chmod or writes",
   await symlink(target, join(sourceRoot, ".evo-release-evidence"));
   const operations = await createP8V2Operations({
     toolRoot: process.cwd(), sourceRoot,
-    environment: { EVO_P8V2C_AUTHORIZATION: P8V2.authorization },
+    environment: { EVO_P8V2D_AUTHORIZATION: P8V2.authorization },
     buildKnowledgeBundle: async () => { throw new Error("must not build"); },
   });
   operations.__testState.accountId = "00000000-0000-4000-8000-000000000001";

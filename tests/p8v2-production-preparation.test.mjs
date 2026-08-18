@@ -25,7 +25,7 @@ const IMAGE_ID = `sha256:${"b".repeat(64)}`;
 
 test("real preparation CLI fails closed without authorization and does not deadlock", () => {
   const environment = { ...process.env };
-  delete environment.EVO_P8V2C_AUTHORIZATION;
+  delete environment.EVO_P8V2D_AUTHORIZATION;
   const result = spawnSync(
     process.execPath,
     [fileURLToPath(new URL("../scripts/p8v2-production-preparation-cli.mjs", import.meta.url)), "--application-root", tmpdir()],
@@ -33,15 +33,15 @@ test("real preparation CLI fails closed without authorization and does not deadl
   );
   assert.equal(result.status, 2);
   assert.equal(result.stdout, "");
-  assert.equal(result.stderr, "p8v2c_failed:operation_failed\n");
+  assert.equal(result.stderr, "p8v2d_failed:operation_failed\n");
   assert.doesNotMatch(`${result.stdout}${result.stderr}`, /unsettled top-level await/i);
 });
 
 function verifiedImage(name, prefix) {
   return {
     name,
-    tag: `${prefix}:${P8V2.applicationCommit}-p8v2c-linux-amd64`,
-    archive: `${prefix}-${P8V2.applicationCommit}-p8v2c-linux-amd64.tar`,
+    tag: `${prefix}:${P8V2.applicationCommit}-p8v2d-linux-amd64`,
+    archive: `${prefix}-${P8V2.applicationCommit}-p8v2d-linux-amd64.tar`,
     image_id: IMAGE_ID,
     oci_index_digest: IMAGE_ID,
     platform_manifest_digest: `sha256:${"c".repeat(64)}`,
@@ -314,7 +314,7 @@ test("evidence publication verifies exact six-artifact index and rejects drift o
   for (const file of artifacts) {
     const path = join(root, file);
     let retained = null;
-    if (file === "portable-image-identity.json") retained = { version: "p8v2c-portable-image-identity.v1", source_commit: P8V2.applicationCommit, source_tree: P8V2.applicationTree, images: value.images };
+    if (file === "portable-image-identity.json") retained = { version: "p8v2d-portable-image-identity.v1", source_commit: P8V2.applicationCommit, source_tree: P8V2.applicationTree, images: value.images };
     if (file === "knowledge-build-result.json") retained = value.knowledge;
     if (file === "rollback-capture.json") retained = value.rollback;
     const bytes = Buffer.from(retained ? `${JSON.stringify(retained)}\n` : `${file}\n`);

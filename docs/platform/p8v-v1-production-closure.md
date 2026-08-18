@@ -699,3 +699,93 @@ Writable identities are exactly release `2026-08-18.p8v2d.1`, version
 All application, knowledge, production, privacy, rollback and no-provider
 boundaries are unchanged. Retry needs reviewed merge, exact-main green CI and
 one fresh exact owner token because execution code changed.
+
+## P8V2E correction — independent readiness after P8V2D stop
+
+P8V2D retained immutable UUID-free result SHA-256
+`a050cd16b1d48fa089031bc3a4240b8e55f3b492c89addc7376d8016de5e63b7`.
+It verified candidates, production baseline, migration ledger and rollback,
+then stopped at identity resolution with every later effect absent. P8V2E does
+not repeat or replace those components.
+
+P8V2E validates that exact result as a regular mode-`0600` closed-schema file
+and scans its untouched bytes for UUIDs, credentials, contacts and private
+paths. It validates both frozen vault sources independently of account binding
+using the existing canonical marker/root, symlink, UTF-8, Markdown, PII and
+forbidden-root rules. The deterministic source-set projection contains only
+`{source_path, source_sha256}` records. Every `source_path` is the existing NFC
+normalized POSIX-relative path, records are sorted by that exact path, object
+keys are lexicographically sorted, and the array is serialized as UTF-8 JSON
+with `ensure_ascii=false`, separators exactly `(',', ':')`, no indentation and
+one final LF byte. The SHA-256 is over those exact bytes. A golden behavioral
+test must reproduce both frozen hashes from the real helper and reject changed
+order, Unicode normalization, escaping, separators or missing final LF. Exact
+safe outputs are client
+count `11`, SHA-256
+`c8dcfdd7911fdf2b97204c5d843dbf45f701d5dbee72e78cfaea17ea7ab18689`,
+and internal count `291`, SHA-256
+`1bd7458ff70c0a31fde9f6bb1abfb7ec0152c1f286caf2a1de48081860121f9f`.
+No bundle, manifest or report containing an account UUID is produced unless a
+later authorized operation has a singular live account.
+
+Identity observation uses the process-only `SUPABASE_ACCESS_TOKEN`. Project
+status comes separately from `GET /v1/projects/iosckaqtovbbnssqcpde` and must
+be HTTP `200` with bounded raw bytes that parse as an object. Its official
+`ref` field must be the fixed project reference and `status` must be
+`ACTIVE_HEALTHY`; missing/wrong types or values block. Other official response
+fields are ignored and only safe reference-match/status values enter evidence.
+Identity rows come only from
+`POST /v1/projects/iosckaqtovbbnssqcpde/database/query/read-only`; request JSON
+has exactly the `query` key, the response must be HTTP `201`, and the bounded
+body must be an array of at most four closed `{kind,id}` rows. `kind` is exactly
+`account` or `organization`; `id` must be a canonical UUID. The schema-qualified
+SQL returns at most two distinct active `public.ai_configs.account_id` rows and
+two `platform.organizations.id` rows where `status = 'active'`.
+Received UUIDs remain in memory only. Evidence uses only `none_active`,
+`exactly_one_active` or `multiple_active`, plus exact-production project status.
+Transport, HTTP, body, row-shape or cardinality drift blocks without fallback
+to PostgREST or a guessed identity.
+
+The Hermes configuration observation reads only the existing exact env paths.
+When a singular identity exists, its UUID and the fixed Supabase URL are sent
+only as a bounded three-line SSH stdin frame to a fixed `bash -seu` script;
+stdin is not command text or an environment variable, shell tracing is never
+enabled, and the script validates framing before reading root-only files. The
+remote comparison emits only booleans, `not_comparable` and closed blocker
+codes. Malformed/duplicate env entries and an amoCRM token file that is not an
+approved-contained regular non-symlink root-owned mode-`0600` file block.
+Transport/parse failure uses `configuration_observation_failed`, never a
+fabricated settings result. Tests use UUID sentinels and require their absence from argv, stdout,
+stderr, exceptions and retained bytes.
+It records the closed root-CRM, Lead-Agent and manual-worker blocker codes and
+presence/format statuses defined by V2, never values. Identity equality is
+`true` or `false` only when the corresponding identity is singular and is
+otherwise `not_comparable`. The observation does not create or edit any env
+file, organization, account, token or service.
+
+The result schema path is
+`docs/schemas/p8v2e-independent-readiness-result.schema.json`. The retained root
+is exactly
+`.evo-release-evidence/p8v2e-readiness-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`
+and contains only `readiness-result.json`, a regular mode-`0600` file. Result
+codes are `readiness_verified`, `readiness_blocked` and `evidence_failed`.
+Verified requires exact retained P8V2D, both source sets, singular account and
+organization, exact project and zero configuration blockers. Blocked requires
+at least one closed readiness blocker while retaining all other completed
+independent records. Closed blocker codes include retained-result SHA/mode/
+schema/privacy drift; client/internal marker, root, count, source-set hash,
+symlink, UTF-8, Markdown, PII and forbidden-root drift; Management API project,
+transport, HTTP, body, row/cardinality drift; and the existing configuration
+blockers. `evidence_failed` is reserved for failure to publish or remove the
+single local result safely. Atomic write, final allowlist/mode/hash/schema/privacy
+verification and partial-file cleanup are mandatory. The runner binds its own
+clean current-main commit/tree and singular successful exact-main push CI plus
+the exact frozen application commit/tree; it fails before remote reads if any
+execution identity drifts.
+
+The exact token is `PREPARE-P8V2E-2026-08-18.P8V2E.1`. It grants only the
+described read-only local/Management-API/SSH checks and safe local evidence
+write. It grants no Docker command, candidate mutation, rollback rewrite,
+migration/import, provider call, deployment, restart, WAHA/amoCRM mutation,
+outbound send, Auth change or customer-data access. Implementation, behavioral
+negative tests, independent review, merge and exact-main CI must precede use.

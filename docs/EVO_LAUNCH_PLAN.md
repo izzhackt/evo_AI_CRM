@@ -3442,3 +3442,46 @@ restart, OrbStack/context, exhaustion or cleanup drift stays fail-closed. All
 writable retry identities advance to `p8v2d` /
 `2026-08-18.p8v2d.1` / `PREPARE-P8V2D-2026-08-18.P8V2D.1`; P8V2C evidence is
 immutable. No production/provider/import/deployment authority is added.
+
+### V2.8 P8V2E independent-readiness supplement
+
+P8V2E preserves the immutable P8V2D result SHA-256
+`a050cd16b1d48fa089031bc3a4240b8e55f3b492c89addc7376d8016de5e63b7`,
+all P8V2D roots/tags and the Hermes rollback root. It performs no candidate
+build, smoke, SBOM, archive, rollback capture or production effect.
+
+The supplement closes the P8V2D evidence gap with four independent read-only
+records: exact retained-result validation; UUID-free source-vault validation
+for frozen client `11` / source-set SHA
+`c8dcfdd7911fdf2b97204c5d843dbf45f701d5dbee72e78cfaea17ea7ab18689`
+and internal `291` / source-set SHA
+`1bd7458ff70c0a31fde9f6bb1abfb7ec0152c1f286caf2a1de48081860121f9f`;
+schema-qualified bounded identity observation through the Supabase Management
+API read-only SQL endpoint; and UUID/value-free configuration observation.
+Missing identity or settings remain blockers, but cannot suppress independent
+vault/configuration evidence. No account-bound bundle is built unless the live
+account is singular; no identity is invented.
+
+Source-set bytes are the source-path-sorted array of exact
+`{source_path,source_sha256}` records, using NFC POSIX-relative paths,
+lexicographically sorted keys, UTF-8 JSON with `ensure_ascii=false`, compact
+comma/colon separators and one final LF. Management API verification requires
+separate exact-project HTTP 200/`ACTIVE_HEALTHY` and read-only-query HTTP 201
+responses. The bounded official project object is validated through exact
+`ref` and `status` fields; unrelated official fields are ignored. Any singular
+UUID reaches Hermes only through bounded three-line SSH stdin to one fixed
+`bash -seu` command; output/evidence remains UUID-free. Malformed/duplicate env
+input, unsafe amoCRM token files and remote transport/parse failure have closed
+blockers. Retained-result,
+source-vault, identity/project and configuration drift each has a closed
+`readiness_blocked` code; only unsafe result publication/removal is
+`evidence_failed`.
+
+The only writable path is a new local mode-`0700`
+`p8v2e-readiness-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`
+root containing one closed-schema mode-`0600` result. Authorization is exactly
+`PREPARE-P8V2E-2026-08-18.P8V2E.1`. It grants no Docker, SSH write, migration,
+import, provider, deployment, restart, WAHA/amoCRM, outbound, Auth or
+customer-data effect. After reviewed merge and exact-main CI, one P8V2E run may
+precede the single minimal production preflight and one deployment-plus-rollback
+authorization.

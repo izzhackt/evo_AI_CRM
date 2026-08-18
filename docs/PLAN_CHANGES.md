@@ -8875,3 +8875,88 @@ Writable identities advance to release `2026-08-18.p8v2d.1`, version
 The frozen application, 11/291 knowledge, production, rollback and provider
 boundaries do not change. One reviewed PR, exact-head CI, merge, exact-main CI
 and one fresh owner token are required; the consumed P8V2C token is never reused.
+
+---
+
+## 2026-08-18 — P8V2E independent-readiness evidence correction
+
+Block-ID: `EVO-P8V2E-INDEPENDENT-READINESS-2026-08-18`
+
+Issue: #306
+
+The exact P8V2D token was consumed on merged execution commit
+`a9f95998298620970a5eba3d6447ad57aa0e1648`, tree
+`50d6a817d8bc3b9680b45504beb0a79257904a7b`, after exact-main CI run
+`32132550619` completed successfully. The attempt retained a regular
+mode-`0600`, UUID-free result with SHA-256
+`a050cd16b1d48fa089031bc3a4240b8e55f3b492c89addc7376d8016de5e63b7`.
+Candidate images, the five-container production baseline, migration ledger and
+rollback capture verified. The result then stopped safely at identity
+resolution; knowledge, configuration and publication remained `not_run`. No
+migration, import, provider call, deployment, restart, WAHA/amoCRM mutation,
+outbound send or customer-data effect occurred. All P8V2D evidence, candidate
+tags and the Hermes rollback root are immutable.
+
+The stop exposed two launch-control defects. The identity resolver used one
+PostgREST profile for tables in different schemas and queried a non-existent
+organization activity column. More importantly, the prefix-only result state
+machine erased the independent vault-integrity and safe configuration checks
+that the approved V2 contract requires even when identity readiness blocks.
+
+P8V2E is one read-only supplemental completion, not another image build or
+rollback capture. It first validates the exact retained P8V2D result SHA,
+schema, mode and privacy boundary. It then validates the frozen source vaults
+without an account UUID: exact canonical marker/root, regular non-symlink UTF-8
+Markdown only, PII/forbidden-root gates, client count `11` and deterministic
+source-set SHA-256
+`c8dcfdd7911fdf2b97204c5d843dbf45f701d5dbee72e78cfaea17ea7ab18689`,
+internal count `291` and source-set SHA-256
+`1bd7458ff70c0a31fde9f6bb1abfb7ec0152c1f286caf2a1de48081860121f9f`.
+It never builds an account-bound bundle when the required live identity is not
+singular.
+
+The source-set digest is over a source-path-sorted array of exact
+`{source_path,source_sha256}` records. Paths are NFC POSIX-relative; JSON keys
+are lexicographically sorted; serialization is compact UTF-8 with
+`ensure_ascii=false` and one trailing LF. Golden tests bind both hashes.
+
+Live identity is read only through the official Supabase Management API
+using the existing process-only access token. A separate exact-project GET must
+return bounded HTTP 200 JSON with exact `ref` and `ACTIVE_HEALTHY` `status`
+while ignoring unrelated official fields; the read-only SQL POST must return HTTP
+201 and at most four closed `{kind,id}` rows. The query is schema-qualified and
+bounded to at most two active `public.ai_configs` accounts
+and two active `platform.organizations` rows where `status = 'active'`; UUIDs
+never enter stdout, stderr, commands or evidence. Configuration observation is
+also read only and retains only exact setting-name presence/format statuses and
+closed blocker codes. Equality is recorded only when the corresponding live
+identity is singular; no missing organization/account is invented.
+Any singular UUID is delivered to the fixed no-trace Hermes comparison script
+only through a bounded three-line SSH stdin frame; tests prove it never appears
+in argv/output/errors/evidence. The fixed invocation is `bash -seu`; malformed
+or duplicate env entries, unsafe amoCRM token files and remote transport/parse
+failure use closed blockers rather than a guessed configuration result.
+
+The supplemental result is a single regular mode-`0600` JSON in a new
+mode-`0700` `p8v2e-readiness-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`
+root. Its closed schema permits `readiness_verified`, `readiness_blocked` and
+`evidence_failed`, and independently records retained-P8V2D validation, source
+vault integrity, identity observation and configuration observation. A blocked
+identity/configuration cannot be reported as verified. The exact token is
+`PREPARE-P8V2E-2026-08-18.P8V2E.1`; it grants only these read-only checks and
+local safe-evidence publication. It grants no Docker build, image/tag/archive
+change, remote rollback rewrite, migration/import, provider, deploy, restart,
+WAHA/amoCRM, outbound, Auth or customer-data authority.
+
+`readiness_blocked` also has closed codes for retained-result SHA/mode/schema/
+privacy drift and every source-vault marker/root/count/hash/symlink/UTF-8/
+Markdown/PII/forbidden-root failure, as well as identity/project and
+configuration blockers. Independent records still run when safe. Only unsafe
+result publication/removal is `evidence_failed`. Execution binds a clean
+current-main commit/tree, singular successful exact-main push CI and the frozen
+application commit/tree before any remote read.
+
+One implementation PR, one independent review and exact-head/exact-main CI are
+required. After the supplemental result is reviewed, the release uses one
+short essential production preflight and asks once for the clearly bounded
+deployment-plus-rollback window. The consumed P8V2D token is never reused.

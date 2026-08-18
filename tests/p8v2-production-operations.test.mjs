@@ -10,6 +10,9 @@ import {
   createP8V2Operations,
   parseProductionRows,
   P8V2_KNOWLEDGE_SOURCES,
+  PRODUCTION_ROW_TEMPLATE,
+  renderProductionInspectCommands,
+  renderProductionScript,
   smokeImage,
   validateCandidateImage,
   validateConfigurationSnapshot,
@@ -21,7 +24,7 @@ const IMAGE_ID = `sha256:${"a".repeat(64)}`;
 function leadSmokeHarness({ healthStatuses, running = true, cleanupName = null, foreignAtCleanup = false }) {
   const containerId = "c".repeat(64);
   const foreignId = "f".repeat(64);
-  const name = `evo-p8v2b-smoke-lead-agent-${P8V2.applicationCommit.slice(0, 12)}`;
+  const name = `evo-p8v2c-smoke-lead-agent-${P8V2.applicationCommit.slice(0, 12)}`;
   const removed = [];
   const waits = [];
   const execTargets = [];
@@ -48,7 +51,7 @@ function leadSmokeHarness({ healthStatuses, running = true, cleanupName = null, 
         Id: containerId,
         Image: IMAGE_ID,
         State: { Running: running },
-        Config: { Labels: { "evo.p8v2b.owner": ownerNonce } },
+        Config: { Labels: { "evo.p8v2c.owner": ownerNonce } },
         HostConfig: { NetworkMode: "none", RestartPolicy: { Name: "no" } },
         Mounts: [],
         RestartCount: 0,
@@ -108,9 +111,25 @@ test("every Docker command is immediately preceded by the exact OrbStack checks"
   assert.throws(() => drift(["image", "ls"]), /orbstack/);
 });
 
+test("one shared producer renders the exact five-row baseline command", () => {
+  const names = P8V2.productionContainers.map((item) => item.name);
+  const commands = renderProductionInspectCommands();
+  assert.equal(commands.length, 5);
+  assert.deepEqual(commands.map((args) => args[3]), names);
+  assert.ok(commands.every((args) => args[0] === "inspect" && args[1] === "--format" && args[2] === PRODUCTION_ROW_TEMPLATE));
+
+  const expected = `set -o pipefail\n${names.map((name) => `docker inspect --format '${PRODUCTION_ROW_TEMPLATE}' '${name}' | sed 's#^/##'`).join("\n")}`;
+  assert.equal(renderProductionScript(), expected);
+  assert.doesNotMatch(expected, /\(if|\(else|\(end/);
+
+  const fixtures = names.map((_, index) => `evo-p8v2c-baseline-${index}-${"a".repeat(24)}`);
+  assert.deepEqual(renderProductionInspectCommands(fixtures).map((args) => args[3]), fixtures);
+  assert.throws(() => renderProductionInspectCommands([...fixtures.slice(0, 4), fixtures[0]]), /names are invalid/);
+});
+
 test("malformed docker run output still removes the exact newly-created smoke container", () => {
   const containerId = "d".repeat(64);
-  const name = `evo-p8v2b-smoke-main-crm-${P8V2.applicationCommit.slice(0, 12)}`;
+  const name = `evo-p8v2c-smoke-main-crm-${P8V2.applicationCommit.slice(0, 12)}`;
   const removed = [];
   let inventoryCall = 0;
   let ownerNonce = null;
@@ -120,7 +139,7 @@ test("malformed docker run output still removes the exact newly-created smoke co
       return { status: 0, stdout: inventoryCall === 1 || removed.length ? "" : `${name}|${containerId}\n`, stderr: "" };
     }
     if (args[0] === "run") { ownerNonce = args[args.indexOf("--label") + 1].split("=")[1]; return { status: 0, stdout: "noisy-output\n", stderr: "" }; }
-    if (args[0] === "container" && args[1] === "inspect") return { status: 0, stdout: JSON.stringify([{ Id: containerId, Image: IMAGE_ID, Config: { Labels: { "evo.p8v2b.owner": ownerNonce } } }]), stderr: "" };
+    if (args[0] === "container" && args[1] === "inspect") return { status: 0, stdout: JSON.stringify([{ Id: containerId, Image: IMAGE_ID, Config: { Labels: { "evo.p8v2c.owner": ownerNonce } } }]), stderr: "" };
     if (args[0] === "container" && args[1] === "rm") { removed.push(args.at(-1)); return { status: 0, stdout: "", stderr: "" }; }
     throw new Error(`unexpected docker call: ${args.join(" ")}`);
   };
@@ -130,13 +149,13 @@ test("malformed docker run output still removes the exact newly-created smoke co
 
 test("failed smoke run never removes a foreign container that races onto the reserved name", () => {
   const foreignId = "e".repeat(64);
-  const name = `evo-p8v2b-smoke-main-crm-${P8V2.applicationCommit.slice(0, 12)}`;
+  const name = `evo-p8v2c-smoke-main-crm-${P8V2.applicationCommit.slice(0, 12)}`;
   let inventoryCall = 0;
   const removed = [];
   const docker = (args) => {
     if (args[0] === "container" && args[1] === "ls") { inventoryCall += 1; return { status: 0, stdout: inventoryCall === 1 ? "" : `${name}|${foreignId}\n`, stderr: "" }; }
     if (args[0] === "run") return { status: 1, stdout: "", stderr: "synthetic failure", signal: null };
-    if (args[0] === "container" && args[1] === "inspect") return { status: 0, stdout: JSON.stringify([{ Id: foreignId, Image: IMAGE_ID, Config: { Labels: { "evo.p8v2b.owner": "foreign" } } }]), stderr: "" };
+    if (args[0] === "container" && args[1] === "inspect") return { status: 0, stdout: JSON.stringify([{ Id: foreignId, Image: IMAGE_ID, Config: { Labels: { "evo.p8v2c.owner": "foreign" } } }]), stderr: "" };
     if (args[0] === "container" && args[1] === "rm") { removed.push(args.at(-1)); return { status: 0, stdout: "", stderr: "" }; }
     throw new Error(`unexpected docker call: ${args.join(" ")}`);
   };
@@ -210,7 +229,7 @@ test("candidate identity requires immutable ID, exact labels and an empty varian
     Config: { Labels: {
       "org.opencontainers.image.revision": P8V2.applicationCommit,
       "org.opencontainers.image.source": P8V2.source,
-      "org.opencontainers.image.version": "p8v2b-0f1454d0-20260818",
+      "org.opencontainers.image.version": "p8v2c-0f1454d0-20260818",
     } },
   };
   assert.equal(validateCandidateImage(inspect, spec), IMAGE_ID);
@@ -258,7 +277,7 @@ test("knowledge builds remove every UUID-bearing root even when the second build
     toolRoot: process.cwd(),
     sourceRoot: process.cwd(),
     environment: {
-      EVO_P8V2B_AUTHORIZATION: P8V2.authorization,
+      EVO_P8V2C_AUTHORIZATION: P8V2.authorization,
       EVO_P8V2_SUPABASE_URL: "https://iosckaqtovbbnssqcpde.supabase.co",
       EVO_P8V2_SUPABASE_ACCESS_TOKEN: "process-only-management-token",
       EVO_P8V2_SUPABASE_SERVICE_ROLE_KEY: "process-only-service-key",
@@ -288,7 +307,7 @@ test("an existing symlinked evidence parent is rejected before chmod or writes",
   await symlink(target, join(sourceRoot, ".evo-release-evidence"));
   const operations = await createP8V2Operations({
     toolRoot: process.cwd(), sourceRoot,
-    environment: { EVO_P8V2B_AUTHORIZATION: P8V2.authorization },
+    environment: { EVO_P8V2C_AUTHORIZATION: P8V2.authorization },
     buildKnowledgeBundle: async () => { throw new Error("must not build"); },
   });
   operations.__testState.accountId = "00000000-0000-4000-8000-000000000001";

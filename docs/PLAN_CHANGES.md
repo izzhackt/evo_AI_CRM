@@ -8786,3 +8786,49 @@ Writable identities advance to release `2026-08-18.p8v2b.1`, image version
 11/291 knowledge, production, privacy, rollback and no-provider boundaries are
 unchanged. No retry is allowed until plan and implementation review, exact-head
 CI, merge, exact-main CI and a fresh exact owner token.
+
+---
+
+## 2026-08-18 — P8V2C production-baseline template correction
+
+Block-ID: `EVO-P8V2C-PRODUCTION-BASELINE-TEMPLATE-2026-08-18`
+
+Issue: #302
+
+The exact P8V2B preparation ran from merged execution commit
+`8ec98b1a3294da3f392ac3c769eff4e0218cf6ba`, tree
+`d4c0db9be985284696ff1337cb352eda4547ac97`, after exact-main CI run
+`32114038511` completed successfully on attempt 2. It retained immutable
+mode-0600 failure result SHA-256
+`855ed075be872550322d273f9fb36da0dffccec39b9331e921579e704399779d`.
+All three candidate images completed build, smoke, SBOM and archive verification.
+The attempt then stopped at `production_baseline`; migration, rollback capture,
+identity resolution, knowledge, configuration and publication remained
+`not_run`. No production mutation, migration apply, knowledge import, provider
+call, deployment, restart, WAHA/amoCRM or customer-data action occurred.
+
+Fresh read-only Hermes inspection proved that the five frozen production
+container IDs, image IDs, health states and restart counts still match exactly.
+The stop was caused by an invalid Docker Go-template expression in the read-only
+baseline command: control actions such as `if` are template actions and cannot
+be used as parenthesized function arguments. The correction uses the supported
+inline `{{if ...}}{{...}}{{else}}...{{end}}` form documented by Docker's
+[`docker inspect --format`](https://docs.docker.com/reference/cli/docker/inspect/)
+and CLI formatting references. One shared parameterized producer must render
+both the byte-checked production command and a real five-row local test command.
+The local gate uses one guarded executor that checks OrbStack `Running` and
+Docker context exactly `orbstack` immediately before every Docker invocation,
+including finally cleanup and inventories, with no fallback context. It uses
+five collision-free cryptographically owned disposable containers from one
+already-present immutable image ID, no
+network, mounts, restart or implicit pull, canonical order/cardinality, and
+finally cleanup by verified owned ID with foreign-name refusal and absence proof.
+
+P8V2C is a collision-free retry with release `2026-08-18.p8v2c.1`, version
+`p8v2c-0f1454d0-20260818`, authorization
+`PREPARE-P8V2C-2026-08-18.P8V2C.1`, `-p8v2c-linux-amd64` tags/archives,
+`p8v2c-` local roots and remote rollback root
+`/opt/evo-release-evidence/p8v2c-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`.
+All P8V2B roots, tags and artifacts remain immutable. No other command or
+authority changes. Execution requires reviewed implementation, exact-head CI,
+merge, exact-main CI and a fresh exact owner token because reviewed code changed.

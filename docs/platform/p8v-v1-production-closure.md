@@ -624,3 +624,51 @@ All P8V2A roots/tags/artifacts remain immutable. P8V2B grants no production,
 provider, migration, import, deployment, restart, WAHA, amoCRM, customer-data
 or outbound authority. It requires reviewed code, exact-head CI, merge,
 exact-main CI and a fresh exact owner token before execution.
+
+### V2.6 P8V2C baseline-observation retry contract
+
+P8V2B result SHA-256
+`855ed075be872550322d273f9fb36da0dffccec39b9331e921579e704399779d`
+is immutable. It records verified candidate images followed by
+`production_baseline_drift`; every later step is `not_run`. Read-only live
+inspection independently proves the expected five containers still have the
+frozen IDs/images, `healthy`, and restart count `0`.
+
+The exact baseline producer must render each row as
+`name|container-id|image-id|health|restart-count` using Docker Go-template
+actions in the supported form:
+
+```text
+{{.Name}}|{{.Id}}|{{.Image}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}|{{.RestartCount}}
+```
+
+One exported parameterized producer must render this exact row expression for
+both production's five frozen names and a local five-container fixture. Tests
+must byte-check the production rendering and execute the fixture rendering on
+macOS through one guarded executor that runs `orb status` and requires
+`Running`, then runs `docker context show` and requires exactly `orbstack`,
+immediately before every Docker invocation. This includes inventories,
+creation, inspection, row rendering, finally cleanup and absence proof; any
+check failure stops before that Docker call and no fallback context is allowed.
+Each fixture name is collision-free, every container carries one fresh
+cryptographic owner nonce, and all five use one verified already-present
+immutable local image ID with `--pull never`, network `none`, zero mounts and
+restart `no`. The harness must refuse any pre-existing/foreign name, verify
+name/ID/image/owner/runtime identity, produce and parse exactly five canonical
+ordered rows, then in `finally` remove only verified owned IDs and prove all
+owned IDs and names absent. Remote command failure, missing health, malformed
+cardinality/order, identity drift, foreign-name occupation, restart or cleanup
+drift remains blocking. Source-fragment-only assertions are insufficient.
+Behavioral command-sequence tests must prove every Docker call has those two
+immediately preceding checks and that context drift prevents the next Docker
+command even during cleanup.
+
+Writable identities advance exactly to release `2026-08-18.p8v2c.1`, version
+`p8v2c-0f1454d0-20260818`, token
+`PREPARE-P8V2C-2026-08-18.P8V2C.1`, `-p8v2c-linux-amd64` tags/archives,
+`p8v2c-` local roots, label `evo.p8v2c.owner`, and remote rollback root
+`/opt/evo-release-evidence/p8v2c-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`.
+All P8V2B paths/tags/artifacts are immutable. No production mutation, migration,
+import, provider, deploy, restart, outbound, WAHA, amoCRM or customer-data
+authority is introduced. Retry requires reviewed merge, exact-main green CI and
+the new exact owner token because the reviewed execution code changed.

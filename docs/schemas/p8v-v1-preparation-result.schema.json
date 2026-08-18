@@ -123,9 +123,9 @@
         "source_commit": { "const": "0f1454d014bbc9eca9d7381dfe557e980965543e" }, "platform": { "$ref": "#/$defs/platform" }
       }
     },
-    "imageCrm": { "$ref": "#/$defs/image", "properties": { "name": { "const": "main_crm" }, "tag": { "const": "evo-crm:0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2b-linux-amd64" }, "archive": { "const": "evo-crm-0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2b-linux-amd64.tar" } } },
-    "imageInbox": { "$ref": "#/$defs/image", "properties": { "name": { "const": "evo_inbox" }, "tag": { "const": "evo-inbox:0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2b-linux-amd64" }, "archive": { "const": "evo-inbox-0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2b-linux-amd64.tar" } } },
-    "imageLead": { "$ref": "#/$defs/image", "properties": { "name": { "const": "lead_agent" }, "tag": { "const": "evo-lead-agent:0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2b-linux-amd64" }, "archive": { "const": "evo-lead-agent-0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2b-linux-amd64.tar" } } },
+    "imageCrm": { "$ref": "#/$defs/image", "properties": { "name": { "const": "main_crm" }, "tag": { "const": "evo-crm:0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2c-linux-amd64" }, "archive": { "const": "evo-crm-0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2c-linux-amd64.tar" } } },
+    "imageInbox": { "$ref": "#/$defs/image", "properties": { "name": { "const": "evo_inbox" }, "tag": { "const": "evo-inbox:0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2c-linux-amd64" }, "archive": { "const": "evo-inbox-0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2c-linux-amd64.tar" } } },
+    "imageLead": { "$ref": "#/$defs/image", "properties": { "name": { "const": "lead_agent" }, "tag": { "const": "evo-lead-agent:0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2c-linux-amd64" }, "archive": { "const": "evo-lead-agent-0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2c-linux-amd64.tar" } } },
     "container": {
       "type": "object", "additionalProperties": false, "required": ["name", "container_id", "image_id", "health", "restart_count"],
       "properties": { "name": { "type": "string" }, "container_id": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "image_id": { "$ref": "#/$defs/imageId" }, "health": { "const": "healthy" }, "restart_count": { "const": 0 } }

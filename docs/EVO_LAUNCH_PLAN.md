@@ -3401,3 +3401,26 @@ P8V2B is collision-free: release `2026-08-18.p8v2b.1`, image version
 prefixed `p8v2b-rollback-`. It adds no production/provider/import/deployment
 authority. Retry requires reviewed implementation, exact-head CI, merge,
 exact-main CI and a fresh exact owner token.
+
+### V2.6 P8V2C read-only production-baseline template correction
+
+P8V2B retained all three verified local candidates but stopped before any
+production effect. Its immutable mode-0600 result SHA-256 is
+`855ed075be872550322d273f9fb36da0dffccec39b9331e921579e704399779d`.
+The five real production containers still match their exact frozen IDs/images,
+are healthy, and have restart count zero. The blocker is solely the invalid
+read-only Docker Go template used to collect those rows.
+
+P8V2C replaces that template with Docker's supported inline `if/else/end`
+actions. One shared producer renders the byte-checked production command and a
+real local five-container OrbStack fixture in canonical order. One guarded
+executor checks OrbStack `Running` and context exactly `orbstack` immediately
+before every Docker command, including cleanup; no fallback is allowed.
+Fixtures use collision-free names, a cryptographic owner label, one already-present immutable
+image ID, no network/mount/restart/pull, and verified-ID finally cleanup with
+foreign-name refusal and absence proof. It advances every writable retry
+identity to `p8v2c` / `2026-08-18.p8v2c.1` /
+`PREPARE-P8V2C-2026-08-18.P8V2C.1`; P8V2B evidence remains immutable. It
+changes no application candidate, production boundary, provider permission or
+deployment authority. A retry is blocked until implementation review, exact-head
+CI, merge, exact-main CI and the new exact token required after this code change.

@@ -22,9 +22,10 @@ import { readPortableMetadata, verifyPortableArchive } from "./p8b3-portable-ima
 import { P8V2, verifyP8V2FinalRoot, writeP8V2Result } from "./p8v2-production-preparation.mjs";
 
 const HERMES = "hermes-vps";
-const RELEASE_VERSION = "p8v2b-0f1454d0-20260818";
-const ROLLBACK_ROOT = `/opt/evo-release-evidence/p8v2b-rollback-${P8V2.applicationCommit}-20260818`;
-const SMOKE_OWNER_LABEL = "evo.p8v2b.owner";
+const RELEASE_VERSION = "p8v2c-0f1454d0-20260818";
+const ROLLBACK_ROOT = `/opt/evo-release-evidence/p8v2c-rollback-${P8V2.applicationCommit}-20260818`;
+const SMOKE_OWNER_LABEL = "evo.p8v2c.owner";
+export const PRODUCTION_ROW_TEMPLATE = "{{.Name}}|{{.Id}}|{{.Image}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}|{{.RestartCount}}";
 const LEAD_HEALTH_ATTEMPTS = 30;
 const LEAD_HEALTH_INTERVAL_MS = 500;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -193,13 +194,13 @@ export function validateCandidateImage(inspect, spec, expectedId = inspect?.Id) 
   return inspect.Id;
 }
 
-export function parseProductionRows(text) {
+export function parseProductionRows(text, expectedContainers = P8V2.productionContainers) {
   const lines = text.trim().split("\n");
-  if (lines.length !== P8V2.productionContainers.length) fail("production container cardinality drifted");
+  if (!Array.isArray(expectedContainers) || lines.length !== expectedContainers.length) fail("production container cardinality drifted");
   return lines.map((line, index) => {
     const parts = line.split("|");
     if (parts.length !== 5) fail("production container row is malformed");
-    const expected = P8V2.productionContainers[index];
+    const expected = expectedContainers[index];
     const [name, containerId, imageId, health, restart] = parts;
     if (name !== expected.name || containerId !== expected.containerId || imageId !== expected.imageId || health !== "healthy" || restart !== "0") fail("production container boundary drifted", "production_baseline_drift");
     return { name, container_id: containerId, image_id: imageId, health, restart_count: 0 };
@@ -290,7 +291,7 @@ function waitForLeadHealth(docker, containerId, ownerNonce, imageId, wait) {
 }
 
 export function smokeImage(docker, spec, imageId, { wait = sleepSync } = {}) {
-  const name = `evo-p8v2b-smoke-${spec.name.replaceAll("_", "-")}-${P8V2.applicationCommit.slice(0, 12)}`;
+  const name = `evo-p8v2c-smoke-${spec.name.replaceAll("_", "-")}-${P8V2.applicationCommit.slice(0, 12)}`;
   const ownerNonce = randomBytes(16).toString("hex");
   const inventory = parseContainerList(requireSuccess(docker(["container", "ls", "-a", "--no-trunc", "--format", "{{.Names}}|{{.ID}}"]), "smoke container inventory"));
   if (inventory.has(name)) fail("smoke container collision", "candidate_build_failed");
@@ -357,11 +358,14 @@ function writeArtifact(path, bytes) {
   assertRegular(path);
 }
 
-function productionScript() {
-  return String.raw`set -o pipefail
-for name in evo-crm-app-1 evo-crm-waha-1 evo-crm-lead-agent-1 evo-inbox-app-1 evo-inbox-waha; do
-  docker inspect --format '{{printf "%s|%s|%s|%s|%d" .Name .Id .Image (if .State.Health) .State.Health.Status (else) "missing" (end) .RestartCount}}' "$name" | sed 's#^/##'
-done`;
+export function renderProductionInspectCommands(names = P8V2.productionContainers.map((item) => item.name)) {
+  if (!Array.isArray(names) || names.length !== 5 || new Set(names).size !== 5 || names.some((name) => !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(name))) fail("production container names are invalid");
+  return names.map((name) => ["inspect", "--format", PRODUCTION_ROW_TEMPLATE, name]);
+}
+
+export function renderProductionScript(names) {
+  const commands = renderProductionInspectCommands(names);
+  return `set -o pipefail\n${commands.map((args) => `docker inspect --format '${args[2]}' '${args[3]}' | sed 's#^/##'`).join("\n")}`;
 }
 
 function remote(run, script, timeout = 300_000) {
@@ -515,12 +519,12 @@ export async function createP8V2Operations({
   makeKnowledgeRoot,
   buildKnowledgeBundle,
 } = {}) {
-  if (environment.EVO_P8V2B_AUTHORIZATION !== P8V2.authorization) fail("exact P8V2B authorization is required");
+  if (environment.EVO_P8V2C_AUTHORIZATION !== P8V2.authorization) fail("exact P8V2C authorization is required");
   const evidenceParent = join(sourceRoot, ".evo-release-evidence");
-  const buildRoot = join(evidenceParent, `p8v2b-build-${P8V2.applicationCommit}-20260818`);
-  const portableRoot = join(evidenceParent, `p8v2b-portable-${P8V2.applicationCommit}-20260818`);
-  const knowledgeRoot = join(evidenceParent, `p8v2b-knowledge-${P8V2.applicationCommit}-20260818`);
-  const finalRoot = join(evidenceParent, `p8v2b-preparation-${P8V2.applicationCommit}-20260818`);
+  const buildRoot = join(evidenceParent, `p8v2c-build-${P8V2.applicationCommit}-20260818`);
+  const portableRoot = join(evidenceParent, `p8v2c-portable-${P8V2.applicationCommit}-20260818`);
+  const knowledgeRoot = join(evidenceParent, `p8v2c-knowledge-${P8V2.applicationCommit}-20260818`);
+  const finalRoot = join(evidenceParent, `p8v2c-preparation-${P8V2.applicationCommit}-20260818`);
   const docker = createDockerExecutor(run);
   const state = { accountId: null, organizationId: null, images: [], rollback: null, knowledge: null, knowledgeRoots: [] };
 
@@ -591,13 +595,13 @@ export async function createP8V2Operations({
         platform: { os: "linux", architecture: "amd64", variant: "" },
       });
     }
-    atomicJson(join(portableRoot, "portable-image-identity.json"), { version: "p8v2b-portable-image-identity.v1", source_commit: P8V2.applicationCommit, source_tree: P8V2.applicationTree, images: records });
+    atomicJson(join(portableRoot, "portable-image-identity.json"), { version: "p8v2c-portable-image-identity.v1", source_commit: P8V2.applicationCommit, source_tree: P8V2.applicationTree, images: records });
     state.images = records;
     return records;
   }
 
   async function observeProduction() {
-    return parseProductionRows(remote(run, productionScript()));
+    return parseProductionRows(remote(run, renderProductionScript()));
   }
 
   async function verifyMigrations() {
@@ -638,7 +642,7 @@ export async function createP8V2Operations({
     ensureEvidenceParent();
     createExclusiveDirectory(knowledgeRoot);
     const builder = buildKnowledgeBundle ?? ((args) => buildBundleDefault({ ...args, run }));
-    const makeRoot = makeKnowledgeRoot ?? (() => mkdtempSync(join(evidenceParent, "p8v2b-private-build-")));
+    const makeRoot = makeKnowledgeRoot ?? (() => mkdtempSync(join(evidenceParent, "p8v2c-private-build-")));
     const audiences = [];
     const roots = [];
     let primaryError;

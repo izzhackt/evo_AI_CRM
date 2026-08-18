@@ -3329,3 +3329,24 @@ bundle is accepted. The vaults remain read-only. This correction changes no
 candidate, evidence, authorization, production, provider or rollout identity;
 the merged P8V2 preparation token remains unconsumed until the correction is
 reviewed, merged and green on current main.
+
+### P8V2 executable CLI import correction
+
+The first exact-main P8V2 invocation on `2a34408d115fa1daa94b85c5b419e453d73a18d5`
+stopped before any preparation operation because the executable module
+dynamically imported the operations module while that module imported the
+still-evaluating preparation library. Node reported an unsettled top-level
+await. No evidence root, candidate tag, Docker build, SSH call, provider call,
+database call, migration, knowledge import, deployment, restart, WAHA action,
+amoCRM action or customer-data action occurred; the P8V2 preparation
+authorization is unconsumed.
+
+Issue #296 separates the executable CLI from the pure preparation library and
+keeps the existing `npm run p8v2:prepare -- --application-root <path>` operator
+interface. The CLI statically imports the acyclic library and operations graph.
+A real child-process negative must prove missing authorization returns the
+closed `p8v2_failed:operation_failed` result with exit status `2` and never
+emits the unsettled-await warning. The correction must pass independent review,
+exact-head CI, merge and exact-main CI before the same collision-free P8V2
+preparation may be retried. All P8V2 authority and evidence boundaries remain
+unchanged.

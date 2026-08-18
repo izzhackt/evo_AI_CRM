@@ -9,7 +9,7 @@ import { runP8V2Preparation } from "./p8v2-production-preparation.mjs";
 const args = process.argv.slice(2);
 
 if (args.length !== 2 || args[0] !== "--application-root" || !args[1]) {
-  process.stderr.write("Usage: npm run p8v2a:prepare -- --application-root <exact-clean-application-checkout>\n");
+  process.stderr.write("Usage: npm run p8v2b:prepare -- --application-root <exact-clean-application-checkout>\n");
   process.exitCode = 2;
 } else {
   try {
@@ -18,10 +18,10 @@ if (args.length !== 2 || args[0] !== "--application-root" || !args[1]) {
       sourceRoot: resolve(args[1]),
     });
     const result = await runP8V2Preparation({ operations });
-    process.stdout.write(`p8v2a_${result.result_code}\n`);
+    process.stdout.write(`p8v2b_${result.result_code}\n`);
     process.exitCode = result.result_code === "preparation_verified" ? 0 : 2;
   } catch (error) {
-    process.stderr.write(`p8v2a_failed:${error?.code ?? "operation_failed"}\n`);
+    process.stderr.write(`p8v2b_failed:${error?.code ?? "operation_failed"}\n`);
     process.exitCode = 2;
   }
 }

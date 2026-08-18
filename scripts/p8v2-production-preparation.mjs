@@ -59,8 +59,8 @@ const IMAGES = Object.freeze([
   Object.freeze({
     name: "main_crm",
     prefix: "evo-crm",
-    tag: `evo-crm:${APPLICATION_COMMIT}-p8v2a-linux-amd64`,
-    archive: `evo-crm-${APPLICATION_COMMIT}-p8v2a-linux-amd64.tar`,
+    tag: `evo-crm:${APPLICATION_COMMIT}-p8v2b-linux-amd64`,
+    archive: `evo-crm-${APPLICATION_COMMIT}-p8v2b-linux-amd64.tar`,
     rollbackReference: "evo-crm:564332b420a1fb1bd6232dda945d044bb922d3f0",
     rollbackImageId: "sha256:d4626208423df2c0df24262763917b82b1157b53a115b44f02478ecf7245f580",
     rollbackArchive: "rollback-evo-crm-d4626208423d-linux-amd64.tar",
@@ -68,8 +68,8 @@ const IMAGES = Object.freeze([
   Object.freeze({
     name: "evo_inbox",
     prefix: "evo-inbox",
-    tag: `evo-inbox:${APPLICATION_COMMIT}-p8v2a-linux-amd64`,
-    archive: `evo-inbox-${APPLICATION_COMMIT}-p8v2a-linux-amd64.tar`,
+    tag: `evo-inbox:${APPLICATION_COMMIT}-p8v2b-linux-amd64`,
+    archive: `evo-inbox-${APPLICATION_COMMIT}-p8v2b-linux-amd64.tar`,
     rollbackReference: "evo-inbox:a09a72fc55d869c861df520f76d62413a2315fc1",
     rollbackImageId: "sha256:6d5e0a9d5ea073737bdd8c2c5621818ca7bdb76dd5b16ca5e44563d39833cb6b",
     rollbackArchive: "rollback-evo-inbox-6d5e0a9d5ea0-linux-amd64.tar",
@@ -77,8 +77,8 @@ const IMAGES = Object.freeze([
   Object.freeze({
     name: "lead_agent",
     prefix: "evo-lead-agent",
-    tag: `evo-lead-agent:${APPLICATION_COMMIT}-p8v2a-linux-amd64`,
-    archive: `evo-lead-agent-${APPLICATION_COMMIT}-p8v2a-linux-amd64.tar`,
+    tag: `evo-lead-agent:${APPLICATION_COMMIT}-p8v2b-linux-amd64`,
+    archive: `evo-lead-agent-${APPLICATION_COMMIT}-p8v2b-linux-amd64.tar`,
     rollbackReference: "evo-lead-agent:rollback-2026-08-15.p8d.1",
     rollbackImageId: "sha256:3678747c1ea1c9b5655bb830296c9e4d4aedf60d3d193b438633b68eb3f97cc7",
     rollbackArchive: "rollback-evo-lead-agent-3678747c1ea1-linux-amd64.tar",
@@ -293,14 +293,14 @@ function validateProgress(value) {
 
 export const P8V2 = Object.freeze({
   version: "p8v-v1-preparation-result/v1",
-  release: "2026-08-18.p8v2a.1",
+  release: "2026-08-18.p8v2b.1",
   applicationCommit: APPLICATION_COMMIT,
   applicationTree: APPLICATION_TREE,
   applicationCiRun: 32093566626,
   applicationParent: "a7c589c2c735d4ef2d15ab5153eb07dba07d6286",
   source: SOURCE,
   projectRef: "iosckaqtovbbnssqcpde",
-  authorization: "PREPARE-P8V2A-2026-08-18.P8V2A.1",
+  authorization: "PREPARE-P8V2B-2026-08-18.P8V2B.1",
   images: IMAGES,
   productionContainers: PRODUCTION_CONTAINERS,
   rollbackFiles: ROLLBACK_FILES,
@@ -464,7 +464,7 @@ export async function verifyP8V2FinalRoot(root) {
   validateP8V2PreparationResult(result);
   const portable = JSON.parse(readFileSync(join(root, "portable-image-identity.json"), "utf8"));
   exactKeys(portable, ["version", "source_commit", "source_tree", "images"], "portable identity");
-  if (portable.version !== "p8v2a-portable-image-identity.v1" || portable.source_commit !== APPLICATION_COMMIT || portable.source_tree !== APPLICATION_TREE || JSON.stringify(portable.images) !== JSON.stringify(result.images)) fail("portable/result image identity mismatch");
+  if (portable.version !== "p8v2b-portable-image-identity.v1" || portable.source_commit !== APPLICATION_COMMIT || portable.source_tree !== APPLICATION_TREE || JSON.stringify(portable.images) !== JSON.stringify(result.images)) fail("portable/result image identity mismatch");
   const knowledge = JSON.parse(readFileSync(join(root, "knowledge-build-result.json"), "utf8"));
   if (JSON.stringify(knowledge) !== JSON.stringify(result.knowledge)) fail("knowledge/result identity mismatch");
   const rollback = JSON.parse(readFileSync(join(root, "rollback-capture.json"), "utf8"));

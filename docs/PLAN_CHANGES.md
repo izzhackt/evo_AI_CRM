@@ -8746,3 +8746,43 @@ entries, and retain historical direct-manifest verification behavior.
 No P8V2A invocation is allowed until the plan and implementation are
 independently reviewed, exact-head CI is green, the PR is merged, and exact-main
 CI is green. A fresh exact owner token is required after those gates.
+
+---
+
+## 2026-08-18 — P8V2B bounded Lead Agent smoke readiness retry
+
+Block-ID: `EVO-P8V2B-LEAD-SMOKE-READINESS-2026-08-18`
+
+Issue: #300
+
+The exact P8V2A token was consumed on merged main
+`df29599da8ca7f85354f233c6333d5e018d94977`. The closed mode-`0600`
+`preparation_blocked` result SHA-256 is
+`cc902099b2864327897ca278d656f5180c81235cfb0b71f2b1ffb0b5a6401acc`.
+The attempt built all three local candidate images. CRM and Inbox completed
+smoke/SBOM/archive; Lead Agent completed build/SBOM and stopped before
+smoke/archive. Production baseline and every later phase remained `not_run`.
+No SSH, production read/write, migration, identity resolution, knowledge
+build/import, provider, deployment, restart, WAHA, amoCRM or customer-data
+operation ran. All P8V2A roots, artifacts and tags are immutable.
+
+A real network-none diagnostic of the exact retained Lead Agent image proved a
+startup race: the current runner probes `/health` immediately, while the service
+returned the required frozen/live response about one second later. This is a
+release-tool defect rather than an application defect.
+
+P8V2B changes only Lead Agent smoke readiness. It performs at most 30 probes;
+each uses a one-second HTTP timeout; failed connection/startup attempts are
+separated by exactly 500 milliseconds; success requires HTTP 200 and exact JSON
+`{"frozen":true,"ok":true,"ready":false,"status":"live"}`. Wrong JSON,
+container exit, timeout exhaustion, Docker/context drift, restart, immutable
+image/owner drift or cleanup failure remains blocking. Tests must cover delayed
+success, exhaustion, malformed response, exited container and cleanup.
+
+Writable identities advance to release `2026-08-18.p8v2b.1`, image version
+`p8v2b-0f1454d0-20260818`, authorization
+`PREPARE-P8V2B-2026-08-18.P8V2B.1`, `-p8v2b-linux-amd64` tags/archives,
+`p8v2b-` local roots and `p8v2b-rollback-` remote root. Frozen application,
+11/291 knowledge, production, privacy, rollback and no-provider boundaries are
+unchanged. No retry is allowed until plan and implementation review, exact-head
+CI, merge, exact-main CI and a fresh exact owner token.

@@ -588,3 +588,39 @@ All P8V2 production, privacy, cleanup, configuration, rollback and no-provider
 boundaries remain unchanged. P8V2A is not executable until reviewed code is
 merged and exact-main CI is green; execution additionally requires its fresh
 exact owner token.
+
+### V2.5 P8V2B bounded Lead Agent smoke readiness correction
+
+The exact P8V2A attempt on main
+`df29599da8ca7f85354f233c6333d5e018d94977` is retained as immutable failed
+evidence. Its result SHA-256 is
+`cc902099b2864327897ca278d656f5180c81235cfb0b71f2b1ffb0b5a6401acc`.
+All three local images built; CRM and Inbox completed smoke/SBOM/archive; Lead
+Agent completed build/SBOM and stopped before smoke/archive. Production
+baseline and all later phases remained `not_run`, so no external effect ran.
+
+The exact retained Lead Agent tag maps to
+`sha256:73a7f80ac04cab9e56180ac2a3ec2dd6de1acb85a5125170353d24b01d3be26e`.
+A real isolated network-none diagnostic proved the expected `/health` response
+after approximately one second. P8V2B therefore replaces only the immediate
+Lead health assertion with a bounded readiness loop: 30 attempts maximum,
+500-millisecond wait between failed attempts, one-second HTTP timeout per
+attempt, and exact HTTP-200 JSON
+`{"frozen":true,"ok":true,"ready":false,"status":"live"}`. The loop must
+also fail immediately if the owned immutable container exits or its identity
+drifts. Exhaustion, malformed success responses, restart or cleanup failure is
+blocking. CRM and Inbox smoke behavior is unchanged.
+
+The retry identities are exact:
+
+- release: `2026-08-18.p8v2b.1`;
+- image version: `p8v2b-0f1454d0-20260818`;
+- authorization: `PREPARE-P8V2B-2026-08-18.P8V2B.1`;
+- all three tags and archives use `-p8v2b-linux-amd64`;
+- local build, portable, knowledge and preparation roots use `p8v2b-`;
+- remote rollback root is `/opt/evo-release-evidence/p8v2b-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`.
+
+All P8V2A roots/tags/artifacts remain immutable. P8V2B grants no production,
+provider, migration, import, deployment, restart, WAHA, amoCRM, customer-data
+or outbound authority. It requires reviewed code, exact-head CI, merge,
+exact-main CI and a fresh exact owner token before execution.

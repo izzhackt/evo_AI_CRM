@@ -22,8 +22,11 @@ import { readPortableMetadata, verifyPortableArchive } from "./p8b3-portable-ima
 import { P8V2, verifyP8V2FinalRoot, writeP8V2Result } from "./p8v2-production-preparation.mjs";
 
 const HERMES = "hermes-vps";
-const RELEASE_VERSION = "p8v2a-0f1454d0-20260818";
-const ROLLBACK_ROOT = `/opt/evo-release-evidence/p8v2a-rollback-${P8V2.applicationCommit}-20260818`;
+const RELEASE_VERSION = "p8v2b-0f1454d0-20260818";
+const ROLLBACK_ROOT = `/opt/evo-release-evidence/p8v2b-rollback-${P8V2.applicationCommit}-20260818`;
+const SMOKE_OWNER_LABEL = "evo.p8v2b.owner";
+const LEAD_HEALTH_ATTEMPTS = 30;
+const LEAD_HEALTH_INTERVAL_MS = 500;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SHA64 = /^[0-9a-f]{64}$/;
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
@@ -69,6 +72,9 @@ const LEAD_SETTINGS = Object.freeze([
 ]);
 
 function sha256(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
+function sleepSync(milliseconds) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
 function fail(message, code = "operation_failed", safeDetails) {
   const error = new Error(message);
   error.code = code;
@@ -253,16 +259,42 @@ function inspectOwnedSmoke(docker, containerId, ownerNonce, imageId) {
   if (!/^[0-9a-f]{64}$/.test(containerId ?? "")) return null;
   const rows = parseJson(requireSuccess(docker(["container", "inspect", containerId]), "smoke ownership inspect"), "smoke ownership inspect");
   const row = Array.isArray(rows) && rows.length === 1 ? rows[0] : null;
-  if (row?.Id !== containerId || row?.Image !== imageId || row?.Config?.Labels?.["evo.p8v2a.owner"] !== ownerNonce) return null;
+  if (row?.Id !== containerId || row?.Image !== imageId || row?.Config?.Labels?.[SMOKE_OWNER_LABEL] !== ownerNonce) return null;
   return row;
 }
 
-export function smokeImage(docker, spec, imageId) {
-  const name = `evo-p8v2a-smoke-${spec.name.replaceAll("_", "-")}-${P8V2.applicationCommit.slice(0, 12)}`;
+const LEAD_HEALTH_PROBE = String.raw`import json,sys,urllib.error,urllib.request
+expected={"frozen":True,"ok":True,"ready":False,"status":"live"}
+try:
+ r=urllib.request.urlopen("http://127.0.0.1:8000/health",timeout=1)
+except urllib.error.HTTPError:
+ sys.exit(20)
+except (TimeoutError,ConnectionError,urllib.error.URLError,OSError):
+ sys.exit(10)
+try:
+ body=json.load(r)
+except (json.JSONDecodeError,UnicodeDecodeError,ValueError):
+ sys.exit(20)
+sys.exit(0 if r.status==200 and body==expected else 20)`;
+
+function waitForLeadHealth(docker, containerId, ownerNonce, imageId, wait) {
+  for (let attempt = 1; attempt <= LEAD_HEALTH_ATTEMPTS; attempt += 1) {
+    const owned = inspectOwnedSmoke(docker, containerId, ownerNonce, imageId);
+    if (owned?.State?.Running !== true) fail("lead_agent smoke container exited");
+    const health = docker(["exec", containerId, "python", "-c", LEAD_HEALTH_PROBE], { timeout: 5_000 });
+    if (health.status === 0) return;
+    if (health.status !== 10) fail("lead_agent liveness response drifted");
+    if (attempt === LEAD_HEALTH_ATTEMPTS) fail("lead_agent liveness readiness timed out");
+    wait(LEAD_HEALTH_INTERVAL_MS);
+  }
+}
+
+export function smokeImage(docker, spec, imageId, { wait = sleepSync } = {}) {
+  const name = `evo-p8v2b-smoke-${spec.name.replaceAll("_", "-")}-${P8V2.applicationCommit.slice(0, 12)}`;
   const ownerNonce = randomBytes(16).toString("hex");
   const inventory = parseContainerList(requireSuccess(docker(["container", "ls", "-a", "--no-trunc", "--format", "{{.Names}}|{{.ID}}"]), "smoke container inventory"));
   if (inventory.has(name)) fail("smoke container collision", "candidate_build_failed");
-  const args = ["run", "-d", "--platform", "linux/amd64", "--name", name, "--label", `evo.p8v2a.owner=${ownerNonce}`, "--network", "none"];
+  const args = ["run", "-d", "--platform", "linux/amd64", "--name", name, "--label", `${SMOKE_OWNER_LABEL}=${ownerNonce}`, "--network", "none"];
   for (const value of smokeEnvironment(spec)) args.push("-e", value);
   args.push(imageId);
   let containerId = null;
@@ -278,21 +310,38 @@ export function smokeImage(docker, spec, imageId) {
     if (!/^[0-9a-f]{64}$/.test(containerId ?? "") || runResult.stdout.trim() !== containerId) fail("smoke container identity missing");
     const row = inspectOwnedSmoke(docker, containerId, ownerNonce, imageId);
     if (row?.Id !== containerId || row?.Image !== imageId || row?.HostConfig?.NetworkMode !== "none" || row?.Mounts?.length !== 0 || row?.HostConfig?.RestartPolicy?.Name !== "no") fail("smoke runtime boundary drifted");
-    const health = spec.name === "lead_agent"
-      ? docker(["exec", name, "python", "-c", "import json,urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=5); j=json.load(r); assert r.status==200 and j.get('ok') is True and j.get('status')=='live' and j.get('frozen') is True and j.get('ready') is False"], { timeout: 60_000 })
-      : docker(["exec", name, "node", "-e", "const s=process.argv[1];fetch('http://127.0.0.1:3000/api/health',{signal:AbortSignal.timeout(5000)}).then(async r=>{const j=await r.json();if(r.status!==200||JSON.stringify(j)!==JSON.stringify({ok:true,status:'live',service:s}))process.exit(2)}).catch(()=>process.exit(3))", spec.name === "main_crm" ? "evo-crm" : "evo-inbox-companion"], { timeout: 60_000 });
-    requireSuccess(health, `${spec.name} liveness`);
-    const after = parseJson(requireSuccess(docker(["container", "inspect", name]), "smoke final inspect"), "smoke final inspect")[0];
-    if (after?.RestartCount !== 0) fail("smoke container restarted");
+    if (spec.name === "lead_agent") {
+      waitForLeadHealth(docker, containerId, ownerNonce, imageId, wait);
+    } else {
+      const health = docker(["exec", name, "node", "-e", "const s=process.argv[1];fetch('http://127.0.0.1:3000/api/health',{signal:AbortSignal.timeout(5000)}).then(async r=>{const j=await r.json();if(r.status!==200||JSON.stringify(j)!==JSON.stringify({ok:true,status:'live',service:s}))process.exit(2)}).catch(()=>process.exit(3))", spec.name === "main_crm" ? "evo-crm" : "evo-inbox-companion"], { timeout: 60_000 });
+      requireSuccess(health, `${spec.name} liveness`);
+    }
+    const after = inspectOwnedSmoke(docker, containerId, ownerNonce, imageId);
+    if (after?.Id !== containerId || after?.Image !== imageId || after?.State?.Running !== true || after?.RestartCount !== 0) fail("smoke final identity drifted");
     return Buffer.from(`name=${spec.name}\nimage_id=${imageId}\nplatform=linux/amd64\nnetwork=none\nmounts=0\nrestart_count=0\nresult_code=liveness_verified\n`);
   } finally {
     const current = parseContainerList(requireSuccess(docker(["container", "ls", "-a", "--no-trunc", "--format", "{{.Names}}|{{.ID}}"]), "smoke cleanup inventory"));
-    const cleanupId = current.get(name) ?? null;
-    if (runIssued && cleanupId) {
-      const owned = inspectOwnedSmoke(docker, cleanupId, ownerNonce, imageId);
-      if (!owned) fail("foreign smoke container occupies reserved name");
-      requireSuccess(docker(["container", "rm", "-f", cleanupId]), "smoke cleanup");
+    const namedId = current.get(name) ?? null;
+    const ownedPresent = containerId ? [...current.values()].includes(containerId) : false;
+    let cleanupError = namedId && namedId !== containerId ? new Error("foreign smoke container occupies reserved name") : null;
+    if (runIssued && containerId) {
+      if (!ownedPresent) {
+        cleanupError ??= new Error("owned smoke container disappeared before cleanup");
+      } else {
+        try {
+          const owned = inspectOwnedSmoke(docker, containerId, ownerNonce, imageId);
+          if (!owned) fail("smoke cleanup ownership drifted");
+          requireSuccess(docker(["container", "rm", "-f", containerId]), "smoke cleanup");
+        } catch (error) {
+          cleanupError ??= error;
+        }
+      }
     }
+    const afterCleanup = parseContainerList(requireSuccess(docker(["container", "ls", "-a", "--no-trunc", "--format", "{{.Names}}|{{.ID}}"]), "smoke cleanup absence inventory"));
+    if (containerId && [...afterCleanup.values()].includes(containerId)) cleanupError ??= new Error("owned smoke container remains after cleanup");
+    const finalNamedId = afterCleanup.get(name) ?? null;
+    if (finalNamedId && finalNamedId !== containerId) cleanupError ??= new Error("foreign smoke container occupies reserved name");
+    if (cleanupError) throw cleanupError;
   }
 }
 
@@ -466,12 +515,12 @@ export async function createP8V2Operations({
   makeKnowledgeRoot,
   buildKnowledgeBundle,
 } = {}) {
-  if (environment.EVO_P8V2A_AUTHORIZATION !== P8V2.authorization) fail("exact P8V2A authorization is required");
+  if (environment.EVO_P8V2B_AUTHORIZATION !== P8V2.authorization) fail("exact P8V2B authorization is required");
   const evidenceParent = join(sourceRoot, ".evo-release-evidence");
-  const buildRoot = join(evidenceParent, `p8v2a-build-${P8V2.applicationCommit}-20260818`);
-  const portableRoot = join(evidenceParent, `p8v2a-portable-${P8V2.applicationCommit}-20260818`);
-  const knowledgeRoot = join(evidenceParent, `p8v2a-knowledge-${P8V2.applicationCommit}-20260818`);
-  const finalRoot = join(evidenceParent, `p8v2a-preparation-${P8V2.applicationCommit}-20260818`);
+  const buildRoot = join(evidenceParent, `p8v2b-build-${P8V2.applicationCommit}-20260818`);
+  const portableRoot = join(evidenceParent, `p8v2b-portable-${P8V2.applicationCommit}-20260818`);
+  const knowledgeRoot = join(evidenceParent, `p8v2b-knowledge-${P8V2.applicationCommit}-20260818`);
+  const finalRoot = join(evidenceParent, `p8v2b-preparation-${P8V2.applicationCommit}-20260818`);
   const docker = createDockerExecutor(run);
   const state = { accountId: null, organizationId: null, images: [], rollback: null, knowledge: null, knowledgeRoots: [] };
 
@@ -542,7 +591,7 @@ export async function createP8V2Operations({
         platform: { os: "linux", architecture: "amd64", variant: "" },
       });
     }
-    atomicJson(join(portableRoot, "portable-image-identity.json"), { version: "p8v2a-portable-image-identity.v1", source_commit: P8V2.applicationCommit, source_tree: P8V2.applicationTree, images: records });
+    atomicJson(join(portableRoot, "portable-image-identity.json"), { version: "p8v2b-portable-image-identity.v1", source_commit: P8V2.applicationCommit, source_tree: P8V2.applicationTree, images: records });
     state.images = records;
     return records;
   }
@@ -589,7 +638,7 @@ export async function createP8V2Operations({
     ensureEvidenceParent();
     createExclusiveDirectory(knowledgeRoot);
     const builder = buildKnowledgeBundle ?? ((args) => buildBundleDefault({ ...args, run }));
-    const makeRoot = makeKnowledgeRoot ?? (() => mkdtempSync(join(evidenceParent, "p8v2a-private-build-")));
+    const makeRoot = makeKnowledgeRoot ?? (() => mkdtempSync(join(evidenceParent, "p8v2b-private-build-")));
     const audiences = [];
     const roots = [];
     let primaryError;

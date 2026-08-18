@@ -3370,3 +3370,34 @@ to P8V2A: release `2026-08-18.p8v2a.1`, version
 `p8v2a-` local evidence roots and a `p8v2a-rollback-` remote root. Historical
 P8V2 evidence and its CRM tag remain immutable. Retry requires independent
 review, merge, exact-main green CI and a fresh exact owner token.
+
+### P8V2B bounded Lead Agent smoke readiness retry
+
+The exact P8V2A preparation on merged main
+`df29599da8ca7f85354f233c6333d5e018d94977` stopped safely in
+`candidate_images` with result SHA-256
+`cc902099b2864327897ca278d656f5180c81235cfb0b71f2b1ffb0b5a6401acc`.
+All three local images built; CRM and Inbox completed smoke, SBOM and archive;
+Lead Agent completed build and SBOM but stopped before smoke/archive. Production
+baseline, SSH, migration, identity resolution, knowledge build/import, provider,
+deployment, restart, WAHA, amoCRM and customer-data operations were `not_run`.
+Every P8V2A root, artifact and tag is immutable.
+
+A real isolated diagnostic against the retained immutable Lead Agent image
+proved that the image is healthy but its HTTP process is not ready at the
+runner's immediate first probe. It returned the exact frozen response after
+approximately one second. Issue #300 changes only the release-tool readiness
+seam: Lead Agent smoke polls at most 30 times, waits 500 milliseconds between
+failed attempts, and accepts only HTTP 200 with exact JSON
+`{"frozen":true,"ok":true,"ready":false,"status":"live"}`. Each probe has a
+one-second request timeout. Any response drift, container exit, deadline
+exhaustion, Docker/context drift, restart, ownership drift or cleanup failure
+remains blocking. CRM and Inbox retain their existing exact smoke contract.
+
+P8V2B is collision-free: release `2026-08-18.p8v2b.1`, image version
+`p8v2b-0f1454d0-20260818`, authorization
+`PREPARE-P8V2B-2026-08-18.P8V2B.1`, tags/archives suffixed
+`-p8v2b-linux-amd64`, local roots prefixed `p8v2b-`, and remote rollback root
+prefixed `p8v2b-rollback-`. It adds no production/provider/import/deployment
+authority. Retry requires reviewed implementation, exact-head CI, merge,
+exact-main CI and a fresh exact owner token.

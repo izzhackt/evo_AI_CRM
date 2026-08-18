@@ -39,6 +39,8 @@ class EvoCrmSyncPayload:
     phone: str
     chat_id: str
     text: str
+    provider_occurred_at: str
+    amo_account_id: int
     amo_lead_id: int
     amo_contact_id: int | None
     amo_created: bool

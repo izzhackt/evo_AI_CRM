@@ -5,6 +5,7 @@ import json
 import logging
 import time
 from dataclasses import asdict
+from datetime import datetime, timezone
 from typing import Any
 
 from .agent import decide_reply
@@ -17,6 +18,8 @@ from .store import Store
 from .waha import WahaClient
 
 logger = logging.getLogger(__name__)
+MIN_PROVIDER_TIMESTAMP_SECONDS = 946_684_800
+MAX_PROVIDER_TIMESTAMP_SECONDS = 4_102_444_799
 
 
 class RetryableWebhookError(RuntimeError):
@@ -125,6 +128,10 @@ class LeadAgentService:
             name=inbound.push_name,
             source="EVO WhatsApp leadAgent",
         )
+        amo_account = await amo.account_info()
+        amo_account_id = amo_account.get("id")
+        if not isinstance(amo_account_id, int) or amo_account_id <= 0:
+            raise RetryableWebhookError("amo_account_identity_missing")
         self.store.upsert_conversation(
             inbound.phone,
             amo_lead_id=amo_ref.lead_id,
@@ -142,6 +149,7 @@ class LeadAgentService:
             )
             crm_sync = await self._sync_crm(
                 inbound=inbound,
+                amo_account_id=amo_account_id,
                 amo_lead_id=amo_ref.lead_id,
                 amo_contact_id=amo_ref.contact_id,
                 amo_created=amo_ref.created,
@@ -164,6 +172,7 @@ class LeadAgentService:
             )
             crm_sync = await self._sync_crm(
                 inbound=inbound,
+                amo_account_id=amo_account_id,
                 amo_lead_id=amo_ref.lead_id,
                 amo_contact_id=amo_ref.contact_id,
                 amo_created=amo_ref.created,
@@ -217,6 +226,7 @@ class LeadAgentService:
             await amo.add_lead_note(amo_ref.lead_id, f"WhatsApp outbound by leadAgent:\n{decision.reply_text}")
             crm_sync = await self._sync_crm(
                 inbound=inbound,
+                amo_account_id=amo_account_id,
                 amo_lead_id=amo_ref.lead_id,
                 amo_contact_id=amo_ref.contact_id,
                 amo_created=amo_ref.created,
@@ -239,6 +249,7 @@ class LeadAgentService:
         agent_state = "handoff_required" if decision.handoff_required else "reply_not_sent"
         crm_sync = await self._sync_crm(
             inbound=inbound,
+            amo_account_id=amo_account_id,
             amo_lead_id=amo_ref.lead_id,
             amo_contact_id=amo_ref.contact_id,
             amo_created=amo_ref.created,
@@ -280,7 +291,14 @@ class LeadAgentService:
         phone = phone_from_waha_chat_id(chat_id)
         text = raw_message.get("body")
         provider_message_id = raw_message.get("id")
-        if not phone or not isinstance(text, str) or not text.strip() or not isinstance(provider_message_id, str):
+        timestamp = _timestamp(raw_message.get("timestamp"))
+        if (
+            not phone
+            or not isinstance(text, str)
+            or not text.strip()
+            or not isinstance(provider_message_id, str)
+            or timestamp is None
+        ):
             return {"accepted": True, "ignored": True, "reason": "missing_required_message_fields"}
 
         return InboundMessage(
@@ -290,12 +308,13 @@ class LeadAgentService:
             chat_id=str(chat_id),
             text=text.strip(),
             push_name=_push_name(raw_message),
-            timestamp=_timestamp(raw_message.get("timestamp")),
+            timestamp=timestamp,
         )
 
     async def _sync_crm(
         self,
         inbound: InboundMessage,
+        amo_account_id: int,
         amo_lead_id: int,
         amo_contact_id: int | None,
         amo_created: bool,
@@ -314,6 +333,8 @@ class LeadAgentService:
             chat_id=inbound.chat_id,
             text=inbound.text,
             push_name=inbound.push_name,
+            provider_occurred_at=_provider_occurred_at(inbound.timestamp),
+            amo_account_id=amo_account_id,
             amo_lead_id=amo_lead_id,
             amo_contact_id=amo_contact_id,
             amo_created=amo_created,
@@ -395,6 +416,23 @@ def _push_name(raw_message: dict[str, Any]) -> str | None:
 
 
 def _timestamp(value: object) -> int | None:
-    if isinstance(value, int) and value > 0:
-        return value
-    return None
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < MIN_PROVIDER_TIMESTAMP_SECONDS
+        or value > MAX_PROVIDER_TIMESTAMP_SECONDS
+    ):
+        return None
+    try:
+        datetime.fromtimestamp(value, tz=timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return None
+    return value
+
+
+def _provider_occurred_at(value: int) -> str:
+    return (
+        datetime.fromtimestamp(value, tz=timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )

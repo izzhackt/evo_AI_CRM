@@ -10,6 +10,8 @@ def test_whatsapp_payload_uses_evo_crm_camel_case_contract() -> None:
         phone="+996700111222",
         chat_id="996700111222@c.us",
         text="Здравствуйте",
+        provider_occurred_at="2026-08-18T02:30:00.000Z",
+        amo_account_id=789,
         amo_lead_id=123,
         amo_contact_id=456,
         amo_created=True,
@@ -26,6 +28,8 @@ def test_whatsapp_payload_uses_evo_crm_camel_case_contract() -> None:
     result = _whatsapp_payload(payload)
 
     assert result["providerMessageId"] == "waha-msg-1"
+    assert result["providerOccurredAt"] == "2026-08-18T02:30:00.000Z"
+    assert result["amoAccountId"] == 789
     assert result["amoLeadId"] == 123
     assert result["amoContactId"] == 456
     assert result["agentState"] == "reply_sent"

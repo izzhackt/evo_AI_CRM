@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/izzhackt/evo_AI_CRM/docs/schemas/p8v2e-independent-readiness-result.schema.json",
+  "title": "P8V2E independent readiness result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "generated_at", "result_code", "blockers", "source", "retained_p8v2d", "vaults", "identity", "configuration"],
+  "properties": {
+    "version": { "const": "p8v2e-independent-readiness-result/v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "result_code": { "enum": ["readiness_verified", "readiness_blocked", "evidence_failed"] },
+    "blockers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/blocker" }
+    },
+    "source": { "$ref": "#/$defs/source" },
+    "retained_p8v2d": { "$ref": "#/$defs/retained" },
+    "vaults": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        { "$ref": "#/$defs/clientVault" },
+        { "$ref": "#/$defs/internalVault" }
+      ],
+      "items": false
+    },
+    "identity": { "$ref": "#/$defs/identity" },
+    "configuration": { "$ref": "#/$defs/configuration" }
+  },
+  "$defs": {
+    "sha40": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sha64": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "blocker": {
+      "enum": [
+        "retained_result_drift", "client_vault_drift", "internal_vault_drift",
+        "management_project_drift", "management_query_failed", "account_not_singular",
+        "organization_not_singular", "root_crm_settings_missing", "root_crm_settings_invalid",
+        "root_crm_identity_mismatch", "lead_agent_amocrm_credentials_missing",
+        "lead_agent_settings_invalid", "manual_worker_secret_missing",
+        "manual_worker_file_drift", "supabase_project_mismatch",
+        "configuration_observation_failed", "evidence_publication_failed"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application_commit", "application_tree", "execution_commit", "execution_tree", "execution_ci_run_id"],
+      "properties": {
+        "application_commit": { "const": "0f1454d014bbc9eca9d7381dfe557e980965543e" },
+        "application_tree": { "const": "19599bcf043dc4a555c8996c21e7801934b64633" },
+        "execution_commit": { "$ref": "#/$defs/sha40" },
+        "execution_tree": { "$ref": "#/$defs/sha40" },
+        "execution_ci_run_id": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "retained": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "result_sha256"],
+      "properties": {
+        "status": { "enum": ["verified", "blocked"] },
+        "result_sha256": { "const": "a050cd16b1d48fa089031bc3a4240b8e55f3b492c89addc7376d8016de5e63b7" }
+      }
+    },
+    "vault": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["audience", "status", "document_count", "source_set_sha256", "pii_gate", "forbidden_root_gate"],
+      "properties": {
+        "audience": { "enum": ["client", "internal"] },
+        "status": { "enum": ["verified", "blocked"] },
+        "document_count": { "type": ["integer", "null"], "minimum": 1 },
+        "source_set_sha256": { "anyOf": [{ "$ref": "#/$defs/sha64" }, { "type": "null" }] },
+        "pii_gate": { "enum": ["passed", "blocked", "not_run"] },
+        "forbidden_root_gate": { "enum": ["passed", "blocked", "not_run"] }
+      }
+    },
+    "clientVault": {
+      "allOf": [
+        { "$ref": "#/$defs/vault" },
+        { "properties": { "audience": { "const": "client" } } },
+        { "if": { "properties": { "status": { "const": "verified" } } }, "then": { "properties": { "document_count": { "const": 11 }, "source_set_sha256": { "const": "c8dcfdd7911fdf2b97204c5d843dbf45f701d5dbee72e78cfaea17ea7ab18689" }, "pii_gate": { "const": "passed" }, "forbidden_root_gate": { "const": "passed" } } } }
+      ]
+    },
+    "internalVault": {
+      "allOf": [
+        { "$ref": "#/$defs/vault" },
+        { "properties": { "audience": { "const": "internal" } } },
+        { "if": { "properties": { "status": { "const": "verified" } } }, "then": { "properties": { "document_count": { "const": 291 }, "source_set_sha256": { "const": "1bd7458ff70c0a31fde9f6bb1abfb7ec0152c1f286caf2a1de48081860121f9f" }, "pii_gate": { "const": "passed" }, "forbidden_root_gate": { "const": "passed" } } } }
+      ]
+    },
+    "identityState": { "enum": ["none_active", "exactly_one_active", "multiple_active", "blocked"] },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "account", "organization", "project_ref_match", "project_status"],
+      "properties": {
+        "status": { "enum": ["verified", "blocked"] },
+        "account": { "$ref": "#/$defs/identityState" },
+        "organization": { "$ref": "#/$defs/identityState" },
+        "project_ref_match": { "type": "boolean" },
+        "project_status": { "enum": ["ACTIVE_HEALTHY", "blocked"] }
+      }
+    },
+    "comparison": { "enum": [true, false, "not_comparable"] },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "root_crm", "lead_agent", "manual_worker", "configured_account_match", "configured_organization_match", "supabase_project_match", "blockers"],
+      "properties": {
+        "status": { "enum": ["verified", "blocked"] },
+        "root_crm": { "enum": ["verified", "blocked"] },
+        "lead_agent": { "enum": ["verified", "blocked"] },
+        "manual_worker": { "enum": ["verified", "blocked"] },
+        "configured_account_match": { "$ref": "#/$defs/comparison" },
+        "configured_organization_match": { "$ref": "#/$defs/comparison" },
+        "supabase_project_match": { "type": "boolean" },
+        "blockers": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/blocker" } }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "identity": { "properties": { "status": { "const": "verified" } } } } },
+      "then": { "properties": { "identity": { "properties": { "account": { "const": "exactly_one_active" }, "organization": { "const": "exactly_one_active" }, "project_ref_match": { "const": true }, "project_status": { "const": "ACTIVE_HEALTHY" } } } } }
+    },
+    {
+      "if": { "properties": { "configuration": { "properties": { "status": { "const": "verified" } } } } },
+      "then": { "properties": { "configuration": { "properties": { "root_crm": { "const": "verified" }, "lead_agent": { "const": "verified" }, "manual_worker": { "const": "verified" }, "blockers": { "maxItems": 0 } } } } }
+    },
+    {
+      "if": { "properties": { "result_code": { "const": "readiness_verified" } } },
+      "then": {
+        "properties": {
+          "blockers": { "maxItems": 0 },
+          "retained_p8v2d": { "properties": { "status": { "const": "verified" } } },
+          "vaults": { "contains": { "properties": { "status": { "const": "verified" } } }, "minContains": 2 },
+          "identity": { "properties": { "status": { "const": "verified" }, "account": { "const": "exactly_one_active" }, "organization": { "const": "exactly_one_active" }, "project_ref_match": { "const": true }, "project_status": { "const": "ACTIVE_HEALTHY" } } },
+          "configuration": { "properties": { "status": { "const": "verified" }, "root_crm": { "const": "verified" }, "lead_agent": { "const": "verified" }, "manual_worker": { "const": "verified" }, "configured_account_match": { "const": true }, "configured_organization_match": { "const": true }, "supabase_project_match": { "const": true }, "blockers": { "maxItems": 0 } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "result_code": { "const": "readiness_blocked" } } },
+      "then": { "properties": { "blockers": { "minItems": 1 } } }
+    },
+    {
+      "if": { "properties": { "result_code": { "const": "evidence_failed" } } },
+      "then": { "properties": { "blockers": { "contains": { "const": "evidence_publication_failed" } } } }
+    }
+  ]
+}

@@ -8960,3 +8960,59 @@ One implementation PR, one independent review and exact-head/exact-main CI are
 required. After the supplemental result is reviewed, the release uses one
 short essential production preflight and asks once for the clearly bounded
 deployment-plus-rollback window. The consumed P8V2D token is never reused.
+
+## 2026-08-19 — P8V2F connect the existing Supabase project
+
+Block-ID: `EVO-P8V2F-SUPABASE-CONNECTION-2026-08-19`
+
+The owner confirmed the application organization name `EVO Admissions` and
+asked to connect and prepare Supabase. A fresh read-only audit on exact main
+`9d7b4637373667be2c72613efd583eb77458e644` found the existing managed project
+`ACTIVE_HEALTHY`, one Auth user, one active knowledge account, zero Platform
+organizations/profiles/memberships, production migrations `001-076`, and
+PostgREST exposed schemas `public,graphql_public`. The Personal Secrets Vault
+already contains correctly formatted new-generation publishable and secret
+project keys. Hermes has a safe root-owned mode-`0600` CRM env file but the five
+Platform Supabase connection settings are absent. Direct secret-key access to
+the `platform` schema currently fails closed with `PGRST106` because that schema
+is not exposed.
+
+Decision: use this project; do not create, clone, rename or move a Supabase
+project or billing organization. Add `platform` to the existing exposed-schema
+set through the official Management API, bootstrap the first application
+organization through the existing audited service-role RPC for the sole Auth
+user, and atomically install exactly the five Supabase connection settings on
+Hermes. Secrets/UUIDs are stdin/process-only. Preserve the existing CRM env
+bytes in a new server-only rollback root before writing. Keep every feature
+enable setting absent/disabled and leave migration `077`, knowledge import,
+container deployment/restart, Gemini, WAHA, amoCRM and outbound work for the
+later reviewed rollout.
+
+The operation is idempotent only for its deterministic request identity and
+exact post-state. Any zero/multiple identity, wrong organization name/role,
+unexpected PostgREST schema, migration drift, unsafe env file, key-format
+drift, output leak or rollback mismatch blocks. A post-bootstrap config failure
+is retained as reconciliation-required and never deletes identity/audit rows.
+One closed safe result and a server-only secret rollback copy are retained.
+Execution requires reviewed implementation, exact-head and exact-main green CI,
+then exact token `CONFIGURE-P8V2F-2026-08-19.P8V2F.1`.
+
+Before the first effect, both new-generation keys are probed against the exact
+project URL with redirect rejection and streamed bounded responses; format
+alone is insufficient. The post-bootstrap privilege/idempotency proof is a
+deterministic replay of the service-role-granted bootstrap RPC, not a direct
+table SELECT that the least-privilege grants intentionally deny. An exact
+already-prepared state is a valid reconciliation entry and resumes only
+Hermes/evidence completion after every identity and replay result matches.
+
+The Hermes rollback bytes must reconstruct the configured environment exactly
+when the five target settings are reapplied. Tamper or failed restoration
+read-back blocks. Evidence-publication failure is classified and, when the safe
+root remains writable, retained as `evidence_failed`; it is never swallowed or
+relabeled as configuration success.
+
+After any bootstrap RPC attempt, a missing/invalid response is treated as
+potentially committed. Live identity/audit state is reread before PostgREST can
+be restored. Canonical schemas remain when the exact prepared organization is
+observed; restoration is allowed only after readback proves zero organizations,
+profiles and memberships. Ambiguous or drifted readback requires reconciliation.

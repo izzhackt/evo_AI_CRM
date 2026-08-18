@@ -3485,3 +3485,60 @@ import, provider, deployment, restart, WAHA/amoCRM, outbound, Auth or
 customer-data effect. After reviewed merge and exact-main CI, one P8V2E run may
 precede the single minimal production preflight and one deployment-plus-rollback
 authorization.
+
+### V2.9 P8V2F Supabase connection and first-organization bootstrap
+
+The reviewed P8V2E result and a fresh 2026-08-19 read-only audit establish one
+healthy managed project, one Auth user, one active knowledge account, zero
+Platform organizations, a contiguous production ledger through `076`, and a
+Data API configuration that exposes only `public,graphql_public`. Hermes has a
+real root-owned mode-`0600` `/opt/evo-crm/.env.production`, but none of the
+Platform Supabase settings are present. This is a missing Platform connection,
+not a reason to create or migrate to a second Supabase project.
+
+P8V2F is one bounded configuration operation. It may add `platform` to the
+existing PostgREST exposed-schema set while preserving `public` and
+`graphql_public`; call the existing service-role-only,
+advisory-lock/idempotency/audit protected
+`platform.bootstrap_organization_admin` routine exactly once for organization
+name `EVO Admissions` and the singular existing Auth user; and atomically add
+only `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+`EVO_PLATFORM_SUPABASE_SECRET_KEY`, `EVO_PLATFORM_ORGANIZATION_ID`, and
+`EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID` to the existing Hermes CRM environment.
+The secret and both UUIDs are process-only and enter Hermes only through SSH
+stdin. They never enter argv, stdout, stderr, Git, PR text or retained safe
+evidence.
+
+Before effects, require exact project health, exact pre-state cardinalities,
+exact `001-076` migration ledger, exact current PostgREST configuration, valid
+new-format publishable/secret keys, successful bounded project-URL probes for
+both keys, and a safe Hermes environment source. Every HTTP body is streamed
+under its fixed byte ceiling rather than buffered before the limit. The
+remote write first captures the exact original environment in a new
+Hermes-only root-owned mode-`0700` rollback root, then uses a temporary regular
+mode-`0600` file plus atomic rename and verifies exact values in process. A
+remote write failure restores and verifies the original bytes. P8V2F does not
+apply migration `077`, import knowledge, deploy/restart a container, enable the
+staff assistant, enable manual-send/lead-sync/autonomous behavior, call Gemini,
+touch WAHA/amoCRM, or send customer/outbound data.
+
+Post-state must prove one active `EVO Admissions` organization, one Admin
+membership linked to the same singular Auth user, one bootstrap audit event,
+one active knowledge account, `platform` Data API access through the secret
+server key by deterministic replay of the service-role-granted bootstrap RPC,
+unchanged `001-076` migration ledger, and the five exact Hermes
+settings. Evidence is one closed-schema, UUID/secret/private-path-free JSON in
+a new local mode-`0700` root with a regular mode-`0600` result. Failure after
+the database bootstrap is reconciliation-required rather than destructive
+database rollback. The exact action-time token is
+`CONFIGURE-P8V2F-2026-08-19.P8V2F.1`; implementation review, exact-head CI,
+merge and exact-main green CI must precede its use.
+
+An exact already-prepared database state is a supported reconciliation entry:
+the runner revalidates the same Auth user, account, organization, Admin,
+bootstrap audit and deterministic RPC result, skips the PostgREST patch and
+creation effect, then completes or verifies Hermes and evidence. The rollback
+copy must reconstruct the current configured environment exactly when the five
+target settings are reapplied; any tamper or failed read-back restoration is
+blocking. Publication failure is a distinct `evidence_failed` terminal attempt,
+not a configuration success or a swallowed error.

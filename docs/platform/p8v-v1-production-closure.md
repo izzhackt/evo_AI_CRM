@@ -789,3 +789,67 @@ write. It grants no Docker command, candidate mutation, rollback rewrite,
 migration/import, provider call, deployment, restart, WAHA/amoCRM mutation,
 outbound send, Auth change or customer-data access. Implementation, behavioral
 negative tests, independent review, merge and exact-main CI must precede use.
+
+## P8V2F — existing-project Supabase connection
+
+P8V2F resolves only the observed Supabase connection blockers before the final
+minimal rollout preflight. Fixed project ref and URL are the existing managed
+production project. The safe pre-state is exactly one Auth user, one active
+knowledge account, zero Platform organizations/profiles/active memberships,
+ledger `001-076`, project `ACTIVE_HEALTHY`, exposed schemas exactly
+`public,graphql_public`, and an existing regular non-symlink root-owned
+mode-`0600` `/opt/evo-crm/.env.production` missing all five target settings.
+An exact prepared retry may instead begin with the canonical exposed schemas,
+one matching `EVO Admissions` organization/Admin/bootstrap audit, and all five
+Hermes settings equal to the same process-only values. No mixed or partial
+state is accepted.
+
+The only Management API mutation is PATCH of `db_schema` to the canonical set
+`public,platform,graphql_public`. The only database mutation is the existing
+`platform.bootstrap_organization_admin` RPC with exact organization name
+`EVO Admissions`, display name `EVO Admissions Admin`, fixed reason
+`P8V2F production Platform bootstrap`, the singular Auth user and a
+deterministic idempotency UUID derived in process from the exact authorization
+token. Both publishable and secret keys must first succeed against the exact
+project `/auth/v1/settings` endpoint; format-only acceptance is forbidden. All
+HTTP bodies are streamed under `65536` bytes with redirect rejection and a
+15-second deadline. The RPC response remains process-only. Post-state read-only SQL must
+bind the same user to exactly one active Admin membership, require the matching
+organization/bootstrap audit row, and retain no UUID. A second call with the
+same deterministic request ID must replay the exact safe RPC projection and is
+the service-role Data API privilege/idempotency proof; direct service-role table
+SELECT is forbidden because migration `041` intentionally grants table SELECT
+only to authenticated staff.
+
+The Hermes writer accepts one bounded JSON frame on stdin, rejects extra keys,
+duplicates, malformed key formats and partial/different target settings, then
+atomically adds exactly the URL, publishable key, secret key, organization ID
+and knowledge account ID. An exact all-present retry is accepted only when the
+mode-`0600` rollback bytes contain none of the target keys and deterministically
+reconstruct the current env byte-for-byte when the five settings are reapplied.
+The original env is copied with mode `0600` into the
+exact absent `/opt/evo-release-evidence/p8v2f-supabase-bootstrap-20260819`
+mode-`0700` root. No secret rollback file leaves Hermes. Failure before the RPC
+must restore every changed external setting and verify restored bytes, owner and
+mode. Restore failure blocks. Failure after a verified RPC but
+before verified Hermes configuration is `configuration_reconciliation_required`.
+Once the bootstrap RPC is attempted, any lost/timeout/malformed response is
+potentially committed: the runner must reread identity/audit state before any
+PostgREST restoration. It preserves canonical schemas when exact prepared state
+is observed, restores the old schemas only when readback definitively proves
+zero organizations, profiles and memberships, and otherwise requires
+reconciliation.
+
+The local result root is exactly
+`.evo-release-evidence/p8v2f-supabase-bootstrap-20260819`, real mode `0700`,
+with sole regular mode-`0600` `p8v2f-supabase-bootstrap-result.json`. Closed
+result codes are `supabase_prepared`, `configuration_failed`,
+`configuration_reconciliation_required`, and `evidence_failed`. Success
+retains only fixed names, counts, booleans, status enums and the SHA-256 of the
+server rollback copy; it forbids UUID, key, email, token, env contents, private
+paths and provider/customer data. No migration, import, provider, application
+deployment/restart or feature-enable authority is included.
+If normal result publication fails, the runner makes one bounded attempt to
+retain the same safe state with result code `evidence_failed`; inability to
+write the safe root remains a blocking `evidence_failed` exit and is never
+reported as configuration success.

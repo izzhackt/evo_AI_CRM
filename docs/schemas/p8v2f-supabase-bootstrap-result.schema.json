@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8v2f-supabase-bootstrap-result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "result_code",
+    "execution",
+    "project",
+    "migration_ledger",
+    "data_api",
+    "identity",
+    "hermes_configuration",
+    "effects"
+  ],
+  "properties": {
+    "version": { "const": "p8v2f-supabase-bootstrap-result/v1" },
+    "result_code": {
+      "enum": [
+        "supabase_prepared",
+        "configuration_failed",
+        "configuration_reconciliation_required",
+        "evidence_failed"
+      ]
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "tree", "ci_run_id"],
+      "properties": {
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "ci_run_id": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref_match", "status"],
+      "properties": {
+        "ref_match": { "const": true },
+        "status": { "const": "ACTIVE_HEALTHY" }
+      }
+    },
+    "migration_ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "count", "first", "last", "pending"],
+      "properties": {
+        "status": { "const": "verified_unchanged" },
+        "count": { "const": 76 },
+        "first": { "const": "001" },
+        "last": { "const": "076" },
+        "pending": { "const": "077" }
+      }
+    },
+    "data_api": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["before", "after", "status", "platform_access"],
+      "properties": {
+        "before": { "const": "public,graphql_public" },
+        "after": { "const": "public,platform,graphql_public" },
+        "status": { "enum": ["not_run", "patched", "restored", "verified", "unknown"] },
+        "platform_access": { "enum": ["verified", "not_verified"] }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "auth_users",
+        "active_accounts",
+        "active_organizations",
+        "organization_name",
+        "admin_memberships",
+        "bootstrap_audit"
+      ],
+      "properties": {
+        "auth_users": { "const": "exactly_one" },
+        "active_accounts": { "const": "exactly_one" },
+        "active_organizations": { "enum": ["none", "exactly_one"] },
+        "organization_name": { "enum": ["not_created", "EVO Admissions"] },
+        "admin_memberships": { "enum": ["none", "exactly_one"] },
+        "bootstrap_audit": { "enum": ["none", "exactly_one"] }
+      }
+    },
+    "hermes_configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "settings", "file", "rollback_sha256", "feature_enables"],
+      "properties": {
+        "status": { "enum": ["not_run", "updated", "already_verified", "failed"] },
+        "settings": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "file": { "enum": ["not_verified", "root_root_0600"] },
+        "rollback_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "feature_enables": { "const": 0 }
+      }
+    },
+    "effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["migrations_applied", "knowledge_imports", "deployments", "restarts", "provider_calls", "outbound_sends"],
+      "properties": {
+        "migrations_applied": { "const": 0 },
+        "knowledge_imports": { "const": 0 },
+        "deployments": { "const": 0 },
+        "restarts": { "const": 0 },
+        "provider_calls": { "const": 0 },
+        "outbound_sends": { "const": 0 }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "result_code": { "const": "supabase_prepared" } } },
+      "then": {
+        "properties": {
+          "data_api": { "properties": { "status": { "const": "verified" }, "platform_access": { "const": "verified" } } },
+          "identity": {
+            "properties": {
+              "active_organizations": { "const": "exactly_one" },
+              "organization_name": { "const": "EVO Admissions" },
+              "admin_memberships": { "const": "exactly_one" },
+              "bootstrap_audit": { "const": "exactly_one" }
+            }
+          },
+          "hermes_configuration": {
+            "properties": {
+              "status": { "enum": ["updated", "already_verified"] },
+              "settings": { "const": 5 },
+              "file": { "const": "root_root_0600" },
+              "rollback_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

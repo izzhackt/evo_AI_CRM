@@ -3313,3 +3313,19 @@ anon/service-role JWTs are not substituted. V2 may prove and report these
 absences but may not create, rotate, print or weaken credentials. There is no
 image transfer, database migration/import, provider call, container change,
 restart, WAHA/amoCRM mutation, customer send or public-route change in V2.
+
+### P8V2 final frozen-vault path correction
+
+Issue #294 corrects the local source binding before the first V2 execution.
+The obsolete `EVO_Knowledge_Vault` paths are not valid inputs. The exact
+read-only frozen sources are:
+
+- client: `/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Клиентская база знаний ЭВО` (11 Markdown documents);
+- internal: `/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ` (291 Markdown documents).
+
+Each source must be a real non-symlink directory and must pass the existing
+canonical `.evo-vault.json`, path, PII and forbidden-root checks before any
+bundle is accepted. The vaults remain read-only. This correction changes no
+candidate, evidence, authorization, production, provider or rollout identity;
+the merged P8V2 preparation token remains unconsumed until the correction is
+reviewed, merged and green on current main.

@@ -516,3 +516,20 @@ draft bodies, commands containing credentials, stderr and private paths.
 Completion also requires no open rollout PR, clean current-main worktrees,
 healthy expected containers, restart count zero after the observation window,
 and an explicit statement of every skipped requirement.
+
+### V2.2 final frozen-vault source correction
+
+Before the first P8V2 execution, issue #294 supersedes only the two obsolete
+local vault paths in the merged adapter. The exact client source is
+`/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Клиентская база знаний ЭВО`
+and must contain exactly 11 Markdown documents. The exact internal source is
+`/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ`
+and must contain exactly 291 Markdown documents.
+
+The existing builder remains the authority for canonical marker and path
+validation: the client root owns its `evo_client_knowledge` marker, while the
+internal approved child is bound to the parent `Внутренняя база знаний ЭВО`
+`evo_internal_knowledge` marker. Both inputs are read-only, real non-symlink
+directories. The deterministic double-build, process-only account binding,
+finally cleanup and UUID-free evidence contract are unchanged. No other P8V2
+identity or authority changes.

@@ -9,6 +9,7 @@ import {
   createDockerExecutor,
   createP8V2Operations,
   parseProductionRows,
+  P8V2_KNOWLEDGE_SOURCES,
   smokeImage,
   validateCandidateImage,
   validateConfigurationSnapshot,
@@ -16,6 +17,21 @@ import {
 import { P8V2 } from "../scripts/p8v2-production-preparation.mjs";
 
 const IMAGE_ID = `sha256:${"a".repeat(64)}`;
+
+test("P8V2 binds the final frozen 11/291 vault sources", async () => {
+  assert.deepEqual(P8V2_KNOWLEDGE_SOURCES, {
+    client: {
+      path: "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Клиентская база знаний ЭВО",
+      documentCount: 11,
+    },
+    internal: {
+      path: "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ",
+      documentCount: 291,
+    },
+  });
+  const source = await readFile(new URL("../scripts/p8v2-production-operations.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /EVO_Knowledge_Vault|40_Клиентская_база|30_Утверждено для ИИ/);
+});
 
 test("every Docker command is immediately preceded by the exact OrbStack checks", () => {
   const calls = [];

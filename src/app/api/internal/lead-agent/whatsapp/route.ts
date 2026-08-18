@@ -1,8 +1,9 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getSetting } from "@/lib/db";
 import { positiveInteger } from "@/lib/request";
 import { syncLeadAgentWhatsApp, updateWahaAccountStatus } from "@/lib/whatsapp";
+import { syncPlatformLeadAgentWhatsApp } from "@/lib/server/platform-lead-agent-sync";
 
 const MAX_BODY_BYTES = 128 * 1024;
 const MAX_CLOCK_SKEW_SECONDS = 5 * 60;
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest) {
   const phone = boundedString(body.phone, 32);
   const inboundText = boundedString(body.text, 4000);
   const inboundWaId = boundedString(body.providerMessageId, 256);
+  const chatId = boundedString(body.chatId, 64);
   const agentState = boundedString(body.agentState, 64);
   const amoLeadId = positiveInteger(body.amoLeadId);
   if (!session || !phone || !inboundText || !inboundWaId || !agentState || !amoLeadId) {
@@ -120,5 +122,27 @@ export async function POST(req: NextRequest) {
     outboundWaId,
   });
   if (!result) return NextResponse.json({ error: "sync_failed" }, { status: 400 });
-  return NextResponse.json({ ok: true, ...result });
+
+  try {
+    const platform = await syncPlatformLeadAgentWhatsApp({
+      session,
+      providerMessageId: inboundWaId,
+      chatId: chatId ?? "",
+      bodyText: inboundText,
+      pushName: optionalString(body.pushName, 160),
+      providerOccurredAt: optionalString(body.providerOccurredAt, 32) ?? "",
+      amoAccountId: positiveInteger(body.amoAccountId) ?? 0,
+      amoLeadId,
+      amoContactId: positiveInteger(body.amoContactId) ?? 0,
+      payloadSha256: createHash("sha256").update(rawBody).digest("hex"),
+    });
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      platformSynced: platform.enabled,
+      platformDeduplicated: platform.deduplicated ?? false,
+    });
+  } catch {
+    return NextResponse.json({ error: "platform_sync_failed" }, { status: 503 });
+  }
 }

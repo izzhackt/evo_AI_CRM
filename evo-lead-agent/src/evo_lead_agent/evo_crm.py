@@ -68,6 +68,8 @@ def _whatsapp_payload(payload: EvoCrmSyncPayload) -> dict[str, Any]:
             "phone": payload.phone,
             "chatId": payload.chat_id,
             "text": payload.text,
+            "providerOccurredAt": payload.provider_occurred_at,
+            "amoAccountId": payload.amo_account_id,
             "amoLeadId": payload.amo_lead_id,
             "amoContactId": payload.amo_contact_id,
             "amoCreated": payload.amo_created,

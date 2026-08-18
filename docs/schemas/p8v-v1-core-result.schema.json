@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8v-v1-core-result.schema.json",
+  "title": "EVO P8V V1 core closure result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "generated_at", "result_code", "failed_seam", "source", "seams"],
+  "properties": {
+    "version": { "const": "p8v-v1-core-result/v1" },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{3})?Z$"
+    },
+    "result_code": { "enum": ["core_verified", "core_failed", "evidence_failed"] },
+    "failed_seam": {
+      "type": ["string", "null"],
+      "enum": [null, "lead_agent_ingress", "manual_send_claim", "waha_dispatch", "audit_reconciliation", "operator_state", "evidence"]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "tree", "ci_run_id"],
+      "properties": {
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "ci_run_id": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "seams": { "$ref": "#/$defs/baseSeams" }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "result_code": { "const": "core_verified" },
+        "failed_seam": { "const": null },
+        "seams": { "$ref": "#/$defs/allVerified" }
+      }
+    },
+    {
+      "properties": {
+        "result_code": { "const": "core_failed" },
+        "failed_seam": { "enum": ["lead_agent_ingress", "manual_send_claim", "waha_dispatch", "audit_reconciliation", "operator_state"] },
+        "seams": { "$ref": "#/$defs/failedProgression" }
+      }
+    },
+    {
+      "properties": {
+        "result_code": { "const": "evidence_failed" },
+        "failed_seam": { "const": "evidence" },
+        "seams": { "$ref": "#/$defs/allVerified" }
+      }
+    }
+  ],
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "baseSeams": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        { "$ref": "#/$defs/leadBase" },
+        { "$ref": "#/$defs/claimBase" },
+        { "$ref": "#/$defs/dispatchBase" },
+        { "$ref": "#/$defs/auditBase" },
+        { "$ref": "#/$defs/operatorBase" }
+      ],
+      "items": false
+    },
+    "leadBase": { "$ref": "#/$defs/baseRecord", "properties": { "name": { "const": "lead_agent_ingress" } } },
+    "claimBase": { "$ref": "#/$defs/baseRecord", "properties": { "name": { "const": "manual_send_claim" } } },
+    "dispatchBase": { "$ref": "#/$defs/baseRecord", "properties": { "name": { "const": "waha_dispatch" } } },
+    "auditBase": { "$ref": "#/$defs/baseRecord", "properties": { "name": { "const": "audit_reconciliation" } } },
+    "operatorBase": { "$ref": "#/$defs/baseRecord", "properties": { "name": { "const": "operator_state" } } },
+    "baseRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "evidence_sha256"],
+      "properties": {
+        "name": { "type": "string" },
+        "status": { "enum": ["verified", "failed", "not_run"] },
+        "evidence_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "verified": {
+      "properties": { "status": { "const": "verified" }, "evidence_sha256": { "$ref": "#/$defs/hash" } }
+    },
+    "failed": {
+      "properties": { "status": { "const": "failed" }, "evidence_sha256": { "$ref": "#/$defs/hash" } }
+    },
+    "notRun": {
+      "properties": { "status": { "const": "not_run" }, "evidence_sha256": { "const": null } }
+    },
+    "allVerified": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/leadBase" }, { "$ref": "#/$defs/verified" }] },
+        { "allOf": [{ "$ref": "#/$defs/claimBase" }, { "$ref": "#/$defs/verified" }] },
+        { "allOf": [{ "$ref": "#/$defs/dispatchBase" }, { "$ref": "#/$defs/verified" }] },
+        { "allOf": [{ "$ref": "#/$defs/auditBase" }, { "$ref": "#/$defs/verified" }] },
+        { "allOf": [{ "$ref": "#/$defs/operatorBase" }, { "$ref": "#/$defs/verified" }] }
+      ],
+      "items": false
+    },
+    "failedProgression": {
+      "oneOf": [
+        { "$ref": "#/$defs/failAt0" },
+        { "$ref": "#/$defs/failAt1" },
+        { "$ref": "#/$defs/failAt2" },
+        { "$ref": "#/$defs/failAt3" },
+        { "$ref": "#/$defs/failAt4" }
+      ]
+    },
+    "failAt0": { "$ref": "#/$defs/baseSeams", "prefixItems": [
+      { "allOf": [{ "$ref": "#/$defs/leadBase" }, { "$ref": "#/$defs/failed" }] },
+      { "allOf": [{ "$ref": "#/$defs/claimBase" }, { "$ref": "#/$defs/notRun" }] },
+      { "allOf": [{ "$ref": "#/$defs/dispatchBase" }, { "$ref": "#/$defs/notRun" }] },
+      { "allOf": [{ "$ref": "#/$defs/auditBase" }, { "$ref": "#/$defs/notRun" }] },
+      { "allOf": [{ "$ref": "#/$defs/operatorBase" }, { "$ref": "#/$defs/notRun" }] }
+    ] },
+    "failAt1": { "$ref": "#/$defs/baseSeams", "prefixItems": [
+      { "allOf": [{ "$ref": "#/$defs/leadBase" }, { "$ref": "#/$defs/verified" }] },
+      { "allOf": [{ "$ref": "#/$defs/claimBase" }, { "$ref": "#/$defs/failed" }] },
+      { "allOf": [{ "$ref": "#/$defs/dispatchBase" }, { "$ref": "#/$defs/notRun" }] },
+      { "allOf": [{ "$ref": "#/$defs/auditBase" }, { "$ref": "#/$defs/notRun" }] },
+      { "allOf": [{ "$ref": "#/$defs/operatorBase" }, { "$ref": "#/$defs/notRun" }] }
+    ] },
+    "failAt2": { "$ref": "#/$defs/baseSeams", "prefixItems": [
+      { "allOf": [{ "$ref": "#/$defs/leadBase" }, { "$ref": "#/$defs/verified" }] },
+      { "allOf": [{ "$ref": "#/$defs/claimBase" }, { "$ref": "#/$defs/verified" }] },
+      { "allOf": [{ "$ref": "#/$defs/dispatchBase" }, { "$ref": "#/$defs/failed" }] },
+      { "allOf": [{ "$ref": "#/$defs/auditBase" }, { "$ref": "#/$defs/notRun" }] },
+      { "allOf": [{ "$ref": "#/$defs/operatorBase" }, { "$ref": "#/$defs/notRun" }] }
+    ] },
+    "failAt3": { "$ref": "#/$defs/baseSeams", "prefixItems": [
+      { "allOf": [{ "$ref": "#/$defs/leadBase" }, { "$ref": "#/$defs/verified" }] },
+      { "allOf": [{ "$ref": "#/$defs/claimBase" }, { "$ref": "#/$defs/verified" }] },
+      { "allOf": [{ "$ref": "#/$defs/dispatchBase" }, { "$ref": "#/$defs/verified" }] },
+      { "allOf": [{ "$ref": "#/$defs/auditBase" }, { "$ref": "#/$defs/failed" }] },
+      { "allOf": [{ "$ref": "#/$defs/operatorBase" }, { "$ref": "#/$defs/notRun" }] }
+    ] },
+    "failAt4": { "$ref": "#/$defs/baseSeams", "prefixItems": [
+      { "allOf": [{ "$ref": "#/$defs/leadBase" }, { "$ref": "#/$defs/verified" }] },
+      { "allOf": [{ "$ref": "#/$defs/claimBase" }, { "$ref": "#/$defs/verified" }] },
+      { "allOf": [{ "$ref": "#/$defs/dispatchBase" }, { "$ref": "#/$defs/verified" }] },
+      { "allOf": [{ "$ref": "#/$defs/auditBase" }, { "$ref": "#/$defs/verified" }] },
+      { "allOf": [{ "$ref": "#/$defs/operatorBase" }, { "$ref": "#/$defs/failed" }] }
+    ] }
+  }
+}

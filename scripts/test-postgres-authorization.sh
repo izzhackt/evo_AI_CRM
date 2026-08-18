@@ -230,6 +230,16 @@ while IFS= read -r migration; do
       "$test_database"
   fi
 
+  # P8V extends the durable queue fixture with the migration-077 canonical
+  # Lead-Agent ingress and no-authority manual-send replay proof. It must run
+  # only after 077 exists; running it at the historical P2G boundary would
+  # falsely require future functions from migration 045.
+  if [[ "$(basename "$migration")" == 077_* ]]; then
+    bash "$repo_root/scripts/test-p8v-runtime.sh" \
+      "$container_name" \
+      "$test_database"
+  fi
+
   # P2H owns the private document Storage metadata/policy contract. These SQL
   # suites run immediately after migration 046; the separate local Supabase
   # reset exercises the provider-owned Storage API and object bytes.

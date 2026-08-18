@@ -165,6 +165,10 @@ const platformConsultativeSalesMemoryMigration = readFileSync(
   join(migrationsDir, '076_platform_consultative_sales_memory.sql'),
   'utf8'
 );
+const platformManualWhatsAppSendWorkerMigration = readFileSync(
+  join(migrationsDir, '077_platform_manual_whatsapp_send_worker.sql'),
+  'utf8'
+);
 const platformOperationalSignalsAuthorizationTest = readFileSync(
   fileURLToPath(
     new URL(
@@ -401,7 +405,19 @@ function p7aAllowlist(functionName: string): Set<string> {
 
 describe('Supabase companion schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
-    expect(migrationFiles.at(-1)).toBe('076_platform_consultative_sales_memory.sql');
+    expect(migrationFiles.at(-1)).toBe('077_platform_manual_whatsapp_send_worker.sql');
+    expect(platformManualWhatsAppSendWorkerMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.claim_manual_whatsapp_send/i
+    );
+    expect(platformManualWhatsAppSendWorkerMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.sync_lead_agent_whatsapp/i
+    );
+    expect(platformManualWhatsAppSendWorkerMigration).toMatch(
+      /waha_session_name\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(waha_session_name\s*=\s*'crm_primary'\)/i
+    );
+    expect(platformManualWhatsAppSendWorkerMigration).toMatch(
+      /REVOKE\s+ALL\s+ON\s+TABLE\s+platform_private\.manual_send_provider_bindings\s+FROM\s+authenticated/i
+    );
     for (const factKey of [
       'age',
       'english_level',

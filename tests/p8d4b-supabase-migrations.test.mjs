@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -16,8 +16,16 @@ import {
 const repoRoot = process.cwd();
 const cliPath = join(repoRoot, "node_modules", ".bin", "supabase");
 const testCandidateRoot = mkdtempSync(join(tmpdir(), "evo-p8d4b-candidate-"));
-mkdirSync(join(testCandidateRoot, "supabase"), { recursive: true });
-cpSync(join(repoRoot, "supabase", "migrations"), join(testCandidateRoot, "supabase", "migrations"), { recursive: true });
+const testCandidateMigrations = join(testCandidateRoot, "supabase", "migrations");
+mkdirSync(testCandidateMigrations, { recursive: true });
+for (const migration of readdirSync(join(repoRoot, "supabase", "migrations"))
+  .filter((name) => /^\d{3}_[a-z0-9_]+\.sql$/.test(name) && Number.parseInt(name.slice(0, 3), 10) <= Number.parseInt(P8D4B.expectedAfter, 10))
+  .sort()) {
+  cpSync(
+    join(repoRoot, "supabase", "migrations", migration),
+    join(testCandidateMigrations, migration),
+  );
+}
 const schema = JSON.parse(readFileSync(new URL("../docs/schemas/p8d4b-migration-result.schema.json", import.meta.url), "utf8"));
 const validateSchema = new Ajv2020({ allErrors: true, strict: true }).compile(schema);
 

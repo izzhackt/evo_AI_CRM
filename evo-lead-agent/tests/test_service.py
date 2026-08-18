@@ -45,6 +45,81 @@ def _settings(tmp_path: Path) -> Settings:
 
 
 @pytest.mark.asyncio
+async def test_missing_timestamp_redelivery_is_stably_rejected_before_side_effects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ForbiddenProvider:
+        def __init__(self, *args, **kwargs) -> None:
+            raise AssertionError("invalid provider time must block before external clients")
+
+    monkeypatch.setattr(service_module, "AmoCrmClient", ForbiddenProvider)
+    monkeypatch.setattr(service_module, "EvoCrmSyncClient", ForbiddenProvider)
+    service = LeadAgentService(settings=_settings(tmp_path), store=Store(tmp_path / "agent.db"))
+    payload = {
+        "event": "message",
+        "session": "crm_primary",
+        "payload": {
+            "id": "waha-msg-without-timestamp",
+            "from": "996700111222@c.us",
+            "fromMe": False,
+            "body": "Хочу поступить",
+        },
+    }
+
+    first = await service.handle_waha_payload(payload)
+    second = await service.handle_waha_payload(payload)
+
+    expected = {
+        "accepted": True,
+        "ignored": True,
+        "reason": "missing_required_message_fields",
+    }
+    assert first == expected
+    assert second == expected
+    with service.store._connect() as connection:
+        assert connection.execute("select count(*) from messages").fetchone()[0] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid_timestamp", [True, 946_684_799, 4_102_444_800, 10**100])
+async def test_invalid_provider_timestamp_blocks_before_side_effects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_timestamp: object,
+) -> None:
+    class ForbiddenProvider:
+        def __init__(self, *args, **kwargs) -> None:
+            raise AssertionError("invalid provider time must block before external clients")
+
+    monkeypatch.setattr(service_module, "AmoCrmClient", ForbiddenProvider)
+    monkeypatch.setattr(service_module, "EvoCrmSyncClient", ForbiddenProvider)
+    service = LeadAgentService(settings=_settings(tmp_path), store=Store(tmp_path / "agent.db"))
+
+    result = await service.handle_waha_payload(
+        {
+            "event": "message",
+            "session": "crm_primary",
+            "payload": {
+                "id": "waha-msg-invalid-timestamp",
+                "from": "996700111222@c.us",
+                "fromMe": False,
+                "body": "Хочу поступить",
+                "timestamp": invalid_timestamp,
+            },
+        }
+    )
+
+    assert result == {
+        "accepted": True,
+        "ignored": True,
+        "reason": "missing_required_message_fields",
+    }
+    with service.store._connect() as connection:
+        assert connection.execute("select count(*) from messages").fetchone()[0] == 0
+
+
+@pytest.mark.asyncio
 async def test_frozen_service_rejects_processing_before_any_provider_call(
     tmp_path: Path,
     monkeypatch,
@@ -92,6 +167,7 @@ async def test_frozen_service_rejects_manual_buffer_processing_before_provider_c
         phone="+996700111222",
         chat_id="996700111222@c.us",
         text="Pre-existing queued message",
+        timestamp=1720000000,
     )
     store.record_inbound(queued, amo_lead_id=123, amo_contact_id=456)
     store.enqueue_message_buffer(queued, delay_seconds=0)
@@ -307,6 +383,9 @@ async def test_service_passes_knowledge_matches_to_decision(tmp_path: Path, monk
         async def ensure_lead_for_phone(self, phone: str, name: str | None, source: str) -> AmoLeadRef:
             return AmoLeadRef(lead_id=123, contact_id=456, created=False)
 
+        async def account_info(self) -> dict[str, object]:
+            return {"id": 789}
+
         async def add_lead_note(self, lead_id: int, text: str) -> None:
             return None
 
@@ -366,6 +445,8 @@ async def test_service_passes_knowledge_matches_to_decision(tmp_path: Path, monk
     assert result["processed"]["results"][0]["reply"] == "not_sent"
     assert captured["knowledge"][0]["external_id"] == "documents"  # type: ignore[index]
     assert captured["lead_facts"] == {"target_country": "Canada"}
+    assert captured["crm_payload"].amo_account_id == 789  # type: ignore[attr-defined]
+    assert captured["crm_payload"].provider_occurred_at == "2024-07-03T09:46:40.000Z"  # type: ignore[attr-defined]
     assert store.lead_facts("+996700111222", 123) == {
         "current_education": "11 класс",
         "target_country": "USA",
@@ -401,6 +482,9 @@ async def test_service_retries_no_outbound_buffer_when_crm_sync_fails(
 
         async def ensure_lead_for_phone(self, phone: str, name: str | None, source: str) -> AmoLeadRef:
             return AmoLeadRef(lead_id=123, contact_id=456, created=False)
+
+        async def account_info(self) -> dict[str, object]:
+            return {"id": 789}
 
         async def add_lead_note(self, lead_id: int, text: str) -> None:
             return None
@@ -484,6 +568,9 @@ async def test_service_does_not_commit_lead_facts_when_reply_sent_crm_sync_fails
 
         async def ensure_lead_for_phone(self, phone: str, name: str | None, source: str) -> AmoLeadRef:
             return AmoLeadRef(lead_id=123, contact_id=456, created=False)
+
+        async def account_info(self) -> dict[str, object]:
+            return {"id": 789}
 
         async def add_lead_note(self, lead_id: int, text: str) -> None:
             return None
@@ -576,6 +663,7 @@ async def test_service_processes_buffered_messages_as_one_agent_turn(
             phone="+996700111222",
             chat_id="996700111222@c.us",
             text="Хочу в Европу",
+            timestamp=1720000000,
         ),
         InboundMessage(
             session="crm_primary",
@@ -583,6 +671,7 @@ async def test_service_processes_buffered_messages_as_one_agent_turn(
             phone="+996700111222",
             chat_id="996700111222@c.us",
             text="Какие документы нужны?",
+            timestamp=1720000001,
         ),
     ]
     for message in messages:
@@ -596,6 +685,9 @@ async def test_service_processes_buffered_messages_as_one_agent_turn(
 
         async def ensure_lead_for_phone(self, phone: str, name: str | None, source: str) -> AmoLeadRef:
             return AmoLeadRef(lead_id=123, contact_id=456, created=False)
+
+        async def account_info(self) -> dict[str, object]:
+            return {"id": 789}
 
         async def add_lead_note(self, lead_id: int, text: str) -> None:
             return None
@@ -660,6 +752,7 @@ async def test_service_claims_due_buffer_once_for_concurrent_processors(
         phone="+996700111222",
         chat_id="996700111222@c.us",
         text="Concurrent test",
+        timestamp=1720000000,
     )
     store.record_inbound(message, amo_lead_id=None, amo_contact_id=None)
     store.enqueue_message_buffer(message, delay_seconds=0)
@@ -706,6 +799,7 @@ async def test_service_releases_claimed_buffer_after_processing_exception(
         phone="+996700111222",
         chat_id="996700111222@c.us",
         text="Exception test",
+        timestamp=1720000000,
     )
     store.record_inbound(message, amo_lead_id=None, amo_contact_id=None)
     store.enqueue_message_buffer(message, delay_seconds=0)
@@ -748,6 +842,7 @@ async def test_service_agent_mode_disabled_skips_ai_and_syncs_state(
         phone="+996700111222",
         chat_id="996700111222@c.us",
         text="Оператор уже отвечает",
+        timestamp=1720000000,
     )
     store.record_inbound(message, amo_lead_id=None, amo_contact_id=None)
     store.enqueue_message_buffer(message, delay_seconds=0)
@@ -760,6 +855,9 @@ async def test_service_agent_mode_disabled_skips_ai_and_syncs_state(
 
         async def ensure_lead_for_phone(self, phone: str, name: str | None, source: str) -> AmoLeadRef:
             return AmoLeadRef(lead_id=123, contact_id=456, created=False)
+
+        async def account_info(self) -> dict[str, object]:
+            return {"id": 789}
 
         async def add_lead_note(self, lead_id: int, text: str) -> None:
             return None

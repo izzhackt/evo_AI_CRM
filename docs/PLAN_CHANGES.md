@@ -8832,3 +8832,46 @@ P8V2C is a collision-free retry with release `2026-08-18.p8v2c.1`, version
 All P8V2B roots, tags and artifacts remain immutable. No other command or
 authority changes. Execution requires reviewed implementation, exact-head CI,
 merge, exact-main CI and a fresh exact owner token because reviewed code changed.
+
+---
+
+## 2026-08-18 — P8V2D CRM/Inbox smoke readiness correction
+
+Block-ID: `EVO-P8V2D-APP-SMOKE-READINESS-2026-08-18`
+
+Issue: #304
+
+The exact P8V2C token was consumed on merged execution commit
+`d58709ec310cf8240d905ade3cb2bf2176c33397`, tree
+`75975c8bee37c1f30935c817fe6c05f49ef2fca7`, after exact-main CI run
+`32127172913` completed successfully. The fail-closed attempt retained the
+mode-`0600` result SHA-256
+`b22ab4614f893a0577d42976612e00cc4b74466886d27c31cf49f03d41642c2a`.
+It stopped at `candidate_images`; production baseline, migrations, rollback,
+identity resolution, knowledge, configuration and publication remained
+`not_run`. No production, provider, migration, import, deployment, restart,
+WAHA, amoCRM, outbound or customer-data effect occurred. Every P8V2C root,
+artifact and tag is immutable.
+
+The Inbox image completed build and SBOM but stopped before its smoke artifact.
+The same exact immutable image then passed six real OrbStack smoke starts. The
+runner used only one immediate CRM/Inbox HTTP probe after container creation,
+so the initial cold Next.js startup could be observed before readiness.
+
+P8V2D adds readiness polling only for CRM and Inbox. Before each probe it must
+verify the exact owned container ID, immutable image ID and running state. It
+performs at most 30 probes with a one-second request timeout and waits exactly
+500 milliseconds only after the explicit transient connection/startup exit
+code. Success requires HTTP 200 and the existing exact service JSON. Wrong
+status/body, container exit, identity/owner/restart drift, retry exhaustion,
+OrbStack/context drift or cleanup failure remains immediately blocking. Tests
+must prove delayed success, malformed terminal failure, exhaustion and cleanup.
+
+Writable identities advance to release `2026-08-18.p8v2d.1`, version
+`p8v2d-0f1454d0-20260818`, authorization
+`PREPARE-P8V2D-2026-08-18.P8V2D.1`, `-p8v2d-linux-amd64` tags/archives,
+`p8v2d-` local roots, label `evo.p8v2d.owner`, and remote rollback root
+`/opt/evo-release-evidence/p8v2d-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`.
+The frozen application, 11/291 knowledge, production, rollback and provider
+boundaries do not change. One reviewed PR, exact-head CI, merge, exact-main CI
+and one fresh owner token are required; the consumed P8V2C token is never reused.

@@ -24,7 +24,7 @@
     "p8u4:candidate": "node scripts/p8u4-root-candidate.mjs",
     "test:p8v1": "node --conditions=react-server --experimental-strip-types --test tests/platform-lead-agent-platform-sync.test.mjs tests/platform-manual-send-worker.test.mjs tests/platform-manual-send-sidecar.test.mjs tests/p8v-runtime-harness.test.mjs tests/p8v-v1-core-result.test.mjs",
     "test:p8v2": "node --test tests/p8v2-production-preparation.test.mjs tests/p8v2-production-operations.test.mjs tests/p8v2a-portable-image.test.mjs",
-    "p8v2c:prepare": "node scripts/p8v2-production-preparation-cli.mjs",
+    "p8v2d:prepare": "node scripts/p8v2-production-preparation-cli.mjs",
     "test:p8v2c:orbstack": "node --test tests/p8v2c-production-baseline-orbstack.test.mjs",
     "p8d4g:run": "node scripts/p8d4g-production-runner.mjs",
     "pretest:unit": "node --conditions=react-server --experimental-strip-types --test tests/platform-staff-assistant.test.mjs tests/platform-knowledge-bundle.test.mjs tests/platform-knowledge-import-packaging.test.mjs && npm run test:p8u2 && npm run test:p8u3 && npm run test:p8u4 && npm run test:p8v1 && npm run test:p8v2",

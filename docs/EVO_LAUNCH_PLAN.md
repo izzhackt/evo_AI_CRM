@@ -3278,3 +3278,36 @@ owner-approved non-customer manual-send proof is in scope. Production authority
 remains closed until the exact four P8V Draft 2020-12 result schemas and runtime
 validators merge; success requires complete ordered records, while blocked or
 failed evidence permits only a truthful prefix with no later effects.
+
+### P8V2 exact production-preparation slice
+
+Issue #290 advances only Block V2 from the merged core-engine application
+commit `0f1454d014bbc9eca9d7381dfe557e980965543e`, tree
+`19599bcf043dc4a555c8996c21e7801934b64633`, parent
+`a7c589c2c735d4ef2d15ab5153eb07dba07d6286`, and exact-main push run
+`32093566626`. The three immutable local linux/amd64 source tags are
+`evo-crm:0f1454d014bbc9eca9d7381dfe557e980965543e-linux-amd64`,
+`evo-inbox:0f1454d014bbc9eca9d7381dfe557e980965543e-linux-amd64`, and
+`evo-lead-agent:0f1454d014bbc9eca9d7381dfe557e980965543e-linux-amd64`. Their image,
+OCI-index and platform-manifest identities are observed only after the reviewed
+OrbStack build and then frozen into the implementation/result schema.
+
+V2 preserves the five current production containers and seven exact
+Compose/env sources recorded in the active P8V contract. It prepares three
+portable archives, rollback/config capture, migration/config identity proof,
+and deterministic production-account-bound bundles from the unchanged
+11-client/291-internal vaults. A missing current credential or singular
+account/organization proof blocks only the dependent record; independent image,
+rollback and vault-integrity work continues and is retained as component
+evidence. The final V2 result is `preparation_verified` only when every ordered
+record is verified. Otherwise it is `preparation_blocked`, contains no later
+effect, and grants no V3 authority.
+
+The observed production configuration does not currently satisfy the new
+Platform contract: root CRM lacks the new publishable/secret Supabase keys,
+organization/account, Gemini, staff-assistant and worker settings, and Lead
+Agent lacks its configured amoCRM token file/OAuth refresh material. Legacy
+anon/service-role JWTs are not substituted. V2 may prove and report these
+absences but may not create, rotate, print or weaken credentials. There is no
+image transfer, database migration/import, provider call, container change,
+restart, WAHA/amoCRM mutation, customer send or public-route change in V2.

@@ -8554,3 +8554,60 @@ Changes:
 
 This decision itself performs no migration, import, provider write, container
 change, restart, send, DNS/Auth change or production deployment.
+
+---
+
+## 2026-08-18 - Freeze P8V2 production preparation after core-engine merge
+
+Block-ID: `EVO-P8V2-PRODUCTION-PREPARATION-2026-08-18`
+
+Issue: #290
+
+Decision: advance only P8V Block V2 from merged core-engine application commit
+`0f1454d014bbc9eca9d7381dfe557e980965543e`, tree
+`19599bcf043dc4a555c8996c21e7801934b64633`, parent
+`a7c589c2c735d4ef2d15ab5153eb07dba07d6286`, and exact-main push run
+`32093566626`. Freeze release version `2026-08-18.p8v2.1`, the three exact
+linux/amd64 source tags/archive names, five new evidence roots, five live
+production container/image identities, seven rollback Compose/env source rows,
+repository migrations `001`-`077`, singular live account/organization
+resolution, deterministic frozen 11-client/291-internal bundles and the exact
+safe presence/format/live-identity configuration contract in
+`docs/platform/p8v-v1-production-closure.md`.
+
+Reason: the V1 engine is merged, but production is still running older
+application images and is not ready for a truthful staff workflow. Root CRM
+lacks the new Supabase publishable/secret credentials, organization/account,
+Gemini, assistant and worker settings; Lead Agent lacks its configured amoCRM
+token file/OAuth refresh material. Legacy JWTs and an earlier unverified
+account UUID cannot be substituted. Independent candidate, rollback, migration
+and vault-integrity preparation remains useful and must continue without
+pretending those blockers are resolved.
+
+Changes:
+
+- require separate clean release-control and detached application checkouts,
+  OrbStack-only Docker commands, absent immutable tags/destinations and exact
+  linux/amd64/OCI/SBOM/network-none evidence;
+- preserve all five production containers and both WAHA boundaries unchanged;
+  V2 may inspect but cannot transfer/load/retag/recreate/reload/restart;
+- capture only seven explicit root-owned regular non-symlink Compose/env files
+  into private collision-free evidence with hashes and no secret output;
+- resolve the live account and active organization singularly and keep UUIDs
+  process-only; never reuse a prior note or placeholder;
+- rebuild each frozen audience twice in distinct roots, require byte-identical
+  account-bound bundle/manifest hashes and delete UUID/private-path reports in
+  finally-style cleanup; no import or embedding is authorized;
+- allow independent component roots to remain immutable when configuration
+  blocks final success, while the final blocked V2 root contains only the closed
+  UUID-free result and safe component hashes;
+- require the closed V2 schema/runtime state machine and negative behavioral
+  coverage before any local build or production read-only capture;
+- keep V3 entirely closed until V2 is independently reviewed and actually
+  `preparation_verified` under a later fresh authorization.
+
+This decision authorizes repository planning/implementation only. It performs
+no Docker build yet and grants no image transfer, production container change,
+database migration/import, credential creation/rotation, Gemini/provider call,
+WAHA/amoCRM mutation, customer data use, send, restart, DNS/Auth change or V3
+rollout authority.

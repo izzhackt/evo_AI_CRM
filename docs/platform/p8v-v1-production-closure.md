@@ -549,3 +549,42 @@ failed invocation. The original P8V2 authorization and collision-free evidence
 identity may be retried only after this correction is reviewed, merged and
 green on exact main. No production, provider, import, migration, deployment,
 restart, WAHA, amoCRM or customer-data authority changes.
+
+### V2.4 P8V2A nested OCI-index correction
+
+The first effectful P8V2 preparation is retained as a safe blocked attempt. Its
+closed result SHA-256 is
+`c57ffdd2b572d42d52c5106f7c926dbd89596690f557e4113e45cdd494110c1b`.
+Only the local CRM candidate was built, smoked, SBOM-scanned and archived. Its
+tag/index ID is
+`sha256:de201331d865c025fb6bffb0f991c8ed7acc5390b8ac3c838f61fe6e220f184e`
+and archive SHA-256 is
+`ae581ea790f38a1316cf7eca1b2bad822806b7772c1520aec681cf9378eef6a6`.
+All P8V2 roots and artifacts are immutable. The attempt performed no SSH,
+production read/write, migration, knowledge build/import, provider, deployment,
+restart, WAHA, amoCRM or customer-data operation.
+
+Current Buildx represents the loaded candidate as an OCI index. Saving it for
+linux/amd64 retains a top tag descriptor whose payload is another OCI index
+with exactly two children: the linux/amd64 OCI image manifest and the
+unknown/unknown BuildKit provenance attestation manifest. P8V2A must validate
+that full closed graph, including digest/size/media type, the attestation's
+`vnd.docker.reference.digest` binding to the platform manifest, config/layers,
+tag annotations, revision/source labels, Docker manifest mapping and exact tar
+entry allowlist. The result records the top OCI index digest separately from
+the linux/amd64 platform-manifest digest.
+
+The retry identities are exact:
+
+- release: `2026-08-18.p8v2a.1`;
+- image version: `p8v2a-0f1454d0-20260818`;
+- authorization: `PREPARE-P8V2A-2026-08-18.P8V2A.1`;
+- tags: `evo-crm:0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2a-linux-amd64`, `evo-inbox:0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2a-linux-amd64`, and `evo-lead-agent:0f1454d014bbc9eca9d7381dfe557e980965543e-p8v2a-linux-amd64`;
+- archives use the same three tag suffixes with `.tar`;
+- local roots are `p8v2a-build-*`, `p8v2a-portable-*`, `p8v2a-knowledge-*` and `p8v2a-preparation-*` for the frozen application commit/date;
+- remote rollback root is `/opt/evo-release-evidence/p8v2a-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818`.
+
+All P8V2 production, privacy, cleanup, configuration, rollback and no-provider
+boundaries remain unchanged. P8V2A is not executable until reviewed code is
+merged and exact-main CI is green; execution additionally requires its fresh
+exact owner token.

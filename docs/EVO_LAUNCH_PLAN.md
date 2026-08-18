@@ -3205,6 +3205,22 @@ may one new private OrbStack `linux/amd64` candidate attempt run. No production,
 provider, customer-data, import, routing, Auth activation or deployment
 authority is granted.
 
+P8U4A is now merged as `93d07740e15b05067af31b4aa03c865b6b1cebda`,
+tree `6ef0aea5eedaa26bd4d7de857bfa9bee9ff4e888`, parent
+`a63236838964542f712639aae83597747fee639f`, with successful exact-main CI
+`32081894062`. P8U4B freezes that exact application source and a new private
+tag/version/container/evidence root. It must verify the immutable P8U2 and
+P8U3 roots, file hashes, tags and image IDs before and after every effect.
+
+The one permitted post-merge P8U4B attempt remains local to OrbStack, builds
+`linux/amd64`, uses immutable-image SBOM and network-none UID/GID-1001 smoke,
+and proves `/api/health` plus exact `503 assistant_disabled`. It does not enable
+Auth, import knowledge, call Gemini, transfer or deploy an image, change public
+routing, access customer data, or mutate Supabase, WAHA, WhatsApp or amoCRM.
+Smoke injects only the exact P7B observability enabled flag and a fresh random
+process-only HMAC required for startup; the HMAC is never retained, and all
+staff-assistant/Supabase/Gemini/WAHA/amoCRM settings remain absent.
+
 ## P8U single-UI private preparation
 
 Issue #276 and `docs/platform/p8u-single-ui-private-preparation.md` supersede

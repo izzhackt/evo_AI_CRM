@@ -3350,3 +3350,23 @@ emits the unsettled-await warning. The correction must pass independent review,
 exact-head CI, merge and exact-main CI before the same collision-free P8V2
 preparation may be retried. All P8V2 authority and evidence boundaries remain
 unchanged.
+
+### P8V2A nested OCI-index retry
+
+The first effectful P8V2 preparation stopped safely at candidate-image
+verification after producing only local CRM build/SBOM/smoke/archive artifacts.
+The immutable failure result SHA-256 is
+`c57ffdd2b572d42d52c5106f7c926dbd89596690f557e4113e45cdd494110c1b`;
+no production, provider, database, knowledge, deploy, restart, WAHA, amoCRM or
+customer-data operation ran.
+
+Issue #298 corrects the portable verifier for the current Buildx archive graph:
+the tagged top-level descriptor is an OCI index containing one linux/amd64 image
+manifest and one exactly bound provenance attestation. The retry keeps the
+frozen application and production contract but advances every writable identity
+to P8V2A: release `2026-08-18.p8v2a.1`, version
+`p8v2a-0f1454d0-20260818`, authorization
+`PREPARE-P8V2A-2026-08-18.P8V2A.1`, `-p8v2a-linux-amd64` tags/archives,
+`p8v2a-` local evidence roots and a `p8v2a-rollback-` remote root. Historical
+P8V2 evidence and its CRM tag remain immutable. Retry requires independent
+review, merge, exact-main green CI and a fresh exact owner token.

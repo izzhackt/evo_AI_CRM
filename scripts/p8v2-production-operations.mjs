@@ -22,8 +22,8 @@ import { readPortableMetadata, verifyPortableArchive } from "./p8b3-portable-ima
 import { P8V2, verifyP8V2FinalRoot, writeP8V2Result } from "./p8v2-production-preparation.mjs";
 
 const HERMES = "hermes-vps";
-const RELEASE_VERSION = "p8v2-0f1454d0-20260818";
-const ROLLBACK_ROOT = `/opt/evo-release-evidence/p8v2-rollback-${P8V2.applicationCommit}-20260818`;
+const RELEASE_VERSION = "p8v2a-0f1454d0-20260818";
+const ROLLBACK_ROOT = `/opt/evo-release-evidence/p8v2a-rollback-${P8V2.applicationCommit}-20260818`;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SHA64 = /^[0-9a-f]{64}$/;
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
@@ -253,16 +253,16 @@ function inspectOwnedSmoke(docker, containerId, ownerNonce, imageId) {
   if (!/^[0-9a-f]{64}$/.test(containerId ?? "")) return null;
   const rows = parseJson(requireSuccess(docker(["container", "inspect", containerId]), "smoke ownership inspect"), "smoke ownership inspect");
   const row = Array.isArray(rows) && rows.length === 1 ? rows[0] : null;
-  if (row?.Id !== containerId || row?.Image !== imageId || row?.Config?.Labels?.["evo.p8v2.owner"] !== ownerNonce) return null;
+  if (row?.Id !== containerId || row?.Image !== imageId || row?.Config?.Labels?.["evo.p8v2a.owner"] !== ownerNonce) return null;
   return row;
 }
 
 export function smokeImage(docker, spec, imageId) {
-  const name = `evo-p8v2-smoke-${spec.name.replaceAll("_", "-")}-${P8V2.applicationCommit.slice(0, 12)}`;
+  const name = `evo-p8v2a-smoke-${spec.name.replaceAll("_", "-")}-${P8V2.applicationCommit.slice(0, 12)}`;
   const ownerNonce = randomBytes(16).toString("hex");
   const inventory = parseContainerList(requireSuccess(docker(["container", "ls", "-a", "--no-trunc", "--format", "{{.Names}}|{{.ID}}"]), "smoke container inventory"));
   if (inventory.has(name)) fail("smoke container collision", "candidate_build_failed");
-  const args = ["run", "-d", "--platform", "linux/amd64", "--name", name, "--label", `evo.p8v2.owner=${ownerNonce}`, "--network", "none"];
+  const args = ["run", "-d", "--platform", "linux/amd64", "--name", name, "--label", `evo.p8v2a.owner=${ownerNonce}`, "--network", "none"];
   for (const value of smokeEnvironment(spec)) args.push("-e", value);
   args.push(imageId);
   let containerId = null;
@@ -466,12 +466,12 @@ export async function createP8V2Operations({
   makeKnowledgeRoot,
   buildKnowledgeBundle,
 } = {}) {
-  if (environment.EVO_P8V2_AUTHORIZATION !== P8V2.authorization) fail("exact P8V2 authorization is required");
+  if (environment.EVO_P8V2A_AUTHORIZATION !== P8V2.authorization) fail("exact P8V2A authorization is required");
   const evidenceParent = join(sourceRoot, ".evo-release-evidence");
-  const buildRoot = join(evidenceParent, `p8v2-build-${P8V2.applicationCommit}-20260818`);
-  const portableRoot = join(evidenceParent, `p8v2-portable-${P8V2.applicationCommit}-20260818`);
-  const knowledgeRoot = join(evidenceParent, `p8v2-knowledge-${P8V2.applicationCommit}-20260818`);
-  const finalRoot = join(evidenceParent, `p8v2-preparation-${P8V2.applicationCommit}-20260818`);
+  const buildRoot = join(evidenceParent, `p8v2a-build-${P8V2.applicationCommit}-20260818`);
+  const portableRoot = join(evidenceParent, `p8v2a-portable-${P8V2.applicationCommit}-20260818`);
+  const knowledgeRoot = join(evidenceParent, `p8v2a-knowledge-${P8V2.applicationCommit}-20260818`);
+  const finalRoot = join(evidenceParent, `p8v2a-preparation-${P8V2.applicationCommit}-20260818`);
   const docker = createDockerExecutor(run);
   const state = { accountId: null, organizationId: null, images: [], rollback: null, knowledge: null, knowledgeRoots: [] };
 
@@ -523,8 +523,8 @@ export async function createP8V2Operations({
       chmodSync(archivePath, 0o600);
       assertRegular(archivePath);
       const archiveMetadata = readPortableMetadata(archivePath);
-      if (archiveMetadata.descriptor.digest !== imageId) fail(`archive/image identity drifted: ${spec.name}`, "candidate_build_failed");
-      verifyPortableArchive(archivePath, { name: spec.name, archive: spec.archive, manifest: archiveMetadata.descriptor.digest }, spec.tag, P8V2.applicationCommit);
+      if (archiveMetadata.tagDescriptor.digest !== imageId || !archiveMetadata.nestedIndex) fail(`archive/image identity drifted: ${spec.name}`, "candidate_build_failed");
+      verifyPortableArchive(archivePath, { name: spec.name, archive: spec.archive, index: imageId, manifest: archiveMetadata.descriptor.digest }, spec.tag, P8V2.applicationCommit);
       const postInventory = parseImageList(requireSuccess(docker(["image", "ls", "--no-trunc", "--format", "{{.Repository}}:{{.Tag}}|{{.ID}}"]), `${spec.name} post-save inventory`));
       if (postInventory.get(spec.tag) !== imageId) fail(`candidate tag changed during evidence collection: ${spec.name}`, "candidate_build_failed");
       const archiveBytes = readFileSync(archivePath);
@@ -542,7 +542,7 @@ export async function createP8V2Operations({
         platform: { os: "linux", architecture: "amd64", variant: "" },
       });
     }
-    atomicJson(join(portableRoot, "portable-image-identity.json"), { version: "p8v2-portable-image-identity.v1", source_commit: P8V2.applicationCommit, source_tree: P8V2.applicationTree, images: records });
+    atomicJson(join(portableRoot, "portable-image-identity.json"), { version: "p8v2a-portable-image-identity.v1", source_commit: P8V2.applicationCommit, source_tree: P8V2.applicationTree, images: records });
     state.images = records;
     return records;
   }
@@ -589,7 +589,7 @@ export async function createP8V2Operations({
     ensureEvidenceParent();
     createExclusiveDirectory(knowledgeRoot);
     const builder = buildKnowledgeBundle ?? ((args) => buildBundleDefault({ ...args, run }));
-    const makeRoot = makeKnowledgeRoot ?? (() => mkdtempSync(join(evidenceParent, "p8v2-private-build-")));
+    const makeRoot = makeKnowledgeRoot ?? (() => mkdtempSync(join(evidenceParent, "p8v2a-private-build-")));
     const audiences = [];
     const roots = [];
     let primaryError;

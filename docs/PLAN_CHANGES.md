@@ -8702,3 +8702,47 @@ subprocess negative must prove missing authorization exits `2` with only
 collision-free P8V2 roots, tags, authorization, evidence schema and
 no-production/no-provider boundaries remain frozen. Retry requires reviewed
 merge and new exact-main green CI.
+
+---
+
+## 2026-08-18 — P8V2A nested OCI-index retry after safe candidate stop
+
+Issue #298 records the first effectful P8V2 preparation stop. Exact execution
+main `8abce35628f943a1d9938144aec55b3746debf9d` built, smoke-checked,
+SBOM-scanned and archived only the local CRM candidate, then stopped in
+`candidate_images`. The immutable UUID-free failure result SHA-256 is
+`c57ffdd2b572d42d52c5106f7c926dbd89596690f557e4113e45cdd494110c1b`.
+The retained CRM tag maps to OCI index
+`sha256:de201331d865c025fb6bffb0f991c8ed7acc5390b8ac3c838f61fe6e220f184e`;
+the retained archive SHA-256 is
+`ae581ea790f38a1316cf7eca1b2bad822806b7772c1520aec681cf9378eef6a6`.
+These P8V2 roots, tag and artifacts are immutable and must never be overwritten
+or reused as P8V2A output. No SSH, production read/write, migration, knowledge
+build/import, provider call, deployment, restart, WAHA, amoCRM or customer-data
+action occurred.
+
+The stop was caused by verifier format drift, not application failure: current
+Buildx saved the tagged OCI image index, whose payload contains exactly one
+linux/amd64 image manifest and exactly one BuildKit provenance attestation
+manifest. The historical portable verifier expected the top tag descriptor to
+point directly to an image manifest.
+
+P8V2A is a collision-free preparation retry. It keeps application commit/tree,
+production boundaries, frozen 11/291 vaults and all P8V2 authority unchanged,
+but uses release `2026-08-18.p8v2a.1`, version
+`p8v2a-0f1454d0-20260818`, authorization
+`PREPARE-P8V2A-2026-08-18.P8V2A.1`, tags and archives suffixed
+`-p8v2a-linux-amd64`, local roots prefixed `p8v2a-`, and remote rollback root
+prefixed `p8v2a-rollback-`.
+
+The verifier must close the complete nested graph: tag descriptor to OCI index;
+one linux/amd64 image manifest; one unknown/unknown provenance attestation
+manifest bound by `vnd.docker.reference.digest`; and every referenced
+config/layer descriptor with exact digest, size and media type. It must preserve
+the distinction between OCI index digest and platform-manifest digest, verify
+the exact tag/revision/source/platform, reject all other cardinality or tar
+entries, and retain historical direct-manifest verification behavior.
+
+No P8V2A invocation is allowed until the plan and implementation are
+independently reviewed, exact-head CI is green, the PR is merged, and exact-main
+CI is green. A fresh exact owner token is required after those gates.

@@ -8674,3 +8674,31 @@ The P8V2 token has not been consumed. This correction grants no image transfer,
 production write, migration/import, provider call, container change/restart,
 WhatsApp send, WAHA/amoCRM mutation, customer-data use, DNS/Auth change or V3
 rollout authority.
+
+---
+
+## 2026-08-18 - P8V2 executable CLI import correction
+
+Block-ID: `EVO-P8V2-CLI-IMPORT-2026-08-18`
+
+Issue: #296
+
+The first reviewed P8V2 preparation invocation at exact main
+`2a34408d115fa1daa94b85c5b419e453d73a18d5` stopped before effects with Node's
+unsettled top-level-await warning. The executable preparation module dynamically
+imported operations while operations imported the still-running preparation
+module, creating an evaluation cycle that direct function tests did not
+exercise.
+
+Read-only post-failure checks found no P8V2 evidence directory and no P8V2
+candidate tag. No Docker build, SSH call, provider/database call, migration,
+knowledge import, deployment, restart, WAHA/amoCRM or customer-data action
+occurred. The P8V2 preparation authorization remains unconsumed.
+
+The executable entrypoint moves into a separate CLI module. The preparation
+module remains a pure library, the operator command is unchanged, and a real
+subprocess negative must prove missing authorization exits `2` with only
+`p8v2_failed:operation_failed` and no unsettled-await warning. The same
+collision-free P8V2 roots, tags, authorization, evidence schema and
+no-production/no-provider boundaries remain frozen. Retry requires reviewed
+merge and new exact-main green CI.

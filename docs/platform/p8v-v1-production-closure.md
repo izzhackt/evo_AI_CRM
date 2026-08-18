@@ -533,3 +533,19 @@ internal approved child is bound to the parent `Внутренняя база з
 directories. The deterministic double-build, process-only account binding,
 finally cleanup and UUID-free evidence contract are unchanged. No other P8V2
 identity or authority changes.
+
+### V2.3 executable CLI correction
+
+The first exact-main invocation stopped before any operation because the real
+CLI import graph was cyclic. Issue #296 moves executable argument handling and
+operation construction into `scripts/p8v2-production-preparation-cli.mjs`;
+`scripts/p8v2-production-preparation.mjs` remains a pure library and operations
+may import it without a reverse runtime import. `npm run p8v2:prepare` keeps the
+same arguments and behavior. A subprocess negative freezes the no-authorization
+exit code and safe stderr and rejects the prior unsettled-await symptom.
+
+No preparation artifact, candidate tag or external action was produced by the
+failed invocation. The original P8V2 authorization and collision-free evidence
+identity may be retried only after this correction is reviewed, merged and
+green on exact main. No production, provider, import, migration, deployment,
+restart, WAHA, amoCRM or customer-data authority changes.

@@ -13,7 +13,6 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 
 const SHA40 = /^[0-9a-f]{40}$/;
 const SHA64 = /^[0-9a-f]{64}$/;
@@ -494,26 +493,4 @@ export function writeP8V2Result(outputPath, result) {
   }
   assertRegular0600(outputPath);
   return result;
-}
-
-if (fileURLToPath(import.meta.url) === resolve(process.argv[1] ?? "")) {
-  const args = process.argv.slice(2);
-  if (args.length !== 2 || args[0] !== "--application-root" || !args[1]) {
-    process.stderr.write("Usage: npm run p8v2:prepare -- --application-root <exact-clean-application-checkout>\n");
-    process.exitCode = 2;
-  } else {
-    const { createP8V2Operations } = await import("./p8v2-production-operations.mjs");
-    try {
-      const operations = await createP8V2Operations({
-        toolRoot: resolve(dirname(fileURLToPath(import.meta.url)), ".."),
-        sourceRoot: resolve(args[1]),
-      });
-      const result = await runP8V2Preparation({ operations });
-      process.stdout.write(`p8v2_${result.result_code}\n`);
-      process.exitCode = result.result_code === "preparation_verified" ? 0 : 2;
-    } catch (error) {
-      process.stderr.write(`p8v2_failed:${error?.code ?? "operation_failed"}\n`);
-      process.exitCode = 2;
-    }
-  }
 }

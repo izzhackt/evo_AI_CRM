@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import Ajv2020 from "ajv/dist/2020.js";
 
@@ -20,6 +22,20 @@ const schemaUrl = new URL(
 );
 const SHA = "a".repeat(64);
 const IMAGE_ID = `sha256:${"b".repeat(64)}`;
+
+test("real preparation CLI fails closed without authorization and does not deadlock", () => {
+  const environment = { ...process.env };
+  delete environment.EVO_P8V2_AUTHORIZATION;
+  const result = spawnSync(
+    process.execPath,
+    [fileURLToPath(new URL("../scripts/p8v2-production-preparation-cli.mjs", import.meta.url)), "--application-root", tmpdir()],
+    { encoding: "utf8", env: environment },
+  );
+  assert.equal(result.status, 2);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr, "p8v2_failed:operation_failed\n");
+  assert.doesNotMatch(`${result.stdout}${result.stderr}`, /unsettled top-level await/i);
+});
 
 function verifiedImage(name, prefix) {
   return {

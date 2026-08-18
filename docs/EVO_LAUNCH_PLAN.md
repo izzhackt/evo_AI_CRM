@@ -3241,3 +3241,40 @@ is retired because the candidate and release contract change. A later Auth
 block must configure and prove the real Supabase sign-in/authority/RLS path.
 Only a new reviewed release contract, fresh preflight and new owner token may
 then authorize production mutation.
+
+## P8V v1 production closure
+
+Issue #287 and `docs/platform/p8v-v1-production-closure.md` supersede local-only
+P8U preparation as the active rollout contract. The read-only baseline confirms
+that repository capability is substantially ahead of Hermes: production CRM,
+Inbox and Lead Agent images are old; root Platform/Auth/Gemini configuration is
+absent; managed knowledge is only 2 internal documents / 26 chunks with no
+bundle revision or assistant audit; amoCRM has no runtime token; and the
+durable manual-send authorization has no real sending worker.
+
+P8V closes the engine first, then freezes production artifacts/config/rollback,
+deploys one application boundary at a time and finally proves the real staff
+journey. The frozen public seams preserve Lead-Agent-owned WAHA intake with
+amoCRM-first identity and signed CRM sync, durable manual-send execution,
+protected staff-assistant HTTP route, authenticated browser workflow and
+redacted reconciliation evidence. The only manual-send trigger owner is the
+private `evo-crm-manual-send-worker` Compose service from the reviewed CRM
+image: one in-flight claim, five-second cadence, ten-second route deadline,
+thirty-second heartbeat health and a dedicated process-only HMAC. Pre-route
+transport failure affects only sidecar health; the CRM transaction alone owns
+durable claim/lease state, and a lost response is recovered through lease
+expiry plus reconciliation. Real services are mandatory for live
+claims; an unavailable independent boundary is recorded and skipped rather
+than replaced by a mock or weakened credential contract.
+
+The start identity is main `8dfeb7b8cc85588b1d886e61fb843a14122f5b16`,
+tree `879c9fcdedca442c1bad750ae485f850aa8c5e90`, parent
+`93d07740e15b05067af31b4aa03c865b6b1cebda`, exact-main CI
+`32084838298`. P8U4 evidence remains immutable preparation evidence. Every P8V
+implementation/release block still requires independent PR review, exact-head
+and exact-main CI, closed evidence, safe rollback and a fresh action-time
+production gate. Autonomous/customer sending remains disabled; only one later
+owner-approved non-customer manual-send proof is in scope. Production authority
+remains closed until the exact four P8V Draft 2020-12 result schemas and runtime
+validators merge; success requires complete ordered records, while blocked or
+failed evidence permits only a truthful prefix with no later effects.

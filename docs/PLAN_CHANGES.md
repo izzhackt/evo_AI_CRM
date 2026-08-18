@@ -8484,3 +8484,73 @@ candidate attempt. It grants no image transfer, registry, Hermes/production,
 public routing, Auth activation, Supabase mutation/import, Gemini, WAHA,
 WhatsApp, amoCRM, outbound, autonomous-reply, restart, customer-data or billed
 provider authority.
+
+---
+
+## 2026-08-18 - Activate P8V v1 production closure after private candidate proof
+
+Block-ID: `EVO-P8V-V1-PRODUCTION-CLOSURE-2026-08-18`
+
+Issue: #287
+
+Decision: supersede the local-only P8U preparation sequence as the active next
+work with `docs/platform/p8v-v1-production-closure.md`. This is not permission
+to pretend the private P8U4 candidate is deployed. It creates four reviewed
+blocks: core engine closure, production preparation, one-boundary rollout and
+real staff proof.
+
+Reason: a fresh read-only production inventory found a coherent but old and
+incomplete baseline. All five expected containers are healthy/restart-zero,
+both sslip.io health routes return 200, CRM WAHA has two WORKING sessions and
+the real Gemini models endpoint is available. However root CRM has no Platform
+Supabase/Auth/Gemini settings; production knowledge has only 2 internal
+documents / 26 chunks and no managed revision; assistant audits are empty;
+amoCRM's configured token file is missing; and manual-send authorization is
+not consumed by any real worker. Deploying the prepared CRM image without
+closing those boundaries would replace a working old app with an unusable
+login while still not delivering the requested staff workflow.
+
+Changes:
+
+- Freeze exact start identity main `8dfeb7b8cc85588b1d886e61fb843a14122f5b16`,
+  tree `879c9fcdedca442c1bad750ae485f850aa8c5e90`, parent
+  `93d07740e15b05067af31b4aa03c865b6b1cebda`, exact-main CI
+  `32084838298`.
+- Freeze TDD at five public seams: existing Lead-Agent-owned WAHA ingress with
+  amoCRM-first resolution and signed CRM sync, durable manual-send worker,
+  protected staff-assistant route, authenticated browser workflow and redacted
+  reconciliation result. No second root-CRM ingress owner is authorized.
+- Freeze the real manual-send trigger as one private
+  `evo-crm-manual-send-worker` Compose service from the exact CRM image, with a
+  five-second cadence, one in-flight item, ten-second route deadline,
+  thirty-second heartbeat health and a dedicated process-only HMAC. A route
+  without that real trigger is not completion. Pre-route transport failure
+  affects local sidecar health only; CRM alone owns durable claim/lease state,
+  and an ambiguous lost response enters lease-expiry reconciliation without an
+  immediate second trigger.
+- Close only core blockers before polishing UI: exact manual-send consumption,
+  provider acknowledgement, immutable audit, retry/reconciliation and operator
+  state. Preserve autonomous/outbound disabled unless a staff authorization
+  exists.
+- Require current provider keys rather than weakening the reviewed
+  `sb_publishable_...` / `sb_secret_...` contract to fit legacy keys.
+- Require deterministic production-account-bound rebuilds from the frozen
+  11-client/291-internal vaults before import.
+- Preserve WAHA images/sessions/networks; deploy CRM, optional Inbox and Lead
+  Agent one boundary at a time with reverse application rollback and
+  forward-only database semantics.
+- Permit exactly one later non-customer manual-send proof. No demo user, fake
+  provider record, customer-content test, autonomous reply or broad send is
+  authorized.
+- Continue independent gates when one boundary is blocked, but report every
+  omission and never label the whole v1 verified until the complete real path
+  passes.
+- Freeze four exact Draft 2020-12 result schemas for V1 core, V2 preparation,
+  V3 rollout and V4 workflow. Production authority remains closed until those
+  schemas, runtime validators and negative progression/cardinality tests merge.
+  Success requires exact ordered complete records; blocked/failed evidence is a
+  truthful prefix with every later record `not_run`. Evidence allowlists and
+  mode/non-symlink rules are fixed in the P8V execution plan.
+
+This decision itself performs no migration, import, provider write, container
+change, restart, send, DNS/Auth change or production deployment.

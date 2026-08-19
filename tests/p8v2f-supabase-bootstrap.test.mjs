@@ -8,6 +8,7 @@ import test from "node:test";
 import {
   P8V2F,
   P8V2G_READINESS,
+  P8V2H_POSTGREST_RELOAD_SQL,
   bootstrapP8V2FOrganization,
   classifyP8V2FState,
   configureP8V2FHermes,
@@ -15,6 +16,7 @@ import {
   createP8V2FHermesScript,
   patchP8V2FPostgrest,
   publishP8V2FResult,
+  reloadP8V2HPostgrest,
   runP8V2FSupabaseBootstrap,
   validateInitialState,
   validateP8V2FResult,
@@ -117,6 +119,54 @@ test("Management client is project-bound and PostgREST patch is exact", async ()
   await assert.rejects(client("/v1/projects/another/postgrest"), /escaped project/);
 });
 
+test("PostgREST reload uses the exact fixed Management SQL request", async () => {
+  const calls = [];
+  const client = createP8V2FClient({
+    accessToken: `sbp_${"x".repeat(30)}`,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return responseJson({}, 201);
+    },
+  });
+  assert.equal(await reloadP8V2HPostgrest(client), "reloaded");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, `https://api.supabase.com/v1/projects/${P8V2F.projectRef}/database/query`);
+  assert.equal(calls[0].options.method, "POST");
+  assert.equal(calls[0].options.redirect, "error");
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    query: P8V2H_POSTGREST_RELOAD_SQL,
+    read_only: false,
+  });
+  assert.equal(P8V2H_POSTGREST_RELOAD_SQL, "NOTIFY pgrst, 'reload config'; NOTIFY pgrst, 'reload schema';");
+});
+
+test("PostgREST reload rejects non-201, malformed, and oversized responses", async () => {
+  const responses = [
+    new Response(JSON.stringify({ message: "stopped" }), { status: 500 }),
+    new Response("", { status: 201 }),
+    new Response("null", { status: 201 }),
+    new Response("{", { status: 201 }),
+    new Response(JSON.stringify({ padding: "x".repeat(70_000) }), { status: 201 }),
+  ];
+  for (const response of responses) {
+    const client = createP8V2FClient({
+      accessToken: `sbp_${"x".repeat(30)}`,
+      fetchImpl: async () => response,
+    });
+    await assert.rejects(reloadP8V2HPostgrest(client));
+  }
+});
+
+test("PostgREST reload rejects transport and timeout failures", async () => {
+  for (const failure of [new Error("transport stopped"), new DOMException("timed out", "TimeoutError")]) {
+    const client = createP8V2FClient({
+      accessToken: `sbp_${"x".repeat(30)}`,
+      fetchImpl: async () => { throw failure; },
+    });
+    await assert.rejects(reloadP8V2HPostgrest(client), failure);
+  }
+});
+
 test("bootstrap uses only the reviewed RPC projection", async () => {
   let call;
   const output = await bootstrapP8V2FOrganization(SECRET, AUTH, async (url, options) => {
@@ -128,6 +178,8 @@ test("bootstrap uses only the reviewed RPC projection", async () => {
   const body = JSON.parse(call.options.body);
   assert.deepEqual(Object.keys(body).sort(), ["p_admin_auth_user_id", "p_admin_display_name", "p_organization_name", "p_reason", "p_request_id"]);
   assert.equal(body.p_admin_auth_user_id, AUTH);
+  assert.equal(body.p_reason, "P8V2G production Platform bootstrap");
+  assert.equal(P8V2F.requestAuthorization, "CONFIGURE-P8V2G-2026-08-19.P8V2G.1");
   assert.equal(call.options.headers.apikey, SECRET);
   assert.equal(call.options.headers.Authorization, undefined);
 });
@@ -314,10 +366,23 @@ function responseJson(value, status = 200) {
   return new Response(JSON.stringify(value), { status });
 }
 
-function orchestrationFetch({ initiallyPrepared = false, counters = {}, rejectKey = null, loseFirstRpcResponse = false } = {}) {
-  let prepared = initiallyPrepared;
+function orchestrationFetch({ initiallyPrepared = false, counters = {}, rejectKey = null, loseFirstRpcResponse = false, rejectRpc = false, rejectPatch = false, trackStateReads = false } = {}) {
+  let schemaAfter = initiallyPrepared;
+  let organizationPrepared = initiallyPrepared;
   return async (url, options = {}) => {
-    if (url.endsWith("/postgrest") && options.method === "PATCH") { counters.patches = (counters.patches ?? 0) + 1; prepared = options.body.includes(P8V2F.afterSchemas); return responseJson({ db_schema: prepared ? P8V2F.afterSchemas : P8V2F.beforeSchemas }); }
+    if (url.endsWith("/postgrest") && options.method === "PATCH") {
+      counters.patches = (counters.patches ?? 0) + 1;
+      if (rejectPatch) throw new Error("schema patch stopped");
+      schemaAfter = options.body.includes(P8V2F.afterSchemas);
+      (counters.order ??= []).push(schemaAfter ? "patch_after" : "patch_before");
+      return responseJson({ db_schema: schemaAfter ? P8V2F.afterSchemas : P8V2F.beforeSchemas });
+    }
+    if (url.endsWith("/database/query")) {
+      counters.reloads = (counters.reloads ?? 0) + 1;
+      (counters.order ??= []).push("reload");
+      assert.deepEqual(JSON.parse(options.body), { query: P8V2H_POSTGREST_RELOAD_SQL, read_only: false });
+      return responseJson({}, 201);
+    }
     if (url.endsWith("/auth/v1/settings")) {
       counters.keyProbes = (counters.keyProbes ?? 0) + 1;
       if (options.headers.apikey === rejectKey) return responseJson({ message: "Invalid API key" }, 401);
@@ -325,17 +390,23 @@ function orchestrationFetch({ initiallyPrepared = false, counters = {}, rejectKe
     }
     if (url.includes("/rpc/bootstrap_organization_admin")) {
       counters.rpc = (counters.rpc ?? 0) + 1;
-      if (loseFirstRpcResponse && counters.rpc === 1) { prepared = true; throw new Error("response lost after commit"); }
+      (counters.order ??= []).push("rpc");
+      if (loseFirstRpcResponse && counters.rpc === 1) { organizationPrepared = true; throw new Error("response lost after commit"); }
+      if (rejectRpc && counters.rpc === 1) throw new Error("transport stopped before commit");
+      organizationPrepared = true;
       return responseJson({ organization_name: P8V2F.organizationName, admin_auth_user_id: AUTH, role: "admin", status: "active" });
     }
-    if (url.endsWith(`/projects/${P8V2F.projectRef}`)) return responseJson({ ref: P8V2F.projectRef, status: "ACTIVE_HEALTHY" });
-    if (url.endsWith("/postgrest")) return responseJson({ db_schema: prepared ? P8V2F.afterSchemas : P8V2F.beforeSchemas });
+    if (url.endsWith(`/projects/${P8V2F.projectRef}`)) {
+      if (trackStateReads) (counters.order ??= []).push("state_read");
+      return responseJson({ ref: P8V2F.projectRef, status: "ACTIVE_HEALTHY" });
+    }
+    if (url.endsWith("/postgrest")) return responseJson({ db_schema: schemaAfter ? P8V2F.afterSchemas : P8V2F.beforeSchemas });
     if (url.endsWith("/database/query/read-only")) {
       const query = JSON.parse(options.body).query;
       if (query.includes("schema_migrations")) return responseJson([{ count: 76, first: "001", last: "076" }], 201);
-      if (query.includes("platform.organization_memberships) as memberships")) return responseJson([{ organizations: prepared ? 1 : 0, profiles: prepared ? 1 : 0, memberships: prepared ? 1 : 0 }], 201);
+      if (query.includes("platform.organization_memberships) as memberships")) return responseJson([{ organizations: organizationPrepared ? 1 : 0, profiles: organizationPrepared ? 1 : 0, memberships: organizationPrepared ? 1 : 0 }], 201);
       const rows = [row("account", ACCOUNT), row("auth", AUTH)];
-      if (prepared) rows.push(row("organization", ORGANIZATION, { name: P8V2F.organizationName, related_id: AUTH, role: "admin", status: "active", audit_count: 1 }));
+      if (organizationPrepared) rows.push(row("organization", ORGANIZATION, { name: P8V2F.organizationName, related_id: AUTH, role: "admin", status: "active", audit_count: 1 }));
       return responseJson(rows, 201);
     }
     throw new Error(`unexpected URL ${url}`);
@@ -344,16 +415,17 @@ function orchestrationFetch({ initiallyPrepared = false, counters = {}, rejectKe
 
 test("orchestration reaches safe success without migration/provider/deploy effects", async () => {
   let published;
+  const counters = {};
   const output = await runP8V2FSupabaseBootstrap({
     toolRoot: "/safe/tool",
     reviewedCommit: EXECUTION.commit,
     environment: {
-      EVO_P8V2G_AUTHORIZATION: P8V2F.authorization,
+      EVO_P8V2H_AUTHORIZATION: P8V2F.authorization,
       SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
       EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,
     },
-    fetchImpl: orchestrationFetch(),
+    fetchImpl: orchestrationFetch({ counters }),
     verifyExecution: () => EXECUTION,
     configureHermes: () => ({ status: "updated", settings: 5, file: "root_root_0600", rollback_sha256: "e".repeat(64), feature_enables: 0 }),
     publish: (_root, result) => { published = result; return { path: "safe", sha256: "f".repeat(64) }; },
@@ -362,6 +434,8 @@ test("orchestration reaches safe success without migration/provider/deploy effec
   assert.deepEqual(output.result.effects, { migrations_applied: 0, knowledge_imports: 0, deployments: 0, restarts: 0, provider_calls: 0, outbound_sends: 0 });
   assert.equal(JSON.stringify(published).includes(AUTH), false);
   assert.equal(JSON.stringify(published).includes(SECRET), false);
+  assert.deepEqual(counters.order.slice(0, 3), ["patch_after", "reload", "rpc"]);
+  assert.equal(counters.reloads, 1);
 });
 
 test("exact prepared state resumes without repatching or creating a second organization", async () => {
@@ -370,7 +444,7 @@ test("exact prepared state resumes without repatching or creating a second organ
     toolRoot: "/safe/tool",
     reviewedCommit: EXECUTION.commit,
     environment: {
-      EVO_P8V2G_AUTHORIZATION: P8V2F.authorization,
+      EVO_P8V2H_AUTHORIZATION: P8V2F.authorization,
       SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
       EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,
@@ -392,7 +466,7 @@ test("wrong-project publishable key stops before every mutation", async () => {
     toolRoot: "/safe/tool",
     reviewedCommit: EXECUTION.commit,
     environment: {
-      EVO_P8V2G_AUTHORIZATION: P8V2F.authorization,
+      EVO_P8V2H_AUTHORIZATION: P8V2F.authorization,
       SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
       EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,
@@ -406,6 +480,27 @@ test("wrong-project publishable key stops before every mutation", async () => {
   assert.equal(counters.rpc ?? 0, 0);
 });
 
+test("failed schema patch never issues a reload or RPC", async () => {
+  const counters = {};
+  await assert.rejects(runP8V2FSupabaseBootstrap({
+    toolRoot: "/safe/tool",
+    reviewedCommit: EXECUTION.commit,
+    environment: {
+      EVO_P8V2H_AUTHORIZATION: P8V2F.authorization,
+      SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
+      EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
+      EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,
+    },
+    fetchImpl: orchestrationFetch({ counters, rejectPatch: true }),
+    verifyExecution: () => EXECUTION,
+    configureHermes: () => { throw new Error("must not configure"); },
+    publish: () => ({ path: "safe", sha256: "f".repeat(64) }),
+  }));
+  assert.equal(counters.patches, 1);
+  assert.equal(counters.reloads ?? 0, 0);
+  assert.equal(counters.rpc ?? 0, 0);
+});
+
 test("lost bootstrap response preserves canonical schemas and records reconciliation", async () => {
   const counters = {};
   let published;
@@ -413,7 +508,7 @@ test("lost bootstrap response preserves canonical schemas and records reconcilia
     toolRoot: "/safe/tool",
     reviewedCommit: EXECUTION.commit,
     environment: {
-      EVO_P8V2G_AUTHORIZATION: P8V2F.authorization,
+      EVO_P8V2H_AUTHORIZATION: P8V2F.authorization,
       SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
       EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,
@@ -424,8 +519,33 @@ test("lost bootstrap response preserves canonical schemas and records reconcilia
     publish: (_root, result) => { published = result; return { path: "safe", sha256: "f".repeat(64) }; },
   }), (error) => error.code === "configuration_reconciliation_required");
   assert.equal(counters.patches, 1, "canonical schemas are not rolled back after committed bootstrap readback");
+  assert.equal(counters.reloads, 1);
   assert.equal(published.data_api.status, "patched");
   assert.equal(published.identity.active_organizations, "exactly_one");
+});
+
+test("zero-state RPC transport failure reloads after both forward and restoration patches", async () => {
+  const counters = {};
+  let published;
+  await assert.rejects(runP8V2FSupabaseBootstrap({
+    toolRoot: "/safe/tool",
+    reviewedCommit: EXECUTION.commit,
+    environment: {
+      EVO_P8V2H_AUTHORIZATION: P8V2F.authorization,
+      SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
+      EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
+      EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,
+    },
+    fetchImpl: orchestrationFetch({ counters, rejectRpc: true, trackStateReads: true }),
+    verifyExecution: () => EXECUTION,
+    configureHermes: () => { throw new Error("must not configure"); },
+    publish: (_root, result) => { published = result; return { path: "safe", sha256: "f".repeat(64) }; },
+  }), (error) => error.code === "configuration_failed");
+  assert.deepEqual(counters.order, ["state_read", "patch_after", "reload", "rpc", "state_read", "patch_before", "reload", "state_read"]);
+  assert.equal(counters.patches, 2);
+  assert.equal(counters.reloads, 2);
+  assert.equal(published.data_api.status, "restored");
+  assert.equal(published.identity.active_organizations, "none");
 });
 
 test("publication failure produces a truthful evidence_failed terminal attempt", async () => {
@@ -434,7 +554,7 @@ test("publication failure produces a truthful evidence_failed terminal attempt",
     toolRoot: "/safe/tool",
     reviewedCommit: EXECUTION.commit,
     environment: {
-      EVO_P8V2G_AUTHORIZATION: P8V2F.authorization,
+      EVO_P8V2H_AUTHORIZATION: P8V2F.authorization,
       SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
       EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,
@@ -457,7 +577,7 @@ test("post-bootstrap Hermes failure is retained as reconciliation required", asy
     toolRoot: "/safe/tool",
     reviewedCommit: EXECUTION.commit,
     environment: {
-      EVO_P8V2G_AUTHORIZATION: P8V2F.authorization,
+      EVO_P8V2H_AUTHORIZATION: P8V2F.authorization,
       SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
       EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,

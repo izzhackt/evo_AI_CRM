@@ -19,9 +19,10 @@ import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 
-export const P8V2G = Object.freeze({
-  version: "p8v2g-supabase-bootstrap-result/v1",
-  authorization: "CONFIGURE-P8V2G-2026-08-19.P8V2G.1",
+export const P8V2H = Object.freeze({
+  version: "p8v2h-supabase-bootstrap-result/v1",
+  authorization: "CONFIGURE-P8V2H-2026-08-19.P8V2H.1",
+  requestAuthorization: "CONFIGURE-P8V2G-2026-08-19.P8V2G.1",
   projectRef: "iosckaqtovbbnssqcpde",
   projectUrl: "https://iosckaqtovbbnssqcpde.supabase.co",
   organizationName: "EVO Admissions",
@@ -29,21 +30,24 @@ export const P8V2G = Object.freeze({
   reason: "P8V2G production Platform bootstrap",
   beforeSchemas: "public,graphql_public",
   afterSchemas: "public,platform,graphql_public",
-  remoteRoot: "/opt/evo-release-evidence/p8v2g-supabase-bootstrap-20260819",
+  remoteRoot: "/opt/evo-release-evidence/p8v2h-supabase-bootstrap-20260819",
   remoteEnv: "/opt/evo-crm/.env.production",
-  resultRoot: ".evo-release-evidence/p8v2g-supabase-bootstrap-20260819",
-  resultName: "p8v2g-supabase-bootstrap-result.json",
+  resultRoot: ".evo-release-evidence/p8v2h-supabase-bootstrap-20260819",
+  resultName: "p8v2h-supabase-bootstrap-result.json",
 });
 
-// Keep the historical export while the P8V2G correction advances only writable
-// identities and the bounded PostgREST readiness seam.
-export const P8V2F = P8V2G;
+// Keep the historical exports while P8V2H advances only writable identities
+// and the fixed PostgREST reload seam.
+export const P8V2G = P8V2H;
+export const P8V2F = P8V2H;
 
 export const P8V2G_READINESS = Object.freeze({
   maxAttempts: 12,
   delayMs: 1_000,
   deadlineMs: 30_000,
 });
+
+export const P8V2H_POSTGREST_RELOAD_SQL = "NOTIFY pgrst, 'reload config'; NOTIFY pgrst, 'reload schema';";
 
 const MANAGEMENT_ORIGIN = "https://api.supabase.com";
 const SHA40 = /^[0-9a-f]{40}$/;
@@ -128,7 +132,7 @@ function requireCredential(environment, name, pattern) {
 }
 
 function deterministicRequestId() {
-  const bytes = Buffer.from(sha256(`${P8V2F.authorization}:${P8V2F.projectRef}`), "hex").subarray(0, 16);
+  const bytes = Buffer.from(sha256(`${P8V2F.requestAuthorization}:${P8V2F.projectRef}`), "hex").subarray(0, 16);
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = bytes.toString("hex");
@@ -284,6 +288,16 @@ export async function patchP8V2FPostgrest(request, dbSchema) {
   if (payload?.db_schema?.split(",").map((value) => value.trim()).filter(Boolean).join(",") !== dbSchema) fail("PostgREST patch drifted");
 }
 
+export async function reloadP8V2HPostgrest(request) {
+  const payload = await request(`/v1/projects/${P8V2F.projectRef}/database/query`, {
+    method: "POST",
+    body: { query: P8V2H_POSTGREST_RELOAD_SQL, read_only: false },
+    expectedStatus: 201,
+  });
+  if (payload === undefined || payload === null) fail("PostgREST reload response drifted");
+  return "reloaded";
+}
+
 export async function bootstrapP8V2FOrganization(secretKey, authUserId, fetchImpl = fetch, {
   now = () => performance.now(),
   wait = (milliseconds) => new Promise((resolveWait) => setTimeout(resolveWait, milliseconds)),
@@ -418,7 +432,7 @@ try:
    with os.fdopen(fd,'wb') as f: f.write(original); f.flush(); os.fsync(f.fileno())
    os.chown(BACK,${requiredUid},${requiredGid})
   addition=('' if not original or original.endswith(b'\\n') else '\\n')+''.join(k+'='+payload[k]+'\\n' for k in KEYS)
-  temp=ENV.with_name('.env.production.p8v2g.tmp')
+  temp=ENV.with_name('.env.production.p8v2h.tmp')
   fd=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
   with os.fdopen(fd,'wb') as f: f.write(original+addition.encode()); f.flush(); os.fsync(f.fileno())
   os.chown(temp,${requiredUid},${requiredGid}); os.replace(temp,ENV); updated=True; status='updated'
@@ -432,7 +446,7 @@ try:
  print(json.dumps({'status':status,'settings':5,'file':'root_root_0600','rollback_sha256':hashlib.sha256(BACK.read_bytes()).hexdigest(),'feature_enables':0},separators=(',',':')))
 except Exception:
  if updated and BACK.exists():
-  temp=ENV.with_name('.env.production.p8v2g.restore.tmp')
+  temp=ENV.with_name('.env.production.p8v2h.restore.tmp')
   shutil.copyfile(BACK,temp); os.chmod(temp,0o600); os.chown(temp,${requiredUid},${requiredGid}); os.replace(temp,ENV)
   restored=ENV.lstat()
   if ENV.is_symlink() or not stat.S_ISREG(restored.st_mode) or restored.st_uid!=${requiredUid} or restored.st_gid!=${requiredGid} or stat.S_IMODE(restored.st_mode)!=0o600 or ENV.read_bytes()!=BACK.read_bytes(): die()
@@ -532,7 +546,7 @@ export async function runP8V2FSupabaseBootstrap({
   configureHermes = configureP8V2FHermes,
   publish = publishP8V2FResult,
 }) {
-  if (environment.EVO_P8V2G_AUTHORIZATION !== P8V2F.authorization) fail("authorization missing or mismatched");
+  if (environment.EVO_P8V2H_AUTHORIZATION !== P8V2F.authorization) fail("authorization missing or mismatched");
   const accessToken = requireCredential(environment, "SUPABASE_ACCESS_TOKEN", /^sbp_[A-Za-z0-9_-]{20,}$/);
   const publishableKey = requireCredential(environment, "EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY", /^sb_publishable_[A-Za-z0-9_-]{20,}$/);
   const secretKey = requireCredential(environment, "EVO_PLATFORM_SUPABASE_SECRET_KEY", /^sb_secret_[A-Za-z0-9_-]{20,}$/);
@@ -554,6 +568,7 @@ export async function runP8V2FSupabaseBootstrap({
     if (initial.mode === "initial") {
       patchAttempted = true;
       await patchP8V2FPostgrest(request, P8V2F.afterSchemas);
+      await reloadP8V2HPostgrest(request);
       dataApiStatus = "patched";
       rpcAttempted = true;
       await bootstrapP8V2FOrganization(secretKey, authUserId, fetchImpl);
@@ -596,6 +611,7 @@ export async function runP8V2FSupabaseBootstrap({
     if (!databasePrepared && initial.mode === "initial" && noBootstrapProved && current.postgrest === P8V2F.afterSchemas) {
       try {
         await patchP8V2FPostgrest(request, P8V2F.beforeSchemas);
+        await reloadP8V2HPostgrest(request);
         current = await readP8V2FState(request);
         validateInitialState(current);
         dataApiStatus = "restored";
@@ -634,7 +650,7 @@ export async function runP8V2FSupabaseBootstrap({
     if (operationError && error === operationError) throw error;
     const evidenceFailure = { ...result, result_code: "evidence_failed" };
     try { publish(toolRoot, evidenceFailure); } catch { /* an unsafe/unwritable root cannot retain evidence */ }
-    const publicationError = new Error("P8V2G evidence publication failed");
+    const publicationError = new Error("P8V2H evidence publication failed");
     publicationError.code = "evidence_failed";
     throw publicationError;
   }

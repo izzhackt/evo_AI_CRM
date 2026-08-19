@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://evoadmissions.com/schemas/p8v2g-supabase-bootstrap-result.schema.json",
+  "$id": "https://evoadmissions.com/schemas/p8v2h-supabase-bootstrap-result.schema.json",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -15,7 +15,7 @@
     "effects"
   ],
   "properties": {
-    "version": { "const": "p8v2g-supabase-bootstrap-result/v1" },
+    "version": { "const": "p8v2h-supabase-bootstrap-result/v1" },
     "result_code": {
       "enum": [
         "supabase_prepared",

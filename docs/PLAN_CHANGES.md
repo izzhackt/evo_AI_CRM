@@ -9062,3 +9062,57 @@ P8V2F token is never reused.
 References: [PostgREST schema selection and `PGRST106`](https://docs.postgrest.org/en/latest/references/api/schemas.html),
 [PostgREST error catalogue](https://docs.postgrest.org/en/latest/references/errors.html),
 and [Supabase `PGRST106` troubleshooting](https://supabase.com/docs/guides/troubleshooting/pgrst106-the-schema-must-be-one-of-the-following-error-when-querying-an-exposed-schema).
+
+## 2026-08-19 — P8V2H explicitly reload PostgREST after schema changes
+
+Block-ID: `EVO-P8V2H-POSTGREST-RELOAD-2026-08-19`
+
+The exact P8V2G attempt on reviewed commit
+`1dcf1450e9e1e3f7ce9609f4264e285e5bc3d28c` stopped fail-closed. Its
+immutable result SHA-256 is
+`63049414f61ba895e20ebf5900d2badcf0b306635f574fad7fddb77aebc89514`.
+Independent review confirmed a mode-`0700` result root with one mode-`0600`
+schema-valid/private result, the original `public,graphql_public` exposure
+restored, migrations `001-076` unchanged, one Auth user/account, zero Platform
+organization/profile/membership/audit rows, zero Hermes target settings, and
+all migration/import/deploy/restart/provider/outbound counters at zero. The
+P8V2G token is consumed.
+
+The Management API configuration accepted the temporary schema list, but the
+runtime remained in the exact `PGRST106` readiness class. A read-only role
+probe found no manual `authenticator` `pgrst.db_schemas` override. Supabase's
+official remediation for a stale PostgREST schema/config cache is an explicit
+`NOTIFY pgrst, 'reload config'` and `NOTIFY pgrst, 'reload schema'`.
+
+Decision: correct only this cache-reload seam. Immediately after each
+successful reviewed PostgREST schema PATCH, P8V2H calls the official Management
+API `POST /v1/projects/{ref}/database/query` once with a fixed, parameter-free
+two-statement notification body. It accepts only a bounded, valid JSON HTTP
+`201` response before continuing. The exact statement, path, method, body and
+`read_only: false` flag are frozen; no arbitrary SQL, migration, DDL or data
+write is allowed. The existing deterministic RPC request, PGRST106-only bounded
+readiness retry, response ambiguity readback and exact prepared-state proof
+remain unchanged, including the exact P8V2G reason and deterministic request
+ID. Only the action-time authorization advances to P8V2H.
+
+If exact zero-state restoration is permitted, the runner PATCHes the original
+schema list and performs the same fixed reload before accepting restoration.
+Any reload request/response/timeout/body drift blocks, and ambiguous bootstrap
+completion is still reread before restoration. The reload changes no business
+data and grants no migration `077`, knowledge import, deployment/restart,
+provider, WAHA, amoCRM or outbound authority.
+
+Advance only writable identities to version
+`p8v2h-supabase-bootstrap-result/v1`, authorization
+`CONFIGURE-P8V2H-2026-08-19.P8V2H.1`, local root
+`.evo-release-evidence/p8v2h-supabase-bootstrap-20260819`, remote root
+`/opt/evo-release-evidence/p8v2h-supabase-bootstrap-20260819`, and sole result
+`p8v2h-supabase-bootstrap-result.json`; temporary Hermes names advance to
+P8V2H. Issue #312, one reviewed PR, exact-head CI, merge, exact-main CI and one
+final read-only preflight are mandatory before requesting one fresh token.
+The process-only runner variable is exactly `EVO_P8V2H_AUTHORIZATION`; the
+consumed P8V2G variable/token pair is not accepted.
+
+References: [Supabase reload/refresh PostgREST schema](https://supabase.com/docs/guides/troubleshooting/refresh-postgrest-schema),
+[Supabase PGRST106 troubleshooting](https://supabase.com/docs/guides/troubleshooting/pgrst106-the-schema-must-be-one-of-the-following-error-when-querying-an-exposed-schema),
+and [Supabase Management API Run SQL query](https://supabase.com/docs/reference/api/introduction).

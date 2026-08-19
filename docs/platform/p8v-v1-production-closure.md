@@ -893,3 +893,48 @@ to P8V2G. Every other P8V2F identity, privacy, rollback, failure-publication and
 authority rule is inherited unchanged. No production use is allowed before
 issue #309 implementation review, exact-head CI, merge, exact-main CI, final
 read-only preflight, and the fresh exact P8V2G token.
+
+## P8V2H explicit PostgREST cache reload
+
+The retained P8V2G result SHA-256 is
+`63049414f61ba895e20ebf5900d2badcf0b306635f574fad7fddb77aebc89514`.
+It is immutable failed-attempt evidence: original schemas restored, identity
+rows absent, Hermes settings absent and unrelated effects zero. Its token is
+consumed.
+
+After each successful `PATCH /v1/projects/{ref}/postgrest`, P8V2H must call
+exactly once:
+
+```text
+POST /v1/projects/{ref}/database/query
+{"query":"NOTIFY pgrst, 'reload config'; NOTIFY pgrst, 'reload schema';","read_only":false}
+```
+
+The request uses the existing process-only Management API token, HTTPS,
+redirect rejection, a 15-second timeout and the existing streamed 64 KiB
+response ceiling. Only HTTP `201` plus bounded valid JSON is success. The SQL
+and body are constants; no parameter, interpolation, migration, DDL or business
+data statement is accepted. The reload completes before the first bootstrap
+RPC attempt. The RPC retains P8V2G's exact reason and deterministic request ID;
+only the P8V2H action-time authorization changes. If exact zero-state permits
+restoration, the original PostgREST schema PATCH is followed by the same fixed
+reload before `restored` evidence.
+
+Tests must execute the real request seam and prove exact ordering
+`PATCH after -> reload -> RPC`; exact rollback ordering `PATCH before -> reload
+-> initial-state readback`; one reload per successful PATCH; rejection of path,
+method, SQL, body, status, JSON, redirect, timeout and size drift; and no reload
+when a PATCH fails. Ambiguous bootstrap completion still enters live readback
+before any restoration.
+
+P8V2H freezes version `p8v2h-supabase-bootstrap-result/v1`, authorization
+`CONFIGURE-P8V2H-2026-08-19.P8V2H.1`, remote root
+`/opt/evo-release-evidence/p8v2h-supabase-bootstrap-20260819`, local root
+`.evo-release-evidence/p8v2h-supabase-bootstrap-20260819`, result
+`p8v2h-supabase-bootstrap-result.json`, and P8V2H-only Hermes temporary names.
+The runner accepts the token only through process-only
+`EVO_P8V2H_AUTHORIZATION`; the P8V2G variable/token pair is rejected.
+All other P8V2G identity, key, privacy, rollback, evidence and authority
+boundaries remain unchanged. No production use precedes issue #312 review,
+exact-head CI, merge, exact-main CI, one final read-only preflight and the fresh
+exact P8V2H token.

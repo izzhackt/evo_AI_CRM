@@ -3572,3 +3572,28 @@ the new owner token. P8V2G retains P8V2F's singular Auth/account checks,
 `EVO Admissions` application organization, migration `001-076`/pending `077`,
 project-key probes, process-only UUID/secrets, Hermes atomic write/rollback,
 closed evidence and zero unrelated effects.
+
+## P8V2H: explicit PostgREST reload
+
+P8V2G is an immutable failed attempt with result SHA-256
+`63049414f61ba895e20ebf5900d2badcf0b306635f574fad7fddb77aebc89514`.
+Independent review proves restored original schema exposure, zero Platform
+identity rows, zero Hermes settings and zero unrelated effects. Its token is
+consumed.
+
+P8V2H adds one fixed cache-reload operation after every successful PostgREST
+schema PATCH: official Management API `POST /v1/projects/{ref}/database/query`
+with exact parameter-free SQL `NOTIFY pgrst, 'reload config'; NOTIFY pgrst,
+'reload schema';` and exact `read_only: false`. Only bounded valid JSON HTTP
+`201` is accepted. No caller-supplied SQL or additional statement is possible.
+The reload must complete before the first deterministic bootstrap RPC attempt.
+When zero-state rollback restores `public,graphql_public`, the same fixed reload
+must complete before restoration is reported.
+
+All P8V2G request-byte, PGRST106-only retry, deadline, ambiguous-response
+readback, prepared-state replay, Hermes rollback, evidence, privacy and
+zero-unrelated-effect boundaries remain. P8V2H advances only collision-prone
+version/token/evidence/temp identities to `p8v2h` and requires issue #312,
+independent review, exact-head/exact-main green CI and a fresh read-only
+preflight before the exact token `CONFIGURE-P8V2H-2026-08-19.P8V2H.1` may be
+requested.

@@ -312,6 +312,14 @@ function validateCandidateCompose(run, source) {
       chmodSync(path, 0o600);
       return [name, path];
     }));
+    writeFileSync(envPaths.inbox, [
+      "P8V3_COMPOSE_VALIDATION=1",
+      "NEXT_PUBLIC_SUPABASE_URL=https://p8v3.invalid",
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3-compose-validation-not-a-key",
+      "NEXT_PUBLIC_SITE_URL=https://p8v3.invalid",
+      "",
+    ].join("\n"), { mode: 0o600 });
+    chmodSync(envPaths.inbox, 0o600);
     const environment = {
       PATH: process.env.PATH,
       HOME: process.env.HOME,

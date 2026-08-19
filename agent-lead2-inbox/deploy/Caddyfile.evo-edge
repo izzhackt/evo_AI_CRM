@@ -55,7 +55,7 @@
 	}
 }
 
-inbox.evoadmissions.com, evo-inbox.72.62.119.112.sslip.io {
+evo-inbox.72.62.119.112.sslip.io {
 	import evo_app
 	request_body {
 		max_size 20MB
@@ -64,7 +64,7 @@ inbox.evoadmissions.com, evo-inbox.72.62.119.112.sslip.io {
 	reverse_proxy evo-inbox-app:3000
 }
 
-crm.evoadmissions.com, evo-crm.72.62.119.112.sslip.io {
+evo-crm.72.62.119.112.sslip.io {
 	import evo_app
 	request_body {
 		max_size 105MB

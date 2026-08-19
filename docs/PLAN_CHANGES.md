@@ -9016,3 +9016,49 @@ potentially committed. Live identity/audit state is reread before PostgREST can
 be restored. Canonical schemas remain when the exact prepared organization is
 observed; restoration is allowed only after readback proves zero organizations,
 profiles and memberships. Ambiguous or drifted readback requires reconciliation.
+
+## 2026-08-19 — P8V2G wait for PostgREST schema readiness
+
+Block-ID: `EVO-P8V2G-POSTGREST-READINESS-2026-08-19`
+
+The exact P8V2F production attempt on reviewed current main
+`7ba6a9779b04e5d1e54f2114efc31591ef45deb3` stopped safely. Its immutable
+mode-`0600` result SHA-256 is
+`706dc7f9cdfb88b383a0e6e3314925bfdec7fe741f74acbfcbb700fdb7eddf6c`.
+The result and fresh read-only state prove that PostgREST was restored to
+`public,graphql_public`, no Platform organization/profile/membership/audit was
+created, Hermes received zero settings, and migrations, knowledge imports,
+deployments, restarts, provider calls and outbound sends all remained zero.
+Supabase API logs bind the stop to HTTP `406` on the first
+`bootstrap_organization_admin` request immediately after the Management API
+accepted the exposed-schema update. This is the documented PostgREST
+`PGRST106` propagation state: the selected `Content-Profile` is not yet in the
+runtime schema list.
+
+Decision: preserve P8V2F evidence and its consumed token; correct only the
+schema-readiness seam. P8V2G may retry the same deterministic RPC request at
+most 12 times, with exactly 1,000 ms between eligible attempts and a 30,000 ms
+overall readiness deadline. A retry is eligible only after a fully received,
+bounded, valid JSON HTTP `406` response whose exact `code` is `PGRST106`.
+That response proves the RPC did not execute. Every retry uses byte-identical
+URL, headers and body. Non-`PGRST106` `406`, every other status, malformed or
+oversized JSON, transport failure/timeout, deadline exhaustion and state drift
+remain immediately fail-closed and enter the existing readback,
+reconciliation and restoration state machine. No generic HTTP or RPC retry is
+authorized.
+
+Advance only writable identities to version
+`p8v2g-supabase-bootstrap-result/v1`, authorization
+`CONFIGURE-P8V2G-2026-08-19.P8V2G.1`, local root
+`.evo-release-evidence/p8v2g-supabase-bootstrap-20260819`, remote root
+`/opt/evo-release-evidence/p8v2g-supabase-bootstrap-20260819`, and result
+`p8v2g-supabase-bootstrap-result.json`. The project, application organization,
+singular identity, migration, secret transport, rollback, Hermes, evidence
+privacy and zero-unrelated-effect boundaries remain exactly P8V2F. Issue #309,
+one reviewed correction PR, exact-head CI, merge, exact-main CI and one final
+read-only preflight are required before asking once for the new token. The
+P8V2F token is never reused.
+
+References: [PostgREST schema selection and `PGRST106`](https://docs.postgrest.org/en/latest/references/api/schemas.html),
+[PostgREST error catalogue](https://docs.postgrest.org/en/latest/references/errors.html),
+and [Supabase `PGRST106` troubleshooting](https://supabase.com/docs/guides/troubleshooting/pgrst106-the-schema-must-be-one-of-the-following-error-when-querying-an-exposed-schema).

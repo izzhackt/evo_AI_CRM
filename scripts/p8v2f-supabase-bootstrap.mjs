@@ -19,20 +19,30 @@ import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 
-export const P8V2F = Object.freeze({
-  version: "p8v2f-supabase-bootstrap-result/v1",
-  authorization: "CONFIGURE-P8V2F-2026-08-19.P8V2F.1",
+export const P8V2G = Object.freeze({
+  version: "p8v2g-supabase-bootstrap-result/v1",
+  authorization: "CONFIGURE-P8V2G-2026-08-19.P8V2G.1",
   projectRef: "iosckaqtovbbnssqcpde",
   projectUrl: "https://iosckaqtovbbnssqcpde.supabase.co",
   organizationName: "EVO Admissions",
   adminDisplayName: "EVO Admissions Admin",
-  reason: "P8V2F production Platform bootstrap",
+  reason: "P8V2G production Platform bootstrap",
   beforeSchemas: "public,graphql_public",
   afterSchemas: "public,platform,graphql_public",
-  remoteRoot: "/opt/evo-release-evidence/p8v2f-supabase-bootstrap-20260819",
+  remoteRoot: "/opt/evo-release-evidence/p8v2g-supabase-bootstrap-20260819",
   remoteEnv: "/opt/evo-crm/.env.production",
-  resultRoot: ".evo-release-evidence/p8v2f-supabase-bootstrap-20260819",
-  resultName: "p8v2f-supabase-bootstrap-result.json",
+  resultRoot: ".evo-release-evidence/p8v2g-supabase-bootstrap-20260819",
+  resultName: "p8v2g-supabase-bootstrap-result.json",
+});
+
+// Keep the historical export while the P8V2G correction advances only writable
+// identities and the bounded PostgREST readiness seam.
+export const P8V2F = P8V2G;
+
+export const P8V2G_READINESS = Object.freeze({
+  maxAttempts: 12,
+  delayMs: 1_000,
+  deadlineMs: 30_000,
 });
 
 const MANAGEMENT_ORIGIN = "https://api.supabase.com";
@@ -72,7 +82,7 @@ function exactKeys(value, keys, label) {
   if (JSON.stringify(Object.keys(value).sort()) !== JSON.stringify([...keys].sort())) fail(`${label} keys drifted`);
 }
 
-async function boundedJson(response, expectedStatus, label) {
+async function boundedResponseBytes(response, label) {
   if (!response.body || typeof response.body.getReader !== "function") fail(`${label} response body unavailable`);
   const reader = response.body.getReader();
   const chunks = [];
@@ -87,13 +97,21 @@ async function boundedJson(response, expectedStatus, label) {
     }
     chunks.push(Buffer.from(value));
   }
-  const bytes = Buffer.concat(chunks, length);
-  if (response.status !== expectedStatus) fail(`${label} returned HTTP ${response.status}`);
+  return Buffer.concat(chunks, length);
+}
+
+function parseJsonBytes(bytes, label) {
   try {
     return bytes.length ? JSON.parse(bytes.toString("utf8")) : null;
   } catch {
     fail(`${label} returned malformed JSON`);
   }
+}
+
+async function boundedJson(response, expectedStatus, label) {
+  const bytes = await boundedResponseBytes(response, label);
+  if (response.status !== expectedStatus) fail(`${label} returned HTTP ${response.status}`);
+  return parseJsonBytes(bytes, label);
 }
 
 function safeRaw(bytes) {
@@ -266,7 +284,10 @@ export async function patchP8V2FPostgrest(request, dbSchema) {
   if (payload?.db_schema?.split(",").map((value) => value.trim()).filter(Boolean).join(",") !== dbSchema) fail("PostgREST patch drifted");
 }
 
-export async function bootstrapP8V2FOrganization(secretKey, authUserId, fetchImpl = fetch) {
+export async function bootstrapP8V2FOrganization(secretKey, authUserId, fetchImpl = fetch, {
+  now = () => performance.now(),
+  wait = (milliseconds) => new Promise((resolveWait) => setTimeout(resolveWait, milliseconds)),
+} = {}) {
   if (!/^sb_secret_[A-Za-z0-9_-]{20,}$/.test(secretKey ?? "") || !UUID.test(authUserId)) fail("bootstrap credentials/identity drifted");
   const body = {
     p_organization_name: P8V2F.organizationName,
@@ -275,21 +296,42 @@ export async function bootstrapP8V2FOrganization(secretKey, authUserId, fetchImp
     p_reason: P8V2F.reason,
     p_request_id: deterministicRequestId(),
   };
-  const response = await fetchImpl(`${P8V2F.projectUrl}/rest/v1/rpc/bootstrap_organization_admin`, {
-    method: "POST",
-    headers: {
-      apikey: secretKey,
-      "Content-Type": "application/json",
-      "Content-Profile": "platform",
-      "Accept-Profile": "platform",
-    },
-    body: JSON.stringify(body),
-    redirect: "error",
-    signal: AbortSignal.timeout(15_000),
+  const url = `${P8V2F.projectUrl}/rest/v1/rpc/bootstrap_organization_admin`;
+  const serializedBody = JSON.stringify(body);
+  const headers = Object.freeze({
+    apikey: secretKey,
+    "Content-Type": "application/json",
+    "Content-Profile": "platform",
+    "Accept-Profile": "platform",
   });
-  const result = await boundedJson(response, 200, "organization bootstrap");
-  if (!result || result.organization_name !== P8V2F.organizationName || result.admin_auth_user_id !== authUserId || result.role !== "admin" || result.status !== "active") fail("organization bootstrap response drifted", "configuration_reconciliation_required");
-  return { status: "created" };
+  const deadline = now() + P8V2G_READINESS.deadlineMs;
+
+  for (let attempt = 1; attempt <= P8V2G_READINESS.maxAttempts; attempt += 1) {
+    const remaining = deadline - now();
+    if (remaining <= 0) fail("PostgREST readiness deadline exhausted");
+    const response = await fetchImpl(url, {
+      method: "POST",
+      headers,
+      body: serializedBody,
+      redirect: "error",
+      signal: AbortSignal.timeout(Math.max(1, Math.min(15_000, Math.floor(remaining)))),
+    });
+    const bytes = await boundedResponseBytes(response, "organization bootstrap");
+    if (now() >= deadline) fail("PostgREST readiness deadline exhausted");
+    if (response.status === 200) {
+      const result = parseJsonBytes(bytes, "organization bootstrap");
+      if (!result || result.organization_name !== P8V2F.organizationName || result.admin_auth_user_id !== authUserId || result.role !== "admin" || result.status !== "active") fail("organization bootstrap response drifted", "configuration_reconciliation_required");
+      return { status: "created", attempts: attempt };
+    }
+    if (response.status !== 406) fail(`organization bootstrap returned HTTP ${response.status}`);
+    const readiness = parseJsonBytes(bytes, "organization bootstrap");
+    if (!readiness || readiness.code !== "PGRST106") fail("organization bootstrap returned non-readiness HTTP 406");
+    if (attempt === P8V2G_READINESS.maxAttempts) fail("PostgREST readiness attempts exhausted");
+    if (deadline - now() <= P8V2G_READINESS.delayMs) fail("PostgREST readiness deadline cannot cover delay");
+    await wait(P8V2G_READINESS.delayMs);
+    if (now() >= deadline) fail("PostgREST readiness deadline exhausted");
+  }
+  fail("PostgREST readiness attempts exhausted");
 }
 
 export async function verifyP8V2FProjectKey(key, kind, fetchImpl = fetch) {
@@ -376,7 +418,7 @@ try:
    with os.fdopen(fd,'wb') as f: f.write(original); f.flush(); os.fsync(f.fileno())
    os.chown(BACK,${requiredUid},${requiredGid})
   addition=('' if not original or original.endswith(b'\\n') else '\\n')+''.join(k+'='+payload[k]+'\\n' for k in KEYS)
-  temp=ENV.with_name('.env.production.p8v2f.tmp')
+  temp=ENV.with_name('.env.production.p8v2g.tmp')
   fd=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
   with os.fdopen(fd,'wb') as f: f.write(original+addition.encode()); f.flush(); os.fsync(f.fileno())
   os.chown(temp,${requiredUid},${requiredGid}); os.replace(temp,ENV); updated=True; status='updated'
@@ -390,7 +432,7 @@ try:
  print(json.dumps({'status':status,'settings':5,'file':'root_root_0600','rollback_sha256':hashlib.sha256(BACK.read_bytes()).hexdigest(),'feature_enables':0},separators=(',',':')))
 except Exception:
  if updated and BACK.exists():
-  temp=ENV.with_name('.env.production.p8v2f.restore.tmp')
+  temp=ENV.with_name('.env.production.p8v2g.restore.tmp')
   shutil.copyfile(BACK,temp); os.chmod(temp,0o600); os.chown(temp,${requiredUid},${requiredGid}); os.replace(temp,ENV)
   restored=ENV.lstat()
   if ENV.is_symlink() or not stat.S_ISREG(restored.st_mode) or restored.st_uid!=${requiredUid} or restored.st_gid!=${requiredGid} or stat.S_IMODE(restored.st_mode)!=0o600 or ENV.read_bytes()!=BACK.read_bytes(): die()
@@ -490,7 +532,7 @@ export async function runP8V2FSupabaseBootstrap({
   configureHermes = configureP8V2FHermes,
   publish = publishP8V2FResult,
 }) {
-  if (environment.EVO_P8V2F_AUTHORIZATION !== P8V2F.authorization) fail("authorization missing or mismatched");
+  if (environment.EVO_P8V2G_AUTHORIZATION !== P8V2F.authorization) fail("authorization missing or mismatched");
   const accessToken = requireCredential(environment, "SUPABASE_ACCESS_TOKEN", /^sbp_[A-Za-z0-9_-]{20,}$/);
   const publishableKey = requireCredential(environment, "EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY", /^sb_publishable_[A-Za-z0-9_-]{20,}$/);
   const secretKey = requireCredential(environment, "EVO_PLATFORM_SUPABASE_SECRET_KEY", /^sb_secret_[A-Za-z0-9_-]{20,}$/);
@@ -592,7 +634,7 @@ export async function runP8V2FSupabaseBootstrap({
     if (operationError && error === operationError) throw error;
     const evidenceFailure = { ...result, result_code: "evidence_failed" };
     try { publish(toolRoot, evidenceFailure); } catch { /* an unsafe/unwritable root cannot retain evidence */ }
-    const publicationError = new Error("P8V2F evidence publication failed");
+    const publicationError = new Error("P8V2G evidence publication failed");
     publicationError.code = "evidence_failed";
     throw publicationError;
   }

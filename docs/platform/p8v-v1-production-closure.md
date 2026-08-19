@@ -853,3 +853,43 @@ If normal result publication fails, the runner makes one bounded attempt to
 retain the same safe state with result code `evidence_failed`; inability to
 write the safe root remains a blocking `evidence_failed` exit and is never
 reported as configuration success.
+
+## P8V2G: PostgREST propagation retry
+
+P8V2F is an immutable failed attempt, not an authorization to retry. Its exact
+safe result SHA-256 is
+`706dc7f9cdfb88b383a0e6e3314925bfdec7fe741f74acbfcbb700fdb7eddf6c`;
+the result and post-attempt checks require old schema exposure restored, zero
+application organization/profile/membership/audit rows, zero Hermes settings,
+and zero migration/import/deploy/restart/provider/outbound effects. Its token
+is consumed and its evidence roots must remain unchanged.
+
+For P8V2G, `bootstrap_organization_admin` retains the exact deterministic
+request ID and body. After the successful Management API schema PATCH, the
+caller uses one monotonic 30,000 ms readiness deadline and no more than 12 RPC
+attempts. Between attempts it waits exactly 1,000 ms, and only when the prior
+response was fully received below the existing 64 KiB ceiling, parsed as JSON,
+had HTTP status `406`, and had exact string field `code: "PGRST106"`.
+Every attempt must use the identical URL, method, headers and serialized body.
+The final successful response remains exact HTTP `200` with the existing safe
+projection. The readiness error body is process-only and never enters retained
+evidence.
+
+An HTTP `406` with any other/missing code, another HTTP status, malformed or
+oversized JSON, redirect, transport rejection, timeout, insufficient remaining
+deadline, twelfth eligible `PGRST106`, or changed request bytes is immediately
+terminal. It is never treated as generic transient traffic. Because a
+transport failure or non-readiness response may be ambiguous, the existing
+`rpcAttempted` readback-before-restoration logic remains mandatory. Exact
+zero-state permits restoration of `public,graphql_public`; exact prepared state
+permits reconciliation; every other state blocks.
+
+P8V2G freezes version `p8v2g-supabase-bootstrap-result/v1`, authorization
+`CONFIGURE-P8V2G-2026-08-19.P8V2G.1`, remote root
+`/opt/evo-release-evidence/p8v2g-supabase-bootstrap-20260819`, local root
+`.evo-release-evidence/p8v2g-supabase-bootstrap-20260819`, and sole result
+`p8v2g-supabase-bootstrap-result.json`. Remote temporary env names also advance
+to P8V2G. Every other P8V2F identity, privacy, rollback, failure-publication and
+authority rule is inherited unchanged. No production use is allowed before
+issue #309 implementation review, exact-head CI, merge, exact-main CI, final
+read-only preflight, and the fresh exact P8V2G token.

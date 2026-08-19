@@ -7,6 +7,7 @@ import test from "node:test";
 
 import {
   P8V2F,
+  P8V2G_READINESS,
   bootstrapP8V2FOrganization,
   classifyP8V2FState,
   configureP8V2FHermes,
@@ -122,13 +123,99 @@ test("bootstrap uses only the reviewed RPC projection", async () => {
     call = { url, options };
     return new Response(JSON.stringify({ organization_name: P8V2F.organizationName, admin_auth_user_id: AUTH, role: "admin", status: "active" }), { status: 200 });
   });
-  assert.deepEqual(output, { status: "created" });
+  assert.deepEqual(output, { status: "created", attempts: 1 });
   assert.equal(call.url, `${P8V2F.projectUrl}/rest/v1/rpc/bootstrap_organization_admin`);
   const body = JSON.parse(call.options.body);
   assert.deepEqual(Object.keys(body).sort(), ["p_admin_auth_user_id", "p_admin_display_name", "p_organization_name", "p_reason", "p_request_id"]);
   assert.equal(body.p_admin_auth_user_id, AUTH);
   assert.equal(call.options.headers.apikey, SECRET);
   assert.equal(call.options.headers.Authorization, undefined);
+});
+
+test("bootstrap retries only exact PGRST106 with byte-identical requests", async () => {
+  let clock = 0;
+  const calls = [];
+  const waits = [];
+  const responses = [
+    responseJson({ code: "PGRST106", message: "schema not ready" }, 406),
+    responseJson({ code: "PGRST106", message: "schema still not ready" }, 406),
+    responseJson({ organization_name: P8V2F.organizationName, admin_auth_user_id: AUTH, role: "admin", status: "active" }),
+  ];
+  const output = await bootstrapP8V2FOrganization(SECRET, AUTH, async (url, options) => {
+    calls.push({ url, method: options.method, headers: { ...options.headers }, body: options.body });
+    return responses.shift();
+  }, {
+    now: () => clock,
+    wait: async (milliseconds) => { waits.push(milliseconds); clock += milliseconds; },
+  });
+  assert.deepEqual(output, { status: "created", attempts: 3 });
+  assert.deepEqual(waits, [P8V2G_READINESS.delayMs, P8V2G_READINESS.delayMs]);
+  assert.equal(calls.length, 3);
+  assert.equal(new Set(calls.map((call) => JSON.stringify(call))).size, 1);
+});
+
+test("bootstrap stops after the twelfth exact readiness response", async () => {
+  let clock = 0;
+  let calls = 0;
+  let waits = 0;
+  await assert.rejects(bootstrapP8V2FOrganization(SECRET, AUTH, async () => {
+    calls += 1;
+    return responseJson({ code: "PGRST106" }, 406);
+  }, {
+    now: () => clock,
+    wait: async (milliseconds) => { waits += 1; clock += milliseconds; },
+  }), /attempts exhausted/);
+  assert.equal(calls, P8V2G_READINESS.maxAttempts);
+  assert.equal(waits, P8V2G_READINESS.maxAttempts - 1);
+});
+
+test("bootstrap never retries non-readiness, malformed, oversized, or transport failures", async () => {
+  const cases = [
+    async () => responseJson({ code: "PGRST107" }, 406),
+    async () => responseJson({ code: "PGRST106" }, 500),
+    async () => new Response("not-json", { status: 406 }),
+    async () => new Response(JSON.stringify({ code: "PGRST106", padding: "x".repeat(65 * 1024) }), { status: 406 }),
+    async () => { throw new Error("transport ambiguous"); },
+  ];
+  for (const fetchImpl of cases) {
+    let calls = 0;
+    let waits = 0;
+    await assert.rejects(bootstrapP8V2FOrganization(SECRET, AUTH, async (...args) => {
+      calls += 1;
+      return fetchImpl(...args);
+    }, { now: () => 0, wait: async () => { waits += 1; } }));
+    assert.equal(calls, 1);
+    assert.equal(waits, 0);
+  }
+});
+
+test("bootstrap refuses a readiness delay that cannot fit the deadline", async () => {
+  let clock = 0;
+  let waits = 0;
+  await assert.rejects(bootstrapP8V2FOrganization(SECRET, AUTH, async () => {
+    clock = P8V2G_READINESS.deadlineMs - P8V2G_READINESS.delayMs;
+    return responseJson({ code: "PGRST106" }, 406);
+  }, { now: () => clock, wait: async () => { waits += 1; } }), /cannot cover delay/);
+  assert.equal(waits, 0);
+});
+
+test("bootstrap rejects late complete 200 and PGRST106 responses without waiting", async () => {
+  const cases = [
+    responseJson({ organization_name: P8V2F.organizationName, admin_auth_user_id: AUTH, role: "admin", status: "active" }),
+    responseJson({ code: "PGRST106" }, 406),
+  ];
+  for (const response of cases) {
+    let clock = 0;
+    let calls = 0;
+    let waits = 0;
+    await assert.rejects(bootstrapP8V2FOrganization(SECRET, AUTH, async () => {
+      calls += 1;
+      clock = P8V2G_READINESS.deadlineMs;
+      return response;
+    }, { now: () => clock, wait: async () => { waits += 1; } }), /deadline exhausted/);
+    assert.equal(calls, 1);
+    assert.equal(waits, 0);
+  }
 });
 
 test("publishable and secret keys are bound to the exact project before effects", async () => {
@@ -261,7 +348,7 @@ test("orchestration reaches safe success without migration/provider/deploy effec
     toolRoot: "/safe/tool",
     reviewedCommit: EXECUTION.commit,
     environment: {
-      EVO_P8V2F_AUTHORIZATION: P8V2F.authorization,
+      EVO_P8V2G_AUTHORIZATION: P8V2F.authorization,
       SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
       EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,
@@ -283,7 +370,7 @@ test("exact prepared state resumes without repatching or creating a second organ
     toolRoot: "/safe/tool",
     reviewedCommit: EXECUTION.commit,
     environment: {
-      EVO_P8V2F_AUTHORIZATION: P8V2F.authorization,
+      EVO_P8V2G_AUTHORIZATION: P8V2F.authorization,
       SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
       EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,
@@ -305,7 +392,7 @@ test("wrong-project publishable key stops before every mutation", async () => {
     toolRoot: "/safe/tool",
     reviewedCommit: EXECUTION.commit,
     environment: {
-      EVO_P8V2F_AUTHORIZATION: P8V2F.authorization,
+      EVO_P8V2G_AUTHORIZATION: P8V2F.authorization,
       SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
       EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,
@@ -326,7 +413,7 @@ test("lost bootstrap response preserves canonical schemas and records reconcilia
     toolRoot: "/safe/tool",
     reviewedCommit: EXECUTION.commit,
     environment: {
-      EVO_P8V2F_AUTHORIZATION: P8V2F.authorization,
+      EVO_P8V2G_AUTHORIZATION: P8V2F.authorization,
       SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
       EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,
@@ -347,7 +434,7 @@ test("publication failure produces a truthful evidence_failed terminal attempt",
     toolRoot: "/safe/tool",
     reviewedCommit: EXECUTION.commit,
     environment: {
-      EVO_P8V2F_AUTHORIZATION: P8V2F.authorization,
+      EVO_P8V2G_AUTHORIZATION: P8V2F.authorization,
       SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
       EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,
@@ -370,7 +457,7 @@ test("post-bootstrap Hermes failure is retained as reconciliation required", asy
     toolRoot: "/safe/tool",
     reviewedCommit: EXECUTION.commit,
     environment: {
-      EVO_P8V2F_AUTHORIZATION: P8V2F.authorization,
+      EVO_P8V2G_AUTHORIZATION: P8V2F.authorization,
       SUPABASE_ACCESS_TOKEN: `sbp_${"x".repeat(30)}`,
       EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: SECRET,

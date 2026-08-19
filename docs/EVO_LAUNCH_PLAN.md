@@ -3641,3 +3641,20 @@ uses only `rollout_verified`, `rollout_failed_rolled_back`,
 `rollout_failed_reconciliation_required`, or `evidence_failed`. Real login,
 WhatsApp intake, amoCRM binding, retrieval/draft, manual approval/send, ACK and
 audit verification belong to the post-deploy V4 staff proof.
+
+### P8V3A final-preflight Compose env correction
+
+The first final P8V3 preflight made no production or provider change and
+stopped during disposable local candidate Compose validation. The validator
+did not bind the Compose selector for the newly reviewed manual-send worker,
+so Compose searched the archived application tree for the intentionally absent
+default `.env.manual-send-worker`.
+
+The only authorized correction is to add a disposable regular mode-`0600`
+validation env for that service and pass its path through exact variable
+`EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE`, alongside the existing five validation
+env selectors. The file carries only the inert local validation marker and is
+removed with the existing temporary validation directory in the same
+finally-style cleanup. All P8V3 candidate identities, release effects,
+rollback rules and the exact owner authorization remain unchanged. A fresh
+read-only preflight after reviewed merge and exact-main green CI is mandatory.

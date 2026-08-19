@@ -306,7 +306,7 @@ function validateCandidateCompose(run, source) {
     mkdirSync(repo, { mode: 0o700 });
     runChecked(run, "candidate Compose archive", "git", ["-C", source, "archive", "--format=tar", `--output=${archive}`, P8V3.applicationCommit], { timeout: 120_000, code: "preflight_drift" });
     runChecked(run, "candidate Compose extract", "tar", ["-xf", archive, "-C", repo], { timeout: 120_000, code: "preflight_drift" });
-    const envPaths = Object.fromEntries(["crm", "lead", "crmWaha", "inbox", "inboxWaha"].map((name) => {
+    const envPaths = Object.fromEntries(["crm", "lead", "crmWaha", "worker", "inbox", "inboxWaha"].map((name) => {
       const path = join(temp, `${name}.env`);
       writeFileSync(path, "P8V3_COMPOSE_VALIDATION=1\n", { mode: 0o600 });
       chmodSync(path, 0o600);
@@ -322,6 +322,7 @@ function validateCandidateCompose(run, source) {
       EVO_CRM_APP_ENV_FILE: envPaths.crm,
       EVO_CRM_LEAD_AGENT_ENV_FILE: envPaths.lead,
       EVO_CRM_WAHA_ENV_FILE: envPaths.crmWaha,
+      EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE: envPaths.worker,
       EVO_INBOX_APP_ENV_FILE: envPaths.inbox,
       EVO_INBOX_WAHA_ENV_FILE: envPaths.inboxWaha,
     };
@@ -336,6 +337,10 @@ function validateCandidateCompose(run, source) {
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }
+}
+
+export function validateCandidateComposeForTest(run, source) {
+  return validateCandidateCompose(run, source);
 }
 
 async function readLedger(request) {

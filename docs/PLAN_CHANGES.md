@@ -9116,3 +9116,55 @@ consumed P8V2G variable/token pair is not accepted.
 References: [Supabase reload/refresh PostgREST schema](https://supabase.com/docs/guides/troubleshooting/refresh-postgrest-schema),
 [Supabase PGRST106 troubleshooting](https://supabase.com/docs/guides/troubleshooting/pgrst106-the-schema-must-be-one-of-the-following-error-when-querying-an-exposed-schema),
 and [Supabase Management API Run SQL query](https://supabase.com/docs/reference/api/introduction).
+
+## 2026-08-20 — TZ traceability matrix and status refresh (docs-only)
+
+Scope: documentation only. No runtime code, schema, migration, provider
+configuration, deployment, DNS, production data or WhatsApp behaviour changes.
+This amendment introduces no new requirement, acceptance criterion, owner gate
+or merge-order change; it records evidence that already exists in the
+repository.
+
+Added `docs/specs/EVO_PLATFORM_TZ_TRACEABILITY.md`. It maps every requirement
+FR-001 through FR-110 to its implementation path, its test or migration
+evidence, and its merged PR, using only artifacts present at exact main
+`a90d5d1d37d6d860520de1d1035035ebbcb49121` with green exact-main CI run
+`32244183175`. A row is marked `реализовано` only when a referenced file exists;
+absence of a reference is recorded as absence of evidence rather than assumed
+completion. This closes ACC-001 and serves requirement 8 of section 29
+(implementation handoff test plan with FR/NFR/SEC/ACC traceability).
+
+Recorded coverage: 90 requirements with repository evidence, 12 partial, 5
+deferred with P4B, 1 blocked by an unavailable import source, and 2 SHOULD
+requirements not implemented. Every status in the matrix is repository-level or
+local/synthetic evidence; no requirement carries real WAHA, amoCRM, Gemini or
+managed Supabase proof, and the matrix states this explicitly.
+
+Recorded owner decision of 2026-08-20: CEO and CTO both use the existing
+`admin` role. FR-011 (separate Leadership read/report bundle, priority SHOULD)
+is therefore not implemented by decision rather than by omission. A marketer
+role remains outside `platform.business_role` and is deferred to a later owner
+discussion; no role enum, permission bundle or migration changes in this
+amendment.
+
+Updated `docs/specs/EVO_PLATFORM_TZ.md` to version 2.4. The document card
+previously pinned base `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0` with
+migrations `001-059`, which understated merged work: P4R1, P5B-P5F3, P6A-P6D,
+P7A, P7B, focused P7D, P8A-P8D, the P8D4 series and P8U1-P8U4 have merged since.
+The card now records the exact current base, migrations `001-077`, the green
+exact-main CI run, and the in-flight P8V/P8V3 rollout as not-yet-proven.
+
+Updated `docs/platform/current-status.md` from snapshot date 2026-08-15 to
+2026-08-20. It now carries the accepted base and CI run, a new section recording
+the read-only Hermes observation of 2026-08-18 together with an independent
+DNS/HTTPS check of 2026-08-20, and a rewritten safe-gate section naming P8V3 as
+the active block. The production section records deployed images older than
+main, unresolved canonical domains with working sslip.io fallbacks, migration
+`077` pending in managed production, the absent amoCRM token file, the
+undeployed manual-send worker, and managed knowledge holding two internal
+documents against 11 client and 291 internal reviewed documents.
+
+Merge order: this amendment carries no implementation dependency and may merge
+independently. It must not merge into `main` while a P8V-series rollout block is
+executing, because the release runner binds an exact `main` commit, tree and
+single successful exact-main CI run and fails closed on drift.

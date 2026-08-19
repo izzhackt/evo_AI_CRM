@@ -3,12 +3,12 @@
 ## Единая платформа автоматизации EVO Admissions
 
 **Идентификатор документа:** EVO-PLATFORM-TZ-001
-**Версия:** 2.3
+**Версия:** 2.4
 **Статус:** действующий контракт repository-реализации; production-gates
 остаются отдельными
-**Дата:** 9 августа 2026 года
-**Базовая версия репозитория:** `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
-**Текущий execution checkpoint:** `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
+**Дата:** 20 августа 2026 года
+**Базовая версия репозитория:** `a90d5d1d37d6d860520de1d1035035ebbcb49121`
+**Текущий execution checkpoint:** `a90d5d1d37d6d860520de1d1035035ebbcb49121`
 **Язык документа:** русский
 
 > **Назначение документа.** Это ТЗ является контрактом на последующую
@@ -31,7 +31,7 @@
 | Формат согласования | SHA-bound review, должностное решение по открытым gates и audit evidence |
 | Источник бренда | `docs/company/brand/evo-admissions-logobook.pdf` |
 | Принятый preset | `standard_business_brief` |
-| Текущий checkpoint | P0, P1A–P1D, reusable P2A–P2H, greenfield/UI boundary, BW0, P3A–P3C, BW1–BW7, P2R0–P2R4, P4A и P5A merged; current main `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0` has migrations `001-059` and exact-main CI `31310795550` green; P4B checkpoint `e53ba94954f147b295f596421a255591fa343ce8` is preserved and its failed Auth/PostgREST gate is non-evidence; PR #133 is draft until this plan gate merges and media-only handling is corrected/re-proved; P4B activation/writes remain deferred, bounded P4R reads resume after the messaging foundation, P9 is removed and Lead Agent is retained/frozen |
+| Текущий checkpoint | P0, P1A–P1D, P2A–P2H, greenfield/UI boundary, BW0, P3A–P3C, BW1–BW7, P2R0–P2R4, P4A, P4R1, P5A–P5F3, P6A–P6D, P7A, P7B, focused P7D, P8A–P8D и P8U1–P8U4 merged; current main `a90d5d1d37d6d860520de1d1035035ebbcb49121` has migrations `001-077` and exact-main CI [run 32244183175](https://github.com/izzhackt/evo_AI_CRM/actions/runs/32244183175) green; пофункциональное соответствие требований и доказательств ведётся в `docs/specs/EVO_PLATFORM_TZ_TRACEABILITY.md`; P8V/P8V2 подготовка первого production rollout выполняется по issue #287 и #314 и не является доказанным production-запуском; P4B checkpoint `e53ba94954f147b295f596421a255591fa343ce8` is preserved and its failed Auth/PostgREST gate is non-evidence; P4B activation/writes remain deferred, bounded P4R reads resumed through PR #142, P9 is removed и Lead Agent is retained/frozen |
 
 > **Главная граница.** amoCRM остаётся источником истины для контакта, лида,
 > ответственного sales manager и стадии продаж. Один dedicated production
@@ -1403,6 +1403,10 @@ Phase ownership критериев:
 - P10 аудирует только авторизованный scope, явно перечисляет deferred P4 и не
   подтверждает финальное закрытие всех критериев исходного target.
 
+Пофункциональное сопоставление всех 110 требований с реализацией и
+доказательством ведётся в `docs/specs/EVO_PLATFORM_TZ_TRACEABILITY.md`.
+Этот документ закрывает ACC-001 и обновляется вместе с настоящим ТЗ.
+
 | ID | Критерий | Доказательство |
 | --- | --- | --- |
 | ACC-001 | Все MUST требования имеют test/evidence и owner | Traceability report |
@@ -1628,6 +1632,7 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 ### 31.2 Основные источники репозитория
 
 - `AGENTS.md`, `CONTEXT.md`;
+- `docs/specs/EVO_PLATFORM_TZ_TRACEABILITY.md`;
 - `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, `docs/EVO_LAUNCH_PLAN.md`,
   `docs/PLAN_CHANGES.md`;
 - `docs/research/evo-mvp-waha-ai-memory-2026-08-09.md`;

@@ -3542,3 +3542,33 @@ copy must reconstruct the current configured environment exactly when the five
 target settings are reapplied; any tamper or failed read-back restoration is
 blocking. Publication failure is a distinct `evidence_failed` terminal attempt,
 not a configuration success or a swallowed error.
+
+### P8V2G — bounded PostgREST readiness correction
+
+The first authorized P8V2F attempt is complete and failed closed. Preserve its
+exact result SHA-256
+`706dc7f9cdfb88b383a0e6e3314925bfdec7fe741f74acbfcbb700fdb7eddf6c`,
+its local and remote roots, and its consumed token. The retained result and
+fresh read-only checks prove the old exposed schemas were restored and no
+database identity, Hermes setting, migration, import, deployment, restart,
+provider or outbound effect occurred. Supabase logs show the only runtime
+blocker: the first Platform RPC received HTTP `406` while the newly accepted
+schema exposure had not yet propagated to PostgREST.
+
+P8V2G adds no feature and changes no production target. After the official
+Management API returns the exact requested schema set, the bootstrap seam may
+make at most 12 byte-identical deterministic RPC attempts under one 30-second
+readiness deadline, waiting exactly 1 second only after a bounded valid JSON
+HTTP `406` whose exact PostgREST code is `PGRST106`. No other status/code,
+malformed/oversized body, timeout or transport error is retryable. Every such
+failure immediately enters the existing potentially-committed readback before
+any restoration. Exhaustion is blocking and cannot reach Hermes.
+
+All writable identities advance to collision-free P8V2G values, including
+authorization `CONFIGURE-P8V2G-2026-08-19.P8V2G.1` and new local/remote result
+roots. Issue #309, behavioral negative coverage, independent review,
+exact-head and exact-main green CI, and a final read-only preflight must precede
+the new owner token. P8V2G retains P8V2F's singular Auth/account checks,
+`EVO Admissions` application organization, migration `001-076`/pending `077`,
+project-key probes, process-only UUID/secrets, Hermes atomic write/rollback,
+closed evidence and zero unrelated effects.

@@ -229,9 +229,14 @@ function productionInventoryScript() {
   const names = PRODUCTION_CONTAINERS.map((item) => item.name).join(" ");
   return String.raw`
 for name in ${names}; do
-  docker inspect "$name" --format '{{.Name}}|{{.Id}}|{{.Image}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}|{{.RestartCount}}|{{range $k,$v := .NetworkSettings.Networks}}{{$k}},{{end}}'
+  printf '%s|' "$name"
+  docker inspect "$name" --format '{{.Id}}|{{.Image}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}|{{.RestartCount}}|{{range $k,$v := .NetworkSettings.Networks}}{{$k}},{{end}}'
 done
 `;
+}
+
+export function parseP8V3ContainerRowsForTest(text) {
+  return parseContainerRows(text);
 }
 
 function preflightRemoteScript() {

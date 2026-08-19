@@ -8,6 +8,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 
 import { runP8V3Preflight, validateP8V3Preflight } from "../scripts/p8v3-preflight.mjs";
 import {
+  parseP8V3ContainerRowsForTest,
   renderP8V3ShellContractsForTest,
   validateCandidateComposeForTest,
   validateP8V3EvidencePrivacy,
@@ -400,6 +401,32 @@ test("candidate Compose validation removes every disposable env after failure", 
   assert.equal(observedPaths.size, 6);
   for (const path of observedPaths) assert.equal(existsSync(path), false, path);
   assert.equal(existsSync(dirname([...observedPaths][0])), false);
+});
+
+test("production inventory emits and accepts exact Compose container names", () => {
+  const preflight = renderP8V3ShellContractsForTest().preflight;
+  assert.match(preflight, /printf '%s\|' "\$name"/);
+  assert.doesNotMatch(preflight, /\{\{\.Name\}\}/);
+
+  const rows = [
+    `evo-crm-app-1|${SHA_A}|sha256:d4626208423df2c0df24262763917b82b1157b53a115b44f02478ecf7245f580|healthy|0|evo_crm_private,evo_public_web,`,
+    `evo-crm-waha-1|${SHA_B}|sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c|healthy|0|evo_crm_private,`,
+    `evo-crm-lead-agent-1|${SHA_C}|sha256:3678747c1ea1c9b5655bb830296c9e4d4aedf60d3d193b438633b68eb3f97cc7|healthy|0|evo_crm_private,`,
+    `evo-inbox-app-1|${"d".repeat(64)}|sha256:6d5e0a9d5ea073737bdd8c2c5621818ca7bdb76dd5b16ca5e44563d39833cb6b|healthy|0|evo_inbox_private,evo_public_web,`,
+    `evo-inbox-waha|${"e".repeat(64)}|sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c|healthy|0|evo_inbox_private,`,
+  ].join("\n");
+
+  assert.deepEqual(parseP8V3ContainerRowsForTest(rows).map((item) => item.name), [
+    "evo-crm-app-1",
+    "evo-crm-waha-1",
+    "evo-crm-lead-agent-1",
+    "evo-inbox-app-1",
+    "evo-inbox-waha",
+  ]);
+  assert.throws(
+    () => parseP8V3ContainerRowsForTest(rows.replace("evo-crm-app-1", "/evo-crm-app-1")),
+    /production pre-state drifted: evo-crm-app-1/,
+  );
 });
 
 test("every reviewed remote shell contract parses under bash", () => {

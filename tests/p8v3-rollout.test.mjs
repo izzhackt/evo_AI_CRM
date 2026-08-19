@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -9,6 +9,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { runP8V3Preflight, validateP8V3Preflight } from "../scripts/p8v3-preflight.mjs";
 import {
   renderP8V3ShellContractsForTest,
+  validateCandidateComposeForTest,
   validateP8V3EvidencePrivacy,
 } from "../scripts/p8v3-production-operations.mjs";
 import {
@@ -317,7 +318,9 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.ok(source.indexOf("label: \"configuration rollback\"") < source.indexOf("for (const name of boundaries)"));
   assert.equal(source.includes(".p8v3-result-*"), false);
   assert.match(source, /EVO_CRM_WAHA_ENV_FILE/);
+  assert.match(source, /EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE: envPaths\.worker/);
   assert.match(source, /EVO_INBOX_WAHA_ENV_FILE/);
+  assert.match(source, /\["crm", "lead", "crmWaha", "worker", "inbox", "inboxWaha"\]\.map/);
   assert.match(source, /input: `\$\{accountId\}\\n`/);
   assert.match(source, /for \(const args of commands\) \{\n\s+verifyOrbStack\(run\);\n\s+runChecked\(run, "candidate Compose validation", "docker"/);
   assert.match(source, /verifyPortableArchive\(path, \{ name: spec\.name, index: spec\.index, manifest: spec\.platform \}/);
@@ -327,6 +330,37 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.match(source, /os\.umask\(0o077\)/);
   assert.ok(source.indexOf("renameSync(temporary, localResultPath)") < source.indexOf('runChecked(run, "result transfer"'));
   assert.match(source, /if \(state\.localEvidenceWritten\) rmSync\(localResultPath/);
+});
+
+test("candidate Compose validation binds a disposable mode-0600 env for every service", () => {
+  const composeCalls = [];
+  const run = (command, args, options = {}) => {
+    if (command === "orb") return { stdout: "Running\n", stderr: "" };
+    if (command === "docker" && args[0] === "context") return { stdout: "orbstack\n", stderr: "" };
+    if (command === "docker" && args[0] === "compose") {
+      const names = [
+        "EVO_CRM_APP_ENV_FILE",
+        "EVO_CRM_LEAD_AGENT_ENV_FILE",
+        "EVO_CRM_WAHA_ENV_FILE",
+        "EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE",
+        "EVO_INBOX_APP_ENV_FILE",
+        "EVO_INBOX_WAHA_ENV_FILE",
+      ];
+      for (const name of names) {
+        const path = options.env[name];
+        const metadata = lstatSync(path);
+        assert.equal(metadata.isFile(), true, name);
+        assert.equal(metadata.isSymbolicLink(), false, name);
+        assert.equal(metadata.mode & 0o777, 0o600, name);
+        assert.equal(readFileSync(path, "utf8"), "P8V3_COMPOSE_VALIDATION=1\n", name);
+      }
+      composeCalls.push(args);
+    }
+    return { stdout: "", stderr: "" };
+  };
+
+  validateCandidateComposeForTest(run, process.cwd());
+  assert.equal(composeCalls.length, 2);
 });
 
 test("every reviewed remote shell contract parses under bash", () => {

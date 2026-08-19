@@ -9234,3 +9234,27 @@ WhatsApp identity.
 References: [Docker Compose production deployment](https://docs.docker.com/compose/how-tos/production/),
 [Supabase database migrations](https://supabase.com/docs/guides/deployment/database-migrations),
 and [Supabase CLI migration reference](https://supabase.com/docs/reference/cli/v0/supabase-migration).
+
+## 2026-08-20 — P8V3A final-preflight Compose env correction
+
+The first merged P8V3 final preflight stopped before production access and
+before every release effect because the disposable local Compose validation
+bound the CRM app, Lead Agent and WAHA env-file selectors but omitted the
+reviewed manual-send-worker selector. The archived candidate intentionally has
+no `.env.manual-send-worker`, so Docker Compose correctly failed while looking
+for that absent default path. Issue #318 records this no-effect stop.
+
+P8V3A changes only that local validation seam. Candidate Compose validation
+must create one additional disposable regular mode-`0600` worker env file and
+bind it through exact environment name
+`EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE`. The disposable file contains only the
+same inert validation marker as the other local validation env files. It is
+removed with the existing temporary validation root on success and failure.
+
+No application image, migration, schema, production configuration, knowledge
+source, provider setting, authorization token, rollback rule or deployment
+boundary changes. The consumed no-effect preflight output is not execution
+authorization. After this correction is independently reviewed, merged and
+green on exact current main, the runner must perform one fresh short read-only
+preflight before requesting the unchanged exact authorization
+`EXECUTE-P8V3-2026-08-20.P8V3.1`.

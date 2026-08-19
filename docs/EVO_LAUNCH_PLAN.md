@@ -3597,3 +3597,47 @@ version/token/evidence/temp identities to `p8v2h` and requires issue #312,
 independent review, exact-head/exact-main green CI and a fresh read-only
 preflight before the exact token `CONFIGURE-P8V2H-2026-08-19.P8V2H.1` may be
 requested.
+
+## P8V3: one-boundary first-version production rollout
+
+Tracking issue: #314.
+
+P8V3 deploys the already reviewed application candidate
+`0f1454d014bbc9eca9d7381dfe557e980965543e` without rebuilding it. One
+temporary 30-minute preflight verifies the exact three portable archives and
+their OCI index/platform identities, exact candidate Compose rendering on
+OrbStack, required production secret names without values, production ledger
+`001-076`, five exact healthy zero-restart containers, network/disk readiness
+and the exact retained P8V2D rollback collection. The rollout retains the
+preflight SHA-256 and requires identical execution commit/tree/CI plus
+unchanged volatile container/ledger state before its first effect.
+
+One 90-minute authorization `EXECUTE-P8V3-2026-08-20.P8V3.1` covers ordered
+configuration installation and rollback, migration `077`, deterministic
+11-client then 291-internal knowledge publication, knowledge-artifact cleanup,
+and one-at-a-time CRM, Inbox and Lead Agent recreation. CRM includes the
+manual-send worker; Inbox supplies the audited staff knowledge route; Lead
+Agent keeps autonomous reply and outbound disabled. Both WAHA containers must
+retain their exact container/image identities and are never recreated,
+restarted or reconfigured.
+
+The account UUID is resolved singularly and remains process-only except for
+the immutable importer's transient matching `--account-id` process argument.
+The two allowed Gemini embedding operations contain only frozen approved
+knowledge; no applicant/customer content, staff draft call, amoCRM write,
+WhatsApp send or WAHA mutation is authorized. UUID-bearing local, remote and
+container knowledge artifacts are finally-cleaned before CRM deployment and
+on every failure path.
+
+A failed application boundary is included with all earlier attempted
+boundaries in reverse rollback. Configuration is restored before old
+application Compose is recreated from exact retained config/image bytes.
+Migration `077` and completed knowledge imports are forward-only and make
+later failures reconciliation-required even when application rollback
+succeeds. A lost migration response with exact ledger readback `001-077` is
+retained as `observed_applied`, never `not_run`. The single final result is
+closed-schema, UUID-free, secret-free and
+uses only `rollout_verified`, `rollout_failed_rolled_back`,
+`rollout_failed_reconciliation_required`, or `evidence_failed`. Real login,
+WhatsApp intake, amoCRM binding, retrieval/draft, manual approval/send, ACK and
+audit verification belong to the post-deploy V4 staff proof.

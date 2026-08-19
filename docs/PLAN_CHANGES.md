@@ -9234,3 +9234,63 @@ WhatsApp identity.
 References: [Docker Compose production deployment](https://docs.docker.com/compose/how-tos/production/),
 [Supabase database migrations](https://supabase.com/docs/guides/deployment/database-migrations),
 and [Supabase CLI migration reference](https://supabase.com/docs/reference/cli/v0/supabase-migration).
+
+## 2026-08-20 — catalog source moves from Notion to the approved knowledge vault
+
+Scope: decision and design only. No migration is written or applied, no
+candidate is staged, no approved catalog row is created, no provider is called
+and no production or managed Supabase mutation is performed.
+
+The owner decided on 2026-08-20 that Notion is no longer the catalog source and
+that the approved EVO knowledge vault replaces it. FR-107 previously recorded
+the import as blocked while the Notion workspace was unavailable. That premise
+no longer holds, so the requirement is rewritten rather than left as a stale
+blocker. FR-106 is unchanged: staging, validation and explicit Admin approval
+remain the only path to an approved row.
+
+Add `docs/adr/0021-source-institution-catalog-from-approved-knowledge-vault.md`
+as a proposed superseding decision, refining ADR 0014 catalog boundary and ADR
+0020 knowledge authority order, and superseding the Notion assumption in FR-107
+only. It records that only the approved internal audience is read, that the
+client vault is a downstream product rather than a source, and that no
+filesystem path enters the database.
+
+Add `docs/platform/catalog-source-inventory.md` and
+`docs/platform/catalog-programme-schema.md`. The inventory is a measurement of
+what the vault actually contains, produced by
+`scripts/knowledge_ingestion/catalog_inventory.py` through the existing safe
+vault reader. The schema document is the design contract the later migration
+must implement.
+
+Four measured findings constrain the design and are recorded so a later
+implementation cannot quietly contradict them. Ninety of 104 programme
+candidates belong to INTI and five of nine institutions have none, so an
+institution without a programme is valid rather than an import failure. Four of
+five worksheets contain zero tabular rows, so Malaysian tuition and intake data
+is absent from the vault and must not be sourced elsewhere without a separate
+decision. The China worksheet holds 1512 rows whose institution names are
+concatenated with fee figures, so automatic splitting is prohibited. Fifteen
+INTI transfer-programme documents fit none of the observed levels, so the
+programme level enum gains `transfer_programme`.
+
+Two ordered migrations are required rather than one. PostgreSQL cannot use a
+newly added enum value inside the transaction that adds it, so
+`ALTER TYPE platform.workflow_source_kind ADD VALUE 'knowledge_vault'` is its
+own migration and every use of the value follows in the next. The repository has
+no prior `ALTER TYPE ... ADD VALUE`, so the constraint is recorded explicitly.
+Migration numbers are selected immediately before commit after checking the
+latest `origin/main` and open PR ownership, per section 21.
+
+A knowledge-vault source is identified as `evo-knowledge://internal/<sha256>`
+using the document digest already produced by
+`scripts/knowledge_ingestion/build_platform_bundle.py`, and `source_revision`
+carries the audience bundle manifest SHA-256 already recorded as release
+evidence. `platform_private.is_safe_workflow_source_url` gains a matching branch
+in the second migration; without it the fail-closed `ELSE FALSE` correctly
+rejects every source of the new kind.
+
+Merge order: this amendment depends on no implementation block and may merge
+independently, but it edits `docs/specs/EVO_PLATFORM_TZ.md` in the same
+locations as the traceability refresh, so that amendment merges first and this
+one rebases onto it. Neither may merge into `main` while a P8V-series rollout
+block is executing.

@@ -9116,3 +9116,121 @@ consumed P8V2G variable/token pair is not accepted.
 References: [Supabase reload/refresh PostgREST schema](https://supabase.com/docs/guides/troubleshooting/refresh-postgrest-schema),
 [Supabase PGRST106 troubleshooting](https://supabase.com/docs/guides/troubleshooting/pgrst106-the-schema-must-be-one-of-the-following-error-when-querying-an-exposed-schema),
 and [Supabase Management API Run SQL query](https://supabase.com/docs/reference/api/introduction).
+
+## 2026-08-20 — P8V3 one-boundary production rollout
+
+Block-ID: `EVO-P8V3-ONE-BOUNDARY-ROLLOUT-2026-08-20`
+
+Issue: #314
+
+P8V2H prepared the existing Supabase project and the singular EVO Admissions
+organization/account without creating a new billing organization or project.
+The separately reviewed P8V2I operation installed the amoCRM OAuth material in
+the existing Lead Agent secret file and proved the EVO Admissions account;
+refresh-readiness remained unclaimed and is not a prerequisite for this first
+bounded staff proof. Production remains on the frozen prior CRM, Inbox and Lead
+Agent images, all healthy with restart count zero, and both WAHA containers
+remain private and unchanged.
+
+Decision: implement V3 as one coherent release block, one PR/review/CI cycle,
+one two-to-five-minute final preflight, and one action-time authorization that
+covers both deployment and the rollback window. The exact token is
+`EXECUTE-P8V3-2026-08-20.P8V3.1`; it is accepted only by a clean checkout whose
+HEAD equals live `origin/main` and whose exact push CI is successful. The
+authorization window is 90 minutes and is checked before every production
+effect. A reviewed-code/scope change, expiry, or material production-state
+change invalidates the preflight and token.
+
+The final preflight writes one temporary mode-`0600`, UUID-free and secret-free
+artifact with a 30-minute expiry. The rollout accepts its exact SHA-256 only,
+requires the same execution commit/tree/CI, and rechecks the volatile container
+and migration state before the first effect. The final rollout result retains
+only that safe preflight SHA-256; the temporary preflight file is not production
+evidence and may be removed after the rollout result is retained.
+
+The application candidate remains commit
+`0f1454d014bbc9eca9d7381dfe557e980965543e`, tree
+`19599bcf043dc4a555c8996c21e7801934b64633`. The three already reviewed
+linux/amd64 P8V2D OCI indexes and their exact deployment archives are:
+
+- CRM index `sha256:711535e0d1216663e42b2d2dd4e2b042812d8bce8ebe82a5c3eb6ae866d60a45`,
+  platform manifest `sha256:fc3487ce079663694aee583891c3939296915634bea61dd293db235b57e748f3`,
+  archive SHA-256 `77980a66b2f717cb3ffdb0e7d73d63efbbf6801a9ef5453fd07a9841f6b36ee9`;
+- Inbox index `sha256:468797e2096146359a4dc814caac7c0d87bdf30ab3b30d2f77d4c02f63dfefdf`,
+  platform manifest `sha256:be31ddf6e3e51fb6fcade87a60ed15b2cf11855db717d7a440a9335c8d49a67f`,
+  archive SHA-256 `2c6d1f275a0f88a9a9e257d3a00756e9a8d438e262a9998d2da89431731eb82e`;
+- Lead Agent index `sha256:0aa4c5aac2774a17a8bcf4b751064b18673b95857340da0edaff5cfacf4c979f`,
+  platform manifest `sha256:0bf6924d246d3cfab25ebe05bd9cb0d8f653b5625c9b2887856d87408b97af2c`,
+  archive SHA-256 `d7467b4d8fdda18248fb7a66ad77cb7618fc30965f3861e724886e37395bea14`.
+
+The final preflight verifies those exact immutable archive/index/platform
+identities, linux/amd64 labels, candidate Compose rendering, prerequisite
+secret names without values, the five healthy zero-restart production
+containers, disk/network readiness, production migration ledger `001-076`, and
+the exact retained P8V2D rollback configs plus three old-image archives. It
+binds the sorted `sha256sum` collection to
+`917676c4fdf0aea4cc804bfaa91d2462b69822a2216a5cef7e41ddbab562ae35` and
+performs no migration, import, configuration install, restart, provider call or
+send.
+
+The authorized execution then performs exactly these ordered boundaries:
+
+1. atomically back up and install the missing root-CRM enablement settings,
+   copying the existing Lead Agent Gemini key only server-side, retaining the
+   existing cross-service sync secret, and generating one fresh manual-worker
+   trigger secret into the root and worker mode-`0600` env files;
+2. apply only reviewed migration
+   `077_platform_manual_whatsapp_send_worker.sql` with SHA-256
+   `4a271dea4a3b5f1570c57cb4b094a13a057ca3cacc38b1d449a4925757299314`,
+   after an exact Supabase CLI dry-run, then re-read ledger `001-077`;
+3. build twice and byte-compare, transfer and atomically import the frozen
+   client 11-document vault (tree SHA-256
+   `6af94384cb330d4ff979109562345b90f7e54d12d4d860614a2f1e0238f05545`),
+   then the frozen internal 291-document vault (tree SHA-256
+   `389387d9b34f3cc800ee75c157e6abd11352011657c58828ef0bb192e6100ecc`),
+   using the already resolved live account UUID only in process memory;
+4. load/stage the exact three archives, deploy CRM plus its manual worker,
+   verify public health and the real Supabase Auth login route, then deploy
+   Inbox because the candidate contains the required audited K4 knowledge
+   route, and finally deploy Lead Agent with autonomous reply and outbound
+   disabled;
+5. verify exact image/platform/revision, networks, health, restart count zero,
+   disabled automation, private handoff routes and unchanged WAHA identities
+   after every boundary.
+
+Any mismatch stops before the next boundary. Changed application boundaries
+are restored in reverse order from the retained P8V2D configs/images and the
+configuration files are restored byte-for-byte. Migration 077 and knowledge
+publication are forward-only and are never described as rolled back; a failure
+after either is retained as reconciliation-required even when all application
+containers are restored. If the migration apply response is lost but the
+managed ledger reads back exact `001-077`, the closed migration record is
+`observed_applied`, the effect count is one, and the migration step is failed;
+it is never erased as `not_run`. WAHA is never recreated, restarted or reconfigured.
+Gemini embedding calls are limited to the two reviewed knowledge imports and
+contain only the frozen approved knowledge chunks; no applicant/customer
+content is sent. No WhatsApp send, amoCRM write, staff draft call or
+customer-data provider call is part of V3.
+
+The immutable importer requires both the canonical account environment value
+and its matching `--account-id` argument. P8V3 therefore preserves the earlier
+narrow transport rule: the UUID is delivered through encrypted SSH stdin into
+a root-only remote variable and may appear only in transient container argv;
+it is never embedded in local/remote command text, stdout/stderr, retained
+files or evidence. Every UUID-bearing bundle, manifest, transfer and importer
+copy is removed and absence-verified before CRM deployment and on every
+failure path.
+
+The implementation adds `docs/schemas/p8v-v1-rollout-result.schema.json` and a
+matching runtime validator. The one retained local and Hermes result is
+body-free, UUID-free and secret-free. Result codes are exactly
+`rollout_verified`, `rollout_failed_rolled_back`,
+`rollout_failed_reconciliation_required`, or `evidence_failed`, with the exact
+seven-step progression pre-state, migration, client import, internal import,
+CRM, Inbox and Lead Agent. V4 real staff proof remains a separate post-deploy
+workflow using an existing staff login and one owner-authorized non-customer
+WhatsApp identity.
+
+References: [Docker Compose production deployment](https://docs.docker.com/compose/how-tos/production/),
+[Supabase database migrations](https://supabase.com/docs/guides/deployment/database-migrations),
+and [Supabase CLI migration reference](https://supabase.com/docs/reference/cli/v0/supabase-migration).

@@ -1,0 +1,652 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/p8v-v1-rollout-result.schema.json",
+  "title": "EVO Admissions P8V V3 rollout result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version", "generated_at", "result_code", "execution", "application",
+    "authorization", "steps", "failure", "pre_state", "migration",
+    "knowledge", "configuration", "boundaries", "waha", "rollback", "effects"
+  ],
+  "properties": {
+    "version": { "const": "p8v-v1-rollout-result/v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "result_code": {
+      "enum": [
+        "rollout_verified",
+        "rollout_failed_rolled_back",
+        "rollout_failed_reconciliation_required",
+        "evidence_failed"
+      ]
+    },
+    "execution": { "$ref": "#/$defs/execution" },
+    "application": { "$ref": "#/$defs/application" },
+    "authorization": { "$ref": "#/$defs/authorization" },
+    "steps": {
+      "type": "array", "minItems": 7, "maxItems": 7,
+      "prefixItems": [
+        { "$ref": "#/$defs/preStateStep" },
+        { "$ref": "#/$defs/migrationStep" },
+        { "$ref": "#/$defs/clientStep" },
+        { "$ref": "#/$defs/internalStep" },
+        { "$ref": "#/$defs/crmStep" },
+        { "$ref": "#/$defs/inboxStep" },
+        { "$ref": "#/$defs/leadStep" }
+      ]
+    },
+    "failure": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["step", "code"],
+          "properties": {
+            "step": { "enum": ["pre_state", "migration", "client_import", "internal_import", "crm", "inbox", "lead_agent", "evidence"] },
+            "code": { "enum": ["preflight_drift", "authorization_expired", "configuration_failed", "migration_failed", "knowledge_failed", "deployment_failed", "verification_failed", "rollback_failed", "evidence_publication_failed"] }
+          }
+        }
+      ]
+    },
+    "pre_state": {
+      "type": "array", "minItems": 5, "maxItems": 5,
+      "items": { "$ref": "#/$defs/container" }
+    },
+    "migration": { "$ref": "#/$defs/migration" },
+    "knowledge": { "$ref": "#/$defs/knowledge" },
+    "configuration": { "$ref": "#/$defs/configuration" },
+    "boundaries": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/boundary" }, { "properties": { "name": { "const": "crm" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/boundary" }, { "properties": { "name": { "const": "inbox" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/boundary" }, { "properties": { "name": { "const": "lead_agent" } } }] }
+      ]
+    },
+    "waha": { "$ref": "#/$defs/waha" },
+    "rollback": { "$ref": "#/$defs/rollback" },
+    "effects": { "$ref": "#/$defs/effects" }
+  },
+  "oneOf": [
+    { "properties": { "steps": { "prefixItems": [
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] }
+    ] } } },
+    { "properties": { "steps": { "prefixItems": [
+      { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] }
+    ] } } },
+    { "properties": { "steps": { "prefixItems": [
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] }
+    ] } } },
+    { "properties": { "steps": { "prefixItems": [
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] }
+    ] } } },
+    { "properties": { "steps": { "prefixItems": [
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] }
+    ] } } },
+    { "properties": { "steps": { "prefixItems": [
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] }
+    ] } } },
+    { "properties": { "steps": { "prefixItems": [
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "not_run" } }, "required": ["status"] }
+    ] } } },
+    { "properties": { "steps": { "prefixItems": [
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+      { "properties": { "status": { "const": "failed" } }, "required": ["status"] }
+    ] } } }
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": { "migration": { "properties": { "status": { "const": "observed_applied" } }, "required": ["status"] } },
+        "required": ["migration"]
+      },
+      "then": {
+        "properties": {
+          "result_code": { "enum": ["rollout_failed_reconciliation_required", "evidence_failed"] },
+          "steps": { "prefixItems": [{}, { "properties": { "status": { "const": "failed" } }, "required": ["status"] }] },
+          "effects": { "properties": { "migration_applied": { "const": 1 } }, "required": ["migration_applied"] }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "failure": { "type": "object", "properties": { "step": { "const": "pre_state" } }, "required": ["step"] } }, "required": ["failure"] },
+      "then": { "properties": { "steps": { "prefixItems": [
+        { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] }
+      ] } } }
+    },
+    {
+      "if": { "properties": { "failure": { "type": "object", "properties": { "step": { "const": "migration" } }, "required": ["step"] } }, "required": ["failure"] },
+      "then": { "properties": { "steps": { "prefixItems": [
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] }
+      ] } } }
+    },
+    {
+      "if": { "properties": { "failure": { "type": "object", "properties": { "step": { "const": "client_import" } }, "required": ["step"] } }, "required": ["failure"] },
+      "then": { "properties": { "steps": { "prefixItems": [
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] }
+      ] } } }
+    },
+    {
+      "if": { "properties": { "failure": { "type": "object", "properties": { "step": { "const": "internal_import" } }, "required": ["step"] } }, "required": ["failure"] },
+      "then": { "properties": { "steps": { "prefixItems": [
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] }
+      ] } } }
+    },
+    {
+      "if": { "properties": { "failure": { "type": "object", "properties": { "step": { "const": "crm" } }, "required": ["step"] } }, "required": ["failure"] },
+      "then": { "properties": { "steps": { "prefixItems": [
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] }
+      ] } } }
+    },
+    {
+      "if": { "properties": { "failure": { "type": "object", "properties": { "step": { "const": "inbox" } }, "required": ["step"] } }, "required": ["failure"] },
+      "then": { "properties": { "steps": { "prefixItems": [
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "not_run" } }, "required": ["status"] }
+      ] } } }
+    },
+    {
+      "if": { "properties": { "failure": { "type": "object", "properties": { "step": { "const": "lead_agent" } }, "required": ["step"] } }, "required": ["failure"] },
+      "then": { "properties": { "steps": { "prefixItems": [
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "failed" } }, "required": ["status"] }
+      ] } } }
+    },
+    {
+      "if": { "properties": { "result_code": { "const": "rollout_verified" } }, "required": ["result_code"] },
+      "then": {
+        "properties": {
+          "failure": { "type": "null" },
+          "steps": { "items": { "properties": { "status": { "const": "verified" } }, "required": ["status"] } },
+          "pre_state": { "minItems": 5, "maxItems": 5 },
+          "migration": {
+            "properties": {
+              "status": { "const": "verified" },
+              "before_range": { "const": "001-076" },
+              "before_count": { "const": 76 },
+              "after_range": { "const": "001-077" },
+              "after_count": { "const": 77 },
+              "applied_versions": { "minItems": 1, "maxItems": 1, "items": { "const": "077" } }
+            },
+            "required": ["status", "before_range", "before_count", "after_range", "after_count", "applied_versions"]
+          },
+          "knowledge": {
+            "properties": {
+              "cleanup_status": { "const": "verified" },
+              "audiences": { "prefixItems": [
+                {
+                  "properties": {
+                    "status": { "const": "verified" },
+                    "document_count": { "const": 11 },
+                    "chunk_count": { "type": "integer", "minimum": 1 },
+                    "bundle_sha256": { "$ref": "#/$defs/sha64" },
+                    "manifest_sha256": { "$ref": "#/$defs/sha64" },
+                    "database_revision_sha256": { "$ref": "#/$defs/sha64" }
+                  },
+                  "required": ["status", "document_count", "chunk_count", "bundle_sha256", "manifest_sha256", "database_revision_sha256"]
+                },
+                {
+                  "properties": {
+                    "status": { "const": "verified" },
+                    "document_count": { "const": 291 },
+                    "chunk_count": { "type": "integer", "minimum": 1 },
+                    "bundle_sha256": { "$ref": "#/$defs/sha64" },
+                    "manifest_sha256": { "$ref": "#/$defs/sha64" },
+                    "database_revision_sha256": { "$ref": "#/$defs/sha64" }
+                  },
+                  "required": ["status", "document_count", "chunk_count", "bundle_sha256", "manifest_sha256", "database_revision_sha256"]
+                }
+              ] }
+            },
+            "required": ["cleanup_status", "audiences"]
+          },
+          "configuration": {
+            "properties": {
+              "status": { "const": "verified" },
+              "installed_names": {
+                "type": "array", "minItems": 5, "maxItems": 5, "uniqueItems": true,
+                "items": { "enum": [
+                  "EVO_PLATFORM_GEMINI_API_KEY",
+                  "EVO_PLATFORM_LEAD_AGENT_SYNC_ENABLED",
+                  "EVO_PLATFORM_MANUAL_SEND_TRIGGER_SECRET",
+                  "EVO_PLATFORM_MANUAL_SEND_WORKER_ENABLED",
+                  "EVO_PLATFORM_STAFF_ASSISTANT_ENABLED"
+                ] }
+              },
+              "backup_sha256": { "$ref": "#/$defs/sha64" },
+              "worker_file_verified": { "const": true }
+            },
+            "required": ["status", "installed_names", "backup_sha256", "worker_file_verified"]
+          },
+          "boundaries": { "prefixItems": [
+            {
+              "properties": {
+                "status": { "const": "verified" },
+                "before_image_id": { "$ref": "#/$defs/imageId" },
+                "after_image_id": { "$ref": "#/$defs/imageId" },
+                "container_id": { "$ref": "#/$defs/sha64" },
+                "health": { "const": "healthy" },
+                "restart_count": { "const": 0 },
+                "networks": { "type": "array", "minItems": 1, "uniqueItems": true },
+                "disabled_state": { "const": true },
+                "manual_worker": { "const": "verified" }
+              },
+              "required": ["status", "before_image_id", "after_image_id", "container_id", "health", "restart_count", "networks", "disabled_state", "manual_worker"]
+            },
+            {
+              "properties": {
+                "status": { "const": "verified" },
+                "before_image_id": { "$ref": "#/$defs/imageId" },
+                "after_image_id": { "$ref": "#/$defs/imageId" },
+                "container_id": { "$ref": "#/$defs/sha64" },
+                "health": { "const": "healthy" },
+                "restart_count": { "const": 0 },
+                "networks": { "type": "array", "minItems": 1, "uniqueItems": true },
+                "disabled_state": { "const": true },
+                "manual_worker": { "const": "not_applicable" }
+              },
+              "required": ["status", "before_image_id", "after_image_id", "container_id", "health", "restart_count", "networks", "disabled_state", "manual_worker"]
+            },
+            {
+              "properties": {
+                "status": { "const": "verified" },
+                "before_image_id": { "$ref": "#/$defs/imageId" },
+                "after_image_id": { "$ref": "#/$defs/imageId" },
+                "container_id": { "$ref": "#/$defs/sha64" },
+                "health": { "const": "healthy" },
+                "restart_count": { "const": 0 },
+                "networks": { "type": "array", "minItems": 1, "uniqueItems": true },
+                "disabled_state": { "const": true },
+                "manual_worker": { "const": "not_applicable" }
+              },
+              "required": ["status", "before_image_id", "after_image_id", "container_id", "health", "restart_count", "networks", "disabled_state", "manual_worker"]
+            }
+          ] },
+          "waha": { "properties": { "unchanged": { "const": true } }, "required": ["unchanged"] },
+          "rollback": {
+            "properties": {
+              "status": { "const": "not_required" },
+              "boundaries": { "maxItems": 0 }
+            },
+            "required": ["status", "boundaries"]
+          },
+          "effects": {
+            "properties": {
+              "migration_applied": { "const": 1 },
+              "knowledge_imports": { "const": 2 },
+              "application_recreates": { "const": 3 }
+            },
+            "required": ["migration_applied", "knowledge_imports", "application_recreates"]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "result_code": { "not": { "const": "rollout_verified" } } }, "required": ["result_code"] },
+      "then": { "properties": { "failure": { "type": "object" } } }
+    },
+    {
+      "if": { "properties": { "result_code": { "const": "rollout_failed_rolled_back" } }, "required": ["result_code"] },
+      "then": {
+        "properties": {
+          "failure": {
+            "type": "object",
+            "properties": { "step": { "const": "pre_state" }, "code": { "const": "configuration_failed" } },
+            "required": ["step", "code"]
+          },
+          "pre_state": { "minItems": 5, "maxItems": 5 },
+          "migration": {
+            "properties": {
+              "status": { "const": "not_run" },
+              "before_range": { "type": "null" },
+              "before_count": { "type": "null" },
+              "after_range": { "type": "null" },
+              "after_count": { "type": "null" },
+              "applied_versions": { "maxItems": 0 }
+            },
+            "required": ["status", "before_range", "before_count", "after_range", "after_count", "applied_versions"]
+          },
+          "knowledge": {
+            "properties": {
+              "cleanup_status": { "const": "not_required" },
+              "audiences": { "items": {
+                "properties": {
+                  "status": { "const": "not_run" },
+                  "document_count": { "type": "null" },
+                  "chunk_count": { "type": "null" },
+                  "bundle_sha256": { "type": "null" },
+                  "manifest_sha256": { "type": "null" },
+                  "database_revision_sha256": { "type": "null" }
+                },
+                "required": ["status", "document_count", "chunk_count", "bundle_sha256", "manifest_sha256", "database_revision_sha256"]
+              } }
+            },
+            "required": ["cleanup_status", "audiences"]
+          },
+          "configuration": {
+            "properties": {
+              "status": { "enum": ["not_run", "failed"] },
+              "installed_names": { "maxItems": 0 },
+              "backup_sha256": { "type": "null" },
+              "worker_file_verified": { "type": "null" }
+            },
+            "required": ["status", "installed_names", "backup_sha256", "worker_file_verified"]
+          },
+          "boundaries": { "prefixItems": [
+            {
+              "properties": {
+                "status": { "const": "not_run" }, "before_image_id": { "type": "null" }, "after_image_id": { "type": "null" },
+                "container_id": { "type": "null" }, "health": { "type": "null" }, "restart_count": { "type": "null" },
+                "networks": { "maxItems": 0 }, "disabled_state": { "type": "null" }, "manual_worker": { "const": "not_run" }
+              },
+              "required": ["status", "before_image_id", "after_image_id", "container_id", "health", "restart_count", "networks", "disabled_state", "manual_worker"]
+            },
+            {
+              "properties": {
+                "status": { "const": "not_run" }, "before_image_id": { "type": "null" }, "after_image_id": { "type": "null" },
+                "container_id": { "type": "null" }, "health": { "type": "null" }, "restart_count": { "type": "null" },
+                "networks": { "maxItems": 0 }, "disabled_state": { "type": "null" }, "manual_worker": { "const": "not_applicable" }
+              },
+              "required": ["status", "before_image_id", "after_image_id", "container_id", "health", "restart_count", "networks", "disabled_state", "manual_worker"]
+            },
+            {
+              "properties": {
+                "status": { "const": "not_run" }, "before_image_id": { "type": "null" }, "after_image_id": { "type": "null" },
+                "container_id": { "type": "null" }, "health": { "type": "null" }, "restart_count": { "type": "null" },
+                "networks": { "maxItems": 0 }, "disabled_state": { "type": "null" }, "manual_worker": { "const": "not_applicable" }
+              },
+              "required": ["status", "before_image_id", "after_image_id", "container_id", "health", "restart_count", "networks", "disabled_state", "manual_worker"]
+            }
+          ] },
+          "waha": { "properties": { "unchanged": { "const": false } }, "required": ["unchanged"] },
+          "rollback": {
+            "properties": {
+              "status": { "const": "verified" },
+              "boundaries": { "maxItems": 0 },
+              "configuration_restored": { "const": true }
+            },
+            "required": ["status", "boundaries", "configuration_restored"]
+          },
+          "effects": {
+            "properties": {
+              "migration_applied": { "const": 0 },
+              "knowledge_imports": { "const": 0 },
+              "application_recreates": { "const": 0 }
+            },
+            "required": ["migration_applied", "knowledge_imports", "application_recreates"]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "result_code": { "const": "rollout_failed_reconciliation_required" } }, "required": ["result_code"] },
+      "then": {
+        "properties": {
+          "failure": { "type": "object", "properties": { "step": { "enum": ["pre_state", "migration", "client_import", "internal_import", "crm", "inbox", "lead_agent"] } }, "required": ["step"] }
+        },
+        "not": {
+          "properties": {
+            "failure": { "properties": { "step": { "const": "pre_state" }, "code": { "const": "configuration_failed" } }, "required": ["step", "code"] },
+            "rollback": { "properties": { "status": { "const": "verified" }, "boundaries": { "maxItems": 0 }, "configuration_restored": { "const": true } }, "required": ["status", "boundaries", "configuration_restored"] },
+            "effects": { "properties": { "migration_applied": { "const": 0 }, "knowledge_imports": { "const": 0 }, "application_recreates": { "const": 0 } }, "required": ["migration_applied", "knowledge_imports", "application_recreates"] }
+          },
+          "required": ["failure", "rollback", "effects"]
+        }
+      }
+    },
+    {
+      "if": { "properties": { "result_code": { "const": "evidence_failed" } }, "required": ["result_code"] },
+      "then": {
+        "properties": {
+          "failure": {
+            "type": "object",
+            "properties": { "step": { "const": "evidence" }, "code": { "const": "evidence_publication_failed" } },
+            "required": ["step", "code"]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha40": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sha64": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "imageId": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "status": { "enum": ["not_run", "verified", "failed"] },
+    "execution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["commit", "tree", "ci_run_id"],
+      "properties": {
+        "commit": { "$ref": "#/$defs/sha40" },
+        "tree": { "$ref": "#/$defs/sha40" },
+        "ci_run_id": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "application": {
+      "type": "object", "additionalProperties": false,
+      "required": ["commit", "tree"],
+      "properties": {
+        "commit": { "const": "0f1454d014bbc9eca9d7381dfe557e980965543e" },
+        "tree": { "const": "19599bcf043dc4a555c8996c21e7801934b64633" }
+      }
+    },
+    "authorization": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "started_at", "expires_at", "preflight_sha256"],
+      "properties": {
+        "id": { "const": "EXECUTE-P8V3-2026-08-20.P8V3.1" },
+        "started_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "preflight_sha256": { "$ref": "#/$defs/sha64" }
+      }
+    },
+    "step": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "status"],
+      "properties": { "name": { "type": "string" }, "status": { "$ref": "#/$defs/status" } }
+    },
+    "preStateStep": { "allOf": [{ "$ref": "#/$defs/step" }, { "properties": { "name": { "const": "pre_state" } } }] },
+    "migrationStep": { "allOf": [{ "$ref": "#/$defs/step" }, { "properties": { "name": { "const": "migration" } } }] },
+    "clientStep": { "allOf": [{ "$ref": "#/$defs/step" }, { "properties": { "name": { "const": "client_import" } } }] },
+    "internalStep": { "allOf": [{ "$ref": "#/$defs/step" }, { "properties": { "name": { "const": "internal_import" } } }] },
+    "crmStep": { "allOf": [{ "$ref": "#/$defs/step" }, { "properties": { "name": { "const": "crm" } } }] },
+    "inboxStep": { "allOf": [{ "$ref": "#/$defs/step" }, { "properties": { "name": { "const": "inbox" } } }] },
+    "leadStep": { "allOf": [{ "$ref": "#/$defs/step" }, { "properties": { "name": { "const": "lead_agent" } } }] },
+    "container": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "container_id", "image_id", "health", "restart_count", "networks"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "container_id": { "$ref": "#/$defs/sha64" },
+        "image_id": { "$ref": "#/$defs/imageId" },
+        "health": { "const": "healthy" },
+        "restart_count": { "const": 0 },
+        "networks": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "migration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "before_range", "before_count", "after_range", "after_count", "applied_versions"],
+      "properties": {
+        "status": { "enum": ["not_run", "verified", "observed_applied", "failed"] },
+        "before_range": { "enum": ["001-076", null] },
+        "before_count": { "enum": [76, null] },
+        "after_range": { "enum": ["001-077", null] },
+        "after_count": { "enum": [77, null] },
+        "applied_versions": { "type": "array", "maxItems": 1, "items": { "const": "077" } }
+      }
+    },
+    "audience": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "status", "document_count", "chunk_count", "bundle_sha256", "manifest_sha256", "database_revision_sha256"],
+      "properties": {
+        "name": { "enum": ["client", "internal"] },
+        "status": { "$ref": "#/$defs/status" },
+        "document_count": { "type": ["integer", "null"], "minimum": 1 },
+        "chunk_count": { "type": ["integer", "null"], "minimum": 1 },
+        "bundle_sha256": { "oneOf": [{ "$ref": "#/$defs/sha64" }, { "type": "null" }] },
+        "manifest_sha256": { "oneOf": [{ "$ref": "#/$defs/sha64" }, { "type": "null" }] },
+        "database_revision_sha256": { "oneOf": [{ "$ref": "#/$defs/sha64" }, { "type": "null" }] }
+      }
+    },
+    "knowledge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cleanup_status", "audiences"],
+      "properties": {
+        "cleanup_status": { "enum": ["not_required", "verified", "failed"] },
+        "audiences": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "prefixItems": [
+            { "allOf": [{ "$ref": "#/$defs/audience" }, { "properties": { "name": { "const": "client" } } }] },
+            { "allOf": [{ "$ref": "#/$defs/audience" }, { "properties": { "name": { "const": "internal" } } }] }
+          ]
+        }
+      }
+    },
+    "configuration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "installed_names", "backup_sha256", "worker_file_verified"],
+      "properties": {
+        "status": { "$ref": "#/$defs/status" },
+        "installed_names": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "backup_sha256": { "oneOf": [{ "$ref": "#/$defs/sha64" }, { "type": "null" }] },
+        "worker_file_verified": { "type": ["boolean", "null"] }
+      }
+    },
+    "boundary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "status", "before_image_id", "after_image_id", "container_id", "health", "restart_count", "networks", "disabled_state", "manual_worker"],
+      "properties": {
+        "name": { "enum": ["crm", "inbox", "lead_agent"] },
+        "status": { "$ref": "#/$defs/status" },
+        "before_image_id": { "oneOf": [{ "$ref": "#/$defs/imageId" }, { "type": "null" }] },
+        "after_image_id": { "oneOf": [{ "$ref": "#/$defs/imageId" }, { "type": "null" }] },
+        "container_id": { "oneOf": [{ "$ref": "#/$defs/sha64" }, { "type": "null" }] },
+        "health": { "enum": ["healthy", null] },
+        "restart_count": { "enum": [0, null] },
+        "networks": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "disabled_state": { "type": ["boolean", "null"] },
+        "manual_worker": { "enum": ["verified", "not_applicable", "not_run", "failed"] }
+      }
+    },
+    "waha": {
+      "type": "object", "additionalProperties": false,
+      "required": ["crm_container_id", "crm_image_id", "inbox_container_id", "inbox_image_id", "unchanged"],
+      "properties": {
+        "crm_container_id": { "$ref": "#/$defs/sha64" },
+        "crm_image_id": { "$ref": "#/$defs/imageId" },
+        "inbox_container_id": { "$ref": "#/$defs/sha64" },
+        "inbox_image_id": { "$ref": "#/$defs/imageId" },
+        "unchanged": { "type": "boolean" }
+      }
+    },
+    "rollback": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "boundaries", "configuration_restored"],
+      "properties": {
+        "status": { "enum": ["not_required", "verified", "failed"] },
+        "boundaries": { "type": "array", "uniqueItems": true, "items": { "enum": ["lead_agent", "inbox", "crm"] } },
+        "configuration_restored": { "type": "boolean" }
+      }
+    },
+    "effects": {
+      "type": "object", "additionalProperties": false,
+      "required": ["migration_applied", "knowledge_imports", "application_recreates", "waha_recreates", "amo_writes", "whatsapp_sends", "staff_draft_calls"],
+      "properties": {
+        "migration_applied": { "type": "integer", "minimum": 0, "maximum": 1 },
+        "knowledge_imports": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "application_recreates": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "waha_recreates": { "const": 0 },
+        "amo_writes": { "const": 0 },
+        "whatsapp_sends": { "const": 0 },
+        "staff_draft_calls": { "const": 0 }
+      }
+    }
+  }
+}

@@ -954,7 +954,7 @@ surfaces и не может быть заменено SQLite/mock/hardcoded mapp
 | FR-104 | System prompt, policy, business context, Platform memory schema и country knowledge должны version/approve/retire независимо и иметь citations/retrieval evidence в AI proposal. | MUST | Knowledge/prompt/policy contract test |
 | FR-105 | AI создаёт только RU/EN proposal; Kyrgyz или uncertain language требует manual language selection и human review, без autonomous send. | MUST | Language failure-path E2E |
 | FR-106 | University/college import проходит через reviewable staging, validation и approval; source record не пишет напрямую в approved catalog/student case. | MUST | Import isolation tests |
-| FR-107 | University import остаётся blocked пока Notion workspace недоступен; empty colleges не заполняются fake records. | MUST | Blocked-source acceptance |
+| FR-107 | Источником каталога является утверждённая внутренняя база знаний EVO, а не Notion; каждая запись несёт синтетический идентификатор документа и ревизию манифеста пакета знаний без пути файловой системы; заведение без программ допустимо; партнёрский или выдающий диплом вуз не является записью каталога; поле без дословного факта в источнике остаётся пустым, а недостающие данные не заполняются вымышленными записями. | MUST | Vault-source и fail-closed tests |
 | FR-108 | Sheets/Drive/PDF/Notion остаются discovery/import sources, не runtime database/public dependency; customer PII не попадает в repository evidence. | MUST | Architecture + PII audit |
 | FR-109 | Accounting/Bema не создаёт новый ledger; Finance v1 остаётся obligations/payments/refunds/evidence/audit. | MUST | Scope and route review |
 | FR-110 | Все OP/OZO/Profile/checklist/catalog/contract flows используют существующий unified frontend и real Supabase repositories/actions/RLS/audit без parallel UI, localStorage или demo fallback. | MUST | Existing-route real-backend E2E |
@@ -1557,7 +1557,8 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 1. Target Architecture ADR 0014, Supabase boundary ADR 0015, superseding
    greenfield/UI boundary ADR 0016, external-automation boundary ADR 0017 и
    execution-order/retention boundary ADR 0018, superseded where applicable by
-   guarded-autonomy/read-mostly-integration ADR 0019.
+   guarded-autonomy/read-mostly-integration ADR 0019, knowledge authority order
+   ADR 0020 и catalog source boundary ADR 0021.
 2. Data dictionary и ERD.
 3. Role/action/field/object-scope matrix.
 4. amoCRM field/status/user mapping.
@@ -1628,6 +1629,8 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 ### 31.2 Основные источники репозитория
 
 - `AGENTS.md`, `CONTEXT.md`;
+- `docs/platform/catalog-source-inventory.md`,
+  `docs/platform/catalog-programme-schema.md`;
 - `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, `docs/EVO_LAUNCH_PLAN.md`,
   `docs/PLAN_CHANGES.md`;
 - `docs/research/evo-mvp-waha-ai-memory-2026-08-09.md`;
@@ -1641,7 +1644,7 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 - `evo-lead-agent/functional-spec.md`;
 - `evo-lead-agent/technical-spec.md`;
 - `agent-lead2-inbox/docs/supabase-managed-store.md`;
-- `docs/adr/0003–0019`;
+- `docs/adr/0003–0021`;
 - `docs/design/evo-platform/COMPLETION_CHECKLIST.md`;
 - `docs/design/evo-platform/FINAL_FRONTEND_AUDIT_2026-07-24.md`;
 - `docs/design/evo-platform/DESIGN_REVIEW_CLOSURE_2026-07-25.md`;

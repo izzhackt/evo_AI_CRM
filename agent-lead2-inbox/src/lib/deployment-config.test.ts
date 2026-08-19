@@ -68,10 +68,10 @@ describe('EVO Inbox production deployment config', () => {
     expect(edgeCompose).toContain('name: evo-edge');
     expect(edgeCompose).toContain('container_name: evo-edge-caddy');
     expect(edgeCompose).toContain('evo_public_web');
-    expect(edgeCaddy).toContain('inbox.evoadmissions.com');
+    expect(edgeCaddy).not.toContain('inbox.evoadmissions.com');
     expect(edgeCaddy).toContain('evo-inbox.72.62.119.112.sslip.io');
     expect(edgeCaddy).toContain('reverse_proxy evo-inbox-app:3000');
-    expect(edgeCaddy).toContain('crm.evoadmissions.com');
+    expect(edgeCaddy).not.toContain('crm.evoadmissions.com');
     expect(edgeCaddy).not.toContain('acadis');
   });
 

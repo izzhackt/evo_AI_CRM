@@ -1641,7 +1641,7 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 - `evo-lead-agent/functional-spec.md`;
 - `evo-lead-agent/technical-spec.md`;
 - `agent-lead2-inbox/docs/supabase-managed-store.md`;
-- `docs/adr/0003–0019`;
+- `docs/adr/0003–0020`;
 - `docs/design/evo-platform/COMPLETION_CHECKLIST.md`;
 - `docs/design/evo-platform/FINAL_FRONTEND_AUDIT_2026-07-24.md`;
 - `docs/design/evo-platform/DESIGN_REVIEW_CLOSURE_2026-07-25.md`;

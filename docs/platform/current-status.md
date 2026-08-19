@@ -1,7 +1,7 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-08-15
+- Snapshot date: 2026-08-20
 - Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
 - P2A starting checkpoint: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
 - P2B starting checkpoint: `8ad755b5039390f418dbe12924a806f069f93b53`
@@ -13,10 +13,13 @@
 - P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
 - Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
 - Current accepted base for this block:
-`33d745121208bdaf30fceeda25e9c87ab346db8e`
-- Active plan block:
-  `EVO-P8D-DISABLED-PRODUCTION-DEPLOYMENT-2026-08-15`
-- Active implementation block: `P8D plan and disabled deployment`
+`a90d5d1d37d6d860520de1d1035035ebbcb49121`
+- Exact-main CI on that base: [run 32244183175](https://github.com/izzhackt/evo_AI_CRM/actions/runs/32244183175) — success
+- Migration ledger in repository: contiguous `001-077`
+- Previous accepted base for the P8D block: `33d745121208bdaf30fceeda25e9c87ab346db8e`
+- Active plan block: `P8V v1 production closure`, `docs/platform/p8v-v1-production-closure.md`
+- Active implementation block: P8V3 controlled first-version production rollout (issues #287 и #314) — выполняется, не завершён
+- Requirement/evidence matrix: `docs/specs/EVO_PLATFORM_TZ_TRACEABILITY.md`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active greenfield/UI boundary:
@@ -28,6 +31,31 @@
 - Active autonomy and read-mostly amoCRM boundary:
   `docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md`
 - Evidence rule: code/configuration is not real-provider proof
+
+## Проверенное состояние production на 2026-08-20
+
+Источник строк ниже: read-only осмотр Hermes 2026-08-18, зафиксированный в
+`docs/platform/p8v-v1-production-closure.md`, плюс независимая DNS/HTTPS-проверка
+2026-08-20. Ни одна строка не является доказательством работы бизнес-пути.
+
+| Область | Наблюдение | Следствие |
+| --- | --- | --- |
+| Контейнеры | CRM app, CRM WAHA, Lead Agent, Inbox app и Inbox WAHA запущены, healthy, restart count ноль | Сервисы живы |
+| Версии образов | CRM на `564332b4` (release `2026-07-24.1`), Inbox на `a09a72fc`, Lead Agent на rollback-образе | Развёрнутый код существенно старше `main` |
+| Канонические домены | `crm.evoadmissions.com` и `inbox.evoadmissions.com` не резолвятся | Публичный доступ только через sslip.io fallback |
+| Fallback-адреса | `https://evo-crm.72.62.119.112.sslip.io` и `https://evo-inbox.72.62.119.112.sslip.io` отвечают HTTP 200 на `/login` | Web-слой доступен; бизнес-путь не подтверждён |
+| ACME | Повторные попытки выпуска сертификатов для отложенных доменов остановлены PR #311 | Шум и риск rate-limit устранены |
+| Managed Supabase | Применены миграции `001-076`, ровно одна `077` ожидает применения | Схема production на одну миграцию позади репозитория |
+| PostgREST | Схема `platform` на момент осмотра не была доступна через PostgREST; PR #308 и последующие исправления готовят подключение | Web-путь Platform в production ещё не читает данные |
+| amoCRM | Указаны base URL и путь token-файла, сам token-файл отсутствует; интеграция в companion-базе не настроена | Реальная привязка контакта и сделки заблокирована |
+| Gemini | Инвентарь моделей доступен по существующему ключу Lead Agent, включает `gemini-3.5-flash` | Провайдер достижим; ни одного production-вызова не выполнено |
+| WAHA | Сессии `crm_primary` и `china_curator` в состоянии `WORKING`, webhook только у `crm_primary` | Приём возможен; образы и сессии остаются границей сохранения |
+| Manual send worker | `manual_whatsapp_send` можно авторизовать и поставить в очередь, worker в production не развёрнут | Ручная отправка ещё не является реальным путём |
+| Знания | В managed Supabase два `internal` документа и 26 chunks; проверенные хранилища содержат 11 клиентских и 291 внутренний документ | Импорт знаний в production не выполнен |
+| Учётные записи | Один legacy account и один подтверждённый Auth-пользователь | Сотрудники ещё не заведены |
+
+Развёртывание текущего root-кода до готовности Platform Auth заменило бы
+работающий legacy-вход неработающим. Это зафиксировано как явный риск P8V.
 
 ## Короткий вывод
 
@@ -295,31 +323,34 @@ gate, но не выполнять mutation.
 
 ## Текущий безопасный gate
 
-P7-PLAN принят PR #154, а P7A принят PR #156 как
-`47e2e211ba77d36e3296b12ad0b8087276ca712d`. Exact-main push CI
-`31688954104` прошёл PostgreSQL authorization, полный disposable Supabase,
-Storage, PGMQ и browser contract, frontend contracts, build, CRM scenarios и
-audits. Migration history contiguous `001-071`.
+Принятая база — `a90d5d1d37d6d860520de1d1035035ebbcb49121` с зелёным exact-main
+CI [32244183175](https://github.com/izzhackt/evo_AI_CRM/actions/runs/32244183175).
+Migration history contiguous `001-077`.
 
-P7A заменяет connected `/settings?tab=audit` legacy SQLite fallback на
-ограниченный Admin-only Supabase search/export contract. Direct browser read
-`platform.audit_events` отозван; raw before/after state, free-text reason,
-actor principal, provider payload, object key, private topic и phone-bearing
-identifiers не входят в RPC, DOM или CSV. Runtime остаётся disabled by default.
-Это repository/disposable-local доказательство, а не managed Supabase,
-production или provider proof.
+С предыдущего снимка приняты P7A (PR #156), P7B, focused P7D, P8A-P8C, P8D и
+серия P8D4, P8U1-P8U4 и подготовка P8V. Пофункциональное покрытие требований
+зафиксировано в `docs/specs/EVO_PLATFORM_TZ_TRACEABILITY.md`: 90 из 110
+требований имеют доказательство в репозитории, 12 закрыты частично, 5 отложены
+вместе с P4B, одно заблокировано недоступным источником импорта и два SHOULD не
+реализованы по решению владельца.
 
-Следующий implementation block — `P7B`: private structured observability,
-controlled alert evaluation и актуальные runbooks. Operational endpoints и
-metrics должны оставаться private и не содержать tenant/customer/provider
-payload, object-key или secret labels. External pager/log-drain delivery
-остаётся blocked до выбора destination, plan/cost и operational owner.
+Текущий implementation block — P8V3 controlled first-version production rollout
+по issues #287 и #314. Он выполняется и не завершён. До его завершения
+действуют два ограничения:
 
-После принятого P7B следует P7C с отдельными isolated database и private
-Storage restore tracks. P7D остаётся blocked, пока owner не предоставит
-numeric capacity profile, human accessibility reviewer и утверждённую
-assistive-technology/browser/device matrix. P8 остаётся blocked до P7D; P9
-removed; P10 следует после P8.
+- в `main` не вливаются посторонние изменения: release runner привязан к точному
+  коммиту `main` и единственному успешному exact-main CI и падает при
+  расхождении; любое вливание запускает повторный цикл review, CI и нового owner
+  token;
+- параллельная работа ведётся в отдельных ветках и вливается после завершения
+  rollout.
 
-Перед любым production claim нужно обновить этот snapshot реальной проверкой
-exact deployed revision, private network, provider readiness и full E2E.
+P7C с isolated database и private Storage restore остаётся открытым (issue
+#162, `needs-info`). Полный P7D gate остаётся открытым (issue #167): нужны
+числовой профиль нагрузки, проверяющий-человек и утверждённая матрица
+устройств. P9 removed; P10 следует после P8.
+
+Ни одна строка выше не является доказательством работы реального WhatsApp,
+amoCRM, Gemini или managed Supabase в production. Перед любым production claim
+нужно обновить этот snapshot реальной проверкой exact deployed revision, private
+network, provider readiness и full E2E.

@@ -9283,3 +9283,29 @@ boundary changes. The two no-effect preflight stops are not execution
 authorization. After independent review, merge, and exact-main green CI, the
 runner must perform one fresh short read-only preflight before requesting the
 unchanged exact authorization `EXECUTE-P8V3-2026-08-20.P8V3.1`.
+
+## 2026-08-20 — P8V3C canonical production container-name correction
+
+The third fresh P8V3 preflight on exact merged main
+`83c38f76e2776ae4fb90ead226aca8967c265dc6` stopped before every release
+effect with `production pre-state drifted: evo-crm-app-1`. Read-only Hermes
+inspection confirmed that all five containers still have their frozen exact
+image IDs, expected networks, healthy state and restart count zero. The only
+drift was representational: Docker's inspect template renders `.Name` as
+`/evo-crm-app-1`, while the closed contract uses the canonical Compose name
+`evo-crm-app-1`. Issue #325 records this no-effect stop.
+
+P8V3C changes only the read-only production inventory producer. The existing
+fixed five-name shell loop emits its current `name` value as the first field;
+Docker inspect supplies only the immutable container ID, image ID, health,
+restart count and networks. The closed parser is not weakened and continues
+to reject a leading slash, reordering, extra rows, wrong identities, unhealthy
+state, nonzero restarts or network drift. Targeted coverage binds the exact
+producer text, all five canonical rows and the slash-prefixed negative.
+
+No application image, migration, schema, production configuration, knowledge
+source, provider setting, authorization token, rollback rule or deployment
+boundary changes. The three no-effect preflight stops are not execution
+authorization. After independent review, merge and exact-main green CI, the
+runner must perform one fresh short read-only preflight before requesting the
+unchanged exact authorization `EXECUTE-P8V3-2026-08-20.P8V3.1`.

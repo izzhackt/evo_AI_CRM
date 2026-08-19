@@ -3676,3 +3676,19 @@ never be used to build, run, deploy, reach Supabase, or enter evidence. All
 P8V3 candidate identities, release effects, rollback rules and the exact owner
 authorization remain unchanged. A fresh read-only preflight after reviewed
 merge and exact-main green CI is mandatory.
+
+### P8V3C canonical production container-name correction
+
+The next fresh preflight also stopped before every release effect. Its remote
+read-only inventory confirmed the exact expected images, networks, healthy
+states and zero restart counts, but Docker inspect rendered `.Name` with its
+API-leading slash while the closed verifier correctly expected the canonical
+unprefixed Compose container name.
+
+The only authorized correction is for the inventory producer to emit the
+already fixed shell-loop name as the first field and use Docker inspect only
+for the immutable container ID, image ID, health, restart count and networks.
+The parser remains strict and must reject slash-prefixed or otherwise drifted
+names. All candidate identities, production effects, rollback rules, provider
+boundaries and the exact owner authorization remain unchanged. A fresh
+read-only preflight after reviewed merge and exact-main green CI is mandatory.

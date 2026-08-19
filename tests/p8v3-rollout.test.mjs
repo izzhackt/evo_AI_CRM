@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { lstatSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import test from "node:test";
 
 import Ajv2020 from "ajv/dist/2020.js";
@@ -334,6 +334,7 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
 
 test("candidate Compose validation binds a disposable mode-0600 env for every service", () => {
   const composeCalls = [];
+  const observedPaths = new Set();
   const run = (command, args, options = {}) => {
     if (command === "orb") return { stdout: "Running\n", stderr: "" };
     if (command === "docker" && args[0] === "context") return { stdout: "orbstack\n", stderr: "" };
@@ -348,11 +349,21 @@ test("candidate Compose validation binds a disposable mode-0600 env for every se
       ];
       for (const name of names) {
         const path = options.env[name];
+        observedPaths.add(path);
         const metadata = lstatSync(path);
         assert.equal(metadata.isFile(), true, name);
         assert.equal(metadata.isSymbolicLink(), false, name);
         assert.equal(metadata.mode & 0o777, 0o600, name);
-        assert.equal(readFileSync(path, "utf8"), "P8V3_COMPOSE_VALIDATION=1\n", name);
+        const expected = name === "EVO_INBOX_APP_ENV_FILE"
+          ? [
+              "P8V3_COMPOSE_VALIDATION=1",
+              "NEXT_PUBLIC_SUPABASE_URL=https://p8v3.invalid",
+              "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3-compose-validation-not-a-key",
+              "NEXT_PUBLIC_SITE_URL=https://p8v3.invalid",
+              "",
+            ].join("\n")
+          : "P8V3_COMPOSE_VALIDATION=1\n";
+        assert.equal(readFileSync(path, "utf8"), expected, name);
       }
       composeCalls.push(args);
     }
@@ -361,6 +372,34 @@ test("candidate Compose validation binds a disposable mode-0600 env for every se
 
   validateCandidateComposeForTest(run, process.cwd());
   assert.equal(composeCalls.length, 2);
+  assert.equal(observedPaths.size, 6);
+  for (const path of observedPaths) assert.equal(existsSync(path), false, path);
+  assert.equal(existsSync(dirname([...observedPaths][0])), false);
+});
+
+test("candidate Compose validation removes every disposable env after failure", () => {
+  const observedPaths = new Set();
+  const run = (command, args, options = {}) => {
+    if (command === "orb") return { stdout: "Running\n", stderr: "" };
+    if (command === "docker" && args[0] === "context") return { stdout: "orbstack\n", stderr: "" };
+    if (command === "docker" && args[0] === "compose") {
+      for (const name of [
+        "EVO_CRM_APP_ENV_FILE",
+        "EVO_CRM_LEAD_AGENT_ENV_FILE",
+        "EVO_CRM_WAHA_ENV_FILE",
+        "EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE",
+        "EVO_INBOX_APP_ENV_FILE",
+        "EVO_INBOX_WAHA_ENV_FILE",
+      ]) observedPaths.add(options.env[name]);
+      throw new Error("forced Compose failure");
+    }
+    return { stdout: "", stderr: "" };
+  };
+
+  assert.throws(() => validateCandidateComposeForTest(run, process.cwd()), /forced Compose failure/);
+  assert.equal(observedPaths.size, 6);
+  for (const path of observedPaths) assert.equal(existsSync(path), false, path);
+  assert.equal(existsSync(dirname([...observedPaths][0])), false);
 });
 
 test("every reviewed remote shell contract parses under bash", () => {

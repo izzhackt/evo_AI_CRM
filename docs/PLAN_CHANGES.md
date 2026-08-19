@@ -9258,3 +9258,28 @@ authorization. After this correction is independently reviewed, merged and
 green on exact current main, the runner must perform one fresh short read-only
 preflight before requesting the unchanged exact authorization
 `EXECUTE-P8V3-2026-08-20.P8V3.1`.
+
+## 2026-08-20 — P8V3B inert Inbox Compose build-value correction
+
+The second fresh P8V3 preflight on exact merged main
+`55d9aae4c8fab8d2240977a1598ebc3cf23e10d6` again stopped before production
+access and before every release effect. P8V3A supplied the missing disposable
+manual-worker env path, after which the archived Inbox Compose correctly
+rejected its empty required public build variables. Issue #323 records this
+second no-effect stop.
+
+P8V3B changes only the disposable local Inbox Compose validation env. Alongside
+the existing inert marker it must contain fixed non-secret validation values
+for `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
+`NEXT_PUBLIC_SITE_URL`. The URL uses the reserved `.invalid` domain and the
+key is an explicit non-credential sentinel. These values exist only in the
+temporary mode-`0600` env file used by `docker compose config -q`; they are
+never used to build, run, deploy, access Supabase, or enter retained evidence.
+The exact temporary bytes and finally-style cleanup are behaviorally tested.
+
+No application image, migration, schema, production configuration, knowledge
+source, provider setting, authorization token, rollback rule or deployment
+boundary changes. The two no-effect preflight stops are not execution
+authorization. After independent review, merge, and exact-main green CI, the
+runner must perform one fresh short read-only preflight before requesting the
+unchanged exact authorization `EXECUTE-P8V3-2026-08-20.P8V3.1`.

@@ -3658,3 +3658,21 @@ removed with the existing temporary validation directory in the same
 finally-style cleanup. All P8V3 candidate identities, release effects,
 rollback rules and the exact owner authorization remain unchanged. A fresh
 read-only preflight after reviewed merge and exact-main green CI is mandatory.
+
+### P8V3B inert Inbox Compose build-value correction
+
+The next fresh preflight also made no production or provider change and stopped
+during disposable local candidate Compose validation. After P8V3A supplied the
+manual-worker env selector, the archived Inbox Compose reached its required
+public build-variable checks and correctly rejected the empty disposable env.
+
+The only authorized correction is to populate the disposable mode-`0600`
+Inbox validation env with fixed inert non-secret values for
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
+`NEXT_PUBLIC_SITE_URL`. The URLs use the reserved `.invalid` domain and the key
+is an explicit non-credential sentinel. They are used only by local
+`docker compose config -q`, are removed in the existing finally path, and may
+never be used to build, run, deploy, reach Supabase, or enter evidence. All
+P8V3 candidate identities, release effects, rollback rules and the exact owner
+authorization remain unchanged. A fresh read-only preflight after reviewed
+merge and exact-main green CI is mandatory.

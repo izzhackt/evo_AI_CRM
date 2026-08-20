@@ -44,8 +44,8 @@ export function validateP8V3Preflight(value) {
     exactKeys(item, ["name", "sha256", "size", "index", "platform"], "preflight archive");
     if (!["crm", "inbox", "lead_agent"].includes(item.name) || !SHA64.test(item.sha256) || !Number.isSafeInteger(item.size) || item.size < 1 || !IMAGE_ID.test(item.index) || !IMAGE_ID.test(item.platform)) fail("preflight archive drifted");
   }
-  exactKeys(value.gemini, ["embedding_verified", "draft_verified"], "preflight Gemini");
-  if (value.gemini.embedding_verified !== true || value.gemini.draft_verified !== true) fail("preflight Gemini drifted");
+  exactKeys(value.gemini, ["embedding_verified", "draft_verified", "retrieval_provider_verified"], "preflight Gemini");
+  if (value.gemini.embedding_verified !== true || value.gemini.draft_verified !== true || value.gemini.retrieval_provider_verified !== true) fail("preflight Gemini drifted");
   exactKeys(value.importer, ["sha256", "size", "verified"], "preflight importer");
   if (!SHA64.test(value.importer.sha256) || !Number.isSafeInteger(value.importer.size) || value.importer.size < 1 || value.importer.size > 4 * 1024 * 1024 || value.importer.verified !== true) fail("preflight importer drifted");
   if (value.compose_validated !== true || value.prerequisites_verified !== true) fail("preflight readiness drifted");

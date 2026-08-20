@@ -161,6 +161,96 @@ test("Gemini Embedding 2 request uses exact prefixed text without unsupported ta
   assert.equal(JSON.stringify(body).includes("taskType"), false);
 });
 
+test("Gemini embedding retries only four fully received 429 responses with byte-identical requests", async () => {
+  const calls = [];
+  const delays = [];
+  const embed = createPlatformKnowledgeGeminiEmbedder({
+    apiKey: testCredential(),
+    waitImpl: async (delayMs) => { delays.push(delayMs); },
+    fetchImpl: async (url, init) => {
+      calls.push({ url, body: init.body });
+      return new Response('{"error":"quota"}', { status: 429 });
+    },
+  });
+  await assert.rejects(embed(["title: China | text: Verified knowledge"], {
+    model: "gemini-embedding-2",
+    dimensions: 1_536,
+  }), /request rejected/u);
+  assert.deepEqual(delays, [0, 1_000, 2_000, 4_000]);
+  assert.equal(calls.length, 4);
+  assert.equal(new Set(calls.map((call) => `${call.url}\n${call.body}`)).size, 1);
+});
+
+test("Gemini embedding does not retry a truncated, oversized, or stalled 429 response", async () => {
+  const cases = [
+    new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"error":'));
+        controller.error(new Error("truncated"));
+      },
+    }), { status: 429 }),
+    new Response("x", { status: 429, headers: { "content-length": "65537" } }),
+    new Response(new ReadableStream({ pull() { return new Promise(() => undefined); } }), { status: 429 }),
+  ];
+  for (const response of cases) {
+    let calls = 0;
+    const embed = createPlatformKnowledgeGeminiEmbedder({
+      apiKey: testCredential(),
+      timeoutMs: 10,
+      waitImpl: async () => undefined,
+      fetchImpl: async () => { calls += 1; return response; },
+    });
+    await assert.rejects(embed(["title: China | text: Verified knowledge"], {
+      model: "gemini-embedding-2",
+      dimensions: 1_536,
+    }), /retry response/u);
+    assert.equal(calls, 1);
+  }
+});
+
+test("Gemini embedding never retries terminal transport, status, or response-shape failures", async () => {
+  const cases = [
+    async () => { throw new Error("transport failed"); },
+    async () => new Response('{"error":"server"}', { status: 503 }),
+    async () => new Response("not json", { status: 200 }),
+    async () => new Response(JSON.stringify({ embeddings: [] }), { status: 200 }),
+    async () => new Response(JSON.stringify({ embeddings: [{ values: [0.01] }] }), { status: 200 }),
+  ];
+  for (const fetchCase of cases) {
+    let calls = 0;
+    const embed = createPlatformKnowledgeGeminiEmbedder({
+      apiKey: testCredential(),
+      waitImpl: async () => undefined,
+      fetchImpl: async (...args) => { calls += 1; return fetchCase(...args); },
+    });
+    await assert.rejects(embed(["title: China | text: Verified knowledge"], {
+      model: "gemini-embedding-2",
+      dimensions: 1_536,
+    }));
+    assert.equal(calls, 1);
+  }
+});
+
+test("Gemini embedding never retries a fetch timeout", async () => {
+  let calls = 0;
+  const embed = createPlatformKnowledgeGeminiEmbedder({
+    apiKey: testCredential(),
+    timeoutMs: 10,
+    waitImpl: async () => undefined,
+    fetchImpl: async (_url, init) => {
+      calls += 1;
+      return await new Promise((_resolve, reject) => {
+        init.signal.addEventListener("abort", () => reject(new Error("timed out")), { once: true });
+      });
+    },
+  });
+  await assert.rejects(embed(["title: China | text: Verified knowledge"], {
+    model: "gemini-embedding-2",
+    dimensions: 1_536,
+  }), /timed out/u);
+  assert.equal(calls, 1);
+});
+
 test("embedding failure leaves the database untouched", async () => {
   const input = fixture("client");
   let rpcCalls = 0;

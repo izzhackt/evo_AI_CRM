@@ -1122,3 +1122,32 @@ authorization `EXECUTE-P8V3F-2026-08-20.P8V3F.1`. The P8V3E token is invalid.
 No production effect is permitted before issue #331 implementation, scoped
 tests, independent approval, merge, final-tree CI, the fresh two-probe minimal
 preflight and the exact new owner token.
+
+### P8V3F retrieval-provider and import-resilience correction
+
+The P8V3F preflight creates no public REST reader and never requires the
+execute-only service-role credential. Before its provider probes, it uses the
+already authorized read-only Supabase Management SQL seam to require exactly
+one active AI configuration for exactly one account and exact
+`embeddings_provider = 'gemini'`. Evidence adds only the safe boolean
+`gemini.retrieval_provider_verified: true`; no account identifier, provider
+key, configuration row, or response body is retained.
+
+The import embedder may retry only a fully received HTTP 429 for the current
+batch. Its response body must finish within the same `30000` ms attempt and be
+no larger than `65536` bytes. It uses at most four byte-identical attempts with
+delays `[0, 1000, 2000, 4000]` ms and no retry for transport/timeout, any other
+HTTP status, malformed response, cardinality drift, or dimension drift. All
+embeddings still complete before the one atomic audience sync RPC, so failed
+embedding attempts have zero database effect. This import-only retry does not
+alter the preflight's exact two no-retry provider calls. Official Gemini
+guidance recommends bounded exponential backoff for 429 responses:
+<https://ai.google.dev/gemini-api/docs/troubleshooting#retry-strategy>.
+
+The encrypted Inbox embeddings key remains outside this correction. Current
+staff-assistant retrieval is the reviewed lexical FTS path; Inbox semantic
+retrieval is not claimed enabled until its encrypted key is separately
+configured and exercised. A successful internal sync atomically replaces the
+pre-existing 26 internal chunks, and the frozen candidate application commit
+contains the same Gemini query-embedding convention that will be active after
+the reviewed Inbox deployment.

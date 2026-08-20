@@ -9440,3 +9440,46 @@ review, one final CI, fresh minimal preflight and the new exact token are
 mandatory. Candidate, frozen 11/291 knowledge, migration no-op, deployment
 ordering, rollback and no-customer-send/provider boundaries otherwise remain
 unchanged.
+
+## 2026-08-21 — P8V3F retrieval-provider and import-resilience correction
+
+The first two P8V3F preflight invocations on merged main stopped before
+execution identity, Gemini, Supabase data access, Hermes, or any production
+effect because the adapter constructed an execute-only public REST reader in
+preflight mode without the execute-only service-role credential. The preflight
+must not require or receive that credential; the REST reader is constructed
+only in execute mode. Issue #331 remains open until a fresh real preflight and
+the separately authorized execution complete.
+
+A read-only Management API projection confirmed one active AI configuration
+for one account and `embeddings_provider = 'gemini'`. To prevent silent
+cross-model vectors if that setting later drifts, the fresh preflight repeats
+that UUID-free projection and retains only
+`gemini.retrieval_provider_verified: true`; any missing, multiple, `keyword`,
+or `openai` active configuration blocks before import. The existing encrypted
+Inbox embeddings key is not changed by this correction. Staff-assistant
+retrieval remains the reviewed FTS path; semantic Inbox retrieval remains
+disabled until its encrypted settings key is separately configured and
+verified.
+
+The frozen 11-client/291-internal importer completes every embedding before
+its single `sync_ai_knowledge_bundle` RPC, and that PL/pgSQL call is one atomic
+database transaction. Import therefore cannot retain a partially embedded
+audience. Direct REST embedding calls now retry only a fully received HTTP 429
+for the current batch: its body must finish within the same `30000` ms attempt
+and may contain at most `65536` bytes. It uses at most four byte-identical
+attempts with fixed delays `[0, 1000, 2000, 4000]` ms. Transport errors,
+timeouts, every other HTTP status, malformed JSON, wrong cardinality, or wrong
+dimensions remain immediate failures. The two-call Gemini preflight retains
+its existing no-retry rule. This follows the official bounded
+exponential-backoff guidance:
+<https://ai.google.dev/gemini-api/docs/troubleshooting#retry-strategy>.
+
+The pre-existing 26 internal chunks are not mixed into a successful final
+state: the internal audience RPC atomically replaces its managed documents and
+chunks. The currently deployed older Inbox is also not the final reader; the
+frozen candidate built from application commit `0f1454d0` contains the same
+Gemini query embedding convention and is deployed before the later V4 proof.
+No application image, knowledge source, migration, authorization, deployment,
+provider-call count outside the bounded import retry, or outbound authority is
+otherwise changed.

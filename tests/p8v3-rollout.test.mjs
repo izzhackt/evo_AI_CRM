@@ -21,6 +21,7 @@ import {
   validateCandidateComposeForTest,
   validateP8V3DMigrationReadiness,
   validateP8V3EvidencePrivacy,
+  validateP8V3RetrievalProvider,
 } from "../scripts/p8v3-production-operations.mjs";
 import {
   P8V3,
@@ -81,7 +82,7 @@ function operations(overrides = {}) {
     waha,
     migration: { versions: Array.from({ length: 77 }, (_, index) => String(index + 1).padStart(3, "0")), range: "001-077", count: 77 },
     archives: ["crm", "inbox", "lead_agent"].map((name) => ({ name, sha256: SHA_A, size: 1, index: IMAGE_A, platform: IMAGE_B })),
-    gemini: { embedding_verified: true, draft_verified: true },
+    gemini: { embedding_verified: true, draft_verified: true, retrieval_provider_verified: true },
     importer: { sha256: SHA_A, size: 1, verified: true },
     compose_validated: true,
     prerequisites_verified: true,
@@ -675,6 +676,18 @@ test("P8V3E accepts only one closed all-true migration 077 readiness row", () =>
   assert.throws(() => validateP8V3DMigrationReadiness([{ ...row, claim_exists: false }]), /objects or grants drifted/);
   assert.throws(() => validateP8V3DMigrationReadiness([{ ...row, extra: true }]), /not closed/);
   assert.throws(() => validateP8V3DMigrationReadiness([row, row]), /row count drifted/);
+});
+
+test("P8V3F accepts only one active Gemini retrieval provider", () => {
+  const row = {
+    active_config_count: 1,
+    active_account_count: 1,
+    provider_is_gemini: true,
+  };
+  assert.deepEqual(validateP8V3RetrievalProvider([row]), { retrieval_provider_verified: true });
+  assert.throws(() => validateP8V3RetrievalProvider([{ ...row, provider_is_gemini: false }]), /retrieval provider drifted/);
+  assert.throws(() => validateP8V3RetrievalProvider([{ ...row, active_config_count: 2 }]), /retrieval provider drifted/);
+  assert.throws(() => validateP8V3RetrievalProvider([{ ...row, extra: true }]), /retrieval provider.*not closed/);
 });
 
 test("P8V3E knowledge reads execute with the exact public PostgREST profile", async () => {

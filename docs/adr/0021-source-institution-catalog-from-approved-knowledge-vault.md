@@ -41,10 +41,20 @@ Second, `platform.catalog_institutions` stores only an institution: name, kind,
 country, city and provenance. There is no programme relation anywhere in the
 schema, so 104 programme candidates have nowhere to go.
 
-Third, four of the five worksheets contain zero tabular rows. The Malaysian fee
-and intake tables described in the vault are not present in it as data. Only the
-China worksheet is tabular, with 1512 rows whose institution names are
-concatenated with fee figures.
+Third, the vault is not the whole archive. Four of the five worksheets inside it
+contain zero tabular rows: they carry a summary of a table rather than its
+content. The source spreadsheets exist in `Сырой архив ЭВО`, which the vault
+reader excludes by design because raw exports are never published to an AI
+knowledge base directly. Eleven Malaysian Google Drive tables were verified there
+on 2026-08-20, all holding data, and five of the eleven have a derived vault
+note. Only the China worksheet is tabular inside the vault itself, with 1512 rows
+whose institution names are concatenated with fee figures.
+
+An official verification of the ten Malaysian tables completed on 2026-08-20
+against the current university sources. It established that historical prices,
+USD conversions, deadlines and intakes from those tables must not be carried
+across automatically, and that one table's `bachelor programmes` heading
+contradicts the diploma-level programme names it lists.
 
 ## Decision
 
@@ -70,10 +80,27 @@ characters of the source document digest already produced by
 `scripts/knowledge_ingestion/build_platform_bundle.py`. No filesystem path,
 vault root, user directory or Russian folder name enters the database.
 
-`source_revision` carries the vault bundle manifest SHA-256 for the audience.
-That value is already produced by the existing builder and already recorded as
-release evidence, so catalog provenance and knowledge-release provenance refer
-to the same artifact rather than to two independent claims.
+`source_revision` carries the deterministic source-set projection SHA-256 for the
+audience, exactly as frozen by P8V2E: the sorted array of `{source_path,
+source_sha256}` records serialized with lexicographic keys, `ensure_ascii=false`,
+separators `(',', ':')`, no indentation and one final LF byte.
+
+Naming that artifact precisely matters, because three different digests exist for
+the same vault and they are easy to confuse:
+
+| Artifact | Internal | Client |
+| --- | --- | --- |
+| Source-set projection, frozen by P8V2E | `1bd7458f…` | `c8dcfdd7…` |
+| Built bundle | `a3a1092c…` | `c20acf2a…` |
+| Publication manifest | 264 entries | 8 entries |
+
+The projection is the correct binding. It is byte-specified, it is built from the
+same reader that enumerates documents rather than from a curated list, and it is
+already frozen as release evidence. The publication manifest is not usable for
+provenance: it holds 264 entries against 291 documents internally and 8 against
+11 documents for the client audience, because it is produced by the extraction
+pipeline and does not pick up manually authored notes. One of its entries also
+still names a file that was renamed.
 
 ### Programme relation
 
@@ -101,6 +128,10 @@ misrepresent what a student actually enrols in.
    inferred value would enter the client-facing answer path.
 5. Concatenated China worksheet values are not split automatically. Each such
    row is a candidate requiring human confirmation.
+6. Programme level is never derived from a document or worksheet title. The
+   official Malaysian verification found a `bachelor programmes` heading listing
+   diploma-level programmes, so a title-derived level would record a level the
+   student does not actually enrol at.
 
 ## Consequences
 
@@ -108,8 +139,10 @@ misrepresent what a student actually enrols in.
   source and its own fail-closed conditions. FR-106 is unchanged.
 - The catalog gains a second import source kind; the existing Google and Notion
   kinds are retained and not migrated.
-- Malaysian tuition and intake data cannot be imported, because it is not in the
-  vault. That gap is recorded rather than filled from an external site.
+- Malaysian tuition and intake data exists in the raw archive but has only
+  partially reached the vault. Carrying it across is a separate reviewed step
+  rather than a catalog import, because a price is a mutable official fact that
+  requires a current official source and a verification date.
 - The client-facing AI gains catalog-backed institution and programme answers
   only after Admin approval, so the approved-knowledge boundary is unchanged.
 

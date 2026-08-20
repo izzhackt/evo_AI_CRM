@@ -9294,3 +9294,52 @@ independently, but it edits `docs/specs/EVO_PLATFORM_TZ.md` in the same
 locations as the traceability refresh, so that amendment merges first and this
 one rebases onto it. Neither may merge into `main` while a P8V-series rollout
 block is executing.
+
+## 2026-08-20 — correct the catalog source findings and name the provenance artifact
+
+Scope: documentation only, correcting two wrong statements and one ambiguity in
+the amendment recorded earlier today. No migration, candidate, approved row,
+provider call or production mutation.
+
+The earlier amendment stated that Malaysian tuition and intake data is absent
+from the vault and therefore cannot be imported. The measurement was correct and
+the conclusion was not: only the approved vault was searched. The source
+spreadsheets exist in the raw archive, which the vault reader excludes by design
+through FORBIDDEN_PARTS because raw exports are never published to an AI
+knowledge base directly. Eleven Malaysian Google Drive tables were verified on
+2026-08-20 by reading the original files, all holding data, with 81 .xlsx files
+in the raw archive in total. Five of the eleven have a derived vault note and
+even those keep a summary rather than the content. The corrected finding is a
+processing-pipeline gap, not absent data, and every vault-scoped statement now
+declares its scope.
+
+The earlier amendment also referred to "the vault bundle manifest SHA-256"
+without naming which artifact. Three digests exist for the same vault and are
+easy to confuse: the deterministic source-set projection frozen by P8V2E, the
+built bundle, and the publication manifest. `source_revision` binds to the
+source-set projection, because it is byte-specified, is built from the same
+reader that enumerates documents, and is already frozen as release evidence. The
+publication manifest is unusable for provenance: it holds 264 entries against 291
+internal documents and 8 against 11 client documents, because the extraction
+pipeline produces it and manually authored notes never enter it, and one entry
+still names a renamed file.
+
+The decision to omit a tuition column stands, but its reason changes. "Nothing to
+fill it with" no longer holds. The official verification of the ten Malaysian
+tables established that tuition, deposits, visa/EMGS and SST are published only
+with an official price list and a verification date, and the vault already marks
+prices as `mutable_official_fact` carrying an official URL and a checked date. A
+single tuition column would reproduce exactly the failure that rule prevents: a
+number without provenance that goes stale silently. Tuition therefore arrives as
+a separate block carrying value with currency, verification date and official
+source reference.
+
+The same verification produced one new design rule. A City University table
+headed `bachelor programmes` lists diploma-level programmes, so programme level
+is never derived from a document or worksheet title and a candidate from such a
+source must require an explicit human level assignment. This is recorded as an
+eleventh negative test.
+
+Managed production separately advanced during the day: migration 077 is applied
+and the production ledger is ordered contiguous 001-077 with count 77. The status
+snapshot is corrected in the traceability amendment rather than here.

@@ -37,8 +37,8 @@ const FAILURE_CODES = new Set([
 
 export const P8V3 = Object.freeze({
   version: "p8v-v1-rollout-result/v1",
-  authorization: "EXECUTE-P8V3D-2026-08-20.P8V3D.1",
-  previousAuthorization: "EXECUTE-P8V3-2026-08-20.P8V3.1",
+  authorization: "EXECUTE-P8V3E-2026-08-20.P8V3E.1",
+  previousAuthorization: "EXECUTE-P8V3D-2026-08-20.P8V3D.1",
   applicationCommit: "0f1454d014bbc9eca9d7381dfe557e980965543e",
   applicationTree: "19599bcf043dc4a555c8996c21e7801934b64633",
   windowMs: 90 * 60 * 1000,
@@ -241,8 +241,8 @@ export function validateP8V3Result(value) {
   exactKeys(value.effects, ["migration_applied", "knowledge_imports", "application_recreates", "waha_recreates", "amo_writes", "whatsapp_sends", "staff_draft_calls"], "effects");
   if (![value.effects.migration_applied, value.effects.knowledge_imports, value.effects.application_recreates].every(Number.isSafeInteger) || value.effects.migration_applied < 0 || value.effects.migration_applied > 1 || value.effects.knowledge_imports < 0 || value.effects.knowledge_imports > 2 || value.effects.application_recreates < 0 || value.effects.application_recreates > 3 || value.effects.waha_recreates !== 0 || value.effects.amo_writes !== 0 || value.effects.whatsapp_sends !== 0 || value.effects.staff_draft_calls !== 0) fail("effect counters drifted");
   if (value.migration.status === "observed_applied" && (value.steps[1].status !== "failed" || value.effects.migration_applied !== 1 || !["rollout_failed_reconciliation_required", "evidence_failed"].includes(value.result_code))) fail("ambiguous applied migration evidence drifted");
-  if (value.authorization.id === P8V3.authorization && value.migration.status === "observed_applied") fail("P8V3D cannot report a newly applied migration");
-  if (value.authorization.id === P8V3.authorization && value.migration.status === "verified" && (value.migration.before_range !== "001-077" || value.migration.after_range !== "001-077" || value.migration.applied_versions.length !== 0 || value.effects.migration_applied !== 0)) fail("P8V3D reconciliation evidence drifted");
+  if (value.authorization.id === P8V3.authorization && value.migration.status === "observed_applied") fail("P8V3E cannot report a newly applied migration");
+  if (value.authorization.id === P8V3.authorization && value.migration.status === "verified" && (value.migration.before_range !== "001-077" || value.migration.after_range !== "001-077" || value.migration.applied_versions.length !== 0 || value.effects.migration_applied !== 0)) fail("P8V3E reconciliation evidence drifted");
   if (value.failure !== null) {
     exactKeys(value.failure, ["step", "code"], "failure");
     if (![...STEP_NAMES, "evidence"].includes(value.failure.step) || !FAILURE_CODES.has(value.failure.code)) fail("failure evidence drifted");
@@ -272,7 +272,7 @@ function failureCode(error, step) {
 
 export async function runP8V3Rollout({ operations, authorization, preflight, preflightSha256, now = () => Date.now() }) {
   if (authorization !== P8V3.authorization) fail("exact P8V3 authorization is required", "preflight_drift");
-  if (!SHA64.test(preflightSha256) || !preflight || preflight.application?.commit !== P8V3.applicationCommit || preflight.application?.tree !== P8V3.applicationTree || !UTC.test(preflight.generated_at) || !UTC.test(preflight.expires_at) || now() >= Date.parse(preflight.expires_at) || !Array.isArray(preflight.containers) || preflight.containers.length !== 5 || preflight.compose_validated !== true || preflight.prerequisites_verified !== true || preflight.migration?.range !== "001-077" || preflight.migration?.count !== 77 || !Array.isArray(preflight.archives) || preflight.archives.length !== 3) fail("reviewed P8V3D preflight is missing, expired or drifted", "preflight_drift");
+  if (!SHA64.test(preflightSha256) || !preflight || preflight.application?.commit !== P8V3.applicationCommit || preflight.application?.tree !== P8V3.applicationTree || !UTC.test(preflight.generated_at) || !UTC.test(preflight.expires_at) || now() >= Date.parse(preflight.expires_at) || !Array.isArray(preflight.containers) || preflight.containers.length !== 5 || preflight.compose_validated !== true || preflight.prerequisites_verified !== true || preflight.migration?.range !== "001-077" || preflight.migration?.count !== 77 || !Array.isArray(preflight.archives) || preflight.archives.length !== 3) fail("reviewed P8V3E preflight is missing, expired or drifted", "preflight_drift");
   preflight.containers.forEach(validateContainer);
   const startedMs = now();
   const expiresMs = startedMs + P8V3.windowMs;
@@ -308,7 +308,7 @@ export async function runP8V3Rollout({ operations, authorization, preflight, pre
 
     stepIndex = 1;
     requireWindow();
-    // Migration 077 is already present. P8V3D only proves its ledger, objects
+    // Migration 077 is already present. P8V3E only proves its ledger, objects
     // and grants read-only; the first new forward-only effect is publication.
     const migration = await operations.migrate({ deadlineAt: expiresMs });
     validateMigration(migration);

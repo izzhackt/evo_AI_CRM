@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 
@@ -8,7 +9,9 @@ import Ajv2020 from "ajv/dist/2020.js";
 
 import { runP8V3Preflight, validateP8V3Preflight } from "../scripts/p8v3-preflight.mjs";
 import {
+  createP8V3PublicRestReader,
   parseP8V3ContainerRowsForTest,
+  renderP8V3KnowledgeCleanupForTest,
   renderP8V3ShellContractsForTest,
   validateCandidateComposeForTest,
   validateP8V3DMigrationReadiness,
@@ -56,7 +59,7 @@ function operations(overrides = {}) {
   };
   const execution = { commit: "d".repeat(40), tree: "e".repeat(40), ci_run_id: 123 };
   const preflight = {
-    version: "p8v3d-production-preflight/v1",
+    version: "p8v3e-production-preflight/v1",
     generated_at: "2026-08-20T05:55:00.000Z",
     expires_at: "2026-08-20T06:25:00.000Z",
     execution,
@@ -200,7 +203,7 @@ test("schema rejects false success and failed results without failure evidence",
   assert.equal(validate(missingFailure), false);
 });
 
-test("P8V3D cannot claim that it newly applied migration 077", async () => {
+test("P8V3E cannot claim that it newly applied migration 077", async () => {
   const adapter = operations();
   const result = await runP8V3Rollout({ operations: adapter, authorization: P8V3.authorization, preflight: adapter.preflight, preflightSha256: SHA_A, now: () => Date.parse("2026-08-20T06:00:00.000Z") });
   const contradictory = structuredClone(result);
@@ -256,7 +259,7 @@ test("evidence failure cannot hide skipped rollout progression", async () => {
   assert.equal(validate(contradictory), false);
 });
 
-test("a P8V3D migration reconciliation failure restores configuration with zero forward effects", async () => {
+test("a P8V3E migration reconciliation failure restores configuration with zero forward effects", async () => {
   const adapter = operations({
     async migrate() {
       this.calls.push("migrate");
@@ -388,9 +391,9 @@ test("candidate Compose validation binds a disposable mode-0600 env for every se
         const expected = name === "EVO_INBOX_APP_ENV_FILE"
           ? [
               "P8V3_COMPOSE_VALIDATION=1",
-              "NEXT_PUBLIC_SUPABASE_URL=https://p8v3d.invalid",
-              "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3d-compose-validation-not-a-key",
-              "NEXT_PUBLIC_SITE_URL=https://p8v3d.invalid",
+              "NEXT_PUBLIC_SUPABASE_URL=https://p8v3e.invalid",
+              "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3e-compose-validation-not-a-key",
+              "NEXT_PUBLIC_SITE_URL=https://p8v3e.invalid",
               "",
             ].join("\n")
           : "P8V3_COMPOSE_VALIDATION=1\n";
@@ -459,7 +462,7 @@ test("production inventory emits and accepts exact Compose container names", () 
   );
 });
 
-test("P8V3D accepts only one closed all-true migration 077 readiness row", () => {
+test("P8V3E accepts only one closed all-true migration 077 readiness row", () => {
   const row = {
     table_exists: true,
     claim_exists: true,
@@ -476,6 +479,80 @@ test("P8V3D accepts only one closed all-true migration 077 readiness row", () =>
   assert.throws(() => validateP8V3DMigrationReadiness([{ ...row, claim_exists: false }]), /objects or grants drifted/);
   assert.throws(() => validateP8V3DMigrationReadiness([{ ...row, extra: true }]), /not closed/);
   assert.throws(() => validateP8V3DMigrationReadiness([row, row]), /row count drifted/);
+});
+
+test("P8V3E knowledge reads execute with the exact public PostgREST profile", async () => {
+  const calls = [];
+  const read = createP8V3PublicRestReader({
+    key: "process-only-test-key",
+    projectUrl: "https://example.supabase.co",
+    async fetchImpl(url, options) {
+      calls.push({ url, options });
+      return new Response(JSON.stringify([{ account_id: "550e8400-e29b-41d4-a716-446655440000" }]), {
+        status: 200,
+        headers: { "content-type": "application/json", "content-length": "55" },
+      });
+    },
+  });
+  await read("/rest/v1/ai_configs?select=account_id");
+  await read("/rest/v1/ai_knowledge_bundle_revisions?select=audience");
+  assert.deepEqual(calls.map(({ url }) => url), [
+    "https://example.supabase.co/rest/v1/ai_configs?select=account_id",
+    "https://example.supabase.co/rest/v1/ai_knowledge_bundle_revisions?select=audience",
+  ]);
+  for (const { options } of calls) {
+    assert.equal(options.headers["Accept-Profile"], "public");
+    assert.equal(Object.values(options.headers).includes("platform"), false);
+    assert.equal(options.redirect, "error");
+  }
+});
+
+test("P8V3E cleanup verifies an absent pre-stage directory and importer as clean", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3e-cleanup-"));
+  const releaseRoot = join(fixture, "release");
+  const knowledgeRemote = join(releaseRoot, "knowledge-incoming");
+  const fakeBin = join(fixture, "bin");
+  const docker = join(fakeBin, "docker");
+  try {
+    assert.equal(existsSync(releaseRoot), false);
+    mkdirSync(fakeBin);
+    writeFileSync(docker, "#!/bin/sh\nexit 0\n", { mode: 0o700 });
+    chmodSync(docker, 0o700);
+    const result = spawnSync("bash", ["-seu"], {
+      input: renderP8V3KnowledgeCleanupForTest({ releaseRoot, knowledgeRemote }),
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(releaseRoot), false);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test("P8V3E cleanup blocks an unexpected staging remnant without deleting it", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3e-cleanup-remnant-"));
+  const releaseRoot = join(fixture, "release");
+  const knowledgeRemote = join(releaseRoot, "knowledge-incoming");
+  const fakeBin = join(fixture, "bin");
+  const docker = join(fakeBin, "docker");
+  const unexpected = join(knowledgeRemote, "unexpected.txt");
+  try {
+    mkdirSync(knowledgeRemote, { recursive: true });
+    mkdirSync(fakeBin);
+    writeFileSync(unexpected, "must remain for reconciliation\n");
+    writeFileSync(docker, "#!/bin/sh\nexit 0\n", { mode: 0o700 });
+    chmodSync(docker, 0o700);
+    const result = spawnSync("bash", ["-seu"], {
+      input: renderP8V3KnowledgeCleanupForTest({ releaseRoot, knowledgeRemote }),
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
+    });
+    assert.notEqual(result.status, 0);
+    assert.equal(readFileSync(unexpected, "utf8"), "must remain for reconciliation\n");
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
 });
 
 test("every reviewed remote shell contract parses under bash", () => {

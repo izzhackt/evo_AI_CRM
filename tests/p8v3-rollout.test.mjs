@@ -11,6 +11,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { runP8V3Preflight, validateP8V3Preflight } from "../scripts/p8v3-preflight.mjs";
 import {
   configurationRestoreScript,
+  createP8V3ProductionOperations,
   createP8V3PublicRestReader,
   parseP8V3ContainerRowsForTest,
   renderP8V3KnowledgeCleanupForTest,
@@ -699,6 +700,30 @@ test("P8V3E knowledge reads execute with the exact public PostgREST profile", as
     assert.equal(options.headers["Accept-Profile"], "public");
     assert.equal(Object.values(options.headers).includes("platform"), false);
     assert.equal(options.redirect, "error");
+  }
+});
+
+test("P8V3F preflight does not require the execute-only Supabase service-role key", async () => {
+  const fixture = mkdtempSync(join(realpathSync(tmpdir()), "p8v3f-preflight-reader-"));
+  const candidateRoot = join(fixture, "candidates");
+  const supabaseCliPath = join(fixture, "supabase");
+  mkdirSync(candidateRoot, { mode: 0o700 });
+  writeFileSync(supabaseCliPath, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+
+  try {
+    await assert.doesNotReject(() => createP8V3ProductionOperations({
+      mode: "preflight",
+      sourceRoot: process.cwd(),
+      candidateRoot,
+      supabaseCliPath,
+      localResultPath: join(fixture, "preflight-result.json"),
+      environment: {
+        SUPABASE_ACCESS_TOKEN: `${["s", "b", "p"].join("")}_${"x".repeat(24)}`,
+        GEMINI_API_KEY: testCredential(),
+      },
+    }));
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
   }
 });
 

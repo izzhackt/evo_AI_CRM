@@ -1131,7 +1131,9 @@ export async function createP8V3ProductionOperations({
     localEvidenceWritten: false,
   };
 
-  const rest = createP8V3PublicRestReader({ key: environment.EVO_P8V3_SUPABASE_SERVICE_ROLE_KEY, fetchImpl });
+  const rest = mode === "execute"
+    ? createP8V3PublicRestReader({ key: environment.EVO_P8V3_SUPABASE_SERVICE_ROLE_KEY, fetchImpl })
+    : null;
 
   async function resolveAccount() {
     if (state.accountId) return state.accountId;

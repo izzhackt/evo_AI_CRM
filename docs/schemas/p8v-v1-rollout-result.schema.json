@@ -144,6 +144,15 @@
   "allOf": [
     {
       "if": {
+        "properties": { "authorization": { "properties": { "id": { "const": "EXECUTE-P8V3D-2026-08-20.P8V3D.1" } }, "required": ["id"] } },
+        "required": ["authorization"]
+      },
+      "then": {
+        "properties": { "migration": { "properties": { "status": { "not": { "const": "observed_applied" } } }, "required": ["status"] } }
+      }
+    },
+    {
+      "if": {
         "properties": { "migration": { "properties": { "status": { "const": "observed_applied" } }, "required": ["status"] } },
         "required": ["migration"]
       },
@@ -249,11 +258,11 @@
           "migration": {
             "properties": {
               "status": { "const": "verified" },
-              "before_range": { "const": "001-076" },
-              "before_count": { "const": 76 },
+              "before_range": { "const": "001-077" },
+              "before_count": { "const": 77 },
               "after_range": { "const": "001-077" },
               "after_count": { "const": 77 },
-              "applied_versions": { "minItems": 1, "maxItems": 1, "items": { "const": "077" } }
+              "applied_versions": { "maxItems": 0 }
             },
             "required": ["status", "before_range", "before_count", "after_range", "after_count", "applied_versions"]
           },
@@ -359,7 +368,7 @@
           },
           "effects": {
             "properties": {
-              "migration_applied": { "const": 1 },
+              "migration_applied": { "const": 0 },
               "knowledge_imports": { "const": 2 },
               "application_recreates": { "const": 3 }
             },
@@ -378,7 +387,7 @@
         "properties": {
           "failure": {
             "type": "object",
-            "properties": { "step": { "const": "pre_state" }, "code": { "const": "configuration_failed" } },
+            "properties": { "step": { "enum": ["pre_state", "migration"] }, "code": { "enum": ["configuration_failed", "migration_failed"] } },
             "required": ["step", "code"]
           },
           "pre_state": { "minItems": 5, "maxItems": 5 },
@@ -412,12 +421,9 @@
           },
           "configuration": {
             "properties": {
-              "status": { "enum": ["not_run", "failed"] },
-              "installed_names": { "maxItems": 0 },
-              "backup_sha256": { "type": "null" },
-              "worker_file_verified": { "type": "null" }
+              "status": { "enum": ["not_run", "failed", "verified"] }
             },
-            "required": ["status", "installed_names", "backup_sha256", "worker_file_verified"]
+            "required": ["status"]
           },
           "boundaries": { "prefixItems": [
             {
@@ -462,7 +468,47 @@
             },
             "required": ["migration_applied", "knowledge_imports", "application_recreates"]
           }
-        }
+        },
+        "allOf": [{
+          "oneOf": [
+            {
+              "properties": {
+                "failure": { "properties": { "step": { "const": "pre_state" }, "code": { "const": "configuration_failed" } }, "required": ["step", "code"] },
+                "configuration": {
+                  "properties": {
+                    "status": { "enum": ["not_run", "failed"] },
+                    "installed_names": { "maxItems": 0 },
+                    "backup_sha256": { "type": "null" },
+                    "worker_file_verified": { "type": "null" }
+                  },
+                  "required": ["status", "installed_names", "backup_sha256", "worker_file_verified"]
+                }
+              },
+              "required": ["failure", "configuration"]
+            },
+            {
+              "properties": {
+                "authorization": { "properties": { "id": { "const": "EXECUTE-P8V3D-2026-08-20.P8V3D.1" } }, "required": ["id"] },
+                "failure": { "properties": { "step": { "const": "migration" }, "code": { "const": "migration_failed" } }, "required": ["step", "code"] },
+                "configuration": {
+                  "properties": {
+                    "status": { "const": "verified" },
+                    "installed_names": {
+                      "minItems": 5,
+                      "maxItems": 5,
+                      "uniqueItems": true,
+                      "items": { "enum": ["EVO_PLATFORM_GEMINI_API_KEY", "EVO_PLATFORM_LEAD_AGENT_SYNC_ENABLED", "EVO_PLATFORM_MANUAL_SEND_TRIGGER_SECRET", "EVO_PLATFORM_MANUAL_SEND_WORKER_ENABLED", "EVO_PLATFORM_STAFF_ASSISTANT_ENABLED"] }
+                    },
+                    "backup_sha256": { "$ref": "#/$defs/sha64" },
+                    "worker_file_verified": { "const": true }
+                  },
+                  "required": ["status", "installed_names", "backup_sha256", "worker_file_verified"]
+                }
+              },
+              "required": ["authorization", "failure", "configuration"]
+            }
+          ]
+        }]
       }
     },
     {
@@ -520,7 +566,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["id", "started_at", "expires_at", "preflight_sha256"],
       "properties": {
-        "id": { "const": "EXECUTE-P8V3-2026-08-20.P8V3.1" },
+        "id": { "enum": ["EXECUTE-P8V3-2026-08-20.P8V3.1", "EXECUTE-P8V3D-2026-08-20.P8V3D.1"] },
         "started_at": { "type": "string", "format": "date-time" },
         "expires_at": { "type": "string", "format": "date-time" },
         "preflight_sha256": { "$ref": "#/$defs/sha64" }
@@ -555,8 +601,8 @@
       "required": ["status", "before_range", "before_count", "after_range", "after_count", "applied_versions"],
       "properties": {
         "status": { "enum": ["not_run", "verified", "observed_applied", "failed"] },
-        "before_range": { "enum": ["001-076", null] },
-        "before_count": { "enum": [76, null] },
+        "before_range": { "enum": ["001-076", "001-077", null] },
+        "before_count": { "enum": [76, 77, null] },
         "after_range": { "enum": ["001-077", null] },
         "after_count": { "enum": [77, null] },
         "applied_versions": { "type": "array", "maxItems": 1, "items": { "const": "077" } }

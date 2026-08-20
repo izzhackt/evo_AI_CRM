@@ -10,7 +10,7 @@ const SHA64 = /^[0-9a-f]{64}$/;
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
 const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-export const P8V3_PREFLIGHT_VERSION = "p8v3-production-preflight/v1";
+export const P8V3_PREFLIGHT_VERSION = "p8v3d-production-preflight/v1";
 export const P8V3_PREFLIGHT_WINDOW_MS = 30 * 60 * 1000;
 
 function fail(message) {
@@ -38,7 +38,7 @@ export function validateP8V3Preflight(value) {
   exactKeys(value.waha, ["crm_container_id", "crm_image_id", "inbox_container_id", "inbox_image_id", "unchanged"], "preflight WAHA");
   if (!SHA64.test(value.waha.crm_container_id) || !IMAGE_ID.test(value.waha.crm_image_id) || !SHA64.test(value.waha.inbox_container_id) || !IMAGE_ID.test(value.waha.inbox_image_id) || value.waha.unchanged !== false) fail("preflight WAHA drifted");
   exactKeys(value.migration, ["versions", "range", "count"], "preflight migration");
-  if (!Array.isArray(value.migration.versions) || value.migration.versions.length !== 76 || value.migration.range !== "001-076" || value.migration.count !== 76) fail("preflight migration drifted");
+  if (!Array.isArray(value.migration.versions) || value.migration.versions.length !== 77 || value.migration.range !== "001-077" || value.migration.count !== 77) fail("preflight migration drifted");
   if (!Array.isArray(value.archives) || value.archives.length !== 3) fail("preflight archives drifted");
   for (const item of value.archives) {
     exactKeys(item, ["name", "sha256", "size", "index", "platform"], "preflight archive");

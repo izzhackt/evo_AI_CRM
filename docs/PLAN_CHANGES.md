@@ -9309,3 +9309,46 @@ boundary changes. The three no-effect preflight stops are not execution
 authorization. After independent review, merge and exact-main green CI, the
 runner must perform one fresh short read-only preflight before requesting the
 unchanged exact authorization `EXECUTE-P8V3-2026-08-20.P8V3.1`.
+## 2026-08-20 — P8V3D resume after verified migration 077
+
+The owner-authorized P8V3 attempt reached the managed migration boundary and
+then stopped fail-closed before knowledge import and application deployment.
+The immutable local and Hermes result has SHA-256
+`d38283828f3b2d51c063e85617b6732be7a2a44f4cb00bd36d2aaa8051467db7`.
+It records configuration restoration, no knowledge import, no application
+recreate, no WAHA mutation, no amoCRM write, no WhatsApp send and no staff
+draft call. Read-only reconciliation additionally proves the managed ledger is
+now exact contiguous `001-077`/count `77`, all five prior containers remain on
+their frozen healthy restart-zero identities, the P8V3 release root is absent,
+and `/opt/evo-release-rollback/2026-08-20.p8v3.1` remains retained. Those
+failed-attempt artifacts are immutable and are never overwritten or deleted.
+
+The stop was caused by the shared historical migration-ledger normalizer,
+which accepted only `001-072` or `001-076`; it rejected the truthful
+post-apply `001-077` readback before the P8V3 adapter could retain its migration
+record. Issue #327 tracks the narrowly scoped correction.
+
+P8V3D resumes from the verified forward-only state. Its preflight requires
+exact ledger `001-077`/count `77`. Its migration phase performs no link, dry
+run, `db push`, SQL or migration-history mutation: it only re-reads the exact
+ledger and verifies the migration-077 objects and least-privilege grants,
+returning a verified no-op record with before/after `001-077`, count `77`, and
+an empty `applied_versions` array. Historical migration helper behavior remains
+the default for existing callers; only this explicitly bound reconciliation
+path accepts `077`.
+
+Writable identities advance collision-free to release
+`2026-08-20.p8v3d.1`, version `p8v3d-0f1454d0-20260820`, importer
+`evo-p8v3d-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3d-20260820.1`, and result
+`p8v3d-rollout-result.json`. Authorization is retired from the consumed P8V3
+token and becomes exactly `EXECUTE-P8V3D-2026-08-20.P8V3D.1` for one new
+90-minute deployment-plus-rollback window. The same reviewed application,
+three immutable images, frozen 11-client/291-internal knowledge, ordered
+CRM/Inbox/Lead Agent boundaries, rollback rules and zero customer/provider
+effects remain unchanged.
+
+No P8V3D production action is authorized until this correction is reviewed,
+merged, green on the final current-main tree, and a fresh minimal read-only
+P8V3D preflight is independently approved. The consumed P8V3 authorization
+must never be reused.

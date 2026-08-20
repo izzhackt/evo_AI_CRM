@@ -121,7 +121,16 @@ export function expectedVersions(last = P8D4B.expectedAfter) {
   return Array.from({ length: numeric }, (_, index) => String(index + 1).padStart(3, "0"));
 }
 
-export function normalizeMigrationLedger(payload) {
+export function normalizeMigrationLedger(
+  payload,
+  acceptedLastVersions = [P8D4B.expectedBefore, P8D4B.expectedAfter],
+) {
+  if (
+    !Array.isArray(acceptedLastVersions)
+    || acceptedLastVersions.length === 0
+    || new Set(acceptedLastVersions).size !== acceptedLastVersions.length
+    || acceptedLastVersions.some((version) => typeof version !== "string" || !VERSION_PATTERN.test(version))
+  ) fail("accepted migration boundaries are invalid");
   if (!Array.isArray(payload)) fail("migration ledger must be an array");
   const versions = payload.map((row, index) => {
     if (!row || typeof row !== "object" || Array.isArray(row)) fail(`migration ledger row ${index + 1} must be an object`);
@@ -136,9 +145,9 @@ export function normalizeMigrationLedger(payload) {
   if (new Set(versions).size !== versions.length) fail("migration ledger contains duplicate versions");
   const sorted = [...versions].sort();
   if (JSON.stringify(sorted) !== JSON.stringify(versions)) fail("migration ledger is not ordered");
-  const acceptable = [expectedVersions(P8D4B.expectedBefore), expectedVersions(P8D4B.expectedAfter)];
+  const acceptable = acceptedLastVersions.map(expectedVersions);
   if (!acceptable.some((candidate) => JSON.stringify(candidate) === JSON.stringify(versions))) {
-    fail("migration ledger is not exact contiguous 001-072 or 001-076");
+    fail(`migration ledger is not exact contiguous ${acceptedLastVersions.map((version) => `001-${version}`).join(" or ")}`);
   }
   return versions;
 }

@@ -9343,3 +9343,39 @@ eleventh negative test.
 Managed production separately advanced during the day: migration 077 is applied
 and the production ledger is ordered contiguous 001-077 with count 77. The status
 snapshot is corrected in the traceability amendment rather than here.
+
+## 2026-08-20 — measured field coverage corrects the programme schema
+
+Scope: design only. No migration is written or applied, no candidate is staged,
+no approved row is created, no provider is called and no production mutation is
+performed.
+
+The programme extractor delivered by PR #317 walked all 104 programme documents
+and filled fields only from literal source facts. The measured coverage
+contradicts two assumptions in the earlier design, so the design changes rather
+than the measurement being explained away.
+
+Teaching language was found in zero of 104 documents. The source does not state
+it. The `study_language` column is therefore removed from the first version; a
+guaranteed-empty column is an invitation to fill it with a guess. It returns when
+a source for it exists.
+
+Duration was extracted for 47 of 104. The dominant reason for the remaining 57 is
+not missing data: 34 programmes state duration per study mode, for example three
+years full-time and four years part-time. A single duration column would force a
+silent choice between two true values. Study mode therefore becomes its own
+dimension: `platform.catalog_study_mode` with `full_time`, `part_time` and
+`online`, added to the programme row and to the uniqueness key so that the
+full-time and part-time forms of one programme are two records rather than
+competitors for one cell. The `online` value is included because Online Learning
+programmes appear in the sources.
+
+Two negative tests follow. A programme with the same name and level must coexist
+in two study modes, while a duplicate name, level and mode must be rejected. Level
+is never derived from a document or worksheet title.
+
+Verification of the extractor caught three defects before any of this was
+recorded as fact, and each is now a regression test: a lower bound read as an
+exact duration, two study-mode durations collapsed to the first, and an entry
+requirement mentioning a prior English-taught degree recorded as the teaching
+language.

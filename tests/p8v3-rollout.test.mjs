@@ -555,6 +555,54 @@ test("P8V3E cleanup blocks an unexpected staging remnant without deleting it", (
   }
 });
 
+test("P8V3E cleanup refuses to remove an owner-labeled importer with a foreign name", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3e-cleanup-foreign-name-"));
+  const releaseRoot = join(fixture, "release");
+  const knowledgeRemote = join(releaseRoot, "knowledge-incoming");
+  const fakeBin = join(fixture, "bin");
+  const docker = join(fakeBin, "docker");
+  const removalMarker = join(fixture, "removed");
+  const containerId = "f".repeat(64);
+  try {
+    mkdirSync(fakeBin);
+    writeFileSync(
+      docker,
+      `#!/bin/sh
+if [ "$1" = "container" ] && [ "$2" = "ls" ]; then
+  printf '%s\\n' '${containerId}|foreign-importer-name'
+  exit 0
+fi
+if [ "$1" = "inspect" ]; then
+  case "$*" in
+    *'{{.Name}}'*) printf '%s\\n' '/foreign-importer-name' ;;
+    *'{{.Image}}'*) printf '%s\\n' 'sha256:fc3487ce079663694aee583891c3939296915634bea61dd293db235b57e748f3' ;;
+    *'evo.p8v3.importer-owner'*) printf '%s\\n' '${"a".repeat(32)}' ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+if [ "$1" = "rm" ]; then
+  : > "$REMOVAL_MARKER"
+  exit 0
+fi
+exit 1
+`,
+      { mode: 0o700 },
+    );
+    chmodSync(docker, 0o700);
+
+    const result = spawnSync("bash", ["-seu"], {
+      input: renderP8V3KnowledgeCleanupForTest({ releaseRoot, knowledgeRemote }),
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, REMOVAL_MARKER: removalMarker },
+    });
+    assert.notEqual(result.status, 0);
+    assert.equal(existsSync(removalMarker), false);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
 test("every reviewed remote shell contract parses under bash", () => {
   for (const [name, script] of Object.entries(renderP8V3ShellContractsForTest())) {
     const parsed = spawnSync("bash", ["-n"], { input: script, encoding: "utf8" });

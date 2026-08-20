@@ -663,8 +663,9 @@ if [[ -n "$owned" ]]; then
   inspected_name="$(docker inspect "$owned_id" --format '{{.Name}}' 2>/dev/null)"
   if [[ "$owned_id" =~ ^[0-9a-f]{64}$ \
     && "$(docker inspect "$owned_id" --format '{{.Image}}' 2>/dev/null)" == '${P8V3_IMAGES.crm.platform}' \
-    && "$(docker inspect "$owned_id" --format '{{index .Config.Labels "evo.p8v3.importer-owner"}}' 2>/dev/null)" == '${owner}' ]]; then
-    [[ "$owned_name" == '${IMPORTER}' && "$inspected_name" == '/${IMPORTER}' ]] || errors=1
+    && "$(docker inspect "$owned_id" --format '{{index .Config.Labels "evo.p8v3.importer-owner"}}' 2>/dev/null)" == '${owner}' \
+    && "$owned_name" == '${IMPORTER}' \
+    && "$inspected_name" == '/${IMPORTER}' ]]; then
     docker rm -f "$owned_id" >/dev/null || errors=1
   else
     errors=1

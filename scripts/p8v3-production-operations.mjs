@@ -421,11 +421,36 @@ const MIGRATION_077_READINESS_KEYS = Object.freeze([
   "authenticated_table_denied",
 ]);
 
+const RETRIEVAL_PROVIDER_SQL = String.raw`select
+  count(*)::int as active_config_count,
+  count(distinct account_id)::int as active_account_count,
+  coalesce(bool_and(embeddings_provider = 'gemini'), false) as provider_is_gemini
+from public.ai_configs
+where is_active`;
+
 export function validateP8V3DMigrationReadiness(rows) {
   if (!Array.isArray(rows) || rows.length !== 1) fail("migration 077 readiness row count drifted", "migration_failed");
   exactKeys(rows[0], MIGRATION_077_READINESS_KEYS, "migration 077 readiness");
   if (MIGRATION_077_READINESS_KEYS.some((key) => rows[0][key] !== true)) fail("migration 077 objects or grants drifted", "migration_failed");
   return true;
+}
+
+export function validateP8V3RetrievalProvider(rows) {
+  if (!Array.isArray(rows) || rows.length !== 1) fail("retrieval provider row count drifted", "preflight_drift");
+  exactKeys(rows[0], ["active_account_count", "active_config_count", "provider_is_gemini"], "retrieval provider");
+  if (Number(rows[0].active_config_count) !== 1 || Number(rows[0].active_account_count) !== 1 || rows[0].provider_is_gemini !== true) {
+    fail("retrieval provider drifted", "preflight_drift");
+  }
+  return { retrieval_provider_verified: true };
+}
+
+async function readRetrievalProvider(request) {
+  const rows = await request(`/v1/projects/${PROJECT_REF}/database/query/read-only`, {
+    method: "POST",
+    body: { query: RETRIEVAL_PROVIDER_SQL },
+    expectedStatus: 201,
+  });
+  return validateP8V3RetrievalProvider(rows);
 }
 
 async function readLedger(request, acceptedLastVersions = ["077"]) {
@@ -1131,12 +1156,14 @@ export async function createP8V3ProductionOperations({
     localEvidenceWritten: false,
   };
 
-  const rest = createP8V3PublicRestReader({ key: environment.EVO_P8V3_SUPABASE_SERVICE_ROLE_KEY, fetchImpl });
+  const rest = mode === "execute"
+    ? createP8V3PublicRestReader({ key: environment.EVO_P8V3_SUPABASE_SERVICE_ROLE_KEY, fetchImpl })
+    : null;
 
   async function resolveAccount() {
     if (state.accountId) return state.accountId;
-    const rows = await rest("/rest/v1/ai_configs?select=account_id&is_active=eq.true&limit=2");
-    if (!Array.isArray(rows) || rows.length !== 1 || !UUID.test(rows[0].account_id)) fail("live account is not singular", "knowledge_failed");
+    const rows = await rest("/rest/v1/ai_configs?select=account_id,embeddings_provider&is_active=eq.true&limit=2");
+    if (!Array.isArray(rows) || rows.length !== 1 || !UUID.test(rows[0].account_id) || rows[0].embeddings_provider !== "gemini") fail("live account or retrieval provider drifted", "knowledge_failed");
     state.accountId = rows[0].account_id;
     return state.accountId;
   }
@@ -1179,6 +1206,7 @@ export async function createP8V3ProductionOperations({
     async preflight() {
       const appTree = runChecked(run, "application tree", "git", ["-C", source, "rev-parse", `${P8V3.applicationCommit}^{tree}`], { code: "preflight_drift" }).stdout.trim();
       if (appTree !== P8V3.applicationTree) fail("application tree drifted", "preflight_drift");
+      const retrievalProvider = await readRetrievalProvider(management);
       const gemini = await verifyP8V3FGemini({ apiKey: geminiKey, fetchImpl });
       const cliVersion = runChecked(run, "Supabase CLI version", cli, ["--version"], { code: "preflight_drift" }).stdout.trim();
       if (cliVersion !== CLI_VERSION) fail("Supabase CLI version drifted", "preflight_drift");
@@ -1199,7 +1227,7 @@ export async function createP8V3ProductionOperations({
         waha: { crm_container_id: wahaCrm.container_id, crm_image_id: wahaCrm.image_id, inbox_container_id: wahaInbox.container_id, inbox_image_id: wahaInbox.image_id, unchanged: false },
         migration: ledger,
         archives: Object.values(P8V3_IMAGES).map(({ name, sha256: archiveSha256, size, index, platform }) => ({ name, sha256: archiveSha256, size, index, platform })),
-        gemini,
+        gemini: { ...gemini, ...retrievalProvider },
         importer,
         compose_validated: true,
         prerequisites_verified: output.includes("prerequisites_verified\n"),
@@ -1212,6 +1240,7 @@ export async function createP8V3ProductionOperations({
       if (JSON.stringify(snapshot.archives) !== JSON.stringify(expectedArchives)) fail("P8V3 preflight archive identity drifted", "preflight_drift");
       const ledger = await readLedger(management);
       if (ledger.range !== "001-077" || ledger.count !== 77) fail("production migration ledger changed after preflight", "preflight_drift");
+      await readRetrievalProvider(management);
       const output = remote(run, preflightRemoteScript(), { timeout: 120_000, label: "production preflight revalidation", code: "preflight_drift" }).stdout;
       const inventory = output.split("\n").filter((line) => line.split("|").length === 6).join("\n");
       const containers = parseContainerRows(inventory);

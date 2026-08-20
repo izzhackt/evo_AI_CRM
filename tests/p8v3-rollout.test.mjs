@@ -11,6 +11,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { runP8V3Preflight, validateP8V3Preflight } from "../scripts/p8v3-preflight.mjs";
 import {
   configurationRestoreScript,
+  createP8V3ProductionOperations,
   createP8V3PublicRestReader,
   parseP8V3ContainerRowsForTest,
   renderP8V3KnowledgeCleanupForTest,
@@ -20,6 +21,7 @@ import {
   validateCandidateComposeForTest,
   validateP8V3DMigrationReadiness,
   validateP8V3EvidencePrivacy,
+  validateP8V3RetrievalProvider,
 } from "../scripts/p8v3-production-operations.mjs";
 import {
   P8V3,
@@ -80,7 +82,7 @@ function operations(overrides = {}) {
     waha,
     migration: { versions: Array.from({ length: 77 }, (_, index) => String(index + 1).padStart(3, "0")), range: "001-077", count: 77 },
     archives: ["crm", "inbox", "lead_agent"].map((name) => ({ name, sha256: SHA_A, size: 1, index: IMAGE_A, platform: IMAGE_B })),
-    gemini: { embedding_verified: true, draft_verified: true },
+    gemini: { embedding_verified: true, draft_verified: true, retrieval_provider_verified: true },
     importer: { sha256: SHA_A, size: 1, verified: true },
     compose_validated: true,
     prerequisites_verified: true,
@@ -676,6 +678,18 @@ test("P8V3E accepts only one closed all-true migration 077 readiness row", () =>
   assert.throws(() => validateP8V3DMigrationReadiness([row, row]), /row count drifted/);
 });
 
+test("P8V3F accepts only one active Gemini retrieval provider", () => {
+  const row = {
+    active_config_count: 1,
+    active_account_count: 1,
+    provider_is_gemini: true,
+  };
+  assert.deepEqual(validateP8V3RetrievalProvider([row]), { retrieval_provider_verified: true });
+  assert.throws(() => validateP8V3RetrievalProvider([{ ...row, provider_is_gemini: false }]), /retrieval provider drifted/);
+  assert.throws(() => validateP8V3RetrievalProvider([{ ...row, active_config_count: 2 }]), /retrieval provider drifted/);
+  assert.throws(() => validateP8V3RetrievalProvider([{ ...row, extra: true }]), /retrieval provider.*not closed/);
+});
+
 test("P8V3E knowledge reads execute with the exact public PostgREST profile", async () => {
   const calls = [];
   const read = createP8V3PublicRestReader({
@@ -699,6 +713,30 @@ test("P8V3E knowledge reads execute with the exact public PostgREST profile", as
     assert.equal(options.headers["Accept-Profile"], "public");
     assert.equal(Object.values(options.headers).includes("platform"), false);
     assert.equal(options.redirect, "error");
+  }
+});
+
+test("P8V3F preflight does not require the execute-only Supabase service-role key", async () => {
+  const fixture = mkdtempSync(join(realpathSync(tmpdir()), "p8v3f-preflight-reader-"));
+  const candidateRoot = join(fixture, "candidates");
+  const supabaseCliPath = join(fixture, "supabase");
+  mkdirSync(candidateRoot, { mode: 0o700 });
+  writeFileSync(supabaseCliPath, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+
+  try {
+    await assert.doesNotReject(() => createP8V3ProductionOperations({
+      mode: "preflight",
+      sourceRoot: process.cwd(),
+      candidateRoot,
+      supabaseCliPath,
+      localResultPath: join(fixture, "preflight-result.json"),
+      environment: {
+        SUPABASE_ACCESS_TOKEN: `${["s", "b", "p"].join("")}_${"x".repeat(24)}`,
+        GEMINI_API_KEY: testCredential(),
+      },
+    }));
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
   }
 });
 

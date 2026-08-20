@@ -34,7 +34,7 @@ amoCRM, Gemini или managed Supabase. Это отдельный уровень
 
 | Раздел | Требований | реализовано | частично | deferred | blocked | не реализовано |
 | --- | --- | --- | --- | --- | --- | --- |
-| 13.1 Foundation, identity, access | 12 | 10 | 0 | 0 | 0 | 2 |
+| 13.1 Foundation, identity, access | 12 | 9 | 1 | 0 | 0 | 2 |
 | 13.2 Dashboard and work queues | 6 | 4 | 2 | 0 | 0 | 0 |
 | 13.3 Sales and amoCRM | 12 | 2 | 5 | 5 | 0 | 0 |
 | 13.4 Communications, WhatsApp, AI | 18 | 18 | 0 | 0 | 0 | 0 |
@@ -44,9 +44,9 @@ amoCRM, Gemini или managed Supabase. Это отдельный уровень
 | 13.8 Tasks, notifications, reports, admin | 10 | 8 | 2 | 0 | 0 | 0 |
 | 13.9 Student Portal | 6 | 5 | 1 | 0 | 0 | 0 |
 | 13.10 OP/OZO business workflows | 20 | 19 | 0 | 0 | 1 | 0 |
-| **Итого** | **110** | **90** | **12** | **5** | **1** | **2** |
+| **Итого** | **110** | **89** | **13** | **5** | **1** | **2** |
 
-Доля требований с доказательством в репозитории (`реализовано`): **82 %**.
+Доля требований с доказательством в репозитории (`реализовано`): **81 %**.
 Доля с доказательством работы реального провайдера: **0 %**.
 
 Оба непокрытых требования (FR-010, FR-011) имеют приоритет `SHOULD` и отложены
@@ -62,7 +62,7 @@ amoCRM, Gemini или managed Supabase. Это отдельный уровень
 | FR-003 | реализовано | `src/lib/roles.ts`, `platform.business_role` в 041 | `tests/role-contract.test.mjs`, `tests/visa-role-migration.test.mjs`, PR #76 |
 | FR-004 | реализовано | `src/lib/platform-guards.ts`, `src/lib/platform-route-contract.ts` | `tests/platform-audit-route-contract.test.mjs` |
 | FR-005 | реализовано | миграции 041–046 (FORCE RLS) | `scripts/test-postgres-authorization.sh`, `npm run test:supabase:local` |
-| FR-006 | реализовано | аудируемые RPC в 041 | `tests/platform-audit.test.mjs`, PR #86 |
+| FR-006 | частично | `platform.provision_member`, `change_membership_role`, `change_membership_status` в 041 | Аудируемые RPC существуют и покрыты `supabase/tests/platform_identity_rbac.sql`. **Операторского пути нет**: `provision_member` не вызывается нигде за пределами тестов, страницы управления сотрудниками в `src/app/(staff)/settings` не существует, а E2E `admin lifecycle`, назначенный способом проверки, отсутствует. См. `docs/platform/staff-provisioning-gap.md` |
 | FR-007 | реализовано | `supabase/migrations/047_platform_current_actor_authority.sql` | `tests/supabase-auth-hook-harness.test.mjs`, PR #112 |
 | FR-008 | реализовано | `src/lib/platform-portal.ts` | `tests/platform-portal.test.mjs`, `tests/e2e/student-portal.spec.ts` |
 | FR-009 | реализовано | `src/app/(staff)/access-denied`, `src/app/platform-pending` | `tests/e2e/platform-accessibility.spec.ts`, скриншоты `access-states/` |
@@ -225,14 +225,19 @@ amoCRM, Gemini или managed Supabase. Это отдельный уровень
 
 Не считая отложенных владельцем P4B-пунктов, реальные пробелы такие:
 
-1. **Реальный антивирусный провайдер для документов (FR-061).** Проверка типа,
+1. **Заведение сотрудников (FR-006).** Аудируемые RPC есть, операторского пути
+   нет. После успешного развёртывания работать сможет только тот единственный
+   администратор, которого создаёт `bootstrap_organization_admin`. Это не
+   отложенное требование, а незамеченный пробел: подробности и варианты закрытия
+   в `docs/platform/staff-provisioning-gap.md`.
+2. **Реальный антивирусный провайдер для документов (FR-061).** Проверка типа,
    размера и целостности есть; сканирования нет. Требование помечено MUST.
-2. **Контракт отчётности (FR-017, FR-080).** Экраны существуют, но обязательные
+3. **Контракт отчётности (FR-017, FR-080).** Экраны существуют, но обязательные
    поля KPI — формула, источник, период, свежесть — не закреплены тестом.
-3. **Запись звонка (FR-079).** Приоритет SHOULD, экран есть, контракта нет.
-4. **Полный accessibility gate (FR-090).** Автоматика пройдена, ручная проверка
+4. **Запись звонка (FR-079).** Приоритет SHOULD, экран есть, контракта нет.
+5. **Полный accessibility gate (FR-090).** Автоматика пройдена, ручная проверка
    человеком и утверждённая матрица устройств отсутствуют (issue #167).
-5. **Импорт каталога университетов (FR-107).** Заблокирован недоступностью
+6. **Импорт каталога университетов (FR-107).** Заблокирован недоступностью
    Notion. Поведение корректное: система отказывается выдумывать записи.
 
 ## Связь с критериями приёмки

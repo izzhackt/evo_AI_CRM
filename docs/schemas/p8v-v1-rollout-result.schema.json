@@ -144,7 +144,21 @@
   "allOf": [
     {
       "if": {
-        "properties": { "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1"] } }, "required": ["id"] } },
+        "properties": { "authorization": { "properties": { "id": { "const": "EXECUTE-P8V3F-2026-08-20.P8V3F.1" } }, "required": ["id"] } },
+        "required": ["authorization"]
+      },
+      "then": { "properties": { "configuration": { "required": ["lead_file_verified"] } } }
+    },
+    {
+      "if": {
+        "properties": { "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3-2026-08-20.P8V3.1", "EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1"] } }, "required": ["id"] } },
+        "required": ["authorization"]
+      },
+      "then": { "properties": { "configuration": { "not": { "required": ["lead_file_verified"] } } } }
+    },
+    {
+      "if": {
+        "properties": { "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1"] } }, "required": ["id"] } },
         "required": ["authorization"]
       },
       "then": {
@@ -310,6 +324,7 @@
                 ] }
               },
               "backup_sha256": { "$ref": "#/$defs/sha64" },
+              "lead_file_verified": { "const": true },
               "worker_file_verified": { "const": true }
             },
             "required": ["status", "installed_names", "backup_sha256", "worker_file_verified"]
@@ -479,6 +494,7 @@
                     "status": { "enum": ["not_run", "failed"] },
                     "installed_names": { "maxItems": 0 },
                     "backup_sha256": { "type": "null" },
+                    "lead_file_verified": { "type": "null" },
                     "worker_file_verified": { "type": "null" }
                   },
                   "required": ["status", "installed_names", "backup_sha256", "worker_file_verified"]
@@ -488,7 +504,7 @@
             },
             {
               "properties": {
-                "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1"] } }, "required": ["id"] },
+                "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1"] } }, "required": ["id"] },
                 "failure": { "properties": { "step": { "const": "migration" }, "code": { "const": "migration_failed" } }, "required": ["step", "code"] },
                 "configuration": {
                   "properties": {
@@ -500,6 +516,7 @@
                       "items": { "enum": ["EVO_PLATFORM_GEMINI_API_KEY", "EVO_PLATFORM_LEAD_AGENT_SYNC_ENABLED", "EVO_PLATFORM_MANUAL_SEND_TRIGGER_SECRET", "EVO_PLATFORM_MANUAL_SEND_WORKER_ENABLED", "EVO_PLATFORM_STAFF_ASSISTANT_ENABLED"] }
                     },
                     "backup_sha256": { "$ref": "#/$defs/sha64" },
+                    "lead_file_verified": { "const": true },
                     "worker_file_verified": { "const": true }
                   },
                   "required": ["status", "installed_names", "backup_sha256", "worker_file_verified"]
@@ -566,7 +583,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["id", "started_at", "expires_at", "preflight_sha256"],
       "properties": {
-        "id": { "enum": ["EXECUTE-P8V3-2026-08-20.P8V3.1", "EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1"] },
+        "id": { "enum": ["EXECUTE-P8V3-2026-08-20.P8V3.1", "EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1"] },
         "started_at": { "type": "string", "format": "date-time" },
         "expires_at": { "type": "string", "format": "date-time" },
         "preflight_sha256": { "$ref": "#/$defs/sha64" }
@@ -642,6 +659,7 @@
         "status": { "$ref": "#/$defs/status" },
         "installed_names": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
         "backup_sha256": { "oneOf": [{ "$ref": "#/$defs/sha64" }, { "type": "null" }] },
+        "lead_file_verified": { "type": ["boolean", "null"] },
         "worker_file_verified": { "type": ["boolean", "null"] }
       }
     },

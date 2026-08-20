@@ -9395,3 +9395,48 @@ No P8V3E production action is authorized until this single correction is
 reviewed, merged, green on the final tree, followed by one fresh minimal
 read-only preflight and one new owner authorization for deployment plus
 rollback. The consumed P8V3 and P8V3D tokens must never be reused.
+
+## 2026-08-20 — P8V3F verified Gemini credential retry
+
+The P8V3E execution is immutable failed-attempt evidence at SHA-256
+`328dd56efc616b1492b42c399651733186a5167e8214798b8e21eef5f60fa185`.
+It reached client knowledge embedding and received Gemini HTTP `429
+RESOURCE_EXHAUSTED` before the atomic knowledge sync RPC. Reconciliation proves
+zero client revision/document/chunk writes, the pre-existing internal two/26
+baseline, exact `001-077`, restored configuration, unchanged five healthy
+containers, and zero deployment, WAHA, amoCRM, WhatsApp or staff-draft effects.
+Its result, release and rollback roots are retained; its token is consumed.
+
+The owner approved continuing without a project spend cap using a different
+working key already held in the encrypted Personal Secrets Vault. P8V3F accepts
+that key only as process-local `GEMINI_API_KEY`. The final minimal preflight
+makes one neutral no-retry `gemini-embedding-2` 1536-dimension request and one
+neutral no-retry structured `gemini-3.5-flash` request, retaining only two true
+booleans. Key material, project identity and response bodies are forbidden in
+argv, logs, files and evidence.
+
+Current official Embedding 2 documentation says `task_type` is unsupported;
+retrieval intent is encoded as `title: {title} | text: {content}`. P8V3F
+removes the obsolete request field from the import helper and prefixes only the
+provider embedding input, leaving stored knowledge bytes/hashes unchanged. A
+twice-built byte-identical importer bundle is SHA/size-bound in preflight,
+rebuilt and matched during execution, transferred root-only to the new release
+root/container, and used for both imports. Deployed application images remain
+unchanged. See <https://ai.google.dev/gemini-api/docs/embeddings#task-types>.
+
+The configuration boundary delivers the same key over fixed SSH stdin and
+atomically aligns both root-only production settings: Lead Agent
+`GEMINI_API_KEY` and CRM `EVO_PLATFORM_GEMINI_API_KEY`. The new rollback root
+retains and later restores exact pre-change bytes for both environment files
+plus the existing manual-worker prestate. Failure to install, verify, restore
+or keep the key redacted blocks.
+
+Writable identities advance to release `2026-08-20.p8v3f.1`, version
+`p8v3f-0f1454d0-20260820`, importer `evo-p8v3f-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3f-20260820.1`, result
+`p8v3f-rollout-result.json`, preflight `p8v3f-production-preflight/v1`, and
+authorization `EXECUTE-P8V3F-2026-08-20.P8V3F.1`. Issue #331, independent
+review, one final CI, fresh minimal preflight and the new exact token are
+mandatory. Candidate, frozen 11/291 knowledge, migration no-op, deployment
+ordering, rollback and no-customer-send/provider boundaries otherwise remain
+unchanged.

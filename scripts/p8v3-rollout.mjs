@@ -37,8 +37,9 @@ const FAILURE_CODES = new Set([
 
 export const P8V3 = Object.freeze({
   version: "p8v-v1-rollout-result/v1",
-  authorization: "EXECUTE-P8V3E-2026-08-20.P8V3E.1",
-  previousAuthorization: "EXECUTE-P8V3D-2026-08-20.P8V3D.1",
+  authorization: "EXECUTE-P8V3F-2026-08-20.P8V3F.1",
+  previousAuthorization: "EXECUTE-P8V3E-2026-08-20.P8V3E.1",
+  legacyAuthorization: "EXECUTE-P8V3D-2026-08-20.P8V3D.1",
   applicationCommit: "0f1454d014bbc9eca9d7381dfe557e980965543e",
   applicationTree: "19599bcf043dc4a555c8996c21e7801934b64633",
   windowMs: 90 * 60 * 1000,
@@ -108,7 +109,7 @@ export function createEmptyP8V3Result({ generatedAt, execution, startedAt, expir
     pre_state: [],
     migration: { status: "not_run", before_range: null, before_count: null, after_range: null, after_count: null, applied_versions: [] },
     knowledge: { cleanup_status: "not_required", audiences: [emptyAudience("client"), emptyAudience("internal")] },
-    configuration: { status: "not_run", installed_names: [], backup_sha256: null, worker_file_verified: null },
+    configuration: { status: "not_run", installed_names: [], backup_sha256: null, lead_file_verified: null, worker_file_verified: null },
     boundaries: BOUNDARY_NAMES.map(emptyBoundary),
     waha: { crm_container_id: "0".repeat(64), crm_image_id: `sha256:${"0".repeat(64)}`, inbox_container_id: "0".repeat(64), inbox_image_id: `sha256:${"0".repeat(64)}`, unchanged: false },
     rollback: { status: "not_required", boundaries: [], configuration_restored: false },
@@ -164,6 +165,7 @@ function isExactRolledBackFailure(value) {
     && ["not_run", "failed"].includes(value.configuration.status)
     && value.configuration.installed_names.length === 0
     && value.configuration.backup_sha256 === null
+    && (value.authorization?.id === P8V3.authorization ? value.configuration.lead_file_verified === null : !("lead_file_verified" in value.configuration))
     && value.configuration.worker_file_verified === null
     && value.boundaries.every((item) => item.status === "not_run"
       && item.before_image_id === null
@@ -209,7 +211,7 @@ export function validateP8V3Result(value) {
   exactKeys(value.application, ["commit", "tree"], "application");
   if (value.application.commit !== P8V3.applicationCommit || value.application.tree !== P8V3.applicationTree) fail("application identity drifted");
   exactKeys(value.authorization, ["id", "started_at", "expires_at", "preflight_sha256"], "authorization");
-  if (![P8V3.authorization, P8V3.previousAuthorization].includes(value.authorization.id) || !UTC.test(value.authorization.started_at) || !UTC.test(value.authorization.expires_at) || Date.parse(value.authorization.expires_at) - Date.parse(value.authorization.started_at) !== P8V3.windowMs || !SHA64.test(value.authorization.preflight_sha256)) fail("authorization window drifted");
+  if (![P8V3.authorization, P8V3.previousAuthorization, P8V3.legacyAuthorization].includes(value.authorization.id) || !UTC.test(value.authorization.started_at) || !UTC.test(value.authorization.expires_at) || Date.parse(value.authorization.expires_at) - Date.parse(value.authorization.started_at) !== P8V3.windowMs || !SHA64.test(value.authorization.preflight_sha256)) fail("authorization window drifted");
   if (!Array.isArray(value.steps) || value.steps.length !== STEP_NAMES.length) fail("step cardinality drifted");
   let terminalIndex = -1;
   for (const [index, step] of value.steps.entries()) {
@@ -229,9 +231,12 @@ export function validateP8V3Result(value) {
   if (!["not_required", "verified", "failed"].includes(value.knowledge.cleanup_status) || !Array.isArray(value.knowledge.audiences) || value.knowledge.audiences.length !== 2) fail("knowledge evidence drifted");
   validateAudience(value.knowledge.audiences[0], "client", 11);
   validateAudience(value.knowledge.audiences[1], "internal", 291);
-  exactKeys(value.configuration, ["status", "installed_names", "backup_sha256", "worker_file_verified"], "configuration");
+  const isP8V3F = value.authorization.id === P8V3.authorization;
+  exactKeys(value.configuration, isP8V3F
+    ? ["status", "installed_names", "backup_sha256", "lead_file_verified", "worker_file_verified"]
+    : ["status", "installed_names", "backup_sha256", "worker_file_verified"], "configuration");
   if (!["not_run", "verified", "failed"].includes(value.configuration.status) || !Array.isArray(value.configuration.installed_names)) fail("configuration evidence drifted");
-  if (value.configuration.status === "verified" && (value.configuration.installed_names.slice().sort().join("\0") !== P8V3.requiredConfigurationNames.slice().sort().join("\0") || !SHA64.test(value.configuration.backup_sha256) || value.configuration.worker_file_verified !== true)) fail("verified configuration evidence drifted");
+  if (value.configuration.status === "verified" && (value.configuration.installed_names.slice().sort().join("\0") !== P8V3.requiredConfigurationNames.slice().sort().join("\0") || !SHA64.test(value.configuration.backup_sha256) || (isP8V3F && value.configuration.lead_file_verified !== true) || value.configuration.worker_file_verified !== true)) fail("verified configuration evidence drifted");
   if (!Array.isArray(value.boundaries) || value.boundaries.length !== 3) fail("boundary cardinality drifted");
   BOUNDARY_NAMES.forEach((name, index) => validateBoundary(value.boundaries[index], name));
   exactKeys(value.waha, ["crm_container_id", "crm_image_id", "inbox_container_id", "inbox_image_id", "unchanged"], "waha");
@@ -241,8 +246,9 @@ export function validateP8V3Result(value) {
   exactKeys(value.effects, ["migration_applied", "knowledge_imports", "application_recreates", "waha_recreates", "amo_writes", "whatsapp_sends", "staff_draft_calls"], "effects");
   if (![value.effects.migration_applied, value.effects.knowledge_imports, value.effects.application_recreates].every(Number.isSafeInteger) || value.effects.migration_applied < 0 || value.effects.migration_applied > 1 || value.effects.knowledge_imports < 0 || value.effects.knowledge_imports > 2 || value.effects.application_recreates < 0 || value.effects.application_recreates > 3 || value.effects.waha_recreates !== 0 || value.effects.amo_writes !== 0 || value.effects.whatsapp_sends !== 0 || value.effects.staff_draft_calls !== 0) fail("effect counters drifted");
   if (value.migration.status === "observed_applied" && (value.steps[1].status !== "failed" || value.effects.migration_applied !== 1 || !["rollout_failed_reconciliation_required", "evidence_failed"].includes(value.result_code))) fail("ambiguous applied migration evidence drifted");
-  if (value.authorization.id === P8V3.authorization && value.migration.status === "observed_applied") fail("P8V3E cannot report a newly applied migration");
-  if (value.authorization.id === P8V3.authorization && value.migration.status === "verified" && (value.migration.before_range !== "001-077" || value.migration.after_range !== "001-077" || value.migration.applied_versions.length !== 0 || value.effects.migration_applied !== 0)) fail("P8V3E reconciliation evidence drifted");
+  const noOpMigrationAuthorization = [P8V3.authorization, P8V3.previousAuthorization].includes(value.authorization.id);
+  if (noOpMigrationAuthorization && value.migration.status === "observed_applied") fail("P8V3E/P8V3F cannot report a newly applied migration");
+  if (noOpMigrationAuthorization && value.migration.status === "verified" && (value.migration.before_range !== "001-077" || value.migration.after_range !== "001-077" || value.migration.applied_versions.length !== 0 || value.effects.migration_applied !== 0)) fail("P8V3E/P8V3F reconciliation evidence drifted");
   if (value.failure !== null) {
     exactKeys(value.failure, ["step", "code"], "failure");
     if (![...STEP_NAMES, "evidence"].includes(value.failure.step) || !FAILURE_CODES.has(value.failure.code)) fail("failure evidence drifted");
@@ -252,7 +258,7 @@ export function validateP8V3Result(value) {
     }
   }
   if (value.result_code === "rollout_verified") {
-    const expectedMigrationEffect = value.authorization.id === P8V3.authorization ? 0 : 1;
+    const expectedMigrationEffect = [P8V3.authorization, P8V3.previousAuthorization].includes(value.authorization.id) ? 0 : 1;
     if (value.failure !== null || value.steps.some((step) => step.status !== "verified") || value.pre_state.length !== 5 || value.migration.status !== "verified" || value.knowledge.cleanup_status !== "verified" || value.knowledge.audiences.some((item) => item.status !== "verified") || value.configuration.status !== "verified" || value.boundaries.some((item) => item.status !== "verified") || value.waha.unchanged !== true || value.rollback.status !== "not_required" || value.rollback.boundaries.length !== 0 || value.effects.migration_applied !== expectedMigrationEffect || value.effects.knowledge_imports !== 2 || value.effects.application_recreates !== 3) fail("false rollout success");
   } else if (value.failure === null) fail("failed result is missing failure evidence");
   else if (value.result_code === "rollout_failed_rolled_back" && !isExactRolledBackFailure(value)) fail("false fully rolled-back result");
@@ -272,7 +278,7 @@ function failureCode(error, step) {
 
 export async function runP8V3Rollout({ operations, authorization, preflight, preflightSha256, now = () => Date.now() }) {
   if (authorization !== P8V3.authorization) fail("exact P8V3 authorization is required", "preflight_drift");
-  if (!SHA64.test(preflightSha256) || !preflight || preflight.application?.commit !== P8V3.applicationCommit || preflight.application?.tree !== P8V3.applicationTree || !UTC.test(preflight.generated_at) || !UTC.test(preflight.expires_at) || now() >= Date.parse(preflight.expires_at) || !Array.isArray(preflight.containers) || preflight.containers.length !== 5 || preflight.compose_validated !== true || preflight.prerequisites_verified !== true || preflight.migration?.range !== "001-077" || preflight.migration?.count !== 77 || !Array.isArray(preflight.archives) || preflight.archives.length !== 3) fail("reviewed P8V3E preflight is missing, expired or drifted", "preflight_drift");
+  if (!SHA64.test(preflightSha256) || !preflight || preflight.application?.commit !== P8V3.applicationCommit || preflight.application?.tree !== P8V3.applicationTree || !UTC.test(preflight.generated_at) || !UTC.test(preflight.expires_at) || now() >= Date.parse(preflight.expires_at) || !Array.isArray(preflight.containers) || preflight.containers.length !== 5 || preflight.compose_validated !== true || preflight.prerequisites_verified !== true || preflight.migration?.range !== "001-077" || preflight.migration?.count !== 77 || !Array.isArray(preflight.archives) || preflight.archives.length !== 3 || preflight.gemini?.embedding_verified !== true || preflight.gemini?.draft_verified !== true || !SHA64.test(preflight.importer?.sha256) || !Number.isSafeInteger(preflight.importer?.size) || preflight.importer.size < 1 || preflight.importer.verified !== true) fail("reviewed P8V3F preflight is missing, expired or drifted", "preflight_drift");
   preflight.containers.forEach(validateContainer);
   const startedMs = now();
   const expiresMs = startedMs + P8V3.windowMs;
@@ -308,7 +314,7 @@ export async function runP8V3Rollout({ operations, authorization, preflight, pre
 
     stepIndex = 1;
     requireWindow();
-    // Migration 077 is already present. P8V3E only proves its ledger, objects
+    // Migration 077 is already present. P8V3F only proves its ledger, objects
     // and grants read-only; the first new forward-only effect is publication.
     const migration = await operations.migrate({ deadlineAt: expiresMs });
     validateMigration(migration);

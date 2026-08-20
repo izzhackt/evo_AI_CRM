@@ -32,7 +32,7 @@ export type PlatformKnowledgeImportResult = Readonly<{
 
 type Embedder = (
   texts: readonly string[],
-  options: Readonly<{ model: "gemini-embedding-2"; dimensions: 1_536; taskType: "RETRIEVAL_DOCUMENT" }>,
+  options: Readonly<{ model: "gemini-embedding-2"; dimensions: 1_536 }>,
 ) => Promise<readonly (readonly number[])[]>;
 
 type RpcClient = Readonly<{
@@ -50,6 +50,10 @@ export const PLATFORM_KNOWLEDGE_MAX_DOCUMENTS = 512;
 export const PLATFORM_KNOWLEDGE_MAX_DOCUMENT_BYTES = 256 * 1_024;
 export const PLATFORM_KNOWLEDGE_MAX_TOTAL_CONTENT_BYTES = 12 * 1_024 * 1_024;
 export const PLATFORM_KNOWLEDGE_MAX_TOTAL_CHUNKS = 8_000;
+
+export function formatPlatformKnowledgeEmbeddingDocument(title: string, content: string): string {
+  return `title: ${title} | text: ${content}`;
+}
 
 function object(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label}: expected object`);
@@ -245,11 +249,12 @@ export async function importPlatformKnowledgeBundleBytes(input: Readonly<{
   if (chunked.some((document) => document.contents.length < 1)) throw new Error("Document has no chunks");
   const totalChunks = chunked.reduce((total, document) => total + document.contents.length, 0);
   if (totalChunks > PLATFORM_KNOWLEDGE_MAX_TOTAL_CHUNKS) throw new Error("Bundle exceeds total chunk limit");
-  const texts = chunked.flatMap((document) => document.contents);
+  const texts = chunked.flatMap((document) => document.contents.map((content) => (
+    formatPlatformKnowledgeEmbeddingDocument(document.title, content)
+  )));
   const embeddings = await input.embed(texts, {
     model: "gemini-embedding-2",
     dimensions: EMBEDDING_DIMENSIONS,
-    taskType: "RETRIEVAL_DOCUMENT",
   });
   if (embeddings.length !== texts.length || embeddings.some((embedding) => embedding.length !== EMBEDDING_DIMENSIONS || embedding.some((value) => !Number.isFinite(value)))) {
     throw new Error("Embedding response has invalid shape");

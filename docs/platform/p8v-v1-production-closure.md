@@ -1032,3 +1032,93 @@ The retry identities are release `2026-08-20.p8v3e.1`, version
 authorization `EXECUTE-P8V3E-2026-08-20.P8V3E.1`. The consumed P8V3D token is
 invalid. A reviewed merge, final-tree CI, fresh minimal preflight and new owner
 authorization are mandatory before any effect.
+
+## P8V3F process-only Gemini credential and retry contract
+
+P8V3F preserves the complete P8V3E local and Hermes evidence at exact SHA-256
+`328dd56efc616b1492b42c399651733186a5167e8214798b8e21eef5f60fa185`, its
+release root and its rollback root. Before another attempt, reconciliation must
+prove the same `001-077` ledger, zero client revisions/documents/chunks, exact
+two internal documents/26 chunks, restored configuration, absent P8V3E
+importer, and the five unchanged healthy restart-zero containers. No P8V3E
+artifact may be overwritten, removed or relabelled.
+
+The sole new credential input is environment `GEMINI_API_KEY`, injected by the
+encrypted Personal Secrets Vault into the controller process. The value must
+be a single non-empty line of 16 through 512 bytes. It is prohibited from Git,
+argv, filesystem staging, command labels, stdout, stderr and evidence. The
+controller must reject the key value if it appears in any captured provider,
+SSH or publication output. The absence of a configured project spend cap is an
+owner-accepted billing risk for this retry; it does not weaken request count,
+timeout or content bounds.
+
+The final preflight performs exactly two no-retry HTTPS requests using the key
+only in `x-goog-api-key`, with redirect rejection, 15-second timeout and a
+streamed 64-KiB response ceiling:
+
+1. one `models/gemini-embedding-2:batchEmbedContents` request containing only
+   exact literal text `title: EVO P8V3F readiness | text: EVO P8V3F readiness
+   probe`, no `taskType` field, and output dimensionality `1536`; HTTP 200 and
+   exactly one finite 1536-number vector are required;
+2. one `models/gemini-3.5-flash:generateContent` request containing only an
+   instruction to return JSON `{\"reply\":\"READY\",\"handoff\":false}` with
+   temperature `0`, candidate count `1`, maximum output tokens `32`, JSON MIME
+   type and a closed two-field response schema; HTTP 200 and that exact parsed
+   object are required.
+
+The preflight result adds exactly `gemini.embedding_verified: true` and
+`gemini.draft_verified: true`; it contains no provider response body, usage,
+project identity, key fingerprint or content. Either request failure blocks
+before staging, Supabase, Hermes configuration, import or deployment.
+
+Official Embedding 2 guidance states that `task_type` is unsupported and that
+retrieval documents use `title: {title} | text: {content}` in the prompt:
+<https://ai.google.dev/gemini-api/docs/embeddings#task-types>. The P8V3F import
+helper therefore removes the request `taskType` property and transforms only
+the provider embedding input for each chunk to exact
+`title: ${document.title} | text: ${chunkContent}`. Stored document/chunk
+content and hashes remain the original unprefixed approved bytes.
+
+The final clean execution checkout builds
+`.next/platform-knowledge-import.mjs` twice into two private temporary roots
+with the repository's fixed esbuild command. Both regular files must be
+byte-identical, non-empty and at most 4 MiB. Preflight retains only exact
+`importer.sha256`, `importer.size` and `importer.verified: true`. Execution
+rebuilds once and requires exact SHA-256/size equality to the fresh preflight,
+then transfers it as `${RELEASE_ROOT}/p8v3f-platform-knowledge-import.mjs`.
+Hermes requires root:root mode 0600 and exact hash; the importer receives it at
+`/tmp/p8v3f-platform-knowledge-import.mjs`, verifies exact hash, runs its
+closed runtime probe, and uses that absolute file for both audience imports.
+It never executes the older helper embedded in the unchanged CRM image. Every
+local/remote/container helper copy is removed or retained only inside the
+already private new release root according to the existing cleanup/evidence
+rules; no P8V3E path is touched.
+
+Configuration uses one fixed `ssh ... bash -seu` command and sends the key as
+the sole newline-terminated stdin field. The remote script rejects missing,
+extra-line or invalid input before writes, removes the key from its inherited
+environment after reading, and parses the existing root CRM and Lead Agent
+files with duplicate/malformed-row rejection. Under the new root-owned mode-
+0700 rollback directory it records exact root-owned mode-0600 copies of
+`env.production.before` and `env.lead-agent.before`, plus the existing
+manual-worker prestate/copy rules. It then atomically writes root-owned mode-
+0600 files so the Lead Agent has exact `GEMINI_API_KEY` and CRM has exact
+`EVO_PLATFORM_GEMINI_API_KEY`, along with the already reviewed staff-assistant,
+manual-worker and sync flags. Readback must prove both installed values equal
+the process-only input without emitting either value.
+
+Rollback restores both environment files and the worker prestate from the
+exact retained bytes, then verifies their SHA-256, owner and mode. A missing,
+foreign, symlinked, malformed or mismatched backup is blocking. Configuration
+evidence retains only the existing installed-name set, one SHA-256 over the
+ordered pair of pre-change file bytes, and safe verification booleans.
+
+P8V3F freezes release `2026-08-20.p8v3f.1`, version
+`p8v3f-0f1454d0-20260820`, importer `evo-p8v3f-knowledge-import`, release root
+under the same immutable application commit, rollback root under that release
+ID, evidence root `/opt/evo-release-evidence/p8v3f-20260820.1`, sole result
+`p8v3f-rollout-result.json`, preflight `p8v3f-production-preflight/v1`, and
+authorization `EXECUTE-P8V3F-2026-08-20.P8V3F.1`. The P8V3E token is invalid.
+No production effect is permitted before issue #331 implementation, scoped
+tests, independent approval, merge, final-tree CI, the fresh two-probe minimal
+preflight and the exact new owner token.

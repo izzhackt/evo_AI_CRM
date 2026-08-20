@@ -5,7 +5,6 @@ const BATCH_SIZE = 96;
 type EmbeddingOptions = Readonly<{
   model: "gemini-embedding-2";
   dimensions: 1_536;
-  taskType: "RETRIEVAL_DOCUMENT";
 }>;
 
 function parseEmbeddings(value: unknown, expected: number, dimensions: number): readonly (readonly number[])[] {
@@ -46,7 +45,6 @@ export function createPlatformKnowledgeGeminiEmbedder(input: Readonly<{
               requests: batch.map((text) => ({
                 model: `models/${options.model}`,
                 content: { parts: [{ text }] },
-                taskType: options.taskType,
                 outputDimensionality: options.dimensions,
               })),
             }),

@@ -9,9 +9,14 @@ import {
   stablePlatformKnowledgeJson,
   validatePlatformKnowledgeBundleBytes,
 } from "../src/lib/server/platform-knowledge-bundle.ts";
+import { createPlatformKnowledgeGeminiEmbedder } from "../src/lib/server/platform-knowledge-embeddings.ts";
 import { safePlatformKnowledgeImportResult } from "../src/lib/server/platform-knowledge-import-output.ts";
 
 const ACCOUNT_ID = "20000000-0000-4000-8000-000000000002";
+
+function testCredential() {
+  return ["not", "a", "real", "credential"].join("-");
+}
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -109,11 +114,51 @@ test("importer materializes every 1536-dimensional Gemini embedding before one a
     audience: "internal",
   });
   assert.equal(events[0][0], "embed");
+  assert.deepEqual(events[0][1], ["title: China | text: Verified knowledge without personal contact details."]);
   assert.equal(events[0][2].model, "gemini-embedding-2");
   assert.equal(events[0][2].dimensions, 1_536);
+  assert.deepEqual(Object.keys(events[0][2]).sort(), ["dimensions", "model"]);
   assert.equal(events[1][0], "rpc");
   assert.equal(events[1][1], "sync_ai_knowledge_bundle");
   assert.equal(result.documents_upserted, 1);
+});
+
+test("Gemini Embedding 2 request uses exact prefixed text without unsupported taskType", async () => {
+  const calls = [];
+  const embed = createPlatformKnowledgeGeminiEmbedder({
+    apiKey: testCredential(),
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return {
+        ok: true,
+        async json() {
+          return { embeddings: [{ values: Array.from({ length: 1_536 }, () => 0.01) }] };
+        },
+      };
+    },
+  });
+  const result = await embed(["title: China | text: Verified knowledge"], {
+    model: "gemini-embedding-2",
+    dimensions: 1_536,
+  });
+  assert.equal(result.length, 1);
+  assert.equal(result[0].length, 1_536);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:batchEmbedContents");
+  assert.equal(calls[0].init.method, "POST");
+  assert.deepEqual(calls[0].init.headers, {
+    "content-type": "application/json",
+    "x-goog-api-key": testCredential(),
+  });
+  const body = JSON.parse(calls[0].init.body);
+  assert.deepEqual(body, {
+    requests: [{
+      model: "models/gemini-embedding-2",
+      content: { parts: [{ text: "title: China | text: Verified knowledge" }] },
+      outputDimensionality: 1_536,
+    }],
+  });
+  assert.equal(JSON.stringify(body).includes("taskType"), false);
 });
 
 test("embedding failure leaves the database untouched", async () => {

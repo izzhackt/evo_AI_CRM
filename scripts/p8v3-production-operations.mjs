@@ -28,17 +28,22 @@ import {
 const HERMES = "hermes-vps";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
 const PROJECT_URL = `https://${PROJECT_REF}.supabase.co`;
-const RELEASE_ID = "2026-08-20.p8v3e.1";
-const RELEASE_VERSION = "p8v3e-0f1454d0-20260820";
+const RELEASE_ID = "2026-08-20.p8v3f.1";
+const RELEASE_VERSION = "p8v3f-0f1454d0-20260820";
 const RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/${RELEASE_ID}`;
 const REMOTE_REPO = `${RELEASE_ROOT}/repo`;
 const REMOTE_ARCHIVES = `${RELEASE_ROOT}/archives`;
 const KNOWLEDGE_REMOTE = `${RELEASE_ROOT}/knowledge-incoming`;
-const IMPORTER = "evo-p8v3e-knowledge-import";
+const IMPORTER = "evo-p8v3f-knowledge-import";
+const IMPORTER_FILE = "p8v3f-platform-knowledge-import.mjs";
 const CONFIG_ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const P8V2D_ROLLBACK_ROOT = "/opt/evo-release-evidence/p8v2d-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818";
-const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3e-20260820.1";
-const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3e-rollout-result.json`;
+const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3f-20260820.1";
+const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3f-rollout-result.json`;
+const PRESERVED_P8V3E_EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3e-20260820.1";
+const PRESERVED_P8V3E_RESULT_SHA256 = "328dd56efc616b1492b42c399651733186a5167e8214798b8e21eef5f60fa185";
+const PRESERVED_P8V3E_RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/2026-08-20.p8v3e.1`;
+const PRESERVED_P8V3E_ROLLBACK_ROOT = "/opt/evo-release-rollback/2026-08-20.p8v3e.1";
 const WAHA_IMAGE = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const CLIENT_VAULT = "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Клиентская база знаний ЭВО";
 const INTERNAL_VAULT = "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ";
@@ -49,6 +54,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const UUID_IN_TEXT = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
 const MAX_OUTPUT = 2_000_000;
 const CLI_VERSION = "2.110.0";
+const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
+const IMPORTER_MIN_BYTES = 1;
+const IMPORTER_MAX_BYTES = 4 * 1024 * 1024;
 
 export const P8V3_IMAGES = Object.freeze({
   crm: Object.freeze({
@@ -233,6 +241,33 @@ function preflightRemoteScript() {
   const allowlist = REQUIRED_ROLLBACK_FILES.join("\n");
   const hashes = REQUIRED_ROLLBACK_FILES.map((name) => `${name}|${ROLLBACK_SHA256[name]}`).join("\n");
   return String.raw`
+[[ ! -e '${RELEASE_ROOT}' && ! -L '${RELEASE_ROOT}' ]]
+[[ ! -e '${CONFIG_ROLLBACK_ROOT}' && ! -L '${CONFIG_ROLLBACK_ROOT}' ]]
+[[ ! -e '${EVIDENCE_ROOT}' && ! -L '${EVIDENCE_ROOT}' ]]
+if docker container ls -a --no-trunc --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null; then exit 2; fi
+
+p8v3e_evidence='${PRESERVED_P8V3E_EVIDENCE_ROOT}'
+[[ -d "$p8v3e_evidence" && ! -L "$p8v3e_evidence" && "$(stat -c '%U:%G %a' "$p8v3e_evidence")" == 'root:root 700' ]]
+[[ "$(find "$p8v3e_evidence" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3e-rollout-result.json' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3e_evidence/p8v3e-rollout-result.json")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3e_evidence/p8v3e-rollout-result.json" | awk '{print $1}')" == '${PRESERVED_P8V3E_RESULT_SHA256}' ]]
+
+p8v3e_release='${PRESERVED_P8V3E_RELEASE_ROOT}'
+[[ -d "$p8v3e_release" && ! -L "$p8v3e_release" && "$(stat -c '%U:%G %a' "$p8v3e_release")" == 'root:root 700' ]]
+[[ "$(find "$p8v3e_release" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)" == $'archives\nknowledge-incoming\nrepo' ]]
+[[ -d "$p8v3e_release/repo" && ! -L "$p8v3e_release/repo" ]]
+[[ -d "$p8v3e_release/knowledge-incoming" && ! -L "$p8v3e_release/knowledge-incoming" && -z "$(find "$p8v3e_release/knowledge-incoming" -mindepth 1 -print -quit)" ]]
+[[ -d "$p8v3e_release/archives" && ! -L "$p8v3e_release/archives" ]]
+${Object.values(P8V3_IMAGES).map((spec) => `[[ "$(stat -c '%U:%G %a %s' "$p8v3e_release/archives/${spec.file}")" == 'root:root 600 ${spec.size}' ]]\n[[ "$(sha256sum "$p8v3e_release/archives/${spec.file}" | awk '{print $1}')" == '${spec.sha256}' ]]`).join("\n")}
+
+p8v3e_rollback='${PRESERVED_P8V3E_ROLLBACK_ROOT}'
+[[ -d "$p8v3e_rollback" && ! -L "$p8v3e_rollback" && "$(stat -c '%U:%G %a' "$p8v3e_rollback")" == 'root:root 700' ]]
+[[ "$(find "$p8v3e_rollback" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)" == $'env.production.before\nworker.prestate' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3e_rollback/env.production.before")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3e_rollback/env.production.before" | awk '{print $1}')" == 'af2ba43ae81aad94815301292e34ce54218a3e2d8c4eefe5621987dee5c17640' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3e_rollback/worker.prestate")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3e_rollback/worker.prestate" | awk '{print $1}')" == '7925d3e9a9613a093e5eb4054b32aa39de910d2b03ba7e8046c3b4550b8de1e4' ]]
+
 rollback='${P8V2D_ROLLBACK_ROOT}'
 [[ -d "$rollback" && ! -L "$rollback" ]]
 [[ "$(stat -c '%U:%G %a' "$rollback")" == 'root:root 700' ]]
@@ -294,7 +329,7 @@ function verifyOrbStack(run) {
 }
 
 function validateCandidateCompose(run, source) {
-  const temp = mkdtempSync(join(tmpdir(), "evo-p8v3e-compose-"));
+  const temp = mkdtempSync(join(tmpdir(), "evo-p8v3f-compose-"));
   try {
     const archive = join(temp, "repo.tar");
     const repo = join(temp, "repo");
@@ -309,9 +344,9 @@ function validateCandidateCompose(run, source) {
     }));
     writeFileSync(envPaths.inbox, [
       "P8V3_COMPOSE_VALIDATION=1",
-      "NEXT_PUBLIC_SUPABASE_URL=https://p8v3e.invalid",
-      "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3e-compose-validation-not-a-key",
-      "NEXT_PUBLIC_SITE_URL=https://p8v3e.invalid",
+      "NEXT_PUBLIC_SUPABASE_URL=https://p8v3f.invalid",
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3f-compose-validation-not-a-key",
+      "NEXT_PUBLIC_SITE_URL=https://p8v3f.invalid",
       "",
     ].join("\n"), { mode: 0o600 });
     chmodSync(envPaths.inbox, 0o600);
@@ -422,8 +457,117 @@ export function createP8V3PublicRestReader({ key, fetchImpl = fetch, projectUrl 
   };
 }
 
+function validateGeminiKey(key) {
+  const bytes = typeof key === "string" ? Buffer.byteLength(key, "utf8") : 0;
+  if (bytes < 16 || bytes > 512 || /[\r\n\0]/.test(key)) fail("P8V3F Gemini credential is invalid", "preflight_drift");
+  return key;
+}
+
+async function boundedGeminiJson(response, key, label) {
+  const declared = Number(response.headers.get("content-length") ?? "0");
+  if (declared > 65_536) fail(`${label} response is oversized`, "preflight_drift");
+  const chunks = [];
+  let length = 0;
+  if (!response.body) fail(`${label} response body is missing`, "preflight_drift");
+  for await (const chunk of response.body) {
+    const bytes = Buffer.from(chunk);
+    length += bytes.length;
+    if (length > 65_536) fail(`${label} response is oversized`, "preflight_drift");
+    chunks.push(bytes);
+  }
+  const raw = Buffer.concat(chunks).toString("utf8");
+  if (raw.includes(key)) fail(`${label} leaked the credential`, "preflight_drift");
+  if (response.status !== 200) fail(`${label} failed`, "preflight_drift");
+  return parseJson(raw, label);
+}
+
+export async function verifyP8V3FGemini({ apiKey, fetchImpl = fetch }) {
+  const key = validateGeminiKey(apiKey);
+  if (typeof fetchImpl !== "function") fail("P8V3F Gemini fetch seam is invalid", "preflight_drift");
+  const request = async (path, body, label) => {
+    const response = await fetchImpl(`${GEMINI_BASE_URL}/${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": key },
+      redirect: "error",
+      signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify(body),
+    });
+    return boundedGeminiJson(response, key, label);
+  };
+  const embedding = await request("models/gemini-embedding-2:batchEmbedContents", {
+    requests: [{
+      model: "models/gemini-embedding-2",
+      content: { parts: [{ text: "title: EVO P8V3F readiness | text: EVO P8V3F readiness probe" }] },
+      outputDimensionality: 1536,
+    }],
+  }, "Gemini embedding readiness");
+  const vector = embedding?.embeddings?.[0]?.values;
+  if (!Array.isArray(embedding?.embeddings) || embedding.embeddings.length !== 1 || !Array.isArray(vector) || vector.length !== 1536 || vector.some((value) => typeof value !== "number" || !Number.isFinite(value))) fail("Gemini embedding readiness drifted", "preflight_drift");
+
+  const draft = await request("models/gemini-3.5-flash:generateContent", {
+    store: false,
+    contents: [{ role: "user", parts: [{ text: "Return exactly this JSON object and nothing else: {\"reply\":\"READY\",\"handoff\":false}" }] }],
+    generationConfig: {
+      maxOutputTokens: 32,
+      temperature: 0,
+      candidateCount: 1,
+      responseMimeType: "application/json",
+      responseJsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["reply", "handoff"],
+        properties: { reply: { type: "string", enum: ["READY"] }, handoff: { type: "boolean" } },
+      },
+    },
+  }, "Gemini draft readiness");
+  const candidates = draft?.candidates;
+  if (!Array.isArray(candidates) || candidates.length !== 1 || !Array.isArray(candidates[0]?.content?.parts) || candidates[0].content.parts.length !== 1) fail("Gemini draft readiness drifted", "preflight_drift");
+  const text = candidates[0].content.parts[0]?.text;
+  const parsed = typeof text === "string" ? parseJson(text, "Gemini draft payload") : null;
+  if (!parsed || Object.keys(parsed).sort().join("\0") !== "handoff\0reply" || parsed.reply !== "READY" || parsed.handoff !== false) fail("Gemini draft readiness drifted", "preflight_drift");
+  return { embedding_verified: true, draft_verified: true };
+}
+
+function buildImporterArtifact(run, sourceRoot) {
+  const root = mkdtempSync(join(tmpdir(), "evo-p8v3f-importer-"));
+  chmodSync(root, 0o700);
+  const path = join(root, IMPORTER_FILE);
+  try {
+    runChecked(run, "P8V3F importer build", join(sourceRoot, "node_modules/.bin/esbuild"), [
+      join(sourceRoot, "scripts/import-platform-knowledge-bundle.ts"),
+      "--bundle", "--platform=node", "--format=esm", "--target=node22", "--conditions=react-server", `--outfile=${path}`,
+    ], { cwd: sourceRoot, timeout: 120_000, code: "preflight_drift" });
+    chmodSync(path, 0o600);
+    assertDirectory(root);
+    assertRegular(path);
+    const size = statSync(path).size;
+    if (!Number.isSafeInteger(size) || size < IMPORTER_MIN_BYTES || size > IMPORTER_MAX_BYTES) fail("P8V3F importer size drifted", "preflight_drift");
+    return { root, path, sha256: sha256(readFileSync(path)), size };
+  } catch (error) {
+    rmSync(root, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+export function verifyP8V3FImporterBuild({ run = defaultRun, sourceRoot }) {
+  let first;
+  let second;
+  try {
+    first = buildImporterArtifact(run, sourceRoot);
+    second = buildImporterArtifact(run, sourceRoot);
+    if (first.sha256 !== second.sha256 || first.size !== second.size || !readFileSync(first.path).equals(readFileSync(second.path))) fail("P8V3F importer build is not deterministic", "preflight_drift");
+    return { sha256: first.sha256, size: first.size, verified: true };
+  } finally {
+    if (first) rmSync(first.root, { recursive: true, force: true });
+    if (second) rmSync(second.root, { recursive: true, force: true });
+  }
+}
+
 export function configurationInstallScript() {
   return String.raw`
+IFS= read -r P8V3F_GEMINI_API_KEY
+if IFS= read -r P8V3F_EXTRA_INPUT; then exit 2; fi
+export P8V3F_GEMINI_API_KEY
 python3 - <<'PY'
 import hashlib,json,os,secrets,stat,tempfile
 from pathlib import Path
@@ -447,7 +591,7 @@ def parse(path):
         out[key]=value
     return out
 def write_atomic(path,values):
-    fd,tmp=tempfile.mkstemp(prefix=path.name+'.p8v3e-',dir=path.parent)
+    fd,tmp=tempfile.mkstemp(prefix=path.name+'.p8v3f-',dir=path.parent)
     try:
         with os.fdopen(fd,'w') as handle:
             for key in sorted(values): handle.write(f'{key}={values[key]}\n')
@@ -460,13 +604,13 @@ if backup.exists() or backup.is_symlink(): raise SystemExit(2)
 backup.mkdir(mode=0o700)
 os.chown(backup,0,0)
 root_values=parse(root); lead_values=parse(lead)
-gemini=lead_values.get('GEMINI_API_KEY','')
+gemini=os.environ.pop('P8V3F_GEMINI_API_KEY','')
 root_sync=root_values.get('EVO_LEAD_AGENT_SYNC_SECRET','')
 lead_sync=lead_values.get('EVO_AGENT_CRM_SYNC_SECRET','')
-if len(gemini)<16 or len(root_sync)<32 or root_sync!=lead_sync: raise SystemExit(2)
-before=root.read_bytes()
-(backup/'env.production.before').write_bytes(before)
-os.chmod(backup/'env.production.before',0o600); os.chown(backup/'env.production.before',0,0)
+if not 16<=len(gemini.encode())<=512 or any(c in gemini for c in '\r\n\x00') or len(root_sync)<32 or root_sync!=lead_sync: raise SystemExit(2)
+root_before=root.read_bytes(); lead_before=lead.read_bytes()
+for name,data in [('env.production.before',root_before),('env.lead-agent.before',lead_before)]:
+    path=backup/name; path.write_bytes(data); os.chmod(path,0o600); os.chown(path,0,0)
 (backup/'worker.prestate').write_text('present\n' if worker.exists() else 'absent\n')
 os.chmod(backup/'worker.prestate',0o600); os.chown(backup/'worker.prestate',0,0)
 if worker.exists():
@@ -481,42 +625,65 @@ root_values.update({
  'EVO_PLATFORM_MANUAL_SEND_TRIGGER_SECRET':trigger,
  'EVO_PLATFORM_LEAD_AGENT_SYNC_ENABLED':'1',
 })
+lead_values['GEMINI_API_KEY']=gemini
 write_atomic(root,root_values)
+write_atomic(lead,lead_values)
 write_atomic(worker,{'EVO_PLATFORM_MANUAL_SEND_TRIGGER_SECRET':trigger})
-check=parse(root); worker_check=parse(worker)
+check=parse(root); lead_check=parse(lead); worker_check=parse(worker)
 names=['EVO_PLATFORM_GEMINI_API_KEY','EVO_PLATFORM_LEAD_AGENT_SYNC_ENABLED','EVO_PLATFORM_MANUAL_SEND_TRIGGER_SECRET','EVO_PLATFORM_MANUAL_SEND_WORKER_ENABLED','EVO_PLATFORM_STAFF_ASSISTANT_ENABLED']
-if any(k not in check for k in names) or worker_check!={'EVO_PLATFORM_MANUAL_SEND_TRIGGER_SECRET':trigger}: raise SystemExit(2)
-print(json.dumps({'status':'verified','installed_names':sorted(names),'backup_sha256':hashlib.sha256(before).hexdigest(),'worker_file_verified':True},separators=(',',':')))
+if any(k not in check for k in names) or check['EVO_PLATFORM_GEMINI_API_KEY']!=gemini or lead_check.get('GEMINI_API_KEY')!=gemini or worker_check!={'EVO_PLATFORM_MANUAL_SEND_TRIGGER_SECRET':trigger}: raise SystemExit(2)
+backup_sha=hashlib.sha256(root_before+b'\x00'+lead_before).hexdigest()
+print(json.dumps({'status':'verified','installed_names':sorted(names),'backup_sha256':backup_sha,'lead_file_verified':True,'worker_file_verified':True},separators=(',',':')))
 PY
 `;
 }
 
-export function configurationRestoreScript() {
+export function configurationRestoreScript({
+  crmRoot = "/opt/evo-crm",
+  rollbackRoot = CONFIG_ROLLBACK_ROOT,
+  expectedUid = 0,
+  expectedGid = 0,
+} = {}) {
+  if (![crmRoot, rollbackRoot].every((value) => typeof value === "string" && value.startsWith("/") && !/[\r\n\0]/.test(value)) || ![expectedUid, expectedGid].every((value) => Number.isInteger(value) && value >= 0)) fail("configuration restore seam drifted", "rollback_failed");
   return String.raw`
 python3 - <<'PY'
 import hashlib,os,stat,tempfile
 from pathlib import Path
-root=Path('/opt/evo-crm/.env.production'); worker=Path('/opt/evo-crm/.env.manual-send-worker'); backup=Path('${CONFIG_ROLLBACK_ROOT}')
-def regular(path):
+crm=Path(${JSON.stringify(crmRoot)}); root=crm/'.env.production'; lead=crm/'.env.lead-agent'; worker=crm/'.env.manual-send-worker'; backup=Path(${JSON.stringify(rollbackRoot)})
+EXPECTED_UID=${expectedUid}; EXPECTED_GID=${expectedGid}
+def directory(path):
     st=path.lstat()
-    if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or stat.S_IMODE(st.st_mode)!=0o600 or st.st_uid!=0 or st.st_gid!=0: raise SystemExit(2)
+    if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode) or stat.S_IMODE(st.st_mode)!=0o700 or st.st_uid!=EXPECTED_UID or st.st_gid!=EXPECTED_GID or path.resolve()!=path: raise SystemExit(2)
+def regular(path,parent=None):
+    st=path.lstat()
+    if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or stat.S_IMODE(st.st_mode)!=0o600 or st.st_uid!=EXPECTED_UID or st.st_gid!=EXPECTED_GID: raise SystemExit(2)
+    if parent is not None and path.resolve().parent!=parent.resolve(): raise SystemExit(2)
 def install(source,target):
     regular(source)
     fd,tmp=tempfile.mkstemp(prefix=target.name+'.restore-',dir=target.parent)
     try:
         with os.fdopen(fd,'wb') as handle:
             handle.write(source.read_bytes()); handle.flush(); os.fsync(handle.fileno())
-        os.chmod(tmp,0o600); os.chown(tmp,0,0); os.replace(tmp,target)
+        os.chmod(tmp,0o600); os.chown(tmp,EXPECTED_UID,EXPECTED_GID); os.replace(tmp,target)
     finally:
         if os.path.exists(tmp): os.unlink(tmp)
     regular(target)
-source=backup/'env.production.before'; install(source,root)
-state=(backup/'worker.prestate').read_text().strip()
+directory(backup)
+marker=backup/'worker.prestate'; regular(marker,backup)
+state=marker.read_text()
+if state not in ('present\n','absent\n'): raise SystemExit(2)
+state=state.strip()
+expected={'env.production.before','env.lead-agent.before','worker.prestate'} | ({'env.manual-send-worker.before'} if state=='present' else set())
+entries=list(backup.iterdir())
+if {entry.name for entry in entries}!=expected: raise SystemExit(2)
+for entry in entries: regular(entry,backup)
+root_source=backup/'env.production.before'; lead_source=backup/'env.lead-agent.before'
+install(root_source,root); install(lead_source,lead)
 if state=='present': install(backup/'env.manual-send-worker.before',worker)
 elif state=='absent':
     if worker.exists() or worker.is_symlink(): worker.unlink()
 else: raise SystemExit(2)
-if hashlib.sha256(root.read_bytes()).digest()!=hashlib.sha256(source.read_bytes()).digest(): raise SystemExit(2)
+if root.read_bytes()!=root_source.read_bytes() or lead.read_bytes()!=lead_source.read_bytes(): raise SystemExit(2)
 print('configuration_restored')
 PY
 `;
@@ -530,7 +697,7 @@ install -d -o root -g root -m 0700 '${RELEASE_ROOT}' '${REMOTE_REPO}' '${REMOTE_
 `;
 }
 
-function stageFinalizeScript() {
+function stageFinalizeScript(importer) {
   return String.raw`
 umask 077
 [[ "$(stat -c '%U:%G %a' '${RELEASE_ROOT}')" == 'root:root 700' ]]
@@ -544,6 +711,10 @@ for name in ${Object.values(P8V3_IMAGES).map((item) => `'${item.file}'`).join(" 
   [[ -f '${REMOTE_ARCHIVES}/'"$name" && ! -L '${REMOTE_ARCHIVES}/'"$name" ]]
   chown root:root '${REMOTE_ARCHIVES}/'"$name"; chmod 0600 '${REMOTE_ARCHIVES}/'"$name"
 done
+[[ -f '${RELEASE_ROOT}/${IMPORTER_FILE}' && ! -L '${RELEASE_ROOT}/${IMPORTER_FILE}' ]]
+chown root:root '${RELEASE_ROOT}/${IMPORTER_FILE}'; chmod 0600 '${RELEASE_ROOT}/${IMPORTER_FILE}'
+[[ "$(stat -c '%U:%G %a %s' '${RELEASE_ROOT}/${IMPORTER_FILE}')" == 'root:root 600 ${importer.size}' ]]
+[[ "$(sha256sum '${RELEASE_ROOT}/${IMPORTER_FILE}' | awk '{print $1}')" == '${importer.sha256}' ]]
 `;
 }
 
@@ -579,7 +750,7 @@ function buildAudience(run, sourceRoot, accountId, audience, vault, localRoots) 
   const audit = parseJson(runChecked(run, `${audience} vault audit`, "python3", [join(sourceRoot, "scripts/p8v2e-vault-audit.py"), "--vault", vault, "--audience", audience], { cwd: sourceRoot, timeout: 120_000, code: "knowledge_failed" }).stdout.trim(), `${audience} vault audit`);
   if (audit.status !== "verified" || audit.document_count !== expectedCount || audit.source_set_sha256 !== expectedSourceSet) fail(`${audience} frozen vault drifted`, "knowledge_failed");
   const roots = [0, 1].map(() => {
-    const root = mkdtempSync(join(tmpdir(), `evo-p8v3e-${audience}-`));
+    const root = mkdtempSync(join(tmpdir(), `evo-p8v3f-${audience}-`));
     chmodSync(root, 0o700);
     localRoots.push(root);
     return root;
@@ -603,7 +774,7 @@ function buildAudience(run, sourceRoot, accountId, audience, vault, localRoots) 
   return { audience, root: roots[0], bundleName, manifestName, documentCount: expectedCount, bundleSha256: sha256(bundle), manifestSha256: sha256(manifest) };
 }
 
-function importerCreateScript(owner) {
+function importerCreateScript(owner, importer) {
   return String.raw`
 created=''
 cleanup_failed_create() {
@@ -623,7 +794,10 @@ docker start "$created" >/dev/null
 [[ "$(docker inspect "$created" --format '{{.Image}}')" == '${P8V3_IMAGES.crm.platform}' ]]
 [[ "$(docker inspect "$created" --format '{{index .Config.Labels "evo.p8v3.importer-owner"}}')" == '${owner}' ]]
 [[ "$(docker inspect "$created" --format '{{.State.Running}}')" == 'true' ]]
-docker exec "$created" node .next/platform-knowledge-import.mjs --verify-runtime | grep -Fx '{"status":"knowledge_import_runtime_verified","version":1}' >/dev/null
+docker cp '${RELEASE_ROOT}/${IMPORTER_FILE}' "$created:/tmp/${IMPORTER_FILE}"
+docker exec --user 0 "$created" chmod 0555 '/tmp/${IMPORTER_FILE}'
+[[ "$(docker exec "$created" sha256sum '/tmp/${IMPORTER_FILE}' | awk '{print $1}')" == '${importer.sha256}' ]]
+docker exec "$created" node '/tmp/${IMPORTER_FILE}' --verify-runtime | grep -Fx '{"status":"knowledge_import_runtime_verified","version":1}' >/dev/null
 trap - EXIT
 printf '%s\n' "$created"
 `;
@@ -645,7 +819,7 @@ function importCommand(item) {
   return String.raw`
 IFS= read -r EVO_KNOWLEDGE_ACCOUNT_ID
 [[ "$EVO_KNOWLEDGE_ACCOUNT_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]]
-docker exec '${IMPORTER}' node .next/platform-knowledge-import.mjs --audience '${item.audience}' --bundle '/tmp/${item.bundleName}' --manifest '/tmp/${item.manifestName}' --account-id "$EVO_KNOWLEDGE_ACCOUNT_ID"
+docker exec '${IMPORTER}' node '/tmp/${IMPORTER_FILE}' --audience '${item.audience}' --bundle '/tmp/${item.bundleName}' --manifest '/tmp/${item.manifestName}' --account-id "$EVO_KNOWLEDGE_ACCOUNT_ID"
 `;
 }
 
@@ -879,7 +1053,7 @@ mv '${incoming}' '${REMOTE_RESULT}'
 [[ "$(stat -c '%U:%G %a' '${EVIDENCE_ROOT}')" == 'root:root 700' ]]
 [[ "$(stat -c '%U:%G %a' '${REMOTE_RESULT}')" == 'root:root 600' ]]
 [[ "$(sha256sum '${REMOTE_RESULT}' | awk '{print $1}')" == '${hash}' ]]
-[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3e-rollout-result.json' ]]
+[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3f-rollout-result.json' ]]
 `;
 }
 
@@ -889,9 +1063,9 @@ export function renderP8V3ShellContractsForTest() {
     configurationInstall: configurationInstallScript(),
     configurationRestore: configurationRestoreScript(),
     stagePrepare: stagePrepareScript(),
-    stageFinalize: stageFinalizeScript(),
+    stageFinalize: stageFinalizeScript({ sha256: "a".repeat(64), size: 1 }),
     loadImages: loadImagesScript(),
-    importerCreate: importerCreateScript(),
+    importerCreate: importerCreateScript("a".repeat(32), { sha256: "a".repeat(64), size: 1 }),
     knowledgeCleanup: knowledgeCleanupScript("a".repeat(32)),
     deployCrm: deployScript("crm"),
     deployInbox: deployScript("inbox"),
@@ -899,7 +1073,7 @@ export function renderP8V3ShellContractsForTest() {
     rollbackCrm: rollbackScript("crm"),
     rollbackInbox: rollbackScript("inbox"),
     rollbackLead: rollbackScript("lead_agent"),
-    evidence: atomicEvidenceScript("/opt/evo-release-evidence/.p8v3e-test-incoming", "a".repeat(64)),
+    evidence: atomicEvidenceScript("/opt/evo-release-evidence/.p8v3f-test-incoming", "a".repeat(64)),
   });
 }
 
@@ -932,6 +1106,11 @@ export async function createP8V3ProductionOperations({
   assertDirectory(candidates);
   if (!["preflight", "execute"].includes(mode)) fail("P8V3 operation mode is invalid", "preflight_drift");
   if (!environment.SUPABASE_ACCESS_TOKEN) fail("P8V3 Supabase management credential is missing", "preflight_drift");
+  const geminiKey = validateGeminiKey(environment.GEMINI_API_KEY);
+  const childEnvironment = { ...environment };
+  delete childEnvironment.GEMINI_API_KEY;
+  const controllerRun = run;
+  run = (command, args, options = {}) => controllerRun(command, args, { ...options, env: options.env ?? childEnvironment });
   if (mode === "execute" && environment.EVO_P8V3_AUTHORIZATION !== P8V3.authorization) fail("P8V3 authorization is missing", "preflight_drift");
   if (mode === "execute" && (!environment.EVO_P8V3_SUPABASE_URL || !environment.EVO_P8V3_SUPABASE_SERVICE_ROLE_KEY)) fail("P8V3 Supabase runtime credentials are missing", "preflight_drift");
   if (mode === "execute" && environment.EVO_P8V3_SUPABASE_URL !== PROJECT_URL) fail("P8V3 Supabase project drifted", "preflight_drift");
@@ -945,6 +1124,7 @@ export async function createP8V3ProductionOperations({
     importerOwner: randomBytes(16).toString("hex"),
     localRoots: [],
     built: new Map(),
+    expectedImporter: null,
     preState: null,
     evidenceIncoming: null,
     evidenceHash: null,
@@ -963,17 +1143,22 @@ export async function createP8V3ProductionOperations({
 
   async function ensureStaged(deadlineAt) {
     if (state.staged) return;
+    if (!state.expectedImporter) fail("P8V3F importer is not bound to preflight", "preflight_drift");
     for (const spec of Object.values(P8V3_IMAGES)) validateArchive(join(candidates, spec.file), spec);
     remote(run, stagePrepareScript(), { timeout: remaining(deadlineAt), label: "P8V3 staging root", code: "knowledge_failed" });
-    const temp = mkdtempSync(join(tmpdir(), "evo-p8v3e-repo-"));
+    const temp = mkdtempSync(join(tmpdir(), "evo-p8v3f-repo-"));
     try {
       const archive = join(temp, "repo.tar");
       runChecked(run, "application archive", "git", ["-C", source, "archive", "--format=tar", `--output=${archive}`, P8V3.applicationCommit], { timeout: 120_000, code: "knowledge_failed" });
       chmodSync(archive, 0o600);
       runChecked(run, "repository transfer", "scp", [archive, `${HERMES}:${RELEASE_ROOT}/repo.tar`], { timeout: remaining(deadlineAt), code: "knowledge_failed" });
     } finally { rmSync(temp, { recursive: true, force: true }); }
+    const importer = buildImporterArtifact(run, source);
+    state.localRoots.push(importer.root);
+    if (importer.sha256 !== state.expectedImporter.sha256 || importer.size !== state.expectedImporter.size) fail("P8V3F importer changed after preflight", "preflight_drift");
+    runChecked(run, "P8V3F importer transfer", "scp", [importer.path, `${HERMES}:${RELEASE_ROOT}/${IMPORTER_FILE}`], { timeout: remaining(deadlineAt), code: "knowledge_failed" });
     for (const spec of Object.values(P8V3_IMAGES)) runChecked(run, `${spec.name} archive transfer`, "scp", [join(candidates, spec.file), `${HERMES}:${REMOTE_ARCHIVES}/${spec.file}`], { timeout: remaining(deadlineAt), code: "knowledge_failed" });
-    remote(run, `${stageFinalizeScript()}\n${loadImagesScript()}`, { timeout: remaining(deadlineAt), label: "P8V3 staging", code: "knowledge_failed" });
+    remote(run, `${stageFinalizeScript(importer)}\n${loadImagesScript()}`, { timeout: remaining(deadlineAt), label: "P8V3 staging", code: "knowledge_failed" });
     state.staged = true;
   }
 
@@ -994,6 +1179,7 @@ export async function createP8V3ProductionOperations({
     async preflight() {
       const appTree = runChecked(run, "application tree", "git", ["-C", source, "rev-parse", `${P8V3.applicationCommit}^{tree}`], { code: "preflight_drift" }).stdout.trim();
       if (appTree !== P8V3.applicationTree) fail("application tree drifted", "preflight_drift");
+      const gemini = await verifyP8V3FGemini({ apiKey: geminiKey, fetchImpl });
       const cliVersion = runChecked(run, "Supabase CLI version", cli, ["--version"], { code: "preflight_drift" }).stdout.trim();
       if (cliVersion !== CLI_VERSION) fail("Supabase CLI version drifted", "preflight_drift");
       for (const spec of Object.values(P8V3_IMAGES)) validateArchive(join(candidates, spec.file), spec);
@@ -1001,6 +1187,7 @@ export async function createP8V3ProductionOperations({
       if (sha256(readFileSync(join(source, "supabase/migrations/077_platform_manual_whatsapp_send_worker.sql"))) !== "4a271dea4a3b5f1570c57cb4b094a13a057ca3cacc38b1d449a4925757299314") fail("migration 077 drifted", "preflight_drift");
       const ledger = await readLedger(management);
       if (ledger.range !== "001-077" || ledger.count !== 77) fail("production migration ledger drifted", "preflight_drift");
+      const importer = verifyP8V3FImporterBuild({ run, sourceRoot: source });
       const output = remote(run, preflightRemoteScript(), { timeout: 120_000, label: "minimal production preflight", code: "preflight_drift" }).stdout;
       const inventory = output.split("\n").filter((line) => line.split("|").length === 6).join("\n");
       const containers = parseContainerRows(inventory);
@@ -1012,6 +1199,8 @@ export async function createP8V3ProductionOperations({
         waha: { crm_container_id: wahaCrm.container_id, crm_image_id: wahaCrm.image_id, inbox_container_id: wahaInbox.container_id, inbox_image_id: wahaInbox.image_id, unchanged: false },
         migration: ledger,
         archives: Object.values(P8V3_IMAGES).map(({ name, sha256: archiveSha256, size, index, platform }) => ({ name, sha256: archiveSha256, size, index, platform })),
+        gemini,
+        importer,
         compose_validated: true,
         prerequisites_verified: output.includes("prerequisites_verified\n"),
       };
@@ -1027,14 +1216,21 @@ export async function createP8V3ProductionOperations({
       const inventory = output.split("\n").filter((line) => line.split("|").length === 6).join("\n");
       const containers = parseContainerRows(inventory);
       if (JSON.stringify(containers) !== JSON.stringify(snapshot.containers)) fail("production containers changed after preflight", "preflight_drift");
+      const importer = buildImporterArtifact(run, source);
+      try {
+        if (importer.sha256 !== snapshot.importer.sha256 || importer.size !== snapshot.importer.size) fail("P8V3F importer differs from preflight", "preflight_drift");
+      } finally { rmSync(importer.root, { recursive: true, force: true }); }
+      state.expectedImporter = structuredClone(snapshot.importer);
       state.preState = containers;
       return { status: "verified" };
     },
 
     async configure({ deadlineAt }) {
-      const output = remote(run, configurationInstallScript(), { timeout: remaining(deadlineAt), label: "P8V3 configuration install", code: "configuration_failed" }).stdout.trim().split("\n").at(-1);
+      const installed = run("ssh", ["-o", "BatchMode=yes", HERMES, "bash", "-seu", "-c", shellQuote(configurationInstallScript())], { input: `${geminiKey}\n`, timeout: remaining(deadlineAt), label: "P8V3 configuration install", code: "configuration_failed" });
+      if (installed.stderr !== "" || installed.stdout.includes(geminiKey) || installed.stderr.includes(geminiKey)) fail("P8V3F configuration output is unsafe", "configuration_failed");
+      const output = installed.stdout.trim().split("\n").at(-1);
       const record = parseJson(output, "configuration result");
-      exactKeys(record, ["status", "installed_names", "backup_sha256", "worker_file_verified"], "configuration result");
+      exactKeys(record, ["status", "installed_names", "backup_sha256", "lead_file_verified", "worker_file_verified"], "configuration result");
       return record;
     },
 
@@ -1063,7 +1259,7 @@ export async function createP8V3ProductionOperations({
       const accountId = await resolveAccount();
       await ensureStaged(deadlineAt);
       if (!state.importerId) {
-        const created = remote(run, importerCreateScript(state.importerOwner), { timeout: remaining(deadlineAt), label: "knowledge importer creation", code: "knowledge_failed" }).stdout.trim();
+        const created = remote(run, importerCreateScript(state.importerOwner, state.expectedImporter), { timeout: remaining(deadlineAt), label: "knowledge importer creation", code: "knowledge_failed" }).stdout.trim();
         if (!SHA64.test(created)) fail("knowledge importer identity drifted", "knowledge_failed");
         state.importerId = created;
       }
@@ -1073,6 +1269,7 @@ export async function createP8V3ProductionOperations({
       for (const file of [item.bundleName, item.manifestName]) runChecked(run, `${audience} knowledge transfer`, "scp", [join(item.root, file), `${HERMES}:${KNOWLEDGE_REMOTE}/${file}`], { timeout: remaining(deadlineAt), code: "knowledge_failed" });
       remote(run, knowledgeCopyScript(item), { timeout: remaining(deadlineAt), label: `${audience} knowledge copy`, code: "knowledge_failed" });
       const imported = run("ssh", ["-o", "BatchMode=yes", HERMES, "bash", "-seu", "-c", shellQuote(importCommand(item))], { input: `${accountId}\n`, timeout: remaining(deadlineAt), label: `${audience} knowledge import`, code: "knowledge_failed" });
+      if (imported.stderr !== "" || imported.stdout.includes(geminiKey) || imported.stderr.includes(geminiKey)) fail(`${audience} importer output is unsafe`, "knowledge_failed");
       const safe = parseJson(imported.stdout.trim().split("\n").at(-1), `${audience} importer result`);
       exactKeys(safe, ["status", "version", "audience", "bundle_sha256", "documents_upserted", "documents_deleted", "chunks_replaced"], "importer result");
       if (safe.status !== "knowledge_import_verified" || safe.version !== 1 || safe.audience !== audience || safe.bundle_sha256 !== item.bundleSha256) fail(`${audience} importer result drifted`, "knowledge_failed");
@@ -1136,7 +1333,7 @@ export async function createP8V3ProductionOperations({
       state.localEvidenceWritten = true;
       const localMetadata = lstatSync(localResultPath);
       if (!localMetadata.isFile() || localMetadata.isSymbolicLink() || (localMetadata.mode & 0o777) !== 0o600 || sha256(readFileSync(localResultPath)) !== hash) fail("local result publication failed", "evidence_publication_failed");
-      const incoming = `/opt/evo-release-evidence/.p8v3e-result-${randomBytes(12).toString("hex")}`;
+      const incoming = `/opt/evo-release-evidence/.p8v3f-result-${randomBytes(12).toString("hex")}`;
       state.evidenceIncoming = incoming;
       runChecked(run, "result transfer", "scp", [localResultPath, `${HERMES}:${incoming}`], { timeout: 120_000, code: "evidence_publication_failed" });
       remote(run, atomicEvidenceScript(incoming, hash), { timeout: 120_000, label: "result publication", code: "evidence_publication_failed" });

@@ -3740,3 +3740,58 @@ The retry advances to release `2026-08-20.p8v3e.1`, version
 authorization `EXECUTE-P8V3E-2026-08-20.P8V3E.1`. The P8V3D token is consumed.
 Candidate bytes, frozen knowledge, migration no-op, ordered deployments,
 rollback and provider/customer-effect boundaries remain unchanged.
+
+### P8V3F — verified process-only Gemini key retry
+
+The owner-authorized P8V3E attempt is immutable failed-attempt evidence with
+result SHA-256
+`328dd56efc616b1492b42c399651733186a5167e8214798b8e21eef5f60fa185`.
+It stopped at the client knowledge embedding request with Gemini HTTP `429
+RESOURCE_EXHAUSTED`. The atomic knowledge sync RPC was not called: live
+read-only reconciliation proves zero client revisions/documents/chunks, the
+existing two internal documents/26 chunks unchanged, migration ledger
+`001-077`, restored configuration, no application/WAHA recreation, no amoCRM
+write, no WhatsApp send and no staff draft call. The P8V3E release, rollback
+and evidence roots remain immutable and its authorization is consumed.
+
+P8V3F changes only the knowledge-import helper, Gemini credential delivery and
+its readiness proof. The
+owner-approved working key is accepted from exact process-only environment
+name `GEMINI_API_KEY` through the encrypted Personal Secrets Vault. It is
+forbidden in Git, CLI arguments, local plaintext files, stdout, stderr and
+retained evidence. The final short preflight makes exactly one neutral
+`gemini-embedding-2` request with output dimension `1536` and one neutral
+structured `gemini-3.5-flash` request. Neither request contains knowledge,
+customer, applicant or staff content; neither retries. Only closed boolean
+success evidence is retained. Any HTTP, timeout, response-shape or vector
+drift blocks before production effects.
+
+The reviewed import helper removes the unsupported Embedding 2 `taskType`
+field and formats every document chunk as exact `title: {title} | text:
+{content}`, as required by current official Embedding 2 retrieval guidance.
+The final execution checkout builds this single bundled importer twice;
+byte-identical SHA-256/size become part of preflight evidence. Execution
+rebuilds the same artifact, requires exact equality to preflight, transfers it
+to the new release root, verifies its bytes in the importer container, and
+uses only that immutable helper for both audience imports. The three deployed
+application images remain unchanged.
+
+During configuration the same process-only key is delivered over fixed SSH
+stdin, never argv, and atomically replaces both `GEMINI_API_KEY` in the Lead
+Agent root-only environment and `EVO_PLATFORM_GEMINI_API_KEY` in the CRM
+root-only environment. Exact pre-change bytes for both files and the existing
+manual-worker prestate are retained under the new rollback root. Any later
+failure restores and read-back verifies both original environment files plus
+the worker prestate before reporting rollback success. On rollout success the
+new key remains only in those root-owned mode-0600 production secret files.
+
+Writable identities advance collision-free to release
+`2026-08-20.p8v3f.1`, version `p8v3f-0f1454d0-20260820`, importer
+`evo-p8v3f-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3f-20260820.1`, result
+`p8v3f-rollout-result.json`, preflight `p8v3f-production-preflight/v1`, and
+authorization `EXECUTE-P8V3F-2026-08-20.P8V3F.1`. Issue #331, one independent
+review, one final CI, one fresh minimal preflight and the new exact owner token
+remain mandatory. All application/image, frozen 11-client/291-internal
+knowledge, migration-no-op, ordered deployment, provider/customer-send,
+rollback and privacy boundaries are otherwise unchanged.

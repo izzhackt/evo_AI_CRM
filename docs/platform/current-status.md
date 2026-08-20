@@ -18,7 +18,7 @@
 - Migration ledger in repository: contiguous `001-077`
 - Previous accepted base for the P8D block: `33d745121208bdaf30fceeda25e9c87ab346db8e`
 - Active plan block: `P8V v1 production closure`, `docs/platform/p8v-v1-production-closure.md`
-- Active implementation block: P8V3 controlled first-version production rollout (issues #287 и #314) — выполняется, не завершён
+- Active implementation block: P8V3 controlled first-version production rollout (issues #287 и #314) — выполняется, не завершён; попытка P8V3D неудачна, идёт P8V3E
 - Requirement/evidence matrix: `docs/specs/EVO_PLATFORM_TZ_TRACEABILITY.md`
 - Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
@@ -45,8 +45,8 @@
 | Канонические домены | `crm.evoadmissions.com` и `inbox.evoadmissions.com` не резолвятся | Публичный доступ только через sslip.io fallback |
 | Fallback-адреса | `https://evo-crm.72.62.119.112.sslip.io` и `https://evo-inbox.72.62.119.112.sslip.io` отвечают HTTP 200 на `/login` | Web-слой доступен; бизнес-путь не подтверждён |
 | ACME | Повторные попытки выпуска сертификатов для отложенных доменов остановлены PR #311 | Шум и риск rate-limit устранены |
-| Managed Supabase | Применены миграции `001-076`, ровно одна `077` ожидает применения | Схема production на одну миграцию позади репозитория |
-| PostgREST | Схема `platform` на момент осмотра не была доступна через PostgREST; PR #308 и последующие исправления готовят подключение | Web-путь Platform в production ещё не читает данные |
+| Managed Supabase | Миграция `077` применена 2026-08-20; реестр production ordered contiguous `001-077`, count `77` | Схема production совпадает с репозиторием |
+| PostgREST | Схема `platform` на момент осмотра 2026-08-18 не была доступна; PR #308 и последующие исправления подключили её, production-адаптер читает через `Accept-Profile: public` | Подключение выполнено; полный web-путь не доказан |
 | amoCRM | Указаны base URL и путь token-файла, сам token-файл отсутствует; интеграция в companion-базе не настроена | Реальная привязка контакта и сделки заблокирована |
 | Gemini | Инвентарь моделей доступен по существующему ключу Lead Agent, включает `gemini-3.5-flash` | Провайдер достижим; ни одного production-вызова не выполнено |
 | WAHA | Сессии `crm_primary` и `china_curator` в состоянии `WORKING`, webhook только у `crm_primary` | Приём возможен; образы и сессии остаются границей сохранения |
@@ -56,6 +56,13 @@
 
 Развёртывание текущего root-кода до готовности Platform Auth заменило бы
 работающий legacy-вход неработающим. Это зафиксировано как явный риск P8V.
+
+Состояние rollout на 2026-08-20: попытка P8V3D завершилась неудачей и её
+результат сохранён неизменным; выполняется повторная попытка P8V3E. Перед ней
+требуется read-only сверка, доказывающая тот же реестр `001-077`, отсутствие
+клиентской ревизии пакета знаний, ровно два внутренних документа и 26 внутренних
+chunks, восстановленную конфигурацию и те же пять здоровых контейнеров с нулевым
+счётчиком перезапусков.
 
 ## Короткий вывод
 

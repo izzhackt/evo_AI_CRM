@@ -3716,3 +3716,27 @@ The collision-free runtime identity is release `2026-08-20.p8v3d.1`, version
 `p8v3d-rollout-result.json`. After reviewed merge, final CI and one fresh
 preflight, the only valid new owner authorization is
 `EXECUTE-P8V3D-2026-08-20.P8V3D.1`. The old P8V3 token is consumed.
+
+### P8V3E — public knowledge schema and idempotent pre-stage cleanup
+
+The P8V3D execution stopped at `client_import` with immutable result SHA-256
+`d6c7174de9a56d53e9c30d498a1423cb3ad698869c1845155934d826fa90cfc3`.
+Read-only reconciliation proves no client revision/document/chunk was written,
+configuration was restored, staging/importer are absent, the migration ledger
+remains exact `001-077`, and all five production containers are unchanged and
+healthy with restart count zero.
+
+P8V3E corrects only two coupled seams. Account resolution and bundle-revision
+verification use exact PostgREST schema `public`, matching migrations 029 and
+074. Cleanup treats an absent not-yet-created staging directory/importer as
+verified clean, while continuing to block every unsafe replacement, remnant or
+removal failure. Behavioral tests bind the exact request profile and the
+pre-stage failure cleanup.
+
+The retry advances to release `2026-08-20.p8v3e.1`, version
+`p8v3e-0f1454d0-20260820`, importer `evo-p8v3e-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3e-20260820.1`, result
+`p8v3e-rollout-result.json`, preflight `p8v3e-production-preflight/v1`, and
+authorization `EXECUTE-P8V3E-2026-08-20.P8V3E.1`. The P8V3D token is consumed.
+Candidate bytes, frozen knowledge, migration no-op, ordered deployments,
+rollback and provider/customer-effect boundaries remain unchanged.

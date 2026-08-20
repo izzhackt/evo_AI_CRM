@@ -995,3 +995,40 @@ until the implementation PR is independently approved, merged, final current
 main CI is green and a fresh preflight is approved. All P8V3 knowledge,
 privacy, provider, deployment, rollback and real-post-deploy V4 proof
 boundaries remain unchanged.
+
+## P8V3E public knowledge-schema and cleanup contract
+
+P8V3E preserves the immutable P8V3D failed result at local/remote SHA-256
+`d6c7174de9a56d53e9c30d498a1423cb3ad698869c1845155934d826fa90cfc3`.
+Before another attempt, read-only reconciliation must prove exact ledger
+`001-077`/count `77`, no client bundle revision/document/chunk, exactly the
+pre-existing two internal documents/26 internal chunks, restored configuration,
+absent P8V3D release root/importer, and the same five healthy restart-zero
+container/image identities. A mismatch blocks.
+
+The production adapter must use `Accept-Profile: public` for both reads below:
+
+- singular active `ai_configs.account_id` resolution;
+- account/audience-bound `ai_knowledge_bundle_revisions` verification.
+
+No fallback profile, implicit schema or cross-schema retry is allowed. The
+request path, query cardinality and safe result projection remain closed.
+This follows the official PostgREST schema-selection contract for `GET`/`HEAD`:
+<https://postgrest.org/en/v11/references/api/schemas.html#get-head>.
+
+Knowledge cleanup must first inventory the exact importer name and exact
+knowledge-staging path. If neither was created, their proven absence is a
+successful cleanup. If the directory exists, it must be a real non-symlink
+directory beneath the exact release root; only the reviewed bundle/manifest
+files may be removed, then directory emptiness and importer absence are proved.
+Any symlink, non-directory replacement, unexpected entry, foreign importer,
+failed removal or non-empty result is blocking. Local UUID-bearing build roots
+remain finally-removed and absence-verified.
+
+The retry identities are release `2026-08-20.p8v3e.1`, version
+`p8v3e-0f1454d0-20260820`, importer `evo-p8v3e-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3e-20260820.1`, result
+`p8v3e-rollout-result.json`, preflight `p8v3e-production-preflight/v1`, and
+authorization `EXECUTE-P8V3E-2026-08-20.P8V3E.1`. The consumed P8V3D token is
+invalid. A reviewed merge, final-tree CI, fresh minimal preflight and new owner
+authorization are mandatory before any effect.

@@ -16,7 +16,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import { P8V3 } from "./p8v3-rollout.mjs";
 import { verifyPortableArchive } from "./p8b3-portable-image-identity.mjs";
@@ -28,17 +28,17 @@ import {
 const HERMES = "hermes-vps";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
 const PROJECT_URL = `https://${PROJECT_REF}.supabase.co`;
-const RELEASE_ID = "2026-08-20.p8v3d.1";
-const RELEASE_VERSION = "p8v3d-0f1454d0-20260820";
+const RELEASE_ID = "2026-08-20.p8v3e.1";
+const RELEASE_VERSION = "p8v3e-0f1454d0-20260820";
 const RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/${RELEASE_ID}`;
 const REMOTE_REPO = `${RELEASE_ROOT}/repo`;
 const REMOTE_ARCHIVES = `${RELEASE_ROOT}/archives`;
 const KNOWLEDGE_REMOTE = `${RELEASE_ROOT}/knowledge-incoming`;
-const IMPORTER = "evo-p8v3d-knowledge-import";
+const IMPORTER = "evo-p8v3e-knowledge-import";
 const CONFIG_ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const P8V2D_ROLLBACK_ROOT = "/opt/evo-release-evidence/p8v2d-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818";
-const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3d-20260820.1";
-const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3d-rollout-result.json`;
+const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3e-20260820.1";
+const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3e-rollout-result.json`;
 const WAHA_IMAGE = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const CLIENT_VAULT = "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Клиентская база знаний ЭВО";
 const INTERNAL_VAULT = "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ";
@@ -294,7 +294,7 @@ function verifyOrbStack(run) {
 }
 
 function validateCandidateCompose(run, source) {
-  const temp = mkdtempSync(join(tmpdir(), "evo-p8v3d-compose-"));
+  const temp = mkdtempSync(join(tmpdir(), "evo-p8v3e-compose-"));
   try {
     const archive = join(temp, "repo.tar");
     const repo = join(temp, "repo");
@@ -309,9 +309,9 @@ function validateCandidateCompose(run, source) {
     }));
     writeFileSync(envPaths.inbox, [
       "P8V3_COMPOSE_VALIDATION=1",
-      "NEXT_PUBLIC_SUPABASE_URL=https://p8v3d.invalid",
-      "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3d-compose-validation-not-a-key",
-      "NEXT_PUBLIC_SITE_URL=https://p8v3d.invalid",
+      "NEXT_PUBLIC_SUPABASE_URL=https://p8v3e.invalid",
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3e-compose-validation-not-a-key",
+      "NEXT_PUBLIC_SITE_URL=https://p8v3e.invalid",
       "",
     ].join("\n"), { mode: 0o600 });
     chmodSync(envPaths.inbox, 0o600);
@@ -408,6 +408,20 @@ async function boundedRestJson(response, label) {
   return parseJson(bytes.toString("utf8"), label);
 }
 
+export function createP8V3PublicRestReader({ key, fetchImpl = fetch, projectUrl = PROJECT_URL }) {
+  if (typeof key !== "string" || key.length < 1 || typeof fetchImpl !== "function" || typeof projectUrl !== "string" || !projectUrl.startsWith("https://")) {
+    fail("P8V3 REST reader configuration drifted", "knowledge_failed");
+  }
+  return async function readPublicRest(path) {
+    if (typeof path !== "string" || !path.startsWith("/rest/v1/")) fail("P8V3 REST path drifted", "knowledge_failed");
+    return boundedRestJson(await fetchImpl(`${projectUrl}${path}`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Accept-Profile": "public" },
+      redirect: "error",
+      signal: AbortSignal.timeout(15_000),
+    }), path);
+  };
+}
+
 export function configurationInstallScript() {
   return String.raw`
 python3 - <<'PY'
@@ -433,7 +447,7 @@ def parse(path):
         out[key]=value
     return out
 def write_atomic(path,values):
-    fd,tmp=tempfile.mkstemp(prefix=path.name+'.p8v3d-',dir=path.parent)
+    fd,tmp=tempfile.mkstemp(prefix=path.name+'.p8v3e-',dir=path.parent)
     try:
         with os.fdopen(fd,'w') as handle:
             for key in sorted(values): handle.write(f'{key}={values[key]}\n')
@@ -565,7 +579,7 @@ function buildAudience(run, sourceRoot, accountId, audience, vault, localRoots) 
   const audit = parseJson(runChecked(run, `${audience} vault audit`, "python3", [join(sourceRoot, "scripts/p8v2e-vault-audit.py"), "--vault", vault, "--audience", audience], { cwd: sourceRoot, timeout: 120_000, code: "knowledge_failed" }).stdout.trim(), `${audience} vault audit`);
   if (audit.status !== "verified" || audit.document_count !== expectedCount || audit.source_set_sha256 !== expectedSourceSet) fail(`${audience} frozen vault drifted`, "knowledge_failed");
   const roots = [0, 1].map(() => {
-    const root = mkdtempSync(join(tmpdir(), `evo-p8v3d-${audience}-`));
+    const root = mkdtempSync(join(tmpdir(), `evo-p8v3e-${audience}-`));
     chmodSync(root, 0o700);
     localRoots.push(root);
     return root;
@@ -589,14 +603,29 @@ function buildAudience(run, sourceRoot, accountId, audience, vault, localRoots) 
   return { audience, root: roots[0], bundleName, manifestName, documentCount: expectedCount, bundleSha256: sha256(bundle), manifestSha256: sha256(manifest) };
 }
 
-function importerCreateScript() {
+function importerCreateScript(owner) {
   return String.raw`
-if docker container ls -a --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null; then exit 2; fi
-docker create --name '${IMPORTER}' --env-file /opt/evo-crm/.env.production --entrypoint /bin/sh '${P8V3_IMAGES.crm.composeTag}' -c 'sleep 7200' >/dev/null
-docker start '${IMPORTER}' >/dev/null
-[[ "$(docker inspect '${IMPORTER}' --format '{{.Image}}')" == '${P8V3_IMAGES.crm.platform}' ]]
-[[ "$(docker inspect '${IMPORTER}' --format '{{.State.Running}}')" == 'true' ]]
-docker exec '${IMPORTER}' node .next/platform-knowledge-import.mjs --verify-runtime | grep -Fx '{"status":"knowledge_import_runtime_verified","version":1}' >/dev/null
+created=''
+cleanup_failed_create() {
+  status=$?
+  if [[ "$status" -ne 0 && "$created" =~ ^[0-9a-f]{64}$ ]]; then
+    actual_owner="$(docker inspect "$created" --format '{{index .Config.Labels "evo.p8v3.importer-owner"}}' 2>/dev/null || true)"
+    if [[ "$actual_owner" == '${owner}' ]]; then docker rm -f "$created" >/dev/null 2>&1 || true; fi
+  fi
+  exit "$status"
+}
+trap cleanup_failed_create EXIT
+if docker container ls -a --no-trunc --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null; then exit 2; fi
+created="$(docker create --name '${IMPORTER}' --label 'evo.p8v3.importer-owner=${owner}' --env-file /opt/evo-crm/.env.production --entrypoint /bin/sh '${P8V3_IMAGES.crm.composeTag}' -c 'sleep 7200')"
+[[ "$created" =~ ^[0-9a-f]{64}$ ]]
+docker start "$created" >/dev/null
+[[ "$(docker inspect "$created" --format '{{.Name}}')" == '/${IMPORTER}' ]]
+[[ "$(docker inspect "$created" --format '{{.Image}}')" == '${P8V3_IMAGES.crm.platform}' ]]
+[[ "$(docker inspect "$created" --format '{{index .Config.Labels "evo.p8v3.importer-owner"}}')" == '${owner}' ]]
+[[ "$(docker inspect "$created" --format '{{.State.Running}}')" == 'true' ]]
+docker exec "$created" node .next/platform-knowledge-import.mjs --verify-runtime | grep -Fx '{"status":"knowledge_import_runtime_verified","version":1}' >/dev/null
+trap - EXIT
+printf '%s\n' "$created"
 `;
 }
 
@@ -620,14 +649,56 @@ docker exec '${IMPORTER}' node .next/platform-knowledge-import.mjs --audience '$
 `;
 }
 
-function knowledgeCleanupScript() {
+function knowledgeCleanupScript(owner, { releaseRoot = RELEASE_ROOT, knowledgeRemote = KNOWLEDGE_REMOTE } = {}) {
   return String.raw`
 set +e
 errors=0
-if docker container ls -a --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null; then docker rm -f '${IMPORTER}' >/dev/null || errors=1; fi
-find '${KNOWLEDGE_REMOTE}' -mindepth 1 -maxdepth 1 -type f -delete || errors=1
-[[ -z "$(find '${KNOWLEDGE_REMOTE}' -mindepth 1 -maxdepth 1 -print -quit)" ]] || errors=1
-docker container ls -a --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null && errors=1
+inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || exit 1
+owned="$(docker container ls -a --no-trunc --filter 'label=evo.p8v3.importer-owner=${owner}' --format '{{.ID}}|{{.Names}}')" || exit 1
+target="$(printf '%s\n' "$inventory" | awk -F '|' '$2 == "${IMPORTER}"')"
+if [[ -n "$owned" ]]; then
+  [[ "$(printf '%s\n' "$owned" | sed '/^$/d' | wc -l | tr -d ' ')" == '1' ]] || errors=1
+  owned_id="$(printf '%s\n' "$owned" | cut -d '|' -f 1)"
+  owned_name="$(printf '%s\n' "$owned" | cut -d '|' -f 2)"
+  inspected_name="$(docker inspect "$owned_id" --format '{{.Name}}' 2>/dev/null)"
+  if [[ "$owned_id" =~ ^[0-9a-f]{64}$ \
+    && "$(docker inspect "$owned_id" --format '{{.Image}}' 2>/dev/null)" == '${P8V3_IMAGES.crm.platform}' \
+    && "$(docker inspect "$owned_id" --format '{{index .Config.Labels "evo.p8v3.importer-owner"}}' 2>/dev/null)" == '${owner}' \
+    && "$owned_name" == '${IMPORTER}' \
+    && "$inspected_name" == '/${IMPORTER}' ]]; then
+    docker rm -f "$owned_id" >/dev/null || errors=1
+  else
+    errors=1
+  fi
+elif [[ -n "$target" ]]; then
+  errors=1
+fi
+python3 - <<'PY' || errors=1
+import os, stat
+from pathlib import Path
+release = Path('${releaseRoot}')
+knowledge = Path('${knowledgeRemote}')
+allowed = {
+    'evo-knowledge-client.json',
+    'evo-knowledge-client.sha256.json',
+    'evo-knowledge-internal.json',
+    'evo-knowledge-internal.sha256.json',
+}
+if knowledge.is_symlink(): raise SystemExit(2)
+if not knowledge.exists(): raise SystemExit(0)
+if release.is_symlink() or not release.is_dir(): raise SystemExit(2)
+if not knowledge.is_dir() or knowledge.resolve().parent != release.resolve(): raise SystemExit(2)
+entries = list(knowledge.iterdir())
+for entry in entries:
+    metadata = entry.lstat()
+    if entry.name not in allowed or not stat.S_ISREG(metadata.st_mode) or entry.is_symlink(): raise SystemExit(2)
+for entry in entries: entry.unlink()
+if any(knowledge.iterdir()): raise SystemExit(2)
+PY
+final_inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || exit 1
+final_owned="$(docker container ls -a --no-trunc --filter 'label=evo.p8v3.importer-owner=${owner}' --format '{{.ID}}|{{.Names}}')" || exit 1
+[[ -z "$final_owned" ]] || errors=1
+printf '%s\n' "$final_inventory" | awk -F '|' '$2 == "${IMPORTER}" { found=1 } END { exit found ? 0 : 1 }' && errors=1
 exit "$errors"
 `;
 }
@@ -808,7 +879,7 @@ mv '${incoming}' '${REMOTE_RESULT}'
 [[ "$(stat -c '%U:%G %a' '${EVIDENCE_ROOT}')" == 'root:root 700' ]]
 [[ "$(stat -c '%U:%G %a' '${REMOTE_RESULT}')" == 'root:root 600' ]]
 [[ "$(sha256sum '${REMOTE_RESULT}' | awk '{print $1}')" == '${hash}' ]]
-[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3d-rollout-result.json' ]]
+[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3e-rollout-result.json' ]]
 `;
 }
 
@@ -821,15 +892,23 @@ export function renderP8V3ShellContractsForTest() {
     stageFinalize: stageFinalizeScript(),
     loadImages: loadImagesScript(),
     importerCreate: importerCreateScript(),
-    knowledgeCleanup: knowledgeCleanupScript(),
+    knowledgeCleanup: knowledgeCleanupScript("a".repeat(32)),
     deployCrm: deployScript("crm"),
     deployInbox: deployScript("inbox"),
     deployLead: deployScript("lead_agent"),
     rollbackCrm: rollbackScript("crm"),
     rollbackInbox: rollbackScript("inbox"),
     rollbackLead: rollbackScript("lead_agent"),
-    evidence: atomicEvidenceScript("/opt/evo-release-evidence/.p8v3d-test-incoming", "a".repeat(64)),
+    evidence: atomicEvidenceScript("/opt/evo-release-evidence/.p8v3e-test-incoming", "a".repeat(64)),
   });
+}
+
+export function renderP8V3KnowledgeCleanupForTest({ releaseRoot, knowledgeRemote }) {
+  const safePath = /^\/[A-Za-z0-9._/-]+$/;
+  if (!safePath.test(releaseRoot) || !safePath.test(knowledgeRemote) || dirname(knowledgeRemote) !== releaseRoot) {
+    fail("P8V3 cleanup test path drifted", "knowledge_failed");
+  }
+  return knowledgeCleanupScript("a".repeat(32), { releaseRoot, knowledgeRemote });
 }
 
 export function validateP8V3EvidencePrivacy(raw) {
@@ -862,7 +941,8 @@ export async function createP8V3ProductionOperations({
   const state = {
     accountId: null,
     staged: false,
-    importerCreated: false,
+    importerId: null,
+    importerOwner: randomBytes(16).toString("hex"),
     localRoots: [],
     built: new Map(),
     preState: null,
@@ -871,14 +951,7 @@ export async function createP8V3ProductionOperations({
     localEvidenceWritten: false,
   };
 
-  async function rest(path) {
-    const key = environment.EVO_P8V3_SUPABASE_SERVICE_ROLE_KEY;
-    return boundedRestJson(await fetchImpl(`${PROJECT_URL}${path}`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}`, "Accept-Profile": "platform" },
-      redirect: "error",
-      signal: AbortSignal.timeout(15_000),
-    }), path);
-  }
+  const rest = createP8V3PublicRestReader({ key: environment.EVO_P8V3_SUPABASE_SERVICE_ROLE_KEY, fetchImpl });
 
   async function resolveAccount() {
     if (state.accountId) return state.accountId;
@@ -892,7 +965,7 @@ export async function createP8V3ProductionOperations({
     if (state.staged) return;
     for (const spec of Object.values(P8V3_IMAGES)) validateArchive(join(candidates, spec.file), spec);
     remote(run, stagePrepareScript(), { timeout: remaining(deadlineAt), label: "P8V3 staging root", code: "knowledge_failed" });
-    const temp = mkdtempSync(join(tmpdir(), "evo-p8v3d-repo-"));
+    const temp = mkdtempSync(join(tmpdir(), "evo-p8v3e-repo-"));
     try {
       const archive = join(temp, "repo.tar");
       runChecked(run, "application archive", "git", ["-C", source, "archive", "--format=tar", `--output=${archive}`, P8V3.applicationCommit], { timeout: 120_000, code: "knowledge_failed" });
@@ -989,9 +1062,10 @@ export async function createP8V3ProductionOperations({
     async importKnowledge(audience, { deadlineAt }) {
       const accountId = await resolveAccount();
       await ensureStaged(deadlineAt);
-      if (!state.importerCreated) {
-        remote(run, importerCreateScript(), { timeout: remaining(deadlineAt), label: "knowledge importer creation", code: "knowledge_failed" });
-        state.importerCreated = true;
+      if (!state.importerId) {
+        const created = remote(run, importerCreateScript(state.importerOwner), { timeout: remaining(deadlineAt), label: "knowledge importer creation", code: "knowledge_failed" }).stdout.trim();
+        if (!SHA64.test(created)) fail("knowledge importer identity drifted", "knowledge_failed");
+        state.importerId = created;
       }
       const vault = audience === "client" ? CLIENT_VAULT : INTERNAL_VAULT;
       const item = buildAudience(run, source, accountId, audience, vault, state.localRoots);
@@ -1011,11 +1085,11 @@ export async function createP8V3ProductionOperations({
 
     async cleanupKnowledge() {
       let error;
-      try { remote(run, knowledgeCleanupScript(), { timeout: 120_000, label: "knowledge cleanup", code: "knowledge_failed" }); } catch (caught) { error = caught; }
+      try { remote(run, knowledgeCleanupScript(state.importerOwner), { timeout: 120_000, label: "knowledge cleanup", code: "knowledge_failed" }); } catch (caught) { error = caught; }
       for (const root of state.localRoots.splice(0)) {
         try { rmSync(root, { recursive: true, force: false }); } catch (caught) { error ??= caught; }
       }
-      state.importerCreated = false;
+      state.importerId = null;
       if (error) throw error;
       return { status: "verified" };
     },
@@ -1062,7 +1136,7 @@ export async function createP8V3ProductionOperations({
       state.localEvidenceWritten = true;
       const localMetadata = lstatSync(localResultPath);
       if (!localMetadata.isFile() || localMetadata.isSymbolicLink() || (localMetadata.mode & 0o777) !== 0o600 || sha256(readFileSync(localResultPath)) !== hash) fail("local result publication failed", "evidence_publication_failed");
-      const incoming = `/opt/evo-release-evidence/.p8v3d-result-${randomBytes(12).toString("hex")}`;
+      const incoming = `/opt/evo-release-evidence/.p8v3e-result-${randomBytes(12).toString("hex")}`;
       state.evidenceIncoming = incoming;
       runChecked(run, "result transfer", "scp", [localResultPath, `${HERMES}:${incoming}`], { timeout: 120_000, code: "evidence_publication_failed" });
       remote(run, atomicEvidenceScript(incoming, hash), { timeout: 120_000, label: "result publication", code: "evidence_publication_failed" });

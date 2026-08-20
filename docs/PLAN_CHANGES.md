@@ -9352,3 +9352,46 @@ No P8V3D production action is authorized until this correction is reviewed,
 merged, green on the final current-main tree, and a fresh minimal read-only
 P8V3D preflight is independently approved. The consumed P8V3 authorization
 must never be reused.
+
+## 2026-08-20 — P8V3E public knowledge schema and pre-stage cleanup correction
+
+The owner-authorized P8V3D attempt is immutable failed-attempt evidence at
+SHA-256 `d6c7174de9a56d53e9c30d498a1423cb3ad698869c1845155934d826fa90cfc3`.
+It stopped at `client_import` before staging, knowledge publication or any
+application deployment. Read-only reconciliation proves migration ledger
+`001-077`/count `77`, zero client bundle revisions/documents/chunks, the
+pre-existing internal baseline of two documents and 26 chunks, restored
+configuration, no P8V3D release root or importer, and all five prior production
+containers on their exact healthy restart-zero identities. Effects remain zero
+for knowledge imports, application/WAHA recreation, amoCRM writes, WhatsApp
+sends and staff draft calls. The retained local and Hermes result bytes match
+exactly and are never overwritten or deleted. The P8V3D token is consumed.
+
+The stop has two coupled implementation causes tracked by issue #329. The
+P8V3D REST helper sends `Accept-Profile: platform` while both `ai_configs` and
+`ai_knowledge_bundle_revisions` are defined in `public` by migrations 029 and
+074. Account resolution therefore fails before `ensureStaged`. The failure
+cleanup then invokes `find` on the intentionally absent knowledge-staging
+directory and incorrectly reports cleanup failure.
+
+P8V3E binds account resolution and knowledge-revision verification to exact
+PostgREST schema `public`; no other REST schema changes. Knowledge cleanup is
+idempotent when staging never began: an absent release/knowledge directory and
+absent importer verify as clean, while symlinks, non-directory replacements,
+unexpected entries, importer remnants or removal failures remain blocking.
+Tests must execute both the exact public-profile requests and the absent-before-
+stage cleanup path, plus retain the existing wrong-profile/remnant negatives.
+
+Writable identities advance collision-free to release
+`2026-08-20.p8v3e.1`, version `p8v3e-0f1454d0-20260820`, importer
+`evo-p8v3e-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3e-20260820.1`, result
+`p8v3e-rollout-result.json`, preflight `p8v3e-production-preflight/v1`, and
+authorization `EXECUTE-P8V3E-2026-08-20.P8V3E.1`. All application/image,
+frozen 11-client/291-internal knowledge, migration-no-op, deployment ordering,
+provider/customer-send, rollback and privacy boundaries remain unchanged.
+
+No P8V3E production action is authorized until this single correction is
+reviewed, merged, green on the final tree, followed by one fresh minimal
+read-only preflight and one new owner authorization for deployment plus
+rollback. The consumed P8V3 and P8V3D tokens must never be reused.

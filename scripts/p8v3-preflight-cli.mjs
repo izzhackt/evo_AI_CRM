@@ -39,9 +39,9 @@ try {
     localResultPath: join(outputRoot, "unused-result.json"),
   });
   const result = await runP8V3Preflight({ operations });
-  writeP8V3Preflight(join(outputRoot, "p8v3e-preflight.json"), result);
-  process.stdout.write("p8v3e_preflight_verified\n");
+  writeP8V3Preflight(join(outputRoot, "p8v3f-preflight.json"), result);
+  process.stdout.write("p8v3f_preflight_verified\n");
 } catch (error) {
-  process.stderr.write(`p8v3e_preflight_failed:${error?.code ?? "operation_failed"}\n`);
+  process.stderr.write(`p8v3f_preflight_failed:${error?.code ?? "operation_failed"}\n`);
   process.exitCode = 2;
 }

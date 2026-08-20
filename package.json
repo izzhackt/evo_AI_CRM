@@ -25,7 +25,7 @@
     "test:p8v1": "node --conditions=react-server --experimental-strip-types --test tests/platform-lead-agent-platform-sync.test.mjs tests/platform-manual-send-worker.test.mjs tests/platform-manual-send-sidecar.test.mjs tests/p8v-runtime-harness.test.mjs tests/p8v-v1-core-result.test.mjs",
     "test:p8v2": "node --test tests/p8v2-production-preparation.test.mjs tests/p8v2-production-operations.test.mjs tests/p8v2a-portable-image.test.mjs",
     "p8v2d:prepare": "node scripts/p8v2-production-preparation-cli.mjs",
-    "test:p8v3": "node --test tests/p8v3-rollout.test.mjs",
+    "test:p8v3": "node --conditions=react-server --experimental-strip-types --test tests/p8v3-rollout.test.mjs tests/platform-knowledge-bundle.test.mjs tests/platform-knowledge-import-packaging.test.mjs",
     "p8v3:preflight": "node scripts/p8v3-preflight-cli.mjs",
     "p8v3:rollout": "node scripts/p8v3-rollout-cli.mjs",
     "test:p8v2e": "node --test tests/p8v2e-independent-readiness.test.mjs",

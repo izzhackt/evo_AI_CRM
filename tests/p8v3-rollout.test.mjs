@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -9,10 +10,13 @@ import Ajv2020 from "ajv/dist/2020.js";
 
 import { runP8V3Preflight, validateP8V3Preflight } from "../scripts/p8v3-preflight.mjs";
 import {
+  configurationRestoreScript,
   createP8V3PublicRestReader,
   parseP8V3ContainerRowsForTest,
   renderP8V3KnowledgeCleanupForTest,
   renderP8V3ShellContractsForTest,
+  verifyP8V3FGemini,
+  verifyP8V3FImporterBuild,
   validateCandidateComposeForTest,
   validateP8V3DMigrationReadiness,
   validateP8V3EvidencePrivacy,
@@ -29,6 +33,14 @@ const SHA_C = "c".repeat(64);
 const IMAGE_A = `sha256:${SHA_A}`;
 const IMAGE_B = `sha256:${SHA_B}`;
 const WAHA_IMAGE = `sha256:${SHA_C}`;
+
+function testCredential() {
+  return ["not", "a", "real", "credential"].join("-");
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
 
 function container(name, index, image = IMAGE_A) {
   return {
@@ -59,7 +71,7 @@ function operations(overrides = {}) {
   };
   const execution = { commit: "d".repeat(40), tree: "e".repeat(40), ci_run_id: 123 };
   const preflight = {
-    version: "p8v3e-production-preflight/v1",
+    version: "p8v3f-production-preflight/v1",
     generated_at: "2026-08-20T05:55:00.000Z",
     expires_at: "2026-08-20T06:25:00.000Z",
     execution,
@@ -68,6 +80,8 @@ function operations(overrides = {}) {
     waha,
     migration: { versions: Array.from({ length: 77 }, (_, index) => String(index + 1).padStart(3, "0")), range: "001-077", count: 77 },
     archives: ["crm", "inbox", "lead_agent"].map((name) => ({ name, sha256: SHA_A, size: 1, index: IMAGE_A, platform: IMAGE_B })),
+    gemini: { embedding_verified: true, draft_verified: true },
+    importer: { sha256: SHA_A, size: 1, verified: true },
     compose_validated: true,
     prerequisites_verified: true,
   };
@@ -76,7 +90,7 @@ function operations(overrides = {}) {
     preflight,
     async executionIdentity() { calls.push("executionIdentity"); return execution; },
     async verifyPreflight() { calls.push("verifyPreflight"); return { status: "verified" }; },
-    async configure() { calls.push("configure"); return { status: "verified", installed_names: [...P8V3.requiredConfigurationNames], backup_sha256: SHA_A, worker_file_verified: true }; },
+    async configure() { calls.push("configure"); return { status: "verified", installed_names: [...P8V3.requiredConfigurationNames], backup_sha256: SHA_A, lead_file_verified: true, worker_file_verified: true }; },
     async restoreConfiguration() { calls.push("restoreConfiguration"); return { configuration_restored: true }; },
     async migrate() { calls.push("migrate"); return { status: "verified", before_range: "001-077", before_count: 77, after_range: "001-077", after_count: 77, applied_versions: [] }; },
     async importKnowledge(name) {
@@ -129,6 +143,8 @@ test("P8V3 preflight produces the closed short-lived handoff consumed by rollout
         waha: adapter.preflight.waha,
         migration: adapter.preflight.migration,
         archives: adapter.preflight.archives,
+        gemini: adapter.preflight.gemini,
+        importer: adapter.preflight.importer,
         compose_validated: true,
         prerequisites_verified: true,
       }),
@@ -332,6 +348,181 @@ test("evidence privacy rejects a UUID embedded inside retained JSON", () => {
   assert.doesNotThrow(() => validateP8V3EvidencePrivacy('{"account_bound":true}'));
 });
 
+test("retained SHA-bound P8V3E evidence remains valid under the historical closed shape", () => {
+  const raw = readFileSync(join(process.cwd(), "tests/fixtures/p8v3e-retained-rollout-result.json"));
+  assert.equal(sha256(raw), "328dd56efc616b1492b42c399651733186a5167e8214798b8e21eef5f60fa185");
+  const result = JSON.parse(raw.toString("utf8"));
+  assert.equal(Object.hasOwn(result.configuration, "lead_file_verified"), false);
+  assert.doesNotThrow(() => validateP8V3Result(result));
+  const schema = JSON.parse(readFileSync(join(process.cwd(), "docs/schemas/p8v-v1-rollout-result.schema.json"), "utf8"));
+  const validate = new Ajv2020({ strict: false }).compile(schema);
+  assert.equal(validate(result), true, JSON.stringify(validate.errors));
+});
+
+test("P8V3F Gemini preflight sends two exact no-retry credential-safe requests", async () => {
+  const apiKey = testCredential();
+  const calls = [];
+  const result = await verifyP8V3FGemini({
+    apiKey,
+    async fetchImpl(url, init) {
+      calls.push({ url, init, body: JSON.parse(init.body) });
+      if (url.endsWith("gemini-embedding-2:batchEmbedContents")) {
+        return new Response(JSON.stringify({ embeddings: [{ values: Array.from({ length: 1536 }, () => 0.01) }] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"reply":"READY","handoff":false}' }] } }] }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  assert.deepEqual(result, { embedding_verified: true, draft_verified: true });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].init.headers["x-goog-api-key"], apiKey);
+  assert.equal(calls[0].init.redirect, "error");
+  assert.equal(calls[0].body.requests[0].content.parts[0].text, "title: EVO P8V3F readiness | text: EVO P8V3F readiness probe");
+  assert.equal(Object.hasOwn(calls[0].body.requests[0], "taskType"), false);
+  assert.equal(calls[0].body.requests[0].outputDimensionality, 1536);
+  assert.equal(calls[1].body.generationConfig.maxOutputTokens, 32);
+  assert.equal(calls[1].body.generationConfig.temperature, 0);
+  assert.equal(calls[1].body.generationConfig.candidateCount, 1);
+  assert.equal(calls.some((call) => initContains(call.init.body, apiKey)), false);
+});
+
+test("P8V3F Gemini preflight does not retry quota failure or accept a credential leak", async () => {
+  const apiKey = testCredential();
+  let calls = 0;
+  await assert.rejects(verifyP8V3FGemini({
+    apiKey,
+    async fetchImpl() { calls += 1; return new Response('{"error":"quota"}', { status: 429 }); },
+  }), /failed/);
+  assert.equal(calls, 1);
+  await assert.rejects(verifyP8V3FGemini({
+    apiKey,
+    async fetchImpl() { return new Response(JSON.stringify({ leaked: apiKey }), { status: 200 }); },
+  }), /leaked the credential/);
+});
+
+test("P8V3F Gemini draft probe rejects extra candidates and content parts", async () => {
+  const apiKey = testCredential();
+  for (const draft of [
+    { candidates: [
+      { content: { parts: [{ text: '{"reply":"READY","handoff":false}' }] } },
+      { content: { parts: [{ text: '{"reply":"READY","handoff":false}' }] } },
+    ] },
+    { candidates: [{ content: { parts: [
+      { text: '{"reply":"READY","handoff":false}' },
+      { text: "extra" },
+    ] } }] },
+  ]) {
+    let calls = 0;
+    await assert.rejects(verifyP8V3FGemini({
+      apiKey,
+      async fetchImpl(url) {
+        calls += 1;
+        return url.endsWith("gemini-embedding-2:batchEmbedContents")
+          ? new Response(JSON.stringify({ embeddings: [{ values: Array.from({ length: 1536 }, () => 0.01) }] }), { status: 200 })
+          : new Response(JSON.stringify(draft), { status: 200 });
+      },
+    }), /draft readiness drifted/);
+    assert.equal(calls, 2);
+  }
+});
+
+test("P8V3F importer build is deterministic and bounded", () => {
+  const result = verifyP8V3FImporterBuild({ sourceRoot: process.cwd() });
+  assert.match(result.sha256, /^[0-9a-f]{64}$/);
+  assert.ok(result.size > 0 && result.size <= 4 * 1024 * 1024);
+  assert.equal(result.verified, true);
+});
+
+test("P8V3F importer removes the first temporary root when the second build fails", () => {
+  const prefix = "evo-p8v3f-importer-";
+  const before = readdirSync(tmpdir()).filter((name) => name.startsWith(prefix)).sort();
+  let build = 0;
+  assert.throws(() => verifyP8V3FImporterBuild({
+    sourceRoot: process.cwd(),
+    run(_command, args) {
+      build += 1;
+      if (build === 2) throw new Error("second build failed");
+      const output = args.find((arg) => arg.startsWith("--outfile=")).slice("--outfile=".length);
+      writeFileSync(output, "deterministic importer\n");
+      return { status: 0, stdout: "", stderr: "" };
+    },
+  }), /second build failed/);
+  assert.deepEqual(readdirSync(tmpdir()).filter((name) => name.startsWith(prefix)).sort(), before);
+});
+
+function createConfigurationRollbackFixture(marker = "absent\n") {
+  const fixture = mkdtempSync(join(realpathSync(tmpdir()), "p8v3f-config-restore-"));
+  const crmRoot = join(fixture, "crm");
+  const rollbackRoot = join(fixture, "rollback");
+  mkdirSync(crmRoot, { mode: 0o700 });
+  mkdirSync(rollbackRoot, { mode: 0o700 });
+  for (const [name, bytes] of [
+    ["env.production.before", "old-root\n"],
+    ["env.lead-agent.before", "old-lead\n"],
+    ["worker.prestate", marker],
+  ]) {
+    writeFileSync(join(rollbackRoot, name), bytes, { mode: 0o600 });
+    chmodSync(join(rollbackRoot, name), 0o600);
+  }
+  writeFileSync(join(crmRoot, ".env.production"), "current-root\n", { mode: 0o600 });
+  writeFileSync(join(crmRoot, ".env.lead-agent"), "current-lead\n", { mode: 0o600 });
+  writeFileSync(join(crmRoot, ".env.manual-send-worker"), "current-worker\n", { mode: 0o600 });
+  return { fixture, crmRoot, rollbackRoot };
+}
+
+function runConfigurationRestore(input, expectedUid = process.getuid(), expectedGid = process.getgid()) {
+  return spawnSync("bash", ["-seu"], {
+    input: configurationRestoreScript({ ...input, expectedUid, expectedGid }),
+    encoding: "utf8",
+  });
+}
+
+test("P8V3F configuration restore validates the complete rollback root before mutation", () => {
+  const positive = createConfigurationRollbackFixture();
+  try {
+    const result = runConfigurationRestore(positive);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(readFileSync(join(positive.crmRoot, ".env.production"), "utf8"), "old-root\n");
+    assert.equal(readFileSync(join(positive.crmRoot, ".env.lead-agent"), "utf8"), "old-lead\n");
+    assert.equal(existsSync(join(positive.crmRoot, ".env.manual-send-worker")), false);
+  } finally {
+    rmSync(positive.fixture, { recursive: true, force: true });
+  }
+
+  for (const corrupt of [
+    ({ rollbackRoot }) => chmodSync(rollbackRoot, 0o755),
+    ({ rollbackRoot }) => chmodSync(join(rollbackRoot, "worker.prestate"), 0o644),
+    ({ rollbackRoot }) => {
+      rmSync(join(rollbackRoot, "worker.prestate"));
+      symlinkSync(join(rollbackRoot, "env.production.before"), join(rollbackRoot, "worker.prestate"));
+    },
+  ]) {
+    const state = createConfigurationRollbackFixture();
+    try {
+      corrupt(state);
+      const result = runConfigurationRestore(state);
+      assert.notEqual(result.status, 0);
+      assert.equal(readFileSync(join(state.crmRoot, ".env.production"), "utf8"), "current-root\n");
+      assert.equal(readFileSync(join(state.crmRoot, ".env.lead-agent"), "utf8"), "current-lead\n");
+      assert.equal(readFileSync(join(state.crmRoot, ".env.manual-send-worker"), "utf8"), "current-worker\n");
+    } finally {
+      rmSync(state.fixture, { recursive: true, force: true });
+    }
+  }
+
+  const ownership = createConfigurationRollbackFixture();
+  try {
+    const result = runConfigurationRestore(ownership, process.getuid() + 1, process.getgid());
+    assert.notEqual(result.status, 0);
+    assert.equal(readFileSync(join(ownership.crmRoot, ".env.production"), "utf8"), "current-root\n");
+  } finally {
+    rmSync(ownership.fixture, { recursive: true, force: true });
+  }
+});
+
+function initContains(value, needle) {
+  return typeof value === "string" && value.includes(needle);
+}
+
 test("wrong authorization stops before identity or production access", async () => {
   const adapter = operations();
   await assert.rejects(runP8V3Rollout({ operations: adapter, authorization: "wrong", preflight: adapter.preflight, preflightSha256: SHA_A, now: Date.now }), /exact P8V3 authorization/);
@@ -359,6 +550,10 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.match(source, /for \(const args of commands\) \{\n\s+verifyOrbStack\(run\);\n\s+runChecked\(run, "candidate Compose validation", "docker"/);
   assert.match(source, /verifyPortableArchive\(path, \{ name: spec\.name, index: spec\.index, manifest: spec\.platform \}/);
   assert.match(source, /"-seu", "-c", shellQuote\(importCommand\(item\)\)/);
+  assert.match(source, /"-seu", "-c", shellQuote\(configurationInstallScript\(\)\)/);
+  assert.match(source, /input: `\$\{geminiKey\}\\n`/);
+  assert.match(source, /node '\/tmp\/\$\{IMPORTER_FILE\}'/);
+  assert.doesNotMatch(source, /node \.next\/platform-knowledge-import\.mjs --audience/);
   assert.match(source, /account=sys\.stdin\.readline\(\)\.strip\(\)/);
   assert.doesNotMatch(source, /vault, accountId, audience/);
   assert.match(source, /os\.umask\(0o077\)/);
@@ -391,9 +586,9 @@ test("candidate Compose validation binds a disposable mode-0600 env for every se
         const expected = name === "EVO_INBOX_APP_ENV_FILE"
           ? [
               "P8V3_COMPOSE_VALIDATION=1",
-              "NEXT_PUBLIC_SUPABASE_URL=https://p8v3e.invalid",
-              "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3e-compose-validation-not-a-key",
-              "NEXT_PUBLIC_SITE_URL=https://p8v3e.invalid",
+              "NEXT_PUBLIC_SUPABASE_URL=https://p8v3f.invalid",
+              "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3f-compose-validation-not-a-key",
+              "NEXT_PUBLIC_SITE_URL=https://p8v3f.invalid",
               "",
             ].join("\n")
           : "P8V3_COMPOSE_VALIDATION=1\n";
@@ -484,7 +679,7 @@ test("P8V3E accepts only one closed all-true migration 077 readiness row", () =>
 test("P8V3E knowledge reads execute with the exact public PostgREST profile", async () => {
   const calls = [];
   const read = createP8V3PublicRestReader({
-    key: "process-only-test-key",
+    key: testCredential(),
     projectUrl: "https://example.supabase.co",
     async fetchImpl(url, options) {
       calls.push({ url, options });

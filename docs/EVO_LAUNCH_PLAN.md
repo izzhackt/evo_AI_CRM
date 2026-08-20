@@ -3692,3 +3692,27 @@ The parser remains strict and must reject slash-prefixed or otherwise drifted
 names. All candidate identities, production effects, rollback rules, provider
 boundaries and the exact owner authorization remain unchanged. A fresh
 read-only preflight after reviewed merge and exact-main green CI is mandatory.
+### P8V3D — resume from the forward-only migration-077 boundary
+
+The first P8V3 execution is immutable failed-attempt evidence at SHA-256
+`d38283828f3b2d51c063e85617b6732be7a2a44f4cb00bd36d2aaa8051467db7`.
+Production reconciliation proves migration ledger `001-077`/count `77`, the
+original five containers healthy with restart count zero, restored CRM
+configuration, no release root, no imports and no deployment/provider effects.
+The retained rollback root `/opt/evo-release-rollback/2026-08-20.p8v3.1` is
+preserved byte-for-byte.
+
+P8V3D corrects only the validator/reconciliation seam. A fresh preflight must
+accept exactly `001-077`. The rollout migration step is a read-only verified
+no-op: it revalidates the exact contiguous ledger and migration-077 database
+objects/grants and records before/after `001-077`, count `77`, with no applied
+version. It must not run Supabase link, dry-run, push, SQL, or migration repair.
+All later import, cleanup, deployment, rollback and safety boundaries are the
+same as P8V3.
+
+The collision-free runtime identity is release `2026-08-20.p8v3d.1`, version
+`p8v3d-0f1454d0-20260820`, importer `evo-p8v3d-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3d-20260820.1`, and final result
+`p8v3d-rollout-result.json`. After reviewed merge, final CI and one fresh
+preflight, the only valid new owner authorization is
+`EXECUTE-P8V3D-2026-08-20.P8V3D.1`. The old P8V3 token is consumed.

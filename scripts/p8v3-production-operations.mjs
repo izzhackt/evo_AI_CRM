@@ -23,23 +23,22 @@ import { verifyPortableArchive } from "./p8b3-portable-image-identity.mjs";
 import {
   createManagementClient,
   normalizeMigrationLedger,
-  parseDryRunOutput,
 } from "./p8d4b-supabase-migrations.mjs";
 
 const HERMES = "hermes-vps";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
 const PROJECT_URL = `https://${PROJECT_REF}.supabase.co`;
-const RELEASE_ID = "2026-08-20.p8v3.1";
-const RELEASE_VERSION = "p8v3-0f1454d0-20260820";
+const RELEASE_ID = "2026-08-20.p8v3d.1";
+const RELEASE_VERSION = "p8v3d-0f1454d0-20260820";
 const RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/${RELEASE_ID}`;
 const REMOTE_REPO = `${RELEASE_ROOT}/repo`;
 const REMOTE_ARCHIVES = `${RELEASE_ROOT}/archives`;
 const KNOWLEDGE_REMOTE = `${RELEASE_ROOT}/knowledge-incoming`;
-const IMPORTER = "evo-p8v3-knowledge-import";
+const IMPORTER = "evo-p8v3d-knowledge-import";
 const CONFIG_ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const P8V2D_ROLLBACK_ROOT = "/opt/evo-release-evidence/p8v2d-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818";
-const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3-20260820.1";
-const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3-rollout-result.json`;
+const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3d-20260820.1";
+const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3d-rollout-result.json`;
 const WAHA_IMAGE = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const CLIENT_VAULT = "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Клиентская база знаний ЭВО";
 const INTERNAL_VAULT = "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ";
@@ -198,15 +197,6 @@ function remaining(deadlineAt) {
   return Math.max(1, Math.floor(value));
 }
 
-function safeChildEnvironment(environment) {
-  const child = { ...environment };
-  for (const key of ["DB_PASSWORD", "DIRECT_URL", "EVO_PLATFORM_DB_PASSWORD", "EVO_PLATFORM_DB_URL", "PGPASSWORD", "POSTGRES_PASSWORD", "SUPABASE_DB_PASSWORD"]) {
-    if (child[key]) fail(`${key} is forbidden for PAT-only migration`, "migration_failed");
-    delete child[key];
-  }
-  return child;
-}
-
 function parseContainerRows(text) {
   const rows = text.trim().split("\n").filter(Boolean).map((line) => {
     const parts = line.split("|");
@@ -304,7 +294,7 @@ function verifyOrbStack(run) {
 }
 
 function validateCandidateCompose(run, source) {
-  const temp = mkdtempSync(join(tmpdir(), "evo-p8v3-compose-"));
+  const temp = mkdtempSync(join(tmpdir(), "evo-p8v3d-compose-"));
   try {
     const archive = join(temp, "repo.tar");
     const repo = join(temp, "repo");
@@ -319,9 +309,9 @@ function validateCandidateCompose(run, source) {
     }));
     writeFileSync(envPaths.inbox, [
       "P8V3_COMPOSE_VALIDATION=1",
-      "NEXT_PUBLIC_SUPABASE_URL=https://p8v3.invalid",
-      "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3-compose-validation-not-a-key",
-      "NEXT_PUBLIC_SITE_URL=https://p8v3.invalid",
+      "NEXT_PUBLIC_SUPABASE_URL=https://p8v3d.invalid",
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3d-compose-validation-not-a-key",
+      "NEXT_PUBLIC_SITE_URL=https://p8v3d.invalid",
       "",
     ].join("\n"), { mode: 0o600 });
     chmodSync(envPaths.inbox, 0o600);
@@ -356,9 +346,56 @@ export function validateCandidateComposeForTest(run, source) {
   return validateCandidateCompose(run, source);
 }
 
-async function readLedger(request) {
+const MIGRATION_077_READINESS_SQL = String.raw`select
+  (to_regclass('platform_private.manual_send_provider_bindings') is not null) as table_exists,
+  (to_regprocedure('platform.claim_manual_whatsapp_send(uuid,integer,text,uuid)') is not null) as claim_exists,
+  (to_regprocedure('platform.sync_lead_agent_whatsapp(uuid,uuid,uuid,bigint,bigint,bigint,uuid)') is not null) as sync_exists,
+  (to_regprocedure('platform.finish_manual_whatsapp_send(uuid,uuid,uuid,uuid,platform.durable_work_finish_outcome,text,text,timestamp with time zone,uuid)') is not null) as finish_exists,
+  coalesce(
+    has_function_privilege('service_role', to_regprocedure('platform.claim_manual_whatsapp_send(uuid,integer,text,uuid)'), 'execute')
+    and has_function_privilege('service_role', to_regprocedure('platform.sync_lead_agent_whatsapp(uuid,uuid,uuid,bigint,bigint,bigint,uuid)'), 'execute')
+    and has_function_privilege('service_role', to_regprocedure('platform.finish_manual_whatsapp_send(uuid,uuid,uuid,uuid,platform.durable_work_finish_outcome,text,text,timestamp with time zone,uuid)'), 'execute'),
+    false
+  ) as service_functions_execute,
+  coalesce(
+    not has_function_privilege('anon', to_regprocedure('platform.claim_manual_whatsapp_send(uuid,integer,text,uuid)'), 'execute')
+    and not has_function_privilege('anon', to_regprocedure('platform.sync_lead_agent_whatsapp(uuid,uuid,uuid,bigint,bigint,bigint,uuid)'), 'execute')
+    and not has_function_privilege('anon', to_regprocedure('platform.finish_manual_whatsapp_send(uuid,uuid,uuid,uuid,platform.durable_work_finish_outcome,text,text,timestamp with time zone,uuid)'), 'execute'),
+    false
+  ) as anon_functions_denied,
+  coalesce(
+    not has_function_privilege('authenticated', to_regprocedure('platform.claim_manual_whatsapp_send(uuid,integer,text,uuid)'), 'execute')
+    and not has_function_privilege('authenticated', to_regprocedure('platform.sync_lead_agent_whatsapp(uuid,uuid,uuid,bigint,bigint,bigint,uuid)'), 'execute')
+    and not has_function_privilege('authenticated', to_regprocedure('platform.finish_manual_whatsapp_send(uuid,uuid,uuid,uuid,platform.durable_work_finish_outcome,text,text,timestamp with time zone,uuid)'), 'execute'),
+    false
+  ) as authenticated_functions_denied,
+  coalesce(not has_table_privilege('service_role', to_regclass('platform_private.manual_send_provider_bindings'), 'select,insert,update,delete,truncate,references,trigger'), false) as service_table_denied,
+  coalesce(not has_table_privilege('anon', to_regclass('platform_private.manual_send_provider_bindings'), 'select,insert,update,delete,truncate,references,trigger'), false) as anon_table_denied,
+  coalesce(not has_table_privilege('authenticated', to_regclass('platform_private.manual_send_provider_bindings'), 'select,insert,update,delete,truncate,references,trigger'), false) as authenticated_table_denied`;
+
+const MIGRATION_077_READINESS_KEYS = Object.freeze([
+  "table_exists",
+  "claim_exists",
+  "sync_exists",
+  "finish_exists",
+  "service_functions_execute",
+  "anon_functions_denied",
+  "authenticated_functions_denied",
+  "service_table_denied",
+  "anon_table_denied",
+  "authenticated_table_denied",
+]);
+
+export function validateP8V3DMigrationReadiness(rows) {
+  if (!Array.isArray(rows) || rows.length !== 1) fail("migration 077 readiness row count drifted", "migration_failed");
+  exactKeys(rows[0], MIGRATION_077_READINESS_KEYS, "migration 077 readiness");
+  if (MIGRATION_077_READINESS_KEYS.some((key) => rows[0][key] !== true)) fail("migration 077 objects or grants drifted", "migration_failed");
+  return true;
+}
+
+async function readLedger(request, acceptedLastVersions = ["077"]) {
   const rows = await request(`/v1/projects/${PROJECT_REF}/database/migrations`, { expectedStatus: 200 });
-  const versions = normalizeMigrationLedger(rows);
+  const versions = normalizeMigrationLedger(rows, acceptedLastVersions);
   return { versions, range: `${versions[0]}-${versions.at(-1)}`, count: versions.length };
 }
 
@@ -396,7 +433,7 @@ def parse(path):
         out[key]=value
     return out
 def write_atomic(path,values):
-    fd,tmp=tempfile.mkstemp(prefix=path.name+'.p8v3-',dir=path.parent)
+    fd,tmp=tempfile.mkstemp(prefix=path.name+'.p8v3d-',dir=path.parent)
     try:
         with os.fdopen(fd,'w') as handle:
             for key in sorted(values): handle.write(f'{key}={values[key]}\n')
@@ -509,12 +546,6 @@ docker image tag '${spec.platform}' '${spec.composeTag}'
   return `${rows}\n`;
 }
 
-function safeMigrationEnvironment(environment) {
-  const child = safeChildEnvironment(environment);
-  child.SUPABASE_ACCESS_TOKEN = environment.SUPABASE_ACCESS_TOKEN;
-  return child;
-}
-
 function runChecked(run, label, command, args, options = {}) {
   return run(command, args, { ...options, label, code: options.code ?? "verification_failed" });
 }
@@ -534,7 +565,7 @@ function buildAudience(run, sourceRoot, accountId, audience, vault, localRoots) 
   const audit = parseJson(runChecked(run, `${audience} vault audit`, "python3", [join(sourceRoot, "scripts/p8v2e-vault-audit.py"), "--vault", vault, "--audience", audience], { cwd: sourceRoot, timeout: 120_000, code: "knowledge_failed" }).stdout.trim(), `${audience} vault audit`);
   if (audit.status !== "verified" || audit.document_count !== expectedCount || audit.source_set_sha256 !== expectedSourceSet) fail(`${audience} frozen vault drifted`, "knowledge_failed");
   const roots = [0, 1].map(() => {
-    const root = mkdtempSync(join(tmpdir(), `evo-p8v3-${audience}-`));
+    const root = mkdtempSync(join(tmpdir(), `evo-p8v3d-${audience}-`));
     chmodSync(root, 0o700);
     localRoots.push(root);
     return root;
@@ -777,7 +808,7 @@ mv '${incoming}' '${REMOTE_RESULT}'
 [[ "$(stat -c '%U:%G %a' '${EVIDENCE_ROOT}')" == 'root:root 700' ]]
 [[ "$(stat -c '%U:%G %a' '${REMOTE_RESULT}')" == 'root:root 600' ]]
 [[ "$(sha256sum '${REMOTE_RESULT}' | awk '{print $1}')" == '${hash}' ]]
-[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3-rollout-result.json' ]]
+[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3d-rollout-result.json' ]]
 `;
 }
 
@@ -797,7 +828,7 @@ export function renderP8V3ShellContractsForTest() {
     rollbackCrm: rollbackScript("crm"),
     rollbackInbox: rollbackScript("inbox"),
     rollbackLead: rollbackScript("lead_agent"),
-    evidence: atomicEvidenceScript("/opt/evo-release-evidence/.p8v3-test-incoming", "a".repeat(64)),
+    evidence: atomicEvidenceScript("/opt/evo-release-evidence/.p8v3d-test-incoming", "a".repeat(64)),
   });
 }
 
@@ -861,7 +892,7 @@ export async function createP8V3ProductionOperations({
     if (state.staged) return;
     for (const spec of Object.values(P8V3_IMAGES)) validateArchive(join(candidates, spec.file), spec);
     remote(run, stagePrepareScript(), { timeout: remaining(deadlineAt), label: "P8V3 staging root", code: "knowledge_failed" });
-    const temp = mkdtempSync(join(tmpdir(), "evo-p8v3-repo-"));
+    const temp = mkdtempSync(join(tmpdir(), "evo-p8v3d-repo-"));
     try {
       const archive = join(temp, "repo.tar");
       runChecked(run, "application archive", "git", ["-C", source, "archive", "--format=tar", `--output=${archive}`, P8V3.applicationCommit], { timeout: 120_000, code: "knowledge_failed" });
@@ -896,7 +927,7 @@ export async function createP8V3ProductionOperations({
       validateCandidateCompose(run, source);
       if (sha256(readFileSync(join(source, "supabase/migrations/077_platform_manual_whatsapp_send_worker.sql"))) !== "4a271dea4a3b5f1570c57cb4b094a13a057ca3cacc38b1d449a4925757299314") fail("migration 077 drifted", "preflight_drift");
       const ledger = await readLedger(management);
-      if (ledger.range !== "001-076" || ledger.count !== 76) fail("production migration ledger drifted", "preflight_drift");
+      if (ledger.range !== "001-077" || ledger.count !== 77) fail("production migration ledger drifted", "preflight_drift");
       const output = remote(run, preflightRemoteScript(), { timeout: 120_000, label: "minimal production preflight", code: "preflight_drift" }).stdout;
       const inventory = output.split("\n").filter((line) => line.split("|").length === 6).join("\n");
       const containers = parseContainerRows(inventory);
@@ -918,7 +949,7 @@ export async function createP8V3ProductionOperations({
       const expectedArchives = Object.values(P8V3_IMAGES).map(({ name, sha256: archiveSha256, size, index, platform }) => ({ name, sha256: archiveSha256, size, index, platform }));
       if (JSON.stringify(snapshot.archives) !== JSON.stringify(expectedArchives)) fail("P8V3 preflight archive identity drifted", "preflight_drift");
       const ledger = await readLedger(management);
-      if (ledger.range !== "001-076" || ledger.count !== 76) fail("production migration ledger changed after preflight", "preflight_drift");
+      if (ledger.range !== "001-077" || ledger.count !== 77) fail("production migration ledger changed after preflight", "preflight_drift");
       const output = remote(run, preflightRemoteScript(), { timeout: 120_000, label: "production preflight revalidation", code: "preflight_drift" }).stdout;
       const inventory = output.split("\n").filter((line) => line.split("|").length === 6).join("\n");
       const containers = parseContainerRows(inventory);
@@ -941,39 +972,18 @@ export async function createP8V3ProductionOperations({
 
     async migrate({ deadlineAt }) {
       const before = await readLedger(management);
-      if (before.range !== "001-076" || before.count !== 76) fail("migration pre-state drifted", "migration_failed");
-      const temp = mkdtempSync(join(tmpdir(), "evo-p8v3-migration-"));
-      const archive = join(temp, "repo.tar");
-      const repo = join(temp, "repo");
-      let linked = false;
-      let applyAttempted = false;
-      let operationError;
-      try {
-        runChecked(run, "migration source archive", "git", ["-C", source, "archive", "--format=tar", `--output=${archive}`, "HEAD"], { timeout: remaining(deadlineAt), code: "migration_failed" });
-        runChecked(run, "migration source directory", "mkdir", ["-m", "700", repo], { code: "migration_failed" });
-        runChecked(run, "migration source extract", "tar", ["-xf", archive, "-C", repo], { code: "migration_failed" });
-        const child = safeMigrationEnvironment(environment);
-        linked = true;
-        runChecked(run, "Supabase link", cli, ["link", "--project-ref", PROJECT_REF, "--workdir", repo, "--yes"], { cwd: repo, env: child, timeout: remaining(deadlineAt), code: "migration_failed" });
-        const dry = runChecked(run, "migration dry-run", cli, ["db", "push", "--linked", "--dry-run", "--workdir", repo, "--yes"], { cwd: repo, env: child, timeout: remaining(deadlineAt), code: "migration_failed" });
-        if (parseDryRunOutput(dry.stdout, dry.stderr).join() !== "077_platform_manual_whatsapp_send_worker.sql") fail("migration dry-run drifted", "migration_failed");
-        applyAttempted = true;
-        runChecked(run, "migration apply", cli, ["db", "push", "--linked", "--workdir", repo, "--yes"], { cwd: repo, env: child, timeout: remaining(deadlineAt), code: "migration_failed" });
-      } catch (error) { operationError = error; }
-      let cleanupError;
-      if (linked) {
-        try { await management(`/v1/projects/${PROJECT_REF}/cli/login-role`, { method: "DELETE", expectedStatus: 200 }); } catch (error) { cleanupError = error; }
-      }
-      rmSync(temp, { recursive: true, force: true });
+      if (before.range !== "001-077" || before.count !== 77) fail("migration reconciliation pre-state drifted", "migration_failed");
+      remaining(deadlineAt);
+      const readiness = await management(`/v1/projects/${PROJECT_REF}/database/query/read-only`, {
+        method: "POST",
+        body: { query: MIGRATION_077_READINESS_SQL },
+        expectedStatus: 201,
+      });
+      validateP8V3DMigrationReadiness(readiness);
+      remaining(deadlineAt);
       const after = await readLedger(management);
-      if (applyAttempted && after.range === "001-077" && after.count === 77 && (operationError || cleanupError)) {
-        const error = cleanupError ?? operationError;
-        error.code = cleanupError ? "rollback_failed" : "migration_failed";
-        error.migrationRecord = { status: "observed_applied", before_range: before.range, before_count: before.count, after_range: after.range, after_count: after.count, applied_versions: ["077"] };
-        throw error;
-      }
-      if (operationError || cleanupError || after.range !== "001-077" || after.count !== 77) fail("migration 077 failed or did not verify", cleanupError ? "rollback_failed" : "migration_failed");
-      return { status: "verified", before_range: before.range, before_count: before.count, after_range: after.range, after_count: after.count, applied_versions: ["077"] };
+      if (after.range !== "001-077" || after.count !== 77) fail("migration ledger changed during reconciliation", "migration_failed");
+      return { status: "verified", before_range: before.range, before_count: before.count, after_range: after.range, after_count: after.count, applied_versions: [] };
     },
 
     async importKnowledge(audience, { deadlineAt }) {
@@ -1052,7 +1062,7 @@ export async function createP8V3ProductionOperations({
       state.localEvidenceWritten = true;
       const localMetadata = lstatSync(localResultPath);
       if (!localMetadata.isFile() || localMetadata.isSymbolicLink() || (localMetadata.mode & 0o777) !== 0o600 || sha256(readFileSync(localResultPath)) !== hash) fail("local result publication failed", "evidence_publication_failed");
-      const incoming = `/opt/evo-release-evidence/.p8v3-result-${randomBytes(12).toString("hex")}`;
+      const incoming = `/opt/evo-release-evidence/.p8v3d-result-${randomBytes(12).toString("hex")}`;
       state.evidenceIncoming = incoming;
       runChecked(run, "result transfer", "scp", [localResultPath, `${HERMES}:${incoming}`], { timeout: 120_000, code: "evidence_publication_failed" });
       remote(run, atomicEvidenceScript(incoming, hash), { timeout: 120_000, label: "result publication", code: "evidence_publication_failed" });

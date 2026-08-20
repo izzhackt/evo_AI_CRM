@@ -35,6 +35,13 @@ function ledger(last) {
   return expectedVersions(last).map((version) => ({ version, name: `migration_${version}` }));
 }
 
+test("historical migration normalization remains closed unless a later boundary is explicit", () => {
+  assert.throws(() => normalizeMigrationLedger(ledger("077")), /001-072 or 001-076/);
+  assert.deepEqual(normalizeMigrationLedger(ledger("077"), ["077"]), expectedVersions("077"));
+  assert.throws(() => normalizeMigrationLedger(ledger("077"), []), /accepted migration boundaries/);
+  assert.throws(() => normalizeMigrationLedger(ledger("077"), ["077", "077"]), /accepted migration boundaries/);
+});
+
 function createHarness({ cleanupFails = false, dryRunNames = P8D4B.migrationFiles.map((item) => item.name) } = {}) {
   let remoteLast = "072";
   const calls = [];

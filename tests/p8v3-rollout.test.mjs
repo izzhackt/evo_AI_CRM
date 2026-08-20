@@ -11,6 +11,7 @@ import {
   parseP8V3ContainerRowsForTest,
   renderP8V3ShellContractsForTest,
   validateCandidateComposeForTest,
+  validateP8V3DMigrationReadiness,
   validateP8V3EvidencePrivacy,
 } from "../scripts/p8v3-production-operations.mjs";
 import {
@@ -55,14 +56,14 @@ function operations(overrides = {}) {
   };
   const execution = { commit: "d".repeat(40), tree: "e".repeat(40), ci_run_id: 123 };
   const preflight = {
-    version: "p8v3-production-preflight/v1",
+    version: "p8v3d-production-preflight/v1",
     generated_at: "2026-08-20T05:55:00.000Z",
     expires_at: "2026-08-20T06:25:00.000Z",
     execution,
     application: { commit: P8V3.applicationCommit, tree: P8V3.applicationTree },
     containers: preState,
     waha,
-    migration: { versions: Array.from({ length: 76 }, (_, index) => String(index + 1).padStart(3, "0")), range: "001-076", count: 76 },
+    migration: { versions: Array.from({ length: 77 }, (_, index) => String(index + 1).padStart(3, "0")), range: "001-077", count: 77 },
     archives: ["crm", "inbox", "lead_agent"].map((name) => ({ name, sha256: SHA_A, size: 1, index: IMAGE_A, platform: IMAGE_B })),
     compose_validated: true,
     prerequisites_verified: true,
@@ -74,7 +75,7 @@ function operations(overrides = {}) {
     async verifyPreflight() { calls.push("verifyPreflight"); return { status: "verified" }; },
     async configure() { calls.push("configure"); return { status: "verified", installed_names: [...P8V3.requiredConfigurationNames], backup_sha256: SHA_A, worker_file_verified: true }; },
     async restoreConfiguration() { calls.push("restoreConfiguration"); return { configuration_restored: true }; },
-    async migrate() { calls.push("migrate"); return { status: "verified", before_range: "001-076", before_count: 76, after_range: "001-077", after_count: 77, applied_versions: ["077"] }; },
+    async migrate() { calls.push("migrate"); return { status: "verified", before_range: "001-077", before_count: 77, after_range: "001-077", after_count: 77, applied_versions: [] }; },
     async importKnowledge(name) {
       calls.push(`importKnowledge:${name}`);
       return { name, status: "verified", document_count: name === "client" ? 11 : 291, chunk_count: name === "client" ? 20 : 400, bundle_sha256: SHA_A, manifest_sha256: SHA_B, database_revision_sha256: SHA_C };
@@ -106,6 +107,7 @@ test("P8V3 executes the reviewed success order and produces closed evidence", as
     "publishEvidence:rollout_verified",
   ]);
   assert.equal(result.effects.waha_recreates, 0);
+  assert.equal(result.effects.migration_applied, 0);
   assert.equal(result.effects.amo_writes, 0);
   assert.equal(result.effects.whatsapp_sends, 0);
   assert.equal(validateP8V3Result(result), result);
@@ -132,6 +134,9 @@ test("P8V3 preflight produces the closed short-lived handoff consumed by rollout
   });
   assert.equal(validateP8V3Preflight(result), result);
   assert.equal(result.expires_at, "2026-08-20T06:25:00.000Z");
+  const stale = structuredClone(result);
+  stale.migration = { versions: result.migration.versions.slice(0, 76), range: "001-076", count: 76 };
+  assert.throws(() => validateP8V3Preflight(stale), /migration drifted/);
 });
 
 test("a failed current boundary rolls back apps but retains forward-only reconciliation", async () => {
@@ -195,6 +200,30 @@ test("schema rejects false success and failed results without failure evidence",
   assert.equal(validate(missingFailure), false);
 });
 
+test("P8V3D cannot claim that it newly applied migration 077", async () => {
+  const adapter = operations();
+  const result = await runP8V3Rollout({ operations: adapter, authorization: P8V3.authorization, preflight: adapter.preflight, preflightSha256: SHA_A, now: () => Date.parse("2026-08-20T06:00:00.000Z") });
+  const contradictory = structuredClone(result);
+  contradictory.result_code = "rollout_failed_reconciliation_required";
+  contradictory.failure = { step: "migration", code: "migration_failed" };
+  contradictory.steps[1].status = "failed";
+  contradictory.steps.slice(2).forEach((step) => { step.status = "not_run"; });
+  contradictory.migration = {
+    status: "observed_applied",
+    before_range: "001-076",
+    before_count: 76,
+    after_range: "001-077",
+    after_count: 77,
+    applied_versions: ["077"],
+  };
+  contradictory.effects.migration_applied = 1;
+
+  assert.throws(() => validateP8V3Result(contradictory), /cannot report a newly applied migration/);
+  const schema = JSON.parse(readFileSync(join(process.cwd(), "docs/schemas/p8v-v1-rollout-result.schema.json"), "utf8"));
+  const validate = new Ajv2020({ strict: false }).compile(schema);
+  assert.equal(validate(contradictory), false);
+});
+
 test("success evidence requires every verified record proof", async () => {
   const adapter = operations();
   const result = await runP8V3Rollout({ operations: adapter, authorization: P8V3.authorization, preflight: adapter.preflight, preflightSha256: SHA_A, now: () => Date.parse("2026-08-20T06:00:00.000Z") });
@@ -227,21 +256,20 @@ test("evidence failure cannot hide skipped rollout progression", async () => {
   assert.equal(validate(contradictory), false);
 });
 
-test("an ambiguous migration failure remains reconciliation-required after config restore", async () => {
+test("a P8V3D migration reconciliation failure restores configuration with zero forward effects", async () => {
   const adapter = operations({
     async migrate() {
       this.calls.push("migrate");
-      const error = new Error("response lost");
+      const error = new Error("read-only proof drifted");
       error.code = "migration_failed";
-      error.migrationRecord = { status: "observed_applied", before_range: "001-076", before_count: 76, after_range: "001-077", after_count: 77, applied_versions: ["077"] };
       throw error;
     },
   });
   const result = await runP8V3Rollout({ operations: adapter, authorization: P8V3.authorization, preflight: adapter.preflight, preflightSha256: SHA_A, now: () => Date.parse("2026-08-20T06:00:00.000Z") });
-  assert.equal(result.result_code, "rollout_failed_reconciliation_required");
+  assert.equal(result.result_code, "rollout_failed_rolled_back");
   assert.equal(result.failure.step, "migration");
-  assert.equal(result.migration.status, "observed_applied");
-  assert.equal(result.effects.migration_applied, 1);
+  assert.equal(result.migration.status, "not_run");
+  assert.equal(result.effects.migration_applied, 0);
   assert.equal(result.rollback.configuration_restored, true);
   assert.equal(adapter.calls.some((item) => item.startsWith("deploy:")), false);
   const schema = JSON.parse(readFileSync(join(process.cwd(), "docs/schemas/p8v-v1-rollout-result.schema.json"), "utf8"));
@@ -318,6 +346,8 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.ok(source.indexOf("remote(run, stagePrepareScript()") < source.indexOf("repository transfer"));
   assert.ok(source.indexOf("label: \"configuration rollback\"") < source.indexOf("for (const name of boundaries)"));
   assert.equal(source.includes(".p8v3-result-*"), false);
+  assert.doesNotMatch(source, /"migration apply"|"Supabase link"|"migration dry-run"/);
+  assert.match(source, /database\/query\/read-only/);
   assert.match(source, /EVO_CRM_WAHA_ENV_FILE/);
   assert.match(source, /EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE: envPaths\.worker/);
   assert.match(source, /EVO_INBOX_WAHA_ENV_FILE/);
@@ -358,9 +388,9 @@ test("candidate Compose validation binds a disposable mode-0600 env for every se
         const expected = name === "EVO_INBOX_APP_ENV_FILE"
           ? [
               "P8V3_COMPOSE_VALIDATION=1",
-              "NEXT_PUBLIC_SUPABASE_URL=https://p8v3.invalid",
-              "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3-compose-validation-not-a-key",
-              "NEXT_PUBLIC_SITE_URL=https://p8v3.invalid",
+              "NEXT_PUBLIC_SUPABASE_URL=https://p8v3d.invalid",
+              "NEXT_PUBLIC_SUPABASE_ANON_KEY=p8v3d-compose-validation-not-a-key",
+              "NEXT_PUBLIC_SITE_URL=https://p8v3d.invalid",
               "",
             ].join("\n")
           : "P8V3_COMPOSE_VALIDATION=1\n";
@@ -427,6 +457,25 @@ test("production inventory emits and accepts exact Compose container names", () 
     () => parseP8V3ContainerRowsForTest(rows.replace("evo-crm-app-1", "/evo-crm-app-1")),
     /production pre-state drifted: evo-crm-app-1/,
   );
+});
+
+test("P8V3D accepts only one closed all-true migration 077 readiness row", () => {
+  const row = {
+    table_exists: true,
+    claim_exists: true,
+    sync_exists: true,
+    finish_exists: true,
+    service_functions_execute: true,
+    anon_functions_denied: true,
+    authenticated_functions_denied: true,
+    service_table_denied: true,
+    anon_table_denied: true,
+    authenticated_table_denied: true,
+  };
+  assert.equal(validateP8V3DMigrationReadiness([row]), true);
+  assert.throws(() => validateP8V3DMigrationReadiness([{ ...row, claim_exists: false }]), /objects or grants drifted/);
+  assert.throws(() => validateP8V3DMigrationReadiness([{ ...row, extra: true }]), /not closed/);
+  assert.throws(() => validateP8V3DMigrationReadiness([row, row]), /row count drifted/);
 });
 
 test("every reviewed remote shell contract parses under bash", () => {

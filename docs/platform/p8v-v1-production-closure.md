@@ -938,3 +938,60 @@ All other P8V2G identity, key, privacy, rollback, evidence and authority
 boundaries remain unchanged. No production use precedes issue #312 review,
 exact-head CI, merge, exact-main CI, one final read-only preflight and the fresh
 exact P8V2H token.
+## P8V3D migration reconciliation contract
+
+P8V3D is a continuation of the reviewed P8V3 rollout after one forward-only
+effect. The immutable failed result is
+`d38283828f3b2d51c063e85617b6732be7a2a44f4cb00bd36d2aaa8051467db7`, and the
+immutable configuration rollback root is
+`/opt/evo-release-rollback/2026-08-20.p8v3.1`. Both remain untouched.
+
+The exact entry state is:
+
+- managed migration ledger: ordered contiguous `001-077`, count `77`;
+- five frozen production containers: exact preflight IDs/images, healthy,
+  restart count zero;
+- CRM target configuration restored and manual-worker env absent;
+- prior P8V3 release root absent;
+- client/internal imports, CRM/Inbox/Lead Agent deployment, WAHA changes,
+  amoCRM writes, WhatsApp sends and staff drafts: zero.
+
+The shared migration normalizer keeps its historical default boundaries and
+adds an explicit closed accepted-last-version input. P8V3D passes only
+`["077"]`; malformed, duplicate, unordered, gapped, earlier or later ledgers
+fail before any production effect.
+
+P8V3D preflight version is `p8v3d-production-preflight/v1`. Its migration
+record is exactly `versions=001..077`, `range=001-077`, `count=77`. The rollout
+migration phase performs only bounded read-only Management API queries. It
+must verify the same ledger and the migration-077 table/functions plus exact
+service-role execution and anon/authenticated denial boundaries. It returns:
+
+```json
+{"status":"verified","before_range":"001-077","before_count":77,"after_range":"001-077","after_count":77,"applied_versions":[]}
+```
+
+The object/grant proof uses only the official schema-qualified Management API
+`POST /v1/projects/iosckaqtovbbnssqcpde/database/query/read-only`, requires
+HTTP `201`, applies the existing bounded JSON response limit, and accepts
+exactly one closed row of booleans. The row proves the provider-binding table
+and the exact claim/sync/finish function signatures exist; `service_role` has
+function execute, `anon` and `authenticated` do not; and none of those three
+roles has direct table privileges. Missing/extra rows or fields, non-booleans,
+or any false expected assertion block the migration step. No identifiers,
+table contents or customer data enter the response or retained evidence.
+
+No Supabase link role, CLI push, SQL execution, migration repair or history
+mutation is permitted in that phase. A mismatch is `migration_failed`, leaves
+all later steps `not_run`, and triggers the existing configuration rollback and
+closed evidence publication.
+
+P8V3D uses release `2026-08-20.p8v3d.1`, version
+`p8v3d-0f1454d0-20260820`, importer `evo-p8v3d-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3d-20260820.1`, remote result
+`p8v3d-rollout-result.json`, and exact authorization
+`EXECUTE-P8V3D-2026-08-20.P8V3D.1`. The authorization remains unavailable
+until the implementation PR is independently approved, merged, final current
+main CI is green and a fresh preflight is approved. All P8V3 knowledge,
+privacy, provider, deployment, rollback and real-post-deploy V4 proof
+boundaries remain unchanged.

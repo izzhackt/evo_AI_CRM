@@ -9556,3 +9556,39 @@ review, one final CI, one fresh minimal preflight and that new exact owner token
 are mandatory. Frozen application/images, 11/291 knowledge, migration no-op,
 ordered deployment, rollback, provider and no-customer-send boundaries remain
 unchanged.
+
+## 2026-08-21 — P8V3H final command parity and pre-mutation discovery
+
+The owner-authorized P8V3G attempt is immutable at result SHA-256
+`ce4f9d4b0c96cc6cbddbf3a7d759a84c4f2b806155d4b3f5bda6d1f033207243`.
+Independent review approved its truthful failed evidence and safe post-stop
+state. It stopped at client knowledge import before any deployment, restored
+configuration, left migrations `001-077`, and published no managed bundle
+revision. The old five containers remain exact, healthy and restart-zero.
+
+The remaining defect is an environment-discovery gap: knowledge import still
+used `ssh ... bash -seu -c`, which emits the same 48-byte Hermes startup stderr
+before its body. P8V3G corrected only configuration. P8V3H therefore replaces
+all remote `bash -c` call sites with one shared `bash -e -c` renderer whose
+reviewed body begins with `set -u`, while retaining strict empty-stderr and
+secret-redaction gates. Preflight must run every exact remote renderer with
+safe no-effect input, including the one-field stdin importer shape.
+
+The user-authorized launch-governance amendment also becomes binding here: all
+read-only phase facts are evaluated before the first production mutation. The
+preflight must close migration, account/provider, frozen-vault, deterministic
+build/importer, archive/Compose, live-container, release/rollback/evidence-path
+and deployment readiness together. Later phases may revalidate but may not
+discover a required environment fact for the first time. The existing
+429-only bounded retry and transactional managed-bundle publication remain.
+
+Writable identities advance collision-free to release
+`2026-08-21.p8v3h.1`, version `p8v3h-0f1454d0-20260821`, importer
+`evo-p8v3h-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3h-20260821.1`, result
+`p8v3h-rollout-result.json`, preflight `p8v3h-production-preflight/v1`, and
+authorization `EXECUTE-P8V3H-2026-08-21.P8V3H.1`. P8V3G roots and its consumed
+token are never reused. Issue #340, one independent review, one final CI, one
+short real preflight, and one new explicit deployment-plus-rollback token are
+required. No product feature, provider scope, customer send, WAHA or amoCRM
+authority changes.

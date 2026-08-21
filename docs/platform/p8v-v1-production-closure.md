@@ -1213,3 +1213,51 @@ portable images, frozen 11/291 sources, exact migration reconciliation,
 deployment ordering, rollback, privacy and no-customer-send boundaries are
 unchanged. Issue #338, reviewed merge, final CI, fresh minimal preflight and one
 new owner token are required before retry.
+
+### P8V3H closed readiness and remote-command contract
+
+P8V3G result SHA-256
+`ce4f9d4b0c96cc6cbddbf3a7d759a84c4f2b806155d4b3f5bda6d1f033207243`
+is retained unchanged. It is the sole result in its mode-0700 evidence root,
+is mode 0600, schema-valid and privacy-clean. The exact live post-stop state is
+configuration restored, migration `001-077`, zero new managed knowledge
+revision, zero application recreation, exact five prior healthy containers,
+importer absent, and all customer/provider/outbound counters zero.
+
+The P8V3H command contract has two and only two remote shell shapes:
+
+1. fixed scripts streamed to `ssh ... hermes-vps bash -seu` on stdin; and
+2. fixed command bodies passed through the shared `ssh ... hermes-vps bash -e
+   -c <quoted-body>` renderer, where `<quoted-body>` starts with literal
+   `set -u` before input or effects.
+
+The preflight executes a no-effect sentinel through both exact renderers. The
+second sentinel consumes exactly one newline-terminated stdin field, matching
+knowledge import. Status must be zero and stderr exactly empty; stdout must
+equal the closed sentinel response and contain no input. No fallback shell,
+relaxed stderr rule, alternate quoting path, or unprobed renderer exists.
+
+Before `configure()` is called, `verifyPreflight()` must re-run and close all
+read-only facts later phases depend on: exact main/tree/CI and unexpired
+artifact; Supabase project/ledger `001-077` and migration-077 object/grant
+readiness; singular account and `gemini` retrieval provider; frozen client 11
+and internal 291 source projections; deterministic importer and both audience
+bundle identities; exact portable archives and Compose rendering; exact five
+container identities/health/restarts/networks; target release/importer,
+rollback/evidence path eligibility; and both remote shell sentinels. Any
+mismatch stops with zero production mutation.
+
+The importer's four-attempt per-batch policy remains limited to fully consumed
+bounded HTTP 429 responses with waits 1000/2000/4000 ms. Transport, timeout,
+oversize, other status, malformed/cardinality/dimension drift stop immediately.
+The importer computes all embeddings before invoking one transactional managed
+bundle sync RPC per audience; no partial managed revision is published by a
+failed embedding sequence.
+
+New writable identities are exactly release `2026-08-21.p8v3h.1`, version
+`p8v3h-0f1454d0-20260821`, importer `evo-p8v3h-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3h-20260821.1`, sole result
+`p8v3h-rollout-result.json`, preflight `p8v3h-production-preflight/v1`, and
+authorization `EXECUTE-P8V3H-2026-08-21.P8V3H.1`. Issue #340 and the single
+review/final-CI/preflight/owner-token sequence gate production. No new feature
+or external authority is added.

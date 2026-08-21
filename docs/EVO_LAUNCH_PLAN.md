@@ -3839,3 +3839,44 @@ authorization `EXECUTE-P8V3G-2026-08-21.P8V3G.1`. P8V3F roots and token are
 immutable/consumed. Issue #338, independent review, final CI, fresh minimal
 preflight and the new owner token gate execution. No product or production
 authority is otherwise changed.
+
+### P8V3H — final remote-command parity and pre-mutation readiness
+
+The consumed P8V3G attempt is immutable failed-attempt evidence at SHA-256
+`ce4f9d4b0c96cc6cbddbf3a7d759a84c4f2b806155d4b3f5bda6d1f033207243`.
+It stopped at `client_import/knowledge_failed`, restored the exact prior
+configuration, left migration `001-077` unchanged, and ran no deployment.
+Live reconciliation found no new managed bundle revision: the observed two
+documents and 26 chunks predate P8V3G. All five prior production containers
+remain healthy with restart count zero. The P8V3G token is consumed.
+
+P8V3H closes the environment-discovery gap as one final correction. Every
+remote `bash -c` operation uses one shared argv renderer: Bash starts with
+`-e` only, while literal `set -u` is the first command in the reviewed body.
+Every operation still requires empty stderr and must not echo process-only
+input. The no-effect preflight executes every structurally distinct remote
+command form with the same argv and stdin mechanics used by rollout, including
+the one-line stdin form used by knowledge import. This follows GNU Bash's
+documented remote-startup and `nounset` behavior:
+<https://www.gnu.org/software/bash/manual/html_node/Bash-Startup-Files> and
+<https://www.gnu.org/software/bash/manual/html_node/The-Set-Builtin.html>.
+
+Before configuration can mutate production, the same preflight completes all
+read-only migration-ledger/readiness, account/provider, frozen 11/291 vault,
+deterministic importer/build, archive/Compose, current-container, remote-path,
+rollback, evidence and deployment-readiness gates. No later phase may discover
+one of those facts for the first time. Import retains the reviewed bounded
+retry only for fully received HTTP 429 responses. The two audience bundle
+revisions are each replaced by the existing single transactional
+`ai_knowledge_managed_bundle_sync` RPC; a failed embedding sequence therefore
+cannot publish a partial revision.
+
+Writable identities advance to release `2026-08-21.p8v3h.1`, version
+`p8v3h-0f1454d0-20260821`, importer `evo-p8v3h-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3h-20260821.1`, result
+`p8v3h-rollout-result.json`, preflight `p8v3h-production-preflight/v1`, and
+authorization `EXECUTE-P8V3H-2026-08-21.P8V3H.1`. All P8V3G roots remain
+immutable. Issue #340, one independent review, one final CI, one short real
+preflight, and one new owner token covering deployment plus rollback are the
+only remaining launch gates. Product scope and provider/customer-send
+authority are unchanged.

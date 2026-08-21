@@ -28,18 +28,24 @@ import {
 const HERMES = "hermes-vps";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
 const PROJECT_URL = `https://${PROJECT_REF}.supabase.co`;
-const RELEASE_ID = "2026-08-21.p8v3g.1";
-const RELEASE_VERSION = "p8v3g-0f1454d0-20260821";
+const RELEASE_ID = "2026-08-21.p8v3h.1";
+const RELEASE_VERSION = "p8v3h-0f1454d0-20260821";
 const RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/${RELEASE_ID}`;
 const REMOTE_REPO = `${RELEASE_ROOT}/repo`;
 const REMOTE_ARCHIVES = `${RELEASE_ROOT}/archives`;
 const KNOWLEDGE_REMOTE = `${RELEASE_ROOT}/knowledge-incoming`;
-const IMPORTER = "evo-p8v3g-knowledge-import";
-const IMPORTER_FILE = "p8v3g-platform-knowledge-import.mjs";
+const IMPORTER = "evo-p8v3h-knowledge-import";
+const IMPORTER_FILE = "p8v3h-platform-knowledge-import.mjs";
 const CONFIG_ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const P8V2D_ROLLBACK_ROOT = "/opt/evo-release-evidence/p8v2d-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818";
-const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3g-20260821.1";
-const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3g-rollout-result.json`;
+const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3h-20260821.1";
+const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3h-rollout-result.json`;
+const PRESERVED_P8V3G_EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3g-20260821.1";
+const PRESERVED_P8V3G_RESULT_SHA256 = "ce4f9d4b0c96cc6cbddbf3a7d759a84c4f2b806155d4b3f5bda6d1f033207243";
+const PRESERVED_P8V3G_RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/2026-08-21.p8v3g.1`;
+const PRESERVED_P8V3G_ROLLBACK_ROOT = "/opt/evo-release-rollback/2026-08-21.p8v3g.1";
+const PRESERVED_P8V3G_IMPORTER_SHA256 = "9652bd510c4c82ac7523621f3236d28dd7c673671c9d252fab86e4a8cee7dcf1";
+const PRESERVED_P8V3G_IMPORTER_SIZE = 853_105;
 const PRESERVED_P8V3F_EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3f-20260820.1";
 const PRESERVED_P8V3F_RESULT_SHA256 = "02af7782d0ed7020c900109725f8b681504f68479cf90727127fd70d2aeb9f4d";
 const PRESERVED_P8V3F_RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/2026-08-20.p8v3f.1`;
@@ -195,26 +201,51 @@ export function defaultRun(command, args, options = {}) {
   return { stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
-function remote(run, script, { input = "", timeout = 300_000, label = "Hermes operation", code } = {}) {
-  return run("ssh", ["-o", "BatchMode=yes", HERMES, "bash", "-seu"], { input: `${script}\n${input}`, timeout, label, code });
+export function runP8V3StreamedRemoteForTest(run, script, { input = "", timeout = 300_000, label = "Hermes operation", code } = {}) {
+  const result = run("ssh", ["-o", "BatchMode=yes", HERMES, "bash", "-seu"], { input: `${script}\n${input}`, timeout, label, code });
+  if (result.stderr !== "") fail(`${label} emitted stderr`, code ?? "verification_failed");
+  return result;
 }
+
+const remote = runP8V3StreamedRemoteForTest;
 
 function shellQuote(value) {
   return `'${String(value).replaceAll("'", `'"'"'`)}'`;
 }
 
-export function configurationSshArgs(script = configurationInstallScript()) {
-  return ["-o", "BatchMode=yes", HERMES, "bash", "-e", "-c", shellQuote(script)];
+export function commandSshArgs(script) {
+  const body = String(script).replace(/^\n/, "");
+  if (!body.startsWith("set -u\n")) fail("remote command body must start with set -u", "preflight_drift");
+  return ["-o", "BatchMode=yes", HERMES, "bash", "-e", "-c", shellQuote(body)];
 }
 
-function verifyConfigurationShellStartup(run) {
-  const result = run("ssh", configurationSshArgs("set -u\ntrue"), {
+export function configurationSshArgs(script = configurationInstallScript()) {
+  return commandSshArgs(script);
+}
+
+export function verifyP8V3HRemoteCommandFormsForTest(run) {
+  const streamed = remote(run, "true", {
     timeout: 30_000,
-    label: "P8V3 configuration shell startup",
+    label: "P8V3 streamed shell startup",
     code: "preflight_drift",
   });
-  if (result.stdout !== "" || result.stderr !== "") fail("P8V3 configuration shell startup emitted output", "preflight_drift");
+  if (streamed.stdout !== "" || streamed.stderr !== "") fail("P8V3 streamed shell startup emitted output", "preflight_drift");
+  const result = run("ssh", commandSshArgs("set -u\ntrue"), {
+    timeout: 30_000,
+    label: "P8V3 command shell startup",
+    code: "preflight_drift",
+  });
+  if (result.stdout !== "" || result.stderr !== "") fail("P8V3 command shell startup emitted output", "preflight_drift");
+  const stdin = run("ssh", commandSshArgs("set -u\nIFS= read -r sentinel\n[[ \"$sentinel\" == 'P8V3H_SAFE_STDIN' ]]\nprintf 'p8v3h_command_stdin_verified\\n'"), {
+    input: "P8V3H_SAFE_STDIN\n",
+    timeout: 30_000,
+    label: "P8V3 command stdin startup",
+    code: "preflight_drift",
+  });
+  if (stdin.stdout !== "p8v3h_command_stdin_verified\n" || stdin.stderr !== "" || stdin.stdout.includes("P8V3H_SAFE_STDIN")) fail("P8V3 command stdin startup drifted", "preflight_drift");
 }
+
+const verifyRemoteCommandForms = verifyP8V3HRemoteCommandFormsForTest;
 
 function remaining(deadlineAt) {
   const value = deadlineAt - Date.now();
@@ -302,6 +333,30 @@ p8v3f_rollback='${PRESERVED_P8V3F_ROLLBACK_ROOT}'
 [[ "$(stat -c '%U:%G %a' "$p8v3f_rollback/worker.prestate")" == 'root:root 600' ]]
 [[ "$(sha256sum "$p8v3f_rollback/worker.prestate" | awk '{print $1}')" == '7925d3e9a9613a093e5eb4054b32aa39de910d2b03ba7e8046c3b4550b8de1e4' ]]
 
+p8v3g_evidence='${PRESERVED_P8V3G_EVIDENCE_ROOT}'
+[[ -d "$p8v3g_evidence" && ! -L "$p8v3g_evidence" && "$(stat -c '%U:%G %a' "$p8v3g_evidence")" == 'root:root 700' ]]
+[[ "$(find "$p8v3g_evidence" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3g-rollout-result.json' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3g_evidence/p8v3g-rollout-result.json")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3g_evidence/p8v3g-rollout-result.json" | awk '{print $1}')" == '${PRESERVED_P8V3G_RESULT_SHA256}' ]]
+
+p8v3g_release='${PRESERVED_P8V3G_RELEASE_ROOT}'
+[[ -d "$p8v3g_release" && ! -L "$p8v3g_release" && "$(stat -c '%U:%G %a' "$p8v3g_release")" == 'root:root 700' ]]
+[[ "$(find "$p8v3g_release" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)" == $'archives\nknowledge-incoming\np8v3g-platform-knowledge-import.mjs\nrepo' ]]
+[[ -d "$p8v3g_release/knowledge-incoming" && ! -L "$p8v3g_release/knowledge-incoming" && -z "$(find "$p8v3g_release/knowledge-incoming" -mindepth 1 -print -quit)" ]]
+[[ "$(stat -c '%U:%G %a %s' "$p8v3g_release/p8v3g-platform-knowledge-import.mjs")" == 'root:root 600 ${PRESERVED_P8V3G_IMPORTER_SIZE}' ]]
+[[ "$(sha256sum "$p8v3g_release/p8v3g-platform-knowledge-import.mjs" | awk '{print $1}')" == '${PRESERVED_P8V3G_IMPORTER_SHA256}' ]]
+${Object.values(P8V3_IMAGES).map((spec) => `[[ "$(stat -c '%U:%G %a %s' "$p8v3g_release/archives/${spec.file}")" == 'root:root 600 ${spec.size}' ]]\n[[ "$(sha256sum "$p8v3g_release/archives/${spec.file}" | awk '{print $1}')" == '${spec.sha256}' ]]`).join("\n")}
+
+p8v3g_rollback='${PRESERVED_P8V3G_ROLLBACK_ROOT}'
+[[ -d "$p8v3g_rollback" && ! -L "$p8v3g_rollback" && "$(stat -c '%U:%G %a' "$p8v3g_rollback")" == 'root:root 700' ]]
+[[ "$(find "$p8v3g_rollback" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)" == $'env.lead-agent.before\nenv.production.before\nworker.prestate' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3g_rollback/env.production.before")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3g_rollback/env.production.before" | awk '{print $1}')" == 'af2ba43ae81aad94815301292e34ce54218a3e2d8c4eefe5621987dee5c17640' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3g_rollback/env.lead-agent.before")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3g_rollback/env.lead-agent.before" | awk '{print $1}')" == 'e684ed84791fe9285f2eec83ce13b670e2eac0f0efd8eaa3f2a2b1adffc14260' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3g_rollback/worker.prestate")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3g_rollback/worker.prestate" | awk '{print $1}')" == '7925d3e9a9613a093e5eb4054b32aa39de910d2b03ba7e8046c3b4550b8de1e4' ]]
+
 rollback='${P8V2D_ROLLBACK_ROOT}'
 [[ -d "$rollback" && ! -L "$rollback" ]]
 [[ "$(stat -c '%U:%G %a' "$rollback")" == 'root:root 700' ]]
@@ -325,6 +380,7 @@ EOF
 [[ "$(df -Pk /opt | awk 'NR==2{print $4}')" -ge 2097152 ]]
 getent ahosts '${PROJECT_REF}.supabase.co' >/dev/null
 getent ahosts 'evoadmissions.amocrm.ru' >/dev/null
+${Object.values(P8V3_IMAGES).map((spec) => `[[ "$(docker image inspect '${spec.sourceTag}' --format '{{.Id}}')" == '${spec.platform}' ]]\n[[ "$(docker image inspect '${spec.composeTag}' --format '{{.Id}}')" == '${spec.platform}' ]]\n[[ "$(docker image inspect '${spec.platform}' --format '{{.Os}}/{{.Architecture}}/{{.Variant}}')" == 'linux/amd64/' ]]\n[[ "$(docker image inspect '${spec.platform}' --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" == '${P8V3.applicationCommit}' ]]`).join("\n")}
 python3 - <<'PY'
 from pathlib import Path
 def names(path):
@@ -877,7 +933,9 @@ docker cp '${KNOWLEDGE_REMOTE}/${item.manifestName}' '${IMPORTER}:/tmp/${item.ma
 
 function importCommand(item) {
   return String.raw`
+set -u
 IFS= read -r EVO_KNOWLEDGE_ACCOUNT_ID
+if IFS= read -r P8V3H_EXTRA_INPUT; then exit 2; fi
 [[ "$EVO_KNOWLEDGE_ACCOUNT_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]]
 docker exec '${IMPORTER}' node '/tmp/${IMPORTER_FILE}' --audience '${item.audience}' --bundle '/tmp/${item.bundleName}' --manifest '/tmp/${item.manifestName}' --account-id "$EVO_KNOWLEDGE_ACCOUNT_ID"
 `;
@@ -1113,7 +1171,7 @@ mv '${incoming}' '${REMOTE_RESULT}'
 [[ "$(stat -c '%U:%G %a' '${EVIDENCE_ROOT}')" == 'root:root 700' ]]
 [[ "$(stat -c '%U:%G %a' '${REMOTE_RESULT}')" == 'root:root 600' ]]
 [[ "$(sha256sum '${REMOTE_RESULT}' | awk '{print $1}')" == '${hash}' ]]
-[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3g-rollout-result.json' ]]
+[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3h-rollout-result.json' ]]
 `;
 }
 
@@ -1251,7 +1309,15 @@ export async function createP8V3ProductionOperations({
       const ledger = await readLedger(management);
       if (ledger.range !== "001-077" || ledger.count !== 77) fail("production migration ledger drifted", "preflight_drift");
       const importer = verifyP8V3FImporterBuild({ run, sourceRoot: source });
-      verifyConfigurationShellStartup(run);
+      const readinessRoots = [];
+      try {
+        const readinessAccount = "00000000-0000-4000-8000-000000000001";
+        buildAudience(run, source, readinessAccount, "client", CLIENT_VAULT, readinessRoots);
+        buildAudience(run, source, readinessAccount, "internal", INTERNAL_VAULT, readinessRoots);
+      } finally {
+        for (const root of readinessRoots) rmSync(root, { recursive: true, force: true });
+      }
+      verifyRemoteCommandForms(run);
       const output = remote(run, preflightRemoteScript(), { timeout: 120_000, label: "minimal production preflight", code: "preflight_drift" }).stdout;
       const inventory = output.split("\n").filter((line) => line.split("|").length === 6).join("\n");
       const containers = parseContainerRows(inventory);
@@ -1274,18 +1340,37 @@ export async function createP8V3ProductionOperations({
       if (Date.now() >= Date.parse(snapshot.expires_at)) fail("P8V3 preflight expired", "preflight_drift");
       const expectedArchives = Object.values(P8V3_IMAGES).map(({ name, sha256: archiveSha256, size, index, platform }) => ({ name, sha256: archiveSha256, size, index, platform }));
       if (JSON.stringify(snapshot.archives) !== JSON.stringify(expectedArchives)) fail("P8V3 preflight archive identity drifted", "preflight_drift");
+      for (const spec of Object.values(P8V3_IMAGES)) validateArchive(join(candidates, spec.file), spec);
+      validateCandidateCompose(run, source);
       const ledger = await readLedger(management);
       if (ledger.range !== "001-077" || ledger.count !== 77) fail("production migration ledger changed after preflight", "preflight_drift");
       await readRetrievalProvider(management);
-      verifyConfigurationShellStartup(run);
+      verifyRemoteCommandForms(run);
       const output = remote(run, preflightRemoteScript(), { timeout: 120_000, label: "production preflight revalidation", code: "preflight_drift" }).stdout;
       const inventory = output.split("\n").filter((line) => line.split("|").length === 6).join("\n");
       const containers = parseContainerRows(inventory);
       if (JSON.stringify(containers) !== JSON.stringify(snapshot.containers)) fail("production containers changed after preflight", "preflight_drift");
+      const readiness = await management(`/v1/projects/${PROJECT_REF}/database/query/read-only`, {
+        method: "POST",
+        body: { query: MIGRATION_077_READINESS_SQL },
+        expectedStatus: 201,
+      });
+      validateP8V3DMigrationReadiness(readiness);
       const importer = buildImporterArtifact(run, source);
       try {
         if (importer.sha256 !== snapshot.importer.sha256 || importer.size !== snapshot.importer.size) fail("P8V3F importer differs from preflight", "preflight_drift");
       } finally { rmSync(importer.root, { recursive: true, force: true }); }
+      const accountId = await resolveAccount();
+      try {
+        for (const [audience, vault] of [["client", CLIENT_VAULT], ["internal", INTERNAL_VAULT]]) {
+          if (state.built.has(audience)) fail("knowledge readiness was already prepared", "preflight_drift");
+          state.built.set(audience, buildAudience(run, source, accountId, audience, vault, state.localRoots));
+        }
+      } catch (error) {
+        for (const root of state.localRoots.splice(0)) rmSync(root, { recursive: true, force: true });
+        state.built.clear();
+        throw error;
+      }
       state.expectedImporter = structuredClone(snapshot.importer);
       state.preState = containers;
       return { status: "verified" };
@@ -1329,12 +1414,11 @@ export async function createP8V3ProductionOperations({
         if (!SHA64.test(created)) fail("knowledge importer identity drifted", "knowledge_failed");
         state.importerId = created;
       }
-      const vault = audience === "client" ? CLIENT_VAULT : INTERNAL_VAULT;
-      const item = buildAudience(run, source, accountId, audience, vault, state.localRoots);
-      state.built.set(audience, item);
+      const item = state.built.get(audience);
+      if (!item) fail(`${audience} knowledge was not prepared before mutation`, "knowledge_failed");
       for (const file of [item.bundleName, item.manifestName]) runChecked(run, `${audience} knowledge transfer`, "scp", [join(item.root, file), `${HERMES}:${KNOWLEDGE_REMOTE}/${file}`], { timeout: remaining(deadlineAt), code: "knowledge_failed" });
       remote(run, knowledgeCopyScript(item), { timeout: remaining(deadlineAt), label: `${audience} knowledge copy`, code: "knowledge_failed" });
-      const imported = run("ssh", ["-o", "BatchMode=yes", HERMES, "bash", "-seu", "-c", shellQuote(importCommand(item))], { input: `${accountId}\n`, timeout: remaining(deadlineAt), label: `${audience} knowledge import`, code: "knowledge_failed" });
+      const imported = run("ssh", commandSshArgs(importCommand(item)), { input: `${accountId}\n`, timeout: remaining(deadlineAt), label: `${audience} knowledge import`, code: "knowledge_failed" });
       if (imported.stderr !== "" || imported.stdout.includes(geminiKey) || imported.stderr.includes(geminiKey)) fail(`${audience} importer output is unsafe`, "knowledge_failed");
       const safe = parseJson(imported.stdout.trim().split("\n").at(-1), `${audience} importer result`);
       exactKeys(safe, ["status", "version", "audience", "bundle_sha256", "documents_upserted", "documents_deleted", "chunks_replaced"], "importer result");
@@ -1353,7 +1437,14 @@ export async function createP8V3ProductionOperations({
         try { rmSync(root, { recursive: true, force: false }); } catch (caught) { error ??= caught; }
       }
       state.importerId = null;
+      state.built.clear();
       if (error) throw error;
+      return { status: "verified" };
+    },
+
+    async cleanupPreparedReadiness() {
+      for (const root of state.localRoots.splice(0)) rmSync(root, { recursive: true, force: true });
+      state.built.clear();
       return { status: "verified" };
     },
 

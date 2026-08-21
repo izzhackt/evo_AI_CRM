@@ -1031,19 +1031,25 @@ docker exec '${IMPORTER}' node '/tmp/${IMPORTER_FILE}' --audience '${item.audien
 `;
 }
 
-function knowledgeCleanupScript(owner, { releaseRoot = RELEASE_ROOT, knowledgeRemote = KNOWLEDGE_REMOTE } = {}) {
+function knowledgeCleanupScript(owner, { importerId = "", releaseRoot = RELEASE_ROOT, knowledgeRemote = KNOWLEDGE_REMOTE } = {}) {
+  if (importerId !== "" && !/^[0-9a-f]{64}$/.test(importerId)) fail("P8V3 importer cleanup identity drifted", "knowledge_failed");
   return String.raw`
 set +e
 errors=0
+expected_id='${importerId}'
 inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || exit 1
 owned="$(docker container ls -a --no-trunc --filter 'label=evo.p8v3.importer-owner=${owner}' --format '{{.ID}}|{{.Names}}')" || exit 1
 target="$(printf '%s\n' "$inventory" | awk -F '|' '$2 == "${IMPORTER}"')"
+expected="$(printf '%s\n' "$inventory" | awk -F '|' -v id="$expected_id" 'id != "" && $1 == id')"
 if [[ -n "$owned" ]]; then
   [[ "$(printf '%s\n' "$owned" | sed '/^$/d' | wc -l | tr -d ' ')" == '1' ]] || errors=1
   owned_id="$(printf '%s\n' "$owned" | cut -d '|' -f 1)"
   owned_name="$(printf '%s\n' "$owned" | cut -d '|' -f 2)"
   inspected_name="$(docker inspect "$owned_id" --format '{{.Name}}' 2>/dev/null)"
+  expected_matches=1
+  if [[ -n "$expected_id" && "$owned_id" != "$expected_id" ]]; then expected_matches=0; fi
   if [[ "$owned_id" =~ ^[0-9a-f]{64}$ \
+    && "$expected_matches" == '1' \
     && "$(docker inspect "$owned_id" --format '{{.Image}}' 2>/dev/null)" == '${P8V3_IMAGES.crm.platform}' \
     && "$(docker inspect "$owned_id" --format '{{index .Config.Labels "evo.p8v3.importer-owner"}}' 2>/dev/null)" == '${owner}' \
     && "$owned_name" == '${IMPORTER}' \
@@ -1053,6 +1059,8 @@ if [[ -n "$owned" ]]; then
     errors=1
   fi
 elif [[ -n "$target" ]]; then
+  errors=1
+elif [[ -n "$expected" ]]; then
   errors=1
 fi
 python3 - <<'PY' || errors=1
@@ -1080,6 +1088,9 @@ PY
 final_inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || exit 1
 final_owned="$(docker container ls -a --no-trunc --filter 'label=evo.p8v3.importer-owner=${owner}' --format '{{.ID}}|{{.Names}}')" || exit 1
 [[ -z "$final_owned" ]] || errors=1
+if [[ -n "$expected_id" ]]; then
+  printf '%s\n' "$final_inventory" | awk -F '|' -v id="$expected_id" '$1 == id { found=1 } END { exit found ? 0 : 1 }' && errors=1
+fi
 printf '%s\n' "$final_inventory" | awk -F '|' '$2 == "${IMPORTER}" { found=1 } END { exit found ? 0 : 1 }' && errors=1
 exit "$errors"
 `;
@@ -1274,7 +1285,7 @@ export function renderP8V3ShellContractsForTest() {
     stageFinalize: stageFinalizeScript({ sha256: "a".repeat(64), size: 1 }),
     loadImages: loadImagesScript(),
     importerCreate: importerCreateScript("a".repeat(32), { sha256: "a".repeat(64), size: 1 }),
-    knowledgeCleanup: knowledgeCleanupScript("a".repeat(32)),
+    knowledgeCleanup: knowledgeCleanupScript("a".repeat(32), { importerId: "b".repeat(64) }),
     deployCrm: deployScript("crm"),
     deployInbox: deployScript("inbox"),
     deployLead: deployScript("lead_agent"),
@@ -1285,12 +1296,12 @@ export function renderP8V3ShellContractsForTest() {
   });
 }
 
-export function renderP8V3KnowledgeCleanupForTest({ releaseRoot, knowledgeRemote }) {
+export function renderP8V3KnowledgeCleanupForTest({ importerId = "", releaseRoot, knowledgeRemote }) {
   const safePath = /^\/[A-Za-z0-9._/-]+$/;
   if (!safePath.test(releaseRoot) || !safePath.test(knowledgeRemote) || dirname(knowledgeRemote) !== releaseRoot) {
     fail("P8V3 cleanup test path drifted", "knowledge_failed");
   }
-  return knowledgeCleanupScript("a".repeat(32), { releaseRoot, knowledgeRemote });
+  return knowledgeCleanupScript("a".repeat(32), { importerId, releaseRoot, knowledgeRemote });
 }
 
 export function validateP8V3EvidencePrivacy(raw) {
@@ -1526,7 +1537,7 @@ export async function createP8V3ProductionOperations({
 
     async cleanupKnowledge() {
       let error;
-      try { remote(run, knowledgeCleanupScript(state.importerOwner), { timeout: 120_000, label: "knowledge cleanup", code: "knowledge_failed" }); } catch (caught) { error = caught; }
+      try { remote(run, knowledgeCleanupScript(state.importerOwner, { importerId: state.importerId ?? "" }), { timeout: 120_000, label: "knowledge cleanup", code: "knowledge_failed" }); } catch (caught) { error = caught; }
       for (const root of state.localRoots.splice(0)) {
         try { rmSync(root, { recursive: true, force: false }); } catch (caught) { error ??= caught; }
       }

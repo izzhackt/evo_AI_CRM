@@ -812,6 +812,7 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.match(source, /input: `\$\{geminiKey\}\\n`/);
   assert.match(source, /node '\/tmp\/\$\{IMPORTER_FILE\}'/);
   assert.doesNotMatch(source, /node \.next\/platform-knowledge-import\.mjs --audience/);
+  assert.match(source, /knowledgeCleanupScript\(state\.importerOwner, \{ importerId: state\.importerId \?\? "" \}\)/);
   assert.match(source, /account=sys\.stdin\.readline\(\)\.strip\(\)/);
   assert.doesNotMatch(source, /vault, accountId, audience/);
   assert.match(source, /os\.umask\(0o077\)/);
@@ -1082,6 +1083,47 @@ exit 1
 
     const result = spawnSync("bash", ["-seu"], {
       input: renderP8V3KnowledgeCleanupForTest({ releaseRoot, knowledgeRemote }),
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, REMOVAL_MARKER: removalMarker },
+    });
+    assert.notEqual(result.status, 0);
+    assert.equal(existsSync(removalMarker), false);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test("P8V3J cleanup cannot verify while the captured importer ID survives a rename and relabel", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3j-cleanup-captured-id-"));
+  const releaseRoot = join(fixture, "release");
+  const knowledgeRemote = join(releaseRoot, "knowledge-incoming");
+  const fakeBin = join(fixture, "bin");
+  const docker = join(fakeBin, "docker");
+  const removalMarker = join(fixture, "removed");
+  const containerId = "e".repeat(64);
+  try {
+    mkdirSync(fakeBin);
+    writeFileSync(
+      docker,
+      `#!/bin/sh
+if [ "$1" = "container" ] && [ "$2" = "ls" ]; then
+  case "$*" in
+    *'--filter label=evo.p8v3.importer-owner='*) exit 0 ;;
+    *) printf '%s\\n' '${containerId}|renamed-and-relabeled-importer'; exit 0 ;;
+  esac
+fi
+if [ "$1" = "rm" ]; then
+  : > "$REMOVAL_MARKER"
+  exit 0
+fi
+exit 1
+`,
+      { mode: 0o700 },
+    );
+    chmodSync(docker, 0o700);
+
+    const result = spawnSync("bash", ["-seu"], {
+      input: renderP8V3KnowledgeCleanupForTest({ importerId: containerId, releaseRoot, knowledgeRemote }),
       encoding: "utf8",
       env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, REMOVAL_MARKER: removalMarker },
     });

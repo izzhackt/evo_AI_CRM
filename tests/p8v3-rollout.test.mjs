@@ -371,7 +371,7 @@ test("P8V3F Gemini preflight sends two exact no-retry credential-safe requests",
       if (url.endsWith("gemini-embedding-2:batchEmbedContents")) {
         return new Response(JSON.stringify({ embeddings: [{ values: Array.from({ length: 1536 }, () => 0.01) }] }), { status: 200, headers: { "content-type": "application/json" } });
       }
-      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"reply":"READY","handoff":false}' }] } }] }), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: '{"reply":"READY","handoff":false}' }] } }] }), { status: 200, headers: { "content-type": "application/json" } });
     },
   });
   assert.deepEqual(result, { embedding_verified: true, draft_verified: true });
@@ -381,9 +381,27 @@ test("P8V3F Gemini preflight sends two exact no-retry credential-safe requests",
   assert.equal(calls[0].body.requests[0].content.parts[0].text, "title: EVO P8V3F readiness | text: EVO P8V3F readiness probe");
   assert.equal(Object.hasOwn(calls[0].body.requests[0], "taskType"), false);
   assert.equal(calls[0].body.requests[0].outputDimensionality, 1536);
-  assert.equal(calls[1].body.generationConfig.maxOutputTokens, 32);
-  assert.equal(calls[1].body.generationConfig.temperature, 0);
-  assert.equal(calls[1].body.generationConfig.candidateCount, 1);
+  assert.equal(calls[1].url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent");
+  assert.equal(calls[1].init.method, "POST");
+  assert.deepEqual(calls[1].body, {
+    store: false,
+    contents: [{ role: "user", parts: [{ text: 'Return exactly this JSON object and nothing else: {"reply":"READY","handoff":false}' }] }],
+    generationConfig: {
+      maxOutputTokens: 128,
+      candidateCount: 1,
+      thinkingConfig: { thinkingLevel: "MINIMAL" },
+      responseMimeType: "application/json",
+      responseJsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["reply", "handoff"],
+        properties: {
+          reply: { type: "string", enum: ["READY"] },
+          handoff: { type: "boolean" },
+        },
+      },
+    },
+  });
   assert.equal(calls.some((call) => initContains(call.init.body, apiKey)), false);
 });
 
@@ -425,6 +443,21 @@ test("P8V3F Gemini draft probe rejects extra candidates and content parts", asyn
     }), /draft readiness drifted/);
     assert.equal(calls, 2);
   }
+});
+
+test("P8V3F Gemini draft probe rejects a MAX_TOKENS truncated JSON response", async () => {
+  const apiKey = testCredential();
+  let calls = 0;
+  await assert.rejects(verifyP8V3FGemini({
+    apiKey,
+    async fetchImpl(url) {
+      calls += 1;
+      return url.endsWith("gemini-embedding-2:batchEmbedContents")
+        ? new Response(JSON.stringify({ embeddings: [{ values: Array.from({ length: 1536 }, () => 0.01) }] }), { status: 200 })
+        : new Response(JSON.stringify({ candidates: [{ finishReason: "MAX_TOKENS", content: { parts: [{ text: "He" }] } }] }), { status: 200 });
+    },
+  }), /draft readiness drifted/);
+  assert.equal(calls, 2);
 });
 
 test("P8V3F importer build is deterministic and bounded", () => {

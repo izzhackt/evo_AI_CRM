@@ -533,9 +533,9 @@ export async function verifyP8V3FGemini({ apiKey, fetchImpl = fetch }) {
     store: false,
     contents: [{ role: "user", parts: [{ text: "Return exactly this JSON object and nothing else: {\"reply\":\"READY\",\"handoff\":false}" }] }],
     generationConfig: {
-      maxOutputTokens: 32,
-      temperature: 0,
+      maxOutputTokens: 128,
       candidateCount: 1,
+      thinkingConfig: { thinkingLevel: "MINIMAL" },
       responseMimeType: "application/json",
       responseJsonSchema: {
         type: "object",
@@ -546,7 +546,7 @@ export async function verifyP8V3FGemini({ apiKey, fetchImpl = fetch }) {
     },
   }, "Gemini draft readiness");
   const candidates = draft?.candidates;
-  if (!Array.isArray(candidates) || candidates.length !== 1 || !Array.isArray(candidates[0]?.content?.parts) || candidates[0].content.parts.length !== 1) fail("Gemini draft readiness drifted", "preflight_drift");
+  if (!Array.isArray(candidates) || candidates.length !== 1 || candidates[0]?.finishReason !== "STOP" || !Array.isArray(candidates[0]?.content?.parts) || candidates[0].content.parts.length !== 1) fail("Gemini draft readiness drifted", "preflight_drift");
   const text = candidates[0].content.parts[0]?.text;
   const parsed = typeof text === "string" ? parseJson(text, "Gemini draft payload") : null;
   if (!parsed || Object.keys(parsed).sort().join("\0") !== "handoff\0reply" || parsed.reply !== "READY" || parsed.handoff !== false) fail("Gemini draft readiness drifted", "preflight_drift");

@@ -9483,3 +9483,33 @@ Gemini query embedding convention and is deployed before the later V4 proof.
 No application image, knowledge source, migration, authorization, deployment,
 provider-call count outside the bounded import retry, or outbound authority is
 otherwise changed.
+
+## 2026-08-21 — P8V3F Gemini 3.5 Flash readiness budget correction
+
+The first real P8V3F preflight stopped before any production effect. The
+replacement process-only key successfully completed the exact neutral
+`gemini-embedding-2` request, but the exact neutral `gemini-3.5-flash` request
+returned HTTP 200 with `finishReason: MAX_TOKENS` and only the truncated text
+`He`. The prior 32-token output ceiling was consumed by Gemini 3.5 Flash's
+default medium thinking before the two-field JSON could be emitted. The
+preflight correctly failed closed; no staging, configuration, migration,
+knowledge import, deployment, amoCRM write, WAHA mutation, WhatsApp send or
+staff draft occurred. Issue #335 tracks this correction.
+
+The corrected draft probe preserves the exact neutral prompt, no-store,
+no-tools, no-retry, one-candidate, 15-second timeout, 64-KiB response ceiling,
+closed two-field JSON schema and exact parsed result. It removes the explicit
+temperature override, freezes `thinkingConfig.thinkingLevel` to `MINIMAL`, and
+raises only `maxOutputTokens` to `128`. HTTP success with `MAX_TOKENS`, empty or
+truncated text, extra candidates/parts, malformed JSON or the wrong object
+remains blocking. This follows current official Gemini 3.5 Flash guidance:
+<https://ai.google.dev/gemini-api/docs/generate-content/whats-new-gemini-3.5>.
+
+The newly copied key differs from the previously rejected credential; the
+real embedding and corrected real draft probes both passed before it was
+stored in the encrypted Personal Secrets Vault. The P8V3F release, evidence,
+rollback and authorization identities remain unchanged because the deployment
+window never started and its token remains unconsumed. The correction still
+requires focused tests, independent review, merge/final CI and one fresh real
+minimal preflight before the owner token may be requested. No product scope or
+production/provider authority is added.

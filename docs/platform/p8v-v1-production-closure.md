@@ -1151,3 +1151,28 @@ configured and exercised. A successful internal sync atomically replaces the
 pre-existing 26 internal chunks, and the frozen candidate application commit
 contains the same Gemini query-embedding convention that will be active after
 the reviewed Inbox deployment.
+
+### P8V3F Gemini 3.5 Flash readiness budget correction
+
+The first real P8V3F preflight produced the exact required embedding but the
+draft probe returned HTTP 200, `finishReason: MAX_TOKENS`, and truncated text
+`He`. Gemini 3.5 Flash defaults to medium thinking, so the previous
+`maxOutputTokens: 32` was not an executable closed JSON budget. No production
+effect occurred and the P8V3F token remains unconsumed.
+
+The corrected exact draft request keeps the existing neutral prompt,
+`store: false`, candidate count one, JSON MIME type, closed schema, 15-second
+timeout, 64-KiB response ceiling and no retry. It must omit `temperature`, use
+exact `thinkingConfig: { thinkingLevel: "MINIMAL" }`, and use exact
+`maxOutputTokens: 128`. The response must still contain exactly one candidate
+and one text part whose complete parsed value is exactly
+`{"reply":"READY","handoff":false}`. `MAX_TOKENS`, missing/extra parts,
+truncated/malformed JSON and wrong values are blocking.
+
+Official Gemini 3.5 Flash guidance documents the default medium thinking
+level, the supported `MINIMAL` setting, and recommends removing sampling
+overrides for Gemini 3.x:
+<https://ai.google.dev/gemini-api/docs/generate-content/whats-new-gemini-3.5>.
+Issue #335, focused tests, independent review, merge/final CI and a fresh real
+preflight remain mandatory before the unchanged P8V3F authorization may be
+requested.

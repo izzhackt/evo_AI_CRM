@@ -403,8 +403,11 @@ function preflightRemoteScript() {
 [[ ! -e '${CONFIG_ROLLBACK_ROOT}' && ! -L '${CONFIG_ROLLBACK_ROOT}' ]]
 [[ ! -e '${EVIDENCE_ROOT}' && ! -L '${EVIDENCE_ROOT}' ]]
 [[ ! -e '${PREFLIGHT_ROOT}' && ! -L '${PREFLIGHT_ROOT}' ]]
-if docker container ls -a --no-trunc --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null; then exit 2; fi
-if docker container ls -a --filter 'label=${IMPORTER_OWNER_LABEL}' --format '{{.ID}}' | grep . >/dev/null; then exit 2; fi
+p8v3k_container_inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || exit 2
+p8v3k_target="$(printf '%s\n' "$p8v3k_container_inventory" | awk -F '|' '$2 == "${IMPORTER}" { print $1 }')"
+[[ -z "$p8v3k_target" ]] || exit 2
+p8v3k_owner_inventory="$(docker container ls -a --no-trunc --filter 'label=${IMPORTER_OWNER_LABEL}' --format '{{.ID}}|{{.Names}}')" || exit 2
+[[ -z "$p8v3k_owner_inventory" ]] || exit 2
 [[ "$(docker network inspect '${IMPORTER_NETWORK}' --format '{{.Name}}|{{.Driver}}|{{.Scope}}|{{.Internal}}')" == '${IMPORTER_NETWORK}|bridge|local|false' ]] || exit 2
 [[ -f '${PRODUCTION_CRM_COMPOSE}' && ! -L '${PRODUCTION_CRM_COMPOSE}' ]] || exit 2
 [[ "$(sha256sum '${PRODUCTION_CRM_COMPOSE}' | awk '{print $1}')" == '${PRODUCTION_CRM_COMPOSE_SHA256}' ]] || exit 2
@@ -981,30 +984,40 @@ chmod 0640 '${PREFLIGHT_ROOT}/${IMPORTER_FILE}'
 `;
 }
 
-function preflightCleanupScript({ importerSha256 = null, owner = null } = {}) {
+function preflightCleanupScript({ importerSha256 = null, importerSize = null, owner = null } = {}) {
   if (owner !== null && !IMPORTER_OWNER.test(owner)) fail("P8V3K preflight cleanup owner is invalid", "preflight_drift");
+  if ((importerSha256 === null) !== (importerSize === null) || (importerSha256 !== null && (!SHA64.test(importerSha256) || !Number.isSafeInteger(importerSize) || importerSize < 1))) {
+    fail("P8V3K preflight cleanup importer identity is invalid", "preflight_drift");
+  }
   const expectedOwner = owner ?? "";
   return String.raw`
 set +e
 errors=0
-if docker container ls -a --no-trunc --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null; then
-  identity="$(docker inspect '${IMPORTER}' --format '{{.Image}}|{{index .Config.Labels "${IMPORTER_OWNER_LABEL}"}}|{{.Name}}' 2>/dev/null || true)"
-  if [[ -n '${expectedOwner}' && "$identity" == '${P8V3_IMAGES.crm.platform}|${expectedOwner}|/${IMPORTER}' ]]; then
-    docker rm -f '${IMPORTER}' >/dev/null 2>&1 || errors=1
-  else
-    errors=1
-  fi
-fi
-docker container ls -a --no-trunc --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null && errors=1
-docker container ls -a --filter 'label=${IMPORTER_OWNER_LABEL}' --format '{{.ID}}' | grep . >/dev/null && errors=1
-if [[ -f '${PREFLIGHT_ROOT}/${IMPORTER_FILE}' && ! -L '${PREFLIGHT_ROOT}/${IMPORTER_FILE}' ]]; then
-  ${importerSha256 ? `[[ "$(sha256sum '${PREFLIGHT_ROOT}/${IMPORTER_FILE}' | awk '{print $1}')" == '${importerSha256}' ]] || errors=1` : ":"}
-  rm -f '${PREFLIGHT_ROOT}/${IMPORTER_FILE}' || errors=1
-fi
-if [[ -d '${PREFLIGHT_ROOT}' && -z "$(find '${PREFLIGHT_ROOT}' -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
-  rmdir '${PREFLIGHT_ROOT}' || errors=1
-fi
-[[ ! -e '${PREFLIGHT_ROOT}' && ! -L '${PREFLIGHT_ROOT}' ]] || errors=1
+${knowledgeContainerCleanupBody(expectedOwner)}
+[[ "$errors" == '0' ]] || exit "$errors"
+python3 - <<'PY' || errors=1
+import hashlib, stat
+from pathlib import Path
+root = Path('${PREFLIGHT_ROOT}')
+importer = root/'${IMPORTER_FILE}'
+if root.is_symlink(): raise SystemExit(2)
+if not root.exists(): raise SystemExit(0)
+root_metadata = root.lstat()
+if not root.is_dir() or root_metadata.st_uid != 0 or root_metadata.st_gid != 0 or stat.S_IMODE(root_metadata.st_mode) != 0o700: raise SystemExit(2)
+entries = list(root.iterdir())
+if {entry.name for entry in entries} - {'${IMPORTER_FILE}'}: raise SystemExit(2)
+if importer.is_symlink(): raise SystemExit(2)
+if importer.exists():
+    metadata = importer.lstat()
+    importer_state = (metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode))
+    if not stat.S_ISREG(metadata.st_mode) or importer_state not in {(0, 0, 0o600), (0, 1001, 0o640)}: raise SystemExit(2)
+    if '${importerSha256 ?? ""}' == '' or metadata.st_size != ${importerSize ?? 0} or hashlib.sha256(importer.read_bytes()).hexdigest() != '${importerSha256 ?? ""}': raise SystemExit(2)
+    importer.unlink()
+if importer.exists() or importer.is_symlink() or any(root.iterdir()): raise SystemExit(2)
+root.rmdir()
+if root.exists() or root.is_symlink(): raise SystemExit(2)
+PY
+${knowledgeContainerAbsenceBody()}
 exit "$errors"
 `;
 }
@@ -1105,8 +1118,11 @@ function composeRunPrefixScript({ owner, envNames = [], mounts = [] }) {
   return String.raw`
 set -u
 ${composeEnvironment("crm")}
-if docker container ls -a --no-trunc --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null; then exit 2; fi
-if docker container ls -a --filter 'label=${IMPORTER_OWNER_LABEL}' --format '{{.Names}}' | grep . >/dev/null; then exit 2; fi
+inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || exit 2
+target="$(printf '%s\n' "$inventory" | awk -F '|' '$2 == "${IMPORTER}" { print $1 }')"
+[[ -z "$target" ]] || exit 2
+owned="$(docker container ls -a --no-trunc --filter 'label=${IMPORTER_OWNER_LABEL}' --format '{{.ID}}|{{.Names}}')" || exit 2
+[[ -z "$owned" ]] || exit 2
 docker compose --ansi never --progress quiet --project-name '${composeProject("crm")}' -f '${PRODUCTION_CRM_COMPOSE}' --env-file '${PRODUCTION_CRM_ENV_FILE}' run --rm --no-deps --pull never -T --name '${IMPORTER}' --label '${IMPORTER_OWNER_LABEL}=${owner}' ${envFlags} ${mountFlags} --entrypoint /bin/sh app
 `.trimEnd();
 }
@@ -1167,51 +1183,116 @@ ${importCommand(item, owner)}
 `;
 }
 
-function knowledgeCleanupScript({ releaseRoot = RELEASE_ROOT, knowledgeRemote = KNOWLEDGE_REMOTE, owner = null } = {}) {
+function knowledgeContainerCleanupBody(expectedOwner) {
+  return String.raw`
+inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || { inventory=''; errors=1; }
+owned="$(docker container ls -a --no-trunc --filter 'label=${IMPORTER_OWNER_LABEL}' --format '{{.ID}}|{{.Names}}')" || { owned=''; errors=1; }
+target="$(printf '%s\n' "$inventory" | awk -F '|' '$2 == "${IMPORTER}" { print $0 }')"
+if [[ -n "$owned" ]]; then
+  [[ "$(printf '%s\n' "$owned" | sed '/^$/d' | wc -l | tr -d ' ')" == '1' ]] || errors=1
+  owned_id="$(printf '%s\n' "$owned" | cut -d '|' -f 1)"
+  owned_name="$(printf '%s\n' "$owned" | cut -d '|' -f 2)"
+  identity="$(docker inspect "$owned_id" --format '{{.Image}}|{{index .Config.Labels "${IMPORTER_OWNER_LABEL}"}}|{{.Name}}' 2>/dev/null)" || { identity=''; errors=1; }
+  if [[ -n '${expectedOwner}' \
+    && "$owned_id" =~ ^[0-9a-f]{64}$ \
+    && "$owned_name" == '${IMPORTER}' \
+    && "$target" == "$owned_id|${IMPORTER}" \
+    && "$identity" == '${P8V3_IMAGES.crm.platform}|${expectedOwner}|/${IMPORTER}' ]]; then
+    docker rm -f "$owned_id" >/dev/null 2>&1 || errors=1
+  else
+    errors=1
+  fi
+elif [[ -n "$target" ]]; then
+  errors=1
+fi
+`;
+}
+
+function knowledgeContainerAbsenceBody() {
+  return String.raw`
+final_inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || { final_inventory=''; errors=1; }
+final_owned="$(docker container ls -a --no-trunc --filter 'label=${IMPORTER_OWNER_LABEL}' --format '{{.ID}}|{{.Names}}')" || { final_owned=''; errors=1; }
+final_target="$(printf '%s\n' "$final_inventory" | awk -F '|' '$2 == "${IMPORTER}" { print $0 }')"
+[[ -z "$final_target" && -z "$final_owned" ]] || errors=1
+`;
+}
+
+function knowledgeJobCleanupScript({ owner = null } = {}) {
   if (owner !== null && !IMPORTER_OWNER.test(owner)) fail("P8V3K knowledge cleanup owner is invalid", "knowledge_failed");
   const expectedOwner = owner ?? "";
   return String.raw`
 set +e
 errors=0
-if docker container ls -a --no-trunc --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null; then
-  identity="$(docker inspect '${IMPORTER}' --format '{{.Image}}|{{index .Config.Labels "${IMPORTER_OWNER_LABEL}"}}|{{.Name}}' 2>/dev/null || true)"
-  if [[ -n '${expectedOwner}' && "$identity" == '${P8V3_IMAGES.crm.platform}|${expectedOwner}|/${IMPORTER}' ]]; then
-    docker rm -f '${IMPORTER}' >/dev/null 2>&1 || errors=1
-  else
-    errors=1
-  fi
-fi
-docker container ls -a --filter 'label=${IMPORTER_OWNER_LABEL}' --format '{{.ID}}' | grep . >/dev/null && errors=1
+${knowledgeContainerCleanupBody(expectedOwner)}
+${knowledgeContainerAbsenceBody()}
+exit "$errors"
+`;
+}
+
+function knowledgeCleanupScript({
+  releaseRoot = RELEASE_ROOT,
+  knowledgeRemote = KNOWLEDGE_REMOTE,
+  owner = null,
+  importerSha256 = null,
+  importerSize = null,
+  expectedFiles = [],
+} = {}) {
+  if (owner !== null && !IMPORTER_OWNER.test(owner)) fail("P8V3K knowledge cleanup owner is invalid", "knowledge_failed");
+  if ((importerSha256 === null) !== (importerSize === null) || (importerSha256 !== null && (!SHA64.test(importerSha256) || !Number.isSafeInteger(importerSize) || importerSize < 1))) {
+    fail("P8V3K importer cleanup identity is invalid", "knowledge_failed");
+  }
+  const allowedNames = new Set([
+    "evo-knowledge-client.json",
+    "evo-knowledge-client.sha256.json",
+    "evo-knowledge-internal.json",
+    "evo-knowledge-internal.sha256.json",
+  ]);
+  const expected = {};
+  for (const item of expectedFiles) {
+    if (!allowedNames.has(item?.name) || !SHA64.test(item?.sha256) || Object.hasOwn(expected, item.name)) fail("P8V3K knowledge cleanup file identity is invalid", "knowledge_failed");
+    expected[item.name] = item.sha256;
+  }
+  const expectedOwner = owner ?? "";
+  const expectedFilesPython = JSON.stringify(expected);
+  return String.raw`
+set +e
+errors=0
+${knowledgeContainerCleanupBody(expectedOwner)}
+[[ "$errors" == '0' ]] || exit "$errors"
 python3 - <<'PY' || errors=1
-import os, stat
+import hashlib, json, os, stat
 from pathlib import Path
 release = Path('${releaseRoot}')
 knowledge = Path('${knowledgeRemote}')
 importer = release/'${IMPORTER_FILE}'
-allowed = {
-    'evo-knowledge-client.json',
-    'evo-knowledge-client.sha256.json',
-    'evo-knowledge-internal.json',
-    'evo-knowledge-internal.sha256.json',
-}
+expected = json.loads('${expectedFilesPython}')
+if release.is_symlink(): raise SystemExit(2)
 if not release.exists(): raise SystemExit(0)
-if release.is_symlink() or not release.is_dir(): raise SystemExit(2)
+release_metadata = release.lstat()
+if not release.is_dir() or release_metadata.st_uid != 0 or release_metadata.st_gid != 0 or stat.S_IMODE(release_metadata.st_mode) != 0o700: raise SystemExit(2)
+if importer.is_symlink(): raise SystemExit(2)
 if importer.exists():
     metadata = importer.lstat()
-    if not stat.S_ISREG(metadata.st_mode) or importer.is_symlink() or stat.S_IMODE(metadata.st_mode) != 0o640:
+    importer_state = (metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode))
+    if not stat.S_ISREG(metadata.st_mode) or importer_state not in {(0, 0, 0o600), (0, 1001, 0o640)}:
         raise SystemExit(2)
+    if '${importerSha256 ?? ""}' == '' or metadata.st_size != ${importerSize ?? 0} or hashlib.sha256(importer.read_bytes()).hexdigest() != '${importerSha256 ?? ""}': raise SystemExit(2)
     importer.unlink()
+if importer.exists() or importer.is_symlink(): raise SystemExit(2)
 if knowledge.is_symlink(): raise SystemExit(2)
 if not knowledge.exists(): raise SystemExit(0)
-if not knowledge.is_dir() or knowledge.resolve().parent != release.resolve(): raise SystemExit(2)
+knowledge_metadata = knowledge.lstat()
+if not knowledge.is_dir() or knowledge.resolve().parent != release.resolve() or knowledge_metadata.st_uid != 0 or knowledge_metadata.st_gid != 0 or stat.S_IMODE(knowledge_metadata.st_mode) != 0o700: raise SystemExit(2)
 entries = list(knowledge.iterdir())
 for entry in entries:
     metadata = entry.lstat()
-    if entry.name not in allowed or not stat.S_ISREG(metadata.st_mode) or entry.is_symlink(): raise SystemExit(2)
+    entry_state = (metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode))
+    if entry.name not in expected or not stat.S_ISREG(metadata.st_mode) or entry.is_symlink() or entry_state not in {(0, 0, 0o600), (0, 1001, 0o640)}: raise SystemExit(2)
+    if hashlib.sha256(entry.read_bytes()).hexdigest() != expected[entry.name]: raise SystemExit(2)
 for entry in entries: entry.unlink()
 if any(knowledge.iterdir()): raise SystemExit(2)
 PY
-docker container ls -a --no-trunc --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null && errors=1
+${knowledgeContainerAbsenceBody()}
 exit "$errors"
 `;
 }
@@ -1357,9 +1438,14 @@ function rollbackScript(name) {
   const project = composeProject(name);
   const service = spec.service;
   const removeWorker = name === "crm" ? String.raw`
-if docker container ls -a --format '{{.Names}}' | grep -Fx evo-crm-manual-send-worker >/dev/null; then
-  [[ "$(docker inspect evo-crm-manual-send-worker --format '{{.Image}}')" == '${P8V3_IMAGES.crm.platform}' ]]
-  docker rm -f evo-crm-manual-send-worker >/dev/null
+worker_inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || exit 2
+worker_row="$(printf '%s\n' "$worker_inventory" | awk -F '|' '$2 == "evo-crm-manual-send-worker" { print $0 }')"
+if [[ -n "$worker_row" ]]; then
+  worker_id="$(printf '%s\n' "$worker_row" | cut -d '|' -f 1)"
+  [[ "$worker_id" =~ ^[0-9a-f]{64}$ ]] || exit 2
+  worker_identity="$(docker inspect "$worker_id" --format '{{.Image}}|{{.Name}}' 2>/dev/null)" || exit 2
+  [[ "$worker_identity" == '${P8V3_IMAGES.crm.platform}|/evo-crm-manual-send-worker' ]] || exit 2
+  docker rm -f "$worker_id" >/dev/null || exit 2
 fi
 ` : "";
   return String.raw`
@@ -1419,6 +1505,7 @@ export function renderP8V3ShellContractsForTest() {
       bundleName: "evo-knowledge-client.json",
       manifestName: "evo-knowledge-client.sha256.json",
     }, owner),
+    knowledgeJobCleanup: knowledgeJobCleanupScript({ owner }),
     knowledgeCleanup: knowledgeCleanupScript({ owner }),
     deployCrm: deployScript("crm"),
     deployInbox: deployScript("inbox"),
@@ -1430,12 +1517,19 @@ export function renderP8V3ShellContractsForTest() {
   });
 }
 
-export function renderP8V3KnowledgeCleanupForTest({ releaseRoot, knowledgeRemote, owner = "a".repeat(48) }) {
+export function renderP8V3KnowledgeCleanupForTest({
+  releaseRoot,
+  knowledgeRemote,
+  owner = "a".repeat(48),
+  importerSha256 = null,
+  importerSize = null,
+  expectedFiles = [],
+}) {
   const safePath = /^\/[A-Za-z0-9._/-]+$/;
   if (!safePath.test(releaseRoot) || !safePath.test(knowledgeRemote) || dirname(knowledgeRemote) !== releaseRoot) {
     fail("P8V3 cleanup test path drifted", "knowledge_failed");
   }
-  return knowledgeCleanupScript({ releaseRoot, knowledgeRemote, owner });
+  return knowledgeCleanupScript({ releaseRoot, knowledgeRemote, owner, importerSha256, importerSize, expectedFiles });
 }
 
 export function validateP8V3EvidencePrivacy(raw) {
@@ -1679,7 +1773,7 @@ export async function createP8V3ProductionOperations({
       } finally {
         if (owner !== null) {
           try {
-            remote(run, knowledgeCleanupScript({ owner }), { timeout: 120_000, label: `${audience} knowledge job cleanup`, code: "knowledge_failed" });
+            remote(run, knowledgeJobCleanupScript({ owner }), { timeout: 120_000, label: `${audience} knowledge job cleanup`, code: "knowledge_failed" });
             state.currentImporterOwner = null;
           } catch (cleanupError) {
             operationError = cleanupError;
@@ -1695,7 +1789,18 @@ export async function createP8V3ProductionOperations({
 
     async cleanupKnowledge() {
       let error;
-      try { remote(run, knowledgeCleanupScript({ owner: state.currentImporterOwner }), { timeout: 120_000, label: "knowledge cleanup", code: "knowledge_failed" }); } catch (caught) { error = caught; }
+      const expectedFiles = [...state.built.values()].flatMap((item) => [
+        { name: item.bundleName, sha256: item.bundleSha256 },
+        { name: item.manifestName, sha256: item.manifestSha256 },
+      ]);
+      try {
+        remote(run, knowledgeCleanupScript({
+          owner: state.currentImporterOwner,
+          importerSha256: state.expectedImporter?.sha256 ?? null,
+          importerSize: state.expectedImporter?.size ?? null,
+          expectedFiles,
+        }), { timeout: 120_000, label: "knowledge cleanup", code: "knowledge_failed" });
+      } catch (caught) { error = caught; }
       for (const root of state.localRoots.splice(0)) {
         try { rmSync(root, { recursive: true, force: false }); } catch (caught) { error ??= caught; }
       }

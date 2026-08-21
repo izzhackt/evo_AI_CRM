@@ -1213,6 +1213,15 @@ test("P8V3K per-job cleanup removes only the one-off container and preserves sha
   assert.match(knowledgeCleanup, /hashlib\.sha256/);
 });
 
+test("P8V3K CRM rollback removes the manual-send worker by exact container ID", () => {
+  const { rollbackCrm } = renderP8V3ShellContractsForTest();
+  assert.match(rollbackCrm, /docker container ls -a --no-trunc --format '\{\{\.ID\}\}\|\{\{\.Names\}\}'/);
+  assert.match(rollbackCrm, /worker_row="\$\(printf '%s\\n' "\$worker_inventory" \| awk -F '\|' '\$2 == "evo-crm-manual-send-worker" \{ print \$0 \}'\)"/);
+  assert.match(rollbackCrm, /docker inspect "\$worker_id" --format '\{\{\.Image\}\}\|\{\{\.Name\}\}'/);
+  assert.match(rollbackCrm, /docker rm -f "\$worker_id" >/);
+  assert.doesNotMatch(rollbackCrm, /grep -Fx evo-crm-manual-send-worker|docker rm -f evo-crm-manual-send-worker/);
+});
+
 test("P8V3K knowledge job uses compose run on the CRM service with individually mounted read-only files", () => {
   const { preflight, providerProbe, knowledgeImport } = renderP8V3ShellContractsForTest();
 

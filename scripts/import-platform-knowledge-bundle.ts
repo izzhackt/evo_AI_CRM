@@ -3,7 +3,12 @@ import { readFile } from "node:fs/promises";
 
 import { createClient } from "@supabase/supabase-js";
 
-import { importPlatformKnowledgeBundleBytes, resolveConfiguredPlatformKnowledgeAccountId, type PlatformKnowledgeAudience } from "../src/lib/server/platform-knowledge-bundle.ts";
+import {
+  formatPlatformKnowledgeEmbeddingDocument,
+  importPlatformKnowledgeBundleBytes,
+  resolveConfiguredPlatformKnowledgeAccountId,
+  type PlatformKnowledgeAudience,
+} from "../src/lib/server/platform-knowledge-bundle.ts";
 import { createPlatformKnowledgeGeminiEmbedder } from "../src/lib/server/platform-knowledge-embeddings.ts";
 import {
   platformKnowledgeImportError,
@@ -31,9 +36,36 @@ async function main(): Promise<void> {
     process.stdout.write(`${JSON.stringify({ status: "knowledge_import_runtime_verified", version: 1 })}\n`);
     return;
   }
+  if (process.argv.length === 3 && process.argv[2] === "--verify-provider") {
+    const texts = Array.from({ length: 17 }, (_unused, index) => (
+      formatPlatformKnowledgeEmbeddingDocument(
+        "EVO P8V3K readiness",
+        `Neutral server runtime readiness item ${index + 1}`,
+      )
+    ));
+    const embeddings = await createPlatformKnowledgeGeminiEmbedder({
+      apiKey: environment("EVO_PLATFORM_GEMINI_API_KEY", "provider_rejected"),
+      retryDelaysMs: [0],
+    })(texts, { model: "gemini-embedding-2", dimensions: 1_536 });
+    if (embeddings.length !== texts.length) throw platformKnowledgeImportError("provider_rejected", "Provider readiness cardinality drifted");
+    process.stdout.write(`${JSON.stringify({
+      status: "knowledge_import_provider_verified",
+      version: 1,
+      model: "gemini-embedding-2",
+      vectors: embeddings.length,
+      dimensions: 1_536,
+      uid: process.getuid?.() ?? null,
+      gid: process.getgid?.() ?? null,
+    })}\n`);
+    return;
+  }
   const audience = arg("--audience");
   if (audience !== "client" && audience !== "internal") throw new Error("--audience must be client or internal");
-  const accountId = resolveConfiguredPlatformKnowledgeAccountId(arg("--account-id"));
+  const accountId = resolveConfiguredPlatformKnowledgeAccountId(
+    process.argv.includes("--account-id")
+      ? arg("--account-id")
+      : environment("EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID", "account_binding_failed"),
+  );
   const bundlePath = arg("--bundle");
   const manifestPath = arg("--manifest");
   let bundleBytes: Buffer;
@@ -63,15 +95,24 @@ async function main(): Promise<void> {
 try {
   await main();
 } catch (error) {
-  const audience = process.argv.includes("--audience")
-    ? process.argv[process.argv.indexOf("--audience") + 1]
-    : undefined;
-  if (audience !== "client" && audience !== "internal") throw error;
-  const blocked = {
-    status: "knowledge_import_blocked",
-    version: 1,
-    audience,
-    reason_code: platformKnowledgeImportReason(error, "transport_failed"),
-  } as const;
-  process.stdout.write(`${JSON.stringify(blocked)}\n`);
+  if (process.argv.length === 3 && process.argv[2] === "--verify-provider") {
+    process.stdout.write(`${JSON.stringify({
+      status: "knowledge_import_provider_blocked",
+      version: 1,
+      reason_code: platformKnowledgeImportReason(error, "transport_failed"),
+    })}\n`);
+    process.exitCode = 2;
+  } else {
+    const audience = process.argv.includes("--audience")
+      ? process.argv[process.argv.indexOf("--audience") + 1]
+      : undefined;
+    if (audience !== "client" && audience !== "internal") throw error;
+    const blocked = {
+      status: "knowledge_import_blocked",
+      version: 1,
+      audience,
+      reason_code: platformKnowledgeImportReason(error, "transport_failed"),
+    } as const;
+    process.stdout.write(`${JSON.stringify(blocked)}\n`);
+  }
 }

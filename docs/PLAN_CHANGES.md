@@ -9682,3 +9682,54 @@ Writable identities advance collision-free to release
 future authorization `EXECUTE-P8V3J-2026-08-21.P8V3J.1`. One scoped PR,
 independent review, final CI, fresh short preflight, and a new owner token gate
 any retry. No production or provider action is authorized here.
+
+## 2026-08-21 — P8V3K simplify knowledge import runtime on Hermes
+
+Issue #350 replaces only the bespoke knowledge-helper lifecycle. Preserve the
+immutable P8V3J result SHA-256
+`45b67745d808333b74af8feeb7c1d213e2a018ac1690c0154212341591753486`, its
+verified rollback/cleanup and zero-effect post-state. Preserve the exact frozen
+11-client/291-internal sources, application/image identities, migration and
+ordered deployment boundaries. P8V3J authorization is consumed.
+
+Use one foreground `docker compose run` against the exact production CRM `app`
+service instead of `docker create` + `start` + `cp` + `exec`. Freeze
+`--ansi never --progress quiet --project-name evo-crm`, the canonical
+`/opt/evo-crm/docker-compose.prod.yml` and `.env.production`, and run flags
+`--rm --no-deps --pull never -T`. Build and pull are forbidden. The exact
+reserved job name and fresh owner label must be absent before and after every
+probe/import; cleanup may remove only an exact name+owner+reviewed-image match
+and must refuse foreign containers.
+
+The reviewed candidate image predates the later importer retry/diagnostic
+corrections. Keep the separately built current importer: build it twice for the
+preflight SHA-256/size, rebuild/match for execution, transfer it without
+printing private paths, and mount it plus each bundle/manifest as individual
+read-only files. Run as the Compose `app` user. The fixed container shell must
+cross-bind the configured account to the process-only expected account before
+Node executes the mounted importer. Key/UUID values remain stdin/environment
+only and absent from argv/output/evidence.
+
+Add one pre-effect Hermes probe through that same Compose/image/network seam.
+It uses mounted current importer `--verify-provider`, the process-only key and
+one fixed neutral non-retrying `gemini-embedding-2` batch; it requires one
+1536-dimensional result, one closed stdout record, empty stderr, no retained
+container and no data/provider side effect beyond that single readiness call.
+The preflight also checks exact Compose bytes/render, image/platform, current
+health/restarts, capacity, migration compatibility and rollback retention.
+
+Import client then internal, parse only the closed importer record, and verify
+the exact managed revision after each atomic RPC. Any knowledge failure stops
+before deployment, restores configuration and proves staged files/job absent.
+The inherited application volumes are acknowledged but the reviewed importer
+has no filesystem-write path; no application-volume path may be passed to it.
+
+Advance writable identities to P8V3K release `2026-08-21.p8v3k.1`, version
+`p8v3k-0f1454d0-20260821`, importer file
+`p8v3k-platform-knowledge-import.mjs`, job
+`evo-p8v3k-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3k-20260821.1`, result
+`p8v3k-rollout-result.json`, preflight `p8v3k-production-preflight/v1`, and
+future token `EXECUTE-P8V3K-2026-08-21.P8V3K.1`. One PR/review/final CI, one
+short preflight and one new deployment+rollback authorization remain. This is
+repository authority only.

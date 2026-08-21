@@ -58,3 +58,29 @@ test("bundled importer emits one closed safe blocker without reading files on ac
   });
   assert.doesNotMatch(blocked.stdout, /20000000|30000000|must\/not\/be\/read/u);
 });
+
+test("bundled importer accepts the P8V3K expected account only from process environment", () => {
+  const blocked = spawnSync("node", [
+    ".next/platform-knowledge-import.mjs",
+    "--audience", "client",
+    "--bundle", "/must/not/be/read/client.bundle.json",
+    "--manifest", "/must/not/be/read/client.manifest.json",
+  ], {
+    cwd,
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH,
+      EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID: "30000000-0000-4000-8000-000000000003",
+      EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID: ACCOUNT_ID,
+    },
+  });
+  assert.equal(blocked.status, 0, blocked.stderr || blocked.stdout);
+  assert.equal(blocked.stderr, "");
+  assert.deepEqual(JSON.parse(blocked.stdout), {
+    status: "knowledge_import_blocked",
+    version: 1,
+    audience: "client",
+    reason_code: "account_binding_failed",
+  });
+  assert.doesNotMatch(blocked.stdout, /20000000|30000000|must\/not\/be\/read/u);
+});

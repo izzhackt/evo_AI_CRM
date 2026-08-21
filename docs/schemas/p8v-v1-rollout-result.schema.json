@@ -148,7 +148,7 @@
         "properties": {
           "authorization": {
             "type": "object",
-            "properties": { "id": { "enum": ["EXECUTE-P8V3I-2026-08-21.P8V3I.1", "EXECUTE-P8V3J-2026-08-21.P8V3J.1"] } },
+            "properties": { "id": { "enum": ["EXECUTE-P8V3I-2026-08-21.P8V3I.1", "EXECUTE-P8V3J-2026-08-21.P8V3J.1", "EXECUTE-P8V3K-2026-08-21.P8V3K.1"] } },
             "required": ["id"]
           },
           "failure": {
@@ -173,7 +173,7 @@
     },
     {
       "if": {
-        "properties": { "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1", "EXECUTE-P8V3H-2026-08-21.P8V3H.1", "EXECUTE-P8V3I-2026-08-21.P8V3I.1", "EXECUTE-P8V3J-2026-08-21.P8V3J.1"] } }, "required": ["id"] } },
+        "properties": { "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1", "EXECUTE-P8V3H-2026-08-21.P8V3H.1", "EXECUTE-P8V3I-2026-08-21.P8V3I.1", "EXECUTE-P8V3J-2026-08-21.P8V3J.1", "EXECUTE-P8V3K-2026-08-21.P8V3K.1"] } }, "required": ["id"] } },
         "required": ["authorization"]
       },
       "then": { "properties": { "configuration": { "required": ["lead_file_verified"] } } }
@@ -187,7 +187,7 @@
     },
     {
       "if": {
-        "properties": { "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1", "EXECUTE-P8V3H-2026-08-21.P8V3H.1", "EXECUTE-P8V3I-2026-08-21.P8V3I.1", "EXECUTE-P8V3J-2026-08-21.P8V3J.1"] } }, "required": ["id"] } },
+        "properties": { "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1", "EXECUTE-P8V3H-2026-08-21.P8V3H.1", "EXECUTE-P8V3I-2026-08-21.P8V3I.1", "EXECUTE-P8V3J-2026-08-21.P8V3J.1", "EXECUTE-P8V3K-2026-08-21.P8V3K.1"] } }, "required": ["id"] } },
         "required": ["authorization"]
       },
       "then": {
@@ -206,6 +206,27 @@
           "effects": { "properties": { "migration_applied": { "const": 1 } }, "required": ["migration_applied"] }
         }
       }
+    },
+    {
+      "if": { "properties": { "effects": { "properties": { "knowledge_imports": { "const": 0 } }, "required": ["knowledge_imports"] } }, "required": ["effects"] },
+      "then": { "properties": { "knowledge": { "properties": { "audiences": { "prefixItems": [
+        { "properties": { "status": { "enum": ["not_run", "failed"] } }, "required": ["status"] },
+        { "properties": { "status": { "enum": ["not_run", "failed"] } }, "required": ["status"] }
+      ] } }, "required": ["audiences"] } } }
+    },
+    {
+      "if": { "properties": { "effects": { "properties": { "knowledge_imports": { "const": 1 } }, "required": ["knowledge_imports"] } }, "required": ["effects"] },
+      "then": { "properties": { "knowledge": { "properties": { "audiences": { "prefixItems": [
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "enum": ["not_run", "failed"] } }, "required": ["status"] }
+      ] } }, "required": ["audiences"] } } }
+    },
+    {
+      "if": { "properties": { "effects": { "properties": { "knowledge_imports": { "const": 2 } }, "required": ["knowledge_imports"] } }, "required": ["effects"] },
+      "then": { "properties": { "knowledge": { "properties": { "audiences": { "prefixItems": [
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+        { "properties": { "status": { "const": "verified" } }, "required": ["status"] }
+      ] } }, "required": ["audiences"] } } }
     },
     {
       "if": { "properties": { "failure": { "type": "object", "properties": { "step": { "const": "pre_state" } }, "required": ["step"] } }, "required": ["failure"] },
@@ -533,7 +554,7 @@
             },
             {
               "properties": {
-                "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1", "EXECUTE-P8V3H-2026-08-21.P8V3H.1", "EXECUTE-P8V3I-2026-08-21.P8V3I.1", "EXECUTE-P8V3J-2026-08-21.P8V3J.1"] } }, "required": ["id"] },
+                "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1", "EXECUTE-P8V3H-2026-08-21.P8V3H.1", "EXECUTE-P8V3I-2026-08-21.P8V3I.1", "EXECUTE-P8V3J-2026-08-21.P8V3J.1", "EXECUTE-P8V3K-2026-08-21.P8V3K.1"] } }, "required": ["id"] },
                 "failure": { "properties": { "step": { "const": "migration" }, "code": { "const": "migration_failed" } }, "required": ["step", "code"] },
                 "configuration": {
                   "properties": {
@@ -612,7 +633,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["id", "started_at", "expires_at", "preflight_sha256"],
       "properties": {
-        "id": { "enum": ["EXECUTE-P8V3-2026-08-20.P8V3.1", "EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1", "EXECUTE-P8V3H-2026-08-21.P8V3H.1", "EXECUTE-P8V3I-2026-08-21.P8V3I.1", "EXECUTE-P8V3J-2026-08-21.P8V3J.1"] },
+        "id": { "enum": ["EXECUTE-P8V3-2026-08-20.P8V3.1", "EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1", "EXECUTE-P8V3H-2026-08-21.P8V3H.1", "EXECUTE-P8V3I-2026-08-21.P8V3I.1", "EXECUTE-P8V3J-2026-08-21.P8V3J.1", "EXECUTE-P8V3K-2026-08-21.P8V3K.1"] },
         "started_at": { "type": "string", "format": "date-time" },
         "expires_at": { "type": "string", "format": "date-time" },
         "preflight_sha256": { "$ref": "#/$defs/sha64" }

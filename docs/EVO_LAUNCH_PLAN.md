@@ -3980,3 +3980,72 @@ scoped PR, one independent review, final CI, a fresh short read-only preflight,
 and a new owner token remain mandatory. This block authorizes repository work
 only; it does not authorize production, provider, import, deployment,
 WhatsApp, WAHA, amoCRM, or customer-data effects.
+
+## P8V3K — Compose-native knowledge import runtime (2026-08-21)
+
+P8V3J remains immutable audit history. Its reviewed result SHA-256 is
+`45b67745d808333b74af8feeb7c1d213e2a018ac1690c0154212341591753486`; it stopped
+at `client_import` with `transport_failed`, verified rollback and cleanup, and
+left migrations `001-077`, managed client knowledge, the pre-existing internal
+2 documents/26 chunks, and all five deployed containers unchanged. Its token is
+consumed and is never accepted by P8V3K.
+
+The prior helper container assembled a runtime with separate `docker create`,
+`start`, `cp`, `exec`, network and cleanup steps. P8V3K replaces that lifecycle
+with one foreground `docker compose run` job against service `app` in the exact
+production Compose file. Docker documents that `compose run` uses the service
+configuration, that `--no-deps` suppresses dependency startup, that `--rm`
+removes the one-off container, and that `--pull never` forbids a pull:
+<https://docs.docker.com/reference/cli/docker/compose/run/>.
+
+The candidate image is intentionally still the reviewed linux/amd64 image from
+application commit `0f1454d014bbc9eca9d7381dfe557e980965543e`, image ID
+`sha256:fc3487ce079663694aee583891c3939296915634bea61dd293db235b57e748f3`.
+It predates later importer retry and safe-diagnostic fixes. P8V3K therefore does
+not execute the stale importer baked into that image. The final checkout builds
+the current importer twice, binds its byte-identical SHA-256/size in preflight,
+rebuilds and rechecks it for execution, transfers only that file, and bind-mounts
+it read-only with each exact frozen bundle and manifest.
+
+The frozen command seam is `docker compose --ansi never --progress quiet
+--project-name evo-crm -f /opt/evo-crm/docker-compose.prod.yml --env-file
+/opt/evo-crm/.env.production run --rm --no-deps --pull never -T`, followed by
+the exact reserved name `evo-p8v3k-knowledge-import`, a fresh owner label,
+process-only environment-name forwarding, read-only individual file mounts,
+`--entrypoint /bin/sh`, service `app`, and a fixed shell that validates the
+configured account against the separately resolved expected account before
+executing the mounted importer with Node. No secret or UUID value appears in
+argv, stdout, stderr or evidence. Build, pull fallback, port publication, extra
+networks, `docker cp`, and the old sleep/start/exec lifecycle are forbidden.
+
+Before any configuration, migration reconciliation or knowledge effect, the
+short production preflight builds the same importer and runs its
+`--verify-provider` mode on Hermes through the same Compose service, reviewed
+image, environment, network, shell/output and cleanup seam. The probe makes one
+non-retrying `gemini-embedding-2` batch with fixed neutral text, requires the
+exact 1536-dimensional response, emits one closed JSON line with empty stderr,
+and writes no Supabase, amoCRM, WAHA, application-volume or customer data. The
+preflight also requires the exact production Compose hash/render, exact loaded
+image, healthy current containers, migration ledger, capacity, rollback files,
+absent reserved name/owner, and cleanup after the probe. Any mismatch blocks
+before the owner token.
+
+Execution keeps client before internal. The importer accepts only the existing
+closed success/blocked JSON contract with empty stderr. After each audience,
+the runner rereads the single managed revision and requires the exact bundle
+SHA-256/document count and a positive chunk count before continuing. The RPC
+remains the sole atomic database publication. A failed knowledge boundary keeps
+all application deployment boundaries `not_run`, restores configuration, and
+cleans only files/containers proven to belong to this attempt. `--rm` is primary
+container cleanup; final inventory must prove both reserved name and owner label
+absent, while a foreign occupant is never removed.
+
+Writable identities advance to release `2026-08-21.p8v3k.1`, version
+`p8v3k-0f1454d0-20260821`, importer file
+`p8v3k-platform-knowledge-import.mjs`, result `p8v3k-rollout-result.json`,
+evidence root `/opt/evo-release-evidence/p8v3k-20260821.1`, preflight
+`p8v3k-production-preflight/v1`, and future authorization
+`EXECUTE-P8V3K-2026-08-21.P8V3K.1`. Issue #350, one coherent PR, one independent
+exact-head review, one final CI, one short real preflight, and one fresh owner
+authorization covering import, deployment and rollback remain mandatory. This
+block authorizes repository work only.

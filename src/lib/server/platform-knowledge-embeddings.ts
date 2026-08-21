@@ -67,9 +67,17 @@ export function createPlatformKnowledgeGeminiEmbedder(input: Readonly<{
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
   waitImpl?: Wait;
+  retryDelaysMs?: readonly number[];
 }>) {
   const fetchImpl = input.fetchImpl ?? fetch;
   const timeoutMs = input.timeoutMs ?? 30_000;
+  const retryDelaysMs = input.retryDelaysMs ?? RETRY_DELAYS_MS;
+  if (
+    retryDelaysMs.length < 1 ||
+    retryDelaysMs.some((delayMs) => !Number.isSafeInteger(delayMs) || delayMs < 0)
+  ) {
+    throw new Error("Gemini retry schedule is invalid");
+  }
   const waitImpl = input.waitImpl ?? (async (delayMs) => {
     if (delayMs > 0) await new Promise((resolveDelay) => setTimeout(resolveDelay, delayMs));
   });
@@ -84,8 +92,8 @@ export function createPlatformKnowledgeGeminiEmbedder(input: Readonly<{
           outputDimensionality: options.dimensions,
         })),
       });
-      for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt += 1) {
-        const delayMs = RETRY_DELAYS_MS[attempt];
+      for (let attempt = 0; attempt < retryDelaysMs.length; attempt += 1) {
+        const delayMs = retryDelaysMs[attempt];
         await waitImpl(delayMs);
         const controller = new AbortController();
         const deadline = Date.now() + timeoutMs;
@@ -113,7 +121,7 @@ export function createPlatformKnowledgeGeminiEmbedder(input: Readonly<{
             } catch {
               throw platformKnowledgeImportError("transport_failed", "Gemini retry response was not fully received");
             }
-            if (attempt + 1 < RETRY_DELAYS_MS.length) continue;
+            if (attempt + 1 < retryDelaysMs.length) continue;
             throw platformKnowledgeImportError("provider_rate_limited", "Gemini embeddings rate limited");
           }
           if (!response.ok) throw platformKnowledgeImportError("provider_rejected", "Gemini embeddings request rejected");

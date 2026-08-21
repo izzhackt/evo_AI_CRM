@@ -1361,3 +1361,64 @@ Writable P8V3J identities are release `2026-08-21.p8v3j.1`, version
 `p8v3j-rollout-result.json`, preflight `p8v3j-production-preflight/v1`, and
 future authorization `EXECUTE-P8V3J-2026-08-21.P8V3J.1`. Issue #348 and the
 review, CI, fresh preflight, and new-token gates remain mandatory.
+
+## P8V3K — Compose knowledge import contract (2026-08-21)
+
+Issue #350 replaces only the knowledge helper lifecycle. Preserve P8V3J result
+SHA-256 `45b67745d808333b74af8feeb7c1d213e2a018ac1690c0154212341591753486`, its
+verified rollback/cleanup and zero-effect post-state. Its token is consumed.
+
+P8V3K uses service `app`, project `evo-crm`, canonical Compose
+`/opt/evo-crm/docker-compose.prod.yml`, env file
+`/opt/evo-crm/.env.production`, application revision
+`0f1454d014bbc9eca9d7381dfe557e980965543e`, and exact linux/amd64 image ID
+`sha256:fc3487ce079663694aee583891c3939296915634bea61dd293db235b57e748f3`.
+The command prefix is exactly:
+
+```text
+docker compose --ansi never --progress quiet --project-name evo-crm \
+  -f /opt/evo-crm/docker-compose.prod.yml \
+  --env-file /opt/evo-crm/.env.production \
+  run --rm --no-deps --pull never -T
+```
+
+It then supplies name `evo-p8v3k-knowledge-import`, exactly one fresh
+`evo.p8v3k.importer-owner` label, process-only environment **names**,
+individual read-only file mounts, `--entrypoint /bin/sh`, service `app`, and a
+fixed shell. Build, pull fallback, dependencies, ports, extra networks,
+`docker cp`, and the old sleep/start/exec lifecycle are forbidden.
+
+The candidate image predates later importer retry and safe-diagnostic fixes.
+The baked importer is forbidden. Preflight builds the current importer twice
+and binds exact SHA-256/size; execution rebuilds/matches, transfers, and mounts
+that file read-only. Gemini key and expected account arrive only via bounded
+SSH stdin/environment. The shell requires the expected UUID to equal existing
+`EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID` before Node starts. Values remain absent
+from command text, stdout, stderr and evidence.
+
+Before configuration or database work, the short preflight runs mounted
+importer `--verify-provider` through the same Compose service/prefix. It sends
+one non-retrying fixed neutral `gemini-embedding-2` batch, requires exactly one
+1536-dimensional response set, emits one closed safe JSON line and empty
+stderr, and performs no Supabase, amoCRM, WAHA or application-volume write.
+Preflight also requires exact Compose bytes/render, exact loaded image,
+healthy/restart-zero containers, disk/network capacity, ledger `001-077`,
+rollback retention, and absence/cleanup of reserved name and owner label.
+
+Client import precedes internal import. Each job mounts only its current
+importer, bundle and manifest. The existing closed output contract remains.
+After each success, exactly one managed revision must match bundle SHA-256 and
+document count with a positive chunk count. Any knowledge failure stops before
+all three deployments, restores configuration and cleans the exact staged
+files/job. `--rm` is primary cleanup; fallback removal requires exact
+name+owner+reviewed-image identity, foreign occupants are never removed, and
+final inventory proves both name and owner label absent.
+
+Writable identities are release `2026-08-21.p8v3k.1`, version
+`p8v3k-0f1454d0-20260821`, importer file
+`p8v3k-platform-knowledge-import.mjs`, result
+`p8v3k-rollout-result.json`, evidence root
+`/opt/evo-release-evidence/p8v3k-20260821.1`, preflight
+`p8v3k-production-preflight/v1`, and future token
+`EXECUTE-P8V3K-2026-08-21.P8V3K.1`. Repository work only; one PR/review/final
+CI, one short preflight, and one fresh deployment+rollback authorization remain.

@@ -1196,7 +1196,7 @@ if [[ -n "$owned" ]]; then
   if [[ -n '${expectedOwner}' \
     && "$owned_id" =~ ^[0-9a-f]{64}$ \
     && "$owned_name" == '${IMPORTER}' \
-    && "$target" == "$owned_id|${IMPORTER}" \
+    && ( -z "$target" || "$target" == "$owned_id|${IMPORTER}" ) \
     && "$identity" == '${P8V3_IMAGES.crm.platform}|${expectedOwner}|/${IMPORTER}' ]]; then
     docker rm -f "$owned_id" >/dev/null 2>&1 || errors=1
   else

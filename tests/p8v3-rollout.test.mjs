@@ -1132,6 +1132,53 @@ exit 1
   }
 });
 
+test("P8V3K cleanup still removes the exact owned container when the name inventory row has already disappeared", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3k-cleanup-owned-only-"));
+  const releaseRoot = join(fixture, "release");
+  const knowledgeRemote = join(releaseRoot, "knowledge-incoming");
+  const fakeBin = join(fixture, "bin");
+  const docker = join(fakeBin, "docker");
+  const removalMarker = join(fixture, "removed");
+  const containerId = "3".repeat(64);
+  try {
+    mkdirSync(fakeBin);
+    writeFileSync(
+      docker,
+      `#!/bin/sh
+if [ "$1" = "container" ] && [ "$2" = "ls" ]; then
+  if printf '%s\\n' "$*" | grep -F -- 'label=evo.p8v3k.importer-owner' >/dev/null; then
+    if [ ! -f "$REMOVAL_MARKER" ]; then
+      printf '%s\\n' '${containerId}|evo-p8v3k-knowledge-import'
+    fi
+  fi
+  exit 0
+fi
+if [ "$1" = "inspect" ] && [ "$3" = "--format" ] && [ "$4" = "{{.Image}}|{{index .Config.Labels \\"evo.p8v3k.importer-owner\\"}}|{{.Name}}" ]; then
+  printf '%s\\n' '${P8V3_IMAGES.crm.platform}|${"a".repeat(48)}|/evo-p8v3k-knowledge-import'
+  exit 0
+fi
+if [ "$1" = "rm" ] && [ "$2" = "-f" ] && [ "$3" = "${containerId}" ]; then
+  : > "$REMOVAL_MARKER"
+  exit 0
+fi
+exit 1
+`,
+      { mode: 0o700 },
+    );
+    chmodSync(docker, 0o700);
+
+    const result = spawnSync("bash", ["-seu"], {
+      input: renderP8V3KnowledgeCleanupForTest({ releaseRoot, knowledgeRemote }),
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, REMOVAL_MARKER: removalMarker },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(removalMarker), true);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
 test("P8V3K cleanup blocks a leftover compose-run container on the wrong image", () => {
   const fixture = mkdtempSync(join(tmpdir(), "p8v3k-cleanup-wrong-image-"));
   const releaseRoot = join(fixture, "release");

@@ -984,7 +984,7 @@ chmod 0640 '${PREFLIGHT_ROOT}/${IMPORTER_FILE}'
 `;
 }
 
-function preflightCleanupScript({ importerSha256 = null, importerSize = null, owner = null } = {}) {
+function preflightCleanupScript({ preflightRoot = PREFLIGHT_ROOT, importerSha256 = null, importerSize = null, owner = null } = {}) {
   if (owner !== null && !IMPORTER_OWNER.test(owner)) fail("P8V3K preflight cleanup owner is invalid", "preflight_drift");
   if ((importerSha256 === null) !== (importerSize === null) || (importerSha256 !== null && (!SHA64.test(importerSha256) || !Number.isSafeInteger(importerSize) || importerSize < 1))) {
     fail("P8V3K preflight cleanup importer identity is invalid", "preflight_drift");
@@ -998,7 +998,7 @@ ${knowledgeContainerCleanupBody(expectedOwner)}
 python3 - <<'PY' || errors=1
 import hashlib, stat
 from pathlib import Path
-root = Path('${PREFLIGHT_ROOT}')
+root = Path('${preflightRoot}')
 importer = root/'${IMPORTER_FILE}'
 if root.is_symlink(): raise SystemExit(2)
 if not root.exists(): raise SystemExit(0)
@@ -1533,6 +1533,11 @@ export function renderP8V3KnowledgeCleanupForTest({
     fail("P8V3 cleanup test path drifted", "knowledge_failed");
   }
   return knowledgeCleanupScript({ releaseRoot, knowledgeRemote, owner, importerSha256, importerSize, expectedFiles });
+}
+
+export function renderP8V3PreflightCleanupForTest({ preflightRoot, owner = "a".repeat(48) }) {
+  if (!/^\/[A-Za-z0-9._/-]+$/.test(preflightRoot)) fail("P8V3 preflight cleanup test path drifted", "preflight_drift");
+  return preflightCleanupScript({ preflightRoot, owner });
 }
 
 export function validateP8V3EvidencePrivacy(raw) {

@@ -22,6 +22,7 @@ import {
   parseP8V3ContainerRowsForTest,
   renderP8V3CandidateImageBoundaryForTest,
   renderP8V3KnowledgeCleanupForTest,
+  renderP8V3PreflightCleanupForTest,
   renderP8V3ShellContractsForTest,
   runP8V3StreamedRemoteForTest,
   verifyP8V3FGemini,
@@ -1192,6 +1193,33 @@ test("P8V3K cleanup fails closed when Docker inventory cannot prove absence", ()
       env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
     });
     assert.notEqual(result.status, 0);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test("P8V3K preflight cleanup rejects a symlinked evidence root without deleting its target", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3k-preflight-cleanup-symlink-"));
+  const target = join(fixture, "foreign-target");
+  const preflightRoot = join(fixture, "preflight-root");
+  const sentinel = join(target, "p8v3k-platform-knowledge-import.mjs");
+  const fakeBin = join(fixture, "bin");
+  const docker = join(fakeBin, "docker");
+  try {
+    mkdirSync(target, { mode: 0o700 });
+    mkdirSync(fakeBin, { mode: 0o700 });
+    writeFileSync(sentinel, "must remain\n", { mode: 0o600 });
+    symlinkSync(target, preflightRoot);
+    writeFileSync(docker, "#!/bin/sh\nif [ \"$1\" = container ] && [ \"$2\" = ls ]; then exit 0; fi\nexit 2\n", { mode: 0o700 });
+    chmodSync(docker, 0o700);
+    const result = spawnSync("bash", ["-seu"], {
+      input: renderP8V3PreflightCleanupForTest({ preflightRoot }),
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
+    });
+    assert.notEqual(result.status, 0);
+    assert.equal(readFileSync(sentinel, "utf8"), "must remain\n");
+    assert.equal(lstatSync(preflightRoot).isSymbolicLink(), true);
   } finally {
     rmSync(fixture, { recursive: true, force: true });
   }

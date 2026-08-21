@@ -65,7 +65,8 @@
     "p8d4f:verify-inbox-importer": "node scripts/p8d4f-verify-inbox-importer.mjs",
     "p8d4f:portable-identity": "node scripts/p8d4f-portable-image-identity.mjs",
     "test:p8d4f:portable-real": "node --test tests/p8d4f-portable-image-real.test.mjs",
-    "p8:reconcile": "node scripts/p8c-environment-reconciliation.mjs"
+    "p8:reconcile": "node scripts/p8c-environment-reconciliation.mjs",
+    "verify:deployment": "node scripts/verify-deployment.mjs"
   },
   "engines": {
     "node": ">=22 <23"

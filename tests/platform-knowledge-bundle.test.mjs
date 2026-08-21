@@ -205,6 +205,27 @@ test("Gemini embedding retries only four fully received 429 responses with byte-
   assert.equal(new Set(calls.map((call) => `${call.url}\n${call.body}`)).size, 1);
 });
 
+test("P8V3K provider verification performs one Gemini attempt with no retry", async () => {
+  let calls = 0;
+  const delays = [];
+  const embed = createPlatformKnowledgeGeminiEmbedder({
+    apiKey: testCredential(),
+    retryDelaysMs: [0],
+    waitImpl: async (delayMs) => { delays.push(delayMs); },
+    fetchImpl: async () => {
+      calls += 1;
+      return new Response('{"error":"quota"}', { status: 429 });
+    },
+  });
+
+  await assert.rejects(embed(["title: Readiness | text: Neutral provider verification"], {
+    model: "gemini-embedding-2",
+    dimensions: 1_536,
+  }), rejectsWithReason("provider_rate_limited"));
+  assert.equal(calls, 1);
+  assert.deepEqual(delays, [0]);
+});
+
 test("Gemini embedding does not retry a truncated, oversized, or stalled 429 response", async () => {
   const cases = [
     new Response(new ReadableStream({

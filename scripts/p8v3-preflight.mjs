@@ -10,7 +10,7 @@ const SHA64 = /^[0-9a-f]{64}$/;
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
 const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-export const P8V3_PREFLIGHT_VERSION = "p8v3j-production-preflight/v1";
+export const P8V3_PREFLIGHT_VERSION = "p8v3k-production-preflight/v1";
 export const P8V3_PREFLIGHT_WINDOW_MS = 30 * 60 * 1000;
 
 function fail(message) {
@@ -44,8 +44,8 @@ export function validateP8V3Preflight(value) {
     exactKeys(item, ["name", "sha256", "size", "index", "platform"], "preflight archive");
     if (!["crm", "inbox", "lead_agent"].includes(item.name) || !SHA64.test(item.sha256) || !Number.isSafeInteger(item.size) || item.size < 1 || !IMAGE_ID.test(item.index) || !IMAGE_ID.test(item.platform)) fail("preflight archive drifted");
   }
-  exactKeys(value.gemini, ["embedding_verified", "draft_verified", "retrieval_provider_verified"], "preflight Gemini");
-  if (value.gemini.embedding_verified !== true || value.gemini.draft_verified !== true || value.gemini.retrieval_provider_verified !== true) fail("preflight Gemini drifted");
+  exactKeys(value.gemini, ["embedding_verified", "draft_verified", "retrieval_provider_verified", "server_compose_verified"], "preflight Gemini");
+  if (value.gemini.embedding_verified !== true || value.gemini.draft_verified !== true || value.gemini.retrieval_provider_verified !== true || value.gemini.server_compose_verified !== true) fail("preflight Gemini drifted");
   exactKeys(value.importer, ["sha256", "size", "verified"], "preflight importer");
   if (!SHA64.test(value.importer.sha256) || !Number.isSafeInteger(value.importer.size) || value.importer.size < 1 || value.importer.size > 4 * 1024 * 1024 || value.importer.verified !== true) fail("preflight importer drifted");
   exactKeys(value.importer_network, ["name", "driver", "scope", "internal", "dns"], "preflight importer network");

@@ -23,6 +23,7 @@ import {
   parseP8V3ContainerRowsForTest,
   renderP8V3CandidateImageBoundaryForTest,
   renderP8V3KnowledgeCleanupForTest,
+  renderP8V3LiveComposeBoundaryForTest,
   renderP8V3PreflightCleanupForTest,
   renderP8V3ShellContractsForTest,
   runP8V3StreamedRemoteForTest,
@@ -1487,9 +1488,41 @@ test("P8V3K knowledge job uses compose run on the CRM service with individually 
   for (const deployment of [deployCrm, deployLead]) {
     assert.match(deployment, new RegExp(stagedCrmComposeSha));
     assert.doesNotMatch(deployment, new RegExp(liveComposeSha));
+    assert.match(deployment, /\/opt\/evo-releases\/0f1454d014bbc9eca9d7381dfe557e980965543e\/2026-08-21\.p8v3k\.1\/repo\/docker-compose\.prod\.yml/);
   }
   assert.match(deployInbox, new RegExp(stagedInboxComposeSha));
   assert.doesNotMatch(deployInbox, new RegExp(liveComposeSha));
+  assert.match(deployInbox, /\/opt\/evo-releases\/0f1454d014bbc9eca9d7381dfe557e980965543e\/2026-08-21\.p8v3k\.1\/repo\/agent-lead2-inbox\/deploy\/docker-compose\.inbox\.prod\.yml/);
+});
+
+test("P8V3K live Compose boundary rejects ownership or mode drift before use", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3k-live-compose-boundary-"));
+  const fakeBin = join(fixture, "bin");
+  const compose = join(fixture, "docker-compose.prod.yml");
+  const expectedSha = "a".repeat(64);
+  mkdirSync(fakeBin, { mode: 0o700 });
+  writeFileSync(compose, "services: {}\n", { mode: 0o644 });
+  writeFileSync(join(fakeBin, "stat"), "#!/bin/sh\nprintf '%s\\n' \"$FAKE_STAT\"\n", { mode: 0o700 });
+  writeFileSync(join(fakeBin, "sha256sum"), `#!/bin/sh\nprintf '%s  %s\\n' '${expectedSha}' "$1"\n`, { mode: 0o700 });
+  const boundary = renderP8V3LiveComposeBoundaryForTest({ file: compose, sha256: expectedSha });
+
+  try {
+    const drifted = spawnSync("bash", ["-seu"], {
+      input: boundary,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, FAKE_STAT: "root:root 666" },
+    });
+    assert.notEqual(drifted.status, 0);
+
+    const verified = spawnSync("bash", ["-seu"], {
+      input: boundary,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, FAKE_STAT: "root:root 644" },
+    });
+    assert.equal(verified.status, 0, verified.stderr);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
 });
 
 test("P8V3K provider probe blocks before compose run when the exact container name is already occupied", () => {

@@ -1314,3 +1314,50 @@ Writable P8V3I identities are release `2026-08-21.p8v3i.1`, version
 future authorization `EXECUTE-P8V3I-2026-08-21.P8V3I.1`. Issue #344 and a
 reviewed merge, final CI, fresh read-only preflight, and new owner token are
 required before any retry.
+
+## P8V3J closed importer-network contract
+
+P8V3J preserves the immutable P8V3I result SHA-256
+`1709094ba438286f00d9ebb83ae6a7377f8cd7fdb2f2d4a72e1ef3eb08698e26`
+and its zero-effect rollback boundary. The old token remains consumed.
+
+The only implementation correction is network parity for the disposable
+knowledge importer. Before any effect, preflight must inspect the exact network
+`evo_crm_private` and require the closed projection
+`evo_crm_private|bridge|local|false` for name, driver, scope, and internal
+state. No fallback network, default bridge, host networking, explicit public
+DNS server, or network creation is permitted.
+
+The exact create command must contain `--network evo_crm_private`. After the
+container starts and before any copy or importer execution, closed inspection
+must require:
+
+1. the exact created 64-hex container ID;
+2. the frozen immutable CRM image ID;
+3. the exact importer owner nonce and reserved P8V3J name;
+4. running state;
+5. exactly one attached network, `evo_crm_private`; and
+6. exactly one nameserver in `/etc/resolv.conf`, `127.0.0.11`.
+
+Any ambiguity blocks before Gemini or Supabase. Cleanup may remove only the
+same exact owned ID after revalidating ID, image, nonce, listed name, and
+inspected name; final inventory must prove the ID and reserved name absent.
+Foreign or unverifiable objects are never removed.
+
+Every importer identity/network/resolver predicate must use an explicit
+nonzero exit. Standalone Bash `[[ ... ]]` status is not accepted as the
+fail-closed mechanism.
+
+The diagnosis is deliberately bounded. Hermes proves the importer/application
+network mismatch and different resolver paths; it does not preserve the exact
+historical fetch exception. Evidence therefore remains `transport_failed` and
+is not retroactively rewritten. DNS/route/TLS subcodes are a later
+diagnosability improvement, not part of P8V3J.
+
+Writable P8V3J identities are release `2026-08-21.p8v3j.1`, version
+`p8v3j-0f1454d0-20260821`, importer `evo-p8v3j-knowledge-import`, importer file
+`p8v3j-platform-knowledge-import.mjs`, evidence root
+`/opt/evo-release-evidence/p8v3j-20260821.1`, sole result
+`p8v3j-rollout-result.json`, preflight `p8v3j-production-preflight/v1`, and
+future authorization `EXECUTE-P8V3J-2026-08-21.P8V3J.1`. Issue #348 and the
+review, CI, fresh preflight, and new-token gates remain mandatory.

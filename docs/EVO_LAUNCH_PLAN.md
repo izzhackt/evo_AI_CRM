@@ -3930,3 +3930,53 @@ New writable identities are release `2026-08-21.p8v3i.1`, version
 future authorization `EXECUTE-P8V3I-2026-08-21.P8V3I.1`. Issue #344 and the
 single review/final-CI/preflight/owner-token sequence remain mandatory. This
 block authorizes repository work only.
+
+## P8V3J — importer network parity correction (2026-08-21)
+
+P8V3I stopped at `client_import` with the closed reason
+`transport_failed`. Its retained result remains immutable at SHA-256
+`1709094ba438286f00d9ebb83ae6a7377f8cd7fdb2f2d4a72e1ef3eb08698e26`.
+Cleanup and rollback were verified, the knowledge sync had no effect, and all
+five production containers remained on their prior healthy identities. The
+P8V3I authorization is consumed and must never be reused.
+
+Read-only Hermes inspection found a concrete execution mismatch: the importer
+was created without `--network`, while `evo-crm-app-1` is attached to
+`evo_crm_private` and `evo_public_web`. The host resolver is
+`127.0.0.53%lo`; the application container uses Docker's embedded resolver at
+`127.0.0.11`. Docker documents that containers on the default bridge receive a
+copy of the host resolver configuration, while containers on a user-defined
+network use the embedded DNS server:
+<https://docs.docker.com/engine/network/#dns-services> and
+<https://docs.docker.com/engine/network/drivers/bridge/#differences-between-user-defined-bridges-and-the-default-bridge>.
+The historical low-level exception was not retained, so P8V3J records this as
+a confirmed network/DNS-path mismatch compatible with `transport_failed`, not
+as proof of an exact historical `ENOTFOUND` message.
+
+Before any mutation, preflight must require the existing network named exactly
+`evo_crm_private` to be a local, non-internal bridge. Importer creation must use
+exactly `--network evo_crm_private`. After start and before copying or running
+the importer, the runner must bind the exact container ID, image ID, owner
+nonce, name, running state, sole attached network `evo_crm_private`, and sole
+resolver `127.0.0.11`. Any missing network, extra network, resolver drift,
+ownership drift, or inspection failure blocks before provider or database
+work. Each predicate must carry an explicit nonzero exit and must not rely on
+`set -e` to interpret a standalone `[[ ... ]]` test. Existing exact-ID cleanup
+and absence proof remain mandatory.
+
+Tests must first reproduce the missing-network contract, then prove the exact
+create argument, preflight network inspection, post-start sole-network and
+resolver checks, and fail-closed behavior for network/resolver drift. A real
+OrbStack check may exercise the reviewed image on a collision-free disposable
+user-defined network; it is local-only and must clean up by verified identity.
+
+Writable identities advance to release `2026-08-21.p8v3j.1`, version
+`p8v3j-0f1454d0-20260821`, importer `evo-p8v3j-knowledge-import`, importer file
+`p8v3j-platform-knowledge-import.mjs`, evidence root
+`/opt/evo-release-evidence/p8v3j-20260821.1`, sole result
+`p8v3j-rollout-result.json`, preflight `p8v3j-production-preflight/v1`, and
+future authorization `EXECUTE-P8V3J-2026-08-21.P8V3J.1`. Issue #348, one
+scoped PR, one independent review, final CI, a fresh short read-only preflight,
+and a new owner token remain mandatory. This block authorizes repository work
+only; it does not authorize production, provider, import, deployment,
+WhatsApp, WAHA, amoCRM, or customer-data effects.

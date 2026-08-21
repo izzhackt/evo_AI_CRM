@@ -9643,3 +9643,42 @@ scoped implementation PR, one independent review, one final CI, a fresh short
 read-only preflight, and a new owner token gate any retry. No production,
 deployment, import, Gemini, WhatsApp, WAHA, amoCRM, or customer-data authority
 is granted by this plan change.
+
+## 2026-08-21 — P8V3J importer network parity correction
+
+Issue #348 records the one blocking correction after P8V3I. The immutable
+failed P8V3I result is retained at SHA-256
+`1709094ba438286f00d9ebb83ae6a7377f8cd7fdb2f2d4a72e1ef3eb08698e26`;
+it truthfully records `client_import` / `transport_failed`, verified rollback
+and cleanup, zero knowledge-sync effects, and unchanged healthy production
+containers. The consumed P8V3I token is not reusable.
+
+Read-only Hermes inspection confirmed that the application uses
+`evo_crm_private` with Docker DNS `127.0.0.11`, while the importer create
+command omitted `--network` and the host resolver is `127.0.0.53%lo`. Current
+Docker documentation distinguishes default-bridge resolver copying from the
+embedded DNS used by user-defined networks:
+<https://docs.docker.com/engine/network/#dns-services>. Because the exact
+historical transport exception was intentionally not retained, this change
+corrects the confirmed network/DNS-path mismatch without relabeling the old
+failure as a proven DNS exception.
+
+P8V3J adds no product behavior or authority. Preflight must validate the exact
+existing local non-internal bridge `evo_crm_private`. The importer must be
+created with exactly `--network evo_crm_private`, then prove exact ID, image,
+owner, name, running state, sole network, and sole resolver `127.0.0.11` before
+copy/import/provider/database work. Every predicate has an explicit blocking
+exit rather than relying on standalone Bash conditional status. Drift blocks,
+and existing exact-owned cleanup remains unchanged. Focused source and
+behavioral tests freeze this contract; broader DNS/route/TLS reason-code
+refinement is deferred until after a successful rollout.
+
+Writable identities advance collision-free to release
+`2026-08-21.p8v3j.1`, version `p8v3j-0f1454d0-20260821`, importer
+`evo-p8v3j-knowledge-import`, importer file
+`p8v3j-platform-knowledge-import.mjs`, evidence root
+`/opt/evo-release-evidence/p8v3j-20260821.1`, result
+`p8v3j-rollout-result.json`, preflight `p8v3j-production-preflight/v1`, and
+future authorization `EXECUTE-P8V3J-2026-08-21.P8V3J.1`. One scoped PR,
+independent review, final CI, fresh short preflight, and a new owner token gate
+any retry. No production or provider action is authorized here.

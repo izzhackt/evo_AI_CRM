@@ -13,7 +13,7 @@ import type { StaffRole } from "@/lib/roles";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 
 const NAV_GROUP_DEFS = [
-  { key: "navOperations", hrefs: ["/dashboard", "/sales", "/clients", "/applications", "/documents", "/visa"] },
+  { key: "navOperations", hrefs: ["/dashboard", "/sales", "/admissions", "/clients", "/applications", "/documents", "/visa"] },
   { key: "navCommunications", hrefs: ["/whatsapp", "/calls", "/chat", "/notifications"] },
   { key: "navAnalytics", hrefs: ["/tasks", "/reports", "/finance"] },
   { key: "navSystem", hrefs: ["/settings"] },
@@ -216,6 +216,7 @@ export default async function StaffLayout({
     },
     "/dashboard": { title: t("commandCenter"), hint: t("commandCenterHint") },
     "/sales": { title: t("admissionsPipeline"), hint: t("admissionsPipelineHint") },
+    "/admissions": { title: t("admissions"), hint: t("admissionsHint") },
     "/clients": { title: t("student360"), hint: t("student360Hint") },
     "/applications": { title: t("applicationQueue"), hint: t("applicationQueueHint") },
     "/documents": { title: t("documentQueue"), hint: t("documentQueueHint") },

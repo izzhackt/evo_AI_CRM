@@ -35,6 +35,8 @@ const ru: Dict = {
   registerIntro: "Создайте аккаунт, чтобы следить за процессом поступления",
 
   dashboard: "Командный центр",
+  admissions: "Поступление по странам",
+  admissionsHint: "Дела после договора по странам и шагам работы.",
   clients: "Student 360",
   tasks: "Задачи",
   finance: "Финансы",
@@ -1123,6 +1125,8 @@ const ky: Dict = {
   registerIntro: "Тапшыруу процессин көзөмөлдөө үчүн аккаунт түзүңүз",
 
   dashboard: "Командалык борбор",
+  admissions: "Өлкө боюнча кабыл алуу",
+  admissionsHint: "Келишимден кийинки иштер өлкө жана иш кадамы боюнча.",
   clients: "Student 360",
   tasks: "Тапшырмалар",
   finance: "Финансы",
@@ -2212,6 +2216,8 @@ const en: Dict = {
   registerIntro: "Create an account to track your admission process",
 
   dashboard: "Command Center",
+  admissions: "Admissions by country",
+  admissionsHint: "Post-contract cases grouped by country and delivery step.",
   clients: "Student 360",
   tasks: "Tasks",
   finance: "Finance",

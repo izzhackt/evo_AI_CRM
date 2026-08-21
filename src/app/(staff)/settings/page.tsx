@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 
 import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
-import { isConnectedPlatformAuditSettingsRequest } from "@/lib/platform-route-contract";
+import {
+  isConnectedPlatformAuditSettingsRequest,
+  isConnectedPlatformStaffSettingsRequest,
+} from "@/lib/platform-route-contract";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 
 type SettingsSearchParams = Record<string, string | string[] | undefined>;
@@ -21,6 +24,17 @@ export default async function SettingsPage({
         exactQuery.append(key, value);
       }
     }
+    // Staff administration is not behind a feature flag. It is the only way to
+    // give the team access after a release, so a disabled-by-default switch
+    // would withhold the screen exactly when it is needed. Authorization is
+    // still enforced: the page itself requires an Admin actor.
+    if (isConnectedPlatformStaffSettingsRequest("/settings", exactQuery)) {
+      const { default: PlatformStaffSettingsPage } = await import(
+        "./PlatformStaffSettingsPage"
+      );
+      return <PlatformStaffSettingsPage searchParams={params} />;
+    }
+
     if (
       !isPlatformP7AAuditEnabled() ||
       !isConnectedPlatformAuditSettingsRequest("/settings", exactQuery)

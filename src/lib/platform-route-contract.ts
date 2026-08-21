@@ -29,6 +29,13 @@ const PLATFORM_MEDIA_DOWNLOAD_PATH =
 const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
 const PLATFORM_STAFF_ASSISTANT_PATH =
   "/api/platform-ai/staff-assistant";
+/**
+ * The staff surface accepts exactly two keys: the tab selector and the outcome
+ * echoed back after a server action. Anything else is refused so a crafted link
+ * cannot smuggle state into an Admin-only screen.
+ */
+const PLATFORM_STAFF_SETTINGS_QUERY_KEYS = new Set(["tab", "staff_result"]);
+
 const PLATFORM_AUDIT_SETTINGS_QUERY_KEYS = new Set([
   "tab",
   "start_at",
@@ -80,6 +87,26 @@ export function isConnectedPlatformPage(path: string): boolean {
  * repeats this exact query check before it imports or reads the legacy SQLite
  * settings provider. Unknown and duplicate fields fail closed.
  */
+export function isConnectedPlatformStaffSettingsRequest(
+  path: string,
+  searchParams: URLSearchParams,
+): boolean {
+  if (path !== "/settings" || searchParams.getAll("tab").length !== 1) {
+    return false;
+  }
+  if (searchParams.get("tab") !== "staff") return false;
+
+  for (const key of new Set(searchParams.keys())) {
+    if (
+      !PLATFORM_STAFF_SETTINGS_QUERY_KEYS.has(key) ||
+      searchParams.getAll(key).length !== 1
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function isConnectedPlatformAuditSettingsRequest(
   path: string,
   searchParams: URLSearchParams,

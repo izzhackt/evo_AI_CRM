@@ -1,23 +1,11 @@
 import Link from "next/link";
 
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
-import { requirePlatformAdmissionsActor } from "@/lib/platform-guards";
-import { listPlatformStudentCases } from "@/lib/platform-admissions";
-import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 import {
   buildAdmissionsOverview,
-  type AdmissionsCaseInput,
   type AdmissionsCountryGroup,
-  type AdmissionsStep,
 } from "@/lib/platform-admissions-overview";
-
-const STEP_LABELS: Record<AdmissionsStep, string> = {
-  documents: "Сбор документов",
-  applications: "Подача",
-  decisions: "Ожидание оффера",
-  visa: "Виза",
-  enrolled: "Зачисление",
-};
+import { ADMISSIONS_STEP_LABELS, loadAdmissionsCases } from "./admissions-data";
 
 function CountryCard({ group }: { group: AdmissionsCountryGroup }) {
   return (
@@ -36,7 +24,7 @@ function CountryCard({ group }: { group: AdmissionsCountryGroup }) {
             key={step.step}
             className="rounded-lg border border-border p-3"
           >
-            <p className="text-[12px] text-muted">{STEP_LABELS[step.step]}</p>
+            <p className="text-[12px] text-muted">{ADMISSIONS_STEP_LABELS[step.step]}</p>
             <p className="text-[20px] font-bold text-fg">{step.cases.length}</p>
             {step.attentionCount > 0 ? (
               <p className="text-[12px] text-muted">
@@ -65,45 +53,17 @@ function CountryCard({ group }: { group: AdmissionsCountryGroup }) {
       <p className="mt-3">
         <Link
           className="text-[13px] text-accent underline"
-          href={`/clients?country=${encodeURIComponent(group.country)}`}
+          href={`/admissions/${encodeURIComponent(group.country)}`}
         >
-          Открыть студентов этой страны
+          Открыть воронку страны
         </Link>
       </p>
     </Card>
   );
 }
 
-async function loadCases(): Promise<readonly AdmissionsCaseInput[]> {
-  // The fixture path exists so the surface can be reviewed without a Supabase
-  // project. It reads the same legacy rows the other screens use in that mode
-  // and maps them onto the same shape, so the view is never a mock of itself.
-  if (isUiContractFixtureMode()) {
-    const [{ requireStaffRoute }, queries] = await Promise.all([
-      import("@/lib/guards"),
-      import("@/lib/queries"),
-    ]);
-    const user = await requireStaffRoute("/admissions");
-    return queries.listClientsForActor(user).map((row) => ({
-      studentCaseId: String(row.id),
-      studentDisplayName: row.name,
-      targetCountry: row.target_country ?? "Не указана",
-      operationalStage: row.stage,
-      state: row.case_state === "closed" ? "closed" : "active",
-      currentCuratorDisplayName: row.curator_name ?? null,
-      intake: null,
-      overdueTaskCount: 0,
-      overdueObligationCount: 0,
-      rejectedDocumentCount: 0,
-    }));
-  }
-  const actor = await requirePlatformAdmissionsActor();
-  const { cases } = await listPlatformStudentCases(actor);
-  return cases;
-}
-
 export default async function AdmissionsOverviewPage() {
-  const overview = buildAdmissionsOverview(await loadCases());
+  const overview = buildAdmissionsOverview(await loadAdmissionsCases());
 
   return (
     <div className="grid gap-5">

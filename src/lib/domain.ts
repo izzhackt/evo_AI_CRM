@@ -24,6 +24,7 @@ export type { LeadStatus } from "./lead-stages";
 export const STAFF_ROUTE_VALUES = [
   "/dashboard",
   "/sales",
+  "/admissions",
   "/clients",
   "/applications",
   "/documents",
@@ -51,6 +52,7 @@ export const APP_ROUTES = {
   staff: {
     dashboard: "/dashboard",
     sales: "/sales",
+    admissions: "/admissions",
     clients: "/clients",
     applications: "/applications",
     documents: "/documents",
@@ -90,6 +92,11 @@ export const STAFF_NAV_ITEMS = [
     href: APP_ROUTES.staff.sales,
     labelKey: "sales",
     allowedRoles: ["admin", "sales"],
+  },
+  {
+    href: APP_ROUTES.staff.admissions,
+    labelKey: "admissions",
+    allowedRoles: ["admin", "curator"],
   },
   {
     href: APP_ROUTES.staff.clients,

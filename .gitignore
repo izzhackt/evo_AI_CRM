@@ -58,3 +58,13 @@ data/
 
 # Private company originals. Keep the tracked README and safe manifest only.
 /docs/company/private-source-documents/*.pdf
+
+# Temporary local copies of the EVO knowledge vaults. These directories hold
+# duplicates of `Внутренняя база знаний ЭВО` and `Клиентская база знаний ЭВО`
+# and must never reach the repository.
+/.tmp-kb-overlay/
+/.tmp-managed-review/
+/.tmp-managed-review-*/
+
+# Playwright CLI scratch output.
+/.playwright-cli/

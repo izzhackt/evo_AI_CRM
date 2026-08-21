@@ -22,6 +22,7 @@ import {
   parseP8V3ProviderProbeOutputForTest,
   parseP8V3ContainerRowsForTest,
   renderP8V3CandidateImageBoundaryForTest,
+  renderP8V3CandidateImageTransactionForTest,
   renderP8V3KnowledgeCleanupForTest,
   renderP8V3LiveComposeBoundaryForTest,
   renderP8V3PreflightCleanupForTest,
@@ -94,6 +95,21 @@ function operations(overrides = {}) {
     waha,
     migration: { versions: Array.from({ length: 77 }, (_, index) => String(index + 1).padStart(3, "0")), range: "001-077", count: 77 },
     archives: ["crm", "inbox", "lead_agent"].map((name) => ({ name, sha256: SHA_A, size: 1, index: IMAGE_A, platform: IMAGE_B })),
+    crm_runtime_probe: {
+      status: "verified",
+      backend: { version: "29.4.0", api: "1.54", os: "linux", arch: "amd64", driver: "io.containerd.snapshotter.v1" },
+      archive_sha256: SHA_A,
+      index: IMAGE_A,
+      platform: IMAGE_B,
+      runtime_image_id: IMAGE_A,
+      source_prestate: "absent",
+      compose_prestate: "absent",
+      nonce_prestate: "absent",
+      provider_container_id: SHA_C,
+      provider_container_image_id: IMAGE_A,
+      cleanup_verified: true,
+      production_unchanged: true,
+    },
     gemini: { embedding_verified: true, draft_verified: true, retrieval_provider_verified: true, server_compose_verified: true },
     importer: { sha256: SHA_A, size: 1, verified: true },
     importer_network: { name: "evo_crm_private", driver: "bridge", scope: "local", internal: false, dns: "127.0.0.11" },
@@ -159,6 +175,7 @@ test("P8V3 preflight produces the closed short-lived handoff consumed by rollout
         waha: adapter.preflight.waha,
         migration: adapter.preflight.migration,
         archives: adapter.preflight.archives,
+        crm_runtime_probe: adapter.preflight.crm_runtime_probe,
         gemini: adapter.preflight.gemini,
         importer: adapter.preflight.importer,
         importer_network: adapter.preflight.importer_network,
@@ -173,6 +190,34 @@ test("P8V3 preflight produces the closed short-lived handoff consumed by rollout
   const stale = structuredClone(result);
   stale.migration = { versions: result.migration.versions.slice(0, 76), range: "001-076", count: 76 };
   assert.throws(() => validateP8V3Preflight(stale), /migration drifted/);
+});
+
+test("P8V3K preflight keeps portable archives separate from the CRM Docker runtime probe", () => {
+  const value = operations().preflight;
+  assert.equal(validateP8V3Preflight(value), value);
+  for (const archive of value.archives) {
+    assert.deepEqual(Object.keys(archive).sort(), ["index", "name", "platform", "sha256", "size"]);
+    assert.equal("runtime_image_id" in archive, false);
+  }
+  assert.equal(value.crm_runtime_probe.runtime_image_id, value.crm_runtime_probe.index);
+  assert.notEqual(value.crm_runtime_probe.platform, value.crm_runtime_probe.runtime_image_id);
+
+  const invalidCases = [
+    (copy) => { copy.crm_runtime_probe.backend.version = "29.4.1"; },
+    (copy) => { copy.crm_runtime_probe.runtime_image_id = copy.crm_runtime_probe.platform; },
+    (copy) => { copy.crm_runtime_probe.provider_container_image_id = copy.crm_runtime_probe.platform; },
+    (copy) => { copy.crm_runtime_probe.cleanup_verified = false; },
+    (copy) => { copy.crm_runtime_probe.production_unchanged = false; },
+  ];
+  for (const mutate of invalidCases) {
+    const copy = structuredClone(value);
+    mutate(copy);
+    assert.throws(() => validateP8V3Preflight(copy), /CRM runtime probe drifted/);
+  }
+
+  const inboxRuntimeClaim = structuredClone(value);
+  inboxRuntimeClaim.archives.find((item) => item.name === "inbox").runtime_image_id = IMAGE_A;
+  assert.throws(() => validateP8V3Preflight(inboxRuntimeClaim), /preflight archive is not closed/);
 });
 
 test("a failed current boundary rolls back apps but retains forward-only reconciliation", async () => {
@@ -797,7 +842,7 @@ ${renderP8V3CandidateImageBoundaryForTest(options)}
   });
 }
 
-test("P8V3H treats portable source tags as OCI indexes and permits exact cleaned candidate state", () => {
+test("P8V3K treats portable source tags as OCI indexes and permits the exact loaded runtime state", () => {
   const retainedIndexInventory = Object.values(P8V3_IMAGES)
     .map((spec) => `${spec.sourceTag}|${spec.index}`)
     .join("\n");
@@ -806,8 +851,7 @@ test("P8V3H treats portable source tags as OCI indexes and permits exact cleaned
   const fullyLoadedInventory = Object.values(P8V3_IMAGES)
     .flatMap((spec) => [
       `${spec.sourceTag}|${spec.index}`,
-      `<none>:<none>|${spec.platform}`,
-      `${spec.composeTag}|${spec.platform}`,
+      `${spec.composeTag}|${spec.index}`,
     ])
     .join("\n");
   assert.equal(executeCandidateImageBoundary(fullyLoadedInventory, { requireLoaded: true }).status, 0);
@@ -817,11 +861,11 @@ test("P8V3H treats portable source tags as OCI indexes and permits exact cleaned
     retainedIndexInventory.replace(`${first.sourceTag}|${first.index}`, `${first.sourceTag}|${first.platform}`),
   ).status, 0);
   assert.notEqual(executeCandidateImageBoundary(
-    `${retainedIndexInventory}\n${first.composeTag}|${first.index}`,
+    `${retainedIndexInventory}\n${first.composeTag}|${first.platform}`,
   ).status, 0);
 });
 
-test("P8V3H image boundary fails closed on inventory failure and load binds index to platform", () => {
+test("P8V3K image boundary fails closed on inventory failure and load keeps platform provenance separate from runtime index", () => {
   const script = renderP8V3CandidateImageBoundaryForTest();
   const failedInventory = spawnSync("bash", ["-seu"], {
     input: `docker() { return 17; }\n${script}`,
@@ -832,11 +876,327 @@ test("P8V3H image boundary fails closed on inventory failure and load binds inde
   const load = renderP8V3ShellContractsForTest().loadImages;
   for (const spec of Object.values(P8V3_IMAGES)) {
     assert.ok(load.includes(`[[ "$candidate_source_id" == '${spec.index}' ]]`));
-    assert.ok(load.includes(`[[ "$candidate_platform_present" == '1' ]]`));
-    assert.ok(load.includes(`docker image tag '${spec.platform}' '${spec.composeTag}'`));
+    assert.ok(load.includes(`docker image tag '${spec.sourceTag}' '${spec.composeTag}'`));
+    assert.ok(load.includes(`[[ "$(docker image inspect '${spec.composeTag}' --format '{{.Id}}')" == '${spec.index}' ]]`));
+    assert.equal(load.includes(`docker image tag '${spec.platform}'`), false);
   }
   assert.equal(renderP8V3ShellContractsForTest().preflight.includes("docker load"), false);
   assert.equal(renderP8V3ShellContractsForTest().preflight.includes("docker image tag"), false);
+});
+
+test("P8V3K CRM candidate transaction pins Docker 29 and closes every temporary runtime reference", () => {
+  const owner = "a".repeat(48);
+  const { prepare, cleanup } = renderP8V3CandidateImageTransactionForTest({ owner });
+  const crm = P8V3_IMAGES.crm;
+
+  assert.match(prepare, /29\.4\.0\|1\.54\|linux\|amd64/);
+  assert.match(prepare, /\[\[ "\$\(docker info --format '\{\{json \.DriverStatus\}\}'\)" == '\[\["driver-type","io\.containerd\.snapshotter\.v1"\]\]' \]\]/);
+  assert.match(prepare, new RegExp(`evo-p8v3k-preflight:${owner}`));
+  assert.match(prepare, /candidate_source_state='absent'/);
+  assert.match(prepare, /candidate_source_state='exact_present'/);
+  assert.match(prepare, /candidate_runtime_refs/);
+  assert.match(prepare, /docker container ls -aq --no-trunc/);
+  assert.match(prepare, new RegExp(`docker image tag '${crm.sourceTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}' '${crm.composeTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'`));
+  assert.doesNotMatch(prepare, new RegExp(`docker image tag '${crm.platform}'`));
+  assert.ok(prepare.indexOf("docker version --format") < prepare.indexOf("docker image load"));
+  assert.ok(prepare.indexOf("candidate_runtime_containers") < prepare.indexOf("docker image load"));
+
+  assert.match(cleanup, /docker container ls -aq --no-trunc/);
+  assert.match(cleanup, /final_inventory=.*docker image ls/);
+  assert.match(cleanup, /post_image_inventory=.*docker image ls/);
+  assert.match(cleanup, /post_runtime_containers/);
+  for (const spec of [P8V3_IMAGES.inbox, P8V3_IMAGES.lead_agent]) {
+    assert.match(cleanup, new RegExp(spec.index));
+    assert.match(cleanup, new RegExp(spec.sourceTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.doesNotMatch(cleanup, /docker (?:image )?prune|docker system prune|docker pull|docker build/);
+});
+
+function runP8V3KCandidateImageTransactionScenario({
+  sourceId = null,
+  composeId = null,
+  nonce = null,
+  foreignRef = null,
+  indexPresent = false,
+  containerImage = null,
+  failLoad = false,
+  failTag = null,
+  failRemove = null,
+  incompleteRemove = null,
+} = {}) {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3k-image-transaction-"));
+  const fakeBin = join(fixture, "bin");
+  const preflightRoot = join(fixture, "preflight");
+  const archive = join(fixture, "candidate.tar");
+  const dockerLog = join(fixture, "docker.log");
+  const dockerState = join(fixture, "docker-state");
+  const owner = "a".repeat(48);
+  const containerId = "3".repeat(64);
+  const crm = P8V3_IMAGES.crm;
+  const nonceTag = `evo-p8v3k-preflight:${owner}`;
+  const sourceFile = join(dockerState, "source");
+  const composeFile = join(dockerState, "compose");
+  const nonceFile = join(dockerState, "nonce");
+  const foreignFile = join(dockerState, "foreign");
+  const indexFile = join(dockerState, "index-present");
+  const containerFile = join(dockerState, "container");
+
+  const snapshot = () => {
+    const read = (path) => existsSync(path) ? readFileSync(path, "utf8").trim() : null;
+    return {
+      source: read(sourceFile),
+      compose: read(composeFile),
+      nonce: read(nonceFile),
+      foreign: read(foreignFile),
+      index_present: existsSync(indexFile),
+      container: read(containerFile),
+      transaction_state: read(join(preflightRoot, ".p8v3k-image-state")),
+    };
+  };
+
+  try {
+    mkdirSync(fakeBin, { mode: 0o700 });
+    mkdirSync(preflightRoot, { mode: 0o700 });
+    mkdirSync(dockerState, { mode: 0o700 });
+    writeFileSync(join(preflightRoot, ".p8v3k-owner"), `${owner}\n`, { mode: 0o600 });
+    writeFileSync(archive, "deterministic candidate archive\n", { mode: 0o600 });
+    if (sourceId) writeFileSync(sourceFile, `${sourceId}\n`, { mode: 0o600 });
+    if (composeId) writeFileSync(composeFile, `${composeId}\n`, { mode: 0o600 });
+    if (nonce) writeFileSync(nonceFile, `${nonce.tag}|${nonce.id}\n`, { mode: 0o600 });
+    if (foreignRef) writeFileSync(foreignFile, `${foreignRef.tag}|${foreignRef.id}\n`, { mode: 0o600 });
+    if (indexPresent) writeFileSync(indexFile, "present\n", { mode: 0o600 });
+    if (containerImage) writeFileSync(containerFile, `${containerId}|${containerImage}|foreign-container\n`, { mode: 0o600 });
+
+    writeFileSync(join(fakeBin, "stat"), `#!/bin/bash
+case "$*" in
+  *candidate.tar*) printf '%s\\n' 'root:root 600 ${crm.size}' ;;
+  *.p8v3k-image-state*) printf '%s\\n' 'root:root 600' ;;
+  *) printf '%s\\n' 'root:root 700' ;;
+esac
+`, { mode: 0o700 });
+    writeFileSync(join(fakeBin, "sha256sum"), `#!/bin/bash
+printf '%s  %s\\n' '${crm.sha256}' "$1"
+`, { mode: 0o700 });
+    writeFileSync(join(fakeBin, "chown"), "#!/bin/sh\nexit 0\n", { mode: 0o700 });
+    writeFileSync(join(fakeBin, "docker"), `#!/bin/bash
+set -u
+printf '%s\\n' "$*" >> "$DOCKER_LOG"
+emit_inventory() {
+  [[ ! -f "$SOURCE_FILE" ]] || printf '%s|%s\\n' '${crm.sourceTag}' "$(cat "$SOURCE_FILE")"
+  [[ ! -f "$COMPOSE_FILE" ]] || printf '%s|%s\\n' '${crm.composeTag}' "$(cat "$COMPOSE_FILE")"
+  [[ ! -f "$NONCE_FILE" ]] || cat "$NONCE_FILE"
+  [[ ! -f "$FOREIGN_FILE" ]] || cat "$FOREIGN_FILE"
+}
+tag_id() {
+  case "$1" in
+    '${crm.sourceTag}') [[ -f "$SOURCE_FILE" ]] && cat "$SOURCE_FILE" ;;
+    '${crm.composeTag}') [[ -f "$COMPOSE_FILE" ]] && cat "$COMPOSE_FILE" ;;
+    '${nonceTag}') [[ -f "$NONCE_FILE" ]] && awk -F'|' '$1=="${nonceTag}" {print $2}' "$NONCE_FILE" ;;
+    *) return 1 ;;
+  esac
+}
+if [[ "$1" == 'version' ]]; then printf '%s\\n' '29.4.0|1.54|linux|amd64'; exit 0; fi
+if [[ "$1" == 'info' ]]; then printf '%s\\n' '[["driver-type","io.containerd.snapshotter.v1"]]'; exit 0; fi
+if [[ "$1" == 'image' && "$2" == 'ls' ]]; then emit_inventory; exit 0; fi
+if [[ "$1" == 'image' && "$2" == 'inspect' ]]; then
+  target="$3"
+  if [[ "$target" == '${crm.index}' ]]; then
+    [[ -f "$INDEX_FILE" ]] || exit 1
+    case "\${5:-}" in
+      '{{.Id}}') printf '%s\\n' '${crm.index}' ;;
+      '{{.Os}}/{{.Architecture}}/{{.Variant}}') printf '%s\\n' 'linux/amd64/' ;;
+      *org.opencontainers.image.revision*) printf '%s\\n' '${P8V3.applicationCommit}' ;;
+      '') exit 0 ;;
+      *) exit 2 ;;
+    esac
+    exit 0
+  fi
+  if [[ "$target" == '${P8V3_IMAGES.inbox.index}' || "$target" == '${P8V3_IMAGES.lead_agent.index}' ]]; then exit 1; fi
+  id="$(tag_id "$target")" || exit 1
+  [[ -n "$id" ]] || exit 1
+  case "\${5:-}" in
+    '{{.Id}}') printf '%s\\n' "$id" ;;
+    '') exit 0 ;;
+    *) exit 2 ;;
+  esac
+  exit 0
+fi
+if [[ "$1" == 'image' && "$2" == 'load' ]]; then
+  : > "$INDEX_FILE"
+  printf '%s\\n' '${crm.index}' > "$SOURCE_FILE"
+  [[ "$FAIL_LOAD" != '1' ]] || exit 17
+  exit 0
+fi
+if [[ "$1" == 'image' && "$2" == 'tag' ]]; then
+  source_id="$(tag_id "$3")" || exit 2
+  [[ "$source_id" == '${crm.index}' ]] || exit 2
+  if [[ "$4" == '${nonceTag}' ]]; then
+    [[ "$FAIL_TAG" != 'nonce' ]] || exit 18
+    printf '%s|%s\\n' '${nonceTag}' '${crm.index}' > "$NONCE_FILE"
+    exit 0
+  fi
+  if [[ "$4" == '${crm.composeTag}' ]]; then
+    [[ "$FAIL_TAG" != 'compose' ]] || exit 19
+    printf '%s\\n' '${crm.index}' > "$COMPOSE_FILE"
+    exit 0
+  fi
+  exit 2
+fi
+if [[ "$1" == 'image' && "$2" == 'rm' ]]; then
+  target="$3"
+  [[ "$target" != "$FAIL_REMOVE" ]] || exit 20
+  if [[ "$target" == "$INCOMPLETE_REMOVE" ]]; then exit 0; fi
+  case "$target" in
+    '${crm.sourceTag}') rm -f "$SOURCE_FILE" ;;
+    '${crm.composeTag}') rm -f "$COMPOSE_FILE" ;;
+    '${nonceTag}') rm -f "$NONCE_FILE" ;;
+    '${crm.index}') rm -f "$INDEX_FILE" ;;
+    *) exit 2 ;;
+  esac
+  exit 0
+fi
+if [[ "$1" == 'container' && "$2" == 'ls' ]]; then
+  [[ -f "$CONTAINER_FILE" ]] || exit 0
+  IFS='|' read -r id image name < "$CONTAINER_FILE"
+  if [[ "$*" == *'-aq'* ]]; then printf '%s\\n' "$id"; else printf '%s|%s\\n' "$id" "$name"; fi
+  exit 0
+fi
+if [[ "$1" == 'inspect' ]]; then
+  [[ -f "$CONTAINER_FILE" ]] || exit 1
+  IFS='|' read -r id image name < "$CONTAINER_FILE"
+  [[ "$2" == "$id" ]] || exit 1
+  case "$*" in
+    *'{{.Image}}'*) printf '%s\\n' "$image" ;;
+    *) exit 2 ;;
+  esac
+  exit 0
+fi
+exit 2
+`, { mode: 0o700 });
+    for (const name of ["stat", "sha256sum", "chown", "docker"]) chmodSync(join(fakeBin, name), 0o700);
+
+    const transaction = renderP8V3CandidateImageTransactionForTest({ owner });
+    const originalRoot = transaction.prepare.match(/\/opt\/evo-release-preflight\/p8v3k-[0-9.]+-[0-9a-f]{48}/)?.[0];
+    const originalArchive = transaction.prepare.match(/\/opt\/evo-releases\/[^']+\/archives\/[^']+\.tar/)?.[0];
+    assert.ok(originalRoot && originalArchive);
+    const relocate = (script) => script.replaceAll(originalRoot, preflightRoot).replaceAll(originalArchive, archive);
+    const linuxGuardCompatibility = (script) => script.replace(/^(\[\[.*\]\])$/gm, "$1 || exit 2");
+    const environment = {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH}`,
+      DOCKER_LOG: dockerLog,
+      SOURCE_FILE: sourceFile,
+      COMPOSE_FILE: composeFile,
+      NONCE_FILE: nonceFile,
+      FOREIGN_FILE: foreignFile,
+      INDEX_FILE: indexFile,
+      CONTAINER_FILE: containerFile,
+      FAIL_LOAD: failLoad ? "1" : "0",
+      FAIL_TAG: failTag ?? "",
+      FAIL_REMOVE: ({ source: crm.sourceTag, compose: crm.composeTag, nonce: nonceTag, index: crm.index })[failRemove] ?? "",
+      INCOMPLETE_REMOVE: ({ source: crm.sourceTag, compose: crm.composeTag, nonce: nonceTag, index: crm.index })[incompleteRemove] ?? "",
+    };
+    const before = snapshot();
+    const prepare = linuxGuardCompatibility(relocate(transaction.prepare));
+    const prepareResult = spawnSync("bash", ["-c", `set -e\n${prepare}`], { encoding: "utf8", env: environment });
+    const afterPrepare = snapshot();
+    const cleanupResult = spawnSync("bash", ["-seu"], { input: relocate(transaction.cleanup), encoding: "utf8", env: environment });
+    const afterCleanup = snapshot();
+    const dockerCalls = existsSync(dockerLog) ? readFileSync(dockerLog, "utf8").trim().split("\n").filter(Boolean) : [];
+    return { before, afterPrepare, afterCleanup, prepareResult, cleanupResult, dockerCalls };
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+}
+
+function assertP8V3KCandidateTransactionUsesOnlyNarrowDockerMutations(calls) {
+  const joined = calls.join("\n");
+  assert.doesNotMatch(joined, /(?:^|\s)(?:system|image)\s+prune(?:\s|$)|(?:^|\s)pull(?:\s|$)|(?:^|\s)build(?:\s|$)/);
+  assert.doesNotMatch(joined, /(?:^|\s)(?:image\s+)?rm\s+(?:-f|--force)(?:\s|$)/);
+  const permittedTargets = new Set([
+    P8V3_IMAGES.crm.sourceTag,
+    P8V3_IMAGES.crm.composeTag,
+    P8V3_IMAGES.crm.index,
+    `evo-p8v3k-preflight:${"a".repeat(48)}`,
+  ]);
+  for (const call of calls.filter((entry) => entry.startsWith("image rm "))) {
+    const args = call.split(/\s+/);
+    assert.equal(args.length, 3, `image removal must name exactly one target: ${call}`);
+    assert.equal(permittedTargets.has(args[2]), true, `unexpected image removal target: ${call}`);
+  }
+}
+
+test("P8V3K absent and exact-present CRM image prestates round-trip exactly", () => {
+  const absent = runP8V3KCandidateImageTransactionScenario();
+  assert.equal(absent.prepareResult.status, 0, absent.prepareResult.stderr);
+  assert.equal(absent.cleanupResult.status, 0, absent.cleanupResult.stderr);
+  assert.deepEqual(absent.afterCleanup, absent.before);
+  assert.equal(absent.afterPrepare.transaction_state?.includes("source=absent"), true);
+  assert.equal(absent.dockerCalls.some((call) => call.startsWith("image load ")), true);
+  assertP8V3KCandidateTransactionUsesOnlyNarrowDockerMutations(absent.dockerCalls);
+
+  const exact = runP8V3KCandidateImageTransactionScenario({ sourceId: P8V3_IMAGES.crm.index, indexPresent: true });
+  assert.equal(exact.prepareResult.status, 0, exact.prepareResult.stderr);
+  assert.equal(exact.cleanupResult.status, 0, exact.cleanupResult.stderr);
+  assert.deepEqual(exact.afterCleanup, exact.before);
+  assert.equal(exact.afterPrepare.transaction_state?.includes("source=exact_present"), true);
+  assert.equal(exact.dockerCalls.some((call) => call.startsWith("image load ")), false);
+  assertP8V3KCandidateTransactionUsesOnlyNarrowDockerMutations(exact.dockerCalls);
+});
+
+test("P8V3K partial load and partial tag failures reconcile to the exact absent prestate", () => {
+  for (const options of [{ failLoad: true }, { failTag: "nonce" }, { failTag: "compose" }]) {
+    const result = runP8V3KCandidateImageTransactionScenario(options);
+    assert.notEqual(result.prepareResult.status, 0);
+    assert.equal(result.cleanupResult.status, 0, result.cleanupResult.stderr);
+    assert.deepEqual(result.afterCleanup, result.before);
+    assert.equal(result.afterPrepare.transaction_state?.includes("source=absent"), true);
+    assertP8V3KCandidateTransactionUsesOnlyNarrowDockerMutations(result.dockerCalls);
+  }
+});
+
+test("P8V3K foreign tags and foreign index references block before any mutation", () => {
+  const wrong = `sha256:${"e".repeat(64)}`;
+  const cases = [
+    { sourceId: wrong },
+    { composeId: wrong },
+    { nonce: { tag: `evo-p8v3k-preflight:${"a".repeat(48)}`, id: wrong } },
+    { nonce: { tag: `evo-p8v3k-preflight:${"b".repeat(48)}`, id: wrong } },
+    { foreignRef: { tag: "foreign/repository:retained", id: P8V3_IMAGES.crm.index }, indexPresent: true },
+  ];
+  for (const options of cases) {
+    const result = runP8V3KCandidateImageTransactionScenario(options);
+    assert.notEqual(result.prepareResult.status, 0);
+    assert.deepEqual(result.afterPrepare, result.before);
+    assert.deepEqual(result.afterCleanup, result.before);
+    assert.equal(result.dockerCalls.some((call) => /^(?:image load|image tag|image rm) /.test(call)), false);
+    assertP8V3KCandidateTransactionUsesOnlyNarrowDockerMutations(result.dockerCalls);
+  }
+});
+
+test("P8V3K existing index container collision blocks and retains the exact prestate", () => {
+  const result = runP8V3KCandidateImageTransactionScenario({
+    sourceId: P8V3_IMAGES.crm.index,
+    indexPresent: true,
+    containerImage: P8V3_IMAGES.crm.index,
+  });
+  assert.notEqual(result.prepareResult.status, 0);
+  assert.notEqual(result.cleanupResult.status, 0);
+  assert.deepEqual(result.afterPrepare, result.before);
+  assert.deepEqual(result.afterCleanup, result.before);
+  assert.equal(result.dockerCalls.some((call) => /^(?:image load|image tag|image rm) /.test(call)), false);
+  assertP8V3KCandidateTransactionUsesOnlyNarrowDockerMutations(result.dockerCalls);
+});
+
+test("P8V3K image removal failure and incomplete cleanup fail closed with the state marker retained", () => {
+  for (const options of [{ failRemove: "source" }, { incompleteRemove: "nonce" }]) {
+    const result = runP8V3KCandidateImageTransactionScenario(options);
+    assert.equal(result.prepareResult.status, 0, result.prepareResult.stderr);
+    assert.notEqual(result.cleanupResult.status, 0);
+    assert.notEqual(result.afterCleanup.transaction_state, null);
+    assert.notDeepEqual(result.afterCleanup, result.before);
+    assertP8V3KCandidateTransactionUsesOnlyNarrowDockerMutations(result.dockerCalls);
+  }
 });
 
 function initContains(value, needle) {
@@ -879,6 +1239,8 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.match(source, /EVO_CRM_WAHA_ENV_FILE/);
   assert.match(source, /EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE: envPaths\.worker/);
   assert.match(source, /EVO_INBOX_WAHA_ENV_FILE/);
+  assert.match(source, /delete childEnvironment\.EVO_P8V3_PREFLIGHT_AUTHORIZATION/);
+  assert.match(source, /delete childEnvironment\.EVO_P8V3_AUTHORIZATION/);
   assert.match(source, /\["crm", "lead", "crmWaha", "worker", "inbox", "inboxWaha"\]\.map/);
   assert.match(source, /input: `\$\{accountId\}\\n`/);
   assert.match(source, /for \(const args of commands\) \{\n\s+verifyOrbStack\(run\);\n\s+runChecked\(run, "candidate Compose validation", "docker"/);
@@ -892,7 +1254,8 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.ok(source.indexOf("providerPrepareAttempted = true") < source.indexOf("preflightPrepareScript({ preflightRoot: providerPreflightRoot"));
   assert.ok(source.indexOf("preflightPrepareScript({ preflightRoot: providerPreflightRoot") < source.indexOf("if (providerPrepareAttempted)"));
   assert.match(source, /preflightCleanupScript\(\{ preflightRoot: providerPreflightRoot/);
-  assert.match(source, /state\.serverComposeVerified = parseP8V3ProviderProbeOutput/);
+  assert.match(source, /const parsedProvider = parseP8V3ProviderProbeOutput/);
+  assert.match(source, /state\.serverComposeVerified = parsedProvider\.server_compose_verified/);
   assert.match(source, /--verify-provider/);
   assert.doesNotMatch(source, /--verify-runtime/);
   assert.match(source, /docker compose --ansi never --progress quiet/);
@@ -1079,12 +1442,35 @@ test("P8V3F preflight does not require the execute-only Supabase service-role ke
       supabaseCliPath,
       localResultPath: join(fixture, "preflight-result.json"),
       environment: {
+        EVO_P8V3_PREFLIGHT_AUTHORIZATION: P8V3.preflightAuthorization,
         SUPABASE_ACCESS_TOKEN: `${["s", "b", "p"].join("")}_${"x".repeat(24)}`,
         GEMINI_API_KEY: testCredential(),
       },
     }));
   } finally {
     rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test("P8V3K preflight authorization fails before path, run, or fetch seams", async () => {
+  for (const authorization of [undefined, "PREFLIGHT-P8V3K-wrong"]) {
+    let runCalls = 0;
+    let fetchCalls = 0;
+    await assert.rejects(
+      createP8V3ProductionOperations({
+        mode: "preflight",
+        sourceRoot: "/definitely/missing/p8v3k-source",
+        candidateRoot: "/definitely/missing/p8v3k-candidates",
+        supabaseCliPath: "/definitely/missing/p8v3k-supabase",
+        localResultPath: "/definitely/missing/p8v3k-result.json",
+        environment: authorization === undefined ? {} : { EVO_P8V3_PREFLIGHT_AUTHORIZATION: authorization },
+        run() { runCalls += 1; throw new Error("run seam must remain untouched"); },
+        async fetchImpl() { fetchCalls += 1; throw new Error("fetch seam must remain untouched"); },
+      }),
+      (error) => error.code === "preflight_drift" && /preflight authorization is missing/.test(error.message),
+    );
+    assert.equal(runCalls, 0);
+    assert.equal(fetchCalls, 0);
   }
 });
 
@@ -1156,7 +1542,7 @@ if [ "$1" = "container" ] && [ "$2" = "ls" ]; then
   exit 0
 fi
 if [ "$1" = "inspect" ] && [ "$3" = "--format" ] && [ "$4" = "{{.Image}}|{{index .Config.Labels \\"evo.p8v3k.importer-owner\\"}}|{{.Name}}" ]; then
-  printf '%s\\n' '${P8V3_IMAGES.crm.platform}|${"a".repeat(48)}|/evo-p8v3k-knowledge-import'
+  printf '%s\\n' '${P8V3_IMAGES.crm.index}|${"a".repeat(48)}|/evo-p8v3k-knowledge-import'
   exit 0
 fi
 if [ "$1" = "rm" ] && [ "$2" = "-f" ] && [ "$3" = "${containerId}" ]; then
@@ -1203,7 +1589,7 @@ if [ "$1" = "container" ] && [ "$2" = "ls" ]; then
   exit 0
 fi
 if [ "$1" = "inspect" ] && [ "$3" = "--format" ] && [ "$4" = "{{.Image}}|{{index .Config.Labels \\"evo.p8v3k.importer-owner\\"}}|{{.Name}}" ]; then
-  printf '%s\\n' '${P8V3_IMAGES.crm.platform}|${"a".repeat(48)}|/evo-p8v3k-knowledge-import'
+  printf '%s\\n' '${P8V3_IMAGES.crm.index}|${"a".repeat(48)}|/evo-p8v3k-knowledge-import'
   exit 0
 fi
 if [ "$1" = "rm" ] && [ "$2" = "-f" ] && [ "$3" = "${containerId}" ]; then
@@ -1456,7 +1842,7 @@ test("P8V3K CRM rollback removes the manual-send worker by exact container ID", 
   assert.doesNotMatch(rollbackCrm, /grep -Fx evo-crm-manual-send-worker|docker rm -f evo-crm-manual-send-worker/);
 });
 
-test("P8V3K knowledge job uses compose run on the CRM service with individually mounted read-only files", () => {
+test("P8V3K provider probe is detached and identity-gated before the knowledge job uses mounted files", () => {
   const { preflight, providerProbe, knowledgeImport, deployCrm, deployInbox, deployLead } = renderP8V3ShellContractsForTest();
   const liveComposeSha = "51b6a19cdf4797f7e882d4638c12177030fcb3e0258311a7682db7d959c28988";
   const stagedCrmComposeSha = "ae3689f60d14c1463a77512afbe8d24db59d079473435e9c8b2d01c222eb7a6f";
@@ -1467,13 +1853,21 @@ test("P8V3K knowledge job uses compose run on the CRM service with individually 
     /docker network inspect 'evo_crm_private' --format '\{\{\.Name\}\}\|\{\{\.Driver\}\}\|\{\{\.Scope\}\}\|\{\{\.Internal\}\}'/,
   );
   assert.match(preflight, new RegExp(liveComposeSha));
-  assert.match(providerProbe, /docker compose[^\n]+run --rm --no-deps --pull never -T --name 'evo-p8v3k-knowledge-import'/);
+  assert.match(providerProbe, /docker compose[^\n]+run -d --no-deps --pull never -T --name 'evo-p8v3k-knowledge-import'/);
+  assert.doesNotMatch(providerProbe, /run --rm --no-deps/);
   assert.match(providerProbe, /-f '\/opt\/evo-crm\/docker-compose\.prod\.yml'/);
   assert.match(providerProbe, new RegExp(liveComposeSha));
   assert.match(knowledgeImport, new RegExp(liveComposeSha));
   assert.match(providerProbe, /-e 'EVO_PLATFORM_GEMINI_API_KEY'/);
   assert.match(providerProbe, /-v '\/opt\/evo-release-preflight\/p8v3k-20260821\.1-[0-9a-f]{48}\/p8v3k-platform-knowledge-import\.mjs:\/run\/evo-p8v3k\/p8v3k-platform-knowledge-import\.mjs:ro'/);
   assert.match(providerProbe, /p8v3k-platform-knowledge-import\.mjs.*--verify-provider/s);
+  assert.match(providerProbe, new RegExp(P8V3_IMAGES.crm.index));
+  const detachedRun = providerProbe.indexOf('provider_container_id="$(docker compose');
+  const immutableIdentity = providerProbe.indexOf('provider_identity="$(docker inspect "$provider_container_id"');
+  const proofLine = providerProbe.indexOf("printf 'p8v3k_provider_container|");
+  const gateOpen = providerProbe.indexOf('docker exec "$provider_container_id" /bin/sh -c', proofLine);
+  const wait = providerProbe.indexOf('docker wait "$provider_container_id"');
+  assert.ok(detachedRun >= 0 && immutableIdentity > detachedRun && proofLine > immutableIdentity && gateOpen > proofLine && wait > gateOpen);
   assert.match(knowledgeImport, /-e 'EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID'/);
   assert.match(knowledgeImport, /-v '\/opt\/evo-releases\/[^']+\/p8v3k-platform-knowledge-import\.mjs:\/run\/evo-p8v3k\/p8v3k-platform-knowledge-import\.mjs:ro'/);
   assert.match(knowledgeImport, /-v '\/opt\/evo-releases\/[^']+\/knowledge-incoming\/evo-knowledge-client\.json:\/run\/evo-p8v3k\/knowledge-bundle\.json:ro'/);
@@ -1493,6 +1887,197 @@ test("P8V3K knowledge job uses compose run on the CRM service with individually 
   assert.match(deployInbox, new RegExp(stagedInboxComposeSha));
   assert.doesNotMatch(deployInbox, new RegExp(liveComposeSha));
   assert.match(deployInbox, /\/opt\/evo-releases\/0f1454d014bbc9eca9d7381dfe557e980965543e\/2026-08-21\.p8v3k\.1\/repo\/agent-lead2-inbox\/deploy\/docker-compose\.inbox\.prod\.yml/);
+});
+
+function runP8V3KProviderFailureScenario(mode) {
+  const fixture = mkdtempSync(join(tmpdir(), `p8v3k-provider-${mode}-`));
+  const fakeBin = join(fixture, "bin");
+  const preflightRoot = join(fixture, "preflight");
+  const importer = join(preflightRoot, "p8v3k-platform-knowledge-import.mjs");
+  const state = join(preflightRoot, ".p8v3k-image-state");
+  const compose = join(fixture, "docker-compose.prod.yml");
+  const envFile = join(fixture, ".env.production");
+  const dockerLog = join(fixture, "docker.log");
+  const created = join(fixture, "created");
+  const removed = join(fixture, "removed");
+  const gate = join(fixture, "gate-opened");
+  const composeRemoved = join(fixture, "compose-removed");
+  const nonceRemoved = join(fixture, "nonce-removed");
+  const owner = "a".repeat(48);
+  const containerId = "2".repeat(64);
+  const crm = P8V3_IMAGES.crm;
+  const nonceTag = `evo-p8v3k-preflight:${owner}`;
+  const wrongImage = `sha256:${"f".repeat(64)}`;
+  const scenarioImage = mode === "wrong-image" ? wrongImage : crm.index;
+  const scenarioOwner = mode === "rebound" ? "b".repeat(48) : owner;
+  const scenarioName = mode === "renamed" ? "foreign-container" : "evo-p8v3k-knowledge-import";
+  const liveComposeSha = "51b6a19cdf4797f7e882d4638c12177030fcb3e0258311a7682db7d959c28988";
+
+  const relocate = (script) => {
+    const originalRoot = script.match(/\/opt\/evo-release-preflight\/p8v3k-[0-9.]+-[0-9a-f]{48}/)?.[0];
+    assert.ok(originalRoot);
+    return script
+      .replaceAll(originalRoot, preflightRoot)
+      .replaceAll("/opt/evo-crm/docker-compose.prod.yml", compose)
+      .replaceAll("/opt/evo-crm/.env.production", envFile);
+  };
+
+  try {
+    mkdirSync(fakeBin, { mode: 0o700 });
+    mkdirSync(preflightRoot, { mode: 0o700 });
+    writeFileSync(join(preflightRoot, ".p8v3k-owner"), `${owner}\n`, { mode: 0o600 });
+    writeFileSync(importer, "probe\n", { mode: 0o640 });
+    writeFileSync(state, `owner=${owner}\nsource=exact_present\nprovider_id=absent\n`, { mode: 0o600 });
+    writeFileSync(compose, "services: {}\n", { mode: 0o644 });
+    writeFileSync(envFile, "SAFE=1\n", { mode: 0o600 });
+
+    writeFileSync(join(fakeBin, "stat"), `#!/bin/bash
+case "$*" in
+  *p8v3k-platform-knowledge-import.mjs*) printf '%s\\n' 'root:1001 640 1234' ;;
+  *docker-compose.prod.yml*) printf '%s\\n' 'root:root 644' ;;
+  *.p8v3k-image-state*) printf '%s\\n' 'root:root 600' ;;
+  *) printf '%s\\n' 'root:root 700' ;;
+esac
+`, { mode: 0o700 });
+    writeFileSync(join(fakeBin, "sha256sum"), `#!/bin/bash
+case "$1" in
+  *p8v3k-platform-knowledge-import.mjs) printf '%s  %s\\n' '${SHA_A}' "$1" ;;
+  *docker-compose.prod.yml) printf '%s  %s\\n' '${liveComposeSha}' "$1" ;;
+  *) exit 2 ;;
+esac
+`, { mode: 0o700 });
+    writeFileSync(join(fakeBin, "chown"), "#!/bin/sh\nexit 0\n", { mode: 0o700 });
+    writeFileSync(join(fakeBin, "docker"), `#!/bin/bash
+set -u
+printf '%s\\n' "$*" >> "$DOCKER_LOG"
+exists() { [[ -f "$CREATED" && ! -f "$REMOVED" ]]; }
+runtime_image='${scenarioImage}'
+runtime_owner='${scenarioOwner}'
+runtime_name='${scenarioName}'
+if [[ "$1" == 'container' && "$2" == 'ls' ]]; then
+  if exists; then
+    if [[ "$*" == *'-aq'* ]]; then printf '%s\\n' '${containerId}'; else printf '%s|%s\\n' '${containerId}' "$runtime_name"; fi
+  fi
+  exit 0
+fi
+if [[ "$1" == 'compose' ]]; then
+  if [[ "$*" == *' config -q'* ]]; then exit 0; fi
+  if [[ "$*" == *' run -d '* ]]; then
+    : > "$CREATED"
+    if [[ '${mode}' != 'lost-output' ]]; then printf '%s\\n' '${containerId}'; fi
+    exit 0
+  fi
+fi
+if [[ "$1" == 'inspect' ]]; then
+  exists || exit 1
+  case "$*" in
+    *'{{.Name}}|{{.Image}}|'*) printf '/%s|%s|%s|nextjs|true\\n' "$runtime_name" "$runtime_image" "$runtime_owner" ;;
+    *'NetworkSettings.Networks'*) printf 'evo_crm_private,evo_public_web,' ;;
+    *'{{.Image}}|{{index .Config.Labels'*'|{{.Name}}'*) printf '%s|%s|/%s\\n' "$runtime_image" "$runtime_owner" "$runtime_name" ;;
+    *'{{.Image}}|{{index .Config.Labels'*) printf '%s|%s\\n' "$runtime_image" "$runtime_owner" ;;
+    *'{{index .Config.Labels'*) printf '%s\\n' "$runtime_owner" ;;
+    *'{{.State.Running}}'*) printf 'true\\n' ;;
+    *'{{.Image}}'*) printf '%s\\n' "$runtime_image" ;;
+    *) exit 2 ;;
+  esac
+  exit 0
+fi
+if [[ "$1" == 'exec' ]]; then
+  if [[ "$*" == *'p8v3k-provider-gate'* ]]; then : > "$GATE"; exit 0; fi
+  if [[ "$*" == *'id -u'* ]]; then printf '1001:1001'; exit 0; fi
+  exit 0
+fi
+if [[ "$1" == 'logs' ]]; then exit 0; fi
+if [[ "$1" == 'wait' ]]; then printf '0\\n'; exit 0; fi
+if [[ "$1" == 'stop' ]]; then exit 0; fi
+if [[ "$1" == 'rm' && "$2" == '${containerId}' ]]; then : > "$REMOVED"; exit 0; fi
+if [[ "$1" == 'image' && "$2" == 'inspect' ]]; then
+  target="$3"
+  [[ "$target" == '${crm.sourceTag}' || "$target" == '${crm.composeTag}' || "$target" == '${nonceTag}' || "$target" == '${crm.index}' ]] || exit 1
+  [[ "$target" != '${crm.composeTag}' || ! -f "$COMPOSE_REMOVED" ]] || exit 1
+  [[ "$target" != '${nonceTag}' || ! -f "$NONCE_REMOVED" ]] || exit 1
+  case "\${5:-}" in
+    '{{.Id}}') printf '%s\\n' '${crm.index}' ;;
+    *) exit 0 ;;
+  esac
+  exit 0
+fi
+if [[ "$1" == 'image' && "$2" == 'rm' ]]; then
+  [[ "$3" == '${crm.composeTag}' ]] && : > "$COMPOSE_REMOVED"
+  [[ "$3" == '${nonceTag}' ]] && : > "$NONCE_REMOVED"
+  exit 0
+fi
+if [[ "$1" == 'image' && "$2" == 'ls' ]]; then
+  printf '%s|%s\\n' '${crm.sourceTag}' '${crm.index}'
+  [[ -f "$COMPOSE_REMOVED" ]] || printf '%s|%s\\n' '${crm.composeTag}' '${crm.index}'
+  [[ -f "$NONCE_REMOVED" ]] || printf '%s|%s\\n' '${nonceTag}' '${crm.index}'
+  exit 0
+fi
+exit 2
+`, { mode: 0o700 });
+    for (const name of ["stat", "sha256sum", "chown", "docker"]) chmodSync(join(fakeBin, name), 0o700);
+
+    const environment = {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH}`,
+      DOCKER_LOG: dockerLog,
+      CREATED: created,
+      REMOVED: removed,
+      GATE: gate,
+      COMPOSE_REMOVED: composeRemoved,
+      NONCE_REMOVED: nonceRemoved,
+    };
+    // macOS ships Bash 3.2, whose `errexit` handling for standalone `[[ ... ]]`
+    // differs from the reviewed Linux server shell. Make each closed guard
+    // explicit in this fake-shell behavioral harness.
+    const providerProbe = relocate(renderP8V3ShellContractsForTest().providerProbe)
+      .replace(/^(\[\[.*\]\])$/gm, "$1 || exit 2");
+    const providerResult = spawnSync("bash", ["-c", `set -e\n${providerProbe}`], { input: `${testCredential()}\n`, encoding: "utf8", env: environment });
+    const cleanup = relocate(renderP8V3CandidateImageTransactionForTest({ owner }).cleanup);
+    const cleanupResult = spawnSync("bash", ["-seu"], { input: cleanup, encoding: "utf8", env: environment });
+    return {
+      providerResult,
+      cleanupResult,
+      gateOpened: existsSync(gate),
+      removed: existsSync(removed),
+      dockerLog: existsSync(dockerLog) ? readFileSync(dockerLog, "utf8") : "",
+    };
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+}
+
+test("P8V3K wrong-image provider never opens the gate and cleanup removes its captured owned ID", () => {
+  const result = runP8V3KProviderFailureScenario("wrong-image");
+  assert.notEqual(result.providerResult.status, 0, `${result.providerResult.stdout}\n${result.providerResult.stderr}\n${result.dockerLog}`);
+  assert.equal(result.gateOpened, false);
+  assert.equal(result.cleanupResult.status, 0, result.cleanupResult.stderr);
+  assert.equal(result.removed, true, `${result.providerResult.stderr}\n${result.cleanupResult.stderr}\n${result.dockerLog}`);
+  assert.match(result.dockerLog, new RegExp(`rm ${"2".repeat(64)}`));
+});
+
+test("P8V3K lost detached-run output is reconciled only through the exact owner/name/image fallback", () => {
+  const result = runP8V3KProviderFailureScenario("lost-output");
+  assert.notEqual(result.providerResult.status, 0, `${result.providerResult.stdout}\n${result.providerResult.stderr}\n${result.dockerLog}`);
+  assert.equal(result.gateOpened, false);
+  assert.equal(result.cleanupResult.status, 0, result.cleanupResult.stderr);
+  assert.equal(result.removed, true, `${result.providerResult.stderr}\n${result.cleanupResult.stderr}\n${result.dockerLog}`);
+});
+
+test("P8V3K rebound provider identity never opens the gate or deletes foreign state", () => {
+  const result = runP8V3KProviderFailureScenario("rebound");
+  assert.notEqual(result.providerResult.status, 0, `${result.providerResult.stdout}\n${result.providerResult.stderr}\n${result.dockerLog}`);
+  assert.equal(result.gateOpened, false);
+  assert.notEqual(result.cleanupResult.status, 0);
+  assert.equal(result.removed, false);
+});
+
+test("P8V3K renamed provider never opens the gate but cleanup removes its immutable captured owned ID", () => {
+  const result = runP8V3KProviderFailureScenario("renamed");
+  assert.notEqual(result.providerResult.status, 0, `${result.providerResult.stdout}\n${result.providerResult.stderr}\n${result.dockerLog}`);
+  assert.equal(result.gateOpened, false);
+  assert.equal(result.cleanupResult.status, 0, result.cleanupResult.stderr);
+  assert.equal(result.removed, true);
 });
 
 test("P8V3K live Compose boundary rejects ownership or mode drift before use", () => {

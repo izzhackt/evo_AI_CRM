@@ -1448,3 +1448,95 @@ directory empty, its nonce-owned remote root absent, and all production state
 unchanged, P8V3K release/version/result/preflight/token identities remain
 available. Repository review, final CI and a fresh real preflight remain
 mandatory before requesting the existing future owner token.
+
+## P8V3K Docker 29 OCI runtime-identity closure
+
+Issue #354 closes the mismatch between portable OCI provenance and the Docker
+29/containerd runtime store. The frozen archives retain three distinct exact
+identities:
+
+| Role | Frozen identity | Allowed use |
+| --- | --- | --- |
+| Portable bytes | archive SHA-256 and size | transfer, staged/rollback file verification |
+| Platform provenance | exact linux/amd64 manifest descriptor in the OCI index | offline archive graph, revision/config and platform proof only |
+| Docker runtime | exact OCI index digest | source/Compose tags, provider/import jobs, deployment containers, candidate cleanup and `after_image_id` |
+
+Docker's current documentation establishes that Engine 29 uses the containerd
+image store for multi-platform indices/attestations and that `docker image
+load` restores archive tags:
+<https://docs.docker.com/engine/storage/containerd/>,
+<https://docs.docker.com/build/building/multi-platform/>, and
+<https://docs.docker.com/reference/cli/docker/image/load/>. The runner must not
+inspect, tag or compare a container `.Image` to the platform descriptor.
+
+For each execute-time archive, the closed order is: verify exact file and OCI
+graph offline; `docker image load` with no pull/build; require the exact source
+tag to resolve to the frozen index; create the fixed Compose tag from that
+verified source; require the Compose tag to resolve to the same index; then
+require every candidate container `.Image` and successful deployment
+`after_image_id` to equal the index. Historical rollback image IDs remain the
+already frozen runtime IDs.
+
+The final preflight may perform one explicitly authorized CRM-only temporary
+runtime transaction; Inbox and Lead may not be loaded. Before its first Docker
+effect it must require version/API/platform exactly
+`29.4.0|1.54|linux|amd64`, DriverStatus exactly
+`[["driver-type","io.containerd.snapshotter.v1"]]`, the exact CRM
+archive and OCI graph, a closed inventory of source/Compose/nonce tags and the
+index, all candidate-index container references, and the exact unchanged five
+production containers. Pre-existing foreign, partial or ambiguous state blocks.
+The only accepted CRM prestate is either (a) source tag and index both absent,
+with no candidate-index tag/container reference, or (b) the exact source tag is
+the sole tag on the exact visible index, with no candidate-index container
+reference. The Compose and nonce tags must always be absent.
+
+The transaction requires the nonce tag
+`evo-p8v3k-preflight:<48-lowercase-hex-owner>` to be absent, loads the CRM
+archive, proves `sourceTag -> index`, proves the runtime image's
+linux/amd64/revision labels, creates both `composeTag -> index` and the exact
+nonce tag to that index, and
+starts exactly one `docker compose run -d --no-deps --pull never -T`
+owner-labelled provider job without `--rm`. Its fixed entrypoint may only wait
+on a bounded transaction-private gate; it cannot call the provider while
+closed. Preflight captures the 64-hex container ID and requires exact
+ID/reserved name/owner label/runtime index/network/UID/GID/running state before
+releasing the gate through that exact ID. A wrong identity is never released.
+After release, preflight waits for the exact container, requires zero exit plus
+the already frozen closed output, and finally removes only that exact owned ID
+before proving ID/name/owner absence.
+
+Finally cleanup first removes only the exact owned provider container, then
+removes only transaction-created tags that still resolve to the reviewed
+index, and finally removes the index without force only when it was absent
+before and closed inventory proves no foreign tags or containers reference it.
+No prune, force, broad glob, fallback context, pull, build, conversion or
+foreign deletion is permitted. Repoint, foreign reference, removal failure,
+ambiguous inventory, any final Compose/nonce/provider-container presence, or
+any source/index state that differs from the recorded prestate is a blocking
+reconciliation state. Exact post-inventory equality to the recorded prestate,
+including absence of every foreign tag/container reference, and unchanged
+production containers are required. This proof makes no claim about
+unreferenced containerd blobs awaiting normal garbage collection.
+
+The three closed archive records remain portable-only and contain no claimed
+runtime observation for unloaded Inbox or Lead. A separate closed
+`crm_runtime_probe` object must record exact backend version/API/platform/
+driver, archive/index/platform, `runtime_image_id == index`, source/Compose/
+nonce prestate, captured provider ID/image, cleanup verified and production
+unchanged. Execution verification uses the same identity distinction.
+Behavioral coverage must include the guarded real
+OrbStack/Docker multi-platform load, offline platform proof, execute-time index
+checks, historical evidence compatibility, and negatives for swapped
+identities, pre-gate wrong provider identity, partial load/tag,
+collisions/repoints, foreign references/container use, timeout,
+inventory/removal failure and incomplete cleanup.
+
+This correction grants repository authority only. A fresh explicit preflight
+authorization `PREFLIGHT-P8V3K-2026-08-21.P8V3K.1`, provided process-only as
+`EVO_P8V3_PREFLIGHT_AUTHORIZATION`, is required after reviewed merge/final CI
+for the bounded temporary CRM mutation and neutral provider call. Missing or
+mismatched authorization stops before the first effect. One successful
+canonical preflight evidence record consumes it under launch control and reuse
+is forbidden. The existing unconsumed P8V3K
+execution authorization remains gated on that approved canonical preflight and
+covers only the already defined import/deployment/rollback window.

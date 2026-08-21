@@ -33,6 +33,7 @@ const RELEASE_VERSION = "p8v3k-0f1454d0-20260821";
 const RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/${RELEASE_ID}`;
 const PREFLIGHT_ROOT = "/opt/evo-release-preflight/p8v3k-20260821.1";
 const PREFLIGHT_OWNER_FILE = ".p8v3k-owner";
+const PREFLIGHT_IMAGE_STATE_FILE = ".p8v3k-image-state";
 const PREFLIGHT_PARENT = dirname(PREFLIGHT_ROOT);
 const PREFLIGHT_PREFIX = basename(PREFLIGHT_ROOT);
 const REMOTE_REPO = `${RELEASE_ROOT}/repo`;
@@ -237,16 +238,20 @@ export function parseP8V3KnowledgeImporterOutputForTest(stdout, audience, bundle
 }
 
 export function parseP8V3ProviderProbeOutputForTest(stdout) {
-  if (
-    typeof stdout !== "string" ||
-    stdout.length < 2 ||
-    !stdout.endsWith("\n") ||
-    stdout.slice(0, -1).includes("\n") ||
-    stdout.includes("\r")
-  ) fail("provider probe output is not one closed record", "preflight_drift");
+  if (typeof stdout !== "string" || stdout.length < 2 || !stdout.endsWith("\n") || stdout.includes("\r")) fail("provider probe output is not closed", "preflight_drift");
+  const lines = stdout.slice(0, -1).split("\n");
+  if (![1, 2].includes(lines.length)) fail("provider probe output cardinality drifted", "preflight_drift");
+  let providerContainerId = null;
+  let providerContainerImageId = null;
+  if (lines.length === 2) {
+    const match = /^p8v3k_provider_container\|([0-9a-f]{64})\|(sha256:[0-9a-f]{64})$/.exec(lines.shift());
+    if (!match) fail("provider container identity output drifted", "preflight_drift");
+    [, providerContainerId, providerContainerImageId] = match;
+    if (providerContainerImageId !== P8V3_IMAGES.crm.index) fail("provider container image output drifted", "preflight_drift");
+  }
   let safe;
   try {
-    safe = JSON.parse(stdout.slice(0, -1));
+    safe = JSON.parse(lines[0]);
   } catch {
     fail("provider probe output returned malformed JSON", "preflight_drift");
   }
@@ -257,7 +262,9 @@ export function parseP8V3ProviderProbeOutputForTest(stdout) {
   }
   exactKeys(safe, ["status", "version", "model", "vectors", "dimensions", "uid", "gid"], "provider probe result");
   if (safe.status !== "knowledge_import_provider_verified" || safe.version !== 1 || safe.model !== "gemini-embedding-2" || safe.vectors !== 17 || safe.dimensions !== 1536 || safe.uid !== 1001 || safe.gid !== 1001) fail("provider probe result drifted", "preflight_drift");
-  return { server_compose_verified: true };
+  return providerContainerId === null
+    ? { server_compose_verified: true }
+    : { server_compose_verified: true, provider_container_id: providerContainerId, provider_container_image_id: providerContainerImageId };
 }
 
 const parseP8V3ProviderProbeOutput = parseP8V3ProviderProbeOutputForTest;
@@ -369,7 +376,7 @@ function candidateImageSpecBoundaryScript(spec, { requireLoaded = false } = {}) 
   const loadedAssertions = requireLoaded
     ? String.raw`
 [[ "$candidate_source_id" == '${spec.index}' ]] || exit 2
-[[ "$candidate_platform_present" == '1' ]] || exit 2
+[[ "$candidate_runtime_present" == '1' ]] || exit 2
 `
     : "";
   return String.raw`
@@ -384,14 +391,14 @@ function candidateImageSpecBoundaryScript(spec, { requireLoaded = false } = {}) 
   candidate_compose_count="$(printf '%s\n' "$candidate_compose_rows" | awk 'NF { count += 1 } END { print count + 0 }')"
   [[ "$candidate_compose_count" -le 1 ]] || exit 2
   candidate_compose_id="$candidate_compose_rows"
-  [[ -z "$candidate_compose_id" || "$candidate_compose_id" == '${spec.platform}' ]] || exit 2
+  [[ -z "$candidate_compose_id" || "$candidate_compose_id" == '${spec.index}' ]] || exit 2
 
-  candidate_platform_present="$(printf '%s\n' "$candidate_image_inventory" | awk -F'|' -v id='${spec.platform}' '$2 == id { found = 1 } END { print found + 0 }')"
+  candidate_runtime_present="$(printf '%s\n' "$candidate_image_inventory" | awk -F'|' -v id='${spec.index}' '$2 == id { found = 1 } END { print found + 0 }')"
   ${loadedAssertions}
-  if [[ "$candidate_platform_present" == '1' ]]; then
-    [[ "$(docker image inspect '${spec.platform}' --format '{{.Id}}')" == '${spec.platform}' ]] || exit 2
-    [[ "$(docker image inspect '${spec.platform}' --format '{{.Os}}/{{.Architecture}}/{{.Variant}}')" == 'linux/amd64/' ]] || exit 2
-    [[ "$(docker image inspect '${spec.platform}' --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" == '${P8V3.applicationCommit}' ]] || exit 2
+  if [[ "$candidate_runtime_present" == '1' ]]; then
+    [[ "$(docker image inspect '${spec.index}' --format '{{.Id}}')" == '${spec.index}' ]] || exit 2
+    [[ "$(docker image inspect '${spec.index}' --format '{{.Os}}/{{.Architecture}}/{{.Variant}}')" == 'linux/amd64/' ]] || exit 2
+    [[ "$(docker image inspect '${spec.index}' --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" == '${P8V3.applicationCommit}' ]] || exit 2
   fi
 }
 `;
@@ -401,6 +408,16 @@ function candidateImageBoundaryScript(options = {}) {
   return String.raw`
 candidate_image_inventory="$(docker image ls --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}')"
 ${Object.values(P8V3_IMAGES).map((spec) => candidateImageSpecBoundaryScript(spec, options)).join("\n")}
+`;
+}
+
+function archiveOnlyCandidateImageScript(spec) {
+  return String.raw`
+[[ -z "$(printf '%s\n' "$candidate_image_inventory" | awk -F'|' '$1 == "${spec.sourceTag}" || $1 == "${spec.composeTag}" { print $0 }')" ]]
+[[ "$(printf '%s\n' "$candidate_image_inventory" | awk -F'|' -v id='${spec.index}' '$2 == id { count += 1 } END { print count + 0 }')" == '0' ]]
+if docker image inspect '${spec.index}' >/dev/null 2>&1; then exit 2; fi
+candidate_archive_only_containers="$(for candidate_container in $(docker container ls -aq --no-trunc); do candidate_container_image="$(docker inspect "$candidate_container" --format '{{.Image}}')" || exit 2; [[ "$candidate_container_image" != '${spec.index}' ]] || printf '%s\n' "$candidate_container"; done)"
+[[ -z "$candidate_archive_only_containers" ]]
 `;
 }
 
@@ -550,7 +567,10 @@ EOF
 [[ "$(df -Pk /opt | awk 'NR==2{print $4}')" -ge 2097152 ]]
 getent ahosts '${PROJECT_REF}.supabase.co' >/dev/null
 getent ahosts 'evoadmissions.amocrm.ru' >/dev/null
-${candidateImageBoundaryScript({ requireLoaded: true })}
+${candidateImageBoundaryScript()}
+[[ -z "$(printf '%s\n' "$candidate_image_inventory" | awk -F'|' '$1 ~ /^evo-p8v3k-preflight:/ { print $1 }')" ]]
+${archiveOnlyCandidateImageScript(P8V3_IMAGES.inbox)}
+${archiveOnlyCandidateImageScript(P8V3_IMAGES.lead_agent)}
 python3 - <<'PY'
 from pathlib import Path
 def names(path):
@@ -1037,9 +1057,189 @@ chmod 0640 '${preflightRoot}/${IMPORTER_FILE}'
 `;
 }
 
-function preflightCleanupScript({ preflightRoot = PREFLIGHT_ROOT, importerSha256 = null, importerSize = null, owner = null, expectedUid = 0, expectedGid = 0 } = {}) {
+function preflightCandidateImagePrepareScript({ preflightRoot, owner }) {
+  if (!IMPORTER_OWNER.test(owner)) fail("P8V3K candidate image prepare owner is invalid", "preflight_drift");
+  const spec = P8V3_IMAGES.crm;
+  const archive = `${PRESERVED_P8V3E_RELEASE_ROOT}/archives/${spec.file}`;
+  const nonceTag = `evo-p8v3k-preflight:${owner}`;
+  return String.raw`
+[[ -d '${preflightRoot}' && ! -L '${preflightRoot}' ]]
+[[ "$(stat -c '%U:%G %a' '${preflightRoot}')" == 'root:root 700' ]]
+[[ -f '${preflightRoot}/${PREFLIGHT_OWNER_FILE}' && ! -L '${preflightRoot}/${PREFLIGHT_OWNER_FILE}' ]]
+[[ "$(cat '${preflightRoot}/${PREFLIGHT_OWNER_FILE}')" == '${owner}' ]]
+[[ ! -e '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}' && ! -L '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}' ]]
+[[ "$(docker version --format '{{.Server.Version}}|{{.Server.APIVersion}}|{{.Server.Os}}|{{.Server.Arch}}')" == '29.4.0|1.54|linux|amd64' ]]
+[[ "$(docker info --format '{{json .DriverStatus}}')" == '[["driver-type","io.containerd.snapshotter.v1"]]' ]]
+[[ -f '${archive}' && ! -L '${archive}' ]]
+[[ "$(stat -c '%U:%G %a %s' '${archive}')" == 'root:root 600 ${spec.size}' ]]
+[[ "$(sha256sum '${archive}' | awk '{print $1}')" == '${spec.sha256}' ]]
+
+candidate_image_inventory="$(docker image ls -a --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}')"
+${candidateImageSpecBoundaryScript(spec)}
+[[ -z "$candidate_compose_id" ]] || exit 2
+[[ -z "$(printf '%s\n' "$candidate_image_inventory" | awk -F'|' '$1 ~ /^evo-p8v3k-preflight:/ { print $1 }')" ]] || exit 2
+if docker image inspect '${nonceTag}' >/dev/null 2>&1; then exit 2; fi
+candidate_source_state='absent'
+candidate_expected_refs=0
+if [[ "$candidate_source_id" == '${spec.index}' ]]; then candidate_source_state='exact_present'; candidate_expected_refs=1; fi
+candidate_runtime_refs="$(printf '%s\n' "$candidate_image_inventory" | awk -F'|' -v id='${spec.index}' '$2 == id { count += 1 } END { print count + 0 }')"
+[[ "$candidate_runtime_refs" == "$candidate_expected_refs" ]] || exit 2
+if [[ "$candidate_source_state" == 'absent' ]]; then
+  if docker image inspect '${spec.index}' >/dev/null 2>&1; then exit 2; fi
+fi
+candidate_runtime_containers="$(for candidate_container in $(docker container ls -aq --no-trunc); do candidate_container_image="$(docker inspect "$candidate_container" --format '{{.Image}}')" || exit 2; [[ "$candidate_container_image" != '${spec.index}' ]] || printf '%s\n' "$candidate_container"; done)"
+[[ -z "$candidate_runtime_containers" ]] || exit 2
+printf 'owner=%s\nsource=%s\nprovider_id=absent\n' '${owner}' "$candidate_source_state" > '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}'
+chown root:root '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}'
+chmod 0600 '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}'
+[[ "$(stat -c '%U:%G %a' '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}')" == 'root:root 600' ]]
+
+if [[ "$candidate_source_state" == 'absent' ]]; then
+  docker image load -i '${archive}' >/dev/null
+fi
+[[ "$(docker image inspect '${spec.sourceTag}' --format '{{.Id}}')" == '${spec.index}' ]]
+[[ "$(docker image inspect '${spec.index}' --format '{{.Os}}/{{.Architecture}}/{{.Variant}}')" == 'linux/amd64/' ]]
+[[ "$(docker image inspect '${spec.index}' --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" == '${P8V3.applicationCommit}' ]]
+docker image tag '${spec.sourceTag}' '${nonceTag}'
+docker image tag '${spec.sourceTag}' '${spec.composeTag}'
+[[ "$(docker image inspect '${nonceTag}' --format '{{.Id}}')" == '${spec.index}' ]]
+[[ "$(docker image inspect '${spec.composeTag}' --format '{{.Id}}')" == '${spec.index}' ]]
+printf 'crm_runtime_prestate|%s\n' "$candidate_source_state"
+`;
+}
+
+function preflightCandidateImageCleanupScript({ preflightRoot, owner }) {
+  if (!IMPORTER_OWNER.test(owner)) fail("P8V3K candidate image cleanup owner is invalid", "preflight_drift");
+  const spec = P8V3_IMAGES.crm;
+  const nonceTag = `evo-p8v3k-preflight:${owner}`;
+  return String.raw`
+set +e
+errors=0
+state='${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}'
+if [[ -e "$state" || -L "$state" ]]; then
+  [[ -f "$state" && ! -L "$state" && "$(stat -c '%U:%G %a' "$state")" == 'root:root 600' ]] || errors=1
+  state_owner="$(awk -F= '$1=="owner" {print $2}' "$state" 2>/dev/null)"
+  source_state="$(awk -F= '$1=="source" {print $2}' "$state" 2>/dev/null)"
+  provider_id="$(awk -F= '$1=="provider_id" {print $2}' "$state" 2>/dev/null)"
+  [[ "$(wc -l < "$state" | tr -d ' ')" == '3' && "$state_owner" == '${owner}' ]] || errors=1
+  [[ "$source_state" == 'exact_present' || "$source_state" == 'absent' ]] || errors=1
+  [[ "$provider_id" == 'absent' || "$provider_id" =~ ^[0-9a-f]{64}$ ]] || errors=1
+  if [[ "$errors" == '0' && "$provider_id" != 'absent' ]]; then
+    provider_owner="$(docker inspect "$provider_id" --format '{{index .Config.Labels "${IMPORTER_OWNER_LABEL}"}}' 2>/dev/null)" || { provider_owner=''; errors=1; }
+    if [[ "$errors" == '0' && "$provider_owner" == '${owner}' ]]; then
+      provider_running="$(docker inspect "$provider_id" --format '{{.State.Running}}' 2>/dev/null)" || { provider_running=''; errors=1; }
+      if [[ "$errors" == '0' && "$provider_running" == 'true' ]]; then docker stop --time 10 "$provider_id" >/dev/null 2>&1 || errors=1; fi
+      if [[ "$errors" == '0' ]]; then docker rm "$provider_id" >/dev/null 2>&1 || errors=1; fi
+    else
+      errors=1
+    fi
+    if docker inspect "$provider_id" >/dev/null 2>&1; then errors=1; fi
+  elif [[ "$errors" == '0' ]]; then
+    fallback_inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || { fallback_inventory=''; errors=1; }
+    fallback_owned="$(docker container ls -a --no-trunc --filter 'label=${IMPORTER_OWNER_LABEL}' --format '{{.ID}}|{{.Names}}')" || { fallback_owned=''; errors=1; }
+    fallback_target="$(printf '%s\n' "$fallback_inventory" | awk -F '|' '$2 == "${IMPORTER}" { print $0 }')"
+    if [[ -n "$fallback_owned" || -n "$fallback_target" ]]; then
+      fallback_count="$(printf '%s\n' "$fallback_owned" | sed '/^$/d' | wc -l | tr -d ' ')"
+      fallback_id="$(printf '%s\n' "$fallback_owned" | cut -d '|' -f 1)"
+      fallback_name="$(printf '%s\n' "$fallback_owned" | cut -d '|' -f 2)"
+      fallback_identity="$(docker inspect "$fallback_id" --format '{{.Image}}|{{index .Config.Labels "${IMPORTER_OWNER_LABEL}"}}|{{.Name}}' 2>/dev/null)" || { fallback_identity=''; errors=1; }
+      if [[ "$errors" == '0' \
+        && "$fallback_count" == '1' \
+        && "$fallback_id" =~ ^[0-9a-f]{64}$ \
+        && "$fallback_name" == '${IMPORTER}' \
+        && "$fallback_target" == "$fallback_id|${IMPORTER}" \
+        && "$fallback_identity" == '${spec.index}|${owner}|/${IMPORTER}' ]]; then
+        fallback_running="$(docker inspect "$fallback_id" --format '{{.State.Running}}' 2>/dev/null)" || { fallback_running=''; errors=1; }
+        if [[ "$errors" == '0' && "$fallback_running" == 'true' ]]; then docker stop --time 10 "$fallback_id" >/dev/null 2>&1 || errors=1; fi
+        if [[ "$errors" == '0' ]]; then docker rm "$fallback_id" >/dev/null 2>&1 || errors=1; fi
+        if docker inspect "$fallback_id" >/dev/null 2>&1; then errors=1; fi
+      else
+        errors=1
+      fi
+    fi
+  fi
+  ${knowledgeContainerAbsenceBody()}
+  source_id="$(docker image inspect '${spec.sourceTag}' --format '{{.Id}}' 2>/dev/null)" || source_id=''
+  compose_id="$(docker image inspect '${spec.composeTag}' --format '{{.Id}}' 2>/dev/null)" || compose_id=''
+  nonce_id="$(docker image inspect '${nonceTag}' --format '{{.Id}}' 2>/dev/null)" || nonce_id=''
+  [[ -z "$source_id" || "$source_id" == '${spec.index}' ]] || errors=1
+  [[ -z "$compose_id" || "$compose_id" == '${spec.index}' ]] || errors=1
+  [[ -z "$nonce_id" || "$nonce_id" == '${spec.index}' ]] || errors=1
+  if [[ "$source_state" == 'exact_present' && "$source_id" != '${spec.index}' ]]; then errors=1; fi
+  if [[ "$errors" == '0' && "$compose_id" == '${spec.index}' ]]; then docker image rm '${spec.composeTag}' >/dev/null 2>&1 || errors=1; fi
+  if [[ "$errors" == '0' && "$nonce_id" == '${spec.index}' ]]; then docker image rm '${nonceTag}' >/dev/null 2>&1 || errors=1; fi
+  if [[ "$errors" == '0' && "$source_state" == 'absent' && "$source_id" == '${spec.index}' ]]; then
+    docker image rm '${spec.sourceTag}' >/dev/null 2>&1 || errors=1
+  fi
+  remaining_runtime_containers="$(for candidate_container in $(docker container ls -aq --no-trunc); do candidate_container_image="$(docker inspect "$candidate_container" --format '{{.Image}}' 2>/dev/null)" || { errors=1; continue; }; [[ "$candidate_container_image" != '${spec.index}' ]] || printf '%s\n' "$candidate_container"; done)"
+  [[ -z "$remaining_runtime_containers" ]] || errors=1
+  remaining_runtime_refs="$(docker image ls -a --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}' | awk -F'|' -v id='${spec.index}' '$2 == id { count += 1 } END { print count + 0 }')" || errors=1
+  if [[ "$errors" == '0' && "$source_state" == 'absent' && "$remaining_runtime_refs" == '0' ]] && docker image inspect '${spec.index}' >/dev/null 2>&1; then
+    docker image rm '${spec.index}' >/dev/null 2>&1 || errors=1
+  fi
+  final_inventory="$(docker image ls -a --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}')" || { final_inventory=''; errors=1; }
+  final_source="$(printf '%s\n' "$final_inventory" | awk -F'|' '$1 == "${spec.sourceTag}" { print $2 }')"
+  final_compose="$(printf '%s\n' "$final_inventory" | awk -F'|' '$1 == "${spec.composeTag}" { print $2 }')"
+  final_nonce="$(printf '%s\n' "$final_inventory" | awk -F'|' '$1 == "${nonceTag}" { print $2 }')"
+  final_expected_refs=0
+  if [[ "$source_state" == 'exact_present' ]]; then [[ "$final_source" == '${spec.index}' ]] || errors=1; final_expected_refs=1; else [[ -z "$final_source" ]] || errors=1; fi
+  [[ -z "$final_compose" && -z "$final_nonce" ]] || errors=1
+  [[ -z "$(printf '%s\n' "$final_inventory" | awk -F'|' '$1 ~ /^evo-p8v3k-preflight:/ { print $1 }')" ]] || errors=1
+  final_runtime_refs="$(printf '%s\n' "$final_inventory" | awk -F'|' -v id='${spec.index}' '$2 == id { count += 1 } END { print count + 0 }')"
+  [[ "$final_runtime_refs" == "$final_expected_refs" ]] || errors=1
+  if [[ "$source_state" == 'absent' ]]; then if docker image inspect '${spec.index}' >/dev/null 2>&1; then errors=1; fi; fi
+  if [[ "$errors" == '0' ]]; then rm "$state" || errors=1; fi
+fi
+${knowledgeContainerAbsenceBody()}
+post_runtime_containers="$(for candidate_container in $(docker container ls -aq --no-trunc); do candidate_container_image="$(docker inspect "$candidate_container" --format '{{.Image}}' 2>/dev/null)" || { errors=1; continue; }; [[ "$candidate_container_image" != '${spec.index}' ]] || printf '%s\n' "$candidate_container"; done)"
+[[ -z "$post_runtime_containers" ]] || errors=1
+post_image_inventory="$(docker image ls -a --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}')" || { post_image_inventory=''; errors=1; }
+${[P8V3_IMAGES.inbox, P8V3_IMAGES.lead_agent].map((archiveSpec) => String.raw`
+[[ -z "$(printf '%s\n' "$post_image_inventory" | awk -F'|' '$1 == "${archiveSpec.sourceTag}" || $1 == "${archiveSpec.composeTag}" { print $0 }')" ]] || errors=1
+[[ "$(printf '%s\n' "$post_image_inventory" | awk -F'|' -v id='${archiveSpec.index}' '$2 == id { count += 1 } END { print count + 0 }')" == '0' ]] || errors=1
+if docker image inspect '${archiveSpec.index}' >/dev/null 2>&1; then errors=1; fi
+post_archive_containers="$(for candidate_container in $(docker container ls -aq --no-trunc); do candidate_container_image="$(docker inspect "$candidate_container" --format '{{.Image}}' 2>/dev/null)" || { errors=1; continue; }; [[ "$candidate_container_image" != '${archiveSpec.index}' ]] || printf '%s\n' "$candidate_container"; done)"
+[[ -z "$post_archive_containers" ]] || errors=1
+`).join("\n")}
+if [[ "$errors" == '0' ]]; then printf 'crm_runtime_cleanup_verified\n'; fi
+exit "$errors"
+`;
+}
+
+export function renderP8V3CandidateImageTransactionForTest({ owner = "a".repeat(48) } = {}) {
+  const preflightRoot = preflightRootForOwner(owner);
+  return Object.freeze({
+    prepare: preflightCandidateImagePrepareScript({ preflightRoot, owner }),
+    cleanup: preflightCandidateImageCleanupScript({ preflightRoot, owner }),
+  });
+}
+
+function preflightCandidateImageCleanStateScript(sourcePrestate) {
+  if (!["absent", "exact_present"].includes(sourcePrestate)) fail("P8V3K candidate image prestate is invalid", "preflight_drift");
+  const spec = P8V3_IMAGES.crm;
+  const expectedRefs = sourcePrestate === "exact_present" ? 1 : 0;
+  return String.raw`
+[[ "$(docker version --format '{{.Server.Version}}|{{.Server.APIVersion}}|{{.Server.Os}}|{{.Server.Arch}}')" == '29.4.0|1.54|linux|amd64' ]]
+[[ "$(docker info --format '{{json .DriverStatus}}')" == '[["driver-type","io.containerd.snapshotter.v1"]]' ]]
+candidate_image_inventory="$(docker image ls -a --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}')"
+${candidateImageSpecBoundaryScript(spec)}
+[[ -z "$candidate_compose_id" ]]
+[[ -z "$(printf '%s\n' "$candidate_image_inventory" | awk -F'|' '$1 ~ /^evo-p8v3k-preflight:/ { print $1 }')" ]]
+candidate_runtime_refs="$(printf '%s\n' "$candidate_image_inventory" | awk -F'|' -v id='${spec.index}' '$2 == id { count += 1 } END { print count + 0 }')"
+[[ "$candidate_runtime_refs" == '${expectedRefs}' ]]
+${sourcePrestate === "exact_present"
+    ? `[[ "$candidate_source_id" == '${spec.index}' ]]\n[[ "$(docker image inspect '${spec.index}' --format '{{.Id}}')" == '${spec.index}' ]]`
+    : `[[ -z "$candidate_source_id" ]]\nif docker image inspect '${spec.index}' >/dev/null 2>&1; then exit 2; fi`}
+candidate_runtime_containers="$(for candidate_container in $(docker container ls -aq --no-trunc); do candidate_container_image="$(docker inspect "$candidate_container" --format '{{.Image}}')" || exit 2; [[ "$candidate_container_image" != '${spec.index}' ]] || printf '%s\n' "$candidate_container"; done)"
+[[ -z "$candidate_runtime_containers" ]]
+${archiveOnlyCandidateImageScript(P8V3_IMAGES.inbox)}
+${archiveOnlyCandidateImageScript(P8V3_IMAGES.lead_agent)}
+`;
+}
+
+function preflightCleanupScript({ preflightRoot = PREFLIGHT_ROOT, importerSha256 = null, importerSize = null, owner = null, expectedUid = 0, expectedGid = 0, forceContainer = true } = {}) {
   if (!IMPORTER_OWNER.test(owner ?? "")) fail("P8V3K preflight cleanup owner is invalid", "preflight_drift");
-  if (![expectedUid, expectedGid].every((value) => Number.isInteger(value) && value >= 0)) fail("P8V3K preflight cleanup identity is invalid", "preflight_drift");
+  if (![expectedUid, expectedGid].every((value) => Number.isInteger(value) && value >= 0) || typeof forceContainer !== "boolean") fail("P8V3K preflight cleanup identity is invalid", "preflight_drift");
   if ((importerSha256 === null) !== (importerSize === null) || (importerSha256 !== null && (!SHA64.test(importerSha256) || !Number.isSafeInteger(importerSize) || importerSize < 1))) {
     fail("P8V3K preflight cleanup importer identity is invalid", "preflight_drift");
   }
@@ -1047,7 +1247,7 @@ function preflightCleanupScript({ preflightRoot = PREFLIGHT_ROOT, importerSha256
   return String.raw`
 set +e
 errors=0
-${knowledgeContainerCleanupBody(expectedOwner)}
+${knowledgeContainerCleanupBody(expectedOwner, { force: forceContainer })}
 [[ "$errors" == '0' ]] || exit 2
 python3 - <<'PY' || errors=1
 import hashlib, stat
@@ -1114,8 +1314,9 @@ function loadImagesScript() {
 docker load -i '${REMOTE_ARCHIVES}/${spec.file}' >/dev/null
 candidate_image_inventory="$(docker image ls --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}')"
 ${candidateImageSpecBoundaryScript(spec, { requireLoaded: true })}
-docker image tag '${spec.platform}' '${spec.composeTag}'
-[[ "$(docker image inspect '${spec.composeTag}' --format '{{.Id}}')" == '${spec.platform}' ]]
+docker image tag '${spec.sourceTag}' '${spec.composeTag}'
+[[ "$(docker image inspect '${spec.sourceTag}' --format '{{.Id}}')" == '${spec.index}' ]]
+[[ "$(docker image inspect '${spec.composeTag}' --format '{{.Id}}')" == '${spec.index}' ]]
 `).join("\n");
   return `${candidateImageBoundaryScript()}\n${rows}\n`;
 }
@@ -1194,6 +1395,9 @@ docker compose --ansi never --progress quiet --project-name '${composeProject("c
 
 function providerProbeCommand(owner, importer, preflightRoot) {
   const importerRemote = `${preflightRoot}/${IMPORTER_FILE}`;
+  const gate = `/tmp/p8v3k-provider-gate-${owner}`;
+  const ready = `/tmp/p8v3k-provider-ready-${owner}`;
+  const networks = P8V3_IMAGES.crm.networks.slice().sort().join(",");
   return String.raw`
 set -u
 IFS= read -r EVO_PLATFORM_GEMINI_API_KEY
@@ -1201,16 +1405,57 @@ if IFS= read -r P8V3K_EXTRA_INPUT; then exit 2; fi
 export EVO_PLATFORM_GEMINI_API_KEY
 [[ "$(stat -c '%U:%G %a %s' '${importerRemote}')" == 'root:1001 640 ${importer.size}' ]]
 [[ "$(sha256sum '${importerRemote}' | awk '{print $1}')" == '${importer.sha256}' ]]
-${composeRunPrefixScript({
-  owner,
-  envNames: ["EVO_PLATFORM_GEMINI_API_KEY"],
-  mounts: [{ source: importerRemote, target: IMPORTER_MOUNT }],
-})} -c ${shellQuote(String.raw`
+${composeEnvironment("crm")}
+${liveComposeBoundaryScript()}
+docker compose --ansi never --progress quiet --project-name '${composeProject("crm")}' -f '${PRODUCTION_CRM_COMPOSE}' --env-file '${PRODUCTION_CRM_ENV_FILE}' config -q
+inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || exit 2
+target="$(printf '%s\n' "$inventory" | awk -F '|' '$2 == "${IMPORTER}" { print $1 }')"
+[[ -z "$target" ]] || exit 2
+owned="$(docker container ls -a --no-trunc --filter 'label=${IMPORTER_OWNER_LABEL}' --format '{{.ID}}|{{.Names}}')" || exit 2
+[[ -z "$owned" ]] || exit 2
+provider_container_id="$(docker compose --ansi never --progress quiet --project-name '${composeProject("crm")}' -f '${PRODUCTION_CRM_COMPOSE}' --env-file '${PRODUCTION_CRM_ENV_FILE}' run -d --no-deps --pull never -T --name '${IMPORTER}' --label '${IMPORTER_OWNER_LABEL}=${owner}' -e 'EVO_PLATFORM_GEMINI_API_KEY' -v '${importerRemote}:${IMPORTER_MOUNT}:ro' --entrypoint /bin/sh app -c ${shellQuote(String.raw`
 set -eu
+rm -f '${gate}' '${ready}'
+: > '${ready}'
+gate_open='false'
+for gate_attempt in $(seq 1 60); do
+  if [[ -f '${gate}' ]]; then gate_open='true'; break; fi
+  sleep 1
+done
+[[ "$gate_open" == 'true' ]]
 [[ "$(id -u):$(id -g)" == '1001:1001' ]]
 [[ "$(awk '$1=="nameserver"{print $2; exit}' /etc/resolv.conf)" == '127.0.0.11' ]]
 node '${IMPORTER_MOUNT}' --verify-provider
-`)}
+`)})"
+[[ "$provider_container_id" =~ ^[0-9a-f]{64}$ ]]
+image_state='${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}'
+image_state_next='${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}.provider'
+[[ -f "$image_state" && ! -L "$image_state" && "$(stat -c '%U:%G %a' "$image_state")" == 'root:root 600' ]]
+[[ ! -e "$image_state_next" && ! -L "$image_state_next" ]]
+state_source="$(awk -F= '$1=="source" {print $2}' "$image_state")"
+[[ "$state_source" == 'absent' || "$state_source" == 'exact_present' ]]
+[[ "$(awk -F= '$1=="owner" {print $2}' "$image_state")" == '${owner}' ]]
+[[ "$(awk -F= '$1=="provider_id" {print $2}' "$image_state")" == 'absent' ]]
+printf 'owner=%s\nsource=%s\nprovider_id=%s\n' '${owner}' "$state_source" "$provider_container_id" > "$image_state_next"
+chown root:root "$image_state_next"; chmod 0600 "$image_state_next"; mv "$image_state_next" "$image_state"
+[[ "$(stat -c '%U:%G %a' "$image_state")" == 'root:root 600' ]]
+provider_identity="$(docker inspect "$provider_container_id" --format '{{.Name}}|{{.Image}}|{{index .Config.Labels "${IMPORTER_OWNER_LABEL}"}}|{{.Config.User}}|{{.State.Running}}')"
+[[ "$provider_identity" == '/${IMPORTER}|${P8V3_IMAGES.crm.index}|${owner}|nextjs|true' ]]
+provider_networks="$(docker inspect "$provider_container_id" --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}},{{end}}' | tr ',' '\n' | sed '/^$/d' | sort | paste -sd, -)"
+[[ "$provider_networks" == '${networks}' ]]
+[[ "$(docker exec "$provider_container_id" /bin/sh -c 'printf "%s:%s" "$(id -u)" "$(id -g)"')" == '1001:1001' ]]
+provider_ready='false'
+for provider_ready_attempt in $(seq 1 30); do
+  if docker exec "$provider_container_id" /bin/sh -c ${shellQuote(String.raw`test -f '${ready}'`)}; then provider_ready='true'; break; fi
+  sleep 1
+done
+[[ "$provider_ready" == 'true' ]]
+[[ -z "$(docker logs "$provider_container_id" 2>/dev/null)" ]]
+printf 'p8v3k_provider_container|%s|%s\n' "$provider_container_id" '${P8V3_IMAGES.crm.index}'
+docker exec "$provider_container_id" /bin/sh -c ${shellQuote(String.raw`umask 077; : > '${gate}'`)} >/dev/null
+provider_exit="$(docker wait "$provider_container_id")"
+[[ "$provider_exit" == '0' ]]
+docker logs "$provider_container_id" 2>/dev/null
 `;
 }
 
@@ -1248,7 +1493,12 @@ ${importCommand(item, owner)}
 `;
 }
 
-function knowledgeContainerCleanupBody(expectedOwner) {
+function knowledgeContainerCleanupBody(expectedOwner, { force = true } = {}) {
+  const removal = force
+    ? String.raw`docker rm -f "$owned_id" >/dev/null 2>&1 || errors=1`
+    : String.raw`owned_running="$(docker inspect "$owned_id" --format '{{.State.Running}}' 2>/dev/null)" || { owned_running=''; errors=1; }
+    if [[ "$owned_running" == 'true' ]]; then docker stop --time 10 "$owned_id" >/dev/null 2>&1 || errors=1; fi
+    if [[ "$errors" == '0' ]]; then docker rm "$owned_id" >/dev/null 2>&1 || errors=1; fi`;
   return String.raw`
 inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || { inventory=''; errors=1; }
 owned="$(docker container ls -a --no-trunc --filter 'label=${IMPORTER_OWNER_LABEL}' --format '{{.ID}}|{{.Names}}')" || { owned=''; errors=1; }
@@ -1262,8 +1512,8 @@ if [[ -n "$owned" ]]; then
     && "$owned_id" =~ ^[0-9a-f]{64}$ \
     && "$owned_name" == '${IMPORTER}' \
     && ( -z "$target" || "$target" == "$owned_id|${IMPORTER}" ) \
-    && "$identity" == '${P8V3_IMAGES.crm.platform}|${expectedOwner}|/${IMPORTER}' ]]; then
-    docker rm -f "$owned_id" >/dev/null 2>&1 || errors=1
+    && "$identity" == '${P8V3_IMAGES.crm.index}|${expectedOwner}|/${IMPORTER}' ]]; then
+    ${removal}
   else
     errors=1
   fi
@@ -1419,7 +1669,7 @@ auth_code="$(docker exec '${spec.container}' node -e "fetch(process.env.NEXT_PUB
 assistant_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 -X POST -H 'content-type: application/json' --data '{"message":"readiness"}' https://crm.evoadmissions.com/api/platform-ai/staff-assistant)"
 [[ "$assistant_code" == '403' ]]
 worker_id="$(docker inspect evo-crm-manual-send-worker --format '{{.Id}}|{{.Image}}|{{.State.Running}}|{{.RestartCount}}')"
-[[ "$worker_id" =~ ^[0-9a-f]{64}\|${spec.platform}\|true\|0$ ]]
+[[ "$worker_id" =~ ^[0-9a-f]{64}\|${spec.index}\|true\|0$ ]]
 docker inspect evo-crm-manual-send-worker --format '{{range .Config.Env}}{{println .}}{{end}}' | awk -F= '$1=="EVO_PLATFORM_MANUAL_SEND_TRIGGER_SECRET"{n++} END{exit !(n==1)}'
 `;
   } else if (name === "lead_agent") {
@@ -1436,7 +1686,7 @@ except urllib.error.HTTPError as e: print(e.code)" | tail -n1)"
   }
   return String.raw`
 ${healthWaitScript(spec.container, port, path)}
-[[ "$(docker inspect '${spec.container}' --format '{{.Image}}')" == '${spec.platform}' ]]
+[[ "$(docker inspect '${spec.container}' --format '{{.Image}}')" == '${spec.index}' ]]
 [[ "$(docker inspect '${spec.container}' --format '{{.RestartCount}}')" == '0' ]]
 [[ "$(docker inspect '${spec.container}' --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}},{{end}}' | tr ',' '\n' | sed '/^$/d' | sort | paste -sd, -)" == '${networks}' ]]
 ${extra}
@@ -1470,7 +1720,7 @@ function parseBoundaryOutput(text, name, preState) {
     name,
     status: "verified",
     before_image_id: spec.beforeImage,
-    after_image_id: spec.platform,
+    after_image_id: spec.index,
     container_id: row.container_id,
     health: row.health,
     restart_count: row.restart_count,
@@ -1491,7 +1741,7 @@ function parseContainerRowsAfterDeploy(text, changed, preState) {
   for (const expected of PRODUCTION_CONTAINERS) {
     const row = rows.find((item) => item.name === expected.name);
     const changedSpec = P8V3_IMAGES[changed];
-    const desired = row.name === changedSpec.container ? changedSpec.platform : (P8V3_IMAGES.crm.container === row.name && ["inbox", "lead_agent"].includes(changed) ? P8V3_IMAGES.crm.platform : P8V3_IMAGES.inbox.container === row.name && changed === "lead_agent" ? P8V3_IMAGES.inbox.platform : expected.image);
+    const desired = row.name === changedSpec.container ? changedSpec.index : (P8V3_IMAGES.crm.container === row.name && ["inbox", "lead_agent"].includes(changed) ? P8V3_IMAGES.crm.index : P8V3_IMAGES.inbox.container === row.name && changed === "lead_agent" ? P8V3_IMAGES.inbox.index : expected.image);
     if (!row || !SHA64.test(row.container_id) || row.image_id !== desired || row.health !== "healthy" || row.restart_count !== 0) fail(`post-deploy container drifted: ${expected.name}`, "verification_failed");
     if (expected.name.includes("waha")) {
       const before = preState.find((item) => item.name === expected.name);
@@ -1515,7 +1765,7 @@ if [[ -n "$worker_row" ]]; then
   worker_id="$(printf '%s\n' "$worker_row" | cut -d '|' -f 1)"
   [[ "$worker_id" =~ ^[0-9a-f]{64}$ ]] || exit 2
   worker_identity="$(docker inspect "$worker_id" --format '{{.Image}}|{{.Name}}' 2>/dev/null)" || exit 2
-  [[ "$worker_identity" == '${P8V3_IMAGES.crm.platform}|/evo-crm-manual-send-worker' ]] || exit 2
+  [[ "$worker_identity" == '${P8V3_IMAGES.crm.index}|/evo-crm-manual-send-worker' ]] || exit 2
   docker rm -f "$worker_id" >/dev/null || exit 2
 fi
 ` : "";
@@ -1573,6 +1823,8 @@ export function renderP8V3ShellContractsForTest() {
     }),
     providerProbe: providerProbeCommand(owner, importer, preflightRoot),
     preflightPrepare: preflightPrepareScript({ preflightRoot, owner }),
+    candidateImagePrepare: preflightCandidateImagePrepareScript({ preflightRoot, owner }),
+    candidateImageCleanup: preflightCandidateImageCleanupScript({ preflightRoot, owner }),
     preflightCleanup: preflightCleanupScript({ preflightRoot, importerSha256: importer.sha256, importerSize: importer.size, owner }),
     knowledgeImport: knowledgeImportCommand({
       audience: "client",
@@ -1637,17 +1889,20 @@ export async function createP8V3ProductionOperations({
   run = defaultRun,
   fetchImpl = fetch,
 }) {
+  if (!["preflight", "execute"].includes(mode)) fail("P8V3 operation mode is invalid", "preflight_drift");
+  if (mode === "preflight" && environment.EVO_P8V3_PREFLIGHT_AUTHORIZATION !== P8V3.preflightAuthorization) fail("P8V3 preflight authorization is missing", "preflight_drift");
+  if (mode === "execute" && environment.EVO_P8V3_AUTHORIZATION !== P8V3.authorization) fail("P8V3 authorization is missing", "preflight_drift");
   const source = realpathSync(resolve(sourceRoot));
   const candidates = realpathSync(resolve(candidateRoot));
   assertDirectory(candidates);
-  if (!["preflight", "execute"].includes(mode)) fail("P8V3 operation mode is invalid", "preflight_drift");
   if (!environment.SUPABASE_ACCESS_TOKEN) fail("P8V3 Supabase management credential is missing", "preflight_drift");
   const geminiKey = validateGeminiKey(environment.GEMINI_API_KEY);
   const childEnvironment = { ...environment };
   delete childEnvironment.GEMINI_API_KEY;
+  delete childEnvironment.EVO_P8V3_PREFLIGHT_AUTHORIZATION;
+  delete childEnvironment.EVO_P8V3_AUTHORIZATION;
   const controllerRun = run;
   run = (command, args, options = {}) => controllerRun(command, args, { ...options, env: options.env ?? childEnvironment });
-  if (mode === "execute" && environment.EVO_P8V3_AUTHORIZATION !== P8V3.authorization) fail("P8V3 authorization is missing", "preflight_drift");
   if (mode === "execute" && (!environment.EVO_P8V3_SUPABASE_URL || !environment.EVO_P8V3_SUPABASE_SERVICE_ROLE_KEY)) fail("P8V3 Supabase runtime credentials are missing", "preflight_drift");
   if (mode === "execute" && environment.EVO_P8V3_SUPABASE_URL !== PROJECT_URL) fail("P8V3 Supabase project drifted", "preflight_drift");
   const cli = realpathSync(resolve(supabaseCliPath));
@@ -1738,18 +1993,55 @@ export async function createP8V3ProductionOperations({
         const wahaCrm = containers.find((item) => item.name === "evo-crm-waha-1");
         const wahaInbox = containers.find((item) => item.name === "evo-inbox-waha");
         let providerPrepareAttempted = false;
+        let candidateImagePrepareAttempted = false;
+        let crmRuntimeSourcePrestate = null;
+        let providerContainerId = null;
+        let providerContainerImageId = null;
+        let crmRuntimeCleanupVerified = false;
+        let productionUnchanged = false;
         try {
           providerPrepareAttempted = true;
           remote(run, preflightPrepareScript({ preflightRoot: providerPreflightRoot, owner: providerOwner }), { timeout: 120_000, label: "provider probe root", code: "preflight_drift" });
           runChecked(run, "provider probe importer transfer", "scp", [join(importer.root, IMPORTER_FILE), `${HERMES}:${providerPreflightRoot}/${IMPORTER_FILE}`], { timeout: 120_000, code: "preflight_drift" });
           remote(run, preflightFinalizeScript(importer, { preflightRoot: providerPreflightRoot, owner: providerOwner }), { timeout: 120_000, label: "provider probe importer", code: "preflight_drift" });
+          candidateImagePrepareAttempted = true;
+          const candidatePrepare = remote(run, preflightCandidateImagePrepareScript({ preflightRoot: providerPreflightRoot, owner: providerOwner }), { timeout: 120_000, label: "candidate CRM image transaction", code: "preflight_drift" });
+          const prestateMatch = /^crm_runtime_prestate\|(absent|exact_present)\n$/.exec(candidatePrepare.stdout);
+          if (!prestateMatch) fail("candidate CRM image prestate output drifted", "preflight_drift");
+          crmRuntimeSourcePrestate = prestateMatch[1];
           const providerProbe = run("ssh", commandSshArgs(providerProbeCommand(providerOwner, importer, providerPreflightRoot)), { input: `${geminiKey}\n`, timeout: 120_000, label: "server compose provider probe", code: "preflight_drift" });
           if (providerProbe.stderr !== "" || providerProbe.stdout.includes(geminiKey) || providerProbe.stderr.includes(geminiKey)) fail("provider probe output is unsafe", "preflight_drift");
-          state.serverComposeVerified = parseP8V3ProviderProbeOutput(providerProbe.stdout).server_compose_verified;
+          const parsedProvider = parseP8V3ProviderProbeOutput(providerProbe.stdout);
+          if (!SHA64.test(parsedProvider.provider_container_id ?? "") || parsedProvider.provider_container_image_id !== P8V3_IMAGES.crm.index) fail("provider container proof drifted", "preflight_drift");
+          state.serverComposeVerified = parsedProvider.server_compose_verified;
+          providerContainerId = parsedProvider.provider_container_id;
+          providerContainerImageId = parsedProvider.provider_container_image_id;
         } finally {
-          if (providerPrepareAttempted) {
-            remote(run, preflightCleanupScript({ preflightRoot: providerPreflightRoot, importerSha256: importer.sha256, importerSize: importer.size, owner: providerOwner }), { timeout: 120_000, label: "provider probe cleanup", code: "preflight_drift" });
+          let cleanupError = null;
+          if (candidateImagePrepareAttempted) {
+            try {
+              const imageCleanup = remote(run, preflightCandidateImageCleanupScript({ preflightRoot: providerPreflightRoot, owner: providerOwner }), { timeout: 120_000, label: "candidate CRM image cleanup", code: "preflight_drift" });
+              if (imageCleanup.stdout !== "crm_runtime_cleanup_verified\n") fail("candidate CRM image cleanup output drifted", "preflight_drift");
+              crmRuntimeCleanupVerified = true;
+            } catch (error) {
+              cleanupError = error;
+            }
           }
+          if (providerPrepareAttempted) {
+            try {
+              remote(run, preflightCleanupScript({ preflightRoot: providerPreflightRoot, importerSha256: importer.sha256, importerSize: importer.size, owner: providerOwner, forceContainer: false }), { timeout: 120_000, label: "provider probe cleanup", code: "preflight_drift" });
+            } catch (error) {
+              cleanupError ??= error;
+            }
+          }
+          try {
+            const afterContainers = parseContainerRows(remote(run, productionInventoryScript(), { timeout: 120_000, label: "post-probe production inventory", code: "preflight_drift" }).stdout);
+            if (JSON.stringify(afterContainers) !== JSON.stringify(containers)) fail("production containers changed during candidate probe", "preflight_drift");
+            productionUnchanged = true;
+          } catch (error) {
+            cleanupError ??= error;
+          }
+          if (cleanupError) throw cleanupError;
         }
         state.preState = containers;
         return {
@@ -1757,6 +2049,21 @@ export async function createP8V3ProductionOperations({
           waha: { crm_container_id: wahaCrm.container_id, crm_image_id: wahaCrm.image_id, inbox_container_id: wahaInbox.container_id, inbox_image_id: wahaInbox.image_id, unchanged: false },
           migration: ledger,
           archives: Object.values(P8V3_IMAGES).map(({ name, sha256: archiveSha256, size, index, platform }) => ({ name, sha256: archiveSha256, size, index, platform })),
+          crm_runtime_probe: {
+            status: "verified",
+            backend: { version: "29.4.0", api: "1.54", os: "linux", arch: "amd64", driver: "io.containerd.snapshotter.v1" },
+            archive_sha256: P8V3_IMAGES.crm.sha256,
+            index: P8V3_IMAGES.crm.index,
+            platform: P8V3_IMAGES.crm.platform,
+            runtime_image_id: P8V3_IMAGES.crm.index,
+            source_prestate: crmRuntimeSourcePrestate,
+            compose_prestate: "absent",
+            nonce_prestate: "absent",
+            provider_container_id: providerContainerId,
+            provider_container_image_id: providerContainerImageId,
+            cleanup_verified: crmRuntimeCleanupVerified,
+            production_unchanged: productionUnchanged,
+          },
           gemini: { ...gemini, ...retrievalProvider, server_compose_verified: state.serverComposeVerified },
           importer: { sha256: importer.sha256, size: importer.size, verified: true },
           importer_network: { name: IMPORTER_NETWORK, driver: "bridge", scope: "local", internal: false, dns: "127.0.0.11" },
@@ -1772,6 +2079,8 @@ export async function createP8V3ProductionOperations({
       if (Date.now() >= Date.parse(snapshot.expires_at)) fail("P8V3 preflight expired", "preflight_drift");
       const expectedArchives = Object.values(P8V3_IMAGES).map(({ name, sha256: archiveSha256, size, index, platform }) => ({ name, sha256: archiveSha256, size, index, platform }));
       if (JSON.stringify(snapshot.archives) !== JSON.stringify(expectedArchives)) fail("P8V3 preflight archive identity drifted", "preflight_drift");
+      const runtimeProbe = snapshot.crm_runtime_probe;
+      if (JSON.stringify(runtimeProbe?.backend) !== JSON.stringify({ version: "29.4.0", api: "1.54", os: "linux", arch: "amd64", driver: "io.containerd.snapshotter.v1" }) || runtimeProbe?.archive_sha256 !== P8V3_IMAGES.crm.sha256 || runtimeProbe?.index !== P8V3_IMAGES.crm.index || runtimeProbe?.platform !== P8V3_IMAGES.crm.platform || runtimeProbe?.runtime_image_id !== P8V3_IMAGES.crm.index || !["absent", "exact_present"].includes(runtimeProbe?.source_prestate) || runtimeProbe?.compose_prestate !== "absent" || runtimeProbe?.nonce_prestate !== "absent" || !SHA64.test(runtimeProbe?.provider_container_id ?? "") || runtimeProbe?.provider_container_image_id !== P8V3_IMAGES.crm.index || runtimeProbe?.cleanup_verified !== true || runtimeProbe?.production_unchanged !== true) fail("P8V3 CRM runtime probe identity drifted", "preflight_drift");
       if (snapshot.gemini?.server_compose_verified !== true) fail("P8V3 server compose proof is absent", "preflight_drift");
       for (const spec of Object.values(P8V3_IMAGES)) validateArchive(join(candidates, spec.file), spec);
       validateCandidateCompose(run, source);
@@ -1779,6 +2088,7 @@ export async function createP8V3ProductionOperations({
       if (ledger.range !== "001-077" || ledger.count !== 77) fail("production migration ledger changed after preflight", "preflight_drift");
       await readRetrievalProvider(management);
       verifyRemoteCommandForms(run);
+      remote(run, preflightCandidateImageCleanStateScript(runtimeProbe.source_prestate), { timeout: 120_000, label: "CRM runtime probe state revalidation", code: "preflight_drift" });
       const revalidationRoot = preflightRootForOwner(randomBytes(24).toString("hex"));
       const output = remote(run, preflightRemoteScript({ preflightRoot: revalidationRoot }), { timeout: 120_000, label: "production preflight revalidation", code: "preflight_drift" }).stdout;
       const inventory = output.split("\n").filter((line) => line.split("|").length === 6).join("\n");

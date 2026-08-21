@@ -144,7 +144,7 @@
   "allOf": [
     {
       "if": {
-        "properties": { "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1"] } }, "required": ["id"] } },
+        "properties": { "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1", "EXECUTE-P8V3H-2026-08-21.P8V3H.1"] } }, "required": ["id"] } },
         "required": ["authorization"]
       },
       "then": { "properties": { "configuration": { "required": ["lead_file_verified"] } } }
@@ -158,7 +158,7 @@
     },
     {
       "if": {
-        "properties": { "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1"] } }, "required": ["id"] } },
+        "properties": { "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1", "EXECUTE-P8V3H-2026-08-21.P8V3H.1"] } }, "required": ["id"] } },
         "required": ["authorization"]
       },
       "then": {
@@ -504,7 +504,7 @@
             },
             {
               "properties": {
-                "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1"] } }, "required": ["id"] },
+                "authorization": { "properties": { "id": { "enum": ["EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1", "EXECUTE-P8V3H-2026-08-21.P8V3H.1"] } }, "required": ["id"] },
                 "failure": { "properties": { "step": { "const": "migration" }, "code": { "const": "migration_failed" } }, "required": ["step", "code"] },
                 "configuration": {
                   "properties": {
@@ -583,7 +583,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["id", "started_at", "expires_at", "preflight_sha256"],
       "properties": {
-        "id": { "enum": ["EXECUTE-P8V3-2026-08-20.P8V3.1", "EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1"] },
+        "id": { "enum": ["EXECUTE-P8V3-2026-08-20.P8V3.1", "EXECUTE-P8V3D-2026-08-20.P8V3D.1", "EXECUTE-P8V3E-2026-08-20.P8V3E.1", "EXECUTE-P8V3F-2026-08-20.P8V3F.1", "EXECUTE-P8V3G-2026-08-21.P8V3G.1", "EXECUTE-P8V3H-2026-08-21.P8V3H.1"] },
         "started_at": { "type": "string", "format": "date-time" },
         "expires_at": { "type": "string", "format": "date-time" },
         "preflight_sha256": { "$ref": "#/$defs/sha64" }

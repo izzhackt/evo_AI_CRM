@@ -13,13 +13,16 @@ import {
   configurationInstallScript,
   configurationRestoreScript,
   configurationSshArgs,
+  commandSshArgs,
   createP8V3ProductionOperations,
   createP8V3PublicRestReader,
   parseP8V3ContainerRowsForTest,
   renderP8V3KnowledgeCleanupForTest,
   renderP8V3ShellContractsForTest,
+  runP8V3StreamedRemoteForTest,
   verifyP8V3FGemini,
   verifyP8V3FImporterBuild,
+  verifyP8V3HRemoteCommandFormsForTest,
   validateCandidateComposeForTest,
   validateP8V3DMigrationReadiness,
   validateP8V3EvidencePrivacy,
@@ -75,7 +78,7 @@ function operations(overrides = {}) {
   };
   const execution = { commit: "d".repeat(40), tree: "e".repeat(40), ci_run_id: 123 };
   const preflight = {
-    version: "p8v3g-production-preflight/v1",
+    version: "p8v3h-production-preflight/v1",
     generated_at: "2026-08-20T05:55:00.000Z",
     expires_at: "2026-08-20T06:25:00.000Z",
     execution,
@@ -102,6 +105,7 @@ function operations(overrides = {}) {
       return { name, status: "verified", document_count: name === "client" ? 11 : 291, chunk_count: name === "client" ? 20 : 400, bundle_sha256: SHA_A, manifest_sha256: SHA_B, database_revision_sha256: SHA_C };
     },
     async cleanupKnowledge() { calls.push("cleanupKnowledge"); return { status: "verified" }; },
+    async cleanupPreparedReadiness() { calls.push("cleanupPreparedReadiness"); return { status: "verified" }; },
     async deploy(name, { before }) {
       calls.push(`deploy:${name}`);
       const original = before.find((item) => item.name === ({ crm: "evo-crm-app-1", inbox: "evo-inbox-app-1", lead_agent: "evo-crm-lead-agent-1" })[name]);
@@ -187,6 +191,7 @@ test("configuration failure is recorded inside pre-state and restoration is atte
   assert.equal(result.steps[0].status, "failed");
   assert.equal(result.failure.code, "configuration_failed");
   assert.equal(adapter.calls.includes("restoreConfiguration"), true);
+  assert.equal(adapter.calls.includes("cleanupPreparedReadiness"), true);
   assert.equal(adapter.calls.some((item) => item.startsWith("deploy:")), false);
   const schema = JSON.parse(readFileSync(join(process.cwd(), "docs/schemas/p8v-v1-rollout-result.schema.json"), "utf8"));
   const validate = new Ajv2020({ strict: false }).compile(schema);
@@ -556,7 +561,7 @@ test("P8V3F configuration restore validates the complete rollback root before mu
   }
 });
 
-test("P8V3G enables nounset only after remote Bash startup and before secret input", () => {
+test("P8V3H uses one command renderer and enables nounset before input", () => {
   const script = configurationInstallScript();
   assert.match(script, /^\nset -u\nIFS= read -r P8V3F_GEMINI_API_KEY\n/);
   const args = configurationSshArgs(script);
@@ -564,6 +569,36 @@ test("P8V3G enables nounset only after remote Bash startup and before secret inp
   assert.equal(args.includes("-u"), false);
   assert.equal(args.includes("-s"), false);
   assert.match(args.at(-1), /set -u/);
+  assert.deepEqual(commandSshArgs("set -u\ntrue"), ["-o", "BatchMode=yes", "hermes-vps", "bash", "-e", "-c", "'set -u\ntrue'"]);
+  assert.throws(() => commandSshArgs("true"), /must start with set -u/);
+});
+
+test("P8V3H preflight executes both exact remote shell forms and rejects startup stderr", () => {
+  const calls = [];
+  const run = (command, args, options = {}) => {
+    calls.push({ command, args, input: options.input ?? "" });
+    if (args.at(-1)?.includes("P8V3H_SAFE_STDIN")) return { stdout: "p8v3h_command_stdin_verified\n", stderr: "" };
+    return { stdout: "", stderr: "" };
+  };
+  verifyP8V3HRemoteCommandFormsForTest(run);
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls[0].args.slice(-2), ["bash", "-seu"]);
+  assert.equal(calls[0].input, "true\n");
+  assert.deepEqual(calls[1].args.slice(3, 6), ["bash", "-e", "-c"]);
+  assert.deepEqual(calls[2].args.slice(3, 6), ["bash", "-e", "-c"]);
+  assert.equal(calls[2].input, "P8V3H_SAFE_STDIN\n");
+  assert.throws(() => verifyP8V3HRemoteCommandFormsForTest((command, args) => ({
+    stdout: args.at(-1)?.includes("P8V3H_SAFE_STDIN") ? "p8v3h_command_stdin_verified\n" : "",
+    stderr: args.at(-1)?.includes("P8V3H_SAFE_STDIN") ? "startup warning\n" : "",
+  })), /stdin startup drifted/);
+});
+
+test("P8V3H streamed remote rejects command-specific stderr after successful status", () => {
+  assert.throws(() => runP8V3StreamedRemoteForTest(
+    () => ({ stdout: "safe\n", stderr: "command warning\n" }),
+    "printf 'safe\\n'",
+    { label: "staging", code: "knowledge_failed" },
+  ), (error) => error.code === "knowledge_failed" && /staging emitted stderr/.test(error.message));
 });
 
 function initContains(value, needle) {
@@ -584,6 +619,20 @@ test("expired preflight stops before identity or production access", async () =>
 
 test("production adapter keeps staging, rollback and evidence cleanup narrowly ordered", () => {
   const source = readFileSync(join(process.cwd(), "scripts/p8v3-production-operations.mjs"), "utf8");
+  const verifyStart = source.indexOf("async verifyPreflight(snapshot)");
+  const configureStart = source.indexOf("async configure({ deadlineAt })");
+  const verifyBody = source.slice(verifyStart, configureStart);
+  const importStart = source.indexOf("async importKnowledge(audience");
+  const cleanupStart = source.indexOf("async cleanupKnowledge()");
+  const importBody = source.slice(importStart, cleanupStart);
+  assert.ok(verifyStart >= 0 && configureStart > verifyStart);
+  assert.match(verifyBody, /validateP8V3DMigrationReadiness\(readiness\)/);
+  assert.match(verifyBody, /for \(const spec of Object\.values\(P8V3_IMAGES\)\) validateArchive/);
+  assert.match(verifyBody, /validateCandidateCompose\(run, source\)/);
+  assert.match(verifyBody, /resolveAccount\(\)/);
+  assert.match(verifyBody, /buildAudience\(run, source, accountId, audience, vault, state\.localRoots\)/);
+  assert.match(importBody, /state\.built\.get\(audience\)/);
+  assert.doesNotMatch(importBody, /buildAudience\(/);
   assert.ok(source.indexOf("remote(run, stagePrepareScript()") < source.indexOf("repository transfer"));
   assert.ok(source.indexOf("label: \"configuration rollback\"") < source.indexOf("for (const name of boundaries)"));
   assert.equal(source.includes(".p8v3-result-*"), false);
@@ -596,7 +645,8 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.match(source, /input: `\$\{accountId\}\\n`/);
   assert.match(source, /for \(const args of commands\) \{\n\s+verifyOrbStack\(run\);\n\s+runChecked\(run, "candidate Compose validation", "docker"/);
   assert.match(source, /verifyPortableArchive\(path, \{ name: spec\.name, index: spec\.index, manifest: spec\.platform \}/);
-  assert.match(source, /"-seu", "-c", shellQuote\(importCommand\(item\)\)/);
+  assert.match(source, /commandSshArgs\(importCommand\(item\)\)/);
+  assert.doesNotMatch(source, /"-seu", "-c", shellQuote\(importCommand\(item\)\)/);
   assert.match(source, /run\("ssh", configurationSshArgs\(\),/);
   assert.match(source, /input: `\$\{geminiKey\}\\n`/);
   assert.match(source, /node '\/tmp\/\$\{IMPORTER_FILE\}'/);

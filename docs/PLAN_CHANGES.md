@@ -9818,3 +9818,34 @@ the launch-control consumption record and reuse is forbidden. The existing futur
 after the resulting canonical preflight is approved. No import, deployment,
 restart, configuration, WAHA, amoCRM, customer-data or outbound authority is
 granted here.
+
+## 2026-08-22 — P8R1 fast app-only release control
+
+Block-ID: `EVO-P8R1-FAST-APP-RELEASE-CONTROL-2026-08-22`
+
+Decision: add one protected GitHub Actions release button for ordinary CRM
+application changes, backed by an exact-main/green-CI gate, immutable
+linux/amd64 image identity, a short production preflight, app-only Compose
+replacement, real health verification and automatic app-image rollback. Show
+validated release version/revision to authenticated staff while keeping public
+liveness minimal.
+
+Boundary: P8R1 is available only after the current P8V3K controlled first
+rollout. It grants no P8V3K preflight, knowledge import, migration, provider,
+deployment, WhatsApp, WAHA, amoCRM, Inbox or Lead Agent authority. The fast lane
+must reject any changed scope touching those boundaries, auth/RBAC/RLS,
+secrets, Compose/proxy/infrastructure, or the release controller. Such changes
+return to the controlled rollout path.
+
+Security: production credentials and target values live only in the protected
+GitHub `production` Environment and Hermes secret files. The workflow uses one
+manual environment approval, production concurrency, a dedicated deploy key,
+a pre-pinned host key, exact commit/digest validation and closed redacted
+evidence. It must not use mutable tags, server-side builds, live `git pull`,
+runtime `ssh-keyscan`, `StrictHostKeyChecking=no`, broad Compose restart,
+pruning, database/volume rollback, or logged environment values.
+
+Verification: run targeted contract/security tests and a disposable real-image
+OrbStack deploy/rollback exercise, then one independent PR review and one final
+CI on the release tree. Environment activation and first production deployment
+are separate explicit operations and require owner authorization after merge.

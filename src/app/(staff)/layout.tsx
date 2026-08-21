@@ -10,6 +10,7 @@ import { STAFF_NAV_ITEMS, isStaffRole } from "@/lib/domain";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import type { StaffRole } from "@/lib/roles";
+import { formatReleaseLabel, readReleaseMetadata } from "@/lib/release-metadata";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 
 const NAV_GROUP_DEFS = [
@@ -230,21 +231,27 @@ export default async function StaffLayout({
     "/settings": { title: t("settings"), hint: t("adminOnly") },
   };
   const LanguageSwitcher = provider.LanguageSwitcher;
+  const releaseLabel = formatReleaseLabel(readReleaseMetadata());
   const account = (
-    <div className="mobile-menu-account">
-      <span className="staff-account__avatar">
-        {initials(provider.user.name)}
-      </span>
-      <div className="staff-account__copy">
-        <div>{provider.user.name}</div>
-        <span>{t(`role.${provider.user.role}`)}</span>
+    <div>
+      <div className="mobile-menu-account">
+        <span className="staff-account__avatar">
+          {initials(provider.user.name)}
+        </span>
+        <div className="staff-account__copy">
+          <div>{provider.user.name}</div>
+          <span>{t(`role.${provider.user.role}`)}</span>
+        </div>
+        <form action={provider.logout}>
+          <button type="submit" className="mobile-menu-account__logout">
+            <Icon name="log-out" size={18} />
+            <span>{t("logout")}</span>
+          </button>
+        </form>
       </div>
-      <form action={provider.logout}>
-        <button type="submit" className="mobile-menu-account__logout">
-          <Icon name="log-out" size={18} />
-          <span>{t("logout")}</span>
-        </button>
-      </form>
+      <div className="staff-release staff-release--mobile" title={releaseLabel}>
+        {releaseLabel}
+      </div>
     </div>
   );
 
@@ -264,6 +271,10 @@ export default async function StaffLayout({
           </Link>
 
           <StaffNav groups={groups} label={shellCopy.navigationLabel} />
+
+          <div className="staff-release" title={releaseLabel}>
+            {releaseLabel}
+          </div>
 
           <div className="staff-account">
             <span className="staff-account__avatar">

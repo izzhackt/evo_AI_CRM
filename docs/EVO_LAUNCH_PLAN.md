@@ -4161,3 +4161,57 @@ consumption record and reuse is forbidden. A single later owner authorization
 may then cover the defined import, one-boundary-at-a-time deployment and
 rollback window. P8V3K release/result/execution-token identities stay unchanged
 because no successful preflight artifact or execution was retained.
+
+## P8R1 — Fast app-only release control (2026-08-22)
+
+P8R1 adds a reusable fast lane for ordinary CRM application releases after the
+controlled P8V3K first rollout succeeds. It does not amend, authorize, replace,
+or bypass the frozen P8V3K knowledge import, migrations or one-boundary rollout.
+The first production use of P8R1 requires its own activation and deployment
+authorization after the repository change is reviewed and merged.
+
+The operator supplies an exact 40-character commit that must equal current
+`origin/main` and have green CI for that exact tree. GitHub Actions then builds
+one linux/amd64 CRM image from that immutable commit, records its exact digest
+and OCI release labels, and enters the protected `production` Environment.
+That Environment supplies the dedicated SSH key, pinned Hermes host key and
+non-secret deployment variables; none is stored in the repository. Production
+concurrency permits only one deployment or rollback at a time.
+
+The fast lane is deliberately narrow. A fail-closed changed-scope gate rejects
+database migrations and schema, knowledge bundles/importers, provider or
+credential configuration, authentication/authorization/security boundaries,
+WhatsApp/WAHA, amoCRM, Lead Agent, Inbox, Compose/proxy/infrastructure and the
+release controller itself. Rejected work must use the existing controlled
+release path. Passing the path gate is necessary but not sufficient: exact-main
+identity, exact CI, immutable artifact identity, current health, Compose
+validation, required secret-name presence without values, disk capacity and an
+immediate app-image rollback reference are all checked before mutation.
+
+Deployment changes only the CRM `app` service. The reviewed image is imported
+under the exact commit tag, the current app image and deployment metadata are
+retained, and Compose starts only `app` with dependencies, builds and pulls
+disabled. The controller requires Compose health, zero restart regression, the
+exact running image and OCI labels, and an external health response. Failure
+automatically restores only the prior app image and release metadata; it never
+rewinds migrations, databases, volumes, knowledge, WAHA, amoCRM or customer
+data. Evidence contains only release identities, timestamps and closed result
+codes.
+
+The application reads release metadata from validated runtime variables. Every
+authenticated staff shell shows the deployed version and abbreviated revision,
+and an authenticated version endpoint returns the same closed metadata. Public
+`/api/health` stays minimal. Missing or malformed metadata is shown as
+unavailable; no repository SHA, IP address, credential, account identifier or
+environment-specific fallback is hardcoded.
+
+The controller is tested first against a disposable OrbStack Compose project
+using the real CRM image, including deploy, health failure and rollback. The
+repository change then follows one PR, one independent review and one final CI.
+GitHub Environment activation and the first real production deployment remain
+separate, explicit operations.
+
+References: [GitHub deployment environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments),
+[manual workflow runs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow),
+[workflow concurrency](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency),
+[Docker Compose app-only update](https://docs.docker.com/reference/cli/docker/compose/up/).

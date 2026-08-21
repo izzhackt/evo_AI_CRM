@@ -5,6 +5,11 @@ Inbox, both private WAHA services, and the shared EVO edge on `hermes-vps`.
 Use it only after the release PR is reviewed, merged to `main`, and all required
 CI checks pass.
 
+After the controlled P8V3K rollout and one-time P8R1 activation, ordinary
+presentation-only CRM updates use the narrower protected workflow documented in
+[`fast-app-release.md`](./fast-app-release.md). Any rejected scope returns to
+this full runbook.
+
 The central rule is simple: build and run one exact Git commit from a clean,
 detached release worktree. The existing `/opt/evo-crm` and `/opt/evo-inbox`
 checkouts remain untouched because they contain server-local files that are not

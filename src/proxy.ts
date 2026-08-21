@@ -143,7 +143,9 @@ export async function proxy(request: NextRequest) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
 
-  if (path === "/api/health") {
+  if (path === "/api/health" || path === "/api/version") {
+    // Version owns its authenticated-staff check in the Route Handler. Passing
+    // it through here does not make release metadata public.
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
   if (isDirectPlatformStaffAssistantApi(path)) {

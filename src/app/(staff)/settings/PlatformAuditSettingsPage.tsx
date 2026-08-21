@@ -23,6 +23,11 @@ import {
   searchPlatformAudit,
 } from "@/lib/platform-audit-actions";
 import { requirePlatformAuditAdminActor } from "@/lib/platform-guards";
+import {
+  AUDIT_QUESTIONS,
+  auditQuestionHref,
+  defaultAuditWindowStart,
+} from "@/lib/platform-audit-questions";
 
 type SettingsSearchParams = Record<string, string | string[] | undefined>;
 
@@ -151,6 +156,36 @@ export default async function PlatformAuditSettingsPage({
         description={t("platformAuditSafeProjectionHint")}
         tone="info"
       />
+
+      <section aria-labelledby="audit-questions-title">
+        <h2
+          className="mb-1 text-[15px] font-bold text-fg"
+          id="audit-questions-title"
+        >
+          Готовые вопросы
+        </h2>
+        <p className="mb-3 text-[13px] text-muted">
+          Каждый вопрос открывает поиск, уже суженный до нужных действий за
+          последние 30 дней. Чисел здесь нет намеренно: поиск отдаёт страницы, а
+          не итог, и любое число на этой карточке было бы усечённым.
+        </p>
+        <ul role="list" className="grid gap-2 md:grid-cols-2">
+          {AUDIT_QUESTIONS.map((item) => (
+            <li key={item.key} className="rounded-lg border border-border p-3">
+              <Link
+                className="text-[14px] font-semibold text-fg hover:text-accent"
+                href={auditQuestionHref(item, {
+                  startAt: defaultAuditWindowStart(new Date()),
+                  pageSize: 50,
+                })}
+              >
+                {item.question}
+              </Link>
+              <p className="mt-1 text-[12px] text-muted">{item.why}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <form
         action="/settings"

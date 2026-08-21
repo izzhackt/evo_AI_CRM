@@ -3795,3 +3795,20 @@ review, one final CI, one fresh minimal preflight and the new exact owner token
 remain mandatory. All application/image, frozen 11-client/291-internal
 knowledge, migration-no-op, ordered deployment, provider/customer-send,
 rollback and privacy boundaries are otherwise unchanged.
+
+### P8V3F — Gemini 3.5 Flash readiness budget correction
+
+The first real P8V3F preflight proved the new process-only credential can
+produce the exact 1536-dimension `gemini-embedding-2` vector, then stopped
+before effects because the neutral `gemini-3.5-flash` response exhausted the
+old 32-token ceiling during default medium thinking and returned truncated
+non-JSON. P8V3F therefore keeps the same collision-free release and unconsumed
+authorization identity while correcting only that no-effect readiness call.
+
+The draft request must use exact `thinkingConfig: { thinkingLevel: "MINIMAL" }`
+and `maxOutputTokens: 128`; it must omit explicit `temperature`. All existing
+prompt, schema, candidate, no-tools/no-store/no-retry, timeout, byte-ceiling,
+privacy and exact-result checks remain mandatory. Tests must freeze the exact
+request and reject `finishReason: MAX_TOKENS` with truncated JSON. Issue #335,
+independent review, merge/final CI and one fresh real minimal preflight remain
+required before requesting `EXECUTE-P8V3F-2026-08-20.P8V3F.1`.

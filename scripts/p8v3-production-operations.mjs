@@ -182,7 +182,19 @@ function exactKeys(value, keys, label) {
 }
 
 export function parseP8V3KnowledgeImporterOutputForTest(stdout, audience, bundleSha256) {
-  const safe = parseJson(stdout.trim().split("\n").at(-1), `${audience} importer result`);
+  if (
+    typeof stdout !== "string" ||
+    stdout.length < 2 ||
+    !stdout.endsWith("\n") ||
+    stdout.slice(0, -1).includes("\n") ||
+    stdout.includes("\r")
+  ) fail(`${audience} importer output is not one closed record`, "knowledge_failed", "transport_failed");
+  let safe;
+  try {
+    safe = JSON.parse(stdout.slice(0, -1));
+  } catch {
+    fail(`${audience} importer result returned malformed JSON`, "knowledge_failed", "transport_failed");
+  }
   if (safe?.status === "knowledge_import_blocked") {
     exactKeys(safe, ["status", "version", "audience", "reason_code"], "blocked importer result");
     if (safe.version !== 1 || safe.audience !== audience || !["provider_rate_limited", "provider_rejected", "bundle_invalid", "manifest_mismatch", "account_binding_failed", "rpc_rejected", "transport_failed"].includes(safe.reason_code)) fail(`${audience} blocked importer result drifted`, "knowledge_failed", "transport_failed");

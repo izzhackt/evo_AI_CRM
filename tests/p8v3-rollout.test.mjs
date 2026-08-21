@@ -340,25 +340,25 @@ test("knowledge importer output maps only closed safe blocker codes into rollout
   ];
   for (const reasonCode of reasonCodes) {
     assert.throws(
-      () => parseP8V3KnowledgeImporterOutputForTest(JSON.stringify({
+      () => parseP8V3KnowledgeImporterOutputForTest(`${JSON.stringify({
         status: "knowledge_import_blocked",
         version: 1,
         audience: "client",
         reason_code: reasonCode,
-      }), "client", SHA_A),
+      })}\n`, "client", SHA_A),
       (error) => error?.code === "knowledge_failed" && error?.reasonCode === reasonCode,
     );
   }
   assert.throws(
-    () => parseP8V3KnowledgeImporterOutputForTest(JSON.stringify({
+    () => parseP8V3KnowledgeImporterOutputForTest(`${JSON.stringify({
       status: "knowledge_import_blocked",
       version: 1,
       audience: "client",
       reason_code: "private free text",
-    }), "client", SHA_A),
+    })}\n`, "client", SHA_A),
     (error) => error?.code === "knowledge_failed" && error?.reasonCode === "transport_failed",
   );
-  assert.deepEqual(parseP8V3KnowledgeImporterOutputForTest(JSON.stringify({
+  assert.deepEqual(parseP8V3KnowledgeImporterOutputForTest(`${JSON.stringify({
     status: "knowledge_import_verified",
     version: 1,
     audience: "client",
@@ -366,7 +366,7 @@ test("knowledge importer output maps only closed safe blocker codes into rollout
     documents_upserted: 11,
     documents_deleted: 0,
     chunks_replaced: 17,
-  }), "client", SHA_A), {
+  })}\n`, "client", SHA_A), {
     status: "knowledge_import_verified",
     version: 1,
     audience: "client",
@@ -375,6 +375,25 @@ test("knowledge importer output maps only closed safe blocker codes into rollout
     documents_deleted: 0,
     chunks_replaced: 17,
   });
+
+  const valid = `${JSON.stringify({
+    status: "knowledge_import_blocked",
+    version: 1,
+    audience: "client",
+    reason_code: "provider_rate_limited",
+  })}\n`;
+  for (const unsafe of [
+    valid.slice(0, -1),
+    `UNAPPROVED_PREFIX\n${valid}`,
+    `${valid}UNAPPROVED_SUFFIX\n`,
+    `${valid}\n`,
+    valid.replace("\n", "\r\n"),
+  ]) {
+    assert.throws(
+      () => parseP8V3KnowledgeImporterOutputForTest(unsafe, "client", SHA_A),
+      (error) => error?.code === "knowledge_failed" && error?.reasonCode === "transport_failed",
+    );
+  }
 });
 
 test("forward-only failures cannot be relabeled as fully rolled back", async () => {

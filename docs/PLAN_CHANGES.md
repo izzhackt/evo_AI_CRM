@@ -9513,3 +9513,46 @@ window never started and its token remains unconsumed. The correction still
 requires focused tests, independent review, merge/final CI and one fresh real
 minimal preflight before the owner token may be requested. No product scope or
 production/provider authority is added.
+
+## 2026-08-21 — P8V3G Hermes strict-shell startup correction
+
+The owner-authorized P8V3F attempt is immutable failed-attempt evidence at
+SHA-256 `02af7782d0ed7020c900109725f8b681504f68479cf90727127fd70d2aeb9f4d`.
+It stopped at `pre_state/configuration_failed`, restored the exact root CRM and
+Lead Agent environment bytes plus the absent manual-worker prestate, and
+recorded zero migration, knowledge-import, application-recreate, WAHA,
+amoCRM, WhatsApp or staff-draft effects. Its local and Hermes evidence roots,
+Hermes rollback root and consumed authorization must never be reused or
+overwritten. All five production containers remain on their exact prior
+container/image IDs, healthy, with restart count zero.
+
+The failure was caused by the remote shell startup boundary rather than
+configuration drift. The fixed `ssh ... bash -seu -c` command enables `-u`
+before Bash completes the startup-file path used when invoked through `sshd`.
+Hermes `/etc/bash.bashrc` references unset `PS1`, producing a deterministic
+48-byte stderr diagnostic before the reviewed command body. The existing
+strict empty-stderr gate correctly treated that output as unsafe and rolled
+back. GNU Bash documents both the `sshd` startup-file behavior and `set -u`
+(`nounset`):
+<https://www.gnu.org/software/bash/manual/html_node/Bash-Startup-Files> and
+<https://www.gnu.org/software/bash/manual/html_node/The-Set-Builtin.html>.
+
+P8V3G starts the fixed remote Bash command with `-e` only and makes literal
+`set -u` the first command in the reviewed script, before the sole stdin secret
+field is read and before any production effect. The command must still return
+empty stderr, must never echo the process-only key, must reject missing or
+extra stdin, and retains the exact atomic install, readback and rollback
+contract. A no-secret real Hermes probe must prove the exact invocation starts
+with empty stdout/stderr before a new production authorization may be
+requested.
+
+Writable identities advance collision-free to release
+`2026-08-21.p8v3g.1`, version `p8v3g-0f1454d0-20260821`, importer
+`evo-p8v3g-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3g-20260821.1`, result
+`p8v3g-rollout-result.json`, preflight `p8v3g-production-preflight/v1`, and
+authorization `EXECUTE-P8V3G-2026-08-21.P8V3G.1`. Issue #338, one independent
+review, one final CI, one fresh minimal preflight and that new exact owner token
+are mandatory. Frozen application/images, 11/291 knowledge, migration no-op,
+ordered deployment, rollback, provider and no-customer-send boundaries remain
+unchanged.

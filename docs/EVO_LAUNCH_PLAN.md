@@ -3812,3 +3812,30 @@ privacy and exact-result checks remain mandatory. Tests must freeze the exact
 request and reject `finishReason: MAX_TOKENS` with truncated JSON. Issue #335,
 independent review, merge/final CI and one fresh real minimal preflight remain
 required before requesting `EXECUTE-P8V3F-2026-08-20.P8V3F.1`.
+
+### P8V3G — Hermes strict-shell startup correction
+
+The consumed P8V3F attempt is retained immutably at result SHA-256
+`02af7782d0ed7020c900109725f8b681504f68479cf90727127fd70d2aeb9f4d`.
+It stopped at configuration, restored exact pre-change configuration, left all
+five containers healthy on their prior IDs/images and produced zero migration,
+knowledge, deployment, WAHA, amoCRM, WhatsApp or draft effects.
+
+Hermes Bash reads its startup file on the `sshd` path. Starting it with `-u`
+already active makes the startup file's unset `PS1` reference emit stderr
+before the reviewed body runs. P8V3G therefore invokes fixed remote Bash with
+`-e` only and requires literal `set -u` as the first reviewed command, before
+stdin or effects. Empty stderr, sole process-only stdin, redaction, atomic
+configuration writes, readback, cleanup and rollback remain mandatory. This
+matches GNU Bash's documented remote-startup and `set -u` behavior:
+<https://www.gnu.org/software/bash/manual/html_node/Bash-Startup-Files> and
+<https://www.gnu.org/software/bash/manual/html_node/The-Set-Builtin.html>.
+
+P8V3G uses release `2026-08-21.p8v3g.1`, version
+`p8v3g-0f1454d0-20260821`, importer `evo-p8v3g-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3g-20260821.1`, result
+`p8v3g-rollout-result.json`, preflight `p8v3g-production-preflight/v1`, and
+authorization `EXECUTE-P8V3G-2026-08-21.P8V3G.1`. P8V3F roots and token are
+immutable/consumed. Issue #338, independent review, final CI, fresh minimal
+preflight and the new owner token gate execution. No product or production
+authority is otherwise changed.

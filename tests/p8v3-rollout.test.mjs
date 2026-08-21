@@ -10,7 +10,9 @@ import Ajv2020 from "ajv/dist/2020.js";
 
 import { runP8V3Preflight, validateP8V3Preflight } from "../scripts/p8v3-preflight.mjs";
 import {
+  configurationInstallScript,
   configurationRestoreScript,
+  configurationSshArgs,
   createP8V3ProductionOperations,
   createP8V3PublicRestReader,
   parseP8V3ContainerRowsForTest,
@@ -73,7 +75,7 @@ function operations(overrides = {}) {
   };
   const execution = { commit: "d".repeat(40), tree: "e".repeat(40), ci_run_id: 123 };
   const preflight = {
-    version: "p8v3f-production-preflight/v1",
+    version: "p8v3g-production-preflight/v1",
     generated_at: "2026-08-20T05:55:00.000Z",
     expires_at: "2026-08-20T06:25:00.000Z",
     execution,
@@ -554,6 +556,16 @@ test("P8V3F configuration restore validates the complete rollback root before mu
   }
 });
 
+test("P8V3G enables nounset only after remote Bash startup and before secret input", () => {
+  const script = configurationInstallScript();
+  assert.match(script, /^\nset -u\nIFS= read -r P8V3F_GEMINI_API_KEY\n/);
+  const args = configurationSshArgs(script);
+  assert.deepEqual(args.slice(0, 6), ["-o", "BatchMode=yes", "hermes-vps", "bash", "-e", "-c"]);
+  assert.equal(args.includes("-u"), false);
+  assert.equal(args.includes("-s"), false);
+  assert.match(args.at(-1), /set -u/);
+});
+
 function initContains(value, needle) {
   return typeof value === "string" && value.includes(needle);
 }
@@ -585,7 +597,7 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.match(source, /for \(const args of commands\) \{\n\s+verifyOrbStack\(run\);\n\s+runChecked\(run, "candidate Compose validation", "docker"/);
   assert.match(source, /verifyPortableArchive\(path, \{ name: spec\.name, index: spec\.index, manifest: spec\.platform \}/);
   assert.match(source, /"-seu", "-c", shellQuote\(importCommand\(item\)\)/);
-  assert.match(source, /"-seu", "-c", shellQuote\(configurationInstallScript\(\)\)/);
+  assert.match(source, /run\("ssh", configurationSshArgs\(\),/);
   assert.match(source, /input: `\$\{geminiKey\}\\n`/);
   assert.match(source, /node '\/tmp\/\$\{IMPORTER_FILE\}'/);
   assert.doesNotMatch(source, /node \.next\/platform-knowledge-import\.mjs --audience/);

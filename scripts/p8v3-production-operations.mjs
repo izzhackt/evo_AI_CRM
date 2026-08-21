@@ -28,18 +28,22 @@ import {
 const HERMES = "hermes-vps";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
 const PROJECT_URL = `https://${PROJECT_REF}.supabase.co`;
-const RELEASE_ID = "2026-08-20.p8v3f.1";
-const RELEASE_VERSION = "p8v3f-0f1454d0-20260820";
+const RELEASE_ID = "2026-08-21.p8v3g.1";
+const RELEASE_VERSION = "p8v3g-0f1454d0-20260821";
 const RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/${RELEASE_ID}`;
 const REMOTE_REPO = `${RELEASE_ROOT}/repo`;
 const REMOTE_ARCHIVES = `${RELEASE_ROOT}/archives`;
 const KNOWLEDGE_REMOTE = `${RELEASE_ROOT}/knowledge-incoming`;
-const IMPORTER = "evo-p8v3f-knowledge-import";
-const IMPORTER_FILE = "p8v3f-platform-knowledge-import.mjs";
+const IMPORTER = "evo-p8v3g-knowledge-import";
+const IMPORTER_FILE = "p8v3g-platform-knowledge-import.mjs";
 const CONFIG_ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const P8V2D_ROLLBACK_ROOT = "/opt/evo-release-evidence/p8v2d-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818";
-const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3f-20260820.1";
-const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3f-rollout-result.json`;
+const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3g-20260821.1";
+const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3g-rollout-result.json`;
+const PRESERVED_P8V3F_EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3f-20260820.1";
+const PRESERVED_P8V3F_RESULT_SHA256 = "02af7782d0ed7020c900109725f8b681504f68479cf90727127fd70d2aeb9f4d";
+const PRESERVED_P8V3F_RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/2026-08-20.p8v3f.1`;
+const PRESERVED_P8V3F_ROLLBACK_ROOT = "/opt/evo-release-rollback/2026-08-20.p8v3f.1";
 const PRESERVED_P8V3E_EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3e-20260820.1";
 const PRESERVED_P8V3E_RESULT_SHA256 = "328dd56efc616b1492b42c399651733186a5167e8214798b8e21eef5f60fa185";
 const PRESERVED_P8V3E_RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/2026-08-20.p8v3e.1`;
@@ -199,6 +203,19 @@ function shellQuote(value) {
   return `'${String(value).replaceAll("'", `'"'"'`)}'`;
 }
 
+export function configurationSshArgs(script = configurationInstallScript()) {
+  return ["-o", "BatchMode=yes", HERMES, "bash", "-e", "-c", shellQuote(script)];
+}
+
+function verifyConfigurationShellStartup(run) {
+  const result = run("ssh", configurationSshArgs("set -u\ntrue"), {
+    timeout: 30_000,
+    label: "P8V3 configuration shell startup",
+    code: "preflight_drift",
+  });
+  if (result.stdout !== "" || result.stderr !== "") fail("P8V3 configuration shell startup emitted output", "preflight_drift");
+}
+
 function remaining(deadlineAt) {
   const value = deadlineAt - Date.now();
   if (!Number.isFinite(value) || value <= 0) fail("authorization expired", "authorization_expired");
@@ -267,6 +284,23 @@ p8v3e_rollback='${PRESERVED_P8V3E_ROLLBACK_ROOT}'
 [[ "$(sha256sum "$p8v3e_rollback/env.production.before" | awk '{print $1}')" == 'af2ba43ae81aad94815301292e34ce54218a3e2d8c4eefe5621987dee5c17640' ]]
 [[ "$(stat -c '%U:%G %a' "$p8v3e_rollback/worker.prestate")" == 'root:root 600' ]]
 [[ "$(sha256sum "$p8v3e_rollback/worker.prestate" | awk '{print $1}')" == '7925d3e9a9613a093e5eb4054b32aa39de910d2b03ba7e8046c3b4550b8de1e4' ]]
+
+p8v3f_evidence='${PRESERVED_P8V3F_EVIDENCE_ROOT}'
+[[ -d "$p8v3f_evidence" && ! -L "$p8v3f_evidence" && "$(stat -c '%U:%G %a' "$p8v3f_evidence")" == 'root:root 700' ]]
+[[ "$(find "$p8v3f_evidence" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3f-rollout-result.json' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3f_evidence/p8v3f-rollout-result.json")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3f_evidence/p8v3f-rollout-result.json" | awk '{print $1}')" == '${PRESERVED_P8V3F_RESULT_SHA256}' ]]
+[[ ! -e '${PRESERVED_P8V3F_RELEASE_ROOT}' && ! -L '${PRESERVED_P8V3F_RELEASE_ROOT}' ]]
+
+p8v3f_rollback='${PRESERVED_P8V3F_ROLLBACK_ROOT}'
+[[ -d "$p8v3f_rollback" && ! -L "$p8v3f_rollback" && "$(stat -c '%U:%G %a' "$p8v3f_rollback")" == 'root:root 700' ]]
+[[ "$(find "$p8v3f_rollback" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)" == $'env.lead-agent.before\nenv.production.before\nworker.prestate' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3f_rollback/env.production.before")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3f_rollback/env.production.before" | awk '{print $1}')" == 'af2ba43ae81aad94815301292e34ce54218a3e2d8c4eefe5621987dee5c17640' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3f_rollback/env.lead-agent.before")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3f_rollback/env.lead-agent.before" | awk '{print $1}')" == 'e684ed84791fe9285f2eec83ce13b670e2eac0f0efd8eaa3f2a2b1adffc14260' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3f_rollback/worker.prestate")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3f_rollback/worker.prestate" | awk '{print $1}')" == '7925d3e9a9613a093e5eb4054b32aa39de910d2b03ba7e8046c3b4550b8de1e4' ]]
 
 rollback='${P8V2D_ROLLBACK_ROOT}'
 [[ -d "$rollback" && ! -L "$rollback" ]]
@@ -590,6 +624,7 @@ export function verifyP8V3FImporterBuild({ run = defaultRun, sourceRoot }) {
 
 export function configurationInstallScript() {
   return String.raw`
+set -u
 IFS= read -r P8V3F_GEMINI_API_KEY
 if IFS= read -r P8V3F_EXTRA_INPUT; then exit 2; fi
 export P8V3F_GEMINI_API_KEY
@@ -1078,7 +1113,7 @@ mv '${incoming}' '${REMOTE_RESULT}'
 [[ "$(stat -c '%U:%G %a' '${EVIDENCE_ROOT}')" == 'root:root 700' ]]
 [[ "$(stat -c '%U:%G %a' '${REMOTE_RESULT}')" == 'root:root 600' ]]
 [[ "$(sha256sum '${REMOTE_RESULT}' | awk '{print $1}')" == '${hash}' ]]
-[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3f-rollout-result.json' ]]
+[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3g-rollout-result.json' ]]
 `;
 }
 
@@ -1216,6 +1251,7 @@ export async function createP8V3ProductionOperations({
       const ledger = await readLedger(management);
       if (ledger.range !== "001-077" || ledger.count !== 77) fail("production migration ledger drifted", "preflight_drift");
       const importer = verifyP8V3FImporterBuild({ run, sourceRoot: source });
+      verifyConfigurationShellStartup(run);
       const output = remote(run, preflightRemoteScript(), { timeout: 120_000, label: "minimal production preflight", code: "preflight_drift" }).stdout;
       const inventory = output.split("\n").filter((line) => line.split("|").length === 6).join("\n");
       const containers = parseContainerRows(inventory);
@@ -1241,6 +1277,7 @@ export async function createP8V3ProductionOperations({
       const ledger = await readLedger(management);
       if (ledger.range !== "001-077" || ledger.count !== 77) fail("production migration ledger changed after preflight", "preflight_drift");
       await readRetrievalProvider(management);
+      verifyConfigurationShellStartup(run);
       const output = remote(run, preflightRemoteScript(), { timeout: 120_000, label: "production preflight revalidation", code: "preflight_drift" }).stdout;
       const inventory = output.split("\n").filter((line) => line.split("|").length === 6).join("\n");
       const containers = parseContainerRows(inventory);
@@ -1255,7 +1292,7 @@ export async function createP8V3ProductionOperations({
     },
 
     async configure({ deadlineAt }) {
-      const installed = run("ssh", ["-o", "BatchMode=yes", HERMES, "bash", "-seu", "-c", shellQuote(configurationInstallScript())], { input: `${geminiKey}\n`, timeout: remaining(deadlineAt), label: "P8V3 configuration install", code: "configuration_failed" });
+      const installed = run("ssh", configurationSshArgs(), { input: `${geminiKey}\n`, timeout: remaining(deadlineAt), label: "P8V3 configuration install", code: "configuration_failed" });
       if (installed.stderr !== "" || installed.stdout.includes(geminiKey) || installed.stderr.includes(geminiKey)) fail("P8V3F configuration output is unsafe", "configuration_failed");
       const output = installed.stdout.trim().split("\n").at(-1);
       const record = parseJson(output, "configuration result");

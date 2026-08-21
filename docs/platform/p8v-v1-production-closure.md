@@ -1261,3 +1261,56 @@ New writable identities are exactly release `2026-08-21.p8v3h.1`, version
 authorization `EXECUTE-P8V3H-2026-08-21.P8V3H.1`. Issue #340 and the single
 review/final-CI/preflight/owner-token sequence gate production. No new feature
 or external authority is added.
+
+### P8V3I closed import-failure evidence
+
+P8V3I preserves the exact P8V3H failed result SHA-256
+`52710d73b6308db1d1e62af9a1a25cae0cc58c3ddfa67d40e84326c960933f04`
+and all verified zero-effect/rollback facts. P8V3H evidence is never edited.
+
+The P8V3I importer and rollout share a closed reason-code enum containing only
+`provider_rate_limited`, `provider_rejected`, `bundle_invalid`,
+`manifest_mismatch`, `account_binding_failed`, `rpc_rejected`, and
+`transport_failed`. Expected importer blockers return exactly:
+
+```json
+{"audience":"client|internal","reason_code":"<closed-code>","status":"knowledge_import_blocked","version":1}
+```
+
+The record is a single newline-terminated stdout line and stderr is exactly
+empty. The importer exits successfully only so the parent can parse this safe
+record; the parent must then fail the active knowledge step and retain the code
+in `failure.reason_code`. It must never count an import, inspect a revision, or
+start the next audience after a blocked record.
+
+The closed mapping is:
+
+1. fully received bounded 429 -> `provider_rate_limited`;
+2. other HTTP/provider JSON/cardinality/dimension failure ->
+   `provider_rejected`;
+3. bundle canonical/schema/limit/chunk failure -> `bundle_invalid`;
+4. manifest canonical/file/hash/audience failure -> `manifest_mismatch`;
+5. account environment/argument/bundle/live binding mismatch ->
+   `account_binding_failed`;
+6. sync RPC error or invalid closed result -> `rpc_rejected`; and
+7. filesystem/fetch timeout/body/SSH/SCP/stream failure ->
+   `transport_failed`.
+
+Only `client_import` and `internal_import` failures under P8V3I may contain
+`reason_code`; they must contain exactly one allowed value. All other P8V3I
+failures and every historical P8V3D-H result retain the prior closed
+`{step,code}` shape. Provider/RPC bodies, raw exceptions, stderr, UUIDs, file
+paths, keys, embeddings and knowledge text remain forbidden.
+
+The one-time read-only diagnostic used the exact shipped formatter and frozen
+client source set. It observed 11 documents, 17 chunks, one request, 17 valid
+1536-dimensional results. It made no Supabase RPC and grants no future provider
+or production authority.
+
+Writable P8V3I identities are release `2026-08-21.p8v3i.1`, version
+`p8v3i-0f1454d0-20260821`, importer `evo-p8v3i-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3i-20260821.1`, sole result
+`p8v3i-rollout-result.json`, preflight `p8v3i-production-preflight/v1`, and
+future authorization `EXECUTE-P8V3I-2026-08-21.P8V3I.1`. Issue #344 and a
+reviewed merge, final CI, fresh read-only preflight, and new owner token are
+required before any retry.

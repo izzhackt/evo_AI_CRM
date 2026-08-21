@@ -9592,3 +9592,54 @@ token are never reused. Issue #340, one independent review, one final CI, one
 short real preflight, and one new explicit deployment-plus-rollback token are
 required. No product feature, provider scope, customer send, WAHA or amoCRM
 authority changes.
+
+## 2026-08-21 — P8V3I safe knowledge-import diagnostics
+
+Change type: one consolidated non-production correction after the consumed
+P8V3H attempt.
+
+Reason: P8V3H stopped safely at `client_import`, but its immutable result
+records only generic `knowledge_failed`. The retained result SHA-256 is
+`52710d73b6308db1d1e62af9a1a25cae0cc58c3ddfa67d40e84326c960933f04`.
+It truthfully preserves verified cleanup and configuration restoration,
+`001-077` with zero migration application, zero managed revisions/imports,
+unchanged five production containers, and zero provider/customer/outbound
+effects. That artifact remains immutable; P8V3I corrects only future evidence.
+
+A no-production diagnostic used the same frozen client vault, deterministic
+bundle builder, shipped chunker/formatter, process-only key, model
+`gemini-embedding-2`, and output dimension 1536. The exact current input is 11
+documents and 17 chunks, not the earlier approximate 16. One real
+`batchEmbedContents` request returned 17 valid vectors in order. No Supabase
+RPC or production mutation ran. This proves current one-batch provider
+capacity, but does not relabel the historical P8V3H failure.
+
+P8V3I adds exactly seven privacy-safe reason codes for client/internal import
+failures: `provider_rate_limited`, `provider_rejected`, `bundle_invalid`,
+`manifest_mismatch`, `account_binding_failed`, `rpc_rejected`, and
+`transport_failed`. Classification occurs at the failing boundary. Evidence
+retains only the code; it never retains provider/RPC bodies, raw error text,
+stderr, UUIDs, paths, keys, embeddings, or knowledge content. The importer
+returns one closed safe JSON record with empty stderr for an expected blocked
+outcome so the rollout runner can preserve the code. Historical P8V3D-H
+artifacts remain valid without the new field; a P8V3I knowledge failure must
+contain it.
+
+Google's current official `batchEmbedContents` contract says the request is a
+list of `EmbedContentRequest` values whose models match the endpoint and the
+response embeddings preserve request order:
+<https://ai.google.dev/api/embeddings#method:-models.batchembedcontents>.
+The current model reference confirms `gemini-embedding-2` and supported output
+dimensions including 1536:
+<https://ai.google.dev/gemini-api/docs/models/gemini-embedding-2>.
+
+Writable identities advance collision-free to release
+`2026-08-21.p8v3i.1`, version `p8v3i-0f1454d0-20260821`, importer
+`evo-p8v3i-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3i-20260821.1`, result
+`p8v3i-rollout-result.json`, preflight `p8v3i-production-preflight/v1`, and
+future authorization `EXECUTE-P8V3I-2026-08-21.P8V3I.1`. Issue #344, one
+scoped implementation PR, one independent review, one final CI, a fresh short
+read-only preflight, and a new owner token gate any retry. No production,
+deployment, import, Gemini, WhatsApp, WAHA, amoCRM, or customer-data authority
+is granted by this plan change.

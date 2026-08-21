@@ -3880,3 +3880,53 @@ immutable. Issue #340, one independent review, one final CI, one short real
 preflight, and one new owner token covering deployment plus rollback are the
 only remaining launch gates. Product scope and provider/customer-send
 authority are unchanged.
+
+## P8V3I safe knowledge-import diagnostic gate
+
+P8V3I supersedes P8V3H only after the latter's immutable failed result SHA-256
+`52710d73b6308db1d1e62af9a1a25cae0cc58c3ddfa67d40e84326c960933f04`.
+P8V3H's token is consumed and its safe post-stop facts are not relabeled.
+
+Before implementation, one no-production capacity diagnostic rebuilt the
+exact frozen client sources and ran the shipped chunker and formatter. It
+produced 11 documents and 17 chunks in one batch. The same process-only key,
+`gemini-embedding-2`, and dimension 1536 returned exactly 17 valid embeddings
+in one provider call. No database RPC or production effect occurred. The
+result distinguishes current provider capacity from structural importer/RPC
+failures without claiming what historically caused P8V3H.
+
+Every expected client/internal import failure is classified at source into one
+of exactly seven codes:
+
+- `provider_rate_limited`: a fully received bounded HTTP 429;
+- `provider_rejected`: any other provider rejection or invalid embedding
+  response shape/cardinality/dimension;
+- `bundle_invalid`: invalid canonical bundle bytes, document schema, limits or
+  chunk construction;
+- `manifest_mismatch`: invalid canonical manifest or bundle file/hash/audience
+  mismatch;
+- `account_binding_failed`: configured, argument, bundle or live account
+  identity mismatch;
+- `rpc_rejected`: managed-sync rejection or impossible RPC result; and
+- `transport_failed`: fetch/read/timeout/SSH/SCP/output transport failure.
+
+The importer emits expected blocked outcomes only as closed JSON with empty
+stderr. The rollout maps that record to `failure.reason_code`. P8V3I requires
+that field exactly for `client_import` or `internal_import` failures and
+forbids it elsewhere. Historical D-H evidence remains schema-valid without it.
+No raw error, response body, UUID, key, path, embedding, customer text or
+private diagnostic enters stdout or evidence.
+
+Tests must execute all seven classifications, including fully consumed 429,
+non-429/malformed provider response, canonical bundle vs manifest vs account
+separation, RPC rejection, and transport failure. They also prove that a
+blocked importer produces one closed record, empty stderr, non-success rollout
+evidence with the exact safe code, and no later phase.
+
+New writable identities are release `2026-08-21.p8v3i.1`, version
+`p8v3i-0f1454d0-20260821`, importer `evo-p8v3i-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3i-20260821.1`, sole result
+`p8v3i-rollout-result.json`, preflight `p8v3i-production-preflight/v1`, and
+future authorization `EXECUTE-P8V3I-2026-08-21.P8V3I.1`. Issue #344 and the
+single review/final-CI/preflight/owner-token sequence remain mandatory. This
+block authorizes repository work only.

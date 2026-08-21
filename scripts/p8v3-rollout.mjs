@@ -34,13 +34,23 @@ const FAILURE_CODES = new Set([
   "rollback_failed",
   "evidence_publication_failed",
 ]);
+const KNOWLEDGE_REASON_CODES = new Set([
+  "provider_rate_limited",
+  "provider_rejected",
+  "bundle_invalid",
+  "manifest_mismatch",
+  "account_binding_failed",
+  "rpc_rejected",
+  "transport_failed",
+]);
 
 export const P8V3 = Object.freeze({
   version: "p8v-v1-rollout-result/v1",
-  authorization: "EXECUTE-P8V3H-2026-08-21.P8V3H.1",
-  previousAuthorization: "EXECUTE-P8V3G-2026-08-21.P8V3G.1",
-  legacyAuthorization: "EXECUTE-P8V3F-2026-08-20.P8V3F.1",
-  earlierAuthorization: "EXECUTE-P8V3E-2026-08-20.P8V3E.1",
+  authorization: "EXECUTE-P8V3I-2026-08-21.P8V3I.1",
+  previousAuthorization: "EXECUTE-P8V3H-2026-08-21.P8V3H.1",
+  legacyAuthorization: "EXECUTE-P8V3G-2026-08-21.P8V3G.1",
+  earlierAuthorization: "EXECUTE-P8V3F-2026-08-20.P8V3F.1",
+  historicalAuthorization: "EXECUTE-P8V3E-2026-08-20.P8V3E.1",
   applicationCommit: "0f1454d014bbc9eca9d7381dfe557e980965543e",
   applicationTree: "19599bcf043dc4a555c8996c21e7801934b64633",
   windowMs: 90 * 60 * 1000,
@@ -212,7 +222,7 @@ export function validateP8V3Result(value) {
   exactKeys(value.application, ["commit", "tree"], "application");
   if (value.application.commit !== P8V3.applicationCommit || value.application.tree !== P8V3.applicationTree) fail("application identity drifted");
   exactKeys(value.authorization, ["id", "started_at", "expires_at", "preflight_sha256"], "authorization");
-  if (![P8V3.authorization, P8V3.previousAuthorization, P8V3.legacyAuthorization, P8V3.earlierAuthorization].includes(value.authorization.id) || !UTC.test(value.authorization.started_at) || !UTC.test(value.authorization.expires_at) || Date.parse(value.authorization.expires_at) - Date.parse(value.authorization.started_at) !== P8V3.windowMs || !SHA64.test(value.authorization.preflight_sha256)) fail("authorization window drifted");
+  if (![P8V3.authorization, P8V3.previousAuthorization, P8V3.legacyAuthorization, P8V3.earlierAuthorization, P8V3.historicalAuthorization].includes(value.authorization.id) || !UTC.test(value.authorization.started_at) || !UTC.test(value.authorization.expires_at) || Date.parse(value.authorization.expires_at) - Date.parse(value.authorization.started_at) !== P8V3.windowMs || !SHA64.test(value.authorization.preflight_sha256)) fail("authorization window drifted");
   if (!Array.isArray(value.steps) || value.steps.length !== STEP_NAMES.length) fail("step cardinality drifted");
   let terminalIndex = -1;
   for (const [index, step] of value.steps.entries()) {
@@ -232,7 +242,7 @@ export function validateP8V3Result(value) {
   if (!["not_required", "verified", "failed"].includes(value.knowledge.cleanup_status) || !Array.isArray(value.knowledge.audiences) || value.knowledge.audiences.length !== 2) fail("knowledge evidence drifted");
   validateAudience(value.knowledge.audiences[0], "client", 11);
   validateAudience(value.knowledge.audiences[1], "internal", 291);
-  const hasLeadFileEvidence = [P8V3.authorization, P8V3.previousAuthorization, P8V3.legacyAuthorization].includes(value.authorization.id);
+  const hasLeadFileEvidence = [P8V3.authorization, P8V3.previousAuthorization, P8V3.legacyAuthorization, P8V3.earlierAuthorization].includes(value.authorization.id);
   exactKeys(value.configuration, hasLeadFileEvidence
     ? ["status", "installed_names", "backup_sha256", "lead_file_verified", "worker_file_verified"]
     : ["status", "installed_names", "backup_sha256", "worker_file_verified"], "configuration");
@@ -247,19 +257,21 @@ export function validateP8V3Result(value) {
   exactKeys(value.effects, ["migration_applied", "knowledge_imports", "application_recreates", "waha_recreates", "amo_writes", "whatsapp_sends", "staff_draft_calls"], "effects");
   if (![value.effects.migration_applied, value.effects.knowledge_imports, value.effects.application_recreates].every(Number.isSafeInteger) || value.effects.migration_applied < 0 || value.effects.migration_applied > 1 || value.effects.knowledge_imports < 0 || value.effects.knowledge_imports > 2 || value.effects.application_recreates < 0 || value.effects.application_recreates > 3 || value.effects.waha_recreates !== 0 || value.effects.amo_writes !== 0 || value.effects.whatsapp_sends !== 0 || value.effects.staff_draft_calls !== 0) fail("effect counters drifted");
   if (value.migration.status === "observed_applied" && (value.steps[1].status !== "failed" || value.effects.migration_applied !== 1 || !["rollout_failed_reconciliation_required", "evidence_failed"].includes(value.result_code))) fail("ambiguous applied migration evidence drifted");
-  const noOpMigrationAuthorization = [P8V3.authorization, P8V3.previousAuthorization, P8V3.legacyAuthorization, P8V3.earlierAuthorization].includes(value.authorization.id);
-  if (noOpMigrationAuthorization && value.migration.status === "observed_applied") fail("P8V3E/P8V3F/P8V3G/P8V3H cannot report a newly applied migration");
-  if (noOpMigrationAuthorization && value.migration.status === "verified" && (value.migration.before_range !== "001-077" || value.migration.after_range !== "001-077" || value.migration.applied_versions.length !== 0 || value.effects.migration_applied !== 0)) fail("P8V3E/P8V3F/P8V3G/P8V3H reconciliation evidence drifted");
+  const noOpMigrationAuthorization = [P8V3.authorization, P8V3.previousAuthorization, P8V3.legacyAuthorization, P8V3.earlierAuthorization, "EXECUTE-P8V3E-2026-08-20.P8V3E.1"].includes(value.authorization.id);
+  if (noOpMigrationAuthorization && value.migration.status === "observed_applied") fail("P8V3E/P8V3F/P8V3G/P8V3H/P8V3I cannot report a newly applied migration");
+  if (noOpMigrationAuthorization && value.migration.status === "verified" && (value.migration.before_range !== "001-077" || value.migration.after_range !== "001-077" || value.migration.applied_versions.length !== 0 || value.effects.migration_applied !== 0)) fail("P8V3E/P8V3F/P8V3G/P8V3H/P8V3I reconciliation evidence drifted");
   if (value.failure !== null) {
-    exactKeys(value.failure, ["step", "code"], "failure");
+    const requiresReason = value.authorization.id === P8V3.authorization && ["client_import", "internal_import"].includes(value.failure.step);
+    exactKeys(value.failure, requiresReason ? ["step", "code", "reason_code"] : ["step", "code"], "failure");
     if (![...STEP_NAMES, "evidence"].includes(value.failure.step) || !FAILURE_CODES.has(value.failure.code)) fail("failure evidence drifted");
+    if (requiresReason && !KNOWLEDGE_REASON_CODES.has(value.failure.reason_code)) fail("knowledge failure reason drifted");
     if (value.failure.step !== "evidence") {
       const failedSteps = value.steps.filter((step) => step.status === "failed");
       if (failedSteps.length !== 1 || failedSteps[0].name !== value.failure.step) fail("failure step does not match progression");
     }
   }
   if (value.result_code === "rollout_verified") {
-    const expectedMigrationEffect = [P8V3.authorization, P8V3.previousAuthorization, P8V3.legacyAuthorization].includes(value.authorization.id) ? 0 : 1;
+  const expectedMigrationEffect = [P8V3.authorization, P8V3.previousAuthorization, P8V3.legacyAuthorization, P8V3.earlierAuthorization].includes(value.authorization.id) ? 0 : 1;
     if (value.failure !== null || value.steps.some((step) => step.status !== "verified") || value.pre_state.length !== 5 || value.migration.status !== "verified" || value.knowledge.cleanup_status !== "verified" || value.knowledge.audiences.some((item) => item.status !== "verified") || value.configuration.status !== "verified" || value.boundaries.some((item) => item.status !== "verified") || value.waha.unchanged !== true || value.rollback.status !== "not_required" || value.rollback.boundaries.length !== 0 || value.effects.migration_applied !== expectedMigrationEffect || value.effects.knowledge_imports !== 2 || value.effects.application_recreates !== 3) fail("false rollout success");
   } else if (value.failure === null) fail("failed result is missing failure evidence");
   else if (value.result_code === "rollout_failed_rolled_back" && !isExactRolledBackFailure(value)) fail("false fully rolled-back result");
@@ -361,7 +373,11 @@ export async function runP8V3Rollout({ operations, authorization, preflight, pre
       result.effects.migration_applied = 1;
     }
     if (stepIndex >= 0 && stepIndex < result.steps.length && result.steps[stepIndex].status !== "failed") result.steps[stepIndex].status = "failed";
-    result.failure = { step: STEP_NAMES[stepIndex] ?? "pre_state", code: failureCode(error, STEP_NAMES[stepIndex] ?? "pre_state") };
+    const failedStep = STEP_NAMES[stepIndex] ?? "pre_state";
+    result.failure = { step: failedStep, code: failureCode(error, failedStep) };
+    if (["client_import", "internal_import"].includes(failedStep)) {
+      result.failure.reason_code = KNOWLEDGE_REASON_CODES.has(error?.reasonCode) ? error.reasonCode : "transport_failed";
+    }
     let cleanupFailed = false;
     if (knowledgeStarted) {
       try {

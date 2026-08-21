@@ -28,18 +28,20 @@ import {
 const HERMES = "hermes-vps";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
 const PROJECT_URL = `https://${PROJECT_REF}.supabase.co`;
-const RELEASE_ID = "2026-08-21.p8v3h.1";
-const RELEASE_VERSION = "p8v3h-0f1454d0-20260821";
+const RELEASE_ID = "2026-08-21.p8v3i.1";
+const RELEASE_VERSION = "p8v3i-0f1454d0-20260821";
 const RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/${RELEASE_ID}`;
 const REMOTE_REPO = `${RELEASE_ROOT}/repo`;
 const REMOTE_ARCHIVES = `${RELEASE_ROOT}/archives`;
 const KNOWLEDGE_REMOTE = `${RELEASE_ROOT}/knowledge-incoming`;
-const IMPORTER = "evo-p8v3h-knowledge-import";
-const IMPORTER_FILE = "p8v3h-platform-knowledge-import.mjs";
+const IMPORTER = "evo-p8v3i-knowledge-import";
+const IMPORTER_FILE = "p8v3i-platform-knowledge-import.mjs";
 const CONFIG_ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const P8V2D_ROLLBACK_ROOT = "/opt/evo-release-evidence/p8v2d-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818";
-const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3h-20260821.1";
-const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3h-rollout-result.json`;
+const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3i-20260821.1";
+const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3i-rollout-result.json`;
+const PRESERVED_P8V3H_EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3h-20260821.1";
+const PRESERVED_P8V3H_RESULT_SHA256 = "52710d73b6308db1d1e62af9a1a25cae0cc58c3ddfa67d40e84326c960933f04";
 const PRESERVED_P8V3G_EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3g-20260821.1";
 const PRESERVED_P8V3G_RESULT_SHA256 = "ce4f9d4b0c96cc6cbddbf3a7d759a84c4f2b806155d4b3f5bda6d1f033207243";
 const PRESERVED_P8V3G_RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/2026-08-21.p8v3g.1`;
@@ -160,9 +162,10 @@ const ROLLBACK_SHA256 = Object.freeze({
   "rollback-evo-lead-agent-3678747c1ea1-linux-amd64.tar": "56bfa69555bb8d7b8d21e96f9ab8dbe6ef853859ddd477455c0a106a12ada277",
 });
 
-function fail(message, code = "verification_failed") {
+function fail(message, code = "verification_failed", reasonCode) {
   const error = new Error(message);
   error.code = code;
+  if (reasonCode !== undefined) error.reasonCode = reasonCode;
   throw error;
 }
 
@@ -176,6 +179,18 @@ function parseJson(value, label) {
 
 function exactKeys(value, keys, label) {
   if (value === null || typeof value !== "object" || Array.isArray(value) || Object.keys(value).sort().join("\0") !== [...keys].sort().join("\0")) fail(`${label} is not closed`);
+}
+
+export function parseP8V3KnowledgeImporterOutputForTest(stdout, audience, bundleSha256) {
+  const safe = parseJson(stdout.trim().split("\n").at(-1), `${audience} importer result`);
+  if (safe?.status === "knowledge_import_blocked") {
+    exactKeys(safe, ["status", "version", "audience", "reason_code"], "blocked importer result");
+    if (safe.version !== 1 || safe.audience !== audience || !["provider_rate_limited", "provider_rejected", "bundle_invalid", "manifest_mismatch", "account_binding_failed", "rpc_rejected", "transport_failed"].includes(safe.reason_code)) fail(`${audience} blocked importer result drifted`, "knowledge_failed", "transport_failed");
+    fail(`${audience} importer blocked`, "knowledge_failed", safe.reason_code);
+  }
+  exactKeys(safe, ["status", "version", "audience", "bundle_sha256", "documents_upserted", "documents_deleted", "chunks_replaced"], "importer result");
+  if (safe.status !== "knowledge_import_verified" || safe.version !== 1 || safe.audience !== audience || safe.bundle_sha256 !== bundleSha256) fail(`${audience} importer result drifted`, "knowledge_failed", "rpc_rejected");
+  return safe;
 }
 
 function assertRegular(path, mode = 0o600) {
@@ -443,6 +458,12 @@ if not required_root <= root or not required_lead <= lead: raise SystemExit(2)
 print('prerequisites_verified')
 PY
 ${productionInventoryScript()}
+
+p8v3h_evidence='${PRESERVED_P8V3H_EVIDENCE_ROOT}'
+[[ -d "$p8v3h_evidence" && ! -L "$p8v3h_evidence" && "$(stat -c '%U:%G %a' "$p8v3h_evidence")" == 'root:root 700' ]]
+[[ "$(find "$p8v3h_evidence" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3h-rollout-result.json' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3h_evidence/p8v3h-rollout-result.json")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3h_evidence/p8v3h-rollout-result.json" | awk '{print $1}')" == '${PRESERVED_P8V3H_RESULT_SHA256}' ]]
 `;
 }
 
@@ -1213,7 +1234,7 @@ mv '${incoming}' '${REMOTE_RESULT}'
 [[ "$(stat -c '%U:%G %a' '${EVIDENCE_ROOT}')" == 'root:root 700' ]]
 [[ "$(stat -c '%U:%G %a' '${REMOTE_RESULT}')" == 'root:root 600' ]]
 [[ "$(sha256sum '${REMOTE_RESULT}' | awk '{print $1}')" == '${hash}' ]]
-[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3h-rollout-result.json' ]]
+[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3i-rollout-result.json' ]]
 `;
 }
 
@@ -1449,27 +1470,30 @@ export async function createP8V3ProductionOperations({
     },
 
     async importKnowledge(audience, { deadlineAt }) {
-      const accountId = await resolveAccount();
-      await ensureStaged(deadlineAt);
-      if (!state.importerId) {
-        const created = remote(run, importerCreateScript(state.importerOwner, state.expectedImporter), { timeout: remaining(deadlineAt), label: "knowledge importer creation", code: "knowledge_failed" }).stdout.trim();
-        if (!SHA64.test(created)) fail("knowledge importer identity drifted", "knowledge_failed");
-        state.importerId = created;
+      try {
+        const accountId = await resolveAccount();
+        await ensureStaged(deadlineAt);
+        if (!state.importerId) {
+          const created = remote(run, importerCreateScript(state.importerOwner, state.expectedImporter), { timeout: remaining(deadlineAt), label: "knowledge importer creation", code: "knowledge_failed" }).stdout.trim();
+          if (!SHA64.test(created)) fail("knowledge importer identity drifted", "knowledge_failed", "transport_failed");
+          state.importerId = created;
+        }
+        const item = state.built.get(audience);
+        if (!item) fail(`${audience} knowledge was not prepared before mutation`, "knowledge_failed", "bundle_invalid");
+        for (const file of [item.bundleName, item.manifestName]) runChecked(run, `${audience} knowledge transfer`, "scp", [join(item.root, file), `${HERMES}:${KNOWLEDGE_REMOTE}/${file}`], { timeout: remaining(deadlineAt), code: "knowledge_failed" });
+        remote(run, knowledgeCopyScript(item), { timeout: remaining(deadlineAt), label: `${audience} knowledge copy`, code: "knowledge_failed" });
+        const imported = run("ssh", commandSshArgs(importCommand(item)), { input: `${accountId}\n`, timeout: remaining(deadlineAt), label: `${audience} knowledge import`, code: "knowledge_failed" });
+        if (imported.stderr !== "" || imported.stdout.includes(geminiKey) || imported.stderr.includes(geminiKey)) fail(`${audience} importer output is unsafe`, "knowledge_failed", "transport_failed");
+        parseP8V3KnowledgeImporterOutputForTest(imported.stdout, audience, item.bundleSha256);
+        const params = new URLSearchParams({ select: "audience,bundle_sha256,document_count,chunk_count", account_id: `eq.${accountId}`, audience: `eq.${audience}` });
+        const revisions = await rest(`/rest/v1/ai_knowledge_bundle_revisions?${params}`);
+        if (!Array.isArray(revisions) || revisions.length !== 1 || revisions[0].bundle_sha256 !== item.bundleSha256 || Number(revisions[0].document_count) !== item.documentCount || !Number.isSafeInteger(Number(revisions[0].chunk_count)) || Number(revisions[0].chunk_count) < 1) fail(`${audience} database revision drifted`, "knowledge_failed", "rpc_rejected");
+        const chunkCount = Number(revisions[0].chunk_count);
+        return { name: audience, status: "verified", document_count: item.documentCount, chunk_count: chunkCount, bundle_sha256: item.bundleSha256, manifest_sha256: item.manifestSha256, database_revision_sha256: sha256(Buffer.from(JSON.stringify({ audience, bundle_sha256: item.bundleSha256, document_count: item.documentCount, chunk_count: chunkCount }))) };
+      } catch (error) {
+        if (error?.reasonCode) throw error;
+        fail(`${audience} knowledge transport failed`, "knowledge_failed", "transport_failed");
       }
-      const item = state.built.get(audience);
-      if (!item) fail(`${audience} knowledge was not prepared before mutation`, "knowledge_failed");
-      for (const file of [item.bundleName, item.manifestName]) runChecked(run, `${audience} knowledge transfer`, "scp", [join(item.root, file), `${HERMES}:${KNOWLEDGE_REMOTE}/${file}`], { timeout: remaining(deadlineAt), code: "knowledge_failed" });
-      remote(run, knowledgeCopyScript(item), { timeout: remaining(deadlineAt), label: `${audience} knowledge copy`, code: "knowledge_failed" });
-      const imported = run("ssh", commandSshArgs(importCommand(item)), { input: `${accountId}\n`, timeout: remaining(deadlineAt), label: `${audience} knowledge import`, code: "knowledge_failed" });
-      if (imported.stderr !== "" || imported.stdout.includes(geminiKey) || imported.stderr.includes(geminiKey)) fail(`${audience} importer output is unsafe`, "knowledge_failed");
-      const safe = parseJson(imported.stdout.trim().split("\n").at(-1), `${audience} importer result`);
-      exactKeys(safe, ["status", "version", "audience", "bundle_sha256", "documents_upserted", "documents_deleted", "chunks_replaced"], "importer result");
-      if (safe.status !== "knowledge_import_verified" || safe.version !== 1 || safe.audience !== audience || safe.bundle_sha256 !== item.bundleSha256) fail(`${audience} importer result drifted`, "knowledge_failed");
-      const params = new URLSearchParams({ select: "audience,bundle_sha256,document_count,chunk_count", account_id: `eq.${accountId}`, audience: `eq.${audience}` });
-      const revisions = await rest(`/rest/v1/ai_knowledge_bundle_revisions?${params}`);
-      if (!Array.isArray(revisions) || revisions.length !== 1 || revisions[0].bundle_sha256 !== item.bundleSha256 || Number(revisions[0].document_count) !== item.documentCount || !Number.isSafeInteger(Number(revisions[0].chunk_count)) || Number(revisions[0].chunk_count) < 1) fail(`${audience} database revision drifted`, "knowledge_failed");
-      const chunkCount = Number(revisions[0].chunk_count);
-      return { name: audience, status: "verified", document_count: item.documentCount, chunk_count: chunkCount, bundle_sha256: item.bundleSha256, manifest_sha256: item.manifestSha256, database_revision_sha256: sha256(Buffer.from(JSON.stringify({ audience, bundle_sha256: item.bundleSha256, document_count: item.documentCount, chunk_count: chunkCount }))) };
     },
 
     async cleanupKnowledge() {

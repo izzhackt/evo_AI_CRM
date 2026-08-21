@@ -35,7 +35,7 @@ try {
   const preflightBytes = readFileSync(preflightPath);
   const preflight = validateP8V3Preflight(JSON.parse(preflightBytes.toString("utf8")));
   const preflightSha256 = createHash("sha256").update(preflightBytes).digest("hex");
-  const output = join(outputRoot, "p8v3h-rollout-result.json");
+  const output = join(outputRoot, "p8v3i-rollout-result.json");
   const operations = await createP8V3ProductionOperations({
     sourceRoot: toolRoot,
     candidateRoot: arguments_.get("--candidate-root"),
@@ -53,9 +53,9 @@ try {
     preflightSha256,
   });
   writeP8V3Result(output, result);
-  process.stdout.write(`p8v3h_${result.result_code}\n`);
+  process.stdout.write(`p8v3i_${result.result_code}\n`);
   process.exitCode = result.result_code === "rollout_verified" ? 0 : 2;
 } catch (error) {
-  process.stderr.write(`p8v3h_failed:${error?.code ?? "operation_failed"}\n`);
+  process.stderr.write(`p8v3i_failed:${error?.code ?? "operation_failed"}\n`);
   process.exitCode = 2;
 }

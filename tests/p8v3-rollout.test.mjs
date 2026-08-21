@@ -17,6 +17,7 @@ import {
   createP8V3ProductionOperations,
   createP8V3PublicRestReader,
   P8V3_IMAGES,
+  parseP8V3KnowledgeImporterOutputForTest,
   parseP8V3ContainerRowsForTest,
   renderP8V3CandidateImageBoundaryForTest,
   renderP8V3KnowledgeCleanupForTest,
@@ -80,7 +81,7 @@ function operations(overrides = {}) {
   };
   const execution = { commit: "d".repeat(40), tree: "e".repeat(40), ci_run_id: 123 };
   const preflight = {
-    version: "p8v3h-production-preflight/v1",
+    version: "p8v3i-production-preflight/v1",
     generated_at: "2026-08-20T05:55:00.000Z",
     expires_at: "2026-08-20T06:25:00.000Z",
     execution,
@@ -309,12 +310,71 @@ test("a P8V3E migration reconciliation failure restores configuration with zero 
 
 test("knowledge failure cleans temporary artifacts before any application deployment", async () => {
   const adapter = operations({
-    async importKnowledge(name) { this.calls.push(`importKnowledge:${name}`); const error = new Error("transfer failed"); error.code = "knowledge_failed"; throw error; },
+    async importKnowledge(name) { this.calls.push(`importKnowledge:${name}`); const error = new Error("transfer failed"); error.code = "knowledge_failed"; error.reasonCode = "provider_rate_limited"; throw error; },
   });
   const result = await runP8V3Rollout({ operations: adapter, authorization: P8V3.authorization, preflight: adapter.preflight, preflightSha256: SHA_A, now: () => Date.parse("2026-08-20T06:00:00.000Z") });
-  assert.equal(result.failure.step, "client_import");
+  assert.deepEqual(result.failure, {
+    step: "client_import",
+    code: "knowledge_failed",
+    reason_code: "provider_rate_limited",
+  });
   assert.equal(adapter.calls.includes("cleanupKnowledge"), true);
   assert.equal(adapter.calls.some((item) => item.startsWith("deploy:")), false);
+  const missingReason = structuredClone(result);
+  delete missingReason.failure.reason_code;
+  assert.throws(() => validateP8V3Result(missingReason), /closed|reason/u);
+  const schema = JSON.parse(readFileSync(join(process.cwd(), "docs/schemas/p8v-v1-rollout-result.schema.json"), "utf8"));
+  const validate = new Ajv2020({ strict: false }).compile(schema);
+  assert.equal(validate(missingReason), false);
+});
+
+test("knowledge importer output maps only closed safe blocker codes into rollout errors", () => {
+  const reasonCodes = [
+    "provider_rate_limited",
+    "provider_rejected",
+    "bundle_invalid",
+    "manifest_mismatch",
+    "account_binding_failed",
+    "rpc_rejected",
+    "transport_failed",
+  ];
+  for (const reasonCode of reasonCodes) {
+    assert.throws(
+      () => parseP8V3KnowledgeImporterOutputForTest(JSON.stringify({
+        status: "knowledge_import_blocked",
+        version: 1,
+        audience: "client",
+        reason_code: reasonCode,
+      }), "client", SHA_A),
+      (error) => error?.code === "knowledge_failed" && error?.reasonCode === reasonCode,
+    );
+  }
+  assert.throws(
+    () => parseP8V3KnowledgeImporterOutputForTest(JSON.stringify({
+      status: "knowledge_import_blocked",
+      version: 1,
+      audience: "client",
+      reason_code: "private free text",
+    }), "client", SHA_A),
+    (error) => error?.code === "knowledge_failed" && error?.reasonCode === "transport_failed",
+  );
+  assert.deepEqual(parseP8V3KnowledgeImporterOutputForTest(JSON.stringify({
+    status: "knowledge_import_verified",
+    version: 1,
+    audience: "client",
+    bundle_sha256: SHA_A,
+    documents_upserted: 11,
+    documents_deleted: 0,
+    chunks_replaced: 17,
+  }), "client", SHA_A), {
+    status: "knowledge_import_verified",
+    version: 1,
+    audience: "client",
+    bundle_sha256: SHA_A,
+    documents_upserted: 11,
+    documents_deleted: 0,
+    chunks_replaced: 17,
+  });
 });
 
 test("forward-only failures cannot be relabeled as fully rolled back", async () => {

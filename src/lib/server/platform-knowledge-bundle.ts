@@ -1,5 +1,10 @@
 import "server-only";
 
+import {
+  platformKnowledgeImportError,
+  platformKnowledgeImportReason,
+} from "./platform-knowledge-import-errors.ts";
+
 import { createHash } from "node:crypto";
 
 export type PlatformKnowledgeAudience = "client" | "internal";
@@ -137,26 +142,36 @@ export function validatePlatformKnowledgeBundleBytes(
   expectedAudience: PlatformKnowledgeAudience,
   expectedBundleFile: string,
 ): Readonly<{ bundle: SourceBundle; bundleSha256: string }> {
-  if (!UUID_PATTERN.test(expectedAccountId)) throw new Error("Invalid account id");
-  if (bundleBytes.byteLength > PLATFORM_KNOWLEDGE_MAX_BUNDLE_BYTES) throw new Error("Bundle exceeds byte limit");
-  if (manifestBytes.byteLength > PLATFORM_KNOWLEDGE_MAX_MANIFEST_BYTES) throw new Error("Manifest exceeds byte limit");
+  if (!UUID_PATTERN.test(expectedAccountId)) throw platformKnowledgeImportError("account_binding_failed", "Invalid account id");
+  if (bundleBytes.byteLength > PLATFORM_KNOWLEDGE_MAX_BUNDLE_BYTES) throw platformKnowledgeImportError("bundle_invalid", "Bundle exceeds byte limit");
+  if (manifestBytes.byteLength > PLATFORM_KNOWLEDGE_MAX_MANIFEST_BYTES) throw platformKnowledgeImportError("manifest_mismatch", "Manifest exceeds byte limit");
   const bundleSha256 = sha256(bundleBytes);
-  const manifest = object(parseCanonicalJson(manifestBytes, "manifest"), "manifest");
+  let manifest: Record<string, unknown>;
+  try {
+    manifest = object(parseCanonicalJson(manifestBytes, "manifest"), "manifest");
+  } catch {
+    throw platformKnowledgeImportError("manifest_mismatch", "Manifest is invalid");
+  }
+  if (manifest.account_id !== expectedAccountId) throw platformKnowledgeImportError("account_binding_failed", "Manifest account does not match canonical account");
   if (
     !exactKeys(manifest, ["version", "account_id", "audience", "bundle_file", "bundle_sha256"]) ||
     manifest.version !== 1 ||
-    manifest.account_id !== expectedAccountId ||
     manifest.audience !== expectedAudience ||
     manifest.bundle_file !== expectedBundleFile ||
     manifest.bundle_sha256 !== bundleSha256
-  ) throw new Error("Manifest does not match bundle");
+  ) throw platformKnowledgeImportError("manifest_mismatch", "Manifest does not match bundle");
 
-  const raw = object(parseCanonicalJson(bundleBytes, "bundle"), "bundle");
+  let raw: Record<string, unknown>;
+  try {
+    raw = object(parseCanonicalJson(bundleBytes, "bundle"), "bundle");
+  } catch {
+    throw platformKnowledgeImportError("bundle_invalid", "Bundle is invalid");
+  }
+  if (raw.account_id !== expectedAccountId) throw platformKnowledgeImportError("account_binding_failed", "Bundle account does not match canonical account");
   const expectedVaultKind = expectedAudience === "client" ? "evo_client_knowledge" : "evo_internal_knowledge";
   if (
     !exactKeys(raw, ["version", "account_id", "audience", "vault_kind", "marker_sha256", "documents"]) ||
     raw.version !== 1 ||
-    raw.account_id !== expectedAccountId ||
     raw.audience !== expectedAudience ||
     raw.vault_kind !== expectedVaultKind ||
     typeof raw.marker_sha256 !== "string" ||
@@ -164,16 +179,21 @@ export function validatePlatformKnowledgeBundleBytes(
     !Array.isArray(raw.documents) ||
     raw.documents.length < 1 ||
     raw.documents.length > PLATFORM_KNOWLEDGE_MAX_DOCUMENTS
-  ) throw new Error("Bundle has invalid schema");
-  const documents = raw.documents.map(validateDocument);
+  ) throw platformKnowledgeImportError("bundle_invalid", "Bundle has invalid schema");
+  let documents: SourceDocument[];
+  try {
+    documents = raw.documents.map(validateDocument);
+  } catch {
+    throw platformKnowledgeImportError("bundle_invalid", "Bundle document is invalid");
+  }
   let totalContentBytes = 0;
   for (const document of documents) {
     const contentBytes = Buffer.byteLength(document.content, "utf8");
-    if (contentBytes > PLATFORM_KNOWLEDGE_MAX_DOCUMENT_BYTES) throw new Error("Document exceeds content limit");
+    if (contentBytes > PLATFORM_KNOWLEDGE_MAX_DOCUMENT_BYTES) throw platformKnowledgeImportError("bundle_invalid", "Document exceeds content limit");
     totalContentBytes += contentBytes;
   }
-  if (totalContentBytes > PLATFORM_KNOWLEDGE_MAX_TOTAL_CONTENT_BYTES) throw new Error("Bundle exceeds total content limit");
-  if (new Set(documents.map((document) => document.source_path)).size !== documents.length) throw new Error("Bundle has duplicate source_path");
+  if (totalContentBytes > PLATFORM_KNOWLEDGE_MAX_TOTAL_CONTENT_BYTES) throw platformKnowledgeImportError("bundle_invalid", "Bundle exceeds total content limit");
+  if (new Set(documents.map((document) => document.source_path)).size !== documents.length) throw platformKnowledgeImportError("bundle_invalid", "Bundle has duplicate source_path");
   return Object.freeze({
     bundle: Object.freeze({
       version: 1,
@@ -245,19 +265,29 @@ export async function importPlatformKnowledgeBundleBytes(input: Readonly<{
     input.audience,
     input.bundleFile,
   );
-  const chunked = bundle.documents.map((document) => ({ ...document, contents: chunkPlatformKnowledgeText(document.content) }));
-  if (chunked.some((document) => document.contents.length < 1)) throw new Error("Document has no chunks");
+  let chunked: readonly (SourceDocument & { contents: readonly string[] })[];
+  try {
+    chunked = bundle.documents.map((document) => ({ ...document, contents: chunkPlatformKnowledgeText(document.content) }));
+  } catch {
+    throw platformKnowledgeImportError("bundle_invalid", "Bundle chunk construction failed");
+  }
+  if (chunked.some((document) => document.contents.length < 1)) throw platformKnowledgeImportError("bundle_invalid", "Document has no chunks");
   const totalChunks = chunked.reduce((total, document) => total + document.contents.length, 0);
-  if (totalChunks > PLATFORM_KNOWLEDGE_MAX_TOTAL_CHUNKS) throw new Error("Bundle exceeds total chunk limit");
+  if (totalChunks > PLATFORM_KNOWLEDGE_MAX_TOTAL_CHUNKS) throw platformKnowledgeImportError("bundle_invalid", "Bundle exceeds total chunk limit");
   const texts = chunked.flatMap((document) => document.contents.map((content) => (
     formatPlatformKnowledgeEmbeddingDocument(document.title, content)
   )));
-  const embeddings = await input.embed(texts, {
-    model: "gemini-embedding-2",
-    dimensions: EMBEDDING_DIMENSIONS,
-  });
+  let embeddings: readonly (readonly number[])[];
+  try {
+    embeddings = await input.embed(texts, {
+      model: "gemini-embedding-2",
+      dimensions: EMBEDDING_DIMENSIONS,
+    });
+  } catch (error) {
+    throw platformKnowledgeImportError(platformKnowledgeImportReason(error, "transport_failed"), "Embedding failed");
+  }
   if (embeddings.length !== texts.length || embeddings.some((embedding) => embedding.length !== EMBEDDING_DIMENSIONS || embedding.some((value) => !Number.isFinite(value)))) {
-    throw new Error("Embedding response has invalid shape");
+    throw platformKnowledgeImportError("provider_rejected", "Embedding response has invalid shape");
   }
   let embeddingIndex = 0;
   const documents = chunked.map((document) => ({
@@ -272,14 +302,24 @@ export async function importPlatformKnowledgeBundleBytes(input: Readonly<{
       embedding: embeddings[embeddingIndex++],
     })),
   }));
-  const { data, error } = await input.db.rpc("sync_ai_knowledge_bundle", {
-    p_account_id: input.accountId,
-    p_audience: input.audience,
-    p_bundle_sha256: bundleSha256,
-    p_payload: { version: 1, documents },
-  });
-  if (error) throw new Error("Atomic knowledge sync rejected");
-  return validateImportResult(data, input.accountId, input.audience, bundleSha256);
+  let response: Awaited<ReturnType<RpcClient["rpc"]>>;
+  try {
+    response = await input.db.rpc("sync_ai_knowledge_bundle", {
+      p_account_id: input.accountId,
+      p_audience: input.audience,
+      p_bundle_sha256: bundleSha256,
+      p_payload: { version: 1, documents },
+    });
+  } catch {
+    throw platformKnowledgeImportError("rpc_rejected", "Atomic knowledge sync transport failed");
+  }
+  const { data, error } = response;
+  if (error) throw platformKnowledgeImportError("rpc_rejected", "Atomic knowledge sync rejected");
+  try {
+    return validateImportResult(data, input.accountId, input.audience, bundleSha256);
+  } catch {
+    throw platformKnowledgeImportError("rpc_rejected", "Atomic knowledge sync result was invalid");
+  }
 }
 
 export function resolveConfiguredPlatformKnowledgeAccountId(
@@ -288,7 +328,7 @@ export function resolveConfiguredPlatformKnowledgeAccountId(
 ): string {
   const configuredAccountId = environment.EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID;
   if (!configuredAccountId || !UUID_PATTERN.test(configuredAccountId) || configuredAccountId !== requestedAccountId) {
-    throw new Error("Importer account does not match canonical account");
+    throw platformKnowledgeImportError("account_binding_failed", "Importer account does not match canonical account");
   }
   return configuredAccountId;
 }

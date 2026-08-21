@@ -10,7 +10,7 @@ const SHA64 = /^[0-9a-f]{64}$/;
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
 const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-export const P8V3_PREFLIGHT_VERSION = "p8v3h-production-preflight/v1";
+export const P8V3_PREFLIGHT_VERSION = "p8v3i-production-preflight/v1";
 export const P8V3_PREFLIGHT_WINDOW_MS = 30 * 60 * 1000;
 
 function fail(message) {

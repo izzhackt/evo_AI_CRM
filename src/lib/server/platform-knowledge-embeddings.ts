@@ -1,5 +1,10 @@
 import "server-only";
 
+import {
+  platformKnowledgeImportError,
+  type PlatformKnowledgeImportError,
+} from "./platform-knowledge-import-errors.ts";
+
 const BATCH_SIZE = 96;
 const RETRY_DELAYS_MS = Object.freeze([0, 1_000, 2_000, 4_000]);
 const RETRY_RESPONSE_MAX_BYTES = 65_536;
@@ -44,14 +49,14 @@ async function receiveRetryableResponse(response: Response, timeoutMs: number): 
 }
 
 function parseEmbeddings(value: unknown, expected: number, dimensions: number): readonly (readonly number[])[] {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("Invalid Gemini embeddings response");
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw platformKnowledgeImportError("provider_rejected", "Invalid Gemini embeddings response");
   const embeddings = (value as { embeddings?: unknown }).embeddings;
-  if (!Array.isArray(embeddings) || embeddings.length !== expected) throw new Error("Invalid Gemini embeddings response");
+  if (!Array.isArray(embeddings) || embeddings.length !== expected) throw platformKnowledgeImportError("provider_rejected", "Invalid Gemini embeddings response");
   return embeddings.map((embedding) => {
-    if (typeof embedding !== "object" || embedding === null || Array.isArray(embedding)) throw new Error("Invalid Gemini embedding");
+    if (typeof embedding !== "object" || embedding === null || Array.isArray(embedding)) throw platformKnowledgeImportError("provider_rejected", "Invalid Gemini embedding");
     const values = (embedding as { values?: unknown }).values;
     if (!Array.isArray(values) || values.length !== dimensions || values.some((item) => typeof item !== "number" || !Number.isFinite(item))) {
-      throw new Error("Invalid Gemini embedding");
+      throw platformKnowledgeImportError("provider_rejected", "Invalid Gemini embedding");
     }
     return Object.freeze(values as number[]);
   });
@@ -86,7 +91,9 @@ export function createPlatformKnowledgeGeminiEmbedder(input: Readonly<{
         const deadline = Date.now() + timeoutMs;
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
         try {
-          const response = await fetchImpl(
+          let response: Response;
+          try {
+            response = await fetchImpl(
             `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(options.model)}:batchEmbedContents`,
             {
               method: "POST",
@@ -94,16 +101,41 @@ export function createPlatformKnowledgeGeminiEmbedder(input: Readonly<{
               signal: controller.signal,
               body,
             },
-          );
+            );
+          } catch {
+            throw platformKnowledgeImportError("transport_failed", "Gemini embeddings transport failed");
+          }
           if (response.status === 429) {
             const remainingMs = deadline - Date.now();
-            if (remainingMs <= 0) throw new Error("Gemini retry response timed out");
-            await receiveRetryableResponse(response, remainingMs);
+            if (remainingMs <= 0) throw platformKnowledgeImportError("transport_failed", "Gemini retry response timed out");
+            try {
+              await receiveRetryableResponse(response, remainingMs);
+            } catch {
+              throw platformKnowledgeImportError("transport_failed", "Gemini retry response was not fully received");
+            }
             if (attempt + 1 < RETRY_DELAYS_MS.length) continue;
+            throw platformKnowledgeImportError("provider_rate_limited", "Gemini embeddings rate limited");
           }
-          if (!response.ok) throw new Error("Gemini embeddings request rejected");
-          output.push(...parseEmbeddings(await response.json() as unknown, batch.length, options.dimensions));
+          if (!response.ok) throw platformKnowledgeImportError("provider_rejected", "Gemini embeddings request rejected");
+          let rawResponse: string;
+          try {
+            rawResponse = await response.text();
+          } catch {
+            throw platformKnowledgeImportError("transport_failed", "Gemini embeddings response transport failed");
+          }
+          let payload: unknown;
+          try {
+            payload = JSON.parse(rawResponse) as unknown;
+          } catch {
+            throw platformKnowledgeImportError("provider_rejected", "Invalid Gemini embeddings response");
+          }
+          output.push(...parseEmbeddings(payload, batch.length, options.dimensions));
           break;
+        } catch (error) {
+          if (error instanceof Error && error.name === "AbortError") {
+            throw platformKnowledgeImportError("transport_failed", "Gemini embeddings request timed out");
+          }
+          throw error as PlatformKnowledgeImportError;
         } finally {
           clearTimeout(timeout);
         }

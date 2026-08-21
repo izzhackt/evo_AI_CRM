@@ -5,6 +5,11 @@ import { createClient } from "@supabase/supabase-js";
 
 import { importPlatformKnowledgeBundleBytes, resolveConfiguredPlatformKnowledgeAccountId, type PlatformKnowledgeAudience } from "../src/lib/server/platform-knowledge-bundle.ts";
 import { createPlatformKnowledgeGeminiEmbedder } from "../src/lib/server/platform-knowledge-embeddings.ts";
+import {
+  platformKnowledgeImportError,
+  platformKnowledgeImportReason,
+  type PlatformKnowledgeImportReasonCode,
+} from "../src/lib/server/platform-knowledge-import-errors.ts";
 import { safePlatformKnowledgeImportResult } from "../src/lib/server/platform-knowledge-import-output.ts";
 
 function arg(name: string): string {
@@ -15,9 +20,9 @@ function arg(name: string): string {
   return value;
 }
 
-function environment(name: string): string {
+function environment(name: string, reasonCode: PlatformKnowledgeImportReasonCode): string {
   const value = process.env[name];
-  if (!value || value.trim() !== value) throw new Error(`${name} is required`);
+  if (!value || value.trim() !== value) throw platformKnowledgeImportError(reasonCode, `${name} is required`);
   return value;
 }
 
@@ -31,15 +36,21 @@ async function main(): Promise<void> {
   const accountId = resolveConfiguredPlatformKnowledgeAccountId(arg("--account-id"));
   const bundlePath = arg("--bundle");
   const manifestPath = arg("--manifest");
-  const [bundleBytes, manifestBytes] = await Promise.all([readFile(bundlePath), readFile(manifestPath)]);
+  let bundleBytes: Buffer;
+  let manifestBytes: Buffer;
+  try {
+    [bundleBytes, manifestBytes] = await Promise.all([readFile(bundlePath), readFile(manifestPath)]);
+  } catch {
+    throw platformKnowledgeImportError("transport_failed", "Knowledge input read failed");
+  }
   const db = createClient(
-    environment("NEXT_PUBLIC_SUPABASE_URL"),
-    environment("EVO_PLATFORM_SUPABASE_SECRET_KEY"),
+    environment("NEXT_PUBLIC_SUPABASE_URL", "transport_failed"),
+    environment("EVO_PLATFORM_SUPABASE_SECRET_KEY", "rpc_rejected"),
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
   );
   const result = await importPlatformKnowledgeBundleBytes({
     db,
-    embed: createPlatformKnowledgeGeminiEmbedder({ apiKey: environment("EVO_PLATFORM_GEMINI_API_KEY") }),
+    embed: createPlatformKnowledgeGeminiEmbedder({ apiKey: environment("EVO_PLATFORM_GEMINI_API_KEY", "provider_rejected") }),
     bundleBytes,
     manifestBytes,
     bundleFile: basename(bundlePath),
@@ -49,4 +60,18 @@ async function main(): Promise<void> {
   process.stdout.write(`${JSON.stringify(safePlatformKnowledgeImportResult(result))}\n`);
 }
 
-await main();
+try {
+  await main();
+} catch (error) {
+  const audience = process.argv.includes("--audience")
+    ? process.argv[process.argv.indexOf("--audience") + 1]
+    : undefined;
+  if (audience !== "client" && audience !== "internal") throw error;
+  const blocked = {
+    status: "knowledge_import_blocked",
+    version: 1,
+    audience,
+    reason_code: platformKnowledgeImportReason(error, "transport_failed"),
+  } as const;
+  process.stdout.write(`${JSON.stringify(blocked)}\n`);
+}

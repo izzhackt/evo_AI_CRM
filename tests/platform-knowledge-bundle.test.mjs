@@ -22,6 +22,10 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function rejectsWithReason(reasonCode) {
+  return (error) => error?.reasonCode === reasonCode;
+}
+
 function fixture(audience = "internal") {
   const content = "Verified knowledge without personal contact details.";
   const bundle = {
@@ -77,7 +81,30 @@ test("bundle validator preserves the canonical account/audience/hash/PII/path bo
     ACCOUNT_ID,
     "internal",
     input.bundleFile,
-  ), /email|phone|contact/iu);
+  ), rejectsWithReason("bundle_invalid"));
+});
+
+test("bundle validator distinguishes manifest drift from account binding failure", () => {
+  const input = fixture();
+  const manifest = JSON.parse(input.manifestBytes.toString("utf8"));
+  manifest.bundle_sha256 = "b".repeat(64);
+  assert.throws(() => validatePlatformKnowledgeBundleBytes(
+    input.bundleBytes,
+    Buffer.from(`${stablePlatformKnowledgeJson(manifest)}\n`),
+    ACCOUNT_ID,
+    "internal",
+    input.bundleFile,
+  ), rejectsWithReason("manifest_mismatch"));
+
+  manifest.bundle_sha256 = sha256(input.bundleBytes);
+  manifest.account_id = "30000000-0000-4000-8000-000000000003";
+  assert.throws(() => validatePlatformKnowledgeBundleBytes(
+    input.bundleBytes,
+    Buffer.from(`${stablePlatformKnowledgeJson(manifest)}\n`),
+    ACCOUNT_ID,
+    "internal",
+    input.bundleFile,
+  ), rejectsWithReason("account_binding_failed"));
 });
 
 test("importer materializes every 1536-dimensional Gemini embedding before one atomic RPC", async () => {
@@ -129,12 +156,9 @@ test("Gemini Embedding 2 request uses exact prefixed text without unsupported ta
     apiKey: testCredential(),
     fetchImpl: async (url, init) => {
       calls.push({ url, init });
-      return {
-        ok: true,
-        async json() {
-          return { embeddings: [{ values: Array.from({ length: 1_536 }, () => 0.01) }] };
-        },
-      };
+      return new Response(JSON.stringify({
+        embeddings: [{ values: Array.from({ length: 1_536 }, () => 0.01) }],
+      }), { status: 200 });
     },
   });
   const result = await embed(["title: China | text: Verified knowledge"], {
@@ -175,7 +199,7 @@ test("Gemini embedding retries only four fully received 429 responses with byte-
   await assert.rejects(embed(["title: China | text: Verified knowledge"], {
     model: "gemini-embedding-2",
     dimensions: 1_536,
-  }), /request rejected/u);
+  }), rejectsWithReason("provider_rate_limited"));
   assert.deepEqual(delays, [0, 1_000, 2_000, 4_000]);
   assert.equal(calls.length, 4);
   assert.equal(new Set(calls.map((call) => `${call.url}\n${call.body}`)).size, 1);
@@ -203,20 +227,20 @@ test("Gemini embedding does not retry a truncated, oversized, or stalled 429 res
     await assert.rejects(embed(["title: China | text: Verified knowledge"], {
       model: "gemini-embedding-2",
       dimensions: 1_536,
-    }), /retry response/u);
+    }), rejectsWithReason("transport_failed"));
     assert.equal(calls, 1);
   }
 });
 
 test("Gemini embedding never retries terminal transport, status, or response-shape failures", async () => {
   const cases = [
-    async () => { throw new Error("transport failed"); },
-    async () => new Response('{"error":"server"}', { status: 503 }),
-    async () => new Response("not json", { status: 200 }),
-    async () => new Response(JSON.stringify({ embeddings: [] }), { status: 200 }),
-    async () => new Response(JSON.stringify({ embeddings: [{ values: [0.01] }] }), { status: 200 }),
+    ["transport_failed", async () => { throw new Error("transport failed"); }],
+    ["provider_rejected", async () => new Response('{"error":"server"}', { status: 503 })],
+    ["provider_rejected", async () => new Response("not json", { status: 200 })],
+    ["provider_rejected", async () => new Response(JSON.stringify({ embeddings: [] }), { status: 200 })],
+    ["provider_rejected", async () => new Response(JSON.stringify({ embeddings: [{ values: [0.01] }] }), { status: 200 })],
   ];
-  for (const fetchCase of cases) {
+  for (const [reasonCode, fetchCase] of cases) {
     let calls = 0;
     const embed = createPlatformKnowledgeGeminiEmbedder({
       apiKey: testCredential(),
@@ -226,7 +250,7 @@ test("Gemini embedding never retries terminal transport, status, or response-sha
     await assert.rejects(embed(["title: China | text: Verified knowledge"], {
       model: "gemini-embedding-2",
       dimensions: 1_536,
-    }));
+    }), rejectsWithReason(reasonCode));
     assert.equal(calls, 1);
   }
 });
@@ -247,7 +271,7 @@ test("Gemini embedding never retries a fetch timeout", async () => {
   await assert.rejects(embed(["title: China | text: Verified knowledge"], {
     model: "gemini-embedding-2",
     dimensions: 1_536,
-  }), /timed out/u);
+  }), rejectsWithReason("transport_failed"));
   assert.equal(calls, 1);
 });
 
@@ -262,8 +286,28 @@ test("embedding failure leaves the database untouched", async () => {
     bundleFile: input.bundleFile,
     accountId: ACCOUNT_ID,
     audience: "client",
-  }), /provider unavailable/u);
+  }), rejectsWithReason("transport_failed"));
   assert.equal(rpcCalls, 0);
+});
+
+test("atomic sync rejection is classified without exposing provider or database detail", async () => {
+  const input = fixture("client");
+  const embed = async (texts) => texts.map(() => Array.from({ length: 1_536 }, () => 0.01));
+  for (const db of [
+    { async rpc() { throw new Error("private transport detail"); } },
+    { async rpc() { return { data: null, error: { message: "private RPC detail" } }; } },
+    { async rpc() { return { data: {}, error: null }; } },
+  ]) {
+    await assert.rejects(importPlatformKnowledgeBundleBytes({
+      db,
+      embed,
+      bundleBytes: input.bundleBytes,
+      manifestBytes: input.manifestBytes,
+      bundleFile: input.bundleFile,
+      accountId: ACCOUNT_ID,
+      audience: "client",
+    }), rejectsWithReason("rpc_rejected"));
+  }
 });
 
 test("safe importer output cannot contain account identity", () => {
@@ -296,8 +340,11 @@ test("importer requires exact canonical configured account before file/provider/
   assert.throws(() => resolveConfiguredPlatformKnowledgeAccountId(
     "30000000-0000-4000-8000-000000000003",
     { EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID: ACCOUNT_ID },
-  ), /canonical account/iu);
-  assert.throws(() => resolveConfiguredPlatformKnowledgeAccountId(ACCOUNT_ID, {}), /canonical account/iu);
+  ), rejectsWithReason("account_binding_failed"));
+  assert.throws(
+    () => resolveConfiguredPlatformKnowledgeAccountId(ACCOUNT_ID, {}),
+    rejectsWithReason("account_binding_failed"),
+  );
 });
 
 test("bundle byte ceiling rejects before embedding or database work", async () => {
@@ -311,7 +358,7 @@ test("bundle byte ceiling rejects before embedding or database work", async () =
     bundleFile: "internal.bundle.json",
     accountId: ACCOUNT_ID,
     audience: "internal",
-  }), /bundle.*limit/iu);
+  }), rejectsWithReason("bundle_invalid"));
   assert.equal(embedCalls, 0);
   assert.equal(rpcCalls, 0);
 });
@@ -352,7 +399,7 @@ test("document and total chunk ceilings reject before embedding or database work
     bundleFile: "internal.bundle.json",
     accountId: ACCOUNT_ID,
     audience: "internal",
-  }), /chunk.*limit/iu);
+  }), rejectsWithReason("bundle_invalid"));
   assert.equal(embedCalls, 0);
   assert.equal(rpcCalls, 0);
 });

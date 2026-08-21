@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 
 const cwd = new URL("..", import.meta.url);
+const ACCOUNT_ID = "20000000-0000-4000-8000-000000000002";
 
 test("root package builds a self-contained importer with a safe non-secret runtime probe", async () => {
   await rm(new URL("../.next/platform-knowledge-import.mjs", import.meta.url), { force: true });
@@ -30,4 +31,30 @@ test("root runner image installs only the bundled importer as non-root executabl
   const dockerfile = await readFile(new URL("../Dockerfile", import.meta.url), "utf8");
   assert.match(dockerfile, /COPY --from=builder --chown=nextjs:nodejs --chmod=0555 \/app\/\.next\/platform-knowledge-import\.mjs \.\/scripts\/import-platform-knowledge-bundle\.mjs/u);
   assert.match(dockerfile, /USER nextjs/u);
+});
+
+test("bundled importer emits one closed safe blocker without reading files on account mismatch", () => {
+  const blocked = spawnSync("node", [
+    ".next/platform-knowledge-import.mjs",
+    "--audience", "client",
+    "--account-id", "30000000-0000-4000-8000-000000000003",
+    "--bundle", "/must/not/be/read/client.bundle.json",
+    "--manifest", "/must/not/be/read/client.manifest.json",
+  ], {
+    cwd,
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH,
+      EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID: ACCOUNT_ID,
+    },
+  });
+  assert.equal(blocked.status, 0, blocked.stderr || blocked.stdout);
+  assert.equal(blocked.stderr, "");
+  assert.deepEqual(JSON.parse(blocked.stdout), {
+    status: "knowledge_import_blocked",
+    version: 1,
+    audience: "client",
+    reason_code: "account_binding_failed",
+  });
+  assert.doesNotMatch(blocked.stdout, /20000000|30000000|must\/not\/be\/read/u);
 });

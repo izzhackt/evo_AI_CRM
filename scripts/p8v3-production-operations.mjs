@@ -43,7 +43,9 @@ const IMPORTER_FILE = "p8v3k-platform-knowledge-import.mjs";
 const IMPORTER_OWNER_LABEL = "evo.p8v3k.importer-owner";
 const PRODUCTION_CRM_COMPOSE = "/opt/evo-crm/docker-compose.prod.yml";
 const PRODUCTION_CRM_ENV_FILE = "/opt/evo-crm/.env.production";
-const PRODUCTION_CRM_COMPOSE_SHA256 = "ae3689f60d14c1463a77512afbe8d24db59d079473435e9c8b2d01c222eb7a6f";
+const PRODUCTION_CRM_COMPOSE_SHA256 = "51b6a19cdf4797f7e882d4638c12177030fcb3e0258311a7682db7d959c28988";
+const STAGED_CRM_COMPOSE_SHA256 = "ae3689f60d14c1463a77512afbe8d24db59d079473435e9c8b2d01c222eb7a6f";
+const STAGED_INBOX_COMPOSE_SHA256 = "31c7b758ac5220b17511ef18df7f1058b4dff39bb08c21e02bb106272496076b";
 const IMPORTER_NETWORK = "evo_crm_private";
 const IMPORTER_MOUNT = `/run/evo-p8v3k/${IMPORTER_FILE}`;
 const BUNDLE_MOUNT = "/run/evo-p8v3k/knowledge-bundle.json";
@@ -1164,6 +1166,9 @@ function composeRunPrefixScript({ owner, envNames = [], mounts = [] }) {
   return String.raw`
 set -u
 ${composeEnvironment("crm")}
+[[ -f '${PRODUCTION_CRM_COMPOSE}' && ! -L '${PRODUCTION_CRM_COMPOSE}' ]] || exit 2
+[[ "$(sha256sum '${PRODUCTION_CRM_COMPOSE}' | awk '{print $1}')" == '${PRODUCTION_CRM_COMPOSE_SHA256}' ]] || exit 2
+docker compose --ansi never --progress quiet --project-name '${composeProject("crm")}' -f '${PRODUCTION_CRM_COMPOSE}' --env-file '${PRODUCTION_CRM_ENV_FILE}' config -q
 inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || exit 2
 target="$(printf '%s\n' "$inventory" | awk -F '|' '$2 == "${IMPORTER}" { print $1 }')"
 [[ -z "$target" ]] || exit 2
@@ -1428,9 +1433,12 @@ function deployScript(name) {
   const spec = P8V3_IMAGES[name];
   const file = composeFile(name);
   const project = composeProject(name);
+  const composeSha256 = name === "inbox" ? STAGED_INBOX_COMPOSE_SHA256 : STAGED_CRM_COMPOSE_SHA256;
   const services = name === "crm" ? "app manual-send-worker" : spec.service;
   return String.raw`
 ${composeEnvironment(name)}
+[[ -f '${file}' && ! -L '${file}' ]] || exit 2
+[[ "$(sha256sum '${file}' | awk '{print $1}')" == '${composeSha256}' ]] || exit 2
 docker compose --project-name '${project}' -f '${file}' ${name === "inbox" ? "--env-file /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production" : "--env-file /opt/evo-crm/.env.production"} config -q
 docker compose --project-name '${project}' -f '${file}' ${name === "inbox" ? "--env-file /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production" : "--env-file /opt/evo-crm/.env.production"} up --no-deps -d ${services}
 ${verifyBoundaryScript(name)}

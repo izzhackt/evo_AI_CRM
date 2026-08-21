@@ -4049,3 +4049,32 @@ evidence root `/opt/evo-release-evidence/p8v3k-20260821.1`, preflight
 exact-head review, one final CI, one short real preflight, and one fresh owner
 authorization covering import, deployment and rollback remain mandatory. This
 block authorizes repository work only.
+
+## P8V3K live Compose baseline correction (2026-08-21)
+
+The first real P8V3K preflight stopped before its provider probe or any
+production effect because `/opt/evo-crm/docker-compose.prod.yml` hashes to
+`51b6a19cdf4797f7e882d4638c12177030fcb3e0258311a7682db7d959c28988`, while
+the initial contract incorrectly required the not-yet-deployed candidate
+Compose SHA-256
+`ae3689f60d14c1463a77512afbe8d24db59d079473435e9c8b2d01c222eb7a6f` at
+that live path. Read-only comparison proves the `app` service used by
+`docker compose run` is unchanged between those files. The only observed
+differences are the candidate's new `manual-send-worker` service and its WAHA
+healthcheck path; neither participates in the knowledge-import job.
+
+Issue #352 therefore binds the preflight and both knowledge-import jobs to the
+exact observed live Compose SHA `51b6a19c...` at the existing canonical path.
+The later deployment boundary remains bound to the reviewed candidate Compose
+SHA `ae3689f6...` under the staged release repository. Preflight must still
+validate the live file before the single provider probe, and execution must
+revalidate it before each import. Deployment must still validate and invoke
+the staged candidate file; no copy or replacement of the live Compose file is
+authorized before the owner token.
+
+No successful P8V3K preflight artifact, remote preflight root, import,
+configuration change, deployment, restart or provider retry was retained.
+Accordingly the existing collision-free P8V3K release, preflight format and
+future authorization `EXECUTE-P8V3K-2026-08-21.P8V3K.1` remain unconsumed.
+This correction requires one scoped review/CI and one fresh short preflight
+before that single deployment-plus-rollback authorization may be requested.

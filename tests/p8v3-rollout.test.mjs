@@ -1456,14 +1456,20 @@ test("P8V3K CRM rollback removes the manual-send worker by exact container ID", 
 });
 
 test("P8V3K knowledge job uses compose run on the CRM service with individually mounted read-only files", () => {
-  const { preflight, providerProbe, knowledgeImport } = renderP8V3ShellContractsForTest();
+  const { preflight, providerProbe, knowledgeImport, deployCrm, deployInbox, deployLead } = renderP8V3ShellContractsForTest();
+  const liveComposeSha = "51b6a19cdf4797f7e882d4638c12177030fcb3e0258311a7682db7d959c28988";
+  const stagedCrmComposeSha = "ae3689f60d14c1463a77512afbe8d24db59d079473435e9c8b2d01c222eb7a6f";
+  const stagedInboxComposeSha = "31c7b758ac5220b17511ef18df7f1058b4dff39bb08c21e02bb106272496076b";
 
   assert.match(
     preflight,
     /docker network inspect 'evo_crm_private' --format '\{\{\.Name\}\}\|\{\{\.Driver\}\}\|\{\{\.Scope\}\}\|\{\{\.Internal\}\}'/,
   );
+  assert.match(preflight, new RegExp(liveComposeSha));
   assert.match(providerProbe, /docker compose[^\n]+run --rm --no-deps --pull never -T --name 'evo-p8v3k-knowledge-import'/);
   assert.match(providerProbe, /-f '\/opt\/evo-crm\/docker-compose\.prod\.yml'/);
+  assert.match(providerProbe, new RegExp(liveComposeSha));
+  assert.match(knowledgeImport, new RegExp(liveComposeSha));
   assert.match(providerProbe, /-e 'EVO_PLATFORM_GEMINI_API_KEY'/);
   assert.match(providerProbe, /-v '\/opt\/evo-release-preflight\/p8v3k-20260821\.1-[0-9a-f]{48}\/p8v3k-platform-knowledge-import\.mjs:\/run\/evo-p8v3k\/p8v3k-platform-knowledge-import\.mjs:ro'/);
   assert.match(providerProbe, /p8v3k-platform-knowledge-import\.mjs.*--verify-provider/s);
@@ -1477,6 +1483,13 @@ test("P8V3K knowledge job uses compose run on the CRM service with individually 
   assert.match(knowledgeImport, /knowledge-bundle\.json/);
   assert.match(knowledgeImport, /knowledge-manifest\.json/);
   assert.doesNotMatch(knowledgeImport, /docker create|docker cp|--verify-runtime/);
+
+  for (const deployment of [deployCrm, deployLead]) {
+    assert.match(deployment, new RegExp(stagedCrmComposeSha));
+    assert.doesNotMatch(deployment, new RegExp(liveComposeSha));
+  }
+  assert.match(deployInbox, new RegExp(stagedInboxComposeSha));
+  assert.doesNotMatch(deployInbox, new RegExp(liveComposeSha));
 });
 
 test("P8V3K provider probe blocks before compose run when the exact container name is already occupied", () => {

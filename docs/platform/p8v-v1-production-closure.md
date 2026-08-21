@@ -1176,3 +1176,40 @@ overrides for Gemini 3.x:
 Issue #335, focused tests, independent review, merge/final CI and a fresh real
 preflight remain mandatory before the unchanged P8V3F authorization may be
 requested.
+
+### P8V3G Hermes remote-shell contract
+
+The P8V3F result at SHA-256
+`02af7782d0ed7020c900109725f8b681504f68479cf90727127fd70d2aeb9f4d`, its
+local/remote evidence and rollback roots, and its consumed authorization are
+immutable. It truthfully records a configuration-stage failure, verified exact
+configuration restoration and zero later effects.
+
+The fixed configuration command must be rendered as one exact
+`ssh -o BatchMode=yes hermes-vps bash -e -c <quoted-script>` invocation. The
+quoted script's first nonblank command is exact `set -u`; only then may it read
+the sole newline-terminated Gemini key from stdin. Missing or additional stdin,
+nonempty stderr, credential occurrence in either output stream, nonzero status,
+unsafe/malformed environment files, failed atomic write/readback, or failed
+rollback remains blocking. `-s` is forbidden because the command is supplied by
+`-c` while stdin is reserved for the single secret field. The remote command
+must not weaken nounset inside the reviewed script.
+
+Before a new token is requested, a no-secret real Hermes probe using the same
+`bash -e -c 'set -u; ...'` rendering must return status zero with empty stdout
+and stderr. Behavioral tests must also prove `set -u` precedes the first read,
+the production command uses no startup-time `-u`, and the strict output gate
+still rejects any diagnostic or credential echo. This follows GNU Bash's
+documented behavior for shells invoked by `sshd` and the `set` builtin:
+<https://www.gnu.org/software/bash/manual/html_node/Bash-Startup-Files> and
+<https://www.gnu.org/software/bash/manual/html_node/The-Set-Builtin.html>.
+
+All writable identities advance to release `2026-08-21.p8v3g.1`, version
+`p8v3g-0f1454d0-20260821`, importer `evo-p8v3g-knowledge-import`, evidence root
+`/opt/evo-release-evidence/p8v3g-20260821.1`, sole result
+`p8v3g-rollout-result.json`, preflight `p8v3g-production-preflight/v1`, and
+authorization `EXECUTE-P8V3G-2026-08-21.P8V3G.1`. The application commit/tree,
+portable images, frozen 11/291 sources, exact migration reconciliation,
+deployment ordering, rollback, privacy and no-customer-send boundaries are
+unchanged. Issue #338, reviewed merge, final CI, fresh minimal preflight and one
+new owner token are required before retry.

@@ -1655,7 +1655,7 @@ export async function createP8V3ProductionOperations({
           if (providerProbe.stderr !== "" || providerProbe.stdout.includes(geminiKey) || providerProbe.stderr.includes(geminiKey)) fail("provider probe output is unsafe", "preflight_drift");
           state.serverComposeVerified = parseP8V3ProviderProbeOutput(providerProbe.stdout).server_compose_verified;
         } finally {
-          remote(run, preflightCleanupScript({ importerSha256: importer.sha256, owner: providerOwner }), { timeout: 120_000, label: "provider probe cleanup", code: "preflight_drift" });
+          remote(run, preflightCleanupScript({ importerSha256: importer.sha256, importerSize: importer.size, owner: providerOwner }), { timeout: 120_000, label: "provider probe cleanup", code: "preflight_drift" });
         }
         state.preState = containers;
         return {

@@ -1271,26 +1271,28 @@ if not release.exists(): raise SystemExit(0)
 release_metadata = release.lstat()
 if not release.is_dir() or release_metadata.st_uid != 0 or release_metadata.st_gid != 0 or stat.S_IMODE(release_metadata.st_mode) != 0o700: raise SystemExit(2)
 if importer.is_symlink(): raise SystemExit(2)
-if importer.exists():
+importer_present = importer.exists()
+if importer_present:
     metadata = importer.lstat()
     importer_state = (metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode))
     if not stat.S_ISREG(metadata.st_mode) or importer_state not in {(0, 0, 0o600), (0, 1001, 0o640)}:
         raise SystemExit(2)
     if '${importerSha256 ?? ""}' == '' or metadata.st_size != ${importerSize ?? 0} or hashlib.sha256(importer.read_bytes()).hexdigest() != '${importerSha256 ?? ""}': raise SystemExit(2)
-    importer.unlink()
-if importer.exists() or importer.is_symlink(): raise SystemExit(2)
 if knowledge.is_symlink(): raise SystemExit(2)
-if not knowledge.exists(): raise SystemExit(0)
-knowledge_metadata = knowledge.lstat()
-if not knowledge.is_dir() or knowledge.resolve().parent != release.resolve() or knowledge_metadata.st_uid != 0 or knowledge_metadata.st_gid != 0 or stat.S_IMODE(knowledge_metadata.st_mode) != 0o700: raise SystemExit(2)
-entries = list(knowledge.iterdir())
+entries = []
+if knowledge.exists():
+    knowledge_metadata = knowledge.lstat()
+    if not knowledge.is_dir() or knowledge.resolve().parent != release.resolve() or knowledge_metadata.st_uid != 0 or knowledge_metadata.st_gid != 0 or stat.S_IMODE(knowledge_metadata.st_mode) != 0o700: raise SystemExit(2)
+    entries = list(knowledge.iterdir())
 for entry in entries:
     metadata = entry.lstat()
     entry_state = (metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode))
     if entry.name not in expected or not stat.S_ISREG(metadata.st_mode) or entry.is_symlink() or entry_state not in {(0, 0, 0o600), (0, 1001, 0o640)}: raise SystemExit(2)
     if hashlib.sha256(entry.read_bytes()).hexdigest() != expected[entry.name]: raise SystemExit(2)
+if importer_present: importer.unlink()
+if importer.exists() or importer.is_symlink(): raise SystemExit(2)
 for entry in entries: entry.unlink()
-if any(knowledge.iterdir()): raise SystemExit(2)
+if knowledge.exists() and any(knowledge.iterdir()): raise SystemExit(2)
 PY
 ${knowledgeContainerAbsenceBody()}
 exit "$errors"
@@ -1500,6 +1502,7 @@ export function renderP8V3ShellContractsForTest() {
       manifestSha256: "b".repeat(64),
     }),
     providerProbe: providerProbeCommand(owner, importer),
+    preflightCleanup: preflightCleanupScript({ importerSha256: importer.sha256, importerSize: importer.size, owner }),
     knowledgeImport: knowledgeImportCommand({
       audience: "client",
       bundleName: "evo-knowledge-client.json",

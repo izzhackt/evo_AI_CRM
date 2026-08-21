@@ -593,7 +593,7 @@ test("P8V3F importer build is deterministic and bounded", () => {
 
 test("P8V3F importer removes the first temporary root when the second build fails", () => {
   const prefix = "evo-p8v3f-importer-";
-  const before = readdirSync(tmpdir()).filter((name) => name.startsWith(prefix)).sort();
+  const before = new Set(readdirSync(tmpdir()).filter((name) => name.startsWith(prefix)));
   let build = 0;
   assert.throws(() => verifyP8V3FImporterBuild({
     sourceRoot: process.cwd(),
@@ -605,7 +605,8 @@ test("P8V3F importer removes the first temporary root when the second build fail
       return { status: 0, stdout: "", stderr: "" };
     },
   }), /second build failed/);
-  assert.deepEqual(readdirSync(tmpdir()).filter((name) => name.startsWith(prefix)).sort(), before);
+  const after = readdirSync(tmpdir()).filter((name) => name.startsWith(prefix));
+  assert.deepEqual(after.filter((name) => !before.has(name)), []);
 });
 
 function createConfigurationRollbackFixture(marker = "absent\n") {
@@ -1204,7 +1205,11 @@ test("every reviewed remote shell contract parses under bash", () => {
 });
 
 test("P8V3K per-job cleanup removes only the one-off container and preserves shared staged files", () => {
-  const { knowledgeJobCleanup, knowledgeCleanup } = renderP8V3ShellContractsForTest();
+  const { preflightCleanup, knowledgeJobCleanup, knowledgeCleanup } = renderP8V3ShellContractsForTest();
+  assert.match(preflightCleanup, /root\.is_symlink\(\)/);
+  assert.match(preflightCleanup, /\{entry\.name for entry in entries\} - \{'p8v3k-platform-knowledge-import\.mjs'\}/);
+  assert.match(preflightCleanup, /hashlib\.sha256/);
+  assert.doesNotMatch(preflightCleanup, /rm -f '\/opt\/evo-release-preflight/);
   assert.match(knowledgeJobCleanup, /docker container ls -a --no-trunc/);
   assert.match(knowledgeJobCleanup, /docker rm -f "\$owned_id"/);
   assert.doesNotMatch(knowledgeJobCleanup, /python3|knowledge-incoming|p8v3k-platform-knowledge-import\.mjs|unlink\(/);

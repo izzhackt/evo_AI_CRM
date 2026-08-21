@@ -1260,7 +1260,7 @@ errors=0
 ${knowledgeContainerCleanupBody(expectedOwner)}
 [[ "$errors" == '0' ]] || exit "$errors"
 python3 - <<'PY' || errors=1
-import hashlib, json, os, stat
+import hashlib, json, stat
 from pathlib import Path
 release = Path('${releaseRoot}')
 knowledge = Path('${knowledgeRemote}')

@@ -45,7 +45,6 @@ const IMPORTER_NETWORK = "evo_crm_private";
 const IMPORTER_MOUNT = `/run/evo-p8v3k/${IMPORTER_FILE}`;
 const BUNDLE_MOUNT = "/run/evo-p8v3k/knowledge-bundle.json";
 const MANIFEST_MOUNT = "/run/evo-p8v3k/knowledge-manifest.json";
-const KNOWLEDGE_PROVIDER_PROBE = '{"status":"knowledge_import_provider_verified","version":1,"model":"gemini-embedding-2","vectors":17,"dimensions":1536,"uid":1001,"gid":1001}';
 const CONFIG_ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const P8V2D_ROLLBACK_ROOT = "/opt/evo-release-evidence/p8v2d-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818";
 const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3k-20260821.1";

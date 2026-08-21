@@ -28,18 +28,21 @@ import {
 const HERMES = "hermes-vps";
 const PROJECT_REF = "iosckaqtovbbnssqcpde";
 const PROJECT_URL = `https://${PROJECT_REF}.supabase.co`;
-const RELEASE_ID = "2026-08-21.p8v3i.1";
-const RELEASE_VERSION = "p8v3i-0f1454d0-20260821";
+const RELEASE_ID = "2026-08-21.p8v3j.1";
+const RELEASE_VERSION = "p8v3j-0f1454d0-20260821";
 const RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/${RELEASE_ID}`;
 const REMOTE_REPO = `${RELEASE_ROOT}/repo`;
 const REMOTE_ARCHIVES = `${RELEASE_ROOT}/archives`;
 const KNOWLEDGE_REMOTE = `${RELEASE_ROOT}/knowledge-incoming`;
-const IMPORTER = "evo-p8v3i-knowledge-import";
-const IMPORTER_FILE = "p8v3i-platform-knowledge-import.mjs";
+const IMPORTER = "evo-p8v3j-knowledge-import";
+const IMPORTER_FILE = "p8v3j-platform-knowledge-import.mjs";
+const IMPORTER_NETWORK = "evo_crm_private";
 const CONFIG_ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const P8V2D_ROLLBACK_ROOT = "/opt/evo-release-evidence/p8v2d-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818";
-const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3i-20260821.1";
-const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3i-rollout-result.json`;
+const EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3j-20260821.1";
+const REMOTE_RESULT = `${EVIDENCE_ROOT}/p8v3j-rollout-result.json`;
+const PRESERVED_P8V3I_EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3i-20260821.1";
+const PRESERVED_P8V3I_RESULT_SHA256 = "1709094ba438286f00d9ebb83ae6a7377f8cd7fdb2f2d4a72e1ef3eb08698e26";
 const PRESERVED_P8V3H_EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3h-20260821.1";
 const PRESERVED_P8V3H_RESULT_SHA256 = "52710d73b6308db1d1e62af9a1a25cae0cc58c3ddfa67d40e84326c960933f04";
 const PRESERVED_P8V3G_EVIDENCE_ROOT = "/opt/evo-release-evidence/p8v3g-20260821.1";
@@ -363,6 +366,8 @@ function preflightRemoteScript() {
 [[ ! -e '${CONFIG_ROLLBACK_ROOT}' && ! -L '${CONFIG_ROLLBACK_ROOT}' ]]
 [[ ! -e '${EVIDENCE_ROOT}' && ! -L '${EVIDENCE_ROOT}' ]]
 if docker container ls -a --no-trunc --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null; then exit 2; fi
+[[ "$(docker network inspect '${IMPORTER_NETWORK}' --format '{{.Name}}|{{.Driver}}|{{.Scope}}|{{.Internal}}')" == '${IMPORTER_NETWORK}|bridge|local|false' ]] || exit 2
+printf 'importer_network_verified\n'
 
 p8v3e_evidence='${PRESERVED_P8V3E_EVIDENCE_ROOT}'
 [[ -d "$p8v3e_evidence" && ! -L "$p8v3e_evidence" && "$(stat -c '%U:%G %a' "$p8v3e_evidence")" == 'root:root 700' ]]
@@ -476,6 +481,12 @@ p8v3h_evidence='${PRESERVED_P8V3H_EVIDENCE_ROOT}'
 [[ "$(find "$p8v3h_evidence" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3h-rollout-result.json' ]]
 [[ "$(stat -c '%U:%G %a' "$p8v3h_evidence/p8v3h-rollout-result.json")" == 'root:root 600' ]]
 [[ "$(sha256sum "$p8v3h_evidence/p8v3h-rollout-result.json" | awk '{print $1}')" == '${PRESERVED_P8V3H_RESULT_SHA256}' ]]
+
+p8v3i_evidence='${PRESERVED_P8V3I_EVIDENCE_ROOT}'
+[[ -d "$p8v3i_evidence" && ! -L "$p8v3i_evidence" && "$(stat -c '%U:%G %a' "$p8v3i_evidence")" == 'root:root 700' ]]
+[[ "$(find "$p8v3i_evidence" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3i-rollout-result.json' ]]
+[[ "$(stat -c '%U:%G %a' "$p8v3i_evidence/p8v3i-rollout-result.json")" == 'root:root 600' ]]
+[[ "$(sha256sum "$p8v3i_evidence/p8v3i-rollout-result.json" | awk '{print $1}')" == '${PRESERVED_P8V3I_RESULT_SHA256}' ]]
 `;
 }
 
@@ -978,16 +989,20 @@ cleanup_failed_create() {
 }
 trap cleanup_failed_create EXIT
 if docker container ls -a --no-trunc --format '{{.Names}}' | grep -Fx '${IMPORTER}' >/dev/null; then exit 2; fi
-created="$(docker create --name '${IMPORTER}' --label 'evo.p8v3.importer-owner=${owner}' --env-file /opt/evo-crm/.env.production --entrypoint /bin/sh '${P8V3_IMAGES.crm.composeTag}' -c 'sleep 7200')"
-[[ "$created" =~ ^[0-9a-f]{64}$ ]]
+created="$(docker create --name '${IMPORTER}' --network '${IMPORTER_NETWORK}' --label 'evo.p8v3.importer-owner=${owner}' --env-file /opt/evo-crm/.env.production --entrypoint /bin/sh '${P8V3_IMAGES.crm.composeTag}' -c 'sleep 7200')"
+[[ "$created" =~ ^[0-9a-f]{64}$ ]] || exit 2
 docker start "$created" >/dev/null
-[[ "$(docker inspect "$created" --format '{{.Name}}')" == '/${IMPORTER}' ]]
-[[ "$(docker inspect "$created" --format '{{.Image}}')" == '${P8V3_IMAGES.crm.platform}' ]]
-[[ "$(docker inspect "$created" --format '{{index .Config.Labels "evo.p8v3.importer-owner"}}')" == '${owner}' ]]
-[[ "$(docker inspect "$created" --format '{{.State.Running}}')" == 'true' ]]
+[[ "$(docker inspect "$created" --format '{{.Name}}')" == '/${IMPORTER}' ]] || exit 2
+[[ "$(docker inspect "$created" --format '{{.Image}}')" == '${P8V3_IMAGES.crm.platform}' ]] || exit 2
+[[ "$(docker inspect "$created" --format '{{index .Config.Labels "evo.p8v3.importer-owner"}}')" == '${owner}' ]] || exit 2
+[[ "$(docker inspect "$created" --format '{{.State.Running}}')" == 'true' ]] || exit 2
+actual_networks="$(docker inspect "$created" --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}},{{end}}' | tr ',' '\n' | sed '/^$/d' | sort | paste -sd, -)"
+[[ "$actual_networks" == '${IMPORTER_NETWORK}' ]] || exit 2
+nameservers="$(docker exec "$created" awk '$1 == "nameserver" { print $2 }' /etc/resolv.conf)"
+[[ "$nameservers" == '127.0.0.11' ]] || exit 2
 docker cp '${RELEASE_ROOT}/${IMPORTER_FILE}' "$created:/tmp/${IMPORTER_FILE}"
 docker exec --user 0 "$created" chmod 0555 '/tmp/${IMPORTER_FILE}'
-[[ "$(docker exec "$created" sha256sum '/tmp/${IMPORTER_FILE}' | awk '{print $1}')" == '${importer.sha256}' ]]
+[[ "$(docker exec "$created" sha256sum '/tmp/${IMPORTER_FILE}' | awk '{print $1}')" == '${importer.sha256}' ]] || exit 2
 docker exec "$created" node '/tmp/${IMPORTER_FILE}' --verify-runtime | grep -Fx '{"status":"knowledge_import_runtime_verified","version":1}' >/dev/null
 trap - EXIT
 printf '%s\n' "$created"
@@ -1016,19 +1031,25 @@ docker exec '${IMPORTER}' node '/tmp/${IMPORTER_FILE}' --audience '${item.audien
 `;
 }
 
-function knowledgeCleanupScript(owner, { releaseRoot = RELEASE_ROOT, knowledgeRemote = KNOWLEDGE_REMOTE } = {}) {
+function knowledgeCleanupScript(owner, { importerId = "", releaseRoot = RELEASE_ROOT, knowledgeRemote = KNOWLEDGE_REMOTE } = {}) {
+  if (importerId !== "" && !/^[0-9a-f]{64}$/.test(importerId)) fail("P8V3 importer cleanup identity drifted", "knowledge_failed");
   return String.raw`
 set +e
 errors=0
+expected_id='${importerId}'
 inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || exit 1
 owned="$(docker container ls -a --no-trunc --filter 'label=evo.p8v3.importer-owner=${owner}' --format '{{.ID}}|{{.Names}}')" || exit 1
 target="$(printf '%s\n' "$inventory" | awk -F '|' '$2 == "${IMPORTER}"')"
+expected="$(printf '%s\n' "$inventory" | awk -F '|' -v id="$expected_id" 'id != "" && $1 == id')"
 if [[ -n "$owned" ]]; then
   [[ "$(printf '%s\n' "$owned" | sed '/^$/d' | wc -l | tr -d ' ')" == '1' ]] || errors=1
   owned_id="$(printf '%s\n' "$owned" | cut -d '|' -f 1)"
   owned_name="$(printf '%s\n' "$owned" | cut -d '|' -f 2)"
   inspected_name="$(docker inspect "$owned_id" --format '{{.Name}}' 2>/dev/null)"
+  expected_matches=1
+  if [[ -n "$expected_id" && "$owned_id" != "$expected_id" ]]; then expected_matches=0; fi
   if [[ "$owned_id" =~ ^[0-9a-f]{64}$ \
+    && "$expected_matches" == '1' \
     && "$(docker inspect "$owned_id" --format '{{.Image}}' 2>/dev/null)" == '${P8V3_IMAGES.crm.platform}' \
     && "$(docker inspect "$owned_id" --format '{{index .Config.Labels "evo.p8v3.importer-owner"}}' 2>/dev/null)" == '${owner}' \
     && "$owned_name" == '${IMPORTER}' \
@@ -1038,6 +1059,8 @@ if [[ -n "$owned" ]]; then
     errors=1
   fi
 elif [[ -n "$target" ]]; then
+  errors=1
+elif [[ -n "$expected" ]]; then
   errors=1
 fi
 python3 - <<'PY' || errors=1
@@ -1065,6 +1088,9 @@ PY
 final_inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || exit 1
 final_owned="$(docker container ls -a --no-trunc --filter 'label=evo.p8v3.importer-owner=${owner}' --format '{{.ID}}|{{.Names}}')" || exit 1
 [[ -z "$final_owned" ]] || errors=1
+if [[ -n "$expected_id" ]]; then
+  printf '%s\n' "$final_inventory" | awk -F '|' -v id="$expected_id" '$1 == id { found=1 } END { exit found ? 0 : 1 }' && errors=1
+fi
 printf '%s\n' "$final_inventory" | awk -F '|' '$2 == "${IMPORTER}" { found=1 } END { exit found ? 0 : 1 }' && errors=1
 exit "$errors"
 `;
@@ -1246,7 +1272,7 @@ mv '${incoming}' '${REMOTE_RESULT}'
 [[ "$(stat -c '%U:%G %a' '${EVIDENCE_ROOT}')" == 'root:root 700' ]]
 [[ "$(stat -c '%U:%G %a' '${REMOTE_RESULT}')" == 'root:root 600' ]]
 [[ "$(sha256sum '${REMOTE_RESULT}' | awk '{print $1}')" == '${hash}' ]]
-[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3i-rollout-result.json' ]]
+[[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3j-rollout-result.json' ]]
 `;
 }
 
@@ -1259,7 +1285,7 @@ export function renderP8V3ShellContractsForTest() {
     stageFinalize: stageFinalizeScript({ sha256: "a".repeat(64), size: 1 }),
     loadImages: loadImagesScript(),
     importerCreate: importerCreateScript("a".repeat(32), { sha256: "a".repeat(64), size: 1 }),
-    knowledgeCleanup: knowledgeCleanupScript("a".repeat(32)),
+    knowledgeCleanup: knowledgeCleanupScript("a".repeat(32), { importerId: "b".repeat(64) }),
     deployCrm: deployScript("crm"),
     deployInbox: deployScript("inbox"),
     deployLead: deployScript("lead_agent"),
@@ -1270,12 +1296,12 @@ export function renderP8V3ShellContractsForTest() {
   });
 }
 
-export function renderP8V3KnowledgeCleanupForTest({ releaseRoot, knowledgeRemote }) {
+export function renderP8V3KnowledgeCleanupForTest({ importerId = "", releaseRoot, knowledgeRemote }) {
   const safePath = /^\/[A-Za-z0-9._/-]+$/;
   if (!safePath.test(releaseRoot) || !safePath.test(knowledgeRemote) || dirname(knowledgeRemote) !== releaseRoot) {
     fail("P8V3 cleanup test path drifted", "knowledge_failed");
   }
-  return knowledgeCleanupScript("a".repeat(32), { releaseRoot, knowledgeRemote });
+  return knowledgeCleanupScript("a".repeat(32), { importerId, releaseRoot, knowledgeRemote });
 }
 
 export function validateP8V3EvidencePrivacy(raw) {
@@ -1406,6 +1432,7 @@ export async function createP8V3ProductionOperations({
         archives: Object.values(P8V3_IMAGES).map(({ name, sha256: archiveSha256, size, index, platform }) => ({ name, sha256: archiveSha256, size, index, platform })),
         gemini: { ...gemini, ...retrievalProvider },
         importer,
+        importer_network: { name: IMPORTER_NETWORK, driver: "bridge", scope: "local", internal: false, dns: "127.0.0.11" },
         compose_validated: true,
         prerequisites_verified: output.includes("prerequisites_verified\n"),
       };
@@ -1510,7 +1537,7 @@ export async function createP8V3ProductionOperations({
 
     async cleanupKnowledge() {
       let error;
-      try { remote(run, knowledgeCleanupScript(state.importerOwner), { timeout: 120_000, label: "knowledge cleanup", code: "knowledge_failed" }); } catch (caught) { error = caught; }
+      try { remote(run, knowledgeCleanupScript(state.importerOwner, { importerId: state.importerId ?? "" }), { timeout: 120_000, label: "knowledge cleanup", code: "knowledge_failed" }); } catch (caught) { error = caught; }
       for (const root of state.localRoots.splice(0)) {
         try { rmSync(root, { recursive: true, force: false }); } catch (caught) { error ??= caught; }
       }

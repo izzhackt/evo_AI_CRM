@@ -10,7 +10,7 @@ const SHA64 = /^[0-9a-f]{64}$/;
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
 const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-export const P8V3_PREFLIGHT_VERSION = "p8v3i-production-preflight/v1";
+export const P8V3_PREFLIGHT_VERSION = "p8v3j-production-preflight/v1";
 export const P8V3_PREFLIGHT_WINDOW_MS = 30 * 60 * 1000;
 
 function fail(message) {
@@ -24,7 +24,7 @@ function exactKeys(value, keys, label) {
 }
 
 export function validateP8V3Preflight(value) {
-  exactKeys(value, ["version", "generated_at", "expires_at", "execution", "application", "containers", "waha", "migration", "archives", "gemini", "importer", "compose_validated", "prerequisites_verified"], "preflight");
+  exactKeys(value, ["version", "generated_at", "expires_at", "execution", "application", "containers", "waha", "migration", "archives", "gemini", "importer", "importer_network", "compose_validated", "prerequisites_verified"], "preflight");
   if (value.version !== P8V3_PREFLIGHT_VERSION || !UTC.test(value.generated_at) || !UTC.test(value.expires_at) || Date.parse(value.expires_at) - Date.parse(value.generated_at) !== P8V3_PREFLIGHT_WINDOW_MS) fail("preflight window drifted");
   exactKeys(value.execution, ["commit", "tree", "ci_run_id"], "preflight execution");
   if (!SHA40.test(value.execution.commit) || !SHA40.test(value.execution.tree) || !Number.isSafeInteger(value.execution.ci_run_id) || value.execution.ci_run_id < 1) fail("preflight execution drifted");
@@ -48,6 +48,8 @@ export function validateP8V3Preflight(value) {
   if (value.gemini.embedding_verified !== true || value.gemini.draft_verified !== true || value.gemini.retrieval_provider_verified !== true) fail("preflight Gemini drifted");
   exactKeys(value.importer, ["sha256", "size", "verified"], "preflight importer");
   if (!SHA64.test(value.importer.sha256) || !Number.isSafeInteger(value.importer.size) || value.importer.size < 1 || value.importer.size > 4 * 1024 * 1024 || value.importer.verified !== true) fail("preflight importer drifted");
+  exactKeys(value.importer_network, ["name", "driver", "scope", "internal", "dns"], "preflight importer network");
+  if (value.importer_network.name !== "evo_crm_private" || value.importer_network.driver !== "bridge" || value.importer_network.scope !== "local" || value.importer_network.internal !== false || value.importer_network.dns !== "127.0.0.11") fail("preflight importer network drifted");
   if (value.compose_validated !== true || value.prerequisites_verified !== true) fail("preflight readiness drifted");
   return value;
 }

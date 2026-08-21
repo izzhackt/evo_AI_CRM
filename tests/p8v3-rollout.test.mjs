@@ -81,7 +81,7 @@ function operations(overrides = {}) {
   };
   const execution = { commit: "d".repeat(40), tree: "e".repeat(40), ci_run_id: 123 };
   const preflight = {
-    version: "p8v3i-production-preflight/v1",
+    version: "p8v3j-production-preflight/v1",
     generated_at: "2026-08-20T05:55:00.000Z",
     expires_at: "2026-08-20T06:25:00.000Z",
     execution,
@@ -92,6 +92,7 @@ function operations(overrides = {}) {
     archives: ["crm", "inbox", "lead_agent"].map((name) => ({ name, sha256: SHA_A, size: 1, index: IMAGE_A, platform: IMAGE_B })),
     gemini: { embedding_verified: true, draft_verified: true, retrieval_provider_verified: true },
     importer: { sha256: SHA_A, size: 1, verified: true },
+    importer_network: { name: "evo_crm_private", driver: "bridge", scope: "local", internal: false, dns: "127.0.0.11" },
     compose_validated: true,
     prerequisites_verified: true,
   };
@@ -156,6 +157,7 @@ test("P8V3 preflight produces the closed short-lived handoff consumed by rollout
         archives: adapter.preflight.archives,
         gemini: adapter.preflight.gemini,
         importer: adapter.preflight.importer,
+        importer_network: adapter.preflight.importer_network,
         compose_validated: true,
         prerequisites_verified: true,
       }),
@@ -326,6 +328,10 @@ test("knowledge failure cleans temporary artifacts before any application deploy
   const schema = JSON.parse(readFileSync(join(process.cwd(), "docs/schemas/p8v-v1-rollout-result.schema.json"), "utf8"));
   const validate = new Ajv2020({ strict: false }).compile(schema);
   assert.equal(validate(missingReason), false);
+  const retainedP8V3I = structuredClone(result);
+  retainedP8V3I.authorization.id = P8V3.previousAuthorization;
+  assert.equal(validateP8V3Result(retainedP8V3I), retainedP8V3I);
+  assert.equal(validate(retainedP8V3I), true, JSON.stringify(validate.errors));
 });
 
 test("knowledge importer output maps only closed safe blocker codes into rollout errors", () => {
@@ -806,6 +812,7 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.match(source, /input: `\$\{geminiKey\}\\n`/);
   assert.match(source, /node '\/tmp\/\$\{IMPORTER_FILE\}'/);
   assert.doesNotMatch(source, /node \.next\/platform-knowledge-import\.mjs --audience/);
+  assert.match(source, /knowledgeCleanupScript\(state\.importerOwner, \{ importerId: state\.importerId \?\? "" \}\)/);
   assert.match(source, /account=sys\.stdin\.readline\(\)\.strip\(\)/);
   assert.doesNotMatch(source, /vault, accountId, audience/);
   assert.match(source, /os\.umask\(0o077\)/);
@@ -886,7 +893,7 @@ test("candidate Compose validation removes every disposable env after failure", 
 test("production inventory emits and accepts exact Compose container names", () => {
   const preflight = renderP8V3ShellContractsForTest().preflight;
   assert.match(preflight, /printf '%s\|' "\$name"/);
-  assert.doesNotMatch(preflight, /\{\{\.Name\}\}/);
+  assert.doesNotMatch(preflight, /docker inspect [^\n]+\{\{\.Name\}\}/);
 
   const rows = [
     `evo-crm-app-1|${SHA_A}|sha256:d4626208423df2c0df24262763917b82b1157b53a115b44f02478ecf7245f580|healthy|0|evo_crm_private,evo_public_web,`,
@@ -1086,9 +1093,128 @@ exit 1
   }
 });
 
+test("P8V3J cleanup cannot verify while the captured importer ID survives a rename and relabel", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3j-cleanup-captured-id-"));
+  const releaseRoot = join(fixture, "release");
+  const knowledgeRemote = join(releaseRoot, "knowledge-incoming");
+  const fakeBin = join(fixture, "bin");
+  const docker = join(fakeBin, "docker");
+  const removalMarker = join(fixture, "removed");
+  const containerId = "e".repeat(64);
+  try {
+    mkdirSync(fakeBin);
+    writeFileSync(
+      docker,
+      `#!/bin/sh
+if [ "$1" = "container" ] && [ "$2" = "ls" ]; then
+  case "$*" in
+    *'--filter label=evo.p8v3.importer-owner='*) exit 0 ;;
+    *) printf '%s\\n' '${containerId}|renamed-and-relabeled-importer'; exit 0 ;;
+  esac
+fi
+if [ "$1" = "rm" ]; then
+  : > "$REMOVAL_MARKER"
+  exit 0
+fi
+exit 1
+`,
+      { mode: 0o700 },
+    );
+    chmodSync(docker, 0o700);
+
+    const result = spawnSync("bash", ["-seu"], {
+      input: renderP8V3KnowledgeCleanupForTest({ importerId: containerId, releaseRoot, knowledgeRemote }),
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, REMOVAL_MARKER: removalMarker },
+    });
+    assert.notEqual(result.status, 0);
+    assert.equal(existsSync(removalMarker), false);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
 test("every reviewed remote shell contract parses under bash", () => {
   for (const [name, script] of Object.entries(renderP8V3ShellContractsForTest())) {
     const parsed = spawnSync("bash", ["-n"], { input: script, encoding: "utf8" });
     assert.equal(parsed.status, 0, `${name}: ${parsed.stderr}`);
+  }
+});
+
+test("P8V3J importer uses the CRM private network and verifies Docker DNS before copy", () => {
+  const { preflight, importerCreate } = renderP8V3ShellContractsForTest();
+
+  assert.match(
+    preflight,
+    /docker network inspect 'evo_crm_private' --format '\{\{\.Name\}\}\|\{\{\.Driver\}\}\|\{\{\.Scope\}\}\|\{\{\.Internal\}\}'/,
+  );
+  assert.match(importerCreate, /docker create[^\n]+--network 'evo_crm_private'/);
+  assert.match(importerCreate, /NetworkSettings\.Networks/);
+  assert.match(importerCreate, /== 'evo_crm_private'/);
+  assert.match(importerCreate, /\/etc\/resolv\.conf/);
+  assert.match(importerCreate, /== '127\.0\.0\.11'/);
+  assert.ok(
+    importerCreate.indexOf("== '127.0.0.11'") < importerCreate.indexOf("docker cp"),
+    "network and resolver verification must precede importer copy",
+  );
+  assert.doesNotMatch(importerCreate, /--network '(?:bridge|evo_public_web|host)'/);
+});
+
+test("P8V3J importer blocks network or resolver drift before copy and cleans its owned ID", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3j-importer-network-"));
+  const fakeBin = join(fixture, "bin");
+  const dockerLog = join(fixture, "docker.log");
+  const docker = join(fakeBin, "docker");
+  const containerId = "b".repeat(64);
+  mkdirSync(fakeBin, { mode: 0o700 });
+  writeFileSync(docker, `#!/bin/bash
+set -eu
+printf '%s\\n' "$*" >> "$DOCKER_LOG"
+case "$1" in
+  container) exit 0 ;;
+  create) printf '%s\\n' '${containerId}'; exit 0 ;;
+  start) exit 0 ;;
+  inspect)
+    case "\${4:-}" in
+      '{{.Name}}') printf '%s\\n' '/evo-p8v3j-knowledge-import' ;;
+      '{{.Image}}') printf '%s\\n' '${P8V3_IMAGES.crm.platform}' ;;
+      '{{index .Config.Labels "evo.p8v3.importer-owner"}}') printf '%s\\n' '${"a".repeat(32)}' ;;
+      '{{.State.Running}}') printf '%s\\n' 'true' ;;
+      '{{range $k,$v := .NetworkSettings.Networks}}{{$k}},{{end}}') printf '%s\\n' "$NETWORK_VALUE," ;;
+      *) exit 2 ;;
+    esac
+    ;;
+  exec)
+    if [[ "\${3:-}" == 'awk' ]]; then printf '%s\\n' "$DNS_VALUE"; exit 0; fi
+    exit 2
+    ;;
+  rm) exit 0 ;;
+  cp) exit 99 ;;
+  *) exit 2 ;;
+esac
+`, { mode: 0o700 });
+  chmodSync(docker, 0o700);
+
+  try {
+    for (const [network, dns] of [["evo_public_web", "127.0.0.11"], ["evo_crm_private", "8.8.8.8"]]) {
+      rmSync(dockerLog, { force: true });
+      const result = spawnSync("bash", ["-seu"], {
+        input: renderP8V3ShellContractsForTest().importerCreate,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${fakeBin}:${process.env.PATH}`,
+          DOCKER_LOG: dockerLog,
+          NETWORK_VALUE: network,
+          DNS_VALUE: dns,
+        },
+      });
+      assert.notEqual(result.status, 0, `${network}/${dns} unexpectedly passed`);
+      const calls = readFileSync(dockerLog, "utf8").trim().split("\n");
+      assert.equal(calls.some((call) => call.startsWith("cp ")), false, calls.join("\n"));
+      assert.equal(calls.at(-1), `rm -f ${containerId}`);
+    }
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
   }
 });

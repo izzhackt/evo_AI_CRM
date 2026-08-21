@@ -61,7 +61,11 @@ async function main(): Promise<void> {
   }
   const audience = arg("--audience");
   if (audience !== "client" && audience !== "internal") throw new Error("--audience must be client or internal");
-  const accountId = resolveConfiguredPlatformKnowledgeAccountId(arg("--account-id"));
+  const accountId = resolveConfiguredPlatformKnowledgeAccountId(
+    process.argv.includes("--account-id")
+      ? arg("--account-id")
+      : environment("EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID", "account_binding_failed"),
+  );
   const bundlePath = arg("--bundle");
   const manifestPath = arg("--manifest");
   let bundleBytes: Buffer;

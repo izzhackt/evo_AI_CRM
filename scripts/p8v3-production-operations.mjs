@@ -32,6 +32,9 @@ const RELEASE_ID = "2026-08-21.p8v3k.1";
 const RELEASE_VERSION = "p8v3k-0f1454d0-20260821";
 const RELEASE_ROOT = `/opt/evo-releases/${P8V3.applicationCommit}/${RELEASE_ID}`;
 const PREFLIGHT_ROOT = "/opt/evo-release-preflight/p8v3k-20260821.1";
+const PREFLIGHT_OWNER_FILE = ".p8v3k-owner";
+const PREFLIGHT_PARENT = dirname(PREFLIGHT_ROOT);
+const PREFLIGHT_PREFIX = basename(PREFLIGHT_ROOT);
 const REMOTE_REPO = `${RELEASE_ROOT}/repo`;
 const REMOTE_ARCHIVES = `${RELEASE_ROOT}/archives`;
 const KNOWLEDGE_REMOTE = `${RELEASE_ROOT}/knowledge-incoming`;
@@ -181,6 +184,18 @@ function fail(message, code = "verification_failed", reasonCode) {
   error.code = code;
   if (reasonCode !== undefined) error.reasonCode = reasonCode;
   throw error;
+}
+
+function enrichKnowledgeCleanupFailure(error, record) {
+  const enriched = error instanceof Error ? error : new Error("knowledge job cleanup failed");
+  enriched.code = "knowledge_failed";
+  enriched.reasonCode = "transport_failed";
+  enriched.appliedKnowledgeRecord = structuredClone(record);
+  return enriched;
+}
+
+export function enrichP8V3KnowledgeCleanupFailureForTest(error, record) {
+  return enrichKnowledgeCleanupFailure(error, record);
 }
 
 function sha256(bytes) {
@@ -395,7 +410,12 @@ export function parseP8V3ContainerRowsForTest(text) {
   return parseContainerRows(text);
 }
 
-function preflightRemoteScript() {
+function preflightRootForOwner(owner) {
+  if (!IMPORTER_OWNER.test(owner)) fail("P8V3K preflight owner is invalid", "preflight_drift");
+  return `${PREFLIGHT_ROOT}-${owner}`;
+}
+
+function preflightRemoteScript({ preflightRoot }) {
   const allowlist = REQUIRED_ROLLBACK_FILES.join("\n");
   const hashes = REQUIRED_ROLLBACK_FILES.map((name) => `${name}|${ROLLBACK_SHA256[name]}`).join("\n");
   return String.raw`
@@ -403,6 +423,12 @@ function preflightRemoteScript() {
 [[ ! -e '${CONFIG_ROLLBACK_ROOT}' && ! -L '${CONFIG_ROLLBACK_ROOT}' ]]
 [[ ! -e '${EVIDENCE_ROOT}' && ! -L '${EVIDENCE_ROOT}' ]]
 [[ ! -e '${PREFLIGHT_ROOT}' && ! -L '${PREFLIGHT_ROOT}' ]]
+[[ ! -e '${preflightRoot}' && ! -L '${preflightRoot}' ]]
+if [[ -e '${PREFLIGHT_PARENT}' || -L '${PREFLIGHT_PARENT}' ]]; then
+  [[ -d '${PREFLIGHT_PARENT}' && ! -L '${PREFLIGHT_PARENT}' ]]
+  p8v3k_preflight_roots="$(find '${PREFLIGHT_PARENT}' -mindepth 1 -maxdepth 1 -name '${PREFLIGHT_PREFIX}-*' -print)" || exit 2
+  [[ -z "$p8v3k_preflight_roots" ]] || exit 2
+fi
 p8v3k_container_inventory="$(docker container ls -a --no-trunc --format '{{.ID}}|{{.Names}}')" || exit 2
 p8v3k_target="$(printf '%s\n' "$p8v3k_container_inventory" | awk -F '|' '$2 == "${IMPORTER}" { print $1 }')"
 [[ -z "$p8v3k_target" ]] || exit 2
@@ -963,29 +989,40 @@ install -d -o root -g root -m 0700 '${RELEASE_ROOT}' '${REMOTE_REPO}' '${REMOTE_
 `;
 }
 
-function preflightPrepareScript() {
+function preflightPrepareScript({ preflightRoot, owner }) {
+  if (!IMPORTER_OWNER.test(owner)) fail("P8V3K preflight prepare owner is invalid", "preflight_drift");
   return String.raw`
 umask 077
-[[ ! -e '${PREFLIGHT_ROOT}' && ! -L '${PREFLIGHT_ROOT}' ]]
-install -d -o root -g root -m 0700 '${PREFLIGHT_ROOT}'
+[[ ! -e '${preflightRoot}' && ! -L '${preflightRoot}' ]]
+install -d -o root -g root -m 0700 '${preflightRoot}'
+printf '%s\n' '${owner}' > '${preflightRoot}/${PREFLIGHT_OWNER_FILE}'
+chown root:root '${preflightRoot}/${PREFLIGHT_OWNER_FILE}'
+chmod 0600 '${preflightRoot}/${PREFLIGHT_OWNER_FILE}'
+[[ "$(stat -c '%U:%G %a' '${preflightRoot}/${PREFLIGHT_OWNER_FILE}')" == 'root:root 600' ]]
+[[ "$(cat '${preflightRoot}/${PREFLIGHT_OWNER_FILE}')" == '${owner}' ]]
 `;
 }
 
-function preflightFinalizeScript(importer) {
+function preflightFinalizeScript(importer, { preflightRoot, owner }) {
+  if (!IMPORTER_OWNER.test(owner)) fail("P8V3K preflight finalize owner is invalid", "preflight_drift");
   return String.raw`
-[[ -d '${PREFLIGHT_ROOT}' && ! -L '${PREFLIGHT_ROOT}' ]]
-[[ "$(stat -c '%U:%G %a' '${PREFLIGHT_ROOT}')" == 'root:root 700' ]]
-[[ -f '${PREFLIGHT_ROOT}/${IMPORTER_FILE}' && ! -L '${PREFLIGHT_ROOT}/${IMPORTER_FILE}' ]]
-[[ "$(stat -c '%U:%G %a %s' '${PREFLIGHT_ROOT}/${IMPORTER_FILE}')" == 'root:root 600 ${importer.size}' ]]
-[[ "$(sha256sum '${PREFLIGHT_ROOT}/${IMPORTER_FILE}' | awk '{print $1}')" == '${importer.sha256}' ]]
-chown root:1001 '${PREFLIGHT_ROOT}/${IMPORTER_FILE}'
-chmod 0640 '${PREFLIGHT_ROOT}/${IMPORTER_FILE}'
-[[ "$(stat -c '%U:%G %a %s' '${PREFLIGHT_ROOT}/${IMPORTER_FILE}')" == 'root:1001 640 ${importer.size}' ]]
+[[ -d '${preflightRoot}' && ! -L '${preflightRoot}' ]]
+[[ "$(stat -c '%U:%G %a' '${preflightRoot}')" == 'root:root 700' ]]
+[[ -f '${preflightRoot}/${PREFLIGHT_OWNER_FILE}' && ! -L '${preflightRoot}/${PREFLIGHT_OWNER_FILE}' ]]
+[[ "$(stat -c '%U:%G %a' '${preflightRoot}/${PREFLIGHT_OWNER_FILE}')" == 'root:root 600' ]]
+[[ "$(cat '${preflightRoot}/${PREFLIGHT_OWNER_FILE}')" == '${owner}' ]]
+[[ -f '${preflightRoot}/${IMPORTER_FILE}' && ! -L '${preflightRoot}/${IMPORTER_FILE}' ]]
+[[ "$(stat -c '%U:%G %a %s' '${preflightRoot}/${IMPORTER_FILE}')" == 'root:root 600 ${importer.size}' ]]
+[[ "$(sha256sum '${preflightRoot}/${IMPORTER_FILE}' | awk '{print $1}')" == '${importer.sha256}' ]]
+chown root:1001 '${preflightRoot}/${IMPORTER_FILE}'
+chmod 0640 '${preflightRoot}/${IMPORTER_FILE}'
+[[ "$(stat -c '%U:%G %a %s' '${preflightRoot}/${IMPORTER_FILE}')" == 'root:1001 640 ${importer.size}' ]]
 `;
 }
 
-function preflightCleanupScript({ preflightRoot = PREFLIGHT_ROOT, importerSha256 = null, importerSize = null, owner = null } = {}) {
-  if (owner !== null && !IMPORTER_OWNER.test(owner)) fail("P8V3K preflight cleanup owner is invalid", "preflight_drift");
+function preflightCleanupScript({ preflightRoot = PREFLIGHT_ROOT, importerSha256 = null, importerSize = null, owner = null, expectedUid = 0, expectedGid = 0 } = {}) {
+  if (!IMPORTER_OWNER.test(owner ?? "")) fail("P8V3K preflight cleanup owner is invalid", "preflight_drift");
+  if (![expectedUid, expectedGid].every((value) => Number.isInteger(value) && value >= 0)) fail("P8V3K preflight cleanup identity is invalid", "preflight_drift");
   if ((importerSha256 === null) !== (importerSize === null) || (importerSha256 !== null && (!SHA64.test(importerSha256) || !Number.isSafeInteger(importerSize) || importerSize < 1))) {
     fail("P8V3K preflight cleanup importer identity is invalid", "preflight_drift");
   }
@@ -994,18 +1031,26 @@ function preflightCleanupScript({ preflightRoot = PREFLIGHT_ROOT, importerSha256
 set +e
 errors=0
 ${knowledgeContainerCleanupBody(expectedOwner)}
-[[ "$errors" == '0' ]] || exit "$errors"
+[[ "$errors" == '0' ]] || exit 2
 python3 - <<'PY' || errors=1
 import hashlib, stat
 from pathlib import Path
 root = Path('${preflightRoot}')
 importer = root/'${IMPORTER_FILE}'
+marker = root/'${PREFLIGHT_OWNER_FILE}'
 if root.is_symlink(): raise SystemExit(2)
 if not root.exists(): raise SystemExit(0)
 root_metadata = root.lstat()
-if not root.is_dir() or root_metadata.st_uid != 0 or root_metadata.st_gid != 0 or stat.S_IMODE(root_metadata.st_mode) != 0o700: raise SystemExit(2)
+if not root.is_dir() or root_metadata.st_uid != ${expectedUid} or root_metadata.st_gid != ${expectedGid} or stat.S_IMODE(root_metadata.st_mode) != 0o700: raise SystemExit(2)
 entries = list(root.iterdir())
-if {entry.name for entry in entries} - {'${IMPORTER_FILE}'}: raise SystemExit(2)
+if {entry.name for entry in entries} - {'${IMPORTER_FILE}', '${PREFLIGHT_OWNER_FILE}'}: raise SystemExit(2)
+if marker.is_symlink(): raise SystemExit(2)
+if marker.exists():
+    marker_metadata = marker.lstat()
+    if not stat.S_ISREG(marker_metadata.st_mode) or marker_metadata.st_uid != ${expectedUid} or marker_metadata.st_gid != ${expectedGid} or stat.S_IMODE(marker_metadata.st_mode) != 0o600: raise SystemExit(2)
+    if marker.read_bytes() != b'${owner ?? ""}\n': raise SystemExit(2)
+elif entries:
+    raise SystemExit(2)
 if importer.is_symlink(): raise SystemExit(2)
 if importer.exists():
     metadata = importer.lstat()
@@ -1013,7 +1058,8 @@ if importer.exists():
     if not stat.S_ISREG(metadata.st_mode) or importer_state not in {(0, 0, 0o600), (0, 1001, 0o640)}: raise SystemExit(2)
     if '${importerSha256 ?? ""}' == '' or metadata.st_size != ${importerSize ?? 0} or hashlib.sha256(importer.read_bytes()).hexdigest() != '${importerSha256 ?? ""}': raise SystemExit(2)
     importer.unlink()
-if importer.exists() or importer.is_symlink() or any(root.iterdir()): raise SystemExit(2)
+if marker.exists(): marker.unlink()
+if importer.exists() or importer.is_symlink() or marker.exists() or marker.is_symlink() or any(root.iterdir()): raise SystemExit(2)
 root.rmdir()
 if root.exists() or root.is_symlink(): raise SystemExit(2)
 PY
@@ -1127,8 +1173,8 @@ docker compose --ansi never --progress quiet --project-name '${composeProject("c
 `.trimEnd();
 }
 
-function providerProbeCommand(owner, importer) {
-  const importerRemote = `${PREFLIGHT_ROOT}/${IMPORTER_FILE}`;
+function providerProbeCommand(owner, importer, preflightRoot) {
+  const importerRemote = `${preflightRoot}/${IMPORTER_FILE}`;
   return String.raw`
 set -u
 IFS= read -r EVO_PLATFORM_GEMINI_API_KEY
@@ -1165,7 +1211,7 @@ set -eu
 [[ "$(id -u):$(id -g)" == '1001:1001' ]]
 [[ "$(awk '$1=="nameserver"{print $2; exit}' /etc/resolv.conf)" == '127.0.0.11' ]]
 [[ "$EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID" == "$EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID" ]]
-node '${IMPORTER_MOUNT}' --audience '${item.audience}' --bundle '${BUNDLE_MOUNT}' --manifest '${MANIFEST_MOUNT}' --account-id "$EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID"
+node '${IMPORTER_MOUNT}' --audience '${item.audience}' --bundle '${BUNDLE_MOUNT}' --manifest '${MANIFEST_MOUNT}'
 `)}
 `;
 }
@@ -1487,8 +1533,9 @@ mv '${incoming}' '${REMOTE_RESULT}'
 export function renderP8V3ShellContractsForTest() {
   const importer = { sha256: "a".repeat(64), size: 1234 };
   const owner = "a".repeat(48);
+  const preflightRoot = preflightRootForOwner(owner);
   return Object.freeze({
-    preflight: preflightRemoteScript(),
+    preflight: preflightRemoteScript({ preflightRoot }),
     configurationInstall: configurationInstallScript(),
     configurationRestore: configurationRestoreScript(),
     stagePrepare: stagePrepareScript(),
@@ -1501,8 +1548,9 @@ export function renderP8V3ShellContractsForTest() {
       bundleSha256: "a".repeat(64),
       manifestSha256: "b".repeat(64),
     }),
-    providerProbe: providerProbeCommand(owner, importer),
-    preflightCleanup: preflightCleanupScript({ importerSha256: importer.sha256, importerSize: importer.size, owner }),
+    providerProbe: providerProbeCommand(owner, importer, preflightRoot),
+    preflightPrepare: preflightPrepareScript({ preflightRoot, owner }),
+    preflightCleanup: preflightCleanupScript({ preflightRoot, importerSha256: importer.sha256, importerSize: importer.size, owner }),
     knowledgeImport: knowledgeImportCommand({
       audience: "client",
       bundleName: "evo-knowledge-client.json",
@@ -1535,9 +1583,19 @@ export function renderP8V3KnowledgeCleanupForTest({
   return knowledgeCleanupScript({ releaseRoot, knowledgeRemote, owner, importerSha256, importerSize, expectedFiles });
 }
 
-export function renderP8V3PreflightCleanupForTest({ preflightRoot, owner = "a".repeat(48) }) {
+export function renderP8V3PreflightCleanupForTest({
+  preflightRoot,
+  owner = "a".repeat(48),
+  expectedUid = typeof process.getuid === "function" ? process.getuid() : 0,
+  expectedGid = typeof process.getgid === "function" ? process.getgid() : 0,
+}) {
   if (!/^\/[A-Za-z0-9._/-]+$/.test(preflightRoot)) fail("P8V3 preflight cleanup test path drifted", "preflight_drift");
-  return preflightCleanupScript({ preflightRoot, owner });
+  return preflightCleanupScript({ preflightRoot, owner, expectedUid, expectedGid });
+}
+
+export function renderP8V3PreflightPrepareForTest({ preflightRoot, owner = "a".repeat(48) }) {
+  if (!/^\/[A-Za-z0-9._/-]+$/.test(preflightRoot)) fail("P8V3 preflight prepare test path drifted", "preflight_drift");
+  return preflightPrepareScript({ preflightRoot, owner });
 }
 
 export function validateP8V3EvidencePrivacy(raw) {
@@ -1649,21 +1707,26 @@ export async function createP8V3ProductionOperations({
       const importer = buildVerifiedImporterArtifact(run, source);
       try {
         verifyRemoteCommandForms(run);
-        const output = remote(run, preflightRemoteScript(), { timeout: 120_000, label: "minimal production preflight", code: "preflight_drift" }).stdout;
+        const providerOwner = randomBytes(24).toString("hex");
+        const providerPreflightRoot = preflightRootForOwner(providerOwner);
+        const output = remote(run, preflightRemoteScript({ preflightRoot: providerPreflightRoot }), { timeout: 120_000, label: "minimal production preflight", code: "preflight_drift" }).stdout;
         const inventory = output.split("\n").filter((line) => line.split("|").length === 6).join("\n");
         const containers = parseContainerRows(inventory);
         const wahaCrm = containers.find((item) => item.name === "evo-crm-waha-1");
         const wahaInbox = containers.find((item) => item.name === "evo-inbox-waha");
-        const providerOwner = randomBytes(24).toString("hex");
-        remote(run, preflightPrepareScript(), { timeout: 120_000, label: "provider probe root", code: "preflight_drift" });
+        let providerPrepareAttempted = false;
         try {
-          runChecked(run, "provider probe importer transfer", "scp", [join(importer.root, IMPORTER_FILE), `${HERMES}:${PREFLIGHT_ROOT}/${IMPORTER_FILE}`], { timeout: 120_000, code: "preflight_drift" });
-          remote(run, preflightFinalizeScript(importer), { timeout: 120_000, label: "provider probe importer", code: "preflight_drift" });
-          const providerProbe = run("ssh", commandSshArgs(providerProbeCommand(providerOwner, importer)), { input: `${geminiKey}\n`, timeout: 120_000, label: "server compose provider probe", code: "preflight_drift" });
+          providerPrepareAttempted = true;
+          remote(run, preflightPrepareScript({ preflightRoot: providerPreflightRoot, owner: providerOwner }), { timeout: 120_000, label: "provider probe root", code: "preflight_drift" });
+          runChecked(run, "provider probe importer transfer", "scp", [join(importer.root, IMPORTER_FILE), `${HERMES}:${providerPreflightRoot}/${IMPORTER_FILE}`], { timeout: 120_000, code: "preflight_drift" });
+          remote(run, preflightFinalizeScript(importer, { preflightRoot: providerPreflightRoot, owner: providerOwner }), { timeout: 120_000, label: "provider probe importer", code: "preflight_drift" });
+          const providerProbe = run("ssh", commandSshArgs(providerProbeCommand(providerOwner, importer, providerPreflightRoot)), { input: `${geminiKey}\n`, timeout: 120_000, label: "server compose provider probe", code: "preflight_drift" });
           if (providerProbe.stderr !== "" || providerProbe.stdout.includes(geminiKey) || providerProbe.stderr.includes(geminiKey)) fail("provider probe output is unsafe", "preflight_drift");
           state.serverComposeVerified = parseP8V3ProviderProbeOutput(providerProbe.stdout).server_compose_verified;
         } finally {
-          remote(run, preflightCleanupScript({ importerSha256: importer.sha256, importerSize: importer.size, owner: providerOwner }), { timeout: 120_000, label: "provider probe cleanup", code: "preflight_drift" });
+          if (providerPrepareAttempted) {
+            remote(run, preflightCleanupScript({ preflightRoot: providerPreflightRoot, importerSha256: importer.sha256, importerSize: importer.size, owner: providerOwner }), { timeout: 120_000, label: "provider probe cleanup", code: "preflight_drift" });
+          }
         }
         state.preState = containers;
         return {
@@ -1693,7 +1756,8 @@ export async function createP8V3ProductionOperations({
       if (ledger.range !== "001-077" || ledger.count !== 77) fail("production migration ledger changed after preflight", "preflight_drift");
       await readRetrievalProvider(management);
       verifyRemoteCommandForms(run);
-      const output = remote(run, preflightRemoteScript(), { timeout: 120_000, label: "production preflight revalidation", code: "preflight_drift" }).stdout;
+      const revalidationRoot = preflightRootForOwner(randomBytes(24).toString("hex"));
+      const output = remote(run, preflightRemoteScript({ preflightRoot: revalidationRoot }), { timeout: 120_000, label: "production preflight revalidation", code: "preflight_drift" }).stdout;
       const inventory = output.split("\n").filter((line) => line.split("|").length === 6).join("\n");
       const containers = parseContainerRows(inventory);
       if (JSON.stringify(containers) !== JSON.stringify(snapshot.containers)) fail("production containers changed after preflight", "preflight_drift");
@@ -1784,7 +1848,9 @@ export async function createP8V3ProductionOperations({
             remote(run, knowledgeJobCleanupScript({ owner }), { timeout: 120_000, label: `${audience} knowledge job cleanup`, code: "knowledge_failed" });
             state.currentImporterOwner = null;
           } catch (cleanupError) {
-            operationError = cleanupError;
+            operationError = record === undefined
+              ? cleanupError
+              : enrichKnowledgeCleanupFailure(cleanupError, record);
           }
         }
       }

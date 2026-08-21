@@ -281,6 +281,8 @@ export function validateP8V3Result(value) {
   if (!["not_required", "verified", "failed"].includes(value.rollback.status) || !Array.isArray(value.rollback.boundaries) || value.rollback.boundaries.some((item) => !BOUNDARY_NAMES.includes(item)) || typeof value.rollback.configuration_restored !== "boolean") fail("rollback evidence drifted");
   exactKeys(value.effects, ["migration_applied", "knowledge_imports", "application_recreates", "waha_recreates", "amo_writes", "whatsapp_sends", "staff_draft_calls"], "effects");
   if (![value.effects.migration_applied, value.effects.knowledge_imports, value.effects.application_recreates].every(Number.isSafeInteger) || value.effects.migration_applied < 0 || value.effects.migration_applied > 1 || value.effects.knowledge_imports < 0 || value.effects.knowledge_imports > 2 || value.effects.application_recreates < 0 || value.effects.application_recreates > 3 || value.effects.waha_recreates !== 0 || value.effects.amo_writes !== 0 || value.effects.whatsapp_sends !== 0 || value.effects.staff_draft_calls !== 0) fail("effect counters drifted");
+  const verifiedKnowledgeImports = value.knowledge.audiences.filter((item) => item.status === "verified").length;
+  if (value.effects.knowledge_imports !== verifiedKnowledgeImports || (value.knowledge.audiences[1].status === "verified" && value.knowledge.audiences[0].status !== "verified")) fail("knowledge effect evidence drifted");
   if (value.migration.status === "observed_applied" && (value.steps[1].status !== "failed" || value.effects.migration_applied !== 1 || !["rollout_failed_reconciliation_required", "evidence_failed"].includes(value.result_code))) fail("ambiguous applied migration evidence drifted");
   const noOpMigrationAuthorization = ACCEPTED_AUTHORIZATIONS.includes(value.authorization.id);
   if (noOpMigrationAuthorization && value.migration.status === "observed_applied") fail("P8V3E-P8V3K cannot report a newly applied migration");
@@ -400,10 +402,22 @@ export async function runP8V3Rollout({ operations, authorization, preflight, pre
     if (stepIndex >= 0 && stepIndex < result.steps.length && result.steps[stepIndex].status !== "failed") result.steps[stepIndex].status = "failed";
     const failedStep = STEP_NAMES[stepIndex] ?? "pre_state";
     result.failure = { step: failedStep, code: failureCode(error, failedStep) };
+    let cleanupFailed = false;
     if (["client_import", "internal_import"].includes(failedStep)) {
       result.failure.reason_code = KNOWLEDGE_REASON_CODES.has(error?.reasonCode) ? error.reasonCode : "transport_failed";
+      if (error?.appliedKnowledgeRecord !== undefined) {
+        const audienceIndex = failedStep === "client_import" ? 0 : 1;
+        const audience = audienceIndex === 0 ? "client" : "internal";
+        try {
+          validateAudience(error.appliedKnowledgeRecord, audience, audienceIndex === 0 ? 11 : 291);
+          result.knowledge.audiences[audienceIndex] = structuredClone(error.appliedKnowledgeRecord);
+          result.effects.knowledge_imports = result.knowledge.audiences.filter((item) => item.status === "verified").length;
+        } catch {
+          result.failure.code = "verification_failed";
+          cleanupFailed = true;
+        }
+      }
     }
-    let cleanupFailed = false;
     if (knowledgeStarted) {
       try {
         await operations.cleanupKnowledge();

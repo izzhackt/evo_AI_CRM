@@ -16,6 +16,7 @@ import {
   commandSshArgs,
   createP8V3ProductionOperations,
   createP8V3PublicRestReader,
+  enrichP8V3KnowledgeCleanupFailureForTest,
   P8V3_IMAGES,
   parseP8V3KnowledgeImporterOutputForTest,
   parseP8V3ProviderProbeOutputForTest,
@@ -187,6 +188,49 @@ test("a failed current boundary rolls back apps but retains forward-only reconci
   assert.equal(adapter.calls.includes("rollback:lead_agent,inbox,crm"), true);
   assert.equal(result.steps[6].status, "failed");
   assert.equal(result.effects.application_recreates, 2);
+});
+
+test("a cleanup failure after a verified knowledge sync retains the applied import evidence", async () => {
+  const applied = {
+    name: "client",
+    status: "verified",
+    document_count: 11,
+    chunk_count: 20,
+    bundle_sha256: SHA_A,
+    manifest_sha256: SHA_B,
+    database_revision_sha256: SHA_C,
+  };
+  const adapter = operations({
+    async importKnowledge(name) {
+      this.calls.push(`importKnowledge:${name}`);
+      throw enrichP8V3KnowledgeCleanupFailureForTest(new Error("cleanup failed"), applied);
+    },
+  });
+  const result = await runP8V3Rollout({
+    operations: adapter,
+    authorization: P8V3.authorization,
+    preflight: adapter.preflight,
+    preflightSha256: SHA_A,
+    now: () => Date.parse("2026-08-20T06:00:00.000Z"),
+  });
+
+  assert.equal(result.result_code, "rollout_failed_reconciliation_required");
+  assert.equal(result.failure.step, "client_import");
+  assert.equal(result.failure.reason_code, "transport_failed");
+  assert.equal(result.steps[2].status, "failed");
+  assert.deepEqual(result.knowledge.audiences[0], applied);
+  assert.equal(result.knowledge.audiences[1].status, "not_run");
+  assert.equal(result.effects.knowledge_imports, 1);
+  assert.equal(adapter.calls.includes("cleanupKnowledge"), true);
+  assert.equal(adapter.calls.some((call) => call.startsWith("deploy:")), false);
+
+  const schema = JSON.parse(readFileSync(join(process.cwd(), "docs/schemas/p8v-v1-rollout-result.schema.json"), "utf8"));
+  const validate = new Ajv2020({ strict: false }).compile(schema);
+  assert.equal(validate(result), true, JSON.stringify(validate.errors));
+  const contradictory = structuredClone(result);
+  contradictory.effects.knowledge_imports = 0;
+  assert.throws(() => validateP8V3Result(contradictory), /knowledge effect evidence drifted/);
+  assert.equal(validate(contradictory), false);
 });
 
 test("configuration failure is recorded inside pre-state and restoration is attempted", async () => {
@@ -641,7 +685,7 @@ test("P8V3F configuration restore validates the complete rollback root before mu
   const positive = createConfigurationRollbackFixture();
   try {
     const result = runConfigurationRestore(positive);
-    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.equal(readFileSync(join(positive.crmRoot, ".env.production"), "utf8"), "old-root\n");
     assert.equal(readFileSync(join(positive.crmRoot, ".env.lead-agent"), "utf8"), "old-lead\n");
     assert.equal(existsSync(join(positive.crmRoot, ".env.manual-send-worker")), false);
@@ -843,7 +887,10 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.match(source, /run\("ssh", configurationSshArgs\(\),/);
   assert.match(source, /input: `\$\{geminiKey\}\\n`/);
   assert.match(source, /snapshot\.gemini\?\.server_compose_verified !== true/);
-  assert.match(source, /providerProbeCommand\(providerOwner, importer\)/);
+  assert.match(source, /providerProbeCommand\(providerOwner, importer, providerPreflightRoot\)/);
+  assert.ok(source.indexOf("providerPrepareAttempted = true") < source.indexOf("preflightPrepareScript({ preflightRoot: providerPreflightRoot"));
+  assert.ok(source.indexOf("preflightPrepareScript({ preflightRoot: providerPreflightRoot") < source.indexOf("if (providerPrepareAttempted)"));
+  assert.match(source, /preflightCleanupScript\(\{ preflightRoot: providerPreflightRoot/);
   assert.match(source, /state\.serverComposeVerified = parseP8V3ProviderProbeOutput/);
   assert.match(source, /--verify-provider/);
   assert.doesNotMatch(source, /--verify-runtime/);
@@ -851,6 +898,7 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.match(source, /-f '\$\{PRODUCTION_CRM_COMPOSE\}'/);
   assert.match(source, /run --rm --no-deps --pull never -T --name '\$\{IMPORTER\}'/);
   assert.match(importBody, /knowledgeJobCleanupScript\(\{ owner \}\)/);
+  assert.match(importBody, /enrichKnowledgeCleanupFailure\(cleanupError, record\)/);
   assert.doesNotMatch(importBody, /knowledgeCleanupScript\(\{ owner \}\)/);
   assert.match(source, /importerSha256: state\.expectedImporter\?\.sha256 \?\? null/);
   assert.match(source, /expectedFiles,/);
@@ -1055,7 +1103,7 @@ test("P8V3E cleanup verifies an absent pre-stage directory and importer as clean
       encoding: "utf8",
       env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
     });
-    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.equal(existsSync(releaseRoot), false);
   } finally {
     rmSync(fixture, { recursive: true, force: true });
@@ -1272,6 +1320,109 @@ test("P8V3K preflight cleanup rejects a symlinked evidence root without deleting
   }
 });
 
+test("P8V3K preflight cleanup reconciles an ambiguously completed owned root", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3k-preflight-cleanup-owned-"));
+  const preflightRoot = join(fixture, "preflight-root");
+  const fakeBin = join(fixture, "bin");
+  const docker = join(fakeBin, "docker");
+  const owner = "a".repeat(48);
+  try {
+    mkdirSync(preflightRoot, { mode: 0o700 });
+    mkdirSync(fakeBin, { mode: 0o700 });
+    writeFileSync(join(preflightRoot, ".p8v3k-owner"), `${owner}\n`, { mode: 0o600 });
+    chmodSync(preflightRoot, 0o700);
+    chmodSync(join(preflightRoot, ".p8v3k-owner"), 0o600);
+    writeFileSync(docker, "#!/bin/sh\nif [ \"$1\" = container ] && [ \"$2\" = ls ]; then exit 0; fi\nexit 2\n", { mode: 0o700 });
+    chmodSync(docker, 0o700);
+    const result = spawnSync("bash", ["-seu"], {
+      input: renderP8V3PreflightCleanupForTest({ preflightRoot, owner }),
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(preflightRoot), false);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test("P8V3K preflight cleanup removes an empty nonce root left before marker publication", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3k-preflight-cleanup-partial-"));
+  const preflightRoot = join(fixture, "preflight-root");
+  const fakeBin = join(fixture, "bin");
+  const docker = join(fakeBin, "docker");
+  try {
+    mkdirSync(preflightRoot, { mode: 0o700 });
+    mkdirSync(fakeBin, { mode: 0o700 });
+    chmodSync(preflightRoot, 0o700);
+    writeFileSync(docker, "#!/bin/sh\nif [ \"$1\" = container ] && [ \"$2\" = ls ]; then exit 0; fi\nexit 2\n", { mode: 0o700 });
+    chmodSync(docker, 0o700);
+    const result = spawnSync("bash", ["-seu"], {
+      input: renderP8V3PreflightCleanupForTest({ preflightRoot }),
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(preflightRoot), false);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test("P8V3K preflight cleanup refuses a foreign ownership marker", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3k-preflight-cleanup-foreign-"));
+  const preflightRoot = join(fixture, "preflight-root");
+  const marker = join(preflightRoot, ".p8v3k-owner");
+  const fakeBin = join(fixture, "bin");
+  const docker = join(fakeBin, "docker");
+  try {
+    mkdirSync(preflightRoot, { mode: 0o700 });
+    mkdirSync(fakeBin, { mode: 0o700 });
+    writeFileSync(marker, `${"b".repeat(48)}\n`, { mode: 0o600 });
+    chmodSync(preflightRoot, 0o700);
+    chmodSync(marker, 0o600);
+    writeFileSync(docker, "#!/bin/sh\nif [ \"$1\" = container ] && [ \"$2\" = ls ]; then exit 0; fi\nexit 2\n", { mode: 0o700 });
+    chmodSync(docker, 0o700);
+    const result = spawnSync("bash", ["-seu"], {
+      input: renderP8V3PreflightCleanupForTest({ preflightRoot }),
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
+    });
+    assert.notEqual(result.status, 0);
+    assert.equal(readFileSync(marker, "utf8"), `${"b".repeat(48)}\n`);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test("P8V3K preflight cleanup retains its owner marker when Docker state is unprovable", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3k-preflight-cleanup-docker-failure-"));
+  const preflightRoot = join(fixture, "preflight-root");
+  const marker = join(preflightRoot, ".p8v3k-owner");
+  const fakeBin = join(fixture, "bin");
+  const docker = join(fakeBin, "docker");
+  const owner = "a".repeat(48);
+  try {
+    mkdirSync(preflightRoot, { mode: 0o700 });
+    mkdirSync(fakeBin, { mode: 0o700 });
+    writeFileSync(marker, `${owner}\n`, { mode: 0o600 });
+    chmodSync(preflightRoot, 0o700);
+    chmodSync(marker, 0o600);
+    writeFileSync(docker, "#!/bin/sh\nexit 17\n", { mode: 0o700 });
+    chmodSync(docker, 0o700);
+    const result = spawnSync("bash", ["-seu"], {
+      input: renderP8V3PreflightCleanupForTest({ preflightRoot, owner }),
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
+    });
+    assert.notEqual(result.status, 0);
+    assert.equal(readFileSync(marker, "utf8"), `${owner}\n`);
+    assert.equal(lstatSync(preflightRoot).isDirectory(), true);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
 test("every reviewed remote shell contract parses under bash", () => {
   for (const [name, script] of Object.entries(renderP8V3ShellContractsForTest())) {
     const parsed = spawnSync("bash", ["-n"], { input: script, encoding: "utf8" });
@@ -1280,9 +1431,11 @@ test("every reviewed remote shell contract parses under bash", () => {
 });
 
 test("P8V3K per-job cleanup removes only the one-off container and preserves shared staged files", () => {
-  const { preflightCleanup, knowledgeJobCleanup, knowledgeCleanup } = renderP8V3ShellContractsForTest();
+  const { preflightPrepare, preflightCleanup, knowledgeJobCleanup, knowledgeCleanup } = renderP8V3ShellContractsForTest();
+  assert.match(preflightPrepare, /\.p8v3k-owner/);
+  assert.match(preflightPrepare, /printf '%s\\n' '[0-9a-f]{48}'/);
   assert.match(preflightCleanup, /root\.is_symlink\(\)/);
-  assert.match(preflightCleanup, /\{entry\.name for entry in entries\} - \{'p8v3k-platform-knowledge-import\.mjs'\}/);
+  assert.match(preflightCleanup, /\{entry\.name for entry in entries\} - \{'p8v3k-platform-knowledge-import\.mjs', '\.p8v3k-owner'\}/);
   assert.match(preflightCleanup, /hashlib\.sha256/);
   assert.doesNotMatch(preflightCleanup, /rm -f '\/opt\/evo-release-preflight/);
   assert.match(knowledgeJobCleanup, /docker container ls -a --no-trunc/);
@@ -1312,7 +1465,7 @@ test("P8V3K knowledge job uses compose run on the CRM service with individually 
   assert.match(providerProbe, /docker compose[^\n]+run --rm --no-deps --pull never -T --name 'evo-p8v3k-knowledge-import'/);
   assert.match(providerProbe, /-f '\/opt\/evo-crm\/docker-compose\.prod\.yml'/);
   assert.match(providerProbe, /-e 'EVO_PLATFORM_GEMINI_API_KEY'/);
-  assert.match(providerProbe, /-v '\/opt\/evo-release-preflight\/p8v3k-20260821\.1\/p8v3k-platform-knowledge-import\.mjs:\/run\/evo-p8v3k\/p8v3k-platform-knowledge-import\.mjs:ro'/);
+  assert.match(providerProbe, /-v '\/opt\/evo-release-preflight\/p8v3k-20260821\.1-[0-9a-f]{48}\/p8v3k-platform-knowledge-import\.mjs:\/run\/evo-p8v3k\/p8v3k-platform-knowledge-import\.mjs:ro'/);
   assert.match(providerProbe, /p8v3k-platform-knowledge-import\.mjs.*--verify-provider/s);
   assert.match(knowledgeImport, /-e 'EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID'/);
   assert.match(knowledgeImport, /-v '\/opt\/evo-releases\/[^']+\/p8v3k-platform-knowledge-import\.mjs:\/run\/evo-p8v3k\/p8v3k-platform-knowledge-import\.mjs:ro'/);
@@ -1320,6 +1473,7 @@ test("P8V3K knowledge job uses compose run on the CRM service with individually 
   assert.match(knowledgeImport, /-v '\/opt\/evo-releases\/[^']+\/knowledge-incoming\/evo-knowledge-client\.sha256\.json:\/run\/evo-p8v3k\/knowledge-manifest\.json:ro'/);
   assert.match(knowledgeImport, /p8v3k-platform-knowledge-import\.mjs.*--audience '"'"'client'"'"'/s);
   assert.match(knowledgeImport, /\[\[ "\$EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID" == "\$EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID" \]\]/);
+  assert.doesNotMatch(knowledgeImport, /--account-id/);
   assert.match(knowledgeImport, /knowledge-bundle\.json/);
   assert.match(knowledgeImport, /knowledge-manifest\.json/);
   assert.doesNotMatch(knowledgeImport, /docker create|docker cp|--verify-runtime/);

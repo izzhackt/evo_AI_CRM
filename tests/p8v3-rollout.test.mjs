@@ -16,7 +16,9 @@ import {
   commandSshArgs,
   createP8V3ProductionOperations,
   createP8V3PublicRestReader,
+  P8V3_IMAGES,
   parseP8V3ContainerRowsForTest,
+  renderP8V3CandidateImageBoundaryForTest,
   renderP8V3KnowledgeCleanupForTest,
   renderP8V3ShellContractsForTest,
   runP8V3StreamedRemoteForTest,
@@ -599,6 +601,80 @@ test("P8V3H streamed remote rejects command-specific stderr after successful sta
     "printf 'safe\\n'",
     { label: "staging", code: "knowledge_failed" },
   ), (error) => error.code === "knowledge_failed" && /staging emitted stderr/.test(error.message));
+});
+
+function executeCandidateImageBoundary(inventory, options = {}) {
+  const script = String.raw`
+docker() {
+  if [[ "$1" == 'image' && "$2" == 'ls' ]]; then
+    [[ "$P8V3_TEST_IMAGE_LS_STATUS" == '0' ]] || return "$P8V3_TEST_IMAGE_LS_STATUS"
+    printf '%s\n' "$P8V3_TEST_IMAGE_INVENTORY"
+    return 0
+  fi
+  if [[ "$1" == 'image' && "$2" == 'inspect' ]]; then
+    case "$5" in
+      '{{.Id}}') printf '%s\n' "$3" ;;
+      '{{.Os}}/{{.Architecture}}/{{.Variant}}') printf 'linux/amd64/\n' ;;
+      *org.opencontainers.image.revision*) printf '%s\n' '${P8V3.applicationCommit}' ;;
+      *) return 2 ;;
+    esac
+    return 0
+  fi
+  return 2
+}
+${renderP8V3CandidateImageBoundaryForTest(options)}
+`;
+  return spawnSync("bash", ["-seu"], {
+    input: script,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      P8V3_TEST_IMAGE_INVENTORY: inventory,
+      P8V3_TEST_IMAGE_LS_STATUS: "0",
+    },
+  });
+}
+
+test("P8V3H treats portable source tags as OCI indexes and permits exact cleaned candidate state", () => {
+  const retainedIndexInventory = Object.values(P8V3_IMAGES)
+    .map((spec) => `${spec.sourceTag}|${spec.index}`)
+    .join("\n");
+  assert.equal(executeCandidateImageBoundary(retainedIndexInventory).status, 0);
+
+  const fullyLoadedInventory = Object.values(P8V3_IMAGES)
+    .flatMap((spec) => [
+      `${spec.sourceTag}|${spec.index}`,
+      `<none>:<none>|${spec.platform}`,
+      `${spec.composeTag}|${spec.platform}`,
+    ])
+    .join("\n");
+  assert.equal(executeCandidateImageBoundary(fullyLoadedInventory, { requireLoaded: true }).status, 0);
+
+  const first = Object.values(P8V3_IMAGES)[0];
+  assert.notEqual(executeCandidateImageBoundary(
+    retainedIndexInventory.replace(`${first.sourceTag}|${first.index}`, `${first.sourceTag}|${first.platform}`),
+  ).status, 0);
+  assert.notEqual(executeCandidateImageBoundary(
+    `${retainedIndexInventory}\n${first.composeTag}|${first.index}`,
+  ).status, 0);
+});
+
+test("P8V3H image boundary fails closed on inventory failure and load binds index to platform", () => {
+  const script = renderP8V3CandidateImageBoundaryForTest();
+  const failedInventory = spawnSync("bash", ["-seu"], {
+    input: `docker() { return 17; }\n${script}`,
+    encoding: "utf8",
+  });
+  assert.notEqual(failedInventory.status, 0);
+
+  const load = renderP8V3ShellContractsForTest().loadImages;
+  for (const spec of Object.values(P8V3_IMAGES)) {
+    assert.ok(load.includes(`[[ "$candidate_source_id" == '${spec.index}' ]]`));
+    assert.ok(load.includes(`[[ "$candidate_platform_present" == '1' ]]`));
+    assert.ok(load.includes(`docker image tag '${spec.platform}' '${spec.composeTag}'`));
+  }
+  assert.equal(renderP8V3ShellContractsForTest().preflight.includes("docker load"), false);
+  assert.equal(renderP8V3ShellContractsForTest().preflight.includes("docker image tag"), false);
 });
 
 function initContains(value, needle) {

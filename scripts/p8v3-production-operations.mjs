@@ -281,6 +281,49 @@ done
 `;
 }
 
+function candidateImageSpecBoundaryScript(spec, { requireLoaded = false } = {}) {
+  const loadedAssertions = requireLoaded
+    ? String.raw`
+[[ "$candidate_source_id" == '${spec.index}' ]] || exit 2
+[[ "$candidate_platform_present" == '1' ]] || exit 2
+`
+    : "";
+  return String.raw`
+{
+  candidate_source_rows="$(printf '%s\n' "$candidate_image_inventory" | awk -F'|' -v tag='${spec.sourceTag}' '$1 == tag { print $2 }')"
+  candidate_source_count="$(printf '%s\n' "$candidate_source_rows" | awk 'NF { count += 1 } END { print count + 0 }')"
+  [[ "$candidate_source_count" -le 1 ]] || exit 2
+  candidate_source_id="$candidate_source_rows"
+  [[ -z "$candidate_source_id" || "$candidate_source_id" == '${spec.index}' ]] || exit 2
+
+  candidate_compose_rows="$(printf '%s\n' "$candidate_image_inventory" | awk -F'|' -v tag='${spec.composeTag}' '$1 == tag { print $2 }')"
+  candidate_compose_count="$(printf '%s\n' "$candidate_compose_rows" | awk 'NF { count += 1 } END { print count + 0 }')"
+  [[ "$candidate_compose_count" -le 1 ]] || exit 2
+  candidate_compose_id="$candidate_compose_rows"
+  [[ -z "$candidate_compose_id" || "$candidate_compose_id" == '${spec.platform}' ]] || exit 2
+
+  candidate_platform_present="$(printf '%s\n' "$candidate_image_inventory" | awk -F'|' -v id='${spec.platform}' '$2 == id { found = 1 } END { print found + 0 }')"
+  ${loadedAssertions}
+  if [[ "$candidate_platform_present" == '1' ]]; then
+    [[ "$(docker image inspect '${spec.platform}' --format '{{.Id}}')" == '${spec.platform}' ]] || exit 2
+    [[ "$(docker image inspect '${spec.platform}' --format '{{.Os}}/{{.Architecture}}/{{.Variant}}')" == 'linux/amd64/' ]] || exit 2
+    [[ "$(docker image inspect '${spec.platform}' --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" == '${P8V3.applicationCommit}' ]] || exit 2
+  fi
+}
+`;
+}
+
+function candidateImageBoundaryScript(options = {}) {
+  return String.raw`
+candidate_image_inventory="$(docker image ls --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}')"
+${Object.values(P8V3_IMAGES).map((spec) => candidateImageSpecBoundaryScript(spec, options)).join("\n")}
+`;
+}
+
+export function renderP8V3CandidateImageBoundaryForTest(options = {}) {
+  return candidateImageBoundaryScript(options);
+}
+
 export function parseP8V3ContainerRowsForTest(text) {
   return parseContainerRows(text);
 }
@@ -380,7 +423,7 @@ EOF
 [[ "$(df -Pk /opt | awk 'NR==2{print $4}')" -ge 2097152 ]]
 getent ahosts '${PROJECT_REF}.supabase.co' >/dev/null
 getent ahosts 'evoadmissions.amocrm.ru' >/dev/null
-${Object.values(P8V3_IMAGES).map((spec) => `[[ "$(docker image inspect '${spec.sourceTag}' --format '{{.Id}}')" == '${spec.platform}' ]]\n[[ "$(docker image inspect '${spec.composeTag}' --format '{{.Id}}')" == '${spec.platform}' ]]\n[[ "$(docker image inspect '${spec.platform}' --format '{{.Os}}/{{.Architecture}}/{{.Variant}}')" == 'linux/amd64/' ]]\n[[ "$(docker image inspect '${spec.platform}' --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" == '${P8V3.applicationCommit}' ]]`).join("\n")}
+${candidateImageBoundaryScript()}
 python3 - <<'PY'
 from pathlib import Path
 def names(path):
@@ -838,13 +881,12 @@ function loadImagesScript() {
   const rows = Object.values(P8V3_IMAGES).map((spec) => String.raw`
 [[ "$(sha256sum '${REMOTE_ARCHIVES}/${spec.file}' | awk '{print $1}')" == '${spec.sha256}' ]]
 docker load -i '${REMOTE_ARCHIVES}/${spec.file}' >/dev/null
-[[ "$(docker image inspect '${spec.sourceTag}' --format '{{.Id}}')" == '${spec.platform}' ]]
-[[ "$(docker image inspect '${spec.sourceTag}' --format '{{.Os}}/{{.Architecture}}/{{.Variant}}')" == 'linux/amd64/' ]]
-[[ "$(docker image inspect '${spec.sourceTag}' --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" == '${P8V3.applicationCommit}' ]]
+candidate_image_inventory="$(docker image ls --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}')"
+${candidateImageSpecBoundaryScript(spec, { requireLoaded: true })}
 docker image tag '${spec.platform}' '${spec.composeTag}'
 [[ "$(docker image inspect '${spec.composeTag}' --format '{{.Id}}')" == '${spec.platform}' ]]
 `).join("\n");
-  return `${rows}\n`;
+  return `${candidateImageBoundaryScript()}\n${rows}\n`;
 }
 
 function runChecked(run, label, command, args, options = {}) {

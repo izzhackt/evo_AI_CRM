@@ -1334,6 +1334,18 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_consultative_sales_memory.sql
   fi
+
+  # The catalog programme layer is proved immediately after 079 so the
+  # structure, ACL and behaviour assertions see the exact boundary they
+  # describe rather than a later schema.
+  if [[ "$(basename "$migration")" == 079_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_catalog_programmes_inventory.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_catalog_programmes_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

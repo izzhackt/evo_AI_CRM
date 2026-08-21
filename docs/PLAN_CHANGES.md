@@ -9733,3 +9733,30 @@ Advance writable identities to P8V3K release `2026-08-21.p8v3k.1`, version
 future token `EXECUTE-P8V3K-2026-08-21.P8V3K.1`. One PR/review/final CI, one
 short preflight and one new deployment+rollback authorization remain. This is
 repository authority only.
+
+## 2026-08-21 — P8V3K bind import to the observed live Compose baseline
+
+The first P8V3K preflight failed closed before its provider probe because the
+live `/opt/evo-crm/docker-compose.prod.yml` SHA-256 is
+`51b6a19cdf4797f7e882d4638c12177030fcb3e0258311a7682db7d959c28988`, not the
+reviewed candidate Compose SHA-256
+`ae3689f60d14c1463a77512afbe8d24db59d079473435e9c8b2d01c222eb7a6f`.
+Read-only diffing confirms that the `app` service consumed by the knowledge
+job is identical; the candidate-only differences are `manual-send-worker` and
+the WAHA healthcheck path.
+
+Issue #352 corrects only that baseline distinction:
+
+- preflight and both knowledge imports continue to use the canonical live
+  Compose path and must require exact SHA `51b6a19c...`;
+- CRM and Lead deployment continue to use the staged reviewed candidate
+  Compose and must require exact SHA `ae3689f6...`; Inbox continues to require
+  its separately frozen staged Compose;
+- no pre-token Compose replacement or other production mutation is allowed;
+- focused tests must freeze both hashes and their distinct import/deployment
+  consumers.
+
+The failed preflight retained no result, remote root or production effect, and
+no P8V3K action token has been issued. Keep the existing P8V3K identities and
+future token unchanged. One scoped PR/review/CI and one fresh short preflight
+remain before the single deployment-plus-rollback authorization.

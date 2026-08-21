@@ -23,6 +23,7 @@ import {
   parseP8V3ContainerRowsForTest,
   renderP8V3CandidateImageBoundaryForTest,
   renderP8V3KnowledgeCleanupForTest,
+  renderP8V3LiveComposeBoundaryForTest,
   renderP8V3PreflightCleanupForTest,
   renderP8V3ShellContractsForTest,
   runP8V3StreamedRemoteForTest,
@@ -1456,14 +1457,20 @@ test("P8V3K CRM rollback removes the manual-send worker by exact container ID", 
 });
 
 test("P8V3K knowledge job uses compose run on the CRM service with individually mounted read-only files", () => {
-  const { preflight, providerProbe, knowledgeImport } = renderP8V3ShellContractsForTest();
+  const { preflight, providerProbe, knowledgeImport, deployCrm, deployInbox, deployLead } = renderP8V3ShellContractsForTest();
+  const liveComposeSha = "51b6a19cdf4797f7e882d4638c12177030fcb3e0258311a7682db7d959c28988";
+  const stagedCrmComposeSha = "ae3689f60d14c1463a77512afbe8d24db59d079473435e9c8b2d01c222eb7a6f";
+  const stagedInboxComposeSha = "31c7b758ac5220b17511ef18df7f1058b4dff39bb08c21e02bb106272496076b";
 
   assert.match(
     preflight,
     /docker network inspect 'evo_crm_private' --format '\{\{\.Name\}\}\|\{\{\.Driver\}\}\|\{\{\.Scope\}\}\|\{\{\.Internal\}\}'/,
   );
+  assert.match(preflight, new RegExp(liveComposeSha));
   assert.match(providerProbe, /docker compose[^\n]+run --rm --no-deps --pull never -T --name 'evo-p8v3k-knowledge-import'/);
   assert.match(providerProbe, /-f '\/opt\/evo-crm\/docker-compose\.prod\.yml'/);
+  assert.match(providerProbe, new RegExp(liveComposeSha));
+  assert.match(knowledgeImport, new RegExp(liveComposeSha));
   assert.match(providerProbe, /-e 'EVO_PLATFORM_GEMINI_API_KEY'/);
   assert.match(providerProbe, /-v '\/opt\/evo-release-preflight\/p8v3k-20260821\.1-[0-9a-f]{48}\/p8v3k-platform-knowledge-import\.mjs:\/run\/evo-p8v3k\/p8v3k-platform-knowledge-import\.mjs:ro'/);
   assert.match(providerProbe, /p8v3k-platform-knowledge-import\.mjs.*--verify-provider/s);
@@ -1477,6 +1484,45 @@ test("P8V3K knowledge job uses compose run on the CRM service with individually 
   assert.match(knowledgeImport, /knowledge-bundle\.json/);
   assert.match(knowledgeImport, /knowledge-manifest\.json/);
   assert.doesNotMatch(knowledgeImport, /docker create|docker cp|--verify-runtime/);
+
+  for (const deployment of [deployCrm, deployLead]) {
+    assert.match(deployment, new RegExp(stagedCrmComposeSha));
+    assert.doesNotMatch(deployment, new RegExp(liveComposeSha));
+    assert.match(deployment, /\/opt\/evo-releases\/0f1454d014bbc9eca9d7381dfe557e980965543e\/2026-08-21\.p8v3k\.1\/repo\/docker-compose\.prod\.yml/);
+  }
+  assert.match(deployInbox, new RegExp(stagedInboxComposeSha));
+  assert.doesNotMatch(deployInbox, new RegExp(liveComposeSha));
+  assert.match(deployInbox, /\/opt\/evo-releases\/0f1454d014bbc9eca9d7381dfe557e980965543e\/2026-08-21\.p8v3k\.1\/repo\/agent-lead2-inbox\/deploy\/docker-compose\.inbox\.prod\.yml/);
+});
+
+test("P8V3K live Compose boundary rejects ownership or mode drift before use", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3k-live-compose-boundary-"));
+  const fakeBin = join(fixture, "bin");
+  const compose = join(fixture, "docker-compose.prod.yml");
+  const expectedSha = "a".repeat(64);
+  mkdirSync(fakeBin, { mode: 0o700 });
+  writeFileSync(compose, "services: {}\n", { mode: 0o644 });
+  writeFileSync(join(fakeBin, "stat"), "#!/bin/sh\nprintf '%s\\n' \"$FAKE_STAT\"\n", { mode: 0o700 });
+  writeFileSync(join(fakeBin, "sha256sum"), `#!/bin/sh\nprintf '%s  %s\\n' '${expectedSha}' "$1"\n`, { mode: 0o700 });
+  const boundary = renderP8V3LiveComposeBoundaryForTest({ file: compose, sha256: expectedSha });
+
+  try {
+    const drifted = spawnSync("bash", ["-seu"], {
+      input: boundary,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, FAKE_STAT: "root:root 666" },
+    });
+    assert.notEqual(drifted.status, 0);
+
+    const verified = spawnSync("bash", ["-seu"], {
+      input: boundary,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, FAKE_STAT: "root:root 644" },
+    });
+    assert.equal(verified.status, 0, verified.stderr);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
 });
 
 test("P8V3K provider probe blocks before compose run when the exact container name is already occupied", () => {

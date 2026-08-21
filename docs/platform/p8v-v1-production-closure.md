@@ -1422,3 +1422,29 @@ Writable identities are release `2026-08-21.p8v3k.1`, version
 `p8v3k-production-preflight/v1`, and future token
 `EXECUTE-P8V3K-2026-08-21.P8V3K.1`. Repository work only; one PR/review/final
 CI, one short preflight, and one fresh deployment+rollback authorization remain.
+
+## P8V3K live Compose baseline correction (2026-08-21)
+
+Issue #352 records the first P8V3K preflight as a no-effect fail-closed
+observation. The canonical live file
+`/opt/evo-crm/docker-compose.prod.yml` is a regular root-owned mode-`0644`
+file with exact SHA-256
+`51b6a19cdf4797f7e882d4638c12177030fcb3e0258311a7682db7d959c28988`.
+The reviewed candidate file at application commit
+`0f1454d014bbc9eca9d7381dfe557e980965543e` has SHA-256
+`ae3689f60d14c1463a77512afbe8d24db59d079473435e9c8b2d01c222eb7a6f`.
+Their `app` service definitions are identical; only the candidate's separate
+manual worker and WAHA healthcheck path differ.
+
+The preflight provider probe and client/internal imports must use the exact
+live path and require SHA `51b6a19c...` immediately before Compose rendering
+and execution. The CRM/Lead deployment continues to use
+`<release-root>/repo/docker-compose.prod.yml` and requires SHA
+`ae3689f6...`; Inbox continues to use its separately frozen staged Compose.
+No preflight may replace the live file. A mismatch on either side blocks.
+
+Because the failed preflight published no artifact and left its local output
+directory empty, its nonce-owned remote root absent, and all production state
+unchanged, P8V3K release/version/result/preflight/token identities remain
+available. Repository review, final CI and a fresh real preflight remain
+mandatory before requesting the existing future owner token.

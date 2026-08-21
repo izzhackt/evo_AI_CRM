@@ -24,7 +24,7 @@ function exactKeys(value, keys, label) {
 }
 
 export function validateP8V3Preflight(value) {
-  exactKeys(value, ["version", "generated_at", "expires_at", "execution", "application", "containers", "waha", "migration", "archives", "gemini", "importer", "importer_network", "compose_validated", "prerequisites_verified"], "preflight");
+  exactKeys(value, ["version", "generated_at", "expires_at", "execution", "application", "containers", "waha", "migration", "archives", "crm_runtime_probe", "gemini", "importer", "importer_network", "compose_validated", "prerequisites_verified"], "preflight");
   if (value.version !== P8V3_PREFLIGHT_VERSION || !UTC.test(value.generated_at) || !UTC.test(value.expires_at) || Date.parse(value.expires_at) - Date.parse(value.generated_at) !== P8V3_PREFLIGHT_WINDOW_MS) fail("preflight window drifted");
   exactKeys(value.execution, ["commit", "tree", "ci_run_id"], "preflight execution");
   if (!SHA40.test(value.execution.commit) || !SHA40.test(value.execution.tree) || !Number.isSafeInteger(value.execution.ci_run_id) || value.execution.ci_run_id < 1) fail("preflight execution drifted");
@@ -44,6 +44,12 @@ export function validateP8V3Preflight(value) {
     exactKeys(item, ["name", "sha256", "size", "index", "platform"], "preflight archive");
     if (!["crm", "inbox", "lead_agent"].includes(item.name) || !SHA64.test(item.sha256) || !Number.isSafeInteger(item.size) || item.size < 1 || !IMAGE_ID.test(item.index) || !IMAGE_ID.test(item.platform)) fail("preflight archive drifted");
   }
+  if (value.archives.map((item) => item.name).sort().join("\0") !== ["crm", "inbox", "lead_agent"].sort().join("\0")) fail("preflight archive names drifted");
+  exactKeys(value.crm_runtime_probe, ["status", "backend", "archive_sha256", "index", "platform", "runtime_image_id", "source_prestate", "compose_prestate", "nonce_prestate", "provider_container_id", "provider_container_image_id", "cleanup_verified", "production_unchanged"], "preflight CRM runtime probe");
+  exactKeys(value.crm_runtime_probe.backend, ["version", "api", "os", "arch", "driver"], "preflight CRM runtime backend");
+  const probe = value.crm_runtime_probe;
+  const crmArchive = value.archives.find((item) => item.name === "crm");
+  if (probe.status !== "verified" || probe.backend.version !== "29.4.0" || probe.backend.api !== "1.54" || probe.backend.os !== "linux" || probe.backend.arch !== "amd64" || probe.backend.driver !== "io.containerd.snapshotter.v1" || !SHA64.test(probe.archive_sha256) || !IMAGE_ID.test(probe.index) || !IMAGE_ID.test(probe.platform) || probe.archive_sha256 !== crmArchive?.sha256 || probe.index !== crmArchive?.index || probe.platform !== crmArchive?.platform || probe.runtime_image_id !== probe.index || !["absent", "exact_present"].includes(probe.source_prestate) || probe.compose_prestate !== "absent" || probe.nonce_prestate !== "absent" || !SHA64.test(probe.provider_container_id) || probe.provider_container_image_id !== probe.index || probe.cleanup_verified !== true || probe.production_unchanged !== true) fail("preflight CRM runtime probe drifted");
   exactKeys(value.gemini, ["embedding_verified", "draft_verified", "retrieval_provider_verified", "server_compose_verified"], "preflight Gemini");
   if (value.gemini.embedding_verified !== true || value.gemini.draft_verified !== true || value.gemini.retrieval_provider_verified !== true || value.gemini.server_compose_verified !== true) fail("preflight Gemini drifted");
   exactKeys(value.importer, ["sha256", "size", "verified"], "preflight importer");

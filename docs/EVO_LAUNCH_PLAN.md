@@ -4078,3 +4078,86 @@ Accordingly the existing collision-free P8V3K release, preflight format and
 future authorization `EXECUTE-P8V3K-2026-08-21.P8V3K.1` remain unconsumed.
 This correction requires one scoped review/CI and one fresh short preflight
 before that single deployment-plus-rollback authorization may be requested.
+
+## P8V3K Docker 29 OCI runtime-identity correction (2026-08-21)
+
+Issue #354 records a second no-effect preflight observation. Docker Engine
+`29.4.0` with its containerd image store loads each exact reviewed OCI archive
+as the archive's top-level OCI index. For CRM, the exact source tag resolves to
+index `sha256:711535e0d1216663e42b2d2dd4e2b042812d8bce8ebe82a5c3eb6ae866d60a45`;
+the reviewed linux/amd64 manifest
+`sha256:fc3487ce079663694aee583891c3939296915634bea61dd293db235b57e748f3`
+remains a descriptor inside that index and is not a separately inspectable or
+taggable Docker image. A container created from the loaded tag reports the
+index digest as `.Image`. The same result was reproduced with
+`docker image load --platform=linux/amd64`.
+
+Docker documents that Engine 29 uses the containerd image store, which supports
+multi-platform image indices and attestations, and that `docker image load`
+restores the archive's images and tags:
+<https://docs.docker.com/engine/storage/containerd/>,
+<https://docs.docker.com/build/building/multi-platform/>, and
+<https://docs.docker.com/reference/cli/docker/image/load/>. P8V3K therefore
+separates three identities instead of treating them as interchangeable:
+
+- the archive SHA-256 and size bind transferred and rollback file bytes;
+- `platform` remains the exact offline-verified linux/amd64 manifest descriptor
+  and revision/config provenance inside the archive;
+- `index` is the Docker-inspectable runtime image ID used by the source tag,
+  Compose tag, provider/import containers, deployed containers and candidate
+  cleanup on the frozen backend.
+
+Execution must load each exact archive, require `sourceTag -> index`, tag the
+verified source tag to the fixed Compose tag, require `composeTag -> index`,
+and compare every candidate container `.Image` and deployment
+`after_image_id` to that same index. It must never tag or inspect `platform` as
+a standalone Docker image. Historical rollback image IDs remain the exact
+Docker runtime IDs already frozen in the rollback evidence.
+
+The short final preflight may temporarily load only the CRM archive so the
+neutral provider probe exercises the exact candidate runtime. Inbox and Lead
+remain archive-only until the owner-authorized execution. Before the temporary
+transaction, preflight must prove Docker `29.4.0`, API `1.54`,
+`linux/amd64`, DriverStatus exactly
+`[["driver-type","io.containerd.snapshotter.v1"]]`, candidate
+source/Compose/nonce-tag state, candidate-index
+visibility and container references, plus the unchanged five production
+containers. It then loads only the exact CRM archive, proves
+`sourceTag -> index`, creates the fixed Compose tag from that index, and runs
+one two-phase owner-labelled `--pull never --no-deps` provider job. The
+detached job initially runs only a fixed bounded wait shell. Preflight captures
+and validates its exact ID, reserved name, owner label, `.Image == index`,
+network, UID/GID and running state before an exact-ID gate release allows the
+single neutral provider command. A wrong identity never opens the gate. The
+non-auto-removed job is then waited, its closed output/exit verified, and its
+exact owned ID removed in finally.
+The accepted prestate is closed: either source tag/index are both absent with
+no candidate reference, or the exact source tag is the sole tag on the exact
+visible index; the Compose and nonce tags and all candidate-index containers
+must be absent. Cleanup restores that exact prestate.
+
+Finally cleanup is container-first and may remove only tags and the index that
+were absent before this transaction, still resolve exactly to the reviewed
+index, and have no foreign tag or container reference. No force, prune, pull,
+build, broad deletion or offline conversion is allowed. A collision, repoint,
+foreign reference, ambiguous inspection/removal or incomplete cleanup blocks
+execution and requires reconciliation. Final evidence records the archive,
+index and platform descriptor for all three portable files, plus a separate
+CRM-only runtime-probe record with backend identity, runtime index, exact
+provider container identity, pre/post state, cleanup and unchanged production.
+Inbox and Lead records must not claim runtime verification before execution.
+No UUID, credential or private path is retained. The proof covers
+Docker-visible restoration; it does not claim byte-identical restoration of
+unreferenced containerd blobs.
+
+No provider probe or Docker-cache mutation is authorized by this repository
+change. After one independent review, one final CI and merge, a fresh explicit
+preflight authorization
+`PREFLIGHT-P8V3K-2026-08-21.P8V3K.1`, supplied process-only as
+`EVO_P8V3_PREFLIGHT_AUTHORIZATION`, gates the bounded temporary CRM
+transaction. Absence or mismatch must stop before its first Docker/provider
+effect. The retained canonical preflight evidence is the launch-control
+consumption record and reuse is forbidden. A single later owner authorization
+may then cover the defined import, one-boundary-at-a-time deployment and
+rollback window. P8V3K release/result/execution-token identities stay unchanged
+because no successful preflight artifact or execution was retained.

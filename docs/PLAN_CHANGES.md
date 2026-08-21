@@ -9760,3 +9760,61 @@ The failed preflight retained no result, remote root or production effect, and
 no P8V3K action token has been issued. Keep the existing P8V3K identities and
 future token unchanged. One scoped PR/review/CI and one fresh short preflight
 remain before the single deployment-plus-rollback authorization.
+
+## 2026-08-21 — P8V3K Docker 29 OCI runtime-identity correction
+
+Issue #354 records another fail-closed no-effect discovery. On the exact
+production Docker Engine `29.4.0` containerd image store, loading a frozen OCI
+archive makes its source tag resolve to the top-level OCI index. The exact
+linux/amd64 platform manifest remains a reviewed descriptor inside that index;
+it is not a standalone Docker image ID. A reproduced candidate container
+reports the index digest in `.Image`. This matches Docker's current
+multi-platform/containerd model:
+<https://docs.docker.com/engine/storage/containerd/>,
+<https://docs.docker.com/build/building/multi-platform/>, and
+<https://docs.docker.com/reference/cli/docker/image/load/>.
+
+Freeze distinct roles: archive SHA/size binds file bytes, `platform` binds the
+offline-verified linux/amd64 descriptor and revision/config provenance, and
+`index` is the Docker runtime identity. Source and Compose tags, provider and
+import jobs, deployed containers, cleanup ownership, result
+`after_image_id`, and all candidate runtime checks use `index`. The loader
+must require `sourceTag -> index`, tag that verified source to the fixed
+Compose tag, and require `composeTag -> index`; it must not tag or inspect the
+platform descriptor as an image. Historical rollback runtime IDs are unchanged.
+
+The final short preflight is a bounded CRM-only transaction. It freezes Docker
+`29.4.0`, API `1.54`, `linux/amd64`, DriverStatus exactly
+`[["driver-type","io.containerd.snapshotter.v1"]]`, and pre-inventories
+candidate tags/index and
+all container references plus the five production containers, loads only the
+exact CRM archive, proves source and Compose tags resolve to the reviewed
+index, then starts one detached owner-labelled job in a bounded fixed wait
+shell. Only after preflight captures and validates the exact ID/name/owner/
+runtime-index/network/UID/GID may an exact-ID gate release the neutral provider
+command. Wrong identity never opens the gate; the exact owned job is waited,
+validated and removed in finally. Inbox and Lead stay archive-only until
+execution. Finally cleanup is container-first and
+may restore only transaction-owned state proven absent before and still bound
+to the reviewed index. Force, prune, pull, build, conversion and broad removal
+are forbidden; collision, repoint, foreign reference or ambiguous cleanup
+blocks and requires reconciliation. Evidence closes archive/index/platform/
+runtime identities without overclaiming: the three archive records remain
+portable-only, while a separate CRM runtime-probe record closes backend,
+container, pre/post cleanup and unchanged-production facts without secrets.
+The only accepted CRM prestate is source/index both absent or the exact source
+tag as the sole tag on the exact visible index; Compose/nonce tags and every
+candidate-index container reference must be absent, and cleanup restores that
+exact state.
+
+The earlier P8V3K no-effect facts and identities remain valid. Repository work
+requires one coherent PR, one independent review and one final CI. The
+temporary Docker-cache mutation/provider probe requires the fresh exact
+process-only authorization `PREFLIGHT-P8V3K-2026-08-21.P8V3K.1` through
+`EVO_P8V3_PREFLIGHT_AUTHORIZATION` after merge. Missing or mismatched
+authorization stops before the first effect; successful canonical evidence is
+the launch-control consumption record and reuse is forbidden. The existing future
+`EXECUTE-P8V3K-2026-08-21.P8V3K.1` remains unconsumed and may be requested only
+after the resulting canonical preflight is approved. No import, deployment,
+restart, configuration, WAHA, amoCRM, customer-data or outbound authority is
+granted here.

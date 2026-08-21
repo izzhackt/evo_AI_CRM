@@ -848,7 +848,10 @@ test("production adapter keeps staging, rollback and evidence cleanup narrowly o
   assert.match(source, /docker compose --ansi never --progress quiet/);
   assert.match(source, /-f '\$\{PRODUCTION_CRM_COMPOSE\}'/);
   assert.match(source, /run --rm --no-deps --pull never -T --name '\$\{IMPORTER\}'/);
-  assert.match(source, /knowledgeCleanupScript\(\{ owner: state\.currentImporterOwner \}\)/);
+  assert.match(importBody, /knowledgeJobCleanupScript\(\{ owner \}\)/);
+  assert.doesNotMatch(importBody, /knowledgeCleanupScript\(\{ owner \}\)/);
+  assert.match(source, /importerSha256: state\.expectedImporter\?\.sha256 \?\? null/);
+  assert.match(source, /expectedFiles,/);
   assert.match(source, /state\.serverComposeVerified = true/);
   assert.match(source, /account=sys\.stdin\.readline\(\)\.strip\(\)/);
   assert.doesNotMatch(source, /vault, accountId, audience/);
@@ -1089,27 +1092,25 @@ test("P8V3K cleanup removes only the exact named compose-run container on the re
   const fakeBin = join(fixture, "bin");
   const docker = join(fakeBin, "docker");
   const removalMarker = join(fixture, "removed");
+  const containerId = "1".repeat(64);
   try {
     mkdirSync(fakeBin);
-	    writeFileSync(
-	      docker,
-	      `#!/bin/sh
-	if [ "$1" = "container" ] && [ "$2" = "ls" ] && [ "$3" = "-a" ] && [ "$4" = "--no-trunc" ] && [ "$5" = "--format" ] && [ "$6" = "{{.Names}}" ]; then
-	  if [ ! -f "$REMOVAL_MARKER" ]; then
-	    printf '%s\\n' 'evo-p8v3k-knowledge-import'
-	  fi
-	  exit 0
-	fi
-	if [ "$1" = "container" ] && [ "$2" = "ls" ] && [ "$3" = "-a" ] && [ "$4" = "--filter" ] && [ "$5" = "label=evo.p8v3k.importer-owner" ]; then
-	  exit 0
-	fi
-	if [ "$1" = "inspect" ] && [ "$3" = "--format" ] && [ "$4" = "{{.Image}}|{{index .Config.Labels \\"evo.p8v3k.importer-owner\\"}}|{{.Name}}" ]; then
-	  printf '%s\\n' '${P8V3_IMAGES.crm.platform}|${"a".repeat(48)}|/evo-p8v3k-knowledge-import'
-	  exit 0
-	fi
-	if [ "$1" = "rm" ] && [ "$2" = "-f" ] && [ "$3" = "evo-p8v3k-knowledge-import" ]; then
-	  : > "$REMOVAL_MARKER"
-	  exit 0
+    writeFileSync(
+      docker,
+      `#!/bin/sh
+if [ "$1" = "container" ] && [ "$2" = "ls" ]; then
+  if [ ! -f "$REMOVAL_MARKER" ]; then
+    printf '%s\\n' '${containerId}|evo-p8v3k-knowledge-import'
+  fi
+  exit 0
+fi
+if [ "$1" = "inspect" ] && [ "$3" = "--format" ] && [ "$4" = "{{.Image}}|{{index .Config.Labels \\"evo.p8v3k.importer-owner\\"}}|{{.Name}}" ]; then
+  printf '%s\\n' '${P8V3_IMAGES.crm.platform}|${"a".repeat(48)}|/evo-p8v3k-knowledge-import'
+  exit 0
+fi
+if [ "$1" = "rm" ] && [ "$2" = "-f" ] && [ "$3" = "${containerId}" ]; then
+  : > "$REMOVAL_MARKER"
+  exit 0
 fi
 exit 1
 `,
@@ -1136,26 +1137,24 @@ test("P8V3K cleanup blocks a leftover compose-run container on the wrong image",
   const fakeBin = join(fixture, "bin");
   const docker = join(fakeBin, "docker");
   const removalMarker = join(fixture, "removed");
+  const containerId = "2".repeat(64);
   try {
     mkdirSync(fakeBin);
-	    writeFileSync(
-	      docker,
-	      `#!/bin/sh
-	if [ "$1" = "container" ] && [ "$2" = "ls" ] && [ "$3" = "-a" ] && [ "$4" = "--no-trunc" ] && [ "$5" = "--format" ] && [ "$6" = "{{.Names}}" ]; then
-	  if [ ! -f "$REMOVAL_MARKER" ]; then
-	    printf '%s\\n' 'evo-p8v3k-knowledge-import'
-	  fi
-	  exit 0
-	fi
-	if [ "$1" = "container" ] && [ "$2" = "ls" ] && [ "$3" = "-a" ] && [ "$4" = "--filter" ] && [ "$5" = "label=evo.p8v3k.importer-owner" ]; then
-	  exit 0
-	fi
-	if [ "$1" = "inspect" ] && [ "$3" = "--format" ] && [ "$4" = "{{.Image}}|{{index .Config.Labels \\"evo.p8v3k.importer-owner\\"}}|{{.Name}}" ]; then
-	  printf '%s\\n' 'sha256:${"f".repeat(64)}|${"a".repeat(48)}|/evo-p8v3k-knowledge-import'
-	  exit 0
-	fi
-	if [ "$1" = "rm" ] && [ "$2" = "-f" ] && [ "$3" = "evo-p8v3k-knowledge-import" ]; then
-	  : > "$REMOVAL_MARKER"
+    writeFileSync(
+      docker,
+      `#!/bin/sh
+if [ "$1" = "container" ] && [ "$2" = "ls" ]; then
+  if [ ! -f "$REMOVAL_MARKER" ]; then
+    printf '%s\\n' '${containerId}|evo-p8v3k-knowledge-import'
+  fi
+  exit 0
+fi
+if [ "$1" = "inspect" ] && [ "$3" = "--format" ] && [ "$4" = "{{.Image}}|{{index .Config.Labels \\"evo.p8v3k.importer-owner\\"}}|{{.Name}}" ]; then
+  printf '%s\\n' 'sha256:${"f".repeat(64)}|${"a".repeat(48)}|/evo-p8v3k-knowledge-import'
+  exit 0
+fi
+if [ "$1" = "rm" ] && [ "$2" = "-f" ] && [ "$3" = "${containerId}" ]; then
+  : > "$REMOVAL_MARKER"
   exit 0
 fi
 exit 1
@@ -1176,11 +1175,42 @@ exit 1
   }
 });
 
+test("P8V3K cleanup fails closed when Docker inventory cannot prove absence", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p8v3k-cleanup-inventory-failure-"));
+  const releaseRoot = join(fixture, "release");
+  const knowledgeRemote = join(releaseRoot, "knowledge-incoming");
+  const fakeBin = join(fixture, "bin");
+  const docker = join(fakeBin, "docker");
+  try {
+    mkdirSync(fakeBin);
+    writeFileSync(docker, "#!/bin/sh\nexit 17\n", { mode: 0o700 });
+    chmodSync(docker, 0o700);
+    const result = spawnSync("bash", ["-seu"], {
+      input: renderP8V3KnowledgeCleanupForTest({ releaseRoot, knowledgeRemote }),
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
+    });
+    assert.notEqual(result.status, 0);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
 test("every reviewed remote shell contract parses under bash", () => {
   for (const [name, script] of Object.entries(renderP8V3ShellContractsForTest())) {
     const parsed = spawnSync("bash", ["-n"], { input: script, encoding: "utf8" });
     assert.equal(parsed.status, 0, `${name}: ${parsed.stderr}`);
   }
+});
+
+test("P8V3K per-job cleanup removes only the one-off container and preserves shared staged files", () => {
+  const { knowledgeJobCleanup, knowledgeCleanup } = renderP8V3ShellContractsForTest();
+  assert.match(knowledgeJobCleanup, /docker container ls -a --no-trunc/);
+  assert.match(knowledgeJobCleanup, /docker rm -f "\$owned_id"/);
+  assert.doesNotMatch(knowledgeJobCleanup, /python3|knowledge-incoming|p8v3k-platform-knowledge-import\.mjs|unlink\(/);
+  assert.match(knowledgeCleanup, /p8v3k-platform-knowledge-import\.mjs/);
+  assert.match(knowledgeCleanup, /knowledge-incoming/);
+  assert.match(knowledgeCleanup, /hashlib\.sha256/);
 });
 
 test("P8V3K knowledge job uses compose run on the CRM service with individually mounted read-only files", () => {
@@ -1217,7 +1247,10 @@ set -eu
 printf '%s\\n' "$*" >> "$DOCKER_LOG"
 case "$1" in
   container)
-    printf '%s\\n' 'evo-p8v3k-knowledge-import'
+    if printf '%s\\n' "$*" | grep -F -- 'label=evo.p8v3k.importer-owner' >/dev/null; then
+      exit 0
+    fi
+    printf '%s\\n' '${"1".repeat(64)}|evo-p8v3k-knowledge-import'
     exit 0
     ;;
   compose) exit 99 ;;
@@ -1238,7 +1271,9 @@ esac
       },
     });
     assert.notEqual(result.status, 0);
-    const calls = readFileSync(dockerLog, "utf8").trim().split("\n");
+    const calls = existsSync(dockerLog)
+      ? readFileSync(dockerLog, "utf8").trim().split("\n")
+      : [];
     assert.equal(calls.some((call) => call.startsWith("compose ")), false, calls.join("\n"));
   } finally {
     rmSync(fixture, { recursive: true, force: true });
@@ -1254,13 +1289,11 @@ test("P8V3K provider probe blocks before compose run when an owner-label collisi
   writeFileSync(docker, `#!/bin/bash
 set -eu
 printf '%s\\n' "$*" >> "$DOCKER_LOG"
-if [ "$1" = "container" ] && [ "$2" = "ls" ] && printf '%s\\n' "$*" | grep -F -- '--no-trunc --format {{.Names}}' >/dev/null; then
-  exit 0
-fi
 if [ "$1" = "container" ] && [ "$2" = "ls" ] && printf '%s\\n' "$*" | grep -F -- 'label=evo.p8v3k.importer-owner' >/dev/null; then
-  printf '%s\\n' 'foreign-owned-container'
+  printf '%s\\n' '${"2".repeat(64)}|foreign-owned-container'
   exit 0
 fi
+if [ "$1" = "container" ] && [ "$2" = "ls" ]; then exit 0; fi
 if [ "$1" = "compose" ]; then exit 99; fi
 exit 2
 `, { mode: 0o700 });
@@ -1277,7 +1310,9 @@ exit 2
       },
     });
     assert.notEqual(result.status, 0);
-    const calls = readFileSync(dockerLog, "utf8").trim().split("\n");
+    const calls = existsSync(dockerLog)
+      ? readFileSync(dockerLog, "utf8").trim().split("\n")
+      : [];
     assert.equal(calls.some((call) => call.startsWith("compose ")), false, calls.join("\n"));
   } finally {
     rmSync(fixture, { recursive: true, force: true });

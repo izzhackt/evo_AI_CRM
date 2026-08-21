@@ -186,3 +186,15 @@ jobs:
 
       - name: Test
         run: uv run pytest
+
+      # Корневой пакет scripts/knowledge_ingestion не покрывался ни одной job:
+      # эта выполняет pytest только внутри evo-lead-agent. Шаг добавлен сюда,
+      # а не отдельной job, чтобы число обязательных проверок осталось четыре.
+      - name: Test the root knowledge-ingestion package
+        working-directory: ${{ github.workspace }}
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          # Корень репозитория не содержит pyproject.toml, поэтому путь импорта
+          # для пакета scripts задаётся явно.
+          PYTHONPATH: ${{ github.workspace }}
+        run: uv run --project evo-lead-agent pytest tests/knowledge_ingestion

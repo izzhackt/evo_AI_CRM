@@ -4,6 +4,7 @@ import {
   isSafeWahaProviderId,
   isWahaDirectChatId,
 } from "./platform-waha-identifiers.ts";
+import { PLATFORM_WAHA_SESSION_NAME } from "./platform-waha-ingress-config.ts";
 
 const MAX_RESPONSE_BYTES = 65_536;
 const MAX_TEXT_CHARACTERS = 4_096;
@@ -92,7 +93,7 @@ export function createPlatformManualSendWahaClient(
 
   return Object.freeze({
     async preflight(input: Readonly<{ session: string }>) {
-      if (input.session !== "crm_primary") {
+      if (input.session !== PLATFORM_WAHA_SESSION_NAME) {
         return { ready: false as const, reasonCode: "session_mismatch" };
       }
       let response: Response;
@@ -132,7 +133,7 @@ export function createPlatformManualSendWahaClient(
       text: string;
     }>) {
       if (
-        input.session !== "crm_primary" ||
+        input.session !== PLATFORM_WAHA_SESSION_NAME ||
         !isWahaDirectChatId(input.chatId) ||
         !isSafeWahaProviderId(input.replyTo) ||
         input.text.trim().length === 0 ||
@@ -186,17 +187,4 @@ export function createPlatformManualSendWahaClient(
       return Object.freeze({ providerMessageId: id });
     },
   });
-}
-
-export async function createPlatformManualSendWahaClientFromSettings(
-  fetchImpl: FetchImplementation = fetch,
-) {
-  const { getSetting } = await import("../db.ts");
-  return createPlatformManualSendWahaClient(
-    {
-      baseUrl: getSetting("waha_base_url"),
-      apiKey: getSetting("waha_api_key"),
-    },
-    fetchImpl,
-  );
 }

@@ -10,9 +10,10 @@ import {
   type PlatformManualSendEnabledConfig,
 } from "./platform-manual-send-config.ts";
 import {
-  createPlatformManualSendWahaClientFromSettings,
+  createPlatformManualSendWahaClient,
   PlatformManualSendWahaError,
 } from "./platform-manual-send-waha-client.ts";
+import { PLATFORM_WAHA_SESSION_NAME } from "./platform-waha-ingress-config.ts";
 import {
   isSafeWahaProviderId,
   isWahaDirectChatId,
@@ -25,6 +26,9 @@ const HMAC_SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const ERROR_CODE_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
 const MAX_FINAL_TEXT_CHARACTERS = 4_096;
+const PLATFORM_MANUAL_SEND_WAHA_BASE_URL = "http://evo-crm-waha:3000";
+const MIN_WAHA_API_KEY_BYTES = 16;
+const MAX_WAHA_API_KEY_BYTES = 4_096;
 
 type EmptyClaim = Readonly<{ claimed: false; queue: "platform_work_v1" }>;
 type ClaimedWork = Readonly<{
@@ -35,7 +39,7 @@ type ClaimedWork = Readonly<{
   authorizationId: string;
   conversationId: string;
   sourceMessageId: string;
-  wahaSessionName: "crm_primary";
+  wahaSessionName: typeof PLATFORM_WAHA_SESSION_NAME;
   chatId: string;
   replyTo: string;
   finalText: string;
@@ -54,7 +58,17 @@ type FinishResult = Readonly<{
   state: string;
 }>;
 
+export type PlatformManualSendWahaRuntimeBinding = Readonly<{
+  sessionName: typeof PLATFORM_WAHA_SESSION_NAME;
+  baseUrl: typeof PLATFORM_MANUAL_SEND_WAHA_BASE_URL;
+  apiKey: string;
+  bindingVersion: number;
+}>;
+
 export type PlatformManualSendRepository = Readonly<{
+  loadRuntimeBinding(input: Readonly<{
+    organizationId: string;
+  }>): Promise<PlatformManualSendWahaRuntimeBinding>;
   claim(input: Readonly<{
     organizationId: string;
     workerRef: string;
@@ -75,12 +89,12 @@ export type PlatformManualSendRepository = Readonly<{
 }>;
 
 export type PlatformManualSendProvider = Readonly<{
-  preflight(input: Readonly<{ session: "crm_primary" }>): Promise<
+  preflight(input: Readonly<{ session: typeof PLATFORM_WAHA_SESSION_NAME }>): Promise<
     | Readonly<{ ready: true }>
     | Readonly<{ ready: false; reasonCode: string }>
   >;
   sendText(input: Readonly<{
-    session: "crm_primary";
+    session: typeof PLATFORM_WAHA_SESSION_NAME;
     chatId: string;
     replyTo: string;
     text: string;
@@ -116,6 +130,36 @@ function timestamp(value: unknown): string | null {
     : null;
 }
 
+function normalizeRuntimeBinding(
+  value: unknown,
+): PlatformManualSendWahaRuntimeBinding {
+  if (!Array.isArray(value) || value.length !== 1 || !isRecord(value[0])) {
+    return repositoryError();
+  }
+  const row = value[0];
+  const apiKey = typeof row.waha_api_key === "string" ? row.waha_api_key : null;
+  if (
+    row.waha_session_name !== PLATFORM_WAHA_SESSION_NAME ||
+    row.waha_base_url !== PLATFORM_MANUAL_SEND_WAHA_BASE_URL ||
+    apiKey === null ||
+    apiKey !== apiKey.trim() ||
+    Buffer.byteLength(apiKey, "utf8") < MIN_WAHA_API_KEY_BYTES ||
+    Buffer.byteLength(apiKey, "utf8") > MAX_WAHA_API_KEY_BYTES ||
+    /[\r\n]/.test(apiKey) ||
+    typeof row.binding_version !== "number" ||
+    !Number.isSafeInteger(row.binding_version) ||
+    row.binding_version < 1
+  ) {
+    return repositoryError();
+  }
+  return Object.freeze({
+    sessionName: PLATFORM_WAHA_SESSION_NAME,
+    baseUrl: PLATFORM_MANUAL_SEND_WAHA_BASE_URL,
+    apiKey,
+    bindingVersion: row.binding_version,
+  });
+}
+
 function validateClaim(value: unknown): ClaimResult {
   if (!isRecord(value) || typeof value.claimed !== "boolean") {
     return repositoryError();
@@ -145,7 +189,7 @@ function validateClaim(value: unknown): ClaimResult {
     authorizationId === null ||
     conversationId === null ||
     sourceMessageId === null ||
-    value.wahaSessionName !== "crm_primary" ||
+    value.wahaSessionName !== PLATFORM_WAHA_SESSION_NAME ||
     !isWahaDirectChatId(value.chatId) ||
     !isSafeWahaProviderId(value.replyTo) ||
     finalText === null ||
@@ -168,7 +212,7 @@ function validateClaim(value: unknown): ClaimResult {
     authorizationId,
     conversationId,
     sourceMessageId,
-    wahaSessionName: "crm_primary",
+    wahaSessionName: PLATFORM_WAHA_SESSION_NAME,
     chatId: value.chatId,
     replyTo: value.replyTo,
     finalText,
@@ -240,6 +284,17 @@ export function createPlatformManualSendRepository(
   client: SupabaseClient,
 ): PlatformManualSendRepository {
   return Object.freeze({
+    async loadRuntimeBinding(input) {
+      if (uuid(input.organizationId) !== input.organizationId) {
+        return repositoryError();
+      }
+      const response = await client.schema("platform").rpc(
+        "resolve_manual_send_waha_runtime",
+        { p_organization_id: input.organizationId },
+      );
+      if (response.error) return repositoryError();
+      return normalizeRuntimeBinding(response.data);
+    },
     async claim(input) {
       const response = await client.schema("platform").rpc(
         "claim_manual_whatsapp_send",
@@ -385,13 +440,23 @@ export function createPlatformManualSendHandler(
           createPlatformSupabaseServiceClient(config),
         );
       }
-      provider ??= await createPlatformManualSendWahaClientFromSettings();
+      if (provider === undefined) {
+        const runtimeBinding = await repository.loadRuntimeBinding({
+          organizationId: config.organizationId,
+        });
+        provider = createPlatformManualSendWahaClient({
+          baseUrl: runtimeBinding.baseUrl,
+          apiKey: runtimeBinding.apiKey,
+        });
+      }
     } catch {
       return jsonError("manual_send_unavailable", 503);
     }
 
     try {
-      const readiness = await provider.preflight({ session: "crm_primary" });
+      const readiness = await provider.preflight({
+        session: PLATFORM_WAHA_SESSION_NAME,
+      });
       if (!readiness.ready) return jsonError("provider_not_ready", 503);
     } catch {
       return jsonError("provider_not_ready", 503);

@@ -10101,3 +10101,65 @@ Reviewer notes: independent diff review found no high- or medium-severity
 blockers. Its request for stronger runtime evidence was addressed with direct
 page/look-ahead and Student 360 preview-summary tests. Exact-head CI remains
 pending until the branch is pushed.
+
+## 2026-08-23 — P8R4 replace the manual-send SQLite transport seam
+
+Date: 2026-08-23, workspace timezone.
+Author: Codex.
+Change type: Supabase runtime ownership and provider-adapter correction.
+Affected plan sections: unified WAHA ownership, manual WhatsApp send worker,
+private provider configuration, migration chain, and launch evidence.
+Reason: exact-main audit at
+`7e99eff6c1890f234eabb9d18217fbe2dd43f500` traced the complete manual-send
+path. Staff authorization, durable work claim/finish, audit and provider-result
+identity already use Supabase. The production adapter still calls
+`createPlatformManualSendWahaClientFromSettings()`, which imports legacy
+`src/lib/db.ts` and reads SQLite rows `waha_base_url` and `waha_api_key`.
+TypeScript and migration 077 also require `crm_primary`, while the accepted
+one-platform target owns one private session named `evo-inbox`.
+Decision: add one new immutable migration after 079. It creates a private,
+organization-scoped manual-send WAHA runtime binding with exact non-secret
+session/base-URL metadata and a foreign-key reference to an encrypted Supabase
+Vault secret. One `platform` RPC resolves only that exact binding and decrypted
+key for a verified service-role caller; browser roles receive no table or RPC
+access. Replace the active manual-send claim, finish and provider-binding
+invariants so new work uses only `evo-inbox`. Do not edit migration 077, copy
+legacy settings, add a fallback, or perform dual-read/dual-write.
+The migration must abort if existing manual-send provider-result rows contain a
+non-`evo-inbox` session. Historical provider provenance is never silently
+renamed. A separately authorized operator must decide any archival/cutover
+action before applying the migration to such an environment.
+Implementation impact: remove the SQLite settings factory from the WAHA
+adapter. Extend the existing manual-send Supabase repository adapter with one
+bounded runtime-binding read, validate an exact one-row result, build the
+injected WAHA adapter from that result, and perform readiness before claiming
+work. Missing, disabled, duplicate, malformed or short/newline-bearing secrets
+must return `manual_send_unavailable` without a lease or provider request.
+Validation impact: add runtime unit tests for the Supabase binding and adapter,
+source-contract proof that the live module cannot import `db.ts`, and a local
+SQL acceptance suite for Vault resolution, grants, exact-session claim/finish
+and the migration conflict guard. Run a disposable local Supabase reset, full
+unit tests, lint, typecheck, build, independent review and exact-SHA CI.
+Operational boundary: this plan authorizes repository and disposable-local
+changes only. It does not insert a real API key, mutate/start/delete a WAHA
+session, deploy, send WhatsApp, write amoCRM, enable autonomous replies, change
+DNS/TLS or run a dedicated security scan. A green local/CI result is not real
+provider or production proof.
+Research basis: [Supabase Vault](https://supabase.com/docs/guides/database/vault),
+[Supabase server secret-key boundary](https://supabase.com/docs/guides/getting-started/api-keys),
+[PostgreSQL function security](https://www.postgresql.org/docs/current/sql-createfunction.html),
+[WAHA sessions](https://waha.devlike.pro/docs/how-to/sessions/), and
+[WAHA security](https://waha.devlike.pro/docs/how-to/security/).
+Implementation evidence: migration 080 now owns the exact private
+`evo-inbox`/Vault binding, service-only resolver, cutover guard and active
+claim/finish replacements. The live TypeScript worker resolves that binding
+before it leases work and no longer imports the SQLite database module. During
+real SQL acceptance, a pre-existing role mismatch was found and fixed: claim
+now validates `admin`/`sales`/`curator` authority and records the sender
+participant before provider execution, while finish resolves the same roles.
+The disposable migration reset, conflict-guard proof, Vault/grant checks, real
+claim/finish SQL, 651 unit tests, lint, root/Inbox typechecks and builds, and the
+full local Supabase/browser gate passed. Independent diff review found no high-
+or medium-severity correctness issue. Exact committed-head CI remains pending.
+No real provider, production, outbound, DNS/TLS or dedicated security-scan
+action was performed.

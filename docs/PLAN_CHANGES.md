@@ -9926,3 +9926,56 @@ Research basis: <https://supabase.com/docs/guides/getting-started/architecture>,
 <https://supabase.com/docs/guides/functions>.
 Reviewer notes: independent correctness re-review confirmed the one-product
 Supabase boundary and found no remaining blocking finding in this change set.
+
+## 2026-08-23 — Restore the post-merge release gate and authorize the controlled all-in-one rollout
+
+Date: 2026-08-23, workspace timezone.
+Author: Product owner authorization recorded by Codex.
+Change type: validation correction, production authority, DNS/TLS cutover, and
+rollback/cleanup boundary.
+Affected plan sections: current status, P8R2 validation evidence, controlled
+production rollout, canonical routing, rollback, and cleanup.
+Reason: PR #367 merged with green exact-head and exact-main CI, but a fresh
+independent post-merge review found that the launch-plan header still described
+an older main/migration boundary and that the P8R2 entry named a standalone
+Playwright command which cannot discover `tests/platform-auth` under the
+default `playwright.config.ts`. The real CI proof ran the browser/Auth contract
+through the local Supabase harness and `playwright.platform-auth.config.ts`.
+The owner then explicitly authorized merging PR #367, a controlled production
+deployment, managed migrations `078-079`, and DNS/TLS repair, while forbidding
+outbound WhatsApp messages and amoCRM writes.
+Decision: refresh the launch-plan status through merge
+`e6f60a3a7dd59a6630ba68e3ce10014ac939913f` and migration `079`. Supersede the
+standalone P8R2 Playwright instruction with `npm run test:supabase:local`, which
+owns the real Supabase/Auth/PostgREST setup and invokes
+`playwright.platform-auth.config.ts` against `tests/platform-auth`. Do not
+retroactively call PR #367 independently approved: require this correction PR
+to receive a real separate review before production deployment.
+
+The target is the one EVO Platform entry point and root Supabase-native UI.
+The old CRM, Inbox and Lead Agent images are not forward targets. Preserve the
+currently running images only as rollback inputs until the exact new release,
+managed migration ledger, authenticated UI and canonical HTTPS checks pass.
+After acceptance, cleanup may remove only an itemized set of unreferenced
+release directories and images while retaining one known-good rollback; never
+prune volumes, WAHA sessions, Supabase data, or the active/rollback image.
+
+Canonical routing must point `crm.evoadmissions.com` to `72.62.119.112` and
+serve the unified CRM application. `inbox.evoadmissions.com` may resolve to the
+same edge only to redirect users into the communications module of the one CRM
+shell; it must not remain a second product or data authority. Validate the
+repository Caddy source, the live Caddy config, authoritative DNS answers,
+certificate issuance, HTTPS health/login behavior, and rollback before
+retiring the old public Inbox route.
+
+Validation impact: require a clean correction diff, exact-head independent
+review, exact-head CI, green exact-main push CI, managed-Supabase migration
+dry-run and application of only pending migrations `078-079`, exact OCI
+revision labels, healthy/restart-stable containers, authenticated Platform
+login/read checks, and authoritative DNS plus real TLS verification. Keep
+`EVO_PLATFORM_AUTONOMOUS_REPLIES_ENABLED=0`, the kill switch on, Lead Agent
+outbound disabled, and the manual-send worker stopped. No formal security scan,
+outbound WhatsApp send, amoCRM write, provider fallback, demo data, SQLite
+cutover, dual-read, or dual-write is authorized.
+Reviewer notes: pending independent review of this correction and release
+boundary.

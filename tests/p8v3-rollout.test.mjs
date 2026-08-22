@@ -1229,6 +1229,22 @@ test("both Compose environments pin the public network they publish on", () => {
   assert.equal(pins.length, 2, "both the inbox and the CRM branch must pin the network");
 });
 
+test("the bundle is mounted under the name its manifest declares", () => {
+  // The importer computes the expected name as basename(--bundle) and rejects a
+  // manifest that declares anything else. The Python builder writes
+  // `evo-knowledge-<audience>.json` into the manifest, so mounting under a
+  // fixed name made the two disagree and every import failed manifest_mismatch.
+  const source = readFileSync(join(process.cwd(), "scripts/p8v3-production-operations.mjs"), "utf8");
+  const builder = readFileSync(join(process.cwd(), "scripts/knowledge_ingestion/build_platform_bundle.py"), "utf8");
+  assert.match(builder, /bundle_name = f"evo-knowledge-\{audience\}\.json"/);
+  assert.match(builder, /"bundle_file": bundle_name/);
+  assert.match(source, /const bundleName = `evo-knowledge-\$\{audience\}\.json`/);
+  // Mount target and --bundle argument must both be built from that same name.
+  assert.match(source, /target: `\$\{BUNDLE_MOUNT_DIR\}\/\$\{item\.bundleName\}`/);
+  assert.match(source, /--bundle '\$\{BUNDLE_MOUNT_DIR\}\/\$\{item\.bundleName\}'/);
+  assert.equal(source.includes('"/run/evo-p8v3k/knowledge-bundle.json"'), false);
+});
+
 test("scripts run inside the app container stay POSIX", () => {
   // The container scripts run with `--entrypoint /bin/sh`, and /bin/sh in this
   // image is dash. `[[` is a bash keyword, so dash reports "not found" and the
@@ -1942,13 +1958,16 @@ test("P8V3K provider probe is detached and identity-gated before the knowledge j
   assert.ok(detachedRun >= 0 && immutableIdentity > detachedRun && proofLine > immutableIdentity && gateOpen > proofLine && wait > gateOpen);
   assert.match(knowledgeImport, /-e 'EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID'/);
   assert.match(knowledgeImport, /-v '\/opt\/evo-releases\/[^']+\/p8v3k-platform-knowledge-import\.mjs:\/run\/evo-p8v3k\/p8v3k-platform-knowledge-import\.mjs:ro'/);
-  assert.match(knowledgeImport, /-v '\/opt\/evo-releases\/[^']+\/knowledge-incoming\/evo-knowledge-client\.json:\/run\/evo-p8v3k\/knowledge-bundle\.json:ro'/);
+  // The mount keeps the bundle's own name: the importer expects the manifest to
+  // declare exactly the file it was handed.
+  assert.match(knowledgeImport, /-v '\/opt\/evo-releases\/[^']+\/knowledge-incoming\/evo-knowledge-client\.json:\/run\/evo-p8v3k\/evo-knowledge-client\.json:ro'/);
+  assert.match(knowledgeImport, /--bundle .{0,6}\/run\/evo-p8v3k\/evo-knowledge-client\.json/);
   assert.match(knowledgeImport, /-v '\/opt\/evo-releases\/[^']+\/knowledge-incoming\/evo-knowledge-client\.sha256\.json:\/run\/evo-p8v3k\/knowledge-manifest\.json:ro'/);
   assert.match(knowledgeImport, /p8v3k-platform-knowledge-import\.mjs.*--audience '"'"'client'"'"'/s);
   // POSIX form: this line runs inside the container, where /bin/sh is dash.
   assert.match(knowledgeImport, /\[ "\$EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID" = "\$EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID" \]/);
   assert.doesNotMatch(knowledgeImport, /--account-id/);
-  assert.match(knowledgeImport, /knowledge-bundle\.json/);
+  assert.match(knowledgeImport, /evo-knowledge-client\.json/);
   assert.match(knowledgeImport, /knowledge-manifest\.json/);
   assert.doesNotMatch(knowledgeImport, /docker create|docker cp|--verify-runtime/);
 

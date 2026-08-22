@@ -35,6 +35,7 @@ export type ApplicationsSearchParams = Readonly<{
   retry_request_id?: string;
   catalog_result?: string;
   catalog_batch_id?: string;
+  catalog_page?: string | string[];
   catalog_retry_request_id?: string;
   catalog_retry_op?: string;
 }>;

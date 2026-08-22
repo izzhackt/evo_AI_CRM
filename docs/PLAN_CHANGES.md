@@ -10017,3 +10017,87 @@ and added unused canonical host blocks. PR #369 is superseded, and this clean
 PR defines the narrower forward reconciliation; production must be rebuilt and
 checked at the eventual exact merged `main` SHA before it can be called aligned.
 Reviewer notes: pending exact-head CI and independent release gate.
+
+## 2026-08-22 - Exact-main audit correction for unified Platform remediation
+
+Date: 2026-08-22, workspace timezone.
+Author: Codex.
+Change type: acceptance criteria and defect-baseline correction.
+Affected plan section: all-in-one Platform remediation scope, current defect
+baseline, and validation targets.
+Reason: a read-only audit of exact `origin/main`
+`ee8a825ebc72f84449636e3feaefab7a330913d4` found that the inherited P8R2
+defect bundle is only partially current on this SHA. Some claims were already
+repaired by the bounded Supabase read-model migration chain and exact route
+probes, while other live defects still block the agreed one-product,
+Supabase-native target.
+Decision: keep the 2026-08-22 all-in-one EVO architecture authority unchanged,
+but narrow the active remediation lane to confirmed current defects only.
+Confirmed defects on this SHA:
+1. legacy SQLite remains wired into the root CRM runtime through
+`src/lib/db.ts`, live route imports, and `docker-compose.prod.yml` /
+`EVO_DB_PATH`, which conflicts with the agreed Supabase-native forward
+architecture;
+2. connected `/sales` does not render the admissions lead board/list at all;
+it switches to `ConnectedSalesIntake` and shows only the bounded sales intake
+conversation queue, so the unified sales surface is functionally incomplete for
+staff;
+3. legacy/root routes and settings still expose SQLite-backed operational
+contours that must be retired or explicitly quarantined instead of carried
+forward as implicit platform behavior.
+Claims treated as stale or already repaired on this SHA:
+1. the lead-agent deployment probe does not accept an arbitrary `403`; it
+expects the exact handler response `403|invalid_signature`;
+2. the public Caddy proxy is not path-blocking the audited internal routes in
+repository source;
+3. communications, student-case, application and message reads already use
+bounded page/snapshot RPC contracts with explicit `p_limit` and keyset cursors.
+Validation impact: any follow-up code change must prove, with real repo
+validation, that connected staff surfaces no longer depend on live SQLite
+runtime paths, production compose no longer configures `EVO_DB_PATH` for the
+forward app path, and `/sales` presents one coherent all-in-one staff workflow
+on top of the bounded Supabase contracts without reintroducing dual-read,
+dual-write or fallback UI behavior.
+Reviewer notes: pending independent exact-head review after implementation.
+
+## 2026-08-23 — P8R3 bound catalog review and disclose partial Student 360 application data
+
+Date: 2026-08-23, workspace timezone.
+Author: Codex.
+Change type: production data-read correctness and UI truthfulness.
+Affected plan sections: Platform catalog batch review, Student 360 application
+summary, bounded connected read contracts, and acceptance tests.
+Reason: a fresh exact-main audit at
+`ee8a825ebc72f84449636e3feaefab7a330913d4` found two remaining scale seams.
+`admin_catalog_import_candidates` is a deterministically ordered table-valued
+RPC, but its repository caller requests the whole batch, so PostgREST can stop
+at its configured row limit while the UI presents the returned subset as the
+complete review list. Student 360 deliberately requests at most 100
+applications, but it derives the visible active-application metric from that
+page and does not disclose when more rows exist.
+Decision: page catalog candidates on the server by applying a bounded
+Supabase/PostgREST range to the existing table-valued RPC. Preserve its unique
+`created_at, id` order, request one look-ahead row, and expose explicit previous
+and next navigation tied to the selected batch. Do not download a complete
+batch and paginate it in memory. Keep the existing database function and
+authorization contract; no compatibility RPC or schema migration is added.
+For Student 360, retain the bounded 100-row embedded preview, but mark the
+active-application metric as a lower bound whenever the repository reports a
+next page and show an explicit partial-data notice linking to the already
+filtered, paginated `/applications` queue.
+Validation impact: add focused repository/presentation tests covering the
+inclusive range, look-ahead row, stable batch navigation, lower-bound metric,
+and visible partial-data disclosure. Run the focused tests, full non-security
+unit suite, lint, typecheck, and production build under Node 22.23.1. The
+standard exact-head CI remains the merge gate. This block authorizes no
+provider call, production mutation, database migration, outbound WhatsApp,
+amoCRM write, autonomous reply, DNS/TLS change, or dedicated security scan.
+Research basis: [Supabase range modifier](https://supabase.com/docs/reference/javascript/using-modifiers-range),
+[PostgREST table-valued RPC filters and limits](https://postgrest.org/en/latest/references/api/functions.html),
+[PostgREST pagination](https://postgrest.org/en/stable/references/api/pagination_count.html),
+[PostgreSQL LIMIT/OFFSET ordering](https://www.postgresql.org/docs/current/queries-limit.html),
+and [Next.js server-page search parameters](https://nextjs.org/docs/app/getting-started/layouts-and-pages#rendering-with-search-params).
+Reviewer notes: independent diff review found no high- or medium-severity
+blockers. Its request for stronger runtime evidence was addressed with direct
+page/look-ahead and Student 360 preview-summary tests. Exact-head CI remains
+pending until the branch is pushed.

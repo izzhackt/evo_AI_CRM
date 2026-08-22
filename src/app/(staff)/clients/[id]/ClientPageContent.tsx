@@ -203,6 +203,11 @@ export type ClientPagePresentationData =
       actor: PresentationActor;
       client: PresentationClientFull;
       applications: readonly PresentationApplication[];
+      applicationPreview?: Readonly<{
+        visibleCount: number;
+        hasMore: boolean;
+        fullListHref: string;
+      }>;
       documents: readonly PresentationDocument[];
       visa: PresentationVisa | null;
       payments: readonly PresentationPayment[];
@@ -608,6 +613,10 @@ export default async function ClientPageContent({
   );
   const activeApps = data.metrics?.activeApplications
     ?? apps.filter((app) => app.status === "preparing" || app.status === "submitted").length;
+  const applicationsArePartial = data.applicationPreview?.hasMore ?? false;
+  const applicationsFullListHref =
+    data.applicationPreview?.fullListHref
+    ?? `/applications?student_case_id=${client.id}`;
   const openDocuments = data.metrics?.openDocuments
     ?? docs.filter((doc) => doc.status !== "approved").length;
   const pendingPayments = data.metrics?.pendingPayments
@@ -797,7 +806,17 @@ export default async function ClientPageContent({
           </section>
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <StatCard label={t("activeApplications")} value={num(activeApps)} href="#applications" tone="info" />
+            <StatCard
+              label={t("activeApplications")}
+              value={applicationsArePartial ? `≥${num(activeApps)}` : num(activeApps)}
+              href="#applications"
+              meta={
+                applicationsArePartial
+                  ? t("activeApplicationsLowerBound")
+                  : undefined
+              }
+              tone="info"
+            />
             <StatCard label={t("openDocuments")} value={num(openDocuments)} href="#documents" tone="warning" />
             <StatCard label={t("openWork")} value={num(openTasks)} href="#tasks" tone="accent" />
             <StatCard label={t("pendingPayments")} value={num(pendingPayments)} href="#payments" tone="danger" />
@@ -1398,6 +1417,19 @@ export default async function ClientPageContent({
         {/* Applications */}
         <section id="applications" className="min-w-0 scroll-mt-24">
           <Card title={t("applications")}>
+          {applicationsArePartial ? (
+            <div
+              role="note"
+              data-testid="platform-application-preview-partial"
+              className="mb-3 rounded-nav border border-info/30 bg-info-weak px-3 py-2.5 text-[12px] leading-5 text-fg-2"
+            >
+              {t("applicationsPreviewPartial")}{" "}
+              <span className="font-mono font-semibold text-fg">
+                {num(data.applicationPreview?.visibleCount ?? apps.length)}
+              </span>
+              .
+            </div>
+          ) : null}
           <ul className="divide-y divide-border">
             {apps.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0">
@@ -1431,10 +1463,10 @@ export default async function ClientPageContent({
           {apps.length === 0 && <EmptyState text={t("noResults")} />}
           <div className="mt-3 border-t border-border pt-3">
             <Link
-              href={`/applications?student_case_id=${client.id}`}
+              href={applicationsFullListHref}
               className={btnGhostCls}
             >
-              {t("applications")} →
+              {t("applicationsFullList")} →
             </Link>
           </div>
           {actions.addApplication ? (

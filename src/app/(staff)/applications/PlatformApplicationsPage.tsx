@@ -26,6 +26,10 @@ import {
   listPlatformCatalogInstitutions,
   listPlatformCatalogSources,
 } from "@/lib/platform-catalog";
+import {
+  buildPlatformCatalogBatchPageHref,
+  parsePlatformCatalogCandidatePage,
+} from "@/lib/platform-catalog-pagination.ts";
 import { requirePlatformApplicationsActor } from "@/lib/platform-guards";
 
 import {
@@ -184,6 +188,11 @@ const CATALOG_COPY: Record<Locale, CatalogImportWorkspaceCopy> = {
     approve: "Approve и опубликовать",
     validationErrors: "Ошибки",
     noCandidates: "В batch ещё нет staging-записей.",
+    noCandidatesOnPage:
+      "На этой странице записей нет. Вернитесь на предыдущую страницу batch.",
+    candidateRange: "Записи batch",
+    previousCandidates: "Предыдущие записи",
+    nextCandidates: "Следующие записи",
     noSources: "Источники ещё не зарегистрированы.",
     noBatches: "Import batches ещё не создавались.",
     open: "Открыть",
@@ -231,6 +240,11 @@ const CATALOG_COPY: Record<Locale, CatalogImportWorkspaceCopy> = {
     approve: "Approve жана жарыялоо",
     validationErrors: "Каталар",
     noCandidates: "Batch ичинде staging-жазуулар жок.",
+    noCandidatesOnPage:
+      "Бул бетте жазуу жок. Batch'тин мурунку бетине кайтыңыз.",
+    candidateRange: "Batch жазуулары",
+    previousCandidates: "Мурунку жазуулар",
+    nextCandidates: "Кийинки жазуулар",
     noSources: "Булактар каттала элек.",
     noBatches: "Import batch түзүлө элек.",
     open: "Ачуу",
@@ -279,6 +293,11 @@ const CATALOG_COPY: Record<Locale, CatalogImportWorkspaceCopy> = {
     approve: "Approve and publish",
     validationErrors: "Errors",
     noCandidates: "This batch has no staged records yet.",
+    noCandidatesOnPage:
+      "There are no records on this page. Return to the previous batch page.",
+    candidateRange: "Batch records",
+    previousCandidates: "Previous records",
+    nextCandidates: "Next records",
     noSources: "No sources have been registered.",
     noBatches: "No import batches have been created.",
     open: "Open",
@@ -488,12 +507,18 @@ export async function loadPlatformApplicationsPage({
         (batch) => batch.catalogImportBatchId === requestedCatalogBatchId,
       ) ?? catalogBatches[0]
     : undefined;
-  const catalogCandidates = selectedCatalogBatch
+  const requestedCatalogPage =
+    selectedCatalogBatch &&
+    requestedCatalogBatchId === selectedCatalogBatch.catalogImportBatchId
+      ? parsePlatformCatalogCandidatePage(query.catalog_page)
+      : 1;
+  const catalogCandidatePage = selectedCatalogBatch
     ? await listPlatformCatalogImportCandidates(
         actor,
         selectedCatalogBatch.catalogImportBatchId,
+        { page: requestedCatalogPage },
       )
-    : [];
+    : undefined;
   const retryCatalogRequestId = parsePlatformAdmissionsUuid(
     query.catalog_retry_request_id,
   );
@@ -635,10 +660,41 @@ export async function loadPlatformApplicationsPage({
               ),
             })),
             batches: catalogBatches,
-            selected: selectedCatalogBatch
+            selected: selectedCatalogBatch && catalogCandidatePage
               ? {
                   batch: selectedCatalogBatch,
-                  candidates: catalogCandidates,
+                  candidates: catalogCandidatePage.rows,
+                  candidatePage: {
+                    page: catalogCandidatePage.page,
+                    pageSize: catalogCandidatePage.pageSize,
+                    hasPrevious: catalogCandidatePage.hasPrevious,
+                    hasNext: catalogCandidatePage.hasNext,
+                    firstRow:
+                      catalogCandidatePage.rows.length > 0
+                        ? (catalogCandidatePage.page - 1) *
+                            catalogCandidatePage.pageSize +
+                          1
+                        : 0,
+                    lastRow:
+                      (catalogCandidatePage.page - 1) *
+                        catalogCandidatePage.pageSize +
+                      catalogCandidatePage.rows.length,
+                    totalRows: selectedCatalogBatch.candidateCount,
+                    previousHref:
+                      catalogCandidatePage.hasPrevious
+                        ? buildPlatformCatalogBatchPageHref(
+                            selectedCatalogBatch.catalogImportBatchId,
+                            catalogCandidatePage.page - 1,
+                          )
+                        : null,
+                    nextHref:
+                      catalogCandidatePage.hasNext
+                        ? buildPlatformCatalogBatchPageHref(
+                            selectedCatalogBatch.catalogImportBatchId,
+                            catalogCandidatePage.page + 1,
+                          )
+                        : null,
+                  },
                   stageRequestId: requestIdFor(
                     `stage_candidate:${selectedCatalogBatch.catalogImportBatchId}`,
                   ),

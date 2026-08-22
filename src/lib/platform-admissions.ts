@@ -239,6 +239,36 @@ function requiredUuid(value: unknown): string {
   return parsePlatformAdmissionsUuid(value) ?? invalidShape();
 }
 
+export function summarizePlatformStudentCaseApplicationPreview(
+  applications: readonly Readonly<{ status: PlatformApplicationStatus }>[],
+  hasMore: boolean,
+  studentCaseId: string,
+): Readonly<{
+  activeApplications: number;
+  preview: Readonly<{
+    visibleCount: number;
+    hasMore: boolean;
+    fullListHref: string;
+  }>;
+}> {
+  const normalizedStudentCaseId = requiredUuid(studentCaseId);
+  const activeApplications = applications.filter(
+    (application) =>
+      application.status !== "rejected" &&
+      application.status !== "withdrawn" &&
+      application.status !== "closed",
+  ).length;
+  return Object.freeze({
+    activeApplications,
+    preview: Object.freeze({
+      visibleCount: applications.length,
+      hasMore,
+      fullListHref:
+        `/applications?student_case_id=${normalizedStudentCaseId}`,
+    }),
+  });
+}
+
 function optionalUuid(value: unknown): string | null {
   if (value === null) return null;
   return requiredUuid(value);

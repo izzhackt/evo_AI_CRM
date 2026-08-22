@@ -9927,9 +9927,10 @@ Research basis: <https://supabase.com/docs/guides/getting-started/architecture>,
 Reviewer notes: independent correctness re-review confirmed the one-product
 Supabase boundary and found no remaining blocking finding in this change set.
 
-## 2026-08-22 — Restore the post-merge release gate and authorize the controlled all-in-one rollout
+## 2026-08-23 (+06; 2026-08-22 UTC) — Restore the post-merge release gate and authorize the controlled all-in-one rollout
 
-Date: 2026-08-22, workspace timezone.
+Date: 2026-08-23 in the workspace timezone (+06); the corresponding GitHub
+events are dated 2026-08-22 in UTC.
 Author: Product owner authorization recorded by Codex.
 Change type: validation correction, production authority, DNS/TLS cutover, and
 rollback/cleanup boundary.

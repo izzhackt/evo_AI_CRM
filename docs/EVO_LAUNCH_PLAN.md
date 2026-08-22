@@ -40,7 +40,8 @@ the importer as a runnable, UUID-redacting production-image artifact, and PRs
 #232-#233 built and independently verified the exact P8D4F `linux/amd64`
 candidate, and PR #235 authorized the closed P8D4G production execution order.
 Repository status through PR #367: the bounded Platform read-model and unified
-Lead Agent sync repair merged on 2026-08-22 as
+Lead Agent sync repair merged at 2026-08-22 20:03:44 UTC, which is
+2026-08-23 02:03:44 in the workspace timezone (+06), as
 `e6f60a3a7dd59a6630ba68e3ce10014ac939913f`; the canonical migration chain is
 contiguous through `001-079`; and exact-main push CI run `32595569563` passed
 Main CRM, EVO Inbox and EVO Lead Agent. `Changed range` is skipped on the push

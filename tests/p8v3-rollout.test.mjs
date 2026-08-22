@@ -1215,6 +1215,36 @@ test("expired preflight stops before identity or production access", async () =>
   assert.deepEqual(adapter.calls, []);
 });
 
+test("both Compose environments pin the public network they publish on", () => {
+  // The Compose file resolves its public network from `${EVO_CADDY_NETWORK}`.
+  // Leaving that to `--env-file` let production drift decide which edge the
+  // app is published on: the CRM env file had come to name another project's
+  // network, while the running container sat on evo_public_web. A release
+  // must reproduce the running topology, so both branches export it.
+  const source = readFileSync(join(process.cwd(), "scripts/p8v3-production-operations.mjs"), "utf8");
+  const start = source.indexOf("function composeEnvironment(name)");
+  const body = source.slice(start, source.indexOf("function composeFile(name)"));
+  assert.ok(start >= 0);
+  const pins = body.match(/export EVO_CADDY_NETWORK='evo_public_web'/g) ?? [];
+  assert.equal(pins.length, 2, "both the inbox and the CRM branch must pin the network");
+});
+
+test("the rollback path pins the public network as well", () => {
+  // rollbackScript builds its environment inline instead of calling
+  // composeEnvironment, so pinning the network there does not reach it. Its
+  // --env-file is the preserved snapshot, which names the other project's
+  // network — an unpinned rollback would cause the outage it exists to undo.
+  const source = readFileSync(join(process.cwd(), "scripts/p8v3-production-operations.mjs"), "utf8");
+  const start = source.indexOf("function rollbackScript(name)");
+  const body = source.slice(start, source.indexOf("docker compose", start + 1));
+  assert.ok(start >= 0);
+  const up = source.slice(start).match(/docker compose[^\n]*up --no-deps[^\n]*/);
+  assert.ok(up, "rollback still brings a service up");
+  const envBlock = source.slice(start, source.indexOf(up[0], start));
+  assert.match(envBlock, /export EVO_CADDY_NETWORK='evo_public_web'/);
+  assert.ok(body.length > 0);
+});
+
 test("production adapter keeps staging, rollback and evidence cleanup narrowly ordered", () => {
   const source = readFileSync(join(process.cwd(), "scripts/p8v3-production-operations.mjs"), "utf8");
   const verifyStart = source.indexOf("async verifyPreflight(snapshot)");

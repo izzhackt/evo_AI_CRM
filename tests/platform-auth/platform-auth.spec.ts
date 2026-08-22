@@ -933,16 +933,17 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
   await expect(page).toHaveURL(/\/sales$/);
   await expect(page.getByTestId("platform-sales-page")).toBeVisible();
   await expect(
-    page.getByRole("navigation", {
-      name: /Вид воронки продаж|Сатуу воронкасынын көрүнүшү|Sales pipeline view/,
-    }),
+    page
+      .getByTestId("platform-sales-intake")
+      .getByText(fixture.conversations.orgA.subject, { exact: true }),
   ).toBeVisible();
+  await expect(page.getByTestId("platform-sales-intake-row").first()).toBeVisible();
   await expect(
     page.getByRole("navigation", {
       name: /Основная навигация|Негизги навигация|Primary navigation/,
     }).first(),
   ).toBeVisible();
-  await expect(page.getByText(/Утверждённый контракт OP v\d+/)).toBeVisible();
+  await expect(page.getByText(/Контракт OP утверждён · v\d+/)).toBeVisible();
 
   await page.goto("/clients");
   const clientsPage = page.getByTestId("platform-clients-page");
@@ -1039,7 +1040,6 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
       { path: "/api/webhooks/waha", method: "POST" },
       { path: "/api/webhooks/whatsapp", method: "POST" },
       { path: "/api/webhooks/telephony", method: "POST" },
-      { path: "/api/internal/lead-agent/whatsapp", method: "POST" },
     ],
   );
   for (const result of apiResults) {
@@ -1073,6 +1073,40 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
     body: { error: { code: "assistant_disabled" } },
   });
   for (const result of staffAssistantBoundary.slice(1)) {
+    expect(result.status, result.path).toBe(403);
+    expect(result.body, result.path).toEqual(
+      expect.objectContaining({ error: "platform_route_not_connected" }),
+    );
+  }
+
+  const connectedPrivateApis = await page.evaluate(async () => {
+    const request = async (path: string) => {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      return { path, status: response.status, body: await response.json() };
+    };
+    return Promise.all([
+      request("/api/internal/lead-agent/whatsapp"),
+      request("/api/internal/platform-ai/gemini/proposal"),
+      request("/api/internal/lead-agent/whatsapp/extra"),
+      request("/api/internal/platform-ai/gemini/proposal/extra"),
+      request("/api/internal/platform-messaging/waha/events/extra"),
+    ]);
+  });
+  expect(connectedPrivateApis[0]).toEqual({
+    path: "/api/internal/lead-agent/whatsapp",
+    status: 503,
+    body: { error: "not_configured", missing: ["lead_agent_sync_secret"] },
+  });
+  expect(connectedPrivateApis[1]).toEqual({
+    path: "/api/internal/platform-ai/gemini/proposal",
+    status: 503,
+    body: { error: "proposal_disabled" },
+  });
+  for (const result of connectedPrivateApis.slice(2)) {
     expect(result.status, result.path).toBe(403);
     expect(result.body, result.path).toEqual(
       expect.objectContaining({ error: "platform_route_not_connected" }),
@@ -1456,17 +1490,22 @@ test("P5B projects verified inbound WAHA work into the accepted conversation UI"
   );
   const messageRows = await platformRpc(
     responsibleSalesToken,
-    "staff_conversation_messages",
+    "staff_conversation_message_page",
     {
       p_organization_id: fixture.p5b.organizationId,
       p_conversation_id: conversationId,
+      p_limit: 201,
+      p_before_created_at: null,
+      p_before_message_id: null,
     },
   );
   expect(messageRows.status).toBe(200);
   expect(messageRows.payload).toEqual([
     expect.objectContaining({
       direction: "inbound",
-      body_text: bodyText,
+      body_text: humanReviewMarker,
+      language: "undetermined",
+      student_visible: false,
       waha_session_name: null,
       waha_message_id: null,
       kommo_account_id: null,
@@ -1478,9 +1517,7 @@ test("P5B projects verified inbound WAHA work into the accepted conversation UI"
     }),
     expect.objectContaining({
       direction: "inbound",
-      body_text: humanReviewMarker,
-      language: "undetermined",
-      student_visible: false,
+      body_text: bodyText,
       waha_session_name: null,
       waha_message_id: null,
       kommo_account_id: null,
@@ -1756,17 +1793,20 @@ test("P5C reconciles available WAHA history into the accepted conversation UI", 
     );
     const messageRows = await platformRpc(
       responsibleSalesToken,
-      "staff_conversation_messages",
+      "staff_conversation_message_page",
       {
         p_organization_id: fixture.p5b.organizationId,
         p_conversation_id: conversationId,
+        p_limit: 201,
+        p_before_created_at: null,
+        p_before_message_id: null,
       },
     );
     expect(messageRows.status).toBe(200);
     expect(messageRows.payload).toEqual([
       expect.objectContaining({
-        direction: "inbound",
-        body_text: inboundText,
+        direction: "outbound",
+        body_text: outboundText,
         waha_session_name: null,
         waha_message_id: null,
         kommo_account_id: null,
@@ -1789,8 +1829,8 @@ test("P5C reconciles available WAHA history into the accepted conversation UI", 
         amocrm_contact_id: null,
       }),
       expect.objectContaining({
-        direction: "outbound",
-        body_text: outboundText,
+        direction: "inbound",
+        body_text: inboundText,
         waha_session_name: null,
         waha_message_id: null,
         kommo_account_id: null,
@@ -2085,13 +2125,24 @@ test("P6B turns an authenticated staff document review into one live durable Stu
   );
   const communicationQueueBefore = await platformRpc(
     adminToken,
-    "staff_communication_queue",
-    { p_organization_id: fixture.p6b.organizationId },
+    "staff_communication_page",
+    {
+      p_organization_id: fixture.p6b.organizationId,
+      p_limit: 50,
+      p_before_sort_at: null,
+      p_before_conversation_id: null,
+      p_queue: null,
+      p_status: null,
+      p_conversation_id: null,
+    },
   );
   const wahaHealthBefore = await platformRpc(
     adminToken,
     "staff_waha_session_health",
-    { p_organization_id: fixture.p6b.organizationId },
+    {
+      p_organization_id: fixture.p6b.organizationId,
+      p_waha_session_name: "evo-inbox",
+    },
   );
   const legacyNotificationsBefore = await platformRpc(
     studentToken,
@@ -2352,13 +2403,24 @@ test("P6B turns an authenticated staff document review into one live durable Stu
   );
   const communicationQueueAfter = await platformRpc(
     adminToken,
-    "staff_communication_queue",
-    { p_organization_id: fixture.p6b.organizationId },
+    "staff_communication_page",
+    {
+      p_organization_id: fixture.p6b.organizationId,
+      p_limit: 50,
+      p_before_sort_at: null,
+      p_before_conversation_id: null,
+      p_queue: null,
+      p_status: null,
+      p_conversation_id: null,
+    },
   );
   const wahaHealthAfter = await platformRpc(
     adminToken,
     "staff_waha_session_health",
-    { p_organization_id: fixture.p6b.organizationId },
+    {
+      p_organization_id: fixture.p6b.organizationId,
+      p_waha_session_name: "evo-inbox",
+    },
   );
   expect(legacyNotificationsAfter).toEqual({ status: 200, payload: [] });
   expect(communicationQueueAfter).toEqual(communicationQueueBefore);
@@ -4223,10 +4285,13 @@ test("P5D archives private WAHA media into the accepted conversation UI", async 
     );
     const messageRows = await platformRpc(
       p5dSalesToken,
-      "staff_conversation_messages",
+      "staff_conversation_message_page",
       {
         p_organization_id: fixture.p5d.organizationId,
         p_conversation_id: conversationId,
+        p_limit: 201,
+        p_before_created_at: null,
+        p_before_message_id: null,
       },
     );
     expect(messageRows.status).toBe(200);
@@ -4567,10 +4632,13 @@ test("P5E projects WAHA ACK and session state into the live conversation UI", as
   );
   const messageRows = await platformRpc(
     responsibleSalesToken,
-    "staff_conversation_messages",
+    "staff_conversation_message_page",
     {
       p_organization_id: fixture.p5b.organizationId,
       p_conversation_id: conversationId,
+      p_limit: 201,
+      p_before_created_at: null,
+      p_before_message_id: null,
     },
   );
   expect(messageRows.status).toBe(200);
@@ -4594,7 +4662,10 @@ test("P5E projects WAHA ACK and session state into the live conversation UI", as
   const sessionRows = await platformRpc(
     responsibleSalesToken,
     "staff_waha_session_health",
-    { p_organization_id: fixture.p5b.organizationId },
+    {
+      p_organization_id: fixture.p5b.organizationId,
+      p_waha_session_name: "evo-inbox",
+    },
   );
   expect(sessionRows.status).toBe(200);
   expect(sessionRows.payload).toEqual([
@@ -5139,10 +5210,13 @@ test("P5F3 persists and reconciles one synthetic autonomous reply in the accepte
     );
     const messages = await platformRpc(
       responsibleSalesToken,
-      "staff_conversation_messages",
+      "staff_conversation_message_page",
       {
         p_organization_id: fixture.p5b.organizationId,
         p_conversation_id: conversationId,
+        p_limit: 201,
+        p_before_created_at: null,
+        p_before_message_id: null,
       },
     );
     expect(messages.status).toBe(200);
@@ -6086,14 +6160,22 @@ test("BW6 keeps contract drafts and post-contract reports versioned, authorized,
   );
   const responsibleSalesSummaries = await platformRpc(
     responsibleSalesToken,
-    "sales_handoff_summaries",
-    {},
+    "staff_student_case_page",
+    {
+      p_limit: 101,
+      p_before_sort_at: null,
+      p_before_student_case_id: null,
+      p_state: null,
+      p_query: null,
+      p_student_case_id: fixture.bw6.orgA.activeStudentCaseId,
+    },
   );
   expect(responsibleSalesSummaries.status).toBe(200);
   expect(responsibleSalesSummaries.payload).toEqual([
     expect.objectContaining({
-      case_id: fixture.bw6.orgA.activeStudentCaseId,
-      case_state: "active",
+      access_mode: "sales_summary",
+      student_case_id: fixture.bw6.orgA.activeStudentCaseId,
+      state: "active",
     }),
   ]);
   await responsibleSalesPage.goto(activePath);

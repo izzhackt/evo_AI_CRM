@@ -99,6 +99,18 @@ test("normalizes only the bounded current WAHA session health tuple", () => {
       observedAt: "2026-08-10T08:01:00Z",
     },
   );
+  assert.deepEqual(
+    normalizePlatformWahaSessionHealth({
+      waha_session_name: "crm_primary",
+      status: "WORKING",
+      observed_at: "2026-08-10T08:02:00Z",
+    }),
+    {
+      sessionName: "crm_primary",
+      status: "WORKING",
+      observedAt: "2026-08-10T08:02:00Z",
+    },
+  );
 
   for (const malformed of [
     { waha_session_name: "other", status: "WORKING", observed_at: "2026-08-10T08:01:00Z" },
@@ -188,6 +200,15 @@ test("uses a private invalidation-only Realtime channel with reconnect fallback 
 
   assert.match(repository, /\.rpc\("staff_waha_session_health"/);
   assert.match(repository, /p_organization_id: organizationId/);
+  assert.match(repository, /p_waha_session_name: requestedSessionName/);
+  assert.match(
+    threadPage,
+    /getPlatformWahaSessionHealth\(\s*actor,\s*thread\.conversation\.wahaSessionName,?\s*\)/,
+  );
+  assert.ok(
+    threadPage.lastIndexOf("getPlatformWahaSessionHealth(") >
+      threadPage.indexOf("if (!thread || !workflow) notFound()"),
+  );
   assert.match(listPage, /PlatformMessagingRealtime organizationId=\{actor\.organizationId\}/);
   assert.match(threadPage, /PlatformMessagingRealtime organizationId=\{actor\.organizationId\}/);
   assert.doesNotMatch(listPage, /AutoRefresh/);

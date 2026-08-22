@@ -1334,6 +1334,23 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_consultative_sales_memory.sql
   fi
+
+  # Migration 078 replaces cap-prone queue/history RPCs with bounded keyset
+  # pages and direct snapshots. Keep this proof at the exact replacement
+  # boundary so later migrations cannot mask a missing drop, signature or ACL.
+  if [[ "$(basename "$migration")" == 078_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_paged_read_models_current.sql
+  fi
+
+  # Migration 079 makes Lead-Agent session projection a Supabase-native module
+  # and requires callers to select one exact canonical WAHA session.
+  if [[ "$(basename "$migration")" == 079_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_unified_lead_agent_sync_current.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

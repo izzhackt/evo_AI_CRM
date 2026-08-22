@@ -8,6 +8,7 @@ import {
   getPlatformWahaSessionHealth,
   isPlatformConversationId,
   listPlatformConversations,
+  parsePlatformConversationCursor,
 } from "@/lib/platform-communications";
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
 import {
@@ -31,6 +32,10 @@ import { CommunicationsSourceDisclosure } from "../CommunicationsSourceDisclosur
 type ConversationSearchParams = Promise<{
   mode?: string | string[];
   result?: string | string[];
+  before_at?: string | string[];
+  before_id?: string | string[];
+  messages_before_at?: string | string[];
+  messages_before_id?: string | string[];
 }>;
 
 function decisionMutationOutcome(value: string | string[] | undefined) {
@@ -75,15 +80,32 @@ export default async function ConversationPage({
     requirePlatformMessagingActor(),
   ]);
   if (!isPlatformConversationId(id)) notFound();
+  const conversationCursor = parsePlatformConversationCursor(
+    resolvedSearchParams.before_at,
+    resolvedSearchParams.before_id,
+  );
+  const messageCursor = parsePlatformConversationCursor(
+    resolvedSearchParams.messages_before_at,
+    resolvedSearchParams.messages_before_id,
+  );
 
-  const [conversations, thread, workflow, knowledge, bw4Workspace, wahaSessionHealth] =
+  const [
+    conversationPage,
+    thread,
+    latestThread,
+    workflow,
+    knowledge,
+    bw4Workspace,
+  ] =
     await Promise.all([
-      listPlatformConversations(actor),
-      getPlatformConversationThread(actor, id),
+      listPlatformConversations(actor, { cursor: conversationCursor, pageSize: 50 }),
+      getPlatformConversationThread(actor, id, { cursor: messageCursor, pageSize: 100 }),
+      messageCursor
+        ? getPlatformConversationThread(actor, id, { pageSize: 100 })
+        : Promise.resolve(null),
       getPlatformConversationWorkflow(actor, id),
       listApprovedPlatformKnowledge(actor),
       getPlatformConversationBw4Workspace(actor, id).catch(() => null),
-      getPlatformWahaSessionHealth(actor),
     ]);
   if (!thread || !workflow) notFound();
   const [
@@ -92,6 +114,7 @@ export default async function ConversationPage({
     aiRetrievalCapabilities,
     geminiProposal,
     autonomousReply,
+    wahaSessionHealth,
   ] =
     await Promise.all([
       getPlatformAmoCrmCanonicalContext(actor, thread.conversation),
@@ -104,6 +127,10 @@ export default async function ConversationPage({
       readPlatformAutonomousReplyState(actor, id).then(
         (state) => ({ state, unavailable: false as const }),
         () => ({ state: null, unavailable: true as const }),
+      ),
+      getPlatformWahaSessionHealth(
+        actor,
+        thread.conversation.wahaSessionName,
       ),
     ]);
   const aiRetrievalEvidence = aiMemory?.latestRetrieval
@@ -123,9 +150,25 @@ export default async function ConversationPage({
       />
       <PlatformMessagingRealtime organizationId={actor.organizationId} />
       <PlatformConversationView
-        conversations={conversations}
+        conversations={conversationPage.rows}
         conversation={thread.conversation}
         messages={thread.messages}
+        contextMessages={latestThread?.messages ?? thread.messages}
+        conversationListResetHref={conversationCursor
+          ? threadHref(id, null, messageCursor)
+          : null}
+        conversationListNextHref={conversationPage.nextCursor
+          ? threadHref(id, conversationPage.nextCursor, messageCursor)
+          : null}
+        conversationQuery={conversationCursor
+          ? cursorQuery(conversationCursor.sortAt, conversationCursor.id)
+          : ""}
+        newestMessagesHref={messageCursor
+          ? threadHref(id, conversationCursor, null)
+          : null}
+        olderMessagesHref={thread.nextMessageCursor
+          ? threadHref(id, conversationCursor, thread.nextMessageCursor)
+          : null}
         workflow={workflow}
         knowledge={knowledge}
         bw4Workspace={bw4Workspace}
@@ -145,4 +188,27 @@ export default async function ConversationPage({
       />
     </div>
   );
+}
+
+function cursorQuery(sortAt: string, id: string): string {
+  const params = new URLSearchParams({ before_at: sortAt, before_id: id });
+  return `?${params.toString()}`;
+}
+
+function threadHref(
+  id: string,
+  conversationCursor: Readonly<{ sortAt: string; id: string }> | null,
+  messageCursor: Readonly<{ sortAt: string; id: string }> | null,
+): string {
+  const params = new URLSearchParams();
+  if (conversationCursor) {
+    params.set("before_at", conversationCursor.sortAt);
+    params.set("before_id", conversationCursor.id);
+  }
+  if (messageCursor) {
+    params.set("messages_before_at", messageCursor.sortAt);
+    params.set("messages_before_id", messageCursor.id);
+  }
+  const serialized = params.toString();
+  return `/whatsapp/${id}${serialized ? `?${serialized}` : ""}`;
 }

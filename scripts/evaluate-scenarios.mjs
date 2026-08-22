@@ -8,9 +8,11 @@ import path from "path";
 import { createScenarios } from "./scenarios/admissions-crm.mjs";
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const sourceDb = path.join(repoRoot, "data", "edu-admin.db");
+const sourceDb = process.env.EVO_SCENARIO_SOURCE_DB_PATH
+  || path.join(repoRoot, "data", "edu-admin.db");
 const reportPath = path.join(repoRoot, "docs", "SCENARIO_EVALUATION.md");
 const authSecret = "scenario-evaluation-secret";
+const leadAgentSyncSecret = "scenario-evaluation-only-lead-agent-sync-secret";
 const basePort = Number(process.env.EVO_SCENARIO_PORT ?? 3130);
 const only = new Set(
   (process.argv.find((arg) => arg.startsWith("--only="))?.slice("--only=".length) ?? "")
@@ -134,6 +136,8 @@ function startServer(port, dbPath) {
       AUTH_SECRET: authSecret,
       EVO_UI_CONTRACT_FIXTURES: "1",
       EVO_DB_PATH: dbPath,
+      EVO_LEAD_AGENT_SYNC_SECRET: leadAgentSyncSecret,
+      EVO_PLATFORM_LEAD_AGENT_SYNC_ENABLED: "0",
       HOSTNAME: "127.0.0.1",
       NEXT_TELEMETRY_DISABLED: "1",
       ANTHROPIC_API_KEY: "",
@@ -368,7 +372,13 @@ function scalar(ctx, sql, params = []) {
   return ctx.db.prepare(sql).get(...params);
 }
 
-const scenarios = createScenarios({ assert, rowCount, scalar, unique });
+const scenarios = createScenarios({
+  assert,
+  leadAgentSyncSecret,
+  rowCount,
+  scalar,
+  unique,
+});
 
 function writeReport(results, env) {
   const passCount = results.filter((r) => r.result === "PASS").length;
@@ -395,6 +405,8 @@ Conditions:
   \`next build\` gate validates the production build; these fixture scenarios
   are not production-runtime or provider proof.
 - Fixed \`AUTH_SECRET\` for signed seeded-session cookies.
+- Fixed scenario-only Lead Agent HMAC secret; canonical Supabase persistence is
+  deliberately disabled so the legacy harness can prove fail-closed behavior.
 - Isolated SQLite copy from \`data/edu-admin.db\` via \`EVO_DB_PATH\`.
 - Real App Router pages, Server Action form posts, and API route handlers.
 - No live WhatsApp, telephony, amoCRM, or Anthropic credentials supplied; missing

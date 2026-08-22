@@ -1,11 +1,18 @@
 import Link from "next/link";
 import { getT } from "@/lib/i18n";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
-import { Badge, EmptyState, PageHeader, inputCls, btnCls, labelCls, cn } from "@/components/ui";
+import { Badge, EmptyState, PageHeader, inputCls, btnCls, btnGhostCls, labelCls, cn } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { StudentProgress } from "@/components/platform/core/StudentProgress";
+import { parsePlatformAdmissionsCursor } from "@/lib/platform-admissions";
 
-type SearchParams = { stage?: string; q?: string; state?: string };
+type SearchParams = {
+  stage?: string;
+  q?: string;
+  state?: string;
+  before_at?: string | string[];
+  before_id?: string | string[];
+};
 type ServerFormAction = (formData: FormData) => void | Promise<void>;
 type SalesManager = Readonly<{ id: number; name: string }>;
 type FullClientRow = Readonly<{
@@ -59,7 +66,7 @@ export default async function ClientsPageContent({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const { t } = await getT();
+  const { t, locale } = await getT();
   const params = await searchParams;
 
   if (isUiContractFixtureMode()) {
@@ -121,52 +128,46 @@ export default async function ClientsPageContent({
     );
   }
 
-  const { cases, handoffSummaries } =
-    await (await import("./PlatformClientsPage")).loadPlatformClientsPageData();
-  const query = params.q?.trim().toLocaleLowerCase("ru-RU") ?? "";
   const selectedState = ["pending", "active", "closed"].includes(params.state ?? "")
-    ? params.state
+    ? (params.state as "pending" | "active" | "closed")
     : undefined;
-  const matchesQuery = (values: readonly (string | null)[]) =>
-    !query || values.some((value) => value?.toLocaleLowerCase("ru-RU").includes(query));
-  const fullRows: ClientPresentationRow[] = cases
-    .filter((client) => !selectedState || client.state === selectedState)
-    .filter((client) => matchesQuery([
-      client.studentDisplayName,
-      client.targetCountry,
-      client.targetDegree,
-      client.programDirection,
-    ]))
-    .map((client) => ({
-      access_mode: "full",
-      id: client.studentCaseId,
-      name: client.studentDisplayName,
-      email: "",
-      stage: client.state,
-      target_country: client.targetCountry,
-      target_degree: client.targetDegree,
-      manager_name: client.responsibleSalesDisplayName,
-      curator_name: client.currentCuratorDisplayName,
-      overdue_tasks: client.overdueTaskCount,
-      overdue_payments: client.overdueObligationCount,
-      rejected_documents: client.rejectedDocumentCount,
-    }));
-  const summaryRows: ClientPresentationRow[] = handoffSummaries
-    .filter((client) => !selectedState || client.state === selectedState)
-    .filter((client) => matchesQuery([
-      client.studentDisplayName,
-      client.targetCountry,
-      client.targetDegree,
-    ]))
-    .map((client) => ({
-      access_mode: "sales_post_handoff_summary",
-      id: client.studentCaseId,
-      name: client.studentDisplayName,
-      stage: client.state,
-      target_country: client.targetCountry,
-      target_degree: client.targetDegree,
-      curator_name: client.assignedCuratorDisplayName,
-    }));
+  const cursor = parsePlatformAdmissionsCursor(params.before_at, params.before_id);
+  const { rows: items, nextCursor } =
+    await (await import("./PlatformClientsPage")).loadPlatformClientsPageData({
+      cursor,
+      query: params.q,
+      state: selectedState,
+      pageSize: 50,
+    });
+  const rows: ClientPresentationRow[] = items.map((item) => {
+    if (item.access === "full") {
+      const client = item.studentCase;
+      return {
+          access_mode: "full",
+          id: client.studentCaseId,
+          name: client.studentDisplayName,
+          email: "",
+          stage: client.state,
+          target_country: client.targetCountry,
+          target_degree: client.targetDegree,
+          manager_name: client.responsibleSalesDisplayName,
+          curator_name: client.currentCuratorDisplayName,
+          overdue_tasks: client.overdueTaskCount,
+          overdue_payments: client.overdueObligationCount,
+          rejected_documents: client.rejectedDocumentCount,
+        };
+    }
+    const client = item.studentCase;
+    return {
+          access_mode: "sales_post_handoff_summary",
+          id: client.studentCaseId,
+          name: client.studentDisplayName,
+          stage: client.state,
+          target_country: client.targetCountry,
+          target_degree: client.targetDegree,
+          curator_name: client.assignedCuratorDisplayName,
+        };
+  });
   const stateItems = [
     { key: "pending", label: t("caseState.pending") },
     { key: "active", label: t("caseState.active") },
@@ -176,7 +177,7 @@ export default async function ClientsPageContent({
   return (
     <ClientsPresentation
       t={t}
-      clients={[...fullRows, ...summaryRows]}
+      clients={rows}
       q={params.q}
       selectedStage={selectedState}
       filterParam="state"
@@ -187,6 +188,20 @@ export default async function ClientsPageContent({
       description="Операционные студенческие кейсы после договора, доступные вашей роли."
       sourceHint="Операционный этап и команда читаются из аудируемого кейса EVO Platform. Этап продаж ведётся отдельно."
       testId="platform-clients-page"
+      pagination={{
+        resetHref: cursor ? buildClientsHref(params) : null,
+        nextHref: nextCursor
+          ? buildClientsHref(params, nextCursor.sortAt, nextCursor.id)
+          : null,
+        resetLabel:
+          locale === "ru"
+            ? "К началу списка"
+            : locale === "ky" ? "Тизменин башына" : "First page",
+        nextLabel:
+          locale === "ru"
+            ? "Следующие клиенты"
+            : locale === "ky" ? "Кийинки кардарлар" : "Next clients",
+      }}
     />
   );
 }
@@ -205,6 +220,7 @@ function ClientsPresentation({
   description,
   sourceHint,
   testId,
+  pagination,
 }: Readonly<{
   t: (key: string) => string;
   clients: readonly ClientPresentationRow[];
@@ -219,6 +235,12 @@ function ClientsPresentation({
   description: string;
   sourceHint: string;
   testId?: string;
+  pagination?: Readonly<{
+    resetHref: string | null;
+    nextHref: string | null;
+    resetLabel: string;
+    nextLabel: string;
+  }>;
 }>) {
   const qs = (s?: string) => {
     const p = new URLSearchParams();
@@ -256,7 +278,7 @@ function ClientsPresentation({
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-3"><Icon name="search" size={16} /></span>
               <input id="client-search" name="q" defaultValue={q} placeholder={t("search")} className={cn(inputCls, "pl-9")} />
             </div>
-            {stage && <input type="hidden" name="stage" value={stage} />}
+            {stage && <input type="hidden" name={filterParam} value={stage} />}
           </div>
           <button type="submit" className={cn(btnCls, "sm:w-auto")}>{t("search")}</button>
         </form>
@@ -467,6 +489,37 @@ function ClientsPresentation({
           </div>
         )}
       </div>
+
+      {pagination && (pagination.resetHref || pagination.nextHref) ? (
+        <nav aria-label="Pagination" className="flex items-center justify-between gap-3">
+          {pagination.resetHref ? (
+            <Link href={pagination.resetHref} className={btnGhostCls}>
+              ← {pagination.resetLabel}
+            </Link>
+          ) : <span />}
+          {pagination.nextHref ? (
+            <Link href={pagination.nextHref} className={btnGhostCls}>
+              {pagination.nextLabel} →
+            </Link>
+          ) : null}
+        </nav>
+      ) : null}
     </div>
   );
+}
+
+function buildClientsHref(
+  params: SearchParams,
+  beforeAt?: string,
+  beforeId?: string,
+): string {
+  const query = new URLSearchParams();
+  if (params.q) query.set("q", params.q);
+  if (params.state) query.set("state", params.state);
+  if (beforeAt && beforeId) {
+    query.set("before_at", beforeAt);
+    query.set("before_id", beforeId);
+  }
+  const serialized = query.toString();
+  return serialized ? `/clients?${serialized}` : "/clients";
 }

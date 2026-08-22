@@ -30,11 +30,22 @@ function formatTimestamp(value: string, locale: string) {
 export async function PlatformWaList({
   conversations,
   activeId,
+  resetHref,
+  nextHref,
+  conversationQuery,
 }: {
   conversations: readonly PlatformConversationSummary[];
   activeId?: string;
+  resetHref?: string | null;
+  nextHref?: string | null;
+  conversationQuery?: string;
 }) {
   const { t, locale } = await getT();
+  const paginationCopy = locale === "ru"
+    ? { first: "К началу списка", next: "Следующие диалоги" }
+    : locale === "ky"
+      ? { first: "Тизменин башына", next: "Кийинки диалогдор" }
+      : { first: "First conversations", next: "Next conversations" };
 
   return (
     <aside
@@ -64,7 +75,7 @@ export async function PlatformWaList({
               return (
                 <li key={conversation.id}>
                   <Link
-                    href={`/whatsapp/${conversation.id}`}
+                    href={`/whatsapp/${conversation.id}${conversationQuery ?? ""}`}
                     aria-current={active ? "page" : undefined}
                     aria-label={`${t("conversationLinkLabel")}: ${conversation.subject}`}
                     className={cn(
@@ -89,7 +100,7 @@ export async function PlatformWaList({
                           {conversation.subject}
                         </span>
                         <span className="shrink-0 font-mono text-[11px] text-fg-3">
-                          {formatTimestamp(conversation.createdAt, locale)}
+                          {formatTimestamp(conversation.sortAt, locale)}
                         </span>
                       </div>
                       <div className="mt-0.5 flex items-center justify-between gap-2">
@@ -111,6 +122,23 @@ export async function PlatformWaList({
           </ul>
         )}
       </div>
+      {resetHref || nextHref ? (
+        <nav
+          aria-label="Pagination"
+          className="flex items-center justify-between gap-2 border-t border-border px-3 py-2"
+        >
+          {resetHref ? (
+            <Link href={resetHref} className="text-[12px] font-semibold text-accent hover:underline">
+              ← {paginationCopy.first}
+            </Link>
+          ) : <span />}
+          {nextHref ? (
+            <Link href={nextHref} className="text-[12px] font-semibold text-accent hover:underline">
+              {paginationCopy.next} →
+            </Link>
+          ) : null}
+        </nav>
+      ) : null}
     </aside>
   );
 }

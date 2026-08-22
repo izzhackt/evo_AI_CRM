@@ -34,7 +34,7 @@ import {
 import { isPlatformP6BPortalNotificationsEnabled } from "@/lib/server/platform-p6b-portal-notifications";
 import {
   getPlatformStudentCaseView,
-  listPlatformApplications,
+  listPlatformApplicationsForStudentCase,
   parsePlatformAdmissionsUuid,
 } from "@/lib/platform-admissions";
 import {
@@ -130,7 +130,9 @@ export async function loadPlatformClientPageData(
     caseFinance,
   ] =
     await Promise.all([
-      listPlatformApplications(actor),
+      listPlatformApplicationsForStudentCase(actor, studentCase.studentCaseId, {
+        pageSize: 100,
+      }),
       getPlatformStudentProfile(actor, studentCase.studentCaseId),
       listPlatformStudentCaseDocuments(actor, studentCase.studentCaseId),
       listPlatformCountryRequirementVersions(actor, studentCase.studentCaseId),
@@ -147,8 +149,7 @@ export async function loadPlatformClientPageData(
   if (!assignmentState) return null;
   const appliedCountryRequirement =
     countryRequirementVersions.find((version) => version.isApplied) ?? null;
-  const applications = applicationRows
-    .filter((application) => application.studentCaseId === studentCase.studentCaseId)
+  const applications = applicationRows.rows
     .map((application) => ({
       id: application.universityApplicationId,
       university: application.institutionName,

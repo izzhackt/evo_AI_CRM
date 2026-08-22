@@ -1949,6 +1949,9 @@ test("P8V3K provider probe is detached and identity-gated before the knowledge j
   assert.match(providerProbe, /-e 'EVO_PLATFORM_GEMINI_API_KEY'/);
   assert.match(providerProbe, /-v '\/opt\/evo-release-preflight\/p8v3k-20260821\.1-[0-9a-f]{48}\/p8v3k-platform-knowledge-import\.mjs:\/run\/evo-p8v3k\/p8v3k-platform-knowledge-import\.mjs:ro'/);
   assert.match(providerProbe, /p8v3k-platform-knowledge-import\.mjs.*--verify-provider/s);
+  assert.match(deployLead, /sync_probe="\$\(docker exec 'evo-crm-lead-agent-1' python -c /);
+  assert.match(deployLead, /\[\[ "\$sync_probe" == '403\|invalid_signature' \]\]/);
+  assert.doesNotMatch(deployLead, /sync_code=/);
   assert.match(providerProbe, new RegExp(P8V3_IMAGES.crm.index));
   const detachedRun = providerProbe.indexOf('provider_container_id="$(docker compose');
   const immutableIdentity = providerProbe.indexOf('provider_identity="$(docker inspect "$provider_container_id"');

@@ -27,6 +27,9 @@ import { ApplicationInstitutionFields } from "./ApplicationInstitutionFields";
 
 export type ApplicationsSearchParams = Readonly<{
   status?: string;
+  before_at?: string | string[];
+  before_id?: string | string[];
+  case_q?: string;
   result?: string;
   student_case_id?: string;
   retry_request_id?: string;
@@ -58,6 +61,7 @@ export type PresenterBanner = Readonly<{
 
 export type ApplicationsPresenterCopy = Readonly<{
   all: string;
+  search: string;
   activeApplications: string;
   attentionRequired: string;
   documentsInReview: string;
@@ -98,6 +102,7 @@ export function createApplicationsPresenterCopy(
 ): ApplicationsPresenterCopy {
   return {
     all: t("all"),
+    search: t("search"),
     activeApplications: t("activeApplications"),
     attentionRequired: t("attentionRequired"),
     documentsInReview: t("documentsInReview"),
@@ -169,11 +174,21 @@ export type ApplicationsQueuePresenterModel = Readonly<{
   statusOptions: readonly ApplicationStatusOption[];
   emptyText: string;
   filteredEmptyText: string;
+  pageScopedMetricsLabel?: string;
+  scopeStudentCaseId?: string;
+  pagination?: Readonly<{
+    resetHref: string | null;
+    nextHref: string | null;
+    resetLabel: string;
+    nextLabel: string;
+  }>;
   queueStatusAction?: ApplicationFormAction;
   create?: Readonly<{
     action: ApplicationFormAction;
     requestId: string;
     selectedStudentCaseId: string | undefined;
+    caseSearchValue?: string;
+    caseScopeStudentCaseId?: string;
     studentCases: readonly Readonly<{
       id: string;
       label: string;
@@ -270,6 +285,20 @@ function CreateApplicationPanel({
         {model.copy.summaryLabel}
       </summary>
       <div className="border-t border-border p-5">
+        <form action="/applications" className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className={cn(labelCls, "min-w-0 flex-1")}>
+            {copy.search} · {copy.client}
+            <input
+              name="case_q"
+              defaultValue={model.caseSearchValue}
+              className={`${inputCls} mt-1`}
+            />
+          </label>
+          {model.caseScopeStudentCaseId ? (
+            <input type="hidden" name="student_case_id" value={model.caseScopeStudentCaseId} />
+          ) : null}
+          <button type="submit" className={btnGhostCls}>{copy.search}</button>
+        </form>
         {model.studentCases.length === 0 ? (
           <ContextBanner
             tone="warning"
@@ -384,14 +413,14 @@ export function ApplicationsQueuePresenter({
       label: model.copy.all,
       count: model.allRows.length,
       active: !model.selectedStatus,
-      href: "/applications",
+      href: applicationQueueHref(model.scopeStudentCaseId),
     },
     ...model.statusOptions.map((option) => ({
       value: option.value,
       label: option.label,
       count: statusCount(option.value),
       active: model.selectedStatus === option.value,
-      href: `/applications?status=${option.value}`,
+      href: applicationQueueHref(model.scopeStudentCaseId, option.value),
     })),
   ];
 
@@ -403,6 +432,12 @@ export function ApplicationsQueuePresenter({
         tone={model.operationalNotice.tone}
       />
       <ResultBanner banner={model.resultBanner} />
+
+      {model.pageScopedMetricsLabel ? (
+        <p className="text-[12px] text-fg-3" data-testid="page-scoped-metrics-note">
+          {model.pageScopedMetricsLabel}
+        </p>
+      ) : null}
 
       <QueueMetrics
         items={[
@@ -644,12 +679,44 @@ export function ApplicationsQueuePresenter({
         </>
       )}
 
+      {model.pagination && (model.pagination.resetHref || model.pagination.nextHref) ? (
+        <nav aria-label="Pagination" className="flex items-center justify-between gap-3">
+          {model.pagination.resetHref ? (
+            <Link href={model.pagination.resetHref} className={btnGhostCls}>
+              ← {model.pagination.resetLabel}
+            </Link>
+          ) : <span />}
+          {model.pagination.nextHref ? (
+            <Link href={model.pagination.nextHref} className={btnGhostCls}>
+              {model.pagination.nextLabel} →
+            </Link>
+          ) : null}
+        </nav>
+      ) : null}
+
       {model.create ? (
         <CreateApplicationPanel model={model.create} copy={model.copy} />
       ) : null}
       {model.catalog ? <CatalogImportWorkspace model={model.catalog} /> : null}
     </div>
   );
+}
+
+function applicationQueueHref(
+  studentCaseId?: string,
+  status?: string,
+  beforeAt?: string,
+  beforeId?: string,
+): string {
+  const params = new URLSearchParams();
+  if (studentCaseId) params.set("student_case_id", studentCaseId);
+  if (status) params.set("status", status);
+  if (beforeAt && beforeId) {
+    params.set("before_at", beforeAt);
+    params.set("before_id", beforeId);
+  }
+  const serialized = params.toString();
+  return serialized ? `/applications?${serialized}` : "/applications";
 }
 
 export type ApplicationDetailPresenterModel = Readonly<{

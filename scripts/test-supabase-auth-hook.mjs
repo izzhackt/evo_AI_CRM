@@ -748,8 +748,8 @@ const reloadAndAssertCommunicationsReadRpcs = async () => {
           ) OR (
             namespace.nspname = 'platform'
             AND routine.proname IN (
-              'staff_communication_queue',
-              'staff_conversation_messages'
+              'staff_communication_page',
+              'staff_conversation_message_page'
             )
           ))
         )
@@ -809,13 +809,13 @@ const reloadAndAssertCommunicationsReadRpcs = async () => {
           'queue_authenticated_execute',
           has_function_privilege(
             'authenticated',
-            'platform.staff_communication_queue(uuid)',
+            'platform.staff_communication_page(uuid,integer,timestamp with time zone,uuid,platform.communication_queue,platform.communication_status,uuid)',
             'EXECUTE'
           ),
           'messages_authenticated_execute',
           has_function_privilege(
             'authenticated',
-            'platform.staff_conversation_messages(uuid,uuid)',
+            'platform.staff_conversation_message_page(uuid,uuid,integer,timestamp with time zone,uuid)',
             'EXECUTE'
           ),
           'read_rpcs_public_execute',
@@ -829,8 +829,8 @@ const reloadAndAssertCommunicationsReadRpcs = async () => {
               )
             ) AS privilege
             WHERE routine.proname IN (
-                'staff_communication_queue',
-                'staff_conversation_messages'
+                'staff_communication_page',
+                'staff_conversation_message_page'
               )
               AND privilege.grantee = 0
               AND privilege.privilege_type = 'EXECUTE'
@@ -838,31 +838,31 @@ const reloadAndAssertCommunicationsReadRpcs = async () => {
           'read_rpcs_anon_execute',
           has_function_privilege(
             'anon',
-            'platform.staff_communication_queue(uuid)',
+            'platform.staff_communication_page(uuid,integer,timestamp with time zone,uuid,platform.communication_queue,platform.communication_status,uuid)',
             'EXECUTE'
           ) OR has_function_privilege(
             'anon',
-            'platform.staff_conversation_messages(uuid,uuid)',
+            'platform.staff_conversation_message_page(uuid,uuid,integer,timestamp with time zone,uuid)',
             'EXECUTE'
           ),
           'read_rpcs_service_execute',
           has_function_privilege(
             'service_role',
-            'platform.staff_communication_queue(uuid)',
+            'platform.staff_communication_page(uuid,integer,timestamp with time zone,uuid,platform.communication_queue,platform.communication_status,uuid)',
             'EXECUTE'
           ) OR has_function_privilege(
             'service_role',
-            'platform.staff_conversation_messages(uuid,uuid)',
+            'platform.staff_conversation_message_page(uuid,uuid,integer,timestamp with time zone,uuid)',
             'EXECUTE'
           ),
           'read_rpcs_auth_admin_execute',
           has_function_privilege(
             'supabase_auth_admin',
-            'platform.staff_communication_queue(uuid)',
+            'platform.staff_communication_page(uuid,integer,timestamp with time zone,uuid,platform.communication_queue,platform.communication_status,uuid)',
             'EXECUTE'
           ) OR has_function_privilege(
             'supabase_auth_admin',
-            'platform.staff_conversation_messages(uuid,uuid)',
+            'platform.staff_conversation_message_page(uuid,uuid,integer,timestamp with time zone,uuid)',
             'EXECUTE'
           )
         )::text;
@@ -873,8 +873,8 @@ const reloadAndAssertCommunicationsReadRpcs = async () => {
   const volatility = routineMetadata.volatility;
   assert(
     volatility.require_domain_actor_read === "s" &&
-    volatility.staff_communication_queue === "s" &&
-      volatility.staff_conversation_messages === "s",
+      volatility.staff_communication_page === "s" &&
+      volatility.staff_conversation_message_page === "s",
     "communications-read-rpc-volatility",
   );
   assert(
@@ -1004,7 +1004,10 @@ const createSyntheticConversationFixture = ({
   occurredAt,
   messages,
 }) => {
-  const wahaSessionName = `synthetic-local-fixture-${fixtureKey}`;
+  // The unified Platform has two canonical WAHA adapters. Browser fixtures
+  // exercise the Inbox/communications module, so they must use its real
+  // session identity instead of inventing a third product-local session.
+  const wahaSessionName = "evo-inbox";
   const kommoConversationId =
     `synthetic-local-fixture-${fixtureKey}-conversation`;
   const sourcePayloadId =
@@ -1125,7 +1128,9 @@ const authenticatedPlatformRpcRows = async (
   stage,
 ) => {
   const search = new URLSearchParams(
-    Object.entries(body).map(([name, value]) => [name, String(value)]),
+    Object.entries(body)
+      .filter(([, value]) => value !== null && value !== undefined)
+      .map(([name, value]) => [name, String(value)]),
   );
   const query = search.toString();
   const response = await requestJson(
@@ -2743,8 +2748,16 @@ const main = async () => {
 
   const adminConversationRows = await authenticatedPlatformRpcRows(
     identities.adminA,
-    "staff_communication_queue",
-    { p_organization_id: adminAMembership.organization_id },
+    "staff_communication_page",
+    {
+      p_organization_id: adminAMembership.organization_id,
+      p_limit: 101,
+      p_before_sort_at: null,
+      p_before_conversation_id: null,
+      p_queue: null,
+      p_status: null,
+      p_conversation_id: null,
+    },
     "admin-synthetic-conversation-queue",
   );
   const adminConversationIds = new Set(
@@ -2759,10 +2772,13 @@ const main = async () => {
 
   const adminMessageRows = await authenticatedPlatformRpcRows(
     identities.adminA,
-    "staff_conversation_messages",
+    "staff_conversation_message_page",
     {
       p_organization_id: adminAMembership.organization_id,
       p_conversation_id: orgAConversation.id,
+      p_limit: 201,
+      p_before_created_at: null,
+      p_before_message_id: null,
     },
     "admin-synthetic-conversation-messages",
   );
@@ -2771,7 +2787,8 @@ const main = async () => {
       adminMessageRows.every(
         (row, index) =>
           row.direction === "inbound" &&
-          row.body_text === orgAConversation.messages[index],
+          row.body_text ===
+            orgAConversation.messages[orgAConversation.messages.length - 1 - index],
       ),
     "admin-synthetic-conversation-message-order",
   );
@@ -3347,8 +3364,16 @@ const main = async () => {
 
   const salesScopedConversationRows = await authenticatedPlatformRpcRows(
     identities.salesScoped,
-    "staff_communication_queue",
-    { p_organization_id: adminAMembership.organization_id },
+    "staff_communication_page",
+    {
+      p_organization_id: adminAMembership.organization_id,
+      p_limit: 101,
+      p_before_sort_at: null,
+      p_before_conversation_id: null,
+      p_queue: null,
+      p_status: null,
+      p_conversation_id: null,
+    },
     "sales-scoped-synthetic-conversation-queue",
   );
   assert(
@@ -3908,14 +3933,22 @@ const main = async () => {
   await refresh(identities.responsibleSales, "sales");
   const bw6ResponsibleSalesSummaries = await authenticatedPlatformRpcRows(
     identities.responsibleSales,
-    "sales_handoff_summaries",
-    {},
+    "staff_student_case_page",
+    {
+      p_limit: 101,
+      p_before_sort_at: null,
+      p_before_student_case_id: null,
+      p_state: null,
+      p_query: null,
+      p_student_case_id: orgAStudentCaseId,
+    },
     "bw6-responsible-sales-handoff-summary",
   );
   assert(
     bw6ResponsibleSalesSummaries.length === 1 &&
-      bw6ResponsibleSalesSummaries[0].case_id === orgAStudentCaseId &&
-      bw6ResponsibleSalesSummaries[0].case_state === "active",
+      bw6ResponsibleSalesSummaries[0].access_mode === "sales_summary" &&
+      bw6ResponsibleSalesSummaries[0].student_case_id === orgAStudentCaseId &&
+      bw6ResponsibleSalesSummaries[0].state === "active",
     "bw6-responsible-sales-handoff-summary-shape",
   );
 

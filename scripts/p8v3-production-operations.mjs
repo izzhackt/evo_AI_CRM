@@ -1689,10 +1689,18 @@ docker inspect '${spec.container}' --format '{{range .Config.Env}}{{println .}}{
 $1=="EVO_AGENT_AUTOREPLY_ENABLED"{if(tolower($2)!="false")exit 2;a++}
 $1=="EVO_AGENT_OUTBOUND_ENABLED"{if(tolower($2)!="false")exit 2;o++}
 END{exit !(a==1&&o==1)}'
-sync_code="$(docker exec '${spec.container}' python -c "import urllib.request,urllib.error; r=urllib.request.Request('http://evo-crm-app:3000/api/internal/lead-agent/whatsapp',data=b'{}',headers={'content-type':'application/json'},method='POST');
-try: urllib.request.urlopen(r,timeout=3); print(200)
-except urllib.error.HTTPError as e: print(e.code)" | tail -n1)"
-[[ "$sync_code" == '401' || "$sync_code" == '403' ]]
+sync_probe="$(docker exec '${spec.container}' python -c "import json,urllib.request,urllib.error; r=urllib.request.Request('http://evo-crm-app:3000/api/internal/lead-agent/whatsapp',data=b'{}',headers={'content-type':'application/json'},method='POST');
+try:
+  urllib.request.urlopen(r,timeout=3)
+  print('200|')
+except urllib.error.HTTPError as e:
+  body=e.read().decode('utf-8','replace')
+  try:
+    error=json.loads(body).get('error','')
+  except Exception:
+    error=''
+  print(f'{e.code}|{error}')" | tail -n1)"
+[[ "$sync_probe" == '403|invalid_signature' ]]
 `;
   }
   return String.raw`

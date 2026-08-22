@@ -5,6 +5,7 @@ import {
   isConnectedPlatformApi,
   isConnectedPlatformAuditExportApi,
   isConnectedPlatformAuditSettingsRequest,
+  isConnectedPlatformPrivateApi,
   isConnectedPlatformPage,
   isDirectPlatformStaffAssistantApi,
 } from "@/lib/platform-route-contract";
@@ -17,21 +18,6 @@ import { createSupabaseServerClientFromCookies } from "@/lib/supabase/server";
 // All other routes belong to the separate legacy CRM or to later Platform
 // blocks. In Platform runtime they stay unreachable until a reviewed adapter
 // replaces them; the retained legacy deployment continues on its own revision.
-
-const PLATFORM_WAHA_INGRESS_PATH =
-  "/api/internal/platform-messaging/waha/events";
-const PLATFORM_WAHA_WORKER_PATH =
-  "/api/internal/platform-messaging/waha/work";
-const PLATFORM_WAHA_HISTORY_PATH =
-  "/api/internal/platform-messaging/waha/history";
-const PLATFORM_WAHA_MEDIA_PATH =
-  "/api/internal/platform-messaging/waha/media";
-const PLATFORM_WAHA_AUTONOMOUS_REPLY_PATH =
-  "/api/internal/platform-messaging/waha/autonomous-reply";
-const PLATFORM_MANUAL_SEND_WORKER_PATH =
-  "/api/internal/platform-messaging/manual-send/work";
-const PLATFORM_PORTAL_OVERDUE_PATH =
-  "/api/internal/platform-operations/portal-overdue";
 
 function nextResponse(requestHeaders: Headers) {
   return NextResponse.next({
@@ -155,15 +141,7 @@ export async function proxy(request: NextRequest) {
     // separate optimistic cookie refresh; it does not authorize or draft.
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
-  if (
-    path === PLATFORM_WAHA_INGRESS_PATH ||
-    path === PLATFORM_WAHA_WORKER_PATH ||
-    path === PLATFORM_WAHA_HISTORY_PATH ||
-    path === PLATFORM_WAHA_MEDIA_PATH ||
-    path === PLATFORM_WAHA_AUTONOMOUS_REPLY_PATH ||
-    path === PLATFORM_MANUAL_SEND_WORKER_PATH ||
-    path === PLATFORM_PORTAL_OVERDUE_PATH
-  ) {
+  if (isConnectedPlatformPrivateApi(path)) {
     // These exact private service-to-service endpoints own their own HMAC or
     // bearer-secret checks. They must not be redirected into the staff-cookie
     // flow, while every other legacy/internal API route remains disconnected.

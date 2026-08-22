@@ -13,8 +13,10 @@ import {
 } from "@/lib/platform-catalog-actions";
 import {
   PLATFORM_APPLICATION_STATUSES,
+  getPlatformStudentCaseView,
   listPlatformApplications,
   listPlatformStudentCases,
+  parsePlatformAdmissionsCursor,
   parsePlatformAdmissionsUuid,
   type PlatformApplicationStatus,
 } from "@/lib/platform-admissions";
@@ -417,6 +419,23 @@ function catalogResultBanner(
   return undefined;
 }
 
+function buildApplicationQueueHref(
+  status?: PlatformApplicationStatus,
+  studentCaseId?: string | null,
+  beforeAt?: string,
+  beforeId?: string,
+): string {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (studentCaseId) params.set("student_case_id", studentCaseId);
+  if (beforeAt && beforeId) {
+    params.set("before_at", beforeAt);
+    params.set("before_id", beforeId);
+  }
+  const serialized = params.toString();
+  return serialized ? `/applications?${serialized}` : "/applications";
+}
+
 export async function loadPlatformApplicationsPage({
   searchParams,
 }: {
@@ -428,15 +447,35 @@ export async function loadPlatformApplicationsPage({
     getT(),
   ]);
   const isAdmin = actor.platformRole === "admin";
+  const selectedStatus = (
+    PLATFORM_APPLICATION_STATUSES as readonly string[]
+  ).includes(query.status ?? "")
+    ? (query.status as PlatformApplicationStatus)
+    : undefined;
+  const requestedStudentCaseId = parsePlatformAdmissionsUuid(
+    query.student_case_id,
+  );
+  const applicationCursor = parsePlatformAdmissionsCursor(
+    query.before_at,
+    query.before_id,
+  );
   const [
-    applications,
-    studentCases,
+    applicationPage,
+    studentCasePage,
     catalogInstitutions,
     catalogSources,
     catalogBatches,
   ] = await Promise.all([
-    listPlatformApplications(actor),
-    listPlatformStudentCases(actor),
+    listPlatformApplications(actor, {
+      cursor: applicationCursor,
+      pageSize: 50,
+      status: selectedStatus,
+      studentCaseId: requestedStudentCaseId ?? undefined,
+    }),
+    listPlatformStudentCases(actor, {
+      pageSize: 100,
+      query: query.case_q,
+    }),
     listPlatformCatalogInstitutions(actor),
     isAdmin ? listPlatformCatalogSources(actor) : Promise.resolve([]),
     isAdmin ? listPlatformCatalogImportBatches(actor) : Promise.resolve([]),
@@ -462,11 +501,22 @@ export async function loadPlatformApplicationsPage({
     query.catalog_retry_op === operation && retryCatalogRequestId
       ? retryCatalogRequestId
       : randomUUID();
-  const selectedStatus = (
-    PLATFORM_APPLICATION_STATUSES as readonly string[]
-  ).includes(query.status ?? "")
-    ? (query.status as PlatformApplicationStatus)
-    : undefined;
+  const pagedStudentCases = studentCasePage.rows
+    .filter((item) => item.access === "full")
+    .map((item) => item.studentCase);
+  const requestedStudentCaseView = requestedStudentCaseId
+    && !pagedStudentCases.some(
+      (studentCase) => studentCase.studentCaseId === requestedStudentCaseId,
+    )
+    ? await getPlatformStudentCaseView(actor, requestedStudentCaseId)
+    : null;
+  const requestedFullStudentCase = requestedStudentCaseView?.access === "full"
+    ? requestedStudentCaseView.studentCase
+    : null;
+  const studentCases = requestedFullStudentCase
+    ? [requestedFullStudentCase, ...pagedStudentCases]
+    : pagedStudentCases;
+  const applications = applicationPage.rows;
   const statusOptions = PLATFORM_APPLICATION_STATUSES.map((value) => ({
     value,
     label: STATUS_COPY[locale][value],
@@ -498,17 +548,12 @@ export async function loadPlatformApplicationsPage({
     ),
     statusHiddenFields: [],
   });
-  const rows = applications
-    .filter(
-      (application) =>
-        !selectedStatus || application.status === selectedStatus,
-    )
-    .map(present);
-  const selectedStudentCaseId = studentCases.cases.some(
+  const rows = applications.map(present);
+  const selectedStudentCaseId = studentCases.some(
     (studentCase) => studentCase.studentCaseId === query.student_case_id,
   )
     ? query.student_case_id
-    : studentCases.cases[0]?.studentCaseId;
+    : studentCases[0]?.studentCaseId;
 
   return {
     testId: "platform-applications-page",
@@ -522,6 +567,28 @@ export async function loadPlatformApplicationsPage({
     rows,
     allRows: applications.map(present),
     selectedStatus,
+    scopeStudentCaseId: requestedStudentCaseId ?? undefined,
+    pagination: {
+      resetHref: applicationCursor
+        ? buildApplicationQueueHref(selectedStatus, requestedStudentCaseId)
+        : null,
+      nextHref: applicationPage.nextCursor
+        ? buildApplicationQueueHref(
+            selectedStatus,
+            requestedStudentCaseId,
+            applicationPage.nextCursor.sortAt,
+            applicationPage.nextCursor.id,
+          )
+        : null,
+      resetLabel:
+        locale === "ru"
+          ? "К началу списка"
+          : locale === "ky" ? "Тизменин башына" : "First page",
+      nextLabel:
+        locale === "ru"
+          ? "Следующие заявки"
+          : locale === "ky" ? "Кийинки арыздар" : "Next applications",
+    },
     statusOptions,
     emptyText:
       locale === "ru"
@@ -531,12 +598,20 @@ export async function loadPlatformApplicationsPage({
       locale === "ru"
         ? "Заявок по выбранному фильтру нет."
         : t("noFilteredApplications"),
+    pageScopedMetricsLabel:
+      locale === "ru"
+        ? "Показатели ниже относятся только к текущей странице очереди."
+        : locale === "ky"
+          ? "Төмөнкү көрсөткүчтөр кезектин учурдагы барагына гана тиешелүү."
+          : "The metrics below describe the current queue page only.",
     create: {
       action: createPlatformUniversityApplicationAction,
       requestId:
         parsePlatformAdmissionsUuid(query.retry_request_id) ?? randomUUID(),
       selectedStudentCaseId,
-      studentCases: studentCases.cases.map((studentCase) => ({
+      caseSearchValue: query.case_q,
+      caseScopeStudentCaseId: requestedStudentCaseId ?? undefined,
+      studentCases: studentCases.map((studentCase) => ({
         id: studentCase.studentCaseId,
         label: `${studentCase.studentDisplayName} · ${studentCase.targetCountry}`,
       })),

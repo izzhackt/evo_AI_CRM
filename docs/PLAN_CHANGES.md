@@ -9885,6 +9885,32 @@ Reviewer notes: independent correctness review found no remaining blocking
 finding after the unified schema-contract test was advanced through migrations
 `078` and `079` and verified `32/32`.
 
+## 2026-08-22 — Canonical edge hostnames and hybrid Inbox release paths
+
+Date: 2026-08-22, workspace timezone.
+Author: Codex.
+Change type: release configuration and deployment evidence boundary.
+Affected plan section: edge routing, controlled release inputs, rollback capture.
+Reason: the live 2026-08-22 production audit showed that `evo-edge-caddy` still
+served only the `sslip.io` fallback hostnames and that the Inbox deployment is
+in a deliberate hybrid layout: secrets remain under
+`/opt/evo-inbox/agent-lead2-crmwhatsapp/.env*` while the reviewed deploy and
+edge definitions live under `/opt/evo-inbox/agent-lead2-inbox/deploy/*`.
+Decision: make the production edge source of truth serve both canonical EVO
+hostnames and the retained `sslip.io` fallbacks from the same hardened site
+blocks, and update the controlled release runbook to read Inbox env files from
+the retained env root while copying/reconciling Compose and Caddy definitions
+from the deploy root. When the manual send worker remains intentionally
+undeployed, allow the CRM release preflight to pass `EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE=/dev/null`
+so the release can build and reconcile the reviewed app and lead-agent images
+without inventing a production worker env file.
+Validation impact: re-run runtime-hardening checks, candidate Caddy validation,
+Compose config validation, exact-SHA build checks, and the controlled
+deployment/rollback path against `hermes-vps`. Canonical DNS/TLS still requires
+real public DNS records for `crm.evoadmissions.com` and
+`inbox.evoadmissions.com`; this change does not claim the DNS provider step.
+Reviewer notes: pending deployment-time verification.
+
 ## 2026-08-22 — Make EVO one all-in-one Supabase platform
 
 Date: 2026-08-22, workspace timezone.

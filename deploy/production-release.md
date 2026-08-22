@@ -69,8 +69,11 @@ export EVO_RELEASE_EVIDENCE="/opt/evo-release-evidence/${EVO_RELEASE_REVISION}/$
 export EVO_CRM_APP_ENV_FILE='/opt/evo-crm/.env.production'
 export EVO_CRM_WAHA_ENV_FILE='/opt/evo-crm/.env.waha'
 export EVO_CRM_LEAD_AGENT_ENV_FILE='/opt/evo-crm/.env.lead-agent'
-export EVO_INBOX_APP_ENV_FILE='/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production'
-export EVO_INBOX_WAHA_ENV_FILE='/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.waha'
+export EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE='/dev/null'
+export EVO_INBOX_ENV_ROOT='/opt/evo-inbox/agent-lead2-crmwhatsapp'
+export EVO_INBOX_DEPLOY_ROOT='/opt/evo-inbox/agent-lead2-inbox'
+export EVO_INBOX_APP_ENV_FILE="${EVO_INBOX_ENV_ROOT}/.env.production"
+export EVO_INBOX_WAHA_ENV_FILE="${EVO_INBOX_ENV_ROOT}/.env.waha"
 
 export EVO_CADDY_NETWORK='evo_public_web'
 export EVO_WAHA_IMAGE_REPOSITORY='devlikeapro/waha'
@@ -292,11 +295,11 @@ install -d -m 0700 "$EVO_RELEASE_EVIDENCE/prior-config"
 cp -p /opt/evo-crm/docker-compose.prod.yml \
   "$EVO_RELEASE_EVIDENCE/prior-config/crm-compose.yml"
 cp -p \
-  /opt/evo-inbox/agent-lead2-crmwhatsapp/deploy/docker-compose.inbox.prod.yml \
+  "${EVO_INBOX_DEPLOY_ROOT}/deploy/docker-compose.inbox.prod.yml" \
   "$EVO_RELEASE_EVIDENCE/prior-config/inbox-compose.yml"
-cp -p /opt/evo-inbox/agent-lead2-crmwhatsapp/deploy/docker-compose.edge.yml \
+cp -p "${EVO_INBOX_DEPLOY_ROOT}/deploy/docker-compose.edge.yml" \
   "$EVO_RELEASE_EVIDENCE/prior-config/edge-compose.yml"
-cp -p /opt/evo-inbox/agent-lead2-crmwhatsapp/deploy/Caddyfile.evo-edge \
+cp -p "${EVO_INBOX_DEPLOY_ROOT}/deploy/Caddyfile.evo-edge" \
   "$EVO_RELEASE_EVIDENCE/prior-config/Caddyfile.evo-edge"
 sha256sum "$EVO_RELEASE_EVIDENCE"/prior-config/* \
   >"$EVO_RELEASE_EVIDENCE/prior-config.sha256"
@@ -479,6 +482,7 @@ Validate Compose without printing its rendered environment:
 
 ```bash
 docker compose -p evo-crm \
+  --env-file "$EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE" \
   -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" config --quiet
 docker compose -p evo-inbox \
   --env-file "$EVO_INBOX_APP_ENV_FILE" \
@@ -489,6 +493,7 @@ docker compose -p evo-edge \
   config --quiet
 
 docker compose -p evo-crm \
+  --env-file "$EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE" \
   -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" config --images \
   >"$EVO_RELEASE_EVIDENCE/candidate-crm-images.txt"
 docker compose -p evo-inbox \
@@ -515,6 +520,7 @@ Build only the three first-party images:
 
 ```bash
 docker compose -p evo-crm \
+  --env-file "$EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE" \
   -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" \
   build app lead-agent
 docker compose -p evo-inbox \

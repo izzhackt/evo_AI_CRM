@@ -126,7 +126,7 @@ function operations(overrides = {}) {
     async migrate() { calls.push("migrate"); return { status: "verified", before_range: "001-077", before_count: 77, after_range: "001-077", after_count: 77, applied_versions: [] }; },
     async importKnowledge(name) {
       calls.push(`importKnowledge:${name}`);
-      return { name, status: "verified", document_count: name === "client" ? 11 : 291, chunk_count: name === "client" ? 20 : 400, bundle_sha256: SHA_A, manifest_sha256: SHA_B, database_revision_sha256: SHA_C };
+      return { name, status: "verified", document_count: name === "client" ? 11 : 295, chunk_count: name === "client" ? 20 : 400, bundle_sha256: SHA_A, manifest_sha256: SHA_B, database_revision_sha256: SHA_C };
     },
     async cleanupKnowledge() { calls.push("cleanupKnowledge"); return { status: "verified" }; },
     async cleanupPreparedReadiness() { calls.push("cleanupPreparedReadiness"); return { status: "verified" }; },

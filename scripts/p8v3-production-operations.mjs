@@ -1337,10 +1337,10 @@ function stableReport(report) {
 }
 
 function buildAudience(run, sourceRoot, accountId, audience, vault, localRoots) {
-  const expectedCount = audience === "client" ? 11 : 291;
+  const expectedCount = audience === "client" ? 11 : 295;
   const expectedSourceSet = audience === "client"
     ? "c8dcfdd7911fdf2b97204c5d843dbf45f701d5dbee72e78cfaea17ea7ab18689"
-    : "1bd7458ff70c0a31fde9f6bb1abfb7ec0152c1f286caf2a1de48081860121f9f";
+    : "14d5332d012091677285c1f8b0df63a9c9169a5a16f29ac429a0efc16dfa5cfa";
   const audit = parseJson(runChecked(run, `${audience} vault audit`, "python3", [join(sourceRoot, "scripts/p8v2e-vault-audit.py"), "--vault", vault, "--audience", audience], { cwd: sourceRoot, timeout: 120_000, code: "knowledge_failed" }).stdout.trim(), `${audience} vault audit`);
   if (audit.status !== "verified" || audit.document_count !== expectedCount || audit.source_set_sha256 !== expectedSourceSet) fail(`${audience} frozen vault drifted`, "knowledge_failed");
   const roots = [0, 1].map(() => {

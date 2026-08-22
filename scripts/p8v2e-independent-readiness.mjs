@@ -59,8 +59,8 @@ export const P8V2E_VAULTS = Object.freeze([
   Object.freeze({
     audience: "internal",
     path: "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ",
-    document_count: 291,
-    source_set_sha256: "1bd7458ff70c0a31fde9f6bb1abfb7ec0152c1f286caf2a1de48081860121f9f",
+    document_count: 295,
+    source_set_sha256: "14d5332d012091677285c1f8b0df63a9c9169a5a16f29ac429a0efc16dfa5cfa",
   }),
 ]);
 

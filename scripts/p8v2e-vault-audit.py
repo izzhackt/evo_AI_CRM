@@ -17,7 +17,7 @@ from knowledge_ingestion.build_platform_bundle import (
 
 EXPECTED = {
     "client": (11, "c8dcfdd7911fdf2b97204c5d843dbf45f701d5dbee72e78cfaea17ea7ab18689"),
-    "internal": (291, "1bd7458ff70c0a31fde9f6bb1abfb7ec0152c1f286caf2a1de48081860121f9f"),
+    "internal": (295, "14d5332d012091677285c1f8b0df63a9c9169a5a16f29ac429a0efc16dfa5cfa"),
 }
 
 

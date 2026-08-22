@@ -88,7 +88,7 @@
       "allOf": [
         { "$ref": "#/$defs/vault" },
         { "properties": { "audience": { "const": "internal" } } },
-        { "if": { "properties": { "status": { "const": "verified" } } }, "then": { "properties": { "document_count": { "const": 291 }, "source_set_sha256": { "const": "1bd7458ff70c0a31fde9f6bb1abfb7ec0152c1f286caf2a1de48081860121f9f" }, "pii_gate": { "const": "passed" }, "forbidden_root_gate": { "const": "passed" } } } }
+        { "if": { "properties": { "status": { "const": "verified" } } }, "then": { "properties": { "document_count": { "const": 295 }, "source_set_sha256": { "const": "14d5332d012091677285c1f8b0df63a9c9169a5a16f29ac429a0efc16dfa5cfa" }, "pii_gate": { "const": "passed" }, "forbidden_root_gate": { "const": "passed" } } } }
       ]
     },
     "identityState": { "enum": ["none_active", "exactly_one_active", "multiple_active", "blocked"] },

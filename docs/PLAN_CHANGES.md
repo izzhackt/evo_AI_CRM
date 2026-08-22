@@ -9926,3 +9926,32 @@ Research basis: <https://supabase.com/docs/guides/getting-started/architecture>,
 <https://supabase.com/docs/guides/functions>.
 Reviewer notes: independent correctness re-review confirmed the one-product
 Supabase boundary and found no remaining blocking finding in this change set.
+
+## 2026-08-22 — Canonical public entry stays unified while fallback Inbox remains private
+
+Date: 2026-08-22, workspace timezone.
+Author: Codex.
+Change type: public edge routing and release reconciliation.
+Affected plan sections: target entry point, edge routing, release inputs,
+rollback boundary.
+Reason: the all-in-one decision makes `crm.evoadmissions.com` the only
+canonical operator entry, but the audited production hotfix still pointed
+`inbox.evoadmissions.com` at a standalone Inbox runtime. Keeping that as a
+peer public application would preserve the old two-product model in the most
+visible place even if the internal architecture moved on.
+Decision: keep one public product entry. `crm.evoadmissions.com` remains the
+canonical Platform host, `inbox.evoadmissions.com` may exist only as an HTTP
+redirect to the CRM WhatsApp module, and the retained Inbox runtime stays
+available only through the `evo-inbox.72.62.119.112.sslip.io` fallback host for
+rollback and migration checks. At the same time, reconcile the controlled
+release runbook to the audited hybrid filesystem layout: Inbox secrets are read
+from `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env*`, reviewed deploy/Caddy
+artifacts are copied from `/opt/evo-inbox/agent-lead2-inbox/deploy/*`, and the
+intentionally absent CRM manual-send worker continues to use
+`EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE=/dev/null`.
+Validation impact: validate the candidate Caddyfile before deployment, verify
+the exact reviewed release SHA on `hermes-vps`, preserve one rollback image per
+first-party service, prove the fallback `sslip.io` host remains reachable, and
+claim canonical DNS/TLS only after real `crm.evoadmissions.com` and
+`inbox.evoadmissions.com` records exist and Caddy issues certificates.
+Reviewer notes: pending exact-head CI and independent release gate.

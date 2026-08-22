@@ -55,6 +55,11 @@
 	}
 }
 
+inbox.evoadmissions.com {
+	import evo_app
+	redir https://crm.evoadmissions.com/whatsapp 308
+}
+
 evo-inbox.72.62.119.112.sslip.io {
 	import evo_app
 	request_body {
@@ -64,7 +69,7 @@ evo-inbox.72.62.119.112.sslip.io {
 	reverse_proxy evo-inbox-app:3000
 }
 
-evo-crm.72.62.119.112.sslip.io {
+crm.evoadmissions.com, evo-crm.72.62.119.112.sslip.io {
 	import evo_app
 	request_body {
 		max_size 105MB

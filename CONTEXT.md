@@ -75,7 +75,10 @@ _Avoid_: second Platform project, self-hosted replacement, local database
 **Companion Inbox Domain**:
 The historical public hostname `inbox.evoadmissions.com`. It is a cutover and
 retirement concern, not a permanent second product entry point; staff target the
-single EVO Platform entry and unified UI.
+single EVO Platform entry and unified UI. When public DNS/TLS is restored, this
+hostname may exist only as a redirect to the canonical CRM WhatsApp module,
+while any retained standalone Inbox runtime stays fallback-only behind its
+rollback host.
 _Avoid_: permanent second login, independent product domain
 
 **Companion WAHA Session**:

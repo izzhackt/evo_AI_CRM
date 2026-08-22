@@ -2053,28 +2053,33 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
 7. Full EVO Inbox redesign: redesign retained surfaces around admissions
    operators, integration status, lead profile, AI draft, knowledge base, and
    production readiness.
-8. VPS deployment: add a separate `hermes-vps` service and Caddy route for
-   `inbox.evoadmissions.com`; verify only with real DNS, Supabase, WAHA, amoCRM,
-   and AI provider credentials.
+8. VPS deployment: keep the retained Inbox runtime available only as a
+   migration and rollback input, but make the public canonical staff entry one
+   Platform surface. `crm.evoadmissions.com` remains the canonical host and
+   `inbox.evoadmissions.com` may exist only as a redirect to the CRM WhatsApp
+   module; verify only with real DNS, Supabase, WAHA, amoCRM, and AI provider
+   credentials.
 
 `/goal-evo-inbox-companion` acceptance criteria:
 
-- The companion app runs from `agent-lead2-inbox/` without depending on
-  Meta Cloud API configuration.
+- The retained Inbox runtime may still run from `agent-lead2-inbox/` for
+  migration and rollback without depending on Meta Cloud API configuration, but
+  it is not a second public operator entry.
 - First launch supports one WAHA session named `evo-inbox`.
 - Inbound WAHA messages are authenticated, idempotent, persisted in Supabase,
-  and visible in the redesigned EVO Inbox.
+  and visible in the unified staff WhatsApp module.
 - The app resolves or creates amoCRM identity before presenting a lead as real.
 - Supabase stores shadow records and app data, not canonical CRM identity.
-- AI draft works through the companion app's own assistant; auto-reply is off by
-  default.
+- AI draft capabilities inherited from the companion runtime are surfaced
+  through the unified operator workflow; auto-reply is off by default.
 - An operator can send one manual WhatsApp reply through WAHA after reviewing
   the conversation and optional AI draft.
 - Broadcasts, broad automations, flow-driven sending, and Meta templates are
   absent or disabled in first-launch UI and runtime paths.
-- `inbox.evoadmissions.com` deployment is only claimed after a real
-  `hermes-vps` deployment, Caddy routing, DNS, WAHA, Supabase, amoCRM, and AI
-  provider check succeeds.
+- The canonical public entry is only claimed after a real `hermes-vps`
+  deployment, Caddy routing, DNS, WAHA, Supabase, amoCRM, and AI provider
+  check succeeds, with `inbox.evoadmissions.com` verified only as a redirect to
+  the CRM WhatsApp module.
 
 `/goal-qa-launch` named write set:
 

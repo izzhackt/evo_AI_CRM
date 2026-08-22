@@ -534,12 +534,9 @@ SELECT count(*)::TEXT AS p5c_staff_message_count,
          AND kommo_message_id IS NULL
          AND amocrm_lead_id IS NULL
        )::TEXT AS p5c_staff_provider_ids_private
-FROM platform.staff_conversation_message_page(
+FROM platform.staff_conversation_messages(
   :'org_a_id',
-  :'p5c_conversation_id',
-  201,
-  NULL,
-  NULL
+  :'p5c_conversation_id'
 )
 \gset
 RESET ROLE;

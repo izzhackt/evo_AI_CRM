@@ -1215,6 +1215,20 @@ test("expired preflight stops before identity or production access", async () =>
   assert.deepEqual(adapter.calls, []);
 });
 
+test("both Compose environments pin the public network they publish on", () => {
+  // The Compose file resolves its public network from `${EVO_CADDY_NETWORK}`.
+  // Leaving that to `--env-file` let production drift decide which edge the
+  // app is published on: the CRM env file had come to name another project's
+  // network, while the running container sat on evo_public_web. A release
+  // must reproduce the running topology, so both branches export it.
+  const source = readFileSync(join(process.cwd(), "scripts/p8v3-production-operations.mjs"), "utf8");
+  const start = source.indexOf("function composeEnvironment(name)");
+  const body = source.slice(start, source.indexOf("function composeFile(name)"));
+  assert.ok(start >= 0);
+  const pins = body.match(/export EVO_CADDY_NETWORK='evo_public_web'/g) ?? [];
+  assert.equal(pins.length, 2, "both the inbox and the CRM branch must pin the network");
+});
+
 test("production adapter keeps staging, rollback and evidence cleanup narrowly ordered", () => {
   const source = readFileSync(join(process.cwd(), "scripts/p8v3-production-operations.mjs"), "utf8");
   const verifyStart = source.indexOf("async verifyPreflight(snapshot)");

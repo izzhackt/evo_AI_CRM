@@ -9849,3 +9849,80 @@ Verification: run targeted contract/security tests and a disposable real-image
 OrbStack deploy/rollback exercise, then one independent PR review and one final
 CI on the release tree. Environment activation and first production deployment
 are separate explicit operations and require owner authorization after merge.
+
+## 2026-08-22 — Fix connected route reliability and bounded Platform queue reads
+
+Date: 2026-08-22, workspace timezone.
+Author: Codex.
+Change type: architecture, acceptance criteria, validation requirements.
+Affected plan section: connected Platform private-route boundary, accepted staff
+queue reads, sales connected runtime behavior, release readiness checks.
+Reason: exact `origin/main` review at `6f4041c2a82a8fd2b663322553a6e5035de8105f`
+confirmed four production defects in the active Platform runtime: proxy blocks
+the internal Lead Agent sync and Gemini proposal routes even though the
+handlers exist; the lead-agent release probe treats a proxy-generated generic
+403 as success; Platform staff queue reads rely on unbounded table-valued RPC
+calls and silently truncate at the default PostgREST/Supabase cap; and the
+connected `/sales` provider always returns `leads: []`.
+Decision: add the two exact internal routes to the connected private-route
+allowlist, harden the release probe to require the route handler's own
+boundary response instead of any 403, introduce bounded deterministic reads for
+the affected Platform queues and message history, and replace the connected
+`/sales` empty provider with a clearly labelled read-only Platform sales-intake
+work queue. Do not project Platform records as amoCRM deals: amoCRM remains the
+canonical source for deal identity, stage, amount and responsible manager.
+Validation impact: run focused real checks for the changed surfaces at minimum:
+`node --conditions=react-server --experimental-strip-types --test tests/platform-communications.test.mjs tests/platform-admissions.test.mjs tests/platform-gemini-proposal.test.mjs tests/platform-lead-agent-platform-sync.test.mjs tests/p8v3-rollout.test.mjs`,
+plus the route-contract tests, `playwright test
+tests/platform-auth/platform-auth.spec.ts`, a disposable local Supabase
+migration run and the production build. No provider, production or formal
+security-scan action is authorized by this change; report any exact environment
+blocker instead of substituting fixtures or mocks.
+Readiness reporting: keep the verified pre-change estimate at approximately
+55% (50–60% range). No repository source for 76% was found, and this repair must
+not infer a new percentage without a fresh screen-by-screen acceptance audit.
+Reviewer notes: independent correctness review found no remaining blocking
+finding after the unified schema-contract test was advanced through migrations
+`078` and `079` and verified `32/32`.
+
+## 2026-08-22 — Make EVO one all-in-one Supabase platform
+
+Date: 2026-08-22, workspace timezone.
+Author: Product owner direction recorded by Codex.
+Change type: superseding product architecture and implementation boundary.
+Affected plan sections: target architecture, identity, UI, data ownership,
+Lead Agent/Inbox/CRM boundaries, and P8R2 read-contract repair.
+Reason: treating CRM, Inbox, and Lead Agent as separately preserved products
+would keep multiple entrances, role systems, workflows, and operational truths.
+That conflicts with the required EVO user experience and would turn current
+deployment safety boundaries into permanent product architecture.
+Decision: EVO Admissions is one product with one entry point, one accepted UI
+shell, one Supabase Auth/RBAC organization model, and one cross-module workflow.
+CRM/admissions, Inbox/communications, and Lead Agent/orchestration are internal
+modules only. Supabase remains the permanent foundation: Postgres is the
+canonical Platform operational store, Auth owns identity, Storage owns private
+files/media, and Realtime/Edge Functions are used where their authorized event
+and integration semantics fit. The root migration chain and Platform schemas
+are the only forward data authority.
+External-boundary impact: WAHA is the WhatsApp transport adapter, amoCRM is the
+adapter and authority only for its explicitly owned sales fields, and approved
+AI providers are bounded generation adapters. None is a separate EVO product or
+independent Platform data center.
+Migration impact: current separate runtimes, domains, SQLite objects, and
+historical `public` Inbox objects are frozen cutover inputs to retire. Do not
+add SQLite, dual-read, dual-write, fallback UI, new legacy-schema behavior, or
+compatibility layers. This supersedes P8R2's earlier additive-RPC wording:
+move all repository callers to one bounded contract and remove the obsolete
+unbounded functions in a forward migration once dependency checks pass.
+Validation impact: repository and disposable local-Supabase checks validate
+only code and schema behavior. Do not call the unified Platform live-ready
+without separately authorized proof against the real managed Supabase
+Auth/RLS/Storage/data path and required WAHA, amoCRM, and AI adapters. No
+production/provider operation or security scan is authorized by this change.
+Research basis: <https://supabase.com/docs/guides/getting-started/architecture>,
+<https://supabase.com/docs/guides/auth/architecture>,
+<https://supabase.com/docs/guides/database/overview>,
+<https://supabase.com/docs/guides/realtime/authorization>, and
+<https://supabase.com/docs/guides/functions>.
+Reviewer notes: independent correctness re-review confirmed the one-product
+Supabase boundary and found no remaining blocking finding in this change set.

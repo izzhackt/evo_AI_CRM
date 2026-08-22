@@ -9,17 +9,24 @@ The target contract is
 [`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`](docs/EVO_PLATFORM_LONG_RUN_PLAN.md) and
 the current execution-order decision is
 [`docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md`](docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md).
-ADR 0018 remains authoritative for the retained/frozen Lead Agent and legacy
-rollback path except where ADR 0019 narrowly supersedes it.
+The 2026-08-22 all-in-one decision in
+[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md) is the latest target-architecture
+authority: EVO is one product with one entry point, one staff UI, one role
+model, one cross-module workflow, and one Supabase-native operational backend.
+Lead Agent, CRM, and Inbox name internal capabilities or current deployment
+contours; they are not separate target products, user applications, or data
+authorities. ADR 0018 remains current-state authority only for safely operating
+and retiring the retained/frozen Lead Agent and rollback path; it does not
+preserve them as target product boundaries.
 The target architecture remains
 [`docs/adr/0014-unified-evo-platform-target-architecture.md`](docs/adr/0014-unified-evo-platform-target-architecture.md),
-subject to later superseding decisions.
+as superseded by that all-in-one decision.
 Its canonical Supabase schema/migration boundary is refined by
 [`docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`](docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md).
 Companion-era terms below remain as honest descriptions of separate runtimes
-that exist before any separately authorized provider cutover; they are neither
-the target architecture nor a legacy data-migration source for the greenfield
-Platform.
+that may still exist before a separately authorized cutover. They are migration
+inputs to retire, not target architecture, permanent compatibility contracts,
+or a second source of truth.
 
 ## Language
 
@@ -43,24 +50,33 @@ A real amoCRM lead created or resolved during rollout validation and clearly mar
 _Avoid_: fake lead, mock lead
 
 **Operator UI**:
-The EVO CRM staff interface where operators inspect admissions conversations, lead state, and follow-up context.
+The single EVO Platform staff interface where operators inspect admissions
+conversations, admissions state, and follow-up context across internal modules.
 _Avoid_: dashboard, admin panel
 
 **Companion WAHA CRM App**:
-A separate EVO-owned WhatsApp CRM surface that may share deployment and context with EVO Admissions CRM, but does not replace the Operator UI until a later explicit decision.
-_Avoid_: replacement CRM, new main CRM, forked demo
+Historical name for the separately deployed Inbox runtime. Its useful messaging
+capabilities move behind the unified EVO UI and role model; the runtime is not
+a separately marketed, separately entered, or permanent target application.
+_Avoid_: second product, permanent companion, parallel operator UI
 
 **Companion Data Store**:
-The Supabase project used by the Companion WAHA CRM App for auth, shadow records, messages, files, AI settings, and knowledge-base data.
-_Avoid_: EVO CRM database, temporary clone DB
+Historical Supabase model used by the separately deployed Inbox runtime. It is
+not a second target authority and must not receive new dual-write or fallback
+behavior; accepted Platform data lives in the canonical Platform schemas.
+_Avoid_: second operational authority, compatibility database
 
 **Managed Companion Data Store**:
-The Supabase Cloud project used by the companion app, while the Next app and WAHA run on `hermes-vps`.
-_Avoid_: self-hosted Supabase on first launch, local database
+Historical name for the managed Supabase project used during the companion
+phase. The target uses the one approved Platform Supabase project for Postgres,
+Auth, Storage, and appropriate Realtime/Edge Function capabilities.
+_Avoid_: second Platform project, self-hosted replacement, local database
 
 **Companion Inbox Domain**:
-The public hostname for the Companion WAHA CRM App: `inbox.evoadmissions.com`.
-_Avoid_: CRM path, demo URL
+The historical public hostname `inbox.evoadmissions.com`. It is a cutover and
+retirement concern, not a permanent second product entry point; staff target the
+single EVO Platform entry and unified UI.
+_Avoid_: permanent second login, independent product domain
 
 **Companion WAHA Session**:
 The single first-launch WAHA session used by the Companion WAHA CRM App: `evo-inbox`.
@@ -77,9 +93,11 @@ _Avoid_: lead-agent, external bot brain
 amoCRM, which owns the canonical contact, lead, responsible sales manager, and
 sales stage for admissions follow-up. ADR 0019 resumes only a bounded read-mostly
 adapter for those values and references to sales tasks, calls/recordings and chat
-records. Missing verified account mapping fails closed; SQLite, mocks, inferred
-identity, hardcoded IDs and silent fallback remain prohibited.
-_Avoid_: local source, duplicate identity
+records. The unified Platform remains the internal operational source for its
+own workflow, messaging, audit and applicant state. Missing verified account
+mapping fails closed; SQLite, mocks, inferred identity, hardcoded IDs and
+silent fallback remain prohibited.
+_Avoid_: local source, duplicate identity, second product CRM
 
 **Shadow Record**:
 A local record that mirrors selected amoCRM identity or workflow fields for fast operator use, while amoCRM remains authoritative.
@@ -152,14 +170,18 @@ The redesign of all retained Companion WAHA CRM App surfaces around EVO admissio
 _Avoid_: light rebrand, template skin
 
 **Unified EVO Platform**:
-The target staff workspace and Student Portal backed by one logical platform
-data model. A dedicated Supabase production project owns EVO operational data,
-while local/development, persistent staging, and supported preview environments
-remain physically isolated. The legacy root CRM remains a separate system and
-is neither replaced nor migrated by this contract. Existing Inbox and Lead
-Agent messaging ownership remains current-state fact until a controlled
-provider cutover proves the new path.
-_Avoid_: renamed companion app, shared production-and-test database
+The one EVO Admissions product: a single entry point and accepted UI shell for
+staff and the Student Portal, one Supabase Auth/RBAC organization model, one
+cross-module workflow, and one logical operational data model. CRM/admissions,
+Inbox/communications, and Lead Agent/orchestration are modules inside this
+product. One dedicated Supabase production project supplies canonical Postgres,
+Auth, private Storage, and appropriate Realtime and Edge Functions; isolated
+local, staging, and preview environments remain physically separate. WAHA,
+amoCRM, and approved AI providers are boundary adapters. Current separate
+runtimes may remain only until a controlled cutover proves the unified path;
+they do not justify SQLite reintroduction, dual reads/writes, fallback UI, or
+permanent compatibility layers.
+_Avoid_: renamed companion app, three products, dual backend, shared production-and-test database
 
 **Platform Business Role**:
 One of `admin`, `sales`, `curator`, `finance`, or `student`. “Client/Student”
@@ -198,7 +220,9 @@ profile update preserves its existing owner and applies only to an already
 owned lead, and only Admin may select or reassign the temporary local owner to
 an active Sales account.
 This is containment, not proof of EVO Inbox, WAHA, amoCRM or unified-history
-integration.
+integration. It must not be extended into a compatibility layer; the unified
+Supabase communications module replaces this contour through a separately
+authorized cutover.
 _Avoid_: unified Inbox, provider proof, canonical conversation ownership
 
 **Unified Frontend Contract**:
@@ -224,11 +248,13 @@ copy. Merged migrations are immutable; corrections use a new number.
 _Avoid_: duplicated migration tree, edited applied migration
 
 **Platform Schema Boundary**:
-`public` is the temporary legacy Inbox compatibility schema. `platform` is the
-new browser-exposed Platform schema with explicit grants and RLS on every
-table. `platform_private` is backend-only and absent from the Data API.
-Browser actors also have no direct queue-internal access.
-_Avoid_: all new tables in public, browser-accessible private helpers
+`platform` is the canonical browser-exposed Platform schema with explicit
+grants and RLS on every table. `platform_private` is backend-only and absent
+from the Data API. Historical `public` Inbox objects may remain only as frozen
+migration history until an authorized retirement migration removes them; no new
+Platform behavior, dual-write, fallback, or compatibility contract may depend
+on them. Browser actors also have no direct queue-internal access.
+_Avoid_: new Platform tables in public, browser-accessible private helpers, legacy-schema fallback
 
 **Legacy Inbox Role**:
 One of the companion-era `owner`, `admin`, `agent`, or `viewer` roles. It has

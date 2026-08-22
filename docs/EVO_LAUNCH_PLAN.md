@@ -60,9 +60,11 @@ disabled by default. On 2026-08-14 the owner deferred the P7C restore drill
 until the Platform is functionally complete and concretely operating.
 Supabase Pro scheduled database backups remain enabled, but they are not
 restore evidence and do not include Storage object bytes. `inbox-prod` is a
-separate owned Inbox SaaS product and is explicitly retained outside EVO
-Platform consolidation and retirement scope. The active next execution slice
-is P8D4S under issue #270. P8D4R safely verified the exact candidate,
+currently separate deployment contour, not a separate target product. Keep it
+stable until a separately authorized unified-Platform cutover proves the
+replacement path, then retire the contour without a dual-read/write bridge.
+The active next execution slice is P8D4S under issue #270. P8D4R safely
+verified the exact candidate,
 migrations `001-076`, staging, rollback capture and disabled configuration,
 then stopped with `knowledge_failed` before any database import, application
 deployment or pilot. Cleanup removed all four local build roots, the remote
@@ -334,9 +336,11 @@ re-engagement, out-of-window free-form sends and direct model-to-WAHA access are
 prohibited. Every other result becomes a durable human-review handoff.
 
 This amendment preserves P4B activation/write work, recognizes merged bounded
-read-only P4R1, keeps P9 removed and retains Lead Agent. No mock, SQLite shim,
-hardcoded mapping, fake provider or silent fallback may substitute for
-canonical amoCRM or provider evidence.
+read-only P4R1, and keeps P9 removed. The deployed Lead Agent remains frozen
+only as a current-state rollback/cutover input; its useful orchestration belongs
+inside the one Platform product and the separate contour is not retained as
+target architecture. No mock, SQLite shim, hardcoded mapping, fake provider or
+silent fallback may substitute for canonical amoCRM or provider evidence.
 
 ### Reconciled baseline
 
@@ -430,7 +434,9 @@ checkpoint is:
 2. Defer the P7C encrypted database plus separate Storage recovery drill until
    the Platform is functionally complete and concretely operating. Keep
    automatic database backups enabled, do not create a billed recovery project,
-   and leave the separate Inbox SaaS project `inbox-prod` untouched.
+   and leave the current `inbox-prod` runtime stable until the separately
+   authorized unified cutover; do not add features or a second data authority
+   there.
 3. Preserve the merged focused P7D contract. Defer the large load test and
    temporary managed load environment without calling capacity passed. Prepare
    the real P8 candidate, then run the existing automated accessibility gate and the
@@ -443,9 +449,11 @@ checkpoint is:
    accounting complete. Prove only executable P5-P7 plus P4R read paths. Report
    P4B activation/writes and unavailable provider segments as deferred, never
    passed or synthetically replaced.
-6. Skip P9. Keep Lead Agent, the legacy webhook/session and rollback path
-   deployed/frozen. Run P10 directly after P8 as an authorized-scope audit that
-   lists P4B activation/writes deferred and does not claim full Platform
+6. Skip P9. Keep Lead Agent and the legacy webhook/session path deployed/frozen
+   only until the unified replacement is proven and a separate retirement
+   operation is authorized. Do not extend either contour or introduce a
+   compatibility bridge. Run P10 directly after P8 as an authorized-scope audit
+   that lists P4B activation/writes deferred and does not claim full Platform
    completion.
 
 ### P7 authority and sequence
@@ -461,7 +469,9 @@ readiness, metrics, internal routes and Lead Agent operational surfaces private.
 P7C follows `docs/platform/p7c-managed-recovery-contract.md` when the owner
 resumes it: it will use the real managed source, a newly owned empty managed
 destination, and separate encrypted database and Storage evidence. It excludes
-the separate Inbox SaaS project `inbox-prod`. P7D now follows the focused
+the current companion-era `inbox-prod` runtime because that runtime is not the
+P7 recovery target; this physical exclusion does not make it a separate target
+product or data authority. P7D now follows the focused
 accessibility contract: high-load capacity stays deferred/unproved, while the
 exact release candidate must pass the retained automated gate and approved
 human review before release.
@@ -681,9 +691,12 @@ Block `EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10` was the accepted docs-only
 authority gate after merged P4R1. It preserves the accepted Claude Design
 frontend as the sole UI contract, keeps P4B activation/writes deferred, keeps
 P9 removed, and retains Lead Agent plus the legacy rollback path as
-deployed/frozen. Its P5F1-P5F3 implementation slices are merged, and P6A-P6D
-are now complete. P7-PLAN, P7A and P7B are also complete. The active plan group
-is P7C, gated P7D, narrowed P8 and P10.
+deployed/frozen current-state safety contours. The later 2026-08-22 all-in-one
+authority supersedes their target retention: useful orchestration moves inside
+the unified product and the separate contour is retired only after proof. Its
+P5F1-P5F3 implementation slices are merged, and P6A-P6D are now complete.
+P7-PLAN, P7A and P7B are also complete. The active plan group is P7C, gated
+P7D, narrowed P8 and P10.
 
 P5F SHALL be implemented in three independently reviewed slices:
 
@@ -2438,9 +2451,10 @@ their own explicit authorization.
   lead/contact/sales-stage sources of truth.
 - Roles and permissions cover both server-side authorization and visible UI,
   including denial, audit and privileged-action rules.
-- The current plan keeps the production path reversible and retains Lead Agent,
-  the legacy webhook/session and rollback path deployed/frozen. It does not
-  authorize a retirement/removal PR.
+- The current plan keeps the production path reversible and leaves Lead Agent,
+  the legacy webhook/session and rollback path deployed/frozen only as
+  current-state cutover inputs. It does not authorize their retirement in this
+  slice and does not preserve them as separate target products.
 - The original full-target journey remains explicit but deferred with P4:
   `WhatsApp -> amoCRM -> EVO Platform -> AI draft -> manual send ->
   delivery/read status -> audit history`. Current P8 accepts only the real
@@ -4215,3 +4229,94 @@ References: [GitHub deployment environments](https://docs.github.com/en/actions/
 [manual workflow runs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow),
 [workflow concurrency](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency),
 [Docker Compose app-only update](https://docs.docker.com/reference/cli/docker/compose/up/).
+
+## 2026-08-22 all-in-one Platform architecture authority
+
+This decision supersedes older target-language that treats Main CRM, EVO Inbox,
+or EVO Lead Agent as separate products or permanent boundaries. Historical
+deployment facts, rollback controls, and provider cutover gates remain valid,
+but their purpose is to reach one EVO Admissions product safely.
+
+The target is one entry point, one accepted UI shell, one Supabase Auth/RBAC
+organization model, and one cross-module workflow. Admissions/CRM,
+communications/Inbox, and Lead Agent/orchestration are internal modules. They
+must not expose competing staff applications or maintain competing operational
+truths. The root `supabase/` migration chain and the Platform schemas are the
+only forward data authority. Supabase Postgres stores Platform state, Auth owns
+identity, private Storage owns applicant/media objects, Realtime may invalidate
+authorized UI state, and Edge Functions may implement appropriate short-lived
+integration boundaries. Those capabilities all serve the same domain model.
+The target staff entry remains the unified CRM shell rather than a preserved
+second Inbox application or separate Lead Agent UI.
+
+WAHA transports WhatsApp, amoCRM supplies its explicitly owned sales fields,
+and approved AI providers generate bounded proposals. Each is an adapter at the
+Platform boundary. Provider identifiers and observations are normalized into
+the Platform model; providers do not become separate products. No new SQLite
+path, legacy-schema feature, dual-read, dual-write, fallback UI, or compatibility
+layer may be added. Existing separate runtimes and legacy objects are frozen
+cutover inputs to retire, not architecture to extend.
+
+The unified Platform remains not live-ready until its real managed Supabase
+Auth/RLS/Storage/data path and required provider adapters are exercised in the
+authorized environment. Repository, local database, and UI checks prove only
+their stated layers.
+
+Research basis: [Supabase architecture](https://supabase.com/docs/guides/getting-started/architecture),
+[Auth architecture](https://supabase.com/docs/guides/auth/architecture),
+[Database overview](https://supabase.com/docs/guides/database/overview),
+[Realtime authorization](https://supabase.com/docs/guides/realtime/authorization),
+and [Edge Functions](https://supabase.com/docs/guides/functions).
+
+## P8R2 — Connected Platform reliability repair (2026-08-22)
+
+P8R2 repairs four connected-runtime defects verified on exact `origin/main`
+`6f4041c2a82a8fd2b663322553a6e5035de8105f`. It is one bounded reliability
+change: two implemented private APIs must reach their own handlers; the Lead
+Agent probe must distinguish that handler from a generic proxy denial; staff
+queues and message history must remain reachable beyond the Data API row cap;
+and connected `/sales` must show a real read-only Platform work queue instead
+of an unconditional empty result.
+
+The private-route contract is an exact-match allowlist. Lead Agent sync and the
+Gemini proposal route bypass staff-cookie handling but retain their handler-owned
+HMAC, bearer-secret, configuration and disabled-state checks. Near paths remain
+blocked. The deployment probe accepts only the Lead Agent handler's documented
+unsigned-request response (`403` with `error=invalid_signature`); status alone
+is never sufficient proof that the request reached the handler.
+
+Admissions queues, communication queues and message history use bounded,
+deterministically ordered server-side pages. Filters are applied before the
+page window, record pages use stable tie-breakers, detail screens use direct
+authorized snapshots, and older messages remain navigable. Each surface moves
+to one canonical bounded read contract. Obsolete unbounded RPCs are removed
+after repository callers move; no additive compatibility RPC, dual read, or
+fallback remains. The UI must not download an entire queue and then filter or
+locate one record in memory.
+
+Connected `/sales` remains read-only and does not manufacture amoCRM deals
+from Platform records. It may show the real Platform sales-intake work queue
+with links to its native records, but it must label that queue as operational
+work rather than the canonical pipeline. amoCRM remains authoritative for deal
+identity, stage, amount and responsible sales manager until its real read-only
+mapping is exercised and verified. `/sales` is a module of the same EVO UI and
+uses the same Supabase identity and role model; it is not a second CRM.
+
+This repository change does not authorize a provider call, production probe,
+database migration, deployment, WAHA/WhatsApp write, amoCRM write or autonomous
+reply. It also excludes a security scan at the owner's request. Validation is
+local and evidence-based: focused repository tests, route-handler/proxy
+contracts, a real disposable Supabase migration run, connected Playwright
+coverage and the production build. Any unavailable runtime is reported as an
+explicit blocker rather than replaced by fixtures or mocks.
+
+The pre-change audit baseline remains approximately 55% code/UI readiness
+(reasonable range 50–60%). No maintained repository source for the earlier 76%
+claim was found. P8R2 fixes named defects but does not publish a higher readiness
+percentage; that requires a fresh screen-by-screen acceptance audit after the
+change is merged and exercised in its authorized environment.
+
+Research basis: [Next.js proxy execution and testing](https://nextjs.org/docs/app/api-reference/file-conventions/proxy),
+[Supabase range pagination](https://supabase.com/docs/reference/javascript/using-modifiers-range),
+[PostgREST table-valued functions](https://postgrest.org/en/latest/references/api/functions.html),
+and [PostgreSQL deterministic LIMIT/OFFSET](https://www.postgresql.org/docs/current/queries-limit.html).

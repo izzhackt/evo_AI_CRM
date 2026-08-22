@@ -9977,5 +9977,8 @@ login/read checks, and authoritative DNS plus real TLS verification. Keep
 outbound disabled, and the manual-send worker stopped. No formal security scan,
 outbound WhatsApp send, amoCRM write, provider fallback, demo data, SQLite
 cutover, dual-read, or dual-write is authorized.
+Research basis: [Supabase CLI remote migration dry-run and push](https://supabase.com/docs/reference/cli/supabase-migration-up),
+[Supabase database migration workflow](https://supabase.com/docs/guides/deployment/database-migrations),
+and [Caddy automatic HTTPS hostname requirements](https://caddyserver.com/docs/automatic-https).
 Reviewer notes: pending independent review of this correction and release
 boundary.

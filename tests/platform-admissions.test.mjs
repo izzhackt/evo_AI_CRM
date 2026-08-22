@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
+import { createClient } from "@supabase/supabase-js";
+
 import {
   buildPlatformAdmissionsRedirectUrl,
+  compactPlatformAdmissionsGetRpcArguments,
   PlatformAdmissionsRepositoryError,
   getPlatformOpWorkflowContract,
   listPlatformApplications,
@@ -59,6 +62,69 @@ test("accepts only complete deterministic admissions cursors", () => {
   });
   assert.equal(parsePlatformAdmissionsCursor(undefined, CASE_ID), null);
   assert.equal(parsePlatformAdmissionsCursor(AT, "not-a-uuid"), null);
+});
+
+test("GET pagination RPCs do not serialize absent filters as literal null", async () => {
+  const requests = [];
+  const client = createClient(
+    "https://example.supabase.co",
+    "test-publishable-key",
+    {
+      auth: {
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        persistSession: false,
+      },
+      global: {
+        fetch: async (input) => {
+          const url =
+            typeof input === "string"
+              ? input
+              : input instanceof URL
+                ? input.toString()
+                : input.url;
+          requests.push(new URL(url));
+          return new Response("[]", {
+            headers: { "content-type": "application/json" },
+            status: 200,
+          });
+        },
+      },
+    },
+  );
+
+  await client.schema("platform").rpc(
+    "staff_student_case_page",
+    compactPlatformAdmissionsGetRpcArguments({
+      p_limit: 51,
+      p_before_sort_at: null,
+      p_before_student_case_id: null,
+      p_state: null,
+      p_query: null,
+      p_student_case_id: null,
+    }),
+    { get: true },
+  );
+
+  await client.schema("platform").rpc(
+    "staff_application_page",
+    compactPlatformAdmissionsGetRpcArguments({
+      p_limit: 51,
+      p_before_updated_at: null,
+      p_before_application_id: null,
+      p_status: null,
+      p_student_case_id: null,
+      p_application_id: null,
+    }),
+    { get: true },
+  );
+
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].searchParams.get("p_limit"), "51");
+  assert.equal(requests[1].searchParams.get("p_limit"), "51");
+  for (const request of requests) {
+    assert.deepEqual([...request.searchParams.entries()], [["p_limit", "51"]]);
+  }
 });
 
 function actor(platformRole) {

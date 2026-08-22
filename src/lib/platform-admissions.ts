@@ -215,6 +215,16 @@ export function parsePlatformAdmissionsCursor(
     : null;
 }
 
+export function compactPlatformAdmissionsGetRpcArguments(
+  args: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(args).filter(
+      ([, value]) => value !== null && value !== undefined,
+    ),
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -611,14 +621,14 @@ export async function listPlatformStudentCases(
     const cursor = options?.cursor ?? null;
     const response = await client.schema("platform").rpc(
       "staff_student_case_page",
-      {
+      compactPlatformAdmissionsGetRpcArguments({
         p_limit: pageSize + 1,
         p_before_sort_at: cursor?.sortAt ?? null,
         p_before_student_case_id: cursor?.id ?? null,
         p_state: options?.state ?? null,
         p_query: options?.query?.trim() || null,
         p_student_case_id: null,
-      },
+      }),
       { get: true },
     );
     if (response.error || !Array.isArray(response.data)) return invalidShape();
@@ -737,14 +747,14 @@ export async function listPlatformApplications(
     const cursor = options?.cursor ?? null;
     const response = await client.schema("platform").rpc(
       "staff_application_page",
-      {
+      compactPlatformAdmissionsGetRpcArguments({
         p_limit: pageSize + 1,
         p_before_updated_at: cursor?.sortAt ?? null,
         p_before_application_id: cursor?.id ?? null,
         p_status: options?.status ?? null,
         p_student_case_id: studentCaseId,
         p_application_id: null,
-      },
+      }),
       { get: true },
     );
     if (response.error) return invalidShape();

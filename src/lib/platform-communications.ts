@@ -122,6 +122,25 @@ export type PlatformMessagePageOptions = Readonly<{
   pageSize?: number;
 }>;
 
+type PlatformCommunicationsRpcResponse = Readonly<{
+  data: unknown;
+  error: unknown;
+}>;
+
+type PlatformCommunicationsRpcClient = Readonly<{
+  schema: (schema: "platform") => Readonly<{
+    rpc: (
+      functionName: string,
+      args?: Readonly<Record<string, unknown>>,
+      options?: Readonly<{ get?: boolean }>,
+    ) => PromiseLike<PlatformCommunicationsRpcResponse>;
+  }>;
+}>;
+
+export type PlatformCommunicationsDependencies = Readonly<{
+  client?: PlatformCommunicationsRpcClient;
+}>;
+
 /**
  * The same public error is used for authorization, transport and response
  * validation failures so database and provider identifiers never cross the
@@ -368,6 +387,14 @@ function normalizePageSize(value: number | undefined, fallback: number): number 
     : fallback;
 }
 
+function compactGetRpcArgs(
+  args: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  return Object.fromEntries(
+    Object.entries(args).filter(([, value]) => value !== null && value !== undefined),
+  );
+}
+
 export function parsePlatformConversationCursor(
   sortAt: unknown,
   id: unknown,
@@ -568,14 +595,18 @@ function requireMessagingOrganization(actor: PlatformActor): string {
   return actor.organizationId.toLowerCase();
 }
 
-async function getPlatformClient() {
+async function getPlatformClient(
+  injected?: PlatformCommunicationsRpcClient,
+): Promise<PlatformCommunicationsRpcClient> {
+  if (injected) return injected;
+
   // The dynamic import keeps the pure response validators testable in Node.
   // Repository calls still load the request-scoped Next.js server client and
   // can never fall back to the browser client or a service-role credential.
   if (typeof window !== "undefined") return invalidShape();
 
   const { createSupabaseServerClient } = await import("./supabase/server");
-  return createSupabaseServerClient();
+  return createSupabaseServerClient() as unknown as PlatformCommunicationsRpcClient;
 }
 
 function normalizeConversationRows(
@@ -615,15 +646,16 @@ function normalizeMessageRows(
 export async function listPlatformConversations(
   actor: PlatformActor,
   options?: PlatformConversationPageOptions,
+  dependencies: PlatformCommunicationsDependencies = {},
 ): Promise<PlatformPageSlice<PlatformConversationSummary>> {
   try {
     const organizationId = requireMessagingOrganization(actor);
-    const client = await getPlatformClient();
+    const client = await getPlatformClient(dependencies.client);
     const pageSize = normalizePageSize(options?.pageSize, 50);
     const cursor = options?.cursor ?? null;
     const response = await client.schema("platform").rpc(
       "staff_communication_page",
-      {
+      compactGetRpcArgs({
         p_organization_id: organizationId,
         p_limit: pageSize + 1,
         p_before_sort_at: cursor?.sortAt ?? null,
@@ -631,7 +663,7 @@ export async function listPlatformConversations(
         p_queue: options?.queue ?? null,
         p_status: options?.status ?? null,
         p_conversation_id: null,
-      },
+      }),
       { get: true },
     );
 
@@ -666,13 +698,14 @@ export async function getPlatformConversationThread(
   actor: PlatformActor,
   id: string,
   options?: PlatformMessagePageOptions,
+  dependencies: PlatformCommunicationsDependencies = {},
 ): Promise<PlatformConversationThread | null> {
   try {
     const organizationId = requireMessagingOrganization(actor);
     const conversationId = parsePlatformRouteUuid(id);
     if (conversationId === null) return null;
 
-    const client = await getPlatformClient();
+    const client = await getPlatformClient(dependencies.client);
     const summaryResponse = await client
       .schema("platform")
       .rpc("staff_communication_snapshot", {
@@ -699,13 +732,13 @@ export async function getPlatformConversationThread(
     const cursor = options?.cursor ?? null;
     const messagesResponse = await client.schema("platform").rpc(
       "staff_conversation_message_page",
-      {
+      compactGetRpcArgs({
         p_organization_id: organizationId,
         p_conversation_id: conversationId,
         p_limit: pageSize + 1,
         p_before_created_at: cursor?.sortAt ?? null,
         p_before_message_id: cursor?.id ?? null,
-      },
+      }),
       { get: true },
     );
 

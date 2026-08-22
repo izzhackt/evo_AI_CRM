@@ -1004,7 +1004,10 @@ const createSyntheticConversationFixture = ({
   occurredAt,
   messages,
 }) => {
-  const wahaSessionName = `synthetic-local-fixture-${fixtureKey}`;
+  // The unified Platform has two canonical WAHA adapters. Browser fixtures
+  // exercise the Inbox/communications module, so they must use its real
+  // session identity instead of inventing a third product-local session.
+  const wahaSessionName = "evo-inbox";
   const kommoConversationId =
     `synthetic-local-fixture-${fixtureKey}-conversation`;
   const sourcePayloadId =

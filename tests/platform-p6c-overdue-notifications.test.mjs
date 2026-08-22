@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { isConnectedPlatformPrivateApi } from "../src/lib/platform-route-contract.ts";
 import {
   isPlatformP6COverdueNotificationsEnabled,
   loadPlatformP6COverdueConfig,
@@ -380,12 +381,18 @@ test("proxy admits only the exact private P6C path", () => {
     new URL("../src/proxy.ts", import.meta.url),
     "utf8",
   );
-  assert.match(
-    proxy,
-    /const PLATFORM_PORTAL_OVERDUE_PATH =\s*\n\s*"\/api\/internal\/platform-operations\/portal-overdue";/,
+  assert.equal(
+    isConnectedPlatformPrivateApi(
+      "/api/internal/platform-operations/portal-overdue",
+    ),
+    true,
   );
-  assert.match(proxy, /path === PLATFORM_PORTAL_OVERDUE_PATH/);
-  assert.doesNotMatch(proxy, /startsWith\(PLATFORM_PORTAL_OVERDUE_PATH\)/);
-  assert.doesNotMatch(proxy, /includes\(PLATFORM_PORTAL_OVERDUE_PATH\)/);
-  assert.equal(proxy.match(/PLATFORM_PORTAL_OVERDUE_PATH/g)?.length, 2);
+  for (const path of [
+    "/api/internal/platform-operations/portal-overdue/",
+    "/api/internal/platform-operations/portal-overdue/extra",
+    "/api/internal/platform-operations/portal-overdue-preview",
+  ]) {
+    assert.equal(isConnectedPlatformPrivateApi(path), false, path);
+  }
+  assert.match(proxy, /isConnectedPlatformPrivateApi\(path\)/);
 });

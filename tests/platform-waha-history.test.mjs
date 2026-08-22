@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { isConnectedPlatformPrivateApi } from "../src/lib/platform-route-contract.ts";
 import {
   createPlatformWahaHistoryClient,
   PLATFORM_WAHA_HISTORY_MEDIA_MARKER,
@@ -735,10 +736,19 @@ test("history transport source contains no WAHA write endpoint or write method",
   assert.doesNotMatch(clientSource, /method:\s*"(?:POST|PUT|PATCH|DELETE)"/);
   assert.match(routeSource, /export const POST = createPlatformWahaHistoryHandler\(\)/);
   assert.doesNotMatch(routeSource, /export const (?:PUT|PATCH|DELETE)/);
-  assert.match(
-    proxySource,
-    /\/api\/internal\/platform-messaging\/waha\/history/,
+  assert.equal(
+    isConnectedPlatformPrivateApi(
+      "/api/internal/platform-messaging/waha/history",
+    ),
+    true,
   );
+  assert.equal(
+    isConnectedPlatformPrivateApi(
+      "/api/internal/platform-messaging/waha/history/extra",
+    ),
+    false,
+  );
+  assert.match(proxySource, /isConnectedPlatformPrivateApi\(path\)/);
 });
 
 test("history audit actions satisfy the Platform dotted-action contract", async () => {

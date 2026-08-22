@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { isConnectedPlatformPrivateApi } from "../src/lib/platform-route-contract.ts";
 import {
   loadPlatformAutonomousReplyConfig,
   PLATFORM_AUTONOMOUS_REPLY_BUSINESS_END_MINUTE,
@@ -937,10 +938,19 @@ test("the exact private route is wired through the proxy and safe environment ex
     readFile(".env.example", "utf8"),
   ]);
   assert.match(route, /createPlatformAutonomousReplyHandler/);
-  assert.match(
-    proxy,
-    /\/api\/internal\/platform-messaging\/waha\/autonomous-reply/,
+  assert.equal(
+    isConnectedPlatformPrivateApi(
+      "/api/internal/platform-messaging/waha/autonomous-reply",
+    ),
+    true,
   );
+  assert.equal(
+    isConnectedPlatformPrivateApi(
+      "/api/internal/platform-messaging/waha/autonomous-reply/extra",
+    ),
+    false,
+  );
+  assert.match(proxy, /isConnectedPlatformPrivateApi\(path\)/);
   assert.match(environment, /EVO_PLATFORM_AUTONOMOUS_REPLIES_ENABLED=0/);
   assert.match(environment, /EVO_PLATFORM_AUTONOMOUS_REPLIES_KILL_SWITCH=1/);
   assert.doesNotMatch(environment, /NEXT_PUBLIC_.*AUTONOMOUS/i);

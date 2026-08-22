@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { isConnectedPlatformPrivateApi } from "../src/lib/platform-route-contract.ts";
 import {
   createPlatformWahaMediaProvider,
   PlatformWahaMediaProviderError,
@@ -982,10 +983,19 @@ test("route and example env keep the capability server-only and disabled", async
   ]);
   assert.match(route, /runtime = "nodejs"/);
   assert.match(route, /createPlatformWahaMediaHandler/);
-  assert.match(
-    proxy,
-    /\/api\/internal\/platform-messaging\/waha\/media/,
+  assert.equal(
+    isConnectedPlatformPrivateApi(
+      "/api/internal/platform-messaging/waha/media",
+    ),
+    true,
   );
+  assert.equal(
+    isConnectedPlatformPrivateApi(
+      "/api/internal/platform-messaging/waha/media/extra",
+    ),
+    false,
+  );
+  assert.match(proxy, /isConnectedPlatformPrivateApi\(path\)/);
   assert.match(environment, /EVO_PLATFORM_WAHA_MEDIA_ENABLED=0/);
   assert.match(environment, /EVO_PLATFORM_WAHA_MEDIA_BASE_URL=/);
   assert.match(environment, /EVO_PLATFORM_WAHA_MEDIA_API_KEY=/);

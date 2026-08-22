@@ -39,11 +39,14 @@ PR #228 repaired the isolated importer Compose invocation, PR #230 packaged
 the importer as a runnable, UUID-redacting production-image artifact, and PRs
 #232-#233 built and independently verified the exact P8D4F `linux/amd64`
 candidate, and PR #235 authorized the closed P8D4G production execution order.
-Current `origin/main` is
-`85fcfe94870ed05dc8a5df9ef82cf5eb7b7147d2`, migrations remain contiguous
-`001-076`, and exact-main push CI run `31941905553` is the exact-main push gate
-for Main CRM, EVO Inbox and EVO Lead Agent; Changed range is skipped on the push
-event as expected.
+Repository status through PR #367: the bounded Platform read-model and unified
+Lead Agent sync repair merged at 2026-08-22 20:03:44 UTC, which is
+2026-08-23 02:03:44 in the workspace timezone (+06), as
+`e6f60a3a7dd59a6630ba68e3ce10014ac939913f`; the canonical migration chain is
+contiguous through `001-079`; and exact-main push CI run `32595569563` passed
+Main CRM, EVO Inbox and EVO Lead Agent. `Changed range` is skipped on the push
+event as expected. Always re-query `origin/main` and exact-main CI before a
+release instead of treating this recorded merge SHA as a moving-current alias.
 
 P4B implementation is preserved on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -63,7 +66,12 @@ restore evidence and do not include Storage object bytes. `inbox-prod` is a
 currently separate deployment contour, not a separate target product. Keep it
 stable until a separately authorized unified-Platform cutover proves the
 replacement path, then retire the contour without a dual-read/write bridge.
-The active next execution slice is P8D4S under issue #270. P8D4R safely
+The active execution slice is the owner-authorized controlled all-in-one
+Platform rollout recorded in `docs/PLAN_CHANGES.md`: deploy the exact reviewed
+main revision and migrations `078-079`, repair canonical DNS/TLS, keep all
+outbound WhatsApp and amoCRM writes disabled, and retain one known-good
+rollback until real production acceptance passes. The previously active P8D4S
+lane under issue #270 remains historical evidence. P8D4R safely
 verified the exact candidate,
 migrations `001-076`, staging, rollback capture and disabled configuration,
 then stopped with `knowledge_failed` before any database import, application

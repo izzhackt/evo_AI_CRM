@@ -25,6 +25,7 @@ p6d_concurrency_worker_a_log="$(mktemp -t evo-p6d-concurrency-a.XXXXXX)"
 p6d_concurrency_worker_b_log="$(mktemp -t evo-p6d-concurrency-b.XXXXXX)"
 p6d_concurrency_assert_log="$(mktemp -t evo-p6d-concurrency-assert.XXXXXX)"
 p6d_concurrency_worker_a_pid=""
+p8r4_cutover_guard_log="$(mktemp -t evo-p8r4-cutover-guard.XXXXXX)"
 
 cleanup() {
   if [[ -n "$p6c_concurrency_worker_a_pid" ]]; then
@@ -49,7 +50,8 @@ cleanup() {
     "$p6c_concurrency_assert_log" \
     "$p6d_concurrency_worker_a_log" \
     "$p6d_concurrency_worker_b_log" \
-    "$p6d_concurrency_assert_log"
+    "$p6d_concurrency_assert_log" \
+    "$p8r4_cutover_guard_log"
 }
 trap cleanup EXIT
 
@@ -140,6 +142,46 @@ docker exec "$container_name" \
   -c "DROP TABLE platform.p2b_untrusted_owner_probe;"
 
 while IFS= read -r migration; do
+  # P8R4 must refuse a cutover while earlier synthetic acceptance fixtures
+  # still contain queued work on a non-target WAHA session. Prove the guard
+  # first, then normalize only those disposable fixture identities so the
+  # exact target migration and its current-boundary suite can run.
+  if [[ "$(basename "$migration")" == 080_* ]]; then
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$p8r4_cutover_guard_log" 2>&1; then
+      echo "migration 080 unexpectedly accepted non-target queued manual work" >&2
+      exit 1
+    fi
+    if ! grep -Fq \
+      "Live manual-send work uses a non-target WAHA session" \
+      "$p8r4_cutover_guard_log"; then
+      echo "migration 080 failed for the wrong cutover-guard reason" >&2
+      sed -n '1,120p' "$p8r4_cutover_guard_log" >&2
+      exit 1
+    fi
+
+    docker exec -i "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" <<'SQL'
+SET session_replication_role = replica;
+UPDATE platform.communication_conversations AS conversation
+SET waha_session_name = 'evo-inbox'
+WHERE conversation.waha_session_name LIKE 'evo-inbox-synthetic-%'
+  AND EXISTS (
+    SELECT 1
+    FROM platform_private.durable_work_items AS item
+    JOIN platform.manual_send_authorizations AS authorization_row
+      ON authorization_row.organization_id = item.organization_id
+     AND authorization_row.id = item.manual_send_authorization_id
+    WHERE item.kind = 'manual_whatsapp_send'
+      AND item.state IN ('queued', 'leased', 'retry_wait')
+      AND authorization_row.organization_id = conversation.organization_id
+      AND authorization_row.conversation_id = conversation.id
+  );
+SET session_replication_role = origin;
+SQL
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -1350,6 +1392,15 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_unified_lead_agent_sync_current.sql
+  fi
+
+  # Migration 080 removes the live SQLite provider-config seam, resolves one
+  # exact evo-inbox binding through Vault and executes the synthetic SQL-only
+  # claim/finish path without contacting WAHA or any other provider.
+  if [[ "$(basename "$migration")" == 080_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_manual_send_waha_runtime_current.sql
   fi
 done < <(
   cd "$repo_root"

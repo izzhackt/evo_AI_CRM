@@ -177,6 +177,10 @@ const platformUnifiedLeadAgentSyncMigration = readFileSync(
   join(migrationsDir, '079_platform_unified_lead_agent_sync.sql'),
   'utf8'
 );
+const platformManualSendWahaRuntimeMigration = readFileSync(
+  join(migrationsDir, '080_platform_manual_send_waha_runtime.sql'),
+  'utf8'
+);
 const platformOperationalSignalsAuthorizationTest = readFileSync(
   fileURLToPath(
     new URL(
@@ -413,7 +417,9 @@ function p7aAllowlist(functionName: string): Set<string> {
 
 describe('Unified EVO Supabase schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
-    expect(migrationFiles.at(-1)).toBe('079_platform_unified_lead_agent_sync.sql');
+    expect(migrationFiles.at(-1)).toBe(
+      '080_platform_manual_send_waha_runtime.sql'
+    );
     for (const rpc of [
       'staff_student_case_page',
       'staff_student_case_read_snapshot',
@@ -451,14 +457,23 @@ describe('Unified EVO Supabase schema contract', () => {
     expect(platformUnifiedLeadAgentSyncMigration).toMatch(
       /CREATE\s+FUNCTION\s+platform\.staff_waha_session_health\s*\(\s*p_organization_id\s+UUID,\s*p_waha_session_name\s+TEXT\s*\)/i
     );
-    expect(platformManualWhatsAppSendWorkerMigration).toMatch(
+    expect(platformManualSendWahaRuntimeMigration).toMatch(
       /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.claim_manual_whatsapp_send/i
     );
     expect(platformManualWhatsAppSendWorkerMigration).toMatch(
       /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.sync_lead_agent_whatsapp/i
     );
-    expect(platformManualWhatsAppSendWorkerMigration).toMatch(
-      /waha_session_name\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(waha_session_name\s*=\s*'crm_primary'\)/i
+    expect(platformManualSendWahaRuntimeMigration).toMatch(
+      /CREATE\s+TABLE\s+platform_private\.manual_send_waha_runtime_bindings/i
+    );
+    expect(platformManualSendWahaRuntimeMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.resolve_manual_send_waha_runtime/i
+    );
+    expect(platformManualSendWahaRuntimeMigration).toMatch(
+      /CHECK\s*\(waha_session_name\s*=\s*'evo-inbox'\)/i
+    );
+    expect(platformManualSendWahaRuntimeMigration).not.toMatch(
+      /crm_primary/i
     );
     expect(platformManualWhatsAppSendWorkerMigration).toMatch(
       /REVOKE\s+ALL\s+ON\s+TABLE\s+platform_private\.manual_send_provider_bindings\s+FROM\s+authenticated/i

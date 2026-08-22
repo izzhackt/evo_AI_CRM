@@ -291,6 +291,15 @@ WhatsApp account and one webhook owner. The existing sessions are not changed
 or retired until controlled cutover evidence exists.
 _Avoid_: public WAHA port, multi-session production target
 
+**Manual-Send WAHA Runtime Binding**:
+The canonical organization-scoped Platform configuration used by the private
+manual-send worker: exact session `evo-inbox`, exact private WAHA endpoint and
+a Supabase Vault secret reference resolved only by a service-role RPC. It
+replaces the live worker's legacy SQLite settings read; it is repository and
+disposable-local proof until an authorized operator provisions the real Vault
+binding and verifies the provider without a customer send.
+_Avoid_: SQLite fallback, dual-read/write, hard-coded retired session, provider proof
+
 **Admissions Inquiry**:
 The pre-contract request from a prospective student or decision-making family member that still needs qualification and a next action.
 _Avoid_: student file, confirmed client, application

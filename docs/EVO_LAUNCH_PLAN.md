@@ -4384,3 +4384,69 @@ Research basis: [Supabase range pagination](https://supabase.com/docs/reference/
 [PostgREST pagination and count](https://postgrest.org/en/stable/references/api/pagination_count.html),
 [PostgreSQL deterministic LIMIT/OFFSET](https://www.postgresql.org/docs/current/queries-limit.html),
 and [Next.js search parameters for server data loading](https://nextjs.org/docs/app/getting-started/layouts-and-pages#rendering-with-search-params).
+
+## P8R4 — Supabase-owned WAHA runtime binding for manual send (2026-08-23)
+
+Exact-main audit on `7e99eff6c1890f234eabb9d18217fbe2dd43f500`
+confirms that staff authorization, queue leasing, provider-result binding and
+audit for manual WhatsApp send are already canonical Supabase contracts. The
+remaining forward-runtime break is the transport adapter: it dynamically opens
+legacy SQLite settings for `waha_base_url` and `waha_api_key`, while the worker
+and migration 077 hard-code the retired `crm_primary` session.
+
+P8R4 replaces that seam rather than layering another fallback over it. A new
+Supabase migration owns one private, organization-scoped manual-send WAHA
+runtime binding. Non-secret endpoint/session metadata stays in
+`platform_private`; the API key is referenced from Supabase Vault and may be
+resolved only by one service-role RPC. The accepted forward session is exactly
+`evo-inbox`. The Next.js manual-send module loads that resolved binding through
+its existing Supabase adapter, creates the WAHA adapter from it, and no longer
+imports `src/lib/db.ts` or reads SQLite settings.
+
+The migration must fail closed if historical manual-send provider bindings for
+another session already exist. It must not rewrite provider provenance or keep
+a dual-session compatibility branch. Migration 077 remains immutable history;
+the new migration replaces only the active claim/finish and binding invariants
+with the `evo-inbox` contract. Missing, disabled, duplicated, malformed or
+undecryptable runtime configuration leaves the worker unavailable before it
+claims queue work.
+
+Acceptance requires runtime tests for Vault-binding parsing, exact private WAHA
+transport serialization, fail-closed configuration and the absence of any
+manual-send import of SQLite. A disposable local Supabase reset must prove the
+new migration, service-only grants, Vault resolution, exact `evo-inbox` claim
+and finish path, and refusal to migrate non-target provider history. Then run
+the full non-dedicated-security unit suite, lint, route type generation,
+TypeScript, production build, independent exact-head review and normal
+exact-SHA CI.
+
+P8R4 does not seed a real secret, create/start/restart/delete a WAHA session,
+scan or mutate production, send WhatsApp, write amoCRM, enable autonomous
+replies, change DNS/TLS or authorize a dedicated security scan. Provider and
+production readiness remain unproved until a separately authorized cutover
+seeds the Vault binding and verifies the real `evo-inbox` session without a
+customer send.
+
+Research basis: [Supabase Vault](https://supabase.com/docs/guides/database/vault),
+[Supabase API keys](https://supabase.com/docs/guides/getting-started/api-keys),
+[PostgreSQL safe `SECURITY DEFINER` functions](https://www.postgresql.org/docs/current/sql-createfunction.html),
+[WAHA session lifecycle](https://waha.devlike.pro/docs/how-to/sessions/), and
+[WAHA private API-key configuration](https://waha.devlike.pro/docs/how-to/security/).
+
+Implementation evidence on 2026-08-23: migration 080 adds the private
+Vault-backed binding and its service-only resolver, rejects non-target provider
+history or live queued work, and replaces the active claim/finish contract with
+the exact `evo-inbox` session. The worker now resolves configuration through
+Supabase before leasing work and has no SQLite settings fallback. The SQL audit
+also exposed and closed a pre-existing role mismatch: `admin` and `curator`
+could authorize a send, but finish previously resolved only a `sales`
+participant. Claim now verifies active staff authority and records the sender
+participant before any provider request; finish accepts the same three staff
+roles.
+
+Disposable-local proof passed: migration reset and the conflict guard, Vault
+resolution/grants, real SQL claim/finish, 651 unit tests, root and Inbox
+typechecks/builds, lint, and the complete local Supabase/browser gate. An
+independent diff review found no high- or medium-severity correctness issue.
+Exact committed-head CI remains pending. No provider, production, WhatsApp,
+amoCRM, DNS/TLS or dedicated security-scan action was performed.

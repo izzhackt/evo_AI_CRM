@@ -8,6 +8,7 @@ import {
   PlatformManualSendConfigurationError,
 } from "../src/lib/server/platform-manual-send-config.ts";
 import {
+  createPlatformManualSendRepository,
   createPlatformManualSendHandler,
   PlatformManualSendRepositoryError,
 } from "../src/lib/server/platform-manual-send-processor.ts";
@@ -29,8 +30,21 @@ const TRIGGER_SECRET = "synthetic-manual-send-trigger-secret-value-only";
 const SUPABASE_SECRET = ["sb", "secret", "synthetic_server_test_key_only"].join(
   "_",
 );
-const MIGRATION_URL = new URL(
+const WAHA_API_KEY_FIXTURE = ["synthetic", "private", "waha", "key"].join("-");
+const MANUAL_SEND_MIGRATION_URL = new URL(
   "../supabase/migrations/077_platform_manual_whatsapp_send_worker.sql",
+  import.meta.url,
+);
+const WAHA_RUNTIME_MIGRATION_URL = new URL(
+  "../supabase/migrations/080_platform_manual_send_waha_runtime.sql",
+  import.meta.url,
+);
+const PROCESSOR_SOURCE_URL = new URL(
+  "../src/lib/server/platform-manual-send-processor.ts",
+  import.meta.url,
+);
+const WAHA_CLIENT_SOURCE_URL = new URL(
+  "../src/lib/server/platform-manual-send-waha-client.ts",
   import.meta.url,
 );
 
@@ -54,7 +68,7 @@ function claimedWork(overrides = {}) {
     authorizationId: AUTHORIZATION_ID,
     conversationId: CONVERSATION_ID,
     sourceMessageId: SOURCE_MESSAGE_ID,
-    wahaSessionName: "crm_primary",
+    wahaSessionName: "evo-inbox",
     chatId: "996700000001@c.us",
     replyTo: "false_996700000001@c.us_AAAAAAAAAAAAAAAAAAAA",
     finalText: FINAL_TEXT,
@@ -71,7 +85,7 @@ test("manual WAHA send serializes only the exact approved provider fields", asyn
   const client = createPlatformManualSendWahaClient(
     {
       baseUrl: "http://evo-crm-waha:3000",
-      apiKey: ["synthetic", "private", "waha", "key"].join("-"),
+      apiKey: WAHA_API_KEY_FIXTURE,
     },
     async (url, init) => {
       calls.push({ url, init });
@@ -83,7 +97,7 @@ test("manual WAHA send serializes only the exact approved provider fields", asyn
   );
 
   await client.sendText({
-    session: "crm_primary",
+    session: "evo-inbox",
     chatId: "996700000001@c.us",
     replyTo: "false_996700000001@c.us_AAAAAAAAAAAAAAAAAAAA",
     text: FINAL_TEXT,
@@ -92,7 +106,7 @@ test("manual WAHA send serializes only the exact approved provider fields", asyn
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "http://evo-crm-waha:3000/api/sendText");
   assert.deepEqual(JSON.parse(calls[0].init.body), {
-    session: "crm_primary",
+    session: "evo-inbox",
     chatId: "996700000001@c.us",
     text: FINAL_TEXT,
   });
@@ -138,6 +152,22 @@ function provider(overrides = {}) {
   };
 }
 
+function runtimeBindingClient(data, error = null) {
+  const calls = [];
+  return {
+    calls,
+    schema(schemaName) {
+      calls.push(["schema", schemaName]);
+      return {
+        async rpc(name, input) {
+          calls.push(["rpc", name, input]);
+          return { data, error };
+        },
+      };
+    },
+  };
+}
+
 function signedRequest({ signature = true, body } = {}) {
   const timestamp = String(NOW_MS);
   const headers = {
@@ -175,6 +205,63 @@ test("manual send execution is disabled by default and enabled config is closed"
       error instanceof PlatformManualSendConfigurationError &&
       error.code === "missing_organization_id",
   );
+});
+
+test("manual send resolves one exact Supabase/Vault WAHA runtime binding", async () => {
+  const client = runtimeBindingClient([
+    {
+      waha_session_name: "evo-inbox",
+      waha_base_url: "http://evo-crm-waha:3000",
+      waha_api_key: WAHA_API_KEY_FIXTURE,
+      binding_version: 1,
+    },
+  ]);
+  const repository = createPlatformManualSendRepository(client);
+
+  assert.deepEqual(
+    await repository.loadRuntimeBinding({ organizationId: ORGANIZATION_ID }),
+    {
+      sessionName: "evo-inbox",
+      baseUrl: "http://evo-crm-waha:3000",
+      apiKey: WAHA_API_KEY_FIXTURE,
+      bindingVersion: 1,
+    },
+  );
+  assert.deepEqual(client.calls, [
+    ["schema", "platform"],
+    [
+      "rpc",
+      "resolve_manual_send_waha_runtime",
+      { p_organization_id: ORGANIZATION_ID },
+    ],
+  ]);
+});
+
+test("manual send rejects missing, duplicate or malformed runtime bindings", async () => {
+  const valid = {
+    waha_session_name: "evo-inbox",
+    waha_base_url: "http://evo-crm-waha:3000",
+    waha_api_key: WAHA_API_KEY_FIXTURE,
+    binding_version: 1,
+  };
+  for (const data of [
+    [],
+    [valid, valid],
+    [{ ...valid, waha_session_name: "crm_primary" }],
+    [{ ...valid, waha_base_url: "https://public.example.test" }],
+    [{ ...valid, waha_api_key: "short" }],
+    [{ ...valid, waha_api_key: ["synthetic-private", "key"].join("\n") }],
+    [{ ...valid, binding_version: 0 }],
+    [{ ...valid, binding_version: Number.MAX_SAFE_INTEGER + 1 }],
+  ]) {
+    const repository = createPlatformManualSendRepository(
+      runtimeBindingClient(data),
+    );
+    await assert.rejects(
+      repository.loadRuntimeBinding({ organizationId: ORGANIZATION_ID }),
+      PlatformManualSendRepositoryError,
+    );
+  }
 });
 
 test("manual send route rejects bad HMAC and request bodies before provider or queue work", async () => {
@@ -247,7 +334,7 @@ test("one authorized manual item sends once and records provider acknowledgement
   assert.deepEqual(transport.calls.at(-1), [
     "sendText",
     {
-      session: "crm_primary",
+      session: "evo-inbox",
       chatId: "996700000001@c.us",
       replyTo: "false_996700000001@c.us_AAAAAAAAAAAAAAAAAAAA",
       text: FINAL_TEXT,
@@ -321,7 +408,7 @@ test("repository programming errors never trigger a second provider call", async
 });
 
 test("migration closes the manual-send lane and preserves provider identity privately", async () => {
-  const migration = await readFile(MIGRATION_URL, "utf8");
+  const migration = await readFile(MANUAL_SEND_MIGRATION_URL, "utf8");
 
   assert.match(migration, /CREATE OR REPLACE FUNCTION platform\.claim_manual_whatsapp_send\(/);
   assert.match(
@@ -339,4 +426,42 @@ test("migration closes the manual-send lane and preserves provider identity priv
     migration,
     /GRANT EXECUTE ON FUNCTION platform\.finish_manual_whatsapp_send[\s\S]*service_role/,
   );
+});
+
+test("migration 080 owns the exact service-only Vault runtime binding", async () => {
+  const migration = await readFile(WAHA_RUNTIME_MIGRATION_URL, "utf8");
+
+  assert.match(
+    migration,
+    /CREATE TABLE platform_private\.manual_send_waha_runtime_bindings/,
+  );
+  assert.match(migration, /REFERENCES vault\.secrets\s*\(id\)/);
+  assert.match(
+    migration,
+    /CREATE OR REPLACE FUNCTION platform\.resolve_manual_send_waha_runtime\(/,
+  );
+  assert.match(migration, /vault\.decrypted_secrets/);
+  assert.match(
+    migration,
+    /GRANT EXECUTE ON FUNCTION platform\.resolve_manual_send_waha_runtime[\s\S]*TO service_role/,
+  );
+  assert.match(
+    migration,
+    /IF EXISTS \([\s\S]*manual_send_provider_bindings[\s\S]*waha_session_name <> 'evo-inbox'[\s\S]*RAISE EXCEPTION/,
+  );
+  assert.match(migration, /'waha_session_name', 'evo-inbox'/);
+  assert.doesNotMatch(migration, /crm_primary/);
+});
+
+test("live manual-send source has no SQLite settings fallback", async () => {
+  const [processor, client] = await Promise.all([
+    readFile(PROCESSOR_SOURCE_URL, "utf8"),
+    readFile(WAHA_CLIENT_SOURCE_URL, "utf8"),
+  ]);
+  const combined = `${processor}\n${client}`;
+
+  assert.match(processor, /resolve_manual_send_waha_runtime/);
+  assert.doesNotMatch(combined, /\.\.\/db\.ts/);
+  assert.doesNotMatch(combined, /getSetting\(/);
+  assert.doesNotMatch(combined, /crm_primary/);
 });

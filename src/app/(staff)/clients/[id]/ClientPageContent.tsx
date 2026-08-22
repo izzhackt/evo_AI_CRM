@@ -128,6 +128,7 @@ type PresentationPayment = Readonly<{
   status: string;
   category?: "evo_service_fee" | "third_party_cost";
   next_action?: string;
+  blocked_action?: string | null;
   outstanding_minor?: number;
   settlement_request_id?: string;
   settlement_retry?: boolean;
@@ -1741,9 +1742,17 @@ export default async function ClientPageContent({
                       {t("nextAction")}: {p.next_action}
                     </div>
                   ) : null}
+                  {p.blocked_action ? (
+                    <div className="mt-1 text-[12px] font-semibold text-danger">
+                      {t("stopFactorBlockedAction")}: {p.blocked_action}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge value={p.status} label={t(`pay.${p.status}`)} />
+                  {p.blocked_action ? (
+                    <Badge value="stop_active" label={t("stopFactorActive")} />
+                  ) : null}
                   {canMutatePayments
                     && actions.markPlatformPaymentPaid
                     && (p.status !== "paid" || p.settlement_retry)

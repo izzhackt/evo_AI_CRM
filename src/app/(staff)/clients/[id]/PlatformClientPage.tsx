@@ -20,6 +20,7 @@ import {
   seedPlatformPostContractItemsAction,
   updatePlatformPostContractItemAction,
 } from "@/lib/platform-contract-actions";
+import { listPlatformCaseBlocks } from "@/lib/platform-case-blocks";
 import { reviewPlatformDocumentVersionAction } from "@/lib/platform-document-review-actions";
 import {
   createPlatformPaymentObligationAction,
@@ -128,6 +129,7 @@ export async function loadPlatformClientPageData(
     curatorOptions,
     caseVisa,
     caseFinance,
+    caseBlocks,
   ] =
     await Promise.all([
       listPlatformApplications(actor),
@@ -143,6 +145,7 @@ export async function loadPlatformClientPageData(
         : Promise.resolve([]),
       getPlatformCaseVisa(actor, studentCase.studentCaseId),
       listPlatformCaseFinance(actor, studentCase.studentCaseId),
+      listPlatformCaseBlocks(actor, studentCase.studentCaseId),
     ]);
   if (!assignmentState) return null;
   const appliedCountryRequirement =
@@ -211,8 +214,13 @@ export async function loadPlatformClientPageData(
     "payment-create",
     studentCase.studentCaseId,
   );
+  const blockedActionByObligation = new Map(
+    caseBlocks.map((block) => [block.paymentObligationId, block.blockedAction]),
+  );
   const payments = caseFinance.map((payment) => ({
     id: payment.paymentObligationId,
+    blocked_action:
+      blockedActionByObligation.get(payment.paymentObligationId) ?? null,
     title: payment.label,
     amount: payment.amountMinor / 100,
     currency: payment.currency,

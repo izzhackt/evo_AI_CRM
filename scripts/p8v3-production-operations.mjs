@@ -1419,12 +1419,12 @@ rm -f '${gate}' '${ready}'
 : > '${ready}'
 gate_open='false'
 for gate_attempt in $(seq 1 60); do
-  if [[ -f '${gate}' ]]; then gate_open='true'; break; fi
+  if [ -f '${gate}' ]; then gate_open='true'; break; fi
   sleep 1
 done
-[[ "$gate_open" == 'true' ]]
-[[ "$(id -u):$(id -g)" == '1001:1001' ]]
-[[ "$(awk '$1=="nameserver"{print $2; exit}' /etc/resolv.conf)" == '127.0.0.11' ]]
+[ "$gate_open" = 'true' ]
+[ "$(id -u):$(id -g)" = '1001:1001' ]
+[ "$(awk '$1=="nameserver"{print $2; exit}' /etc/resolv.conf)" = '127.0.0.11' ]
 node '${IMPORTER_MOUNT}' --verify-provider
 `)})"
 [[ "$provider_container_id" =~ ^[0-9a-f]{64}$ ]]
@@ -1472,9 +1472,9 @@ ${composeRunPrefixScript({
   ],
 })} -c ${shellQuote(String.raw`
 set -eu
-[[ "$(id -u):$(id -g)" == '1001:1001' ]]
-[[ "$(awk '$1=="nameserver"{print $2; exit}' /etc/resolv.conf)" == '127.0.0.11' ]]
-[[ "$EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID" == "$EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID" ]]
+[ "$(id -u):$(id -g)" = '1001:1001' ]
+[ "$(awk '$1=="nameserver"{print $2; exit}' /etc/resolv.conf)" = '127.0.0.11' ]
+[ "$EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID" = "$EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID" ]
 node '${IMPORTER_MOUNT}' --audience '${item.audience}' --bundle '${BUNDLE_MOUNT}' --manifest '${MANIFEST_MOUNT}'
 `)}
 `;

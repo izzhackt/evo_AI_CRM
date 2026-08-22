@@ -1229,6 +1229,29 @@ test("both Compose environments pin the public network they publish on", () => {
   assert.equal(pins.length, 2, "both the inbox and the CRM branch must pin the network");
 });
 
+test("scripts run inside the app container stay POSIX", () => {
+  // The container scripts run with `--entrypoint /bin/sh`, and /bin/sh in this
+  // image is dash. `[[` is a bash keyword, so dash reports "not found" and the
+  // script exits 127 — which is how the provider probe failed. Anything sent
+  // through that entrypoint must therefore avoid bash-only syntax.
+  const source = readFileSync(join(process.cwd(), "scripts/p8v3-production-operations.mjs"), "utf8");
+  const marker = "-c ${shellQuote(String.raw`";
+  const bodies = [];
+  let at = source.indexOf(marker);
+  while (at !== -1) {
+    const from = at + marker.length;
+    const to = source.indexOf("`)}", from);
+    assert.notEqual(to, -1, "unterminated container script block");
+    bodies.push(source.slice(from, to));
+    at = source.indexOf(marker, to);
+  }
+  assert.ok(bodies.length >= 2, "expected the probe and the import container scripts");
+  for (const body of bodies) {
+    assert.equal(body.includes("[["), false, `bash test syntax reaches /bin/sh:\n${body}`);
+    assert.equal(/\s==\s/.test(body), false, `bash string comparison reaches /bin/sh:\n${body}`);
+  }
+});
+
 test("the rollback path pins the public network as well", () => {
   // rollbackScript builds its environment inline instead of calling
   // composeEnvironment, so pinning the network there does not reach it. Its
@@ -1922,7 +1945,8 @@ test("P8V3K provider probe is detached and identity-gated before the knowledge j
   assert.match(knowledgeImport, /-v '\/opt\/evo-releases\/[^']+\/knowledge-incoming\/evo-knowledge-client\.json:\/run\/evo-p8v3k\/knowledge-bundle\.json:ro'/);
   assert.match(knowledgeImport, /-v '\/opt\/evo-releases\/[^']+\/knowledge-incoming\/evo-knowledge-client\.sha256\.json:\/run\/evo-p8v3k\/knowledge-manifest\.json:ro'/);
   assert.match(knowledgeImport, /p8v3k-platform-knowledge-import\.mjs.*--audience '"'"'client'"'"'/s);
-  assert.match(knowledgeImport, /\[\[ "\$EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID" == "\$EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID" \]\]/);
+  // POSIX form: this line runs inside the container, where /bin/sh is dash.
+  assert.match(knowledgeImport, /\[ "\$EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID" = "\$EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID" \]/);
   assert.doesNotMatch(knowledgeImport, /--account-id/);
   assert.match(knowledgeImport, /knowledge-bundle\.json/);
   assert.match(knowledgeImport, /knowledge-manifest\.json/);

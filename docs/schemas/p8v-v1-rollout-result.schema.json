@@ -348,7 +348,7 @@
                 {
                   "properties": {
                     "status": { "const": "verified" },
-                    "document_count": { "const": 291 },
+                    "document_count": { "const": 295 },
                     "chunk_count": { "type": "integer", "minimum": 1 },
                     "bundle_sha256": { "$ref": "#/$defs/sha64" },
                     "manifest_sha256": { "$ref": "#/$defs/sha64" },

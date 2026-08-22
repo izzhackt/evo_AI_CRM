@@ -267,7 +267,7 @@ export function validateP8V3Result(value) {
   exactKeys(value.knowledge, ["cleanup_status", "audiences"], "knowledge");
   if (!["not_required", "verified", "failed"].includes(value.knowledge.cleanup_status) || !Array.isArray(value.knowledge.audiences) || value.knowledge.audiences.length !== 2) fail("knowledge evidence drifted");
   validateAudience(value.knowledge.audiences[0], "client", 11);
-  validateAudience(value.knowledge.audiences[1], "internal", 291);
+  validateAudience(value.knowledge.audiences[1], "internal", 295);
   const hasLeadFileEvidence = LEAD_FILE_AUTHORIZATIONS.includes(value.authorization.id);
   exactKeys(value.configuration, hasLeadFileEvidence
     ? ["status", "installed_names", "backup_sha256", "lead_file_verified", "worker_file_verified"]
@@ -370,7 +370,7 @@ export async function runP8V3Rollout({ operations, authorization, preflight, pre
       stepIndex = audienceIndex + 2;
       requireWindow();
       const record = await operations.importKnowledge(audience, { deadlineAt: expiresMs });
-      validateAudience(record, audience, audience === "client" ? 11 : 291);
+      validateAudience(record, audience, audience === "client" ? 11 : 295);
       result.knowledge.audiences[audienceIndex] = structuredClone(record);
       result.effects.knowledge_imports += 1;
       result.steps[stepIndex].status = "verified";
@@ -410,7 +410,7 @@ export async function runP8V3Rollout({ operations, authorization, preflight, pre
         const audienceIndex = failedStep === "client_import" ? 0 : 1;
         const audience = audienceIndex === 0 ? "client" : "internal";
         try {
-          validateAudience(error.appliedKnowledgeRecord, audience, audienceIndex === 0 ? 11 : 291);
+          validateAudience(error.appliedKnowledgeRecord, audience, audienceIndex === 0 ? 11 : 295);
           result.knowledge.audiences[audienceIndex] = structuredClone(error.appliedKnowledgeRecord);
           result.effects.knowledge_imports = result.knowledge.audiences.filter((item) => item.status === "verified").length;
         } catch {

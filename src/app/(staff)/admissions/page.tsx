@@ -5,9 +5,22 @@ import {
   buildAdmissionsOverview,
   type AdmissionsCountryGroup,
 } from "@/lib/platform-admissions-overview";
+import {
+  admissionsCuratorOptions,
+  admissionsFilterQuery,
+  filterAdmissionsCases,
+  parseAdmissionsFilter,
+} from "@/lib/platform-admissions-filters";
+import { AdmissionsFilterBar } from "./AdmissionsFilterBar";
 import { ADMISSIONS_STEP_LABELS, loadAdmissionsCases } from "./admissions-data";
 
-function CountryCard({ group }: { group: AdmissionsCountryGroup }) {
+function CountryCard({
+  group,
+  query,
+}: {
+  group: AdmissionsCountryGroup;
+  query: string;
+}) {
   return (
     <Card>
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -53,7 +66,7 @@ function CountryCard({ group }: { group: AdmissionsCountryGroup }) {
       <p className="mt-3">
         <Link
           className="text-[13px] text-accent underline"
-          href={`/admissions/${encodeURIComponent(group.country)}`}
+          href={`/admissions/${encodeURIComponent(group.country)}${query}`}
         >
           Открыть воронку страны
         </Link>
@@ -62,14 +75,31 @@ function CountryCard({ group }: { group: AdmissionsCountryGroup }) {
   );
 }
 
-export default async function AdmissionsOverviewPage() {
-  const overview = buildAdmissionsOverview(await loadAdmissionsCases());
+export default async function AdmissionsOverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const filter = parseAdmissionsFilter(params);
+  const allCases = await loadAdmissionsCases();
+  const cases = filterAdmissionsCases(allCases, filter);
+  const overview = buildAdmissionsOverview(cases);
+  const query = admissionsFilterQuery(filter);
 
   return (
     <div className="grid gap-5">
       <PageHeader
         title="Поступление по странам"
         description="Дела студентов после договора, сгруппированные по стране и шагу работы."
+      />
+
+      <AdmissionsFilterBar
+        action="/admissions"
+        filter={filter}
+        curatorOptions={admissionsCuratorOptions(allCases)}
+        matchedCount={cases.length}
+        totalCount={allCases.length}
       />
 
       {overview.unknownStageCount > 0 ? (
@@ -89,7 +119,7 @@ export default async function AdmissionsOverviewPage() {
         </Card>
       ) : (
         overview.countries.map((group) => (
-          <CountryCard key={group.country} group={group} />
+          <CountryCard key={group.country} group={group} query={query} />
         ))
       )}
     </div>

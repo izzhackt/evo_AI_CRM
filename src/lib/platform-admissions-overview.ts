@@ -22,6 +22,8 @@ export type AdmissionsCaseInput = Readonly<{
   state: "pending" | "active" | "closed";
   currentCuratorDisplayName: string | null;
   intake: string | null;
+  /** Null where the active data plane does not record one. */
+  createdAt: string | null;
   overdueTaskCount: number;
   overdueObligationCount: number;
   rejectedDocumentCount: number;

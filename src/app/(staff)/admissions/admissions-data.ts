@@ -27,6 +27,9 @@ export async function loadAdmissionsCases(): Promise<
       state: row.case_state === "closed" ? "closed" : "active",
       currentCuratorDisplayName: row.curator_name ?? null,
       intake: null,
+      // The accepted row carries a creation date only on the full-access
+      // variant; the sales post-handoff summary does not.
+      createdAt: "created_at" in row ? row.created_at : null,
       overdueTaskCount: 0,
       overdueObligationCount: 0,
       rejectedDocumentCount: 0,

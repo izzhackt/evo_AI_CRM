@@ -7,6 +7,12 @@ import {
   type AdmissionsStepGroup,
 } from "@/lib/platform-admissions-overview";
 import {
+  admissionsCuratorOptions,
+  filterAdmissionsCases,
+  parseAdmissionsFilter,
+} from "@/lib/platform-admissions-filters";
+import { AdmissionsFilterBar } from "../AdmissionsFilterBar";
+import {
   ADMISSIONS_STEP_LABELS,
   loadAdmissionsCases,
 } from "../admissions-data";
@@ -64,17 +70,64 @@ function StepSection({ group }: { group: AdmissionsStepGroup }) {
 
 export default async function AdmissionsCountryPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ country: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { country } = await params;
   const requested = decodeURIComponent(country).trim();
-  const overview = buildAdmissionsOverview(await loadAdmissionsCases());
+  const filter = parseAdmissionsFilter(await searchParams);
+  const allCases = await loadAdmissionsCases();
+  const countryCases = allCases.filter(
+    (item) => item.targetCountry.trim() === requested,
+  );
+  const matched = filterAdmissionsCases(countryCases, filter);
+  const overview = buildAdmissionsOverview(matched);
   const group = overview.countries.find((item) => item.country === requested);
 
   // An unknown country is a missing page rather than an empty funnel, so a
-  // mistyped link cannot look like a country with no students.
-  if (!group) notFound();
+  // mistyped link cannot look like a country with no students. A filter that
+  // matches nothing is a different answer, so it is checked against the
+  // unfiltered set.
+  if (countryCases.length === 0) notFound();
+
+  const filterBar = (
+    <AdmissionsFilterBar
+      action={`/admissions/${encodeURIComponent(requested)}`}
+      filter={filter}
+      curatorOptions={admissionsCuratorOptions(countryCases)}
+      matchedCount={matched.length}
+      totalCount={countryCases.length}
+    />
+  );
+
+  const backLink = (
+    <p className="text-[13px] text-muted">
+      <Link className="text-accent underline" href="/admissions">
+        ← Все страны
+      </Link>
+    </p>
+  );
+
+  // The country exists but nothing survives the filter. That is a different
+  // answer from an unknown country, and it keeps the filter bar on screen so
+  // the reader can widen or clear it.
+  if (!group) {
+    return (
+      <div className="grid gap-5">
+        <PageHeader
+          title={requested}
+          description="Дела студентов после договора по шагам работы."
+        />
+        {backLink}
+        {filterBar}
+        <Card>
+          <EmptyState text="По этому фильтру дел нет." />
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-5">
@@ -83,11 +136,9 @@ export default async function AdmissionsCountryPage({
         description="Дела студентов после договора по шагам работы. Нажмите на имя, чтобы открыть дело."
       />
 
-      <p className="text-[13px] text-muted">
-        <Link className="text-accent underline" href="/admissions">
-          ← Все страны
-        </Link>
-      </p>
+      {backLink}
+
+      {filterBar}
 
       {group.unknownStageCount > 0 || group.beforeDeliveryCount > 0 || group.closedCount > 0 ? (
         <Card>

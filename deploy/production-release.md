@@ -199,11 +199,11 @@ CRM_LEAD_ID="$(docker compose -p evo-crm \
   -f /opt/evo-crm/docker-compose.prod.yml ps -q lead-agent)"
 INBOX_APP_ID="$(docker compose -p evo-inbox \
   --env-file "$EVO_INBOX_APP_ENV_FILE" \
-  -f /opt/evo-inbox/agent-lead2-crmwhatsapp/deploy/docker-compose.inbox.prod.yml \
+  -f "$EVO_INBOX_DEPLOY_ROOT/deploy/docker-compose.inbox.prod.yml" \
   ps -q app)"
 INBOX_WAHA_ID="$(docker compose -p evo-inbox \
   --env-file "$EVO_INBOX_APP_ENV_FILE" \
-  -f /opt/evo-inbox/agent-lead2-crmwhatsapp/deploy/docker-compose.inbox.prod.yml \
+  -f "$EVO_INBOX_DEPLOY_ROOT/deploy/docker-compose.inbox.prod.yml" \
   ps -q waha)"
 CADDY_ID="$(docker ps -q --filter 'name=^/evo-edge-caddy$')"
 
@@ -827,12 +827,12 @@ Rollback Inbox services from the untouched prior checkout:
 ```bash
 docker compose -p evo-inbox \
   --env-file "$EVO_INBOX_APP_ENV_FILE" \
-  -f /opt/evo-inbox/agent-lead2-crmwhatsapp/deploy/docker-compose.inbox.prod.yml \
+  -f "$EVO_INBOX_DEPLOY_ROOT/deploy/docker-compose.inbox.prod.yml" \
   -f "$EVO_RELEASE_EVIDENCE/rollback-inbox-images.yml" \
   up -d --no-deps --no-build --wait --wait-timeout 180 app
 docker compose -p evo-inbox \
   --env-file "$EVO_INBOX_APP_ENV_FILE" \
-  -f /opt/evo-inbox/agent-lead2-crmwhatsapp/deploy/docker-compose.inbox.prod.yml \
+  -f "$EVO_INBOX_DEPLOY_ROOT/deploy/docker-compose.inbox.prod.yml" \
   -f "$EVO_RELEASE_EVIDENCE/rollback-inbox-images.yml" \
   up -d --no-deps --no-build --wait --wait-timeout 180 waha
 ```
@@ -841,7 +841,7 @@ Rollback the edge from the untouched prior Caddyfile, then validate and reload:
 
 ```bash
 docker compose -p evo-edge \
-  -f /opt/evo-inbox/agent-lead2-crmwhatsapp/deploy/docker-compose.edge.yml \
+  -f "$EVO_INBOX_DEPLOY_ROOT/deploy/docker-compose.edge.yml" \
   -f "$EVO_RELEASE_EVIDENCE/rollback-edge-image.yml" \
   up -d --no-deps --no-build caddy
 docker exec evo-edge-caddy \

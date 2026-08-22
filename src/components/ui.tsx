@@ -59,6 +59,9 @@ const BADGE_TONE: Record<string, Tone> = {
   // task columns
   todo: "neutral",
   in_progress: "accent",
+  // finance stop factors
+  stop_active: "danger",
+  stop_resolved: "ok",
 };
 
 export function Badge({ value, label, className }: { value: string; label: string; className?: string }) {

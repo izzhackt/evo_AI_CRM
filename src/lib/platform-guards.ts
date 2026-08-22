@@ -83,3 +83,11 @@ export async function requirePlatformAuditAdminActor(): Promise<PlatformActor> {
   }
   return actor;
 }
+
+export async function requirePlatformFinanceActor(): Promise<PlatformActor> {
+  const actor = await requirePlatformStaffActor();
+  if (actor.platformRole !== "admin" && actor.platformRole !== "finance") {
+    redirect("/platform-pending?from=%2Ffinance");
+  }
+  return actor;
+}

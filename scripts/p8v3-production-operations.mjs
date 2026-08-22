@@ -49,7 +49,11 @@ const STAGED_CRM_COMPOSE_SHA256 = "ae3689f60d14c1463a77512afbe8d24db59d079473435
 const STAGED_INBOX_COMPOSE_SHA256 = "31c7b758ac5220b17511ef18df7f1058b4dff39bb08c21e02bb106272496076b";
 const IMPORTER_NETWORK = "evo_crm_private";
 const IMPORTER_MOUNT = `/run/evo-p8v3k/${IMPORTER_FILE}`;
-const BUNDLE_MOUNT = "/run/evo-p8v3k/knowledge-bundle.json";
+// The importer derives the expected bundle name from the path it is handed
+// (`basename(--bundle)`) and requires the manifest to declare that same name.
+// The builder names the manifest after the audience, so the mount has to carry
+// the declared name rather than a fixed one, or the two never agree.
+const BUNDLE_MOUNT_DIR = "/run/evo-p8v3k";
 const MANIFEST_MOUNT = "/run/evo-p8v3k/knowledge-manifest.json";
 const CONFIG_ROLLBACK_ROOT = `/opt/evo-release-rollback/${RELEASE_ID}`;
 const P8V2D_ROLLBACK_ROOT = "/opt/evo-release-evidence/p8v2d-rollback-0f1454d014bbc9eca9d7381dfe557e980965543e-20260818";
@@ -1467,7 +1471,7 @@ ${composeRunPrefixScript({
   envNames: ["EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID", "EVO_PLATFORM_GEMINI_API_KEY"],
   mounts: [
     { source: importerRemote, target: IMPORTER_MOUNT },
-    { source: `${KNOWLEDGE_REMOTE}/${item.bundleName}`, target: BUNDLE_MOUNT },
+    { source: `${KNOWLEDGE_REMOTE}/${item.bundleName}`, target: `${BUNDLE_MOUNT_DIR}/${item.bundleName}` },
     { source: `${KNOWLEDGE_REMOTE}/${item.manifestName}`, target: MANIFEST_MOUNT },
   ],
 })} -c ${shellQuote(String.raw`
@@ -1475,7 +1479,7 @@ set -eu
 [ "$(id -u):$(id -g)" = '1001:1001' ]
 [ "$(awk '$1=="nameserver"{print $2; exit}' /etc/resolv.conf)" = '127.0.0.11' ]
 [ "$EVO_EXPECTED_KNOWLEDGE_ACCOUNT_ID" = "$EVO_PLATFORM_KNOWLEDGE_ACCOUNT_ID" ]
-node '${IMPORTER_MOUNT}' --audience '${item.audience}' --bundle '${BUNDLE_MOUNT}' --manifest '${MANIFEST_MOUNT}'
+node '${IMPORTER_MOUNT}' --audience '${item.audience}' --bundle '${BUNDLE_MOUNT_DIR}/${item.bundleName}' --manifest '${MANIFEST_MOUNT}'
 `)}
 `;
 }

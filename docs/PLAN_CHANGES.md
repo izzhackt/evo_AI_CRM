@@ -9980,5 +9980,6 @@ cutover, dual-read, or dual-write is authorized.
 Research basis: [Supabase CLI remote migration dry-run and push](https://supabase.com/docs/reference/cli/supabase-migration-up),
 [Supabase database migration workflow](https://supabase.com/docs/guides/deployment/database-migrations),
 and [Caddy automatic HTTPS hostname requirements](https://caddyserver.com/docs/automatic-https).
-Reviewer notes: pending independent review of this correction and release
-boundary.
+Reviewer notes: independent review evidence and any required corrections are
+recorded on PR #368; merge remains blocked until that exact-head review and CI
+are both complete.

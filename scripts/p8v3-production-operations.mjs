@@ -1788,6 +1788,7 @@ export EVO_CRM_LEAD_AGENT_ENV_FILE='${name === "lead_agent" ? env : "/opt/evo-cr
 export EVO_CRM_WAHA_ENV_FILE='${P8V2D_ROLLBACK_ROOT}/crm-env.waha'
 export EVO_INBOX_APP_ENV_FILE='${name === "inbox" ? env : "/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production"}'
 export EVO_INBOX_WAHA_ENV_FILE='${P8V2D_ROLLBACK_ROOT}/inbox-env.waha'
+export EVO_CADDY_NETWORK='evo_public_web'
 docker compose --project-name '${project}' -f '${compose}' --env-file '${env}' up --no-deps -d '${service}'
 ${healthWaitScript(spec.container, name === "lead_agent" ? 8000 : 3000, name === "lead_agent" ? "/health" : "/api/health")}
 [[ "$(docker inspect '${spec.container}' --format '{{.Image}}')" == '${spec.beforeImage}' ]]

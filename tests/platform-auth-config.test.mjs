@@ -13,6 +13,7 @@ import {
 import {
   isConnectedPlatformApi,
   isConnectedPlatformPage,
+  isConnectedPlatformPrivateApi,
   isDirectPlatformStaffAssistantApi,
   platformHomeRoute,
   platformStaffRedirect,
@@ -219,6 +220,36 @@ test("proxy passes only the exact staff-assistant API to its own auth boundary",
     "/api/platform-ai/draft",
   ]) {
     assert.equal(isDirectPlatformStaffAssistantApi(path), false, path);
+  }
+});
+
+test("proxy passes only the exact private service API routes", () => {
+  for (const path of [
+    "/api/internal/platform-messaging/waha/events",
+    "/api/internal/platform-messaging/waha/work",
+    "/api/internal/platform-messaging/waha/history",
+    "/api/internal/platform-messaging/waha/media",
+    "/api/internal/platform-messaging/waha/autonomous-reply",
+    "/api/internal/platform-messaging/manual-send/work",
+    "/api/internal/platform-operations/portal-overdue",
+    "/api/internal/lead-agent/whatsapp",
+    "/api/internal/platform-ai/gemini/proposal",
+  ]) {
+    assert.equal(isConnectedPlatformPrivateApi(path), true, path);
+  }
+
+  for (const path of [
+    "/api/internal/platform-messaging/waha",
+    "/api/internal/platform-messaging/waha/events/extra",
+    "/api/internal/platform-messaging/manual-send/work/extra",
+    "/api/internal/platform-operations/portal-overdue/extra",
+    "/api/internal/lead-agent",
+    "/api/internal/lead-agent/whatsapp/extra",
+    "/api/internal/platform-ai/gemini",
+    "/api/internal/platform-ai/gemini/proposal/extra",
+    "/api/internal/platform-ai/gemini/proposal-preview",
+  ]) {
+    assert.equal(isConnectedPlatformPrivateApi(path), false, path);
   }
 });
 

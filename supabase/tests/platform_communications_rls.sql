@@ -4033,12 +4033,15 @@ SELECT pg_temp.assert_true(
 SET request.jwt.claims TO :'admin_a_claims';
 SET ROLE authenticated;
 SELECT count(*)::TEXT AS admin_a_staff_queue_count
-FROM platform.staff_communication_queue(:'org_a_id')
+FROM platform.staff_communication_page(:'org_a_id', 101, NULL, NULL, NULL, NULL, NULL)
 \gset
 SELECT count(*)::TEXT AS admin_a_staff_message_a_count
-FROM platform.staff_conversation_messages(
+FROM platform.staff_conversation_message_page(
   :'org_a_id',
-  :'conversation_a_id'
+  :'conversation_a_id',
+  201,
+  NULL,
+  NULL
 )
 \gset
 SELECT count(*)::TEXT AS admin_a_knowledge_catalog_count
@@ -4055,19 +4058,25 @@ RESET ROLE;
 SET request.jwt.claims TO :'curator_a_claims';
 SET ROLE authenticated;
 SELECT count(*)::TEXT AS curator_a_staff_queue_count
-FROM platform.staff_communication_queue(:'org_a_id')
+FROM platform.staff_communication_page(:'org_a_id', 101, NULL, NULL, NULL, NULL, NULL)
 \gset
 SELECT count(*)::TEXT AS curator_a_staff_message_a_count
-FROM platform.staff_conversation_messages(
+FROM platform.staff_conversation_message_page(
   :'org_a_id',
-  :'conversation_a_id'
+  :'conversation_a_id',
+  201,
+  NULL,
+  NULL
 )
 \gset
 \set ON_ERROR_STOP off
 SELECT count(*)
-FROM platform.staff_conversation_messages(
+FROM platform.staff_conversation_message_page(
   :'org_a_id',
-  :'conversation_b_id'
+  :'conversation_b_id',
+  201,
+  NULL,
+  NULL
 );
 \set curator_a_cross_student_projection_state :SQLSTATE
 \set ON_ERROR_STOP on
@@ -4076,12 +4085,15 @@ RESET ROLE;
 SET request.jwt.claims TO :'curator_b_claims';
 SET ROLE authenticated;
 SELECT count(*)::TEXT AS curator_b_staff_queue_count
-FROM platform.staff_communication_queue(:'org_a_id')
+FROM platform.staff_communication_page(:'org_a_id', 101, NULL, NULL, NULL, NULL, NULL)
 \gset
 SELECT count(*)::TEXT AS curator_b_staff_message_b_count
-FROM platform.staff_conversation_messages(
+FROM platform.staff_conversation_message_page(
   :'org_a_id',
-  :'conversation_b_id'
+  :'conversation_b_id',
+  201,
+  NULL,
+  NULL
 )
 \gset
 RESET ROLE;
@@ -4089,7 +4101,7 @@ RESET ROLE;
 SET request.jwt.claims TO :'sales_a_claims';
 SET ROLE authenticated;
 SELECT count(*)::TEXT AS sales_a_staff_queue_after_handoff_count
-FROM platform.staff_communication_queue(:'org_a_id')
+FROM platform.staff_communication_page(:'org_a_id', 101, NULL, NULL, NULL, NULL, NULL)
 \gset
 SELECT count(*)::TEXT AS sales_a_former_summary_count
 FROM platform.former_sales_case_summaries(:'org_a_id')
@@ -4143,7 +4155,8 @@ RESET ROLE;
 SET request.jwt.claims TO :'finance_a_claims';
 SET ROLE authenticated;
 \set ON_ERROR_STOP off
-SELECT count(*) FROM platform.staff_communication_queue(:'org_a_id');
+SELECT count(*)
+FROM platform.staff_communication_page(:'org_a_id', 101, NULL, NULL, NULL, NULL, NULL);
 \set finance_staff_queue_projection_state :SQLSTATE
 SELECT count(*) FROM platform.former_sales_case_summaries(:'org_a_id');
 \set finance_former_summary_projection_state :SQLSTATE

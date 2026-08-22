@@ -29,6 +29,17 @@ const PLATFORM_MEDIA_DOWNLOAD_PATH =
 const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
 const PLATFORM_STAFF_ASSISTANT_PATH =
   "/api/platform-ai/staff-assistant";
+const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
+  "/api/internal/platform-messaging/waha/events",
+  "/api/internal/platform-messaging/waha/work",
+  "/api/internal/platform-messaging/waha/history",
+  "/api/internal/platform-messaging/waha/media",
+  "/api/internal/platform-messaging/waha/autonomous-reply",
+  "/api/internal/platform-messaging/manual-send/work",
+  "/api/internal/platform-operations/portal-overdue",
+  "/api/internal/lead-agent/whatsapp",
+  "/api/internal/platform-ai/gemini/proposal",
+]);
 const PLATFORM_AUDIT_SETTINGS_QUERY_KEYS = new Set([
   "tab",
   "start_at",
@@ -114,6 +125,15 @@ export function isDirectPlatformStaffAssistantApi(path: string): boolean {
 }
 
 /**
+ * These exact service-to-service routes own their own HMAC or disabled-state
+ * checks. They must bypass the staff-cookie refresh flow while still staying
+ * in the connected Platform boundary.
+ */
+export function isConnectedPlatformPrivateApi(path: string): boolean {
+  return PLATFORM_PRIVATE_API_ALLOWLIST.has(path);
+}
+
+/**
  * Browser-facing Platform APIs that use the proxy's optimistic staff-cookie
  * refresh. Their handlers repeat live authority and record-scope checks. The
  * staff assistant deliberately uses the separate direct-route predicate above
@@ -122,7 +142,8 @@ export function isDirectPlatformStaffAssistantApi(path: string): boolean {
 export function isConnectedPlatformApi(path: string): boolean {
   return (
     PLATFORM_MEDIA_DOWNLOAD_PATH.test(path) ||
-    isConnectedPlatformAuditExportApi(path)
+    isConnectedPlatformAuditExportApi(path) ||
+    isConnectedPlatformPrivateApi(path)
   );
 }
 import type { PlatformRole } from "./platform-auth";

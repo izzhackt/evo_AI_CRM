@@ -1429,6 +1429,14 @@ export default async function ClientPageContent({
             ))}
           </ul>
           {apps.length === 0 && <EmptyState text={t("noResults")} />}
+          <div className="mt-3 border-t border-border pt-3">
+            <Link
+              href={`/applications?student_case_id=${client.id}`}
+              className={btnGhostCls}
+            >
+              {t("applications")} →
+            </Link>
+          </div>
           {actions.addApplication ? (
           <details className="mt-3 border-t border-border pt-3">
             <summary className={cn(btnGhostCls, "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>

@@ -15,6 +15,7 @@ const UUID_PATTERN =
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const CHAT_ID_PATTERN = /^[0-9]{5,20}@c[.]us$/;
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
+const SESSION_STATUS_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/;
 
 export type PlatformLeadAgentSyncInput = Readonly<{
   session: string;
@@ -29,6 +30,14 @@ export type PlatformLeadAgentSyncInput = Readonly<{
   payloadSha256: string;
 }>;
 
+export type PlatformLeadAgentSessionStatusInput = Readonly<{
+  session: string;
+  status: string;
+  phone: string | null;
+  providerOccurredAt: string;
+  payloadSha256: string;
+}>;
+
 type PersistedEvent = Readonly<{
   providerWebhookEventId: string;
   deduplicated: boolean;
@@ -38,11 +47,31 @@ type ProjectedEvent = Readonly<{
   communicationMessageId: string;
   deduplicated: boolean;
 }>;
+type ProjectedSessionStatus = Readonly<{
+  wahaSessionName: string;
+  status: string;
+  observedAt: string;
+  currentStateUpdated: boolean;
+  deduplicated: boolean;
+}>;
 
-export type PlatformLeadAgentSyncRepository = Readonly<{
+type PlatformLeadAgentEvidenceRepository = Readonly<{
   persistVerifiedEvent(input: Readonly<Record<string, unknown>>): Promise<PersistedEvent>;
+}>;
+
+export type PlatformLeadAgentSyncRepository = PlatformLeadAgentEvidenceRepository & Readonly<{
   projectVerifiedEvent(input: Readonly<Record<string, unknown>>): Promise<ProjectedEvent>;
 }>;
+
+export type PlatformLeadAgentSessionStatusRepository =
+  PlatformLeadAgentEvidenceRepository & Readonly<{
+    projectSessionStatusEvent(
+      input: Readonly<Record<string, unknown>>,
+    ): Promise<ProjectedSessionStatus>;
+  }>;
+
+type PlatformLeadAgentUnifiedRepository = PlatformLeadAgentSyncRepository &
+  PlatformLeadAgentSessionStatusRepository;
 
 export class PlatformLeadAgentSyncError extends Error {
   constructor() {
@@ -77,19 +106,24 @@ function uuid(value: unknown): string {
     : fail();
 }
 
+function isoTimestamp(value: unknown): string {
+  const normalized = text(value, 32);
+  return TIMESTAMP_PATTERN.test(normalized) && !Number.isNaN(Date.parse(normalized))
+    ? normalized
+    : fail();
+}
+
 function normalizeInput(input: PlatformLeadAgentSyncInput) {
   const session = text(input.session, 128);
   const providerMessageId = text(input.providerMessageId, 256);
   const chatId = text(input.chatId, 64).toLowerCase();
   const bodyText = text(input.bodyText, 4_000);
   const pushName = optionalText(input.pushName, 160);
-  const providerOccurredAt = text(input.providerOccurredAt, 32);
+  const providerOccurredAt = isoTimestamp(input.providerOccurredAt);
   const payloadSha256 = text(input.payloadSha256, 64).toLowerCase();
   if (
     session !== "crm_primary" ||
     !CHAT_ID_PATTERN.test(chatId) ||
-    !TIMESTAMP_PATTERN.test(providerOccurredAt) ||
-    Number.isNaN(Date.parse(providerOccurredAt)) ||
     !SHA256_PATTERN.test(payloadSha256)
   ) {
     return fail();
@@ -104,6 +138,28 @@ function normalizeInput(input: PlatformLeadAgentSyncInput) {
     amoAccountId: providerId(input.amoAccountId),
     amoLeadId: providerId(input.amoLeadId),
     amoContactId: providerId(input.amoContactId),
+    payloadSha256,
+  });
+}
+
+function normalizeSessionStatusInput(input: PlatformLeadAgentSessionStatusInput) {
+  const session = text(input.session, 128);
+  const status = text(input.status, 64);
+  const phone = optionalText(input.phone, 32);
+  const providerOccurredAt = isoTimestamp(input.providerOccurredAt);
+  const payloadSha256 = text(input.payloadSha256, 64).toLowerCase();
+  if (
+    session !== "crm_primary" ||
+    !SESSION_STATUS_PATTERN.test(status) ||
+    !SHA256_PATTERN.test(payloadSha256)
+  ) {
+    return fail();
+  }
+  return Object.freeze({
+    session,
+    status,
+    phone,
+    providerOccurredAt,
     payloadSha256,
   });
 }
@@ -131,9 +187,33 @@ function normalizeProjected(value: unknown): ProjectedEvent {
   });
 }
 
+function normalizeProjectedSessionStatus(value: unknown): ProjectedSessionStatus {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fail();
+  const row = value as Record<string, unknown>;
+  const wahaSessionName = text(
+    row.waha_session_name ?? row.wahaSessionName,
+    128,
+  );
+  const status = text(row.status, 64);
+  if (wahaSessionName !== "crm_primary" || !SESSION_STATUS_PATTERN.test(status)) {
+    return fail();
+  }
+  return Object.freeze({
+    wahaSessionName,
+    status,
+    observedAt: isoTimestamp(row.observed_at ?? row.observedAt),
+    currentStateUpdated:
+      typeof (row.current_state_updated ?? row.currentStateUpdated) === "boolean"
+        ? (row.current_state_updated ?? row.currentStateUpdated) as boolean
+        : fail(),
+    deduplicated:
+      typeof row.deduplicated === "boolean" ? row.deduplicated : fail(),
+  });
+}
+
 export function createPlatformLeadAgentSyncRepository(
   client: SupabaseClient,
-): PlatformLeadAgentSyncRepository {
+): PlatformLeadAgentUnifiedRepository {
   return Object.freeze({
     async persistVerifiedEvent(input) {
       const { data, error } = await client.schema("platform").rpc(
@@ -179,6 +259,18 @@ export function createPlatformLeadAgentSyncRepository(
       if (error) return fail();
       return normalizeProjected(data);
     },
+    async projectSessionStatusEvent(input) {
+      const { data, error } = await client.schema("platform").rpc(
+        "sync_lead_agent_session_status",
+        {
+          p_organization_id: input.organizationId,
+          p_provider_webhook_event_id: input.providerWebhookEventId,
+          p_request_id: input.requestId,
+        },
+      );
+      if (error) return fail();
+      return normalizeProjectedSessionStatus(data);
+    },
   });
 }
 
@@ -191,7 +283,7 @@ export async function syncPlatformLeadAgentWhatsApp(
   }> = {},
 ): Promise<Readonly<{ enabled: boolean; deduplicated?: boolean }>> {
   const config = dependencies.config ?? loadPlatformLeadAgentSyncConfig();
-  if (!config.enabled) return Object.freeze({ enabled: false });
+  if (!config.enabled) return fail();
   const input = normalizeInput(rawInput);
   const requestIds = dependencies.requestIds?.() ?? [randomUUID(), randomUUID()];
   if (requestIds.length !== 2) return fail();
@@ -235,6 +327,58 @@ export async function syncPlatformLeadAgentWhatsApp(
   });
   return Object.freeze({
     enabled: true,
+    deduplicated: persisted.deduplicated || projected.deduplicated,
+  });
+}
+
+export async function syncPlatformLeadAgentSessionStatus(
+  rawInput: PlatformLeadAgentSessionStatusInput,
+  dependencies: Readonly<{
+    config?: PlatformLeadAgentSyncConfig;
+    repository?: PlatformLeadAgentSessionStatusRepository;
+    requestIds?: () => readonly [string, string];
+  }> = {},
+): Promise<ProjectedSessionStatus> {
+  const config = dependencies.config ?? loadPlatformLeadAgentSyncConfig();
+  if (!config.enabled) return fail();
+  const input = normalizeSessionStatusInput(rawInput);
+  const requestIds = dependencies.requestIds?.() ?? [randomUUID(), randomUUID()];
+  if (requestIds.length !== 2) return fail();
+  const persistRequestId = uuid(requestIds[0]);
+  const projectRequestId = uuid(requestIds[1]);
+  const repository = dependencies.repository ?? createPlatformLeadAgentSyncRepository(
+    createPlatformSupabaseServiceClient(config),
+  );
+  const eventIdentity = `${input.providerOccurredAt}:${input.payloadSha256}`;
+
+  const persisted = await repository.persistVerifiedEvent({
+    organizationId: config.organizationId,
+    providerAccountRef: "waha:crm_primary",
+    providerRequestId: `lead-agent-session:${eventIdentity}`,
+    sessionName: input.session,
+    payloadId: eventIdentity,
+    eventType: "session.status",
+    providerOccurredAt: input.providerOccurredAt,
+    rawPayload: {
+      event: "session.status",
+      session: input.session,
+      payload: {
+        name: input.session,
+        status: input.status,
+        phone: input.phone,
+      },
+    },
+    verificationEvidenceRef: `lead-agent-sync-sha256:${input.payloadSha256}`,
+    payloadSha256: input.payloadSha256,
+    requestId: persistRequestId,
+  });
+  const projected = await repository.projectSessionStatusEvent({
+    organizationId: config.organizationId,
+    providerWebhookEventId: persisted.providerWebhookEventId,
+    requestId: projectRequestId,
+  });
+  return Object.freeze({
+    ...projected,
     deduplicated: persisted.deduplicated || projected.deduplicated,
   });
 }

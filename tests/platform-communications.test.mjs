@@ -9,7 +9,9 @@ import {
   listPlatformConversations,
   normalizePlatformConversationMessage,
   normalizePlatformConversationSummary,
+  parsePlatformConversationCursor,
   parsePlatformRouteUuid,
+  parsePlatformWahaSessionName,
 } from "../src/lib/platform-communications.ts";
 import {
   derivePlatformBusinessKey,
@@ -27,6 +29,10 @@ const STUDENT_CASE_ID = "eec32b28-a106-4421-8802-7a50bcb416ef";
 const KNOWLEDGE_VERSION_ID = "b47254eb-c856-456d-9cb7-2888c3ae59a6";
 const DRAFT_REQUEST_ID = "61318db8-645a-4c0d-9cf6-09ca68efda50";
 const OUTBOX_WORK_ITEM_ID = "2240b9e7-9387-44f9-b120-08743098226e";
+const PAGED_READ_MIGRATION_URL = new URL(
+  "../supabase/migrations/078_platform_paged_read_models.sql",
+  import.meta.url,
+);
 
 const PLATFORM_COMMUNICATIONS_RUNTIME_FILES = [
   "../src/app/(staff)/whatsapp/page.tsx",
@@ -50,6 +56,7 @@ function validConversationRow(overrides = {}) {
     amocrm_lead_id: "5678",
     amocrm_contact_id: 9012,
     created_at: "2026-07-30T09:15:30.123456+06:00",
+    sort_at: "2026-07-31T10:16:31.654321+06:00",
     ...overrides,
   };
 }
@@ -140,7 +147,14 @@ test("normalizes a strict conversation projection without losing bigint IDs", ()
       amocrmLeadId: "5678",
       amocrmContactId: "9012",
       createdAt: "2026-07-30T09:15:30.123456+06:00",
+      sortAt: "2026-07-31T10:16:31.654321+06:00",
     },
+  );
+  assert.equal(
+    normalizePlatformConversationSummary(
+      validConversationRow({ waha_session_name: "crm_primary" }),
+    ).wahaSessionName,
+    "crm_primary",
   );
 });
 
@@ -174,6 +188,8 @@ test("rejects malformed PostgREST rows with one safe error", () => {
     validConversationRow({ amocrm_lead_id: Number.MAX_SAFE_INTEGER + 1 }),
     validConversationRow({ amocrm_lead_id: "9223372036854775808" }),
     validConversationRow({ created_at: "30 July 2026" }),
+    validConversationRow({ sort_at: "31 July 2026" }),
+    validConversationRow({ waha_session_name: "other" }),
     validConversationRow({ subject: "   " }),
   ];
 
@@ -193,6 +209,47 @@ test("rejects malformed PostgREST rows with one safe error", () => {
       ),
     PlatformCommunicationsRepositoryError,
   );
+});
+
+test("accepts only complete deterministic communication cursors", () => {
+  assert.deepEqual(
+    parsePlatformConversationCursor(
+      "2026-07-31T10:16:31.654321+06:00",
+      CONVERSATION_ID,
+    ),
+    {
+      sortAt: "2026-07-31T10:16:31.654321+06:00",
+      id: CONVERSATION_ID.toLowerCase(),
+    },
+  );
+  assert.equal(parsePlatformConversationCursor(undefined, CONVERSATION_ID), null);
+  assert.equal(
+    parsePlatformConversationCursor("2026-07-31T10:16:31Z", "not-a-uuid"),
+    null,
+  );
+});
+
+test("accepts only the two unified WAHA session names", () => {
+  assert.equal(parsePlatformWahaSessionName("evo-inbox"), "evo-inbox");
+  assert.equal(parsePlatformWahaSessionName("crm_primary"), "crm_primary");
+  assert.equal(parsePlatformWahaSessionName(" evo-inbox "), null);
+  assert.equal(parsePlatformWahaSessionName("other"), null);
+  assert.equal(parsePlatformWahaSessionName(undefined), null);
+});
+
+test("conversation queue recency follows the latest persisted message", () => {
+  const migration = readFileSync(PAGED_READ_MIGRATION_URL, "utf8");
+  const communicationPage = migration.split(
+    "CREATE OR REPLACE FUNCTION platform.staff_communication_page",
+  )[1]?.split(
+    "CREATE OR REPLACE FUNCTION platform.staff_communication_snapshot",
+  )[0];
+  assert.ok(communicationPage);
+  assert.match(
+    communicationPage,
+    /SELECT message\.created_at[\s\S]*ORDER BY message\.created_at DESC, message\.id DESC/,
+  );
+  assert.doesNotMatch(communicationPage, /source_event\.received_at/);
 });
 
 test("rejects finance and student actors before any repository read", async () => {

@@ -892,7 +892,11 @@ SET request.jwt.claims TO :'sales_a_pending_claims';
 SET ROLE authenticated;
 SELECT pg_temp.assert_true(
   (SELECT count(*) FROM platform.student_cases) = 0
-    AND (SELECT count(*) FROM platform.sales_handoff_summaries()) = 0,
+    AND (
+      SELECT count(*)
+      FROM platform.staff_student_case_page(101, NULL, NULL, NULL, NULL, NULL)
+      WHERE access_mode = 'sales_summary'
+    ) = 0,
   'held Sales token survived handoff'
 );
 RESET ROLE;
@@ -968,31 +972,24 @@ SET request.jwt.claims TO :'sales_a_handoff_claims';
 SET ROLE authenticated;
 SELECT pg_temp.assert_true(
   (SELECT count(*) FROM platform.student_cases) = 0
-    AND (SELECT count(*) FROM platform.sales_handoff_summaries()) = 1
+    AND (
+      SELECT count(*)
+      FROM platform.staff_student_case_page(101, NULL, NULL, NULL, NULL, NULL)
+      WHERE access_mode = 'sales_summary'
+    ) = 1
     AND EXISTS (
       SELECT 1
-      FROM platform.sales_handoff_summaries()
-      WHERE case_id = :'case_a_id'
+      FROM platform.staff_student_case_page(
+        101, NULL, NULL, NULL, NULL, :'case_a_id'
+      )
+      WHERE access_mode = 'sales_summary'
+        AND program_direction IS NULL
+        AND responsible_sales_display_name IS NULL
+        AND overdue_task_count IS NULL
     ),
   'post-handoff Sales did not receive only its safe summary'
 );
-SELECT array_agg(key ORDER BY key)::TEXT AS sales_summary_keys
-FROM (
-  SELECT jsonb_object_keys(to_jsonb(summary_row)) AS key
-  FROM (
-    SELECT *
-    FROM platform.sales_handoff_summaries()
-    WHERE case_id = :'case_a_id'
-  ) AS summary_row
-) AS keys
-\gset
 RESET ROLE;
-
-SELECT pg_temp.assert_true(
-  :'sales_summary_keys' =
-    '{assigned_curator_display_name,case_id,case_state,handoff_at,student_display_name,target_country,target_degree}',
-  'Sales fixed projection columns widened'
-);
 
 SET request.jwt.claims TO :'student_a_handoff_claims';
 SET ROLE authenticated;

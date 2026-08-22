@@ -11,6 +11,7 @@ import {
   normalizePlatformApplicationQueueRow,
   normalizePlatformOpWorkflowContract,
   normalizePlatformStudentCaseSnapshot,
+  parsePlatformAdmissionsCursor,
   parsePlatformAdmissionsUuid,
 } from "../src/lib/platform-admissions.ts";
 import {
@@ -49,6 +50,15 @@ test("case lifecycle redirects preserve the originating Student 360 section", ()
     ),
     `/clients/${CASE_ID}?result=unavailable&retry_request_id=${APPLICATION_ID}#case-lifecycle`,
   );
+});
+
+test("accepts only complete deterministic admissions cursors", () => {
+  assert.deepEqual(parsePlatformAdmissionsCursor(AT, CASE_ID), {
+    sortAt: AT,
+    id: CASE_ID,
+  });
+  assert.equal(parsePlatformAdmissionsCursor(undefined, CASE_ID), null);
+  assert.equal(parsePlatformAdmissionsCursor(AT, "not-a-uuid"), null);
 });
 
 function actor(platformRole) {

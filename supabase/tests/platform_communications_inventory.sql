@@ -1202,8 +1202,9 @@ DECLARE
     'platform.resolve_ai_draft_language(uuid,uuid,platform.ai_draft_language,boolean,text,uuid)',
     'platform.retire_approved_knowledge_version(uuid,uuid,text,uuid)',
     'platform.review_ai_draft(uuid,uuid,platform.ai_draft_review_decision,text,text,uuid)',
-    'platform.staff_communication_queue(uuid)',
-    'platform.staff_conversation_messages(uuid,uuid)',
+    'platform.staff_communication_page(uuid,integer,timestamp with time zone,uuid,platform.communication_queue,platform.communication_status,uuid)',
+    'platform.staff_communication_snapshot(uuid,uuid)',
+    'platform.staff_conversation_message_page(uuid,uuid,integer,timestamp with time zone,uuid)',
     'platform.student_portal_messages(uuid)'
   ];
   service_api CONSTANT TEXT[] := ARRAY[
@@ -1460,7 +1461,7 @@ BEGIN
     FROM (
       VALUES
         (
-          'platform.staff_communication_queue(uuid)'::TEXT,
+          'platform.staff_communication_page(uuid,integer,timestamp with time zone,uuid,platform.communication_queue,platform.communication_status,uuid)'::TEXT,
           ARRAY[
             'conversation_id:uuid',
             'student_case_id:uuid',
@@ -1473,12 +1474,13 @@ BEGIN
             'amocrm_account_id:bigint',
             'amocrm_lead_id:bigint',
             'amocrm_contact_id:bigint',
-            'created_at:timestamp with time zone'
+            'created_at:timestamp with time zone',
+            'sort_at:timestamp with time zone'
           ]::TEXT[],
-          'ORDER BY conversation.updated_at DESC, conversation.id'::TEXT
+          'ORDER BY sort_at DESC, conversation_id DESC'::TEXT
         ),
         (
-          'platform.staff_conversation_messages(uuid,uuid)'::TEXT,
+          'platform.staff_conversation_message_page(uuid,uuid,integer,timestamp with time zone,uuid)'::TEXT,
           ARRAY[
             'message_id:uuid',
             'conversation_id:uuid',
@@ -1494,9 +1496,12 @@ BEGIN
             'amocrm_account_id:bigint',
             'amocrm_lead_id:bigint',
             'amocrm_contact_id:bigint',
-            'created_at:timestamp with time zone'
+            'created_at:timestamp with time zone',
+            'media:jsonb',
+            'waha_ack_name:text',
+            'waha_ack_observed_at:timestamp with time zone'
           ]::TEXT[],
-          'ORDER BY message.created_at, message.id'::TEXT
+          'ORDER BY created_at DESC, message_id DESC'::TEXT
         ),
         (
           'platform.former_sales_case_summaries(uuid)'::TEXT,

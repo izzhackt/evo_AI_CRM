@@ -286,12 +286,12 @@ SELECT pg_temp.assert_true(
   )
   AND has_function_privilege(
     'authenticated',
-    'platform.staff_waha_session_health(uuid)',
+    'platform.staff_waha_session_health(uuid,text)',
     'EXECUTE'
   )
   AND NOT has_function_privilege(
     'anon',
-    'platform.staff_waha_session_health(uuid)',
+    'platform.staff_waha_session_health(uuid,text)',
     'EXECUTE'
   ),
   'P5E worker or staff RPC grants are not least privilege'
@@ -1402,13 +1402,16 @@ SET ROLE authenticated;
 
 SELECT COALESCE(jsonb_agg(to_jsonb(message_row)), '[]'::JSONB)::TEXT
   AS staff_messages
-FROM platform.staff_conversation_messages(
-  :'org_a_id', :'outbound_conversation_id'
+FROM platform.staff_conversation_message_page(
+  :'org_a_id', :'outbound_conversation_id', 201, NULL, NULL
 ) AS message_row
 \gset
 
 SELECT to_jsonb(health_row)::TEXT AS staff_session_health
-FROM platform.staff_waha_session_health(:'org_a_id') AS health_row
+FROM platform.staff_waha_session_health(
+  :'org_a_id',
+  'evo-inbox'
+) AS health_row
 \gset
 
 SELECT count(*)::TEXT AS own_realtime_count
@@ -1423,11 +1426,19 @@ FROM realtime.messages
 
 SAVEPOINT expect_cross_org_health_denied;
 \set ON_ERROR_STOP off
-SELECT * FROM platform.staff_waha_session_health(:'org_b_id');
+SELECT * FROM platform.staff_waha_session_health(:'org_b_id', 'evo-inbox');
 \set cross_org_health_state :SQLSTATE
 ROLLBACK TO SAVEPOINT expect_cross_org_health_denied;
 \set ON_ERROR_STOP on
 RELEASE SAVEPOINT expect_cross_org_health_denied;
+
+SAVEPOINT expect_unknown_session_denied;
+\set ON_ERROR_STOP off
+SELECT * FROM platform.staff_waha_session_health(:'org_a_id', 'other');
+\set unknown_session_health_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_unknown_session_denied;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_unknown_session_denied;
 
 SAVEPOINT expect_private_ack_denied;
 \set ON_ERROR_STOP off
@@ -1505,7 +1516,8 @@ SELECT pg_temp.assert_true(
   AND :'staff_session_health'::JSONB ->> 'status' <> 'WORKING'
   AND position('passkey' IN :'staff_session_health') = 0
   AND position('data' IN :'staff_session_health') = 0
-  AND :'cross_org_health_state' = '42501',
+  AND :'cross_org_health_state' = '42501'
+  AND :'unknown_session_health_state' = '22023',
   'staff session health authority, exact shape or fail-closed status drifted'
 );
 

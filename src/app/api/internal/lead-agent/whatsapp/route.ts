@@ -1,9 +1,10 @@
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getSetting } from "@/lib/db";
 import { positiveInteger } from "@/lib/request";
-import { syncLeadAgentWhatsApp, updateWahaAccountStatus } from "@/lib/whatsapp";
-import { syncPlatformLeadAgentWhatsApp } from "@/lib/server/platform-lead-agent-sync";
+import {
+  syncPlatformLeadAgentSessionStatus,
+  syncPlatformLeadAgentWhatsApp,
+} from "@/lib/server/platform-lead-agent-sync";
 
 const MAX_BODY_BYTES = 128 * 1024;
 const MAX_CLOCK_SKEW_SECONDS = 5 * 60;
@@ -21,23 +22,29 @@ function optionalString(value: unknown, maxLength: number): string | null {
 }
 
 function syncSecret(): string | null {
-  return getSetting("lead_agent_sync_secret")?.trim() || process.env.EVO_LEAD_AGENT_SYNC_SECRET?.trim() || null;
+  return process.env.EVO_LEAD_AGENT_SYNC_SECRET?.trim() || null;
 }
 
-function validSignature(rawBody: string, secret: string, req: NextRequest): boolean {
+function verifiedTimestampSeconds(
+  rawBody: string,
+  secret: string,
+  req: NextRequest,
+): number | null {
   const timestamp = req.headers.get("x-evo-agent-timestamp")?.trim();
   const signature = req.headers.get("x-evo-agent-signature")?.trim();
   const algorithm = req.headers.get("x-evo-agent-signature-algorithm")?.trim().toLowerCase();
-  if (algorithm && algorithm !== "sha256") return false;
-  if (!timestamp || !signature || !/^[a-f0-9]{64}$/i.test(signature)) return false;
+  if (algorithm && algorithm !== "sha256") return null;
+  if (!timestamp || !signature || !/^[a-f0-9]{64}$/i.test(signature)) return null;
 
   const timestampSeconds = Number.parseInt(timestamp, 10);
-  if (!Number.isSafeInteger(timestampSeconds)) return false;
+  if (!Number.isSafeInteger(timestampSeconds)) return null;
   const nowSeconds = Math.floor(Date.now() / 1000);
-  if (Math.abs(nowSeconds - timestampSeconds) > MAX_CLOCK_SKEW_SECONDS) return false;
+  if (Math.abs(nowSeconds - timestampSeconds) > MAX_CLOCK_SKEW_SECONDS) return null;
 
   const expected = createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex");
-  return timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expected, "hex"));
+  return timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expected, "hex"))
+    ? timestampSeconds
+    : null;
 }
 
 function parseJsonObject(rawBody: string): Record<string, unknown> | null {
@@ -61,7 +68,8 @@ export async function POST(req: NextRequest) {
   if (Buffer.byteLength(rawBody, "utf8") > MAX_BODY_BYTES) {
     return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
   }
-  if (!validSignature(rawBody, secret, req)) {
+  const timestampSeconds = verifiedTimestampSeconds(rawBody, secret, req);
+  if (timestampSeconds === null) {
     return NextResponse.json({ error: "invalid_signature" }, { status: 403 });
   }
 
@@ -76,70 +84,59 @@ export async function POST(req: NextRequest) {
     if (!session || !status) {
       return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
     }
-    updateWahaAccountStatus(session, status, optionalString(body.phone, 32));
-    return NextResponse.json({ ok: true });
+    try {
+      const platform = await syncPlatformLeadAgentSessionStatus({
+        session,
+        status,
+        phone: optionalString(body.phone, 32),
+        providerOccurredAt: new Date(timestampSeconds * 1000).toISOString(),
+        payloadSha256: createHash("sha256").update(rawBody).digest("hex"),
+      });
+      return NextResponse.json({
+        ok: true,
+        platformSynced: true,
+        platformDeduplicated: platform.deduplicated,
+        currentStateUpdated: platform.currentStateUpdated,
+      });
+    } catch {
+      return NextResponse.json({ error: "platform_sync_failed" }, { status: 503 });
+    }
   }
 
   if (body.event !== "whatsapp.message") {
     return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
   }
 
-  const phone = boundedString(body.phone, 32);
   const inboundText = boundedString(body.text, 4000);
   const inboundWaId = boundedString(body.providerMessageId, 256);
   const chatId = boundedString(body.chatId, 64);
-  const agentState = boundedString(body.agentState, 64);
+  const providerOccurredAt = optionalString(body.providerOccurredAt, 32);
+  const amoAccountId = positiveInteger(body.amoAccountId);
   const amoLeadId = positiveInteger(body.amoLeadId);
-  if (!session || !phone || !inboundText || !inboundWaId || !agentState || !amoLeadId) {
+  const amoContactId = positiveInteger(body.amoContactId);
+  if (
+    !session || !inboundText || !inboundWaId || !chatId ||
+    !providerOccurredAt || !amoAccountId || !amoLeadId || !amoContactId
+  ) {
     return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
   }
-
-  const explicitOutboundText = optionalString(body.outboundText, 4000);
-  const outboundWaId = optionalString(body.outboundProviderMessageId, 256);
-  const replyText = optionalString(body.replyText, 4000);
-  const draftReviewText =
-    optionalString(body.draftReviewText, 4000) ??
-    optionalString(body.draftText, 4000) ??
-    (!outboundWaId ? replyText ?? explicitOutboundText : null);
-  const outboundText = outboundWaId ? explicitOutboundText ?? replyText : null;
-
-  const result = syncLeadAgentWhatsApp({
-    session,
-    phone,
-    name: optionalString(body.pushName, 160),
-    inboundText,
-    inboundWaId,
-    amoLeadId,
-    amoContactId: positiveInteger(body.amoContactId),
-    agentState,
-    agentSummary: optionalString(body.agentSummary, 2000),
-    agentHandoffReason: optionalString(body.handoffReason, 500),
-    draftReviewText,
-    draftReviewStatus: optionalString(body.draftReviewStatus, 64),
-    draftReviewProvider: optionalString(body.draftReviewProvider, 64),
-    draftReviewModel: optionalString(body.draftReviewModel, 128),
-    outboundText,
-    outboundWaId,
-  });
-  if (!result) return NextResponse.json({ error: "sync_failed" }, { status: 400 });
 
   try {
     const platform = await syncPlatformLeadAgentWhatsApp({
       session,
       providerMessageId: inboundWaId,
-      chatId: chatId ?? "",
+      chatId,
       bodyText: inboundText,
       pushName: optionalString(body.pushName, 160),
-      providerOccurredAt: optionalString(body.providerOccurredAt, 32) ?? "",
-      amoAccountId: positiveInteger(body.amoAccountId) ?? 0,
+      providerOccurredAt,
+      amoAccountId,
       amoLeadId,
-      amoContactId: positiveInteger(body.amoContactId) ?? 0,
+      amoContactId,
       payloadSha256: createHash("sha256").update(rawBody).digest("hex"),
     });
     return NextResponse.json({
       ok: true,
-      ...result,
-      platformSynced: platform.enabled,
+      platformSynced: true,
       platformDeduplicated: platform.deduplicated ?? false,
     });
   } catch {

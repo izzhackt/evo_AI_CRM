@@ -146,9 +146,9 @@ DECLARE
     'platform.create_pending_student_case_with_handoff(uuid,uuid,uuid,text,text,timestamp with time zone,text,text,text,text,text,text,text,text,text,uuid,uuid,jsonb,jsonb,jsonb,text,timestamp with time zone,platform.business_role,uuid)'::REGPROCEDURE;
   projections CONSTANT REGPROCEDURE[] := ARRAY[
     'platform.staff_op_workflow_contract()'::REGPROCEDURE,
-    'platform.staff_student_case_queue()'::REGPROCEDURE,
-    'platform.staff_student_case_snapshot(uuid)'::REGPROCEDURE,
-    'platform.staff_application_queue()'::REGPROCEDURE,
+    'platform.staff_student_case_page(integer,timestamp with time zone,uuid,platform.student_case_state,text,uuid)'::REGPROCEDURE,
+    'platform.staff_student_case_read_snapshot(uuid)'::REGPROCEDURE,
+    'platform.staff_application_page(integer,timestamp with time zone,uuid,platform.application_status,uuid,uuid)'::REGPROCEDURE,
     'platform.staff_application_snapshot(uuid)'::REGPROCEDURE
   ];
   routine REGPROCEDURE;

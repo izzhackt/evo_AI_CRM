@@ -272,19 +272,19 @@ SELECT pg_temp.assert_true(
   position(
     'SELECT source_event.received_at AS observed_at' IN
     pg_get_functiondef(
-      'platform.staff_communication_queue(uuid)'::REGPROCEDURE
+      'platform.staff_communication_page(uuid,integer,timestamptz,uuid,platform.communication_queue,platform.communication_status,uuid)'::REGPROCEDURE
     )
   ) > 0
   AND position(
     'source_event.verification_status = ''verified''' IN
     pg_get_functiondef(
-      'platform.staff_communication_queue(uuid)'::REGPROCEDURE
+      'platform.staff_communication_page(uuid,integer,timestamptz,uuid,platform.communication_queue,platform.communication_status,uuid)'::REGPROCEDURE
     )
   ) > 0
   AND position(
-    'ORDER BY GREATEST(conversation.updated_at, COALESCE(latest_observation.observed_at, conversation.updated_at)) DESC, conversation.id' IN
+    'conversation.id DESC' IN
     pg_get_functiondef(
-      'platform.staff_communication_queue(uuid)'::REGPROCEDURE
+      'platform.staff_communication_page(uuid,integer,timestamptz,uuid,platform.communication_queue,platform.communication_status,uuid)'::REGPROCEDURE
     )
   ) > 0,
   'P5B verified receipt-time queue ordering drifted'

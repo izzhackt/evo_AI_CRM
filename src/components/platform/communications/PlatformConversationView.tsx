@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { PlatformAmoCrmContextCard } from "@/components/platform/communications/PlatformAmoCrmContextCard";
 import { PlatformAiMemoryCard } from "@/components/platform/communications/PlatformAiMemoryCard";
 import { PlatformAutonomousReplyCard } from "@/components/platform/communications/PlatformAutonomousReplyCard";
@@ -5,7 +7,7 @@ import { PlatformGeminiProposalCard } from "@/components/platform/communications
 import { PlatformMessagingWorkflowPanel } from "@/components/platform/communications/PlatformMessagingWorkflowPanel";
 import { PlatformMessageMedia } from "@/components/platform/communications/PlatformMessageMedia";
 import { PlatformWaList } from "@/components/platform/communications/PlatformWaList";
-import { EmptyState, cn } from "@/components/ui";
+import { EmptyState, btnGhostCls, cn } from "@/components/ui";
 import { getT } from "@/lib/i18n";
 import type { PlatformAmoCrmCanonicalContext } from "@/lib/platform-amocrm-canonical-context";
 import type {
@@ -78,6 +80,12 @@ export async function PlatformConversationView({
   conversations,
   conversation,
   messages,
+  contextMessages,
+  conversationListResetHref,
+  conversationListNextHref,
+  conversationQuery,
+  newestMessagesHref,
+  olderMessagesHref,
   workflow,
   knowledge,
   bw4Workspace,
@@ -96,6 +104,12 @@ export async function PlatformConversationView({
   conversations: readonly PlatformConversationSummary[];
   conversation: PlatformConversationSummary;
   messages: readonly PlatformConversationMessage[];
+  contextMessages?: readonly PlatformConversationMessage[];
+  conversationListResetHref?: string | null;
+  conversationListNextHref?: string | null;
+  conversationQuery?: string;
+  newestMessagesHref?: string | null;
+  olderMessagesHref?: string | null;
   workflow: PlatformConversationWorkflow;
   knowledge: readonly PlatformKnowledgeCatalogItem[];
   bw4Workspace: PlatformConversationBw4Workspace | null;
@@ -112,11 +126,17 @@ export async function PlatformConversationView({
   decisionMutationOutcome: "saved" | "invalid" | "unavailable" | null;
 }) {
   const { t, locale } = await getT();
+  const messagePaginationCopy = locale === "ru"
+    ? { newest: "К новым сообщениям", older: "Более старые сообщения" }
+    : locale === "ky"
+      ? { newest: "Жаңы билдирүүлөргө", older: "Мурунку билдирүүлөр" }
+      : { newest: "Newest messages", older: "Older messages" };
   const synthetic = isSyntheticSubject(conversation.subject);
+  const workflowMessages = contextMessages ?? messages;
   const latestInboundMessage =
-    [...messages].reverse().find((message) => message.direction === "inbound") ??
+    [...workflowMessages].reverse().find((message) => message.direction === "inbound") ??
     null;
-  const aiMemorySourceMessages = [...messages]
+  const aiMemorySourceMessages = [...workflowMessages]
     .filter((message) => message.direction === "inbound")
     .reverse()
     .map((message) => {
@@ -696,6 +716,9 @@ export async function PlatformConversationView({
       <PlatformWaList
         conversations={conversations}
         activeId={conversation.id}
+        resetHref={conversationListResetHref}
+        nextHref={conversationListNextHref}
+        conversationQuery={conversationQuery}
       />
 
       <section className="flex min-w-0 flex-1 flex-col bg-bg">
@@ -816,6 +839,23 @@ export async function PlatformConversationView({
         </details>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {newestMessagesHref || olderMessagesHref ? (
+            <nav
+              aria-label="Message pagination"
+              className="mb-3 flex items-center justify-between gap-3"
+            >
+              {newestMessagesHref ? (
+                <Link href={newestMessagesHref} className={btnGhostCls}>
+                  ← {messagePaginationCopy.newest}
+                </Link>
+              ) : <span />}
+              {olderMessagesHref ? (
+                <Link href={olderMessagesHref} className={btnGhostCls}>
+                  {messagePaginationCopy.older} →
+                </Link>
+              ) : null}
+            </nav>
+          ) : null}
           {messages.length === 0 ? (
             <EmptyState text={t("platformNoMessages")} />
           ) : (

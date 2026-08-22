@@ -169,6 +169,14 @@ const platformManualWhatsAppSendWorkerMigration = readFileSync(
   join(migrationsDir, '077_platform_manual_whatsapp_send_worker.sql'),
   'utf8'
 );
+const platformPagedReadModelsMigration = readFileSync(
+  join(migrationsDir, '078_platform_paged_read_models.sql'),
+  'utf8'
+);
+const platformUnifiedLeadAgentSyncMigration = readFileSync(
+  join(migrationsDir, '079_platform_unified_lead_agent_sync.sql'),
+  'utf8'
+);
 const platformOperationalSignalsAuthorizationTest = readFileSync(
   fileURLToPath(
     new URL(
@@ -403,9 +411,46 @@ function p7aAllowlist(functionName: string): Set<string> {
   return new Set(sqlTextLiterals(body, /./));
 }
 
-describe('Supabase companion schema contract', () => {
+describe('Unified EVO Supabase schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
-    expect(migrationFiles.at(-1)).toBe('077_platform_manual_whatsapp_send_worker.sql');
+    expect(migrationFiles.at(-1)).toBe('079_platform_unified_lead_agent_sync.sql');
+    for (const rpc of [
+      'staff_student_case_page',
+      'staff_student_case_read_snapshot',
+      'staff_application_page',
+      'staff_application_snapshot',
+      'staff_communication_page',
+      'staff_communication_snapshot',
+      'staff_conversation_message_page',
+    ]) {
+      expect(platformPagedReadModelsMigration).toMatch(
+        new RegExp(
+          `CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+platform\\.${rpc}\\s*\\(`,
+          'i'
+        )
+      );
+    }
+    for (const obsoleteRpc of [
+      'staff_student_case_queue',
+      'staff_student_case_snapshot',
+      'staff_application_queue',
+      'staff_communication_queue',
+      'staff_conversation_messages',
+      'sales_handoff_summaries',
+    ]) {
+      expect(platformPagedReadModelsMigration).toMatch(
+        new RegExp(`DROP\\s+FUNCTION\\s+platform\\.${obsoleteRpc}\\s*\\(`, 'i')
+      );
+    }
+    expect(platformUnifiedLeadAgentSyncMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.sync_lead_agent_session_status\s*\(/i
+    );
+    expect(platformUnifiedLeadAgentSyncMigration).toMatch(
+      /DROP\s+FUNCTION\s+platform\.staff_waha_session_health\s*\(\s*UUID\s*\)/i
+    );
+    expect(platformUnifiedLeadAgentSyncMigration).toMatch(
+      /CREATE\s+FUNCTION\s+platform\.staff_waha_session_health\s*\(\s*p_organization_id\s+UUID,\s*p_waha_session_name\s+TEXT\s*\)/i
+    );
     expect(platformManualWhatsAppSendWorkerMigration).toMatch(
       /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.claim_manual_whatsapp_send/i
     );

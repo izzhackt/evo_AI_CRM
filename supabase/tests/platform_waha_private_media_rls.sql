@@ -517,8 +517,8 @@ SET request.jwt.claims TO :'sales_a_claims';
 SET ROLE authenticated;
 SELECT COALESCE(jsonb_agg(row_to_json(message_row)), '[]'::JSONB)::TEXT
   AS staff_messages
-FROM platform.staff_conversation_messages(
-  :'org_a_id', :'first_conversation_id'
+FROM platform.staff_conversation_message_page(
+  :'org_a_id', :'first_conversation_id', 201, NULL, NULL
 ) AS message_row
 \gset
 SELECT count(*)::TEXT AS browser_storage_count

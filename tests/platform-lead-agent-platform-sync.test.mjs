@@ -7,6 +7,7 @@ import {
   PlatformLeadAgentSyncConfigurationError,
 } from "../src/lib/server/platform-lead-agent-sync-config.ts";
 import {
+  syncPlatformLeadAgentSessionStatus,
   syncPlatformLeadAgentWhatsApp,
   PlatformLeadAgentSyncError,
 } from "../src/lib/server/platform-lead-agent-sync.ts";
@@ -18,6 +19,10 @@ const CONVERSATION_ID = "44444444-4444-4444-8444-444444444444";
 const MESSAGE_ID = "55555555-5555-4555-8555-555555555555";
 const MIGRATION_URL = new URL(
   "../supabase/migrations/077_platform_manual_whatsapp_send_worker.sql",
+  import.meta.url,
+);
+const UNIFIED_MIGRATION_URL = new URL(
+  "../supabase/migrations/079_platform_unified_lead_agent_sync.sql",
   import.meta.url,
 );
 const ROUTE_URL = new URL(
@@ -56,6 +61,17 @@ function input(overrides = {}) {
   };
 }
 
+function sessionStatusInput(overrides = {}) {
+  return {
+    session: "crm_primary",
+    status: "WORKING",
+    phone: "996555123456",
+    providerOccurredAt: "2026-08-18T02:30:00.000Z",
+    payloadSha256: "b".repeat(64),
+    ...overrides,
+  };
+}
+
 test("Platform Lead-Agent sync is disabled by default and exact when enabled", () => {
   assert.deepEqual(loadPlatformLeadAgentSyncConfig({}), { enabled: false });
   const config = loadPlatformLeadAgentSyncConfig(environment());
@@ -73,6 +89,36 @@ test("Platform Lead-Agent sync is disabled by default and exact when enabled", (
       PlatformLeadAgentSyncConfigurationError,
     );
   }
+});
+
+test("disabled Platform configuration fails closed before persistence", async () => {
+  let calls = 0;
+  const repository = {
+    async persistVerifiedEvent() {
+      calls += 1;
+      throw new Error("must not run");
+    },
+    async projectVerifiedEvent() {
+      calls += 1;
+      throw new Error("must not run");
+    },
+  };
+
+  await assert.rejects(
+    syncPlatformLeadAgentWhatsApp(input(), {
+      config: { enabled: false },
+      repository,
+    }),
+    PlatformLeadAgentSyncError,
+  );
+  await assert.rejects(
+    syncPlatformLeadAgentSessionStatus(sessionStatusInput(), {
+      config: { enabled: false },
+      repository,
+    }),
+    PlatformLeadAgentSyncError,
+  );
+  assert.equal(calls, 0);
 });
 
 test("signed Lead-Agent sync persists verified evidence before idempotent projection", async () => {
@@ -110,6 +156,49 @@ test("signed Lead-Agent sync persists verified evidence before idempotent projec
   assert.equal(calls[1][1].amoAccountId, 101);
   assert.equal(calls[1][1].amoLeadId, 202);
   assert.equal(calls[1][1].amoContactId, 303);
+});
+
+test("signed Lead-Agent session health uses verified evidence and canonical projection", async () => {
+  const calls = [];
+  const repository = {
+    async persistVerifiedEvent(value) {
+      calls.push(["persist", value]);
+      return { providerWebhookEventId: EVENT_ID, deduplicated: false };
+    },
+    async projectSessionStatusEvent(value) {
+      calls.push(["project-session", value]);
+      return {
+        wahaSessionName: "crm_primary",
+        status: "WORKING",
+        observedAt: "2026-08-18T02:30:00.000Z",
+        currentStateUpdated: true,
+        deduplicated: false,
+      };
+    },
+  };
+
+  const result = await syncPlatformLeadAgentSessionStatus(sessionStatusInput(), {
+    config: loadPlatformLeadAgentSyncConfig(environment()),
+    repository,
+    requestIds: () => [
+      "88888888-8888-4888-8888-888888888888",
+      "99999999-9999-4999-8999-999999999999",
+    ],
+  });
+
+  assert.deepEqual(result, {
+    wahaSessionName: "crm_primary",
+    status: "WORKING",
+    observedAt: "2026-08-18T02:30:00.000Z",
+    currentStateUpdated: true,
+    deduplicated: false,
+  });
+  assert.deepEqual(calls.map(([name]) => name), ["persist", "project-session"]);
+  assert.equal(calls[0][1].providerAccountRef, "waha:crm_primary");
+  assert.equal(calls[0][1].eventType, "session.status");
+  assert.equal(calls[0][1].rawPayload.payload.name, "crm_primary");
+  assert.equal(calls[0][1].rawPayload.payload.status, "WORKING");
+  assert.equal(calls[1][1].providerWebhookEventId, EVENT_ID);
 });
 
 test("invalid canonical identity blocks before any database write", async () => {
@@ -152,13 +241,66 @@ test("migration binds crm_primary source evidence, amoCRM identity and audit", a
   assert.match(migration, /REVOKE ALL ON FUNCTION platform\.sync_lead_agent_whatsapp/);
 });
 
-test("the sole signed Lead-Agent route forwards account, chat and provider time", async () => {
+test("unified migration projects crm_primary session health into the canonical model", async () => {
+  const migration = await readFile(UNIFIED_MIGRATION_URL, "utf8");
+  assert.match(
+    migration,
+    /ADD CONSTRAINT waha_session_health_session_name_check[\s\S]*IN \('evo-inbox', 'crm_primary'\)/,
+  );
+  assert.match(
+    migration,
+    /ADD CONSTRAINT waha_session_observations_session_name_check[\s\S]*IN \('evo-inbox', 'crm_primary'\)/,
+  );
+  assert.match(
+    migration,
+    /CREATE OR REPLACE FUNCTION platform\.sync_lead_agent_session_status\(/,
+  );
+  assert.match(migration, /provider_account_ref <> 'waha:crm_primary'/);
+  assert.match(migration, /INSERT INTO platform_private\.waha_session_observations/);
+  assert.match(migration, /INSERT INTO platform\.waha_session_health/);
+  assert.match(migration, /communication\.leadagent\.sessionstatus/);
+  assert.match(
+    migration,
+    /DROP FUNCTION platform\.staff_waha_session_health\(UUID\)/,
+  );
+  assert.match(
+    migration,
+    /CREATE FUNCTION platform\.staff_waha_session_health\([\s\S]*p_waha_session_name TEXT/,
+  );
+  assert.match(
+    migration,
+    /health\.waha_session_name = p_waha_session_name/,
+  );
+  assert.doesNotMatch(
+    migration,
+    /CREATE (?:OR REPLACE )?FUNCTION platform\.staff_waha_session_health\(\s*p_organization_id UUID\s*\)/,
+  );
+  assert.doesNotMatch(
+    migration,
+    /CREATE TABLE (?:IF NOT EXISTS )?(?:platform|platform_private)\.[a-z_]*session_health/,
+  );
+  assert.match(
+    migration,
+    /REVOKE ALL ON FUNCTION platform\.sync_lead_agent_session_status/,
+  );
+  assert.match(
+    migration,
+    /GRANT EXECUTE ON FUNCTION platform\.staff_waha_session_health\(UUID, TEXT\)[\s\S]*TO authenticated/,
+  );
+});
+
+test("the sole signed Lead-Agent route is Supabase-native with no legacy dual-write", async () => {
   const route = await readFile(ROUTE_URL, "utf8");
   const leadPayload = await readFile(LEAD_PAYLOAD_URL, "utf8");
-  assert.match(route, /syncLeadAgentWhatsApp\([\s\S]*syncPlatformLeadAgentWhatsApp\(/);
-  assert.match(route, /chatId: chatId/);
-  assert.match(route, /amoAccountId: positiveInteger\(body\.amoAccountId\)/);
-  assert.match(route, /providerOccurredAt: optionalString\(body\.providerOccurredAt/);
+  assert.doesNotMatch(route, /@\/lib\/db/);
+  assert.doesNotMatch(route, /@\/lib\/whatsapp/);
+  assert.doesNotMatch(route, /\bsyncLeadAgentWhatsApp\b/);
+  assert.doesNotMatch(route, /\bupdateWahaAccountStatus\b/);
+  assert.match(route, /syncPlatformLeadAgentWhatsApp\(/);
+  assert.match(route, /syncPlatformLeadAgentSessionStatus\(/);
+  assert.match(route, /const chatId = boundedString\(body\.chatId[\s\S]*\n\s+chatId,/);
+  assert.match(route, /const amoAccountId = positiveInteger\(body\.amoAccountId\)/);
+  assert.match(route, /const providerOccurredAt = optionalString\(body\.providerOccurredAt/);
   assert.match(leadPayload, /"amoAccountId": payload\.amo_account_id/);
   assert.match(leadPayload, /"providerOccurredAt": payload\.provider_occurred_at/);
 });

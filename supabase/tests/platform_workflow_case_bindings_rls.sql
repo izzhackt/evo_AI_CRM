@@ -369,10 +369,10 @@ INSERT INTO platform.payment_obligations (
 SET request.jwt.claims TO :'bw2_admin_claims';
 SET ROLE authenticated;
 SELECT count(*)::TEXT AS bw2_admin_pending_queue
-FROM platform.staff_student_case_queue()
-WHERE student_case_id = :'bw2_case_id' \gset
+FROM platform.staff_student_case_page(101, NULL, NULL, NULL, NULL, :'bw2_case_id')
+WHERE access_mode = 'full' \gset
 SELECT count(*)::TEXT AS bw2_admin_pending_snapshot
-FROM platform.staff_student_case_snapshot(:'bw2_case_id')
+FROM platform.staff_student_case_read_snapshot(:'bw2_case_id')
 WHERE student_case_op_handoff_id = :'bw2_handoff_id'
   AND overdue_task_count = 1
   AND overdue_obligation_count = 1
@@ -425,10 +425,10 @@ SELECT pg_temp.assert_true(
 SET request.jwt.claims TO :'bw2_curator_claims';
 SET ROLE authenticated;
 SELECT count(*)::TEXT AS bw2_curator_queue
-FROM platform.staff_student_case_queue()
-WHERE student_case_id = :'bw2_case_id' \gset
+FROM platform.staff_student_case_page(101, NULL, NULL, NULL, NULL, :'bw2_case_id')
+WHERE access_mode = 'full' \gset
 SELECT count(*)::TEXT AS bw2_curator_snapshot
-FROM platform.staff_student_case_snapshot(:'bw2_case_id')
+FROM platform.staff_student_case_read_snapshot(:'bw2_case_id')
 WHERE approved_commercial_fields ->> 'service_package' = 'synthetic_standard'
   AND handoff_responsible_role = 'curator' \gset
 SELECT count(*)::TEXT AS bw2_curator_direct_handoff
@@ -452,7 +452,7 @@ SELECT platform.change_university_application(
   '52000000-0000-4000-8000-000000000626'
 );
 SELECT count(*)::TEXT AS bw2_curator_application_queue
-FROM platform.staff_application_queue()
+FROM platform.staff_application_page(101, NULL, NULL, NULL, NULL, :'bw2_application_id')
 WHERE university_application_id = :'bw2_application_id'
   AND status = 'submitted'
   AND latest_evidence_reference = 'synthetic-evidence:submission-001'
@@ -490,18 +490,19 @@ SELECT pg_temp.assert_true(
 SET request.jwt.claims TO :'bw2_sales_claims';
 SET ROLE authenticated;
 SELECT count(*)::TEXT AS bw2_sales_case_queue
-FROM platform.staff_student_case_queue()
-WHERE student_case_id = :'bw2_case_id' \gset
+FROM platform.staff_student_case_page(101, NULL, NULL, NULL, NULL, :'bw2_case_id')
+WHERE access_mode = 'full' \gset
 SELECT count(*)::TEXT AS bw2_sales_case_snapshot
-FROM platform.staff_student_case_snapshot(:'bw2_case_id') \gset
+FROM platform.staff_student_case_read_snapshot(:'bw2_case_id')
+WHERE access_mode = 'full' \gset
 SELECT count(*)::TEXT AS bw2_sales_application_snapshot
 FROM platform.staff_application_snapshot(:'bw2_application_id') \gset
 SELECT count(*)::TEXT AS bw2_sales_direct_handoff
 FROM platform.student_case_op_handoffs
 WHERE id = :'bw2_handoff_id' \gset
 SELECT count(*)::TEXT AS bw2_sales_safe_summary
-FROM platform.sales_handoff_summaries()
-WHERE case_id = :'bw2_case_id' \gset
+FROM platform.staff_student_case_read_snapshot(:'bw2_case_id')
+WHERE access_mode = 'sales_summary' \gset
 RESET ROLE;
 SELECT pg_temp.assert_true(
   :'bw2_sales_case_queue' = '0'
@@ -516,7 +517,7 @@ SELECT pg_temp.assert_true(
 SET request.jwt.claims TO :'bw2_student_claims';
 SET ROLE authenticated;
 SELECT count(*)::TEXT AS bw2_student_snapshot
-FROM platform.staff_student_case_snapshot(:'bw2_case_id') \gset
+FROM platform.staff_student_case_read_snapshot(:'bw2_case_id') \gset
 SELECT count(*)::TEXT AS bw2_student_handoff
 FROM platform.student_case_op_handoffs
 WHERE id = :'bw2_handoff_id' \gset
@@ -524,7 +525,7 @@ RESET ROLE;
 SET request.jwt.claims TO :'bw2_finance_claims';
 SET ROLE authenticated;
 SELECT count(*)::TEXT AS bw2_finance_snapshot
-FROM platform.staff_student_case_snapshot(:'bw2_case_id') \gset
+FROM platform.staff_student_case_read_snapshot(:'bw2_case_id') \gset
 SELECT count(*)::TEXT AS bw2_finance_handoff
 FROM platform.student_case_op_handoffs
 WHERE id = :'bw2_handoff_id' \gset
@@ -532,7 +533,7 @@ RESET ROLE;
 SET request.jwt.claims TO :'bw2_admin_b_claims';
 SET ROLE authenticated;
 SELECT count(*)::TEXT AS bw2_cross_org_case_snapshot
-FROM platform.staff_student_case_snapshot(:'bw2_case_id') \gset
+FROM platform.staff_student_case_read_snapshot(:'bw2_case_id') \gset
 SELECT count(*)::TEXT AS bw2_cross_org_application_snapshot
 FROM platform.staff_application_snapshot(:'bw2_application_id') \gset
 SELECT count(*)::TEXT AS bw2_cross_org_handoff

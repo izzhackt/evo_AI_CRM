@@ -142,6 +142,41 @@ export type PlatformStudentCaseView =
       studentCase: PlatformSalesHandoffSummary;
     }>;
 
+export type PlatformStudentCasePageItem =
+  | Readonly<{
+      access: "full";
+      studentCase: PlatformStudentCaseQueueRow;
+    }>
+  | Readonly<{
+      access: "sales_summary";
+      studentCase: PlatformSalesHandoffSummary;
+    }>;
+
+export type PlatformAdmissionsCursor = Readonly<{
+  sortAt: string;
+  id: string;
+}>;
+
+export type PlatformPageSlice<T> = Readonly<{
+  rows: readonly T[];
+  nextCursor: PlatformAdmissionsCursor | null;
+  hasNext: boolean;
+}>;
+
+export type PlatformStudentCasePageOptions = Readonly<{
+  cursor?: PlatformAdmissionsCursor | null;
+  pageSize?: number;
+  query?: string;
+  state?: PlatformStudentCaseState;
+}>;
+
+export type PlatformApplicationPageOptions = Readonly<{
+  cursor?: PlatformAdmissionsCursor | null;
+  pageSize?: number;
+  status?: PlatformApplicationStatus;
+  studentCaseId?: string;
+}>;
+
 export class PlatformAdmissionsRepositoryError extends Error {
   constructor() {
     super(SAFE_REPOSITORY_ERROR_MESSAGE);
@@ -156,6 +191,28 @@ function invalidShape(): never {
 function failClosed(error: unknown): never {
   if (error instanceof PlatformAdmissionsRepositoryError) throw error;
   return invalidShape();
+}
+
+function normalizePageSize(value: number | undefined, fallback: number): number {
+  return Number.isSafeInteger(value) && value && value > 0 && value <= 100
+    ? value
+    : fallback;
+}
+
+export function parsePlatformAdmissionsCursor(
+  sortAt: unknown,
+  id: unknown,
+): PlatformAdmissionsCursor | null {
+  const parsedSortAt =
+    typeof sortAt === "string" &&
+    TIMESTAMPTZ_PATTERN.test(sortAt) &&
+    Number.isFinite(Date.parse(sortAt))
+      ? sortAt
+      : null;
+  const parsedId = parsePlatformAdmissionsUuid(id);
+  return parsedSortAt && parsedId
+    ? Object.freeze({ sortAt: parsedSortAt, id: parsedId })
+    : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -543,40 +600,73 @@ export async function getPlatformOpWorkflowContract(
   }
 }
 
-export async function listPlatformStudentCases(actor: PlatformActor): Promise<
-  Readonly<{
-    cases: readonly PlatformStudentCaseQueueRow[];
-    handoffSummaries: readonly PlatformSalesHandoffSummary[];
-  }>
-> {
+export async function listPlatformStudentCases(
+  actor: PlatformActor,
+  options?: PlatformStudentCasePageOptions,
+): Promise<PlatformPageSlice<PlatformStudentCasePageItem>> {
   try {
     const organizationId = requireAdmissionsOrganization(actor);
     const client = await getPlatformClient();
-    const queuePromise = client
-      .schema("platform")
-      .rpc("staff_student_case_queue", undefined, { get: true });
-    const summaryPromise =
-      actor.platformRole === "sales"
-        ? client
-            .schema("platform")
-            .rpc("sales_handoff_summaries", undefined, { get: true })
-        : Promise.resolve({ data: [], error: null });
-    const [queueResponse, summaryResponse] = await Promise.all([
-      queuePromise,
-      summaryPromise,
-    ]);
-    if (queueResponse.error || summaryResponse.error) return invalidShape();
+    const pageSize = normalizePageSize(options?.pageSize, 50);
+    const cursor = options?.cursor ?? null;
+    const response = await client.schema("platform").rpc(
+      "staff_student_case_page",
+      {
+        p_limit: pageSize + 1,
+        p_before_sort_at: cursor?.sortAt ?? null,
+        p_before_student_case_id: cursor?.id ?? null,
+        p_state: options?.state ?? null,
+        p_query: options?.query?.trim() || null,
+        p_student_case_id: null,
+      },
+      { get: true },
+    );
+    if (response.error || !Array.isArray(response.data)) return invalidShape();
+
+    const seenIds = new Set<string>();
+    const normalized = response.data.map((raw) => {
+      if (!isRecord(raw)) return invalidShape();
+      const rowCursor = parsePlatformAdmissionsCursor(
+        raw.sort_at,
+        raw.student_case_id,
+      );
+      if (rowCursor === null || seenIds.has(rowCursor.id)) return invalidShape();
+      seenIds.add(rowCursor.id);
+
+      if (raw.access_mode === "full") {
+        return Object.freeze({
+          access: "full" as const,
+          cursor: rowCursor,
+          row: normalizePlatformStudentCaseQueueRow(raw, organizationId),
+        });
+      }
+      if (raw.access_mode === "sales_summary") {
+        return Object.freeze({
+          access: "sales_summary" as const,
+          cursor: rowCursor,
+          row: normalizePlatformSalesHandoffSummary({
+            case_id: raw.student_case_id,
+            student_display_name: raw.student_display_name,
+            target_country: raw.target_country,
+            target_degree: raw.target_degree,
+            case_state: raw.state,
+            assigned_curator_display_name: raw.current_curator_display_name,
+            handoff_at: raw.handoff_at,
+          }),
+        });
+      }
+      return invalidShape();
+    });
+    const hasNext = normalized.length > pageSize;
+    const page = normalized.slice(0, pageSize);
+    const nextCursor = hasNext ? page.at(-1)?.cursor ?? null : null;
     return {
-      cases: normalizeRows(
-        queueResponse.data,
-        (row) => normalizePlatformStudentCaseQueueRow(row, organizationId),
-        (row) => row.studentCaseId,
-      ),
-      handoffSummaries: normalizeRows(
-        summaryResponse.data,
-        normalizePlatformSalesHandoffSummary,
-        (row) => row.studentCaseId,
-      ),
+      rows: page.map((entry): PlatformStudentCasePageItem =>
+        entry.access === "full"
+          ? Object.freeze({ access: "full", studentCase: entry.row })
+          : Object.freeze({ access: "sales_summary", studentCase: entry.row })),
+      nextCursor,
+      hasNext,
     };
   } catch (error) {
     return failClosed(error);
@@ -595,33 +685,38 @@ export async function getPlatformStudentCaseView(
     const response = await client
       .schema("platform")
       .rpc(
-        "staff_student_case_snapshot",
+        "staff_student_case_read_snapshot",
         { p_student_case_id: studentCaseId },
         { get: true },
       );
     if (response.error || !Array.isArray(response.data)) return invalidShape();
-    if (response.data.length > 1) return invalidShape();
-    if (response.data.length === 1) {
+    if (response.data.length === 0) return null;
+    if (response.data.length !== 1 || !isRecord(response.data[0])) {
+      return invalidShape();
+    }
+    const row = response.data[0];
+    if (row.access_mode === "full") {
       return {
         access: "full",
         studentCase: normalizePlatformStudentCaseSnapshot(
-          response.data[0],
+          row,
           organizationId,
         ),
       };
     }
-    if (actor.platformRole !== "sales") return null;
-    const summaries = await client
-      .schema("platform")
-      .rpc("sales_handoff_summaries", undefined, { get: true });
-    if (summaries.error) return invalidShape();
-    const rows = normalizeRows(
-      summaries.data,
-      normalizePlatformSalesHandoffSummary,
-      (row) => row.studentCaseId,
-    );
-    const summary = rows.find((row) => row.studentCaseId === studentCaseId);
-    return summary ? { access: "sales_summary", studentCase: summary } : null;
+    if (row.access_mode !== "sales_summary") return invalidShape();
+    return {
+      access: "sales_summary",
+      studentCase: normalizePlatformSalesHandoffSummary({
+        case_id: row.student_case_id,
+        student_display_name: row.student_display_name,
+        target_country: row.target_country,
+        target_degree: row.target_degree,
+        case_state: row.state,
+        assigned_curator_display_name: row.current_curator_display_name,
+        handoff_at: row.handoff_at,
+      }),
+    };
   } catch (error) {
     return failClosed(error);
   }
@@ -629,22 +724,56 @@ export async function getPlatformStudentCaseView(
 
 export async function listPlatformApplications(
   actor: PlatformActor,
-): Promise<readonly PlatformApplicationQueueRow[]> {
+  options?: PlatformApplicationPageOptions,
+): Promise<PlatformPageSlice<PlatformApplicationQueueRow>> {
   try {
     const organizationId = requireAdmissionsOrganization(actor);
+    const studentCaseId = options?.studentCaseId
+      ? parsePlatformAdmissionsUuid(options.studentCaseId)
+      : null;
+    if (options?.studentCaseId && studentCaseId === null) return invalidShape();
     const client = await getPlatformClient();
-    const response = await client
-      .schema("platform")
-      .rpc("staff_application_queue", undefined, { get: true });
+    const pageSize = normalizePageSize(options?.pageSize, 50);
+    const cursor = options?.cursor ?? null;
+    const response = await client.schema("platform").rpc(
+      "staff_application_page",
+      {
+        p_limit: pageSize + 1,
+        p_before_updated_at: cursor?.sortAt ?? null,
+        p_before_application_id: cursor?.id ?? null,
+        p_status: options?.status ?? null,
+        p_student_case_id: studentCaseId,
+        p_application_id: null,
+      },
+      { get: true },
+    );
     if (response.error) return invalidShape();
-    return normalizeRows(
+    const rows = normalizeRows(
       response.data,
       (row) => normalizePlatformApplicationQueueRow(row, organizationId),
       (row) => row.universityApplicationId,
     );
+    const hasNext = rows.length > pageSize;
+    const page = rows.slice(0, pageSize);
+    const last = page.at(-1);
+    return {
+      rows: page,
+      nextCursor: hasNext && last
+        ? Object.freeze({ sortAt: last.updatedAt, id: last.universityApplicationId })
+        : null,
+      hasNext,
+    };
   } catch (error) {
     return failClosed(error);
   }
+}
+
+export async function listPlatformApplicationsForStudentCase(
+  actor: PlatformActor,
+  studentCaseId: string,
+  options?: Omit<PlatformApplicationPageOptions, "studentCaseId">,
+): Promise<PlatformPageSlice<PlatformApplicationQueueRow>> {
+  return listPlatformApplications(actor, { ...options, studentCaseId });
 }
 
 export async function getPlatformApplication(

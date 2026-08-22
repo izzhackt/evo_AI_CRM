@@ -14,6 +14,7 @@ const SAFE_REPOSITORY_ERROR_MESSAGE =
 
 export type PlatformConversationQueue = "sales" | "curator";
 export type PlatformConversationStatus = "open" | "closed";
+export type PlatformWahaSessionName = "evo-inbox" | "crm_primary";
 export type PlatformMessageDirection = "inbound" | "outbound";
 export type PlatformMessageLanguage = "ru" | "en" | "undetermined";
 export type PlatformMessageWahaAckName =
@@ -54,13 +55,14 @@ export type PlatformConversationSummary = Readonly<{
   queue: PlatformConversationQueue;
   status: PlatformConversationStatus;
   subject: string;
-  wahaSessionName: string;
+  wahaSessionName: PlatformWahaSessionName;
   kommoAccountId: string | null;
   kommoConversationId: string | null;
   amocrmAccountId: string | null;
   amocrmLeadId: string | null;
   amocrmContactId: string | null;
   createdAt: string;
+  sortAt: string;
 }>;
 
 export type PlatformConversationMessage = Readonly<{
@@ -85,7 +87,7 @@ export type PlatformConversationMessage = Readonly<{
 }>;
 
 export type PlatformWahaSessionHealth = Readonly<{
-  sessionName: string;
+  sessionName: PlatformWahaSessionName;
   status: string;
   observedAt: string;
 }>;
@@ -93,6 +95,31 @@ export type PlatformWahaSessionHealth = Readonly<{
 export type PlatformConversationThread = Readonly<{
   conversation: PlatformConversationSummary;
   messages: readonly PlatformConversationMessage[];
+  nextMessageCursor: PlatformConversationCursor | null;
+  hasOlderMessages: boolean;
+}>;
+
+export type PlatformConversationCursor = Readonly<{
+  sortAt: string;
+  id: string;
+}>;
+
+export type PlatformPageSlice<T> = Readonly<{
+  rows: readonly T[];
+  nextCursor: PlatformConversationCursor | null;
+  hasNext: boolean;
+}>;
+
+export type PlatformConversationPageOptions = Readonly<{
+  cursor?: PlatformConversationCursor | null;
+  pageSize?: number;
+  queue?: PlatformConversationQueue;
+  status?: PlatformConversationStatus;
+}>;
+
+export type PlatformMessagePageOptions = Readonly<{
+  cursor?: PlatformConversationCursor | null;
+  pageSize?: number;
 }>;
 
 /**
@@ -335,6 +362,29 @@ function failClosed(error: unknown): never {
   throw new PlatformCommunicationsRepositoryError();
 }
 
+function normalizePageSize(value: number | undefined, fallback: number): number {
+  return Number.isSafeInteger(value) && value && value > 0 && value <= 100
+    ? value
+    : fallback;
+}
+
+export function parsePlatformConversationCursor(
+  sortAt: unknown,
+  id: unknown,
+): PlatformConversationCursor | null {
+  const parsedSortAt = parseTimestamp(sortAt);
+  const parsedId = parsePlatformRouteUuid(id);
+  return parsedSortAt && parsedId
+    ? Object.freeze({ sortAt: parsedSortAt, id: parsedId })
+    : null;
+}
+
+export function parsePlatformWahaSessionName(
+  value: unknown,
+): PlatformWahaSessionName | null {
+  return value === "evo-inbox" || value === "crm_primary" ? value : null;
+}
+
 /**
  * Converts the unknown PostgREST row into the only shape accepted by the UI.
  * It is exported so the boundary contract can be unit-tested without a live
@@ -351,7 +401,7 @@ export function normalizePlatformConversationSummary(
       ? null
       : parsePlatformRouteUuid(value.student_case_id);
   const subject = parseRequiredText(value.subject);
-  const wahaSessionName = parseRequiredText(value.waha_session_name);
+  const wahaSessionName = parsePlatformWahaSessionName(value.waha_session_name);
   const kommoAccountId = parseOptionalProviderInteger(value.kommo_account_id);
   const kommoConversationId = parseOptionalProviderText(
     value.kommo_conversation_id,
@@ -364,6 +414,7 @@ export function normalizePlatformConversationSummary(
     value.amocrm_contact_id,
   );
   const createdAt = parseTimestamp(value.created_at);
+  const sortAt = parseTimestamp(value.sort_at);
 
   if (
     id === null ||
@@ -377,7 +428,8 @@ export function normalizePlatformConversationSummary(
     amocrmAccountId === undefined ||
     amocrmLeadId === undefined ||
     amocrmContactId === undefined ||
-    createdAt === null
+    createdAt === null ||
+    sortAt === null
   ) {
     return invalidShape();
   }
@@ -395,6 +447,7 @@ export function normalizePlatformConversationSummary(
     amocrmLeadId,
     amocrmContactId,
     createdAt,
+    sortAt,
   };
 }
 
@@ -487,11 +540,11 @@ export function normalizePlatformWahaSessionHealth(
 ): PlatformWahaSessionHealth {
   if (!isRecord(value)) return invalidShape();
 
-  const sessionName = parseRequiredText(value.waha_session_name);
+  const sessionName = parsePlatformWahaSessionName(value.waha_session_name);
   const status = parseRequiredText(value.status);
   const observedAt = parseTimestamp(value.observed_at);
   if (
-    sessionName !== "evo-inbox" ||
+    sessionName === null ||
     status === null ||
     !/^[A-Z][A-Z0-9_]{0,63}$/.test(status) ||
     observedAt === null
@@ -561,24 +614,49 @@ function normalizeMessageRows(
 
 export async function listPlatformConversations(
   actor: PlatformActor,
-): Promise<readonly PlatformConversationSummary[]> {
+  options?: PlatformConversationPageOptions,
+): Promise<PlatformPageSlice<PlatformConversationSummary>> {
   try {
     const organizationId = requireMessagingOrganization(actor);
     const client = await getPlatformClient();
-    const response = await client
-      .schema("platform")
-      .rpc("staff_communication_queue", {
+    const pageSize = normalizePageSize(options?.pageSize, 50);
+    const cursor = options?.cursor ?? null;
+    const response = await client.schema("platform").rpc(
+      "staff_communication_page",
+      {
         p_organization_id: organizationId,
-      }, {
-        get: true,
-      });
+        p_limit: pageSize + 1,
+        p_before_sort_at: cursor?.sortAt ?? null,
+        p_before_conversation_id: cursor?.id ?? null,
+        p_queue: options?.queue ?? null,
+        p_status: options?.status ?? null,
+        p_conversation_id: null,
+      },
+      { get: true },
+    );
 
     if (response.error) return invalidShape();
 
-    // The RPC orders by the latest guarded conversation or verified provider
-    // observation, then id. Preserve that authoritative queue order rather than
-    // inventing a weaker client-side ordering.
-    return normalizeConversationRows(response.data);
+    // The RPC orders by the latest guarded conversation or persisted message,
+    // then id. Preserve that authoritative queue order rather than inventing a
+    // weaker client-side ordering.
+    if (!Array.isArray(response.data)) return invalidShape();
+    const seenIds = new Set<string>();
+    const normalized = response.data.map((raw) => {
+      if (!isRecord(raw)) return invalidShape();
+      const row = normalizePlatformConversationSummary(raw);
+      const rowCursor = parsePlatformConversationCursor(row.sortAt, row.id);
+      if (rowCursor === null || seenIds.has(row.id)) return invalidShape();
+      seenIds.add(row.id);
+      return Object.freeze({ row, cursor: rowCursor });
+    });
+    const hasNext = normalized.length > pageSize;
+    const page = normalized.slice(0, pageSize);
+    return {
+      rows: page.map((entry) => entry.row),
+      nextCursor: hasNext ? page.at(-1)?.cursor ?? null : null,
+      hasNext,
+    };
   } catch (error) {
     return failClosed(error);
   }
@@ -587,6 +665,7 @@ export async function listPlatformConversations(
 export async function getPlatformConversationThread(
   actor: PlatformActor,
   id: string,
+  options?: PlatformMessagePageOptions,
 ): Promise<PlatformConversationThread | null> {
   try {
     const organizationId = requireMessagingOrganization(actor);
@@ -594,44 +673,62 @@ export async function getPlatformConversationThread(
     if (conversationId === null) return null;
 
     const client = await getPlatformClient();
-    const queueResponse = await client
+    const summaryResponse = await client
       .schema("platform")
-      .rpc("staff_communication_queue", {
+      .rpc("staff_communication_snapshot", {
         p_organization_id: organizationId,
-      }, {
-        get: true,
-      });
+        p_conversation_id: conversationId,
+      }, { get: true });
 
-    if (queueResponse.error) return invalidShape();
+    if (
+      summaryResponse.error ||
+      !Array.isArray(summaryResponse.data) ||
+      summaryResponse.data.length > 1
+    ) {
+      return invalidShape();
+    }
 
-    const conversations = normalizeConversationRows(queueResponse.data);
-    const conversation =
-      conversations.find((candidate) => candidate.id === conversationId) ??
-      null;
+    const conversations = normalizeConversationRows(summaryResponse.data);
+    const conversation = conversations[0] ?? null;
 
     // Absence from the RLS-scoped queue is deliberately indistinguishable
     // from a nonexistent conversation.
     if (conversation === null) return null;
 
-    const messagesResponse = await client
-      .schema("platform")
-      .rpc("staff_conversation_messages", {
+    const pageSize = normalizePageSize(options?.pageSize, 100);
+    const cursor = options?.cursor ?? null;
+    const messagesResponse = await client.schema("platform").rpc(
+      "staff_conversation_message_page",
+      {
         p_organization_id: organizationId,
         p_conversation_id: conversationId,
-      }, {
-        get: true,
-      });
+        p_limit: pageSize + 1,
+        p_before_created_at: cursor?.sortAt ?? null,
+        p_before_message_id: cursor?.id ?? null,
+      },
+      { get: true },
+    );
 
     if (messagesResponse.error) return invalidShape();
 
-    // The RPC orders by created_at ASC and id. Preserve that order after
-    // validating that every row belongs to the requested conversation.
-    const messages = normalizeMessageRows(
+    // The RPC returns newest-first so the keyset can move toward older data.
+    // Reverse only the visible page for the transcript's chronological UI.
+    const newestFirst = normalizeMessageRows(
       messagesResponse.data,
       conversationId,
     );
+    const hasOlderMessages = newestFirst.length > pageSize;
+    const pageNewestFirst = newestFirst.slice(0, pageSize);
+    const oldestVisible = pageNewestFirst.at(-1);
 
-    return { conversation, messages };
+    return {
+      conversation,
+      messages: [...pageNewestFirst].reverse(),
+      nextMessageCursor: hasOlderMessages && oldestVisible
+        ? Object.freeze({ sortAt: oldestVisible.createdAt, id: oldestVisible.id })
+        : null,
+      hasOlderMessages,
+    };
   } catch (error) {
     return failClosed(error);
   }
@@ -639,14 +736,18 @@ export async function getPlatformConversationThread(
 
 export async function getPlatformWahaSessionHealth(
   actor: PlatformActor,
+  sessionName: PlatformWahaSessionName,
 ): Promise<PlatformWahaSessionHealth | null> {
   try {
     const organizationId = requireMessagingOrganization(actor);
+    const requestedSessionName = parsePlatformWahaSessionName(sessionName);
+    if (requestedSessionName === null) return invalidShape();
     const client = await getPlatformClient();
     const response = await client
       .schema("platform")
       .rpc("staff_waha_session_health", {
         p_organization_id: organizationId,
+        p_waha_session_name: requestedSessionName,
       }, {
         get: true,
       });
@@ -655,9 +756,9 @@ export async function getPlatformWahaSessionHealth(
       return invalidShape();
     }
 
-    return response.data.length === 0
-      ? null
-      : normalizePlatformWahaSessionHealth(response.data[0]);
+    if (response.data.length === 0) return null;
+    const health = normalizePlatformWahaSessionHealth(response.data[0]);
+    return health.sessionName === requestedSessionName ? health : invalidShape();
   } catch (error) {
     return failClosed(error);
   }

@@ -9927,39 +9927,35 @@ Research basis: <https://supabase.com/docs/guides/getting-started/architecture>,
 Reviewer notes: independent correctness re-review confirmed the one-product
 Supabase boundary and found no remaining blocking finding in this change set.
 
-## 2026-08-23 (+06; 2026-08-22 UTC) — Canonical public entry stays unified while Inbox remains fallback-only
+## 2026-08-23 (+06; 2026-08-22 UTC) — Defer canonical DNS/TLS and reconcile the server release path
 
 Date: 2026-08-23 in the workspace timezone (+06); the corresponding GitHub
 events are dated 2026-08-22 in UTC.
 Author: Codex.
-Change type: public edge routing and release reconciliation.
-Affected plan sections: target entry point, edge routing, release inputs,
+Change type: owner-authorized scope reduction and release reconciliation.
+Affected plan sections: DNS/TLS gate, server access URL, release inputs, and
 rollback boundary.
-Reason: the all-in-one decision makes `crm.evoadmissions.com` the only
-canonical operator entry, but the audited production hotfix still pointed
-`inbox.evoadmissions.com` at a standalone Inbox runtime. Keeping that as a
-peer public application would preserve the old two-product model in the most
-visible place even if the internal architecture moved on.
-Decision: keep one public product entry. `crm.evoadmissions.com` remains the
-canonical Platform host, `inbox.evoadmissions.com` may exist only as an HTTP
-redirect to the CRM WhatsApp module, and the retained Inbox runtime stays
-available only through the `evo-inbox.72.62.119.112.sslip.io` fallback host for
-rollback and migration checks. At the same time, reconcile the controlled
-release runbook to the audited hybrid filesystem layout: Inbox secrets are read
-from `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env*`, reviewed deploy/Caddy
-artifacts are copied from `/opt/evo-inbox/agent-lead2-inbox/deploy/*`, and the
-intentionally absent CRM manual-send worker continues to use
-`EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE=/dev/null`.
-Validation impact: validate the candidate Caddyfile before deployment, verify
-the exact reviewed release SHA on `hermes-vps`, preserve one rollback image per
-first-party service, prove the fallback `sslip.io` host remains reachable, and
-claim canonical DNS/TLS only after real `crm.evoadmissions.com` and
-`inbox.evoadmissions.com` records exist and Caddy issues certificates.
+Reason: the owner explicitly deferred canonical DNS/TLS as non-essential for
+the current stage and chose the existing server HTTPS address for ordinary
+validation. Canonical domains must therefore stop blocking the controlled
+server rollout, without being misreported as configured.
+Decision: use `https://evo-crm.72.62.119.112.sslip.io` as the current Platform
+entry and leave `crm.evoadmissions.com` and `inbox.evoadmissions.com` unchanged.
+Do not perform DNS-provider changes or claim canonical TLS. Keep the repository
+edge source on its existing `sslip.io` routes for this release. Reconcile only
+the release runbook with the audited hybrid filesystem layout: Inbox secrets
+remain under `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env*`, reviewed deploy
+artifacts come from `/opt/evo-inbox/agent-lead2-inbox/deploy/*`, and the
+intentionally absent CRM manual-send worker uses
+`EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE=/dev/null` during Compose parsing.
+Validation impact: validate the unchanged server Caddy source, verify the exact
+reviewed release SHA on `hermes-vps`, preserve one rollback image per
+first-party service, and prove the CRM `sslip.io` health, login and authenticated
+read paths. DNS/TLS is deferred rather than passed.
 Deviation record: a delegated operator deployed temporary revision
 `2c38a325e85fe798ccece31c4e91db909a49246d` before its conflicting PR #369 was
 reviewed or merged. That release kept outbound WhatsApp and amoCRM writes off,
-but routed the canonical Inbox host to the old standalone app. PR #369 is
-superseded, and this clean PR defines the forward reconciliation; production
-must be rebuilt and checked at the eventual exact merged `main` SHA before it
-can be called aligned or live-ready.
+and added unused canonical host blocks. PR #369 is superseded, and this clean
+PR defines the narrower forward reconciliation; production must be rebuilt and
+checked at the eventual exact merged `main` SHA before it can be called aligned.
 Reviewer notes: pending exact-head CI and independent release gate.

@@ -1,6 +1,12 @@
 import { createHmac } from "crypto";
 
-export function createScenarios({ assert, rowCount, scalar, unique }) {
+export function createScenarios({
+  assert,
+  leadAgentSyncSecret,
+  rowCount,
+  scalar,
+  unique,
+}) {
 const admin = "admin@demo.kg";
 const sales = "sales@demo.kg";
 const curator = "curator@demo.kg";
@@ -937,64 +943,64 @@ return [
   },
   {
     id: "S28C",
-    capability: "Lead-agent CRM sync",
-    scenario: "Signed lead-agent sync persists receive-only draft review evidence without creating sent outbound WhatsApp.",
-    criteria: "Bad signatures are rejected; signed sync stores inbound state, amoCRM identity, agent state, and Gemini draft-review text; Operator UI labels the draft as not sent.",
+    capability: "Lead Agent Platform sync boundary",
+    scenario: "The legacy SQLite harness proves that signed Lead Agent events fail closed when canonical Supabase persistence is unavailable.",
+    criteria: "Bad signatures return exact invalid_signature; a valid canonical crm_primary event reaches the Supabase-only boundary and returns exact platform_sync_failed without mutating legacy SQLite tables.",
     async run(ctx) {
-      const session = `crm_sync_${Math.random().toString(36).slice(2, 8)}`;
-      const syncSecret = unique("lead-agent-sync");
-      await ctx.submit("/settings", ctx.cookie(admin), {
-        names: [
-          "wa_provider",
-          "waha_account_name",
-          "waha_base_url",
-          "waha_session_name",
-          "waha_api_key",
-          "waha_webhook_secret",
-          "lead_agent_sync_secret",
-        ],
-      }, {
-        wa_provider: "waha",
-        waha_account_name: "Scenario lead-agent",
-        waha_base_url: "http://127.0.0.1:3000",
-        waha_session_name: session,
-        waha_api_key: unique("waha-api"),
-        waha_webhook_secret: unique("waha-hook"),
-        lead_agent_sync_secret: syncSecret,
-      });
-
       const inboundWaId = unique("lead-agent-in");
-      const phone = `+996700${Math.floor(100000 + Math.random() * 899999)}`;
+      const phoneDigits = `996700${Math.floor(100000 + Math.random() * 899999)}`;
       const amoLeadId = Math.floor(4_200_000 + Math.random() * 100_000);
       const amoContactId = Math.floor(8_400_000 + Math.random() * 100_000);
-      const draftText = "Gemini draft review: ask the lead for IELTS score, target intake, and preferred German universities.";
+      const amoAccountId = Math.floor(9_100_000 + Math.random() * 100_000);
       const payload = {
         event: "whatsapp.message",
-        session,
-        phone,
+        session: "crm_primary",
+        phone: `+${phoneDigits}`,
+        chatId: `${phoneDigits}@c.us`,
         pushName: "Scenario Draft Lead",
         text: "I want to study in Germany next intake.",
         providerMessageId: inboundWaId,
+        providerOccurredAt: new Date().toISOString(),
+        amoAccountId,
         amoLeadId,
         amoContactId,
-        agentState: "draft_review_ready",
-        agentSummary: "Resolved to marked amoCRM test identity before CRM sync.",
-        draftReviewText: draftText,
-        draftReviewStatus: "generated",
-        draftReviewProvider: "gemini",
-        draftReviewModel: "gemini-3.5-flash",
-        outboundText: draftText,
       };
+      const legacyBefore = {
+        leads: rowCount(ctx, "leads"),
+        conversations: rowCount(ctx, "wa_conversations"),
+        messages: rowCount(ctx, "wa_messages"),
+        matchingLeads: rowCount(
+          ctx,
+          "leads",
+          "amo_lead_id = ? OR amo_contact_id = ?",
+          [amoLeadId, amoContactId],
+        ),
+        matchingConversations: rowCount(
+          ctx,
+          "wa_conversations",
+          "amo_lead_id = ? OR amo_contact_id = ?",
+          [amoLeadId, amoContactId],
+        ),
+        matchingMessages: rowCount(ctx, "wa_messages", "wa_id = ?", [inboundWaId]),
+      };
+      assert(
+        legacyBefore.matchingLeads === 0
+          && legacyBefore.matchingConversations === 0
+          && legacyBefore.matchingMessages === 0,
+        "Lead Agent scenario identifiers unexpectedly collide with legacy SQLite fixtures",
+      );
 
       const rejected = await ctx.postJson("/api/internal/lead-agent/whatsapp", payload, {
         headers: { "x-evo-agent-timestamp": String(Math.floor(Date.now() / 1000)), "x-evo-agent-signature": "bad" },
       });
       assert(rejected.status === 403, `bad lead-agent sync status ${rejected.status}`);
+      const rejectedBody = JSON.parse(rejected.text);
+      assert(rejectedBody.error === "invalid_signature", `bad signature error ${rejectedBody.error}`);
 
       const rawBody = JSON.stringify(payload);
       const timestamp = String(Math.floor(Date.now() / 1000));
-      const signature = createHmac("sha256", syncSecret).update(`${timestamp}.${rawBody}`).digest("hex");
-      const accepted = await ctx.request("POST", "/api/internal/lead-agent/whatsapp", {
+      const signature = createHmac("sha256", leadAgentSyncSecret).update(`${timestamp}.${rawBody}`).digest("hex");
+      const unavailable = await ctx.request("POST", "/api/internal/lead-agent/whatsapp", {
         body: rawBody,
         headers: {
           "content-type": "application/json",
@@ -1003,44 +1009,39 @@ return [
           "x-evo-agent-signature-algorithm": "sha256",
         },
       });
-      assert(accepted.status === 200, `signed lead-agent sync status ${accepted.status}: ${accepted.text}`);
-      const acceptedBody = JSON.parse(accepted.text);
-      assert(acceptedBody.insertedInbound === true, "signed sync did not insert inbound message");
-      assert(acceptedBody.insertedOutbound === false, "receive-only draft sync inserted outbound message");
+      assert(
+        unavailable.status === 503,
+        `signed Lead Agent event without Supabase status ${unavailable.status}: ${unavailable.text}`,
+      );
+      const unavailableBody = JSON.parse(unavailable.text);
+      assert(
+        unavailableBody.error === "platform_sync_failed",
+        `unavailable Supabase error ${unavailableBody.error}`,
+      );
 
-      const conv = scalar(ctx, `
-        SELECT id, lead_id, amo_lead_id, amo_contact_id, agent_state,
-          agent_draft_review_text, agent_draft_review_status,
-          agent_draft_review_provider, agent_draft_review_model
-        FROM wa_conversations
-        WHERE amo_lead_id = ?
-      `, [amoLeadId]);
-      assert(conv?.amo_contact_id === amoContactId, "conversation did not persist amoCRM identity");
-      assert(conv.agent_state === "draft_review_ready", `unexpected agent state ${conv.agent_state}`);
-      assert(conv.agent_draft_review_text === draftText, "conversation did not persist draft review text");
-      assert(conv.agent_draft_review_provider === "gemini", "conversation did not persist draft review provider");
-
-      const lead = scalar(ctx, `
-        SELECT amo_lead_id, amo_contact_id, agent_state, agent_draft_review_text
-        FROM leads
-        WHERE id = ?
-      `, [conv.lead_id]);
-      assert(lead?.amo_lead_id === amoLeadId && lead.amo_contact_id === amoContactId, "lead did not persist amoCRM identity");
-      assert(lead.agent_state === "draft_review_ready" && lead.agent_draft_review_text === draftText, "lead did not persist agent draft state");
-
-      const inboundRows = rowCount(ctx, "wa_messages", "conversation_id = ? AND direction = 'in' AND status = 'received'", [conv.id]);
-      const outboundRows = rowCount(ctx, "wa_messages", "conversation_id = ? AND direction = 'out'", [conv.id]);
-      assert(inboundRows === 1, `expected one received inbound row, got ${inboundRows}`);
-      assert(outboundRows === 0, `expected no outbound rows, got ${outboundRows}`);
-
-      const page = await ctx.get(`/whatsapp/${conv.id}`, ctx.cookie(admin));
-      assert(page.status === 200, `operator conversation page ${page.status}`);
-      assert(page.text.includes("Черновик на проверку"), "Operator UI did not label draft review");
-      assert(page.text.includes("не отправлено"), "Operator UI did not mark draft as not sent");
-      assert(page.text.includes("gemini-3.5-flash"), "Operator UI did not show draft model evidence");
-      assert(page.text.includes("I want to study in Germany next intake."), "Operator UI did not show inbound message");
-      assert(!page.text.includes("✓✓"), "Operator UI rendered a sent marker for receive-only draft sync");
-      return `signed sync accepted conversation ${conv.id}; rejected bad signature; draft visible with ${outboundRows} outbound rows`;
+      const legacyAfter = {
+        leads: rowCount(ctx, "leads"),
+        conversations: rowCount(ctx, "wa_conversations"),
+        messages: rowCount(ctx, "wa_messages"),
+        matchingLeads: rowCount(
+          ctx,
+          "leads",
+          "amo_lead_id = ? OR amo_contact_id = ?",
+          [amoLeadId, amoContactId],
+        ),
+        matchingConversations: rowCount(
+          ctx,
+          "wa_conversations",
+          "amo_lead_id = ? OR amo_contact_id = ?",
+          [amoLeadId, amoContactId],
+        ),
+        matchingMessages: rowCount(ctx, "wa_messages", "wa_id = ?", [inboundWaId]),
+      };
+      assert(
+        JSON.stringify(legacyAfter) === JSON.stringify(legacyBefore),
+        `Supabase-only Lead Agent route mutated legacy SQLite: before=${JSON.stringify(legacyBefore)} after=${JSON.stringify(legacyAfter)}`,
+      );
+      return "bad signature rejected; valid canonical event failed closed at unavailable Supabase boundary; zero legacy SQLite mutations";
     },
   },
   {

@@ -4328,3 +4328,59 @@ Research basis: [Next.js proxy execution and testing](https://nextjs.org/docs/ap
 [Supabase range pagination](https://supabase.com/docs/reference/javascript/using-modifiers-range),
 [PostgREST table-valued functions](https://postgrest.org/en/latest/references/api/functions.html),
 and [PostgreSQL deterministic LIMIT/OFFSET](https://www.postgresql.org/docs/current/queries-limit.html).
+
+## 2026-08-22 exact-main audit correction
+
+The exact current `origin/main`
+`ee8a825ebc72f84449636e3feaefab7a330913d4` no longer matches the full
+pre-change P8R2 defect baseline. On this SHA, the repository already contains
+bounded Supabase page/snapshot read models for communications, student cases,
+applications and message history, and the lead-agent route probe requires the
+exact handler denial `403|invalid_signature` rather than accepting an arbitrary
+`403`.
+
+The still-active remediation target is narrower and architectural. The forward
+all-in-one EVO product remains Supabase-native, but the root CRM runtime still
+ships legacy SQLite execution paths and `EVO_DB_PATH`-based production wiring.
+Connected `/sales` also remains functionally incomplete: in connected mode it
+switches away from the admissions lead board/list and renders only the
+read-only sales-intake conversation queue. That queue is valid unified module
+work, but it does not satisfy the unified sales surface by itself.
+
+Implementation and validation after this audit must therefore focus on:
+1. removing or quarantining live forward-runtime SQLite dependencies from the
+   connected Platform path;
+2. making `/sales` a coherent all-in-one staff surface on the bounded Supabase
+   contracts;
+3. preserving the exact existing bounded read-model behavior instead of
+   reintroducing unpaged RPCs, dual reads/writes or fallback UI.
+
+## P8R3 — Bounded catalog review and truthful Student 360 preview (2026-08-23)
+
+P8R3 closes two exact-main scale gaps without changing the database schema or
+provider boundaries. Catalog import candidates remain authorized and ordered
+by the existing `admin_catalog_import_candidates` table-valued RPC, but the
+server repository applies an explicit range with one look-ahead row. The
+Applications page reads a bounded page number from its `searchParams` prop and
+renders batch-scoped previous/next navigation. It never downloads the complete
+batch to paginate in memory.
+
+Student 360 keeps a bounded embedded application preview. If the canonical
+application page reports more rows, the active-application number is rendered
+as a lower bound rather than an exact total, and the applications section
+visibly explains that only the newest bounded page is shown. The existing link
+to `/applications?student_case_id=<case>` is the route to the complete,
+server-paginated case queue.
+
+Acceptance requires focused tests for inclusive RPC ranges, look-ahead trimming,
+batch-isolated links, lower-bound metrics and visible disclosure, followed by
+the non-security unit suite, lint, typecheck, production build, independent
+exact-head review and normal exact-SHA CI. No database migration, provider
+request, production operation, WhatsApp/WAHA send, amoCRM write, autonomous
+reply, DNS/TLS change or dedicated security scan is authorized by P8R3.
+
+Research basis: [Supabase range pagination](https://supabase.com/docs/reference/javascript/using-modifiers-range),
+[PostgREST table-valued functions](https://postgrest.org/en/latest/references/api/functions.html),
+[PostgREST pagination and count](https://postgrest.org/en/stable/references/api/pagination_count.html),
+[PostgreSQL deterministic LIMIT/OFFSET](https://www.postgresql.org/docs/current/queries-limit.html),
+and [Next.js search parameters for server data loading](https://nextjs.org/docs/app/getting-started/layouts-and-pages#rendering-with-search-params).

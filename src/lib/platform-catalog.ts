@@ -1,4 +1,10 @@
 import type { PlatformActor } from "./platform-auth";
+import {
+  buildPlatformCatalogCandidatePage,
+  getPlatformCatalogCandidateRange,
+  type PlatformCatalogCandidatePage,
+  type PlatformCatalogCandidatePageOptions,
+} from "./platform-catalog-pagination.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -113,6 +119,9 @@ export type PlatformCatalogImportCandidate = Readonly<{
   catalogInstitutionId: string | null;
   createdAt: string;
 }>;
+
+export type PlatformCatalogImportCandidatePage =
+  PlatformCatalogCandidatePage<PlatformCatalogImportCandidate>;
 
 export class PlatformCatalogRepositoryError extends Error {
   constructor() {
@@ -503,23 +512,29 @@ export async function listPlatformCatalogImportBatches(
 export async function listPlatformCatalogImportCandidates(
   actor: PlatformActor,
   catalogImportBatchId: string,
-): Promise<readonly PlatformCatalogImportCandidate[]> {
+  options: PlatformCatalogCandidatePageOptions = {},
+): Promise<PlatformCatalogImportCandidatePage> {
   try {
     const organizationId = requireCatalogAdmin(actor);
     const batchId = requiredUuid(catalogImportBatchId);
+    const range = getPlatformCatalogCandidateRange(options);
     const client = await getPlatformClient();
-    const response = await client.schema("platform").rpc(
-      "admin_catalog_import_candidates",
-      { p_catalog_import_batch_id: batchId },
-      { get: true },
-    );
+    const response = await client
+      .schema("platform")
+      .rpc(
+        "admin_catalog_import_candidates",
+        { p_catalog_import_batch_id: batchId },
+        { get: true },
+      )
+      .range(range.from, range.to);
     if (response.error) return invalidShape();
-    return normalizeRows(
+    const rows = normalizeRows(
       response.data,
       (row) =>
         normalizePlatformCatalogImportCandidate(row, organizationId, batchId),
       (row) => row.catalogImportCandidateId,
     );
+    return buildPlatformCatalogCandidatePage(rows, range);
   } catch (error) {
     return failClosed(error);
   }

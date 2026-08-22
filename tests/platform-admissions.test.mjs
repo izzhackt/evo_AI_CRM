@@ -16,6 +16,7 @@ import {
   normalizePlatformStudentCaseSnapshot,
   parsePlatformAdmissionsCursor,
   parsePlatformAdmissionsUuid,
+  summarizePlatformStudentCaseApplicationPreview,
 } from "../src/lib/platform-admissions.ts";
 import {
   PlatformCaseAssignmentRepositoryError,
@@ -52,6 +53,38 @@ test("case lifecycle redirects preserve the originating Student 360 section", ()
       "case-lifecycle",
     ),
     `/clients/${CASE_ID}?result=unavailable&retry_request_id=${APPLICATION_ID}#case-lifecycle`,
+  );
+});
+
+test("Student 360 application summary preserves the partial-page signal and lower bound", () => {
+  const summary = summarizePlatformStudentCaseApplicationPreview(
+    [
+      { status: "preparation" },
+      { status: "offer" },
+      { status: "rejected" },
+      { status: "withdrawn" },
+      { status: "closed" },
+    ],
+    true,
+    CASE_ID,
+  );
+
+  assert.deepEqual(summary, {
+    activeApplications: 2,
+    preview: {
+      visibleCount: 5,
+      hasMore: true,
+      fullListHref: `/applications?student_case_id=${CASE_ID}`,
+    },
+  });
+  assert.throws(
+    () =>
+      summarizePlatformStudentCaseApplicationPreview(
+        [{ status: "offer" }],
+        false,
+        "not-a-case-id",
+      ),
+    PlatformAdmissionsRepositoryError,
   );
 });
 
@@ -557,6 +590,52 @@ test("connected Student 360 wires Admin assignment to the audited Supabase RPC",
     presentationSource,
     /name="request_id"[\s\S]*value=\{data\.lifecycleRequestId\}/,
   );
+});
+
+test("connected Student 360 labels its bounded application preview and lower-bound metric", () => {
+  const adapterSource = readFileSync(
+    new URL(
+      "../src/app/(staff)/clients/[id]/PlatformClientPage.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const presentationSource = readFileSync(
+    new URL(
+      "../src/app/(staff)/clients/[id]/ClientPageContent.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const copySource = readFileSync(
+    new URL("../src/lib/i18n-data.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    adapterSource,
+    /summarizePlatformStudentCaseApplicationPreview\([\s\S]*applicationRows\.hasNext/,
+  );
+  assert.match(
+    presentationSource,
+    /applicationsArePartial\s*\?\s*`≥\$\{num\(activeApps\)\}`\s*:\s*num\(activeApps\)/,
+  );
+  assert.match(
+    presentationSource,
+    /data-testid="platform-application-preview-partial"/,
+  );
+  assert.match(presentationSource, /applicationsFullListHref/);
+  for (const key of [
+    "activeApplicationsLowerBound",
+    "applicationsPreviewPartial",
+    "applicationsFullList",
+  ]) {
+    assert.equal(
+      copySource.match(new RegExp(`\\b${key}:`, "g"))?.length,
+      3,
+      key,
+    );
+  }
 });
 
 test("Student 360 completes a nullable route before immutable checklist binding", () => {

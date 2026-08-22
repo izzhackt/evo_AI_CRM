@@ -36,6 +36,7 @@ import {
   getPlatformStudentCaseView,
   listPlatformApplicationsForStudentCase,
   parsePlatformAdmissionsUuid,
+  summarizePlatformStudentCaseApplicationPreview,
 } from "@/lib/platform-admissions";
 import {
   getPlatformStudentCaseAssignmentState,
@@ -158,6 +159,11 @@ export async function loadPlatformClientPageData(
       deadline: null,
       status: application.status,
     }));
+  const applicationSummary = summarizePlatformStudentCaseApplicationPreview(
+    applications,
+    applicationRows.hasNext,
+    studentCase.studentCaseId,
+  );
   const canReviewDocuments = isPlatformP6BPortalNotificationsEnabled()
     && (actor.platformRole === "admin" || actor.platformRole === "curator");
   const documents = documentRows.map((document) => ({
@@ -285,6 +291,7 @@ export async function loadPlatformClientPageData(
       notes,
     },
     applications,
+    applicationPreview: applicationSummary.preview,
     documents,
     visa: caseVisa ? {
       id: caseVisa.visaCaseId,
@@ -457,11 +464,7 @@ export async function loadPlatformClientPageData(
     sourceHint:
       "Операционный этап и команда читаются из аудируемого кейса EVO Platform. Этап продаж ведётся отдельно.",
     metrics: {
-      activeApplications: applications.filter((application) =>
-        application.status !== "rejected"
-        && application.status !== "withdrawn"
-        && application.status !== "closed",
-      ).length,
+      activeApplications: applicationSummary.activeApplications,
       openDocuments: documents.filter((document) => document.status !== "approved").length,
       openTasks: studentCase.overdueTaskCount,
       pendingPayments: studentCase.overdueObligationCount,

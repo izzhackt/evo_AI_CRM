@@ -11,6 +11,12 @@ import {
   normalizePlatformCatalogInstitution,
   normalizePlatformCatalogSource,
 } from "../src/lib/platform-catalog.ts";
+import {
+  buildPlatformCatalogBatchPageHref,
+  buildPlatformCatalogCandidatePage,
+  getPlatformCatalogCandidateRange,
+  parsePlatformCatalogCandidatePage,
+} from "../src/lib/platform-catalog-pagination.ts";
 import { deriveCatalogSourceRecordKey } from "../src/lib/platform-catalog-provenance.ts";
 
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
@@ -215,6 +221,60 @@ test("catalog source-row provenance stays stable across import batches", () => {
   );
 });
 
+test("catalog candidate pagination uses an inclusive lookahead range and batch-isolated links", () => {
+  assert.equal(parsePlatformCatalogCandidatePage(undefined), 1);
+  assert.equal(parsePlatformCatalogCandidatePage(["2"]), 1);
+  assert.equal(parsePlatformCatalogCandidatePage("0"), 1);
+  assert.equal(parsePlatformCatalogCandidatePage("-2"), 1);
+  assert.equal(parsePlatformCatalogCandidatePage("02"), 1);
+  assert.equal(parsePlatformCatalogCandidatePage("2"), 2);
+
+  const range = getPlatformCatalogCandidateRange({ page: 2, pageSize: 100 });
+  assert.deepEqual(range, {
+    page: 2,
+    pageSize: 100,
+    from: 100,
+    to: 200,
+  });
+
+  const page = buildPlatformCatalogCandidatePage(
+    Array.from({ length: 101 }, (_, index) => index),
+    range,
+  );
+  assert.equal(page.rows.length, 100);
+  assert.equal(page.rows.at(-1), 99);
+  assert.equal(page.hasPrevious, true);
+  assert.equal(page.hasNext, true);
+  const emptyLaterPage = buildPlatformCatalogCandidatePage(
+    [],
+    getPlatformCatalogCandidateRange({ page: 3, pageSize: 100 }),
+  );
+  assert.deepEqual(emptyLaterPage, {
+    rows: [],
+    page: 3,
+    pageSize: 100,
+    hasPrevious: true,
+    hasNext: false,
+  });
+  assert.throws(
+    () =>
+      buildPlatformCatalogCandidatePage(
+        Array.from({ length: 102 }, (_, index) => index),
+        range,
+      ),
+    RangeError,
+  );
+
+  assert.equal(
+    buildPlatformCatalogBatchPageHref(BATCH_ID, 1),
+    `/applications?catalog_batch_id=${BATCH_ID}#catalog-import`,
+  );
+  assert.equal(
+    buildPlatformCatalogBatchPageHref(BATCH_ID, 3),
+    `/applications?catalog_batch_id=${BATCH_ID}&catalog_page=3#catalog-import`,
+  );
+});
+
 test("catalog UI remains inside the accepted applications route and preserves uncertain retries", () => {
   const route = readFileSync(
     new URL("../src/app/(staff)/applications/page.tsx", import.meta.url),
@@ -252,6 +312,10 @@ test("catalog UI remains inside the accepted applications route and preserves un
     ),
     "utf8",
   );
+  const catalogRepository = readFileSync(
+    new URL("../src/lib/platform-catalog.ts", import.meta.url),
+    "utf8",
+  );
 
   assert.match(route, /ApplicationsQueuePresenter/);
   assert.match(loader, /listPlatformCatalogInstitutions/);
@@ -259,6 +323,17 @@ test("catalog UI remains inside the accepted applications route and preserves un
   assert.match(loader, /batch_rejected:[^\n]*Batch отклонён/);
   assert.match(presenter, /CatalogImportWorkspace/);
   assert.match(presenter, /ApplicationInstitutionFields/);
+  assert.match(presenter, /catalog_page\?: string \| string\[\]/);
+  assert.match(loader, /parsePlatformCatalogCandidatePage\(query\.catalog_page\)/);
+  assert.match(loader, /buildPlatformCatalogBatchPageHref/);
+  assert.match(
+    catalogRepository,
+    /\.range\(range\.from, range\.to\)/,
+  );
+  assert.match(
+    catalogWorkspace,
+    /data-testid="platform-catalog-candidate-pagination"/,
+  );
   assert.match(actions, /catalog_retry_request_id/);
   assert.match(actions, /decision === "reviewed" \? "source_reviewed" : "source_rejected"/);
   assert.match(institutionFields, /required=\{usesManualInstitution\}/);

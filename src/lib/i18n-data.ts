@@ -42,6 +42,10 @@ const ru: Dict = {
 
   totalClients: "Всего студентов",
   activeApplications: "Активные заявки",
+  activeApplicationsLowerBound: "Минимум по показанной части",
+  applicationsPreviewPartial:
+    "Показана только ограниченная новая часть заявок. Видимых записей:",
+  applicationsFullList: "Открыть полный список заявок",
   openTasks: "Открытые задачи",
   pendingPayments: "Ожидают оплаты",
   clientsByStage: "Студенты по этапам",
@@ -1130,6 +1134,10 @@ const ky: Dict = {
 
   totalClients: "Бардык студенттер",
   activeApplications: "Активдүү арыздар",
+  activeApplicationsLowerBound: "Көрсөтүлгөн бөлүк боюнча минимум",
+  applicationsPreviewPartial:
+    "Арыздардын акыркы чектелген бөлүгү гана көрсөтүлдү. Көрүнгөн жазуулар:",
+  applicationsFullList: "Арыздардын толук тизмесин ачуу",
   openTasks: "Ачык тапшырмалар",
   pendingPayments: "Төлөм күтүлүүдө",
   clientsByStage: "Студенттер этап боюнча",
@@ -2219,6 +2227,10 @@ const en: Dict = {
 
   totalClients: "Total students",
   activeApplications: "Active applications",
+  activeApplicationsLowerBound: "Minimum from the visible subset",
+  applicationsPreviewPartial:
+    "Only a bounded newest subset of applications is shown. Visible records:",
+  applicationsFullList: "Open the full application list",
   openTasks: "Open tasks",
   pendingPayments: "Pending payments",
   clientsByStage: "Students by stage",

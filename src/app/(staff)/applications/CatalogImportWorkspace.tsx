@@ -65,6 +65,10 @@ export type CatalogImportWorkspaceCopy = Readonly<{
   approve: string;
   validationErrors: string;
   noCandidates: string;
+  noCandidatesOnPage: string;
+  candidateRange: string;
+  previousCandidates: string;
+  nextCandidates: string;
   noSources: string;
   noBatches: string;
   open: string;
@@ -85,6 +89,17 @@ export type CatalogImportWorkspaceModel = Readonly<{
     selected?: Readonly<{
       batch: PlatformCatalogImportBatch;
       candidates: readonly PlatformCatalogImportCandidate[];
+      candidatePage: Readonly<{
+        page: number;
+        pageSize: number;
+        hasPrevious: boolean;
+        hasNext: boolean;
+        firstRow: number;
+        lastRow: number;
+        totalRows: number;
+        previousHref: string | null;
+        nextHref: string | null;
+      }>;
       stageRequestId: string;
       validateRequestId: string;
       approveRequestId: string;
@@ -464,7 +479,7 @@ function SelectedBatch({
   admin: NonNullable<CatalogImportWorkspaceModel["admin"]>;
 }) {
   if (!admin.selected) return null;
-  const { batch, candidates } = admin.selected;
+  const { batch, candidates, candidatePage } = admin.selected;
   const canApprove =
     batch.status === "validated" &&
     batch.candidateCount > 0 &&
@@ -544,9 +559,43 @@ function SelectedBatch({
         </form>
       ) : null}
 
+      <div
+        data-testid="platform-catalog-candidate-pagination"
+        className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3 text-[11.5px] text-fg-3"
+      >
+        <span>
+          {model.copy.candidateRange}:{" "}
+          <span className="font-mono text-fg-2">
+            {candidatePage.firstRow > 0
+              ? `${candidatePage.firstRow}–${candidatePage.lastRow}`
+              : "0"}{" "}
+            / {candidatePage.totalRows}
+          </span>
+        </span>
+        <nav
+          aria-label={model.copy.candidateRange}
+          className="flex flex-wrap items-center gap-2"
+        >
+          {candidatePage.previousHref ? (
+            <Link href={candidatePage.previousHref} className={btnGhostCls}>
+              ← {model.copy.previousCandidates}
+            </Link>
+          ) : null}
+          {candidatePage.nextHref ? (
+            <Link href={candidatePage.nextHref} className={btnGhostCls}>
+              {model.copy.nextCandidates} →
+            </Link>
+          ) : null}
+        </nav>
+      </div>
+
       <div className="divide-y divide-border">
         {candidates.length === 0 ? (
-          <div className="p-5 text-[12px] text-fg-3">{model.copy.noCandidates}</div>
+          <div className="p-5 text-[12px] text-fg-3">
+            {batch.candidateCount > 0
+              ? model.copy.noCandidatesOnPage
+              : model.copy.noCandidates}
+          </div>
         ) : (
           candidates.map((candidate) => (
             <div
@@ -578,7 +627,7 @@ function SelectedBatch({
         )}
       </div>
 
-      {batch.status === "staging" && candidates.length > 0 ? (
+      {batch.status === "staging" && batch.candidateCount > 0 ? (
         <form
           action={admin.actions.validateBatch}
           data-testid="platform-catalog-validate-batch-form"

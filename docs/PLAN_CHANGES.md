@@ -9984,3 +9984,36 @@ and [Caddy automatic HTTPS hostname requirements](https://caddyserver.com/docs/a
 Reviewer notes: independent review evidence and any required corrections are
 recorded on PR #368; merge remains blocked until that exact-head review and CI
 are both complete.
+
+## 2026-08-23 (+06; 2026-08-22 UTC) — Defer canonical DNS/TLS and reconcile the server release path
+
+Date: 2026-08-23 in the workspace timezone (+06); the corresponding GitHub
+events are dated 2026-08-22 in UTC.
+Author: Codex.
+Change type: owner-authorized scope reduction and release reconciliation.
+Affected plan sections: DNS/TLS gate, server access URL, release inputs, and
+rollback boundary.
+Reason: the owner explicitly deferred canonical DNS/TLS as non-essential for
+the current stage and chose the existing server HTTPS address for ordinary
+validation. Canonical domains must therefore stop blocking the controlled
+server rollout, without being misreported as configured.
+Decision: use `https://evo-crm.72.62.119.112.sslip.io` as the current Platform
+entry and leave `crm.evoadmissions.com` and `inbox.evoadmissions.com` unchanged.
+Do not perform DNS-provider changes or claim canonical TLS. Keep the repository
+edge source on its existing `sslip.io` routes for this release. Reconcile only
+the release runbook with the audited hybrid filesystem layout: Inbox secrets
+remain under `/opt/evo-inbox/agent-lead2-crmwhatsapp/.env*`, reviewed deploy
+artifacts come from `/opt/evo-inbox/agent-lead2-inbox/deploy/*`, and the
+intentionally absent CRM manual-send worker uses
+`EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE=/dev/null` during Compose parsing.
+Validation impact: validate the unchanged server Caddy source, verify the exact
+reviewed release SHA on `hermes-vps`, preserve one rollback image per
+first-party service, and prove the CRM `sslip.io` health, login and authenticated
+read paths. DNS/TLS is deferred rather than passed.
+Deviation record: a delegated operator deployed temporary revision
+`2c38a325e85fe798ccece31c4e91db909a49246d` before its conflicting PR #369 was
+reviewed or merged. That release kept outbound WhatsApp and amoCRM writes off,
+and added unused canonical host blocks. PR #369 is superseded, and this clean
+PR defines the narrower forward reconciliation; production must be rebuilt and
+checked at the eventual exact merged `main` SHA before it can be called aligned.
+Reviewer notes: pending exact-head CI and independent release gate.

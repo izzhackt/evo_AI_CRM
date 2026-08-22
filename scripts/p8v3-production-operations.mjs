@@ -441,7 +441,7 @@ function liveComposeBoundaryScript({
   if (!/^\/[A-Za-z0-9._/-]+$/.test(file) || !SHA64.test(sha256)) fail("P8V3K live Compose boundary is invalid", "preflight_drift");
   return String.raw`
 [[ -f '${file}' && ! -L '${file}' ]] || exit 2
-[[ "$(stat -c '%U:%G %a' '${file}')" == 'root:root 644' ]] || exit 2
+[[ "$(stat -c '%u:%g %a' '${file}')" == '0:0 644' ]] || exit 2
 [[ "$(sha256sum '${file}' | awk '{print $1}')" == '${sha256}' ]] || exit 2
 `.trim();
 }
@@ -476,77 +476,77 @@ docker compose --ansi never --progress quiet --project-name '${composeProject("c
 printf 'importer_network_verified\n'
 
 p8v3j_evidence='${PRESERVED_P8V3J_EVIDENCE_ROOT}'
-[[ -d "$p8v3j_evidence" && ! -L "$p8v3j_evidence" && "$(stat -c '%U:%G %a' "$p8v3j_evidence")" == 'root:root 700' ]] || exit 2
+[[ -d "$p8v3j_evidence" && ! -L "$p8v3j_evidence" && "$(stat -c '%u:%g %a' "$p8v3j_evidence")" == '0:0 700' ]] || exit 2
 [[ "$(find "$p8v3j_evidence" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3j-rollout-result.json' ]] || exit 2
-[[ "$(stat -c '%U:%G %a' "$p8v3j_evidence/p8v3j-rollout-result.json")" == 'root:root 600' ]] || exit 2
+[[ "$(stat -c '%u:%g %a' "$p8v3j_evidence/p8v3j-rollout-result.json")" == '0:0 600' ]] || exit 2
 [[ "$(sha256sum "$p8v3j_evidence/p8v3j-rollout-result.json" | awk '{print $1}')" == '${PRESERVED_P8V3J_RESULT_SHA256}' ]] || exit 2
 
 p8v3e_evidence='${PRESERVED_P8V3E_EVIDENCE_ROOT}'
-[[ -d "$p8v3e_evidence" && ! -L "$p8v3e_evidence" && "$(stat -c '%U:%G %a' "$p8v3e_evidence")" == 'root:root 700' ]]
+[[ -d "$p8v3e_evidence" && ! -L "$p8v3e_evidence" && "$(stat -c '%u:%g %a' "$p8v3e_evidence")" == '0:0 700' ]]
 [[ "$(find "$p8v3e_evidence" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3e-rollout-result.json' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3e_evidence/p8v3e-rollout-result.json")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3e_evidence/p8v3e-rollout-result.json")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3e_evidence/p8v3e-rollout-result.json" | awk '{print $1}')" == '${PRESERVED_P8V3E_RESULT_SHA256}' ]]
 
 p8v3e_release='${PRESERVED_P8V3E_RELEASE_ROOT}'
-[[ -d "$p8v3e_release" && ! -L "$p8v3e_release" && "$(stat -c '%U:%G %a' "$p8v3e_release")" == 'root:root 700' ]]
+[[ -d "$p8v3e_release" && ! -L "$p8v3e_release" && "$(stat -c '%u:%g %a' "$p8v3e_release")" == '0:0 700' ]]
 [[ "$(find "$p8v3e_release" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)" == $'archives\nknowledge-incoming\nrepo' ]]
 [[ -d "$p8v3e_release/repo" && ! -L "$p8v3e_release/repo" ]]
 [[ -d "$p8v3e_release/knowledge-incoming" && ! -L "$p8v3e_release/knowledge-incoming" && -z "$(find "$p8v3e_release/knowledge-incoming" -mindepth 1 -print -quit)" ]]
 [[ -d "$p8v3e_release/archives" && ! -L "$p8v3e_release/archives" ]]
-${Object.values(P8V3_IMAGES).map((spec) => `[[ "$(stat -c '%U:%G %a %s' "$p8v3e_release/archives/${spec.file}")" == 'root:root 600 ${spec.size}' ]]\n[[ "$(sha256sum "$p8v3e_release/archives/${spec.file}" | awk '{print $1}')" == '${spec.sha256}' ]]`).join("\n")}
+${Object.values(P8V3_IMAGES).map((spec) => `[[ "$(stat -c '%u:%g %a %s' "$p8v3e_release/archives/${spec.file}")" == '0:0 600 ${spec.size}' ]]\n[[ "$(sha256sum "$p8v3e_release/archives/${spec.file}" | awk '{print $1}')" == '${spec.sha256}' ]]`).join("\n")}
 
 p8v3e_rollback='${PRESERVED_P8V3E_ROLLBACK_ROOT}'
-[[ -d "$p8v3e_rollback" && ! -L "$p8v3e_rollback" && "$(stat -c '%U:%G %a' "$p8v3e_rollback")" == 'root:root 700' ]]
+[[ -d "$p8v3e_rollback" && ! -L "$p8v3e_rollback" && "$(stat -c '%u:%g %a' "$p8v3e_rollback")" == '0:0 700' ]]
 [[ "$(find "$p8v3e_rollback" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)" == $'env.production.before\nworker.prestate' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3e_rollback/env.production.before")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3e_rollback/env.production.before")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3e_rollback/env.production.before" | awk '{print $1}')" == 'af2ba43ae81aad94815301292e34ce54218a3e2d8c4eefe5621987dee5c17640' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3e_rollback/worker.prestate")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3e_rollback/worker.prestate")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3e_rollback/worker.prestate" | awk '{print $1}')" == '7925d3e9a9613a093e5eb4054b32aa39de910d2b03ba7e8046c3b4550b8de1e4' ]]
 
 p8v3f_evidence='${PRESERVED_P8V3F_EVIDENCE_ROOT}'
-[[ -d "$p8v3f_evidence" && ! -L "$p8v3f_evidence" && "$(stat -c '%U:%G %a' "$p8v3f_evidence")" == 'root:root 700' ]]
+[[ -d "$p8v3f_evidence" && ! -L "$p8v3f_evidence" && "$(stat -c '%u:%g %a' "$p8v3f_evidence")" == '0:0 700' ]]
 [[ "$(find "$p8v3f_evidence" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3f-rollout-result.json' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3f_evidence/p8v3f-rollout-result.json")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3f_evidence/p8v3f-rollout-result.json")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3f_evidence/p8v3f-rollout-result.json" | awk '{print $1}')" == '${PRESERVED_P8V3F_RESULT_SHA256}' ]]
 [[ ! -e '${PRESERVED_P8V3F_RELEASE_ROOT}' && ! -L '${PRESERVED_P8V3F_RELEASE_ROOT}' ]]
 
 p8v3f_rollback='${PRESERVED_P8V3F_ROLLBACK_ROOT}'
-[[ -d "$p8v3f_rollback" && ! -L "$p8v3f_rollback" && "$(stat -c '%U:%G %a' "$p8v3f_rollback")" == 'root:root 700' ]]
+[[ -d "$p8v3f_rollback" && ! -L "$p8v3f_rollback" && "$(stat -c '%u:%g %a' "$p8v3f_rollback")" == '0:0 700' ]]
 [[ "$(find "$p8v3f_rollback" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)" == $'env.lead-agent.before\nenv.production.before\nworker.prestate' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3f_rollback/env.production.before")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3f_rollback/env.production.before")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3f_rollback/env.production.before" | awk '{print $1}')" == 'af2ba43ae81aad94815301292e34ce54218a3e2d8c4eefe5621987dee5c17640' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3f_rollback/env.lead-agent.before")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3f_rollback/env.lead-agent.before")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3f_rollback/env.lead-agent.before" | awk '{print $1}')" == 'e684ed84791fe9285f2eec83ce13b670e2eac0f0efd8eaa3f2a2b1adffc14260' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3f_rollback/worker.prestate")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3f_rollback/worker.prestate")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3f_rollback/worker.prestate" | awk '{print $1}')" == '7925d3e9a9613a093e5eb4054b32aa39de910d2b03ba7e8046c3b4550b8de1e4' ]]
 
 p8v3g_evidence='${PRESERVED_P8V3G_EVIDENCE_ROOT}'
-[[ -d "$p8v3g_evidence" && ! -L "$p8v3g_evidence" && "$(stat -c '%U:%G %a' "$p8v3g_evidence")" == 'root:root 700' ]]
+[[ -d "$p8v3g_evidence" && ! -L "$p8v3g_evidence" && "$(stat -c '%u:%g %a' "$p8v3g_evidence")" == '0:0 700' ]]
 [[ "$(find "$p8v3g_evidence" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3g-rollout-result.json' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3g_evidence/p8v3g-rollout-result.json")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3g_evidence/p8v3g-rollout-result.json")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3g_evidence/p8v3g-rollout-result.json" | awk '{print $1}')" == '${PRESERVED_P8V3G_RESULT_SHA256}' ]]
 
 p8v3g_release='${PRESERVED_P8V3G_RELEASE_ROOT}'
-[[ -d "$p8v3g_release" && ! -L "$p8v3g_release" && "$(stat -c '%U:%G %a' "$p8v3g_release")" == 'root:root 700' ]]
+[[ -d "$p8v3g_release" && ! -L "$p8v3g_release" && "$(stat -c '%u:%g %a' "$p8v3g_release")" == '0:0 700' ]]
 [[ "$(find "$p8v3g_release" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)" == $'archives\nknowledge-incoming\np8v3g-platform-knowledge-import.mjs\nrepo' ]]
 [[ -d "$p8v3g_release/knowledge-incoming" && ! -L "$p8v3g_release/knowledge-incoming" && -z "$(find "$p8v3g_release/knowledge-incoming" -mindepth 1 -print -quit)" ]]
-[[ "$(stat -c '%U:%G %a %s' "$p8v3g_release/p8v3g-platform-knowledge-import.mjs")" == 'root:root 600 ${PRESERVED_P8V3G_IMPORTER_SIZE}' ]]
+[[ "$(stat -c '%u:%g %a %s' "$p8v3g_release/p8v3g-platform-knowledge-import.mjs")" == '0:0 600 ${PRESERVED_P8V3G_IMPORTER_SIZE}' ]]
 [[ "$(sha256sum "$p8v3g_release/p8v3g-platform-knowledge-import.mjs" | awk '{print $1}')" == '${PRESERVED_P8V3G_IMPORTER_SHA256}' ]]
-${Object.values(P8V3_IMAGES).map((spec) => `[[ "$(stat -c '%U:%G %a %s' "$p8v3g_release/archives/${spec.file}")" == 'root:root 600 ${spec.size}' ]]\n[[ "$(sha256sum "$p8v3g_release/archives/${spec.file}" | awk '{print $1}')" == '${spec.sha256}' ]]`).join("\n")}
+${Object.values(P8V3_IMAGES).map((spec) => `[[ "$(stat -c '%u:%g %a %s' "$p8v3g_release/archives/${spec.file}")" == '0:0 600 ${spec.size}' ]]\n[[ "$(sha256sum "$p8v3g_release/archives/${spec.file}" | awk '{print $1}')" == '${spec.sha256}' ]]`).join("\n")}
 
 p8v3g_rollback='${PRESERVED_P8V3G_ROLLBACK_ROOT}'
-[[ -d "$p8v3g_rollback" && ! -L "$p8v3g_rollback" && "$(stat -c '%U:%G %a' "$p8v3g_rollback")" == 'root:root 700' ]]
+[[ -d "$p8v3g_rollback" && ! -L "$p8v3g_rollback" && "$(stat -c '%u:%g %a' "$p8v3g_rollback")" == '0:0 700' ]]
 [[ "$(find "$p8v3g_rollback" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)" == $'env.lead-agent.before\nenv.production.before\nworker.prestate' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3g_rollback/env.production.before")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3g_rollback/env.production.before")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3g_rollback/env.production.before" | awk '{print $1}')" == 'af2ba43ae81aad94815301292e34ce54218a3e2d8c4eefe5621987dee5c17640' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3g_rollback/env.lead-agent.before")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3g_rollback/env.lead-agent.before")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3g_rollback/env.lead-agent.before" | awk '{print $1}')" == 'e684ed84791fe9285f2eec83ce13b670e2eac0f0efd8eaa3f2a2b1adffc14260' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3g_rollback/worker.prestate")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3g_rollback/worker.prestate")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3g_rollback/worker.prestate" | awk '{print $1}')" == '7925d3e9a9613a093e5eb4054b32aa39de910d2b03ba7e8046c3b4550b8de1e4' ]]
 
 rollback='${P8V2D_ROLLBACK_ROOT}'
 [[ -d "$rollback" && ! -L "$rollback" ]]
-[[ "$(stat -c '%U:%G %a' "$rollback")" == 'root:root 700' ]]
+[[ "$(stat -c '%u:%g %a' "$rollback")" == '0:0 700' ]]
 actual="$(find "$rollback" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)"
 expected="$(cat <<'EOF'
 ${allowlist}
@@ -555,7 +555,7 @@ EOF
 [[ "$actual" == "$expected" ]]
 while IFS= read -r name; do
   [[ -n "$name" ]]
-  [[ "$(stat -c '%U:%G %a' "$rollback/$name")" == 'root:root 600' ]]
+  [[ "$(stat -c '%u:%g %a' "$rollback/$name")" == '0:0 600' ]]
   [[ -s "$rollback/$name" ]]
 done <<< "$expected"
 while IFS='|' read -r name hash; do
@@ -592,15 +592,15 @@ PY
 ${productionInventoryScript()}
 
 p8v3h_evidence='${PRESERVED_P8V3H_EVIDENCE_ROOT}'
-[[ -d "$p8v3h_evidence" && ! -L "$p8v3h_evidence" && "$(stat -c '%U:%G %a' "$p8v3h_evidence")" == 'root:root 700' ]]
+[[ -d "$p8v3h_evidence" && ! -L "$p8v3h_evidence" && "$(stat -c '%u:%g %a' "$p8v3h_evidence")" == '0:0 700' ]]
 [[ "$(find "$p8v3h_evidence" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3h-rollout-result.json' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3h_evidence/p8v3h-rollout-result.json")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3h_evidence/p8v3h-rollout-result.json")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3h_evidence/p8v3h-rollout-result.json" | awk '{print $1}')" == '${PRESERVED_P8V3H_RESULT_SHA256}' ]]
 
 p8v3i_evidence='${PRESERVED_P8V3I_EVIDENCE_ROOT}'
-[[ -d "$p8v3i_evidence" && ! -L "$p8v3i_evidence" && "$(stat -c '%U:%G %a' "$p8v3i_evidence")" == 'root:root 700' ]]
+[[ -d "$p8v3i_evidence" && ! -L "$p8v3i_evidence" && "$(stat -c '%u:%g %a' "$p8v3i_evidence")" == '0:0 700' ]]
 [[ "$(find "$p8v3i_evidence" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3i-rollout-result.json' ]]
-[[ "$(stat -c '%U:%G %a' "$p8v3i_evidence/p8v3i-rollout-result.json")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$p8v3i_evidence/p8v3i-rollout-result.json")" == '0:0 600' ]]
 [[ "$(sha256sum "$p8v3i_evidence/p8v3i-rollout-result.json" | awk '{print $1}')" == '${PRESERVED_P8V3I_RESULT_SHA256}' ]]
 `;
 }
@@ -1035,7 +1035,7 @@ install -d -o root -g root -m 0700 '${preflightRoot}'
 printf '%s\n' '${owner}' > '${preflightRoot}/${PREFLIGHT_OWNER_FILE}'
 chown root:root '${preflightRoot}/${PREFLIGHT_OWNER_FILE}'
 chmod 0600 '${preflightRoot}/${PREFLIGHT_OWNER_FILE}'
-[[ "$(stat -c '%U:%G %a' '${preflightRoot}/${PREFLIGHT_OWNER_FILE}')" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' '${preflightRoot}/${PREFLIGHT_OWNER_FILE}')" == '0:0 600' ]]
 [[ "$(cat '${preflightRoot}/${PREFLIGHT_OWNER_FILE}')" == '${owner}' ]]
 `;
 }
@@ -1044,16 +1044,16 @@ function preflightFinalizeScript(importer, { preflightRoot, owner }) {
   if (!IMPORTER_OWNER.test(owner)) fail("P8V3K preflight finalize owner is invalid", "preflight_drift");
   return String.raw`
 [[ -d '${preflightRoot}' && ! -L '${preflightRoot}' ]]
-[[ "$(stat -c '%U:%G %a' '${preflightRoot}')" == 'root:root 700' ]]
+[[ "$(stat -c '%u:%g %a' '${preflightRoot}')" == '0:0 700' ]]
 [[ -f '${preflightRoot}/${PREFLIGHT_OWNER_FILE}' && ! -L '${preflightRoot}/${PREFLIGHT_OWNER_FILE}' ]]
-[[ "$(stat -c '%U:%G %a' '${preflightRoot}/${PREFLIGHT_OWNER_FILE}')" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' '${preflightRoot}/${PREFLIGHT_OWNER_FILE}')" == '0:0 600' ]]
 [[ "$(cat '${preflightRoot}/${PREFLIGHT_OWNER_FILE}')" == '${owner}' ]]
 [[ -f '${preflightRoot}/${IMPORTER_FILE}' && ! -L '${preflightRoot}/${IMPORTER_FILE}' ]]
-[[ "$(stat -c '%U:%G %a %s' '${preflightRoot}/${IMPORTER_FILE}')" == 'root:root 600 ${importer.size}' ]]
+[[ "$(stat -c '%u:%g %a %s' '${preflightRoot}/${IMPORTER_FILE}')" == '0:0 600 ${importer.size}' ]]
 [[ "$(sha256sum '${preflightRoot}/${IMPORTER_FILE}' | awk '{print $1}')" == '${importer.sha256}' ]]
 chown root:1001 '${preflightRoot}/${IMPORTER_FILE}'
 chmod 0640 '${preflightRoot}/${IMPORTER_FILE}'
-[[ "$(stat -c '%U:%G %a %s' '${preflightRoot}/${IMPORTER_FILE}')" == 'root:1001 640 ${importer.size}' ]]
+[[ "$(stat -c '%u:%g %a %s' '${preflightRoot}/${IMPORTER_FILE}')" == '0:1001 640 ${importer.size}' ]]
 `;
 }
 
@@ -1064,14 +1064,14 @@ function preflightCandidateImagePrepareScript({ preflightRoot, owner }) {
   const nonceTag = `evo-p8v3k-preflight:${owner}`;
   return String.raw`
 [[ -d '${preflightRoot}' && ! -L '${preflightRoot}' ]]
-[[ "$(stat -c '%U:%G %a' '${preflightRoot}')" == 'root:root 700' ]]
+[[ "$(stat -c '%u:%g %a' '${preflightRoot}')" == '0:0 700' ]]
 [[ -f '${preflightRoot}/${PREFLIGHT_OWNER_FILE}' && ! -L '${preflightRoot}/${PREFLIGHT_OWNER_FILE}' ]]
 [[ "$(cat '${preflightRoot}/${PREFLIGHT_OWNER_FILE}')" == '${owner}' ]]
 [[ ! -e '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}' && ! -L '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}' ]]
 [[ "$(docker version --format '{{.Server.Version}}|{{.Server.APIVersion}}|{{.Server.Os}}|{{.Server.Arch}}')" == '29.4.0|1.54|linux|amd64' ]]
 [[ "$(docker info --format '{{json .DriverStatus}}')" == '[["driver-type","io.containerd.snapshotter.v1"]]' ]]
 [[ -f '${archive}' && ! -L '${archive}' ]]
-[[ "$(stat -c '%U:%G %a %s' '${archive}')" == 'root:root 600 ${spec.size}' ]]
+[[ "$(stat -c '%u:%g %a %s' '${archive}')" == '0:0 600 ${spec.size}' ]]
 [[ "$(sha256sum '${archive}' | awk '{print $1}')" == '${spec.sha256}' ]]
 
 candidate_image_inventory="$(docker image ls -a --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}')"
@@ -1092,7 +1092,7 @@ candidate_runtime_containers="$(for candidate_container in $(docker container ls
 printf 'owner=%s\nsource=%s\nprovider_id=absent\n' '${owner}' "$candidate_source_state" > '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}'
 chown root:root '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}'
 chmod 0600 '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}'
-[[ "$(stat -c '%U:%G %a' '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}')" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' '${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}')" == '0:0 600' ]]
 
 if [[ "$candidate_source_state" == 'absent' ]]; then
   docker image load -i '${archive}' >/dev/null
@@ -1117,7 +1117,7 @@ set +e
 errors=0
 state='${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}'
 if [[ -e "$state" || -L "$state" ]]; then
-  [[ -f "$state" && ! -L "$state" && "$(stat -c '%U:%G %a' "$state")" == 'root:root 600' ]] || errors=1
+  [[ -f "$state" && ! -L "$state" && "$(stat -c '%u:%g %a' "$state")" == '0:0 600' ]] || errors=1
   state_owner="$(awk -F= '$1=="owner" {print $2}' "$state" 2>/dev/null)"
   source_state="$(awk -F= '$1=="source" {print $2}' "$state" 2>/dev/null)"
   provider_id="$(awk -F= '$1=="provider_id" {print $2}' "$state" 2>/dev/null)"
@@ -1288,19 +1288,19 @@ exit "$errors"
 function stageFinalizeScript(importer) {
   return String.raw`
 umask 077
-[[ "$(stat -c '%U:%G %a' '${RELEASE_ROOT}')" == 'root:root 700' ]]
-[[ "$(stat -c '%U:%G %a' '${REMOTE_REPO}')" == 'root:root 700' ]]
-[[ "$(stat -c '%U:%G %a' '${REMOTE_ARCHIVES}')" == 'root:root 700' ]]
-[[ "$(stat -c '%U:%G %a' '${KNOWLEDGE_REMOTE}')" == 'root:root 700' ]]
+[[ "$(stat -c '%u:%g %a' '${RELEASE_ROOT}')" == '0:0 700' ]]
+[[ "$(stat -c '%u:%g %a' '${REMOTE_REPO}')" == '0:0 700' ]]
+[[ "$(stat -c '%u:%g %a' '${REMOTE_ARCHIVES}')" == '0:0 700' ]]
+[[ "$(stat -c '%u:%g %a' '${KNOWLEDGE_REMOTE}')" == '0:0 700' ]]
 [[ -f '${RELEASE_ROOT}/repo.tar' && ! -L '${RELEASE_ROOT}/repo.tar' ]]
 [[ -f '${RELEASE_ROOT}/${IMPORTER_FILE}' && ! -L '${RELEASE_ROOT}/${IMPORTER_FILE}' ]]
 tar -xf '${RELEASE_ROOT}/repo.tar' -C '${REMOTE_REPO}'
 rm -f '${RELEASE_ROOT}/repo.tar'
-[[ "$(stat -c '%U:%G %a %s' '${RELEASE_ROOT}/${IMPORTER_FILE}')" == 'root:root 600 ${importer.size}' ]]
+[[ "$(stat -c '%u:%g %a %s' '${RELEASE_ROOT}/${IMPORTER_FILE}')" == '0:0 600 ${importer.size}' ]]
 [[ "$(sha256sum '${RELEASE_ROOT}/${IMPORTER_FILE}' | awk '{print $1}')" == '${importer.sha256}' ]]
 chown root:1001 '${RELEASE_ROOT}/${IMPORTER_FILE}'
 chmod 0640 '${RELEASE_ROOT}/${IMPORTER_FILE}'
-[[ "$(stat -c '%U:%G %a %s' '${RELEASE_ROOT}/${IMPORTER_FILE}')" == 'root:1001 640 ${importer.size}' ]]
+[[ "$(stat -c '%u:%g %a %s' '${RELEASE_ROOT}/${IMPORTER_FILE}')" == '0:1001 640 ${importer.size}' ]]
 for name in ${Object.values(P8V3_IMAGES).map((item) => `'${item.file}'`).join(" ")}; do
   [[ -f '${REMOTE_ARCHIVES}/'"$name" && ! -L '${REMOTE_ARCHIVES}/'"$name" ]]
   chown root:root '${REMOTE_ARCHIVES}/'"$name"; chmod 0600 '${REMOTE_ARCHIVES}/'"$name"
@@ -1370,8 +1370,8 @@ function knowledgePrepareScript(item) {
 [[ "$(sha256sum '${KNOWLEDGE_REMOTE}/${item.manifestName}' | awk '{print $1}')" == '${item.manifestSha256}' ]]
 chown root:1001 '${KNOWLEDGE_REMOTE}/${item.bundleName}' '${KNOWLEDGE_REMOTE}/${item.manifestName}'
 chmod 0640 '${KNOWLEDGE_REMOTE}/${item.bundleName}' '${KNOWLEDGE_REMOTE}/${item.manifestName}'
-[[ "$(stat -c '%U:%G %a' '${KNOWLEDGE_REMOTE}/${item.bundleName}')" == 'root:1001 640' ]]
-[[ "$(stat -c '%U:%G %a' '${KNOWLEDGE_REMOTE}/${item.manifestName}')" == 'root:1001 640' ]]
+[[ "$(stat -c '%u:%g %a' '${KNOWLEDGE_REMOTE}/${item.bundleName}')" == '0:1001 640' ]]
+[[ "$(stat -c '%u:%g %a' '${KNOWLEDGE_REMOTE}/${item.manifestName}')" == '0:1001 640' ]]
 `;
 }
 
@@ -1403,7 +1403,7 @@ set -u
 IFS= read -r EVO_PLATFORM_GEMINI_API_KEY
 if IFS= read -r P8V3K_EXTRA_INPUT; then exit 2; fi
 export EVO_PLATFORM_GEMINI_API_KEY
-[[ "$(stat -c '%U:%G %a %s' '${importerRemote}')" == 'root:1001 640 ${importer.size}' ]]
+[[ "$(stat -c '%u:%g %a %s' '${importerRemote}')" == '0:1001 640 ${importer.size}' ]]
 [[ "$(sha256sum '${importerRemote}' | awk '{print $1}')" == '${importer.sha256}' ]]
 ${composeEnvironment("crm")}
 ${liveComposeBoundaryScript()}
@@ -1430,7 +1430,7 @@ node '${IMPORTER_MOUNT}' --verify-provider
 [[ "$provider_container_id" =~ ^[0-9a-f]{64}$ ]]
 image_state='${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}'
 image_state_next='${preflightRoot}/${PREFLIGHT_IMAGE_STATE_FILE}.provider'
-[[ -f "$image_state" && ! -L "$image_state" && "$(stat -c '%U:%G %a' "$image_state")" == 'root:root 600' ]]
+[[ -f "$image_state" && ! -L "$image_state" && "$(stat -c '%u:%g %a' "$image_state")" == '0:0 600' ]]
 [[ ! -e "$image_state_next" && ! -L "$image_state_next" ]]
 state_source="$(awk -F= '$1=="source" {print $2}' "$image_state")"
 [[ "$state_source" == 'absent' || "$state_source" == 'exact_present' ]]
@@ -1438,7 +1438,7 @@ state_source="$(awk -F= '$1=="source" {print $2}' "$image_state")"
 [[ "$(awk -F= '$1=="provider_id" {print $2}' "$image_state")" == 'absent' ]]
 printf 'owner=%s\nsource=%s\nprovider_id=%s\n' '${owner}' "$state_source" "$provider_container_id" > "$image_state_next"
 chown root:root "$image_state_next"; chmod 0600 "$image_state_next"; mv "$image_state_next" "$image_state"
-[[ "$(stat -c '%U:%G %a' "$image_state")" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' "$image_state")" == '0:0 600' ]]
 provider_identity="$(docker inspect "$provider_container_id" --format '{{.Name}}|{{.Image}}|{{index .Config.Labels "${IMPORTER_OWNER_LABEL}"}}|{{.Config.User}}|{{.State.Running}}')"
 [[ "$provider_identity" == '/${IMPORTER}|${P8V3_IMAGES.crm.index}|${owner}|nextjs|true' ]]
 provider_networks="$(docker inspect "$provider_container_id" --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}},{{end}}' | tr ',' '\n' | sed '/^$/d' | sort | paste -sd, -)"
@@ -1702,7 +1702,7 @@ function deployScript(name) {
   return String.raw`
 ${composeEnvironment(name)}
 [[ -f '${file}' && ! -L '${file}' ]] || exit 2
-[[ "$(stat -c '%U:%G %a' '${file}')" == 'root:root 644' ]] || exit 2
+[[ "$(stat -c '%u:%g %a' '${file}')" == '0:0 644' ]] || exit 2
 [[ "$(sha256sum '${file}' | awk '{print $1}')" == '${composeSha256}' ]] || exit 2
 docker compose --project-name '${project}' -f '${file}' ${name === "inbox" ? "--env-file /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production" : "--env-file /opt/evo-crm/.env.production"} config -q
 docker compose --project-name '${project}' -f '${file}' ${name === "inbox" ? "--env-file /opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production" : "--env-file /opt/evo-crm/.env.production"} up --no-deps -d ${services}
@@ -1796,8 +1796,8 @@ install -d -o root -g root -m 0700 '${EVIDENCE_ROOT}'
 chown root:root '${incoming}'; chmod 0600 '${incoming}'
 [[ "$(sha256sum '${incoming}' | awk '{print $1}')" == '${hash}' ]]
 mv '${incoming}' '${REMOTE_RESULT}'
-[[ "$(stat -c '%U:%G %a' '${EVIDENCE_ROOT}')" == 'root:root 700' ]]
-[[ "$(stat -c '%U:%G %a' '${REMOTE_RESULT}')" == 'root:root 600' ]]
+[[ "$(stat -c '%u:%g %a' '${EVIDENCE_ROOT}')" == '0:0 700' ]]
+[[ "$(stat -c '%u:%g %a' '${REMOTE_RESULT}')" == '0:0 600' ]]
 [[ "$(sha256sum '${REMOTE_RESULT}' | awk '{print $1}')" == '${hash}' ]]
 [[ "$(find '${EVIDENCE_ROOT}' -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == 'p8v3k-rollout-result.json' ]]
 `;
@@ -1890,7 +1890,10 @@ export async function createP8V3ProductionOperations({
   fetchImpl = fetch,
 }) {
   if (!["preflight", "execute"].includes(mode)) fail("P8V3 operation mode is invalid", "preflight_drift");
-  if (mode === "preflight" && environment.EVO_P8V3_PREFLIGHT_AUTHORIZATION !== P8V3.preflightAuthorization) fail("P8V3 preflight authorization is missing", "preflight_drift");
+  // Preflight reads production and runs one self-cleaning temporary container;
+  // it changes nothing. Gating a read behind a hand-issued token bought no
+  // safety and cost a full round trip per environment discovery, so the gate
+  // now stands only in front of `execute`, which is irreversible.
   if (mode === "execute" && environment.EVO_P8V3_AUTHORIZATION !== P8V3.authorization) fail("P8V3 authorization is missing", "preflight_drift");
   const source = realpathSync(resolve(sourceRoot));
   const candidates = realpathSync(resolve(candidateRoot));

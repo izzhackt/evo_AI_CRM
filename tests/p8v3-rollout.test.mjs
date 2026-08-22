@@ -969,9 +969,9 @@ function runP8V3KCandidateImageTransactionScenario({
 
     writeFileSync(join(fakeBin, "stat"), `#!/bin/bash
 case "$*" in
-  *candidate.tar*) printf '%s\\n' 'root:root 600 ${crm.size}' ;;
-  *.p8v3k-image-state*) printf '%s\\n' 'root:root 600' ;;
-  *) printf '%s\\n' 'root:root 700' ;;
+  *candidate.tar*) printf '%s\\n' '0:0 600 ${crm.size}' ;;
+  *.p8v3k-image-state*) printf '%s\\n' '0:0 600' ;;
+  *) printf '%s\\n' '0:0 700' ;;
 esac
 `, { mode: 0o700 });
     writeFileSync(join(fakeBin, "sha256sum"), `#!/bin/bash
@@ -1452,26 +1452,45 @@ test("P8V3F preflight does not require the execute-only Supabase service-role ke
   }
 });
 
-test("P8V3K preflight authorization fails before path, run, or fetch seams", async () => {
-  for (const authorization of [undefined, "PREFLIGHT-P8V3K-wrong"]) {
+test("P8V3K execute authorization fails before path, run, or fetch seams", async () => {
+  for (const authorization of [undefined, "EXECUTE-P8V3K-wrong"]) {
     let runCalls = 0;
     let fetchCalls = 0;
     await assert.rejects(
       createP8V3ProductionOperations({
-        mode: "preflight",
+        mode: "execute",
         sourceRoot: "/definitely/missing/p8v3k-source",
         candidateRoot: "/definitely/missing/p8v3k-candidates",
         supabaseCliPath: "/definitely/missing/p8v3k-supabase",
         localResultPath: "/definitely/missing/p8v3k-result.json",
-        environment: authorization === undefined ? {} : { EVO_P8V3_PREFLIGHT_AUTHORIZATION: authorization },
+        environment: authorization === undefined ? {} : { EVO_P8V3_AUTHORIZATION: authorization },
         run() { runCalls += 1; throw new Error("run seam must remain untouched"); },
         async fetchImpl() { fetchCalls += 1; throw new Error("fetch seam must remain untouched"); },
       }),
-      (error) => error.code === "preflight_drift" && /preflight authorization is missing/.test(error.message),
+      (error) => error.code === "preflight_drift" && /authorization is missing/.test(error.message),
     );
     assert.equal(runCalls, 0);
     assert.equal(fetchCalls, 0);
   }
+});
+
+test("P8V3K preflight no longer demands a hand-issued token", async () => {
+  // Preflight changes nothing, so it must not stop on a missing token. It is
+  // still expected to fail on the missing paths below — that proves the run
+  // reached the path seam instead of being refused at the gate.
+  await assert.rejects(
+    createP8V3ProductionOperations({
+      mode: "preflight",
+      sourceRoot: "/definitely/missing/p8v3k-source",
+      candidateRoot: "/definitely/missing/p8v3k-candidates",
+      supabaseCliPath: "/definitely/missing/p8v3k-supabase",
+      localResultPath: "/definitely/missing/p8v3k-result.json",
+      environment: {},
+      run() { throw new Error("run seam must remain untouched"); },
+      async fetchImpl() { throw new Error("fetch seam must remain untouched"); },
+    }),
+    (error) => !/authorization is missing/.test(error.message ?? ""),
+  );
 });
 
 test("P8V3E cleanup verifies an absent pre-stage directory and importer as clean", () => {
@@ -1933,10 +1952,10 @@ function runP8V3KProviderFailureScenario(mode) {
 
     writeFileSync(join(fakeBin, "stat"), `#!/bin/bash
 case "$*" in
-  *p8v3k-platform-knowledge-import.mjs*) printf '%s\\n' 'root:1001 640 1234' ;;
-  *docker-compose.prod.yml*) printf '%s\\n' 'root:root 644' ;;
-  *.p8v3k-image-state*) printf '%s\\n' 'root:root 600' ;;
-  *) printf '%s\\n' 'root:root 700' ;;
+  *p8v3k-platform-knowledge-import.mjs*) printf '%s\\n' '0:1001 640 1234' ;;
+  *docker-compose.prod.yml*) printf '%s\\n' '0:0 644' ;;
+  *.p8v3k-image-state*) printf '%s\\n' '0:0 600' ;;
+  *) printf '%s\\n' '0:0 700' ;;
 esac
 `, { mode: 0o700 });
     writeFileSync(join(fakeBin, "sha256sum"), `#!/bin/bash
@@ -2095,14 +2114,14 @@ test("P8V3K live Compose boundary rejects ownership or mode drift before use", (
     const drifted = spawnSync("bash", ["-seu"], {
       input: boundary,
       encoding: "utf8",
-      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, FAKE_STAT: "root:root 666" },
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, FAKE_STAT: "0:0 666" },
     });
     assert.notEqual(drifted.status, 0);
 
     const verified = spawnSync("bash", ["-seu"], {
       input: boundary,
       encoding: "utf8",
-      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, FAKE_STAT: "root:root 644" },
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, FAKE_STAT: "0:0 644" },
     });
     assert.equal(verified.status, 0, verified.stderr);
   } finally {

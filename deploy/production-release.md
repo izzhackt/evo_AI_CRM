@@ -520,6 +520,7 @@ Build only the three first-party images:
 
 ```bash
 docker compose -p evo-crm \
+  --env-file "$EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE" \
   -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" \
   build app lead-agent
 docker compose -p evo-inbox \

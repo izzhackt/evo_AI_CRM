@@ -9927,9 +9927,10 @@ Research basis: <https://supabase.com/docs/guides/getting-started/architecture>,
 Reviewer notes: independent correctness re-review confirmed the one-product
 Supabase boundary and found no remaining blocking finding in this change set.
 
-## 2026-08-22 — Canonical public entry stays unified while fallback Inbox remains private
+## 2026-08-23 (+06; 2026-08-22 UTC) — Canonical public entry stays unified while Inbox remains fallback-only
 
-Date: 2026-08-22, workspace timezone.
+Date: 2026-08-23 in the workspace timezone (+06); the corresponding GitHub
+events are dated 2026-08-22 in UTC.
 Author: Codex.
 Change type: public edge routing and release reconciliation.
 Affected plan sections: target entry point, edge routing, release inputs,
@@ -9954,4 +9955,11 @@ the exact reviewed release SHA on `hermes-vps`, preserve one rollback image per
 first-party service, prove the fallback `sslip.io` host remains reachable, and
 claim canonical DNS/TLS only after real `crm.evoadmissions.com` and
 `inbox.evoadmissions.com` records exist and Caddy issues certificates.
+Deviation record: a delegated operator deployed temporary revision
+`2c38a325e85fe798ccece31c4e91db909a49246d` before its conflicting PR #369 was
+reviewed or merged. That release kept outbound WhatsApp and amoCRM writes off,
+but routed the canonical Inbox host to the old standalone app. PR #369 is
+superseded, and this clean PR defines the forward reconciliation; production
+must be rebuilt and checked at the eventual exact merged `main` SHA before it
+can be called aligned or live-ready.
 Reviewer notes: pending exact-head CI and independent release gate.

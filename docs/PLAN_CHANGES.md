@@ -10363,13 +10363,16 @@ from current `main`, then retested, independently reviewed and pass exact-head
 CI.
 
 Deletion remains a separate owner-approved effect. The audit defines exact
-batches R1 (68 merged remote heads), R2 (8 closed/superseded remote heads), L1
-(18 safely merged unbound local branches) and W1 (38 clean recoverable detached
-worktrees). Immediately before execution, re-fetch GitHub and fail closed on
-any name, SHA, PR dependency, worktree cleanliness or recovery drift. Use only
-exact names, `git branch -d` and non-forced `git worktree remove`; forbid globs,
-force deletion, filesystem recursion, global prune and garbage collection.
-Capture before/after counts and prove all dirty-status text unchanged.
+batches R1 (68 merged remote heads), R2 (6 closed remote heads with clear
+merged replacements), L1 (18 safely merged unbound local branches) and W1 (38
+clean recoverable detached worktrees). Closed PR #98 passport automation and
+closed PR #123 BW8B runtime planning remain excluded because their closure
+comments explicitly preserved those branches for possible refresh. Immediately
+before execution, re-fetch GitHub and fail closed on any name, SHA, PR
+dependency, worktree cleanliness or recovery drift. Use only exact names,
+`git branch -d` and non-forced `git worktree remove`; forbid globs, force
+deletion, filesystem recursion, global prune and garbage collection. Capture
+before/after counts and prove all dirty-status text unchanged.
 
 This lane changes no runtime code or target architecture. It does not deploy,
 change DNS/TLS, call Supabase/provider production, send WhatsApp, write amoCRM,

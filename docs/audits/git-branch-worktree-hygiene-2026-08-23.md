@@ -80,7 +80,7 @@ old migration numbering.
 | 343 | `hermes-environment-facts` | Refresh read-only, then replace | Server facts are volatile and the draft predates the latest release-path work. |
 | 159 | `waha-knowledge-export` | Do not merge; decide whether to redesign | It assumes an older WAHA/archive contour and needs explicit privacy and current `evo-inbox` review. |
 
-Three non-open branches also remain on hold:
+Five non-open branches also remain on hold:
 
 - `izzhackt/evo-platform-p4b-mapping-approval` has no PR and contains a stale,
   large deferred amoCRM checkpoint; only selective current-main salvage is
@@ -92,6 +92,12 @@ Three non-open branches also remain on hold:
   repository root. PR #40 is merged, but that checkout contains current
   uncommitted user work, so neither its worktree nor its local/remote branch is
   part of the first cleanup wave.
+- `izzhackt/passport-sheet-automation` was closed in PR #98 only to pause for
+  launch ordering, with an explicit instruction to preserve and potentially
+  rebase/reopen it. It needs a new owner disposition before deletion.
+- `izzhackt/bw8b-runtime-plan-amendment` was likewise explicitly preserved when
+  PR #123 closed for sequential launch control. Later boundaries may make it
+  stale, but cleanup does not silently replace that recorded hold decision.
 
 Closed PR #369 and branch `izzhackt/fix-platform-connected-reliability` are not
 a salvage lane. Its first seven commits were the head of merged PR #367; its
@@ -178,21 +184,19 @@ izzhacktcodex/evo-inbox-waha-companion
 izzhacktcodex/gemini-embeddings-scale
 ```
 
-### R2 — closed and superseded remote heads
+### R2 — closed remote heads with clear merged replacements
 
-Delete these `8` GitHub branches only after owner approval. They exactly match
-closed PR heads, their replacement/current decision is recorded in merged
-history, and the closed PR remains restorable:
+Delete these `6` GitHub branches only after owner approval. They exactly match
+closed PR heads, have a clear merged successor/current decision, and the closed
+PR remains restorable:
 
 ```text
-izzhackt/bw8b-runtime-plan-amendment
 izzhackt/evo-platform-auth-local-readiness
 izzhackt/evo-platform-auth-local-readiness-repair
 izzhackt/evo-platform-bw5-catalog-boundary
 izzhackt/evo-platform-bw7-integration-proof
 izzhackt/evo-platform-p5e-ack-realtime-plan
 izzhackt/fix-platform-connected-reliability
-izzhackt/passport-sheet-automation
 ```
 
 ### L1 — merged, unbound local branches
@@ -306,7 +310,7 @@ than trusted as manually copied lists:
 
 - all `68` R1 names exist at the fetched remote SHA, exactly match a merged PR
   head, and are neither an open PR head nor an open PR base;
-- all `8` R2 names exist at the fetched remote SHA, exactly match a closed PR
+- all `6` R2 names exist at the fetched remote SHA, exactly match a closed PR
   head, and are neither an open PR head nor an open PR base;
 - all `18` L1 names exist locally, are ancestors of current `origin/main`, have
   no worktree binding and are not an open PR head;

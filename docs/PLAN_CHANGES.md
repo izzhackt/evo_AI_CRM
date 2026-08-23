@@ -10326,3 +10326,56 @@ UI-contract fixture mode before the amoCRM adapter can run and records
 and is not claimed as provider proof. The regenerated full CRM scenario suite
 passes 39/39 with zero provider calls. A new exact-head CI run is required
 before merge.
+
+Final exact-head evidence: revised head
+`9f7901d7cf2c434819b86d634fd26af102302615` passed Changed range, Main CRM,
+EVO Inbox and EVO Lead Agent in run `32611834420`. PR #374 squash-merged as
+`2db8810213c7944aaf2f1b8e52ef4c0ab7824aa5`, and the merged tree is equivalent
+to the reviewed head. No managed Supabase/provider or production action was
+performed.
+
+## 2026-08-23 — Govern branch and worktree cleanup from current main
+
+Date: 2026-08-23, workspace timezone (+06).
+Author: Codex.
+Change type: repository operations and delivery governance.
+Affected plan section: post-merge branch lifecycle, worktree lifecycle and
+unfinished draft disposition.
+
+Reason: the owner requested a professional audit and cleanup of the unusually
+large branch set. Read-only discovery against GitHub `main`
+`2db8810213c7944aaf2f1b8e52ef4c0ab7824aa5` found 96 GitHub branches, 16 open
+draft PRs, 273 local branches and 150 worktrees before the audit worktree was
+created. Nine worktrees are dirty. GitHub already enables automatic merged-head
+deletion, but it cannot clean local refs/worktrees and did not remove the older
+remote residue. Because this repository squash-merges PRs, ancestry-only
+`--merged` checks are insufficient.
+
+Decision: keep GitHub `main` as the only shared source of truth and treat
+feature branches/worktrees as temporary delivery contexts, not supported EVO
+versions. Record the exact PR/SHA/dependency/recoverability audit in
+`docs/audits/git-branch-worktree-hygiene-2026-08-23.md`. Preserve the original
+dirty checkout, all nine dirty worktrees, all open PR heads and bases, the
+changed-after-close student-document checkpoint, the no-PR P4B checkpoint and
+the one detached commit with no persistent recovery path. No old feature branch
+may merge directly: retained value must be refreshed or selectively rebuilt
+from current `main`, then retested, independently reviewed and pass exact-head
+CI.
+
+Deletion remains a separate owner-approved effect. The audit defines exact
+batches R1 (68 merged remote heads), R2 (6 closed remote heads with clear
+merged replacements), L1 (18 safely merged unbound local branches) and W1 (38
+clean recoverable detached worktrees). Closed PR #98 passport automation and
+closed PR #123 BW8B runtime planning remain excluded because their closure
+comments explicitly preserved those branches for possible refresh. Immediately
+before execution, re-fetch GitHub and fail closed on any name, SHA, PR
+dependency, worktree cleanliness or recovery drift. Use only exact names,
+`git branch -d` and non-forced `git worktree remove`; forbid globs, force
+deletion, filesystem recursion, global prune and garbage collection. Capture
+before/after counts and prove all dirty-status text unchanged.
+
+This lane changes no runtime code or target architecture. It does not deploy,
+change DNS/TLS, call Supabase/provider production, send WhatsApp, write amoCRM,
+change WAHA sessions, enable autonomous behavior or run the dedicated security
+scan. The docs-only contract requires review and exact-head CI before any
+cleanup batch is proposed for approval.

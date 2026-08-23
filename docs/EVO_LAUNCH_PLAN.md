@@ -39,14 +39,15 @@ PR #228 repaired the isolated importer Compose invocation, PR #230 packaged
 the importer as a runnable, UUID-redacting production-image artifact, and PRs
 #232-#233 built and independently verified the exact P8D4F `linux/amd64`
 candidate, and PR #235 authorized the closed P8D4G production execution order.
-Repository status through PR #372: the Supabase-owned manual-send WAHA runtime
-repair merged at 2026-08-22 23:41:03 UTC, which is 2026-08-23 05:41:03 in the
-workspace timezone (+06), as
-`d4d3272fcf730a4a273d52422d854e15c3b01a50`; the canonical migration chain is
-contiguous through `001-080`; and exact-head PR CI run `32605431337` passed
-Changed range, Main CRM, EVO Inbox and EVO Lead Agent. Always re-query
-`origin/main` and exact-main CI before a release instead of treating this
-recorded merge SHA as a moving-current alias.
+Repository status through PR #374: the single active WAHA session authority
+merged at 2026-08-23 02:12:16 UTC, which is 2026-08-23 08:12:16 in the workspace
+timezone (+06), as `2db8810213c7944aaf2f1b8e52ef4c0ab7824aa5`; the canonical
+migration chain is contiguous through `001-082`; and exact-head PR CI run
+`32611834420` passed Changed range, Main CRM, EVO Inbox and EVO Lead Agent. A
+post-merge tree comparison also confirmed that the merge commit is equivalent
+to the reviewed PR head `9f7901d7cf2c434819b86d634fd26af102302615`.
+Always re-query `origin/main` and exact-main CI before a release instead of
+treating this recorded merge SHA as a moving-current alias.
 
 P4B implementation is preserved on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -69,12 +70,14 @@ replacement path, then retire the contour without a dual-read/write bridge.
 Read-only server evidence on 2026-08-23 (+06) shows healthy CRM, Inbox and Lead
 Agent application images at release
 `ee8a825ebc72f84449636e3feaefab7a330913d4`, with the sslip.io CRM and Inbox
-health routes returning HTTP 200. That release predates PRs #371-#372 and still
+health routes returning HTTP 200. That release predates PRs #371-#374 and still
 runs three application boundaries plus two WAHA services; it is not the target
-all-in-one proof. Canonical DNS/TLS is deferred by owner direction. The active
-repository slice is P8R5: add the missing non-secret provisioning/configuration
-gate for migration 080 before any new release authority is requested. All
-outbound WhatsApp and amoCRM writes remain disabled.
+all-in-one proof. Canonical DNS/TLS is deferred by owner direction. P8R5 and
+P8R6 are merged in the repository, but production still runs the older
+`ee8a825e...` release and there is no real provider proof for the new path. The
+active non-runtime lane is BH1 repository branch/worktree hygiene; it cannot
+authorize deployment or provider activity. All outbound WhatsApp and amoCRM
+writes remain disabled.
 
 Separate owner-authorized hygiene on 2026-08-23 removed only the superseded
 temporary revision `2c38a325e85fe798ccece31c4e91db909a49246d`: its three
@@ -4603,3 +4606,34 @@ copy with an isolated report path passed the five safe affected scenarios
 full CI suite cannot contact amoCRM. The regenerated full CRM scenario suite
 then passed 39/39 with `provider calls 0`; the revised exact head must still
 pass CI before merge.
+
+The revised exact head
+`9f7901d7cf2c434819b86d634fd26af102302615` passed all four required jobs in
+run `32611834420`, and PR #374 squash-merged as
+`2db8810213c7944aaf2f1b8e52ef4c0ab7824aa5`. A post-merge comparison proved
+the merged tree equivalent to the reviewed head. This closes repository P8R6
+only; no managed Supabase/provider or production proof was performed.
+
+## BH1 — Repository branch and worktree hygiene (2026-08-23)
+
+The current GitHub and local Git inventories contain historical delivery
+residue: 96 GitHub branches, 273 pre-audit local branches, 150 pre-audit
+worktrees, 16 draft PRs and 9 dirty worktrees. This is an operational hygiene
+problem, not evidence of multiple supported EVO product versions. GitHub
+`main` remains the only shared source of truth and production remains on its
+separately recorded older release.
+
+The exact audit, open-PR disposition and proposed deletion batches are recorded
+in `docs/audits/git-branch-worktree-hygiene-2026-08-23.md`. Squash-merged work
+must be classified by GitHub PR/head evidence and patch/recoverability checks,
+not only by Git ancestry. The original dirty checkout, all dirty worktrees,
+open PR branches, the changed-after-close document branch, the no-PR P4B
+checkpoint, and every unreachable detached commit remain preserved.
+
+BH1 first merges this docs-only contract through exact-head review and CI. A
+later execution may delete only an owner-approved itemized batch, after a fresh
+state check proves every name and SHA still matches the audit. Remote removal,
+clean worktree removal, and safe local `git branch -d` happen as separate
+verified stages. Force deletion, global prune/garbage collection, deployment,
+DNS/TLS changes, live provider calls, WhatsApp sends, amoCRM writes, WAHA
+session changes and the dedicated security scan are outside this lane.

@@ -961,7 +961,14 @@ export async function getIntegrationStatus() {
 export async function checkAmoCrmAction() {
   const user = await currentUser();
   if (!user || user.role !== "admin") redirect("/dashboard");
-  const status = await createAmoCrmAdapter().getConnectionState();
+  const status = isUiContractFixtureMode()
+    ? (() => {
+        const local = getAmoCrmLocalStatus();
+        return local.status === "configured"
+          ? { status: "blocked" as const, reason: "fixture_external_calls_disabled" }
+          : local;
+      })()
+    : await createAmoCrmAdapter().getConnectionState();
   if (status.status === "not_configured") {
     setSetting("amocrm_last_check", `not_configured:${status.missing.join(",")}`);
   } else if (status.status === "blocked") {

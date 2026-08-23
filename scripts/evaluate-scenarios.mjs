@@ -10,7 +10,9 @@ import { createScenarios } from "./scenarios/admissions-crm.mjs";
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const sourceDb = process.env.EVO_SCENARIO_SOURCE_DB_PATH
   || path.join(repoRoot, "data", "edu-admin.db");
-const reportPath = path.join(repoRoot, "docs", "SCENARIO_EVALUATION.md");
+const reportPath = process.env.EVO_SCENARIO_REPORT_PATH
+  ? path.resolve(process.env.EVO_SCENARIO_REPORT_PATH)
+  : path.join(repoRoot, "docs", "SCENARIO_EVALUATION.md");
 const authSecret = "scenario-evaluation-secret";
 const leadAgentSyncSecret = "scenario-evaluation-only-lead-agent-sync-secret";
 const basePort = Number(process.env.EVO_SCENARIO_PORT ?? 3130);

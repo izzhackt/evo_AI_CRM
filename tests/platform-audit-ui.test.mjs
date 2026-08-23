@@ -18,6 +18,10 @@ const actionsSource = readFileSync(
   new URL("../src/lib/actions.ts", import.meta.url),
   "utf8",
 );
+const scenarioSource = readFileSync(
+  new URL("../scripts/scenarios/admissions-crm.mjs", import.meta.url),
+  "utf8",
+);
 const legacyWahaQrRoute = new URL(
   "../src/app/api/waha/qr/route.ts",
   import.meta.url,
@@ -95,6 +99,23 @@ test("current main contains no legacy WAHA QR or SQLite session control path", (
   assert.doesNotMatch(
     actionsSource,
     /"(?:wa_(?:provider|token|phone_id|verify_token|app_secret)|waha_(?:account_name|base_url|session_name|webhook_url|api_key|webhook_secret)|lead_agent_sync_secret)"/,
+  );
+});
+
+test("CRM scenarios prove the server-managed WAHA boundary instead of legacy setup", () => {
+  assert.match(scenarioSource, /server-managed `evo-inbox`/);
+  assert.match(scenarioSource, /legacy WAHA QR route status/);
+  assert.doesNotMatch(
+    scenarioSource,
+    /waha_account_name:|waha_webhook_secret:|session: "crm_primary"/,
+  );
+  assert.match(
+    legacySource,
+    /data-testid="legacy-amocrm-check"/,
+  );
+  assert.match(
+    scenarioSource,
+    /data-testid=\\"legacy-amocrm-check\\"/,
   );
 });
 

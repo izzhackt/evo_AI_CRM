@@ -791,161 +791,76 @@ return [
   },
   {
     id: "S28",
-    capability: "WhatsApp webhook and settings",
-    scenario: "Settings save integration token, verify endpoint works, and incoming webhook creates lead/conversation.",
-    criteria: "Admin settings form saves verify token; GET webhook echoes challenge; POST incoming message creates conversation and linked lead.",
+    capability: "Platform WhatsApp authority",
+    scenario: "Settings expose the server-managed `evo-inbox` boundary without legacy Meta or WAHA controls.",
+    criteria: "Admin sees the exact canonical session and Platform webhook path; no legacy WhatsApp provider, secret, session, QR, or start control is rendered.",
     async run(ctx) {
-      const token = unique("wa-token");
-      const appSecret = unique("wa-secret");
-      await ctx.submit("/settings", ctx.cookie(admin), { names: ["wa_token", "wa_phone_id", "wa_verify_token", "wa_app_secret", "tel_provider", "tel_api_key", "anthropic_api_key"] }, {
-        wa_token: "",
-        wa_phone_id: "",
-        wa_verify_token: token,
-        wa_app_secret: appSecret,
-        tel_provider: "other",
-        tel_api_key: "",
-        anthropic_api_key: "",
-      });
-      const verify = await ctx.get(`/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(token)}&hub.challenge=ok-challenge`);
-      assert(verify.status === 200 && verify.text === "ok-challenge", `verify ${verify.status}/${verify.text}`);
-      const from = `996700${Math.floor(100000 + Math.random() * 899999)}`;
-      const payload = {
-        entry: [{
-          changes: [{
-            value: {
-              contacts: [{ wa_id: from, profile: { name: "Scenario Inbound" } }],
-              messages: [{ id: unique("wamid"), from, type: "text", text: { body: "Interested in admissions" } }],
-            },
-          }],
-        }],
-      };
-      const rawPayload = JSON.stringify(payload);
-      const signature = `sha256=${createHmac("sha256", appSecret).update(rawPayload).digest("hex")}`;
-      const post = await ctx.postJson("/api/webhooks/whatsapp", payload, {
-        headers: { "x-hub-signature-256": signature },
-      });
-      assert(post.status === 200, `webhook post ${post.status}`);
-      const conv = scalar(ctx, "SELECT id, lead_id FROM wa_conversations WHERE phone = ?", [`+${from}`]);
-      const lead = conv?.lead_id ? scalar(ctx, "SELECT id, source FROM leads WHERE id = ?", [conv.lead_id]) : null;
-      assert(conv && lead?.source === "WhatsApp", "webhook did not create linked WhatsApp lead");
-      return `verify ok; inbound conversation ${conv.id}, lead ${lead.id}`;
+      const page = await ctx.get("/settings?tab=integrations", ctx.cookie(admin));
+      assert(page.status === 200, `settings status ${page.status}`);
+      assert(
+        page.text.includes('data-testid="legacy-waha-server-managed"'),
+        "settings page missing the server-managed WAHA boundary",
+      );
+      assert(page.text.includes("evo-inbox"), "settings page missing canonical evo-inbox session");
+      assert(
+        page.text.includes("/api/internal/platform-messaging/waha/events"),
+        "settings page missing canonical Platform webhook path",
+      );
+      const retiredInputNames = [
+        "wa_provider",
+        "wa_token",
+        "wa_phone_id",
+        "wa_verify_token",
+        "wa_app_secret",
+        "waha_account_name",
+        "waha_base_url",
+        "waha_session_name",
+        "waha_webhook_url",
+        "waha_api_key",
+        "waha_webhook_secret",
+        "lead_agent_sync_secret",
+      ];
+      for (const inputName of retiredInputNames) {
+        assert(
+          !new RegExp(`name=["']${inputName}["']`).test(page.text),
+          `settings page still renders retired ${inputName} control`,
+        );
+      }
+      return "server-managed `evo-inbox` and Platform webhook rendered; legacy WhatsApp controls absent";
     },
   },
   {
     id: "S28B",
-    capability: "WAHA WhatsApp integration",
-    scenario: "WAHA settings create a session account, signed webhook imports messages, status events update the account, retries are idempotent, and provider errors stay visible.",
-    criteria: "Admin can save WAHA config; unsigned WAHA webhook is rejected; signed message creates one account-bound conversation; duplicate delivery is ignored; a stored provider failure renders as blocked in the staff shell and settings overview.",
+    capability: "WAHA operator control retirement",
+    scenario: "The removed SQLite-backed WAHA QR and session-control path stays unavailable.",
+    criteria: "Authenticated Admin receives 404 from the retired QR route and the probe does not create a legacy WAHA account or setting.",
     async run(ctx) {
-      const session = `crm_${Math.random().toString(36).slice(2, 8)}`;
-      const webhookSecret = unique("waha-hook");
-      await ctx.submit("/settings", ctx.cookie(admin), {
-        names: [
-          "wa_provider",
-          "waha_account_name",
-          "waha_base_url",
-          "waha_session_name",
-          "waha_api_key",
-          "waha_webhook_secret",
-          "waha_webhook_url",
-        ],
-      }, {
-        wa_provider: "waha",
-        waha_account_name: "Scenario WAHA",
-        waha_base_url: "http://127.0.0.1:3000",
-        waha_session_name: session,
-        waha_api_key: unique("waha-api"),
-        waha_webhook_secret: webhookSecret,
-        waha_webhook_url: "https://crm.evo.example/api/webhooks/waha",
-      });
-      const account = scalar(ctx, "SELECT id, provider, session_name, status FROM wa_accounts WHERE session_name = ?", [session]);
-      assert(account?.provider === "waha", "WAHA account was not created from settings");
-
-      const from = `996700${Math.floor(100000 + Math.random() * 899999)}`;
-      const messageId = unique("waha-msg");
-      const messagePayload = {
-        event: "message",
-        session,
-        engine: "WEBJS",
-        payload: {
-          id: messageId,
-          timestamp: Math.floor(Date.now() / 1000),
-          from: `${from}@c.us`,
-          fromMe: false,
-          to: "996700111222@c.us",
-          body: "WAHA inbound admissions question",
-          hasMedia: false,
-          ack: 1,
-        },
-      };
-
-      const rejected = await ctx.postJson("/api/webhooks/waha", messagePayload, {
-        headers: { "x-webhook-hmac": "bad", "x-webhook-hmac-algorithm": "sha512" },
-      });
-      assert(rejected.status === 403, `bad WAHA webhook status ${rejected.status}`);
-
-      const rawMessage = JSON.stringify(messagePayload);
-      const signature = createHmac("sha512", webhookSecret).update(rawMessage).digest("hex");
-      const firstPost = await ctx.postJson("/api/webhooks/waha", messagePayload, {
-        headers: { "x-webhook-hmac": signature, "x-webhook-hmac-algorithm": "sha512" },
-      });
-      const retryPost = await ctx.postJson("/api/webhooks/waha", messagePayload, {
-        headers: { "x-webhook-hmac": signature, "x-webhook-hmac-algorithm": "sha512" },
-      });
-      assert(firstPost.status === 200 && retryPost.status === 200, `WAHA posts ${firstPost.status}/${retryPost.status}`);
-
-      const conv = scalar(ctx, "SELECT id, lead_id, wa_account_id FROM wa_conversations WHERE phone = ? AND wa_account_id = ?", [`+${from}`, account.id]);
-      assert(conv?.wa_account_id === account.id, "WAHA webhook did not create account-bound conversation");
-      const messages = rowCount(ctx, "wa_messages", "wa_id = ?", [messageId]);
-      assert(messages === 1, `expected one deduped WAHA message, got ${messages}`);
-
-      const statusPayload = {
-        event: "session.status",
-        session,
-        engine: "WEBJS",
-        me: { id: "996700111222@c.us", pushName: "Scenario WAHA" },
-        payload: { status: "WORKING", statuses: [] },
-      };
-      const rawStatus = JSON.stringify(statusPayload);
-      const statusSignature = createHmac("sha512", webhookSecret).update(rawStatus).digest("hex");
-      const statusPost = await ctx.postJson("/api/webhooks/waha", statusPayload, {
-        headers: { "x-webhook-hmac": statusSignature, "x-webhook-hmac-algorithm": "sha512" },
-      });
-      assert(statusPost.status === 200, `WAHA status post ${statusPost.status}`);
-      const updated = scalar(ctx, "SELECT status, phone FROM wa_accounts WHERE id = ?", [account.id]);
-      assert(updated?.status === "WORKING" && updated.phone === "+996700111222", "WAHA status event did not update account state");
-      ctx.db
-        .prepare("INSERT INTO settings (key, value) VALUES ('waha_last_error', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
-        .run("provider_unreachable");
-      const blockedShell = await ctx.get("/dashboard", ctx.cookie(admin));
-      const blockedLabels = [
-        "WhatsApp: заблокировано",
-        "WhatsApp: бөгөттөлгөн",
-        "WhatsApp: blocked",
-      ];
-      assert(
-        blockedLabels.some((label) => blockedShell.text.includes(label)),
-        `staff shell hid the configured WAHA provider failure; labels=${blockedShell.text.match(/WhatsApp.{0,90}/g)?.slice(0, 3).join(" | ") ?? "none"}`,
+      const accountsBefore = rowCount(ctx, "wa_accounts");
+      const settingsBefore = scalar(
+        ctx,
+        "SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'waha_%' OR key LIKE 'wa_%'",
       );
-      const blockedSettings = await ctx.get("/settings?tab=overview", ctx.cookie(admin));
-      const blockedSettingsLabels = [
-        "WhatsApp заблокирован",
-        "WhatsApp бөгөттөлгөн",
-        "WhatsApp is blocked",
-      ];
-      assert(
-        blockedSettingsLabels.some((label) => blockedSettings.text.includes(label)),
-        "settings overview mislabeled the configured WAHA provider failure",
+      const qr = await ctx.get("/api/waha/qr", ctx.cookie(admin));
+      assert(qr.status === 404, `legacy WAHA QR route status ${qr.status}`);
+
+      const accountsAfter = rowCount(ctx, "wa_accounts");
+      const settingsAfter = scalar(
+        ctx,
+        "SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'waha_%' OR key LIKE 'wa_%'",
       );
-      ctx.db.prepare("UPDATE settings SET value = '' WHERE key = 'waha_last_error'").run();
-      return `WAHA session ${session}; conversation ${conv.id}; duplicate message ignored; account ${updated.status}; provider failure rendered blocked in shell and settings`;
+      assert(accountsAfter === accountsBefore, "retired QR route mutated WAHA accounts");
+      assert(
+        settingsAfter.count === settingsBefore.count,
+        "retired QR route mutated legacy WhatsApp settings",
+      );
+      return `legacy WAHA QR route status ${qr.status}; zero SQLite account/settings mutations`;
     },
   },
   {
     id: "S28C",
     capability: "Lead Agent Platform sync boundary",
     scenario: "The legacy SQLite harness proves that signed Lead Agent events fail closed when canonical Supabase persistence is unavailable.",
-    criteria: "Bad signatures return exact invalid_signature; a valid canonical crm_primary event reaches the Supabase-only boundary and returns exact platform_sync_failed without mutating legacy SQLite tables.",
+    criteria: "Bad signatures return exact invalid_signature; a valid canonical evo-inbox event reaches the Supabase-only boundary and returns exact platform_sync_failed without mutating legacy SQLite tables.",
     async run(ctx) {
       const inboundWaId = unique("lead-agent-in");
       const phoneDigits = `996700${Math.floor(100000 + Math.random() * 899999)}`;
@@ -954,7 +869,7 @@ return [
       const amoAccountId = Math.floor(9_100_000 + Math.random() * 100_000);
       const payload = {
         event: "whatsapp.message",
-        session: "crm_primary",
+        session: "evo-inbox",
         phone: `+${phoneDigits}`,
         chatId: `${phoneDigits}@c.us`,
         pushName: "Scenario Draft Lead",
@@ -1050,13 +965,9 @@ return [
     scenario: "Calls page and telephony webhook enforce key handling and insert calls.",
     criteria: "Missing telephony provider or key is explicitly blocked without inserting a call; configured provider/key blocks invalid webhook; valid webhook inserts a call and links by lead phone.",
     async run(ctx) {
-      await ctx.submit("/settings", ctx.cookie(admin), { names: ["wa_token", "wa_phone_id", "wa_verify_token", "tel_provider", "tel_api_key", "anthropic_api_key"] }, {
-        wa_token: "",
-        wa_phone_id: "",
-        wa_verify_token: "",
+      await ctx.submit("/settings", ctx.cookie(admin), { names: ["tel_provider", "tel_api_key"] }, {
         tel_provider: "other",
         tel_api_key: "",
-        anthropic_api_key: "",
       });
       const page = await ctx.get("/calls", ctx.cookie(sales));
       assert(page.status === 200, `calls page ${page.status}`);
@@ -1077,13 +988,9 @@ return [
       assert(afterUnconfigured.count === beforeUnconfigured.count, "unconfigured telephony webhook inserted a call");
 
       const key = unique("tel-key");
-      await ctx.submit("/settings", ctx.cookie(admin), { names: ["wa_token", "wa_phone_id", "wa_verify_token", "tel_provider", "tel_api_key", "anthropic_api_key"] }, {
-        wa_token: "",
-        wa_phone_id: "",
-        wa_verify_token: "",
+      await ctx.submit("/settings", ctx.cookie(admin), { names: ["tel_provider", "tel_api_key"] }, {
         tel_provider: "",
         tel_api_key: key,
-        anthropic_api_key: "",
       });
       const partialPage = await ctx.get("/calls", ctx.cookie(sales));
       assert(partialPage.status === 200, `calls page partial provider ${partialPage.status}`);
@@ -1100,13 +1007,9 @@ return [
       const afterMissingProvider = scalar(ctx, "SELECT COUNT(*) AS count FROM calls WHERE phone = ?", [lead.phone]);
       assert(afterMissingProvider.count === beforeMissingProvider.count, "missing-provider telephony webhook inserted a call");
 
-      await ctx.submit("/settings", ctx.cookie(admin), { names: ["wa_token", "wa_phone_id", "wa_verify_token", "tel_provider", "tel_api_key", "anthropic_api_key"] }, {
-        wa_token: "",
-        wa_phone_id: "",
-        wa_verify_token: "",
+      await ctx.submit("/settings", ctx.cookie(admin), { names: ["tel_provider", "tel_api_key"] }, {
         tel_provider: "other",
         tel_api_key: key,
-        anthropic_api_key: "",
       });
       const bad = await ctx.postJson("/api/webhooks/telephony", { api_key: "bad", phone: lead.phone });
       assert(bad.status === 403, `invalid key status ${bad.status}`);
@@ -1163,7 +1066,7 @@ return [
       assert(page.status === 200, `settings status ${page.status}`);
       assert(page.text.includes("amoCRM"), "settings page missing amoCRM section");
       assert(page.text.includes("accountBaseUrl") && page.text.includes("refreshToken"), "settings page missing required amoCRM fields status");
-      await ctx.submit("/settings", ctx.cookie(admin), { includes: ["amoCRM"], excludes: ["name=\"wa_token\""] });
+      await ctx.submit("/settings", ctx.cookie(admin), { includes: ["data-testid=\"legacy-amocrm-check\""] });
       const check = scalar(ctx, "SELECT value FROM settings WHERE key = 'amocrm_last_check'");
       assert(check?.value?.startsWith("not_configured:"), `unexpected amoCRM check ${check?.value}`);
       return `amoCRM check returned ${check.value}`;
@@ -1226,8 +1129,8 @@ return [
   {
     id: "S36",
     capability: "amoCRM integration",
-    scenario: "Real amoCRM OAuth failure is surfaced as blocked instead of configured.",
-    criteria: "When required credentials are present but the real OAuth exchange fails, the settings status records and renders blocked without leaking token values.",
+    scenario: "The UI-contract fixture fails closed without contacting amoCRM.",
+    criteria: "When synthetic credentials are present, the fixture-only check records and renders blocked without a provider request or leaked token values.",
     async run(ctx) {
       const clientSecret = unique("provider-secret");
       const refreshToken = unique("provider-refresh");
@@ -1240,14 +1143,17 @@ return [
         amocrm_pipeline_id: "12345",
         amocrm_status_id: "67890",
       });
-      await ctx.submit("/settings", ctx.cookie(admin), { includes: ["amoCRM"], excludes: ["name=\"wa_token\""] });
+      await ctx.submit("/settings", ctx.cookie(admin), { includes: ["data-testid=\"legacy-amocrm-check\""] });
       const check = scalar(ctx, "SELECT value FROM settings WHERE key = 'amocrm_last_check'");
-      assert(check?.value?.startsWith("blocked:provider_"), `expected blocked provider check, got ${check?.value}`);
+      assert(
+        check?.value === "blocked:fixture_external_calls_disabled",
+        `expected fixture provider block, got ${check?.value}`,
+      );
       const page = await ctx.get("/settings", ctx.cookie(admin));
       assert(page.text.includes("blocked") || page.text.includes("заблок") || page.text.includes("бөгөт"), "settings page did not render blocked amoCRM status");
       assert(!page.text.includes(clientSecret), "settings page leaked provider-check client secret");
       assert(!page.text.includes(refreshToken), "settings page leaked provider-check refresh token");
-      return `amoCRM real OAuth check stored ${check.value}`;
+      return `amoCRM fixture check stored ${check.value}; provider calls 0`;
     },
   },
   {

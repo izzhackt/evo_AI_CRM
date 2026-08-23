@@ -10304,9 +10304,25 @@ historical fixture bound to 077 and invokes a separate P8R6 wrapper with exact
 both fresh-reset paths pass. Final local proof passed the fresh `001-082`
 Postgres authorization harness, the complete local
 Supabase/Auth/RLS/Storage/Realtime/browser gate,
-653 ordinary root unit tests, 842 Inbox tests plus 32 schema-contract tests,
+655 ordinary root unit tests, 842 Inbox tests plus 32 schema-contract tests,
 126 Lead Agent tests, root and Inbox typechecks/lints/builds, Lead Agent Ruff,
 safe Compose rendering and independent correctness/release review with no
 remaining high or medium finding. This remains repository/disposable-local
 proof only; exact-head CI and merge are still required, and no managed provider
 or production action occurred.
+
+First exact-head CI evidence: run `32610716487` at
+`d21c60f5007fa6359580334f77d2dbc9fe771936` passed changed-range, Inbox and Lead
+Agent. Main CRM completed its local Supabase gate and failed only when the old
+S28/S28B/S29 scenario selectors tried to submit WAHA/Meta controls deleted by
+P8R6; S32/S36 also selected the wrong form because they relied on a removed
+WhatsApp field as an exclusion. Replace those assumptions with explicit
+server-managed `evo-inbox`, retired-QR and stable amoCRM check-form contracts,
+and permit an isolated scenario-report destination for safe targeted
+reproduction. The five affected scenarios that require no real provider probe
+pass 5/5 on a disposable database. S36 now fails closed inside the explicit
+UI-contract fixture mode before the amoCRM adapter can run and records
+`blocked:fixture_external_calls_disabled`; production behavior is unchanged
+and is not claimed as provider proof. The regenerated full CRM scenario suite
+passes 39/39 with zero provider calls. A new exact-head CI run is required
+before merge.

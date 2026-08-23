@@ -507,7 +507,7 @@ export async function renderLegacySettingsPage({
         </div>
       </form>
 
-      <form action={checkAmoCrmAction}>
+      <form action={checkAmoCrmAction} data-testid="legacy-amocrm-check">
         <button type="submit" className={btnGhostCls}>{t("amocrmCheck")}</button>
       </form>
         </>

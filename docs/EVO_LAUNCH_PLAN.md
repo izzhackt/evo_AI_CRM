@@ -4580,7 +4580,7 @@ P8R6 wrapper, which explicitly selects `evo-inbox`; both fresh-reset boundaries
 now pass without treating the historical name as current authority.
 
 Final local proof passed a fresh `001-082` Postgres authorization harness, the
-complete local Supabase/Auth/RLS/Storage/Realtime/browser gate, 653 root unit
+complete local Supabase/Auth/RLS/Storage/Realtime/browser gate, 655 root unit
 tests, 842 Inbox tests plus 32 schema-contract tests, 126 Lead Agent tests,
 root/Inbox typechecks, lints and builds, Lead Agent Ruff, safe Compose rendering
 and independent correctness/release review with no remaining high or medium
@@ -4588,3 +4588,18 @@ finding. This is repository/disposable-local evidence only. Exact-head CI and
 merge remain mandatory; no managed migration, real provider/session/webhook,
 WhatsApp, amoCRM, autonomous, deployment, DNS/TLS or security-scan action was
 performed.
+
+The first exact-head CI run `32610716487` on
+`d21c60f5007fa6359580334f77d2dbc9fe771936` passed the changed-range, Inbox and
+Lead Agent jobs. Its Main CRM job reached the scenario stage after the full
+local Supabase gate, then correctly failed because the legacy S28/S28B/S29
+fixtures still searched for WAHA/Meta controls removed by this slice and the
+amoCRM S32/S36 action selector depended on one of those removed fields. The
+scenario contracts now assert the server-managed `evo-inbox` boundary, the
+retired QR route and a stable amoCRM check-form identity. A disposable SQLite
+copy with an isolated report path passed the five safe affected scenarios
+5/5. S36 is now explicitly fixture-only and records
+`blocked:fixture_external_calls_disabled` before the adapter can run, so the
+full CI suite cannot contact amoCRM. The regenerated full CRM scenario suite
+then passed 39/39 with `provider calls 0`; the revised exact head must still
+pass CI before merge.

@@ -169,6 +169,27 @@ test("legacy scenario fixtures use only the non-production Next server", () => {
     scenarioRunnerSource,
     /EVO_UI_CONTRACT_FIXTURES:\s*"1"/,
   );
+  assert.match(
+    scenarioRunnerSource,
+    /EVO_SCENARIO_REPORT_PATH/,
+  );
+});
+
+test("legacy amoCRM check fails closed without provider access in UI fixture mode", () => {
+  const start = loginActionSource.indexOf("export async function checkAmoCrmAction");
+  const end = loginActionSource.indexOf("function setPreservedSecret", start);
+  assert.ok(start >= 0 && end > start, "amoCRM check action source missing");
+  const actionSource = loginActionSource.slice(start, end);
+  assert.match(actionSource, /isUiContractFixtureMode\(\)/);
+  assert.match(
+    actionSource,
+    /status: "blocked" as const, reason: "fixture_external_calls_disabled"/,
+  );
+  assert.ok(
+    actionSource.indexOf("isUiContractFixtureMode()")
+      < actionSource.indexOf("createAmoCrmAdapter().getConnectionState()"),
+    "fixture guard must run before the provider adapter",
+  );
 });
 
 test("proxy admits only the exact connected conversation route shape", () => {

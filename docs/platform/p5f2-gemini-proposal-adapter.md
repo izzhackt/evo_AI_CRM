@@ -1,7 +1,8 @@
 # P5F2 Gemini Proposal Adapter
 
-Status: implementation contract for block
-`EVO-P5F2-GEMINI-PROPOSALS-2026-08-11`.
+Status: historical implementation source under #376/ADR 0020; U9 must
+revalidate and selectively rebuild any conforming proposal behavior. Historical
+block: `EVO-P5F2-GEMINI-PROPOSALS-2026-08-11`.
 
 ## Purpose
 

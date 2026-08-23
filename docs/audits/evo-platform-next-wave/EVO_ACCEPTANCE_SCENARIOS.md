@@ -1,6 +1,7 @@
 # EVO Platform acceptance scenarios
 
-Status: next-wave QA catalog
+Status: historical QA source under #376/ADR 0020; each U-slice must revalidate
+applicable scenarios
 Evidence baseline: `origin/main` at `d243b2bb370d052750278e7f5cc2625991d5f870` on 2026-08-17
 
 ## Evidence levels

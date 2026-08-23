@@ -9,14 +9,16 @@
 Читайте в таком порядке:
 
 1. [Onboarding участника команды](team/onboarding.md)
-2. [Обзор систем](platform/system-overview.md)
-3. [Кто владеет какими данными](platform/data-ownership.md)
-4. [Текущий проверенный статус](platform/current-status.md)
-5. [Безопасность Transcription Lab](platform/transcription-security.md)
-6. [Профиль EVO Admissions](business/evo-company-profile.md)
-7. [Бизнес-контекст EVO Admissions](business/evo-business-context.md)
-8. [Процесс поступления](business/admissions-process.md)
-9. [Руководство по продажам](business/sales-playbook.md)
+2. [Текущее архитектурное решение](adr/0020-unify-evo-v1-on-canonical-supabase.md)
+3. [Обзор систем](platform/system-overview.md)
+4. [Кто владеет какими данными](platform/data-ownership.md)
+5. [Текущий проверенный статус](platform/current-status.md)
+6. [Crosswalk draft PR и исторических issues](platform/u0-draft-pr-issue-crosswalk.md)
+7. [Безопасность Transcription Lab](platform/transcription-security.md)
+8. [Профиль EVO Admissions](business/evo-company-profile.md)
+9. [Бизнес-контекст EVO Admissions](business/evo-business-context.md)
+10. [Процесс поступления](business/admissions-process.md)
+11. [Руководство по продажам](business/sales-playbook.md)
 
 Для показа коллегам или партнёрам используйте
 [материалы презентации](../presentations/README.md) и
@@ -26,16 +28,20 @@
 
 ### Платформа и данные
 
-- [Обзор систем](platform/system-overview.md) — простая схема CRM, EVO Inbox,
-  Lead Agent и внешних провайдеров.
+- [Текущее архитектурное решение](adr/0020-unify-evo-v1-on-canonical-supabase.md)
+  — один внутренний продукт, canonical Supabase и U0-U14.
+- [Обзор систем](platform/system-overview.md) — простая схема внутренних
+  модулей EVO Platform и внешних adapters.
 - [Владельцы данных](platform/data-ownership.md) — где менять лид, заявку,
   сообщение, документ, секрет или задачу.
 - [Текущий статус](platform/current-status.md) — что подтверждено сейчас, что
   ещё не завершено и что нельзя обещать.
+- [U0 crosswalk](platform/u0-draft-pr-issue-crosswalk.md) — судьба каждого
+  открытого draft PR и каждого исторического issue, открытого до #376.
 - [Безопасность Transcription Lab](platform/transcription-security.md) —
   серверные ограничения, хранение, удаление и production-флаги.
-- [Архитектурные решения](adr/) — почему были выбраны отдельный Inbox,
-  Supabase, WAHA и draft-only AI.
+- [Архитектурные решения](adr/) — почему EVO является одним продуктом на
+  canonical Supabase, а amoCRM и WAHA остаются adapters и AI — advisory.
 
 ### Компания и юридические материалы
 

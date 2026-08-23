@@ -1,5 +1,8 @@
 # EVO Platform frontend implementation plan
 
+Status: the delivered frontend route/design record is retained; current
+product, role, data and rollout authority comes from #376 and ADR 0020.
+
 ## Plain-language outcome
 
 The root CRM contained the real login, permissions, and admissions data when
@@ -10,7 +13,7 @@ unified.
 
 The target backend and migration contract is now
 [`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`](../../EVO_PLATFORM_LONG_RUN_PLAN.md),
-supported by [ADR 0014](../../adr/0014-unified-evo-platform-target-architecture.md). The
+governed by [ADR 0020](../../adr/0020-unify-evo-v1-on-canonical-supabase.md). The
 frontend remains the UI contract; it is not evidence that Supabase, amoCRM,
 WAHA, or AI provider paths are live.
 
@@ -37,27 +40,25 @@ WAHA, or AI provider paths are live.
 | Administration/integrations/audit | `/settings` |
 | Student Portal | `/portal` |
 
-## Role mapping
+## Current role mapping
 
-The target first-release business roles are:
+The first internal pilot has three human-facing roles:
 
-- `admin`: administration and management reporting; only Admin may invite or
-  block staff and assign or reassign a Curator, with a mandatory reason and
-  before/after audit;
-- `sales`: owns the sales queue and customer conversation until the signed
-  contract is confirmed from an account-specific amoCRM pipeline/status
-  mapping;
-- `curator`: after Admin assignment, owns the whole student case, including
-  multiple applications, documents, `/visa`, tasks, and communication;
-- `finance`: manages the authorized finance surface without receiving Curator
-  or sales ownership;
-- `client/student`: uses the Student Portal after the confirmed contract and
-  Admin Curator assignment.
+- `admin`, presented as Director/Admin: staff administration, management
+  reporting and audited exceptional actions;
+- `sales`, presented as Sales Manager: owns the sales queue and customer
+  conversation until the contract-plus-first-payment handoff gate;
+- the existing canonical admissions role, presented as Admissions Manager:
+  after assignment, owns the student case, applications, documents, `/visa`,
+  tasks and communication.
 
-There is no separate `visa` business role. The `/visa` route, entity, and icon
-remain. The current root runtime still contains a legacy `visa` role until the
-planned explicit migration moves existing users to `curator`; this is a known
-implementation gap, not a target permission.
+Contract confirmation and payment confirmation are explicit permissions, not
+implicit job-title powers. Finance is an internal module, not a fourth pilot
+role. Student Portal follows after the internal pilot and is not a pilot role.
+
+There is no separate `visa` business role. The `/visa` route, entity and icon
+remain inside the Admissions workflow. U1 must map current accounts to the
+three-role contract explicitly and fail closed on ambiguous legacy roles.
 
 Conversation and message history stay unified across the sales-to-curator
 handoff. After handoff, Sales may see only the authorized non-sensitive summary,
@@ -68,28 +69,22 @@ authorization control to reproduce in production.
 
 ## Inbox implementation boundary
 
-The initial redesigned `/whatsapp` route uses the root CRM's existing local
-WhatsApp shadow records and guarded send/draft actions. The UI must name that
-source and must not imply it reads EVO Inbox Supabase.
+`/whatsapp` is the Inbox module inside the same EVO product and login. Existing
+root shadow records, Inbox Supabase data and Lead Agent state are migration
+inputs only; U3/U10 must not connect them through a runtime read bridge,
+dual-write, fallback repository or parallel UI.
 
-The separate EVO Inbox app remains the current Supabase/WAHA runtime. Connecting
-its data to the root workspace requires a later authenticated read adapter or
-explicit migration plan; that backend work is not hidden inside this frontend
-slice.
+The target is one canonical EVO Supabase model. amoCRM is a temporary
+read/import adapter, and WAHA is a private transport adapter. The first live
+stage receives and displays inbound messages but performs no outbound WhatsApp
+send and no amoCRM write.
 
-The target replaces that split ownership with one logical platform data model
-in a dedicated Supabase production project, with physically isolated
-non-production environments, and one private production WAHA session
-`evo-inbox`. amoCRM remains canonical for contact, lead, responsible sales
-manager, and sales stage; an operational admissions status never replaces the
-amoCRM sales stage.
-
-AI remains draft-only. It may propose Russian or English according to the last
-customer message, but uncertain language detection must stop for manual
-selection or human handoff. Only approved, versioned knowledge may be used.
-A staff member reviews/edits and manually sends every customer reply. EVO may
-promise only its own contracted work, never admission, scholarship, visa, or
-another external decision.
+AI is advisory and human-reviewed. It may propose content only from approved,
+versioned knowledge, with uncertainty and risk visible. A human may accept,
+edit or reject the suggestion, but stage one contains no send action. AI never
+sends, changes a stage, assigns staff, accepts documents or confirms payments.
+EVO may promise only its own contracted work, never admission, scholarship,
+visa or another external decision.
 
 ## Delivery increments
 

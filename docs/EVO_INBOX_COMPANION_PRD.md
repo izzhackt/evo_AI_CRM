@@ -1,5 +1,12 @@
 # EVO Inbox Companion App PRD
 
+> [!WARNING]
+> **Superseded product contract.** Parent issue #376 and ADR 0020 replace the
+> separate companion product, separate login, amoCRM-owned identity and
+> outbound-first-proof assumptions below. Retain this file as source history
+> only; active work follows U0-U14 and rebuilds useful messaging capability
+> inside the one EVO platform.
+
 ## Problem Statement
 
 EVO needs a WhatsApp-first admissions inbox that can be owned inside `izzhackt/evo_AI_CRM`, hosted on `hermes-vps`, and adapted from WACRM without keeping Meta Cloud API as the transport. The current CRM remains the production EVO Admissions CRM, but the new companion app should let staff evaluate a redesigned EVO Inbox experience with WAHA, managed Supabase, amoCRM identity resolution, and WACRM's own AI draft assistant.

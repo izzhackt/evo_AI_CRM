@@ -2,8 +2,8 @@
 
 Date: 2026-08-16
 Issues: #213, #219
-Status: planning gate; no production mutation until this contract is
-independently reviewed, merged, and exact-main CI is green
+Status: superseded planning source under #376/ADR 0020; U12/U13 own current
+acceptance and pilot gates. This contract authorizes no production mutation.
 
 ## Outcome
 

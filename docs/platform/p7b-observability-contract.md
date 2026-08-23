@@ -1,7 +1,7 @@
 # P7B private observability implementation contract
 
-Status: implementation contract; it becomes authoritative only when this
-document and its append-only plan block are independently reviewed and merged.
+Status: historical implementation source under #376/ADR 0020; U11 must
+revalidate any conforming observability behavior.
 
 Version date: 2026-08-13 (Asia/Bishkek)
 

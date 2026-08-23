@@ -9,7 +9,7 @@
 > this file only for planning provenance; do not publish or execute its checklist
 > as a new plan.
 
-Status: proposed issue split. Publish to GitHub after user approval.
+Status: historical proposed issue split; do not publish or execute.
 
 Parent PRD: `docs/EVO_INBOX_COMPANION_PRD.md`
 

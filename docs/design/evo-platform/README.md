@@ -8,7 +8,7 @@ Student Portal frontend.
 | File | Purpose |
 |---|---|
 | [`EVO_PLATFORM_LONG_RUN_PLAN.md`](../../EVO_PLATFORM_LONG_RUN_PLAN.md) | Current execution contract for the unified backend, migration, provider proof and release gates |
-| [`ADR 0014`](../../adr/0014-unified-evo-platform-target-architecture.md) | Target ownership and migration decision that supersedes the companion-era backend architecture |
+| [`ADR 0020`](../../adr/0020-unify-evo-v1-on-canonical-supabase.md) | Current ownership, migration and one-product decision under parent #376 |
 | [`CLAUDE_DESIGN_MASTER_PROMPT.md`](CLAUDE_DESIGN_MASTER_PROMPT.md) | One autonomous prompt for a full frontend pass in the linked local repository |
 | [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) | Implemented frontend contract plus its alignment boundary with the unified-platform target |
 | [`COMPLETION_CHECKLIST.md`](COMPLETION_CHECKLIST.md) | Evidence ledger used before reporting frontend completion |
@@ -21,8 +21,8 @@ Student Portal frontend.
 When sources disagree, use this order:
 
 1. owner instructions and `AGENTS.md`;
-2. `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, the current platform technical
-   specification and ADR 0014 for target-state work;
+2. parent issue #376, ADR 0020 and
+   `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` for target-state work;
 3. accepted ADRs, `CONTEXT.md` and platform data-ownership docs;
 4. current application code, server-side permissions and tests as evidence of
    what exists now, not as authority to preserve target-state gaps;
@@ -48,22 +48,20 @@ The implemented frontend currently preserves the root application's existing
 authentication and permissions. That is a current-runtime statement, not proof
 that the target backend migration is complete.
 
-The target role set is `admin`, `sales`, `curator`, `finance`, and
-`client/student`. There is no separate `visa` business role; `/visa` remains a
-Curator-owned module. Admin alone invites or blocks staff and assigns or
-reassigns a Curator, with a mandatory reason and before/after audit. Sales owns
-the queue and conversation before the confirmed contract; the assigned Curator
-owns them after handoff. History remains unified, with only an authorized
-non-sensitive summary visible to Sales after handoff.
+The first-pilot role set is Sales Manager (`sales`), Admissions Manager backed
+by the existing canonical admissions role, and Director/Admin (`admin`). There
+is no separate `visa` or `finance` pilot role; those are permissioned modules.
+Admin alone manages staff and exceptional reassignment with mandatory reason
+and audit. Sales owns the queue before confirmed contract plus first mandatory
+payment; assigned Admissions owns the case after handoff. History remains
+unified, with only an authorized non-sensitive summary visible to Sales.
 
-amoCRM remains canonical for contact, lead, responsible sales manager, and
-sales stage. The target uses one dedicated Supabase production project for
-EVO-owned operational data, with isolated non-production environments, and one
-private production WAHA session `evo-inbox`. AI customer communication is
-Russian/English draft-only with a human-controlled send. If the last customer
-message is not confidently Russian or English, staff must select the language
-or take over. Only approved, versioned knowledge may ground a draft, and EVO
-must not guarantee admission, scholarship, visa, or another external decision.
+EVO/Supabase is canonical for operational client, lead, owner and stage data.
+amoCRM is a temporary read/import adapter, and WAHA is private transport. AI
+suggestions are human-reviewed and grounded only in approved, versioned
+knowledge. Stage one has no outbound WhatsApp send action and no amoCRM write.
+EVO must not guarantee admission, scholarship, visa or another external
+decision.
 
 ## Visual references and evidence
 

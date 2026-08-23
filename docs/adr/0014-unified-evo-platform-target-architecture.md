@@ -1,10 +1,10 @@
 # ADR 0014: Unify EVO Platform backend and operational data
 
-- Status: Accepted historical target; migration and fixed-duration retirement
-  details superseded by ADR 0016; not deployed
+- Status: historical target; superseded in conflict by ADR 0020; not deployed
 - Date: 2026-07-28
 - Decision owners: CEO/CTO authorization bundle and technical owner
 - Supersedes for target architecture: ADR 0002, ADR 0006, ADR 0008, ADR 0009
+- Superseded in conflict by: ADR 0020
 - Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 
 ## Context

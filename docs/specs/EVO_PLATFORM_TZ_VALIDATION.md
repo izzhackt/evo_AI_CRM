@@ -1,5 +1,14 @@
 # EVO Platform ТЗ — журнал валидации
 
+> **Статус:** историческое validation evidence только для ТЗ v2.3 и созданного
+> из него `EVO_PLATFORM_TZ.docx`. Этот журнал не валидирует действующий контракт
+> #376, ADR 0020 или U0-U14 и не является текущим provider/production proof.
+> Актуальная authority chain:
+> [issue #376](https://github.com/izzhackt/evo_AI_CRM/issues/376),
+> [ADR 0020](../adr/0020-unify-evo-v1-on-canonical-supabase.md),
+> [launch plan](../EVO_LAUNCH_PLAN.md) и
+> [long-run plan](../EVO_PLATFORM_LONG_RUN_PLAN.md).
+
 Дата проверки: 09.08.2026
 
 Timezone: `Asia/Bishkek`
@@ -12,9 +21,9 @@ Exact-main CI: `31310795550` — все четыре job зелёные.
 
 Block-ID: `EVO-MVP-AUTONOMOUS-INBOUND-PLAN-2026-08-09`
 
-Канонический источник: `docs/specs/EVO_PLATFORM_TZ.md`
+Исторический Markdown-источник: `docs/specs/EVO_PLATFORM_TZ.md`
 
-Owner-facing документ: `docs/specs/EVO_PLATFORM_TZ.docx`
+Исторический owner-facing документ: `docs/specs/EVO_PLATFORM_TZ.docx`
 
 ## 1. Проверенная граница
 

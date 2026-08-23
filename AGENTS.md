@@ -27,6 +27,22 @@
 - Keep WAHA, the lead-agent, and their dashboards/APIs private unless explicit
   authenticated public access is added.
 
+## Current Product Authority
+
+- Parent issue #376, ADR 0020, `docs/EVO_LAUNCH_PLAN.md` and
+  `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` define the target and U0-U14 order.
+- EVO is one internal product with one login, one UI, one role model and one
+  workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks, Documents and
+  AI are modules, not separate target products.
+- Supabase is the permanent canonical operational foundation. SQLite runtime,
+  dual-read, dual-write, fallback repositories and compatibility layers are
+  prohibited. amoCRM is a temporary read/import and migration adapter; WAHA is
+  private transport; AI is advisory and human-reviewed.
+- The first live stage is receive-only: no outbound WhatsApp and no amoCRM
+  writes. Existing production sections below describe migration inputs and
+  safety boundaries only; they do not override the target architecture or
+  authorize a production change.
+
 ## Local Container Runtime
 
 - On macOS, use OrbStack as the only allowed local container runtime for this
@@ -89,7 +105,11 @@
   Arcadis/acadis is a separate project boundary. EVO services should use their
   own Compose projects and neutral EVO-owned proxy/network names.
 
-## EVO Inbox Companion Boundary
+## Current Production EVO Inbox Companion Boundary
+
+This section records the currently deployed companion contour as migration and
+rollback input. It does not authorize a separate target product, login, UI,
+canonical store or new dependency.
 
 - Target path: `/opt/evo-inbox`.
 - Public companion URL: `https://inbox.evoadmissions.com`.
@@ -123,7 +143,10 @@
 - The lead-agent resolves/creates amoCRM contact and lead first, then posts a
   signed internal sync event to:
   `http://evo-crm-app:3000/api/internal/lead-agent/whatsapp`.
-- amoCRM is the source of truth for lead/contact identity and sales status.
+- The existing production path treats amoCRM as its lead/contact and sales-
+  status authority. This is current-state migration evidence, not target
+  authority; #376 and ADR 0020 make EVO/Supabase canonical after controlled
+  migration.
 - EVO CRM is the staff/operator UI and stores local shadow fields such as
   `amo_lead_id`, `amo_contact_id`, and `agent_state`.
 - Store `WAHA_API_KEY=sha512:<hash>` in `/opt/evo-crm/.env.waha`; store the

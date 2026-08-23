@@ -1,6 +1,7 @@
 # P8C Environment Reconciliation Contract
 
-Status: implementation contract under issue
+Status: historical implementation source under #376/ADR 0020; U11/U12 own any
+current rebuild. Originally tracked under issue
 [#180](https://github.com/izzhackt/evo_AI_CRM/issues/180).
 
 Block-ID: `EVO-P8C-ENVIRONMENT-RECONCILIATION-2026-08-14`.

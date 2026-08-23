@@ -2,6 +2,9 @@
 
 Issue: #278
 
+Status: historical implementation source under #376/ADR 0020; U9/U11 must
+revalidate any conforming behavior
+
 ## Outcome
 
 Move the remaining reviewed staff knowledge-assistant and deterministic bundle

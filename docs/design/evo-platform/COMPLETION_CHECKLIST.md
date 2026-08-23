@@ -1,5 +1,9 @@
 # EVO Platform frontend completion checklist
 
+> **Status:** historical frontend evidence. Current product and rollout
+> authority is #376/ADR 0020; stage one is receive-only and contains no send
+> action.
+
 This is the final evidence ledger for the unified frontend.
 
 - `[x]` — implemented in the real root application and verified.
@@ -19,7 +23,8 @@ proof of a live integration.
 - [x] Roles and permissions matrix complete.
 - [x] Sales stages and operational student stages are visibly distinct.
 - [x] amoCRM ownership and unavailable/unverified sync states are represented.
-- [x] AI customer communication is draft-only with a manual send boundary.
+- [x] Historical UI represented draft-only AI and a guarded manual-send seam;
+  that seam is not authorized in the receive-only first stage.
 
 ## Design system
 

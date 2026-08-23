@@ -2,7 +2,8 @@
 
 Date: 2026-08-18
 Issue: #287
-Status: execution-plan gate
+Status: superseded by #376/ADR 0020 and the U0 crosswalk; U12/U13 own any
+current managed acceptance and pilot work
 
 ## Outcome
 

@@ -2,7 +2,7 @@
 
 Date: 2026-08-15
 Issue: #202
-Status: proposed staging gate
+Status: superseded staging source under #376/ADR 0020; not an active gate
 Block-ID: `EVO-P8D2-LINUX-AMD64-HERMES-STAGING-2026-08-15`
 
 ## Goal

@@ -1,6 +1,8 @@
 # P5F AI memory and bounded autonomous reply lane
 
-Status: authoritative docs-only implementation contract.
+Status: historical implementation source under #376/ADR 0020; not active
+execution authority. U9 may selectively rebuild conforming human-reviewed AI
+behavior, but autonomous send is superseded.
 
 Block-ID: `EVO-P5F-AI-MEMORY-REPLY-LANE-2026-08-10`
 

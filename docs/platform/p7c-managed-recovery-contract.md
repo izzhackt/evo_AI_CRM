@@ -1,7 +1,9 @@
 # P7C managed recovery and Supabase consolidation contract
 
-Status: merged authority contract; recovery execution deferred by the owner on
-2026-08-14 until functional Platform completion and concrete operation
+Status: historical merged source under #376/ADR 0020; U11 owns current
+backup/rollback evidence. Billed or destructive execution remains separately
+human-authorized. The owner deferred the historical recovery execution on
+2026-08-14.
 
 Version date: 2026-08-14 (Asia/Bishkek)
 

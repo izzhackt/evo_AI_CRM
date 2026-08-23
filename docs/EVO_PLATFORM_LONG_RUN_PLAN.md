@@ -1,12 +1,22 @@
 # EVO Platform Long-Run Execution Contract
 
-Status: active repository implementation contract
-Version date: 2026-08-14 (Asia/Bishkek)
-Initial kickoff baseline: GitHub `origin/main` at
-`a16cd3fb591128b6d28f7f46c432169a0ff28753`
-Authority: this plan, `docs/specs/EVO_PLATFORM_TZ.md`, the latest merged
-`docs/PLAN_CHANGES.md`, and superseding ADRs including ADR 0016, ADR 0017,
-ADR 0018 and ADR 0019
+Status: active U0-U14 repository implementation contract
+Version date: 2026-08-24 (Asia/Bishkek)
+Current planning baseline: GitHub `origin/main` at
+`31d26b6e6bdc8a96fcf9f48210e417d43619370d`
+Authority: parent issue #376, ADR 0020, this plan and the latest merged
+`docs/PLAN_CHANGES.md`. ADR 0015 and ADR 0017 remain active only where ADR 0020
+retains them. Earlier P/BW/NW/P8 plans and ADR 0019 are historical source.
+
+Current execution checkpoint: U0/#377 only. U0 is docs-only and stops before
+U1/#378. It changes no runtime, schema, migration, provider, production,
+customer data, WAHA session, amoCRM record or WhatsApp message.
+Block-ID: `EVO-U0-UNIFIED-V1-AUTHORITY-2026-08-24`.
+
+### Historical pre-#376 checkpoint
+
+The following chronology is retained as repository evidence. It is not the
+active execution order and cannot override U0-U14.
 
 Execution checkpoint: historical P1 containment, reusable greenfield P2A-P2H,
 the greenfield/UI and business-workflow plan gates, P3A-P3C, BW1-BW7,
@@ -62,60 +72,53 @@ exact-main push-CI verification before the next block starts.
 
 ## 1. Outcome and truth boundary
 
-The target is one greenfield EVO Platform that preserves the accepted frontend
-contract while consolidating only Platform-owned backend capabilities
-deliberately and reversibly:
+The target is one EVO internal platform with one login, one accepted staff UI,
+one organization/role model and one end-to-end workflow:
 
-- amoCRM remains canonical for contact, lead, responsible sales manager and
-  sales stage;
-- one dedicated Supabase production project stores EVO-owned operational data;
-- local/dev, persistent staging and preview branches/projects remain physically
-  isolated from production, with no production-data copy by default;
-- the Platform backend is greenfield and Supabase-native: no legacy SQLite
-  data import, no legacy account import, no root-auth migration, and no
-  dual-read or dual-write bridge;
-- the current root CRM SQLite plane remains a separate legacy system; it is not
-  imported, replaced or integrated without a later explicit scoped decision;
-- EVO Inbox remains a deployed messaging reference. EVO Lead Agent, the legacy
-  webhook/session path and rollback path remain deployed and frozen; retirement
-  or deactivation is outside the current authorized scope;
-- only the necessary operator messaging capability from EVO Inbox is reused:
-  available WhatsApp history, conversation list/thread, media, necessary
-  contact/student context, WAHA receive/send, ACK/delivery, true realtime
-  updates, gated AI qualification/replies, staff takeover/manual send, approved
-  knowledge, audit, and minimal health/settings;
-- Inbox CRM/dashboard/pipeline/deal/lead/broadcast/flow/campaign/unrelated
-  analytics/settings surfaces are not part of the Platform thin slice;
-- useful EVO Lead Agent capabilities move into one backend and one logical data
-  model only through explicit adapters and repository/session seams;
-- one private WAHA session/number, `evo-inbox`, and one EVO Platform webhook
-  owner serve the final production path;
-- staff and Student Portal use real server authorization, RLS, object scope and
-  durable audit;
-- AI creates a structured RU/EN proposal only. Deterministic server policy may
-  send it automatically only as a reply inside the WhatsApp 24-hour service
-  window and only when all consent, opt-out, language, evidence, risk,
-  confidence, business-hours, cooldown, rate, takeover, session-health,
-  idempotency and kill-switch gates pass. Every other result becomes a durable
-  human-review handoff. Staff can pause/take over immediately and manually send.
-- EVO Platform owns ordinary admissions document slots, private objects,
-  immutable versions, review/rework and audited access. Student Profile
-  document reading, extraction, autofill and form export belong to a separate
-  system outside this repository. No data exchange or runtime dependency is
-  implied; any later integration requires its own reviewed mapping,
-  consent/privacy, authentication, validation and acceptance contract.
+- CRM, Inbox, Lead Agent, Admissions, Finance, Tasks, Documents and AI are
+  internal modules, not separate products, entry points or data authorities;
+- Supabase is permanent and canonical for client, lead, stage, responsible
+  staff, next action, deadline, Student Case, documents, applications, visa,
+  payment control, tasks, communication workflow and audit;
+- Supabase Auth owns staff identity; private Storage owns accepted private
+  objects; RLS and server authorization enforce organization and object scope;
+- local/dev, staging and preview environments remain physically isolated from
+  production, with no production-data copy by default;
+- active legacy data is archived, checksummed, migrated once and reconciled
+  into the canonical model before pilot. SQLite runtime restoration,
+  dual-read, dual-write, write-through, fallback repositories, parallel UI and
+  compatibility layers are prohibited;
+- amoCRM is a temporary read/import adapter and migration source. It is not
+  canonical for EVO identity, stage, ownership or workflow, and stage one
+  performs no amoCRM write;
+- WAHA is a private transport adapter. Provider IDs and ACK evidence remain
+  distinct from canonical EVO records; WAHA owns no workflow, policy, memory or
+  audit;
+- AI creates advisory summaries, classifications, next-action suggestions,
+  drafts and gap/deadline signals only. A human accepts, edits or rejects every
+  suggestion; AI cannot send or mutate consequential state;
+- the first pilot roles are Sales Manager, Admissions Manager backed by the
+  existing admissions role, and Director/Admin. Sensitive actions remain
+  explicit permissions;
+- the normal handoff requires confirmed contract plus first mandatory payment,
+  then creates/updates one Student Case, assigns Admissions ownership and
+  creates starter work. Override requires a reason and immutable audit;
+- first live acceptance is receive-only: real inbound WhatsApp and permitted
+  external reads, but no outbound WhatsApp and no amoCRM write;
+- active operational records migrate before pilot; historical closed records
+  follow only after a stable pilot.
 
-The accepted frontend is the sole product UI contract. It must be wired through
-repository/session seams under the existing unified frontend shipped in PRs
-#64, #71 and #72; it must not be replaced with a parallel UI or a fallback
-Inbox UI. The platform must not be called production-complete while P4 is
-deferred or until the applicable controlled provider paths, bounded
-reconciliation, health checks and rollback proof are real. P8 may prove only
-the executable P5-P7 scope; amoCRM-dependent acceptance remains deferred. No
-fixed-duration soak is required, and no Lead Agent retirement is authorized by
-this contract.
+The accepted frontend remains the sole staff UI contract and must not gain a
+parallel or fallback Inbox UI. Student Profile document extraction/autofill
+remains outside this repository under ADR 0017, while ordinary admissions
+documents remain inside EVO. No repository result may be called managed,
+provider, deployment, backup, rollback or pilot proof without the corresponding
+real evidence.
 
-## 2. Current verified baseline
+## 2. Historical verified baseline before #376
+
+This section records prior exact evidence only. It is not a current production
+snapshot and was not re-verified for U0.
 
 As of the version date:
 
@@ -158,66 +161,56 @@ do not silently change production.
 
 ## 2A. Current planning priority
 
-After this amendment merges, implementation priority is intentionally narrow:
+1. Complete U0/#377 as one docs-only PR from current `main`: record ADR 0020,
+   reconcile authority docs and publish the complete draft-PR/historical-issue
+   crosswalk.
+2. Require one independent exact-head launch-control review, exact-head required
+   CI and a final immutable head/base refresh before merge.
+3. Stop after #377. U1/#378 starts only in a later branch/PR after U0 is merged.
+4. Execute U1-U14 strictly in dependency order. A stale draft contributes only
+   the value assigned by the crosswalk and is rebuilt from then-current `main`.
+5. Keep outbound WhatsApp and amoCRM writes disabled. No U0 action may touch
+   production, providers, DNS/TLS, WAHA sessions or customer data.
 
-1. Preserve P4B and defer mapping activation and amoCRM writes. Keep merged
-   bounded read-only P4R1 as canonical context only; it authorizes no mapping
-   activation, Sales ownership mutation or provider write.
-2. Preserve completed P6A-P6D, P7A safe audit search/export and P7B private
-   observability/runbooks. The owner deferred P7C isolated database plus
-   separate Storage restore until the Platform is functionally complete and
-   concretely operating. Execute the focused P7D accessibility contract next;
-   the owner deferred the large capacity stress test and temporary load
-   environment without calling capacity passed. P8 may prepare the exact
-   release candidate needed for automated and human accessibility evidence.
-   Narrowed P8 and P10 follow the executable P7D scope; P7C remains a
-   later recovery-readiness requirement and is not silently marked complete.
-3. No mock, SQLite shim, hardcoded amoCRM mapping, fake provider or silent
-   fallback may replace P4. amoCRM identity, responsible Sales, canonical stage,
-   contract-stage handoff, mapping approval and amoCRM E2E remain fail-closed.
-4. P9 is removed from the authorized execution scope. Lead Agent, the legacy
-   webhook/session path and rollback path remain deployed/frozen.
-5. Autonomous reply code ships disabled by default. Provider and production
-   claims remain evidence-gated and separately
-   authorized.
-
-This contract explicitly defers broad infrastructure parity, managed-provider
-proof and production mutation. P7 implements the smallest honest repository
-and isolated-runtime evidence without converting unavailable external inputs
-into passed claims.
+No mock, SQLite shim, hardcoded provider mapping, fake success or silent
+fallback may replace real evidence. Missing provider or managed-environment
+authority is a blocker at the applicable later slice, not a reason to weaken
+the contract.
 
 ## 3. Non-negotiable business contract
 
 ### 3.1 Roles, ownership and handoff
 
-- First-release authority classes are `admin`, `sales`, `curator`, `finance`
-  and Client/Student. The target Platform machine role for the last class is
-  `student`; the current root `client` role remains a legacy reference and is
-  not imported or mapped without a later explicit scoped decision. There is no
-  separate `visa` role; the `/visa` module and visa entities remain.
+- First-pilot roles are `sales`, the existing canonical admissions role
+  presented as Admissions Manager, and `admin` presented as Director/Admin.
+  Payment and contract confirmation are explicit permissions. Finance is a
+  module used only through those permissions, not a fourth pilot role. Student
+  Portal follows in a later approved milestone. There is no separate `visa`
+  role; `/visa` remains a module.
 - Admin is a permission bundle for individually identified authorized staff.
   Shared credentials are forbidden. Only Admin invites or blocks staff and
   assigns or reassigns a Curator.
 - Curator reassignment requires a reason, before/after values and audit.
 - One assigned Curator owns the whole student case: documents, multiple
   university applications, visa, tasks and communications.
-- Sales owns the queue and conversation until a signed-contract condition is
-  confirmed through an account-specific amoCRM mapping. Curator owns them after
-  handoff. The conversation and history remain unified; Sales then sees only an
-  explicitly permitted non-sensitive summary.
-- A contract event creates a pending student case. Student Portal activates
-  only after that event and Admin Curator assignment.
+- Sales owns pre-handoff work until EVO records both a confirmed contract and
+  the first mandatory payment. The audited handoff creates or updates one
+  Student Case, assigns Admissions ownership and creates starter work. A
+  Director/Admin override requires a reason, actor, timestamp and immutable
+  audit event. Conversation history and provenance remain unified.
+- Student Portal is a later milestone and is not a first-pilot gate.
 - Curator/Admin may close or reopen a student case only with a reason and audit.
 
 ### 3.2 Operational policies
 
-- Finance v1 is a manual operational source inside EVO Platform. Finance/Admin
-  alone confirm payment or refund with evidence and audit. Excel/1C import is a
-  future integration, not a placeholder connector.
+- Finance v1 is a manual operational source inside EVO Platform. Only a staff
+  actor with the explicit payment-confirmation permission may confirm payment
+  or refund with evidence and audit. Excel/1C import is a future integration,
+  not a placeholder connector.
 - Notifications v1 are durable in-app records with persisted self-read state.
-  Existing consent-gated individual-WhatsApp intent state is preserved for a
-  separate post-P6 delivery target; P6 does not create, claim, route or dispatch
-  that channel. Broadcasts and mass sends are out of scope.
+  The receive-only stage creates, claims, routes and dispatches no WhatsApp
+  notification. Any later external delivery requires a separate owner-approved
+  write-stage contract. Broadcasts and mass sends are out of scope.
 - Documents are private PDF/JPG/PNG, at most 25 MB, versioned and protected by
   integrity/malware policy, review/rework history and audited access. No
   irreversible auto-delete is allowed before Legal/Data Owner sets retention.
@@ -235,22 +228,18 @@ into passed claims.
   or EN. Otherwise the system requires manual language selection or handoff.
   Kyrgyz customer-draft generation is not an approved first-release contract.
 - Gemini uses approved, versioned knowledge and Platform-owned memory only and
-  emits a structured proposal; it never receives a direct WAHA send capability.
-  Deterministic server policy may auto-send only a reply to a recent inbound
-  customer message inside the 24-hour service window. Cold outbound,
-  broadcasts, autonomous follow-ups/re-engagement and out-of-window free-form
-  sends remain prohibited.
-- A human manual outbound or takeover durably pauses autonomy for that
-  conversation. Only an authorized staff action may resume it with audit.
+  emits a structured advisory proposal; it never receives a WAHA send or state-
+  mutation capability. A human must accept, edit or reject every proposal.
+- The first live stage has no outbound WhatsApp, manual or autonomous. Any later
+  external-write stage requires a separate owner decision and real rollback.
 - Media-only inbound is persisted and shown to the operator; until an approved
   media-understanding path exists it creates a human handoff and is never
   terminally consumed merely because text is absent.
 - Unknown send outcomes are never automatically retried.
 - The new platform must absorb phone normalization, WAHA HMAC and idempotency,
-  raw-event persistence, buffering/jobs, amoCRM resolution, notes/tasks
-  mapping, handoff, retry/dead-letter and reconciliation. Legacy auto-reply
-  code must not be copied; the new controlled reply lane is Platform-owned,
-  policy-gated, audited and independently kill-switchable.
+  raw-event persistence, buffering/jobs, temporary amoCRM read/import,
+  handoff, retry/dead-letter and reconciliation. Legacy auto-reply code and the
+  superseded ADR 0019 autonomous lane must not be copied into active v1 work.
 
 ### 3.4 Business workflow contract
 
@@ -274,14 +263,17 @@ Source boundary:
 
 Confirmed requirements:
 
-- OP is the sales lifecycle governed by amoCRM. Canonical active stages are
+- OP is the sales lifecycle governed by canonical EVO/Supabase records.
+  Temporary amoCRM imports may map external stages with provenance. Active
+  candidate stages are
   `new`, `contacting`, `qualified`, `meeting_scheduled`, `meeting_completed`,
   `potential` and `contract_signed`. `no_answer` and
   `meeting_not_attended` are active follow-up outcomes, not terminal lifecycle
   states. Event/collaboration labels are sources or deal types. Closure uses
-  explicit won/lost state plus a reason; legacy columns are mapped per account
-  and are not copied blindly into Platform enums.
-- A confirmed contract creates the audited OP-to-OZO handoff. The handoff
+  explicit won/lost state plus a reason; legacy columns are imported with
+  provenance and are not copied blindly into Platform enums.
+- A confirmed contract plus first mandatory payment creates the audited
+  OP-to-OZO handoff. The handoff
   records approved commercial fields, unresolved questions, promises already
   made, next step, due date and responsible role. Contract confirmation is not
   inferred from chat text.
@@ -314,8 +306,8 @@ Confirmed requirements:
   silent defaults.
 - Lead Manager system prompt, business context and country knowledge are
   separately versioned and approved. AI produces RU/EN drafts only; Kyrgyz or
-  uncertain language requires manual language selection. Staff review/edit and
-  manual send remain mandatory.
+  uncertain language requires manual language selection. Staff review/edit is
+  mandatory; first-stage acceptance sends no WhatsApp message.
 - Finance remains the already-approved obligations/payments/refunds evidence
   surface. Empty Accounting/Bema input does not authorize a general ledger,
   tax or bookkeeping subsystem.
@@ -346,20 +338,20 @@ Reversible assumptions pending owner evidence:
   every later block must recheck the next-free ordinal immediately before use.
   A later defect receives a new forward migration and never rewrites merged
   history.
-- `public` remains the legacy Inbox compatibility schema for migrations
-  001–039 until a separately authorized legacy Inbox retirement. P3 does not
-  import or cut over that legacy data plane. `platform` is the new Data
+- Historical `public` Inbox objects remain immutable migration/archive inputs
+  until an authorized forward retirement. No active behavior or compatibility
+  path may depend on them. `platform` is the Data
   API/browser-exposed schema and receives explicit least-privilege grants plus
   RLS on every table. `platform_private` is backend-only and is never exposed
   through the Data API.
-- During coexistence the Data API may expose `public` and `platform`, never
+- The canonical Data API exposes only approved schemas, never
   `platform_private`. Browser roles receive no direct access to
   `platform_private` or `pgmq_public`; queue operations use narrowly granted
   service-only paths with negative tests.
 - Legacy Inbox roles `owner`, `admin`, `agent` and `viewer` are not mapped
-  implicitly to Platform roles. The legacy signup trigger may continue to
-  create legacy `public.accounts`/`public.profiles`, but it must not create a
-  Platform organization membership or business role.
+  implicitly to pilot roles. U10 may perform a reviewed one-time identity/data
+  migration with explicit mapping and rejection evidence; legacy signup must
+  not create new Platform authority or a compatibility bridge.
 - Every exposed table has RLS. Browser code receives only the publishable key;
   secret/service-role credentials stay server-side.
 - Custom JWT claims provide coarse role; organization, case, conversation and
@@ -392,12 +384,11 @@ Primary sources:
 
 - Account, pipeline, status, custom-field and user IDs are discovered,
   cached and versioned per account; none is a global constant.
-- Canonical writes use `pipeline_id`, `status_id`, `responsible_user_id` and
-  `custom_fields_values`.
-- Webhook events are persisted quickly, processed asynchronously and checked
-  by periodic reconciliation with loop prevention.
-- The adapter respects at most 7 requests/second/IP and normally no more than
-  50 writes per batch.
+- The temporary adapter performs bounded reads/imports with provenance. Stage
+  one performs no create, update or delete and builds no permanent two-way sync.
+- Imported webhook/read events are persisted quickly, processed idempotently
+  and reconciled against the canonical EVO record without loop-producing
+  provider writes.
 - Kommo `conversation.id` and `message.id` are stored separately from WAHA
   session/message IDs and internal UUIDs.
 
@@ -405,8 +396,7 @@ Primary sources:
 
 - <https://developers.kommo.com/docs/limitations>
 - <https://developers.kommo.com/docs/webhooks-general>
-- <https://developers.kommo.com/reference/receiving-chat-webhooks>
-- <https://developers.kommo.com/reference/updating-single-lead>
+- <https://developers.kommo.com/reference/leads-list>
 
 ### 4.3 WAHA
 
@@ -417,8 +407,8 @@ Primary sources:
   `session + payload.id`.
 - `message.any` reconciles messages sent through the API.
 - `message.ack` preserves exact ERROR/PENDING/SERVER/DEVICE/READ/PLAYED evidence.
-- The server sends `/api/sendSeen` before an approved reply and sends only when
-  the session is WORKING.
+- U3/U12 first-stage acceptance receives and projects messages only. It does
+  not call send, send-seen/read or session-mutation endpoints.
 - An unknown send result remains unknown and is never automatically retried.
 
 Primary sources:
@@ -429,8 +419,33 @@ Primary sources:
 
 ## 5. Ordered implementation blocks
 
-Only one implementation PR may be open. Shared plan, schema, migration and
-deployment surfaces are sequential.
+Only one active U-slice implementation PR may be open. Historical draft PRs
+listed in the U0 crosswalk remain frozen and do not count as active execution.
+Shared plan, schema, migration and deployment surfaces are sequential.
+
+| Slice | Issue | Scope | Status |
+| --- | --- | --- | --- |
+| U0 | #377 | Authority docs and complete legacy crosswalk | Current docs-only slice |
+| U1 | #378 | One login and three pilot roles | Blocked by U0 |
+| U2 | #379 | Canonical Supabase client and lead | Blocked by U0 |
+| U3 | #380 | Receive-only WhatsApp in unified Sales | Blocked by U1/U2 |
+| U4 | #381 | Sales qualification, owner and next action | Blocked by U3 |
+| U5 | #382 | Contract and first-payment evidence | Blocked by U1/U2/U4 |
+| U6 | #383 | Audited Sales-to-Admissions handoff | Blocked by U5 |
+| U7 | #384 | Complete Admissions case | Blocked by U6 |
+| U8 | #385 | Payment schedule, overdue and stop factors | Blocked by U6 |
+| U9 | #386 | Human-reviewed AI assistance | Blocked by U3/U7 |
+| U10 | #387 | Active-data migration and legacy-write freeze | Blocked by U2-U9 |
+| U11 | #388 | Admin health, audit, backup and rollback | Blocked by U1-U10 |
+| U12 | #389 | Real managed receive-only acceptance | Blocked by U10/U11 |
+| U13 | #390 | Ten-workday, five-case pilot | Blocked by U12 |
+| U14 | #391 | Historical closed-record migration/archive | Blocked by U13 |
+
+### Historical P/BW block inventory
+
+The table and detailed P/BW contracts below are immutable implementation
+history. They are not a parallel backlog. Reuse is allowed only through the U0
+crosswalk and the acceptance criteria of the assigned U-slice.
 
 | Block | Scope | Exit evidence | Current execution status |
 | --- | --- | --- | --- |
@@ -1193,15 +1208,16 @@ full local Playwright or live provider proof.
 
 ## 8. Fail-closed invariants
 
-- no cold outbound, broadcast, autonomous follow-up/re-engagement or
-  out-of-window free-form send; controlled inbound reply autonomy is disabled
-  by default and requires every deterministic policy gate;
+- no outbound WhatsApp in the first live stage, whether manual, automatic,
+  broadcast, follow-up, re-engagement or reply;
+- no autonomous operational state change; AI remains advisory and human-reviewed;
 - no direct model-to-WAHA capability and no model-controlled retry;
 - no automatic retry of an unknown delivery outcome;
 - no public WAHA/Lead Agent port and no new `acadis_*` dependency;
 - no service-role or provider secret in browser, Git or logs;
 - no fake provider success or configured-equals-working claim;
-- no irreversible migration without expand/contract, backup and rollback;
+- no migration without source archive/checksum, provenance, reconciliation,
+  rejection reporting, retry rules, backup and rollback;
 - no production deployment, migration, DNS, WAHA session mutation, live
   customer send, real amoCRM record mutation or service deletion in this run;
 - no Lead Agent deactivation, retirement or removal in the current authorized
@@ -1212,15 +1228,14 @@ full local Playwright or live provider proof.
 The implementation may advance safely around these items, but the affected
 gates remain blocked until resolved:
 
-1. exact amoCRM account/pipeline/status/custom-field/user mappings and provider
-   authority for the bounded P4R read proof;
+1. exact amoCRM source inventory/mappings and read/import authority for U2/U10;
 2. Supabase region, plan, PITR availability and cost owner;
 3. capacity profile, SLO, RPO and RTO;
 4. retention, privacy notice, residency, DPA and legal deletion policy;
-5. AI provider/model, provider DPA and allowed-data policy; the reply-only
-   autonomy scope and deterministic guardrails are fixed by this amendment;
-6. dedicated sanitized test sender number, `evo-inbox` production
-   QR/session-recovery owner and controlled test-send authority;
+5. AI provider/model, provider DPA and allowed-data policy for advisory,
+   human-reviewed U9 behavior;
+6. dedicated sanitized inbound test sender, `evo-inbox` production
+   QR/session-recovery owner and receive-only U12 authority;
 7. release window, freeze rules and rollback authority.
 
 Role owners are recorded as accountable job functions. Personal names are not

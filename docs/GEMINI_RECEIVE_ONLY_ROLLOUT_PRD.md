@@ -1,5 +1,11 @@
 # Gemini Receive-Only WhatsApp Rollout PRD
 
+> [!WARNING]
+> **Superseded rollout contract.** Parent issue #376 and ADR 0020 replace the
+> separate Lead Agent/amoCRM-canonical path below. Receive-only and fail-closed
+> evidence patterns remain source material for U3, U9 and U12, but this PRD
+> must not be executed or treated as current product authority.
+
 ## Problem Statement
 
 EVO Admissions has a CRM and lead-agent path for WhatsApp, amoCRM, and operator follow-up, but the production path has not yet been proven with real credentials and a real WhatsApp session. The next release must prove the live inbound path without risking accidental replies to real leads.

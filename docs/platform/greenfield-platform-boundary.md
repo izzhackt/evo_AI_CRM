@@ -1,8 +1,14 @@
-# Greenfield Platform Boundary
+# Historical Greenfield Platform Boundary
 
-This note summarizes the active boundary for EVO Platform implementation as of
-2026-08-09 at accepted main
-`8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`.
+> **Status:** historical source material as of 2026-08-09 at accepted main
+> `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`. The active contract is
+> [issue #376](https://github.com/izzhackt/evo_AI_CRM/issues/376) and
+> [ADR 0020](../adr/0020-unify-evo-v1-on-canonical-supabase.md). The old
+> no-import, five-role, autonomous/manual-send, handoff and P/BW sequencing
+> decisions are superseded. Retain this note only as source material for its
+> one-UI, Supabase mechanics, no-bridge and evidence-boundary details.
+
+This note summarizes the boundary that was active before #376:
 
 - Platform backend: greenfield, Supabase-native.
 - No legacy SQLite data import.

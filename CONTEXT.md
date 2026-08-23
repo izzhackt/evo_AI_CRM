@@ -7,21 +7,17 @@ unified platform.
 
 The target contract is
 [`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`](docs/EVO_PLATFORM_LONG_RUN_PLAN.md) and
-the current execution-order decision is
-[`docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md`](docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md).
-The 2026-08-22 all-in-one decision in
-[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md) is the latest target-architecture
-authority: EVO is one product with one entry point, one staff UI, one role
-model, one cross-module workflow, and one Supabase-native operational backend.
+the current architecture/execution decision is
+[`ADR 0020`](docs/adr/0020-unify-evo-v1-on-canonical-supabase.md), under parent
+issue #376 and U0-U14. The 2026-08-24 entry in
+[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md) records the superseding owner
+decision: EVO is one product with one entry point, one staff UI, one role
+model, one cross-module workflow, and one canonical Supabase foundation.
 Lead Agent, CRM, and Inbox name internal capabilities or current deployment
 contours; they are not separate target products, user applications, or data
-authorities. ADR 0018 remains current-state authority only for safely operating
-and retiring the retained/frozen Lead Agent and rollback path; it does not
-preserve them as target product boundaries.
-The target architecture remains
-[`docs/adr/0014-unified-evo-platform-target-architecture.md`](docs/adr/0014-unified-evo-platform-target-architecture.md),
-as superseded by that all-in-one decision.
-Its canonical Supabase schema/migration boundary is refined by
+authorities. ADR 0018 remains historical current-state evidence only; ADR 0019
+is superseded where it authorizes autonomous replies or canonical amoCRM
+context. The canonical Supabase schema/migration mechanics remain refined by
 [`docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`](docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md).
 Companion-era terms below remain as honest descriptions of separate runtimes
 that may still exist before a separately authorized cutover. They are migration
@@ -46,7 +42,9 @@ session.
 _Avoid_: personal number, customer number, second production WAHA session
 
 **Test Lead**:
-A real amoCRM lead created or resolved during rollout validation and clearly marked so staff can identify it as test data.
+A controlled canonical EVO lead used for authorized acceptance and clearly
+marked so staff can identify it as test data. A linked amoCRM identifier may be
+read or imported, but stage one does not create or update an amoCRM record.
 _Avoid_: fake lead, mock lead
 
 **Operator UI**:
@@ -90,22 +88,24 @@ inbound-reply lane.
 _Avoid_: lead-agent, external bot brain
 
 **Identity Source of Truth**:
-amoCRM, which owns the canonical contact, lead, responsible sales manager, and
-sales stage for admissions follow-up. ADR 0019 resumes only a bounded read-mostly
-adapter for those values and references to sales tasks, calls/recordings and chat
-records. The unified Platform remains the internal operational source for its
-own workflow, messaging, audit and applicant state. Missing verified account
-mapping fails closed; SQLite, mocks, inferred identity, hardcoded IDs and
-silent fallback remain prohibited.
-_Avoid_: local source, duplicate identity, second product CRM
+EVO/Supabase, which owns the canonical client, lead, responsible staff, stage,
+next action and deadline. amoCRM is a temporary read/import adapter and
+migration source; its identifiers remain provenance, not operational authority.
+SQLite, mocks, inferred identity, hardcoded IDs and silent fallback remain
+prohibited.
+_Avoid_: amoCRM master record, duplicate identity, second product CRM
 
 **Shadow Record**:
-A local record that mirrors selected amoCRM identity or workflow fields for fast operator use, while amoCRM remains authoritative.
-_Avoid_: local lead, duplicate contact
+A historical term for a local copy of external fields. New EVO work stores a
+canonical Supabase record plus explicit external identifiers and provenance;
+it does not create a permanently synchronized shadow authority.
+_Avoid_: canonical external copy, dual-write record
 
 **Companion amoCRM Resolution**:
-The companion app's narrow responsibility to find or create the amoCRM contact and lead for a WhatsApp sender before storing local shadow identity.
-_Avoid_: pipeline mirror, local-only lead
+Historical companion behavior that found or created amoCRM identity before
+local persistence. It is superseded by canonical EVO identity resolution and
+stage-one read/import-only amoCRM access.
+_Avoid_: current identity contract, pipeline mirror
 
 **Draft Review**:
 An AI-generated suggested reply or next-step note that staff may inspect, without automatic WhatsApp sending.
@@ -113,35 +113,30 @@ _Avoid_: autoreply, bot response
 
 **Draft-Only AI Mode**:
 A mode where AI may generate a suggested reply, but a staff member must review,
-edit if needed, and deliberately send it. The target supports Russian or
-English according to the last customer message; uncertain language detection
-requires manual language selection or human handoff.
-_Avoid_: passive bot, silent auto-reply
+edit if needed, and explicitly accept or reject it. The receive-only stage does
+not send the accepted draft. AI never owns a consequential state change.
+_Avoid_: passive bot, silent auto-reply, send authorization
 
 **Rolling 24-Hour Service Window**:
-The WhatsApp customer-service window opened or refreshed by a customer inbound
-message in the same conversation. The bounded autonomous lane may send only an
-inbound-triggered reply while this window remains open.
-_Avoid_: campaign window, follow-up permission, permanent opt-in
+Historical transport-policy term retained for evidence review. It grants no
+send authority under #376; the first live stage is receive-only.
+_Avoid_: campaign window, follow-up permission, current send authorization
 
 **Bounded Autonomous Inbound Reply**:
-A reply proposed by Gemini and approved by deterministic EVO gates for the exact
-triggering inbound message inside the Rolling 24-Hour Service Window. It excludes
-cold outbound, broadcast, campaign, autonomous follow-up/re-engagement and
-out-of-window free-form sends.
-_Avoid_: bot campaign, autonomous outbound, model-direct send
+A superseded ADR 0019 concept. AI is advisory and human-reviewed under ADR
+0020; no autonomous WhatsApp reply is authorized.
+_Avoid_: current capability, bot campaign, model-direct send
 
 **Deterministic EVO Send Gate**:
-The server-side policy decision that records every input and verdict and alone
-may queue an autonomous reply. Gemini proposes content and qualification facts;
-it does not authorize or perform transport.
-_Avoid_: model approval, prompt-only safety, WAHA policy
+Historical repository evidence for a disabled send path. It grants no current
+runtime or rollout authority; any later external-write stage needs a new owner
+decision and rollback contract.
+_Avoid_: current send authority, model approval, prompt-only safety
 
 **Autonomy Pause**:
-A durable conversation state created immediately by any staff outbound message
-or explicit takeover. Only an authorized staff actor may resume autonomy, with
-actor, reason and time audited.
-_Avoid_: temporary model hint, reconnect reset, silent resume
+A historical state from the superseded autonomous-reply lane. The active v1
+contract has no autonomy to resume.
+_Avoid_: current workflow control, silent resume
 
 **Media-Only Inbound**:
 A valid inbound customer event with media but no usable text. It must be
@@ -151,19 +146,22 @@ separate approval.
 _Avoid_: empty message, ignored webhook, successful no-op
 
 **Read-Mostly amoCRM Adapter**:
-The bounded adapter that reads verified canonical contact, lead, responsible
-sales manager and stage plus task, call/recording and chat-record references.
-It performs no provider write, inferred mapping, name-based identity match or
-silent fallback.
-_Avoid_: bidirectional sync, stage writer, local identity authority
+The temporary bounded adapter that reads/imports verified external contact,
+lead, responsible-user and stage values plus permitted references. EVO records
+their provenance and remains canonical. The adapter performs no provider write,
+inferred mapping, name-based identity match or silent fallback.
+_Avoid_: permanent synchronization, stage writer, external identity authority
 
 **Companion First Launch Surface**:
-The first usable surface of the companion app: manual WhatsApp inbox, contacts, optional pipeline context, AI draft, knowledge base, WAHA receive/send, and amoCRM identity resolution.
-_Avoid_: broadcast launch, automation launch
+Historical separate-product scope. Useful messaging capability may be rebuilt
+inside the unified UI only through U3/U9; manual send is not part of stage one.
+_Avoid_: current product surface, broadcast launch
 
 **Companion Production Proof**:
-The first real validation that inbound WhatsApp reaches EVO Inbox, amoCRM identity is resolved or created, AI draft works, and an operator can send one manual WAHA reply while auto-reply remains disabled.
-_Avoid_: receive-only proof, auto-reply proof
+Historical proof contract superseded by U12. Current acceptance uses the one
+EVO product, canonical Supabase identity and receive-only WhatsApp, with no
+amoCRM write and no manual or automatic reply.
+_Avoid_: current acceptance, outbound proof
 
 **Full EVO Inbox Redesign**:
 The redesign of all retained Companion WAHA CRM App surfaces around EVO admissions work, rather than a light rename of WACRM.
@@ -184,12 +182,12 @@ permanent compatibility layers.
 _Avoid_: renamed companion app, three products, dual backend, shared production-and-test database
 
 **Platform Business Role**:
-One of `admin`, `sales`, `curator`, `finance`, or `student`. “Client/Student”
-is the user-facing label for `student`; the current root `client` identifier is
-legacy and is not imported or mapped into Platform without a later explicit
-scoped decision. There is no separate `visa` business role; `/visa` remains a
-module managed by the assigned Curator (and Admin where authorized).
-_Avoid_: prototype persona, shared administrator login, implicit client mapping
+For the first pilot, one of `sales`, the existing canonical admissions role
+(human-facing Admissions Manager), or `admin` (Director/Admin). Sensitive
+capabilities such as payment confirmation are explicit permissions. Finance
+and Student Portal roles may be added in later approved milestones; `/visa`
+remains a module, not a separate role.
+_Avoid_: five-role first pilot, shared administrator login, job-title permission
 
 **Admin Assignment**:
 The Admin-only action that assigns or reassigns a student's Curator. It requires
@@ -198,15 +196,14 @@ Only Admin may invite or block staff accounts.
 _Avoid_: client profile update, silent reassignment
 
 **Sales-to-Curator Handoff**:
-The accountable transfer after the signed-contract condition is confirmed
-through the account-specific amoCRM pipeline/status mapping and Admin assigns a
-Curator. Sales owns the queue and conversation before contract; the assigned
-Curator owns them after handoff. Conversation history remains unified, while
-Sales sees only the permitted non-sensitive summary after handoff.
-_Avoid_: copied conversation, operational status replacing amoCRM sales stage
+The accountable transfer after EVO records both a confirmed contract and the
+first mandatory payment. The handoff creates or updates one Student Case,
+preserves provenance, assigns Admissions ownership and creates starter work.
+A Director/Admin override requires a reason and immutable audit evidence.
+_Avoid_: chat-inferred gate, copied conversation, amoCRM-stage-only handoff
 
 **Root WhatsApp Interim Scope**:
-The temporary authorization rule for the root CRM's existing SQLite `wa_*`
+Historical containment rule for the root CRM's existing SQLite `wa_*`
 shadow surface before unified communications. Admin sees all. Responsible Sales
 has full access to a linked lead or pending case; after handoff that Sales user
 sees only a safe case summary. The assigned Curator has full access to the
@@ -233,12 +230,12 @@ parallel or fallback Inbox-derived UI.
 _Avoid_: second operator UI, replacement prototype, dual frontend
 
 **Unified Platform Data Store**:
-The target dedicated Supabase production project for EVO-owned operational
-records, with RLS and audit controls. It does not become authoritative for
-amoCRM-owned contact, lead, responsible sales manager, or sales stage.
-It is greenfield: no legacy SQLite data import, no legacy account import, no
-root-auth migration, and no dual-read or dual-write bridge.
-_Avoid_: companion-only database, canonical sales CRM
+The target dedicated Supabase foundation for canonical EVO operational records,
+including client, lead, stage, responsible staff, next action and deadline,
+with RLS and audit controls. Active legacy data is migrated once with provenance
+and reconciliation. SQLite runtime restoration, dual-read, dual-write and
+compatibility bridges remain prohibited.
+_Avoid_: companion-only database, external canonical CRM, SQLite fallback
 
 **Canonical Supabase Migration Source**:
 The root `supabase/` directory established by P2A as the only repository
@@ -264,13 +261,10 @@ membership or business authority.
 _Avoid_: automatic role migration, signup-implies-Platform-access
 
 **Thin Messaging Slice**:
-The first bounded Platform product slice behind the unified frontend:
-conversation list/thread, necessary contact/student context, WAHA receive/send,
-ACK/delivery, AI draft, staff manual send, approved knowledge, durable memory,
-audit and minimal health/settings. ADR 0019 adds only the gated Bounded
-Autonomous Inbound Reply. It excludes generic CRM dashboards, pipelines, deals,
-lead management, broadcasts, flows, campaigns and unrelated analytics.
-_Avoid_: duplicate CRM, broad Inbox parity, autonomous outbound
+A historical pre-#376 sequence. The current first product slices are U1-U4:
+one login/roles, canonical client/lead and receive-only communications inside
+the unified Sales workflow. Manual or autonomous send is not included.
+_Avoid_: current execution block, duplicate CRM, autonomous outbound
 
 **P5A WAHA Ingress**:
 The merged receive-only boundary that verifies signed WAHA events, persists raw
@@ -297,7 +291,7 @@ cutover must inspect per-session and global WAHA webhooks and prove
 _Avoid_: public WAHA port, multi-session production target, session alias
 
 **Manual-Send WAHA Runtime Binding**:
-The canonical organization-scoped Platform configuration used by the private
+Historical repository configuration used by the private
 manual-send worker: exact session `evo-inbox`, exact private WAHA endpoint and
 a Supabase Vault secret reference resolved only by a service-role RPC. It
 replaces the live worker's legacy SQLite settings read. Migration 081 adds the
@@ -306,16 +300,19 @@ the operator CLIs use only those boundaries and never contact WAHA. This is
 repository and disposable-local proof until an authorized operator provisions
 the real Vault binding and separately verifies the provider without a customer
 send. A `ready` configuration result proves the stored binding and secret hash,
-not WAHA connectivity or message delivery.
-_Avoid_: SQLite fallback, dual-read/write, hard-coded retired session, provider proof
+not WAHA connectivity or message delivery. Stage one does not activate or use
+this binding to send.
+_Avoid_: current send authority, SQLite fallback, provider proof
 
 **Admissions Inquiry**:
 The pre-contract request from a prospective student or decision-making family member that still needs qualification and a next action.
 _Avoid_: student file, confirmed client, application
 
 **Admissions Lead**:
-The amoCRM sales record that links an Admissions Inquiry to its canonical contact, owner, and sales stage.
-_Avoid_: applicant file, local Inbox deal
+The canonical EVO/Supabase record that links an Admissions Inquiry to one
+client, responsible staff member, stage, next action, deadline, provenance and
+optional external identifiers.
+_Avoid_: applicant file, amoCRM master record, local Inbox deal
 
 **Applicant**:
 The person seeking admission to a school, university, language course, Foundation, bachelor, master, or doctoral program.
@@ -324,8 +321,9 @@ _Avoid_: lead, payer, parent
 **Student Operational File**:
 The post-agreement platform record used to manage the applicant's admissions
 delivery, including multiple university applications, documents, Curator-owned
-visa work, payments, tasks, and support. A confirmed contract creates a pending
-case; Student Portal access activates only after Admin assigns the Curator.
+visa work, payments, tasks, and support. The normal handoff requires confirmed
+contract and first mandatory payment, then assigns Admissions ownership and
+starter work. Student Portal follows in a later milestone.
 _Avoid_: lead, WhatsApp conversation, amoCRM deal
 
 **Decision Participant**:

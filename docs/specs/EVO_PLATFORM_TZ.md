@@ -3,15 +3,32 @@
 ## Единая платформа автоматизации EVO Admissions
 
 **Идентификатор документа:** EVO-PLATFORM-TZ-001
-**Версия:** 2.3
-**Статус:** действующий контракт repository-реализации; production-gates
-остаются отдельными
+**Версия:** 2.3 (историческая)
+**Статус:** source material; не является действующим implementation contract
 **Дата:** 9 августа 2026 года
 **Базовая версия репозитория:** `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
 **Текущий execution checkpoint:** `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
 **Язык документа:** русский
 
-> **Назначение документа.** Это ТЗ является контрактом на последующую
+> **Текущий статус.** С U0/#377 действующий продуктовый контракт задают
+> [issue #376](https://github.com/izzhackt/evo_AI_CRM/issues/376),
+> [ADR 0020](../adr/0020-unify-evo-v1-on-canonical-supabase.md),
+> [launch plan](../EVO_LAUNCH_PLAN.md) и
+> [long-run plan](../EVO_PLATFORM_LONG_RUN_PLAN.md). Этот Markdown и созданный
+> из него `EVO_PLATFORM_TZ.docx` сохранены как исторический снимок и source
+> material для U1-U14. При любом расхождении действующий контракт имеет
+> приоритет.
+>
+> В частности, superseded: amoCRM как canonical source; запрет на перенос
+> legacy-данных; пять pilot-ролей; manual/autonomous WhatsApp send в первом
+> live stage; handoff только по подписанному договору; прежняя P/BW
+> последовательность. Текущий контракт закрепляет canonical Supabase,
+> one-time migration/reconciliation, три pilot-роли, receive-only, handoff
+> после договора и первого платежа и последовательность U0-U14. Retained как
+> source material: один UI, Supabase/RLS/Storage mechanics, private WAHA,
+> evidence boundaries и отдельная граница Student Profile automation.
+
+> **Историческое назначение документа.** Это ТЗ являлось контрактом на последующую
 > реализацию единой EVO Admissions Platform. Оно не утверждает, что внешние
 > интеграции уже работают. После merge P0 оно разрешает только поэтапную
 > repository-реализацию по `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`; production

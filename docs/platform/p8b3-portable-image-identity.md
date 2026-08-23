@@ -2,7 +2,7 @@
 
 Date: 2026-08-15
 Issue: #205
-Status: implementation contract
+Status: historical implementation source under #376/ADR 0020; not active
 Block-ID: `EVO-P8B3-PORTABLE-IMAGE-IDENTITY-2026-08-15`
 
 ## Problem

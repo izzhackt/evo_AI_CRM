@@ -1,10 +1,12 @@
 # ADR 0018: Defer canonical amoCRM integration and retain Lead Agent
 
-- Status: accepted
+- Status: historical current-state safety decision; target ownership and active
+  sequence superseded by ADR 0020
 - Date: 2026-08-06
 - Refines: ADR 0014, ADR 0016 and ADR 0017
 - Supersedes in conflict: the execution order, P8 acceptance boundary and Lead
   Agent retirement/removal language in the earlier plans and ADRs
+- Superseded for target architecture and execution by: ADR 0020
 
 ## Context
 

@@ -138,7 +138,7 @@ services:
       EVO_AGENT_ENV: production
       EVO_AGENT_DB_PATH: /app/data/evo-lead-agent.db
       EVO_AGENT_WAHA_BASE_URL: http://evo-crm-waha:3000
-      EVO_AGENT_WAHA_SESSION: crm_primary
+      EVO_AGENT_WAHA_SESSION: evo-inbox
       EVO_AGENT_CRM_BASE_URL: http://evo-crm-app:3000
       EVO_AGENT_CRM_SYNC_PATH: /api/internal/lead-agent/whatsapp
       EVO_AGENT_FROZEN: "true"

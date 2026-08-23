@@ -123,41 +123,32 @@ http://evo-crm-waha:3000
 
 Create `/opt/evo-crm/.env.waha` from `deploy/env.waha.example`. Generate a
 plain API key and store only its SHA-512 hash there as
-`WAHA_API_KEY=sha512:<hash>`. Store the plain API key in CRM Settings and in
-`/opt/evo-crm/.env.lead-agent`.
+`WAHA_API_KEY=sha512:<hash>`. The forward Platform manual-send adapter keeps the
+plain key only in its Supabase Vault runtime binding, provisioned through the
+current server-only operator command. Do not copy it into CRM Settings or the
+frozen Lead Agent environment.
 
 Create `/opt/evo-crm/.env.lead-agent` from `deploy/env.lead-agent.example`.
-The lead-agent service is the WAHA webhook owner. It resolves amoCRM identity
-first, then posts a signed internal sync event to the CRM operator UI.
-
-For the Gemini receive-only rollout, `/opt/evo-crm/.env.lead-agent` must include
-all of these exact settings before the live message test:
+This file now describes only the retained, frozen rollback service. It is not a
+future WAHA webhook owner and must not contain the Platform ingress HMAC secret.
+Keep these fail-closed values:
 
 ```txt
-EVO_AGENT_WAHA_API_KEY=<plain key matching .env.waha hash>
-EVO_AGENT_WAHA_SESSION=crm_primary
-EVO_AGENT_WAHA_WEBHOOK_SECRET=<WAHA webhook HMAC secret>
-EVO_AGENT_WAHA_WEBHOOK_URL=http://evo-lead-agent:8000/webhooks/waha
-EVO_AGENT_AMO_BASE_URL=https://<subdomain>.amocrm.ru
-EVO_AGENT_AMO_CLIENT_ID=<amoCRM integration id>
-EVO_AGENT_AMO_CLIENT_SECRET=<amoCRM integration secret>
-EVO_AGENT_AMO_REDIRECT_URI=<amoCRM redirect URI>
-EVO_AGENT_AMO_REFRESH_TOKEN=<amoCRM refresh token for initial token file creation>
-EVO_AGENT_AMO_TOKEN_FILE=/app/data/amo-token.json
-EVO_AGENT_CRM_SYNC_SECRET=<matches CRM Settings lead-agent sync secret>
-EVO_AGENT_ADMIN_API_KEY=<private admin key>
-GEMINI_API_KEY=<Gemini API key>
-EVO_AGENT_GEMINI_MODEL=gemini-3.5-flash
-EVO_AGENT_AUTOREPLY_ENABLED=true
+EVO_AGENT_WAHA_SESSION=evo-inbox
+EVO_AGENT_WAHA_WEBHOOK_SECRET=
+EVO_AGENT_WAHA_WEBHOOK_URL=
+EVO_AGENT_FROZEN=true
+EVO_AGENT_WORKER_ENABLED=false
+EVO_AGENT_AUTOREPLY_ENABLED=false
 EVO_AGENT_OUTBOUND_ENABLED=false
 ```
 
-`EVO_AGENT_AUTOREPLY_ENABLED=true` enables internal Gemini draft review in the
-lead-agent pipeline. `EVO_AGENT_OUTBOUND_ENABLED=false` is mandatory for the
-first receive-only proof; do not enable outbound WhatsApp in this rollout.
-The production Compose file intentionally reads these flags from
-`.env.lead-agent` instead of hard-coding them, so readiness can prove the real
-server setting.
+The target boundary is the server-managed EVO Platform route
+`/api/internal/platform-messaging/waha/events` with exact session `evo-inbox`.
+It uses the separate `EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET`; never copy or
+reuse that secret in `EVO_AGENT_WAHA_WEBHOOK_SECRET`. Keep Platform ingress
+disabled until a separately authorized cutover provisions and verifies the
+real provider configuration.
 
 The lead-agent source is tracked by the parent `izzhackt/evo_AI_CRM` repo under:
 
@@ -169,23 +160,11 @@ Do not clone `nik1t7n/kanttsp-lead-agent` into this path for EVO production.
 Build the parent repository's exact reviewed main SHA using the release
 runbook, which includes the EVO-specific lead-agent source.
 
-Use separate shared secrets:
-
-- `WAHA webhook HMAC secret` signs WAHA -> lead-agent webhooks.
-- `lead-agent sync secret` signs lead-agent -> CRM internal sync calls.
-
-Store CRM Settings as:
-
-```txt
-WA provider: WAHA
-WAHA Base URL: http://evo-crm-waha:3000
-WAHA session: crm_primary
-WAHA webhook URL: http://evo-lead-agent:8000/webhooks/waha
-lead-agent sync secret: same value as EVO_AGENT_CRM_SYNC_SECRET
-```
-
-Keep the WAHA dashboard/API private. Operators should scan QR only through the
-authenticated CRM Settings page, which proxies `/api/waha/qr`.
+Do not configure WAHA from legacy CRM Settings or the Lead Agent CLI. The
+fixture page is read-only for WhatsApp, and `evo-lead-agent-waha-setup` exits
+with `lead_agent_waha_setup_retired` without calling WAHA. Keep the WAHA
+dashboard/API private; real QR/session work requires a separately authorized
+server-side cutover procedure.
 
 Official integration behavior checked for this rollout:
 
@@ -198,40 +177,12 @@ Official integration behavior checked for this rollout:
   `https://waha.devlike.pro/docs/how-to/receive-messages/` and
   `https://waha.devlike.pro/docs/overview/changelog/`.
 
-Before issue #5 live proof, run the lead-agent gates on the VPS:
-
-```bash
-docker compose -p evo-crm \
-  -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" exec lead-agent \
-  evo-lead-agent-env-audit --db /app/data/evo-lead-agent.db --pretty
-docker compose -p evo-crm \
-  -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" exec lead-agent sh -lc '
-  evo-lead-agent-waha-setup \
-    --base-url "$EVO_AGENT_WAHA_BASE_URL" \
-    --api-key "$EVO_AGENT_WAHA_API_KEY" \
-    --session "$EVO_AGENT_WAHA_SESSION" \
-    --webhook-url "$EVO_AGENT_WAHA_WEBHOOK_URL" \
-    --webhook-secret "$EVO_AGENT_WAHA_WEBHOOK_SECRET" \
-    --qr-output /app/data/waha-crm-primary-qr.png \
-    --pretty
-'
-docker compose -p evo-crm \
-  -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" exec lead-agent \
-  evo-lead-agent-preflight --db /app/data/evo-lead-agent.db --pretty
-```
-
-Run these commands inside the `lead-agent` container because `/app/data` and
-the private Docker DNS names (`evo-crm-waha`, `evo-lead-agent`, and
-`evo-crm-app`) are container-network paths, not VPS host paths. The production
-image installs the `evo-lead-agent-*` console scripts directly; it does not
-require `uv` inside the container.
-
-The env audit and preflight must name missing inputs exactly, for example
-`EVO_AGENT_WAHA_API_KEY`, `EVO_AGENT_AMO_CLIENT_ID`,
-`EVO_AGENT_CRM_SYNC_SECRET`, `GEMINI_API_KEY or GOOGLE_API_KEY or
-EVO_AGENT_GEMINI_API_KEY`, or `EVO_AGENT_ADMIN_API_KEY`. A receive-only ready
-report is not outbound readiness; outbound remains blocked until
-`live_whatsapp_outbound` is intentionally approved in a later issue.
+Do not use Lead Agent env audit, preflight, or setup output as proof that the
+Platform webhook is ready. Those commands describe the retained contour; the
+setup command is intentionally retired. A future live proof must separately
+verify the enabled Platform ingress, its dedicated HMAC secret, canonical
+Supabase persistence, exact `evo-inbox` provider session and operator-visible
+projection. Repository configuration alone is not provider proof.
 
 ## DNS
 

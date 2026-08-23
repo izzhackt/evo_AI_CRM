@@ -5,7 +5,7 @@ from evo_lead_agent.schemas import EvoCrmSyncPayload
 def test_whatsapp_payload_uses_evo_crm_camel_case_contract() -> None:
     payload = EvoCrmSyncPayload(
         event="whatsapp.message",
-        session="crm_primary",
+        session="evo-inbox",
         provider_message_id="waha-msg-1",
         phone="+996700111222",
         chat_id="996700111222@c.us",
@@ -22,7 +22,7 @@ def test_whatsapp_payload_uses_evo_crm_camel_case_contract() -> None:
         push_name="Client",
         reply_text="Здравствуйте! Чем можем помочь?",
         outbound_provider_message_id="waha-out-1",
-        idempotency_key="crm_primary:waha-msg-1:reply_sent",
+        idempotency_key="evo-inbox:waha-msg-1:reply_sent",
     )
 
     result = _whatsapp_payload(payload)

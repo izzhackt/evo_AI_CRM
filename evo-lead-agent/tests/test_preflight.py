@@ -13,7 +13,7 @@ def _settings(tmp_path: Path, **overrides: object) -> Settings:
         "database_path": tmp_path / "agent.db",
         "waha_base_url": None,
         "waha_api_key": None,
-        "waha_session_name": "crm_primary",
+        "waha_session_name": "evo-inbox",
         "waha_webhook_secret": None,
         "amo_account_base_url": None,
         "amo_client_id": None,
@@ -82,7 +82,7 @@ async def test_preflight_runs_configured_read_only_checks(
 
         async def session_info(self) -> dict[str, object]:
             return {
-                "name": "crm_primary",
+                "name": "evo-inbox",
                 "status": "WORKING",
                 "found": True,
                 "apiKey": "leaked-waha-key",
@@ -133,7 +133,7 @@ async def test_preflight_runs_configured_read_only_checks(
     assert report["checks"]["admin_configuration"]["status"] == "passed"
     assert report["checks"]["waha_session"]["status"] == "passed"
     assert report["checks"]["waha_session"]["session"] == {
-        "name": "crm_primary",
+        "name": "evo-inbox",
         "status": "WORKING",
         "found": True,
     }
@@ -144,7 +144,7 @@ async def test_preflight_runs_configured_read_only_checks(
         "model": "gemini-3.5-flash",
     }
     assert report["readiness"]["ready"]["receive_only_rollout"] is True
-    assert calls == ["waha:http://waha.internal:crm_primary", "amo:https://example.amocrm.ru:tok"]
+    assert calls == ["waha:http://waha.internal:evo-inbox", "amo:https://example.amocrm.ru:tok"]
     rendered = str(report)
     assert "leaked-waha-key" not in rendered
     assert "tokx" not in rendered
@@ -163,7 +163,7 @@ async def test_preflight_fails_receive_only_gate_when_outbound_enabled(
             pass
 
         async def session_info(self) -> dict[str, object]:
-            return {"name": "crm_primary", "status": "WORKING", "found": True}
+            return {"name": "evo-inbox", "status": "WORKING", "found": True}
 
     async def fake_amo_account_info(settings: Settings, access_token: str) -> dict[str, object]:
         return {"id": 100, "name": "EVO Admissions", "subdomain": "evoadmissions"}
@@ -212,7 +212,7 @@ async def test_preflight_fails_when_waha_session_needs_qr_scan(
             pass
 
         async def session_info(self) -> dict[str, object]:
-            return {"name": "crm_primary", "status": "SCAN_QR", "found": True}
+            return {"name": "evo-inbox", "status": "SCAN_QR", "found": True}
 
     monkeypatch.setattr("evo_lead_agent.preflight.WahaClient", FakeWahaClient)
 
@@ -229,7 +229,7 @@ async def test_preflight_fails_when_waha_session_needs_qr_scan(
     assert report["checks"]["waha_session"] == {
         "status": "failed",
         "reason": "session_not_working",
-        "session": {"name": "crm_primary", "status": "SCAN_QR", "found": True},
+        "session": {"name": "evo-inbox", "status": "SCAN_QR", "found": True},
     }
 
 

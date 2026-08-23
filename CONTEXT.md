@@ -288,8 +288,13 @@ _Avoid_: autonomous-send worker, merged capability, provider proof
 **Unified WAHA Session**:
 The target single private production WAHA session `evo-inbox`, representing one
 WhatsApp account and one webhook owner. The existing sessions are not changed
-or retired until controlled cutover evidence exists.
-_Avoid_: public WAHA port, multi-session production target
+or retired until controlled cutover evidence exists. Forward runtime code,
+new signed Lead Agent evidence and current health may accept only `evo-inbox`;
+an old `crm_primary` value may survive only as unchanged historical provider
+provenance. It is never an alias, fallback or second current session. A real
+cutover must inspect per-session and global WAHA webhooks and prove
+`session.status=WORKING` for `evo-inbox` before transferring ownership.
+_Avoid_: public WAHA port, multi-session production target, session alias
 
 **Manual-Send WAHA Runtime Binding**:
 The canonical organization-scoped Platform configuration used by the private

@@ -7,6 +7,10 @@ from pathlib import Path
 from dotenv import find_dotenv, load_dotenv
 
 
+PLATFORM_WAHA_SESSION_NAME = "evo-inbox"
+PLATFORM_WAHA_WEBHOOK_PATH = "/api/internal/platform-messaging/waha/events"
+
+
 def _bool(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -31,6 +35,15 @@ def _int(name: str) -> int | None:
     except ValueError:
         return None
     return parsed if parsed > 0 else None
+
+
+def _platform_waha_session_name() -> str:
+    value = os.getenv("EVO_AGENT_WAHA_SESSION")
+    if value is None:
+        return PLATFORM_WAHA_SESSION_NAME
+    if value != PLATFORM_WAHA_SESSION_NAME:
+        raise ValueError("EVO_AGENT_WAHA_SESSION must be exactly evo-inbox")
+    return value
 
 
 @dataclass(frozen=True)
@@ -99,8 +112,7 @@ def load_settings() -> Settings:
         database_path=Path(os.getenv("EVO_AGENT_DB_PATH", "data/evo-lead-agent.db")),
         waha_base_url=_optional("EVO_AGENT_WAHA_BASE_URL"),
         waha_api_key=_optional("EVO_AGENT_WAHA_API_KEY"),
-        waha_session_name=os.getenv("EVO_AGENT_WAHA_SESSION", "crm_primary").strip()
-        or "crm_primary",
+        waha_session_name=_platform_waha_session_name(),
         waha_webhook_secret=_optional("EVO_AGENT_WAHA_WEBHOOK_SECRET"),
         amo_account_base_url=_optional("EVO_AGENT_AMO_BASE_URL"),
         amo_client_id=_optional("EVO_AGENT_AMO_CLIENT_ID"),

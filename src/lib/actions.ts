@@ -17,7 +17,7 @@ import {
   setSetting,
   verifyPassword,
 } from "./db";
-import { getDefaultWhatsAppAccount, sendWhatsApp, upsertWahaAccount } from "./whatsapp";
+import { getDefaultWhatsAppAccount, sendWhatsApp } from "./whatsapp";
 import { createAmoCrmAdapter, getAmoCrmLocalStatus, normalizeAmoCrmAccountBaseUrl } from "./amocrm";
 import { setSession, clearSession, currentUser, isStaff, type SessionUser } from "./auth";
 import { resolvePlatformActor } from "./platform-auth";
@@ -74,16 +74,6 @@ function validatedLocalSalesManagerId(managerId: number | null): number | null {
     .get(managerId) as { id: number } | undefined;
   if (!manager) notFound();
   return manager.id;
-}
-
-function normalizeUrl(value: string | null): string | null {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  try {
-    return new URL(trimmed).toString().replace(/\/$/, "");
-  } catch {
-    return null;
-  }
 }
 
 async function requireStaff() {
@@ -882,69 +872,6 @@ export async function markConversationReadAction(form: FormData) {
   revalidatePath("/whatsapp");
 }
 
-export async function startWahaSessionAction() {
-  const user = await currentUser();
-  if (!user || user.role !== "admin") redirect("/dashboard");
-
-  const baseUrl = normalizeUrl(getSetting("waha_base_url"));
-  const apiKey = getSetting("waha_api_key")?.trim();
-  const sessionName = getSetting("waha_session_name")?.trim();
-  const webhookSecret = getSetting("waha_webhook_secret")?.trim();
-  const webhookUrl = getSetting("waha_webhook_url")?.trim();
-  if (!baseUrl || !apiKey || !sessionName || !webhookSecret || !webhookUrl) {
-    setSetting("waha_last_error", "not_configured");
-    revalidatePath("/settings");
-    return;
-  }
-
-  const sessionConfig = {
-    name: sessionName,
-    config: {
-      webhooks: [
-        {
-          url: webhookUrl,
-          events: ["message", "session.status"],
-          hmac: { key: webhookSecret },
-          retries: { policy: "constant", delaySeconds: 2, attempts: 15 },
-        },
-      ],
-    },
-  };
-
-  try {
-    const res = await fetch(`${baseUrl}/api/sessions/start`, {
-      method: "POST",
-      headers: {
-        "X-Api-Key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(sessionConfig),
-    });
-    const text = await res.text();
-    const shouldRestart = res.status === 422 && text.toLowerCase().includes("already started");
-    const restartRes = shouldRestart
-      ? await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(sessionName)}/restart`, {
-          method: "POST",
-          headers: { "X-Api-Key": apiKey, "Content-Type": "application/json" },
-        })
-      : null;
-
-    if (res.ok || restartRes?.ok) {
-      upsertWahaAccount({
-        name: getSetting("waha_account_name") || sessionName,
-        sessionName,
-        ownerUserId: user.id,
-      });
-      setSetting("waha_last_error", "");
-    } else {
-      setSetting("waha_last_error", `provider_${restartRes?.status ?? res.status}`);
-    }
-  } catch {
-    setSetting("waha_last_error", "provider_unreachable");
-  }
-  revalidatePath("/settings");
-}
-
 // ---------- telephony ----------
 
 export async function logCallAction(form: FormData) {
@@ -965,31 +892,14 @@ export async function logCallAction(form: FormData) {
 export async function saveSettingsAction(form: FormData) {
   const user = await currentUser();
   if (!user || user.role !== "admin") redirect("/dashboard");
-  const keys = ["wa_phone_id", "tel_provider", "wa_provider", "waha_account_name", "waha_base_url", "waha_session_name", "waha_webhook_url"];
+  const keys = ["tel_provider"];
   for (const key of keys) {
     const value = str(form, key);
     if (form.has(key)) setSetting(key, value);
   }
-  const secretKeys = [
-    "wa_token",
-    "wa_verify_token",
-    "wa_app_secret",
-    "waha_api_key",
-    "waha_webhook_secret",
-    "lead_agent_sync_secret",
-    "tel_api_key",
-    "anthropic_api_key",
-  ];
+  const secretKeys = ["tel_api_key", "anthropic_api_key"];
   for (const key of secretKeys) {
     if (form.has(key)) setPreservedSecret(key, str(form, key));
-  }
-
-  if (form.has("wa_provider") && str(form, "wa_provider") === "waha" && str(form, "waha_session_name")) {
-    upsertWahaAccount({
-      name: str(form, "waha_account_name") || str(form, "waha_session_name"),
-      sessionName: str(form, "waha_session_name"),
-      ownerUserId: user.id,
-    });
   }
 
   if (form.has("amocrm_account_base_url")) {
@@ -1039,28 +949,9 @@ export async function getIntegrationStatus() {
 
   const telephonyProvider = getSetting("tel_provider")?.trim();
   const telephonyApiKey = getSetting("tel_api_key")?.trim();
-  const whatsappProvider = getSetting("wa_provider")?.trim() || "meta";
-  const metaConfigured = !!getSetting("wa_token") && !!getSetting("wa_phone_id");
-  const wahaConfigured = whatsappProvider === "waha" &&
-    !!getSetting("waha_base_url") &&
-    !!getSetting("waha_api_key") &&
-    !!getSetting("waha_session_name") &&
-    !!getSetting("waha_webhook_secret") &&
-    !!getSetting("waha_webhook_url");
-  const wahaLastError = getSetting("waha_last_error")?.trim();
-  const whatsappState: "not_configured" | "configured" | "blocked" =
-    whatsappProvider === "waha"
-      ? !wahaConfigured
-        ? "not_configured"
-        : wahaLastError
-          ? "blocked"
-          : "configured"
-      : metaConfigured
-        ? "configured"
-        : "not_configured";
   return {
-    whatsapp: whatsappState === "configured",
-    whatsappState,
+    whatsapp: false,
+    whatsappState: "not_configured" as "not_configured" | "configured" | "blocked",
     telephony: !!telephonyProvider && !!telephonyApiKey,
     ai: !!getSetting("anthropic_api_key") || !!process.env.ANTHROPIC_API_KEY,
     amocrm: getAmoCrmLocalStatus(),
@@ -1070,7 +961,14 @@ export async function getIntegrationStatus() {
 export async function checkAmoCrmAction() {
   const user = await currentUser();
   if (!user || user.role !== "admin") redirect("/dashboard");
-  const status = await createAmoCrmAdapter().getConnectionState();
+  const status = isUiContractFixtureMode()
+    ? (() => {
+        const local = getAmoCrmLocalStatus();
+        return local.status === "configured"
+          ? { status: "blocked" as const, reason: "fixture_external_calls_disabled" }
+          : local;
+      })()
+    : await createAmoCrmAdapter().getConnectionState();
   if (status.status === "not_configured") {
     setSetting("amocrm_last_check", `not_configured:${status.missing.join(",")}`);
   } else if (status.status === "blocked") {

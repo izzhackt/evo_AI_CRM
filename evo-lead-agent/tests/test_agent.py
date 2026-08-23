@@ -16,7 +16,7 @@ def _settings(tmp_path: Path) -> Settings:
         database_path=tmp_path / "agent.db",
         waha_base_url=None,
         waha_api_key=None,
-        waha_session_name="crm_primary",
+        waha_session_name="evo-inbox",
         waha_webhook_secret="secret",
         amo_account_base_url=None,
         amo_client_id=None,
@@ -77,7 +77,7 @@ async def test_decide_reply_includes_knowledge_matches_in_prompt(
     decision = await decide_reply(
         settings=_settings(tmp_path),
         message=InboundMessage(
-            session="crm_primary",
+            session="evo-inbox",
             provider_message_id="msg-1",
             phone="+996700111222",
             chat_id="996700111222@c.us",
@@ -121,7 +121,7 @@ async def test_decide_reply_returns_handoff_when_gemini_missing(
     decision = await decide_reply(
         settings=replace(_settings(tmp_path), gemini_api_key=None),
         message=InboundMessage(
-            session="crm_primary",
+            session="evo-inbox",
             provider_message_id="msg-1",
             phone="+996700111222",
             chat_id="996700111222@c.us",

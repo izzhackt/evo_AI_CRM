@@ -14,9 +14,10 @@ reference snapshots, not as product behavior.
 - The production Lead Agent also lacks amoCRM configuration, so it cannot
   complete its identity-first processing contract.
 - amoCRM is the source of truth for lead/contact identity and sales status.
-- EVO CRM remains the staff/operator UI and WhatsApp console. The lead-agent
-  posts a signed internal sync event to EVO CRM after amoCRM resolution so local
-  CRM state shadows amoCRM instead of competing with it.
+- EVO Platform remains the single staff/operator UI and WhatsApp console. The
+  frozen lead-agent module may post only a signed internal sync event into that
+  Platform boundary after amoCRM resolution; it is not a separate product or
+  source of truth.
 
 ## Safety Defaults
 
@@ -34,14 +35,12 @@ While frozen, the buffer worker does not start, the WAHA webhook returns
 outbound flags are accidentally enabled. `/health` proves only that the process
 is live; `ready=false` is expected while frozen.
 
-Do not unfreeze this service by changing one environment variable. A later
-owner-approved activation must first establish all of the following:
-
-- WAHA webhook ownership explicitly moved to this service;
-- the intended WAHA session is connected rather than waiting for QR;
-- amoCRM, CRM sync, Gemini, admin, and webhook-HMAC prerequisites are present;
-- worker and receive-only behavior pass real provider acceptance;
-- outbound and automatic replies remain off unless separately approved.
+Do not unfreeze this service for forward operation. It is not a target webhook
+owner or a second product path. A separately authorized rollback may restore an
+old reviewed release, but it must not reuse the canonical Platform ingress HMAC
+secret or create an alias for `crm_primary`. New inbound ownership belongs only
+to exact session `evo-inbox` at
+`/api/internal/platform-messaging/waha/events` after controlled cutover proof.
 
 The larger replay, lease, amoCRM-idempotency, and identity-selection redesign is
 intentionally deferred while this path is unused and blocked.
@@ -92,28 +91,18 @@ uv run evo-lead-agent-preflight --db data/evo-lead-agent.db --pretty
 ```
 
 `evo-lead-agent-env-audit` makes no network calls. It reports only configured
-booleans, missing key names, safety toggles, knowledge count, and the next setup
-stage; it does not print secret values. It exits zero when the environment is
-ready for the receive-only rollout gate: WAHA, amoCRM, EVO CRM sync, Gemini, and
-admin inputs configured, `EVO_AGENT_AUTOREPLY_ENABLED=true`, and
-`EVO_AGENT_OUTBOUND_ENABLED=false`.
+booleans, missing key names, safety toggles, knowledge count, and legacy stage
+diagnostics; it does not print secret values. Because this module is frozen,
+neither an exit-zero audit nor readiness/preflight output authorizes a live
+rollout, webhook change, automatic reply, or outbound test.
 
-`evo-lead-agent-readiness` distinguishes `receive_only_rollout` from
-`live_whatsapp_outbound`. Its top-level `ok` and CLI exit code are for
-receive-only readiness; outbound readiness remains a separate field and must not
-be used for the first live proof.
-`evo-lead-agent-preflight` exits nonzero until all configured live service
-checks pass.
-The amoCRM preflight check uses an existing `access_token` from
-`EVO_AGENT_AMO_TOKEN_FILE` only; it will not refresh OAuth tokens because amoCRM
-refresh tokens rotate.
-
-Use the readiness output before switching safety toggles. `waha_inbound_capture`
-must be green before pointing WAHA webhooks here. `amo_crm_shadow_sync` must be
-green before testing real leads. `ai_decision_review` is the safe stage for
-`EVO_AGENT_AUTOREPLY_ENABLED=true` while `EVO_AGENT_OUTBOUND_ENABLED=false`.
-`receive_only_rollout` is the first live proof gate. Only use
-`live_whatsapp_outbound` for a later controlled send test.
+Keep `EVO_AGENT_FROZEN=true`, `EVO_AGENT_WORKER_ENABLED=false`,
+`EVO_AGENT_AUTOREPLY_ENABLED=false`, and `EVO_AGENT_OUTBOUND_ENABLED=false`.
+Do not point WAHA webhooks at this module. Forward inbound ownership belongs to
+the canonical `evo-inbox` session and the Platform route documented above.
+The retained audit/readiness/preflight commands are local or rollback
+diagnostics only; provider activation requires a separately reviewed Platform
+cutover procedure.
 
 Containers (OrbStack on macOS):
 
@@ -191,40 +180,26 @@ non-destructive preflight reachability, and signed inbound webhook capture. It
 fails if `EVO_AGENT_OUTBOUND_ENABLED=true`; keep outbound disabled until the real
 WAHA, amoCRM, Gemini, and EVO CRM sync path is controlled-test ready.
 
-WAHA session setup for the first real number:
+WAHA setup is retired for the Lead Agent. The command below remains only as a
+fail-closed tombstone for old operator automation:
 
 ```bash
-uv run evo-lead-agent-waha-setup \
-  --base-url http://127.0.0.1:3000 \
-  --api-key "$EVO_AGENT_WAHA_API_KEY" \
-  --session crm_primary \
-  --webhook-url http://evo-lead-agent:8000/webhooks/waha \
-  --webhook-secret "$EVO_AGENT_WAHA_WEBHOOK_SECRET" \
-  --qr-output data/waha-crm-primary-qr.png \
-  --dry-run \
-  --pretty
-
-uv run evo-lead-agent-waha-setup \
-  --base-url http://127.0.0.1:3000 \
-  --api-key "$EVO_AGENT_WAHA_API_KEY" \
-  --session crm_primary \
-  --webhook-url http://evo-lead-agent:8000/webhooks/waha \
-  --webhook-secret "$EVO_AGENT_WAHA_WEBHOOK_SECRET" \
-  --qr-output data/waha-crm-primary-qr.png \
-  --pretty
+uv run evo-lead-agent-waha-setup --dry-run --pretty
 ```
 
-Open `data/waha-crm-primary-qr.png` and scan it from the WhatsApp number that
-should receive leads. The setup command creates or updates the WAHA session
-webhook, enables HMAC signing for `message` and `session.status`, starts the
-session, and saves the QR image without printing the WAHA API key, webhook
-secret, webhook URL, QR payload, or customer data. Run `--dry-run` first; it
-does not call WAHA. After scanning, rerun `/admin/preflight`; `waha_session` must
-pass with status `WORKING` before live WhatsApp testing.
+It returns `lead_agent_waha_setup_retired` with exit code `2` and never creates
+a WAHA client or changes provider state. Future configuration belongs to the
+server-managed EVO Platform boundary:
 
-On the server, use the private lead-agent URL that WAHA can reach for
-`--webhook-url`; do not expose WAHA dashboard, Swagger, or API publicly just to
-complete setup.
+```txt
+WAHA session: evo-inbox
+Platform webhook path: /api/internal/platform-messaging/waha/events
+```
+
+The Platform ingress uses its own `EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET`.
+Never copy that secret into `EVO_AGENT_WAHA_WEBHOOK_SECRET`, and do not repoint
+WAHA to the Lead Agent route. The `crm_primary` observation above is historical
+rollback evidence, not a supported forward configuration.
 
 Signed inbound webhook smoke:
 
@@ -380,12 +355,16 @@ searches this database and passes only the top matches into the model prompt.
 If the database does not cover a concrete price, deadline, policy, or
 country-specific question, the agent must hand off instead of inventing.
 
-## Required Live Credentials
+## Frozen Rollback Inputs
+
+These variables belong only to the retained, frozen service and do not prove
+the unified Platform path. Forward configuration accepts only
+`EVO_AGENT_WAHA_SESSION=evo-inbox`. The Lead Agent webhook URL and HMAC secret
+remain empty; Platform ingress credentials are configured separately at the
+server boundary.
 
 - `EVO_AGENT_WAHA_BASE_URL`
 - `EVO_AGENT_WAHA_API_KEY`
-- `EVO_AGENT_WAHA_WEBHOOK_SECRET`
-- `EVO_AGENT_WAHA_WEBHOOK_URL`
 - `EVO_AGENT_ADMIN_API_KEY`
 - `EVO_AGENT_AMO_BASE_URL`
 - `EVO_AGENT_AMO_CLIENT_ID`

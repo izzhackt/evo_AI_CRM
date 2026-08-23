@@ -23,7 +23,7 @@ def _settings(
         database_path=tmp_path / "agent.db",
         waha_base_url=None,
         waha_api_key=None,
-        waha_session_name="crm_primary",
+        waha_session_name="evo-inbox",
         waha_webhook_secret="webhook-secret",
         amo_account_base_url=None,
         amo_client_id=None,
@@ -379,7 +379,7 @@ def test_waha_session_status_sync_failure_returns_retryable_error(
     body = json.dumps(
         {
             "event": "session.status",
-            "session": "crm_primary",
+            "session": "evo-inbox",
             "payload": {"status": "WORKING"},
             "me": {"id": "996700111222@c.us"},
         },

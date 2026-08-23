@@ -128,10 +128,9 @@ export default async function ConversationPage({
         (state) => ({ state, unavailable: false as const }),
         () => ({ state: null, unavailable: true as const }),
       ),
-      getPlatformWahaSessionHealth(
-        actor,
-        thread.conversation.wahaSessionName,
-      ),
+      thread.conversation.wahaSessionName === "evo-inbox"
+        ? getPlatformWahaSessionHealth(actor, "evo-inbox")
+        : Promise.resolve(null),
     ]);
   const aiRetrievalEvidence = aiMemory?.latestRetrieval
     ? await readPlatformAiRetrievalEvidence(

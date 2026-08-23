@@ -14,7 +14,12 @@ const SAFE_REPOSITORY_ERROR_MESSAGE =
 
 export type PlatformConversationQueue = "sales" | "curator";
 export type PlatformConversationStatus = "open" | "closed";
-export type PlatformWahaSessionName = "evo-inbox" | "crm_primary";
+export type PlatformWahaSessionName = "evo-inbox";
+// Provider provenance is immutable: old conversations may still name the
+// retired session, but only PlatformWahaSessionName is a current runtime target.
+export type PlatformWahaEvidenceSessionName =
+  | PlatformWahaSessionName
+  | "crm_primary";
 export type PlatformMessageDirection = "inbound" | "outbound";
 export type PlatformMessageLanguage = "ru" | "en" | "undetermined";
 export type PlatformMessageWahaAckName =
@@ -55,7 +60,7 @@ export type PlatformConversationSummary = Readonly<{
   queue: PlatformConversationQueue;
   status: PlatformConversationStatus;
   subject: string;
-  wahaSessionName: PlatformWahaSessionName;
+  wahaSessionName: PlatformWahaEvidenceSessionName;
   kommoAccountId: string | null;
   kommoConversationId: string | null;
   amocrmAccountId: string | null;
@@ -409,6 +414,12 @@ export function parsePlatformConversationCursor(
 export function parsePlatformWahaSessionName(
   value: unknown,
 ): PlatformWahaSessionName | null {
+  return value === "evo-inbox" ? value : null;
+}
+
+function parsePlatformWahaEvidenceSessionName(
+  value: unknown,
+): PlatformWahaEvidenceSessionName | null {
   return value === "evo-inbox" || value === "crm_primary" ? value : null;
 }
 
@@ -428,7 +439,9 @@ export function normalizePlatformConversationSummary(
       ? null
       : parsePlatformRouteUuid(value.student_case_id);
   const subject = parseRequiredText(value.subject);
-  const wahaSessionName = parsePlatformWahaSessionName(value.waha_session_name);
+  const wahaSessionName = parsePlatformWahaEvidenceSessionName(
+    value.waha_session_name,
+  );
   const kommoAccountId = parseOptionalProviderInteger(value.kommo_account_id);
   const kommoConversationId = parseOptionalProviderText(
     value.kommo_conversation_id,

@@ -182,6 +182,61 @@ SET session_replication_role = origin;
 SQL
   fi
 
+  # Seed one exact historical crm_primary health/observation tuple before
+  # migration 082. The post-migration acceptance proves it is not renamed,
+  # deleted or exposed as current health, then the harness removes the fixture.
+  if [[ "$(basename "$migration")" == 082_* ]]; then
+    docker exec -i "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" <<'SQL'
+SET session_replication_role = replica;
+INSERT INTO platform.organizations (id, name)
+VALUES (
+  '82000000-0000-4000-8000-000000000900',
+  'P8R6 historical session fixture'
+);
+
+INSERT INTO platform_private.provider_webhook_events (
+  id, organization_id, provider, provider_account_ref,
+  provider_conversation_ref, provider_event_variant_ref,
+  provider_request_id, waha_session_name, payload_id, event_type,
+  provider_occurred_at, verification_status, raw_payload,
+  verification_headers, verification_evidence_ref, payload_sha256,
+  received_at, request_id
+) VALUES (
+  '82000000-0000-4000-8000-000000000901',
+  '82000000-0000-4000-8000-000000000900',
+  'waha', 'waha:crm_primary', NULL, NULL,
+  'p8r6-historical-crm-status', 'crm_primary',
+  'p8r6-historical-crm-status', 'session.status',
+  '2026-08-22 09:00:00+06', 'verified',
+  '{"event":"session.status","session":"crm_primary","payload":{"name":"crm_primary","status":"LEGACY_WORKING"}}',
+  '{"hmac_verified":true}', 'synthetic:p8r6:historical-crm',
+  repeat('82', 32), '2026-08-22 09:00:01+06',
+  '82000000-0000-4000-8000-000000000903'
+);
+
+INSERT INTO platform_private.waha_session_observations (
+  id, organization_id, source_webhook_event_id, waha_session_name,
+  status, observed_at, request_id, created_at
+) VALUES (
+  '82000000-0000-4000-8000-000000000902',
+  '82000000-0000-4000-8000-000000000900',
+  '82000000-0000-4000-8000-000000000901',
+  'crm_primary', 'LEGACY_WORKING', '2026-08-22 09:00:00+06',
+  '82000000-0000-4000-8000-000000000904',
+  '2026-08-22 09:00:02+06'
+);
+
+INSERT INTO platform.waha_session_health (
+  organization_id, waha_session_name, status, observed_at
+) VALUES (
+  '82000000-0000-4000-8000-000000000900',
+  'crm_primary', 'LEGACY_WORKING', '2026-08-22 09:00:00+06'
+);
+SET session_replication_role = origin;
+SQL
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -1410,6 +1465,29 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_manual_send_waha_provisioning_current.sql
+
+  fi
+
+  # Migration 082 makes evo-inbox the only forward signed Lead-Agent and
+  # current staff-health session while retaining old rows only as history.
+  if [[ "$(basename "$migration")" == 082_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_session_authority_current.sql
+
+    docker exec -i "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" <<'SQL'
+SET session_replication_role = replica;
+DELETE FROM platform.waha_session_health
+WHERE organization_id = '82000000-0000-4000-8000-000000000900';
+DELETE FROM platform_private.waha_session_observations
+WHERE organization_id = '82000000-0000-4000-8000-000000000900';
+DELETE FROM platform_private.provider_webhook_events
+WHERE organization_id = '82000000-0000-4000-8000-000000000900';
+DELETE FROM platform.organizations
+WHERE id = '82000000-0000-4000-8000-000000000900';
+SET session_replication_role = origin;
+SQL
   fi
 done < <(
   cd "$repo_root"

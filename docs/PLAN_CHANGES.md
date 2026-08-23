@@ -10227,4 +10227,102 @@ complete local Supabase/browser gate passed with 81 contiguous migrations.
 This is repository/disposable-local proof only. No managed migration, real
 secret, provider, outbound, DNS/TLS or dedicated security-scan action occurred.
 Reviewer notes: independent correctness review found no high- or medium-runtime
-finding. Exact committed-head review and exact-SHA CI remain pending.
+finding. Exact candidate CI run `32607745769` passed all four checks and PR
+#373 merged as `4aff8350eb4f2f839cf85f8a138828c913a76356`.
+
+## 2026-08-23 — P8R6 converge active WAHA session and webhook authority
+
+Date: 2026-08-23, workspace timezone.
+Author: Codex.
+Change type: architecture correctness for the unified WhatsApp adapter.
+Affected plan sections: Lead Agent signed sync, WAHA current-health projection,
+operator configuration, migration chain and controlled cutover evidence.
+Reason: post-merge audit on exact `main`
+`4aff8350eb4f2f839cf85f8a138828c913a76356` found that direct Platform ingress,
+manual send and autonomous-reply code accept only the canonical `evo-inbox`
+session, while the active signed Lead Agent sync, migration 079, deploy examples
+and fixture settings still require or recommend `crm_primary`. This is two
+runtime authorities, not merely historical provenance.
+
+Decision: the forward Platform runtime accepts exactly one WAHA session name,
+`evo-inbox`, and one Platform webhook owner. Add migration 082 rather than
+editing immutable migrations 077/079. It must replace the active Lead Agent
+message/session-status projection functions and current staff-health selector
+so new verified evidence is exact `evo-inbox` / `waha:evo-inbox` and
+`crm_primary` cannot be queried as a current runtime health target. Existing
+historical provider rows keep their original session identifiers; they are
+provenance, not a second current session and are never silently renamed.
+
+Implementation impact: make the TypeScript signed-sync validator and persisted
+provider account reference use the shared canonical session constant; separate
+historical conversation provenance from the one current health session where
+the UI contract requires it; update Lead Agent/deploy examples and fixture-only
+settings guidance to `evo-inbox`. Keep the legacy public webhook source frozen
+and unreachable in connected Platform mode until a separately authorized
+cutover retires the old deployed revision. Do not add an alias, fallback,
+dual-read, dual-write or compatibility translation from `crm_primary`.
+
+Validation impact: begin with red tests proving the current split. Add SQL
+acceptance for exact `evo-inbox` source evidence, rejection of `crm_primary` as
+current evidence/health, replay safety, grants and preservation of historical
+rows. Add TypeScript/Python/source-contract tests for emitted session name,
+provider reference, runtime health and operator examples. Then run the
+disposable Postgres authorization suite, fresh migration reset, ordinary unit
+tests, Lead Agent tests, typechecks, lints, builds, full local Supabase gate,
+independent review and exact-SHA CI.
+
+Operational boundary: repository and disposable-local changes only. This slice
+does not rename/create/start/stop/delete a real WAHA session, change a live
+webhook, inject a secret, apply a managed migration, deploy, send WhatsApp,
+write amoCRM, enable autonomous replies, change DNS/TLS or run a dedicated
+security scan. A future production cutover must inspect both per-session
+webhooks and any global `WHATSAPP_HOOK_*` configuration, configure HMAC, and
+require `session.status=WORKING` for `evo-inbox` before transferring ownership.
+
+Research basis: [WAHA sessions](https://waha.devlike.pro/docs/how-to/sessions/),
+[WAHA events and HMAC](https://waha.dev/docs/how-to/events/),
+[WAHA security](https://waha.dev/docs/how-to/security/), and
+[WAHA quick start](https://waha.dev/docs/overview/quick-start/). WAHA treats the
+session name as its routing identity in API paths and webhook payloads, so the
+supported cutover is an explicit canonical-session configuration change, not
+an in-application alias.
+
+Implementation evidence: migration 082 now replaces the active signed message,
+session-status and staff current-health functions with exact `evo-inbox` /
+`waha:evo-inbox` authority while its SQL acceptance preserves pre-082
+`crm_primary` rows as unchanged history. TypeScript uses one canonical runtime
+constant and a separate historical-provenance type. The frozen Lead Agent,
+deploy examples and release runbook no longer authorize `crm_primary`, a Lead
+Agent webhook, automatic replies or outbound tests. The dormant SQLite-backed
+WAHA session-start action, QR proxy/component and legacy WAHA secret writes were
+deleted from current main.
+
+Red-first verification caught the current-tip reset incorrectly reusing the
+migration-077 `crm_primary` runtime fixture. The source contract now keeps that
+historical fixture bound to 077 and invokes a separate P8R6 wrapper with exact
+`evo-inbox` evidence at schema tip; the focused regression test passes 3/3 and
+both fresh-reset paths pass. Final local proof passed the fresh `001-082`
+Postgres authorization harness, the complete local
+Supabase/Auth/RLS/Storage/Realtime/browser gate,
+655 ordinary root unit tests, 842 Inbox tests plus 32 schema-contract tests,
+126 Lead Agent tests, root and Inbox typechecks/lints/builds, Lead Agent Ruff,
+safe Compose rendering and independent correctness/release review with no
+remaining high or medium finding. This remains repository/disposable-local
+proof only; exact-head CI and merge are still required, and no managed provider
+or production action occurred.
+
+First exact-head CI evidence: run `32610716487` at
+`d21c60f5007fa6359580334f77d2dbc9fe771936` passed changed-range, Inbox and Lead
+Agent. Main CRM completed its local Supabase gate and failed only when the old
+S28/S28B/S29 scenario selectors tried to submit WAHA/Meta controls deleted by
+P8R6; S32/S36 also selected the wrong form because they relied on a removed
+WhatsApp field as an exclusion. Replace those assumptions with explicit
+server-managed `evo-inbox`, retired-QR and stable amoCRM check-form contracts,
+and permit an isolated scenario-report destination for safe targeted
+reproduction. The five affected scenarios that require no real provider probe
+pass 5/5 on a disposable database. S36 now fails closed inside the explicit
+UI-contract fixture mode before the amoCRM adapter can run and records
+`blocked:fixture_external_calls_disabled`; production behavior is unchanged
+and is not claimed as provider proof. The regenerated full CRM scenario suite
+passes 39/39 with zero provider calls. A new exact-head CI run is required
+before merge.

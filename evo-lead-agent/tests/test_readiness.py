@@ -11,7 +11,7 @@ def _settings(tmp_path: Path, **overrides: object) -> Settings:
         "database_path": tmp_path / "agent.db",
         "waha_base_url": None,
         "waha_api_key": None,
-        "waha_session_name": "crm_primary",
+        "waha_session_name": "evo-inbox",
         "waha_webhook_secret": None,
         "amo_account_base_url": None,
         "amo_client_id": None,

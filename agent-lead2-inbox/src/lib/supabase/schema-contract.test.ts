@@ -181,6 +181,10 @@ const platformManualSendWahaRuntimeMigration = readFileSync(
   join(migrationsDir, '080_platform_manual_send_waha_runtime.sql'),
   'utf8'
 );
+const platformManualSendWahaProvisioningMigration = readFileSync(
+  join(migrationsDir, '081_platform_manual_send_waha_provisioning.sql'),
+  'utf8'
+);
 const platformOperationalSignalsAuthorizationTest = readFileSync(
   fileURLToPath(
     new URL(
@@ -418,7 +422,7 @@ function p7aAllowlist(functionName: string): Set<string> {
 describe('Unified EVO Supabase schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '080_platform_manual_send_waha_runtime.sql'
+      '081_platform_manual_send_waha_provisioning.sql'
     );
     for (const rpc of [
       'staff_student_case_page',
@@ -474,6 +478,43 @@ describe('Unified EVO Supabase schema contract', () => {
     );
     expect(platformManualSendWahaRuntimeMigration).not.toMatch(
       /crm_primary/i
+    );
+    expect(platformManualSendWahaProvisioningMigration).toMatch(
+      /ADD\s+COLUMN\s+api_key_sha256\s+TEXT/i
+    );
+    expect(platformManualSendWahaProvisioningMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.provision_manual_send_waha_runtime\s*\(\s*p_organization_id\s+UUID,\s*p_waha_api_key\s+TEXT,\s*p_request_id\s+UUID\s*\)/i
+    );
+    expect(platformManualSendWahaProvisioningMigration).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+platform\.manual_send_waha_runtime_configuration\s*\(\s*p_organization_id\s+UUID\s*\)/i
+    );
+    for (const vaultOperation of ['create_secret', 'update_secret']) {
+      expect(platformManualSendWahaProvisioningMigration).toMatch(
+        new RegExp(`vault\\.${vaultOperation}\\s*\\(`, 'i')
+      );
+    }
+    expect(platformManualSendWahaProvisioningMigration).toMatch(
+      /SECURITY\s+DEFINER\s+SET\s+search_path\s*=\s*''/i
+    );
+    for (const rpcSignature of [
+      'manual_send_waha_runtime_configuration\\(UUID\\)',
+      'provision_manual_send_waha_runtime\\(UUID,\\s*TEXT,\\s*UUID\\)',
+    ]) {
+      expect(platformManualSendWahaProvisioningMigration).toMatch(
+        new RegExp(
+          `REVOKE\\s+ALL\\s+ON\\s+FUNCTION\\s+platform\\.${rpcSignature}\\s+FROM\\s+PUBLIC,\\s*anon,\\s*authenticated,\\s*service_role`,
+          'i'
+        )
+      );
+      expect(platformManualSendWahaProvisioningMigration).toMatch(
+        new RegExp(
+          `GRANT\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+platform\\.${rpcSignature}\\s+TO\\s+service_role`,
+          'i'
+        )
+      );
+    }
+    expect(platformManualSendWahaProvisioningMigration).not.toMatch(
+      /(?:net\.http|http_post|http_get)\s*\(/i
     );
     expect(platformManualWhatsAppSendWorkerMigration).toMatch(
       /REVOKE\s+ALL\s+ON\s+TABLE\s+platform_private\.manual_send_provider_bindings\s+FROM\s+authenticated/i

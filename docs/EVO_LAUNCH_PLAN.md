@@ -39,14 +39,14 @@ PR #228 repaired the isolated importer Compose invocation, PR #230 packaged
 the importer as a runnable, UUID-redacting production-image artifact, and PRs
 #232-#233 built and independently verified the exact P8D4F `linux/amd64`
 candidate, and PR #235 authorized the closed P8D4G production execution order.
-Repository status through PR #367: the bounded Platform read-model and unified
-Lead Agent sync repair merged at 2026-08-22 20:03:44 UTC, which is
-2026-08-23 02:03:44 in the workspace timezone (+06), as
-`e6f60a3a7dd59a6630ba68e3ce10014ac939913f`; the canonical migration chain is
-contiguous through `001-079`; and exact-main push CI run `32595569563` passed
-Main CRM, EVO Inbox and EVO Lead Agent. `Changed range` is skipped on the push
-event as expected. Always re-query `origin/main` and exact-main CI before a
-release instead of treating this recorded merge SHA as a moving-current alias.
+Repository status through PR #372: the Supabase-owned manual-send WAHA runtime
+repair merged at 2026-08-22 23:41:03 UTC, which is 2026-08-23 05:41:03 in the
+workspace timezone (+06), as
+`d4d3272fcf730a4a273d52422d854e15c3b01a50`; the canonical migration chain is
+contiguous through `001-080`; and exact-head PR CI run `32605431337` passed
+Changed range, Main CRM, EVO Inbox and EVO Lead Agent. Always re-query
+`origin/main` and exact-main CI before a release instead of treating this
+recorded merge SHA as a moving-current alias.
 
 P4B implementation is preserved on remote branch
 `izzhackt/evo-platform-p4b-mapping-approval` at
@@ -66,13 +66,24 @@ restore evidence and do not include Storage object bytes. `inbox-prod` is a
 currently separate deployment contour, not a separate target product. Keep it
 stable until a separately authorized unified-Platform cutover proves the
 replacement path, then retire the contour without a dual-read/write bridge.
-The active execution slice is the owner-authorized controlled all-in-one
-Platform rollout recorded in `docs/PLAN_CHANGES.md`: deploy the exact reviewed
-main revision and migrations `078-079`, repair canonical DNS/TLS, keep all
-outbound WhatsApp and amoCRM writes disabled, and retain one known-good
-rollback until real production acceptance passes. The previously active P8D4S
-lane under issue #270 remains historical evidence. P8D4R safely
-verified the exact candidate,
+Read-only server evidence on 2026-08-23 (+06) shows healthy CRM, Inbox and Lead
+Agent application images at release
+`ee8a825ebc72f84449636e3feaefab7a330913d4`, with the sslip.io CRM and Inbox
+health routes returning HTTP 200. That release predates PRs #371-#372 and still
+runs three application boundaries plus two WAHA services; it is not the target
+all-in-one proof. Canonical DNS/TLS is deferred by owner direction. The active
+repository slice is P8R5: add the missing non-secret provisioning/configuration
+gate for migration 080 before any new release authority is requested. All
+outbound WhatsApp and amoCRM writes remain disabled.
+
+Separate owner-authorized hygiene on 2026-08-23 removed only the superseded
+temporary revision `2c38a325e85fe798ccece31c4e91db909a49246d`: its three
+unused EVO application image tags and exact `/opt/evo-releases/<sha>` checkout.
+No active container, WAHA image, volume, rollback tag or `ee8a825e...` release
+was removed; CRM and Inbox fallback health remained HTTP 200 afterward.
+
+The previously active P8D4S lane under issue #270 remains historical evidence.
+P8D4R safely verified the exact candidate,
 migrations `001-076`, staging, rollback capture and disabled configuration,
 then stopped with `knowledge_failed` before any database import, application
 deployment or pilot. Cleanup removed all four local build roots, the remote
@@ -4448,5 +4459,67 @@ Disposable-local proof passed: migration reset and the conflict guard, Vault
 resolution/grants, real SQL claim/finish, 651 unit tests, root and Inbox
 typechecks/builds, lint, and the complete local Supabase/browser gate. An
 independent diff review found no high- or medium-severity correctness issue.
-Exact committed-head CI remains pending. No provider, production, WhatsApp,
-amoCRM, DNS/TLS or dedicated security-scan action was performed.
+Exact committed-head CI passed and PR #372 merged as
+`d4d3272fcf730a4a273d52422d854e15c3b01a50`. No provider, production,
+WhatsApp, amoCRM, DNS/TLS or dedicated security-scan action was performed by
+P8R4.
+
+## P8R5 — Provision and verify the Supabase-owned WAHA binding (2026-08-23)
+
+Post-merge audit on `d4d3272fcf730a4a273d52422d854e15c3b01a50`
+confirms that migration 080 deliberately creates no real Vault secret or
+enabled runtime row. That is correct for a source-controlled migration, but
+the repository has no supported provisioning path: only the disposable SQL
+test creates the secret/binding. The worker therefore returns
+`manual_send_unavailable` in every real environment until an operator performs
+an undocumented direct database write. Historical P8V3 release scripts are
+also exact evidence for migration 077 and must not be edited or reused as a
+current-main gate.
+
+P8R5 adds one forward migration with two service-only functions. Provisioning
+creates or rotates the organization-specific Vault secret, enables the exact
+`evo-inbox`/private-URL binding, records only a SHA-256 identity plus version in
+Platform metadata and appends a secret-free audit event. Configuration status
+returns one bounded non-secret row and proves that the stored Vault plaintext
+still matches that hash; it does not call WAHA and must never claim provider
+health. Both functions use a fixed empty `search_path`, validate the active
+organization and request identity, revoke default execution, and are reachable
+only through a dedicated server-side Supabase client.
+
+Two small operator CLIs become the supported current-main path: one accepts the
+WAHA key only from process environment and prints non-secret metadata; the
+other checks the safe configuration-status RPC for release gating. Neither CLI
+reads SQLite, writes a seed/migration secret, sends a message, changes a WAHA
+session, or contacts the WAHA provider. The opaque `sb_secret_...` credential
+is sent only in the Supabase `apikey` header; it is never misused as a bearer
+JWT. The migration and SQL acceptance must
+prove create, idempotent replay, rotation, hash agreement, audit redaction,
+browser-role denial and resolver compatibility. Historical P8V3 artifacts stay
+immutable and are explicitly ineligible for a migration-081 release.
+
+Acceptance requires focused CLI tests with mocked Supabase HTTP, the disposable
+Postgres authorization suite, migration inventory/schema-contract updates, the
+full non-dedicated-security unit suite, lint, typecheck, builds, local Supabase
+gate, independent exact-head review and normal exact-SHA CI. P8R5 authorizes no
+managed migration, production change, real secret injection, WAHA request,
+WhatsApp send, amoCRM write, DNS/TLS work or dedicated security scan.
+
+Research basis: [Supabase Vault secret creation and rotation](https://supabase.com/docs/guides/database/vault),
+[Supabase Database Function privileges](https://supabase.com/docs/guides/database/functions),
+[Supabase server secret-key boundary](https://supabase.com/docs/guides/getting-started/api-keys),
+[Supabase migration deployment](https://supabase.com/docs/guides/deployment/database-migrations),
+and [PostgreSQL safe `SECURITY DEFINER`](https://www.postgresql.org/docs/current/sql-createfunction.html).
+
+Implementation evidence on 2026-08-23 (+06): migration 081 and its exact-tip
+SQL acceptance passed a fresh `001-081` reset and the complete disposable
+Postgres authorization harness. The focused operator contract passed 55 tests,
+P8V1 passed 85 tests, the complete ordinary unit suite passed 651 tests and the
+Inbox schema contract passed 32 tests. Root and Inbox typechecks/builds passed;
+root lint passed and Inbox lint completed with seven pre-existing warnings and
+zero errors. The complete local Supabase/Auth/PostgREST/Storage/PGMQ/browser
+gate passed and confirmed 81 contiguous applied migrations. Independent
+correctness review found no high- or medium-severity runtime issue; its only
+initial docs concern used UTC instead of the authoritative Asia/Bishkek
+workspace date and did not apply. Exact committed-head review and CI remain
+pending. No managed migration, real secret injection, provider call, WhatsApp
+send, amoCRM write, DNS/TLS change or dedicated security scan was performed.

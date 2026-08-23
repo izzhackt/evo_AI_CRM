@@ -10160,6 +10160,71 @@ participant before provider execution, while finish resolves the same roles.
 The disposable migration reset, conflict-guard proof, Vault/grant checks, real
 claim/finish SQL, 651 unit tests, lint, root/Inbox typechecks and builds, and the
 full local Supabase/browser gate passed. Independent diff review found no high-
-or medium-severity correctness issue. Exact committed-head CI remains pending.
-No real provider, production, outbound, DNS/TLS or dedicated security-scan
-action was performed.
+or medium-severity correctness issue. Exact committed-head CI run `32605431337`
+passed all four checks and PR #372 merged as
+`d4d3272fcf730a4a273d52422d854e15c3b01a50`. No real provider, production,
+outbound, DNS/TLS or dedicated security-scan action was performed.
+
+## 2026-08-23 — P8R5 add a supported Vault provisioning and configuration gate
+
+Date: 2026-08-23, workspace timezone.
+Author: Codex.
+Change type: operational correctness for the Supabase-owned manual-send WAHA
+runtime.
+Affected plan sections: migration boundary, Vault rotation, manual-send worker
+configuration, audit evidence and current release gating.
+Reason: exact-main audit at
+`d4d3272fcf730a4a273d52422d854e15c3b01a50` found that migration 080 correctly
+contains no production secret, but no application or operator path can create
+or rotate its Vault secret and binding. The only writer is a disposable SQL
+test. The worker must resolve that row before leasing work, so a release can be
+healthy while manual send is guaranteed to return `manual_send_unavailable`.
+Historical P8V3 scripts also accept only migration 077; changing them would
+rewrite immutable execution evidence rather than create a valid current gate.
+
+Decision: add migration 081 with a replay-safe service-only provisioning RPC
+and a separate non-secret configuration-status RPC. Provisioning receives the
+key only at runtime, validates the exact organization/request/session contract,
+creates or rotates one named Vault secret, enables the exact `evo-inbox`
+binding, stores only SHA-256/version metadata and appends a secret-free service
+audit event. Status proves the enabled binding, decrypted-secret validity and
+hash agreement without returning the key or contacting WAHA. Revoke execution
+from `PUBLIC`, `anon` and `authenticated`; do not grant direct binding/Vault
+table access.
+
+Implementation impact: add separate server-only provision/check CLIs with
+bounded HTTP responses, timeouts and exact response validation. The provision
+CLI accepts the WAHA key only from a process environment variable and emits
+only safe metadata. The Supabase secret key is sent only as `apikey`, never as
+an `Authorization` bearer value because the opaque key is not a JWT. The check
+CLI becomes the reusable current-main release
+gate. Do not edit or reactivate P8V3 authorization/result scripts; document
+them as historical and reject their 077 boundary for a migration-081 release.
+Update the contiguous migration inventory and the Inbox schema contract.
+
+Validation impact: use red-first focused tests for missing/malformed inputs,
+safe serialization and response redaction; add SQL acceptance for grants,
+create, replay, rotation, resolver compatibility, audit redaction and browser
+denial; then run Postgres authorization, all ordinary unit tests, lint,
+typecheck, builds, full local Supabase, independent review and exact-SHA CI.
+Operational boundary: repository and disposable-local changes only. No real
+secret injection, managed migration, production mutation, provider call,
+WhatsApp send, amoCRM write, DNS/TLS change or dedicated security scan is
+authorized.
+
+Research basis: [Supabase Vault](https://supabase.com/docs/guides/database/vault),
+[Supabase Database Functions](https://supabase.com/docs/guides/database/functions),
+[Supabase API keys](https://supabase.com/docs/guides/getting-started/api-keys),
+[Supabase database migrations](https://supabase.com/docs/guides/deployment/database-migrations),
+and [PostgreSQL function security](https://www.postgresql.org/docs/current/sql-createfunction.html).
+
+Implementation evidence: the new migration and exact-tip SQL acceptance passed
+a fresh `001-081` reset and the complete disposable Postgres authorization
+harness. Focused operator tests passed 55 checks, P8V1 passed 85, the ordinary
+unit suite passed 651 and the Inbox schema contract passed 32. Root and Inbox
+typechecks/builds passed, root lint passed, Inbox lint had zero errors, and the
+complete local Supabase/browser gate passed with 81 contiguous migrations.
+This is repository/disposable-local proof only. No managed migration, real
+secret, provider, outbound, DNS/TLS or dedicated security-scan action occurred.
+Reviewer notes: independent correctness review found no high- or medium-runtime
+finding. Exact committed-head review and exact-SHA CI remain pending.

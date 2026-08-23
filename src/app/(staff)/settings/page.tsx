@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 
 import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
-import { isConnectedPlatformAuditSettingsRequest } from "@/lib/platform-route-contract";
+import {
+  isConnectedPlatformAuditSettingsRequest,
+  isConnectedPlatformStaffSettingsRequest,
+} from "@/lib/platform-route-contract";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 
 type SettingsSearchParams = Record<string, string | string[] | undefined>;
@@ -20,6 +23,12 @@ export default async function SettingsPage({
       } else if (value !== undefined) {
         exactQuery.append(key, value);
       }
+    }
+    if (isConnectedPlatformStaffSettingsRequest("/settings", exactQuery)) {
+      const { default: PlatformStaffSettingsPage } = await import(
+        "./PlatformStaffSettingsPage"
+      );
+      return <PlatformStaffSettingsPage searchParams={params} />;
     }
     if (
       !isPlatformP7AAuditEnabled() ||

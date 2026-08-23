@@ -71,6 +71,22 @@ const verifyClientClaims = async (identity, expectedRole) => {
       data.claims.platform_access_version > 0,
     `${identity.label}-verified-access-version`,
   );
+  for (const key of [
+    "platform_organization_id",
+    "platform_membership_id",
+    "platform_bundle_id",
+  ]) {
+    assert(
+      typeof data?.claims?.[key] === "string" &&
+        /^[0-9a-f-]{36}$/i.test(data.claims[key]),
+      `${identity.label}-verified-${key}`,
+    );
+  }
+  assert(
+    Number.isSafeInteger(data?.claims?.platform_bundle_version) &&
+      data.claims.platform_bundle_version > 0,
+    `${identity.label}-verified-bundle-version`,
+  );
 };
 
 const statusPath = process.argv[2];
@@ -464,7 +480,11 @@ const refresh = async (identity, expectedRole) => {
   if (expectedRole === null) {
     assert(
       !Object.hasOwn(claims, "platform_role") &&
-        !Object.hasOwn(claims, "platform_access_version"),
+        !Object.hasOwn(claims, "platform_access_version") &&
+        !Object.hasOwn(claims, "platform_organization_id") &&
+        !Object.hasOwn(claims, "platform_membership_id") &&
+        !Object.hasOwn(claims, "platform_bundle_id") &&
+        !Object.hasOwn(claims, "platform_bundle_version"),
       `${identity.label}-refreshed-claims-absent`,
     );
   } else {
@@ -476,6 +496,21 @@ const refresh = async (identity, expectedRole) => {
       Number.isSafeInteger(claims.platform_access_version) &&
         claims.platform_access_version > 0,
       `${identity.label}-refreshed-access-version`,
+    );
+    for (const key of [
+      "platform_organization_id",
+      "platform_membership_id",
+      "platform_bundle_id",
+    ]) {
+      assert(
+        typeof claims[key] === "string" && /^[0-9a-f-]{36}$/i.test(claims[key]),
+        `${identity.label}-refreshed-${key}`,
+      );
+    }
+    assert(
+      Number.isSafeInteger(claims.platform_bundle_version) &&
+        claims.platform_bundle_version > 0,
+      `${identity.label}-refreshed-bundle-version`,
     );
   }
 
@@ -519,11 +554,16 @@ const membershipFor = (identity) => {
         'profile_id', membership.profile_id,
         'organization_id', membership.organization_id,
         'role', membership.${sqlIdentifier(membershipRoleColumn)},
-        'status', membership.status
+        'status', membership.status,
+        'access_version', profile.access_version,
+        'bundle_id', bundle.id,
+        'bundle_version', bundle.version
       )::text
       FROM platform.organization_memberships AS membership
       JOIN platform.profiles AS profile
         ON profile.id = membership.profile_id
+      JOIN platform.role_bundle_versions AS bundle
+        ON bundle.id = membership.current_bundle_id
       WHERE profile.${profileAuthColumn} = ${sqlUuid(
         identity.userId,
         `${identity.label}-user-id`,
@@ -923,14 +963,50 @@ const rpc = async (adminIdentity, routineName, orderedValues) => {
 };
 
 const provisionMembership = async (adminIdentity, organizationId, identity, role) => {
-  await rpc(adminIdentity, "provision_member", [
-    organizationId,
-    identity.userId,
-    `Synthetic ${identity.label}`,
-    role,
-    "local Auth hook smoke provision",
-    randomUUID(),
-  ]);
+  if (["admin", "sales", "curator"].includes(role)) {
+    await rpc(adminIdentity, "provision_pilot_staff_member", [
+      organizationId,
+      identity.userId,
+      `Synthetic ${identity.label}`,
+      role,
+      "local Auth hook smoke provision",
+      randomUUID(),
+    ]);
+  } else {
+    // Student Portal and the retired Finance-role fixtures remain historical
+    // test setup only. The authenticated U1 provisioning API intentionally
+    // cannot assign either role.
+    const adminMembership = membershipFor(adminIdentity);
+    runSql(
+      `
+        BEGIN;
+        SELECT set_config(
+          'request.jwt.claims',
+          jsonb_build_object(
+            'sub', ${sqlUuid(adminIdentity.userId)},
+            'role', 'authenticated',
+            'platform_role', 'admin',
+            'platform_access_version', ${adminMembership.access_version},
+            'platform_organization_id', ${sqlText(adminMembership.organization_id)},
+            'platform_membership_id', ${sqlText(adminMembership.id)},
+            'platform_bundle_id', ${sqlText(adminMembership.bundle_id)},
+            'platform_bundle_version', ${adminMembership.bundle_version}
+          )::TEXT,
+          TRUE
+        );
+        SELECT platform.provision_member(
+          ${sqlUuid(organizationId)},
+          ${sqlUuid(identity.userId)},
+          ${sqlText(`Synthetic ${identity.label}`)},
+          ${sqlText(role)}::platform.business_role,
+          'privileged local historical fixture setup',
+          ${sqlUuid(randomUUID())}
+        )::TEXT;
+        COMMIT;
+      `,
+      `${identity.label}-historical-membership-setup`,
+    );
+  }
   const membership = membershipFor(identity);
   if (role !== "admin") {
     await rpc(adminIdentity, "assign_organization_scope", [
@@ -1251,6 +1327,7 @@ const main = async () => {
     revocableCurator: syntheticIdentity("revocable-curator"),
     staleAdmin: syntheticIdentity("p7a-stale-admin"),
     inactiveAdmin: syntheticIdentity("p7a-inactive-admin"),
+    suspendedAdmin: syntheticIdentity("u1-suspended-admin"),
     blocked: syntheticIdentity("blocked"),
     noMembership: syntheticIdentity("no-membership"),
     adminB: syntheticIdentity("admin-b"),
@@ -1305,6 +1382,101 @@ const main = async () => {
   assert(expiredResult.status === 401, "expired-token");
   await waitForPlatformApi(identities.adminA, adminAMembership.id);
 
+  const exactAdminClaims = decodeClaims(
+    identities.adminA.accessToken,
+    "u1-exact-admin-claims",
+  );
+  const exactAuthorityClaims = {
+    aud: "authenticated",
+    exp: nowSeconds + 3600,
+    iat: nowSeconds,
+    iss: "supabase",
+    role: "authenticated",
+    sub: identities.adminA.userId,
+    platform_role: exactAdminClaims.platform_role,
+    platform_access_version: exactAdminClaims.platform_access_version,
+    platform_organization_id: exactAdminClaims.platform_organization_id,
+    platform_membership_id: exactAdminClaims.platform_membership_id,
+    platform_bundle_id: exactAdminClaims.platform_bundle_id,
+    platform_bundle_version: exactAdminClaims.platform_bundle_version,
+  };
+  for (const [label, changedClaims] of [
+    [
+      "missing-membership-claim",
+      Object.fromEntries(
+        Object.entries(exactAuthorityClaims).filter(
+          ([key]) => key !== "platform_membership_id",
+        ),
+      ),
+    ],
+    [
+      "wrong-organization-claim",
+      { ...exactAuthorityClaims, platform_organization_id: randomUUID() },
+    ],
+    [
+      "wrong-membership-claim",
+      { ...exactAuthorityClaims, platform_membership_id: randomUUID() },
+    ],
+    [
+      "wrong-bundle-claim",
+      { ...exactAuthorityClaims, platform_bundle_id: randomUUID() },
+    ],
+    [
+      "wrong-bundle-version-claim",
+      {
+        ...exactAuthorityClaims,
+        platform_bundle_version:
+          exactAuthorityClaims.platform_bundle_version + 1,
+      },
+    ],
+  ]) {
+    const denied = await requestJson(
+      "/rest/v1/rpc/current_actor_authority",
+      {
+        method: "POST",
+        token: signLocalJwt(changedClaims),
+        body: {},
+        schema: true,
+        stage: `u1-${label}`,
+      },
+    );
+    assert(
+      denied.status === 200 &&
+        Array.isArray(denied.payload) &&
+        denied.payload.length === 0,
+      `u1-${label}`,
+    );
+  }
+
+  const adminPaymentBeforeGrant = await requestJson(
+    "/rest/v1/rpc/assert_sensitive_permission",
+    {
+      method: "POST",
+      token: identities.adminA.accessToken,
+      body: {
+        p_organization_id: adminAMembership.organization_id,
+        p_permission_key: "finance.first.payment.confirm",
+      },
+      schema: true,
+      stage: "u1-admin-payment-default-deny",
+    },
+  );
+  assert(adminPaymentBeforeGrant.status === 403, "u1-admin-payment-default-deny");
+  const adminTokenBeforePermissionGrant = identities.adminA.accessToken;
+  await rpc(identities.adminA, "change_membership_permission", [
+    adminAMembership.organization_id,
+    adminAMembership.id,
+    "finance.first.payment.confirm",
+    true,
+    "U1 local fixture first-payment authority",
+    randomUUID(),
+  ]);
+  await assertNoPlatformRows(
+    { ...identities.adminA, accessToken: adminTokenBeforePermissionGrant },
+    "u1-admin-stale-after-permission-grant",
+  );
+  await refresh(identities.adminA, "admin");
+
   const roleMembers = {};
   for (const [role, identity] of [
     ["sales", identities.sales],
@@ -1318,7 +1490,7 @@ const main = async () => {
       identity,
       role,
     );
-    await signIn(identity, role);
+    await signIn(identity, role === "finance" ? null : role);
   }
 
   const noCaseStudentMembership = await provisionMembership(
@@ -1817,7 +1989,7 @@ const main = async () => {
     Date.now() - 24 * 60 * 60 * 1000,
   ).toISOString();
   const p6aOverduePayment = await rpc(
-    identities.finance,
+    identities.adminA,
     "create_payment_obligation",
     [
       adminAMembership.organization_id,
@@ -3403,6 +3575,15 @@ const main = async () => {
   await signIn(identities.inactiveAdmin, "admin");
   const inactiveAdminAccessToken = identities.inactiveAdmin.accessToken;
 
+  const suspendedAdminMembership = await provisionMembership(
+    identities.adminA,
+    adminAMembership.organization_id,
+    identities.suspendedAdmin,
+    "admin",
+  );
+  await signIn(identities.suspendedAdmin, "admin");
+  const suspendedAdminAccessToken = identities.suspendedAdmin.accessToken;
+
   const blockedMembership = await provisionMembership(
     identities.adminA,
     adminAMembership.organization_id,
@@ -3417,7 +3598,6 @@ const main = async () => {
     ["admin", identities.adminA],
     ["sales", identities.sales],
     ["curator", identities.curator],
-    ["finance", identities.finance],
     ["student", identities.student],
   ]) {
     const membership =
@@ -3429,6 +3609,10 @@ const main = async () => {
     );
     await assertDirectMutationDenied(identity, membership);
   }
+  await assertNoPlatformRows(
+    identities.finance,
+    "retired-finance-role-authority-denied",
+  );
 
   for (const [identity, membership, organizationId] of [
     [
@@ -3513,10 +3697,10 @@ const main = async () => {
     staleAdminAccessToken,
     "p7a-stale-admin-old-claims",
   );
-  await rpc(identities.adminA, "change_membership_role", [
+  await rpc(identities.adminA, "change_pilot_staff_role", [
     adminAMembership.organization_id,
     staleAdminMembership.id,
-    "finance",
+    "sales",
     "P7A local browser stale Admin proof",
     randomUUID(),
   ]);
@@ -3524,13 +3708,13 @@ const main = async () => {
     identities.staleAdmin,
     "p7a-stale-admin-token-read",
   );
-  const staleAdminNewClaims = await refresh(identities.staleAdmin, "finance");
+  const staleAdminNewClaims = await refresh(identities.staleAdmin, "sales");
   assert(
     staleAdminNewClaims.platform_access_version >
       staleAdminOldClaims.platform_access_version,
     "p7a-stale-admin-version-increment",
   );
-  await rpc(identities.adminA, "change_membership_role", [
+  await rpc(identities.adminA, "change_pilot_staff_role", [
     adminAMembership.organization_id,
     roleMembers.sales.id,
     "curator",
@@ -3568,7 +3752,7 @@ const main = async () => {
     "p3c-org-a-former-sales-workflow-denied",
   );
 
-  await rpc(identities.adminA, "change_membership_status", [
+  await rpc(identities.adminA, "change_pilot_staff_status", [
     adminAMembership.organization_id,
     inactiveAdminMembership.id,
     "inactive",
@@ -3585,7 +3769,24 @@ const main = async () => {
     "p7a-inactive-admin-refreshed-read",
   );
 
-  await rpc(identities.adminA, "change_membership_status", [
+  await rpc(identities.adminA, "change_pilot_staff_status", [
+    adminAMembership.organization_id,
+    suspendedAdminMembership.id,
+    "suspended",
+    "U1 local browser suspended Admin proof",
+    randomUUID(),
+  ]);
+  await assertNoPlatformRows(
+    identities.suspendedAdmin,
+    "u1-suspended-admin-held-token-read",
+  );
+  await refresh(identities.suspendedAdmin, null);
+  await assertNoPlatformRows(
+    identities.suspendedAdmin,
+    "u1-suspended-admin-refreshed-read",
+  );
+
+  await rpc(identities.adminA, "change_pilot_staff_status", [
     adminAMembership.organization_id,
     blockedMembership.id,
     "blocked",
@@ -4159,6 +4360,7 @@ const main = async () => {
           privateAfter: p7aPrivateAfter,
           staleAdminAccessToken,
           inactiveAdminAccessToken,
+          suspendedAdminAccessToken,
           blockedAdminAccessToken,
         },
         p7b: {
@@ -4188,6 +4390,10 @@ const main = async () => {
           inactiveAdmin: {
             email: identities.inactiveAdmin.email,
             password: identities.inactiveAdmin.password,
+          },
+          suspendedAdmin: {
+            email: identities.suspendedAdmin.email,
+            password: identities.suspendedAdmin.password,
           },
           salesScoped: {
             email: identities.salesScoped.email,
@@ -4402,7 +4608,7 @@ const main = async () => {
   }
 
   console.log(
-    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; admin-provisioned synthetic users cover 5 roles, 2 organizations, expired/stale-token and inactive/blocked-claim invalidation; synthetic readiness rows are contract fixtures only and are not live provider proof.",
+    "Local Supabase Auth/PostgREST smoke passed: public signup disabled; the three U1 staff roles plus later Student scope cover 2 organizations, the retired Finance role is denied, and exact/stale/inactive/suspended/blocked authority fails closed; synthetic readiness rows are contract fixtures only and are not live provider proof.",
   );
 };
 

@@ -460,12 +460,25 @@ const signIn = async (identity, expectedRole) => {
     payload.access_token,
     `${identity.label}-signin-claims`,
   );
-  assert(claims.platform_role === expectedRole, `${identity.label}-role`);
-  assert(
-    Number.isSafeInteger(claims.platform_access_version) &&
-      claims.platform_access_version > 0,
-    `${identity.label}-access-version`,
-  );
+  if (expectedRole === null) {
+    for (const claim of [
+      "platform_role",
+      "platform_access_version",
+      "platform_organization_id",
+      "platform_membership_id",
+      "platform_bundle_id",
+      "platform_bundle_version",
+    ]) {
+      assert(!Object.hasOwn(claims, claim), `${identity.label}-${claim}-absent`);
+    }
+  } else {
+    assert(claims.platform_role === expectedRole, `${identity.label}-role`);
+    assert(
+      Number.isSafeInteger(claims.platform_access_version) &&
+        claims.platform_access_version > 0,
+      `${identity.label}-access-version`,
+    );
+  }
   identity.accessToken = payload.access_token;
   return claims;
 };
@@ -478,11 +491,16 @@ const membershipFor = (identity) => {
         'organization_id', membership.organization_id,
         'profile_id', membership.profile_id,
         'role', membership."current_role",
-        'status', membership.status
+        'status', membership.status,
+        'access_version', profile.access_version,
+        'bundle_id', bundle.id,
+        'bundle_version', bundle.version
       )::text
       FROM platform.organization_memberships AS membership
       JOIN platform.profiles AS profile
         ON profile.id = membership.profile_id
+      JOIN platform.role_bundle_versions AS bundle
+        ON bundle.id = membership.current_bundle_id
       WHERE profile.auth_user_id = ${sqlUuid(
         identity.userId,
         `${identity.label}-membership-user`,
@@ -751,19 +769,56 @@ const provisionMembership = async (
   identity,
   role,
 ) => {
-  await rpc(
-    adminIdentity,
-    "provision_member",
-    [
-      organizationId,
-      identity.userId,
-      `Synthetic ${identity.label}`,
-      role,
-      "local P2H Storage provision",
-      randomUUID(),
-    ],
-    `${identity.label}-provision`,
-  );
+  if (["admin", "sales", "curator"].includes(role)) {
+    await rpc(
+      adminIdentity,
+      "provision_pilot_staff_member",
+      [
+        organizationId,
+        identity.userId,
+        `Synthetic ${identity.label}`,
+        role,
+        "local P2H Storage provision",
+        randomUUID(),
+      ],
+      `${identity.label}-provision`,
+    );
+  } else {
+    // Student Portal and retired Finance identities are historical Storage
+    // fixtures only. The authenticated U1 Admin API deliberately cannot assign
+    // either role, so disposable setup calls the old implementation as postgres
+    // with an exact synthetic Admin authority bundle.
+    const adminMembership = membershipFor(adminIdentity);
+    runSql(
+      `
+        BEGIN;
+        SELECT set_config(
+          'request.jwt.claims',
+          jsonb_build_object(
+            'sub', ${sqlUuid(adminIdentity.userId)},
+            'role', 'authenticated',
+            'platform_role', 'admin',
+            'platform_access_version', ${adminMembership.access_version},
+            'platform_organization_id', ${sqlText(adminMembership.organization_id)},
+            'platform_membership_id', ${sqlText(adminMembership.id)},
+            'platform_bundle_id', ${sqlText(adminMembership.bundle_id)},
+            'platform_bundle_version', ${adminMembership.bundle_version}
+          )::TEXT,
+          TRUE
+        );
+        SELECT platform.provision_member(
+          ${sqlUuid(organizationId)},
+          ${sqlUuid(identity.userId)},
+          ${sqlText(`Synthetic ${identity.label}`)},
+          ${sqlText(role)}::platform.business_role,
+          'privileged local historical Storage fixture setup',
+          ${sqlUuid(randomUUID())}
+        )::TEXT;
+        COMMIT;
+      `,
+      `${identity.label}-historical-provision`,
+    );
+  }
   const membership = membershipFor(identity);
   await rpc(
     adminIdentity,
@@ -1871,7 +1926,7 @@ const main = async () => {
 
   await Promise.all([
     signIn(identities.salesA, "sales"),
-    signIn(identities.financeA, "finance"),
+    signIn(identities.financeA, null),
     signIn(identities.curatorFormer, "curator"),
     signIn(identities.curatorCurrent, "curator"),
     signIn(identities.studentA, "student"),
@@ -2114,16 +2169,33 @@ const main = async () => {
     smallPdf,
   );
   const blockedHeldToken = identities.studentBlocked.accessToken;
-  await rpc(
-    identities.adminA,
-    "change_membership_status",
-    [
-      organizationA,
-      memberships.studentBlocked.id,
-      "blocked",
-      "local P2H blocked-held-token denial",
-      randomUUID(),
-    ],
+  const adminAuthority = membershipFor(identities.adminA);
+  runSql(
+    `
+      BEGIN;
+      SELECT set_config(
+        'request.jwt.claims',
+        jsonb_build_object(
+          'sub', ${sqlUuid(identities.adminA.userId)},
+          'role', 'authenticated',
+          'platform_role', 'admin',
+          'platform_access_version', ${adminAuthority.access_version},
+          'platform_organization_id', ${sqlText(adminAuthority.organization_id)},
+          'platform_membership_id', ${sqlText(adminAuthority.id)},
+          'platform_bundle_id', ${sqlText(adminAuthority.bundle_id)},
+          'platform_bundle_version', ${adminAuthority.bundle_version}
+        )::TEXT,
+        TRUE
+      );
+      SELECT platform.change_membership_status(
+        ${sqlUuid(organizationA)},
+        ${sqlUuid(memberships.studentBlocked.id)},
+        'blocked'::platform.membership_status,
+        'privileged local historical Storage fixture status change',
+        ${sqlUuid(randomUUID())}
+      )::TEXT;
+      COMMIT;
+    `,
     "blocked-membership-status",
   );
   identities.studentBlocked.accessToken = blockedHeldToken;

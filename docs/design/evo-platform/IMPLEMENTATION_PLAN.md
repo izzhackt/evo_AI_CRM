@@ -57,8 +57,14 @@ implicit job-title powers. Finance is an internal module, not a fourth pilot
 role. Student Portal follows after the internal pilot and is not a pilot role.
 
 There is no separate `visa` business role. The `/visa` route, entity and icon
-remain inside the Admissions workflow. U1 must map current accounts to the
-three-role contract explicitly and fail closed on ambiguous legacy roles.
+remain inside the Admissions workflow. U1 maps staff accounts to the three-role
+contract explicitly and fails closed on ambiguous legacy roles. Its verified
+token carries the exact organization, membership, permission-bundle ID/version,
+role and access version; every server and database decision compares those
+claims with current Supabase rows. `invited`, `suspended`, `inactive` and
+`blocked` memberships have no live authority. The connected Admin staff screen
+uses audited RPCs and ordinary user sessions, never a browser service-role key.
+See [`u1-unified-staff-access.md`](../../platform/u1-unified-staff-access.md).
 
 Conversation and message history stay unified across the sales-to-curator
 handoff. After handoff, Sales may see only the authorized non-sensitive summary,

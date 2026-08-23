@@ -101,6 +101,7 @@ type Fixture = Readonly<{
     privateAfter: string;
     staleAdminAccessToken: string;
     inactiveAdminAccessToken: string;
+    suspendedAdminAccessToken: string;
     blockedAdminAccessToken: string;
   }>;
   p7b: Readonly<{
@@ -529,12 +530,15 @@ if (
     !jwtShape.test(fixture.p7a.staleAdminAccessToken) ||
     !nonEmptyString(fixture.p7a.inactiveAdminAccessToken) ||
     !jwtShape.test(fixture.p7a.inactiveAdminAccessToken) ||
+    !nonEmptyString(fixture.p7a.suspendedAdminAccessToken) ||
+    !jwtShape.test(fixture.p7a.suspendedAdminAccessToken) ||
     !nonEmptyString(fixture.p7a.blockedAdminAccessToken) ||
     !jwtShape.test(fixture.p7a.blockedAdminAccessToken) ||
     !fixture.identities.admin ||
     !fixture.identities.crossOrgAdmin ||
     !fixture.identities.staleAdmin ||
     !fixture.identities.inactiveAdmin ||
+    !fixture.identities.suspendedAdmin ||
     !fixture.identities.blocked)
 ) {
   throw new Error("P7A browser proof fixture is invalid");

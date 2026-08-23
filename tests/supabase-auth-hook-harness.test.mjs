@@ -132,7 +132,7 @@ test("P7B browser proof receives a runtime-random private collector secret", () 
   );
 });
 
-test("P7A proves stale, inactive and blocked authority with otherwise-authorized Admin tokens", () => {
+test("U1 proves stale, inactive, suspended and blocked authority with otherwise-authorized Admin tokens", () => {
   const staleActor = authHook.indexOf(
     'staleAdmin: syntheticIdentity("p7a-stale-admin")',
   );
@@ -146,7 +146,7 @@ test("P7A proves stale, inactive and blocked authority with otherwise-authorized
     "const staleAdminAccessToken = identities.staleAdmin.accessToken;",
   );
   const staleMutation = authHook.indexOf(
-    'await rpc(identities.adminA, "change_membership_role", [',
+    'await rpc(identities.adminA, "change_pilot_staff_role", [',
     staleCapture,
   );
   const inactiveActor = authHook.indexOf(
@@ -166,7 +166,7 @@ test("P7A proves stale, inactive and blocked authority with otherwise-authorized
     inactiveCapture,
   );
   const inactiveMutation = authHook.lastIndexOf(
-    'await rpc(identities.adminA, "change_membership_status", [',
+    'await rpc(identities.adminA, "change_pilot_staff_status", [',
     inactiveReason,
   );
   const blockedProvision = authHook.indexOf(
@@ -183,7 +183,7 @@ test("P7A proves stale, inactive and blocked authority with otherwise-authorized
     blockedCapture,
   );
   const blockedMutation = authHook.lastIndexOf(
-    'await rpc(identities.adminA, "change_membership_status", [',
+    'await rpc(identities.adminA, "change_pilot_staff_status", [',
     blockedReason,
   );
 

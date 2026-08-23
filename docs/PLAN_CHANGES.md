@@ -10477,3 +10477,81 @@ immutable PR head, and merge only that reviewed head. U0 changes no runtime,
 schema, migration, provider, production, DNS/TLS, WAHA session, customer data,
 amoCRM record or WhatsApp message. Stop after #377; do not begin U1/#378 in the
 same branch or PR.
+
+## 2026-08-24 — Bind U1 staff access to one live Supabase authority
+
+Date: 2026-08-24, workspace timezone (+06).
+Author: Codex implementing owner-approved issues #376 and #378.
+Change type: U1 identity, authorization, audit and staff-administration
+contract.
+Source: GitHub issues #376 and #378; PR #346 is source material only.
+Block-ID: `EVO-U1-UNIFIED-STAFF-ACCESS-2026-08-24`.
+Starting repository baseline: GitHub `origin/main` at
+`466f3fef95b331d1d9ae4280511a189d8a12d704`.
+
+Reason: current `main` already has a useful Supabase Auth, PostgreSQL/RLS and
+audited-membership foundation, but it is not yet the approved U1 boundary. The
+accepted staff guard still treats `finance` as a fourth staff role, membership
+status has no explicit `suspended` state, role-derived
+`finance.event.confirm` can authorize a sensitive action without an individual
+grant, and the verified JWT is bound only to role plus `access_version` rather
+than the exact organization, membership and immutable role bundle. Draft PR
+#346 demonstrates a useful administration-screen pattern but carries the old
+four-role/status contract and only local mocked tests, so none of its commits
+may merge directly.
+
+Decision:
+
+1. The U1 staff runtime has one `/login`, one staff shell and exactly three
+   pilot staff roles: `sales`, `curator` (Admissions Manager) and `admin`
+   (Director/Admin). Finance remains a module/permission area, not a staff
+   role. `student` remains later Portal scope and is not accepted by a U1
+   staff guard. Historical enum values may remain for migration compatibility,
+   but no authenticated U1 administration RPC may provision or assign them.
+2. Every accepted staff access token is bound to the exact live
+   organization, membership, published role-bundle version, role and profile
+   `access_version`. Server resolution and PostgreSQL permission/scope helpers
+   compare all five values to current rows on every request. Missing,
+   malformed, ambiguous or stale authority returns no actor and no data.
+3. Staff lifecycle states are `invited`, `active`, `suspended`, `inactive` and
+   `blocked`. Only `active` can obtain authority. Admin can provision one
+   individually identified membership and change its approved role/status;
+   direct table mutation and non-Admin UI/RPC use remain denied. Every
+   successful role or status transition increments `access_version`, so a
+   resident pre-change token fails on the next request.
+4. Contract-evidence confirmation and first-payment confirmation are
+   individually granted sensitive permissions. A role bundle expresses only
+   that a pilot role may be eligible; job title alone never grants the action.
+   The latest append-only membership-permission event must explicitly grant
+   the permission, and an Admin grant/revoke changes `access_version`
+   immediately. The existing payment-confirmation database path must apply the
+   same individual first-payment gate. U5 remains responsible for the complete
+   contract/payment evidence workflow and handoff semantics.
+5. The connected Settings staff surface uses the caller's ordinary Supabase
+   session and audited SECURITY DEFINER RPCs. It never uses a service-role key.
+   It lists only safe staff directory fields, provides role/status and
+   sensitive-permission lifecycle controls to Admin, and redirects every
+   non-Admin actor before rendering controls. Browser table writes stay absent.
+6. Audit remains append-only and organization-scoped. Each role, status or
+   sensitive-permission event records actor, target membership/profile,
+   organization, previous and new values, action, reason, request ID and
+   server timestamp. Idempotent replay returns the original result and a
+   conflicting reuse of a request ID fails closed.
+7. U1 validation uses a disposable local Supabase stack with real Auth users,
+   signed sessions, PostgREST/RPC and PostgreSQL RLS. It must prove all three
+   pilot logins, wrong password, anonymous/no-membership/inactive/suspended/
+   blocked denial, role and cross-organization isolation, stale claim and
+   immediate revocation, Admin lifecycle success, non-Admin denial at UI/RPC/
+   table seams, positive and negative sensitive-permission cases, and complete
+   audit evidence. SQLite, `edu_session`, fixtures and fallback repositories do
+   not count as accepted staff-auth evidence.
+
+Execution boundary: this is the one U1/#378 implementation PR rebuilt from
+current `main`. It may change canonical migrations, connected staff auth/UI,
+tests and active authority documents only as required by the contract above.
+It sends no WhatsApp message, writes nothing to amoCRM, touches no managed
+Supabase/provider/production/DNS/TLS/WAHA session/customer data and makes no
+managed-deployment, backup or rollback claim. Merge requires independent
+launch-control review and required CI on one immutable exact PR head, followed
+by exact-main validation and tree-equivalence evidence. Stop after #378; do not
+start U2/#379.

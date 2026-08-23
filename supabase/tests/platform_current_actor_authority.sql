@@ -221,7 +221,11 @@ SELECT jsonb_build_object(
   'sub', :'p3a_actor_user_id',
   'role', 'authenticated',
   'platform_role', 'sales',
-  'platform_access_version', 1
+  'platform_access_version', 1,
+  'platform_organization_id', :'p3a_actor_organization_id',
+  'platform_membership_id', :'p3a_actor_membership_id',
+  'platform_bundle_id', :'p3a_actor_bundle_id',
+  'platform_bundle_version', :'p3a_actor_bundle_version'::BIGINT
 )::TEXT AS p3a_actor_claims
 \gset
 
@@ -259,12 +263,12 @@ SELECT
   SELECT 1 / 0;
 \endif
 
--- Caller identity and both coarse JWT claims must match the same live row.
-SELECT jsonb_build_object(
-  'sub', 'f0470000-0000-4000-8000-000000000099',
-  'role', 'authenticated',
-  'platform_role', 'sales',
-  'platform_access_version', 1
+-- Caller identity and every exact JWT authority claim must match the same live
+-- row. Derive each mutation from the known-good complete claim set.
+SELECT (
+  :'p3a_actor_claims'::JSONB || jsonb_build_object(
+    'sub', 'f0470000-0000-4000-8000-000000000099'
+  )
 )::TEXT AS p3a_wrong_subject_claims
 \gset
 SELECT jsonb_build_object(
@@ -272,25 +276,17 @@ SELECT jsonb_build_object(
   'role', 'authenticated'
 )::TEXT AS p3a_missing_authority_claims
 \gset
-SELECT jsonb_build_object(
-  'sub', :'p3a_actor_user_id',
-  'role', 'authenticated',
-  'platform_role', 'admin',
-  'platform_access_version', 1
+SELECT (
+  :'p3a_actor_claims'::JSONB || jsonb_build_object('platform_role', 'admin')
 )::TEXT AS p3a_wrong_role_claims
 \gset
-SELECT jsonb_build_object(
-  'sub', :'p3a_actor_user_id',
-  'role', 'authenticated',
-  'platform_role', 'sales',
-  'platform_access_version', 2
+SELECT (
+  :'p3a_actor_claims'::JSONB || jsonb_build_object('platform_access_version', 2)
 )::TEXT AS p3a_stale_version_claims
 \gset
-SELECT jsonb_build_object(
-  'sub', :'p3a_actor_user_id',
-  'role', 'authenticated',
-  'platform_role', 'sales',
-  'platform_access_version', 'not-a-number'
+SELECT (
+  :'p3a_actor_claims'::JSONB
+  || jsonb_build_object('platform_access_version', 'not-a-number')
 )::TEXT AS p3a_malformed_version_claims
 \gset
 

@@ -1,7 +1,8 @@
 # EVO Launch Plan
 
-Status: parent #376 is the active product contract; U0/#377 is the only current
-slice. ADR 0020 and the latest `docs/PLAN_CHANGES.md` entry are binding.
+Status: parent #376 is the active product contract; U0/#377 is merged and
+U1/#378 is the only current repository/local slice. ADR 0020 and the latest
+`docs/PLAN_CHANGES.md` entry are binding.
 
 ## Current unified v1 authority
 
@@ -43,11 +44,15 @@ The active dependency order is:
 | U13 | #390 | Ten-workday, five-case internal pilot |
 | U14 | #391 | Historical closed-record migration/archive |
 
-U0 is one docs-only PR. It must link #376/#377, pass repository-required CI,
-receive an independent launch-control review for the immutable exact head and
-merge only that head. Stop after #377; do not begin U1 in this branch or PR.
-The complete disposition of the 16 current draft PRs and 11 pre-#376 open
-issues is in `docs/platform/u0-draft-pr-issue-crosswalk.md`.
+U0 merged as one reviewed docs-only PR. Its complete disposition of the 16
+then-current draft PRs and 11 pre-#376 open issues remains in
+`docs/platform/u0-draft-pr-issue-crosswalk.md`. U1 rebuilds only the staff-access
+value assigned to it there: one login, exactly `sales`/`curator`/`admin`, live
+Supabase claim-to-row validation, Admin-only lifecycle management, immediate
+revocation and explicit individual contract/first-payment permissions. U1 must
+pass disposable-local acceptance plus independent launch-control review and
+required CI on one immutable head. Stop after #378; do not begin U2 in this
+branch or PR.
 
 ## Historical pre-#376 execution record
 

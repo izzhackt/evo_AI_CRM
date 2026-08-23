@@ -6,6 +6,7 @@
 - Decision owner: EVO product owner
 - Parent product contract: GitHub issue #376
 - First execution slice: GitHub issue #377 (U0)
+- Current execution slice: GitHub issue #378 (U1; U0 merged)
 - Starting repository baseline:
   `31d26b6e6bdc8a96fcf9f48210e417d43619370d`
 - Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
@@ -159,6 +160,8 @@ production authority.
   amoCRM, AI, deployment, backup and rollback need their own real evidence.
 - U0 is documentation-only and stops after #377. It changes no schema,
   provider, production service, customer data or runtime behavior.
+- U1 is repository/disposable-local staff authorization only and stops after
+  #378. It does not authorize U2, managed Supabase or provider/production work.
 
 ## Rejected alternatives
 

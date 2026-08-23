@@ -1,6 +1,6 @@
 # EVO Platform next execution plan
 
-Status: proposed implementation contract after P8D
+Status: superseded proposal under #376/ADR 0020; not an active contract
 Evidence baseline: `origin/main` at `d243b2bb370d052750278e7f5cc2625991d5f870` on 2026-08-17
 Planning issue: [#263](https://github.com/izzhackt/evo_AI_CRM/issues/263)
 

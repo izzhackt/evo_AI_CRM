@@ -1,5 +1,9 @@
 # EVO Platform final frontend audit
 
+> **Status:** historical frontend evidence from 2026-07-24. Product, role,
+> ownership and rollout claims are superseded in conflict by #376 and ADR 0020;
+> this audit does not prove the current U0-U14 target or live providers.
+
 - Audit date: 2026-07-24
 - Application: root Next.js EVO Admissions CRM
 - Scope: unified staff workspace and Student Portal frontend

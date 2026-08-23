@@ -1,30 +1,29 @@
 # Владение данными в EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Status: Target contract; legacy storage remains separate and no legacy-data
-  cutover is authorized
+- Status: active canonical ownership contract under #376 and ADR 0020
+- Last reconciled: 2026-08-24 at
+  `31d26b6e6bdc8a96fcf9f48210e417d43619370d`
+- Architecture decision: `docs/adr/0020-unify-evo-v1-on-canonical-supabase.md`
 
-## 2026-08-09 greenfield, autonomy and integration boundary
+## 2026-08-24 canonical Supabase and migration boundary
 
-Platform data ownership is greenfield and Supabase-native. The target does not
-import root SQLite data or accounts, does not migrate root auth into Platform,
-and does not rely on dual-read or dual-write between legacy and Platform data
-planes. Legacy root storage remains a separate reference unless a later
-explicitly scoped import or integration decision is approved. Inbox/Lead Agent
-messaging provider ownership has its own bounded cutover gate.
+EVO/Supabase is canonical for operational data. Active legacy records required
+for the pilot are archived, checksummed, migrated once and reconciled; closed
+historical records follow after a stable pilot. No runtime SQLite restoration,
+dual-read, dual-write, write-through, fallback repository or compatibility
+layer is permitted. amoCRM is temporary read/import source; WAHA is private
+transport; AI is advisory and human-reviewed.
 
 - Student Profile document reading, extracted-fact confirmation, profile
   autofill and profile-form export belong to a separate system outside this
   repository. EVO Platform owns no automatic exchange with that system. A
   future integration requires a separately approved mapping, privacy/consent,
   authentication, validation and acceptance contract.
-- Last verified against repository: 2026-08-09 at
-  `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
-- Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - External automation boundary:
   `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
-- Autonomy/read-mostly integration boundary:
+- Historical autonomy/read-mostly decision (superseded):
   `docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md`
 
 ## Зачем фиксировать владельца
@@ -38,11 +37,11 @@ messaging provider ownership has its own bounded cutover gate.
 
 | Данные | Канонический владелец | Что хранит EVO Platform |
 |---|---|---|
-| Contact и его amoCRM identity | amoCRM | `amo_contact_id`, внутренний UUID и безопасные operational links |
-| Lead | amoCRM | `amo_lead_id`, link status и sync metadata |
-| Responsible sales manager | amoCRM | ссылку на account-specific user и version mapping |
-| Sales pipeline и sales stage | amoCRM | ссылку и последнюю подтверждённую sync-версию |
-| Signed-contract signal | account-specific amoCRM status mapping | подтверждённое событие, создавшее pending student case |
+| Client/contact | EVO Platform Supabase | canonical UUID, normalized identity, provenance и optional external IDs such as `amo_contact_id` |
+| Lead | EVO Platform Supabase | canonical lead, source/provenance, `amo_lead_id` when imported and duplicate-resolution evidence |
+| Responsible staff | EVO Platform Supabase | current assignment, history and optional imported external user reference |
+| Sales pipeline/stage, next action and deadline | EVO Platform Supabase | canonical operational state and imported amoCRM provenance where applicable |
+| Contract plus first-payment handoff gate | EVO Platform Supabase | evidence, actor, time, override reason and immutable audit |
 | Staff identity и platform role | Supabase Auth + Platform profiles | account, role claims, organization membership, block/invite audit |
 | Student case и Curator assignment | EVO Platform Supabase | весь operational lifecycle и audited reassignment |
 | University applications | EVO Platform Supabase | несколько параллельных applications одного студента |
@@ -50,64 +49,74 @@ messaging provider ownership has its own bounded cutover gate.
 | Document binary objects | private Platform Storage после P2H | private objects, object-policy enforcement, download/access audit и separate backup |
 | Visa case | EVO Platform Supabase | Curator-owned operational states и evidence |
 | Platform admissions tasks | EVO Platform Supabase | assignment, priority, due/status и lifecycle history |
-| amoCRM sales tasks | amoCRM | read-only task IDs, owner, due/status and entity references; no Platform write in this scope |
+| Active legacy sales tasks needed by pilot | EVO Platform Supabase after U10 | imported task, owner, due/status, source ID, provenance and reconciliation result |
 | Call/recording and existing chat-record references | amoCRM/Kommo | verified external IDs, safe metadata/links and sync evidence; raw recordings are not duplicated |
-| Notification intent v1 | EVO Platform Supabase | один recipient, in-app/individual-WhatsApp channel, consent snapshot и dedupe |
+| Notification intent v1 | EVO Platform Supabase | receive-only stage uses in-app state only; later external delivery needs a separate write-stage decision |
 | WhatsApp provider delivery/ACK | WAHA | наблюдаемое provider evidence, ACK progression и reconciliation state; Platform record не создаёт provider truth |
-| Obligations, payments и refunds v1 | EVO Platform Supabase | ручное Finance/Admin confirmation, evidence и audit |
+| Obligations, payments и refunds v1 | EVO Platform Supabase | manual confirmation by staff with explicit permission, evidence and audit |
 | Conversation и staff workflow | EVO Platform Supabase | единая история, role queue ownership, handoff и access scope |
 | WhatsApp transport/session state | WAHA | отдельные `session`, message ID, ACK и reconciliation records |
 | Kommo Chats identity | Kommo | отдельные `conversation.id` и `message.id`, не смешанные с WAHA IDs |
 | AI draft evidence | EVO Platform Supabase | explicit request/source message, provider/model/prompt-policy references, source context + SHA, approved-knowledge citations, original generated text, review evidence и exact human final text + SHA |
 | Structured qualification/reply proposal | EVO Platform Supabase | inbound trigger, Gemini model/prompt/policy/context evidence, extracted facts, confidence/risk, proposed memory update, citations and proposed reply |
-| Deterministic autonomous-send decision | EVO Platform Supabase | every gate input/result, rendered text/hash, immutable send intent, idempotency identity and forced-human reason |
+| Human AI-review decision | EVO Platform Supabase | suggestion, sources, uncertainty/risk, accept/edit/reject actor and time; no send authority |
 | Lead memory and approved retrieval | EVO Platform Supabase + pgvector | immutable events, normalized messages/media, rolling summaries and only approved versioned knowledge chunks |
-| Human takeover and autonomy pause/resume | EVO Platform Supabase | durable conversation state, actor, reason, time and append-only transition history |
+| Human review/workflow state | EVO Platform Supabase | durable actor, reason, time and append-only transition history |
 | Communications audit/reconciliation state | EVO Platform Supabase после P2F | immutable append-style evidence; не доказательство Queue или provider delivery |
 | Outbox/queue/dead-letter processing | EVO Platform Supabase после P2G | durable work, attempts, retry budget, dead-letter и manual reconciliation |
 | Operator live-update state | EVO Platform Supabase | RLS-safe normalized events distributed through private Realtime in a later block; never a direct browser subscription to WAHA |
 
-Operational admissions status никогда не записывается как замена sales stage.
-ADR 0019 authorizes no canonical amoCRM write. Any later write contract must use
-verified `pipeline_id`, `status_id`, `responsible_user_id` and
-`custom_fields_values` only after account discovery and separate approval.
+Imported amoCRM stage or owner values never overwrite canonical EVO state
+without an explicit, audited migration decision. Stage one authorizes no
+amoCRM write; any later provider write requires a new owner-approved contract.
 
-## Account-specific amoCRM mapping
+## Temporary amoCRM read/import adapter
 
 Pipeline, status, custom-field, user and chat IDs are account-specific. The
-active bounded adapter is read-mostly and must:
+temporary bounded adapter must:
 
 1. discover account identity and values through authorized GET/read APIs;
 2. retain versioned mapping, granted scope and verification time;
-3. read canonical contact, lead, responsible Sales and stage plus references to
-   sales tasks, calls/recordings and chat records;
+3. read/import external contact, lead, responsible Sales and stage plus
+   permitted references to tasks, calls/recordings and chat records;
 4. keep CRM IDs, Kommo chat IDs, WAHA IDs and Platform UUIDs separate;
 5. fail closed on missing/stale/conflicting mapping, credentials or scope;
-6. use bounded paging, rate limits and reconciliation without provider writes.
+6. use bounded paging, rate limits and reconciliation without provider writes;
+7. preserve source ID, source version/time and import outcome on canonical EVO
+   records without creating a permanent synchronization path.
 
 No name-based inference, hardcoded account/stage ID, SQLite/mock substitution or
-silent fallback is allowed. Exact production mapping remains a release blocker
-until an authorized sanitized test proves it. Writes and full cutover require a
-later owner decision.
+silent fallback is allowed. Exact source mapping remains a U10 migration and
+U12 acceptance blocker until real authorized evidence proves it. Any provider
+write requires a later owner decision.
 
 ## Platform roles и object scope
 
-В release v1 есть `admin`, `sales`, `curator`, `finance` и `student`;
-Client/Student — user-facing label последней роли. Текущий root identifier
-`client` остаётся legacy, не импортируется и не маппится без отдельного
-будущего scoped decision. Отдельной роли `visa` нет; `/visa` является module.
+В первом внутреннем пилоте есть три human-facing роли: Sales Manager
+(`sales`), Admissions Manager (существующая canonical admissions role) и
+Director/Admin (`admin`). Contract/payment confirmation — отдельные permissions,
+а не автоматическое следствие роли. Finance — внутренний модуль, доступный
+только через такие permissions, а не четвёртая pilot role. Student Portal
+следует в более позднем milestone. Отдельной роли `visa` нет.
 
 | Роль | Разрешённый scope |
 |---|---|
-| Admin | staff invite/block; role administration; Curator assign/reassign с обязательной причиной, before/after и audit; разрешённые cross-case operations |
-| Sales | conversation и sales queue до contract; после handoff только разрешённый несекретный summary |
-| Curator | только назначенные student cases, applications, documents, visa, tasks и communication |
-| Finance | financial operations и evidence в разрешённом organization scope; без Curator reassignment |
-| Student (Client/Student UI) | только собственный portal object scope и безопасные представления |
+| Director/Admin | staff activation/suspension; role administration; Admissions assign/reassign с обязательной причиной, before/after и audit; разрешённые cross-case operations |
+| Sales | conversation и sales queue до contract-plus-first-payment handoff; после handoff только разрешённый несекретный summary |
+| Admissions Manager | только назначенные student cases, applications, documents, visa, tasks и communication |
 
-Curator/Admin могут close или reopen student case только с обязательной причиной
-и audit. Admin — permission bundle для личных аккаунтов уполномоченных
+Admissions Manager/Director/Admin могут close или reopen student case только с
+обязательной причиной и audit. Admin — permission bundle для личных аккаунтов уполномоченных
 сотрудников; shared credentials запрещены.
+
+Payment/contract evidence может подтверждать только actor с соответствующим
+explicit permission; таблица ролей сама по себе такого права не создаёт.
+
+## Historical implementation evidence
+
+The P2-P8 paragraphs below record exact merged repository behavior and remain
+useful source evidence. They do not override ADR 0020, define the first-pilot
+role set, authorize autonomous send or prove provider/production behavior.
 
 Migration 042 реализует эту границу локально в Supabase/PostgreSQL: pending
 case создаётся только узким service RPC после подтверждённого contract signal;
@@ -162,7 +171,7 @@ WAHA. Full provider identifiers and lease/attempt evidence stay private while
 RLS-safe conversation/message state becomes operator-visible. Media-only inbound
 must project and hand off rather than complete as a missing-text no-op.
 
-## RLS и server authorization
+### RLS и server authorization
 
 Все exposed tables включают RLS. Политики проверяют не только role, но и:
 
@@ -201,7 +210,7 @@ Browser также не получает direct access к `pgmq_public`. Legacy
 `owner/admin/agent/viewer` не маппятся автоматически на Platform роли, а
 legacy signup не создаёт Platform organization membership.
 
-## Среды и migrations
+### Среды и migrations
 
 Есть одна логическая Platform data model и один dedicated production Supabase
 project, но среды физически разделены:
@@ -222,7 +231,7 @@ Local reset/migration list не доказывает managed project ledger, bra
 configuration или production parity. Нельзя делать irreversible production
 migration без expand/contract, backup, rollback proof и отдельного разрешения.
 
-## Documents и Storage
+### Documents и Storage
 
 Document upload принимает только PDF/JPG/PNG до 25 MB. Объекты private,
 versioned и связаны с metadata; review, rework и resubmit сохраняют историю.
@@ -245,7 +254,7 @@ P2H создаёт новые private Platform buckets через реальны
 P2B не меняет молча legacy public `avatars`/`flow-media`; их compatibility и
 future cutover проверяются отдельно. `chat-media` уже private после legacy 039.
 
-## Manual finance
+### Manual finance
 
 EVO Platform является manual operational finance source v1 и отдельно хранит
 EVO service fee и third-party study cost. Только Finance/Admin подтверждают
@@ -261,7 +270,7 @@ Curator видят только разрешённый operational status/next a
 scope; Student — только self overdue notice и next action без amount, evidence,
 transaction history и внутренних stop-factor полей.
 
-## Messaging, queues и audit
+### Messaging, queues и audit
 
 P2E notification intent всегда адресован одному Student membership и одному
 channel. Только Student управляет своим individual WhatsApp consent; staff-роли
@@ -355,25 +364,17 @@ Realtime with RLS-safe authorization. Browsers never subscribe directly to WAHA.
 
 ## Current-to-target boundary
 
-Root SQLite remains a separate legacy source and is not part of the Platform
-cutover contract. До контролируемого provider cutover отдельный Inbox Supabase
-и состояние Lead Agent остаются текущими runtime sources в своих messaging
-paths. Target ownership не даёт права выполнять production migration,
-dual-write, dual-read или отключать старый webhook.
+Root SQLite, companion Supabase, Inbox and Lead Agent data are migration/archive
+sources, not current target authorities. U10 inventories and migrates only
+active records required by the pilot with source IDs, checksums, reconciliation
+counts and rejection reasons. U14 handles historical closed records after U13.
 
-P2 добавляет новые schemas/tables без rename/drop legacy objects, root-auth
-cutover, real-secret copy или legacy bucket flip. Root auth/SQLite migration
-не входит в greenfield Platform path, а Inbox/Lead Agent/WAHA cutover остаётся
-отдельным bounded event.
+During preparation, legacy systems may remain operational for records outside
+the pilot. Pilot records cannot depend on new legacy writes after their cutover.
+No dual-read, dual-write, write-through, alias, fallback repository or
+compatibility translation is allowed.
 
-Переход требует bounded reconciliation, health and rollback proof и отдельное
-разрешение. Greenfield Platform не использует dual-write или dual-read bridge
-с legacy SQLite/Inbox data planes; controlled evidence сверяет provider events
-и новые Platform records без импорта legacy данных.
-
-P5A ingress, P5B receive/project worker and every later autonomous-send worker
-remain disabled by default until separately authorized real-provider E2E. This
-documentation change performs no managed Supabase apply, amoCRM/WAHA mutation or
-customer send. EVO Lead Agent, legacy webhook/session and rollback path remain
-deployed and frozen; rollback disables new flags while preserving immutable raw,
-queue, decision and audit evidence.
+Provider cutover, managed migration, service retirement and rollback require
+their later U-slice authority and real evidence. U0 changes documentation only.
+It performs no managed Supabase apply, amoCRM/WAHA mutation, customer send or
+production action. AI remains advisory; the first live stage is receive-only.

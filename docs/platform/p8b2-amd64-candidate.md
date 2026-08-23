@@ -2,7 +2,7 @@
 
 Date: 2026-08-15
 Issue: #188
-Status: planning gate
+Status: superseded planning source under #376/ADR 0020; not an active gate
 
 ## Why a new candidate is required
 

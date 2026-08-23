@@ -1,6 +1,7 @@
 # P6 operations and Student Portal contract
 
-Status: authoritative docs-only implementation contract.
+Status: historical implementation source under #376/ADR 0020; not active
+execution authority. U7/U8 own any conforming rebuild.
 
 Plan Block-ID: `EVO-P6-OPERATIONS-PORTAL-PLAN-2026-08-11`
 

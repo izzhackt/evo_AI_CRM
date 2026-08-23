@@ -1,7 +1,8 @@
 # P7 security, reliability and operations contract
 
-Status: authoritative implementation contract; P7A and P7B accepted, P7C
-deferred by owner decision, focused P7D contract active
+Status: historical implementation source under #376/ADR 0020; U11 owns any
+current rebuild. P7A/P7B acceptance and the P7C/P7D decisions below describe
+their historical evidence only.
 
 Version date: 2026-08-14 (Asia/Bishkek)
 

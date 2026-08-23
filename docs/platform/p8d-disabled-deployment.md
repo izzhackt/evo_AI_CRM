@@ -1,6 +1,7 @@
 # P8D Disabled Production Deployment Contract
 
-Status: proposed under issue
+Status: superseded planning source under #376/ADR 0020; not an active
+deployment gate. Originally proposed under issue
 [#184](https://github.com/izzhackt/evo_AI_CRM/issues/184).
 
 Block-ID: `EVO-P8D-DISABLED-PRODUCTION-DEPLOYMENT-2026-08-15`.

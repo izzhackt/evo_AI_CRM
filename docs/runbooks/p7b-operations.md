@@ -1,6 +1,8 @@
 # P7B private observability operations
 
-Status: implementation-owned response procedures for the fixed P7B alert IDs.
+Status: historical implementation procedures under #376/ADR 0020. U11 must
+revalidate them before current use; they never authorize enabling a worker or
+external write.
 
 These procedures explain how an authorized operator should contain, diagnose,
 and verify an incident. They are not permission to deploy, change a provider,

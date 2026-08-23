@@ -1,28 +1,24 @@
 # Как устроена EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Status: Target approved; greenfield Platform not deployed; legacy CRM remains
-  separate and messaging provider ownership awaits controlled cutover
-- Last verified against repository: 2026-08-09 at
-  `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
-- Architecture decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
+- Status: active target overview under #376 and ADR 0020; no live-readiness claim
+- Last reconciled against repository: 2026-08-24 at
+  `31d26b6e6bdc8a96fcf9f48210e417d43619370d`
+- Architecture decision: `docs/adr/0020-unify-evo-v1-on-canonical-supabase.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - External automation boundary:
   `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
-- Autonomy/read-mostly integration boundary:
+- Historical autonomy/read-mostly decision (superseded):
   `docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md`
 - Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
 
 ## Главное простыми словами
 
-Целевая EVO Platform — одно рабочее приложение для сотрудников и студентов с
-единым greenfield Supabase-native backend и одной логической моделью
-собственных данных. Однако принятие этой архитектуры не означает, что
-production уже переведён на неё. Legacy root CRM остаётся отдельной системой
-без автоматического импорта или замены. Пока не завершены bounded cutover
-evidence, реальный end-to-end путь, отдельное разрешение на provider cutover и
-rollback proof, EVO Inbox и EVO Lead Agent сохраняют текущую messaging
-ownership.
+Целевая EVO Platform — одно внутреннее рабочее приложение с одним login, staff
+UI, role model и end-to-end workflow. Supabase — постоянная canonical foundation
+для клиента, лида, стадии, ответственного, следующего действия, Student Case,
+документов, заявок, visa, payment control, tasks, communication workflow и
+audit. Принятие архитектуры не означает, что production уже переведён на неё.
 
 Student Profile document reading, extracted-fact confirmation, profile
 autofill и profile-form export не являются частью этого runtime: owner вынес
@@ -31,24 +27,14 @@ checklists, private objects, versions, review/rework и audited access — ос�
 в EVO Platform. Автоматический обмен между системами не предполагается; любая
 будущая интеграция требует отдельного контракта и проверки.
 
-amoCRM остаётся каноническим владельцем:
+amoCRM — временный read/import adapter и migration source. WAHA — private
+transport adapter. AI — advisory и human-reviewed. Ни один из них не является
+отдельным продуктом или canonical operational authority. Stage one не отправляет
+WhatsApp и не пишет в amoCRM.
 
-- контакта;
-- лида;
-- ответственного sales manager;
-- sales pipeline и sales stage.
+## Текущее repository-состояние до U10/U12
 
-EVO Platform хранит собственное операционное состояние поступления, но не
-подменяет им sales stage amoCRM.
-
-ADR 0019 возобновляет только read-mostly adapter: Platform может читать
-canonical contact/lead/responsible/stage и ссылки на sales tasks, calls/recordings
-и chat records. Real writes, inferred mapping, hardcoded IDs и silent fallback
-не разрешены.
-
-## Текущее состояние до cutover
-
-Репозиторий всё ещё содержит три runtime-контура:
+Репозиторий всё ещё содержит три исторически раздельных runtime-контура:
 
 | Контур | Текущее назначение | Текущее хранилище |
 |---|---|---|
@@ -56,15 +42,15 @@ canonical contact/lead/responsible/stage и ссылки на sales tasks, calls
 | EVO Inbox | WhatsApp inbox и ручная работа с AI-черновиками | отдельный Supabase-контур |
 | EVO Lead Agent | приватная обработка WAHA/amoCRM и внутренний sync | Python-сервис и локальное состояние |
 
-Существующая конфигурация также содержит два WhatsApp-пути: `crm_primary` для
+Существующая история также содержит два WhatsApp-пути: `crm_primary` для
 старого CRM/Lead Agent path и `evo-inbox` для Inbox. Это описание текущего кода,
 а не разрешение менять production-сессии. Старый путь нельзя отключать, пока
-новый не доказал отсутствие потерь и дублей и не прошёл rollback gate.
+U10/U12 не доказали migration/cutover без потерь и дублей и rollback gate.
+Это migration inputs, а не разрешение поддерживать dual-read/write.
 
 The accepted Claude Design root frontend from PRs #64/#71/#72 remains the only
-product UI contract. Thin-slice work must wire that UI through repository/session
-seams, not revive a parallel or fallback Inbox UI. Its current polling path moves
-to private Supabase Realtime only in a later reviewed implementation block.
+staff UI contract. U-slices wire it to canonical Supabase paths and must not
+revive a parallel or fallback Inbox UI.
 
 Актуальный уровень доказательств записывается в
 [current-status.md](current-status.md). Наличие кода или конфигурации не
@@ -75,21 +61,17 @@ to private Supabase Realtime only in a later reviewed implementation block.
 ```mermaid
 flowchart LR
   Customer["Клиент / студент"] --> Waha["Private WAHA: evo-inbox"]
-  Waha --> Platform["Unified EVO backend"]
-  Platform --> Amo["Read-mostly amoCRM: canonical sales context"]
-  Platform <--> Data["Supabase Platform data"]
+  Waha --> Platform["One EVO Platform"]
+  Platform <--> Data["Canonical Supabase"]
   Staff["Staff UI"] <--> Platform
-  Portal["Student Portal"] <--> Platform
-  Platform --> Proposal["Gemini structured proposal"]
-  Proposal --> Gate["Deterministic EVO gates"]
-  Gate -->|"pass: inbound + 24h only"| Queue["Durable send intent"]
-  Gate -->|"blocked"| Review["Human review / takeover"]
-  Queue --> Waha
-  Review --> Waha
+  Amo["Temporary amoCRM read/import"] --> Platform
+  Platform --> Proposal["AI advisory proposal"]
+  Proposal --> Review["Human accept / edit / reject"]
+  Platform --> Modules["CRM · Inbox · Admissions · Finance · Tasks · Documents"]
 ```
 
-Целевой backend поглощает только нужную операторскую messaging-возможность EVO
-Inbox и полезную, безопасную логику Lead Agent:
+Целевой backend объединяет нужную messaging-возможность EVO Inbox и полезную,
+безопасную логику Lead Agent внутри одного продукта:
 
 - нормализацию телефона;
 - проверку WAHA HMAC и timestamp;
@@ -97,20 +79,18 @@ Inbox и полезную, безопасную логику Lead Agent:
 - idempotency по `X-Webhook-Request-Id` и бизнес-ключу
   `session + payload.id`;
 - буферизацию, durable jobs, retry, dead-letter и reconciliation;
-- read-mostly resolution of canonical amoCRM contact, lead, responsible Sales и
-  stage plus task/call/chat-record references;
+- temporary read/import of amoCRM contact, lead, responsible Sales и stage with
+  explicit provenance plus permitted task/call/chat-record references;
 - explicit unresolved handoff и loop prevention без provider writes;
 - отдельные внутренние UUID, WAHA message IDs и Kommo conversation/message IDs;
-- ACK/session-аудит и правило «не повторять автоматически неизвестный результат
-  send»;
-- durable lead memory, approved pgvector knowledge, structured Gemini proposal,
-  deterministic gate evidence and audited pause/resume.
+- ACK/session-аудит и правило «не повторять автоматически неизвестный результат»;
+- durable lead memory, approved knowledge, advisory AI proposal and audited
+  human review.
 
-Target разрешает только inbound-triggered autonomous reply inside the rolling
-24-hour service window after every deterministic gate passes. Cold outbound,
-broadcasts, campaigns, autonomous follow-up/re-engagement и out-of-window
-free-form sends запрещены. Inbox dashboards, pipelines, deals, leads, flows,
-generic analytics and unrelated settings не входят в первый thin slice.
+Первый live stage — receive-only: signed inbound persists and appears in the
+unified Sales queue, but neither a human nor AI sends WhatsApp and nothing
+writes to amoCRM. Any later external-write stage needs a new owner decision,
+bounded scope and real rollback.
 
 ## Данные и среды
 
@@ -124,13 +104,19 @@ Supabase. Это не означает одну физическую базу д
 - schema/config идут как код через root `supabase/config.toml` и одну
   immutable migration history.
 
-P2 вводит явную границу:
+Canonical schema boundary:
 
 | Schema | Назначение | Browser/Data API |
 | --- | --- | --- |
-| `public` | legacy Inbox 001–039 до P3/P5 cutover | временная совместимость, только с RLS |
-| `platform` | новая EVO operational model | exposed с explicit grants и RLS на каждой table |
+| `public` | historical Inbox objects as immutable migration/archive input | no new active behavior or compatibility dependency |
+| `platform` | canonical EVO operational model | exposed с explicit grants и RLS на каждой table |
 | `platform_private` | backend-only helpers/secret references | не exposed; browser access отсутствует |
+
+### Historical merged P2-P8 evidence
+
+The implementation chronology below records repository evidence that U-slices
+may revalidate and reuse selectively. Old role, handoff, amoCRM-authority,
+manual-send and autonomous-send clauses are not current product authority.
 
 P2A переносит 001–039 byte-for-byte в root `supabase/`. После
 checksum/reset proof P2B добавляет forward-only migration 040: создаёт только
@@ -238,31 +224,22 @@ consumer-ами. Database Webhooks допустимы для асинхронн�
 
 ## Роли и границы
 
-Первый release использует роли:
+Первый внутренний пилот использует три human-facing роли:
 
-- `admin`;
-- `sales`;
-- `curator`;
-- `finance`;
-- `student` (user-facing label: Client/Student).
+- Sales Manager (`sales`);
+- Admissions Manager (existing canonical admissions role);
+- Director/Admin (`admin`).
 
-The current root `client` role is a legacy identifier. It remains unchanged
-until P3 and receives no implicit Platform membership or role mapping.
+Отдельной роли `visa` нет. Director/Admin управляет staff access и назначает
+Admissions Manager с обязательной причиной, before/after и audit.
 
-Отдельной роли `visa` нет, хотя module `/visa` остаётся. Только Admin приглашает
-или блокирует staff и назначает или переназначает Curator. Reassignment требует
-причину, before/after и audit. Curator ведёт назначенного студента целиком:
-документы, несколько university applications, visa case, tasks и
-communication.
+Sales владеет pre-handoff работой. Когда EVO подтверждает contract и first
+mandatory payment, audited handoff создаёт/обновляет Student Case, назначает
+Admissions owner и starter work. Override доступен Director/Admin только с
+причиной. Единая история и provenance сохраняются.
 
-Sales владеет очередью и диалогом до подтверждённого signed-contract stage в
-account-specific amoCRM mapping. После handoff ответственность переходит
-Curator; единая история сохраняется, а Sales видит только разрешённый
-несекретный summary. Portal активируется лишь после подтверждённого contract и
-Admin assignment Curator.
-
-Finance/Admin подтверждают obligations, payments и refunds вручную, с evidence
-и audit. Подтверждённые суммы используют integer minor units; payment не может
+Только actor с explicit payment-confirmation permission подтверждает obligations,
+payments и refunds с evidence и audit. Подтверждённые суммы используют integer minor units; payment не может
 превысить остаток, а refund — подтверждённую невозвращённую часть exact
 payment. Overdue вычисляется из obligation/payment/refund/due time и никогда не
 выводится из amoCRM stage. Sales и текущий Curator получают только безопасный
@@ -271,43 +248,24 @@ obligation label/category, amount/currency, due time, derived status, понят
 overdue notice и next action, но не evidence, actor IDs, transaction-event
 history или внутренние stop-factor поля.
 
-В document workflow Admin и текущий Curator имеют полный доступ в разрешённом
-case scope. Sales до handoff видит только фиксированный checklist, Student —
-fixed self history, а Finance не видит sensitive document metadata.
+В document workflow Director/Admin и назначенный Admissions Manager имеют
+доступ в разрешённом case scope. Student Portal следует в более позднем
+milestone и не блокирует первый pilot.
 
 ## AI и отправка сообщений
 
-P2F's merged database contract remains historical draft/manual-send evidence.
-ADR 0019 adds a narrower future lane: Gemini produces a structured
-qualification/reply proposal, while deterministic EVO gates alone decide
-whether an inbound-triggered reply may enter the durable queue. The model never
-calls WAHA or declares a send successful.
+AI is advisory only. It may summarize, classify, suggest a next action, draft
+text and identify gaps/deadlines. Every result stores sufficient source,
+uncertainty/risk and review evidence for a human to accept, edit or reject it.
 
-Every autonomous proposal stores the exact inbound trigger, model and prompt
-version, policy version, immutable context and hash, approved knowledge chunks,
-structured output, proposed memory updates, every gate input/result, rendered
-outbound and hash, transport response, ACK/session progression and human action.
-Supabase owns this evidence, durable lead memory, pgvector retrieval, queues,
-pause/resume state and audit.
+The model never calls WAHA, changes a stage, assigns staff, accepts a document
+or confirms a payment. The first live stage sends no WhatsApp message, including
+human-approved drafts. ADR 0019 autonomous-reply artifacts are historical source
+evidence and confer no active capability or rollout authority.
 
-Autonomous send is allowed only in the same conversation inside the rolling
-24-hour service window and only after the gate passes both before queueing and
-immediately before transport. Default business hours are
-`Asia/Bishkek 09:00-21:00` until organization configuration exists. Staff
-outbound or explicit takeover pauses autonomy immediately; only an authorized
-staff actor may resume with an audited reason.
-
-Opt-out, outside business hours, unsupported/uncertain language, media-only or
-unsupported content, low confidence, missing approved knowledge, complaints,
-payments/refunds, legal/privacy, admission/scholarship/visa guarantees,
-unhealthy WAHA or unknown provider result fail closed to human review. A valid
-media-only event is still persisted and operator-visible. Unknown send outcome
-is reconciled and never retried automatically.
-
-Cold outbound, broadcast, campaign, autonomous follow-up/re-engagement,
-out-of-window free-form and model-direct WAHA sends remain prohibited. P5A,
-P5B and the later autonomous worker are disabled by default until separately
-authorized real-provider E2E.
+Valid media-only inbound is still persisted and operator-visible. Missing or
+unavailable provider access fails closed with the exact blocker rather than a
+fake healthy state.
 
 EVO может обещать только исполнение собственных услуг и обязательств. Platform
 не должна гарантировать admission, scholarship, visa или решение внешнего
@@ -315,33 +273,20 @@ EVO может обещать только исполнение собствен
 
 ## Что должно произойти до cutover
 
-1. P2A–P2H последовательно доказывают reusable greenfield foundation:
-   canonical 001–039 history, namespace/grant containment, identity/RBAC,
-   domain slices, real local Queues и real local Storage contracts.
-2. Миграции и RLS проходят clean reset и отрицательные cross-role,
-   cross-student и cross-organization тесты.
-3. Database restore и Storage-object restore остаются отдельной обязанностью,
-   но moved to P7 and do not block the thin messaging slice.
-4. Local Supabase proof не выдаётся за managed project parity, PITR или
-   production readiness; эти пункты ждут region/plan, credentials и отдельного
-   разрешения.
-5. Legacy SQLite inventory остаётся historical reference; greenfield Platform
-   path does not require SQLite import, account migration, dual-read or
-   dual-write.
-6. Read-mostly amoCRM adapter discovers and versions account-specific mappings;
-   IDs are never global hardcodes, inferred by name or replaced with fallback.
-7. P5B proves operator-visible text and media projection, bounded leases,
-   retry/dead-letter/manual-review semantics and no Gemini/provider send.
-8. History, media, ACK/session reconciliation and private Supabase Realtime are
-   accepted before the autonomous-reply implementation begins.
-9. На выделенном тестовом номере и sanitized test lead проходит реальный путь:
-   WhatsApp receive → read-mostly amo resolve/link or explicit handoff → Gemini
-   proposal → deterministic gate → one eligible reply plus forced-human cases →
-   ACK/session/unknown reconciliation → private Realtime/audit.
-10. Production mutation получает отдельное явное разрешение и release window.
-11. EVO Lead Agent, legacy webhook/session and rollback path remain deployed and
-    frozen. Retirement is outside current scope and requires a new owner decision
-    plus separately reviewed evidence and rollback authority.
+1. U0 reconciles authority and legacy disposition, then merges from one exact
+   reviewed docs-only head.
+2. U1-U9 prove the unified pilot workflow against real Supabase-backed seams
+   with positive and negative authorization coverage.
+3. U10 inventories, archives, migrates and reconciles active records required
+   for pilot, then freezes legacy writes for those records without a bridge.
+4. U11 proves truthful health, append-only audit and separate database/Storage
+   backup and rollback in an authorized non-production environment.
+5. U12 proves real staff login, managed Supabase and real inbound WhatsApp in
+   receive-only mode. It sends no WhatsApp and writes nothing to amoCRM.
+6. U13 completes ten working days and five real cases in one EVO workflow.
+7. U14 migrates/archives historical closed records after the stable pilot.
+8. Local or repository proof never substitutes for managed, provider,
+   deployment, backup or rollback evidence.
 
 До выполнения этих условий target остаётся принятым контрактом, а не
 production-complete заявлением.

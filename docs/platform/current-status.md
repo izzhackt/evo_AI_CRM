@@ -1,45 +1,35 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-08-15
-- Initial P0 baseline: `a16cd3fb591128b6d28f7f46c432169a0ff28753`
-- P2A starting checkpoint: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
-- P2B starting checkpoint: `8ad755b5039390f418dbe12924a806f069f93b53`
-- P2C starting checkpoint: `0d38a8bb36fa423de14467f798141fac199ab047`
-- P2D starting checkpoint: `f9bda9cd0554d225211fb9e3d0b1969be262a838`
-- P2E starting checkpoint: `a58e5fa5ca24be0d0a30374b6a6e1202c79b7604`
-- P2F starting checkpoint: `aac1cba851e89070a7eb54baab4eddf921e3447c`
-- P2G starting checkpoint: `8567455f281fa157fb088970db1c2a2397850843`
-- P2H starting checkpoint: `23b2dc31ddc881ee46b08a3f4dc95e1395f326de`
-- Greenfield/UI boundary checkpoint: `26115344909261a39bbe591f3b835cda4b7e5068`
-- Current accepted base for this block:
-`33d745121208bdaf30fceeda25e9c87ab346db8e`
-- Active plan block:
-  `EVO-P8D-DISABLED-PRODUCTION-DEPLOYMENT-2026-08-15`
-- Active implementation block: `P8D plan and disabled deployment`
-- Target decision: `docs/adr/0014-unified-evo-platform-target-architecture.md`
+- Snapshot date: 2026-08-24
+- Repository baseline: GitHub `origin/main`
+  `31d26b6e6bdc8a96fcf9f48210e417d43619370d`
+- Active product contract: GitHub issue #376
+- Active implementation block: U0/#377 docs-only authority reconciliation
+- Target decision: `docs/adr/0020-unify-evo-v1-on-canonical-supabase.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
-- Active greenfield/UI boundary:
-  `docs/adr/0016-greenfield-platform-ui-and-data-boundary.md`
 - Active Student Profile automation boundary:
   `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
-- Retained Lead Agent/legacy-path boundary:
-  `docs/adr/0018-defer-amocrm-and-retain-lead-agent.md`
-- Active autonomy and read-mostly amoCRM boundary:
-  `docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md`
 - Evidence rule: code/configuration is not real-provider proof
+- Provider/production status: not re-read in U0; no new live-readiness claim
 
 ## Короткий вывод
 
-Target unified EVO Platform принят как implementation contract, но ещё не
-является production reality. Текущий repository baseline сохраняет root CRM,
-EVO Inbox и EVO Lead Agent как отдельные контуры. Платформа теперь описана как
-greenfield Supabase-native path без legacy SQLite import/auth migration,
-dual-read или dual-write, а accepted Claude Design root frontend остаётся sole
-UI. Полный реальный путь WhatsApp → read-mostly amoCRM → Platform → Gemini
-proposal → deterministic gate → manual или bounded autonomous reply → ACK →
-Realtime/audit ни разу не доказан end-to-end, поэтому Platform нельзя называть
-production-complete.
+Target — одна внутренняя EVO Platform с canonical Supabase data, временным
+amoCRM read/import adapter, private WAHA transport и advisory human-reviewed
+AI. Active data должна пройти one-time migration/reconciliation; SQLite
+runtime, dual-read/write и compatibility layers запрещены. Первый live stage
+receive-only: no outbound WhatsApp and no amoCRM writes.
+
+U0 не проверял production или providers и не менял их. Поэтому repository
+capability нельзя называть managed Supabase, provider, deployment, backup,
+rollback или pilot proof. Текущий executable шаг — только docs PR #377.
+
+## Historical repository snapshot before #376
+
+Everything below records the earlier 2026-08-15/P8 snapshot. It remains useful
+as exact historical evidence but is not current product authority or a live
+production recheck.
 
 P1 остаётся историческим legacy containment. P2A-P2H, greenfield/UI boundary,
 BW0, P3A-P3C, BW1-BW7, P2R0-P2R4 и P4A merged; PR #118 merged the P4B plan.
@@ -93,7 +83,7 @@ credential/test entities и provider proof пока отсутствуют. PRs 
 reply-only transport gate с synthetic local proof. Это не real Gemini/WAHA
 proof, production enablement или customer send.
 
-## Что подтверждено из репозитория
+### Что было подтверждено из репозитория
 
 | Область | Подтверждённый факт | Граница утверждения |
 |---|---|---|
@@ -178,7 +168,7 @@ P5F memory/proposal/autonomy contracts:
 Current P6 docs-only contract:
 [`p6-operations-portal.md`](p6-operations-portal.md).
 
-## Принятый target, ещё не cut over
+### Принятый тогда target, не cut over
 
 - один unified backend поглощает EVO Inbox и полезную безопасную логику Lead
   Agent;
@@ -239,14 +229,14 @@ Current P6 docs-only contract:
   их deactivation, retirement или deletion требуют нового owner decision и
   отдельного plan amendment.
 
-## Следующие доказательства, которых пока нет
+### Следующие доказательства, которых тогда не было
 
 - isolated database restore и отдельный Storage-object restore;
 - release-artifact browser-secret scan and production runtime-config
   attestation; текущий BW5 local `.next/static` name scan и scoped Gitleaks diff
   scan зелёные, но это не release/production proof.
 
-## Внешние и release доказательства, которых пока нет
+### Внешние и release доказательства, которых тогда не было
 
 - linked managed Supabase project, remote migration-ledger parity, branch
   isolation, production plan/PITR и managed restore;
@@ -264,7 +254,7 @@ Current P6 docs-only contract:
   authorization;
 - bounded reconciliation evidence window with zero unexplained loss/duplicates.
 
-## Открытые release decisions
+### Открытые тогда release decisions
 
 1. Точные amoCRM account/pipeline/status/custom-field/user mappings.
 2. Supabase region, plan, PITR и cost.
@@ -278,7 +268,7 @@ Current P6 docs-only contract:
 Ни одно из этих решений нельзя подменять fake connector, mock provider success
 или «configured = working».
 
-## Запрещённые действия в текущем run
+### Запрещённые действия в том run
 
 - production deployment или migration;
 - DNS change;
@@ -293,7 +283,7 @@ Current P6 docs-only contract:
 Для этих действий текущий результат может подготовить code, runbook и evidence
 gate, но не выполнять mutation.
 
-## Текущий безопасный gate
+### Безопасный gate того run
 
 P7-PLAN принят PR #154, а P7A принят PR #156 как
 `47e2e211ba77d36e3296b12ad0b8087276ca712d`. Exact-main push CI

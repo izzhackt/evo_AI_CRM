@@ -1,6 +1,7 @@
 # EVO Platform prioritized backlog
 
-Status: proposed sequencing after the active P8D rollout
+Status: superseded sequencing under #376/ADR 0020; U0-U14 is the only active
+backlog order
 Evidence baseline: `origin/main` at `d243b2bb370d052750278e7f5cc2625991d5f870` on 2026-08-17
 
 ## How to read priority

@@ -2,6 +2,9 @@
 
 Issue: #276
 
+Status: historical implementation source under #376/ADR 0020; one-UI evidence
+may be reused only through a current U-slice
+
 ## Outcome
 
 Prepare the existing root EVO CRM as the only Platform UI while production

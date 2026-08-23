@@ -1,7 +1,8 @@
 # P7D focused accessibility and small-launch contract
 
-Status: docs-only authority gate; implementation and release remain blocked
-until this contract is reviewed and merged
+Status: historical source under #376/ADR 0020. U11/U12 may reuse focused
+accessibility evidence only after current-slice review; this is not an active
+release gate.
 
 Version date: 2026-08-14 (Asia/Bishkek)
 

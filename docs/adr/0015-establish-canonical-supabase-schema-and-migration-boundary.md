@@ -1,11 +1,11 @@
 # ADR 0015: Establish the canonical Supabase schema and migration boundary
 
-- Status: Accepted foundation decision; identity-migration and P2I prerequisite
-  details superseded by ADR 0016; not applied to production
+- Status: accepted foundation mechanics; target ownership and migration scope
+  are refined by ADR 0020; not applied to production by this document
 - Date: 2026-07-28
 - Decision owners: technical owner and Data/Privacy accountability role
 - Refines: ADR 0014
-- Superseded in conflict by: ADR 0016
+- Superseded in conflict by: ADR 0016 and ADR 0020
 - Execution contract: `docs/platform/p2-supabase-foundation.md`
 
 ## Context

@@ -1,6 +1,6 @@
 # ADR 0019: Gate autonomous inbound replies and resume read-only amoCRM
 
-- Status: accepted
+- Status: superseded by ADR 0020; retained as historical fail-closed evidence
 - Date: 2026-08-09
 - Accepted main checkpoint:
   `8dbc99c578a9bad0750a04cb322f26a2fe68b1c0`
@@ -9,6 +9,8 @@
 - Supersedes in conflict: ADR 0018 only where it fully defers P4 and limits P5
   to draft-only AI/manual send
 - Retains: ADR 0018 Lead Agent/legacy-path freeze and production/provider gates
+- Superseded by: ADR 0020, including its autonomous-reply and canonical amoCRM
+  clauses
 
 ADR 0005 remains historical companion-app context. It is not the current
 Platform AI authority.

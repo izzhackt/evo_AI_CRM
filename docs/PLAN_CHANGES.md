@@ -10379,3 +10379,101 @@ change DNS/TLS, call Supabase/provider production, send WhatsApp, write amoCRM,
 change WAHA sessions, enable autonomous behavior or run the dedicated security
 scan. The docs-only contract requires review and exact-head CI before any
 cleanup batch is proposed for approval.
+
+## 2026-08-24 — Adopt the #376 unified EVO v1 contract and reset execution to U0–U14
+
+Date: 2026-08-24, workspace timezone (+06).
+Owner decision date: 2026-08-23.
+Author: owner direction recorded by Codex.
+Change type: superseding product architecture, data authority, pilot boundary,
+migration boundary and implementation sequence.
+Source: GitHub issues #376 and #377.
+Block-ID: `EVO-U0-UNIFIED-V1-AUTHORITY-2026-08-24`.
+Starting repository baseline: GitHub `origin/main` at
+`31d26b6e6bdc8a96fcf9f48210e417d43619370d`.
+
+Reason: the repository contains useful Supabase-native implementation work but
+still presents several generations of the product contract. In particular,
+active documents variously preserve amoCRM as canonical sales authority,
+exclude legacy-data migration, allow bounded autonomous replies, use a
+signed-contract-only handoff, or treat CRM, Inbox and Lead Agent as lasting
+execution contours. Those rules conflict with the approved internal-product
+boundary in #376 and cannot remain active alongside it.
+
+Decision:
+
+1. EVO is one internal all-in-one platform with one login, one accepted staff
+   UI, one organization/role model and one end-to-end workflow. CRM, Inbox,
+   Lead Agent, Admissions, Finance, Tasks, Documents and AI are internal
+   modules, not separately entered products or independent data authorities.
+2. Supabase is the permanent canonical foundation. EVO/Supabase owns the
+   operational record for client, lead, sales stage, responsible staff, next
+   action, deadline, Student Case, documents, applications, visa, payment
+   control, tasks, communication workflow and audit. Supabase Auth owns staff
+   identity, private Storage owns accepted private objects, and RLS plus
+   server-side authorization enforce organization and object scope.
+3. SQLite is not restored as a runtime, repository or fallback path. Existing
+   SQLite, companion Supabase, Inbox and Lead Agent records may be inventoried,
+   archived and migrated once into the canonical model with provenance and
+   reconciliation. They do not justify dual-read, dual-write, write-through,
+   fallback repositories, parallel UI or compatibility layers. After cutover,
+   retired sources accept no new operational writes.
+4. amoCRM is a temporary read/import adapter and migration source. It is not
+   the target authority for identity, lead, sales stage, responsible manager or
+   workflow, and no permanent bidirectional synchronization is authorized.
+   Stage one performs no amoCRM writes.
+5. WAHA is a private transport adapter. It owns provider transport evidence,
+   not EVO identity, workflow, policy, memory or audit, and it remains
+   unavailable through a public port.
+6. AI is advisory and human-reviewed only: summarization, classification,
+   next-action suggestions, drafts and gap/deadline detection. AI cannot send a
+   message, change a stage, assign staff, accept a document or confirm a
+   payment. Earlier bounded autonomous-reply authority is superseded.
+7. The internal pilot roles are Sales Manager, Admissions Manager and
+   Director/Admin. Sensitive permissions such as contract and payment
+   confirmation remain explicit rather than implied by a job title.
+8. The normal Sales-to-Admissions handoff gate is a confirmed contract plus
+   the first mandatory payment. The handoff creates or updates one Student
+   Case, preserves provenance, assigns Admissions ownership and creates the
+   initial tasks/checklist. A Director/Admin override requires a reason and an
+   immutable audit event.
+9. The first live stage is receive-only. It may prove real inbound WhatsApp,
+   permitted external reads and real internal work, but it sends no outbound
+   WhatsApp message and writes nothing to amoCRM. Any external-write stage
+   requires a later explicit owner decision, bounded scope and real rollback.
+10. Migration is staged: active operational records required by the pilot are
+    archived, checksummed, migrated and reconciled before the pilot; historical
+    closed records follow only after a stable pilot. Repository, local and
+    disposable-database evidence never proves managed Supabase, provider,
+    deployment, backup or rollback behavior.
+11. The dependency-ordered issues #377–#391 are the sole active U0–U14
+    execution sequence under parent #376. Earlier P/BW/NW/P8 rollout plans,
+    open draft PRs and pre-#376 open issues are source evidence only unless the
+    U0 crosswalk assigns them to a named U-slice or to human review. None may
+    merge directly or carry stale assumptions into current `main`.
+
+Supersession impact:
+
+- This decision refines the 2026-08-22 all-in-one decision and supersedes its
+  remaining amoCRM field-authority language.
+- ADR 0014 is historical source where it keeps amoCRM canonical, uses a
+  signed-contract-only handoff or retains a broader role set as the first-pilot
+  contract.
+- ADR 0016 remains source for one accepted UI and Supabase-native direction,
+  but its no-legacy-import rule and thin-messaging-first sequence are
+  superseded. One-time reconciled migration is required; runtime SQLite and
+  compatibility bridges remain prohibited.
+- ADR 0018 remains current-state safety history only. ADR 0019 is superseded
+  where it authorizes autonomous replies or treats amoCRM as canonical.
+- Historical provider, deployment, rollback and evidence records remain true
+  only for the exact systems, SHA and date they observed. They do not authorize
+  production change or prove the unified v1 target.
+
+Execution and validation boundary: U0/#377 is one docs-only package. It must
+refresh every active authority document, publish a complete crosswalk for all
+current draft PRs and all pre-#376 open issues, pass repository-required
+docs-only CI, receive an independent launch-control review bound to the exact
+immutable PR head, and merge only that reviewed head. U0 changes no runtime,
+schema, migration, provider, production, DNS/TLS, WAHA session, customer data,
+amoCRM record or WhatsApp message. Stop after #377; do not begin U1/#378 in the
+same branch or PR.

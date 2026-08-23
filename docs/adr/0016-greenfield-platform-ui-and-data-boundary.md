@@ -1,11 +1,13 @@
 # ADR 0016: Greenfield Platform UI and data boundary
 
-- Status: accepted
+- Status: historical boundary; accepted UI/Supabase direction retained, but
+  no-legacy-import and execution-order clauses superseded by ADR 0020
 - Date: 2026-07-30
 - Supersedes in conflict: legacy migration/cutover assumptions in ADR 0014 and
   ADR 0015
 - Refines: the retained target architecture and Supabase foundation decisions
   in ADR 0014 and ADR 0015
+- Superseded in conflict by: ADR 0020
 
 Specifically superseded are ADR 0014's SQLite inventory/import/dual-read
 sequence and fixed-duration retirement gate, plus ADR 0015's root-client

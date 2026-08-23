@@ -1,5 +1,9 @@
 # EVO Platform capability matrix
 
+> **Status:** historical read-only snapshot. Product, ownership and sequencing
+> statements are superseded in conflict by #376/ADR 0020. It is evidence input,
+> not a current authority document or live-readiness proof.
+
 Статусный снимок: `origin/main` / `d243b2bb370d052750278e7f5cc2625991d5f870`, 2026-08-17 (Asia/Bishkek).
 
 Этот документ отвечает на вопрос «что уже есть внутри Platform, а что пока существует только как код, локальное доказательство или отдельная система». Он не является production-проверкой. Во время аудита production, Supabase, WAHA, amoCRM, Gemini, WhatsApp и клиентские данные не читались и не изменялись. Активный P8D4 rollout выполняется отдельной задачей; его ещё не завершённый результат здесь не считается доказательством.
@@ -71,7 +75,9 @@
 
 1. **В Platform уже есть большая часть каркаса продукта:** роли, Student 360, Portal, applications, documents, visa, finance, tasks, notifications, WhatsApp data plane, memory, retrieval, AI drafts and audit.
 2. **Самый большой разрыв — не отсутствие экранов, а отсутствие живого end-to-end доказательства.** Merged code and local tests do not prove current production flags, provider credentials, real WAHA/amoCRM/Gemini behavior or employee workflow quality.
-3. **Первая версия должна быть supervised.** Сотрудник читает и редактирует AI draft, Curator управляет OZO/student operations, amoCRM remains sales source of truth, autonomous replies remain off.
+3. **На момент снимка первая версия считалась supervised.** Текущий контракт
+   сохраняет human review, но делает EVO/Supabase canonical и исключает любой
+   outbound send из первого receive-only stage.
 4. **Sales funnel is not yet inside Platform as a working canonical funnel.** The `/sales` screen exists, but the connected path intentionally returns no live deals until the amoCRM mapping/authority work is completed.
 5. **Document AI remains separate by design.** Platform already owns secure document lifecycle; extraction/autofill/export is a separate local-first Student Profile system and requires a future reviewed integration.
 
@@ -81,13 +87,14 @@ Core authority and status:
 
 - `CONTEXT.md`
 - `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
-- `docs/specs/EVO_PLATFORM_TZ.md`
-- `docs/adr/0014-unified-evo-platform-target-architecture.md`
+- `docs/adr/0020-unify-evo-v1-on-canonical-supabase.md` (current authority)
+- `docs/specs/EVO_PLATFORM_TZ.md` (historical source)
+- `docs/adr/0014-unified-evo-platform-target-architecture.md` (historical)
 - `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
-- `docs/adr/0018-defer-amocrm-and-retain-lead-agent.md`
-- `docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md`
+- `docs/adr/0018-defer-amocrm-and-retain-lead-agent.md` (historical)
+- `docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md` (superseded)
 - `docs/platform/current-status.md` (historical per-block evidence; not a live production snapshot)
-- `docs/platform/p8d4-current-main-staff-pilot.md` (rollout contract, not completion proof)
+- `docs/platform/p8d4-current-main-staff-pilot.md` (superseded rollout source)
 
 Implementation evidence:
 

@@ -1,7 +1,60 @@
 # EVO Launch Plan
 
-Status: `/goal-evo-platform-mvp-autonomous-inbound-plan` is active under the
-owner-authorized direct exact-head merge workflow.
+Status: parent #376 is the active product contract; U0/#377 is the only current
+slice. ADR 0020 and the latest `docs/PLAN_CHANGES.md` entry are binding.
+
+## Current unified v1 authority
+
+- EVO is one internal platform with one login, one accepted UI, one pilot role
+  model and one end-to-end workflow. CRM, Inbox, Lead Agent, Admissions,
+  Finance, Tasks, Documents and AI are modules, not separate products.
+- Supabase is canonical for operational client, lead, stage, ownership, next
+  action, Student Case, documents, applications, visa, payment control, tasks,
+  communications and audit. SQLite runtime/fallback, dual-read, dual-write and
+  compatibility layers are prohibited.
+- amoCRM is a temporary read/import adapter and migration source. WAHA is a
+  private transport adapter. AI is advisory and human-reviewed only.
+- The normal Admissions handoff requires confirmed contract plus first
+  mandatory payment. Director/Admin override requires a reason and audit.
+- The first live stage is receive-only: no outbound WhatsApp and no amoCRM
+  write. Repository evidence does not prove managed Supabase, provider,
+  deployment, backup or rollback behavior.
+- Active data is migrated once with archive, provenance and reconciliation
+  before pilot; historical closed data follows after a stable pilot. No
+  coexistence bridge is authorized.
+
+The active dependency order is:
+
+| Slice | Issue | Outcome |
+| --- | --- | --- |
+| U0 | #377 | Authority docs and complete legacy crosswalk |
+| U1 | #378 | One login and three pilot roles |
+| U2 | #379 | Canonical Supabase client and lead |
+| U3 | #380 | Receive-only WhatsApp in the unified Sales queue |
+| U4 | #381 | Sales qualification, owner and next action |
+| U5 | #382 | Contract and first-payment evidence |
+| U6 | #383 | Audited Sales-to-Admissions handoff |
+| U7 | #384 | First complete Admissions case |
+| U8 | #385 | Payment schedule, overdue and stop factors |
+| U9 | #386 | Human-reviewed AI assistance |
+| U10 | #387 | Active-data migration and legacy-write freeze |
+| U11 | #388 | Truthful admin health, audit, backup and rollback |
+| U12 | #389 | Real managed receive-only acceptance |
+| U13 | #390 | Ten-workday, five-case internal pilot |
+| U14 | #391 | Historical closed-record migration/archive |
+
+U0 is one docs-only PR. It must link #376/#377, pass repository-required CI,
+receive an independent launch-control review for the immutable exact head and
+merge only that head. Stop after #377; do not begin U1 in this branch or PR.
+The complete disposition of the 16 current draft PRs and 11 pre-#376 open
+issues is in `docs/platform/u0-draft-pr-issue-crosswalk.md`.
+
+## Historical pre-#376 execution record
+
+Everything below this boundary records earlier P/BW/NW/P8 planning and exact
+historical evidence. It is not an active execution sequence and cannot
+override #376, ADR 0020 or U0-U14.
+
 Historical P1, reusable greenfield P2A-P2H, BW0, P3A-P3C, BW1-BW7,
 P2R0-P2R4 and P4A are merged. PR #118 merged the P4B docs-only contract, PR
 #128 merged the owner-authorized correction that keeps Student Profile document
@@ -317,9 +370,13 @@ slice. The superseding rule is:
 - the executor may merge only that exact reviewed head directly;
 - exact-main push CI must then be re-verified before the next block starts.
 
-## Current Goal Slice
+## Historical goal slice before #376
 
-Active next planning slice: P8 controlled release-candidate preparation under
+> Superseded by #376, ADR 0020 and U0-U14. This section is retained only to
+> explain prior repository evidence and does not authorize P8 or runtime work.
+
+The active planning slice at that historical checkpoint was P8 controlled
+release-candidate preparation under
 `EVO-P8-CONTROLLED-RELEASE-CANDIDATE-2026-08-14`. P6A-P6D, P7A and
 P7B are merged, PR #163 merged the P7C authority contract and managed project
 consolidation, PR #164 merged its deferral, and exact-main run `31820931774` is
@@ -334,7 +391,7 @@ fresh exact-head review, exact-head CI, exact-base recheck, reviewed merge and
 green exact-main push CI. No P7 block inherits managed, provider or production
 proof.
 
-### Goal
+### Historical goal
 
 Build the unified EVO Platform in ordered, independently reviewed blocks while
 preserving the accepted frontend contract and current production safety.

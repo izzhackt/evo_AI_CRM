@@ -1,5 +1,9 @@
 # Claude Design master prompt — EVO Admissions Platform
 
+> **Status:** historical frontend prompt; do not execute it as a current
+> product contract. Any future frontend slice must start from #376, ADR 0020,
+> the U0-U14 plan and its own issue, then reuse only conforming visual details.
+
 Use the linked local folder as the only working repository. Work directly in
 the existing application and complete the **entire production-quality
 frontend**, not a slide deck, design exploration, wireframe set, isolated
@@ -38,17 +42,17 @@ repository; do not use generic SaaS lorem ipsum.
 
 Start by reading these sources in this order:
 
-1. `AGENTS.md` and `CONTEXT.md`
-2. `docs/design/evo-platform/IMPLEMENTATION_PLAN.md`
-3. `docs/design/evo-platform/COMPLETION_CHECKLIST.md`
-4. `docs/design/evo-platform/SOURCE_BRIEF_IT_TZ.md`
-5. `docs/platform/system-overview.md`
-6. `docs/platform/data-ownership.md`
-7. `docs/business/evo-business-context.md`
-8. `docs/business/admissions-process.md`
-9. `docs/business/sales-playbook.md`
-10. `docs/company/brand/evo-admissions-logobook.pdf`
-11. the relevant decisions in `docs/adr/`
+1. `AGENTS.md`, `CONTEXT.md` and ADR 0020
+2. `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` and the current U-slice issue
+3. `docs/design/evo-platform/IMPLEMENTATION_PLAN.md`
+4. `docs/design/evo-platform/COMPLETION_CHECKLIST.md`
+5. `docs/design/evo-platform/SOURCE_BRIEF_IT_TZ.md`
+6. `docs/platform/system-overview.md`
+7. `docs/platform/data-ownership.md`
+8. `docs/business/evo-business-context.md`
+9. `docs/business/admissions-process.md`
+10. `docs/business/sales-playbook.md`
+11. `docs/company/brand/evo-admissions-logobook.pdf`
 12. the existing routes, components, styles, tests and screenshots under
     `src/`, `tests/e2e/` and `docs/design/evo-platform/`
 
@@ -58,19 +62,19 @@ security rules and explicit owner decisions have higher authority.
 
 ## Product truth that must remain visible
 
-- amoCRM remains the canonical source for lead/contact identity and sales
-  stage.
+- EVO/Supabase is canonical for operational lead/contact identity, owner and
+  sales stage. amoCRM is a temporary read/import adapter and migration source.
 - The student's operational admissions stage is separate from the sales stage.
 - The root EVO application is the unified staff-facing workspace.
-- EVO Inbox is the communications/UX foundation, but the current root
-  `/whatsapp` route must describe the data it actually reads; it must not claim
-  to be live EVO Inbox Supabase data unless that bridge truly exists.
-- AI customer replies are **draft-only**. A staff member reviews, edits and
-  manually sends them. Do not add or imply automatic replies.
+- Inbox is a module in the one EVO product. Existing root, Inbox and Lead Agent
+  data are migration inputs; do not add a runtime bridge, fallback or second UI.
+- AI is advisory and human-reviewed. Stage one has no outbound WhatsApp send
+  action; do not add or imply manual or automatic sending.
 - Do not imply that amoCRM, WAHA, Supabase, AI, telephony, email or any other
   provider is connected merely because a card or badge exists.
-- Preserve the implemented roles and server-side access rules. Do not invent a
-  new role or widen access to match a design persona.
+- Use only the three first-pilot roles from #376 and explicit sensitive
+  permissions. Preserve current restrictions until U1 replaces them safely;
+  do not widen access to match a design persona.
 - Do not create a second source of truth for leads, students, sales stages,
   payments or documents.
 

@@ -1,6 +1,7 @@
 # P8 Controlled Release Candidate Contract
 
-Status: docs-only contract proposed under issue
+Status: superseded planning source under #376/ADR 0020; U11/U12 own any
+conforming rebuild. Originally proposed under issue
 [#175](https://github.com/izzhackt/evo_AI_CRM/issues/175).
 
 Block-ID: `EVO-P8-CONTROLLED-RELEASE-CANDIDATE-2026-08-14`.

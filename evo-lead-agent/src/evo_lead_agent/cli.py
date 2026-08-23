@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import hmac
 import json
-import os
 import re
 import time
 from pathlib import Path
@@ -13,7 +12,7 @@ from typing import Any, Sequence
 import httpx
 from dotenv import find_dotenv
 
-from .config import load_settings
+from .config import PLATFORM_WAHA_SESSION_NAME, PLATFORM_WAHA_WEBHOOK_PATH, load_settings
 from .preflight import run_preflight
 from .readiness import build_readiness_report
 from .store import Store
@@ -361,20 +360,20 @@ def local_smoke_main(argv: Sequence[str] | None = None) -> int:
 def waha_setup_main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="evo-lead-agent-waha-setup",
-        description="Create or update a WAHA session webhook for the EVO lead-agent.",
+        description="Retired Lead Agent WAHA setup command. It never calls WAHA.",
     )
-    parser.add_argument("--base-url", default=None, help="WAHA base URL. Defaults to settings.")
-    parser.add_argument("--api-key", default=None, help="WAHA API key. Defaults to settings.")
-    parser.add_argument("--session", default=None, help="WAHA session name. Defaults to settings.")
+    parser.add_argument("--base-url", default=None, help="Retired option; ignored.")
+    parser.add_argument("--api-key", default=None, help="Retired option; ignored.")
+    parser.add_argument("--session", default=None, help="Retired option; canonical session is evo-inbox.")
     parser.add_argument(
         "--webhook-url",
-        default=os.getenv("EVO_AGENT_WAHA_WEBHOOK_URL"),
-        help="URL WAHA can reach for this agent's /webhooks/waha endpoint.",
+        default=None,
+        help="Retired option; the Platform webhook is server-managed.",
     )
     parser.add_argument(
         "--webhook-secret",
         default=None,
-        help="WAHA webhook HMAC secret. Defaults to settings.",
+        help="Retired option; never pass the Platform ingress HMAC secret here.",
     )
     parser.add_argument(
         "--events",
@@ -393,172 +392,20 @@ def waha_setup_main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output.")
     args = parser.parse_args(argv)
 
-    settings = load_settings()
-    base_url = args.base_url or settings.waha_base_url
-    api_key = args.api_key or settings.waha_api_key
-    session = args.session or settings.waha_session_name
-    webhook_secret = args.webhook_secret or settings.waha_webhook_secret
-    events = normalize_waha_events([event.strip() for event in args.events.split(",") if event.strip()])
-    missing = []
-    if not base_url:
-        missing.append("EVO_AGENT_WAHA_BASE_URL")
-    if not api_key:
-        missing.append("EVO_AGENT_WAHA_API_KEY")
-    if not args.webhook_url:
-        missing.append("EVO_AGENT_WAHA_WEBHOOK_URL or --webhook-url")
-    if not webhook_secret:
-        missing.append("EVO_AGENT_WAHA_WEBHOOK_SECRET")
-    if not events:
-        missing.append("--events")
-    if missing:
-        print(json.dumps({"ok": False, "error": "required_config_missing", "missing": missing}))
-        return 2
-
-    if args.dry_run:
-        build_waha_session_payload(
-            session=session,
-            webhook_url=args.webhook_url,
-            webhook_secret=webhook_secret,
-            events=events,
-        )
-        report = {
-            "ok": True,
-            "dry_run": True,
-            "session": session,
-            "events": events,
-            "webhook": {"configured": True, "hmac": "configured"},
-            "start": {"requested": not args.no_start},
-            "qr": {"requested": args.qr_output is not None},
-            "next_action": "run_waha_setup_without_dry_run_against_real_waha",
-        }
-        print(json.dumps(report, ensure_ascii=False, indent=2 if args.pretty else None, sort_keys=True))
-        return 0
-
-    try:
-        with httpx.Client(timeout=args.timeout) as client:
-            report = run_waha_setup(
-                client=client,
-                base_url=base_url,
-                api_key=api_key,
-                session=session,
-                webhook_url=args.webhook_url,
-                webhook_secret=webhook_secret,
-                events=events,
-                start=not args.no_start,
-                qr_output=args.qr_output,
-            )
-    except ValueError as exc:
-        print(json.dumps({"ok": False, "error": str(exc)}, sort_keys=True))
-        return 2
-
-    print(json.dumps(report, ensure_ascii=False, indent=2 if args.pretty else None, sort_keys=True))
-    return 0 if report["ok"] else 1
-
-
-def run_waha_setup(
-    *,
-    client: httpx.Client,
-    base_url: str,
-    api_key: str,
-    session: str,
-    webhook_url: str,
-    webhook_secret: str,
-    events: list[str],
-    start: bool,
-    qr_output: Path | None,
-) -> dict[str, Any]:
-    base = base_url.rstrip("/")
-    headers = {"X-Api-Key": api_key, "Content-Type": "application/json"}
-    session_body = build_waha_session_payload(
-        session=session,
-        webhook_url=webhook_url,
-        webhook_secret=webhook_secret,
-        events=events,
-        start=start,
-    )
-
-    existing = _client_request_json(
-        client,
-        "GET",
-        f"{base}/api/sessions/{session}",
-        headers={"X-Api-Key": api_key},
-    )
-    existing_status = existing["status_code"]
-    if existing_status == 404:
-        configure = _client_request_json(
-            client,
-            "POST",
-            f"{base}/api/sessions/",
-            json_body=session_body,
-            headers=headers,
-        )
-        configure_action = "created"
-    elif existing_status is not None and existing_status < 400:
-        configure = _client_request_json(
-            client,
-            "POST",
-            f"{base}/api/sessions/{session}/",
-            json_body=session_body,
-            headers=headers,
-        )
-        configure_action = "updated"
-    else:
-        return {
-            "ok": False,
-            "session": session,
-            "events": events,
-            "webhook": {"configured": False, "hmac": "configured"},
-            "configure": {
-                "action": "check_session",
+    print(
+        json.dumps(
+            {
                 "ok": False,
-                "status_code": existing_status,
-                "reason": existing.get("error") or "session_lookup_failed",
+                "error": "lead_agent_waha_setup_retired",
+                "next_action": "configure_server_managed_platform_waha_ingress",
+                "platform_session": PLATFORM_WAHA_SESSION_NAME,
+                "platform_webhook_path": PLATFORM_WAHA_WEBHOOK_PATH,
             },
-            "start": {"requested": start, "ok": None, "status_code": None},
-            "qr": {"requested": qr_output is not None, "ok": None, "status_code": None, "saved": None},
-            "next_action": "fix_waha_session_setup",
-        }
-
-    configure_ok = configure["status_code"] is not None and configure["status_code"] < 400
-    start_check = {"requested": start, "ok": None, "status_code": None}
-    if configure_ok and start:
-        start_response = _client_request_json(
-            client,
-            "POST",
-            f"{base}/api/sessions/{session}/start",
-            json_body={},
-            headers=headers,
+            indent=2 if args.pretty else None,
+            sort_keys=True,
         )
-        start_check = {
-            "requested": True,
-            "ok": start_response["status_code"] is not None and start_response["status_code"] < 400,
-            "status_code": start_response["status_code"],
-        }
-
-    qr_check = {"requested": qr_output is not None, "ok": None, "status_code": None, "saved": None}
-    if qr_output is not None and (start_check["ok"] is True or not start):
-        qr_check = _save_waha_qr_png(
-            client=client,
-            url=f"{base}/api/{session}/auth/qr",
-            api_key=api_key,
-            output=qr_output,
-        )
-
-    ok = configure_ok and (start_check["ok"] is not False) and (qr_check["ok"] is not False)
-    return {
-        "ok": ok,
-        "session": session,
-        "events": events,
-        "webhook": {"configured": configure_ok, "hmac": "configured"},
-        "configure": {
-            "action": configure_action,
-            "ok": configure_ok,
-            "status_code": configure["status_code"],
-        },
-        "start": start_check,
-        "qr": qr_check,
-        "next_action": _waha_setup_next_action(ok, qr_check, start_check),
-    }
+    )
+    return 2
 
 
 def run_local_smoke(
@@ -642,33 +489,13 @@ def _missing_for_live_preflight(readiness: dict[str, Any]) -> list[str]:
     return list(readiness["stages"]["receive_only_rollout"]["missing"])
 
 
-def _missing_for_waha_setup(settings: Any) -> list[str]:
-    missing = []
-    if not settings.waha_base_url:
-        missing.append("EVO_AGENT_WAHA_BASE_URL")
-    if not settings.waha_api_key:
-        missing.append("EVO_AGENT_WAHA_API_KEY")
-    if not settings.waha_session_name:
-        missing.append("EVO_AGENT_WAHA_SESSION")
-    if not settings.waha_webhook_secret:
-        missing.append("EVO_AGENT_WAHA_WEBHOOK_SECRET")
-    if not _optional_env("EVO_AGENT_WAHA_WEBHOOK_URL"):
-        missing.append("EVO_AGENT_WAHA_WEBHOOK_URL")
-    return missing
-
-
-def _optional_env(name: str) -> str | None:
-    value = os.getenv(name)
-    if value is None:
-        return None
-    stripped = value.strip()
-    return stripped or None
+def _missing_for_waha_setup(_settings: Any) -> list[str]:
+    return ["lead_agent_waha_setup_retired"]
 
 
 def _next_env_audit_action(ready: dict[str, bool], warnings: list[str]) -> str:
     for name in (
         "local_smoke",
-        "waha_setup",
         "live_preflight",
         "receive_only_rollout",
     ):
@@ -853,8 +680,10 @@ def build_smoke_waha_payload(
     phone: str,
     message: str,
     provider_message_id: str,
-    session: str = "crm_primary",
+    session: str = PLATFORM_WAHA_SESSION_NAME,
 ) -> dict[str, Any]:
+    if session != PLATFORM_WAHA_SESSION_NAME:
+        raise ValueError("session_must_be_exactly_evo-inbox")
     digits = re.sub(r"\D+", "", phone)
     if len(digits) < 8:
         raise ValueError("phone_must_have_at_least_8_digits")
@@ -870,57 +699,6 @@ def build_smoke_waha_payload(
             "_data": {"pushName": "Smoke Test"},
         },
     }
-
-
-def build_waha_session_payload(
-    *,
-    session: str,
-    webhook_url: str,
-    webhook_secret: str,
-    events: list[str],
-    start: bool = True,
-) -> dict[str, Any]:
-    if not session.strip():
-        raise ValueError("session_required")
-    if not webhook_url.strip():
-        raise ValueError("webhook_url_required")
-    if not webhook_secret.strip():
-        raise ValueError("webhook_secret_required")
-    clean_events = [event.strip() for event in events if event.strip()]
-    if not clean_events:
-        raise ValueError("events_required")
-    normalized_events = normalize_waha_events(clean_events)
-    return {
-        "name": session.strip(),
-        "start": start,
-        "config": {
-            "webhooks": [
-                {
-                    "url": webhook_url.strip(),
-                    "events": normalized_events,
-                    "hmac": {"key": webhook_secret},
-                    "retries": {
-                        "policy": "linear",
-                        "delaySeconds": 2,
-                        "attempts": 4,
-                    },
-                }
-            ]
-        },
-    }
-
-
-def normalize_waha_events(events: list[str]) -> list[str]:
-    clean_events = []
-    seen = set()
-    for event in events:
-        normalized = event.strip()
-        if not normalized or normalized in seen:
-            continue
-        seen.add(normalized)
-        clean_events.append(normalized)
-    required = ["message", "session.status"]
-    return [*clean_events, *[event for event in required if event not in seen]]
 
 
 def _client_request_json(
@@ -949,46 +727,6 @@ def _client_request_json(
             "detail": type(exc).__name__,
         }
     return {"status_code": response.status_code, "payload": payload}
-
-
-def _save_waha_qr_png(
-    *,
-    client: httpx.Client,
-    url: str,
-    api_key: str,
-    output: Path,
-) -> dict[str, Any]:
-    try:
-        response = client.get(url, headers={"X-Api-Key": api_key, "Accept": "image/png"})
-    except httpx.HTTPError as exc:
-        return {
-            "requested": True,
-            "ok": False,
-            "status_code": None,
-            "saved": None,
-            "error": "request_failed",
-            "detail": type(exc).__name__,
-        }
-    ok = response.status_code < 400 and bool(response.content)
-    if ok:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_bytes(response.content)
-    return {
-        "requested": True,
-        "ok": ok,
-        "status_code": response.status_code,
-        "saved": str(output) if ok else None,
-    }
-
-
-def _waha_setup_next_action(ok: bool, qr_check: dict[str, Any], start_check: dict[str, Any]) -> str:
-    if not ok:
-        return "fix_waha_session_setup"
-    if qr_check.get("saved"):
-        return "scan_qr_then_run_preflight"
-    if start_check.get("requested"):
-        return "fetch_or_scan_qr_then_run_preflight"
-    return "start_session_then_run_preflight"
 
 
 def _compact_health_check(response: dict[str, Any], min_knowledge_count: int) -> dict[str, Any]:

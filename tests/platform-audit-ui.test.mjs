@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const entrySource = readFileSync(
@@ -13,6 +13,18 @@ const platformSource = readFileSync(
 const legacySource = readFileSync(
   new URL("../src/app/(staff)/settings/LegacySettingsPage.tsx", import.meta.url),
   "utf8",
+);
+const actionsSource = readFileSync(
+  new URL("../src/lib/actions.ts", import.meta.url),
+  "utf8",
+);
+const legacyWahaQrRoute = new URL(
+  "../src/app/api/waha/qr/route.ts",
+  import.meta.url,
+);
+const legacyWahaQrComponent = new URL(
+  "../src/components/WahaQr.tsx",
+  import.meta.url,
 );
 const layoutSource = readFileSync(
   new URL("../src/app/(staff)/layout.tsx", import.meta.url),
@@ -56,6 +68,33 @@ test("fixture Settings awaits the isolated legacy renderer before returning raw 
   assert.match(
     legacySource,
     /export async function renderLegacySettingsPage\(/,
+  );
+});
+
+test("fixture Settings cannot configure a competing WAHA session or webhook", () => {
+  assert.match(legacySource, /data-testid="legacy-waha-server-managed"/);
+  assert.match(legacySource, /evo-inbox/);
+  assert.match(
+    legacySource,
+    /\/api\/internal\/platform-messaging\/waha\/events/,
+  );
+  assert.doesNotMatch(
+    legacySource,
+    /name="(?:wa_(?:provider|token|phone_id|verify_token|app_secret)|waha_(?:account_name|base_url|session_name|webhook_url|api_key|webhook_secret)|lead_agent_sync_secret)"/,
+  );
+  assert.doesNotMatch(
+    legacySource,
+    /startWahaSessionAction|<WahaQr|crm_primary|evo-lead-agent:8000\/webhooks\/waha/,
+  );
+});
+
+test("current main contains no legacy WAHA QR or SQLite session control path", () => {
+  assert.equal(existsSync(legacyWahaQrRoute), false);
+  assert.equal(existsSync(legacyWahaQrComponent), false);
+  assert.doesNotMatch(actionsSource, /startWahaSessionAction|upsertWahaAccount/);
+  assert.doesNotMatch(
+    actionsSource,
+    /"(?:wa_(?:provider|token|phone_id|verify_token|app_secret)|waha_(?:account_name|base_url|session_name|webhook_url|api_key|webhook_secret)|lead_agent_sync_secret)"/,
   );
 });
 

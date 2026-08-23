@@ -86,7 +86,7 @@ test("accepts only complete outbound public ACK pairs", () => {
   );
 });
 
-test("normalizes only the bounded current WAHA session health tuple", () => {
+test("normalizes only the canonical current WAHA session health tuple", () => {
   assert.deepEqual(
     normalizePlatformWahaSessionHealth({
       waha_session_name: "evo-inbox",
@@ -99,20 +99,8 @@ test("normalizes only the bounded current WAHA session health tuple", () => {
       observedAt: "2026-08-10T08:01:00Z",
     },
   );
-  assert.deepEqual(
-    normalizePlatformWahaSessionHealth({
-      waha_session_name: "crm_primary",
-      status: "WORKING",
-      observed_at: "2026-08-10T08:02:00Z",
-    }),
-    {
-      sessionName: "crm_primary",
-      status: "WORKING",
-      observedAt: "2026-08-10T08:02:00Z",
-    },
-  );
-
   for (const malformed of [
+    { waha_session_name: "crm_primary", status: "WORKING", observed_at: "2026-08-10T08:02:00Z" },
     { waha_session_name: "other", status: "WORKING", observed_at: "2026-08-10T08:01:00Z" },
     { waha_session_name: "evo-inbox", status: "working", observed_at: "2026-08-10T08:01:00Z" },
     { waha_session_name: "evo-inbox", status: "WORKING", observed_at: "invalid" },
@@ -203,7 +191,7 @@ test("uses a private invalidation-only Realtime channel with reconnect fallback 
   assert.match(repository, /p_waha_session_name: requestedSessionName/);
   assert.match(
     threadPage,
-    /getPlatformWahaSessionHealth\(\s*actor,\s*thread\.conversation\.wahaSessionName,?\s*\)/,
+    /thread\.conversation\.wahaSessionName === "evo-inbox"[\s\S]*getPlatformWahaSessionHealth\(\s*actor,\s*"evo-inbox",?\s*\)[\s\S]*Promise\.resolve\(null\)/,
   );
   assert.ok(
     threadPage.lastIndexOf("getPlatformWahaSessionHealth(") >

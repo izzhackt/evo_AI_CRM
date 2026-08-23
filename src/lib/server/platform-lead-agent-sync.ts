@@ -9,6 +9,9 @@ import {
   type PlatformLeadAgentSyncConfig,
 } from "./platform-lead-agent-sync-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import { PLATFORM_WAHA_SESSION_NAME } from "./platform-waha-ingress-config.ts";
+
+const PLATFORM_WAHA_PROVIDER_ACCOUNT_REF = `waha:${PLATFORM_WAHA_SESSION_NAME}` as const;
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -122,7 +125,7 @@ function normalizeInput(input: PlatformLeadAgentSyncInput) {
   const providerOccurredAt = isoTimestamp(input.providerOccurredAt);
   const payloadSha256 = text(input.payloadSha256, 64).toLowerCase();
   if (
-    session !== "crm_primary" ||
+    session !== PLATFORM_WAHA_SESSION_NAME ||
     !CHAT_ID_PATTERN.test(chatId) ||
     !SHA256_PATTERN.test(payloadSha256)
   ) {
@@ -149,7 +152,7 @@ function normalizeSessionStatusInput(input: PlatformLeadAgentSessionStatusInput)
   const providerOccurredAt = isoTimestamp(input.providerOccurredAt);
   const payloadSha256 = text(input.payloadSha256, 64).toLowerCase();
   if (
-    session !== "crm_primary" ||
+    session !== PLATFORM_WAHA_SESSION_NAME ||
     !SESSION_STATUS_PATTERN.test(status) ||
     !SHA256_PATTERN.test(payloadSha256)
   ) {
@@ -195,7 +198,10 @@ function normalizeProjectedSessionStatus(value: unknown): ProjectedSessionStatus
     128,
   );
   const status = text(row.status, 64);
-  if (wahaSessionName !== "crm_primary" || !SESSION_STATUS_PATTERN.test(status)) {
+  if (
+    wahaSessionName !== PLATFORM_WAHA_SESSION_NAME ||
+    !SESSION_STATUS_PATTERN.test(status)
+  ) {
     return fail();
   }
   return Object.freeze({
@@ -295,7 +301,7 @@ export async function syncPlatformLeadAgentWhatsApp(
 
   const persisted = await repository.persistVerifiedEvent({
     organizationId: config.organizationId,
-    providerAccountRef: "waha:crm_primary",
+    providerAccountRef: PLATFORM_WAHA_PROVIDER_ACCOUNT_REF,
     providerRequestId: `lead-agent:${input.providerMessageId}`,
     sessionName: input.session,
     payloadId: input.providerMessageId,
@@ -353,7 +359,7 @@ export async function syncPlatformLeadAgentSessionStatus(
 
   const persisted = await repository.persistVerifiedEvent({
     organizationId: config.organizationId,
-    providerAccountRef: "waha:crm_primary",
+    providerAccountRef: PLATFORM_WAHA_PROVIDER_ACCOUNT_REF,
     providerRequestId: `lead-agent-session:${eventIdentity}`,
     sessionName: input.session,
     payloadId: eventIdentity,

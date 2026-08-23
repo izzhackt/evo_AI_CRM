@@ -185,6 +185,10 @@ const platformManualSendWahaProvisioningMigration = readFileSync(
   join(migrationsDir, '081_platform_manual_send_waha_provisioning.sql'),
   'utf8'
 );
+const platformWahaSessionAuthorityMigration = readFileSync(
+  join(migrationsDir, '082_platform_waha_session_authority.sql'),
+  'utf8'
+);
 const platformOperationalSignalsAuthorizationTest = readFileSync(
   fileURLToPath(
     new URL(
@@ -422,7 +426,16 @@ function p7aAllowlist(functionName: string): Set<string> {
 describe('Unified EVO Supabase schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '081_platform_manual_send_waha_provisioning.sql'
+      '082_platform_waha_session_authority.sql'
+    );
+    expect(platformWahaSessionAuthorityMigration).toMatch(
+      /provider_account_ref <> 'waha:evo-inbox'/
+    );
+    expect(platformWahaSessionAuthorityMigration).toMatch(
+      /p_waha_session_name <> 'evo-inbox'/
+    );
+    expect(platformWahaSessionAuthorityMigration).not.toMatch(
+      /UPDATE\s+(?:platform\.)?waha_session_health[\s\S]*crm_primary/i
     );
     for (const rpc of [
       'staff_student_case_page',

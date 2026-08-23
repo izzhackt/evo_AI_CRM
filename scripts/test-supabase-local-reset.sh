@@ -1197,10 +1197,10 @@ if ! run_with_deadline 300000 bash \
 fi
 
 if ! run_with_deadline 300000 bash \
-  "${REPO_ROOT}/scripts/test-p8v-runtime.sh" \
+  "${REPO_ROOT}/scripts/test-p8r6-runtime.sh" \
   "${DATABASE_CONTAINER}" \
   "postgres"; then
-  fail "Real local P8V ingress/manual-send transactional gate failed."
+  fail "Real local P8R6 ingress/manual-send transactional gate failed."
 fi
 
 post_queue_reset_exit_code=0

@@ -627,8 +627,11 @@ curl -fsS --max-time 20 -o /dev/null \
   https://evo-crm.72.62.119.112.sslip.io/login
 ```
 
-A healthy WAHA process does not mean the `crm_primary` session is authenticated.
-Session state must be checked separately without printing session credentials.
+A healthy WAHA process does not prove that the canonical `evo-inbox` session is
+authenticated. Before a separately authorized ownership cutover, inspect that
+exact session without printing credentials and require its provider status to
+be `WORKING`. A retained `crm_primary` session is rollback/historical evidence
+only and must not satisfy the forward release gate.
 
 ### 8.2 CRM lead-agent
 

@@ -7,6 +7,17 @@ umask 077
 
 readonly DATABASE_CONTAINER="${1:?database container name is required}"
 readonly DATABASE_NAME="${2:?database name is required}"
+readonly WAHA_SESSION_NAME="${3:-crm_primary}"
+readonly GATE_LABEL="${4:-P8V}"
+
+case "${WAHA_SESSION_NAME}" in
+  crm_primary|evo-inbox) ;;
+  *)
+    printf 'Unsupported disposable WAHA session evidence: %s\n' \
+      "${WAHA_SESSION_NAME}" >&2
+    exit 2
+    ;;
+esac
 
 # P8V V1 extends the migration-045 queue fixture after migration 077 exists.
 # Exercise the real SQL functions transactionally so compilation alone cannot
@@ -16,10 +27,16 @@ docker exec -i "${DATABASE_CONTAINER}" \
   -X \
   -q \
   -v ON_ERROR_STOP=1 \
+  -v waha_session_name="${WAHA_SESSION_NAME}" \
   -U postgres \
   -d "${DATABASE_NAME}" <<'SQL'
 BEGIN;
 SET CONSTRAINTS ALL DEFERRED;
+SELECT pg_catalog.set_config(
+  'evo.test_waha_session_name',
+  :'waha_session_name',
+  TRUE
+);
 
 INSERT INTO platform.membership_scope_assignments (
   organization_id, membership_id, scope_id, scope_version,
@@ -42,11 +59,12 @@ INSERT INTO platform_private.provider_webhook_events (
 ) VALUES (
   '45997000-0000-4000-8000-000000000002',
   '45990000-0000-4000-8000-000000000001',
-  'waha', 'waha:crm_primary', 'p8v-signed-request', 'crm_primary',
+  'waha', 'waha:' || :'waha_session_name',
+  'p8v-signed-request', :'waha_session_name',
   'p8v-message-1', 'message.any', '2026-08-18T00:00:00Z', 'verified',
   jsonb_build_object(
     'event', 'message.any',
-    'session', 'crm_primary',
+    'session', :'waha_session_name',
     'payload', jsonb_build_object(
       'id', 'p8v-message-1',
       'timestamp', 1787011200,
@@ -125,7 +143,8 @@ BEGIN
 
   IF (SELECT count(*) FROM platform.communication_conversations
       WHERE organization_id = '45990000-0000-4000-8000-000000000001'
-        AND waha_session_name = 'crm_primary'
+        AND waha_session_name =
+          pg_catalog.current_setting('evo.test_waha_session_name')
         AND amocrm_account_id = 990001
         AND amocrm_lead_id = 990101
         AND amocrm_contact_id = 990201) <> 1
@@ -200,4 +219,5 @@ SET CONSTRAINTS ALL IMMEDIATE;
 ROLLBACK;
 SQL
 
-printf 'Verified transactional P8V Lead-Agent ingress, amoCRM identity, private provider binding, audit, deduplication and no-authority manual claim replay.\n'
+printf 'Verified transactional %s Lead-Agent ingress, amoCRM identity, private provider binding, audit, deduplication and no-authority manual claim replay.\n' \
+  "${GATE_LABEL}"

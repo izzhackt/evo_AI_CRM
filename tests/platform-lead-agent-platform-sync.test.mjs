@@ -47,7 +47,7 @@ function environment(overrides = {}) {
 
 function input(overrides = {}) {
   return {
-    session: "crm_primary",
+    session: "evo-inbox",
     providerMessageId: "waha-message-1",
     chatId: "996555123456@c.us",
     bodyText: "Safe synthetic inbound",
@@ -63,7 +63,7 @@ function input(overrides = {}) {
 
 function sessionStatusInput(overrides = {}) {
   return {
-    session: "crm_primary",
+    session: "evo-inbox",
     status: "WORKING",
     phone: "996555123456",
     providerOccurredAt: "2026-08-18T02:30:00.000Z",
@@ -149,8 +149,8 @@ test("signed Lead-Agent sync persists verified evidence before idempotent projec
 
   assert.deepEqual(result, { enabled: true, deduplicated: false });
   assert.deepEqual(calls.map(([name]) => name), ["persist", "project"]);
-  assert.equal(calls[0][1].sessionName, "crm_primary");
-  assert.equal(calls[0][1].providerAccountRef, "waha:crm_primary");
+  assert.equal(calls[0][1].sessionName, "evo-inbox");
+  assert.equal(calls[0][1].providerAccountRef, "waha:evo-inbox");
   assert.equal(calls[0][1].eventType, "message.any");
   assert.equal(calls[1][1].providerWebhookEventId, EVENT_ID);
   assert.equal(calls[1][1].amoAccountId, 101);
@@ -168,7 +168,7 @@ test("signed Lead-Agent session health uses verified evidence and canonical proj
     async projectSessionStatusEvent(value) {
       calls.push(["project-session", value]);
       return {
-        wahaSessionName: "crm_primary",
+        wahaSessionName: "evo-inbox",
         status: "WORKING",
         observedAt: "2026-08-18T02:30:00.000Z",
         currentStateUpdated: true,
@@ -187,16 +187,16 @@ test("signed Lead-Agent session health uses verified evidence and canonical proj
   });
 
   assert.deepEqual(result, {
-    wahaSessionName: "crm_primary",
+    wahaSessionName: "evo-inbox",
     status: "WORKING",
     observedAt: "2026-08-18T02:30:00.000Z",
     currentStateUpdated: true,
     deduplicated: false,
   });
   assert.deepEqual(calls.map(([name]) => name), ["persist", "project-session"]);
-  assert.equal(calls[0][1].providerAccountRef, "waha:crm_primary");
+  assert.equal(calls[0][1].providerAccountRef, "waha:evo-inbox");
   assert.equal(calls[0][1].eventType, "session.status");
-  assert.equal(calls[0][1].rawPayload.payload.name, "crm_primary");
+  assert.equal(calls[0][1].rawPayload.payload.name, "evo-inbox");
   assert.equal(calls[0][1].rawPayload.payload.status, "WORKING");
   assert.equal(calls[1][1].providerWebhookEventId, EVENT_ID);
 });
@@ -213,7 +213,7 @@ test("invalid canonical identity blocks before any database write", async () => 
     },
   };
   for (const invalid of [
-    input({ session: "evo-inbox" }),
+    input({ session: "crm_primary" }),
     input({ chatId: "group@g.us" }),
     input({ amoAccountId: null }),
     input({ amoContactId: 0 }),
@@ -230,7 +230,7 @@ test("invalid canonical identity blocks before any database write", async () => 
   assert.equal(calls.length, 0);
 });
 
-test("migration binds crm_primary source evidence, amoCRM identity and audit", async () => {
+test("historical migration 077 binds its original crm_primary evidence", async () => {
   const migration = await readFile(MIGRATION_URL, "utf8");
   assert.match(migration, /CREATE OR REPLACE FUNCTION platform\.sync_lead_agent_whatsapp\(/);
   assert.match(migration, /provider_account_ref <> 'waha:crm_primary'/);
@@ -241,7 +241,7 @@ test("migration binds crm_primary source evidence, amoCRM identity and audit", a
   assert.match(migration, /REVOKE ALL ON FUNCTION platform\.sync_lead_agent_whatsapp/);
 });
 
-test("unified migration projects crm_primary session health into the canonical model", async () => {
+test("historical migration 079 preserves its original crm_primary projection", async () => {
   const migration = await readFile(UNIFIED_MIGRATION_URL, "utf8");
   assert.match(
     migration,

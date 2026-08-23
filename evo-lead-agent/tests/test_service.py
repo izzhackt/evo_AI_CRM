@@ -17,7 +17,7 @@ def _settings(tmp_path: Path) -> Settings:
         database_path=tmp_path / "agent.db",
         waha_base_url=None,
         waha_api_key=None,
-        waha_session_name="crm_primary",
+        waha_session_name="evo-inbox",
         waha_webhook_secret="secret",
         amo_account_base_url=None,
         amo_client_id=None,
@@ -45,6 +45,43 @@ def _settings(tmp_path: Path) -> Settings:
 
 
 @pytest.mark.asyncio
+async def test_service_rejects_noncanonical_session_before_side_effects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ForbiddenProvider:
+        def __init__(self, *args, **kwargs) -> None:
+            raise AssertionError("noncanonical session must block before external clients")
+
+    monkeypatch.setattr(service_module, "AmoCrmClient", ForbiddenProvider)
+    monkeypatch.setattr(service_module, "EvoCrmSyncClient", ForbiddenProvider)
+    settings = replace(_settings(tmp_path), waha_session_name="evo-inbox")
+    service = LeadAgentService(settings=settings, store=Store(settings.database_path))
+
+    result = await service.handle_waha_payload(
+        {
+            "event": "message",
+            "session": "crm_primary",
+            "payload": {
+                "id": "legacy-session-message",
+                "from": "996700111222@c.us",
+                "fromMe": True,
+                "body": "must not be processed",
+                "timestamp": 1_750_000_000,
+            },
+        }
+    )
+
+    assert result == {
+        "accepted": False,
+        "ignored": True,
+        "reason": "noncanonical_waha_session",
+    }
+    with service.store._connect() as connection:
+        assert connection.execute("select count(*) from messages").fetchone()[0] == 0
+
+
+@pytest.mark.asyncio
 async def test_missing_timestamp_redelivery_is_stably_rejected_before_side_effects(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -58,7 +95,7 @@ async def test_missing_timestamp_redelivery_is_stably_rejected_before_side_effec
     service = LeadAgentService(settings=_settings(tmp_path), store=Store(tmp_path / "agent.db"))
     payload = {
         "event": "message",
-        "session": "crm_primary",
+        "session": "evo-inbox",
         "payload": {
             "id": "waha-msg-without-timestamp",
             "from": "996700111222@c.us",
@@ -99,7 +136,7 @@ async def test_invalid_provider_timestamp_blocks_before_side_effects(
     result = await service.handle_waha_payload(
         {
             "event": "message",
-            "session": "crm_primary",
+            "session": "evo-inbox",
             "payload": {
                 "id": "waha-msg-invalid-timestamp",
                 "from": "996700111222@c.us",
@@ -162,7 +199,7 @@ async def test_frozen_service_rejects_manual_buffer_processing_before_provider_c
     )
     store = Store(tmp_path / "agent.db")
     queued = InboundMessage(
-        session="crm_primary",
+        session="evo-inbox",
         provider_message_id="queued-before-freeze",
         phone="+996700111222",
         chat_id="996700111222@c.us",
@@ -191,7 +228,7 @@ async def test_service_reports_missing_amo_for_realistic_waha_payload(tmp_path: 
     result = await service.handle_waha_payload(
         {
             "event": "message",
-            "session": "crm_primary",
+            "session": "evo-inbox",
             "payload": {
                 "id": "waha-msg-1",
                 "from": "996700111222@c.us",
@@ -217,7 +254,7 @@ async def test_service_retryable_buffer_retries_without_fresh_inbound(tmp_path: 
     first = await service.handle_waha_payload(
         {
             "event": "message",
-            "session": "crm_primary",
+            "session": "evo-inbox",
             "payload": {
                 "id": "waha-msg-retry-1",
                 "from": "996700111222@c.us",
@@ -244,7 +281,7 @@ async def test_service_later_inbound_joins_retryable_buffer(tmp_path: Path) -> N
     await service.handle_waha_payload(
         {
             "event": "message",
-            "session": "crm_primary",
+            "session": "evo-inbox",
             "payload": {
                 "id": "waha-msg-retry-1",
                 "from": "996700111222@c.us",
@@ -257,7 +294,7 @@ async def test_service_later_inbound_joins_retryable_buffer(tmp_path: Path) -> N
     second = await service.handle_waha_payload(
         {
             "event": "message",
-            "session": "crm_primary",
+            "session": "evo-inbox",
             "payload": {
                 "id": "waha-msg-retry-2",
                 "from": "996700111222@c.us",
@@ -300,7 +337,7 @@ async def test_service_webhook_receipt_queues_without_external_io(
     result = await service.handle_waha_payload(
         {
             "event": "message",
-            "session": "crm_primary",
+            "session": "evo-inbox",
             "payload": {
                 "id": "waha-msg-fast-return",
                 "from": "996700111222@c.us",
@@ -338,14 +375,14 @@ async def test_service_syncs_session_status_to_crm(tmp_path: Path, monkeypatch: 
     result = await service.handle_waha_payload(
         {
             "event": "session.status",
-            "session": "crm_primary",
+            "session": "evo-inbox",
             "payload": {"status": "WORKING"},
             "me": {"id": "996700111222@c.us"},
         }
     )
 
     assert result == {"accepted": True, "session_status": "WORKING", "crm_sync": "delivered"}
-    assert calls == [{"session": "crm_primary", "status": "WORKING", "phone": "+996700111222"}]
+    assert calls == [{"session": "evo-inbox", "status": "WORKING", "phone": "+996700111222"}]
 
 
 @pytest.mark.asyncio
@@ -430,7 +467,7 @@ async def test_service_passes_knowledge_matches_to_decision(tmp_path: Path, monk
     result = await service.handle_waha_payload(
         {
             "event": "message",
-            "session": "crm_primary",
+            "session": "evo-inbox",
             "payload": {
                 "id": "waha-msg-docs",
                 "from": "996700111222@c.us",
@@ -523,7 +560,7 @@ async def test_service_retries_no_outbound_buffer_when_crm_sync_fails(
     result = await service.handle_waha_payload(
         {
             "event": "message",
-            "session": "crm_primary",
+            "session": "evo-inbox",
             "payload": {
                 "id": "waha-msg-crm-fail",
                 "from": "996700111222@c.us",
@@ -619,7 +656,7 @@ async def test_service_does_not_commit_lead_facts_when_reply_sent_crm_sync_fails
     result = await service.handle_waha_payload(
         {
             "event": "message",
-            "session": "crm_primary",
+            "session": "evo-inbox",
             "payload": {
                 "id": "waha-msg-outbound-crm-fail",
                 "from": "996700111222@c.us",
@@ -658,7 +695,7 @@ async def test_service_processes_buffered_messages_as_one_agent_turn(
     store = Store(settings.database_path)
     messages = [
         InboundMessage(
-            session="crm_primary",
+            session="evo-inbox",
             provider_message_id="msg-1",
             phone="+996700111222",
             chat_id="996700111222@c.us",
@@ -666,7 +703,7 @@ async def test_service_processes_buffered_messages_as_one_agent_turn(
             timestamp=1720000000,
         ),
         InboundMessage(
-            session="crm_primary",
+            session="evo-inbox",
             provider_message_id="msg-2",
             phone="+996700111222",
             chat_id="996700111222@c.us",
@@ -747,7 +784,7 @@ async def test_service_claims_due_buffer_once_for_concurrent_processors(
     )
     store = Store(settings.database_path)
     message = InboundMessage(
-        session="crm_primary",
+        session="evo-inbox",
         provider_message_id="msg-concurrent",
         phone="+996700111222",
         chat_id="996700111222@c.us",
@@ -794,7 +831,7 @@ async def test_service_releases_claimed_buffer_after_processing_exception(
     )
     store = Store(settings.database_path)
     message = InboundMessage(
-        session="crm_primary",
+        session="evo-inbox",
         provider_message_id="msg-exception",
         phone="+996700111222",
         chat_id="996700111222@c.us",
@@ -837,7 +874,7 @@ async def test_service_agent_mode_disabled_skips_ai_and_syncs_state(
     )
     store = Store(settings.database_path)
     message = InboundMessage(
-        session="crm_primary",
+        session="evo-inbox",
         provider_message_id="waha-msg-paused",
         phone="+996700111222",
         chat_id="996700111222@c.us",

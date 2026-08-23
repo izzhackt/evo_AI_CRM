@@ -10,7 +10,7 @@ from typing import Any
 
 from .agent import decide_reply
 from .amo import AmoCrmClient
-from .config import Settings
+from .config import PLATFORM_WAHA_SESSION_NAME, Settings
 from .evo_crm import EvoCrmSyncClient
 from .phone import phone_from_waha_chat_id
 from .schemas import AgentDecision, EvoCrmSyncPayload, InboundMessage
@@ -37,6 +37,15 @@ class LeadAgentService:
     async def handle_waha_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         if self.settings.frozen:
             return {"accepted": False, "ignored": True, "reason": "lead_agent_frozen"}
+        if (
+            self.settings.waha_session_name != PLATFORM_WAHA_SESSION_NAME
+            or payload.get("session") != PLATFORM_WAHA_SESSION_NAME
+        ):
+            return {
+                "accepted": False,
+                "ignored": True,
+                "reason": "noncanonical_waha_session",
+            }
         event = payload.get("event")
         if event == "session.status":
             return await self._sync_session_status(payload)

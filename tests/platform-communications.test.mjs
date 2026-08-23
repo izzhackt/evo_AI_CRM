@@ -272,9 +272,9 @@ test("accepts only complete deterministic communication cursors", () => {
   );
 });
 
-test("accepts only the two unified WAHA session names", () => {
+test("accepts only the canonical current WAHA session name", () => {
   assert.equal(parsePlatformWahaSessionName("evo-inbox"), "evo-inbox");
-  assert.equal(parsePlatformWahaSessionName("crm_primary"), "crm_primary");
+  assert.equal(parsePlatformWahaSessionName("crm_primary"), null);
   assert.equal(parsePlatformWahaSessionName(" evo-inbox "), null);
   assert.equal(parsePlatformWahaSessionName("other"), null);
   assert.equal(parsePlatformWahaSessionName(undefined), null);

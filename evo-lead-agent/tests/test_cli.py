@@ -6,7 +6,6 @@ import pytest
 
 from evo_lead_agent.cli import (
     build_smoke_waha_payload,
-    build_waha_session_payload,
     draft_knowledge_entries,
     draft_knowledge_entries_from_turns,
     draft_knowledge_main,
@@ -224,7 +223,7 @@ def test_cli_env_audit_reports_missing_config_without_secret_values(
     assert output["ready"]["waha_setup"] is False
     assert output["ready"]["receive_only_rollout"] is False
     assert "EVO_AGENT_ADMIN_API_KEY" in output["missing"]["local_smoke"]
-    assert "EVO_AGENT_WAHA_WEBHOOK_URL" in output["missing"]["waha_setup"]
+    assert output["missing"]["waha_setup"] == ["lead_agent_waha_setup_retired"]
     assert "EVO_AGENT_ADMIN_API_KEY" in output["missing"]["receive_only_rollout"]
     assert "EVO_AGENT_AMO_CLIENT_ID" in output["missing"]["live_preflight"]
     assert "GEMINI_API_KEY or GOOGLE_API_KEY or EVO_AGENT_GEMINI_API_KEY" in output["missing"]["live_preflight"]
@@ -279,10 +278,12 @@ def test_cli_env_audit_passes_receive_only_preflight_without_enabling_outbound(
     assert output["ok"] is True
     assert output["knowledge_count"] == 1
     assert output["ready"]["live_preflight"] is True
+    assert output["ready"]["waha_setup"] is False
     assert output["ready"]["ai_decision_review"] is True
     assert output["ready"]["receive_only_rollout"] is True
     assert output["ready"]["live_whatsapp_outbound"] is False
     assert output["missing"]["live_preflight"] == []
+    assert output["missing"]["waha_setup"] == ["lead_agent_waha_setup_retired"]
     assert output["missing"]["ai_decision_review"] == []
     assert output["missing"]["receive_only_rollout"] == []
     assert output["missing"]["live_whatsapp_outbound"] == ["EVO_AGENT_OUTBOUND_ENABLED=true"]
@@ -435,289 +436,43 @@ def test_cli_builds_waha_smoke_payload() -> None:
         phone="+996 700 111 222",
         message="Здравствуйте",
         provider_message_id="smoke-1",
-        session="crm_primary",
     )
 
     assert payload["event"] == "message"
-    assert payload["session"] == "crm_primary"
+    assert payload["session"] == "evo-inbox"
     assert payload["payload"]["id"] == "smoke-1"
     assert payload["payload"]["from"] == "996700111222@c.us"
     assert payload["payload"]["fromMe"] is False
     assert payload["payload"]["body"] == "Здравствуйте"
 
-
-def test_cli_builds_waha_session_payload() -> None:
-    payload = build_waha_session_payload(
-        session="crm_primary",
-        webhook_url="http://host.docker.internal:8088/webhooks/waha",
-        webhook_secret="webhook-secret",
-        events=["message", "session.status"],
-    )
-
-    assert payload == {
-        "name": "crm_primary",
-        "start": True,
-        "config": {
-            "webhooks": [
-                {
-                    "url": "http://host.docker.internal:8088/webhooks/waha",
-                    "events": ["message", "session.status"],
-                    "hmac": {"key": "webhook-secret"},
-                    "retries": {
-                        "policy": "linear",
-                        "delaySeconds": 2,
-                        "attempts": 4,
-                    },
-                }
-            ]
-        },
-    }
+    with pytest.raises(ValueError, match="session_must_be_exactly_evo-inbox"):
+        build_smoke_waha_payload(
+            phone="+996 700 111 222",
+            message="legacy session",
+            provider_message_id="smoke-legacy",
+            session="crm_primary",
+        )
 
 
-def test_cli_waha_session_payload_respects_no_start_and_required_events() -> None:
-    payload = build_waha_session_payload(
-        session="crm_primary",
-        webhook_url="http://host.docker.internal:8088/webhooks/waha",
-        webhook_secret="webhook-secret",
-        events=["message"],
-        start=False,
-    )
-
-    assert payload["start"] is False
-    assert payload["config"]["webhooks"][0]["events"] == ["message", "session.status"]
-
-
-def test_cli_waha_setup_configures_starts_and_saves_qr_without_leaking_secrets(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
+def test_cli_waha_setup_is_retired_without_calling_waha(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    calls: list[tuple[str, str, dict[str, object] | None]] = []
-    qr_output = tmp_path / "qr.png"
-
-    class FakeClient:
-        def __enter__(self) -> "FakeClient":
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def get(self, url: str, headers: dict[str, str] | None = None) -> httpx.Response:
-            assert headers is not None
-            assert headers["X-Api-Key"] == "waha-key"
-            if url.endswith("/api/sessions/crm_primary"):
-                calls.append(("GET", url, None))
-                return httpx.Response(404, json={"error": "not_found"})
-            if url.endswith("/api/crm_primary/auth/qr"):
-                calls.append(("GET", url, None))
-                return httpx.Response(200, content=b"\x89PNG\r\n")
-            raise AssertionError(url)
-
-        def post(
-            self,
-            url: str,
-            content: bytes | None = None,
-            json: dict[str, object] | None = None,  # noqa: A002
-            headers: dict[str, str] | None = None,
-        ) -> httpx.Response:
-            assert content is None
-            assert headers is not None
-            assert headers["X-Api-Key"] == "waha-key"
-            calls.append(("POST", url, json))
-            return httpx.Response(201 if url.endswith("/api/sessions/") else 200, json={"name": "crm_primary"})
-
-    monkeypatch.setattr("evo_lead_agent.cli.httpx.Client", lambda timeout: FakeClient())
-
-    exit_code = waha_setup_main(
-        [
-            "--base-url",
-            "http://waha.internal",
-            "--api-key",
-            "waha-key",
-            "--session",
-            "crm_primary",
-            "--webhook-url",
-            "http://host.docker.internal:8088/webhooks/waha",
-            "--webhook-secret",
-            "webhook-secret",
-            "--qr-output",
-            str(qr_output),
-        ]
+    monkeypatch.setattr(
+        "evo_lead_agent.cli.httpx.Client",
+        lambda *_args, **_kwargs: pytest.fail("retired setup must not create a WAHA client"),
     )
-    output_text = capsys.readouterr().out
-    output = json.loads(output_text)
 
-    assert exit_code == 0
-    assert output["ok"] is True
-    assert output["configure"] == {"action": "created", "ok": True, "status_code": 201}
-    assert output["start"] == {"requested": True, "ok": True, "status_code": 200}
-    assert output["qr"]["saved"] == str(qr_output)
-    assert qr_output.read_bytes() == b"\x89PNG\r\n"
-    assert "waha-key" not in output_text
-    assert "webhook-secret" not in output_text
-    assert "host.docker.internal" not in output_text
-    assert calls[1][2] is not None
-    assert calls[1][2]["start"] is True
-    assert calls[1][2]["config"]["webhooks"][0]["events"] == ["message", "session.status"]
-
-
-def test_cli_waha_setup_no_start_is_sent_on_create(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    posted: list[dict[str, object]] = []
-
-    class FakeClient:
-        def __enter__(self) -> "FakeClient":
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def get(self, url: str, headers: dict[str, str] | None = None) -> httpx.Response:
-            return httpx.Response(404, json={"error": "not_found"})
-
-        def post(
-            self,
-            url: str,
-            content: bytes | None = None,
-            json: dict[str, object] | None = None,  # noqa: A002
-            headers: dict[str, str] | None = None,
-        ) -> httpx.Response:
-            assert json is not None
-            posted.append(json)
-            return httpx.Response(201, json={"name": "crm_primary"})
-
-    monkeypatch.setattr("evo_lead_agent.cli.httpx.Client", lambda timeout: FakeClient())
-
-    exit_code = waha_setup_main(
-        [
-            "--base-url",
-            "http://waha.internal",
-            "--api-key",
-            "waha-key",
-            "--webhook-url",
-            "http://host.docker.internal:8088/webhooks/waha",
-            "--webhook-secret",
-            "webhook-secret",
-            "--events",
-            "message",
-            "--no-start",
-        ]
-    )
-    output = json.loads(capsys.readouterr().out)
-
-    assert exit_code == 0
-    assert output["events"] == ["message", "session.status"]
-    assert output["start"] == {"requested": False, "ok": None, "status_code": None}
-    assert posted[0]["start"] is False
-    assert posted[0]["config"]["webhooks"][0]["events"] == ["message", "session.status"]
-
-
-def test_cli_waha_setup_dry_run_does_not_call_waha(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def fail_client(timeout: float) -> object:
-        raise AssertionError("dry-run must not create an HTTP client")
-
-    monkeypatch.setattr("evo_lead_agent.cli.httpx.Client", fail_client)
-
-    exit_code = waha_setup_main(
-        [
-            "--base-url",
-            "http://waha.internal",
-            "--api-key",
-            "waha-key",
-            "--webhook-url",
-            "http://host.docker.internal:8088/webhooks/waha",
-            "--webhook-secret",
-            "webhook-secret",
-            "--qr-output",
-            "data/waha-qr.png",
-            "--dry-run",
-        ]
-    )
-    output_text = capsys.readouterr().out
-    output = json.loads(output_text)
-
-    assert exit_code == 0
-    assert output["ok"] is True
-    assert output["dry_run"] is True
-    assert output["start"] == {"requested": True}
-    assert output["qr"] == {"requested": True}
-    assert "waha-key" not in output_text
-    assert "webhook-secret" not in output_text
-    assert "host.docker.internal" not in output_text
-
-
-def test_cli_waha_setup_stops_when_session_lookup_fails(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[tuple[str, str]] = []
-
-    class FakeClient:
-        def __enter__(self) -> "FakeClient":
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def get(self, url: str, headers: dict[str, str] | None = None) -> httpx.Response:
-            calls.append(("GET", url))
-            return httpx.Response(401, json={"error": "unauthorized"})
-
-        def post(
-            self,
-            url: str,
-            content: bytes | None = None,
-            json: dict[str, object] | None = None,  # noqa: A002, ARG002
-            headers: dict[str, str] | None = None,
-        ) -> httpx.Response:
-            calls.append(("POST", url))
-            raise AssertionError("setup must not mutate WAHA after failed lookup")
-
-    monkeypatch.setattr("evo_lead_agent.cli.httpx.Client", lambda timeout: FakeClient())
-
-    exit_code = waha_setup_main(
-        [
-            "--base-url",
-            "http://waha.internal",
-            "--api-key",
-            "waha-key",
-            "--webhook-url",
-            "http://host.docker.internal:8088/webhooks/waha",
-            "--webhook-secret",
-            "webhook-secret",
-        ]
-    )
-    output = json.loads(capsys.readouterr().out)
-
-    assert exit_code == 1
-    assert calls == [("GET", "http://waha.internal/api/sessions/crm_primary")]
-    assert output["ok"] is False
-    assert output["configure"] == {
-        "action": "check_session",
-        "ok": False,
-        "status_code": 401,
-        "reason": "session_lookup_failed",
-    }
-
-
-def test_cli_waha_setup_requires_real_waha_config(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("EVO_AGENT_WAHA_WEBHOOK_URL", raising=False)
-
-    exit_code = waha_setup_main([])
+    exit_code = waha_setup_main(["--dry-run", "--pretty"])
     output = json.loads(capsys.readouterr().out)
 
     assert exit_code == 2
-    assert output["ok"] is False
-    assert "EVO_AGENT_WAHA_API_KEY" in output["missing"]
-    assert "EVO_AGENT_WAHA_WEBHOOK_URL or --webhook-url" in output["missing"]
+    assert output == {
+        "error": "lead_agent_waha_setup_retired",
+        "next_action": "configure_server_managed_platform_waha_ingress",
+        "ok": False,
+        "platform_session": "evo-inbox",
+        "platform_webhook_path": "/api/internal/platform-messaging/waha/events",
+    }
 
 
 def test_cli_smoke_waha_webhook_requires_secret(
@@ -768,7 +523,7 @@ def test_cli_smoke_waha_webhook_sends_signed_payload(
             "--secret",
             "webhook-secret",
             "--session",
-            "crm_primary",
+            "evo-inbox",
             "--phone",
             "+996 700 111 222",
             "--message",

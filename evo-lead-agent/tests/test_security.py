@@ -5,7 +5,7 @@ from evo_lead_agent.security import sign_evo_crm_payload, verify_waha_hmac
 
 
 def test_verify_waha_hmac_accepts_valid_sha512_signature() -> None:
-    body = b'{"event":"message","session":"crm_primary"}'
+    body = b'{"event":"message","session":"evo-inbox"}'
     secret = "secret"
     signature = hmac.new(secret.encode(), body, hashlib.sha512).hexdigest()
     assert verify_waha_hmac(body, secret, signature, "sha512")

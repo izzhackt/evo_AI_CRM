@@ -9,7 +9,7 @@ from evo_lead_agent.store import Store
 def test_store_deduplicates_provider_message_id(tmp_path: Path) -> None:
     store = Store(tmp_path / "agent.db")
     message = InboundMessage(
-        session="crm_primary",
+        session="evo-inbox",
         provider_message_id="msg-1",
         phone="+996700111222",
         chat_id="996700111222@c.us",
@@ -135,14 +135,14 @@ def test_store_prefers_newer_knowledge_when_scores_tie(tmp_path: Path) -> None:
 def test_store_buffers_multiple_messages_for_one_scheduled_processor(tmp_path: Path) -> None:
     store = Store(tmp_path / "agent.db")
     first = InboundMessage(
-        session="crm_primary",
+        session="evo-inbox",
         provider_message_id="msg-1",
         phone="+996700111222",
         chat_id="996700111222@c.us",
         text="First question",
     )
     second = InboundMessage(
-        session="crm_primary",
+        session="evo-inbox",
         provider_message_id="msg-2",
         phone="+996700111222",
         chat_id="996700111222@c.us",
@@ -160,14 +160,14 @@ def test_store_buffers_multiple_messages_for_one_scheduled_processor(tmp_path: P
 def test_store_peek_next_due_buffer_does_not_claim_messages(tmp_path: Path) -> None:
     store = Store(tmp_path / "agent.db")
     first = InboundMessage(
-        session="crm_primary",
+        session="evo-inbox",
         provider_message_id="msg-1",
         phone="+996700111222",
         chat_id="996700111222@c.us",
         text="First question",
     )
     second = InboundMessage(
-        session="crm_primary",
+        session="evo-inbox",
         provider_message_id="msg-2",
         phone="+996700111222",
         chat_id="996700111222@c.us",
@@ -219,7 +219,7 @@ def test_store_drain_schedules_remaining_messages_after_limited_batch(tmp_path: 
     store = Store(tmp_path / "agent.db")
     messages = [
         InboundMessage(
-            session="crm_primary",
+            session="evo-inbox",
             provider_message_id=f"msg-{index:02d}",
             phone="+996700111222",
             chat_id="996700111222@c.us",

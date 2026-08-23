@@ -4518,8 +4518,73 @@ Inbox schema contract passed 32 tests. Root and Inbox typechecks/builds passed;
 root lint passed and Inbox lint completed with seven pre-existing warnings and
 zero errors. The complete local Supabase/Auth/PostgREST/Storage/PGMQ/browser
 gate passed and confirmed 81 contiguous applied migrations. Independent
-correctness review found no high- or medium-severity runtime issue; its only
+correctness review found no high- or medium-severity P8R5 runtime issue; its only
 initial docs concern used UTC instead of the authoritative Asia/Bishkek
-workspace date and did not apply. Exact committed-head review and CI remain
-pending. No managed migration, real secret injection, provider call, WhatsApp
-send, amoCRM write, DNS/TLS change or dedicated security scan was performed.
+workspace date and did not apply. Exact candidate CI run `32607745769` passed
+all four checks and PR #373 merged as
+`4aff8350eb4f2f839cf85f8a138828c913a76356`. No managed migration, real secret
+injection, provider call, WhatsApp send, amoCRM write, DNS/TLS change or
+dedicated security scan was performed.
+
+## P8R6 — One active WAHA session authority (2026-08-23)
+
+Exact post-merge audit on
+`4aff8350eb4f2f839cf85f8a138828c913a76356` found one remaining contradiction:
+the unified ingress, manual-send and autonomous-reply paths use only
+`evo-inbox`, but the signed Lead Agent sync, current Supabase projection and
+operator examples still use `crm_primary`. Because WAHA includes the created
+session name in webhook payloads and session-scoped API paths, treating those
+names as aliases would preserve two runtime truths.
+
+P8R6 makes `evo-inbox` the only accepted forward session and
+`waha:evo-inbox` the only new Lead Agent provider-account reference. Migration
+082 replaces the active message/session-status projection and limits current
+staff health selection to `evo-inbox`, while retaining old `crm_primary` rows
+unchanged as historical provider evidence. Application types may distinguish
+historical provenance from the current runtime session, but no fallback or
+translation may turn legacy evidence into current health.
+
+The Lead Agent runtime/deploy examples and fixture-only legacy settings guidance
+must also name `evo-inbox` and the Platform webhook boundary. The old public CRM
+webhook source remains frozen for the still-running old release and remains
+blocked by connected Platform routing; deleting or switching the real session
+is a later controlled production operation, not part of this repository slice.
+
+Acceptance starts red-first and covers exact session/provider identity,
+`crm_primary` rejection for new sync/current health, replay and grants,
+historical-row preservation, Lead Agent emitted payloads and source/config
+guidance. It then requires the disposable Postgres and full local Supabase
+gates, ordinary unit and Lead Agent tests, typechecks, lints, builds,
+independent review and exact-SHA CI.
+
+No production session/webhook mutation, managed migration, real credential,
+provider request, WhatsApp send, amoCRM write, autonomous activation, DNS/TLS
+work or dedicated security scan is authorized. A later cutover must inspect
+both per-session and global `WHATSAPP_HOOK_*` webhooks, retain HMAC verification
+and require the canonical session to report `session.status=WORKING` before
+ownership changes.
+
+Research basis: [WAHA sessions](https://waha.devlike.pro/docs/how-to/sessions/),
+[WAHA events](https://waha.dev/docs/how-to/events/),
+[WAHA security](https://waha.dev/docs/how-to/security/), and
+[WAHA quick start](https://waha.dev/docs/overview/quick-start/).
+
+Implementation evidence: migration 082 and its acceptance test enforce exact
+`evo-inbox` / `waha:evo-inbox` forward evidence and preserve old
+`crm_primary` rows only as unchanged provenance. Current TypeScript, the frozen
+Lead Agent, deploy examples and the release runbook now share that authority;
+the dormant legacy QR/session-start/secret-write controls were removed rather
+than retained as a compatibility path. A red-first source-contract test also
+separates immutable migration-077 `crm_primary` evidence from the current-tip
+P8R6 wrapper, which explicitly selects `evo-inbox`; both fresh-reset boundaries
+now pass without treating the historical name as current authority.
+
+Final local proof passed a fresh `001-082` Postgres authorization harness, the
+complete local Supabase/Auth/RLS/Storage/Realtime/browser gate, 653 root unit
+tests, 842 Inbox tests plus 32 schema-contract tests, 126 Lead Agent tests,
+root/Inbox typechecks, lints and builds, Lead Agent Ruff, safe Compose rendering
+and independent correctness/release review with no remaining high or medium
+finding. This is repository/disposable-local evidence only. Exact-head CI and
+merge remain mandatory; no managed migration, real provider/session/webhook,
+WhatsApp, amoCRM, autonomous, deployment, DNS/TLS or security-scan action was
+performed.

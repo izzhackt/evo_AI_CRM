@@ -1402,6 +1402,15 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_manual_send_waha_runtime_current.sql
   fi
+
+  # Migration 081 adds the supported service-only Vault provisioning and
+  # non-secret readiness boundary. Exercise it at the exact schema tip so a
+  # later migration cannot mask RPC, replay, grant or redaction drift.
+  if [[ "$(basename "$migration")" == 081_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_manual_send_waha_provisioning_current.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

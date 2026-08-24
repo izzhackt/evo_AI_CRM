@@ -159,6 +159,95 @@ EXCEPTION
 END
 $$;
 
+CREATE OR REPLACE FUNCTION pg_temp.u4_traverse_filtered_leads(
+  p_query TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  cursor_updated_at TIMESTAMPTZ;
+  cursor_lead_id UUID;
+  previous_updated_at TIMESTAMPTZ;
+  previous_lead_id UUID;
+  page_row RECORD;
+  page_rows INTEGER;
+  page_count INTEGER := 0;
+  first_page_rows INTEGER;
+  last_page_rows INTEGER := 0;
+  total_seen BIGINT := 0;
+  distinct_seen BIGINT;
+  mismatched_rows BIGINT := 0;
+  order_violations BIGINT := 0;
+  seen_ids UUID[] := ARRAY[]::UUID[];
+BEGIN
+  LOOP
+    page_rows := 0;
+
+    FOR page_row IN
+      SELECT lead.*
+      FROM platform.staff_sales_lead_page(
+        101,
+        cursor_updated_at,
+        cursor_lead_id,
+        'all',
+        'all',
+        'all',
+        NULL,
+        'all',
+        p_query
+      ) AS lead
+    LOOP
+      page_rows := page_rows + 1;
+      total_seen := total_seen + 1;
+      seen_ids := pg_catalog.array_append(seen_ids, page_row.lead_id);
+
+      IF page_row.source_key <> p_query THEN
+        mismatched_rows := mismatched_rows + 1;
+      END IF;
+
+      IF previous_updated_at IS NOT NULL
+        AND NOT (
+          (previous_updated_at, previous_lead_id)
+            > (page_row.sort_at, page_row.lead_id)
+        )
+      THEN
+        order_violations := order_violations + 1;
+      END IF;
+
+      previous_updated_at := page_row.sort_at;
+      previous_lead_id := page_row.lead_id;
+    END LOOP;
+
+    EXIT WHEN page_rows = 0;
+
+    page_count := page_count + 1;
+    first_page_rows := COALESCE(first_page_rows, page_rows);
+    last_page_rows := page_rows;
+    cursor_updated_at := previous_updated_at;
+    cursor_lead_id := previous_lead_id;
+
+    EXIT WHEN page_rows < 101;
+  END LOOP;
+
+  SELECT pg_catalog.count(DISTINCT seen.lead_id)
+  INTO distinct_seen
+  FROM pg_catalog.unnest(seen_ids) AS seen(lead_id);
+
+  RETURN pg_catalog.jsonb_build_object(
+    'total_seen', total_seen,
+    'distinct_seen', distinct_seen,
+    'page_count', page_count,
+    'first_page_rows', first_page_rows,
+    'last_page_rows', last_page_rows,
+    'mismatched_rows', mismatched_rows,
+    'order_violations', order_violations
+  );
+END
+$$;
+
 CREATE OR REPLACE FUNCTION pg_temp.u4_attempt_mutation(
   p_lead_id UUID,
   p_expected_workflow_version BIGINT,
@@ -391,6 +480,8 @@ GRANT EXECUTE ON FUNCTION pg_temp.u4_assert(BOOLEAN, TEXT)
   TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION pg_temp.u4_attempt_page()
   TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION pg_temp.u4_traverse_filtered_leads(TEXT)
+  TO authenticated;
 GRANT EXECUTE ON FUNCTION pg_temp.u4_attempt_mutation(
   UUID, BIGINT, UUID, TEXT, UUID, TEXT, DATE, BOOLEAN, TEXT
 ) TO anon, authenticated, service_role;
@@ -1762,6 +1853,76 @@ SELECT pg_temp.u4_assert(
     ) ->> 'message'
   ) = 'workflow_not_found_or_forbidden',
   'a non-open lead remained mutable through the U4 command boundary'
+);
+
+RESET ROLE;
+
+-- Prove the filtered queue remains complete beyond PostgREST's common 1,000
+-- row ceiling. The four interleaved decoys make the filter part of the proof;
+-- the authenticated Sales helper then follows the real keyset cursor through
+-- all 1,001 matching rows without duplicates, gaps, or order drift.
+INSERT INTO platform.leads (
+  id,
+  organization_id,
+  client_id,
+  current_owner_membership_id,
+  stage_key,
+  source_key,
+  lifecycle_state,
+  created_at,
+  updated_at
+)
+SELECT
+  (
+    '86001000-0000-4000-8000-'
+    || pg_catalog.lpad(series.ordinal::TEXT, 12, '0')
+  )::UUID,
+  :'u4_org_a',
+  NULL,
+  NULL,
+  'new',
+  CASE
+    WHEN series.ordinal <= 1001 THEN 'u4_bulk_target'
+    ELSE 'u4_bulk_decoy'
+  END,
+  'open',
+  '2026-08-24 18:00:00+00'::TIMESTAMPTZ
+    - (series.ordinal * INTERVAL '1 millisecond'),
+  '2026-08-24 18:00:00+00'::TIMESTAMPTZ
+    - (series.ordinal * INTERVAL '1 millisecond')
+FROM pg_catalog.generate_series(1, 1005) AS series(ordinal);
+
+SELECT pg_temp.u4_assert(
+  (
+    SELECT pg_catalog.count(*) = 1005
+      AND pg_catalog.count(*) FILTER (
+        WHERE lead.source_key = 'u4_bulk_target'
+      ) = 1001
+      AND pg_catalog.count(*) FILTER (
+        WHERE lead.source_key = 'u4_bulk_decoy'
+      ) = 4
+    FROM platform.leads AS lead
+    WHERE lead.id::TEXT LIKE '86001000-0000-4000-8000-%'
+  ),
+  'the greater-than-1,000 filtered traversal fixture is incomplete'
+);
+
+SET LOCAL request.jwt.claims TO :'u4_sales_claims';
+SET LOCAL ROLE authenticated;
+
+SELECT pg_temp.u4_traverse_filtered_leads('u4_bulk_target')
+  AS u4_bulk_traversal
+\gset
+
+SELECT pg_temp.u4_assert(
+  (:'u4_bulk_traversal'::JSONB ->> 'total_seen') = '1001'
+  AND (:'u4_bulk_traversal'::JSONB ->> 'distinct_seen') = '1001'
+  AND (:'u4_bulk_traversal'::JSONB ->> 'page_count') = '10'
+  AND (:'u4_bulk_traversal'::JSONB ->> 'first_page_rows') = '101'
+  AND (:'u4_bulk_traversal'::JSONB ->> 'last_page_rows') = '92'
+  AND (:'u4_bulk_traversal'::JSONB ->> 'mismatched_rows') = '0'
+  AND (:'u4_bulk_traversal'::JSONB ->> 'order_violations') = '0',
+  'filtered keyset traversal lost, duplicated, reordered, or leaked a row'
 );
 
 RESET ROLE;

@@ -2,7 +2,8 @@
 
 Status: parent #376 is the active product contract; U0/#377 through U3/#380
 are merged, and U4/#381 is the only current repository/disposable-local
-slice. Its clean local proof passed on 2026-08-25; exact-head review, CI and
+slice. Its clean local proof passed on 2026-08-24 UTC, after local midnight on
+2026-08-25 in Asia/Bishkek; exact-head review, CI and
 merge remain pending. ADR 0020,
 `docs/platform/u4-sales-qualification-owner-next-action.md`, and the latest
 `docs/PLAN_CHANGES.md` entry are binding.

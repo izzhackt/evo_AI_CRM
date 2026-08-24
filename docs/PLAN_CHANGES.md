@@ -10831,8 +10831,10 @@ Validation impact: acceptance must replay root migrations through 086 in a
 clean disposable local stack and use real PostgreSQL constraints/locks/RLS,
 Supabase Auth JWTs, PostgREST and connected browser paths. It proves all actor
 and owner matrix cases, stage/action/date constraints, exact connected truth,
-more than 1,000 filtered rows, exact replay/collision/stale concurrency,
-version/audit/receipt atomicity and truthful UI states. The full gates remain
+1,001 query-filtered rows across ten real SQL pages plus 21 application pages,
+with four decoys excluded and no gaps, duplicates or order drift; exact
+replay/collision/stale concurrency, version/audit/receipt atomicity and
+truthful UI states. The full gates remain
 `git diff --check`, `npm run check:node-runtime`,
 `npm run test:supabase:history`, `npm run test:security:postgres`,
 `npm run test:supabase:local`, `npm run test:unit`,
@@ -10864,9 +10866,11 @@ uses `PT409` rather than the retryable transaction code `40001`:
 Execution boundary: this is the only active U4/#381 repository/disposable-local
 slice. It performs no managed Supabase apply, production deployment,
 real-customer mutation, WAHA call/configuration, WhatsApp send or amoCRM write.
-Implementation and clean disposable-local proof completed on 2026-08-25:
-Node.js 22.23.1, 86 contiguous migrations through 086, real local
-Auth/PostgREST/RLS, the combined U2/U4 browser partition 2/2, unit 679/679,
+Implementation and clean disposable-local proof completed on 2026-08-24 UTC,
+after local midnight on 2026-08-25 in Asia/Bishkek: Node.js 22.23.1, 86
+contiguous migrations through 086, real local Auth/PostgREST/RLS including
+1,001/1,001 unique filtered SQL rows with four decoys excluded and no ordering
+violation, the combined U2/U4 browser partition 2/2, unit 679/679,
 security, lint, build, history/runtime and diff checks all passed. This remains
 repository/synthetic-local evidence only. Merge requires one immutable head,
 independent exact-head launch-control approval, all four exact-head CI jobs, a

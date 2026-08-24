@@ -1,7 +1,8 @@
 # U4 — Sales qualification, owner and next action
 
 Status: implemented and validated in the clean repository/disposable-local
-worktree for issue #381 on 2026-08-25. Independent exact-head review, pull
+worktree for issue #381 on 2026-08-24 UTC, after local midnight on 2026-08-25
+in Asia/Bishkek. Independent exact-head review, pull
 request CI, merge and exact-main proof remain pending.
 
 Block-ID: `EVO-U4-SALES-QUALIFICATION-OWNER-NEXT-ACTION-2026-08-24`.
@@ -341,8 +342,10 @@ must cover:
   and Bishkek calendar-day filtering;
 - exact connected/unconnected truth, including a same-client conversation that
   is not directly lead-linked;
-- pre-pagination filters and complete stable traversal of more than 1,000
-  leads without gaps, duplicates or silent truncation;
+- pre-pagination filters and complete stable traversal of 1,001 query-filtered
+  leads: the real SQL function returns ten pages (`101 × 9 + 92`) while four
+  decoys stay excluded, and the application repository returns all 1,001 rows
+  exactly once across 21 pages of at most 50;
 - exact idempotent replay, request-ID collision, two different request IDs at
   one expected version, row locking and stale-version rejection;
 - one committed version increment, audit event and receipt per accepted change,
@@ -360,11 +363,15 @@ The full candidate gates are `git diff --check`,
 `npm run build`. Failed, mocked or skipped affected paths are not acceptance
 evidence.
 
-The clean U4 candidate worktree passed those local gates on 2026-08-25 with
-Node.js 22.23.1. The disposable Supabase gate reset all 86 contiguous
+The clean U4 candidate worktree passed those local gates on 2026-08-24 UTC,
+after local midnight on 2026-08-25 in Asia/Bishkek, with Node.js 22.23.1. The
+disposable Supabase gate reset all 86 contiguous
 migrations through 086, passed its real local Auth/PostgREST/RLS checks and
 passed the combined U2/U4 browser partition 2/2, including committed mutation
-and repeated queue/detail reads. The complete unit suite passed 679/679;
+and repeated queue/detail reads. The SQL traversal observed 1,001/1,001 unique
+matching rows with zero decoy leaks or ordering violations; the repository
+traversal observed the same 1,001/1,001 unique rows. The complete unit suite
+passed 679/679;
 `npm run test:security`, `npm run lint`, `npm run build`, runtime/history checks
 and `git diff --check` all exited successfully. This is repository and
 synthetic disposable-local evidence only. It is not exact-head CI, merge,

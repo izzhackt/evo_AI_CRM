@@ -57,6 +57,30 @@ function rpcClient(responses = {}, errors = {}) {
   };
 }
 
+function sequencedRpcClient(responses = {}) {
+  const calls = [];
+  const positions = new Map();
+  return {
+    calls,
+    client: {
+      schema(schemaName) {
+        assert.equal(schemaName, "platform");
+        return {
+          async rpc(functionName, args, options) {
+            calls.push({ functionName, args, options });
+            const position = positions.get(functionName) ?? 0;
+            positions.set(functionName, position + 1);
+            return {
+              data: responses[functionName]?.[position] ?? null,
+              error: null,
+            };
+          },
+        };
+      },
+    },
+  };
+}
+
 function leadRow(overrides = {}) {
   return {
     sort_at: "2026-08-24T10:20:30.123456+06:00",
@@ -164,6 +188,76 @@ test("U4 list sends every bounded filter before keyset pagination", async () => 
       options: { get: true },
     },
   ]);
+});
+
+test("U4 keyset pagination traverses more than 1,000 filtered leads exactly once", async () => {
+  const total = 1_001;
+  const pageSize = 50;
+  const newestTimestamp = Date.parse("2026-08-24T18:00:00.000Z");
+  const rows = Array.from({ length: total }, (_, index) => {
+    const timestamp = new Date(newestTimestamp - index * 1_000).toISOString();
+    return leadRow({
+      lead_id: `44444444-4444-4444-8444-${String(index + 1).padStart(12, "0")}`,
+      sort_at: timestamp,
+      updated_at: timestamp,
+    });
+  });
+  const responses = [];
+  for (let start = 0; start < total; start += pageSize) {
+    responses.push(rows.slice(start, start + pageSize + 1));
+  }
+  const { client, calls } = sequencedRpcClient({
+    staff_sales_lead_page: responses,
+  });
+
+  const seen = [];
+  let cursor = null;
+  let hasNext = true;
+  while (hasNext) {
+    const page = await listPlatformSalesLeads(
+      actor(),
+      {
+        pageSize,
+        cursor,
+        connection: "connected",
+        stage: "qualified",
+        assignment: "mine",
+        due: "due_today",
+        query: " Айжан ",
+      },
+      { client },
+    );
+    seen.push(...page.rows.map((row) => row.leadId));
+    cursor = page.nextCursor;
+    hasNext = page.hasNext;
+  }
+
+  assert.equal(seen.length, total);
+  assert.equal(new Set(seen).size, total);
+  assert.deepEqual(seen, rows.map((row) => row.lead_id));
+  assert.equal(calls.length, Math.ceil(total / pageSize));
+  for (const [index, call] of calls.entries()) {
+    assert.equal(call.functionName, "staff_sales_lead_page");
+    assert.equal(call.args.p_limit, pageSize + 1);
+    assert.equal(call.args.p_connection_filter, "connected");
+    assert.equal(call.args.p_stage_filter, "qualified");
+    assert.equal(call.args.p_assignment_filter, "mine");
+    assert.equal(call.args.p_due_filter, "due_today");
+    assert.equal(call.args.p_query, "Айжан");
+    assert.deepEqual(call.options, { get: true });
+
+    if (index === 0) {
+      assert.equal("p_cursor_updated_at" in call.args, false);
+      assert.equal("p_cursor_id" in call.args, false);
+    } else {
+      const previousLastVisible = rows[index * pageSize - 1];
+      assert.equal(
+        call.args.p_cursor_updated_at,
+        previousLastVisible.updated_at,
+      );
+      assert.equal(call.args.p_cursor_id, previousLastVisible.lead_id);
+    }
+  }
 });
 
 test("Sales cannot widen owner filters and Curator cannot call U4 reads", async () => {

@@ -1469,10 +1469,19 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
       Promise.all(
         requests.map(async ({ path, method }) => {
           const response = await fetch(path, { method });
+          const raw = await response.text();
+          let body: unknown = null;
+          if (raw.length > 0) {
+            try {
+              body = JSON.parse(raw) as unknown;
+            } catch {
+              body = raw;
+            }
+          }
           return {
             path,
             status: response.status,
-            body: await response.json(),
+            body,
           };
         }),
       ),
@@ -1502,7 +1511,16 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
           question: "Non-customer disabled-boundary check",
         }),
       });
-      return { path, status: response.status, body: await response.json() };
+      const raw = await response.text();
+      let body: unknown = null;
+      if (raw.length > 0) {
+        try {
+          body = JSON.parse(raw) as unknown;
+        } catch {
+          body = raw;
+        }
+      }
+      return { path, status: response.status, body };
     };
     return Promise.all([
       request("/api/platform-ai/staff-assistant"),
@@ -1529,7 +1547,16 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
         headers: { "content-type": "application/json" },
         body: "{}",
       });
-      return { path, status: response.status, body: await response.json() };
+      const raw = await response.text();
+      let body: unknown = null;
+      if (raw.length > 0) {
+        try {
+          body = JSON.parse(raw) as unknown;
+        } catch {
+          body = raw;
+        }
+      }
+      return { path, status: response.status, body };
     };
     return Promise.all([
       request("/api/internal/lead-agent/whatsapp"),
@@ -1565,7 +1592,16 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
         body: "{}",
       },
     );
-    return { status: response.status, body: await response.json() };
+    const raw = await response.text();
+    let body: unknown = null;
+    if (raw.length > 0) {
+      try {
+        body = JSON.parse(raw) as unknown;
+      } catch {
+        body = raw;
+      }
+    }
+    return { status: response.status, body };
   });
   expect(privateWahaIngress.status).toBe(503);
   expect(privateWahaIngress.body).toEqual(
@@ -1577,7 +1613,16 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
       "/api/internal/platform-messaging/waha/work",
       { method: "POST" },
     );
-    return { status: response.status, body: await response.json() };
+    const raw = await response.text();
+    let body: unknown = null;
+    if (raw.length > 0) {
+      try {
+        body = JSON.parse(raw) as unknown;
+      } catch {
+        body = raw;
+      }
+    }
+    return { status: response.status, body };
   });
   expect(privateWahaWorker.status).toBe(503);
   expect(privateWahaWorker.body).toEqual(

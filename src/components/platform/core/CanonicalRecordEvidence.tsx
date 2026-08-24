@@ -203,9 +203,12 @@ export function CanonicalLinkedContext({
                 <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
                   {copy.studentCase} · {copy.secondaryContext}
                 </div>
-                <div className="mt-1 font-semibold text-fg">
+                <Link
+                  href={`/clients/${studentCase.id}`}
+                  className="mt-1 inline-block font-semibold text-accent hover:underline"
+                >
                   {studentCase.studentDisplayName}
-                </div>
+                </Link>
                 <div className="mt-1">
                   <CanonicalUuid value={studentCase.id} />
                 </div>

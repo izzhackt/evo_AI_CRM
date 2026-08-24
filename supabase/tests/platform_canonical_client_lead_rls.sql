@@ -912,6 +912,107 @@ SELECT
   SELECT 1 / 0;
 \endif
 
+-- A later review can merge a prior survivor into a better canonical record.
+-- Every historical UUID must still resolve transitively to that final record,
+-- while append-only aliases and evidence remain unchanged.
+SELECT platform_private.create_or_link_client(
+  :'u2_org_a',
+  'Amina Test',
+  NULL,
+  NULL,
+  'evo', 'client', 'u2-client-final', 'manual_entry',
+  '2026-08-24T09:00:00Z', NULL, 'safe:u2-final'
+) AS u2_final_client_id
+\gset
+
+SELECT candidate.id AS u2_chain_candidate_id
+FROM platform_private.client_duplicate_candidates AS candidate
+WHERE candidate.organization_id = :'u2_org_a'
+  AND candidate.status = 'open'
+  AND :'u2_primary_client_id'::UUID IN (
+    candidate.left_client_id,
+    candidate.right_client_id
+  )
+  AND :'u2_final_client_id'::UUID IN (
+    candidate.left_client_id,
+    candidate.right_client_id
+  )
+\gset
+
+SET LOCAL request.jwt.claims TO :'u2_admin_claims';
+SET LOCAL ROLE authenticated;
+SELECT platform.resolve_client_duplicate(
+  :'u2_chain_candidate_id',
+  :'u2_final_client_id',
+  :'u2_primary_client_id',
+  'Reviewed chained synthetic duplicate evidence',
+  '84000000-0000-4000-8000-000000000604'
+) AS u2_chain_resolution
+\gset
+RESET ROLE;
+
+SELECT
+  platform_private.resolve_canonical_client_id(
+    :'u2_org_a',
+    :'u2_ambiguous_client_id'
+  ) = :'u2_final_client_id'::UUID
+  AND EXISTS (
+    SELECT 1
+    FROM platform.staff_canonical_client_detail(
+      :'u2_ambiguous_client_id'
+    ) AS detail
+    WHERE detail.client_id = :'u2_final_client_id'
+      AND jsonb_path_exists(
+        detail.external_identifiers,
+        '$[*] ? (@.external_identifier == "u2-client-ambiguous")'
+      )
+      AND jsonb_path_exists(
+        detail.external_identifiers,
+        '$[*] ? (@.external_identifier == "u2-client-primary")'
+      )
+      AND jsonb_path_exists(
+        detail.external_identifiers,
+        '$[*] ? (@.external_identifier == "u2-client-final")'
+      )
+      AND jsonb_path_exists(
+        detail.provenance,
+        '$[*] ? (@.source_ref == "safe:u2-ambiguous")'
+      )
+      AND jsonb_path_exists(
+        detail.provenance,
+        '$[*] ? (@.source_ref == "safe:u2-primary")'
+      )
+      AND jsonb_path_exists(
+        detail.provenance,
+        '$[*] ? (@.source_ref == "safe:u2-final")'
+      )
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM platform_private.client_aliases AS first_alias
+    JOIN platform_private.client_aliases AS second_alias
+      ON second_alias.organization_id = first_alias.organization_id
+      AND second_alias.superseded_client_id =
+        first_alias.canonical_client_id
+    WHERE first_alias.superseded_client_id = :'u2_ambiguous_client_id'
+      AND first_alias.canonical_client_id = :'u2_primary_client_id'
+      AND second_alias.canonical_client_id = :'u2_final_client_id'
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM platform.leads AS lead
+    WHERE lead.id = :'u2_ambiguous_lead_id'
+      AND lead.client_id = :'u2_final_client_id'
+  )
+  AS u2_transitive_alias_resolution_ok
+\gset
+
+\if :u2_transitive_alias_resolution_ok
+\else
+  \echo 'FAIL: U2 chained duplicate resolution lost canonical history'
+  SELECT 1 / 0;
+\endif
+
 ROLLBACK;
 
 SELECT 'platform migration 084 canonical RLS and integrity passed' AS result;

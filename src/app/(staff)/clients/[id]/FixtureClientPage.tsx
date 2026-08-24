@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getT } from "@/lib/i18n";
+import { getT, type Locale } from "@/lib/i18n";
 import { Badge, Card, EmptyState, StatCard, inputCls, btnCls, btnGhostCls, labelCls, cn } from "@/components/ui";
 import { AiSummary } from "@/components/AiSummary";
 import { StudentProgress } from "@/components/platform/core/StudentProgress";
@@ -379,16 +379,29 @@ async function loadFixtureClientPageData(id: string): Promise<ClientPagePresenta
   };
 }
 
+type FixtureClientPageProps = Readonly<{
+  params?: Promise<{ id: string }>;
+  data?: ClientPagePresentationData;
+  locale?: Locale;
+  t?: (key: string) => string;
+}>;
+
 export default async function FixtureClientPage({
   params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const data = await loadFixtureClientPageData(id);
+  data: providedData,
+  locale: providedLocale,
+  t: providedT,
+}: FixtureClientPageProps) {
+  const data = providedData ?? (
+    params
+      ? await loadFixtureClientPageData((await params).id)
+      : null
+  );
   if (!data) notFound();
 
-  const { t, locale } = await getT();
+  const { t, locale } = providedLocale && providedT
+    ? { t: providedT, locale: providedLocale }
+    : await getT();
   const stageLabel = (stage: string) =>
     data.access === "full"
       ? data.stageItems.find((item) => item.key === stage)?.label || t(`stage.${stage}`)

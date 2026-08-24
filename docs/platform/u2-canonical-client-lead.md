@@ -84,6 +84,9 @@ request UUID, records actor/time/survivor/superseded IDs, redirects canonical
 relationships to the survivor, and retains the superseded row, its provenance
 and its external IDs behind an auditable alias. Conflicts, malformed pairs,
 cross-organization records, stale candidates and non-Admin calls fail closed.
+If a prior survivor is later merged, alias lookup follows the complete chain
+to the final active canonical client and its detail projection includes safe
+provenance and external IDs from the full historical client family.
 
 ## Authorization contract
 

@@ -1101,13 +1101,29 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-  SELECT COALESCE(alias.canonical_client_id, client.id)
-  FROM platform.clients AS client
-  LEFT JOIN platform_private.client_aliases AS alias
-    ON alias.organization_id = client.organization_id
-    AND alias.superseded_client_id = client.id
-  WHERE client.organization_id = p_organization_id
-    AND client.id = p_client_id
+  WITH RECURSIVE alias_chain(client_id) AS (
+    SELECT client.id
+    FROM platform.clients AS client
+    WHERE client.organization_id = p_organization_id
+      AND client.id = p_client_id
+
+    UNION
+
+    SELECT alias.canonical_client_id
+    FROM alias_chain AS chain
+    JOIN platform_private.client_aliases AS alias
+      ON alias.organization_id = p_organization_id
+      AND alias.superseded_client_id = chain.client_id
+  )
+  SELECT chain.client_id
+  FROM alias_chain AS chain
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM platform_private.client_aliases AS next_alias
+    WHERE next_alias.organization_id = p_organization_id
+      AND next_alias.superseded_client_id = chain.client_id
+  )
+  LIMIT 1
 $$;
 
 CREATE OR REPLACE FUNCTION private.platform_can_read_canonical_client(
@@ -2936,12 +2952,27 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-  WITH requested AS MATERIALIZED (
-    SELECT COALESCE((
-      SELECT alias.canonical_client_id
-      FROM platform_private.client_aliases AS alias
-      WHERE alias.superseded_client_id = p_client_id
-    ), p_client_id) AS client_id
+  WITH RECURSIVE requested AS MATERIALIZED (
+    SELECT
+      client.organization_id,
+      platform_private.resolve_canonical_client_id(
+        client.organization_id,
+        client.id
+      ) AS client_id
+    FROM platform.clients AS client
+    WHERE client.id = p_client_id
+  ),
+  client_family(organization_id, client_id) AS (
+    SELECT requested.organization_id, requested.client_id
+    FROM requested
+
+    UNION
+
+    SELECT alias.organization_id, alias.superseded_client_id
+    FROM client_family AS family
+    JOIN platform_private.client_aliases AS alias
+      ON alias.organization_id = family.organization_id
+      AND alias.canonical_client_id = family.client_id
   )
   SELECT
     visible.organization_id,
@@ -2978,15 +3009,10 @@ AS $$
         FROM platform.external_identifiers AS external
         WHERE external.organization_id = visible.organization_id
           AND external.client_id IS NOT NULL
-          AND (
-            external.client_id = visible.client_id
-            OR EXISTS (
-              SELECT 1
-              FROM platform_private.client_aliases AS alias
-              WHERE alias.organization_id = visible.organization_id
-                AND alias.canonical_client_id = visible.client_id
-                AND alias.superseded_client_id = external.client_id
-            )
+          AND external.client_id IN (
+            SELECT family.client_id
+            FROM client_family AS family
+            WHERE family.organization_id = visible.organization_id
           )
         ORDER BY external.observed_at DESC, external.id DESC
         LIMIT 25
@@ -3014,15 +3040,10 @@ AS $$
         FROM platform.subject_provenance AS evidence
         WHERE evidence.organization_id = visible.organization_id
           AND evidence.client_id IS NOT NULL
-          AND (
-            evidence.client_id = visible.client_id
-            OR EXISTS (
-              SELECT 1
-              FROM platform_private.client_aliases AS alias
-              WHERE alias.organization_id = visible.organization_id
-                AND alias.canonical_client_id = visible.client_id
-                AND alias.superseded_client_id = evidence.client_id
-            )
+          AND evidence.client_id IN (
+            SELECT family.client_id
+            FROM client_family AS family
+            WHERE family.organization_id = visible.organization_id
           )
         ORDER BY evidence.observed_at DESC, evidence.id DESC
         LIMIT 25
@@ -3134,7 +3155,8 @@ AS $$
     ), '[]'::JSONB)
   FROM requested
   JOIN platform_private.visible_canonical_clients() AS visible
-    ON visible.client_id = requested.client_id
+    ON visible.organization_id = requested.organization_id
+    AND visible.client_id = requested.client_id
   LIMIT 1
 $$;
 

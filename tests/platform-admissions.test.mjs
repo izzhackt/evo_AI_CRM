@@ -511,6 +511,12 @@ test("normal staff routes keep one accepted renderer instead of parallel Platfor
   assert.match(clientRoute, /ClientPageContent/);
   assert.doesNotMatch(clientsRoute, /(?:Legacy|Platform)ClientsPage/);
   assert.doesNotMatch(clientRoute, /(?:Legacy|Platform)ClientPage/);
+  const clientRenderer = readFileSync(
+    new URL("../src/app/(staff)/clients/[id]/ClientPageContent.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(clientRenderer, /ConnectedStudentCaseDetail/);
+  assert.match(clientRenderer, /getPlatformCanonicalClient/);
 
   const applicationsRoute = readFileSync(
     new URL("../src/app/(staff)/applications/page.tsx", import.meta.url),
@@ -597,7 +603,8 @@ test("connected canonical clients use the bounded canonical detail adapter inste
 
   assert.match(adapterSource, /getPlatformCanonicalClient\(actor,\s*id\)/);
   assert.match(adapterSource, /CanonicalClientDetail client=\{client\}/);
-  assert.match(rendererSource, /ConnectedCanonicalClientDetail/);
+  assert.match(rendererSource, /ConnectedStudentCaseDetail/);
+  assert.match(rendererSource, /getPlatformCanonicalClient\(actor,\s*id\)/);
   assert.match(detailSource, /data-testid="canonical-client-detail"/);
   assert.match(detailSource, /linkedCases/);
   assert.match(detailSource, /linkedConversations/);

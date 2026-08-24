@@ -8,6 +8,56 @@
 
 BEGIN;
 
+-- WAHA direct-chat identity and event provenance are required for exact
+-- idempotency, but they remain provider-private evidence. Migration 084 made
+-- canonical provenance readable to authorized staff; narrow those policies
+-- before U3 writes WAHA rows so direct PostgREST reads cannot expose them.
+DROP POLICY IF EXISTS external_identifiers_read
+  ON platform.external_identifiers;
+CREATE POLICY external_identifiers_read
+  ON platform.external_identifiers
+  FOR SELECT
+  TO authenticated
+  USING (
+    source_system IS DISTINCT FROM 'waha'
+    AND (
+      (
+        client_id IS NOT NULL
+        AND private.platform_can_read_canonical_client(
+          organization_id,
+          client_id
+        )
+      )
+      OR (
+        lead_id IS NOT NULL
+        AND private.platform_can_read_canonical_lead(organization_id, lead_id)
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS subject_provenance_read
+  ON platform.subject_provenance;
+CREATE POLICY subject_provenance_read
+  ON platform.subject_provenance
+  FOR SELECT
+  TO authenticated
+  USING (
+    source_system IS DISTINCT FROM 'waha'
+    AND (
+      (
+        client_id IS NOT NULL
+        AND private.platform_can_read_canonical_client(
+          organization_id,
+          client_id
+        )
+      )
+      OR (
+        lead_id IS NOT NULL
+        AND private.platform_can_read_canonical_lead(organization_id, lead_id)
+      )
+    )
+  );
+
 CREATE OR REPLACE FUNCTION platform_private.bind_waha_chat_to_canonical(
   p_organization_id UUID,
   p_binding_id UUID
@@ -538,6 +588,182 @@ BEGIN
 END
 $$;
 
+-- Keep the U2 public lead-detail contract while excluding the WAHA identity
+-- and event references that U3 stores for private idempotency/provenance.
+CREATE OR REPLACE FUNCTION platform.staff_canonical_lead_detail(
+  p_lead_id UUID
+)
+RETURNS TABLE (
+  organization_id UUID,
+  lead_id UUID,
+  client_id UUID,
+  client_display_name TEXT,
+  client_email TEXT,
+  client_phone TEXT,
+  current_owner_membership_id UUID,
+  current_owner_display_name TEXT,
+  stage_key TEXT,
+  source_key TEXT,
+  lifecycle_state platform.lead_lifecycle_state,
+  open_duplicate_candidate_count BIGINT,
+  linked_student_case_count BIGINT,
+  linked_conversation_count BIGINT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  external_identifiers JSONB,
+  provenance JSONB,
+  linked_student_cases JSONB,
+  linked_conversations JSONB
+)
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT
+    visible.organization_id,
+    visible.lead_id,
+    visible.client_id,
+    visible.client_display_name,
+    visible.client_email,
+    visible.client_phone,
+    visible.current_owner_membership_id,
+    visible.current_owner_display_name,
+    visible.stage_key,
+    visible.source_key,
+    visible.lifecycle_state,
+    visible.open_duplicate_candidate_count,
+    visible.linked_student_case_count,
+    visible.linked_conversation_count,
+    visible.created_at,
+    visible.updated_at,
+    COALESCE((
+      SELECT jsonb_agg(
+        external_projection.item
+        ORDER BY external_projection.observed_at DESC,
+          external_projection.id DESC
+      )
+      FROM (
+        SELECT
+          external.id,
+          external.observed_at,
+          jsonb_build_object(
+            'id', external.id,
+            'source_system', external.source_system,
+            'external_object_type', external.external_object_type,
+            'external_identifier', external.external_identifier,
+            'observed_at', external.observed_at,
+            'imported_at', external.imported_at,
+            'source_ref', external.source_ref
+          ) AS item
+        FROM platform.external_identifiers AS external
+        WHERE external.organization_id = visible.organization_id
+          AND external.lead_id = visible.lead_id
+          AND external.source_system IS DISTINCT FROM 'waha'
+        ORDER BY external.observed_at DESC, external.id DESC
+        LIMIT 25
+      ) AS external_projection
+    ), '[]'::JSONB),
+    COALESCE((
+      SELECT jsonb_agg(
+        provenance_projection.item
+        ORDER BY provenance_projection.observed_at DESC,
+          provenance_projection.id DESC
+      )
+      FROM (
+        SELECT
+          evidence.id,
+          evidence.observed_at,
+          jsonb_build_object(
+            'id', evidence.id,
+            'source_system', evidence.source_system,
+            'evidence_type', evidence.evidence_type,
+            'observed_at', evidence.observed_at,
+            'imported_at', evidence.imported_at,
+            'source_ref', evidence.source_ref,
+            'recorded_at', evidence.recorded_at
+          ) AS item
+        FROM platform.subject_provenance AS evidence
+        WHERE evidence.organization_id = visible.organization_id
+          AND evidence.lead_id = visible.lead_id
+          AND evidence.source_system IS DISTINCT FROM 'waha'
+        ORDER BY evidence.observed_at DESC, evidence.id DESC
+        LIMIT 25
+      ) AS provenance_projection
+    ), '[]'::JSONB),
+    COALESCE((
+      SELECT jsonb_agg(
+        case_projection.item
+        ORDER BY case_projection.updated_at DESC,
+          case_projection.id DESC
+      )
+      FROM (
+        SELECT
+          student_case.id,
+          student_case.updated_at,
+          jsonb_build_object(
+            'student_case_id', student_case.id,
+            'student_display_name', student_case.student_display_name,
+            'operational_stage', student_case.operational_stage,
+            'state', student_case.state,
+            'updated_at', student_case.updated_at
+          ) AS item
+        FROM platform.student_cases AS student_case
+        WHERE student_case.organization_id = visible.organization_id
+          AND (
+            student_case.canonical_lead_id = visible.lead_id
+            OR (
+              visible.client_id IS NOT NULL
+              AND student_case.canonical_client_id = visible.client_id
+            )
+          )
+          AND private.platform_can_read_student_case(
+            student_case.organization_id,
+            student_case.id
+          )
+        ORDER BY student_case.updated_at DESC, student_case.id DESC
+        LIMIT 25
+      ) AS case_projection
+    ), '[]'::JSONB),
+    COALESCE((
+      SELECT jsonb_agg(
+        conversation_projection.item
+        ORDER BY conversation_projection.updated_at DESC,
+          conversation_projection.id DESC
+      )
+      FROM (
+        SELECT
+          conversation.id,
+          conversation.updated_at,
+          jsonb_build_object(
+            'conversation_id', conversation.id,
+            'subject', conversation.subject,
+            'queue', conversation.queue,
+            'status', conversation.status,
+            'updated_at', conversation.updated_at
+          ) AS item
+        FROM platform.communication_conversations AS conversation
+        WHERE conversation.organization_id = visible.organization_id
+          AND (
+            conversation.canonical_lead_id = visible.lead_id
+            OR (
+              visible.client_id IS NOT NULL
+              AND conversation.canonical_client_id = visible.client_id
+            )
+          )
+          AND private.platform_can_read_communication_full(
+            conversation.organization_id,
+            conversation.id
+          )
+        ORDER BY conversation.updated_at DESC, conversation.id DESC
+        LIMIT 25
+      ) AS conversation_projection
+    ), '[]'::JSONB)
+  FROM platform_private.visible_canonical_leads() AS visible
+  WHERE visible.lead_id = p_lead_id
+  LIMIT 1
+$$;
+
 -- Migration 084's client detail joined the unparameterized
 -- visible_canonical_clients() set before applying the requested client id.
 -- PostgREST therefore evaluated every visible client's permission-aware
@@ -699,6 +925,7 @@ AS $$
         FROM platform.external_identifiers AS external
         WHERE external.organization_id = visible.organization_id
           AND external.client_id IS NOT NULL
+          AND external.source_system IS DISTINCT FROM 'waha'
           AND external.client_id IN (
             SELECT family.client_id
             FROM client_family AS family
@@ -730,6 +957,7 @@ AS $$
         FROM platform.subject_provenance AS evidence
         WHERE evidence.organization_id = visible.organization_id
           AND evidence.client_id IS NOT NULL
+          AND evidence.source_system IS DISTINCT FROM 'waha'
           AND evidence.client_id IN (
             SELECT family.client_id
             FROM client_family AS family
@@ -857,6 +1085,7 @@ REVOKE ALL ON FUNCTION
     TEXT
   ),
   platform.staff_canonical_lead_conversation_link(UUID, UUID, UUID),
+  platform.staff_canonical_lead_detail(UUID),
   platform.staff_canonical_client_detail(UUID)
 FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
@@ -870,6 +1099,7 @@ GRANT EXECUTE ON FUNCTION
     TEXT
   ),
   platform.staff_canonical_lead_conversation_link(UUID, UUID, UUID),
+  platform.staff_canonical_lead_detail(UUID),
   platform.staff_canonical_client_detail(UUID)
 TO authenticated;
 
@@ -890,7 +1120,9 @@ COMMENT ON FUNCTION platform.staff_canonical_lead_conversation_link(
   UUID
 ) IS
   'Checks one exact authorized canonical lead-to-conversation relationship for the nested receive-only Sales transcript.';
+COMMENT ON FUNCTION platform.staff_canonical_lead_detail(UUID) IS
+  'Returns one authorized canonical lead detail while keeping WAHA identity and event provenance private.';
 COMMENT ON FUNCTION platform.staff_canonical_client_detail(UUID) IS
-  'Returns one exact authorized canonical client detail without evaluating the full visible-client inventory.';
+  'Returns one exact authorized canonical client detail without evaluating the full visible-client inventory or exposing WAHA identity and event provenance.';
 
 COMMIT;

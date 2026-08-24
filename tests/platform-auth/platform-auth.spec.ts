@@ -2026,6 +2026,8 @@ test("P5B projects verified inbound WAHA work into the accepted conversation UI"
   await expect(
     page.locator(`a[href="/sales/${canonicalLeadId}/conversations/${conversationId}"]`),
   ).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(chatId);
+  await expect(page.locator("body")).not.toContainText("waha-event:");
   await page.getByTestId("canonical-lead-client").getByRole("link").click();
   await expect(page.getByTestId("canonical-client-detail")).toBeVisible();
   const clientConversation = page
@@ -2036,6 +2038,8 @@ test("P5B projects verified inbound WAHA work into the accepted conversation UI"
   await expect(
     page.locator(`a[href="/whatsapp/${conversationId}"]`),
   ).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(chatId);
+  await expect(page.locator("body")).not.toContainText("waha-event:");
   await page.goto(`/sales/${canonicalLeadId}/conversations/${conversationId}`);
   await expect(page).toHaveURL(
     new RegExp(`/sales/${canonicalLeadId}/conversations/${conversationId}$`),

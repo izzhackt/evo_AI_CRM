@@ -10737,3 +10737,14 @@ canonical client detail keeps linked conversation evidence visible but
 non-clickable because its bounded payload cannot identify one safe lead route.
 Static and real-browser regressions must prove the client detour exposes no
 legacy WhatsApp conversation link before the exact-head review cycle restarts.
+
+Second reviewer correction: independent review of
+`6e4fe1e3c41db880d236765ce38ce384bcc73281` found that U3's exact private
+WAHA identity was also projected by the inherited canonical provenance reads.
+Keep the raw identity unchanged for deterministic create-or-link idempotency,
+but make it private at both server boundaries: authenticated direct-table RLS
+excludes WAHA external identifiers/provenance, and the security-definer client
+and lead detail RPCs independently apply the same filter. SQL and browser
+regressions must prove that `@c.us` and `waha-event:` values cannot reach staff
+surfaces while the pre-existing non-WAHA canonical provenance contract remains
+available.

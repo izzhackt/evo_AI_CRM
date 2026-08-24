@@ -846,8 +846,32 @@ SELECT pg_temp.u3_assert(
       :'u3_lead_id',
       (:'u3_legacy_sync'::JSONB ->> 'conversation_id')::UUID
     )
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform.external_identifiers AS external
+    WHERE external.organization_id = :'u3_org_a'
+      AND external.source_system = 'waha'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform.subject_provenance AS evidence
+    WHERE evidence.organization_id = :'u3_org_a'
+      AND evidence.source_system = 'waha'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform.staff_canonical_client_detail(:'u3_client_id') AS detail
+    WHERE detail.external_identifiers::TEXT ILIKE '%@c.us%'
+      OR detail.provenance::TEXT ILIKE '%waha-event:%'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform.staff_canonical_lead_detail(:'u3_lead_id') AS detail
+    WHERE detail.external_identifiers::TEXT ILIKE '%@c.us%'
+      OR detail.provenance::TEXT ILIKE '%waha-event:%'
   ),
-  'safe U3 intake admitted provider-linked authority or private evidence'
+  'safe U3 surfaces admitted provider-linked authority or private evidence'
 );
 
 RESET ROLE;

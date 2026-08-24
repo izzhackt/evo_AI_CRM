@@ -155,6 +155,11 @@ these additive seams:
    existing U1 communication object-scope grants access; a pre-handoff Sales
    intake is therefore correctly absent for Curator. Invalid, inactive,
    suspended, stale and cross-organization authorities fail closed.
+7. Exact WAHA chat identity and event references remain private idempotency
+   evidence. Authenticated canonical-table policies exclude WAHA provenance,
+   and both public canonical client/lead detail RPCs apply the same explicit
+   filter so a security-definer execution cannot return `@c.us` or
+   `waha-event:` values to the browser.
 
 Distinct signed delivery request IDs remain immutable audit observations in
 the existing provider-event audit ledger. The stable WAHA message identity,
@@ -193,6 +198,8 @@ Focused proof must cover:
 - visible manual-review disposition for media-only or partial inbound content;
 - bounded Sales queue and message-history traversal beyond 1,000 rows;
 - connected `/sales` and canonical lead detail showing real seeded inbound data;
+- direct RLS, canonical detail RPC, and browser proof that raw WAHA chat/event
+  identifiers remain private while non-WAHA canonical provenance still works;
 - no outbound WAHA or amoCRM mutation path reachable from U3;
 - truthful empty and unavailable states.
 

@@ -153,6 +153,16 @@ docker exec "$container_name" \
   -c "DROP TABLE platform.p2b_untrusted_owner_probe;"
 
 while IFS= read -r migration; do
+  # Preserve one migration-060-compatible direct-chat identity just before
+  # 085. Its short numeric identifier is intentionally outside U3's supported
+  # E.164-sized range, so the forward migration must leave it untouched rather
+  # than aborting the whole upgrade.
+  if [[ "$(basename "$migration")" == 085_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_receive_only_sales_pre085.sql
+  fi
+
   # P8R4 must refuse a cutover while earlier synthetic acceptance fixtures
   # still contain queued work on a non-target WAHA session. Prove the guard
   # first, then normalize only those disposable fixture identities so the
@@ -1597,6 +1607,18 @@ SQL
       cat "$u2_concurrency_assert_log" >&2
       exit 1
     fi
+  fi
+
+  # Migration 085 binds verified receive-only WAHA intake to canonical
+  # lead/conversation identity and exposes the bounded safe Sales intake RPCs.
+  if [[ "$(basename "$migration")" == 085_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_receive_only_sales_current.sql
+
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_receive_only_sales_rls.sql
   fi
 done < <(
   cd "$repo_root"

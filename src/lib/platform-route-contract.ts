@@ -24,6 +24,8 @@ const PLATFORM_CONVERSATION_PATH =
   /^\/whatsapp\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_LEAD_PATH =
   /^\/sales\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PLATFORM_LEAD_CONVERSATION_PATH =
+  /^\/sales\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/conversations\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_CLIENT_PATH =
   /^\/clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_APPLICATION_PATH =
@@ -89,6 +91,7 @@ export function isConnectedPlatformPage(path: string): boolean {
     PLATFORM_PAGE_ALLOWLIST.has(path) ||
     PLATFORM_CONVERSATION_PATH.test(path) ||
     PLATFORM_LEAD_PATH.test(path) ||
+    PLATFORM_LEAD_CONVERSATION_PATH.test(path) ||
     PLATFORM_CLIENT_PATH.test(path) ||
     PLATFORM_APPLICATION_PATH.test(path)
   );

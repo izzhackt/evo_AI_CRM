@@ -150,11 +150,13 @@ export function CanonicalLinkedContext({
   studentCases,
   conversations,
   leads = [],
+  conversationHrefPrefix,
 }: Readonly<{
   locale: Locale;
   studentCases: readonly PlatformCanonicalLinkedStudentCase[];
   conversations: readonly PlatformCanonicalLinkedConversation[];
   leads?: readonly PlatformCanonicalLinkedLead[];
+  conversationHrefPrefix: string | null;
 }>) {
   const copy = canonicalRecordCopy(locale);
   const empty =
@@ -229,12 +231,21 @@ export function CanonicalLinkedContext({
                 <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
                   {copy.conversation} · {copy.secondaryContext}
                 </div>
-                <Link
-                  href={`/whatsapp/${conversation.id}`}
-                  className="mt-1 inline-block font-semibold text-accent hover:underline"
-                >
-                  {conversation.subject}
-                </Link>
+                {conversationHrefPrefix ? (
+                  <Link
+                    href={`${conversationHrefPrefix}/${conversation.id}`}
+                    className="mt-1 inline-block font-semibold text-accent hover:underline"
+                  >
+                    {conversation.subject}
+                  </Link>
+                ) : (
+                  <span
+                    className="mt-1 inline-block font-semibold text-fg"
+                    data-testid="canonical-linked-conversation-read-only"
+                  >
+                    {conversation.subject}
+                  </span>
+                )}
                 <div className="mt-1">
                   <CanonicalUuid value={conversation.id} />
                 </div>

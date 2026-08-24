@@ -2,18 +2,18 @@
 
 Status: active U0-U14 repository implementation contract
 Version date: 2026-08-24 (Asia/Bishkek)
-Current U2 branch baseline: GitHub `origin/main` at
-`86b82bd8787dacc99774696d76360de88088d4e2`
+Current U3 branch baseline: GitHub `origin/main` at
+`b953a274f5668e1d0db178fddabd9410d1deb57f`
 Authority: parent issue #376, ADR 0020, this plan and the latest merged
 `docs/PLAN_CHANGES.md`. ADR 0015 and ADR 0017 remain active only where ADR 0020
 retains them. Earlier P/BW/NW/P8 plans and ADR 0019 are historical source.
 
-Current execution checkpoint: U0/#377 and U1/#378 are merged. U2/#379 is the
-only current repository/disposable-local slice and stops before U3/#380. It
-changes no managed Supabase project, provider, production, customer data, WAHA
-session, amoCRM record or WhatsApp message.
-Block-ID: `EVO-U2-CANONICAL-CLIENT-LEAD-2026-08-24`.
-Focused contract: `docs/platform/u2-canonical-client-lead.md`.
+Current execution checkpoint: U0/#377, U1/#378 and U2/#379 are merged.
+U3/#380 is the only current repository/disposable-local slice and stops before
+U4/#381. It changes no managed Supabase project, provider, production,
+customer data, WAHA session, amoCRM record or WhatsApp message.
+Block-ID: `EVO-U3-RECEIVE-ONLY-SALES-QUEUE-2026-08-24`.
+Focused contract: `docs/platform/u3-receive-only-sales-queue.md`.
 
 ### Historical pre-#376 checkpoint
 
@@ -163,17 +163,16 @@ do not silently change production.
 
 ## 2A. Current planning priority
 
-1. U1/#378 is complete on merged PR #393: one Supabase staff login, exactly
-   three pilot roles, Admin-only lifecycle controls, explicit sensitive
-   permissions and immediate revocation.
-2. Complete U2/#379 from current `main`: canonical Supabase client and lead,
-   provenance/external identifiers, explicit duplicate resolution and bounded
-   connected staff reads.
-3. Prove U2 through disposable-local Supabase/PostgreSQL/Auth/PostgREST/browser
-   acceptance, exact-head review and required CI, then stop before U3/#380.
-4. Execute U3-U14 strictly in dependency order. A stale draft contributes only
+1. U0/#377, U1/#378 and U2/#379 are complete on merged reviewed PRs.
+2. Complete U3/#380 from current `main`: signed receive-only WAHA intake,
+   canonical client/lead/conversation linkage, truthful Sales intake states and
+   bounded queue/history reads.
+3. Prove U3 through the actual Next.js ingress plus disposable-local
+   Supabase/PostgreSQL/Auth/PostgREST/browser acceptance, exact-head review and
+   required CI, then stop before U4/#381.
+4. Execute U4-U14 strictly in dependency order. A stale draft contributes only
    the value assigned by the crosswalk and is rebuilt from then-current `main`.
-5. Keep outbound WhatsApp and amoCRM writes disabled. No U2 action may touch
+5. Keep outbound WhatsApp and amoCRM writes disabled. No U3 action may touch
    production, providers, DNS/TLS, WAHA sessions or customer data.
 
 No mock, SQLite shim, hardcoded provider mapping, fake success or silent
@@ -430,9 +429,9 @@ Shared plan, schema, migration and deployment surfaces are sequential.
 | Slice | Issue | Scope | Status |
 | --- | --- | --- | --- |
 | U0 | #377 | Authority docs and complete legacy crosswalk | Merged prerequisite |
-| U1 | #378 | One login and three pilot roles | Current repository/local slice |
-| U2 | #379 | Canonical Supabase client and lead | Blocked by U1 |
-| U3 | #380 | Receive-only WhatsApp in unified Sales | Blocked by U1/U2 |
+| U1 | #378 | One login and three pilot roles | Merged prerequisite |
+| U2 | #379 | Canonical Supabase client and lead | Merged prerequisite |
+| U3 | #380 | Receive-only WhatsApp in unified Sales | Current repository/local slice |
 | U4 | #381 | Sales qualification, owner and next action | Blocked by U3 |
 | U5 | #382 | Contract and first-payment evidence | Blocked by U1/U2/U4 |
 | U6 | #383 | Audited Sales-to-Admissions handoff | Blocked by U5 |

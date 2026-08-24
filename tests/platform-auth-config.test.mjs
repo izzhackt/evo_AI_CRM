@@ -194,14 +194,22 @@ test("legacy amoCRM check fails closed without provider access in UI fixture mod
 
 test("proxy admits only the exact connected conversation route shape", () => {
   const id = "a120b6db-2e3e-4a84-8873-073f4d2d33c3";
+  const leadId = "61318db8-645a-4c0d-9cf6-09ca68efda50";
   for (const path of ["/", "/login", "/platform-pending", "/whatsapp"]) {
     assert.equal(isConnectedPlatformPage(path), true, path);
   }
   assert.equal(isConnectedPlatformPage(`/whatsapp/${id}`), true);
+  assert.equal(
+    isConnectedPlatformPage(`/sales/${leadId}/conversations/${id}`),
+    true,
+  );
 
   for (const path of [
     "/whatsapp/not-a-uuid",
     `/whatsapp/${id}/messages`,
+    `/sales/${leadId}/conversations/not-a-uuid`,
+    `/sales/not-a-uuid/conversations/${id}`,
+    `/sales/${leadId}/conversations/${id}/messages`,
     `/legacy/whatsapp/${id}`,
     "/dashboard",
     "/api/waha/qr",

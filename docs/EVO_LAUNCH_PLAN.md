@@ -1,8 +1,9 @@
 # EVO Launch Plan
 
-Status: parent #376 is the active product contract; U0/#377 and U1/#378 are
-merged, and U2/#379 is the only current repository/disposable-local slice.
-ADR 0020, `docs/platform/u2-canonical-client-lead.md`, and the latest
+Status: parent #376 is the active product contract; U0/#377, U1/#378 and
+U2/#379 are merged, and U3/#380 is the only current
+repository/disposable-local slice. ADR 0020,
+`docs/platform/u3-receive-only-sales-queue.md`, and the latest
 `docs/PLAN_CHANGES.md` entry are binding.
 
 ## Current unified v1 authority
@@ -50,10 +51,13 @@ then-current draft PRs and 11 pre-#376 open issues remains in
 `docs/platform/u0-draft-pr-issue-crosswalk.md`. U1 merged in PR #393 with one
 login, exactly `sales`/`curator`/`admin`, live Supabase claim-to-row validation,
 Admin-only lifecycle management, immediate revocation and explicit individual
-contract/first-payment permissions. U2 now adds only the canonical client/lead
+contract/first-payment permissions. U2 added the canonical client/lead
 identity, provenance, duplicate and bounded read contract described in
-`docs/platform/u2-canonical-client-lead.md`. Stop after #379; do not begin U3
-in this branch or PR.
+`docs/platform/u2-canonical-client-lead.md`. U3 now owns only signed
+receive-only WAHA intake, canonical conversation linkage and bounded Sales
+intake/history reads described in
+`docs/platform/u3-receive-only-sales-queue.md`. Stop after #380; do not begin
+U4 in this branch or PR.
 
 ## Historical pre-#376 execution record
 

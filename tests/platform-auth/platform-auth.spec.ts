@@ -812,7 +812,9 @@ test("U2 reads canonical EVO clients and leads through real Supabase with tenant
     fixture.u2.ownerDisplayName,
   );
   await expect(
-    adminPage.getByText(/amoCRM.*(?:источник истины|source of truth)/i),
+    adminPage
+      .getByTestId("canonical-sales-page")
+      .getByText(/amoCRM.*(?:источник истины|source of truth)/i),
   ).toHaveCount(0);
 
   await adminPage.goto(`/sales/${fixture.u2.leadId}`);
@@ -871,8 +873,14 @@ test("U2 reads canonical EVO clients and leads through real Supabase with tenant
   const crossOrgPage = await crossOrgContext.newPage();
   await login(crossOrgPage, fixture.identities.crossOrgAdmin);
   await expect(crossOrgPage).toHaveURL(/\/sales$/);
-  await expect(crossOrgPage.getByTestId("canonical-leads-empty")).toContainText(
-    /не подставляются|ордуна коюлбайт|not substituted/,
+  await expect(crossOrgPage.getByTestId("canonical-sales-page")).toBeVisible();
+  await expect(
+    crossOrgPage.locator(
+      `[data-testid="canonical-lead-row"][data-lead-id="${fixture.u2.leadId}"]`,
+    ),
+  ).toHaveCount(0);
+  await expect(crossOrgPage.locator("body")).not.toContainText(
+    fixture.u2.clientDisplayName,
   );
   await crossOrgPage.goto(`/sales/${fixture.u2.leadId}`);
   await expect(crossOrgPage.getByTestId("canonical-lead-not-found")).toBeVisible();
@@ -881,8 +889,14 @@ test("U2 reads canonical EVO clients and leads through real Supabase with tenant
   );
 
   await crossOrgPage.goto("/clients");
-  await expect(crossOrgPage.getByTestId("canonical-clients-empty")).toContainText(
-    /не подставляются|ордуна коюлбайт|not substituted/,
+  await expect(crossOrgPage.getByTestId("canonical-clients-page")).toBeVisible();
+  await expect(
+    crossOrgPage.locator(
+      `[data-testid="canonical-client-row"][data-client-id="${fixture.u2.clientId}"]`,
+    ),
+  ).toHaveCount(0);
+  await expect(crossOrgPage.locator("body")).not.toContainText(
+    fixture.u2.clientDisplayName,
   );
   await crossOrgPage.goto(`/clients/${fixture.u2.clientId}`);
   await expect(
@@ -1082,6 +1096,7 @@ test("U1 Admin manages individual sensitive permissions while UI, RPC and RLS de
   const deniedContext = await browser.newContext();
   const deniedPage = await deniedContext.newPage();
   await login(deniedPage, fixture.identities.salesScoped);
+  await expect(deniedPage).toHaveURL(/\/sales$/);
   await deniedPage.goto(settingsPath);
   await expect(deniedPage.getByTestId("platform-staff-settings")).toHaveCount(0);
   await expect(deniedPage).toHaveURL(/\/platform-pending/);
@@ -1164,6 +1179,9 @@ test("U1 Admin manages individual sensitive permissions while UI, RPC and RLS de
     await form.locator('input[name="reason"]').fill(`U1 grant ${permission}`);
     await form.getByRole("button", { name: "Выдать" }).click();
     await expect(page).toHaveURL(/staff_result=permission_changed/);
+    await expect(
+      form.getByRole("button", { name: "Отозвать" }),
+    ).toBeVisible();
   }
 
   const staleAfterGrant = await platformRpc(
@@ -1214,6 +1232,9 @@ test("U1 Admin manages individual sensitive permissions while UI, RPC and RLS de
     await form.locator('input[name="reason"]').fill(`U1 revoke ${permission}`);
     await form.getByRole("button", { name: "Отозвать" }).click();
     await expect(page).toHaveURL(/staff_result=permission_changed/);
+    await expect(
+      form.getByRole("button", { name: "Выдать" }),
+    ).toBeVisible();
   }
 
   const staleAfterRevoke = await platformRpc(
@@ -1248,7 +1269,7 @@ test("U1 Admin manages individual sensitive permissions while UI, RPC and RLS de
       expect.objectContaining({
         action: "membership.permission.change",
         resource_id: fixture.bw6.salesPending.responsibleSalesMembershipId,
-        changed_field_codes: ["sensitive_permission"],
+        changed_field_codes: ["access_version", "sensitive_permission"],
       }),
     ]),
   );
@@ -1341,31 +1362,31 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
   await login(page, fixture.identities.admin);
   await expect(page).toHaveURL(/\/sales$/);
   await expect(page.getByTestId("platform-sales-page")).toBeVisible();
+  await expect(page.getByTestId("platform-sales-intake")).toBeVisible();
   await expect(
     page
       .getByTestId("platform-sales-intake")
       .getByText(fixture.conversations.orgA.subject, { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByTestId("platform-sales-intake-row").first()).toBeVisible();
+  ).toHaveCount(0);
+  await expect(page.getByTestId("sales-intake-empty")).toBeVisible();
   await expect(
     page.getByRole("navigation", {
       name: /Основная навигация|Негизги навигация|Primary navigation/,
     }).first(),
   ).toBeVisible();
-  await expect(page.getByText(/Контракт OP утверждён · v\d+/)).toBeVisible();
+  await expect(page.getByTestId("canonical-evo-authority")).toBeVisible();
 
   await page.goto("/clients");
-  const clientsPage = page.getByTestId("platform-clients-page");
+  const clientsPage = page.getByTestId("canonical-clients-page");
   await expect(clientsPage).toBeVisible();
   await expect(
-    clientsPage.getByRole("heading", { name: "Student 360" }),
+    clientsPage.getByRole("heading", { name: "Клиенты EVO" }),
   ).toBeVisible();
-  await expect(
-    clientsPage.getByText("Synthetic Org A Student", { exact: true }).first(),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("progressbar", { name: /Synthetic Org A Student/ }).first(),
-  ).toBeVisible();
+  const canonicalClientRow = clientsPage.locator(
+    `[data-testid="canonical-client-row"][data-client-id="${fixture.u2.clientId}"]`,
+  );
+  await expect(canonicalClientRow).toBeVisible();
+  await expect(canonicalClientRow).toContainText(fixture.u2.clientDisplayName);
 
   await page.goto("/applications");
   const applicationsPage = page.getByTestId("platform-applications-page");
@@ -1429,20 +1450,42 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
     await expect(page.getByTestId("platform-pending")).toBeVisible();
   }
 
+  const hiddenReadiness = await page.evaluate(async () => {
+    const response = await fetch("/api/readiness");
+    return {
+      status: response.status,
+      cacheControl: response.headers.get("cache-control"),
+      body: await response.text(),
+    };
+  });
+  expect(hiddenReadiness).toEqual({
+    status: 404,
+    cacheControl: "no-store",
+    body: "",
+  });
+
   const apiResults = await page.evaluate(
     async (requests) =>
       Promise.all(
         requests.map(async ({ path, method }) => {
           const response = await fetch(path, { method });
+          const raw = await response.text();
+          let body: unknown = null;
+          if (raw.length > 0) {
+            try {
+              body = JSON.parse(raw) as unknown;
+            } catch {
+              body = raw;
+            }
+          }
           return {
             path,
             status: response.status,
-            body: await response.json(),
+            body,
           };
         }),
       ),
     [
-      { path: "/api/readiness", method: "GET" },
       { path: "/api/ai/draft", method: "POST" },
       { path: "/api/transcription/jobs", method: "POST" },
       { path: "/api/waha/qr", method: "GET" },
@@ -1468,7 +1511,16 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
           question: "Non-customer disabled-boundary check",
         }),
       });
-      return { path, status: response.status, body: await response.json() };
+      const raw = await response.text();
+      let body: unknown = null;
+      if (raw.length > 0) {
+        try {
+          body = JSON.parse(raw) as unknown;
+        } catch {
+          body = raw;
+        }
+      }
+      return { path, status: response.status, body };
     };
     return Promise.all([
       request("/api/platform-ai/staff-assistant"),
@@ -1495,7 +1547,16 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
         headers: { "content-type": "application/json" },
         body: "{}",
       });
-      return { path, status: response.status, body: await response.json() };
+      const raw = await response.text();
+      let body: unknown = null;
+      if (raw.length > 0) {
+        try {
+          body = JSON.parse(raw) as unknown;
+        } catch {
+          body = raw;
+        }
+      }
+      return { path, status: response.status, body };
     };
     return Promise.all([
       request("/api/internal/lead-agent/whatsapp"),
@@ -1513,7 +1574,7 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
   expect(connectedPrivateApis[1]).toEqual({
     path: "/api/internal/platform-ai/gemini/proposal",
     status: 503,
-    body: { error: "proposal_disabled" },
+    body: { ok: false, error: "proposal_disabled" },
   });
   for (const result of connectedPrivateApis.slice(2)) {
     expect(result.status, result.path).toBe(403);
@@ -1531,7 +1592,16 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
         body: "{}",
       },
     );
-    return { status: response.status, body: await response.json() };
+    const raw = await response.text();
+    let body: unknown = null;
+    if (raw.length > 0) {
+      try {
+        body = JSON.parse(raw) as unknown;
+      } catch {
+        body = raw;
+      }
+    }
+    return { status: response.status, body };
   });
   expect(privateWahaIngress.status).toBe(503);
   expect(privateWahaIngress.body).toEqual(
@@ -1543,7 +1613,16 @@ test("active staff reaches only connected Supabase-backed surfaces", async ({
       "/api/internal/platform-messaging/waha/work",
       { method: "POST" },
     );
-    return { status: response.status, body: await response.json() };
+    const raw = await response.text();
+    let body: unknown = null;
+    if (raw.length > 0) {
+      try {
+        body = JSON.parse(raw) as unknown;
+      } catch {
+        body = raw;
+      }
+    }
+    return { status: response.status, body };
   });
   expect(privateWahaWorker.status).toBe(503);
   expect(privateWahaWorker.body).toEqual(
@@ -1897,6 +1976,89 @@ test("P5B projects verified inbound WAHA work into the accepted conversation UI"
   const responsibleSalesToken = await localAccessToken(
     fixture.identities.responsibleSales,
   );
+  const intakeRows = await platformRpc(
+    responsibleSalesToken,
+    "staff_waha_sales_intake_page",
+    {
+      p_organization_id: fixture.p5b.organizationId,
+      p_limit: 51,
+      p_before_sort_at: null,
+      p_before_work_item_id: null,
+      p_state: null,
+      p_query: null,
+    },
+  );
+  expect(intakeRows.status).toBe(200);
+  expect(intakeRows.payload).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        intake_state: "received",
+        conversation_id: conversationId,
+        subject: "WhatsApp ••••0199",
+        client_display_name: "WhatsApp ••••0199",
+        error_code: null,
+      }),
+      expect.objectContaining({
+        intake_state: "manual_review",
+        conversation_id: conversationId,
+        canonical_lead_id: expect.any(String),
+        canonical_client_id: expect.any(String),
+        message_preview: humanReviewMarker,
+      }),
+    ]),
+  );
+  if (!Array.isArray(intakeRows.payload)) {
+    throw new Error("Expected the U3 Sales intake RPC to return an array.");
+  }
+  const canonicalLeadId = intakeRows.payload.find(
+    (row: { canonical_lead_id?: string | null; conversation_id?: string | null }) =>
+      row.conversation_id === conversationId && row.canonical_lead_id,
+  )?.canonical_lead_id;
+  expect(canonicalLeadId).toMatch(/^[0-9a-f-]{36}$/i);
+
+  await page.goto("/sales");
+  const intake = page.getByTestId("platform-sales-intake");
+  await expect(intake).toContainText("WhatsApp ••••0199");
+  await expect(intake).toContainText(humanReviewMarker);
+  await expect(page.getByTestId("platform-sales-intake-row").first()).toBeVisible();
+  await intake.getByRole("link", { name: /Open lead|Открыть лид|Лидди ачуу/ }).first().click();
+  await expect(page).toHaveURL(new RegExp(`/sales/${canonicalLeadId}$`));
+  await expect(
+    page.locator(`a[href="/sales/${canonicalLeadId}/conversations/${conversationId}"]`),
+  ).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(chatId);
+  await expect(page.locator("body")).not.toContainText("waha-event:");
+  await page.getByTestId("canonical-lead-client").getByRole("link").click();
+  await expect(page.getByTestId("canonical-client-detail")).toBeVisible();
+  const clientConversation = page
+    .getByTestId("canonical-linked-conversation")
+    .filter({ hasText: "WhatsApp ••••0199" });
+  await expect(clientConversation).toBeVisible();
+  await expect(clientConversation.getByRole("link")).toHaveCount(0);
+  await expect(
+    page.locator(`a[href="/whatsapp/${conversationId}"]`),
+  ).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(chatId);
+  await expect(page.locator("body")).not.toContainText("waha-event:");
+  await page.goto(`/sales/${canonicalLeadId}/conversations/${conversationId}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/sales/${canonicalLeadId}/conversations/${conversationId}$`),
+  );
+  const salesThread = page.getByTestId("platform-sales-conversation-thread");
+  await expect(salesThread).toBeVisible();
+  await expect(salesThread).toHaveAttribute("data-provider-proof", "not-proved");
+  await expect(
+    salesThread.locator('[data-message-direction="inbound"]'),
+  ).toContainText([bodyText, humanReviewMarker]);
+  await expect(page.locator("body")).not.toContainText(chatId);
+  await expect(page.locator("body")).not.toContainText(rawMessageId);
+  await expect(page.locator("body")).not.toContainText(rawMediaMessageId);
+  await expect(
+    page.getByRole("button", {
+      name: /send|reply|отправить|ответить|gemini|ai/i,
+    }),
+  ).toHaveCount(0);
+
   const messageRows = await platformRpc(
     responsibleSalesToken,
     "staff_conversation_message_page",
@@ -5871,7 +6033,8 @@ test("BW3 RPCs deny cross-student reads and non-Admin checklist binding", async 
     "staff_student_profile_snapshot",
     { p_student_case_id: fixture.bw3.orgA.studentCaseId },
   );
-  expect(financeProfile.status).toBe(403);
+  expect(financeProfile.status).toBe(200);
+  expect(financeProfile.payload).toEqual([]);
 
   for (const [label, token] of [
     ["sales", salesToken],
@@ -6562,7 +6725,9 @@ test("BW6 keeps contract drafts and post-contract reports versioned, authorized,
   ).toBe(firstRenderedHash);
 
   await salesPage.goto(activePath);
-  await expect(salesPage.getByText("404", { exact: true })).toBeVisible();
+  await expect(
+    salesPage.getByTestId("canonical-client-not-found"),
+  ).toBeVisible();
   await expect(
     salesPage.getByTestId("platform-contract-draft-report-workspace"),
   ).toHaveCount(0);
@@ -7097,7 +7262,7 @@ test("staff cannot stay on the student portal and a Student without a case fails
       page.getByRole("navigation", { name: "Навигация кабинета" }),
     ).toHaveCount(0);
     if (identity === fixture.identities.curator) {
-      await expect(page.getByTestId("platform-clients-page")).toBeVisible();
+      await expect(page.getByTestId("canonical-clients-page")).toBeVisible();
       await page.goto("/sales");
       await expect(page).toHaveURL(/\/platform-pending\?from=%2Fsales$/);
     }

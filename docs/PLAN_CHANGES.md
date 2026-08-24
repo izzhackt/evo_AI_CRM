@@ -40,6 +40,17 @@ Validation impact: docs-only slice still requires real repo validation through
 an exact blocker report.
 Reviewer notes: pending independent code-reviewer review.
 
+## 2026-08-24 - Activate U3 receive-only canonical Sales slice
+
+Date: 2026-08-24, workspace timezone.
+Author: Codex.
+Change type: scope, architecture, acceptance criteria, file ownership, merge order, and validation.
+Affected plan section: active launch contract, long-run execution map, canonical Supabase authority notes, U3 implementation contract, and required validation commands.
+Reason: GitHub issue #380 is now the only authorized active U-slice after U0/#377, U1/#378, and U2/#379 merged. Current-main plan documents still describe older docs-only and pre-ADR launch slices, and the requested `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` is absent.
+Decision: set the active launch-control contract to U3 receive-only WhatsApp intake into unified canonical Sales, create `docs/platform/u3-receive-only-sales-queue.md`, create `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, refresh `docs/EVO_LAUNCH_PLAN.md` and `CONTEXT.md` to name U0-U2 as completed prerequisites and U3 as the bounded repository/disposable-local slice, and update ADR 0020 metadata only as needed for truthful current-slice status. Preserve the accepted architecture: one internal EVO platform, Supabase canonical authority, WAHA as private transport adapter, no SQLite runtime fallback, no outbound WhatsApp, no amoCRM writes, no provider or production activation.
+Validation impact: before implementation, record current-main gap findings and primary-source URLs in the U3 contract. After implementation, run at minimum `git diff --check`, `npm run check:node-runtime`, `npm run test:supabase:history`, `npm run test:security:postgres`, `npm run test:supabase:local`, `npm run test:unit`, `npm run test:security:node`, `npm run lint`, and `npm run build`, plus exact-head and exact-main CI.
+Reviewer notes: the refreshed contract must stay truthful about repository/disposable-local proof versus intentionally unproven managed Supabase, provider, and production behavior.
+
 ## 2026-06-24 - Record Existing Validation Blockers
 
 Date: 2026-06-24, workspace timezone.
@@ -10651,3 +10662,89 @@ amoCRM authority. Merge requires one immutable head, independent exact-head
 launch-control approval, all four exact-head CI jobs, a match-head squash
 merge, exact-main CI and tree equivalence. Stop after #379; U3/#380 and every
 later U-slice remain unstarted.
+
+## 2026-08-24 — Activate U3 receive-only WhatsApp in the unified Sales queue
+
+Date: 2026-08-24, workspace timezone (+06).
+Author: Codex implementing owner-approved issues #376 and #380.
+Change type: U3 receive-only WAHA ingress, canonical Sales linkage, bounded
+queue/history contract.
+Source: GitHub issues #376 and #380; U0, U1 and U2 completion on current
+`main`.
+Block-ID: `EVO-U3-RECEIVE-ONLY-SALES-QUEUE-2026-08-24`.
+Starting repository baseline: GitHub `origin/main` at
+`b953a274f5668e1d0db178fddabd9410d1deb57f`.
+Focused contract: `docs/platform/u3-receive-only-sales-queue.md`.
+
+Reason: U2 established the canonical EVO client/lead identity and bounded
+connected read model, but inbound WAHA work still terminates at a historical
+`platform_intake` communications path that does not link supported direct
+messages to the canonical client/lead model and does not expose a bounded
+receive-only Sales queue/history seam that remains truthful beyond 1,000 rows.
+
+Decision:
+
+1. U3 keeps the existing signed raw-body WAHA ingress and immutable verified
+   provider-event ledger as the transport boundary, but acceptance now requires
+   persisting and idempotently linking a supported direct inbound message to
+   one canonical EVO client and lead before downstream Sales projection.
+2. WAHA identifiers remain external provenance only. U3 may create or reuse a
+   canonical client/lead through the exact WAHA external identity, but it must
+   not silently merge by name-only or phone-only similarity. Ambiguous matches
+   remain preserved as intake plus duplicate-review evidence.
+3. The unified `/sales` workflow stays the only accepted staff surface. New
+   supported inbound conversations must appear there without a separate Inbox
+   product, and unsupported/media-only/partial/retrying/failed states must stay
+   explicit and truthful.
+4. Any U3-relevant queue or conversation-history read must become bounded and
+   explicit, with stable cursor semantics and test proof that more than 1,000
+   rows/messages can be traversed without silent Supabase truncation,
+   duplication or omission.
+5. U3 remains strictly receive-only. It sends no WhatsApp message, enables no
+   manual or automatic reply, writes nothing to amoCRM, touches no managed
+   Supabase/provider/production path and makes no live-provider claim.
+6. Migration 085 is the only schema delta. It links the existing private WAHA
+   direct-chat projection transaction to U2 create-or-link APIs, using
+   `new_inbound` / `whatsapp` plus the configured intake Sales membership as
+   minimum routing state. Qualification, reassignment and next action remain
+   U4.
+7. Add one safe bounded Sales intake RPC over durable inbound work. It exposes
+   no raw payload or provider request/message identifier, applies authorization,
+   state and search before a stable `(sort_at, work_item_id)` keyset, and maps
+   work to explicit queued, retrying, received, manual-review, unsupported or
+   terminal-failure states.
+8. Supported conversation history is opened only under the canonical lead in
+   `/sales` through a receive-only detail surface. Existing reply, AI,
+   outbound and amoCRM mutation controls are not imported into that path.
+
+Validation impact: before merge, run the focused U3 seams first and then the
+required repository gates from the execution contract, including
+`git diff --check`, `npm run check:node-runtime`,
+`npm run test:supabase:history`, `npm run test:security:postgres`,
+`npm run test:supabase:local`, `npm run test:unit`,
+`npm run test:security:node`, `npm run lint`, and `npm run build`.
+Reviewer notes: exact-head review at
+`30666cddf689bfab736e37ee8f41799dfd605fbb` requested the receive-only
+correction below; fresh exact-head approval remains pending after correction.
+
+Reviewer correction: independent review of
+`30666cddf689bfab736e37ee8f41799dfd605fbb` found that canonical client detail
+still inherited the legacy `/whatsapp/:conversationId` link. A user entering
+through U3 could therefore leave the receive-only Sales path and reach the
+existing reply surface. Remove that implicit fallback: canonical lead detail
+must explicitly select its nested `/sales/:leadId/conversations` route, while
+canonical client detail keeps linked conversation evidence visible but
+non-clickable because its bounded payload cannot identify one safe lead route.
+Static and real-browser regressions must prove the client detour exposes no
+legacy WhatsApp conversation link before the exact-head review cycle restarts.
+
+Second reviewer correction: independent review of
+`6e4fe1e3c41db880d236765ce38ce384bcc73281` found that U3's exact private
+WAHA identity was also projected by the inherited canonical provenance reads.
+Keep the raw identity unchanged for deterministic create-or-link idempotency,
+but make it private at both server boundaries: authenticated direct-table RLS
+excludes WAHA external identifiers/provenance, and the security-definer client
+and lead detail RPCs independently apply the same filter. SQL and browser
+regressions must prove that `@c.us` and `waha-event:` values cannot reach staff
+surfaces while the pre-existing non-WAHA canonical provenance contract remains
+available.

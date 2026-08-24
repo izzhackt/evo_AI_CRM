@@ -129,9 +129,11 @@ P2E начинается строго после migration 042 и добавля
 Его merged contract не расширяет base-table grants для сокращённых
 аудиторий: Admin и текущий Curator получают полный document workflow в своём
 scope; Sales до handoff — только фиксированный checklist; Student — только
-fixed self history; Finance не получает sensitive document access. В finance
-Admin/Finance подтверждают evidence-bearing events, а Sales, текущий Curator и
-Student используют отдельные безопасные projections. Полный контракт:
+fixed self history; Finance не получает sensitive document access. Исторический
+P2E bundle позволял Admin/Finance подтверждать evidence-bearing events; U1
+явно supersedes это role-derived право и требует отдельный индивидуальный grant
+для contract/first-payment confirmation. Sales, текущий Curator и Student
+используют отдельные безопасные projections. Полный исторический контракт:
 [`p2e-documents-finance-notifications.md`](p2e-documents-finance-notifications.md).
 PR #88 merged migration 043 as
 `aac1cba851e89070a7eb54baab4eddf921e3447c`; exact-main CI
@@ -257,8 +259,12 @@ future cutover проверяются отдельно. `chat-media` уже priv
 ### Manual finance
 
 EVO Platform является manual operational finance source v1 и отдельно хранит
-EVO service fee и third-party study cost. Только Finance/Admin подтверждают
-obligation, payment, refund или stop factor. Сумма хранится целым числом в
+EVO service fee и third-party study cost. В U1 подтверждение payment/refund
+event через существующий `finance.event.confirm` требует действующего
+индивидуального `finance.first.payment.confirm`; название роли само по себе это
+право не даёт. Создание obligation и управление stop factor пока остаются под
+bundle permissions `finance.manage` и `finance.stop.manage` соответственно;
+индивидуальное permission для них не заявляется. Сумма хранится целым числом в
 минимальной единице одной currency; payment не может превысить остаток, а
 refund обязан ссылаться на exact confirmed payment и не может превысить его
 невернутую часть. Actor, effective time, source, evidence и request key
@@ -375,6 +381,7 @@ No dual-read, dual-write, write-through, alias, fallback repository or
 compatibility translation is allowed.
 
 Provider cutover, managed migration, service retirement and rollback require
-their later U-slice authority and real evidence. U0 changes documentation only.
-It performs no managed Supabase apply, amoCRM/WAHA mutation, customer send or
+their later U-slice authority and real evidence. U0 was documentation-only and
+is merged. U1 changes repository and disposable-local staff authorization only;
+it performs no managed Supabase apply, amoCRM/WAHA mutation, customer send or
 production action. AI remains advisory; the first live stage is receive-only.

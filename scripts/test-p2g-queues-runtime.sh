@@ -522,11 +522,20 @@ SELECT set_config(
     'sub', profile.auth_user_id,
     'role', 'authenticated',
     'platform_role', 'admin',
-    'platform_access_version', profile.access_version
+    'platform_access_version', profile.access_version,
+    'platform_organization_id', membership.organization_id,
+    'platform_membership_id', membership.id,
+    'platform_bundle_id', bundle.id,
+    'platform_bundle_version', bundle.version
   )::TEXT,
   TRUE
 ) AS p2g_admin_claims
 FROM platform.profiles AS profile
+JOIN platform.organization_memberships AS membership
+  ON membership.profile_id = profile.id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
+  AND bundle.role = membership."current_role"
 WHERE profile.id = '45993000-0000-4000-8000-000000000022'
 \gset
 

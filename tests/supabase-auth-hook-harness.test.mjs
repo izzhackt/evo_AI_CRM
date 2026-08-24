@@ -87,7 +87,7 @@ test("Auth smoke emits one dedicated revocable browser actor", () => {
   );
 });
 
-test("Auth smoke relies on atomic Admin scope provisioning without a duplicate assignment", () => {
+test("Auth smoke relies on atomic pilot scope provisioning without duplicate assignment", () => {
   const helperStart = authHook.indexOf("const provisionMembership = async");
   const helperEnd = authHook.indexOf(
     "const persistSyntheticFixtureEvent",
@@ -97,13 +97,20 @@ test("Auth smoke relies on atomic Admin scope provisioning without a duplicate a
 
   assert.notEqual(helperStart, -1);
   assert.notEqual(helperEnd, -1);
-  assert.match(helper, /if \(role !== "admin"\) \{/);
+  assert.match(
+    helper,
+    /provisioned\?\.organization_scope_assigned === true/,
+  );
+  assert.match(
+    helper,
+    /if \(!\["admin", "sales", "curator"\]\.includes\(role\)\) \{/,
+  );
   assert.equal(
     (helper.match(/"assign_organization_scope"/g) ?? []).length,
     1,
   );
   assert.ok(
-    helper.indexOf('if (role !== "admin") {') <
+    helper.indexOf('if (!["admin", "sales", "curator"].includes(role)) {') <
       helper.indexOf('"assign_organization_scope"'),
   );
 });
@@ -132,7 +139,7 @@ test("P7B browser proof receives a runtime-random private collector secret", () 
   );
 });
 
-test("P7A proves stale, inactive and blocked authority with otherwise-authorized Admin tokens", () => {
+test("U1 proves stale, inactive, suspended and blocked authority with otherwise-authorized Admin tokens", () => {
   const staleActor = authHook.indexOf(
     'staleAdmin: syntheticIdentity("p7a-stale-admin")',
   );
@@ -146,7 +153,7 @@ test("P7A proves stale, inactive and blocked authority with otherwise-authorized
     "const staleAdminAccessToken = identities.staleAdmin.accessToken;",
   );
   const staleMutation = authHook.indexOf(
-    'await rpc(identities.adminA, "change_membership_role", [',
+    'await rpc(identities.adminA, "change_pilot_staff_role", [',
     staleCapture,
   );
   const inactiveActor = authHook.indexOf(
@@ -166,7 +173,7 @@ test("P7A proves stale, inactive and blocked authority with otherwise-authorized
     inactiveCapture,
   );
   const inactiveMutation = authHook.lastIndexOf(
-    'await rpc(identities.adminA, "change_membership_status", [',
+    'await rpc(identities.adminA, "change_pilot_staff_status", [',
     inactiveReason,
   );
   const blockedProvision = authHook.indexOf(
@@ -183,7 +190,7 @@ test("P7A proves stale, inactive and blocked authority with otherwise-authorized
     blockedCapture,
   );
   const blockedMutation = authHook.lastIndexOf(
-    'await rpc(identities.adminA, "change_membership_status", [',
+    'await rpc(identities.adminA, "change_pilot_staff_status", [',
     blockedReason,
   );
 

@@ -140,18 +140,18 @@ test("connected audit tab is Admin guarded and exposes only safe Platform fields
   }
 });
 
-test("connected staff navigation exposes the exact audit query only to Admin when P7A is enabled", () => {
+test("connected staff navigation always opens Admin staff settings", () => {
   assert.match(
     layoutSource,
-    /isPlatformP7AAuditEnabled\(\)[\s\S]*\["\/settings"\]/,
+    /CONNECTED_STAFF_ROUTES[\s\S]*"\/settings"/,
   );
   assert.match(
     layoutSource,
-    /PLATFORM_AUDIT_SETTINGS_HREF = "\/settings\?tab=audit"/,
+    /PLATFORM_STAFF_SETTINGS_HREF = "\/settings\?tab=staff"/,
   );
   assert.match(
     layoutSource,
-    /provider\.connectedRoutesOnly && href === "\/settings"[\s\S]*PLATFORM_AUDIT_SETTINGS_HREF/,
+    /provider\.connectedRoutesOnly && href === "\/settings"[\s\S]*PLATFORM_STAFF_SETTINGS_HREF/,
   );
   assert.match(layoutSource, /STAFF_NAV_ITEMS[\s\S]*allowedRoles/);
   assert.match(staffNavSource, /function navPath\(href: string\)/);

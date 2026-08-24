@@ -26,6 +26,8 @@ export type PlatformActor = Readonly<{
   displayName: string;
   platformRole: PlatformRole;
   platformAccessVersion: number;
+  platformBundleId: string;
+  platformBundleVersion: number;
   /**
    * Compatibility role for the accepted frontend. Authorization must use
    * platformRole; only the database `student` role is renamed to UI `client`.
@@ -60,6 +62,10 @@ type VerifiedAuthorityClaims = Readonly<{
   authUserId: string;
   platformRole: PlatformRole;
   platformAccessVersion: number;
+  platformOrganizationId: string;
+  platformMembershipId: string;
+  platformBundleId: string;
+  platformBundleVersion: number;
 }>;
 
 const UUID_PATTERN =
@@ -102,9 +108,33 @@ function parseClaims(value: unknown): VerifiedAuthorityClaims | null {
   const platformAccessVersion = parseAccessVersion(
     value.platform_access_version,
   );
+  const platformOrganizationId = parseUuid(value.platform_organization_id);
+  const platformMembershipId = parseUuid(value.platform_membership_id);
+  const platformBundleId = parseUuid(value.platform_bundle_id);
+  const platformBundleVersion = parseAccessVersion(
+    value.platform_bundle_version,
+  );
 
-  if (!authUserId || !platformRole || !platformAccessVersion) return null;
-  return { authUserId, platformRole, platformAccessVersion };
+  if (
+    !authUserId ||
+    !platformRole ||
+    !platformAccessVersion ||
+    !platformOrganizationId ||
+    !platformMembershipId ||
+    !platformBundleId ||
+    !platformBundleVersion
+  ) {
+    return null;
+  }
+  return {
+    authUserId,
+    platformRole,
+    platformAccessVersion,
+    platformOrganizationId,
+    platformMembershipId,
+    platformBundleId,
+    platformBundleVersion,
+  };
 }
 
 function toUiRole(platformRole: PlatformRole): Role {
@@ -167,7 +197,9 @@ function parseAuthority(
   if (
     authUserId !== claims.authUserId ||
     platformRole !== claims.platformRole ||
-    platformAccessVersion !== claims.platformAccessVersion
+    platformAccessVersion !== claims.platformAccessVersion ||
+    organizationId !== claims.platformOrganizationId ||
+    membershipId !== claims.platformMembershipId
   ) {
     return invalid("authority_mismatch");
   }
@@ -182,6 +214,8 @@ function parseAuthority(
       displayName,
       platformRole,
       platformAccessVersion,
+      platformBundleId: claims.platformBundleId,
+      platformBundleVersion: claims.platformBundleVersion,
       role: toUiRole(platformRole),
     },
   };

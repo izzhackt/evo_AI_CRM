@@ -53,6 +53,7 @@ const PLATFORM_AUDIT_SETTINGS_QUERY_KEYS = new Set([
   "cursor_created_at",
   "cursor_id",
 ]);
+const PLATFORM_STAFF_SETTINGS_QUERY_KEYS = new Set(["tab", "staff_result"]);
 
 export function platformHomeRoute(role: PlatformRole): string {
   if (role === "admin" || role === "sales") return "/sales";
@@ -68,7 +69,9 @@ export function platformStudentPortalRedirect(
 }
 
 export function platformStaffRedirect(role: PlatformRole): string | null {
-  return role === "student" ? "/portal" : null;
+  if (role === "student") return "/portal";
+  if (role === "finance") return "/platform-pending";
+  return null;
 }
 
 /**
@@ -109,6 +112,40 @@ export function isConnectedPlatformAuditSettingsRequest(
     }
   }
   return true;
+}
+
+export function isConnectedPlatformStaffSettingsRequest(
+  path: string,
+  searchParams: URLSearchParams,
+): boolean {
+  if (path !== "/settings" || searchParams.getAll("tab").length !== 1) {
+    return false;
+  }
+  if (searchParams.get("tab") !== "staff") return false;
+
+  for (const key of new Set(searchParams.keys())) {
+    if (
+      !PLATFORM_STAFF_SETTINGS_QUERY_KEYS.has(key) ||
+      searchParams.getAll(key).length !== 1
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function isConnectedPlatformSettingsRequest(
+  path: string,
+  searchParams: URLSearchParams,
+  { auditEnabled }: { auditEnabled: boolean },
+): boolean {
+  return (
+    isConnectedPlatformStaffSettingsRequest(path, searchParams) ||
+    (
+      auditEnabled &&
+      isConnectedPlatformAuditSettingsRequest(path, searchParams)
+    )
+  );
 }
 
 export function isConnectedPlatformAuditExportApi(path: string): boolean {

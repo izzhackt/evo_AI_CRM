@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 
 type Identity = Readonly<{ email: string; password: string }>;
+type ProvisionableIdentity = Identity & Readonly<{ authUserId: string }>;
 type ConversationFixture = Readonly<{
   id: string;
   subject: string;
@@ -106,6 +107,7 @@ type Fixture = Readonly<{
     privateAfter: string;
     staleAdminAccessToken: string;
     inactiveAdminAccessToken: string;
+    suspendedAdminAccessToken: string;
     blockedAdminAccessToken: string;
   }>;
   p7b: Readonly<{
@@ -118,6 +120,7 @@ type Fixture = Readonly<{
     crossOrgAdmin: Identity;
     staleAdmin: Identity;
     inactiveAdmin: Identity;
+    suspendedAdmin: Identity;
     salesScoped: Identity;
     responsibleSales: Identity;
     p5dSales: Identity;
@@ -128,7 +131,7 @@ type Fixture = Readonly<{
     crossOrgStudent: Identity;
     lifecycleStudent: Identity;
     blocked: Identity;
-    noMembership: Identity;
+    noMembership: ProvisionableIdentity;
     revocableCurator: Identity;
   }>;
   conversations: Readonly<{
@@ -387,7 +390,7 @@ async function login(page: Page, identity: Identity) {
 
 function expectedStaffHome(identity: Identity): RegExp {
   if (identity === fixture.identities.curator) return /\/clients$/;
-  if (identity === fixture.identities.finance) return /\/platform-pending$/;
+  if (identity === fixture.identities.finance) return /\/login$/;
   if (identity === fixture.identities.student) return /\/portal$/;
   if (identity === fixture.identities.studentNoCase) {
     return /\/platform-pending(?:\?.*)?$/;
@@ -737,6 +740,8 @@ test("wrong password and unprovisioned authorities fail closed", async ({
 
   for (const identity of [
     fixture.identities.blocked,
+    fixture.identities.suspendedAdmin,
+    fixture.identities.finance,
     fixture.identities.noMembership,
   ]) {
     await login(page, identity);
@@ -744,6 +749,28 @@ test("wrong password and unprovisioned authorities fail closed", async ({
       "не назначен активный доступ",
     );
     await expect(page).toHaveURL(/\/login$/);
+  }
+});
+
+test("the three U1 pilot roles use one login and one EVO staff shell", async ({
+  browser,
+}) => {
+  for (const [label, identity, destination] of [
+    ["Director/Admin", fixture.identities.admin, "/sales"],
+    ["Sales Manager", fixture.identities.salesScoped, "/sales"],
+    ["Admissions Manager", fixture.identities.curator, "/clients"],
+  ] as const) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await login(page, identity);
+    await expect(page, label).toHaveURL(new RegExp(`${destination}$`));
+    await expect(
+      page.getByRole("navigation", {
+        name: /Основная навигация|Негизги навигация|Primary navigation/,
+      }).first(),
+      label,
+    ).toBeVisible();
+    await context.close();
   }
 });
 
@@ -817,7 +844,7 @@ test("a revoked live authority clears only this Platform session", async ({
   const adminToken = await localAccessToken(fixture.identities.admin);
   const revocation = await platformRpc(
     adminToken,
-    "change_membership_status",
+    "change_pilot_staff_status",
     {
       p_organization_id: fixture.p2r3.organizationId,
       p_membership_id: fixture.p2r3.revocableMembershipId,
@@ -844,6 +871,266 @@ test("a revoked live authority clears only this Platform session", async ({
     finalCookies.find(({ name }) => name === "sb-other-auth-token")?.value,
   ).toBe(foreignSupabaseSentinelValue);
   expectLegacyDatabaseUntouched();
+});
+
+test("U1 Admin manages individual sensitive permissions while UI, RPC and RLS deny non-Admin access", async ({
+  browser,
+  page,
+}) => {
+  const settingsPath = "/settings?tab=staff";
+  const salesTokenBefore = await localAccessToken(fixture.identities.salesScoped);
+
+  for (const permission of [
+    "contract.evidence.confirm",
+    "finance.first.payment.confirm",
+  ] as const) {
+    const denied = await platformRpc(
+      salesTokenBefore,
+      "assert_sensitive_permission",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_permission_key: permission,
+      },
+    );
+    expect(denied.status, `${permission}-default-deny`).toBe(403);
+  }
+
+  const nonAdminDirectory = await platformRpc(
+    salesTokenBefore,
+    "staff_directory",
+    { p_organization_id: fixture.p5b.organizationId },
+  );
+  expect(nonAdminDirectory.status).toBe(403);
+  const nonAdminDirectRead = await platformRows(
+    salesTokenBefore,
+    "membership_permission_events",
+    new URLSearchParams({ select: "id" }),
+  );
+  expect([401, 403]).toContain(nonAdminDirectRead.status);
+
+  const deniedMembershipId = randomUUID();
+  for (const [rpcName, args] of [
+    [
+      "provision_pilot_staff_member",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_member_auth_user_id: randomUUID(),
+        p_member_display_name: "Denied non-Admin provision",
+        p_role: "sales",
+        p_reason: "U1 non-Admin provisioning denial",
+        p_request_id: randomUUID(),
+      },
+    ],
+    [
+      "change_pilot_staff_role",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_membership_id: deniedMembershipId,
+        p_new_role: "curator",
+        p_reason: "U1 non-Admin role denial",
+        p_request_id: randomUUID(),
+      },
+    ],
+    [
+      "change_pilot_staff_status",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_membership_id: deniedMembershipId,
+        p_new_status: "suspended",
+        p_reason: "U1 non-Admin status denial",
+        p_request_id: randomUUID(),
+      },
+    ],
+    [
+      "change_membership_permission",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_membership_id: deniedMembershipId,
+        p_permission_key: "contract.evidence.confirm",
+        p_granted: true,
+        p_reason: "U1 non-Admin permission denial",
+        p_request_id: randomUUID(),
+      },
+    ],
+  ] as const) {
+    const deniedMutation = await platformRpc(salesTokenBefore, rpcName, args);
+    expect(deniedMutation.status, `${rpcName}-non-admin-denial`).toBe(403);
+  }
+
+  const deniedContext = await browser.newContext();
+  const deniedPage = await deniedContext.newPage();
+  await login(deniedPage, fixture.identities.salesScoped);
+  await deniedPage.goto(settingsPath);
+  await expect(deniedPage.getByTestId("platform-staff-settings")).toHaveCount(0);
+  await expect(deniedPage).toHaveURL(/\/platform-pending/);
+  await deniedContext.close();
+
+  await login(page, fixture.identities.admin);
+  const settingsNav = page
+    .locator(".staff-sidebar")
+    .getByRole("link", { name: "Настройки", exact: true });
+  await expect(settingsNav).toHaveAttribute("href", settingsPath);
+  await settingsNav.click();
+  await expect(page.getByTestId("platform-staff-settings")).toBeVisible();
+  await expect(page.getByTestId("platform-audit-settings-link")).toHaveCount(0);
+
+  const lifecycleDisplayName = "Synthetic U1 UI lifecycle";
+  const provisionForm = page.getByTestId("platform-staff-provision");
+  await provisionForm
+    .locator('input[name="auth_user_id"]')
+    .fill(fixture.identities.noMembership.authUserId);
+  await provisionForm
+    .locator('input[name="display_name"]')
+    .fill(lifecycleDisplayName);
+  await provisionForm.locator('select[name="role"]').selectOption("sales");
+  await provisionForm
+    .locator('input[name="reason"]')
+    .fill("U1 browser provisioning lifecycle proof");
+  await provisionForm.getByRole("button", { name: "Добавить" }).click();
+  await expect(page).toHaveURL(/staff_result=provisioned/);
+
+  const lifecycleRow = page.getByTestId("platform-staff-row").filter({
+    hasText: lifecycleDisplayName,
+  });
+  await expect(lifecycleRow).toHaveCount(1);
+  await expect(lifecycleRow).toContainText("Sales Manager");
+
+  const provisionedContext = await browser.newContext();
+  const provisionedPage = await provisionedContext.newPage();
+  await login(provisionedPage, fixture.identities.noMembership);
+  await expect(provisionedPage).toHaveURL(/\/sales$/);
+  await provisionedContext.close();
+
+  const roleForm = lifecycleRow.getByTestId("platform-staff-role");
+  await roleForm.locator('select[name="role"]').selectOption("curator");
+  await roleForm
+    .locator('input[name="reason"]')
+    .fill("U1 browser role lifecycle proof");
+  await roleForm.getByRole("button", { name: "Изменить роль" }).click();
+  await expect(page).toHaveURL(/staff_result=role_changed/);
+  await expect(lifecycleRow).toContainText("Admissions Manager");
+
+  for (const [status, label] of [
+    ["invited", "Приглашён"],
+    ["active", "Активен"],
+    ["suspended", "Приостановлен"],
+    ["active", "Активен"],
+    ["inactive", "Неактивен"],
+    ["active", "Активен"],
+    ["blocked", "Заблокирован"],
+  ] as const) {
+    const statusForm = lifecycleRow.getByTestId("platform-staff-status");
+    await statusForm.locator('select[name="status"]').selectOption(status);
+    await statusForm
+      .locator('input[name="reason"]')
+      .fill(`U1 browser ${status} lifecycle proof`);
+    await statusForm.getByRole("button", { name: "Изменить статус" }).click();
+    await expect(page).toHaveURL(/staff_result=status_changed/);
+    await expect(lifecycleRow).toContainText(label);
+  }
+
+  const salesRow = page.getByTestId("platform-staff-row").filter({
+    hasText: "Synthetic sales-scoped",
+  });
+  await expect(salesRow).toHaveCount(1);
+
+  for (const permission of [
+    "contract.evidence.confirm",
+    "finance.first.payment.confirm",
+  ] as const) {
+    const form = salesRow.getByTestId(`platform-staff-permission-${permission}`);
+    await form.locator('input[name="reason"]').fill(`U1 grant ${permission}`);
+    await form.getByRole("button", { name: "Выдать" }).click();
+    await expect(page).toHaveURL(/staff_result=permission_changed/);
+  }
+
+  const staleAfterGrant = await platformRpc(
+    salesTokenBefore,
+    "assert_sensitive_permission",
+    {
+      p_organization_id: fixture.p5b.organizationId,
+      p_permission_key: "contract.evidence.confirm",
+    },
+  );
+  expect(staleAfterGrant.status).toBe(403);
+
+  const grantedSalesToken = await localAccessToken(fixture.identities.salesScoped);
+  for (const permission of [
+    "contract.evidence.confirm",
+    "finance.first.payment.confirm",
+  ] as const) {
+    const allowed = await platformRpc(
+      grantedSalesToken,
+      "assert_sensitive_permission",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_permission_key: permission,
+      },
+    );
+    expect(allowed.status, `${permission}-explicit-grant`).toBe(200);
+    expect(allowed.payload).toMatchObject({
+      organization_id: fixture.p5b.organizationId,
+      permission_key: permission,
+      authorized: true,
+    });
+    const crossOrganization = await platformRpc(
+      grantedSalesToken,
+      "assert_sensitive_permission",
+      {
+        p_organization_id: fixture.p6d.crossOrgOrganizationId,
+        p_permission_key: permission,
+      },
+    );
+    expect(crossOrganization.status, `${permission}-cross-org`).toBe(403);
+  }
+
+  for (const permission of [
+    "contract.evidence.confirm",
+    "finance.first.payment.confirm",
+  ] as const) {
+    const form = salesRow.getByTestId(`platform-staff-permission-${permission}`);
+    await form.locator('input[name="reason"]').fill(`U1 revoke ${permission}`);
+    await form.getByRole("button", { name: "Отозвать" }).click();
+    await expect(page).toHaveURL(/staff_result=permission_changed/);
+  }
+
+  const staleAfterRevoke = await platformRpc(
+    grantedSalesToken,
+    "assert_sensitive_permission",
+    {
+      p_organization_id: fixture.p5b.organizationId,
+      p_permission_key: "finance.first.payment.confirm",
+    },
+  );
+  expect(staleAfterRevoke.status).toBe(403);
+  const revokedSalesToken = await localAccessToken(fixture.identities.salesScoped);
+  const revoked = await platformRpc(
+    revokedSalesToken,
+    "assert_sensitive_permission",
+    {
+      p_organization_id: fixture.p5b.organizationId,
+      p_permission_key: "finance.first.payment.confirm",
+    },
+  );
+  expect(revoked.status).toBe(403);
+
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const auditRows = await safeAuditSearch(adminToken, {
+    actions: ["membership.permission.change"],
+    resourceTypes: ["organization_membership"],
+    resourceId: fixture.bw6.salesPending.responsibleSalesMembershipId,
+  });
+  expect(auditRows.status).toBe(200);
+  expect(safeAuditRows(auditRows.payload)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        action: "membership.permission.change",
+        resource_id: fixture.bw6.salesPending.responsibleSalesMembershipId,
+        changed_field_codes: ["sensitive_permission"],
+      }),
+    ]),
+  );
+  expect(safeAuditRows(auditRows.payload).length).toBeGreaterThanOrEqual(4);
 });
 
 test("admin opens ordered synthetic inbound messages through Supabase RLS", async ({
@@ -3402,6 +3689,7 @@ test("P7A searches and exports safe organization audit evidence through connecte
   expectLegacyDatabaseUntouched();
 
   const exportPath = "/api/platform-audit/export";
+  const staffSettingsPath = "/settings?tab=staff";
   const settingsPath = "/settings?tab=audit";
   const safePrivateValues = [
     fixture.p7a.privatePrincipal,
@@ -3428,8 +3716,15 @@ test("P7A searches and exports safe organization audit evidence through connecte
   const settingsNav = page
     .locator(".staff-sidebar")
     .getByRole("link", { name: "Настройки", exact: true });
-  await expect(settingsNav).toHaveAttribute("href", settingsPath);
+  await expect(settingsNav).toHaveAttribute("href", staffSettingsPath);
   await settingsNav.click();
+  await expect(page).toHaveURL(
+    new RegExp(`${escapePathForRegex(staffSettingsPath)}$`),
+  );
+  await expect(page.getByTestId("platform-staff-settings")).toBeVisible();
+  const auditSettingsLink = page.getByTestId("platform-audit-settings-link");
+  await expect(auditSettingsLink).toHaveAttribute("href", settingsPath);
+  await auditSettingsLink.click();
   await expect(page).toHaveURL(new RegExp(`${escapePathForRegex(settingsPath)}$`));
   await expect(
     page
@@ -3624,6 +3919,7 @@ test("P7A searches and exports safe organization audit evidence through connecte
   for (const [label, accessToken] of [
     ["stale Admin", fixture.p7a.staleAdminAccessToken],
     ["inactive Admin", fixture.p7a.inactiveAdminAccessToken],
+    ["suspended Admin", fixture.p7a.suspendedAdminAccessToken],
     ["blocked Admin", fixture.p7a.blockedAdminAccessToken],
   ] as const) {
     const deniedSearch = await safeAuditSearch(accessToken, {
@@ -5453,8 +5749,7 @@ test("BW3 RPCs deny cross-student reads and non-Admin checklist binding", async 
     "staff_student_profile_snapshot",
     { p_student_case_id: fixture.bw3.orgA.studentCaseId },
   );
-  expect(financeProfile.status).toBe(200);
-  expect(financeProfile.payload).toEqual([]);
+  expect(financeProfile.status).toBe(403);
 
   for (const [label, token] of [
     ["sales", salesToken],
@@ -6668,7 +6963,7 @@ test("staff cannot stay on the student portal and a Student without a case fails
   for (const [identity, expectedPath] of [
     [fixture.identities.admin, "/sales"],
     [fixture.identities.curator, "/clients"],
-    [fixture.identities.finance, "/platform-pending"],
+    [fixture.identities.finance, "/login"],
   ] as const) {
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -6683,18 +6978,6 @@ test("staff cannot stay on the student portal and a Student without a case fails
       await expect(page.getByTestId("platform-clients-page")).toBeVisible();
       await page.goto("/sales");
       await expect(page).toHaveURL(/\/platform-pending\?from=%2Fsales$/);
-    }
-    if (identity === fixture.identities.finance) {
-      for (const route of ["/clients", "/applications"]) {
-        await page.goto(route);
-        const destination = new URL(page.url());
-        expect(destination.pathname, route).toBe("/platform-pending");
-        expect(destination.searchParams.get("from"), route).toBe(route);
-      }
-    }
-    if (expectedPath === "/platform-pending") {
-      await expect(page.getByTestId("platform-pending")).toBeVisible();
-      await expect(page.getByRole("link", { name: "Открыть сообщения" })).toHaveCount(0);
     }
     await context.close();
   }

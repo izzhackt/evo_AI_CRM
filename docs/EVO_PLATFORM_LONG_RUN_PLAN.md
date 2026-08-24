@@ -2,16 +2,16 @@
 
 Status: active U0-U14 repository implementation contract
 Version date: 2026-08-24 (Asia/Bishkek)
-Current planning baseline: GitHub `origin/main` at
-`31d26b6e6bdc8a96fcf9f48210e417d43619370d`
+Current U1 branch baseline: GitHub `origin/main` at
+`466f3fef95b331d1d9ae4280511a189d8a12d704`
 Authority: parent issue #376, ADR 0020, this plan and the latest merged
 `docs/PLAN_CHANGES.md`. ADR 0015 and ADR 0017 remain active only where ADR 0020
 retains them. Earlier P/BW/NW/P8 plans and ADR 0019 are historical source.
 
-Current execution checkpoint: U0/#377 only. U0 is docs-only and stops before
-U1/#378. It changes no runtime, schema, migration, provider, production,
-customer data, WAHA session, amoCRM record or WhatsApp message.
-Block-ID: `EVO-U0-UNIFIED-V1-AUTHORITY-2026-08-24`.
+Current execution checkpoint: U0/#377 is merged. U1/#378 is the only current
+repository/local slice and stops before U2/#379. It changes no provider,
+production, customer data, WAHA session, amoCRM record or WhatsApp message.
+Block-ID: `EVO-U1-UNIFIED-STAFF-ACCESS-2026-08-24`.
 
 ### Historical pre-#376 checkpoint
 
@@ -161,15 +161,16 @@ do not silently change production.
 
 ## 2A. Current planning priority
 
-1. Complete U0/#377 as one docs-only PR from current `main`: record ADR 0020,
-   reconcile authority docs and publish the complete draft-PR/historical-issue
-   crosswalk.
-2. Require one independent exact-head launch-control review, exact-head required
-   CI and a final immutable head/base refresh before merge.
-3. Stop after #377. U1/#378 starts only in a later branch/PR after U0 is merged.
-4. Execute U1-U14 strictly in dependency order. A stale draft contributes only
+1. Complete U1/#378 from current `main`: one Supabase staff login, exactly three
+   pilot roles, Admin-only lifecycle controls, explicit sensitive permissions,
+   immediate revocation and UI/API/RLS enforcement.
+2. Prove U1 through disposable-local Supabase/PostgreSQL and browser acceptance,
+   then require one independent exact-head launch-control review, exact-head
+   required CI and a final immutable head/base refresh before merge.
+3. Stop after #378. U2/#379 starts only in a later branch/PR after U1 is merged.
+4. Execute U2-U14 strictly in dependency order. A stale draft contributes only
    the value assigned by the crosswalk and is rebuilt from then-current `main`.
-5. Keep outbound WhatsApp and amoCRM writes disabled. No U0 action may touch
+5. Keep outbound WhatsApp and amoCRM writes disabled. No U1 action may touch
    production, providers, DNS/TLS, WAHA sessions or customer data.
 
 No mock, SQLite shim, hardcoded provider mapping, fake success or silent
@@ -425,9 +426,9 @@ Shared plan, schema, migration and deployment surfaces are sequential.
 
 | Slice | Issue | Scope | Status |
 | --- | --- | --- | --- |
-| U0 | #377 | Authority docs and complete legacy crosswalk | Current docs-only slice |
-| U1 | #378 | One login and three pilot roles | Blocked by U0 |
-| U2 | #379 | Canonical Supabase client and lead | Blocked by U0 |
+| U0 | #377 | Authority docs and complete legacy crosswalk | Merged prerequisite |
+| U1 | #378 | One login and three pilot roles | Current repository/local slice |
+| U2 | #379 | Canonical Supabase client and lead | Blocked by U1 |
 | U3 | #380 | Receive-only WhatsApp in unified Sales | Blocked by U1/U2 |
 | U4 | #381 | Sales qualification, owner and next action | Blocked by U3 |
 | U5 | #382 | Contract and first-payment evidence | Blocked by U1/U2/U4 |

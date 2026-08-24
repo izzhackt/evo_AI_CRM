@@ -77,6 +77,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "knowledge.chunkset.publish",
   "knowledge.version.publish",
   "knowledge.version.retire",
+  "membership.permission.change",
   "membership.provision",
   "membership.role.change",
   "membership.scope.organization.assign",
@@ -184,6 +185,7 @@ export const PLATFORM_AUDIT_CHANGED_FIELD_CODES = [
   "notification_status",
   "record_status",
   "review_status",
+  "sensitive_permission",
   "work_status",
 ] as const;
 
@@ -629,6 +631,9 @@ function expectedChangedFieldCodes(
   }
   if (action === "membership.role.change" || action === "rbac.bundle.upgrade") {
     return ["access_version", "actor_role"];
+  }
+  if (action === "membership.permission.change") {
+    return ["access_version", "sensitive_permission"];
   }
   if (action === "membership.status.change") {
     return ["access_version", "record_status"];

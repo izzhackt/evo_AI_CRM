@@ -13,6 +13,10 @@ issue #376 and U0-U14. The 2026-08-24 entry in
 [`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md) records the superseding owner
 decision: EVO is one product with one entry point, one staff UI, one role
 model, one cross-module workflow, and one canonical Supabase foundation.
+U0/#377 is merged. U1/#378 is the current repository/local execution slice and
+binds the three pilot staff roles to one live Supabase authority chain; U2 has
+not started. The U1 contract and evidence boundary are recorded in
+[`docs/platform/u1-unified-staff-access.md`](docs/platform/u1-unified-staff-access.md).
 Lead Agent, CRM, and Inbox name internal capabilities or current deployment
 contours; they are not separate target products, user applications, or data
 authorities. ADR 0018 remains historical current-state evidence only; ADR 0019
@@ -184,8 +188,9 @@ _Avoid_: renamed companion app, three products, dual backend, shared production-
 **Platform Business Role**:
 For the first pilot, one of `sales`, the existing canonical admissions role
 (human-facing Admissions Manager), or `admin` (Director/Admin). Sensitive
-capabilities such as payment confirmation are explicit permissions. Finance
-and Student Portal roles may be added in later approved milestones; `/visa`
+capabilities such as contract and first-payment confirmation are explicit
+individual permissions. Finance remains an internal module rather than a staff
+role; Student Portal identity follows in a later approved milestone. `/visa`
 remains a module, not a separate role.
 _Avoid_: five-role first pilot, shared administrator login, job-title permission
 

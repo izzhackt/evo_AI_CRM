@@ -4,7 +4,11 @@ import path from "node:path";
 
 const projectRoot = __dirname;
 
-type Identity = Readonly<{ email: string; password: string }>;
+type Identity = Readonly<{
+  email: string;
+  password: string;
+  authUserId?: string;
+}>;
 type Fixture = Readonly<{
   apiUrl: string;
   publishableKey: string;
@@ -101,6 +105,7 @@ type Fixture = Readonly<{
     privateAfter: string;
     staleAdminAccessToken: string;
     inactiveAdminAccessToken: string;
+    suspendedAdminAccessToken: string;
     blockedAdminAccessToken: string;
   }>;
   p7b: Readonly<{
@@ -370,7 +375,8 @@ if (
 }
 if (
   !/^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/.test(fixture.apiUrl) ||
-  !fixture.publishableKey.startsWith("sb_publishable_")
+  !fixture.publishableKey.startsWith("sb_publishable_") ||
+  !uuidPattern.test(fixture.identities.noMembership.authUserId ?? "")
 ) {
   throw new Error("Platform Auth fixture must target disposable local Supabase");
 }
@@ -529,12 +535,15 @@ if (
     !jwtShape.test(fixture.p7a.staleAdminAccessToken) ||
     !nonEmptyString(fixture.p7a.inactiveAdminAccessToken) ||
     !jwtShape.test(fixture.p7a.inactiveAdminAccessToken) ||
+    !nonEmptyString(fixture.p7a.suspendedAdminAccessToken) ||
+    !jwtShape.test(fixture.p7a.suspendedAdminAccessToken) ||
     !nonEmptyString(fixture.p7a.blockedAdminAccessToken) ||
     !jwtShape.test(fixture.p7a.blockedAdminAccessToken) ||
     !fixture.identities.admin ||
     !fixture.identities.crossOrgAdmin ||
     !fixture.identities.staleAdmin ||
     !fixture.identities.inactiveAdmin ||
+    !fixture.identities.suspendedAdmin ||
     !fixture.identities.blocked)
 ) {
   throw new Error("P7A browser proof fixture is invalid");

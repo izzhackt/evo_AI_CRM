@@ -5,6 +5,8 @@ import {
   isConnectedPlatformApi,
   isConnectedPlatformAuditSettingsRequest,
   isConnectedPlatformPage,
+  isConnectedPlatformSettingsRequest,
+  isConnectedPlatformStaffSettingsRequest,
 } from "../src/lib/platform-route-contract.ts";
 import { isPlatformP7AAuditEnabled } from "../src/lib/platform-audit-config.ts";
 
@@ -51,6 +53,42 @@ test("only the exact audit settings query is connected for P7A", () => {
       `${path}?${query} must remain disconnected`,
     );
   }
+});
+
+test("staff settings stay connected independently of the P7A audit flag", () => {
+  const staffQuery = new URLSearchParams("tab=staff");
+  assert.equal(
+    isConnectedPlatformStaffSettingsRequest("/settings", staffQuery),
+    true,
+  );
+  assert.equal(
+    isConnectedPlatformSettingsRequest("/settings", staffQuery, {
+      auditEnabled: false,
+    }),
+    true,
+  );
+  assert.equal(
+    isConnectedPlatformSettingsRequest("/settings", staffQuery, {
+      auditEnabled: true,
+    }),
+    true,
+  );
+  assert.equal(
+    isConnectedPlatformSettingsRequest(
+      "/settings",
+      new URLSearchParams("tab=audit"),
+      { auditEnabled: false },
+    ),
+    false,
+  );
+  assert.equal(
+    isConnectedPlatformSettingsRequest(
+      "/settings",
+      new URLSearchParams("tab=audit"),
+      { auditEnabled: true },
+    ),
+    true,
+  );
 });
 
 test("P7A connects one exact browser API path and no descendants", () => {

@@ -25,7 +25,7 @@ const COPY = {
     back: "К лидам",
     eyebrow: "Канонический лид EVO",
     fallbackName: "Лид без связанного клиента",
-    description: "Текущая запись лида в EVO. Изменение этапа и ответственного появится в U4.",
+    description: "Каноническая запись EVO и связанный контекст только для чтения.",
     identity: "Каноническая запись",
     client: "Клиент EVO",
     email: "Эл. почта",
@@ -41,7 +41,7 @@ const COPY = {
     back: "Лиддерге",
     eyebrow: "EVO каноникалык лиди",
     fallbackName: "Кардарга байланыша элек лид",
-    description: "EVOдогу учурдагы лид жазуусу. Этапты жана жооптууну өзгөртүү U4тө кошулат.",
+    description: "EVO каноникалык жазуусу жана окуу үчүн гана байланышкан контекст.",
     identity: "Каноникалык жазуу",
     client: "EVO кардары",
     email: "Эл. почта",
@@ -57,7 +57,7 @@ const COPY = {
     back: "Back to leads",
     eyebrow: "Canonical EVO lead",
     fallbackName: "Lead without a linked client",
-    description: "The current EVO lead record. Stage and owner mutations arrive in U4.",
+    description: "The canonical EVO record and linked read-only context.",
     identity: "Canonical record",
     client: "EVO client",
     email: "Email",
@@ -129,7 +129,9 @@ export function CanonicalLeadDetail({
             )}
           </Fact>
           <Fact label={copy.stage} testId="canonical-lead-stage">
-            <CanonicalKeyBadge value={lead.stageKey} tone="accent" />
+            <span data-stage-key={lead.stageKey}>
+              <CanonicalKeyBadge value={lead.stageKey} tone="accent" />
+            </span>
           </Fact>
           <Fact label={copy.owner} testId="canonical-lead-owner">
             <span className="font-semibold text-fg">

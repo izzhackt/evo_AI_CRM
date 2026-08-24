@@ -125,6 +125,24 @@ type Fixture = Readonly<{
     provenanceSourceSystem: string;
     linkedConversationSubject: string;
   }>;
+  u4: Readonly<{
+    orgA: Readonly<{
+      organizationId: string;
+      connectedLeadId: string;
+      connectedLeadClientName: string;
+      connectedLeadStageKey: string;
+      connectedLeadWorkflowVersion: number;
+      claimableLeadId: string;
+      claimableLeadClientName: string;
+      claimableLeadStageKey: string;
+      claimableLeadWorkflowVersion: number;
+      responsibleSalesMembershipId: string;
+      responsibleSalesDisplayName: string;
+      otherSalesMembershipId: string;
+      laterPageOwnerMembershipId: string;
+      laterPageOwnerDisplayName: string;
+    }>;
+  }>;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
@@ -788,7 +806,7 @@ test("the three U1 pilot roles use one login and one EVO staff shell", async ({
 test("U2 reads canonical EVO clients and leads through real Supabase with tenant isolation", async ({
   browser,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   expectLegacyDatabaseUntouched();
 
   const adminContext = await browser.newContext();
@@ -805,8 +823,9 @@ test("U2 reads canonical EVO clients and leads through real Supabase with tenant
   );
   await expect(leadRow).toBeVisible();
   await expect(leadRow).toContainText(fixture.u2.clientDisplayName);
-  await expect(leadRow.getByTestId("canonical-lead-stage")).toContainText(
-    "Qualified",
+  await expect(leadRow.getByTestId("canonical-lead-stage")).toHaveAttribute(
+    "data-stage-key",
+    fixture.u2.leadStageKey,
   );
   await expect(leadRow.getByTestId("canonical-lead-owner")).toContainText(
     fixture.u2.ownerDisplayName,
@@ -820,8 +839,11 @@ test("U2 reads canonical EVO clients and leads through real Supabase with tenant
   await adminPage.goto(`/sales/${fixture.u2.leadId}`);
   const leadDetail = adminPage.getByTestId("canonical-lead-detail");
   await expect(leadDetail).toBeVisible();
-  await expect(leadDetail.getByTestId("canonical-lead-stage")).toContainText(
-    "Qualified",
+  await expect(
+    leadDetail.getByTestId("canonical-lead-stage").locator("[data-stage-key]"),
+  ).toHaveAttribute(
+    "data-stage-key",
+    fixture.u2.leadStageKey,
   );
   await expect(leadDetail.getByTestId("canonical-lead-owner")).toContainText(
     fixture.u2.ownerDisplayName,
@@ -839,7 +861,7 @@ test("U2 reads canonical EVO clients and leads through real Supabase with tenant
   await adminPage.goto("/sales?q=one&q=two");
   await expect(
     adminPage.getByTestId("canonical-records-unavailable"),
-  ).toContainText(/не подставляются|ордуна коюлбайт|not substituted/);
+  ).toContainText(/не были заменены|алмаштырылган жок|not replaced/);
 
   await adminPage.goto("/clients");
   await expect(adminPage.getByTestId("canonical-clients-page")).toBeVisible();
@@ -906,6 +928,211 @@ test("U2 reads canonical EVO clients and leads through real Supabase with tenant
     fixture.u2.clientDisplayName,
   );
   await crossOrgContext.close();
+
+  expectLegacyDatabaseUntouched();
+});
+
+test("U4 qualifies and assigns canonical Sales leads through audited real Supabase workflow", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  expectLegacyDatabaseUntouched();
+
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await login(page, fixture.identities.responsibleSales);
+  await expect(page).toHaveURL(/\/sales$/);
+
+  await page.goto(
+    `/sales?connection=connected&q=${encodeURIComponent(fixture.u4.orgA.connectedLeadId)}`,
+  );
+  const connectedRow = page.locator(
+    `[data-testid="canonical-lead-row"][data-lead-id="${fixture.u4.orgA.connectedLeadId}"]`,
+  );
+  await expect(connectedRow).toBeVisible();
+  await expect(connectedRow).toContainText(
+    fixture.u4.orgA.connectedLeadClientName,
+  );
+  await expect(connectedRow.getByTestId("sales-lead-connection")).toContainText(
+    "Connected",
+  );
+
+  await page.goto(
+    `/sales?connection=unconnected&q=${encodeURIComponent(fixture.u4.orgA.claimableLeadId)}`,
+  );
+  const claimableRow = page.locator(
+    `[data-testid="canonical-lead-row"][data-lead-id="${fixture.u4.orgA.claimableLeadId}"]`,
+  );
+  await expect(claimableRow).toBeVisible();
+  await expect(claimableRow).toContainText(
+    fixture.u4.orgA.claimableLeadClientName,
+  );
+  await expect(claimableRow).toHaveAttribute(
+    "data-workflow-version",
+    String(fixture.u4.orgA.claimableLeadWorkflowVersion),
+  );
+  await expect(claimableRow.getByTestId("sales-lead-connection")).toContainText(
+    "Unconnected",
+  );
+
+  const form = claimableRow.getByTestId("sales-workflow-form");
+  const workflowEditor = claimableRow.getByTestId("sales-workflow-editor");
+  await workflowEditor.locator("summary").click();
+  await expect(form).toBeVisible();
+  const save = form.locator('button[type="submit"]');
+  await expect(save).toHaveText(
+    /Сохранить подтверждённое состояние|Save confirmed state/,
+  );
+  await form.locator('select[name="stage_key"]').selectOption("qualified");
+  await form
+    .locator('select[name="owner_membership_id"]')
+    .selectOption(fixture.u4.orgA.responsibleSalesMembershipId);
+  await form.locator('input[type="checkbox"]').uncheck();
+  await form
+    .locator('input[name="next_action_text"]')
+    .fill("Подтвердить консультацию U4");
+  await form.locator('input[name="next_action_due_date"]').fill("2099-12-31");
+  await form.locator('textarea[name="reason"]').fill("Browser proof U4");
+
+  await page.route("**/sales**", async (route) => {
+    if (route.request().method() === "POST") {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    await route.continue();
+  });
+  await save.click();
+  await expect(save).toBeDisabled();
+  await expect(save).toHaveText(/Сохраняем|Saving/);
+  await expect(claimableRow.getByTestId("sales-workflow-saved")).toBeVisible();
+  await page.unroute("**/sales**");
+
+  await page.goto(`/sales/${fixture.u4.orgA.claimableLeadId}`);
+  const detail = page.getByTestId("sales-workflow-lead-detail");
+  await expect(detail).toBeVisible();
+  await expect(detail.getByTestId("canonical-lead-stage")).toContainText(
+    /Квалифицирован|Qualified/,
+  );
+  await expect(detail.getByTestId("canonical-lead-owner")).toContainText(
+    fixture.u4.orgA.responsibleSalesDisplayName,
+  );
+  await expect(
+    detail.getByTestId("sales-workflow-lead-next-action"),
+  ).toContainText("Подтвердить консультацию U4");
+  await expect(detail.getByTestId("sales-workflow-lead-due-date")).toContainText(
+    "2099-12-31",
+  );
+
+  await page.goto(
+    `/sales?connection=unconnected&assignment=mine&stage=qualified&due=scheduled&q=${encodeURIComponent(fixture.u4.orgA.claimableLeadId)}`,
+  );
+  const persistedRow = page.locator(
+    `[data-testid="canonical-lead-row"][data-lead-id="${fixture.u4.orgA.claimableLeadId}"]`,
+  );
+  await expect(persistedRow).toBeVisible();
+  await expect(persistedRow.getByTestId("canonical-lead-owner")).toContainText(
+    fixture.u4.orgA.responsibleSalesDisplayName,
+  );
+  await expect(persistedRow.getByTestId("sales-lead-next-action")).toContainText(
+    "Подтвердить консультацию U4",
+  );
+  await expect(persistedRow.getByTestId("sales-lead-next-action")).toContainText(
+    "2099-12-31",
+  );
+
+  await context.close();
+
+  const adminContext = await browser.newContext();
+  const adminPage = await adminContext.newPage();
+  await login(adminPage, fixture.identities.admin);
+  await expect(adminPage).toHaveURL(/\/sales$/);
+
+  const queueFilters = adminPage.getByTestId("sales-workflow-filters");
+  const queueOwnerSelect = queueFilters.locator('select[name="owner"]');
+  await expect(queueOwnerSelect.locator("option")).toHaveCount(51);
+  await expect(queueFilters.getByTestId("sales-owner-load-more")).toBeVisible();
+  await queueFilters.getByTestId("sales-owner-load-more").click();
+  await expect(
+    queueFilters.getByTestId("sales-owner-search-status"),
+  ).toHaveAttribute("data-status", "more_results");
+  const queueOwnerValues = await queueOwnerSelect.locator("option").evaluateAll(
+    (options) =>
+      options.map((option) => (option as HTMLOptionElement).value),
+  );
+  expect(queueOwnerValues.length).toBeGreaterThan(51);
+  expect(new Set(queueOwnerValues).size).toBe(queueOwnerValues.length);
+  await expect(queueFilters.getByTestId("sales-owner-load-more")).toHaveCount(0);
+  await expect(
+    queueOwnerSelect.locator(
+      `option[value="${fixture.u4.orgA.laterPageOwnerMembershipId}"]`,
+    ),
+  ).toHaveText(fixture.u4.orgA.laterPageOwnerDisplayName);
+  await queueOwnerSelect.selectOption(
+    fixture.u4.orgA.laterPageOwnerMembershipId,
+  );
+  await queueFilters.locator('button[type="submit"]').click();
+  await expect(adminPage).toHaveURL(
+    new RegExp(
+      `(?:\\?|&)owner=${fixture.u4.orgA.laterPageOwnerMembershipId}(?:&|$)`,
+    ),
+  );
+  await expect(
+    adminPage
+      .getByTestId("sales-workflow-filters")
+      .locator('select[name="owner"]'),
+  ).toHaveValue(fixture.u4.orgA.laterPageOwnerMembershipId);
+  await expect(
+    adminPage
+      .getByTestId("sales-workflow-filters")
+      .locator(
+        `select[name="owner"] option[value="${fixture.u4.orgA.laterPageOwnerMembershipId}"]`,
+      ),
+  ).toHaveText(fixture.u4.orgA.laterPageOwnerDisplayName);
+
+  await adminPage
+    .getByTestId("sales-workflow-filters")
+    .getByRole("link", { name: /Сбросить|Тазалоо|Clear/ })
+    .click();
+  await expect
+    .poll(() => new URL(adminPage.url()).searchParams.get("owner"))
+    .toBeNull();
+  await expect(
+    adminPage
+      .getByTestId("sales-workflow-filters")
+      .locator('select[name="owner"]'),
+  ).toHaveValue("");
+
+  await adminPage.goto(`/sales/${fixture.u4.orgA.connectedLeadId}`);
+  const adminDetailForm = adminPage.getByTestId("sales-workflow-form");
+  const detailOwnerSelect = adminDetailForm.locator(
+    'select[name="owner_membership_id"]',
+  );
+  await expect(detailOwnerSelect.locator("option")).toHaveCount(51);
+  await expect(adminDetailForm.getByTestId("sales-owner-load-more")).toBeVisible();
+  await adminDetailForm.getByTestId("sales-owner-load-more").click();
+  await expect(
+    adminDetailForm.getByTestId("sales-owner-search-status"),
+  ).toHaveAttribute("data-status", "more_results");
+  const detailOwnerValues = await detailOwnerSelect.locator("option").evaluateAll(
+    (options) =>
+      options.map((option) => (option as HTMLOptionElement).value),
+  );
+  expect(detailOwnerValues.length).toBeGreaterThan(51);
+  expect(new Set(detailOwnerValues).size).toBe(detailOwnerValues.length);
+  await expect(adminDetailForm.getByTestId("sales-owner-load-more")).toHaveCount(
+    0,
+  );
+  await detailOwnerSelect.selectOption(
+    fixture.u4.orgA.laterPageOwnerMembershipId,
+  );
+  await expect(detailOwnerSelect).toHaveValue(
+    fixture.u4.orgA.laterPageOwnerMembershipId,
+  );
+  await expect(
+    detailOwnerSelect.locator(
+      `option[value="${fixture.u4.orgA.laterPageOwnerMembershipId}"]`,
+    ),
+  ).toHaveText(fixture.u4.orgA.laterPageOwnerDisplayName);
+  await adminContext.close();
 
   expectLegacyDatabaseUntouched();
 });

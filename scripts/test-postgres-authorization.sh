@@ -258,6 +258,15 @@ SET session_replication_role = origin;
 SQL
   fi
 
+  # Seed one durable U3-era stage immediately before 086. The post-migration
+  # U4 suite proves the only allowed legacy normalization and its system audit.
+  if [[ "$(basename "$migration")" == 086_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v u4_seed_pre086=1 \
+      -f /workspace/supabase/tests/platform_sales_workflow_rls.sql
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -1619,6 +1628,13 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_waha_receive_only_sales_rls.sql
+  fi
+
+  # Migration 086 adds the bounded, audited Sales qualification workflow.
+  if [[ "$(basename "$migration")" == 086_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_sales_workflow_rls.sql
   fi
 done < <(
   cd "$repo_root"

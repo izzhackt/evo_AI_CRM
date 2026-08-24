@@ -574,9 +574,11 @@ test("the P7B browser partition is singleton, bounded, and observability-only", 
   );
 });
 
-test("the U2 browser partition is singleton, bounded, real-Auth and provider-disabled", () => {
-  const title =
+test("the U2/U4 browser partition is singleton, bounded, real-Auth and provider-disabled", () => {
+  const u2Title =
     "U2 reads canonical EVO clients and leads through real Supabase with tenant isolation";
+  const u4Title =
+    "U4 qualifies and assigns canonical Sales leads through audited real Supabase workflow";
   const u2Partition = executableLines.indexOf(
     "EVO_PLATFORM_AUTH_BROWSER_PARTITION=u2",
   );
@@ -585,11 +587,11 @@ test("the U2 browser partition is singleton, bounded, real-Auth and provider-dis
     u2Partition,
   );
   const u2Grep = executableLines.indexOf(
-    '--grep "${U2_BROWSER_TEST}"',
+    '--grep "${U2_BROWSER_TEST}|${U4_BROWSER_TEST}"',
     u2Partition,
   );
   const u2Cleanup = executableLines.indexOf(
-    'fail "The exact-worktree Platform browser server did not stop after the U2 browser partition."',
+    'fail "The exact-worktree Platform browser server did not stop after the U2/U4 browser partition."',
     u2Partition,
   );
 
@@ -600,8 +602,10 @@ test("the U2 browser partition is singleton, bounded, real-Auth and provider-dis
   assert.ok(u2Command < u2Partition);
   assert.ok(u2Partition < u2Grep);
   assert.ok(u2Grep < u2Cleanup);
-  assert.ok(harness.includes(`readonly U2_BROWSER_TEST="${title}"`));
-  assert.equal(platformAuthSpec.split(`test("${title}"`).length - 1, 1);
+  assert.ok(harness.includes(`readonly U2_BROWSER_TEST="${u2Title}"`));
+  assert.ok(harness.includes(`readonly U4_BROWSER_TEST="${u4Title}"`));
+  assert.equal(platformAuthSpec.split(`test("${u2Title}"`).length - 1, 1);
+  assert.equal(platformAuthSpec.split(`test("${u4Title}"`).length - 1, 1);
   assert.equal(
     executableLines.match(/EVO_PLATFORM_AUTH_BROWSER_PARTITION=u2/g)?.length,
     1,
@@ -644,6 +648,10 @@ test("the U2 browser partition is singleton, bounded, real-Auth and provider-dis
   assert.match(authHook, /u2-client-traversal-exact-set/);
   assert.match(authHook, /u2-cross-org-detail-denial-shape/);
   assert.match(authHook, /u2:\s*\{/);
+  assert.match(authHook, /u4-responsible-self-plus-unowned-exact-set/);
+  assert.match(authHook, /u4-concurrent-same-request-exact-replay/);
+  assert.match(authHook, /u4-one-audit-and-receipt-per-accepted-change/);
+  assert.match(authHook, /u4:\s*\{/);
 });
 
 test("the P7B acceptance runs one pinned disposable Caddy denial proof", () => {
@@ -979,7 +987,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
   );
   assert.match(
     harness.slice(remainingPass, remainingCleanup),
-    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_P6B_BROWSER_PROOF=0[\s\S]*EVO_P6C_BROWSER_PROOF=0[\s\S]*EVO_P6D_BROWSER_PROOF=0[\s\S]*EVO_P7A_BROWSER_PROOF=0[\s\S]*EVO_P7B_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P7A_AUDIT_ENABLED=0[\s\S]*EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0[\s\S]*EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}\|\$\{P5C_BROWSER_TEST\}\|\$\{P5D_BROWSER_TEST\}\|\$\{P5E_BROWSER_TEST\}\|\$\{P5F1_BROWSER_TEST\}\|\$\{P5F3_BROWSER_TEST\}\|\$\{P6A_BROWSER_TEST\}\|\$\{P6B_BROWSER_TEST\}\|\$\{P6C_BROWSER_TEST\}\|\$\{P6D_BROWSER_TEST\}\|\$\{P7A_BROWSER_TEST\}\|\$\{P7B_BROWSER_TEST\}\|\$\{U2_BROWSER_TEST\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_P6B_BROWSER_PROOF=0[\s\S]*EVO_P6C_BROWSER_PROOF=0[\s\S]*EVO_P6D_BROWSER_PROOF=0[\s\S]*EVO_P7A_BROWSER_PROOF=0[\s\S]*EVO_P7B_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P7A_AUDIT_ENABLED=0[\s\S]*EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0[\s\S]*EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}\|\$\{P5C_BROWSER_TEST\}\|\$\{P5D_BROWSER_TEST\}\|\$\{P5E_BROWSER_TEST\}\|\$\{P5F1_BROWSER_TEST\}\|\$\{P5F3_BROWSER_TEST\}\|\$\{P6A_BROWSER_TEST\}\|\$\{P6B_BROWSER_TEST\}\|\$\{P6C_BROWSER_TEST\}\|\$\{P6D_BROWSER_TEST\}\|\$\{P7A_BROWSER_TEST\}\|\$\{P7B_BROWSER_TEST\}\|\$\{U2_BROWSER_TEST\}\|\$\{U4_BROWSER_TEST\}"/,
   );
   assert.equal(
     harness.slice(providerPass, finalCleanup).match(/EVO_P5B_BROWSER_PROOF=1/g)

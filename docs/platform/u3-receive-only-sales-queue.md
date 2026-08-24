@@ -1,7 +1,7 @@
 # U3 — receive-only WhatsApp into canonical Sales
 
-Status: active repository/disposable-local implementation contract for issue
-#380 on 2026-08-24.
+Status: completed repository/disposable-local contract for issue #380. Merged
+in PR #395 on 2026-08-24 as `730a2c2af6269d59ee0ec5391d9bafe0398af068`.
 
 Authority: issue #376, issue #380, ADR 0020, U2 contract, and the 2026-08-24
 U3 entry in `docs/PLAN_CHANGES.md`.

@@ -10748,3 +10748,194 @@ and lead detail RPCs independently apply the same filter. SQL and browser
 regressions must prove that `@c.us` and `waha-event:` values cannot reach staff
 surfaces while the pre-existing non-WAHA canonical provenance contract remains
 available.
+
+## 2026-08-24 — Activate U4 Sales qualification, owner and next action
+
+Date: 2026-08-24, workspace timezone (+06).
+Author: Codex implementing owner-approved issues #376 and #381.
+Change type: U4 canonical Sales workflow, bounded mutation, durable audit and
+truthful queue-filter contract.
+Source: GitHub issues #376 and #381; U0-U3 completion on current `main`.
+Block-ID: `EVO-U4-SALES-QUALIFICATION-OWNER-NEXT-ACTION-2026-08-24`.
+Starting repository baseline: GitHub `origin/main` at
+`730a2c2af6269d59ee0ec5391d9bafe0398af068` after U3 PR #395.
+Focused contract:
+`docs/platform/u4-sales-qualification-owner-next-action.md`.
+
+Reason: U3 makes supported direct inbound conversations visible in canonical
+Sales, but the connected queue remains read-only. The lead has no database-
+constrained pre-contract stage vocabulary, paired next action/deadline,
+version-checked Sales mutation boundary, truthful connected/unconnected filter
+or durable mutation receipt proving the acting membership and committed
+version. Issue #381 requires that narrow workflow before contract/payment work
+may begin.
+
+Decision:
+
+1. Migration 086 is the only U4 schema delta. It normalizes U3's
+   `new_inbound` stage to `new`, updates future U3 projection to use `new`, and
+   fails closed if any other stage outside `new`, `contacting`, `qualified`,
+   `meeting_scheduled`, `meeting_completed` and `potential` exists before the
+   constraint is installed. `contract_signed` stays U5.
+2. Because the active business authority defines those stage names but no
+   evidenced adjacency graph, any distinct transition within the six values is
+   valid and outside values are rejected. An unchanged stage may accompany a
+   real owner/action change; only an unchanged full snapshot is a no-op. U4
+   does not invent a progression order or encode follow-up outcomes as stages.
+3. Canonical lead ownership continues to use an opaque organization membership
+   UUID. Sales may see self-owned and unowned leads, claim an unowned lead only
+   to self, and mutate only self-owned state. Sales cannot reassign,
+   relinquish or mutate another Sales user's lead. Admin may assign, reassign
+   or unassign same-organization leads only to active eligible Sales
+   memberships. Curator and every inactive/stale/cross-organization actor are
+   denied.
+4. `next_action_text` and `next_action_due_date DATE` form one constrained
+   pair. U4 stores a calendar day rather than an instant, evaluates due-today/
+   overdue in `Asia/Bishkek`, accepts past dates as visibly overdue and
+   requires an explicit clear intent. Partial pairs and silent clearing fail.
+5. Connection has one exact meaning: a lead is connected only when a
+   `platform.communication_conversations` row points directly to that lead's
+   canonical UUID. Same-client context and provider/session health do not count.
+   Bounded list filters apply authorization, connection, stage, owner/
+   assignment, due and search predicates before stable keyset pagination and
+   `LIMIT`.
+6. A U4 v13 access bundle copies v12, grants
+   `lead.sales.workflow.manage` to Sales/Admin and
+   `lead.sales.owner.assign` only to Admin, and rebinds active pilot
+   memberships through the existing access-version invalidation contract.
+7. One RPC accepts the full desired stage/owner/action snapshot, the last
+   `workflow_version` and a request UUID. A transaction-scoped request lock,
+   durable exact-request receipt, lead `FOR UPDATE` lock and expected-version
+   check make exact retries idempotent, reject request-ID payload/actor
+   collisions and ensure two different stale intents cannot overwrite each
+   other.
+8. The accepted transaction changes the lead once, increments its workflow
+   version once, appends one immutable audit event and appends one private
+   receipt before returning success. Audit retains actor membership and
+   principal reference, database time, safe before/after state, normalized
+   reason, request UUID and resulting version. A stale, invalid, denied,
+   collided or no-op request writes none of those committed artifacts.
+9. The browser receives no direct lead-update or audit/receipt-insert grant.
+   The bounded functions use `SECURITY DEFINER` only to perform the private
+   atomic command/read boundary, with empty `search_path`, fully qualified
+   objects, live JWT-to-membership/role/permission/object checks, revoked
+   `PUBLIC`/`anon`/`service_role` execution and intended `authenticated` grants.
+   Exposed tables retain forced RLS and least-privilege object grants.
+10. Connected `/sales` and canonical lead detail expose only the U4 controls.
+    Success comes from the committed receipt, stale versions require refresh,
+    and invalid, denied, collision, unavailable and filter-specific empty
+    states remain distinct. No reply/send, AI-send, amoCRM-write, contract or
+    payment control is added.
+
+Validation impact: acceptance must replay root migrations through 086 in a
+clean disposable local stack and use real PostgreSQL constraints/locks/RLS,
+Supabase Auth JWTs, PostgREST and connected browser paths. It proves all actor
+and owner matrix cases, stage/action/date constraints, exact connected truth,
+1,001 query-filtered rows across ten real SQL pages plus 21 application pages,
+with four decoys excluded and no gaps, duplicates or order drift; exact
+replay/collision/stale concurrency, version/audit/receipt atomicity and
+truthful UI states. The full gates remain
+`git diff --check`, `npm run check:node-runtime`,
+`npm run test:supabase:history`, `npm run test:security:postgres`,
+`npm run test:supabase:local`, `npm run test:unit`,
+`npm run test:security:node`, `npm run lint`, and `npm run build`.
+
+Primary-source basis: Supabase requires both grants and RLS on Data API
+objects, recommends protected function posture and local migration/policy
+tests; PostgreSQL documents constraints, row security, function/search-path
+controls, row/advisory locking, isolation and unique insert conflict behavior;
+PostgREST documents explicit `PTxyz` HTTP error codes, so stale workflow state
+uses `PT409` rather than the retryable transaction code `40001`:
+
+- <https://supabase.com/docs/guides/api/securing-your-api>
+- <https://supabase.com/docs/guides/database/postgres/row-level-security>
+- <https://supabase.com/docs/guides/database/functions>
+- <https://supabase.com/docs/guides/local-development/database-migrations>
+- <https://supabase.com/docs/guides/database/testing>
+- <https://supabase.com/docs/guides/local-development/cli/testing-and-linting>
+- <https://www.postgresql.org/docs/current/sql-createfunction.html>
+- <https://www.postgresql.org/docs/current/sql-alterfunction.html>
+- <https://www.postgresql.org/docs/current/ddl-constraints.html>
+- <https://www.postgresql.org/docs/current/ddl-rowsecurity.html>
+- <https://www.postgresql.org/docs/current/explicit-locking.html>
+- <https://www.postgresql.org/docs/current/sql-select.html>
+- <https://www.postgresql.org/docs/current/transaction-iso.html>
+- <https://www.postgresql.org/docs/current/sql-insert.html>
+- <https://docs.postgrest.org/en/v14/references/errors.html>
+
+Execution boundary: this is the only active U4/#381 repository/disposable-local
+slice. It performs no managed Supabase apply, production deployment,
+real-customer mutation, WAHA call/configuration, WhatsApp send or amoCRM write.
+Implementation and clean disposable-local proof completed on 2026-08-24 UTC,
+after local midnight on 2026-08-25 in Asia/Bishkek: Node.js 22.23.1, 86
+contiguous migrations through 086, real local Auth/PostgREST/RLS including
+1,001/1,001 unique filtered SQL rows with four decoys excluded and no ordering
+violation, the combined U2/U4 browser partition 2/2, unit 679/679,
+security, lint, build, history/runtime and diff checks all passed. This remains
+repository/synthetic-local evidence only. Merge requires one immutable head,
+independent exact-head launch-control approval, all four exact-head CI jobs, a
+match-head squash merge, exact-main CI and tree equivalence. Stop after #381;
+U5/#382 and every later slice remain unstarted.
+
+## 2026-08-25 — Keep the U4 owner catalog complete beyond its first page
+
+Author: Codex responding to independent exact-head launch-control review of
+U4/#381.
+
+Change type: U4 bounded-read and consumer-contract correction; no new table,
+column, permission, mutation, provider, production or U5 scope change.
+
+Reason: the U4 database function and repository already provide bounded
+server-side owner search plus a stable `(sort_label, membership_id)` keyset
+cursor, but the queue filter and workflow form consumed only the first 50
+options. A warning that later owners are omitted makes valid same-organization
+Sales memberships impossible for an Admin to find, filter or assign, so the UI
+did not yet satisfy the canonical owner workflow for organizations with more
+than 50 eligible Sales memberships.
+
+Decision:
+
+1. Keep the existing authorization, function signature and bounded owner
+   RPC/repository contract. Migration 086's existing query may additionally
+   match one exact membership UUID so a selected owner beyond the warm page
+   can regain its truthful label; do not add an unbounded staff-directory read
+   or a new schema object.
+2. Add one narrow read-only server action that resolves the live U4 actor and
+   requests at most 50 owner options by optional normalized label query and
+   optional validated keyset cursor.
+3. Use one shared owner picker in the queue owner filter and both queue/detail
+   mutation forms. It preserves the selected UUID, supports server-side search
+   and loads later pages without duplicates; the first page is only a warm
+   start, not a complete directory.
+4. Preserve server-enforced role behavior: Sales can discover only self and
+   Admin can discover only active eligible Sales memberships in the same
+   organization. Client-side controls are presentation, never authorization.
+5. Replace the first-50 truncation warning with truthful loading, no-results,
+   invalid-query and unavailable states, and extend tests across query/cursor
+   propagation, a later owner page and both UI consumers.
+
+This clarification remains wholly inside U4/#381. Because repository code and
+the exact reviewed tree change, the prior exact-head review and CI cannot be
+reused: a new immutable head requires a new independent launch-control review,
+all four exact-head CI jobs, match-head squash merge, exact-main CI and tree
+equivalence before Issue #381 may close.
+
+Validation outcome on 2026-08-24 UTC / 2026-08-25 Asia/Bishkek:
+
+- The real PostgreSQL owner RPC traversed 53 eligible Sales memberships onto a
+  second bounded keyset page and proved exact membership-UUID lookup without
+  broadening organization, status or role eligibility.
+- The disposable local Auth/PostgREST browser gate created 51 additional owner
+  fixtures only immediately before its U2/U4 partition. Queue and detail
+  pickers each loaded the later page, preserved unique opaque membership IDs,
+  selected the last fixture with its exact server-hydrated label and reset the
+  queue filter without stale client state.
+- The 51 fixtures were made ineligible immediately after U2/U4, and the later
+  P6D, P7A and P7B partitions passed, proving the owner fixture did not alter
+  their active-authority surface. The entire `npm run test:supabase:local` gate
+  exited successfully on Node.js 22.23.1.
+- The same candidate then passed migration history (86 through migration 086),
+  the full PostgreSQL authorization suite, unit 679/679, Node security 623/623,
+  lint, the 39-route production build and `git diff --check`. This remains
+  synthetic disposable-local evidence and does not prove managed Supabase,
+  providers, production or real conversations.

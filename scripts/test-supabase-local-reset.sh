@@ -55,6 +55,7 @@ readonly P6D_BROWSER_TEST="P6D closes the real Student 360 and Portal cross-doma
 readonly P7A_BROWSER_TEST="P7A searches and exports safe organization audit evidence through connected Settings"
 readonly P7B_BROWSER_TEST="P7B exposes signed private readiness and metrics without claiming provider health"
 readonly U2_BROWSER_TEST="U2 reads canonical EVO clients and leads through real Supabase with tenant isolation"
+readonly U4_BROWSER_TEST="U4 qualifies and assigns canonical Sales leads through audited real Supabase workflow"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -1242,11 +1243,14 @@ fi
 
 readonly AUTH_STATUS_FILE="${TEMP_DIR}/auth-status.json"
 readonly PLATFORM_AUTH_BROWSER_FIXTURE="${TEMP_DIR}/platform-auth-browser.json"
+readonly U4_BROWSER_OWNER_SEED="${TEMP_DIR}/u4-browser-owner-pagination.sql"
 readonly LEGACY_DB_SENTINEL="${TEMP_DIR}/legacy-must-not-exist.db"
 : >"${AUTH_STATUS_FILE}"
 : >"${PLATFORM_AUTH_BROWSER_FIXTURE}"
+: >"${U4_BROWSER_OWNER_SEED}"
 chmod 600 "${AUTH_STATUS_FILE}"
 chmod 600 "${PLATFORM_AUTH_BROWSER_FIXTURE}"
+chmod 600 "${U4_BROWSER_OWNER_SEED}"
 
 if ! run_with_deadline 10000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
@@ -1260,7 +1264,8 @@ if ! run_with_deadline 300000 node \
   "${REPO_ROOT}/scripts/test-supabase-auth-hook.mjs" \
   "${AUTH_STATUS_FILE}" \
   "${DATABASE_CONTAINER}" \
-  "${PLATFORM_AUTH_BROWSER_FIXTURE}"; then
+  "${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  "${U4_BROWSER_OWNER_SEED}"; then
   fail "Local Supabase Auth/PostgREST hook smoke failed."
 fi
 
@@ -1358,7 +1363,7 @@ if ! run_with_deadline 660000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}|${P7B_BROWSER_TEST}|${U2_BROWSER_TEST}"; then
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}|${P7B_BROWSER_TEST}|${U2_BROWSER_TEST}|${U4_BROWSER_TEST}"; then
   fail "Remaining real browser Platform Auth/staff-shell gate failed."
 fi
 if ! stop_exact_browser_server; then
@@ -1690,6 +1695,20 @@ fi
 if ! set_p6c_runtime_control disable; then
   fail "Unable to disable the exact synthetic P6C organization runtime control; output was withheld."
 fi
+if ! run_with_deadline 30000 docker exec -i \
+  "${DATABASE_CONTAINER}" \
+  psql \
+  -X \
+  --no-psqlrc \
+  -qAt \
+  -v ON_ERROR_STOP=1 \
+  -U postgres \
+  -d postgres \
+  <"${U4_BROWSER_OWNER_SEED}" \
+  >"${TEMP_DIR}/u4-browser-owner-seed.log" 2>&1; then
+  fail "Unable to seed the isolated U4 later-page owner browser fixture; output was withheld."
+fi
+rm -f -- "${U4_BROWSER_OWNER_SEED}"
 if ! run_with_deadline 240000 env \
   EVO_P5B_BROWSER_PROOF=0 \
   EVO_P5C_BROWSER_PROOF=0 \
@@ -1725,11 +1744,67 @@ if ! run_with_deadline 240000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep "${U2_BROWSER_TEST}"; then
-  fail "U2 canonical client/lead connected browser proof failed."
+  --grep "${U2_BROWSER_TEST}|${U4_BROWSER_TEST}"; then
+  fail "U2/U4 canonical Sales connected browser proof failed."
 fi
 if ! stop_exact_browser_server; then
-  fail "The exact-worktree Platform browser server did not stop after the U2 browser partition."
+  fail "The exact-worktree Platform browser server did not stop after the U2/U4 browser partition."
+fi
+if ! run_with_deadline 30000 docker exec -i \
+  "${DATABASE_CONTAINER}" \
+  psql \
+  -X \
+  --no-psqlrc \
+  -qAt \
+  -v ON_ERROR_STOP=1 \
+  -U postgres \
+  -d postgres \
+  >"${TEMP_DIR}/u4-browser-owner-cleanup.log" 2>&1 <<'SQL'
+BEGIN;
+UPDATE platform.organization_memberships AS membership
+SET status = 'inactive'
+FROM platform.profiles AS profile
+WHERE membership.profile_id = profile.id
+  AND profile.display_name LIKE 'ZZ U4 Page Owner %';
+
+UPDATE platform.profiles
+SET status = 'blocked'
+WHERE display_name LIKE 'ZZ U4 Page Owner %';
+
+DO $cleanup$
+DECLARE
+  fixture_count BIGINT;
+  eligible_count BIGINT;
+BEGIN
+  SELECT count(*)
+  INTO fixture_count
+  FROM platform.organization_memberships AS membership
+  JOIN platform.profiles AS profile
+    ON profile.id = membership.profile_id
+  WHERE profile.display_name LIKE 'ZZ U4 Page Owner %'
+    AND membership.status = 'inactive'
+    AND profile.status = 'blocked';
+
+  SELECT count(*)
+  INTO eligible_count
+  FROM platform.organization_memberships AS membership
+  JOIN platform.profiles AS profile
+    ON profile.id = membership.profile_id
+  WHERE profile.display_name LIKE 'ZZ U4 Page Owner %'
+    AND platform_private.is_eligible_sales_owner(
+      membership.organization_id,
+      membership.id
+    );
+
+  IF fixture_count <> 51 OR eligible_count <> 0 THEN
+    RAISE EXCEPTION 'u4_browser_owner_cleanup_incomplete';
+  END IF;
+END
+$cleanup$;
+COMMIT;
+SQL
+then
+  fail "Unable to deactivate the isolated U4 later-page owner browser fixture; output was withheld."
 fi
 if ! set_p6c_runtime_control enable; then
   fail "Unable to enable the exact synthetic P6D organization overdue runtime control; output was withheld."

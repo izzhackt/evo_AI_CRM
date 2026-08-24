@@ -1,6 +1,10 @@
+import { randomUUID } from "node:crypto";
+
 import Link from "next/link";
 
 import { Icon } from "@/components/icons";
+import { SalesLeadWorkflowForm } from "@/components/platform/sales/SalesLeadWorkflowForm";
+import { SalesOwnerSearchField } from "@/components/platform/sales/SalesOwnerSearchField";
 import {
   CanonicalAuthorityNotice,
   CanonicalKeyBadge,
@@ -20,16 +24,6 @@ import {
 } from "@/components/ui";
 import { getT, type Locale } from "@/lib/i18n";
 import {
-  PLATFORM_CANONICAL_LEAD_LIFECYCLE_STATES,
-  PlatformCanonicalRecordsRepositoryError,
-  listPlatformCanonicalLeads,
-  parsePlatformCanonicalCursor,
-  type PlatformCanonicalCursor,
-  type PlatformCanonicalLeadLifecycleState,
-  type PlatformCanonicalLeadSummary,
-} from "@/lib/platform-canonical-records";
-import { requirePlatformSalesActor } from "@/lib/platform-guards";
-import {
   PLATFORM_SALES_INTAKE_STATES,
   PlatformSalesIntakeRepositoryError,
   listPlatformSalesIntake,
@@ -39,15 +33,39 @@ import {
   type PlatformSalesIntakeRow,
   type PlatformSalesIntakeState,
 } from "@/lib/platform-sales-intake";
+import {
+  PLATFORM_SALES_ASSIGNMENT_FILTERS,
+  PLATFORM_SALES_CONNECTION_FILTERS,
+  PLATFORM_SALES_DUE_FILTERS,
+  PLATFORM_SALES_STAGES,
+  PlatformSalesWorkflowRepositoryError,
+  listPlatformSalesLeads,
+  listPlatformSalesOwnerOptions,
+  parsePlatformSalesUuid,
+  parsePlatformSalesWorkflowCursor,
+  type PlatformSalesAssignmentFilter,
+  type PlatformSalesConnectionFilter,
+  type PlatformSalesDueFilter,
+  type PlatformSalesLeadPage,
+  type PlatformSalesLeadWorkflow,
+  type PlatformSalesOwnerCursor,
+  type PlatformSalesOwnerOption,
+  type PlatformSalesStage,
+  type PlatformSalesWorkflowCursor,
+} from "@/lib/platform-sales-workflow";
+import { requirePlatformSalesActor } from "@/lib/platform-guards";
 
 type SearchParams = Readonly<{
+  assignment?: string | string[];
   before_at?: string | string[];
   before_id?: string | string[];
+  connection?: string | string[];
+  due?: string | string[];
   intake_before_at?: string | string[];
   intake_before_id?: string | string[];
   intake_q?: string | string[];
   intake_state?: string | string[];
-  lifecycle?: string | string[];
+  owner?: string | string[];
   q?: string | string[];
   stage?: string | string[];
 }>;
@@ -56,7 +74,7 @@ const COPY = {
   ru: {
     title: "Лиды EVO",
     description:
-      "Канонический реестр лидов вашей организации: текущий этап и ответственный принадлежат EVO.",
+      "Единая очередь квалификации EVO: этап, ответственный и следующий шаг сохраняются в каноническом лиде.",
     search: "Поиск по клиенту, контакту или EVO UUID",
     stage: "Этап EVO",
     lifecycle: "Состояние",
@@ -107,7 +125,7 @@ const COPY = {
   ky: {
     title: "EVO лиддери",
     description:
-      "Уюмуңуздун каноникалык лиддер реестри: учурдагы этап жана жооптуу EVOго таандык.",
+      "EVOнун бирдиктүү квалификация кезеги: этап, жооптуу жана кийинки кадам каноникалык лидде сакталат.",
     search: "Кардар, байланыш же EVO UUID боюнча издөө",
     stage: "EVO этабы",
     lifecycle: "Абалы",
@@ -158,7 +176,7 @@ const COPY = {
   en: {
     title: "EVO leads",
     description:
-      "The canonical lead register for your organization. Current stage and owner belong to EVO.",
+      "The unified EVO qualification queue: stage, owner, and next action are stored on the canonical lead.",
     search: "Search client, contact, or EVO UUID",
     stage: "EVO stage",
     lifecycle: "Lifecycle",
@@ -238,7 +256,188 @@ const INTAKE_STATE_COPY: Record<
   },
 };
 
-/** Connected U3 surface: canonical EVO leads plus a bounded receive-only intake queue. */
+const SALES_STAGE_COPY: Record<Locale, Record<PlatformSalesStage, string>> = {
+  ru: {
+    new: "Новый",
+    contacting: "Связываемся",
+    qualified: "Квалифицирован",
+    meeting_scheduled: "Встреча назначена",
+    meeting_completed: "Встреча проведена",
+    potential: "Потенциальный клиент",
+  },
+  ky: {
+    new: "Жаңы",
+    contacting: "Байланышуудабыз",
+    qualified: "Квалификациядан өттү",
+    meeting_scheduled: "Жолугушуу дайындалды",
+    meeting_completed: "Жолугушуу өттү",
+    potential: "Потенциалдуу кардар",
+  },
+  en: {
+    new: "New",
+    contacting: "Contacting",
+    qualified: "Qualified",
+    meeting_scheduled: "Meeting scheduled",
+    meeting_completed: "Meeting completed",
+    potential: "Potential",
+  },
+};
+
+const SALES_WORKFLOW_COPY = {
+  ru: {
+    queueTitle: "Квалификация и следующий шаг",
+    queueDescription:
+      "Connected означает прямую связь лида с перепиской EVO, а не состояние WhatsApp-провайдера.",
+    connection: "Связь с перепиской",
+    allConnections: "Все связи",
+    connected: "Connected · есть прямая связь",
+    unconnected: "Unconnected · прямой связи нет",
+    allStages: "Все этапы",
+    assignment: "Назначение",
+    allAssignments: "Все доступные",
+    mine: "Мои лиды",
+    unassigned: "Без ответственного",
+    ownerFilter: "Ответственный Sales",
+    allOwners: "Все ответственные",
+    due: "Срок следующего действия",
+    allDue: "Все сроки",
+    scheduled: "Действие запланировано",
+    unscheduled: "Без следующего действия",
+    dueToday: "Срок сегодня",
+    overdueFilter: "Просрочено",
+    lead: "Лид / клиент",
+    stageOwner: "Этап / ответственный",
+    nextAction: "Следующее действие",
+    connectionContext: "Связь / контекст",
+    updatedVersion: "Обновлено / версия",
+    change: "Изменить",
+    noAction: "Следующее действие не запланировано",
+    noDueDate: "Срок не задан",
+    overdue: "Просрочено",
+    today: "Сегодня",
+    version: "Версия",
+    connectedShort: "Connected",
+    unconnectedShort: "Unconnected",
+    connectionHelpConnected: "Есть прямая каноническая связь с перепиской EVO.",
+    connectionHelpUnconnected: "Прямой канонической связи с перепиской EVO нет.",
+    invalid:
+      "Параметры очереди некорректны. Сбросьте фильтры: данные не были заменены нефильтрованным списком.",
+    unavailable:
+      "Очередь квалификации сейчас недоступна. Это ошибка чтения, а не пустой результат.",
+    empty: "В доступной вам очереди пока нет канонических лидов.",
+    emptyConnected: "Нет лидов с прямой связью с перепиской EVO.",
+    emptyUnconnected: "Нет лидов без прямой связи с перепиской EVO.",
+    emptyOverdue: "Нет лидов с просроченным следующим действием.",
+    emptyUnassigned: "Нет доступных лидов без ответственного.",
+    emptyFiltered: "По выбранным условиям лиды не найдены.",
+    ownerUnavailable:
+      "Поиск и фильтр по ответственному сейчас недоступны. Очередь остаётся видимой, но сохранение изменений отключено.",
+    conversations: "диалогов",
+    studentCases: "Student Cases",
+  },
+  ky: {
+    queueTitle: "Квалификация жана кийинки кадам",
+    queueDescription:
+      "Connected лиддин EVO кат алышуусу менен түз байланышын билдирет; бул WhatsApp провайдеринин абалы эмес.",
+    connection: "Кат алышуу байланышы",
+    allConnections: "Бардык байланыштар",
+    connected: "Connected · түз байланыш бар",
+    unconnected: "Unconnected · түз байланыш жок",
+    allStages: "Бардык этаптар",
+    assignment: "Дайындоо",
+    allAssignments: "Бардык жеткиликтүү",
+    mine: "Менин лиддерим",
+    unassigned: "Жооптуусу жок",
+    ownerFilter: "Sales жооптуусу",
+    allOwners: "Бардык жооптуулар",
+    due: "Кийинки аракеттин мөөнөтү",
+    allDue: "Бардык мөөнөттөр",
+    scheduled: "Аракет пландалган",
+    unscheduled: "Кийинки аракет жок",
+    dueToday: "Мөөнөт бүгүн",
+    overdueFilter: "Мөөнөтү өткөн",
+    lead: "Лид / кардар",
+    stageOwner: "Этап / жооптуу",
+    nextAction: "Кийинки аракет",
+    connectionContext: "Байланыш / контекст",
+    updatedVersion: "Жаңыртуу / версия",
+    change: "Өзгөртүү",
+    noAction: "Кийинки аракет пландалган эмес",
+    noDueDate: "Мөөнөт берилген эмес",
+    overdue: "Мөөнөтү өткөн",
+    today: "Бүгүн",
+    version: "Версия",
+    connectedShort: "Connected",
+    unconnectedShort: "Unconnected",
+    connectionHelpConnected: "EVO кат алышуусу менен түз каноникалык байланыш бар.",
+    connectionHelpUnconnected: "EVO кат алышуусу менен түз каноникалык байланыш жок.",
+    invalid: "Кезек чыпкалары туура эмес. Чыпкаларды тазалаңыз.",
+    unavailable: "Квалификация кезеги жеткиликсиз. Бул бош натыйжа эмес.",
+    empty: "Жеткиликтүү кезекте каноникалык лиддер азырынча жок.",
+    emptyConnected: "EVO кат алышуусу менен түз байланышкан лиддер жок.",
+    emptyUnconnected: "EVO кат алышуусу менен түз байланышы жок лиддер жок.",
+    emptyOverdue: "Мөөнөтү өткөн кийинки аракети бар лиддер жок.",
+    emptyUnassigned: "Жооптуусу жок жеткиликтүү лиддер жок.",
+    emptyFiltered: "Тандалган шарттар боюнча лиддер табылган жок.",
+    ownerUnavailable:
+      "Жооптуу боюнча издөө жана чыпка жеткиликсиз. Кезек көрүнөт, бирок өзгөртүүлөрдү сактоо өчүрүлгөн.",
+    conversations: "диалог",
+    studentCases: "Student Cases",
+  },
+  en: {
+    queueTitle: "Qualification and next action",
+    queueDescription:
+      "Connected means a direct canonical link to an EVO conversation, not WhatsApp provider health.",
+    connection: "Conversation link",
+    allConnections: "All connections",
+    connected: "Connected · direct link exists",
+    unconnected: "Unconnected · no direct link",
+    allStages: "All stages",
+    assignment: "Assignment",
+    allAssignments: "All accessible",
+    mine: "My leads",
+    unassigned: "Unassigned",
+    ownerFilter: "Sales owner",
+    allOwners: "All owners",
+    due: "Next-action due date",
+    allDue: "All due states",
+    scheduled: "Action scheduled",
+    unscheduled: "No next action",
+    dueToday: "Due today",
+    overdueFilter: "Overdue",
+    lead: "Lead / client",
+    stageOwner: "Stage / owner",
+    nextAction: "Next action",
+    connectionContext: "Connection / context",
+    updatedVersion: "Updated / version",
+    change: "Change",
+    noAction: "No next action is scheduled",
+    noDueDate: "No due date",
+    overdue: "Overdue",
+    today: "Today",
+    version: "Version",
+    connectedShort: "Connected",
+    unconnectedShort: "Unconnected",
+    connectionHelpConnected: "A direct canonical EVO conversation link exists.",
+    connectionHelpUnconnected: "No direct canonical EVO conversation link exists.",
+    invalid:
+      "The queue parameters are invalid. Clear the filters; no unfiltered fallback was substituted.",
+    unavailable:
+      "The qualification queue is unavailable. This is a read failure, not an empty result.",
+    empty: "There are no canonical leads in your accessible queue yet.",
+    emptyConnected: "There are no leads with a direct EVO conversation link.",
+    emptyUnconnected: "There are no leads without a direct EVO conversation link.",
+    emptyOverdue: "There are no leads with an overdue next action.",
+    emptyUnassigned: "There are no accessible unassigned leads.",
+    emptyFiltered: "No leads match the selected filters.",
+    ownerUnavailable:
+      "Owner search and filtering are unavailable. The queue remains visible, but saving changes is disabled.",
+    conversations: "conversations",
+    studentCases: "Student Cases",
+  },
+} as const;
+
+/** Connected U4 surface: one canonical qualification queue plus the U3 receive-only intake. */
 export async function ConnectedCanonicalSales({
   searchParams,
 }: Readonly<{ searchParams: Promise<SearchParams> }>) {
@@ -248,6 +447,10 @@ export async function ConnectedCanonicalSales({
     searchParams,
   ]);
   const normalized = normalizeSearchParams(params);
+  const listInvalid =
+    normalized.listInvalid ||
+    (normalized.ownerMembershipId !== undefined &&
+      (actor.platformRole !== "admin" || normalized.assignment !== "all"));
   const intakeRead = normalized.intakeInvalid
     ? Promise.resolve({ page: null, unavailable: false as const })
     : listPlatformSalesIntake(actor, {
@@ -263,24 +466,90 @@ export async function ConnectedCanonicalSales({
           }
           throw error;
         });
-  const [page, intakeResult] = await Promise.all([
-    listPlatformCanonicalLeads(actor, {
-      cursor: normalized.cursor,
-      lifecycleState: normalized.lifecycle,
-      pageSize: 50,
-      query: normalized.query,
-      stageKey: normalized.stage,
-    }),
+  const listRead = listInvalid
+    ? Promise.resolve({ page: null, unavailable: false as const })
+    : listPlatformSalesLeads(actor, {
+        assignment: normalized.assignment,
+        connection: normalized.connection,
+        cursor: normalized.cursor,
+        due: normalized.due,
+        ownerMembershipId: normalized.ownerMembershipId,
+        pageSize: 50,
+        query: normalized.query,
+        stage: normalized.stage,
+      })
+        .then((page) => ({ page, unavailable: false as const }))
+        .catch((error: unknown) => {
+          if (error instanceof PlatformSalesWorkflowRepositoryError) {
+            return { page: null, unavailable: true as const };
+          }
+          throw error;
+        });
+  const ownerRead = listPlatformSalesOwnerOptions(actor, { pageSize: 50 })
+    .then((page) => ({ page, unavailable: false as const }))
+    .catch((error: unknown) => {
+      if (error instanceof PlatformSalesWorkflowRepositoryError) {
+        return { page: null, unavailable: true as const };
+      }
+      throw error;
+    });
+  const [listResult, intakeResult, ownerResult] = await Promise.all([
+    listRead,
     intakeRead,
+    ownerRead,
   ]);
+  const actorRole = actor.platformRole === "admin" ? "admin" : "sales";
+  const ownerOptions =
+    actorRole === "sales"
+      ? (ownerResult.page?.rows ?? []).filter(
+          (option) => option.membershipId === actor.membershipId,
+        )
+      : ownerResult.page?.rows ?? [];
+  const selectedOwnerMembershipId = normalized.ownerMembershipId ?? null;
+  let selectedOwnerLabel =
+    selectedOwnerMembershipId === null
+      ? null
+      : ownerOptions.find(
+          (option) => option.membershipId === selectedOwnerMembershipId,
+        )?.displayLabel ?? selectedOwnerMembershipId;
+
+  if (
+    actorRole === "admin" &&
+    selectedOwnerMembershipId !== null &&
+    selectedOwnerLabel === selectedOwnerMembershipId &&
+    !ownerResult.unavailable
+  ) {
+    const selectedOwner = await listPlatformSalesOwnerOptions(actor, {
+      pageSize: 1,
+      query: selectedOwnerMembershipId,
+    })
+      .then(
+        (selectedPage) =>
+          selectedPage.rows.find(
+            (option) => option.membershipId === selectedOwnerMembershipId,
+          ) ?? null,
+      )
+      .catch((error: unknown) => {
+        if (error instanceof PlatformSalesWorkflowRepositoryError) return null;
+        throw error;
+      });
+    selectedOwnerLabel =
+      selectedOwner?.displayLabel ?? selectedOwnerMembershipId;
+  }
 
   return (
     <CanonicalSalesPresentation
+      actorRole={actorRole}
       locale={locale}
-      rows={page.rows}
+      page={listResult.page}
       params={normalized}
-      hasNext={page.hasNext}
-      nextCursor={page.nextCursor}
+      listInvalid={listInvalid}
+      listUnavailable={listResult.unavailable}
+      ownerOptions={ownerOptions}
+      ownerOptionsHasNext={ownerResult.page?.hasNext ?? false}
+      ownerOptionsNextCursor={ownerResult.page?.nextCursor ?? null}
+      ownerOptionsUnavailable={ownerResult.unavailable}
+      selectedOwnerLabel={selectedOwnerLabel}
       intakePage={intakeResult.page}
       intakeUnavailable={intakeResult.unavailable}
       intakeInvalid={normalized.intakeInvalid}
@@ -289,49 +558,85 @@ export async function ConnectedCanonicalSales({
 }
 
 type NormalizedParams = Readonly<{
-  cursor: PlatformCanonicalCursor | null;
+  assignment: PlatformSalesAssignmentFilter;
+  connection: PlatformSalesConnectionFilter;
+  cursor: PlatformSalesWorkflowCursor | null;
+  due: PlatformSalesDueFilter;
   intakeCursor: PlatformSalesIntakeCursor | null;
   intakeInvalid: boolean;
   intakeQuery?: string;
   intakeState?: PlatformSalesIntakeState;
-  lifecycle?: PlatformCanonicalLeadLifecycleState;
+  listInvalid: boolean;
+  ownerMembershipId?: string;
   query?: string;
-  stage?: string;
+  stage?: PlatformSalesStage;
 }>;
 
 function normalizeSearchParams(params: SearchParams): NormalizedParams {
-  assertOnlySearchKeys(params, [
-    "before_at",
-    "before_id",
-    "intake_before_at",
-    "intake_before_id",
-    "intake_q",
-    "intake_state",
-    "lifecycle",
-    "q",
-    "stage",
-  ]);
-  const beforeAt = singleValue(params.before_at);
-  const beforeId = singleValue(params.before_id);
-  const lifecycle = trimmed(singleValue(params.lifecycle));
-  const query = trimmed(singleValue(params.q));
-  const stage = trimmed(singleValue(params.stage));
-  if (
-    lifecycle &&
-    !PLATFORM_CANONICAL_LEAD_LIFECYCLE_STATES.includes(
-      lifecycle as PlatformCanonicalLeadLifecycleState,
-    )
-  ) {
-    throw new PlatformCanonicalRecordsRepositoryError();
-  }
   const intake = normalizeIntakeSearchParams(params);
-  return {
-    cursor: parsePlatformCanonicalCursor(beforeAt ?? null, beforeId ?? null),
-    ...intake,
-    lifecycle: lifecycle as PlatformCanonicalLeadLifecycleState | undefined,
-    query,
-    stage,
-  };
+  try {
+    assertOnlySearchKeys(params, [
+      "assignment",
+      "before_at",
+      "before_id",
+      "connection",
+      "due",
+      "intake_before_at",
+      "intake_before_id",
+      "intake_q",
+      "intake_state",
+      "owner",
+      "q",
+      "stage",
+    ]);
+    const beforeAt = singleValue(params.before_at);
+    const beforeId = singleValue(params.before_id);
+    const assignment = trimmed(singleValue(params.assignment)) ?? "all";
+    const connection = trimmed(singleValue(params.connection)) ?? "all";
+    const due = trimmed(singleValue(params.due)) ?? "all";
+    const owner = trimmed(singleValue(params.owner));
+    const query = trimmed(singleValue(params.q));
+    const stage = trimmed(singleValue(params.stage));
+    const ownerMembershipId = owner ? parsePlatformSalesUuid(owner) : undefined;
+    if (
+      (query && query.length > 120) ||
+      !PLATFORM_SALES_ASSIGNMENT_FILTERS.includes(
+        assignment as PlatformSalesAssignmentFilter,
+      ) ||
+      !PLATFORM_SALES_CONNECTION_FILTERS.includes(
+        connection as PlatformSalesConnectionFilter,
+      ) ||
+      !PLATFORM_SALES_DUE_FILTERS.includes(due as PlatformSalesDueFilter) ||
+      (stage && !PLATFORM_SALES_STAGES.includes(stage as PlatformSalesStage)) ||
+      (owner && ownerMembershipId === null) ||
+      (ownerMembershipId !== undefined && assignment !== "all")
+    ) {
+      throw new PlatformSalesWorkflowRepositoryError("invalid");
+    }
+    return {
+      assignment: assignment as PlatformSalesAssignmentFilter,
+      connection: connection as PlatformSalesConnectionFilter,
+      cursor: parsePlatformSalesWorkflowCursor(beforeAt, beforeId),
+      due: due as PlatformSalesDueFilter,
+      ...intake,
+      listInvalid: false,
+      ownerMembershipId: ownerMembershipId ?? undefined,
+      query,
+      stage: stage as PlatformSalesStage | undefined,
+    };
+  } catch (error) {
+    if (error instanceof PlatformSalesWorkflowRepositoryError) {
+      return {
+        assignment: "all",
+        connection: "all",
+        cursor: null,
+        due: "all",
+        ...intake,
+        listInvalid: true,
+      };
+    }
+    throw error;
+  }
 }
 
 function normalizeIntakeSearchParams(
@@ -378,12 +683,14 @@ function assertOnlySearchKeys(
   allowedKeys: readonly string[],
 ) {
   if (Object.keys(params).some((key) => !allowedKeys.includes(key))) {
-    throw new PlatformCanonicalRecordsRepositoryError();
+    throw new PlatformSalesWorkflowRepositoryError("invalid");
   }
 }
 
 function singleValue(value: string | string[] | undefined) {
-  if (Array.isArray(value)) throw new PlatformCanonicalRecordsRepositoryError();
+  if (Array.isArray(value)) {
+    throw new PlatformSalesWorkflowRepositoryError("invalid");
+  }
   return value;
 }
 
@@ -398,204 +705,457 @@ function trimmed(value: string | undefined) {
 }
 
 function CanonicalSalesPresentation({
+  actorRole,
   locale,
-  rows,
+  page,
   params,
-  hasNext,
-  nextCursor,
+  listInvalid,
+  listUnavailable,
+  ownerOptions,
+  ownerOptionsHasNext,
+  ownerOptionsNextCursor,
+  ownerOptionsUnavailable,
+  selectedOwnerLabel,
   intakePage,
   intakeUnavailable,
   intakeInvalid,
 }: Readonly<{
+  actorRole: "admin" | "sales";
   locale: Locale;
-  rows: readonly PlatformCanonicalLeadSummary[];
+  page: PlatformSalesLeadPage | null;
   params: NormalizedParams;
-  hasNext: boolean;
-  nextCursor: PlatformCanonicalCursor | null;
+  listInvalid: boolean;
+  listUnavailable: boolean;
+  ownerOptions: readonly PlatformSalesOwnerOption[];
+  ownerOptionsHasNext: boolean;
+  ownerOptionsNextCursor: PlatformSalesOwnerCursor | null;
+  ownerOptionsUnavailable: boolean;
+  selectedOwnerLabel: string | null;
   intakePage: PlatformSalesIntakePage | null;
   intakeUnavailable: boolean;
   intakeInvalid: boolean;
 }>) {
   const copy = COPY[locale];
+  const workflow = SALES_WORKFLOW_COPY[locale];
   const shared = canonicalRecordCopy(locale);
-  const duplicateCount = rows.filter((lead) => lead.hasOpenDuplicateCandidates).length;
+  const rows = page?.rows ?? [];
+  const duplicateCount = rows.filter(
+    (lead) => lead.openDuplicateCandidateCount > 0,
+  ).length;
   const unownedCount = rows.filter(
     (lead) => lead.currentOwnerMembershipId === null,
   ).length;
+  const today = bishkekCalendarDate();
 
   return (
     <div className="min-w-0" data-testid="platform-sales-page">
       <div className="space-y-5" data-testid="canonical-sales-page">
-      <PageHeader title={copy.title} description={copy.description} />
-      <CanonicalAuthorityNotice locale={locale} />
+        <PageHeader title={copy.title} description={copy.description} />
+        <CanonicalAuthorityNotice locale={locale} />
 
-      <SalesIntakeQueue
-        locale={locale}
-        page={intakePage}
-        params={params}
-        unavailable={intakeUnavailable}
-        invalid={intakeInvalid}
-      />
-
-      <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-border py-3 text-[12px] text-fg-3">
-        <Metric label={copy.found} value={rows.length} />
-        <Metric label={copy.duplicates} value={duplicateCount} />
-        <Metric label={copy.unowned} value={unownedCount} />
-      </div>
-
-      <form
-        action="/sales"
-        method="get"
-        className={`${filterBarCls} sm:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_minmax(170px,0.45fr)_minmax(180px,0.45fr)_auto]`}
-        aria-label={copy.title}
-      >
-        <input
-          className={inputCls}
-          name="q"
-          defaultValue={params.query}
-          placeholder={copy.search}
-          aria-label={copy.search}
+        <SalesIntakeQueue
+          locale={locale}
+          page={intakePage}
+          params={params}
+          unavailable={intakeUnavailable}
+          invalid={intakeInvalid}
         />
-        <input
-          className={inputCls}
-          name="stage"
-          defaultValue={params.stage}
-          placeholder={copy.stage}
-          aria-label={copy.stage}
-        />
-        <select
-          className={inputCls}
-          name="lifecycle"
-          defaultValue={params.lifecycle ?? ""}
-          aria-label={copy.lifecycle}
-        >
-          <option value="">{copy.allLifecycle}</option>
-          {PLATFORM_CANONICAL_LEAD_LIFECYCLE_STATES.map((state) => (
-            <option key={state} value={state}>
-              {humanizeCanonicalKey(state)}
-            </option>
-          ))}
-        </select>
-        <div className="flex gap-2">
-          <button type="submit" className={btnCls}>
-            <Icon name="search" size={15} /> {copy.apply}
-          </button>
-          <Link
-            href={salesHref(params, { includeCanonical: false })}
-            className={btnGhostCls}
-          >
-            {copy.clear}
-          </Link>
-        </div>
-        <IntakeFilterHiddenInputs params={params} />
-      </form>
 
-      <section aria-label={copy.title} data-testid="canonical-lead-list">
-        {rows.length === 0 ? (
-          <div className="border-y border-border" data-testid="canonical-leads-empty">
-            <EmptyState text={copy.empty} />
+        <section className="space-y-4" aria-labelledby="sales-workflow-title">
+          <div className="space-y-1">
+            <h2 id="sales-workflow-title" className="text-[15px] font-semibold text-fg">
+              {workflow.queueTitle}
+            </h2>
+            <p className="max-w-4xl text-[12.5px] leading-5 text-fg-3">
+              {workflow.queueDescription}
+            </p>
           </div>
-        ) : (
-          <div className="max-w-full overflow-x-auto border-y border-border">
-            <table className="w-full min-w-[900px] text-left text-[12.5px]">
-              <thead className="border-b border-border bg-surface-2 text-[10.5px] uppercase tracking-[0.04em] text-fg-3">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">{copy.lead}</th>
-                  <th className="px-3 py-3 font-semibold">{copy.stage}</th>
-                  <th className="px-3 py-3 font-semibold">{copy.owner}</th>
-                  <th className="px-3 py-3 font-semibold">{copy.source}</th>
-                  <th className="px-3 py-3 font-semibold">{copy.secondary}</th>
-                  <th className="px-4 py-3 font-semibold">{copy.updated}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {rows.map((lead) => (
-                  <tr
-                    key={lead.id}
-                    className="transition-colors hover:bg-surface-2"
-                    data-testid="canonical-lead-row"
-                    data-lead-id={lead.id}
-                  >
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/sales/${lead.id}`}
-                        className="font-semibold text-fg hover:text-accent"
-                        aria-label={`${lead.clientDisplayName ?? copy.noClient} · ${lead.id}`}
-                      >
-                        {lead.clientDisplayName ?? copy.noClient}
-                      </Link>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <CanonicalUuid value={lead.id} />
-                        <DuplicateStatus
-                          count={lead.openDuplicateCandidateCount}
-                          locale={locale}
-                        />
-                      </div>
-                      <div className="mt-1 text-[11.5px] text-fg-3">
-                        {[lead.clientEmail, lead.clientPhone].filter(Boolean).join(" · ") ||
-                          shared.unavailable}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3" data-testid="canonical-lead-stage">
-                      <CanonicalKeyBadge value={lead.stageKey} tone="accent" />
-                      <div className="mt-1">
-                        <CanonicalKeyBadge value={lead.lifecycleState} />
-                      </div>
-                    </td>
-                    <td className="px-3 py-3" data-testid="canonical-lead-owner">
-                      <div className="font-medium text-fg-2">
-                        {lead.currentOwnerDisplayName ?? copy.notAssigned}
-                      </div>
-                      {lead.currentOwnerMembershipId ? (
-                        <div className="mt-1">
-                          <CanonicalUuid value={lead.currentOwnerMembershipId} />
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-3 text-fg-2">
-                      {humanizeCanonicalKey(lead.sourceKey)}
-                    </td>
-                    <td className="px-3 py-3 text-[11.5px] text-fg-3">
-                      <div>{lead.linkedConversationCount} {copy.conversations}</div>
-                      <div className="mt-1">
-                        {lead.linkedStudentCaseCount} {copy.studentCases}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-[11px] text-fg-3">
-                      {formatCanonicalTimestamp(lead.updatedAt, locale)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
 
-      <nav className="flex items-center justify-between gap-3" aria-label={copy.title}>
-        {params.cursor ? (
-          <Link
-            href={salesHref(params, { canonicalCursor: null })}
-            className={btnGhostCls}
+          {page ? (
+            <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-border py-3 text-[12px] text-fg-3">
+              <Metric label={copy.found} value={rows.length} />
+              <Metric label={copy.duplicates} value={duplicateCount} />
+              <Metric label={copy.unowned} value={unownedCount} />
+            </div>
+          ) : null}
+
+          <form
+            action="/sales"
+            method="get"
+            data-testid="sales-workflow-filters"
+            className={`${filterBarCls} sm:grid-cols-2 xl:grid-cols-4`}
+            aria-label={workflow.queueTitle}
           >
-            ← {copy.first}
-          </Link>
-        ) : (
-          <span />
-        )}
-        {hasNext && nextCursor ? (
-          <Link
-            href={salesHref(params, { canonicalCursor: nextCursor })}
-            className={btnGhostCls}
-            rel="next"
-          >
-            {copy.next} →
-          </Link>
-        ) : null}
-      </nav>
+            <input
+              className={inputCls}
+              name="q"
+              defaultValue={params.query}
+              maxLength={120}
+              placeholder={copy.search}
+              aria-label={copy.search}
+            />
+            <select
+              className={inputCls}
+              name="connection"
+              defaultValue={params.connection}
+              aria-label={workflow.connection}
+            >
+              <option value="all">{workflow.allConnections}</option>
+              <option value="connected">{workflow.connected}</option>
+              <option value="unconnected">{workflow.unconnected}</option>
+            </select>
+            <select
+              className={inputCls}
+              name="stage"
+              defaultValue={params.stage ?? ""}
+              aria-label={copy.stage}
+            >
+              <option value="">{workflow.allStages}</option>
+              {PLATFORM_SALES_STAGES.map((stage) => (
+                <option key={stage} value={stage}>
+                  {SALES_STAGE_COPY[locale][stage]}
+                </option>
+              ))}
+            </select>
+            <select
+              className={inputCls}
+              name="assignment"
+              defaultValue={params.assignment}
+              aria-label={workflow.assignment}
+            >
+              <option value="all">{workflow.allAssignments}</option>
+              <option value="mine">{workflow.mine}</option>
+              <option value="unassigned">{workflow.unassigned}</option>
+            </select>
+            {actorRole === "admin" ? (
+              <>
+                <SalesOwnerSearchField
+                  key={`sales-owner-filter:${locale}:${params.ownerMembershipId ?? "all"}`}
+                  name="owner"
+                  locale={locale}
+                  initialOptions={ownerOptions}
+                  initialHasNext={ownerOptionsHasNext}
+                  initialNextCursor={ownerOptionsNextCursor}
+                  selectedId={params.ownerMembershipId ?? null}
+                  selectedLabel={selectedOwnerLabel}
+                  disabled={ownerOptionsUnavailable}
+                  description={
+                    ownerOptionsUnavailable ? workflow.ownerUnavailable : null
+                  }
+                  includeUnassigned
+                  unassignedLabel={workflow.allOwners}
+                  searchable
+                />
+                {ownerOptionsUnavailable && params.ownerMembershipId ? (
+                  <input type="hidden" name="owner" value={params.ownerMembershipId} />
+                ) : null}
+              </>
+            ) : null}
+            <select
+              className={inputCls}
+              name="due"
+              defaultValue={params.due}
+              aria-label={workflow.due}
+            >
+              <option value="all">{workflow.allDue}</option>
+              <option value="scheduled">{workflow.scheduled}</option>
+              <option value="unscheduled">{workflow.unscheduled}</option>
+              <option value="due_today">{workflow.dueToday}</option>
+              <option value="overdue">{workflow.overdueFilter}</option>
+            </select>
+            <div className="flex gap-2">
+              <button type="submit" className={btnCls}>
+                <Icon name="search" size={15} /> {copy.apply}
+              </button>
+              <Link
+                href={salesHref(params, { includeCanonical: false })}
+                className={btnGhostCls}
+              >
+                {copy.clear}
+              </Link>
+            </div>
+            <IntakeFilterHiddenInputs params={params} />
+          </form>
+
+          {ownerOptionsUnavailable ? (
+            <QueueNotice testId="sales-owner-options-unavailable">
+              {workflow.ownerUnavailable}
+            </QueueNotice>
+          ) : null}
+
+          <section aria-label={workflow.queueTitle} data-testid="canonical-lead-list">
+            {listInvalid ? (
+              <QueueNotice
+                testId="sales-workflow-list-invalid"
+                legacyTestId="canonical-records-unavailable"
+              >
+                {workflow.invalid}
+              </QueueNotice>
+            ) : listUnavailable || page === null ? (
+              <QueueNotice
+                testId="sales-workflow-list-unavailable"
+                legacyTestId="canonical-records-unavailable"
+              >
+                {workflow.unavailable}
+              </QueueNotice>
+            ) : rows.length === 0 ? (
+              <div className="border-y border-border" data-testid="canonical-leads-empty">
+                <EmptyState text={emptyQueueCopy(locale, params)} />
+              </div>
+            ) : (
+              <div className="max-w-full overflow-x-auto border-y border-border">
+                <table className="w-full min-w-[1480px] text-left text-[12.5px]">
+                  <thead className="border-b border-border bg-surface-2 text-[10.5px] uppercase tracking-[0.04em] text-fg-3">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">{workflow.lead}</th>
+                      <th className="px-3 py-3 font-semibold">{workflow.stageOwner}</th>
+                      <th className="px-3 py-3 font-semibold">{workflow.nextAction}</th>
+                      <th className="px-3 py-3 font-semibold">{workflow.connectionContext}</th>
+                      <th className="px-3 py-3 font-semibold">{workflow.updatedVersion}</th>
+                      <th className="px-4 py-3 font-semibold">{workflow.change}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {rows.map((lead) => (
+                      <SalesWorkflowRow
+                        key={lead.leadId}
+                        lead={lead}
+                        locale={locale}
+                        ownerOptions={ownerOptions}
+                        ownerOptionsHasNext={ownerOptionsHasNext}
+                        ownerOptionsNextCursor={ownerOptionsNextCursor}
+                        ownerSearchable={actorRole === "admin"}
+                        ownerOptionsUnavailable={ownerOptionsUnavailable}
+                        requestId={randomUUID()}
+                        sharedUnavailable={shared.unavailable}
+                        today={today}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {page ? (
+            <nav
+              className="flex items-center justify-between gap-3"
+              aria-label={workflow.queueTitle}
+            >
+              {params.cursor ? (
+                <Link
+                  href={salesHref(params, { canonicalCursor: null })}
+                  className={btnGhostCls}
+                >
+                  ← {copy.first}
+                </Link>
+              ) : (
+                <span />
+              )}
+              {page.hasNext && page.nextCursor ? (
+                <Link
+                  href={salesHref(params, { canonicalCursor: page.nextCursor })}
+                  className={btnGhostCls}
+                  rel="next"
+                >
+                  {copy.next} →
+                </Link>
+              ) : null}
+            </nav>
+          ) : null}
+        </section>
       </div>
     </div>
   );
+}
+
+function SalesWorkflowRow({
+  lead,
+  locale,
+  ownerOptions,
+  ownerOptionsHasNext,
+  ownerOptionsNextCursor,
+  ownerSearchable,
+  ownerOptionsUnavailable,
+  requestId,
+  sharedUnavailable,
+  today,
+}: Readonly<{
+  lead: PlatformSalesLeadWorkflow;
+  locale: Locale;
+  ownerOptions: readonly PlatformSalesOwnerOption[];
+  ownerOptionsHasNext: boolean;
+  ownerOptionsNextCursor: PlatformSalesOwnerCursor | null;
+  ownerSearchable: boolean;
+  ownerOptionsUnavailable: boolean;
+  requestId: string;
+  sharedUnavailable: string;
+  today: string;
+}>) {
+  const copy = COPY[locale];
+  const workflow = SALES_WORKFLOW_COPY[locale];
+  const isOverdue = lead.nextActionDueDate !== null && lead.nextActionDueDate < today;
+  const isDueToday = lead.nextActionDueDate === today;
+
+  return (
+    <tr
+      className="align-top transition-colors hover:bg-surface-2"
+      data-testid="canonical-lead-row"
+      data-lead-id={lead.leadId}
+      data-workflow-version={lead.workflowVersion}
+    >
+      <td className="px-4 py-3">
+        <Link
+          href={`/sales/${lead.leadId}`}
+          className="font-semibold text-fg hover:text-accent"
+          aria-label={`${lead.clientDisplayName ?? copy.noClient} · ${lead.leadId}`}
+        >
+          {lead.clientDisplayName ?? copy.noClient}
+        </Link>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <CanonicalUuid value={lead.leadId} />
+          <DuplicateStatus
+            count={lead.openDuplicateCandidateCount}
+            locale={locale}
+          />
+        </div>
+        <div className="mt-1 text-[11.5px] text-fg-3">
+          {[lead.clientEmail, lead.clientPhone].filter(Boolean).join(" · ") ||
+            sharedUnavailable}
+        </div>
+        <div className="mt-1 text-[11px] text-fg-3">
+          {humanizeCanonicalKey(lead.sourceKey)}
+        </div>
+      </td>
+      <td className="px-3 py-3">
+        <div data-testid="canonical-lead-stage" data-stage-key={lead.stage}>
+          <CanonicalKeyBadge value={SALES_STAGE_COPY[locale][lead.stage]} tone="accent" />
+        </div>
+        <div className="mt-2" data-testid="canonical-lead-owner">
+          <div className="font-medium text-fg-2">
+            {lead.currentOwnerDisplayName ?? copy.notAssigned}
+          </div>
+          {lead.currentOwnerMembershipId ? (
+            <div className="mt-1">
+              <CanonicalUuid value={lead.currentOwnerMembershipId} />
+            </div>
+          ) : null}
+        </div>
+      </td>
+      <td className="max-w-[280px] px-3 py-3" data-testid="sales-lead-next-action">
+        <div className="font-medium leading-5 text-fg-2">
+          {lead.nextActionText ?? workflow.noAction}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11.5px]">
+          {lead.nextActionDueDate ? (
+            <time dateTime={lead.nextActionDueDate} className="font-mono text-fg-3">
+              {lead.nextActionDueDate}
+            </time>
+          ) : (
+            <span className="text-fg-3">{workflow.noDueDate}</span>
+          )}
+          {isOverdue ? (
+            <span className="rounded-full bg-danger-weak px-2 py-0.5 font-semibold text-danger">
+              {workflow.overdue}
+            </span>
+          ) : isDueToday ? (
+            <span className="rounded-full bg-warn-weak px-2 py-0.5 font-semibold text-warn">
+              {workflow.today}
+            </span>
+          ) : null}
+        </div>
+      </td>
+      <td className="px-3 py-3" data-testid="sales-lead-connection">
+        <div className={lead.isConnected ? "font-semibold text-ok" : "font-semibold text-fg-2"}>
+          {lead.isConnected ? workflow.connectedShort : workflow.unconnectedShort}
+        </div>
+        <p className="mt-1 max-w-[230px] text-[11px] leading-4 text-fg-3">
+          {lead.isConnected
+            ? workflow.connectionHelpConnected
+            : workflow.connectionHelpUnconnected}
+        </p>
+        <div className="mt-2 text-[11.5px] text-fg-3">
+          <div>{lead.linkedConversationCount} {workflow.conversations}</div>
+          <div className="mt-1">
+            {lead.linkedStudentCaseCount} {workflow.studentCases}
+          </div>
+        </div>
+      </td>
+      <td className="px-3 py-3 text-[11px] text-fg-3">
+        <div className="font-mono">
+          {formatCanonicalTimestamp(lead.updatedAt, locale)}
+        </div>
+        <div className="mt-2">
+          {workflow.version}: <strong className="font-mono text-fg">{lead.workflowVersion}</strong>
+        </div>
+      </td>
+      <td className="w-[390px] px-4 py-3">
+        <SalesLeadWorkflowForm
+          compact
+          lead={lead}
+          locale={workflowFormLocale(locale)}
+          ownerOptions={ownerOptions}
+          ownerOptionsHasNext={ownerOptionsHasNext}
+          ownerOptionsNextCursor={ownerOptionsNextCursor}
+          ownerSearchable={ownerSearchable}
+          ownerOptionsUnavailable={ownerOptionsUnavailable}
+          requestId={requestId}
+        />
+      </td>
+    </tr>
+  );
+}
+
+function QueueNotice({
+  children,
+  legacyTestId,
+  testId,
+}: Readonly<{
+  children: React.ReactNode;
+  legacyTestId?: string;
+  testId: string;
+}>) {
+  return (
+    <div
+      className="border-l-[3px] border-warn bg-warn-weak px-4 py-3 text-[12.5px] leading-5 text-fg-2"
+      data-testid={testId}
+    >
+      {legacyTestId ? <span data-testid={legacyTestId}>{children}</span> : children}
+    </div>
+  );
+}
+
+function emptyQueueCopy(locale: Locale, params: NormalizedParams) {
+  const copy = SALES_WORKFLOW_COPY[locale];
+  if (params.connection === "connected") return copy.emptyConnected;
+  if (params.connection === "unconnected") return copy.emptyUnconnected;
+  if (params.due === "overdue") return copy.emptyOverdue;
+  if (params.assignment === "unassigned") return copy.emptyUnassigned;
+  if (
+    params.query ||
+    params.stage ||
+    params.ownerMembershipId ||
+    params.assignment !== "all" ||
+    params.due !== "all"
+  ) {
+    return copy.emptyFiltered;
+  }
+  return copy.empty;
+}
+
+function workflowFormLocale(locale: Locale): "ru" | "en" {
+  return locale === "en" ? "en" : "ru";
+}
+
+function bishkekCalendarDate(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Bishkek",
+    year: "numeric",
+  }).formatToParts(now);
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
 }
 
 function SalesIntakeQueue({
@@ -839,13 +1399,22 @@ function CanonicalFilterHiddenInputs({
     <>
       {params.query ? <input type="hidden" name="q" value={params.query} /> : null}
       {params.stage ? <input type="hidden" name="stage" value={params.stage} /> : null}
-      {params.lifecycle ? (
-        <input type="hidden" name="lifecycle" value={params.lifecycle} />
+      {params.connection !== "all" ? (
+        <input type="hidden" name="connection" value={params.connection} />
+      ) : null}
+      {params.assignment !== "all" ? (
+        <input type="hidden" name="assignment" value={params.assignment} />
+      ) : null}
+      {params.ownerMembershipId ? (
+        <input type="hidden" name="owner" value={params.ownerMembershipId} />
+      ) : null}
+      {params.due !== "all" ? (
+        <input type="hidden" name="due" value={params.due} />
       ) : null}
       {params.cursor ? (
         <>
           <input type="hidden" name="before_at" value={params.cursor.updatedAt} />
-          <input type="hidden" name="before_id" value={params.cursor.id} />
+          <input type="hidden" name="before_id" value={params.cursor.leadId} />
         </>
       ) : null}
     </>
@@ -892,7 +1461,7 @@ function Metric({ label, value }: Readonly<{ label: string; value: number }>) {
 function salesHref(
   params: NormalizedParams,
   options: Readonly<{
-    canonicalCursor?: PlatformCanonicalCursor | null;
+    canonicalCursor?: PlatformSalesWorkflowCursor | null;
     intakeCursor?: PlatformSalesIntakeCursor | null;
     includeCanonical?: boolean;
     includeIntake?: boolean;
@@ -902,13 +1471,16 @@ function salesHref(
   if (options.includeCanonical !== false) {
     if (params.query) query.set("q", params.query);
     if (params.stage) query.set("stage", params.stage);
-    if (params.lifecycle) query.set("lifecycle", params.lifecycle);
+    if (params.connection !== "all") query.set("connection", params.connection);
+    if (params.assignment !== "all") query.set("assignment", params.assignment);
+    if (params.ownerMembershipId) query.set("owner", params.ownerMembershipId);
+    if (params.due !== "all") query.set("due", params.due);
     const canonicalCursor = Object.hasOwn(options, "canonicalCursor")
       ? options.canonicalCursor
       : params.cursor;
     if (canonicalCursor) {
       query.set("before_at", canonicalCursor.updatedAt);
-      query.set("before_id", canonicalCursor.id);
+      query.set("before_id", canonicalCursor.leadId);
     }
   }
   if (options.includeIntake !== false) {

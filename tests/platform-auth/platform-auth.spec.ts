@@ -834,6 +834,11 @@ test("U2 reads canonical EVO clients and leads through real Supabase with tenant
     leadDetail.getByTestId("canonical-linked-context"),
   ).toContainText(fixture.u2.linkedConversationSubject);
 
+  await adminPage.goto("/sales?q=one&q=two");
+  await expect(
+    adminPage.getByTestId("canonical-records-unavailable"),
+  ).toContainText(/не подставляются|ордуна коюлбайт|not substituted/);
+
   await adminPage.goto("/clients");
   await expect(adminPage.getByTestId("canonical-clients-page")).toBeVisible();
   const clientRow = adminPage.locator(
@@ -855,6 +860,11 @@ test("U2 reads canonical EVO clients and leads through real Supabase with tenant
   await expect(
     clientDetail.getByTestId("canonical-linked-context"),
   ).toContainText(fixture.u2.linkedConversationSubject);
+
+  await adminPage.goto("/clients?unexpected=1");
+  await expect(
+    adminPage.getByTestId("canonical-records-unavailable"),
+  ).toContainText(/не подставляются|ордуна коюлбайт|not substituted/);
   await adminContext.close();
 
   const crossOrgContext = await browser.newContext();

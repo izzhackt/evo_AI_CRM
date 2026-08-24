@@ -180,6 +180,33 @@ Then run the complete repository gates required by #379. Mocked clients,
 in-memory repositories, SQLite stand-ins, fixture-mode UI and configured-only
 provider claims are not acceptance evidence.
 
+## Local validation evidence
+
+The 2026-08-24 implementation candidate passed the following local gates under
+Node.js 22.23.1:
+
+- `git diff --check` and shell/Node syntax checks;
+- `npm run test:supabase:history`: 84 migrations ending at 084;
+- `npm run test:security:postgres`: the complete historical authorization
+  harness plus U2 inventory, RLS/integrity, transitive `A -> B -> C` alias
+  resolution and two overlapping create-or-link workers;
+- `npm run test:supabase:local`: clean `001` through `084` reset, real local
+  Auth/PostgREST, more than 1,000 clients and leads traversed exactly once, and
+  the dedicated connected U2 browser partition with same-organization,
+  cross-organization, empty and explicit unavailable states;
+- `npm run test:unit`: 670 tests passed;
+- `npm run test:security:node`: 614 tests passed;
+- `npm run lint` and `npm run build`: passed.
+
+The affected Playwright acceptance path is fully and truthfully contained in
+`test:supabase:local`, so #379 makes the repository's conditional full fixture
+suite non-blocking. A diagnostic `npm run test:e2e` attempt was not reported as
+green: its first substantive assertion still expects retired secret inputs on
+the legacy `/settings` fixture surface, after which that long-lived dev server
+terminated and later cases cascaded with `ERR_CONNECTION_REFUSED`. The focused
+accessibility rerun passed 2/2. No failed case exercised the dedicated connected
+U2 Auth/PostgREST acceptance partition.
+
 ## Evidence and rollback boundary
 
 U2 exercises no managed Supabase project, production deployment, real customer

@@ -2,16 +2,18 @@
 
 Status: active U0-U14 repository implementation contract
 Version date: 2026-08-24 (Asia/Bishkek)
-Current U1 branch baseline: GitHub `origin/main` at
-`466f3fef95b331d1d9ae4280511a189d8a12d704`
+Current U2 branch baseline: GitHub `origin/main` at
+`86b82bd8787dacc99774696d76360de88088d4e2`
 Authority: parent issue #376, ADR 0020, this plan and the latest merged
 `docs/PLAN_CHANGES.md`. ADR 0015 and ADR 0017 remain active only where ADR 0020
 retains them. Earlier P/BW/NW/P8 plans and ADR 0019 are historical source.
 
-Current execution checkpoint: U0/#377 is merged. U1/#378 is the only current
-repository/local slice and stops before U2/#379. It changes no provider,
-production, customer data, WAHA session, amoCRM record or WhatsApp message.
-Block-ID: `EVO-U1-UNIFIED-STAFF-ACCESS-2026-08-24`.
+Current execution checkpoint: U0/#377 and U1/#378 are merged. U2/#379 is the
+only current repository/disposable-local slice and stops before U3/#380. It
+changes no managed Supabase project, provider, production, customer data, WAHA
+session, amoCRM record or WhatsApp message.
+Block-ID: `EVO-U2-CANONICAL-CLIENT-LEAD-2026-08-24`.
+Focused contract: `docs/platform/u2-canonical-client-lead.md`.
 
 ### Historical pre-#376 checkpoint
 
@@ -161,16 +163,17 @@ do not silently change production.
 
 ## 2A. Current planning priority
 
-1. Complete U1/#378 from current `main`: one Supabase staff login, exactly three
-   pilot roles, Admin-only lifecycle controls, explicit sensitive permissions,
-   immediate revocation and UI/API/RLS enforcement.
-2. Prove U1 through disposable-local Supabase/PostgreSQL and browser acceptance,
-   then require one independent exact-head launch-control review, exact-head
-   required CI and a final immutable head/base refresh before merge.
-3. Stop after #378. U2/#379 starts only in a later branch/PR after U1 is merged.
-4. Execute U2-U14 strictly in dependency order. A stale draft contributes only
+1. U1/#378 is complete on merged PR #393: one Supabase staff login, exactly
+   three pilot roles, Admin-only lifecycle controls, explicit sensitive
+   permissions and immediate revocation.
+2. Complete U2/#379 from current `main`: canonical Supabase client and lead,
+   provenance/external identifiers, explicit duplicate resolution and bounded
+   connected staff reads.
+3. Prove U2 through disposable-local Supabase/PostgreSQL/Auth/PostgREST/browser
+   acceptance, exact-head review and required CI, then stop before U3/#380.
+4. Execute U3-U14 strictly in dependency order. A stale draft contributes only
    the value assigned by the crosswalk and is rebuilt from then-current `main`.
-5. Keep outbound WhatsApp and amoCRM writes disabled. No U1 action may touch
+5. Keep outbound WhatsApp and amoCRM writes disabled. No U2 action may touch
    production, providers, DNS/TLS, WAHA sessions or customer data.
 
 No mock, SQLite shim, hardcoded provider mapping, fake success or silent

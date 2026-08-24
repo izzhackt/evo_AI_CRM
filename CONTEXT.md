@@ -13,9 +13,12 @@ issue #376 and U0-U14. The 2026-08-24 entry in
 [`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md) records the superseding owner
 decision: EVO is one product with one entry point, one staff UI, one role
 model, one cross-module workflow, and one canonical Supabase foundation.
-U0/#377 is merged. U1/#378 is the current repository/local execution slice and
-binds the three pilot staff roles to one live Supabase authority chain; U2 has
-not started. The U1 contract and evidence boundary are recorded in
+U0/#377 and U1/#378 are merged. U2/#379 is the sole current
+repository/disposable-local execution slice and establishes the canonical EVO
+client and lead model plus its bounded connected read path; U3/#380 and later
+slices have not started. The active U2 contract is recorded in
+[`docs/platform/u2-canonical-client-lead.md`](docs/platform/u2-canonical-client-lead.md),
+and the completed U1 authority/evidence boundary remains in
 [`docs/platform/u1-unified-staff-access.md`](docs/platform/u1-unified-staff-access.md).
 Lead Agent, CRM, and Inbox name internal capabilities or current deployment
 contours; they are not separate target products, user applications, or data

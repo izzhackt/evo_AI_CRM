@@ -118,7 +118,7 @@ These checks prove repository/disposable-local behavior only. U1 does not
 exercise or claim managed Supabase, production, provider, backup or rollback
 success; it sends no WhatsApp message and writes nothing to amoCRM.
 
-## Candidate-local evidence
+## Immutable completion evidence
 
 The clean U1 worktree based on
 `466f3fef95b331d1d9ae4280511a189d8a12d704` passed the following on
@@ -135,5 +135,22 @@ The clean U1 worktree based on
 - `npm run lint` and `npm run build`: both passed, including TypeScript and the
   production Next.js build.
 
-These are candidate-local results. The immutable PR head still requires its own
-independent review and repository-required GitHub CI before merge.
+The reviewed candidate was merged through
+[PR #393](https://github.com/izzhackt/evo_AI_CRM/pull/393):
+
+- exact PR head:
+  `4570e25d2b7616f3f376ba368c0bd97dfe53a203`;
+- exact-head CI run
+  [32675445268](https://github.com/izzhackt/evo_AI_CRM/actions/runs/32675445268):
+  `Changed range`, `Main CRM`, `EVO Inbox` and `EVO Lead Agent` passed;
+- squash-merge/main SHA:
+  `86b82bd8787dacc99774696d76360de88088d4e2`;
+- exact-main CI run
+  [32675930100](https://github.com/izzhackt/evo_AI_CRM/actions/runs/32675930100):
+  `Main CRM`, `EVO Inbox` and `EVO Lead Agent` passed; `Changed range` was
+  correctly skipped for the push event;
+- the reviewed head and merged main commit both have tree
+  `3479292c50bdc19acbf793ff5b677b4e1ed6b2c4`.
+
+Issue #378 closed at the merge. This evidence remains repository/local only;
+it does not prove managed Supabase, production or provider behavior.

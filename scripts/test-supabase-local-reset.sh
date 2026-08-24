@@ -1291,7 +1291,7 @@ fi
   || fail "Storage gate did not delete the credential-bearing local status file."
 
 refresh_synthetic_browser_health
-for browser_partition in provider p5b p5c p5d p5e p5f1 p5f3 p6a p6b p6c p6d p7a p7b remaining; do
+for browser_partition in provider p5b p5c p5d p5e p5f1 p5f3 p6a p6b p6c p6d p7a p7b u2 remaining; do
   prepare_platform_auth_tsconfig "${browser_partition}" \
     || fail "Unable to create the disposable ${browser_partition} browser tsconfig."
 done
@@ -1330,6 +1330,7 @@ if ! run_with_deadline 240000 env \
 fi
 if ! stop_exact_browser_server; then
   fail "The exact-worktree Platform browser server did not stop between browser partitions."
+fi
 if ! run_with_deadline 240000 env \
   EVO_P5B_BROWSER_PROOF=1 \
   EVO_P5C_BROWSER_PROOF=0 \
@@ -1775,7 +1776,6 @@ if ! stop_exact_browser_server; then
 fi
 if ! set_p6c_runtime_control disable; then
   fail "Unable to disable the exact synthetic P6D organization overdue runtime control; output was withheld."
-fi
 fi
 if ! run_with_deadline 240000 env \
   EVO_P5B_BROWSER_PROOF=0 \

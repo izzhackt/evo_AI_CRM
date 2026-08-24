@@ -745,6 +745,10 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
     'fail "The exact-worktree Platform browser server did not stop between browser partitions."',
     providerPass,
   );
+  const betweenPassCleanupEnd = harness.indexOf(
+    "\nfi\n",
+    betweenPassCleanup,
+  );
   const p5bPass = harness.indexOf(
     "if ! run_with_deadline 240000 env \\",
     betweenPassCleanup,
@@ -882,6 +886,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
   assert.equal(platformAuthSpec.split(`test("${p6dTitle}"`).length - 1, 1);
   assert.notEqual(providerPass, -1);
   assert.notEqual(betweenPassCleanup, -1);
+  assert.notEqual(betweenPassCleanupEnd, -1);
   assert.notEqual(p5bPass, -1);
   assert.notEqual(p5bCleanup, -1);
   assert.notEqual(p5cPass, -1);
@@ -906,6 +911,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
   assert.notEqual(remainingCleanup, -1);
   assert.notEqual(finalCleanup, -1);
   assert.ok(providerPass < betweenPassCleanup);
+  assert.ok(betweenPassCleanupEnd < p5bPass);
   assert.ok(betweenPassCleanup < p5bPass);
   assert.ok(p5bPass < p5bCleanup);
   assert.ok(p5bCleanup < p5dPass);
@@ -2203,6 +2209,7 @@ test("browser partitions isolate Next dev artifacts by disposable run and partit
     "p6d",
     "p7a",
     "p7b",
+    "u2",
     "remaining",
   ]) {
     assert.match(
@@ -2237,6 +2244,10 @@ test("browser partitions isolate Next dev artifacts by disposable run and partit
 
 test("browser partitions keep Next type includes out of the tracked root tsconfig", () => {
   assert.match(harness, /prepare_platform_auth_tsconfig\(\)/);
+  assert.match(
+    harness,
+    /for browser_partition in provider p5b p5c p5d p5e p5f1 p5f3 p6a p6b p6c p6d p7a p7b u2 remaining; do/,
+  );
   assert.match(
     harness,
     /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|p6a\|p6b\|p6c\|p6d\|p7a\|p7b\|u2\|remaining\) ;;/,

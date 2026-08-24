@@ -812,7 +812,9 @@ test("U2 reads canonical EVO clients and leads through real Supabase with tenant
     fixture.u2.ownerDisplayName,
   );
   await expect(
-    adminPage.getByText(/amoCRM.*(?:источник истины|source of truth)/i),
+    adminPage
+      .getByTestId("canonical-sales-page")
+      .getByText(/amoCRM.*(?:источник истины|source of truth)/i),
   ).toHaveCount(0);
 
   await adminPage.goto(`/sales/${fixture.u2.leadId}`);

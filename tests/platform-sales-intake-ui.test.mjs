@@ -12,6 +12,9 @@ const salesSource = source(
 const leadDetailSource = source(
   "../src/components/platform/core/CanonicalLeadDetail.tsx",
 );
+const clientDetailSource = source(
+  "../src/components/platform/core/CanonicalClientDetail.tsx",
+);
 const linkedContextSource = source(
   "../src/components/platform/core/CanonicalRecordEvidence.tsx",
 );
@@ -58,6 +61,18 @@ test("canonical lead conversations stay inside the nested Sales route", () => {
   assert.match(
     linkedContextSource,
     /`\$\{conversationHrefPrefix\}\/\$\{conversation\.id\}`/,
+  );
+});
+
+test("canonical client context cannot escape receive-only Sales into legacy WhatsApp", () => {
+  assert.match(clientDetailSource, /conversationHrefPrefix=\{null\}/);
+  assert.doesNotMatch(
+    linkedContextSource,
+    /conversationHrefPrefix\s*=\s*["']\/whatsapp["']/,
+  );
+  assert.match(
+    linkedContextSource,
+    /data-testid="canonical-linked-conversation-read-only"/,
   );
 });
 

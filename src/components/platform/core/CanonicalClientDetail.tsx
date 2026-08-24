@@ -134,6 +134,7 @@ export function CanonicalClientDetail({
         leads={client.linkedLeads}
         studentCases={client.linkedStudentCases}
         conversations={client.linkedConversations}
+        conversationHrefPrefix={null}
       />
     </div>
   );

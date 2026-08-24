@@ -10723,4 +10723,17 @@ required repository gates from the execution contract, including
 `npm run test:supabase:history`, `npm run test:security:postgres`,
 `npm run test:supabase:local`, `npm run test:unit`,
 `npm run test:security:node`, `npm run lint`, and `npm run build`.
-Reviewer notes: pending independent launch-control review at the exact PR head.
+Reviewer notes: exact-head review at
+`30666cddf689bfab736e37ee8f41799dfd605fbb` requested the receive-only
+correction below; fresh exact-head approval remains pending after correction.
+
+Reviewer correction: independent review of
+`30666cddf689bfab736e37ee8f41799dfd605fbb` found that canonical client detail
+still inherited the legacy `/whatsapp/:conversationId` link. A user entering
+through U3 could therefore leave the receive-only Sales path and reach the
+existing reply surface. Remove that implicit fallback: canonical lead detail
+must explicitly select its nested `/sales/:leadId/conversations` route, while
+canonical client detail keeps linked conversation evidence visible but
+non-clickable because its bounded payload cannot identify one safe lead route.
+Static and real-browser regressions must prove the client detour exposes no
+legacy WhatsApp conversation link before the exact-head review cycle restarts.

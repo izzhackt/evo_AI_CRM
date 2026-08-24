@@ -2026,6 +2026,16 @@ test("P5B projects verified inbound WAHA work into the accepted conversation UI"
   await expect(
     page.locator(`a[href="/sales/${canonicalLeadId}/conversations/${conversationId}"]`),
   ).toBeVisible();
+  await page.getByTestId("canonical-lead-client").getByRole("link").click();
+  await expect(page.getByTestId("canonical-client-detail")).toBeVisible();
+  const clientConversation = page
+    .getByTestId("canonical-linked-conversation")
+    .filter({ hasText: "WhatsApp ••••0199" });
+  await expect(clientConversation).toBeVisible();
+  await expect(clientConversation.getByRole("link")).toHaveCount(0);
+  await expect(
+    page.locator(`a[href="/whatsapp/${conversationId}"]`),
+  ).toHaveCount(0);
   await page.goto(`/sales/${canonicalLeadId}/conversations/${conversationId}`);
   await expect(page).toHaveURL(
     new RegExp(`/sales/${canonicalLeadId}/conversations/${conversationId}$`),

@@ -15,6 +15,56 @@ const platformAuthSpec = readFileSync(
   "utf8",
 );
 
+test("sensitive-permission browser mutations wait for rendered state before checking authority", () => {
+  const proofStart = platformAuthSpec.indexOf(
+    'test("U1 Admin manages individual sensitive permissions',
+  );
+  const proofEnd = platformAuthSpec.indexOf(
+    'test("admin opens ordered synthetic inbound messages',
+    proofStart,
+  );
+  const proof = platformAuthSpec.slice(proofStart, proofEnd);
+  const grant = proof.indexOf("`U1 grant ${permission}`");
+  const grantClick = proof.indexOf(
+    'getByRole("button", { name: "Выдать" }).click()',
+    grant,
+  );
+  const grantRendered = proof.indexOf(
+    'getByRole("button", { name: "Отозвать" })',
+    grantClick + 1,
+  );
+  const staleAfterGrant = proof.indexOf("const staleAfterGrant");
+  const revoke = proof.indexOf("`U1 revoke ${permission}`");
+  const revokeClick = proof.indexOf(
+    'getByRole("button", { name: "Отозвать" }).click()',
+    revoke,
+  );
+  const revokeRendered = proof.indexOf(
+    'getByRole("button", { name: "Выдать" })',
+    revokeClick + 1,
+  );
+  const staleAfterRevoke = proof.indexOf("const staleAfterRevoke");
+
+  for (const index of [
+    proofStart,
+    proofEnd,
+    grant,
+    grantClick,
+    grantRendered,
+    staleAfterGrant,
+    revoke,
+    revokeClick,
+    revokeRendered,
+    staleAfterRevoke,
+  ]) {
+    assert.notEqual(index, -1);
+  }
+  assert.ok(grantClick < grantRendered);
+  assert.ok(grantRendered < staleAfterGrant);
+  assert.ok(revokeClick < revokeRendered);
+  assert.ok(revokeRendered < staleAfterRevoke);
+});
+
 test("Auth readiness is proven before the first mutating request", () => {
   const mainStart = authHook.indexOf("const main = async () => {");
   const readinessCall = authHook.indexOf(

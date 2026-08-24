@@ -1179,6 +1179,9 @@ test("U1 Admin manages individual sensitive permissions while UI, RPC and RLS de
     await form.locator('input[name="reason"]').fill(`U1 grant ${permission}`);
     await form.getByRole("button", { name: "Выдать" }).click();
     await expect(page).toHaveURL(/staff_result=permission_changed/);
+    await expect(
+      form.getByRole("button", { name: "Отозвать" }),
+    ).toBeVisible();
   }
 
   const staleAfterGrant = await platformRpc(
@@ -1229,6 +1232,9 @@ test("U1 Admin manages individual sensitive permissions while UI, RPC and RLS de
     await form.locator('input[name="reason"]').fill(`U1 revoke ${permission}`);
     await form.getByRole("button", { name: "Отозвать" }).click();
     await expect(page).toHaveURL(/staff_result=permission_changed/);
+    await expect(
+      form.getByRole("button", { name: "Выдать" }),
+    ).toBeVisible();
   }
 
   const staleAfterRevoke = await platformRpc(

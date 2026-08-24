@@ -1897,6 +1897,75 @@ test("P5B projects verified inbound WAHA work into the accepted conversation UI"
   const responsibleSalesToken = await localAccessToken(
     fixture.identities.responsibleSales,
   );
+  const intakeRows = await platformRpc(
+    responsibleSalesToken,
+    "staff_waha_sales_intake_page",
+    {
+      p_organization_id: fixture.p5b.organizationId,
+      p_limit: 51,
+      p_before_sort_at: null,
+      p_before_work_item_id: null,
+      p_state: null,
+      p_query: null,
+    },
+  );
+  expect(intakeRows.status).toBe(200);
+  expect(intakeRows.payload).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        intake_state: "received",
+        conversation_id: conversationId,
+        subject: "WhatsApp ••••0199",
+        client_display_name: "WhatsApp ••••0199",
+        error_code: null,
+      }),
+      expect.objectContaining({
+        intake_state: "manual_review",
+        conversation_id: conversationId,
+        canonical_lead_id: expect.any(String),
+        canonical_client_id: expect.any(String),
+        message_preview: humanReviewMarker,
+      }),
+    ]),
+  );
+  if (!Array.isArray(intakeRows.payload)) {
+    throw new Error("Expected the U3 Sales intake RPC to return an array.");
+  }
+  const canonicalLeadId = intakeRows.payload.find(
+    (row: { canonical_lead_id?: string | null; conversation_id?: string | null }) =>
+      row.conversation_id === conversationId && row.canonical_lead_id,
+  )?.canonical_lead_id;
+  expect(canonicalLeadId).toMatch(/^[0-9a-f-]{36}$/i);
+
+  await page.goto("/sales");
+  const intake = page.getByTestId("platform-sales-intake");
+  await expect(intake).toContainText("WhatsApp ••••0199");
+  await expect(intake).toContainText(humanReviewMarker);
+  await expect(page.getByTestId("platform-sales-intake-row").first()).toBeVisible();
+  await intake.getByRole("link", { name: /Open lead|Открыть лид|Лидди ачуу/ }).first().click();
+  await expect(page).toHaveURL(new RegExp(`/sales/${canonicalLeadId}$`));
+  await expect(
+    page.locator(`a[href="/sales/${canonicalLeadId}/conversations/${conversationId}"]`),
+  ).toBeVisible();
+  await page.goto(`/sales/${canonicalLeadId}/conversations/${conversationId}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/sales/${canonicalLeadId}/conversations/${conversationId}$`),
+  );
+  const salesThread = page.getByTestId("platform-sales-conversation-thread");
+  await expect(salesThread).toBeVisible();
+  await expect(salesThread).toHaveAttribute("data-provider-proof", "not-proved");
+  await expect(
+    salesThread.locator('[data-message-direction="inbound"]'),
+  ).toContainText([bodyText, humanReviewMarker]);
+  await expect(page.locator("body")).not.toContainText(chatId);
+  await expect(page.locator("body")).not.toContainText(rawMessageId);
+  await expect(page.locator("body")).not.toContainText(rawMediaMessageId);
+  await expect(
+    page.getByRole("button", {
+      name: /send|reply|отправить|ответить|gemini|ai/i,
+    }),
+  ).toHaveCount(0);
+
   const messageRows = await platformRpc(
     responsibleSalesToken,
     "staff_conversation_message_page",

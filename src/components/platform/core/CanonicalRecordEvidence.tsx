@@ -150,11 +150,13 @@ export function CanonicalLinkedContext({
   studentCases,
   conversations,
   leads = [],
+  conversationHrefPrefix = "/whatsapp",
 }: Readonly<{
   locale: Locale;
   studentCases: readonly PlatformCanonicalLinkedStudentCase[];
   conversations: readonly PlatformCanonicalLinkedConversation[];
   leads?: readonly PlatformCanonicalLinkedLead[];
+  conversationHrefPrefix?: string;
 }>) {
   const copy = canonicalRecordCopy(locale);
   const empty =
@@ -230,7 +232,7 @@ export function CanonicalLinkedContext({
                   {copy.conversation} · {copy.secondaryContext}
                 </div>
                 <Link
-                  href={`/whatsapp/${conversation.id}`}
+                  href={`${conversationHrefPrefix}/${conversation.id}`}
                   className="mt-1 inline-block font-semibold text-accent hover:underline"
                 >
                   {conversation.subject}

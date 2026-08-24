@@ -172,6 +172,7 @@ export function CanonicalLeadDetail({
         locale={locale}
         studentCases={lead.linkedStudentCases}
         conversations={lead.linkedConversations}
+        conversationHrefPrefix={`/sales/${lead.id}/conversations`}
       />
     </div>
   );

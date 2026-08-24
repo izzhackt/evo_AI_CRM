@@ -1598,6 +1598,18 @@ SQL
       exit 1
     fi
   fi
+
+  # Migration 085 binds verified receive-only WAHA intake to canonical
+  # lead/conversation identity and exposes the bounded safe Sales intake RPCs.
+  if [[ "$(basename "$migration")" == 085_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_receive_only_sales_current.sql
+
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_receive_only_sales_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

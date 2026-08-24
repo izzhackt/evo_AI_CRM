@@ -3,6 +3,10 @@ import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 type SalesSearchParams = Readonly<{
   before_at?: string | string[];
   before_id?: string | string[];
+  intake_before_at?: string | string[];
+  intake_before_id?: string | string[];
+  intake_q?: string | string[];
+  intake_state?: string | string[];
   lifecycle?: string;
   q?: string;
   stage?: string;

@@ -1243,11 +1243,14 @@ fi
 
 readonly AUTH_STATUS_FILE="${TEMP_DIR}/auth-status.json"
 readonly PLATFORM_AUTH_BROWSER_FIXTURE="${TEMP_DIR}/platform-auth-browser.json"
+readonly U4_BROWSER_OWNER_SEED="${TEMP_DIR}/u4-browser-owner-pagination.sql"
 readonly LEGACY_DB_SENTINEL="${TEMP_DIR}/legacy-must-not-exist.db"
 : >"${AUTH_STATUS_FILE}"
 : >"${PLATFORM_AUTH_BROWSER_FIXTURE}"
+: >"${U4_BROWSER_OWNER_SEED}"
 chmod 600 "${AUTH_STATUS_FILE}"
 chmod 600 "${PLATFORM_AUTH_BROWSER_FIXTURE}"
+chmod 600 "${U4_BROWSER_OWNER_SEED}"
 
 if ! run_with_deadline 10000 "${SUPABASE_CLI}" \
   --workdir "${REPO_ROOT}" \
@@ -1261,7 +1264,8 @@ if ! run_with_deadline 300000 node \
   "${REPO_ROOT}/scripts/test-supabase-auth-hook.mjs" \
   "${AUTH_STATUS_FILE}" \
   "${DATABASE_CONTAINER}" \
-  "${PLATFORM_AUTH_BROWSER_FIXTURE}"; then
+  "${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  "${U4_BROWSER_OWNER_SEED}"; then
   fail "Local Supabase Auth/PostgREST hook smoke failed."
 fi
 
@@ -1691,6 +1695,20 @@ fi
 if ! set_p6c_runtime_control disable; then
   fail "Unable to disable the exact synthetic P6C organization runtime control; output was withheld."
 fi
+if ! run_with_deadline 30000 docker exec -i \
+  "${DATABASE_CONTAINER}" \
+  psql \
+  -X \
+  --no-psqlrc \
+  -qAt \
+  -v ON_ERROR_STOP=1 \
+  -U postgres \
+  -d postgres \
+  <"${U4_BROWSER_OWNER_SEED}" \
+  >"${TEMP_DIR}/u4-browser-owner-seed.log" 2>&1; then
+  fail "Unable to seed the isolated U4 later-page owner browser fixture; output was withheld."
+fi
+rm -f -- "${U4_BROWSER_OWNER_SEED}"
 if ! run_with_deadline 240000 env \
   EVO_P5B_BROWSER_PROOF=0 \
   EVO_P5C_BROWSER_PROOF=0 \
@@ -1731,6 +1749,62 @@ if ! run_with_deadline 240000 env \
 fi
 if ! stop_exact_browser_server; then
   fail "The exact-worktree Platform browser server did not stop after the U2/U4 browser partition."
+fi
+if ! run_with_deadline 30000 docker exec -i \
+  "${DATABASE_CONTAINER}" \
+  psql \
+  -X \
+  --no-psqlrc \
+  -qAt \
+  -v ON_ERROR_STOP=1 \
+  -U postgres \
+  -d postgres \
+  >"${TEMP_DIR}/u4-browser-owner-cleanup.log" 2>&1 <<'SQL'
+BEGIN;
+UPDATE platform.organization_memberships AS membership
+SET status = 'inactive'
+FROM platform.profiles AS profile
+WHERE membership.profile_id = profile.id
+  AND profile.display_name LIKE 'ZZ U4 Page Owner %';
+
+UPDATE platform.profiles
+SET status = 'blocked'
+WHERE display_name LIKE 'ZZ U4 Page Owner %';
+
+DO $cleanup$
+DECLARE
+  fixture_count BIGINT;
+  eligible_count BIGINT;
+BEGIN
+  SELECT count(*)
+  INTO fixture_count
+  FROM platform.organization_memberships AS membership
+  JOIN platform.profiles AS profile
+    ON profile.id = membership.profile_id
+  WHERE profile.display_name LIKE 'ZZ U4 Page Owner %'
+    AND membership.status = 'inactive'
+    AND profile.status = 'blocked';
+
+  SELECT count(*)
+  INTO eligible_count
+  FROM platform.organization_memberships AS membership
+  JOIN platform.profiles AS profile
+    ON profile.id = membership.profile_id
+  WHERE profile.display_name LIKE 'ZZ U4 Page Owner %'
+    AND platform_private.is_eligible_sales_owner(
+      membership.organization_id,
+      membership.id
+    );
+
+  IF fixture_count <> 51 OR eligible_count <> 0 THEN
+    RAISE EXCEPTION 'u4_browser_owner_cleanup_incomplete';
+  END IF;
+END
+$cleanup$;
+COMMIT;
+SQL
+then
+  fail "Unable to deactivate the isolated U4 later-page owner browser fixture; output was withheld."
 fi
 if ! set_p6c_runtime_control enable; then
   fail "Unable to enable the exact synthetic P6D organization overdue runtime control; output was withheld."

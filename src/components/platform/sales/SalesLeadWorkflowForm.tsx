@@ -9,9 +9,12 @@ import {
 import {
   PLATFORM_SALES_STAGES,
   type PlatformSalesLeadWorkflow,
+  type PlatformSalesOwnerCursor,
   type PlatformSalesOwnerOption,
   type PlatformSalesStage,
 } from "@/lib/platform-sales-workflow-contract";
+
+import { SalesOwnerSearchField } from "./SalesOwnerSearchField";
 
 type Locale = "ru" | "en";
 
@@ -41,6 +44,8 @@ const COPY = {
     owner: "Ответственный Sales",
     unassigned: "Не назначен",
     unavailableOwner: "Текущий владелец недоступен",
+    ownerOptionsUnavailable:
+      "Список допустимых ответственных недоступен; сохранение отключено.",
     clear: "Следующее действие пока не запланировано",
     action: "Следующее действие",
     actionPlaceholder: "Например: позвонить и подтвердить встречу",
@@ -66,6 +71,8 @@ const COPY = {
     owner: "Responsible Sales owner",
     unassigned: "Unassigned",
     unavailableOwner: "Current owner is unavailable",
+    ownerOptionsUnavailable:
+      "Eligible owner options are unavailable; saving is disabled.",
     clear: "No next action is scheduled",
     action: "Next action",
     actionPlaceholder: "For example: call and confirm the meeting",
@@ -117,6 +124,9 @@ function SalesLeadWorkflowEditorFields({
   lead,
   locale,
   ownerOptions,
+  ownerOptionsHasNext,
+  ownerOptionsNextCursor,
+  ownerSearchable,
   ownerOptionsUnavailable,
   pending,
 }: Readonly<{
@@ -124,11 +134,13 @@ function SalesLeadWorkflowEditorFields({
   lead: PlatformSalesLeadWorkflow;
   locale: Locale;
   ownerOptions: readonly PlatformSalesOwnerOption[];
+  ownerOptionsHasNext: boolean;
+  ownerOptionsNextCursor: PlatformSalesOwnerCursor | null;
+  ownerSearchable: boolean;
   ownerOptionsUnavailable: boolean;
   pending: boolean;
 }>) {
   const [stage, setStage] = useState<PlatformSalesStage>(lead.stage);
-  const [owner, setOwner] = useState(lead.currentOwnerMembershipId ?? "");
   const [clearNextAction, setClearNextAction] = useState(
     lead.nextActionText === null,
   );
@@ -136,11 +148,6 @@ function SalesLeadWorkflowEditorFields({
   const [dueDate, setDueDate] = useState(lead.nextActionDueDate ?? "");
   const [reason, setReason] = useState("");
   const disabled = pending || ownerOptionsUnavailable;
-  const currentOwnerMissing =
-    lead.currentOwnerMembershipId !== null &&
-    !ownerOptions.some(
-      (option) => option.membershipId === lead.currentOwnerMembershipId,
-    );
 
   return (
     <>
@@ -168,29 +175,22 @@ function SalesLeadWorkflowEditorFields({
           </select>
         </label>
 
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-[var(--text)]">{copy.owner}</span>
-          <select
-            name="owner_membership_id"
-            value={owner}
-            onChange={(event) => setOwner(event.target.value)}
-            disabled={disabled}
-            className="min-h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
-          >
-            <option value="">{copy.unassigned}</option>
-            {currentOwnerMissing ? (
-              <option value={lead.currentOwnerMembershipId ?? ""}>
-                {lead.currentOwnerDisplayName ?? copy.unavailableOwner} ·{" "}
-                {copy.unavailableOwner}
-              </option>
-            ) : null}
-            {ownerOptions.map((option) => (
-              <option key={option.membershipId} value={option.membershipId}>
-                {option.displayLabel}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SalesOwnerSearchField
+          name="owner_membership_id"
+          locale={locale}
+          initialOptions={ownerOptions}
+          initialHasNext={ownerOptionsHasNext}
+          initialNextCursor={ownerOptionsNextCursor}
+          selectedId={lead.currentOwnerMembershipId}
+          selectedLabel={lead.currentOwnerDisplayName ?? copy.unavailableOwner}
+          disabled={disabled}
+          description={
+            ownerOptionsUnavailable ? copy.ownerOptionsUnavailable : null
+          }
+          includeUnassigned
+          unassignedLabel={copy.unassigned}
+          searchable={ownerSearchable}
+        />
       </div>
 
       <label className="flex items-start gap-2 text-sm">
@@ -267,6 +267,9 @@ function SalesLeadWorkflowEditorFields({
 export function SalesLeadWorkflowForm({
   lead,
   ownerOptions,
+  ownerOptionsHasNext,
+  ownerOptionsNextCursor,
+  ownerSearchable,
   ownerOptionsUnavailable,
   locale,
   requestId,
@@ -274,6 +277,9 @@ export function SalesLeadWorkflowForm({
 }: Readonly<{
   lead: PlatformSalesLeadWorkflow;
   ownerOptions: readonly PlatformSalesOwnerOption[];
+  ownerOptionsHasNext: boolean;
+  ownerOptionsNextCursor: PlatformSalesOwnerCursor | null;
+  ownerSearchable: boolean;
   ownerOptionsUnavailable: boolean;
   locale: Locale;
   requestId: string;
@@ -318,6 +324,9 @@ export function SalesLeadWorkflowForm({
         lead={lead}
         locale={locale}
         ownerOptions={ownerOptions}
+        ownerOptionsHasNext={ownerOptionsHasNext}
+        ownerOptionsNextCursor={ownerOptionsNextCursor}
+        ownerSearchable={ownerSearchable}
         ownerOptionsUnavailable={ownerOptionsUnavailable}
         pending={pending}
       />
@@ -337,7 +346,7 @@ export function SalesLeadWorkflowForm({
 
       {ownerOptionsUnavailable ? (
         <p className="text-sm text-[var(--warn)]" role="status">
-          {copy.unavailable}
+          {copy.ownerOptionsUnavailable}
         </p>
       ) : message ? (
         <div

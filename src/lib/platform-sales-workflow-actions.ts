@@ -7,11 +7,24 @@ import { requirePlatformSalesActor } from "./platform-guards";
 import {
   PLATFORM_SALES_STAGES,
   PlatformSalesWorkflowRepositoryError,
+  classifyPlatformSalesOwnerSearchFailure,
+  listPlatformSalesOwnerOptions,
   mutatePlatformSalesLeadWorkflow,
   parsePlatformSalesDate,
+  parsePlatformSalesOwnerSearchInput,
   parsePlatformSalesUuid,
+  type PlatformSalesOwnerSearchInput,
+  type PlatformSalesOwnerCursor,
+  type PlatformSalesOwnerOption,
   type PlatformSalesStage,
 } from "./platform-sales-workflow";
+
+export type PlatformSalesOwnerSearchResult = Readonly<{
+  status: "ok" | "invalid" | "unavailable";
+  rows: readonly PlatformSalesOwnerOption[];
+  nextCursor: PlatformSalesOwnerCursor | null;
+  hasNext: boolean;
+}>;
 
 export type PlatformSalesWorkflowActionStatus =
   | "idle"
@@ -29,6 +42,42 @@ export type PlatformSalesWorkflowActionState = Readonly<{
   workflowVersion: number | null;
   changedAt: string | null;
 }>;
+
+const EMPTY_OWNER_SEARCH_RESULT = Object.freeze({
+  rows: Object.freeze([]) as readonly PlatformSalesOwnerOption[],
+  nextCursor: null,
+  hasNext: false,
+});
+
+function ownerSearchFailure(
+  status: "invalid" | "unavailable",
+): PlatformSalesOwnerSearchResult {
+  return Object.freeze({ status, ...EMPTY_OWNER_SEARCH_RESULT });
+}
+
+export async function searchPlatformSalesOwnerOptionsAction(
+  input: PlatformSalesOwnerSearchInput,
+): Promise<PlatformSalesOwnerSearchResult> {
+  const actor = await requirePlatformSalesActor();
+  const parsed = parsePlatformSalesOwnerSearchInput(input);
+  if (parsed === null) return ownerSearchFailure("invalid");
+
+  try {
+    const page = await listPlatformSalesOwnerOptions(actor, {
+      cursor: parsed.cursor,
+      pageSize: 50,
+      query: parsed.query,
+    });
+    return Object.freeze({
+      status: "ok" as const,
+      rows: page.rows,
+      nextCursor: page.nextCursor,
+      hasNext: page.hasNext,
+    });
+  } catch (error) {
+    return ownerSearchFailure(classifyPlatformSalesOwnerSearchFailure(error));
+  }
+}
 
 function single(form: FormData, key: string): FormDataEntryValue | undefined {
   const values = form.getAll(key);

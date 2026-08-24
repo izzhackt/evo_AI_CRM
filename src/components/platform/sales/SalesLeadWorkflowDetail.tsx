@@ -13,6 +13,7 @@ import { PageHeader, btnGhostCls } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
 import {
   type PlatformSalesLeadWorkflowDetail,
+  type PlatformSalesOwnerCursor,
   type PlatformSalesOwnerOption,
   type PlatformSalesStage,
 } from "@/lib/platform-sales-workflow";
@@ -78,7 +79,6 @@ const COPY = {
       "Форма отправляет полное желаемое состояние с ожидаемой версией; успех показывается только после ответа транзакции.",
     ownerUnavailable:
       "Список допустимых ответственных недоступен. Лид остаётся видимым, но сохранение отключено.",
-    ownerTruncated: "Доступны первые 50 активных Sales.",
   },
   ky: {
     back: "Лиддерге",
@@ -111,7 +111,6 @@ const COPY = {
       "Форма күтүлгөн версия менен толук абалды жөнөтөт; ийгилик транзакциядан кийин гана көрсөтүлөт.",
     ownerUnavailable:
       "Жооптуулар тизмеси жеткиликсиз. Лид көрүнөт, бирок сактоо өчүрүлгөн.",
-    ownerTruncated: "Алгачкы 50 активдүү Sales жеткиликтүү.",
   },
   en: {
     back: "Back to leads",
@@ -144,7 +143,6 @@ const COPY = {
       "The form sends the full desired state with an expected version; success appears only after the transaction receipt.",
     ownerUnavailable:
       "Eligible owner options are unavailable. The lead remains visible, but saving is disabled.",
-    ownerTruncated: "The first 50 active Sales owners are available.",
   },
 } as const;
 
@@ -152,14 +150,18 @@ export function SalesLeadWorkflowDetail({
   lead,
   locale,
   ownerOptions,
-  ownerOptionsTruncated,
+  ownerOptionsHasNext,
+  ownerOptionsNextCursor,
+  ownerSearchable,
   ownerOptionsUnavailable,
   requestId,
 }: Readonly<{
   lead: PlatformSalesLeadWorkflowDetail;
   locale: Locale;
   ownerOptions: readonly PlatformSalesOwnerOption[];
-  ownerOptionsTruncated: boolean;
+  ownerOptionsHasNext: boolean;
+  ownerOptionsNextCursor: PlatformSalesOwnerCursor | null;
+  ownerSearchable: boolean;
   ownerOptionsUnavailable: boolean;
   requestId: string;
 }>) {
@@ -184,10 +186,6 @@ export function SalesLeadWorkflowDetail({
       {ownerOptionsUnavailable ? (
         <Notice testId="sales-owner-options-unavailable">
           {copy.ownerUnavailable}
-        </Notice>
-      ) : ownerOptionsTruncated ? (
-        <Notice testId="sales-owner-options-truncated">
-          {copy.ownerTruncated}
         </Notice>
       ) : null}
 
@@ -271,6 +269,9 @@ export function SalesLeadWorkflowDetail({
           lead={lead}
           locale={locale === "en" ? "en" : "ru"}
           ownerOptions={ownerOptions}
+          ownerOptionsHasNext={ownerOptionsHasNext}
+          ownerOptionsNextCursor={ownerOptionsNextCursor}
+          ownerSearchable={ownerSearchable}
           ownerOptionsUnavailable={ownerOptionsUnavailable}
           requestId={requestId}
         />

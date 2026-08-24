@@ -9,6 +9,7 @@ import {
   type PlatformSalesLeadPageOptions,
   type PlatformSalesLeadWorkflow,
   type PlatformSalesLeadWorkflowDetail,
+  type PlatformSalesOwnerCursor,
   type PlatformSalesOwnerOption,
   type PlatformSalesOwnerPage,
   type PlatformSalesOwnerPageOptions,
@@ -84,6 +85,11 @@ export class PlatformSalesWorkflowRepositoryError extends Error {
   }
 }
 
+export type PlatformSalesOwnerSearchInput = Readonly<{
+  query: string | null;
+  cursor: PlatformSalesOwnerCursor | null;
+}>;
+
 function invalid(kind: PlatformSalesWorkflowFailureKind = "invalid"): never {
   throw new PlatformSalesWorkflowRepositoryError(kind);
 }
@@ -101,6 +107,50 @@ export function parsePlatformSalesUuid(value: unknown): string | null {
   if (typeof value !== "string" || !UUID_PATTERN.test(value)) return null;
   const normalized = value.toLowerCase();
   return normalized === NIL_UUID ? null : normalized;
+}
+
+export function parsePlatformSalesOwnerSearchInput(
+  value: unknown,
+): PlatformSalesOwnerSearchInput | null {
+  if (!isRecord(value)) return null;
+
+  const rawQuery = value.query;
+  if (rawQuery !== null && typeof rawQuery !== "string") return null;
+  const query = rawQuery?.trim() || null;
+  if (query !== null && query.length > 120) return null;
+
+  const rawCursor = value.cursor;
+  if (rawCursor === null) return Object.freeze({ query, cursor: null });
+  if (!isRecord(rawCursor)) return null;
+
+  const rawSortLabel = rawCursor.sortLabel;
+  const membershipId = parsePlatformSalesUuid(rawCursor.membershipId);
+  if (
+    typeof rawSortLabel !== "string" ||
+    rawSortLabel.length === 0 ||
+    rawSortLabel.length > 500 ||
+    rawSortLabel !== rawSortLabel.trim().toLowerCase() ||
+    membershipId === null
+  ) {
+    return null;
+  }
+
+  return Object.freeze({
+    query,
+    cursor: Object.freeze({
+      sortLabel: rawSortLabel,
+      membershipId,
+    }),
+  });
+}
+
+export function classifyPlatformSalesOwnerSearchFailure(
+  error: unknown,
+): "invalid" | "unavailable" {
+  return error instanceof PlatformSalesWorkflowRepositoryError &&
+    error.kind === "invalid"
+    ? "invalid"
+    : "unavailable";
 }
 
 function parseOptionalUuid(value: unknown): string | null | undefined {

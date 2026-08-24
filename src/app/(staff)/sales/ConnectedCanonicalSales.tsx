@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/icons";
 import { SalesLeadWorkflowForm } from "@/components/platform/sales/SalesLeadWorkflowForm";
+import { SalesOwnerSearchField } from "@/components/platform/sales/SalesOwnerSearchField";
 import {
   CanonicalAuthorityNotice,
   CanonicalKeyBadge,
@@ -47,6 +48,7 @@ import {
   type PlatformSalesDueFilter,
   type PlatformSalesLeadPage,
   type PlatformSalesLeadWorkflow,
+  type PlatformSalesOwnerCursor,
   type PlatformSalesOwnerOption,
   type PlatformSalesStage,
   type PlatformSalesWorkflowCursor,
@@ -329,9 +331,7 @@ const SALES_WORKFLOW_COPY = {
     emptyUnassigned: "Нет доступных лидов без ответственного.",
     emptyFiltered: "По выбранным условиям лиды не найдены.",
     ownerUnavailable:
-      "Список допустимых ответственных недоступен. Очередь остаётся видимой, но сохранение отключено.",
-    ownerTruncated:
-      "Показаны первые 50 активных Sales. Используйте очередь без назначения отсутствующего в списке сотрудника.",
+      "Поиск и фильтр по ответственному сейчас недоступны. Очередь остаётся видимой, но сохранение изменений отключено.",
     conversations: "диалогов",
     studentCases: "Student Cases",
   },
@@ -380,8 +380,7 @@ const SALES_WORKFLOW_COPY = {
     emptyUnassigned: "Жооптуусу жок жеткиликтүү лиддер жок.",
     emptyFiltered: "Тандалган шарттар боюнча лиддер табылган жок.",
     ownerUnavailable:
-      "Жооптуулар тизмеси жеткиликсиз. Кезек көрүнөт, бирок сактоо өчүрүлгөн.",
-    ownerTruncated: "Алгачкы 50 активдүү Sales кызматкери көрсөтүлдү.",
+      "Жооптуу боюнча издөө жана чыпка жеткиликсиз. Кезек көрүнөт, бирок өзгөртүүлөрдү сактоо өчүрүлгөн.",
     conversations: "диалог",
     studentCases: "Student Cases",
   },
@@ -432,9 +431,7 @@ const SALES_WORKFLOW_COPY = {
     emptyUnassigned: "There are no accessible unassigned leads.",
     emptyFiltered: "No leads match the selected filters.",
     ownerUnavailable:
-      "Eligible owner options are unavailable. The queue remains visible, but saving is disabled.",
-    ownerTruncated:
-      "The first 50 active Sales owners are shown. Do not assign an owner missing from this list.",
+      "Owner search and filtering are unavailable. The queue remains visible, but saving changes is disabled.",
     conversations: "conversations",
     studentCases: "Student Cases",
   },
@@ -508,6 +505,37 @@ export async function ConnectedCanonicalSales({
           (option) => option.membershipId === actor.membershipId,
         )
       : ownerResult.page?.rows ?? [];
+  const selectedOwnerMembershipId = normalized.ownerMembershipId ?? null;
+  let selectedOwnerLabel =
+    selectedOwnerMembershipId === null
+      ? null
+      : ownerOptions.find(
+          (option) => option.membershipId === selectedOwnerMembershipId,
+        )?.displayLabel ?? selectedOwnerMembershipId;
+
+  if (
+    actorRole === "admin" &&
+    selectedOwnerMembershipId !== null &&
+    selectedOwnerLabel === selectedOwnerMembershipId &&
+    !ownerResult.unavailable
+  ) {
+    const selectedOwner = await listPlatformSalesOwnerOptions(actor, {
+      pageSize: 1,
+      query: selectedOwnerMembershipId,
+    })
+      .then(
+        (selectedPage) =>
+          selectedPage.rows.find(
+            (option) => option.membershipId === selectedOwnerMembershipId,
+          ) ?? null,
+      )
+      .catch((error: unknown) => {
+        if (error instanceof PlatformSalesWorkflowRepositoryError) return null;
+        throw error;
+      });
+    selectedOwnerLabel =
+      selectedOwner?.displayLabel ?? selectedOwnerMembershipId;
+  }
 
   return (
     <CanonicalSalesPresentation
@@ -518,8 +546,10 @@ export async function ConnectedCanonicalSales({
       listInvalid={listInvalid}
       listUnavailable={listResult.unavailable}
       ownerOptions={ownerOptions}
+      ownerOptionsHasNext={ownerResult.page?.hasNext ?? false}
+      ownerOptionsNextCursor={ownerResult.page?.nextCursor ?? null}
       ownerOptionsUnavailable={ownerResult.unavailable}
-      ownerOptionsTruncated={ownerResult.page?.hasNext ?? false}
+      selectedOwnerLabel={selectedOwnerLabel}
       intakePage={intakeResult.page}
       intakeUnavailable={intakeResult.unavailable}
       intakeInvalid={normalized.intakeInvalid}
@@ -682,8 +712,10 @@ function CanonicalSalesPresentation({
   listInvalid,
   listUnavailable,
   ownerOptions,
+  ownerOptionsHasNext,
+  ownerOptionsNextCursor,
   ownerOptionsUnavailable,
-  ownerOptionsTruncated,
+  selectedOwnerLabel,
   intakePage,
   intakeUnavailable,
   intakeInvalid,
@@ -695,8 +727,10 @@ function CanonicalSalesPresentation({
   listInvalid: boolean;
   listUnavailable: boolean;
   ownerOptions: readonly PlatformSalesOwnerOption[];
+  ownerOptionsHasNext: boolean;
+  ownerOptionsNextCursor: PlatformSalesOwnerCursor | null;
   ownerOptionsUnavailable: boolean;
-  ownerOptionsTruncated: boolean;
+  selectedOwnerLabel: string | null;
   intakePage: PlatformSalesIntakePage | null;
   intakeUnavailable: boolean;
   intakeInvalid: boolean;
@@ -748,6 +782,7 @@ function CanonicalSalesPresentation({
           <form
             action="/sales"
             method="get"
+            data-testid="sales-workflow-filters"
             className={`${filterBarCls} sm:grid-cols-2 xl:grid-cols-4`}
             aria-label={workflow.queueTitle}
           >
@@ -794,20 +829,23 @@ function CanonicalSalesPresentation({
             </select>
             {actorRole === "admin" ? (
               <>
-                <select
-                  className={inputCls}
+                <SalesOwnerSearchField
+                  key={`sales-owner-filter:${locale}:${params.ownerMembershipId ?? "all"}`}
                   name="owner"
-                  defaultValue={params.ownerMembershipId ?? ""}
-                  aria-label={workflow.ownerFilter}
+                  locale={locale}
+                  initialOptions={ownerOptions}
+                  initialHasNext={ownerOptionsHasNext}
+                  initialNextCursor={ownerOptionsNextCursor}
+                  selectedId={params.ownerMembershipId ?? null}
+                  selectedLabel={selectedOwnerLabel}
                   disabled={ownerOptionsUnavailable}
-                >
-                  <option value="">{workflow.allOwners}</option>
-                  {ownerOptions.map((option) => (
-                    <option key={option.membershipId} value={option.membershipId}>
-                      {option.displayLabel}
-                    </option>
-                  ))}
-                </select>
+                  description={
+                    ownerOptionsUnavailable ? workflow.ownerUnavailable : null
+                  }
+                  includeUnassigned
+                  unassignedLabel={workflow.allOwners}
+                  searchable
+                />
                 {ownerOptionsUnavailable && params.ownerMembershipId ? (
                   <input type="hidden" name="owner" value={params.ownerMembershipId} />
                 ) : null}
@@ -842,10 +880,6 @@ function CanonicalSalesPresentation({
           {ownerOptionsUnavailable ? (
             <QueueNotice testId="sales-owner-options-unavailable">
               {workflow.ownerUnavailable}
-            </QueueNotice>
-          ) : ownerOptionsTruncated && actorRole === "admin" ? (
-            <QueueNotice testId="sales-owner-options-truncated">
-              {workflow.ownerTruncated}
             </QueueNotice>
           ) : null}
 
@@ -888,6 +922,9 @@ function CanonicalSalesPresentation({
                         lead={lead}
                         locale={locale}
                         ownerOptions={ownerOptions}
+                        ownerOptionsHasNext={ownerOptionsHasNext}
+                        ownerOptionsNextCursor={ownerOptionsNextCursor}
+                        ownerSearchable={actorRole === "admin"}
                         ownerOptionsUnavailable={ownerOptionsUnavailable}
                         requestId={randomUUID()}
                         sharedUnavailable={shared.unavailable}
@@ -936,6 +973,9 @@ function SalesWorkflowRow({
   lead,
   locale,
   ownerOptions,
+  ownerOptionsHasNext,
+  ownerOptionsNextCursor,
+  ownerSearchable,
   ownerOptionsUnavailable,
   requestId,
   sharedUnavailable,
@@ -944,6 +984,9 @@ function SalesWorkflowRow({
   lead: PlatformSalesLeadWorkflow;
   locale: Locale;
   ownerOptions: readonly PlatformSalesOwnerOption[];
+  ownerOptionsHasNext: boolean;
+  ownerOptionsNextCursor: PlatformSalesOwnerCursor | null;
+  ownerSearchable: boolean;
   ownerOptionsUnavailable: boolean;
   requestId: string;
   sharedUnavailable: string;
@@ -1052,6 +1095,9 @@ function SalesWorkflowRow({
           lead={lead}
           locale={workflowFormLocale(locale)}
           ownerOptions={ownerOptions}
+          ownerOptionsHasNext={ownerOptionsHasNext}
+          ownerOptionsNextCursor={ownerOptionsNextCursor}
+          ownerSearchable={ownerSearchable}
           ownerOptionsUnavailable={ownerOptionsUnavailable}
           requestId={requestId}
         />

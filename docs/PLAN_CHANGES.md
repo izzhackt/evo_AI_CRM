@@ -10876,3 +10876,66 @@ repository/synthetic-local evidence only. Merge requires one immutable head,
 independent exact-head launch-control approval, all four exact-head CI jobs, a
 match-head squash merge, exact-main CI and tree equivalence. Stop after #381;
 U5/#382 and every later slice remain unstarted.
+
+## 2026-08-25 — Keep the U4 owner catalog complete beyond its first page
+
+Author: Codex responding to independent exact-head launch-control review of
+U4/#381.
+
+Change type: U4 bounded-read and consumer-contract correction; no new table,
+column, permission, mutation, provider, production or U5 scope change.
+
+Reason: the U4 database function and repository already provide bounded
+server-side owner search plus a stable `(sort_label, membership_id)` keyset
+cursor, but the queue filter and workflow form consumed only the first 50
+options. A warning that later owners are omitted makes valid same-organization
+Sales memberships impossible for an Admin to find, filter or assign, so the UI
+did not yet satisfy the canonical owner workflow for organizations with more
+than 50 eligible Sales memberships.
+
+Decision:
+
+1. Keep the existing authorization, function signature and bounded owner
+   RPC/repository contract. Migration 086's existing query may additionally
+   match one exact membership UUID so a selected owner beyond the warm page
+   can regain its truthful label; do not add an unbounded staff-directory read
+   or a new schema object.
+2. Add one narrow read-only server action that resolves the live U4 actor and
+   requests at most 50 owner options by optional normalized label query and
+   optional validated keyset cursor.
+3. Use one shared owner picker in the queue owner filter and both queue/detail
+   mutation forms. It preserves the selected UUID, supports server-side search
+   and loads later pages without duplicates; the first page is only a warm
+   start, not a complete directory.
+4. Preserve server-enforced role behavior: Sales can discover only self and
+   Admin can discover only active eligible Sales memberships in the same
+   organization. Client-side controls are presentation, never authorization.
+5. Replace the first-50 truncation warning with truthful loading, no-results,
+   invalid-query and unavailable states, and extend tests across query/cursor
+   propagation, a later owner page and both UI consumers.
+
+This clarification remains wholly inside U4/#381. Because repository code and
+the exact reviewed tree change, the prior exact-head review and CI cannot be
+reused: a new immutable head requires a new independent launch-control review,
+all four exact-head CI jobs, match-head squash merge, exact-main CI and tree
+equivalence before Issue #381 may close.
+
+Validation outcome on 2026-08-24 UTC / 2026-08-25 Asia/Bishkek:
+
+- The real PostgreSQL owner RPC traversed 53 eligible Sales memberships onto a
+  second bounded keyset page and proved exact membership-UUID lookup without
+  broadening organization, status or role eligibility.
+- The disposable local Auth/PostgREST browser gate created 51 additional owner
+  fixtures only immediately before its U2/U4 partition. Queue and detail
+  pickers each loaded the later page, preserved unique opaque membership IDs,
+  selected the last fixture with its exact server-hydrated label and reset the
+  queue filter without stale client state.
+- The 51 fixtures were made ineligible immediately after U2/U4, and the later
+  P6D, P7A and P7B partitions passed, proving the owner fixture did not alter
+  their active-authority surface. The entire `npm run test:supabase:local` gate
+  exited successfully on Node.js 22.23.1.
+- The same candidate then passed migration history (86 through migration 086),
+  the full PostgreSQL authorization suite, unit 679/679, Node security 623/623,
+  lint, the 39-route production build and `git diff --check`. This remains
+  synthetic disposable-local evidence and does not prove managed Supabase,
+  providers, production or real conversations.

@@ -1161,6 +1161,55 @@ SELECT pg_temp.u4_assert(
   'same-client-only conversation fixture accidentally linked the lead'
 );
 
+-- The owner catalog must remain reachable after the first application-sized
+-- page. These synthetic memberships need no login or scope because they are
+-- selectable owner targets only; the live actor remains the existing Admin or
+-- Sales fixture and every RPC still resolves that actor from the JWT.
+INSERT INTO auth.users (id, email, raw_user_meta_data)
+SELECT
+  pg_catalog.format(
+    '86001000-0000-4000-8000-%s',
+    pg_catalog.lpad(series.value::TEXT, 12, '0')
+  )::UUID,
+  pg_catalog.format('u4-page-owner-%s@example.invalid', series.value),
+  '{}'::JSONB
+FROM pg_catalog.generate_series(1, 51) AS series(value);
+
+INSERT INTO platform.profiles (
+  id, auth_user_id, display_name, status, access_version
+)
+SELECT
+  pg_catalog.format(
+    '86002000-0000-4000-8000-%s',
+    pg_catalog.lpad(series.value::TEXT, 12, '0')
+  )::UUID,
+  pg_catalog.format(
+    '86001000-0000-4000-8000-%s',
+    pg_catalog.lpad(series.value::TEXT, 12, '0')
+  )::UUID,
+  pg_catalog.format('U4 Page Owner %s', pg_catalog.lpad(series.value::TEXT, 3, '0')),
+  'active',
+  1
+FROM pg_catalog.generate_series(1, 51) AS series(value);
+
+INSERT INTO platform.organization_memberships (
+  id, organization_id, profile_id, status, "current_role", current_bundle_id
+)
+SELECT
+  pg_catalog.format(
+    '86003000-0000-4000-8000-%s',
+    pg_catalog.lpad(series.value::TEXT, 12, '0')
+  )::UUID,
+  :'u4_org_a'::UUID,
+  pg_catalog.format(
+    '86002000-0000-4000-8000-%s',
+    pg_catalog.lpad(series.value::TEXT, 12, '0')
+  )::UUID,
+  'active',
+  'sales',
+  '00000000-0000-4000-8000-000000001302'::UUID
+FROM pg_catalog.generate_series(1, 51) AS series(value);
+
 -- Sales sees only self-owned plus unowned rows. Connected means a direct lead
 -- link; a conversation linked to the same client alone remains unconnected.
 SET LOCAL request.jwt.claims TO :'u4_sales_claims';
@@ -1581,16 +1630,89 @@ SELECT pg_temp.u4_assert(
 
 SELECT pg_temp.u4_assert(
   (
-    SELECT pg_catalog.count(*) = 2
+    SELECT pg_catalog.count(*) = 53
       AND pg_catalog.bool_and(
         owner.membership_id IN (
           :'u4_sales_membership'::UUID,
           :'u4_sales_two_membership'::UUID
         )
+        OR owner.membership_id::TEXT LIKE
+          '86003000-0000-4000-8000-%'
       )
     FROM platform.staff_sales_owner_options(101, NULL, NULL, NULL) AS owner
   ),
   'Admin owner options admitted inactive, blocked, non-Sales, or cross-org rows'
+);
+
+SELECT pg_temp.u4_assert(
+  (
+    WITH first_page AS MATERIALIZED (
+      SELECT owner.*
+      FROM platform.staff_sales_owner_options(50, NULL, NULL, 'U4') AS owner
+    ),
+    boundary AS MATERIALIZED (
+      SELECT owner.sort_label, owner.membership_id
+      FROM first_page AS owner
+      ORDER BY owner.sort_label DESC, owner.membership_id DESC
+      LIMIT 1
+    ),
+    second_page AS MATERIALIZED (
+      SELECT owner.*
+      FROM boundary
+      CROSS JOIN LATERAL platform.staff_sales_owner_options(
+        50,
+        boundary.sort_label,
+        boundary.membership_id,
+        'U4'
+      ) AS owner
+    )
+    SELECT
+      (SELECT pg_catalog.count(*) FROM first_page) = 50
+      AND (SELECT pg_catalog.count(*) FROM second_page) = 3
+      AND NOT EXISTS (
+        SELECT 1
+        FROM first_page AS first_owner
+        JOIN second_page AS second_owner
+          USING (membership_id)
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM second_page AS owner
+        WHERE owner.membership_id =
+          '86003000-0000-4000-8000-000000000051'::UUID
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM first_page AS first_owner
+        CROSS JOIN second_page AS second_owner
+        WHERE (
+          second_owner.sort_label,
+          second_owner.membership_id
+        ) <= (
+          first_owner.sort_label,
+          first_owner.membership_id
+        )
+      )
+  ),
+  'Admin owner search/cursor did not expose the complete stable second page'
+);
+
+SELECT pg_temp.u4_assert(
+  (
+    SELECT pg_catalog.count(*) = 1
+      AND pg_catalog.bool_and(
+        owner.membership_id =
+          '86003000-0000-4000-8000-000000000051'::UUID
+      )
+      AND pg_catalog.bool_and(owner.display_label = 'U4 Page Owner 051')
+    FROM platform.staff_sales_owner_options(
+      2,
+      NULL,
+      NULL,
+      '86003000-0000-4000-8000-000000000051'
+    ) AS owner
+  ),
+  'exact selected-owner UUID did not hydrate its truthful eligible label'
 );
 
 SELECT pg_temp.u4_assert(

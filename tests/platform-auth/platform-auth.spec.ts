@@ -139,6 +139,8 @@ type Fixture = Readonly<{
       responsibleSalesMembershipId: string;
       responsibleSalesDisplayName: string;
       otherSalesMembershipId: string;
+      laterPageOwnerMembershipId: string;
+      laterPageOwnerDisplayName: string;
     }>;
   }>;
   identities: Readonly<{
@@ -804,7 +806,7 @@ test("the three U1 pilot roles use one login and one EVO staff shell", async ({
 test("U2 reads canonical EVO clients and leads through real Supabase with tenant isolation", async ({
   browser,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   expectLegacyDatabaseUntouched();
 
   const adminContext = await browser.newContext();
@@ -1038,6 +1040,100 @@ test("U4 qualifies and assigns canonical Sales leads through audited real Supaba
   );
 
   await context.close();
+
+  const adminContext = await browser.newContext();
+  const adminPage = await adminContext.newPage();
+  await login(adminPage, fixture.identities.admin);
+  await expect(adminPage).toHaveURL(/\/sales$/);
+
+  const queueFilters = adminPage.getByTestId("sales-workflow-filters");
+  const queueOwnerSelect = queueFilters.locator('select[name="owner"]');
+  await expect(queueOwnerSelect.locator("option")).toHaveCount(51);
+  await expect(queueFilters.getByTestId("sales-owner-load-more")).toBeVisible();
+  await queueFilters.getByTestId("sales-owner-load-more").click();
+  await expect(
+    queueFilters.getByTestId("sales-owner-search-status"),
+  ).toHaveAttribute("data-status", "more_results");
+  const queueOwnerValues = await queueOwnerSelect.locator("option").evaluateAll(
+    (options) =>
+      options.map((option) => (option as HTMLOptionElement).value),
+  );
+  expect(queueOwnerValues.length).toBeGreaterThan(51);
+  expect(new Set(queueOwnerValues).size).toBe(queueOwnerValues.length);
+  await expect(queueFilters.getByTestId("sales-owner-load-more")).toHaveCount(0);
+  await expect(
+    queueOwnerSelect.locator(
+      `option[value="${fixture.u4.orgA.laterPageOwnerMembershipId}"]`,
+    ),
+  ).toHaveText(fixture.u4.orgA.laterPageOwnerDisplayName);
+  await queueOwnerSelect.selectOption(
+    fixture.u4.orgA.laterPageOwnerMembershipId,
+  );
+  await queueFilters.locator('button[type="submit"]').click();
+  await expect(adminPage).toHaveURL(
+    new RegExp(
+      `(?:\\?|&)owner=${fixture.u4.orgA.laterPageOwnerMembershipId}(?:&|$)`,
+    ),
+  );
+  await expect(
+    adminPage
+      .getByTestId("sales-workflow-filters")
+      .locator('select[name="owner"]'),
+  ).toHaveValue(fixture.u4.orgA.laterPageOwnerMembershipId);
+  await expect(
+    adminPage
+      .getByTestId("sales-workflow-filters")
+      .locator(
+        `select[name="owner"] option[value="${fixture.u4.orgA.laterPageOwnerMembershipId}"]`,
+      ),
+  ).toHaveText(fixture.u4.orgA.laterPageOwnerDisplayName);
+
+  await adminPage
+    .getByTestId("sales-workflow-filters")
+    .getByRole("link", { name: /Сбросить|Тазалоо|Clear/ })
+    .click();
+  await expect
+    .poll(() => new URL(adminPage.url()).searchParams.get("owner"))
+    .toBeNull();
+  await expect(
+    adminPage
+      .getByTestId("sales-workflow-filters")
+      .locator('select[name="owner"]'),
+  ).toHaveValue("");
+
+  await adminPage.goto(`/sales/${fixture.u4.orgA.connectedLeadId}`);
+  const adminDetailForm = adminPage.getByTestId("sales-workflow-form");
+  const detailOwnerSelect = adminDetailForm.locator(
+    'select[name="owner_membership_id"]',
+  );
+  await expect(detailOwnerSelect.locator("option")).toHaveCount(51);
+  await expect(adminDetailForm.getByTestId("sales-owner-load-more")).toBeVisible();
+  await adminDetailForm.getByTestId("sales-owner-load-more").click();
+  await expect(
+    adminDetailForm.getByTestId("sales-owner-search-status"),
+  ).toHaveAttribute("data-status", "more_results");
+  const detailOwnerValues = await detailOwnerSelect.locator("option").evaluateAll(
+    (options) =>
+      options.map((option) => (option as HTMLOptionElement).value),
+  );
+  expect(detailOwnerValues.length).toBeGreaterThan(51);
+  expect(new Set(detailOwnerValues).size).toBe(detailOwnerValues.length);
+  await expect(adminDetailForm.getByTestId("sales-owner-load-more")).toHaveCount(
+    0,
+  );
+  await detailOwnerSelect.selectOption(
+    fixture.u4.orgA.laterPageOwnerMembershipId,
+  );
+  await expect(detailOwnerSelect).toHaveValue(
+    fixture.u4.orgA.laterPageOwnerMembershipId,
+  );
+  await expect(
+    detailOwnerSelect.locator(
+      `option[value="${fixture.u4.orgA.laterPageOwnerMembershipId}"]`,
+    ),
+  ).toHaveText(fixture.u4.orgA.laterPageOwnerDisplayName);
+  await adminContext.close();
+
   expectLegacyDatabaseUntouched();
 });
 

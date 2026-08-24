@@ -5,6 +5,7 @@ import {
   randomUUID,
 } from "node:crypto";
 import { readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { isAbsolute } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
 
@@ -92,6 +93,7 @@ const verifyClientClaims = async (identity, expectedRole) => {
 const statusPath = process.argv[2];
 const databaseContainer = process.argv[3];
 const browserFixturePath = process.argv[4];
+const u4BrowserOwnerSeedPath = process.argv[5];
 
 if (!statusPath || !databaseContainer) {
   fail("arguments");
@@ -6040,6 +6042,12 @@ const main = async () => {
       (statSync(browserFixturePath).mode & 0o777) === 0o600,
       "browser-fixture-mode",
     );
+    assert(
+      typeof u4BrowserOwnerSeedPath === "string" &&
+        isAbsolute(u4BrowserOwnerSeedPath) &&
+        (statSync(u4BrowserOwnerSeedPath).mode & 0o777) === 0o600,
+      "u4-browser-owner-seed-path",
+    );
     // Provider-observed readiness is intentionally fresh for only five minutes.
     // The Auth/PostgREST smoke performs substantial setup after its first Org B
     // health event, so hand the browser suite a newly timestamped synthetic
@@ -6077,6 +6085,65 @@ const main = async () => {
     const p7aPrivateReason = "P7A PRIVATE FREE-TEXT REASON MUST NEVER LEAK";
     const p7aPrivateBefore = "P7A PRIVATE BEFORE STATE MUST NEVER LEAK";
     const p7aPrivateAfter = "=P7A_PRIVATE_AFTER_FORMULA_MUST_NEVER_LEAK";
+    const u4BrowserOwnerTargets = Array.from({ length: 51 }, (_, index) => ({
+      authUserId: randomUUID(),
+      profileId: randomUUID(),
+      membershipId: randomUUID(),
+      displayLabel: `ZZ U4 Page Owner ${String(index + 1).padStart(3, "0")}`,
+      email: `u4-page-owner-${index + 1}@example.invalid`,
+    }));
+    const u4LaterPageOwner = u4BrowserOwnerTargets.at(-1);
+    assert(u4LaterPageOwner, "u4-browser-later-page-owner");
+
+    // These local-only identities are selectable owner targets, not login
+    // actors. Keep their SQL in the caller's 0600 temp directory so the reset
+    // harness can apply it immediately before the isolated U2/U4 partition;
+    // creating 51 extra staff earlier would contaminate unrelated staff-admin
+    // browser scenarios.
+    writeFileSync(
+      u4BrowserOwnerSeedPath,
+      `
+        BEGIN;
+        INSERT INTO auth.users (id, email, raw_user_meta_data)
+        VALUES ${u4BrowserOwnerTargets
+          .map(
+            (owner) =>
+              `(${sqlUuid(owner.authUserId)}, ${sqlText(owner.email)}, '{}'::JSONB)`,
+          )
+          .join(",\n")};
+
+        INSERT INTO platform.profiles (
+          id, auth_user_id, display_name, status, access_version
+        )
+        VALUES ${u4BrowserOwnerTargets
+          .map(
+            (owner) =>
+              `(${sqlUuid(owner.profileId)}, ${sqlUuid(owner.authUserId)}, ${sqlText(owner.displayLabel)}, 'active', ${Number(responsibleSalesMembership.bundle_version)})`,
+          )
+          .join(",\n")};
+
+        INSERT INTO platform.organization_memberships (
+          id,
+          organization_id,
+          profile_id,
+          status,
+          "current_role",
+          current_bundle_id
+        )
+        VALUES ${u4BrowserOwnerTargets
+          .map(
+            (owner) =>
+              `(${sqlUuid(owner.membershipId)}, ${sqlUuid(adminAMembership.organization_id)}, ${sqlUuid(owner.profileId)}, 'active', 'sales', ${sqlUuid(responsibleSalesMembership.bundle_id)})`,
+          )
+          .join(",\n")};
+        COMMIT;
+      `,
+      { encoding: "utf8", mode: 0o600 },
+    );
+    assert(
+      (statSync(u4BrowserOwnerSeedPath).mode & 0o777) === 0o600,
+      "u4-browser-owner-seed-mode",
+    );
 
     // This local-only row proves the browser and CSV projection against known
     // unsafe source fields. The 0600 fixture is deleted by the reset harness.
@@ -6253,6 +6320,8 @@ const main = async () => {
             responsibleSalesMembershipId: responsibleSalesMembership.id,
             responsibleSalesDisplayName: u4ResponsibleSalesDisplayName,
             otherSalesMembershipId: salesScopedMembership.id,
+            laterPageOwnerMembershipId: u4LaterPageOwner.membershipId,
+            laterPageOwnerDisplayName: u4LaterPageOwner.displayLabel,
           },
         },
         p5f3: {

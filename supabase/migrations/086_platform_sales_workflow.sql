@@ -884,6 +884,7 @@ BEGIN
         pg_catalog.lower(profile.display_name),
         normalized_query
       ) > 0
+      OR membership.id::TEXT = normalized_query
     )
     AND (
       normalized_cursor_label IS NULL

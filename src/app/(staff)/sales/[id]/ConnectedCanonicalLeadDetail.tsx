@@ -67,7 +67,9 @@ export async function ConnectedCanonicalLeadDetail({
           lead={workflowResult.lead}
           locale={locale}
           ownerOptions={ownerOptions}
-          ownerOptionsTruncated={ownerResult.page?.hasNext ?? false}
+          ownerOptionsHasNext={ownerResult.page?.hasNext ?? false}
+          ownerOptionsNextCursor={ownerResult.page?.nextCursor ?? null}
+          ownerSearchable={actor.platformRole === "admin"}
           ownerOptionsUnavailable={ownerResult.unavailable}
           requestId={randomUUID()}
         />

@@ -181,7 +181,20 @@ U4 adds these authenticated RPCs in schema `platform`:
 - `staff_sales_owner_options(p_limit INTEGER, p_cursor_label TEXT,
   p_cursor_id UUID, p_query TEXT)` returns only active eligible Sales
   memberships from the actor's organization, by opaque membership UUID and
-  safe display label, ordered/cursored by `(display_label ASC, id ASC)`.
+  safe display label, ordered/cursored by `(display_label ASC, id ASC)`. Its
+  bounded query matches the safe display label or one exact membership UUID;
+  the UUID form exists only to hydrate the truthful label of an already active
+  owner filter outside the warm first page.
+
+Every owner-option consumer uses that bounded query/keyset contract rather than
+treating the first page as a complete staff directory. The queue filter and
+workflow mutation form share one picker that can search server-side and load
+the next page from `(sort_label, membership_id)`. Each application request is
+limited to 50 options, preserves an already selected owner even when it is not
+in the warm first page, and never preloads the full organization directory.
+Sales still receives only their own eligible membership because authorization
+is enforced again by the server action, repository and RPC; the browser does
+not infer or widen owner permissions.
 
 The page API has an explicit 1-101 database limit; application requests remain
 at most 50. Its stable order/cursor is `(updated_at DESC, id DESC)`. It applies
@@ -317,6 +330,13 @@ for the next intent. There is no optimistic success. A stale version prompts a
 refresh; validation/permission/request-collision/unavailable states are
 distinct and do not expose database internals.
 
+Admin owner discovery in both the queue filter and mutation controls remains
+complete for organizations with more than 50 eligible Sales memberships: the
+shared picker performs bounded server-side label search and keyset `load more`
+requests. A first-page notice is not a substitute for reachability. Loading,
+no-results, invalid-query and unavailable states are distinct, while the final
+form value remains the opaque exact membership UUID.
+
 Empty states are filter-specific: no visible leads, no connected leads, no
 unconnected leads, no overdue leads and no eligible owner options are different
 facts. An RPC/Auth/PostgREST failure is an unavailable state with a retry path,
@@ -336,6 +356,9 @@ must cover:
 - Sales self-owned/unowned visibility, atomic self-claim and denial of
   reassignment, relinquish and another Sales user's lead;
 - Admin assign/reassign/unassign, eligible-owner filtering and required reason;
+- bounded Admin owner discovery across more than 50 eligible Sales
+  memberships, including a stable second keyset page, exact UUID search and
+  the same reachable later-page owner in queue and detail controls;
 - all six stages, allowed distinct transitions and rejection of outside/no-op
   transitions, including `contract_signed`;
 - paired action/date constraints, explicit clear, past-date overdue behavior
@@ -368,14 +391,20 @@ after local midnight on 2026-08-25 in Asia/Bishkek, with Node.js 22.23.1. The
 disposable Supabase gate reset all 86 contiguous
 migrations through 086, passed its real local Auth/PostgREST/RLS checks and
 passed the combined U2/U4 browser partition 2/2, including committed mutation
-and repeated queue/detail reads. The SQL traversal observed 1,001/1,001 unique
-matching rows with zero decoy leaks or ordering violations; the repository
-traversal observed the same 1,001/1,001 unique rows. The complete unit suite
-passed 679/679;
-`npm run test:security`, `npm run lint`, `npm run build`, runtime/history checks
-and `git diff --check` all exited successfully. This is repository and
-synthetic disposable-local evidence only. It is not exact-head CI, merge,
-managed Supabase, deployment, provider or customer-conversation evidence.
+and repeated queue/detail reads. The real SQL owner search traversed 53
+eligible Sales memberships onto a second bounded page. The browser fixture
+then added 51 partition-local owners only immediately before U2/U4; both the
+queue and detail picker loaded the later page, retained the exact selected UUID
+and display label after a server navigation, and reset the filter state. Those
+fixtures were made ineligible before P6D/P7, which also passed. The SQL lead
+traversal observed 1,001/1,001 unique matching rows with zero decoy leaks or
+ordering violations; the repository traversal observed the same 1,001/1,001
+unique rows. The complete unit suite passed 679/679 and the Node security suite
+passed 623/623; `npm run test:security:postgres`, `npm run lint`,
+`npm run build`, runtime/history checks and `git diff --check` all exited
+successfully. This is repository and synthetic disposable-local evidence only.
+It is not exact-head CI, merge, managed Supabase, deployment, provider or
+customer-conversation evidence.
 
 ## Primary-source implementation notes
 

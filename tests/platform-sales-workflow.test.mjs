@@ -3,12 +3,14 @@ import test from "node:test";
 
 import {
   PlatformSalesWorkflowRepositoryError,
+  classifyPlatformSalesOwnerSearchFailure,
   getPlatformSalesLeadDetail,
   listPlatformSalesLeads,
   listPlatformSalesOwnerOptions,
   mutatePlatformSalesLeadWorkflow,
   normalizePlatformSalesLeadWorkflow,
   parsePlatformSalesDate,
+  parsePlatformSalesOwnerSearchInput,
   parsePlatformSalesWorkflowCursor,
 } from "../src/lib/platform-sales-workflow.ts";
 
@@ -349,6 +351,124 @@ test("owner options stay ordered and Sales receives only their own membership", 
   await assert.rejects(
     listPlatformSalesOwnerOptions(actor(), {}, { client: leaked.client }),
     PlatformSalesWorkflowRepositoryError,
+  );
+});
+
+test("Admin owner discovery traverses a bounded second page with query and cursor", async () => {
+  const owners = Array.from({ length: 51 }, (_, index) => {
+    const ordinal = String(index + 1).padStart(3, "0");
+    return {
+      sort_label: `owner ${ordinal}`,
+      membership_id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      display_label: `Owner ${ordinal}`,
+    };
+  });
+  const { client, calls } = sequencedRpcClient({
+    staff_sales_owner_options: [owners, [owners[50]]],
+  });
+
+  const first = await listPlatformSalesOwnerOptions(
+    actor("admin"),
+    { pageSize: 50, query: "  Owner  " },
+    { client },
+  );
+  assert.equal(first.rows.length, 50);
+  assert.equal(first.hasNext, true);
+  assert.deepEqual(first.nextCursor, {
+    sortLabel: "owner 050",
+    membershipId: owners[49].membership_id,
+  });
+
+  const second = await listPlatformSalesOwnerOptions(
+    actor("admin"),
+    { pageSize: 50, query: "Owner", cursor: first.nextCursor },
+    { client },
+  );
+  assert.deepEqual(
+    second.rows.map((option) => option.membershipId),
+    [owners[50].membership_id],
+  );
+  assert.equal(second.hasNext, false);
+  assert.equal(second.nextCursor, null);
+  assert.deepEqual(calls, [
+    {
+      functionName: "staff_sales_owner_options",
+      args: { p_limit: 51, p_query: "Owner" },
+      options: { get: true },
+    },
+    {
+      functionName: "staff_sales_owner_options",
+      args: {
+        p_limit: 51,
+        p_cursor_label: "owner 050",
+        p_cursor_id: owners[49].membership_id,
+        p_query: "Owner",
+      },
+      options: { get: true },
+    },
+  ]);
+});
+
+test("owner search boundary rejects malformed payloads and classifies failures", () => {
+  assert.deepEqual(
+    parsePlatformSalesOwnerSearchInput({
+      query: "  Owner  ",
+      cursor: {
+        sortLabel: "owner 050",
+        membershipId: OTHER_MEMBERSHIP_ID,
+      },
+    }),
+    {
+      query: "Owner",
+      cursor: {
+        sortLabel: "owner 050",
+        membershipId: OTHER_MEMBERSHIP_ID,
+      },
+    },
+  );
+  assert.deepEqual(
+    parsePlatformSalesOwnerSearchInput({ query: "   ", cursor: null }),
+    { query: null, cursor: null },
+  );
+
+  for (const malformed of [
+    null,
+    [],
+    { query: undefined, cursor: null },
+    { query: "x".repeat(121), cursor: null },
+    { query: null },
+    { query: null, cursor: "owner 050" },
+    {
+      query: null,
+      cursor: { sortLabel: "Owner 050", membershipId: OTHER_MEMBERSHIP_ID },
+    },
+    {
+      query: null,
+      cursor: { sortLabel: "owner 050 ", membershipId: OTHER_MEMBERSHIP_ID },
+    },
+    {
+      query: null,
+      cursor: { sortLabel: "owner 050", membershipId: "not-a-uuid" },
+    },
+  ]) {
+    assert.equal(parsePlatformSalesOwnerSearchInput(malformed), null);
+  }
+
+  assert.equal(
+    classifyPlatformSalesOwnerSearchFailure(
+      new PlatformSalesWorkflowRepositoryError("invalid"),
+    ),
+    "invalid",
+  );
+  assert.equal(
+    classifyPlatformSalesOwnerSearchFailure(
+      new PlatformSalesWorkflowRepositoryError("unavailable"),
+    ),
+    "unavailable",
+  );
+  assert.equal(
+    classifyPlatformSalesOwnerSearchFailure(new Error("transport")),
+    "unavailable",
   );
 });
 

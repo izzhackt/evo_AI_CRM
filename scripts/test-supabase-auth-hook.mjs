@@ -4157,6 +4157,450 @@ const main = async () => {
     "bw6-responsible-sales-handoff-summary-shape",
   );
 
+  // U2 proves the bounded canonical read model through real local Auth and
+  // PostgREST. The 1,005 synthetic rows deliberately exceed the local Data
+  // API cap so this cannot pass through one accidental unbounded table read.
+  const u2SyntheticRowCount = 1_005;
+  const u2SyntheticUuid = (namespace, rowNumber) => {
+    assert(/^[1-4]$/.test(namespace), "u2-synthetic-uuid-namespace");
+    assert(
+      Number.isInteger(rowNumber) &&
+        rowNumber >= 1 &&
+        rowNumber <= u2SyntheticRowCount,
+      "u2-synthetic-uuid-row",
+    );
+    return `${namespace}0000000-0000-4000-8000-${String(rowNumber).padStart(12, "0")}`;
+  };
+  const u2BrowserClientId = u2SyntheticUuid("1", u2SyntheticRowCount);
+  const u2BrowserLeadId = u2SyntheticUuid("2", u2SyntheticRowCount);
+  const u2BrowserClientName = "U2 Canonical Browser Client";
+  const u2BrowserClientExternalIdentifier = "legacy-contact-u2-379";
+  const u2BrowserLeadExternalIdentifier = "legacy-lead-u2-379";
+  const u2BrowserClientProvenanceRef = "local:u2:canonical-client";
+  const u2BrowserLeadProvenanceRef = "local:u2:canonical-lead";
+
+  runSql(
+    `
+      WITH synthetic_clients AS (
+        SELECT
+          series.row_number,
+          (
+            '10000000-0000-4000-8000-'
+            || lpad(series.row_number::TEXT, 12, '0')
+          )::UUID AS client_id,
+          CASE
+            WHEN series.row_number = ${u2SyntheticRowCount}
+              THEN ${sqlText(u2BrowserClientName)}
+            ELSE 'U2 Bulk Client ' || lpad(series.row_number::TEXT, 4, '0')
+          END AS display_name,
+          TIMESTAMPTZ '2026-08-24 00:00:00+00'
+            + series.row_number * INTERVAL '1 second' AS sort_at
+        FROM generate_series(1, ${u2SyntheticRowCount})
+          AS series(row_number)
+      )
+      INSERT INTO platform.clients (
+        id,
+        organization_id,
+        display_name,
+        normalized_name,
+        lifecycle_state,
+        created_at,
+        updated_at
+      )
+      SELECT
+        synthetic.client_id,
+        ${sqlUuid(adminAMembership.organization_id, "u2-bulk-client-org")},
+        synthetic.display_name,
+        platform_private.normalize_person_name(synthetic.display_name),
+        'active',
+        synthetic.sort_at - INTERVAL '1 day',
+        synthetic.sort_at
+      FROM synthetic_clients AS synthetic;
+
+      WITH synthetic_leads AS (
+        SELECT
+          series.row_number,
+          (
+            '20000000-0000-4000-8000-'
+            || lpad(series.row_number::TEXT, 12, '0')
+          )::UUID AS lead_id,
+          (
+            '10000000-0000-4000-8000-'
+            || lpad(series.row_number::TEXT, 12, '0')
+          )::UUID AS client_id,
+          TIMESTAMPTZ '2026-08-24 00:00:00+00'
+            + series.row_number * INTERVAL '1 second' AS sort_at
+        FROM generate_series(1, ${u2SyntheticRowCount})
+          AS series(row_number)
+      )
+      INSERT INTO platform.leads (
+        id,
+        organization_id,
+        client_id,
+        current_owner_membership_id,
+        stage_key,
+        source_key,
+        lifecycle_state,
+        created_at,
+        updated_at
+      )
+      SELECT
+        synthetic.lead_id,
+        ${sqlUuid(adminAMembership.organization_id, "u2-bulk-lead-org")},
+        synthetic.client_id,
+        ${sqlUuid(responsibleSalesMembership.id, "u2-bulk-lead-owner")},
+        CASE
+          WHEN synthetic.row_number = ${u2SyntheticRowCount} THEN 'qualified'
+          WHEN synthetic.row_number % 29 = 0 THEN 'u2_filtered'
+          ELSE 'new'
+        END,
+        'local_test',
+        'open',
+        synthetic.sort_at - INTERVAL '1 day',
+        synthetic.sort_at
+      FROM synthetic_leads AS synthetic;
+
+      INSERT INTO platform.external_identifiers (
+        organization_id,
+        source_system,
+        external_object_type,
+        external_identifier,
+        client_id,
+        lead_id,
+        observed_at,
+        imported_at,
+        source_ref
+      )
+      VALUES
+        (
+          ${sqlUuid(adminAMembership.organization_id, "u2-client-external-org")},
+          'amocrm',
+          'contact',
+          ${sqlText(u2BrowserClientExternalIdentifier)},
+          ${sqlUuid(u2BrowserClientId, "u2-external-client")},
+          NULL,
+          TIMESTAMPTZ '2026-08-24 00:30:00+00',
+          TIMESTAMPTZ '2026-08-24 00:31:00+00',
+          'local:u2:external-client'
+        ),
+        (
+          ${sqlUuid(adminAMembership.organization_id, "u2-lead-external-org")},
+          'amocrm',
+          'lead',
+          ${sqlText(u2BrowserLeadExternalIdentifier)},
+          NULL,
+          ${sqlUuid(u2BrowserLeadId, "u2-external-lead")},
+          TIMESTAMPTZ '2026-08-24 00:30:00+00',
+          TIMESTAMPTZ '2026-08-24 00:31:00+00',
+          'local:u2:external-lead'
+        );
+
+      INSERT INTO platform.subject_provenance (
+        organization_id,
+        client_id,
+        lead_id,
+        source_system,
+        evidence_type,
+        observed_at,
+        imported_at,
+        source_ref
+      )
+      VALUES
+        (
+          ${sqlUuid(adminAMembership.organization_id, "u2-client-provenance-org")},
+          ${sqlUuid(u2BrowserClientId, "u2-provenance-client")},
+          NULL,
+          'local_test',
+          'synthetic_fixture',
+          TIMESTAMPTZ '2026-08-24 00:30:00+00',
+          TIMESTAMPTZ '2026-08-24 00:31:00+00',
+          ${sqlText(u2BrowserClientProvenanceRef)}
+        ),
+        (
+          ${sqlUuid(adminAMembership.organization_id, "u2-lead-provenance-org")},
+          NULL,
+          ${sqlUuid(u2BrowserLeadId, "u2-provenance-lead")},
+          'local_test',
+          'synthetic_fixture',
+          TIMESTAMPTZ '2026-08-24 00:30:00+00',
+          TIMESTAMPTZ '2026-08-24 00:31:00+00',
+          ${sqlText(u2BrowserLeadProvenanceRef)}
+        );
+
+      UPDATE platform.student_cases
+      SET
+        canonical_client_id = ${sqlUuid(u2BrowserClientId, "u2-case-client")},
+        canonical_lead_id = ${sqlUuid(u2BrowserLeadId, "u2-case-lead")}
+      WHERE organization_id = ${sqlUuid(
+        adminAMembership.organization_id,
+        "u2-case-org",
+      )}
+        AND id = ${sqlUuid(orgAStudentCaseId, "u2-case-id")};
+
+      UPDATE platform.communication_conversations
+      SET
+        canonical_client_id = ${sqlUuid(
+          u2BrowserClientId,
+          "u2-conversation-client",
+        )},
+        canonical_lead_id = ${sqlUuid(
+          u2BrowserLeadId,
+          "u2-conversation-lead",
+        )}
+      WHERE organization_id = ${sqlUuid(
+        adminAMembership.organization_id,
+        "u2-conversation-org",
+      )}
+        AND id = ${sqlUuid(orgAConversation.id, "u2-conversation-id")};
+    `,
+    "u2-canonical-read-model-fixtures",
+  );
+
+  await refresh(identities.responsibleSales, "sales");
+  await refresh(identities.adminA, "admin");
+  await refresh(identities.adminB, "admin");
+
+  const traverseU2CanonicalPages = async ({
+    identity,
+    routineName,
+    idColumn,
+    cursorIdParameter,
+    filters = {},
+    pageLimit = 101,
+    stage,
+  }) => {
+    const collectedIds = [];
+    let beforeSortAt = null;
+    let beforeId = null;
+    let previous = null;
+
+    for (let pageNumber = 0; pageNumber < 30; pageNumber += 1) {
+      const rows = await authenticatedPlatformRpcRows(
+        identity,
+        routineName,
+        {
+          p_limit: pageLimit,
+          p_before_sort_at: beforeSortAt,
+          [cursorIdParameter]: beforeId,
+          ...filters,
+        },
+        `${stage}-page-${pageNumber + 1}`,
+      );
+      assert(rows.length <= pageLimit, `${stage}-bounded-page`);
+      if (rows.length === 0) return collectedIds;
+
+      for (const row of rows) {
+        const rowId = row?.[idColumn];
+        const sortAt = row?.sort_at;
+        assert(
+          typeof rowId === "string" &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+              rowId,
+            ),
+          `${stage}-row-id`,
+        );
+        assert(
+          typeof sortAt === "string" && Number.isFinite(Date.parse(sortAt)),
+          `${stage}-sort-at`,
+        );
+
+        const current = {
+          id: rowId.toLowerCase(),
+          timestamp: Date.parse(sortAt),
+        };
+        if (previous !== null) {
+          assert(
+            current.timestamp < previous.timestamp ||
+              (current.timestamp === previous.timestamp &&
+                current.id < previous.id),
+            `${stage}-strict-keyset-order`,
+          );
+        }
+        previous = current;
+        collectedIds.push(current.id);
+      }
+
+      const last = rows.at(-1);
+      beforeSortAt = last.sort_at;
+      beforeId = last[idColumn];
+      if (rows.length < pageLimit) return collectedIds;
+    }
+
+    fail(`${stage}-page-loop-bound`);
+  };
+
+  const expectedU2ClientIds = Array.from(
+    { length: u2SyntheticRowCount },
+    (_, index) => u2SyntheticUuid("1", index + 1),
+  ).sort();
+  const expectedU2LeadIds = Array.from(
+    { length: u2SyntheticRowCount },
+    (_, index) => u2SyntheticUuid("2", index + 1),
+  ).sort();
+
+  const u2DirectLeadRows = requireSuccess(
+    await requestJson(
+      "/rest/v1/leads?select=id&order=updated_at.desc,id.desc",
+      {
+        token: identities.responsibleSales.accessToken,
+        schema: true,
+        stage: "u2-direct-lead-cap",
+      },
+    ),
+    "u2-direct-lead-cap",
+  );
+  assert(
+    Array.isArray(u2DirectLeadRows) && u2DirectLeadRows.length === 1_000,
+    "u2-direct-lead-cap-shape",
+  );
+
+  const traversedU2LeadIds = await traverseU2CanonicalPages({
+    identity: identities.responsibleSales,
+    routineName: "staff_canonical_lead_page",
+    idColumn: "lead_id",
+    cursorIdParameter: "p_before_lead_id",
+    stage: "u2-lead-traversal",
+  });
+  assert(
+    traversedU2LeadIds.length === u2SyntheticRowCount &&
+      new Set(traversedU2LeadIds).size === u2SyntheticRowCount &&
+      JSON.stringify([...traversedU2LeadIds].sort()) ===
+        JSON.stringify(expectedU2LeadIds),
+    "u2-lead-traversal-exact-set",
+  );
+
+  const traversedU2ClientIds = await traverseU2CanonicalPages({
+    identity: identities.responsibleSales,
+    routineName: "staff_canonical_client_page",
+    idColumn: "client_id",
+    cursorIdParameter: "p_before_client_id",
+    stage: "u2-client-traversal",
+  });
+  assert(
+    traversedU2ClientIds.length === u2SyntheticRowCount &&
+      new Set(traversedU2ClientIds).size === u2SyntheticRowCount &&
+      JSON.stringify([...traversedU2ClientIds].sort()) ===
+        JSON.stringify(expectedU2ClientIds),
+    "u2-client-traversal-exact-set",
+  );
+
+  const u2FilteredLeadIds = await traverseU2CanonicalPages({
+    identity: identities.responsibleSales,
+    routineName: "staff_canonical_lead_page",
+    idColumn: "lead_id",
+    cursorIdParameter: "p_before_lead_id",
+    filters: { p_stage_key: "u2_filtered" },
+    pageLimit: 7,
+    stage: "u2-filtered-lead-traversal",
+  });
+  const expectedU2FilteredLeadIds = Array.from(
+    { length: Math.floor((u2SyntheticRowCount - 1) / 29) },
+    (_, index) => u2SyntheticUuid("2", (index + 1) * 29),
+  ).sort();
+  assert(
+    u2FilteredLeadIds.length === expectedU2FilteredLeadIds.length &&
+      JSON.stringify([...u2FilteredLeadIds].sort()) ===
+        JSON.stringify(expectedU2FilteredLeadIds),
+    "u2-filter-before-pagination",
+  );
+
+  const u2ClientQueryRows = await authenticatedPlatformRpcRows(
+    identities.responsibleSales,
+    "staff_canonical_client_page",
+    {
+      p_limit: 2,
+      p_before_sort_at: null,
+      p_before_client_id: null,
+      p_lifecycle_state: "active",
+      p_query: "Canonical Browser Client",
+    },
+    "u2-client-query-before-pagination",
+  );
+  assert(
+    u2ClientQueryRows.length === 1 &&
+      u2ClientQueryRows[0].client_id === u2BrowserClientId,
+    "u2-client-query-before-pagination-shape",
+  );
+
+  const u2InvalidLimit = await requestJson(
+    "/rest/v1/rpc/staff_canonical_lead_page?p_limit=0",
+    {
+      token: identities.responsibleSales.accessToken,
+      schema: true,
+      stage: "u2-invalid-limit",
+    },
+  );
+  assert(
+    u2InvalidLimit.status === 400 && u2InvalidLimit.payload?.code === "22023",
+    "u2-invalid-limit-denied",
+  );
+  const u2IncompleteCursor = await requestJson(
+    "/rest/v1/rpc/staff_canonical_client_page?p_limit=10&p_before_sort_at=2026-08-24T00%3A00%3A01Z",
+    {
+      token: identities.responsibleSales.accessToken,
+      schema: true,
+      stage: "u2-incomplete-cursor",
+    },
+  );
+  assert(
+    u2IncompleteCursor.status === 400 &&
+      u2IncompleteCursor.payload?.code === "22023",
+    "u2-incomplete-cursor-denied",
+  );
+
+  const u2AnonymousPage = await requestJson(
+    "/rest/v1/rpc/staff_canonical_client_page?p_limit=10",
+    { schema: true, stage: "u2-anonymous-page" },
+  );
+  assert(u2AnonymousPage.status >= 400, "u2-anonymous-page-denied");
+
+  const u2CrossOrgLeadRows = await authenticatedPlatformRpcRows(
+    identities.adminB,
+    "staff_canonical_lead_detail",
+    { p_lead_id: u2BrowserLeadId },
+    "u2-cross-org-lead-denial",
+  );
+  const u2CrossOrgClientRows = await authenticatedPlatformRpcRows(
+    identities.adminB,
+    "staff_canonical_client_detail",
+    { p_client_id: u2BrowserClientId },
+    "u2-cross-org-client-denial",
+  );
+  assert(
+    u2CrossOrgLeadRows.length === 0 && u2CrossOrgClientRows.length === 0,
+    "u2-cross-org-detail-denial-shape",
+  );
+
+  const u2OrgAPositiveLeadRows = await authenticatedPlatformRpcRows(
+    identities.adminA,
+    "staff_canonical_lead_detail",
+    { p_lead_id: u2BrowserLeadId },
+    "u2-org-a-lead-positive",
+  );
+  assert(
+    u2OrgAPositiveLeadRows.length === 1 &&
+      u2OrgAPositiveLeadRows[0].lead_id === u2BrowserLeadId &&
+      u2OrgAPositiveLeadRows[0].client_display_name === u2BrowserClientName,
+    "u2-org-a-lead-positive-shape",
+  );
+
+  const u2OrgBEmptyLeads = await authenticatedPlatformRpcRows(
+    identities.adminB,
+    "staff_canonical_lead_page",
+    { p_limit: 2 },
+    "u2-org-b-empty-leads",
+  );
+  const u2OrgBEmptyClients = await authenticatedPlatformRpcRows(
+    identities.adminB,
+    "staff_canonical_client_page",
+    { p_limit: 2 },
+    "u2-org-b-empty-clients",
+  );
+  assert(
+    u2OrgBEmptyLeads.length === 0 && u2OrgBEmptyClients.length === 0,
+    "u2-org-b-empty-canonical-pages",
+  );
+
   const legacySideEffects = Number(
     runSql(
       `
@@ -4370,6 +4814,17 @@ const main = async () => {
         p7b: {
           supabaseSecretKey: serviceRoleKey,
           observabilitySecret: p7bObservabilitySecret,
+        },
+        u2: {
+          clientId: u2BrowserClientId,
+          leadId: u2BrowserLeadId,
+          clientDisplayName: u2BrowserClientName,
+          leadStageKey: "qualified",
+          ownerDisplayName: "Synthetic responsible-sales",
+          clientExternalIdentifier: u2BrowserClientExternalIdentifier,
+          leadExternalIdentifier: u2BrowserLeadExternalIdentifier,
+          provenanceSourceSystem: "local_test",
+          linkedConversationSubject: orgAConversation.subject,
         },
         p5f3: {
           autonomousReplyTriggerSecret: p5f3AutonomousReplyTriggerSecret,

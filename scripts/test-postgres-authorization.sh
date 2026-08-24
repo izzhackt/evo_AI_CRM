@@ -26,6 +26,10 @@ p6d_concurrency_worker_b_log="$(mktemp -t evo-p6d-concurrency-b.XXXXXX)"
 p6d_concurrency_assert_log="$(mktemp -t evo-p6d-concurrency-assert.XXXXXX)"
 p6d_concurrency_worker_a_pid=""
 p8r4_cutover_guard_log="$(mktemp -t evo-p8r4-cutover-guard.XXXXXX)"
+u2_concurrency_worker_a_log="$(mktemp -t evo-u2-concurrency-a.XXXXXX)"
+u2_concurrency_worker_b_log="$(mktemp -t evo-u2-concurrency-b.XXXXXX)"
+u2_concurrency_assert_log="$(mktemp -t evo-u2-concurrency-assert.XXXXXX)"
+u2_concurrency_worker_a_pid=""
 
 cleanup() {
   if [[ -n "$p6c_concurrency_worker_a_pid" ]]; then
@@ -35,6 +39,10 @@ cleanup() {
   if [[ -n "$p6d_concurrency_worker_a_pid" ]]; then
     kill "$p6d_concurrency_worker_a_pid" >/dev/null 2>&1 || true
     wait "$p6d_concurrency_worker_a_pid" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$u2_concurrency_worker_a_pid" ]]; then
+    kill "$u2_concurrency_worker_a_pid" >/dev/null 2>&1 || true
+    wait "$u2_concurrency_worker_a_pid" >/dev/null 2>&1 || true
   fi
   node "$deadline_runner" 30000 docker rm -f "$container_name" \
     >/dev/null 2>&1 || true
@@ -51,7 +59,10 @@ cleanup() {
     "$p6d_concurrency_worker_a_log" \
     "$p6d_concurrency_worker_b_log" \
     "$p6d_concurrency_assert_log" \
-    "$p8r4_cutover_guard_log"
+    "$p8r4_cutover_guard_log" \
+    "$u2_concurrency_worker_a_log" \
+    "$u2_concurrency_worker_b_log" \
+    "$u2_concurrency_assert_log"
 }
 trap cleanup EXIT
 
@@ -1488,6 +1499,104 @@ DELETE FROM platform.organizations
 WHERE id = '82000000-0000-4000-8000-000000000900';
 SET session_replication_role = origin;
 SQL
+  fi
+
+  # U2 migration 084 owns the canonical person/lead schema, v12 authority,
+  # object-scoped read models and concurrency-safe provider-key arbitration.
+  if [[ "$(basename "$migration")" == 084_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_canonical_client_lead_inventory.sql
+
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_canonical_client_lead_rls.sql
+
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_canonical_client_lead_concurrency_setup.sql
+
+    node "$deadline_runner" 15000 docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v u2_hold_lock=1 \
+      -v u2_hold_seconds=4 \
+      -v u2_worker_ref=worker-a \
+      -f /workspace/supabase/tests/platform_canonical_client_lead_concurrency_worker.sql \
+      >"$u2_concurrency_worker_a_log" 2>&1 &
+    u2_concurrency_worker_a_pid=$!
+
+    u2_concurrency_ready=0
+    for _ in {1..50}; do
+      u2_concurrency_marker="$({
+        node "$deadline_runner" 3000 docker exec "$container_name" \
+          psql -X -qAt -v ON_ERROR_STOP=1 \
+          -h 127.0.0.1 -U postgres -d "$test_database" \
+          -c "SELECT count(*)
+              FROM pg_locks
+              WHERE locktype = 'advisory'
+                AND database = (
+                  SELECT oid FROM pg_database WHERE datname = current_database()
+                )
+                AND classid = 0
+                AND objid = 840084001
+                AND objsubid = 1
+                AND granted;" 2>/dev/null
+      } || true)"
+      if [[ "$u2_concurrency_marker" == "1" ]]; then
+        u2_concurrency_ready=1
+        break
+      fi
+      sleep 0.1
+    done
+
+    if [[ "$u2_concurrency_ready" != "1" ]]; then
+      echo "U2 concurrency worker did not reach the overlap marker." >&2
+      cat "$u2_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! node "$deadline_runner" 12000 docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v u2_hold_lock=0 \
+      -v u2_hold_seconds=0 \
+      -v u2_worker_ref=worker-b \
+      -f /workspace/supabase/tests/platform_canonical_client_lead_concurrency_worker.sql \
+      >"$u2_concurrency_worker_b_log" 2>&1; then
+      echo "U2 overlapping create-or-link worker failed." >&2
+      cat "$u2_concurrency_worker_b_log" >&2
+      exit 1
+    fi
+
+    if ! wait "$u2_concurrency_worker_a_pid"; then
+      u2_concurrency_worker_a_pid=""
+      echo "U2 lock-owning create-or-link worker failed." >&2
+      cat "$u2_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+    u2_concurrency_worker_a_pid=""
+
+    u2_worker_a_client="$({
+      sed -n 's/^U2_CONCURRENT_CLIENT=//p' "$u2_concurrency_worker_a_log"
+    } | tail -1)"
+    u2_worker_b_client="$({
+      sed -n 's/^U2_CONCURRENT_CLIENT=//p' "$u2_concurrency_worker_b_log"
+    } | tail -1)"
+    if [[ -z "$u2_worker_a_client" ]] \
+      || [[ "$u2_worker_a_client" != "$u2_worker_b_client" ]]; then
+      echo "U2 concurrent workers returned different canonical UUIDs." >&2
+      cat "$u2_concurrency_worker_a_log" >&2
+      cat "$u2_concurrency_worker_b_log" >&2
+      exit 1
+    fi
+
+    if ! docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_canonical_client_lead_concurrency_assert.sql \
+      >"$u2_concurrency_assert_log" 2>&1; then
+      echo "U2 concurrent create-or-link durable-state assertion failed." >&2
+      cat "$u2_concurrency_assert_log" >&2
+      exit 1
+    fi
   fi
 done < <(
   cd "$repo_root"

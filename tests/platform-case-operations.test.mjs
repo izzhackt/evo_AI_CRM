@@ -151,24 +151,31 @@ test("P6D actions bind the exact case and never accept browser amount or time fo
   );
 });
 
-test("Student 360 uses distinct Platform evidence forms and never prefills private evidence", () => {
-  const pageSource = readFileSync(
+test("U2 canonical client detail exposes no case-operation or private-evidence mutation form", () => {
+  const adapterSource = readFileSync(
     new URL(
-      "../src/app/(staff)/clients/[id]/ClientPageContent.tsx",
+      "../src/app/(staff)/clients/[id]/ConnectedCanonicalClientDetail.tsx",
       import.meta.url,
     ),
     "utf8",
   );
-  assert.match(pageSource, /data-testid="platform-visa-form"/);
-  assert.match(pageSource, /data-testid="platform-payment-create-form"/);
-  assert.match(
-    pageSource,
-    /data-testid=\{`platform-payment-settle-form-\$\{p\.id\}`\}/,
+  const detailSource = readFileSync(
+    new URL(
+      "../src/components/platform/core/CanonicalClientDetail.tsx",
+      import.meta.url,
+    ),
+    "utf8",
   );
+  assert.match(adapterSource, /getPlatformCanonicalClient\(actor, id\)/);
+  assert.match(adapterSource, /<CanonicalClientDetail/);
   assert.match(
-    pageSource,
-    /name="evidence_reference"[\s\S]*required[\s\S]*autoComplete="off"/,
+    detailSource,
+    /data-testid="canonical-client-detail"/,
   );
-  assert.doesNotMatch(pageSource, /name="evidence_reference"[^>]*defaultValue/);
-  assert.doesNotMatch(pageSource, /name="evidence_ref"[^>]*defaultValue/);
+  for (const source of [adapterSource, detailSource]) {
+    assert.doesNotMatch(
+      source,
+      /platform-visa-form|platform-payment-create-form|platform-payment-settle-form|evidence_reference|evidence_ref/,
+    );
+  }
 });

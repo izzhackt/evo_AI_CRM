@@ -266,7 +266,7 @@ SELECT platform_private.create_or_link_lead(
 
 SELECT platform_private.create_or_link_lead(
   :'u2_org_a', :'u2_primary_client_id', :'u2_sales_two_membership',
-  'consultation', 'referral',
+  'contacting', 'referral',
   'legacy', 'lead', 'u2-lead-second', 'legacy_observation',
   '2026-08-24T08:11:00Z', NULL, 'safe:u2-lead-second'
 ) AS u2_second_lead_id

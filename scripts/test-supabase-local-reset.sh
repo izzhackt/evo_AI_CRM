@@ -55,6 +55,7 @@ readonly P6D_BROWSER_TEST="P6D closes the real Student 360 and Portal cross-doma
 readonly P7A_BROWSER_TEST="P7A searches and exports safe organization audit evidence through connected Settings"
 readonly P7B_BROWSER_TEST="P7B exposes signed private readiness and metrics without claiming provider health"
 readonly U2_BROWSER_TEST="U2 reads canonical EVO clients and leads through real Supabase with tenant isolation"
+readonly U4_BROWSER_TEST="U4 qualifies and assigns canonical Sales leads through audited real Supabase workflow"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -1358,7 +1359,7 @@ if ! run_with_deadline 660000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}|${P7B_BROWSER_TEST}|${U2_BROWSER_TEST}"; then
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}|${P7B_BROWSER_TEST}|${U2_BROWSER_TEST}|${U4_BROWSER_TEST}"; then
   fail "Remaining real browser Platform Auth/staff-shell gate failed."
 fi
 if ! stop_exact_browser_server; then
@@ -1725,11 +1726,11 @@ if ! run_with_deadline 240000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep "${U2_BROWSER_TEST}"; then
-  fail "U2 canonical client/lead connected browser proof failed."
+  --grep "${U2_BROWSER_TEST}|${U4_BROWSER_TEST}"; then
+  fail "U2/U4 canonical Sales connected browser proof failed."
 fi
 if ! stop_exact_browser_server; then
-  fail "The exact-worktree Platform browser server did not stop after the U2 browser partition."
+  fail "The exact-worktree Platform browser server did not stop after the U2/U4 browser partition."
 fi
 if ! set_p6c_runtime_control enable; then
   fail "Unable to enable the exact synthetic P6D organization overdue runtime control; output was withheld."

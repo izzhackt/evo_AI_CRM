@@ -4251,7 +4251,7 @@ const main = async () => {
         ${sqlUuid(responsibleSalesMembership.id, "u2-bulk-lead-owner")},
         CASE
           WHEN synthetic.row_number = ${u2SyntheticRowCount} THEN 'qualified'
-          WHEN synthetic.row_number % 29 = 0 THEN 'u2_filtered'
+          WHEN synthetic.row_number % 29 = 0 THEN 'potential'
           ELSE 'new'
         END,
         'local_test',
@@ -4489,7 +4489,7 @@ const main = async () => {
     routineName: "staff_canonical_lead_page",
     idColumn: "lead_id",
     cursorIdParameter: "p_before_lead_id",
-    filters: { p_stage_key: "u2_filtered" },
+    filters: { p_stage_key: "potential" },
     pageLimit: 7,
     stage: "u2-filtered-lead-traversal",
   });
@@ -4615,6 +4615,1399 @@ const main = async () => {
   assert(
     u2OrgBEmptyLeads.length === 0 && u2OrgBEmptyClients.length === 0,
     "u2-org-b-empty-canonical-pages",
+  );
+
+  // U4 deliberately reuses the 1,005 U2 canonical leads. Three fixture-only
+  // adjustments create the exact authorization and connection boundaries that
+  // the Sales workflow must preserve without introducing another bulk dataset:
+  // one unowned lead, one lead owned by another Sales user, and one self-owned
+  // lead that shares a client with a conversation but is not directly linked.
+  const u4ClaimableLeadId = u2SyntheticUuid("2", 1_004);
+  const u4ClaimableClientId = u2SyntheticUuid("1", 1_004);
+  const u4ClaimableClientName = "U2 Bulk Client 1004";
+  const u4OtherOwnedLeadId = u2SyntheticUuid("2", 1_003);
+  const u4SameClientOnlyLeadId = u2SyntheticUuid("2", 1_002);
+  const u4SameRequestLeadId = u2SyntheticUuid("2", 1_000);
+  const u4DifferentRequestLeadId = u2SyntheticUuid("2", 999);
+
+  runSql(
+    `
+      UPDATE platform.leads
+      SET current_owner_membership_id = NULL
+      WHERE organization_id = ${sqlUuid(
+        adminAMembership.organization_id,
+        "u4-claimable-org",
+      )}
+        AND id = ${sqlUuid(u4ClaimableLeadId, "u4-claimable-lead")};
+
+      UPDATE platform.leads
+      SET current_owner_membership_id = ${sqlUuid(
+        salesScopedMembership.id,
+        "u4-other-owner",
+      )}
+      WHERE organization_id = ${sqlUuid(
+        adminAMembership.organization_id,
+        "u4-other-owned-org",
+      )}
+        AND id = ${sqlUuid(u4OtherOwnedLeadId, "u4-other-owned-lead")};
+
+      UPDATE platform.leads
+      SET client_id = ${sqlUuid(
+        u2BrowserClientId,
+        "u4-same-client-browser-client",
+      )}
+      WHERE organization_id = ${sqlUuid(
+        adminAMembership.organization_id,
+        "u4-same-client-org",
+      )}
+        AND id = ${sqlUuid(
+          u4SameClientOnlyLeadId,
+          "u4-same-client-lead",
+        )};
+    `,
+    "u4-reuse-u2-workflow-fixtures",
+  );
+
+  await refresh(identities.responsibleSales, "sales");
+  await refresh(identities.salesScoped, "sales");
+  await refresh(identities.adminA, "admin");
+  await refresh(identities.adminB, "admin");
+
+  const u4PageArgs = (overrides = {}) => ({
+    p_limit: 101,
+    p_cursor_updated_at: null,
+    p_cursor_id: null,
+    p_connection_filter: "all",
+    p_stage_filter: null,
+    p_assignment_filter: "all",
+    p_owner_membership_id: null,
+    p_due_filter: "all",
+    p_query: null,
+    ...overrides,
+  });
+
+  const u4RpcResponse = async (
+    identity,
+    routineName,
+    body,
+    stage,
+    credentials = {},
+  ) =>
+    requestJson(`/rest/v1/rpc/${routineName}`, {
+      method: "POST",
+      token: identity?.accessToken,
+      apiKey: credentials.apiKey ?? publishableKey,
+      body,
+      schema: true,
+      stage,
+    });
+
+  const u4RpcRows = async (identity, routineName, body, stage) => {
+    const response = await u4RpcResponse(identity, routineName, body, stage);
+    const payload = requireSuccess(response, stage);
+    assert(Array.isArray(payload), `${stage}-rows`);
+    return payload;
+  };
+
+  const assertU4WorkflowError = (
+    response,
+    expectedMessage,
+    stage,
+    expectedCode = null,
+  ) => {
+    assert(
+      response.status >= 400 && response.status < 600,
+      `${stage}-http-${response.status}`,
+    );
+    const matchesExpectedError =
+      response.payload?.message === expectedMessage ||
+      (expectedCode !== null && response.payload?.code === expectedCode);
+    if (!matchesExpectedError) {
+      const rawCode = response.payload?.code;
+      const rawMessage = response.payload?.message;
+      const safeCode =
+        typeof rawCode === "string" && /^[A-Z0-9]{5}$/.test(rawCode)
+          ? rawCode
+          : "[redacted]";
+      const safeMessage =
+        typeof rawMessage === "string" &&
+        /^[A-Za-z0-9_ .:'()-]{1,160}$/.test(rawMessage)
+          ? rawMessage
+          : "[redacted]";
+      console.error(
+        `ERROR: ${stage} returned status=${response.status} code=${safeCode} message=${safeMessage}`,
+      );
+    }
+    assert(matchesExpectedError, `${stage}-message`);
+  };
+
+  const traverseU4SalesPages = async ({
+    identity,
+    filters = {},
+    pageLimit = 101,
+    stage,
+  }) => {
+    const collectedIds = [];
+    let cursorUpdatedAt = null;
+    let cursorId = null;
+    let previous = null;
+
+    for (let pageNumber = 0; pageNumber < 30; pageNumber += 1) {
+      const rows = await u4RpcRows(
+        identity,
+        "staff_sales_lead_page",
+        u4PageArgs({
+          p_limit: pageLimit,
+          p_cursor_updated_at: cursorUpdatedAt,
+          p_cursor_id: cursorId,
+          ...filters,
+        }),
+        `${stage}-page-${pageNumber + 1}`,
+      );
+      assert(rows.length <= pageLimit, `${stage}-bounded-page`);
+      if (rows.length === 0) return collectedIds;
+
+      for (const row of rows) {
+        const leadId = row?.lead_id;
+        const sortAt = row?.sort_at;
+        sqlUuid(leadId, `${stage}-lead-id`);
+        assert(
+          typeof sortAt === "string" && Number.isFinite(Date.parse(sortAt)),
+          `${stage}-sort-at`,
+        );
+        const current = {
+          id: leadId.toLowerCase(),
+          timestamp: Date.parse(sortAt),
+        };
+        if (previous !== null) {
+          assert(
+            current.timestamp < previous.timestamp ||
+              (current.timestamp === previous.timestamp &&
+                current.id < previous.id),
+            `${stage}-strict-keyset-order`,
+          );
+        }
+        previous = current;
+        collectedIds.push(current.id);
+      }
+
+      const last = rows.at(-1);
+      cursorUpdatedAt = last.sort_at;
+      cursorId = last.lead_id;
+      if (rows.length < pageLimit) return collectedIds;
+    }
+
+    fail(`${stage}-page-loop-bound`);
+  };
+
+  const expectedU4ResponsibleLeadIds = expectedU2LeadIds.filter(
+    (leadId) => leadId !== u4OtherOwnedLeadId,
+  );
+  const traversedU4ResponsibleLeadIds = await traverseU4SalesPages({
+    identity: identities.responsibleSales,
+    stage: "u4-responsible-visible-traversal",
+  });
+  assert(
+    traversedU4ResponsibleLeadIds.length === u2SyntheticRowCount - 1 &&
+      new Set(traversedU4ResponsibleLeadIds).size ===
+        u2SyntheticRowCount - 1 &&
+      JSON.stringify([...traversedU4ResponsibleLeadIds].sort()) ===
+        JSON.stringify(expectedU4ResponsibleLeadIds),
+    "u4-responsible-self-plus-unowned-exact-set",
+  );
+
+  const traversedU4AdminLeadIds = await traverseU4SalesPages({
+    identity: identities.adminA,
+    stage: "u4-admin-visible-traversal",
+  });
+  assert(
+    traversedU4AdminLeadIds.length === u2SyntheticRowCount &&
+      new Set(traversedU4AdminLeadIds).size === u2SyntheticRowCount &&
+      JSON.stringify([...traversedU4AdminLeadIds].sort()) ===
+        JSON.stringify(expectedU2LeadIds),
+    "u4-admin-org-exact-set",
+  );
+
+  const expectedU4PotentialLeadIds = Array.from(
+    { length: Math.floor((u2SyntheticRowCount - 1) / 29) },
+    (_, index) => u2SyntheticUuid("2", (index + 1) * 29),
+  ).sort();
+  const traversedU4PotentialLeadIds = await traverseU4SalesPages({
+    identity: identities.responsibleSales,
+    filters: { p_stage_filter: "potential" },
+    pageLimit: 7,
+    stage: "u4-stage-filter-before-limit",
+  });
+  assert(
+    JSON.stringify([...traversedU4PotentialLeadIds].sort()) ===
+      JSON.stringify(expectedU4PotentialLeadIds),
+    "u4-stage-filter-before-limit-exact-set",
+  );
+
+  const u4ConnectedRows = await u4RpcRows(
+    identities.responsibleSales,
+    "staff_sales_lead_page",
+    u4PageArgs({ p_connection_filter: "connected" }),
+    "u4-connected-direct-lead-only",
+  );
+  assert(
+    u4ConnectedRows.length === 1 &&
+      u4ConnectedRows[0].lead_id === u2BrowserLeadId &&
+      u4ConnectedRows[0].is_connected === true,
+    "u4-connected-direct-lead-only-shape",
+  );
+
+  const expectedU4UnconnectedLeadIds = expectedU4ResponsibleLeadIds.filter(
+    (leadId) => leadId !== u2BrowserLeadId,
+  );
+  const traversedU4UnconnectedLeadIds = await traverseU4SalesPages({
+    identity: identities.responsibleSales,
+    filters: { p_connection_filter: "unconnected" },
+    stage: "u4-unconnected-traversal",
+  });
+  assert(
+    traversedU4UnconnectedLeadIds.length === u2SyntheticRowCount - 2 &&
+      JSON.stringify([...traversedU4UnconnectedLeadIds].sort()) ===
+        JSON.stringify(expectedU4UnconnectedLeadIds),
+    "u4-unconnected-exact-set",
+  );
+
+  const u4SameClientOnlyRelation = runSql(
+    `
+      SELECT
+        (conversation.canonical_client_id = lead.client_id)::TEXT
+          || ':'
+          || (conversation.canonical_lead_id = lead.id)::TEXT
+      FROM platform.leads AS lead
+      JOIN platform.communication_conversations AS conversation
+        ON conversation.organization_id = lead.organization_id
+       AND conversation.id = ${sqlUuid(
+         orgAConversation.id,
+         "u4-same-client-conversation",
+       )}
+      WHERE lead.organization_id = ${sqlUuid(
+        adminAMembership.organization_id,
+        "u4-same-client-relation-org",
+      )}
+        AND lead.id = ${sqlUuid(
+          u4SameClientOnlyLeadId,
+          "u4-same-client-relation-lead",
+        )};
+    `,
+    "u4-same-client-not-direct-fixture",
+  );
+  assert(
+    u4SameClientOnlyRelation === "true:false",
+    "u4-same-client-not-direct-fixture-shape",
+  );
+
+  const u4SameClientOnlyDetail = await u4RpcRows(
+    identities.responsibleSales,
+    "staff_sales_lead_detail",
+    { p_lead_id: u4SameClientOnlyLeadId },
+    "u4-same-client-not-direct-detail",
+  );
+  assert(
+    u4SameClientOnlyDetail.length === 1,
+    "u4-same-client-detail-shape",
+  );
+  const [u4SameClientOnlyRow] = u4SameClientOnlyDetail;
+  assert(
+    u4SameClientOnlyRow.client_id === u2BrowserClientId,
+    "u4-same-client-context-client",
+  );
+  assert(
+    u4SameClientOnlyRow.is_connected === false,
+    "u4-same-client-not-direct-is-unconnected",
+  );
+
+  const u4MineRows = await u4RpcRows(
+    identities.responsibleSales,
+    "staff_sales_lead_page",
+    u4PageArgs({ p_assignment_filter: "mine" }),
+    "u4-sales-mine-filter",
+  );
+  assert(
+    u4MineRows.length === 101 &&
+      u4MineRows.every(
+        (row) =>
+          row.current_owner_membership_id === responsibleSalesMembership.id,
+      ),
+    "u4-sales-mine-filter-before-limit",
+  );
+  const u4UnassignedRows = await u4RpcRows(
+    identities.responsibleSales,
+    "staff_sales_lead_page",
+    u4PageArgs({ p_assignment_filter: "unassigned" }),
+    "u4-sales-unassigned-filter",
+  );
+  assert(
+    u4UnassignedRows.length === 1 &&
+      u4UnassignedRows[0].lead_id === u4ClaimableLeadId &&
+      u4UnassignedRows[0].current_owner_membership_id === null,
+    "u4-sales-unassigned-filter-shape",
+  );
+
+  const u4SalesOwnerOptions = await u4RpcRows(
+    identities.responsibleSales,
+    "staff_sales_owner_options",
+    {
+      p_limit: 101,
+      p_cursor_label: null,
+      p_cursor_id: null,
+      p_query: null,
+    },
+    "u4-sales-owner-options",
+  );
+  assert(
+    u4SalesOwnerOptions.length === 1 &&
+      u4SalesOwnerOptions[0].membership_id ===
+        responsibleSalesMembership.id &&
+      typeof u4SalesOwnerOptions[0].display_label === "string" &&
+      u4SalesOwnerOptions[0].display_label.length > 0,
+    "u4-sales-owner-options-self-only",
+  );
+  const u4ResponsibleSalesDisplayName =
+    u4SalesOwnerOptions[0].display_label;
+
+  const u4AdminOwnerOptions = await u4RpcRows(
+    identities.adminA,
+    "staff_sales_owner_options",
+    {
+      p_limit: 101,
+      p_cursor_label: null,
+      p_cursor_id: null,
+      p_query: null,
+    },
+    "u4-admin-owner-options",
+  );
+  const u4AdminOwnerIds = u4AdminOwnerOptions.map(
+    (option) => option.membership_id,
+  );
+  assert(
+    u4AdminOwnerIds.includes(responsibleSalesMembership.id) &&
+      u4AdminOwnerIds.includes(salesScopedMembership.id) &&
+      !u4AdminOwnerIds.includes(roleMembers.curator.id) &&
+      u4AdminOwnerIds.length === new Set(u4AdminOwnerIds).size,
+    "u4-admin-owner-options-eligible-sales-only",
+  );
+
+  const u4AdminOtherOwnerRows = await u4RpcRows(
+    identities.adminA,
+    "staff_sales_lead_page",
+    u4PageArgs({
+      p_owner_membership_id: salesScopedMembership.id,
+    }),
+    "u4-admin-owner-filter",
+  );
+  assert(
+    u4AdminOtherOwnerRows.length === 1 &&
+      u4AdminOtherOwnerRows[0].lead_id === u4OtherOwnedLeadId,
+    "u4-admin-owner-filter-before-limit",
+  );
+
+  const u4SalesOwnerFilterDenied = await u4RpcResponse(
+    identities.responsibleSales,
+    "staff_sales_lead_page",
+    u4PageArgs({
+      p_owner_membership_id: salesScopedMembership.id,
+    }),
+    "u4-sales-owner-filter-cannot-widen",
+  );
+  assertU4WorkflowError(
+    u4SalesOwnerFilterDenied,
+    "sales_workflow_invalid_owner_filter",
+    "u4-sales-owner-filter-cannot-widen",
+  );
+
+  const u4InvalidConnectionFilter = await u4RpcResponse(
+    identities.responsibleSales,
+    "staff_sales_lead_page",
+    u4PageArgs({ p_connection_filter: "same_client" }),
+    "u4-invalid-connection-filter",
+  );
+  assertU4WorkflowError(
+    u4InvalidConnectionFilter,
+    "sales_workflow_invalid_connection_filter",
+    "u4-invalid-connection-filter",
+  );
+
+  const u4CuratorPageDenied = await u4RpcResponse(
+    identities.curator,
+    "staff_sales_lead_page",
+    u4PageArgs(),
+    "u4-curator-page-denied",
+  );
+  assertU4WorkflowError(
+    u4CuratorPageDenied,
+    "sales_workflow_forbidden",
+    "u4-curator-page-denied",
+  );
+
+  const u4AnonymousPageDenied = await u4RpcResponse(
+    null,
+    "staff_sales_lead_page",
+    u4PageArgs(),
+    "u4-anonymous-page-denied",
+  );
+  assert(
+    u4AnonymousPageDenied.status >= 400 &&
+      u4AnonymousPageDenied.status < 500,
+    "u4-anonymous-page-denied",
+  );
+
+  const u4ServicePageDenied = await u4RpcResponse(
+    { accessToken: serviceRoleKey },
+    "staff_sales_lead_page",
+    u4PageArgs(),
+    "u4-service-page-denied",
+    { apiKey: serviceRoleKey },
+  );
+  assert(
+    u4ServicePageDenied.status >= 400 && u4ServicePageDenied.status < 500,
+    "u4-service-page-denied",
+  );
+
+  const u4CrossOrgPageRows = await u4RpcRows(
+    identities.adminB,
+    "staff_sales_lead_page",
+    u4PageArgs(),
+    "u4-cross-org-page-empty",
+  );
+  const u4CrossOrgDetailRows = await u4RpcRows(
+    identities.adminB,
+    "staff_sales_lead_detail",
+    { p_lead_id: u4ClaimableLeadId },
+    "u4-cross-org-detail-empty",
+  );
+  assert(
+    u4CrossOrgPageRows.length === 0 && u4CrossOrgDetailRows.length === 0,
+    "u4-cross-org-read-denied",
+  );
+
+  const u4MutationBody = ({
+    leadId,
+    expectedVersion,
+    requestId,
+    stageKey,
+    ownerMembershipId,
+    nextActionText = null,
+    nextActionDueDate = null,
+    clearNextAction = true,
+    reason = null,
+  }) => ({
+    p_lead_id: leadId,
+    p_expected_workflow_version: expectedVersion,
+    p_request_id: requestId,
+    p_stage_key: stageKey,
+    p_owner_membership_id: ownerMembershipId,
+    p_next_action_text: nextActionText,
+    p_next_action_due_date: nextActionDueDate,
+    p_clear_next_action: clearNextAction,
+    p_reason: reason,
+  });
+
+  const mutateU4Workflow = async (
+    identity,
+    body,
+    stage,
+    credentials = {},
+  ) =>
+    u4RpcResponse(
+      identity,
+      "mutate_sales_lead_workflow",
+      body,
+      stage,
+      credentials,
+    );
+
+  const u4CuratorMutationRequestId = randomUUID();
+  const u4CuratorMutationResult = await mutateU4Workflow(
+    identities.curator,
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 1,
+      requestId: u4CuratorMutationRequestId,
+      stageKey: "contacting",
+      ownerMembershipId: null,
+      clearNextAction: true,
+    }),
+    "u4-curator-mutation-denied",
+  );
+  assertU4WorkflowError(
+    u4CuratorMutationResult,
+    "workflow_not_found_or_forbidden",
+    "u4-curator-mutation-denied",
+  );
+
+  const u4AnonymousMutationRequestId = randomUUID();
+  const u4AnonymousMutationResult = await mutateU4Workflow(
+    null,
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 1,
+      requestId: u4AnonymousMutationRequestId,
+      stageKey: "contacting",
+      ownerMembershipId: null,
+      clearNextAction: true,
+    }),
+    "u4-anonymous-mutation-denied",
+  );
+  assert(
+    u4AnonymousMutationResult.status >= 400 &&
+      u4AnonymousMutationResult.status < 500,
+    "u4-anonymous-mutation-denied",
+  );
+
+  const u4InitialClaimableDetail = await u4RpcRows(
+    identities.responsibleSales,
+    "staff_sales_lead_detail",
+    { p_lead_id: u4ClaimableLeadId },
+    "u4-claimable-initial-detail",
+  );
+  assert(
+    u4InitialClaimableDetail.length === 1 &&
+      u4InitialClaimableDetail[0].client_id === u4ClaimableClientId &&
+      u4InitialClaimableDetail[0].stage_key === "new" &&
+      u4InitialClaimableDetail[0].current_owner_membership_id === null &&
+      Number(u4InitialClaimableDetail[0].workflow_version) === 1,
+    "u4-claimable-initial-shape",
+  );
+
+  const u4ClaimRequestId = randomUUID();
+  const u4ClaimBody = u4MutationBody({
+    leadId: u4ClaimableLeadId,
+    expectedVersion: 1,
+    requestId: u4ClaimRequestId,
+    stageKey: "contacting",
+    ownerMembershipId: responsibleSalesMembership.id,
+    nextActionText: "  Call the applicant and confirm qualification  ",
+    nextActionDueDate: "2000-01-01",
+    clearNextAction: false,
+    reason: "  Initial Sales qualification  ",
+  });
+  const u4ClaimResult = requireSuccess(
+    await mutateU4Workflow(
+      identities.responsibleSales,
+      u4ClaimBody,
+      "u4-sales-claim",
+    ),
+    "u4-sales-claim",
+  );
+  assert(
+    u4ClaimResult?.request_id === u4ClaimRequestId &&
+      u4ClaimResult?.lead_id === u4ClaimableLeadId &&
+      u4ClaimResult?.stage_key === "contacting" &&
+      u4ClaimResult?.current_owner_membership_id ===
+        responsibleSalesMembership.id &&
+      u4ClaimResult?.next_action_text ===
+        "Call the applicant and confirm qualification" &&
+      u4ClaimResult?.next_action_due_date === "2000-01-01" &&
+      Number(u4ClaimResult?.workflow_version) === 2 &&
+      Number.isFinite(Date.parse(u4ClaimResult?.changed_at)),
+    "u4-sales-claim-result",
+  );
+
+  const u4ClaimReplay = requireSuccess(
+    await mutateU4Workflow(
+      identities.responsibleSales,
+      {
+        ...u4ClaimBody,
+        p_next_action_text: "Call the applicant and confirm qualification",
+        p_reason: "Initial Sales qualification",
+      },
+      "u4-sales-claim-replay",
+    ),
+    "u4-sales-claim-replay",
+  );
+  assert(
+    JSON.stringify(u4ClaimReplay) === JSON.stringify(u4ClaimResult),
+    "u4-sales-claim-exact-replay",
+  );
+
+  const u4CollisionResult = await mutateU4Workflow(
+    identities.responsibleSales,
+    {
+      ...u4ClaimBody,
+      p_stage_key: "qualified",
+    },
+    "u4-request-id-collision",
+  );
+  assertU4WorkflowError(
+    u4CollisionResult,
+    "request_id_conflict",
+    "u4-request-id-collision",
+  );
+
+  const u4StaleRequestId = randomUUID();
+  const u4StaleResult = await mutateU4Workflow(
+    identities.responsibleSales,
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 1,
+      requestId: u4StaleRequestId,
+      stageKey: "qualified",
+      ownerMembershipId: responsibleSalesMembership.id,
+      nextActionText: "Call the applicant and confirm qualification",
+      nextActionDueDate: "2000-01-01",
+      clearNextAction: false,
+    }),
+    "u4-stale-version",
+  );
+  assertU4WorkflowError(
+    u4StaleResult,
+    "workflow_version_conflict",
+    "u4-stale-version",
+    "PT409",
+  );
+
+  const u4InvalidStageRequestId = randomUUID();
+  const u4InvalidStageResult = await mutateU4Workflow(
+    identities.responsibleSales,
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 2,
+      requestId: u4InvalidStageRequestId,
+      stageKey: "contract_signed",
+      ownerMembershipId: responsibleSalesMembership.id,
+      nextActionText: "Call the applicant and confirm qualification",
+      nextActionDueDate: "2000-01-01",
+      clearNextAction: false,
+    }),
+    "u4-invalid-stage",
+  );
+  assertU4WorkflowError(
+    u4InvalidStageResult,
+    "workflow_invalid_stage",
+    "u4-invalid-stage",
+  );
+
+  const u4InvalidActionRequestId = randomUUID();
+  const u4InvalidActionResult = await mutateU4Workflow(
+    identities.responsibleSales,
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 2,
+      requestId: u4InvalidActionRequestId,
+      stageKey: "qualified",
+      ownerMembershipId: responsibleSalesMembership.id,
+      nextActionText: "Missing paired due date",
+      nextActionDueDate: null,
+      clearNextAction: false,
+    }),
+    "u4-invalid-action-pair",
+  );
+  assertU4WorkflowError(
+    u4InvalidActionResult,
+    "workflow_invalid_next_action",
+    "u4-invalid-action-pair",
+  );
+
+  const u4NoChangeRequestId = randomUUID();
+  const u4NoChangeResult = await mutateU4Workflow(
+    identities.responsibleSales,
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 2,
+      requestId: u4NoChangeRequestId,
+      stageKey: "contacting",
+      ownerMembershipId: responsibleSalesMembership.id,
+      nextActionText: "Call the applicant and confirm qualification",
+      nextActionDueDate: "2000-01-01",
+      clearNextAction: false,
+      reason: "Initial Sales qualification",
+    }),
+    "u4-no-change",
+  );
+  assertU4WorkflowError(
+    u4NoChangeResult,
+    "workflow_no_change",
+    "u4-no-change",
+  );
+
+  const u4RelinquishRequestId = randomUUID();
+  const u4RelinquishResult = await mutateU4Workflow(
+    identities.responsibleSales,
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 2,
+      requestId: u4RelinquishRequestId,
+      stageKey: "contacting",
+      ownerMembershipId: null,
+      nextActionText: "Call the applicant and confirm qualification",
+      nextActionDueDate: "2000-01-01",
+      clearNextAction: false,
+    }),
+    "u4-sales-relinquish-denied",
+  );
+  assertU4WorkflowError(
+    u4RelinquishResult,
+    "workflow_invalid_owner",
+    "u4-sales-relinquish-denied",
+  );
+
+  const u4ReassignRequestId = randomUUID();
+  const u4ReassignResult = await mutateU4Workflow(
+    identities.responsibleSales,
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 2,
+      requestId: u4ReassignRequestId,
+      stageKey: "contacting",
+      ownerMembershipId: salesScopedMembership.id,
+      nextActionText: "Call the applicant and confirm qualification",
+      nextActionDueDate: "2000-01-01",
+      clearNextAction: false,
+    }),
+    "u4-sales-reassign-denied",
+  );
+  assertU4WorkflowError(
+    u4ReassignResult,
+    "workflow_invalid_owner",
+    "u4-sales-reassign-denied",
+  );
+
+  const u4OtherOwnedRequestId = randomUUID();
+  const u4OtherOwnedResult = await mutateU4Workflow(
+    identities.responsibleSales,
+    u4MutationBody({
+      leadId: u4OtherOwnedLeadId,
+      expectedVersion: 1,
+      requestId: u4OtherOwnedRequestId,
+      stageKey: "contacting",
+      ownerMembershipId: responsibleSalesMembership.id,
+      clearNextAction: true,
+    }),
+    "u4-sales-other-owned-denied",
+  );
+  assertU4WorkflowError(
+    u4OtherOwnedResult,
+    "workflow_not_found_or_forbidden",
+    "u4-sales-other-owned-denied",
+  );
+
+  const u4OverdueRows = await u4RpcRows(
+    identities.responsibleSales,
+    "staff_sales_lead_page",
+    u4PageArgs({ p_due_filter: "overdue" }),
+    "u4-overdue-past-date",
+  );
+  assert(
+    u4OverdueRows.some(
+      (row) =>
+        row.lead_id === u4ClaimableLeadId &&
+        row.next_action_due_date === "2000-01-01",
+    ),
+    "u4-overdue-past-date-visible",
+  );
+
+  const u4CrossOrgMutationRequestId = randomUUID();
+  const u4CrossOrgMutationResult = await mutateU4Workflow(
+    identities.adminB,
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 2,
+      requestId: u4CrossOrgMutationRequestId,
+      stageKey: "qualified",
+      ownerMembershipId: null,
+      nextActionText: "Cross-organization mutation must fail",
+      nextActionDueDate: "2000-01-01",
+      clearNextAction: false,
+    }),
+    "u4-cross-org-mutation-denied",
+  );
+  assertU4WorkflowError(
+    u4CrossOrgMutationResult,
+    "workflow_not_found_or_forbidden",
+    "u4-cross-org-mutation-denied",
+  );
+
+  const u4AdminInvalidOwnerRequestId = randomUUID();
+  const u4AdminInvalidOwnerResult = await mutateU4Workflow(
+    identities.adminA,
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 2,
+      requestId: u4AdminInvalidOwnerRequestId,
+      stageKey: "qualified",
+      ownerMembershipId: roleMembers.curator.id,
+      nextActionText: "Call the applicant and confirm qualification",
+      nextActionDueDate: "2000-01-01",
+      clearNextAction: false,
+      reason: "Attempt ineligible owner",
+    }),
+    "u4-admin-ineligible-owner",
+  );
+  assertU4WorkflowError(
+    u4AdminInvalidOwnerResult,
+    "workflow_invalid_owner",
+    "u4-admin-ineligible-owner",
+  );
+
+  const u4AdminReassignNoReasonRequestId = randomUUID();
+  const u4AdminReassignNoReasonResult = await mutateU4Workflow(
+    identities.adminA,
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 2,
+      requestId: u4AdminReassignNoReasonRequestId,
+      stageKey: "qualified",
+      ownerMembershipId: salesScopedMembership.id,
+      nextActionText: "Call the applicant and confirm qualification",
+      nextActionDueDate: "2000-01-01",
+      clearNextAction: false,
+    }),
+    "u4-admin-reassign-reason-required",
+  );
+  assertU4WorkflowError(
+    u4AdminReassignNoReasonResult,
+    "workflow_reason_required",
+    "u4-admin-reassign-reason-required",
+  );
+
+  const u4AdminReassignRequestId = randomUUID();
+  const u4AdminReassignResult = requireSuccess(
+    await mutateU4Workflow(
+      identities.adminA,
+      u4MutationBody({
+        leadId: u4ClaimableLeadId,
+        expectedVersion: 2,
+        requestId: u4AdminReassignRequestId,
+        stageKey: "qualified",
+        ownerMembershipId: salesScopedMembership.id,
+        nextActionText: "Call the applicant and confirm qualification",
+        nextActionDueDate: "2000-01-01",
+        clearNextAction: false,
+        reason: "  Reassign after Admin review  ",
+      }),
+      "u4-admin-reassign",
+    ),
+    "u4-admin-reassign",
+  );
+  assert(
+    u4AdminReassignResult?.stage_key === "qualified" &&
+      u4AdminReassignResult?.current_owner_membership_id ===
+        salesScopedMembership.id &&
+      Number(u4AdminReassignResult?.workflow_version) === 3,
+    "u4-admin-reassign-result",
+  );
+
+  const u4AdminClearNoReasonRequestId = randomUUID();
+  const u4AdminClearNoReasonResult = await mutateU4Workflow(
+    identities.adminA,
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 3,
+      requestId: u4AdminClearNoReasonRequestId,
+      stageKey: "meeting_scheduled",
+      ownerMembershipId: null,
+      clearNextAction: true,
+    }),
+    "u4-admin-clear-reason-required",
+  );
+  assertU4WorkflowError(
+    u4AdminClearNoReasonResult,
+    "workflow_reason_required",
+    "u4-admin-clear-reason-required",
+  );
+
+  const u4AdminClearRequestId = randomUUID();
+  const u4AdminClearResult = requireSuccess(
+    await mutateU4Workflow(
+      identities.adminA,
+      u4MutationBody({
+        leadId: u4ClaimableLeadId,
+        expectedVersion: 3,
+        requestId: u4AdminClearRequestId,
+        stageKey: "meeting_scheduled",
+        ownerMembershipId: null,
+        clearNextAction: true,
+        reason: "  Return to shared queue and clear completed action  ",
+      }),
+      "u4-admin-unassign-explicit-clear",
+    ),
+    "u4-admin-unassign-explicit-clear",
+  );
+  assert(
+    u4AdminClearResult?.stage_key === "meeting_scheduled" &&
+      u4AdminClearResult?.current_owner_membership_id === null &&
+      u4AdminClearResult?.next_action_text === null &&
+      u4AdminClearResult?.next_action_due_date === null &&
+      Number(u4AdminClearResult?.workflow_version) === 4,
+    "u4-admin-unassign-explicit-clear-result",
+  );
+
+  const u4AdminAssignRequestId = randomUUID();
+  const u4AdminAssignResult = requireSuccess(
+    await mutateU4Workflow(
+      identities.adminA,
+      u4MutationBody({
+        leadId: u4ClaimableLeadId,
+        expectedVersion: 4,
+        requestId: u4AdminAssignRequestId,
+        stageKey: "meeting_completed",
+        ownerMembershipId: responsibleSalesMembership.id,
+        clearNextAction: true,
+      }),
+      "u4-admin-assign",
+    ),
+    "u4-admin-assign",
+  );
+  assert(
+    u4AdminAssignResult?.stage_key === "meeting_completed" &&
+      u4AdminAssignResult?.current_owner_membership_id ===
+        responsibleSalesMembership.id &&
+      Number(u4AdminAssignResult?.workflow_version) === 5,
+    "u4-admin-assign-result",
+  );
+
+  const u4AdminFinalUnassignRequestId = randomUUID();
+  const u4AdminFinalUnassignResult = requireSuccess(
+    await mutateU4Workflow(
+      identities.adminA,
+      u4MutationBody({
+        leadId: u4ClaimableLeadId,
+        expectedVersion: 5,
+        requestId: u4AdminFinalUnassignRequestId,
+        stageKey: "potential",
+        ownerMembershipId: null,
+        clearNextAction: true,
+        reason: "  Return qualified lead to shared Sales queue  ",
+      }),
+      "u4-admin-final-unassign",
+    ),
+    "u4-admin-final-unassign",
+  );
+  assert(
+    u4AdminFinalUnassignResult?.stage_key === "potential" &&
+      u4AdminFinalUnassignResult?.current_owner_membership_id === null &&
+      Number(u4AdminFinalUnassignResult?.workflow_version) === 6,
+    "u4-admin-final-unassign-result",
+  );
+
+  const u4BishkekDateParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bishkek",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const u4BishkekDatePart = (type) =>
+    u4BishkekDateParts.find((part) => part.type === type)?.value;
+  const u4BishkekToday = `${u4BishkekDatePart("year")}-${u4BishkekDatePart("month")}-${u4BishkekDatePart("day")}`;
+  assert(/^\d{4}-\d{2}-\d{2}$/.test(u4BishkekToday), "u4-bishkek-today");
+
+  const u4ConcurrentSameRequestId = randomUUID();
+  const u4ConcurrentSameBody = u4MutationBody({
+    leadId: u4SameRequestLeadId,
+    expectedVersion: 1,
+    requestId: u4ConcurrentSameRequestId,
+    stageKey: "contacting",
+    ownerMembershipId: responsibleSalesMembership.id,
+    nextActionText: "Concurrent exact replay",
+    nextActionDueDate: u4BishkekToday,
+    clearNextAction: false,
+  });
+  const u4ConcurrentSameResponses = await Promise.all([
+    mutateU4Workflow(
+      identities.responsibleSales,
+      u4ConcurrentSameBody,
+      "u4-concurrent-same-request-a",
+    ),
+    mutateU4Workflow(
+      identities.responsibleSales,
+      u4ConcurrentSameBody,
+      "u4-concurrent-same-request-b",
+    ),
+  ]);
+  const u4ConcurrentSamePayloads = u4ConcurrentSameResponses.map(
+    (response, index) =>
+      requireSuccess(response, `u4-concurrent-same-request-${index + 1}`),
+  );
+  assert(
+    JSON.stringify(u4ConcurrentSamePayloads[0]) ===
+      JSON.stringify(u4ConcurrentSamePayloads[1]) &&
+      Number(u4ConcurrentSamePayloads[0]?.workflow_version) === 2,
+    "u4-concurrent-same-request-exact-replay",
+  );
+
+  const u4ConcurrentDifferentRequestIds = [randomUUID(), randomUUID()];
+  const u4ConcurrentDifferentBodies = [
+    u4MutationBody({
+      leadId: u4DifferentRequestLeadId,
+      expectedVersion: 1,
+      requestId: u4ConcurrentDifferentRequestIds[0],
+      stageKey: "contacting",
+      ownerMembershipId: responsibleSalesMembership.id,
+      nextActionText: "Concurrent version contender A",
+      nextActionDueDate: u4BishkekToday,
+      clearNextAction: false,
+    }),
+    u4MutationBody({
+      leadId: u4DifferentRequestLeadId,
+      expectedVersion: 1,
+      requestId: u4ConcurrentDifferentRequestIds[1],
+      stageKey: "qualified",
+      ownerMembershipId: responsibleSalesMembership.id,
+      nextActionText: "Concurrent version contender B",
+      nextActionDueDate: u4BishkekToday,
+      clearNextAction: false,
+    }),
+  ];
+  const u4ConcurrentDifferentResponses = await Promise.all(
+    u4ConcurrentDifferentBodies.map((body, index) =>
+      mutateU4Workflow(
+        identities.responsibleSales,
+        body,
+        `u4-concurrent-different-request-${index + 1}`,
+      ),
+    ),
+  );
+  const u4ConcurrentDifferentSuccesses =
+    u4ConcurrentDifferentResponses.filter(
+      (response) => response.status >= 200 && response.status < 300,
+    );
+  const u4ConcurrentDifferentFailures =
+    u4ConcurrentDifferentResponses.filter(
+      (response) => response.status < 200 || response.status >= 300,
+    );
+  assert(
+    u4ConcurrentDifferentSuccesses.length === 1 &&
+      u4ConcurrentDifferentFailures.length === 1 &&
+      Number(u4ConcurrentDifferentSuccesses[0].payload?.workflow_version) === 2,
+    "u4-concurrent-different-one-commit",
+  );
+  assertU4WorkflowError(
+    u4ConcurrentDifferentFailures[0],
+    "workflow_version_conflict",
+    "u4-concurrent-different-one-stale",
+    "PT409",
+  );
+  const u4ConcurrentDifferentWinnerIndex =
+    u4ConcurrentDifferentResponses.findIndex(
+      (response) => response.status >= 200 && response.status < 300,
+    );
+  const u4ConcurrentDifferentWinnerRequestId =
+    u4ConcurrentDifferentRequestIds[u4ConcurrentDifferentWinnerIndex];
+  const u4ConcurrentDifferentLoserRequestId =
+    u4ConcurrentDifferentRequestIds[1 - u4ConcurrentDifferentWinnerIndex];
+
+  const u4DueTodayRows = await u4RpcRows(
+    identities.responsibleSales,
+    "staff_sales_lead_page",
+    u4PageArgs({ p_due_filter: "due_today" }),
+    "u4-bishkek-due-today",
+  );
+  const u4DueTodayLeadIds = u4DueTodayRows.map((row) => row.lead_id);
+  assert(
+    u4DueTodayLeadIds.includes(u4SameRequestLeadId) &&
+      u4DueTodayLeadIds.includes(u4DifferentRequestLeadId) &&
+      u4DueTodayRows
+        .filter((row) =>
+          [u4SameRequestLeadId, u4DifferentRequestLeadId].includes(row.lead_id),
+        )
+        .every((row) => row.next_action_due_date === u4BishkekToday),
+    "u4-bishkek-due-today-visible",
+  );
+
+  const u4DirectLeadPatch = await requestJson(
+    `/rest/v1/leads?id=eq.${u4ClaimableLeadId}`,
+    {
+      method: "PATCH",
+      token: identities.responsibleSales.accessToken,
+      body: { stage_key: "new" },
+      schema: true,
+      stage: "u4-direct-lead-patch-denied",
+    },
+  );
+  assert(
+    u4DirectLeadPatch.status >= 400 && u4DirectLeadPatch.status < 500,
+    "u4-direct-lead-patch-denied",
+  );
+
+  const u4DirectAuditSelect = await requestJson(
+    `/rest/v1/audit_events?select=id&request_id=eq.${u4ClaimRequestId}`,
+    {
+      token: identities.responsibleSales.accessToken,
+      schema: true,
+      stage: "u4-direct-audit-select-denied",
+    },
+  );
+  const u4DirectAuditInsert = await requestJson("/rest/v1/audit_events", {
+    method: "POST",
+    token: identities.responsibleSales.accessToken,
+    body: {},
+    schema: true,
+    stage: "u4-direct-audit-insert-denied",
+  });
+  assert(
+    u4DirectAuditSelect.status >= 400 &&
+      u4DirectAuditSelect.status < 500 &&
+      u4DirectAuditInsert.status >= 400 &&
+      u4DirectAuditInsert.status < 500,
+    "u4-direct-audit-access-denied",
+  );
+
+  const u4DirectReceiptSelect = await requestJson(
+    "/rest/v1/sales_lead_workflow_receipts?select=request_id",
+    {
+      token: identities.responsibleSales.accessToken,
+      schema: true,
+      stage: "u4-direct-receipt-select-denied",
+    },
+  );
+  const u4DirectReceiptInsert = await requestJson(
+    "/rest/v1/sales_lead_workflow_receipts",
+    {
+      method: "POST",
+      token: identities.responsibleSales.accessToken,
+      body: {},
+      schema: true,
+      stage: "u4-direct-receipt-insert-denied",
+    },
+  );
+  assert(
+    u4DirectReceiptSelect.status >= 400 &&
+      u4DirectReceiptSelect.status < 500 &&
+      u4DirectReceiptInsert.status >= 400 &&
+      u4DirectReceiptInsert.status < 500,
+    "u4-direct-receipt-not-exposed",
+  );
+
+  const u4ReceiptPrivileges = JSON.parse(
+    runSql(
+      `
+        SELECT pg_catalog.jsonb_build_object(
+          'authenticated_select', pg_catalog.has_table_privilege(
+            'authenticated',
+            'platform_private.sales_lead_workflow_receipts',
+            'SELECT'
+          ),
+          'authenticated_insert', pg_catalog.has_table_privilege(
+            'authenticated',
+            'platform_private.sales_lead_workflow_receipts',
+            'INSERT'
+          ),
+          'service_select', pg_catalog.has_table_privilege(
+            'service_role',
+            'platform_private.sales_lead_workflow_receipts',
+            'SELECT'
+          ),
+          'service_insert', pg_catalog.has_table_privilege(
+            'service_role',
+            'platform_private.sales_lead_workflow_receipts',
+            'INSERT'
+          )
+        )::TEXT;
+      `,
+      "u4-receipt-privileges",
+    ),
+  );
+  assert(
+    Object.values(u4ReceiptPrivileges).every((value) => value === false),
+    "u4-receipt-privileges-revoked",
+  );
+
+  const u4ServiceMutationRequestId = randomUUID();
+  const u4ServiceMutationDenied = await mutateU4Workflow(
+    { accessToken: serviceRoleKey },
+    u4MutationBody({
+      leadId: u4ClaimableLeadId,
+      expectedVersion: 6,
+      requestId: u4ServiceMutationRequestId,
+      stageKey: "new",
+      ownerMembershipId: null,
+      clearNextAction: true,
+    }),
+    "u4-service-mutation-denied",
+    { apiKey: serviceRoleKey },
+  );
+  assert(
+    u4ServiceMutationDenied.status >= 400 &&
+      u4ServiceMutationDenied.status < 500,
+    "u4-service-mutation-denied",
+  );
+
+  const u4AcceptedRequestIds = [
+    u4ClaimRequestId,
+    u4AdminReassignRequestId,
+    u4AdminClearRequestId,
+    u4AdminAssignRequestId,
+    u4AdminFinalUnassignRequestId,
+    u4ConcurrentSameRequestId,
+    u4ConcurrentDifferentWinnerRequestId,
+  ];
+  const u4NegativeRequestIds = [
+    u4CuratorMutationRequestId,
+    u4AnonymousMutationRequestId,
+    u4ServiceMutationRequestId,
+    u4StaleRequestId,
+    u4InvalidStageRequestId,
+    u4InvalidActionRequestId,
+    u4NoChangeRequestId,
+    u4RelinquishRequestId,
+    u4ReassignRequestId,
+    u4OtherOwnedRequestId,
+    u4CrossOrgMutationRequestId,
+    u4AdminInvalidOwnerRequestId,
+    u4AdminReassignNoReasonRequestId,
+    u4AdminClearNoReasonRequestId,
+    u4ConcurrentDifferentLoserRequestId,
+  ];
+  const u4AcceptedCounts = JSON.parse(
+    runSql(
+      `
+        SELECT pg_catalog.jsonb_build_object(
+          'audit_count', (
+            SELECT pg_catalog.count(*)
+            FROM platform.audit_events AS event
+            WHERE event.request_id = ANY (
+              ARRAY[${u4AcceptedRequestIds.map(sqlUuid).join(", ")}]
+            )
+          ),
+          'receipt_count', (
+            SELECT pg_catalog.count(*)
+            FROM platform_private.sales_lead_workflow_receipts AS receipt
+            WHERE receipt.request_id = ANY (
+              ARRAY[${u4AcceptedRequestIds.map(sqlUuid).join(", ")}]
+            )
+          ),
+          'distinct_audit_requests', (
+            SELECT pg_catalog.count(DISTINCT event.request_id)
+            FROM platform.audit_events AS event
+            WHERE event.request_id = ANY (
+              ARRAY[${u4AcceptedRequestIds.map(sqlUuid).join(", ")}]
+            )
+          ),
+          'distinct_receipt_requests', (
+            SELECT pg_catalog.count(DISTINCT receipt.request_id)
+            FROM platform_private.sales_lead_workflow_receipts AS receipt
+            WHERE receipt.request_id = ANY (
+              ARRAY[${u4AcceptedRequestIds.map(sqlUuid).join(", ")}]
+            )
+          )
+        )::TEXT;
+      `,
+      "u4-accepted-audit-receipt-counts",
+    ),
+  );
+  assert(
+    Number(u4AcceptedCounts.audit_count) === u4AcceptedRequestIds.length &&
+      Number(u4AcceptedCounts.receipt_count) ===
+        u4AcceptedRequestIds.length &&
+      Number(u4AcceptedCounts.distinct_audit_requests) ===
+        u4AcceptedRequestIds.length &&
+      Number(u4AcceptedCounts.distinct_receipt_requests) ===
+        u4AcceptedRequestIds.length,
+    "u4-one-audit-and-receipt-per-accepted-change",
+  );
+
+  const u4NegativeCounts = JSON.parse(
+    runSql(
+      `
+        SELECT pg_catalog.jsonb_build_object(
+          'audit_count', (
+            SELECT pg_catalog.count(*)
+            FROM platform.audit_events AS event
+            WHERE event.request_id = ANY (
+              ARRAY[${u4NegativeRequestIds.map(sqlUuid).join(", ")}]
+            )
+          ),
+          'receipt_count', (
+            SELECT pg_catalog.count(*)
+            FROM platform_private.sales_lead_workflow_receipts AS receipt
+            WHERE receipt.request_id = ANY (
+              ARRAY[${u4NegativeRequestIds.map(sqlUuid).join(", ")}]
+            )
+          )
+        )::TEXT;
+      `,
+      "u4-negative-no-partial-state",
+    ),
+  );
+  assert(
+    Number(u4NegativeCounts.audit_count) === 0 &&
+      Number(u4NegativeCounts.receipt_count) === 0,
+    "u4-negative-no-partial-state",
+  );
+
+  const u4ClaimAuditEvidence = JSON.parse(
+    runSql(
+      `
+        SELECT pg_catalog.jsonb_build_object(
+          'actor_membership_id', event.actor_membership_id,
+          'resulting_version', event.resulting_version,
+          'before_version', event.before_state ->> 'workflow_version',
+          'after_version', event.after_state ->> 'workflow_version',
+          'audit_created_at', event.created_at,
+          'receipt_created_at', receipt.created_at,
+          'receipt_actor_membership_id', receipt.actor_membership_id,
+          'receipt_resulting_version', receipt.resulting_workflow_version,
+          'audit_reason', event.reason,
+          'receipt_reason', receipt.requested_reason,
+          'receipt_action_text', receipt.desired_next_action_text
+        )::TEXT
+        FROM platform.audit_events AS event
+        JOIN platform_private.sales_lead_workflow_receipts AS receipt
+          ON receipt.request_id = event.request_id
+        WHERE event.request_id = ${sqlUuid(
+          u4ClaimRequestId,
+          "u4-claim-audit-request",
+        )};
+      `,
+      "u4-claim-durable-audit-evidence",
+    ),
+  );
+  assert(
+    u4ClaimAuditEvidence.actor_membership_id ===
+      responsibleSalesMembership.id &&
+      u4ClaimAuditEvidence.receipt_actor_membership_id ===
+        responsibleSalesMembership.id &&
+      Number(u4ClaimAuditEvidence.resulting_version) === 2 &&
+      Number(u4ClaimAuditEvidence.receipt_resulting_version) === 2 &&
+      Number(u4ClaimAuditEvidence.before_version) === 1 &&
+      Number(u4ClaimAuditEvidence.after_version) === 2 &&
+      u4ClaimAuditEvidence.audit_reason === "Initial Sales qualification" &&
+      u4ClaimAuditEvidence.receipt_reason ===
+        "Initial Sales qualification" &&
+      u4ClaimAuditEvidence.receipt_action_text ===
+        "Call the applicant and confirm qualification" &&
+      Number.isFinite(Date.parse(u4ClaimAuditEvidence.audit_created_at)) &&
+      Date.parse(u4ClaimAuditEvidence.audit_created_at) ===
+        Date.parse(u4ClaimAuditEvidence.receipt_created_at) &&
+      Date.parse(u4ClaimAuditEvidence.audit_created_at) ===
+        Date.parse(u4ClaimResult.changed_at),
+    "u4-durable-actor-time-version-evidence",
+  );
+
+  const u4FinalClaimableDetail = await u4RpcRows(
+    identities.responsibleSales,
+    "staff_sales_lead_detail",
+    { p_lead_id: u4ClaimableLeadId },
+    "u4-final-claimable-detail",
+  );
+  const u4FinalConnectedDetail = await u4RpcRows(
+    identities.responsibleSales,
+    "staff_sales_lead_detail",
+    { p_lead_id: u2BrowserLeadId },
+    "u4-final-connected-detail",
+  );
+  assert(
+    u4FinalClaimableDetail.length === 1 &&
+      u4FinalClaimableDetail[0].stage_key === "potential" &&
+      u4FinalClaimableDetail[0].current_owner_membership_id === null &&
+      u4FinalClaimableDetail[0].next_action_text === null &&
+      u4FinalClaimableDetail[0].next_action_due_date === null &&
+      Number(u4FinalClaimableDetail[0].workflow_version) === 6,
+    "u4-final-claimable-browser-state",
+  );
+  assert(
+    u4FinalConnectedDetail.length === 1 &&
+      u4FinalConnectedDetail[0].is_connected === true &&
+      u4FinalConnectedDetail[0].stage_key === "qualified" &&
+      u4FinalConnectedDetail[0].current_owner_membership_id ===
+        responsibleSalesMembership.id &&
+      Number(u4FinalConnectedDetail[0].workflow_version) === 1,
+    "u4-final-connected-browser-state",
   );
 
   const legacySideEffects = Number(
@@ -4841,6 +6234,26 @@ const main = async () => {
           leadExternalIdentifier: u2BrowserLeadExternalIdentifier,
           provenanceSourceSystem: "local_test",
           linkedConversationSubject: orgAConversation.subject,
+        },
+        u4: {
+          orgA: {
+            organizationId: adminAMembership.organization_id,
+            connectedLeadId: u2BrowserLeadId,
+            connectedLeadClientName: u2BrowserClientName,
+            connectedLeadStageKey: u4FinalConnectedDetail[0].stage_key,
+            connectedLeadWorkflowVersion: Number(
+              u4FinalConnectedDetail[0].workflow_version,
+            ),
+            claimableLeadId: u4ClaimableLeadId,
+            claimableLeadClientName: u4ClaimableClientName,
+            claimableLeadStageKey: u4FinalClaimableDetail[0].stage_key,
+            claimableLeadWorkflowVersion: Number(
+              u4FinalClaimableDetail[0].workflow_version,
+            ),
+            responsibleSalesMembershipId: responsibleSalesMembership.id,
+            responsibleSalesDisplayName: u4ResponsibleSalesDisplayName,
+            otherSalesMembershipId: salesScopedMembership.id,
+          },
         },
         p5f3: {
           autonomousReplyTriggerSecret: p5f3AutonomousReplyTriggerSecret,

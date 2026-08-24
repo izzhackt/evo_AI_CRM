@@ -1298,8 +1298,9 @@ done
 browser_gate_started=true
 # The local fixture records deliberately short-lived, synthetic provider-health
 # evidence. Run all six tests that exercise positive freshness first so their real
-# five-minute freshness contract is tested deterministically. The second pass
-# still runs every other browser test; no assertion or health TTL is weakened.
+# five-minute freshness contract is tested deterministically. Run the stable
+# baseline remainder next, before dedicated stateful partitions mutate their
+# synthetic roles and records; no assertion or health TTL is weakened.
 if ! run_with_deadline 240000 env \
   EVO_P5B_BROWSER_PROOF=0 \
   EVO_P5C_BROWSER_PROOF=0 \
@@ -1330,6 +1331,38 @@ if ! run_with_deadline 240000 env \
 fi
 if ! stop_exact_browser_server; then
   fail "The exact-worktree Platform browser server did not stop between browser partitions."
+fi
+if ! run_with_deadline 660000 env \
+  EVO_P5B_BROWSER_PROOF=0 \
+  EVO_P5C_BROWSER_PROOF=0 \
+  EVO_P5D_BROWSER_PROOF=0 \
+  EVO_P5E_BROWSER_PROOF=0 \
+  EVO_P5F1_BROWSER_PROOF=0 \
+  EVO_P5F3_BROWSER_PROOF=0 \
+  EVO_P6A_BROWSER_PROOF=0 \
+  EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
+  EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_P7B_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
+  EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0 \
+  EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
+  EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
+  EVO_PLATFORM_AUTH_BROWSER_PARTITION=remaining \
+  EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-remaining.json" \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}|${P7B_BROWSER_TEST}|${U2_BROWSER_TEST}"; then
+  fail "Remaining real browser Platform Auth/staff-shell gate failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop after the browser gate."
 fi
 if ! run_with_deadline 240000 env \
   EVO_P5B_BROWSER_PROOF=1 \
@@ -1697,38 +1730,6 @@ if ! run_with_deadline 240000 env \
 fi
 if ! stop_exact_browser_server; then
   fail "The exact-worktree Platform browser server did not stop after the U2 browser partition."
-fi
-if ! run_with_deadline 660000 env \
-  EVO_P5B_BROWSER_PROOF=0 \
-  EVO_P5C_BROWSER_PROOF=0 \
-  EVO_P5D_BROWSER_PROOF=0 \
-  EVO_P5E_BROWSER_PROOF=0 \
-  EVO_P5F1_BROWSER_PROOF=0 \
-  EVO_P5F3_BROWSER_PROOF=0 \
-  EVO_P6A_BROWSER_PROOF=0 \
-  EVO_P6B_BROWSER_PROOF=0 \
-  EVO_P6C_BROWSER_PROOF=0 \
-  EVO_P6D_BROWSER_PROOF=0 \
-  EVO_P7A_BROWSER_PROOF=0 \
-  EVO_P7B_BROWSER_PROOF=0 \
-  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
-  EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0 \
-  EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
-  EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
-  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
-  EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
-  EVO_PLATFORM_AUTH_BROWSER_PARTITION=remaining \
-  EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-remaining.json" \
-  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
-  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
-  "${PLAYWRIGHT_CLI}" \
-  test \
-  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}|${P7B_BROWSER_TEST}|${U2_BROWSER_TEST}"; then
-  fail "Remaining real browser Platform Auth/staff-shell gate failed."
-fi
-if ! stop_exact_browser_server; then
-  fail "The exact-worktree Platform browser server did not stop after the browser gate."
 fi
 if ! set_p6c_runtime_control enable; then
   fail "Unable to enable the exact synthetic P6D organization overdue runtime control; output was withheld."

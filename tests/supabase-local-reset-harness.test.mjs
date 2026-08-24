@@ -749,9 +749,17 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
     "\nfi\n",
     betweenPassCleanup,
   );
+  const remainingPass = harness.indexOf(
+    "if ! run_with_deadline 660000 env \\",
+    betweenPassCleanup,
+  );
+  const remainingCleanup = harness.indexOf(
+    'fail "The exact-worktree Platform browser server did not stop after the browser gate."',
+    remainingPass,
+  );
   const p5bPass = harness.indexOf(
     "if ! run_with_deadline 240000 env \\",
-    betweenPassCleanup,
+    remainingCleanup,
   );
   const p5bCleanup = harness.indexOf(
     'fail "The exact-worktree Platform browser server did not stop after the P5B browser partition."',
@@ -821,17 +829,9 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
     'fail "The exact-worktree Platform browser server did not stop after the P6C browser partition."',
     p6cPass,
   );
-  const remainingPass = harness.indexOf(
-    "if ! run_with_deadline 660000 env \\",
-    p6cCleanup,
-  );
-  const remainingCleanup = harness.indexOf(
-    'fail "The exact-worktree Platform browser server did not stop after the browser gate."',
-    remainingPass,
-  );
   const p6dPass = harness.indexOf(
     "if ! run_with_deadline 660000 env \\",
-    remainingCleanup,
+    p6cCleanup,
   );
   const p6dCleanup = harness.indexOf(
     'fail "The exact-worktree Platform browser server did not stop after the P6D browser partition."',
@@ -911,8 +911,9 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
   assert.notEqual(remainingCleanup, -1);
   assert.notEqual(finalCleanup, -1);
   assert.ok(providerPass < betweenPassCleanup);
-  assert.ok(betweenPassCleanupEnd < p5bPass);
-  assert.ok(betweenPassCleanup < p5bPass);
+  assert.ok(betweenPassCleanupEnd < remainingPass);
+  assert.ok(remainingPass < remainingCleanup);
+  assert.ok(remainingCleanup < p5bPass);
   assert.ok(p5bPass < p5bCleanup);
   assert.ok(p5bCleanup < p5dPass);
   assert.ok(p5dPass < p5dCleanup);
@@ -930,9 +931,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
   assert.ok(p6bPass < p6bCleanup);
   assert.ok(p6bCleanup < p6cPass);
   assert.ok(p6cPass < p6cCleanup);
-  assert.ok(p6cCleanup < remainingPass);
-  assert.ok(remainingPass < remainingCleanup);
-  assert.ok(remainingCleanup < p6dPass);
+  assert.ok(p6cCleanup < p6dPass);
   assert.ok(p6dPass < p6dCleanup);
   assert.match(
     harness.slice(providerPass, betweenPassCleanup),
@@ -1468,7 +1467,6 @@ test("P5F3 pins only its private policy clock and restores the exact production 
   );
   const remainingPartition = harness.indexOf(
     "EVO_PLATFORM_AUTH_BROWSER_PARTITION=remaining",
-    p6aPartition,
   );
 
   assert.notEqual(override, -1);
@@ -1481,7 +1479,7 @@ test("P5F3 pins only its private policy clock and restores the exact production 
   assert.ok(p5f3Partition < p5f3Cleanup);
   assert.ok(p5f3Cleanup < restore);
   assert.ok(restore < p6aPartition);
-  assert.ok(p6aPartition < remainingPartition);
+  assert.ok(remainingPartition < override);
   assert.match(
     harness,
     /CREATE OR REPLACE FUNCTION platform_private\.p5f3_policy_now\(\)[\s\S]*local_now::TIME < TIME '09:00'[\s\S]*local_now::TIME >= TIME '21:00'[\s\S]*AT TIME ZONE 'Asia\/Bishkek'/,

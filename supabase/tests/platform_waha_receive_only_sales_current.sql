@@ -33,6 +33,12 @@ BEGIN
           's'::"char",
           0,
           TRUE
+        ),
+        (
+          'platform.staff_canonical_client_detail(uuid)',
+          's'::"char",
+          0,
+          TRUE
         )
     ) AS expected(signature, volatility, default_count, returns_set)
   LOOP
@@ -60,6 +66,26 @@ BEGIN
         contract.signature;
     END IF;
   END LOOP;
+
+  SELECT routine.*
+  INTO STRICT routine_row
+  FROM pg_catalog.pg_proc AS routine
+  WHERE routine.oid = pg_catalog.to_regprocedure(
+    'platform.staff_canonical_client_detail(uuid)'
+  );
+
+  IF position(
+      'JOIN platform.clients AS target_client'
+      IN routine_row.prosrc
+    ) = 0
+    OR position(
+      'platform_private.visible_canonical_clients()'
+      IN routine_row.prosrc
+    ) > 0
+  THEN
+    RAISE EXCEPTION
+      'Migration 085 client detail is not target-first';
+  END IF;
 
   IF NOT EXISTS (
     SELECT 1
@@ -110,6 +136,15 @@ BEGIN
   ) THEN
     RAISE EXCEPTION
       'Migration 085 lead conversation link RPC is not executable by authenticated';
+  END IF;
+
+  IF NOT has_function_privilege(
+    'authenticated',
+    'platform.staff_canonical_client_detail(uuid)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION
+      'Migration 085 client detail RPC is not executable by authenticated';
   END IF;
 
   IF NOT EXISTS (

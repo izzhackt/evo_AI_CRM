@@ -4583,6 +4583,22 @@ const main = async () => {
       u2OrgAPositiveLeadRows[0].client_display_name === u2BrowserClientName,
     "u2-org-a-lead-positive-shape",
   );
+  const u2OrgAPositiveClientRows = await authenticatedPlatformRpcRows(
+    identities.adminA,
+    "staff_canonical_client_detail",
+    { p_client_id: u2BrowserClientId },
+    "u2-org-a-client-positive",
+  );
+  assert(
+    u2OrgAPositiveClientRows.length === 1 &&
+      u2OrgAPositiveClientRows[0].client_id === u2BrowserClientId &&
+      u2OrgAPositiveClientRows[0].display_name === u2BrowserClientName &&
+      Array.isArray(u2OrgAPositiveClientRows[0].linked_leads) &&
+      u2OrgAPositiveClientRows[0].linked_leads.some(
+        (lead) => lead?.lead_id === u2BrowserLeadId,
+      ),
+    "u2-org-a-client-positive-shape",
+  );
 
   const u2OrgBEmptyLeads = await authenticatedPlatformRpcRows(
     identities.adminB,

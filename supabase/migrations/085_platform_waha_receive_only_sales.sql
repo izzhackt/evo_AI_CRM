@@ -538,6 +538,315 @@ BEGIN
 END
 $$;
 
+-- Migration 084's client detail joined the unparameterized
+-- visible_canonical_clients() set before applying the requested client id.
+-- PostgREST therefore evaluated every visible client's permission-aware
+-- counters and could hit statement_timeout even though the caller requested
+-- one primary-key row. Keep the public contract intact while making the
+-- authorization and projections target-first.
+CREATE OR REPLACE FUNCTION platform.staff_canonical_client_detail(
+  p_client_id UUID
+)
+RETURNS TABLE (
+  organization_id UUID,
+  client_id UUID,
+  display_name TEXT,
+  email TEXT,
+  phone TEXT,
+  lifecycle_state platform.client_lifecycle_state,
+  open_duplicate_candidate_count BIGINT,
+  linked_lead_count BIGINT,
+  linked_student_case_count BIGINT,
+  linked_conversation_count BIGINT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  external_identifiers JSONB,
+  provenance JSONB,
+  linked_leads JSONB,
+  linked_student_cases JSONB,
+  linked_conversations JSONB
+)
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  WITH RECURSIVE requested AS MATERIALIZED (
+    SELECT
+      client.organization_id,
+      platform_private.resolve_canonical_client_id(
+        client.organization_id,
+        client.id
+      ) AS client_id
+    FROM platform.clients AS client
+    WHERE client.id = p_client_id
+  ),
+  client_family(organization_id, client_id) AS (
+    SELECT requested.organization_id, requested.client_id
+    FROM requested
+
+    UNION
+
+    SELECT alias.organization_id, alias.superseded_client_id
+    FROM client_family AS family
+    JOIN platform_private.client_aliases AS alias
+      ON alias.organization_id = family.organization_id
+      AND alias.canonical_client_id = family.client_id
+  ),
+  visible AS MATERIALIZED (
+    SELECT
+      target_client.organization_id,
+      target_client.id AS client_id,
+      target_client.display_name,
+      target_client.email,
+      target_client.phone,
+      target_client.lifecycle_state,
+      (
+        SELECT count(*)
+        FROM platform_private.client_duplicate_candidates AS candidate
+        WHERE candidate.organization_id = target_client.organization_id
+          AND candidate.status = 'open'
+          AND target_client.id IN (
+            candidate.left_client_id,
+            candidate.right_client_id
+          )
+      ) AS open_duplicate_candidate_count,
+      (
+        SELECT count(*)
+        FROM platform.leads AS linked_lead
+        WHERE linked_lead.organization_id = target_client.organization_id
+          AND linked_lead.client_id = target_client.id
+          AND private.platform_can_read_canonical_lead(
+            linked_lead.organization_id,
+            linked_lead.id
+          )
+      ) AS linked_lead_count,
+      (
+        SELECT count(*)
+        FROM platform.student_cases AS student_case
+        LEFT JOIN platform.leads AS case_lead
+          ON case_lead.organization_id = student_case.organization_id
+          AND case_lead.id = student_case.canonical_lead_id
+        WHERE student_case.organization_id = target_client.organization_id
+          AND (
+            student_case.canonical_client_id = target_client.id
+            OR case_lead.client_id = target_client.id
+          )
+          AND private.platform_can_read_student_case(
+            student_case.organization_id,
+            student_case.id
+          )
+      ) AS linked_student_case_count,
+      (
+        SELECT count(*)
+        FROM platform.communication_conversations AS conversation
+        LEFT JOIN platform.leads AS conversation_lead
+          ON conversation_lead.organization_id = conversation.organization_id
+          AND conversation_lead.id = conversation.canonical_lead_id
+        WHERE conversation.organization_id = target_client.organization_id
+          AND (
+            conversation.canonical_client_id = target_client.id
+            OR conversation_lead.client_id = target_client.id
+          )
+          AND private.platform_can_read_communication_full(
+            conversation.organization_id,
+            conversation.id
+          )
+      ) AS linked_conversation_count,
+      target_client.created_at,
+      target_client.updated_at
+    FROM requested
+    JOIN platform.clients AS target_client
+      ON target_client.organization_id = requested.organization_id
+      AND target_client.id = requested.client_id
+    WHERE private.platform_can_read_canonical_client(
+      target_client.organization_id,
+      target_client.id
+    )
+  )
+  SELECT
+    visible.organization_id,
+    visible.client_id,
+    visible.display_name,
+    visible.email,
+    visible.phone,
+    visible.lifecycle_state,
+    visible.open_duplicate_candidate_count,
+    visible.linked_lead_count,
+    visible.linked_student_case_count,
+    visible.linked_conversation_count,
+    visible.created_at,
+    visible.updated_at,
+    COALESCE((
+      SELECT jsonb_agg(
+        external_projection.item
+        ORDER BY external_projection.observed_at DESC,
+          external_projection.id DESC
+      )
+      FROM (
+        SELECT
+          external.id,
+          external.observed_at,
+          jsonb_build_object(
+            'id', external.id,
+            'source_system', external.source_system,
+            'external_object_type', external.external_object_type,
+            'external_identifier', external.external_identifier,
+            'observed_at', external.observed_at,
+            'imported_at', external.imported_at,
+            'source_ref', external.source_ref
+          ) AS item
+        FROM platform.external_identifiers AS external
+        WHERE external.organization_id = visible.organization_id
+          AND external.client_id IS NOT NULL
+          AND external.client_id IN (
+            SELECT family.client_id
+            FROM client_family AS family
+            WHERE family.organization_id = visible.organization_id
+          )
+        ORDER BY external.observed_at DESC, external.id DESC
+        LIMIT 25
+      ) AS external_projection
+    ), '[]'::JSONB),
+    COALESCE((
+      SELECT jsonb_agg(
+        provenance_projection.item
+        ORDER BY provenance_projection.observed_at DESC,
+          provenance_projection.id DESC
+      )
+      FROM (
+        SELECT
+          evidence.id,
+          evidence.observed_at,
+          jsonb_build_object(
+            'id', evidence.id,
+            'source_system', evidence.source_system,
+            'evidence_type', evidence.evidence_type,
+            'observed_at', evidence.observed_at,
+            'imported_at', evidence.imported_at,
+            'source_ref', evidence.source_ref,
+            'recorded_at', evidence.recorded_at
+          ) AS item
+        FROM platform.subject_provenance AS evidence
+        WHERE evidence.organization_id = visible.organization_id
+          AND evidence.client_id IS NOT NULL
+          AND evidence.client_id IN (
+            SELECT family.client_id
+            FROM client_family AS family
+            WHERE family.organization_id = visible.organization_id
+          )
+        ORDER BY evidence.observed_at DESC, evidence.id DESC
+        LIMIT 25
+      ) AS provenance_projection
+    ), '[]'::JSONB),
+    COALESCE((
+      SELECT jsonb_agg(
+        lead_projection.item
+        ORDER BY lead_projection.updated_at DESC,
+          lead_projection.id DESC
+      )
+      FROM (
+        SELECT
+          lead.id,
+          lead.updated_at,
+          jsonb_build_object(
+            'lead_id', lead.id,
+            'stage_key', lead.stage_key,
+            'lifecycle_state', lead.lifecycle_state,
+            'source_key', lead.source_key,
+            'current_owner_membership_id',
+              lead.current_owner_membership_id,
+            'current_owner_display_name', owner_profile.display_name,
+            'updated_at', lead.updated_at
+          ) AS item
+        FROM platform.leads AS lead
+        LEFT JOIN platform.organization_memberships AS owner_membership
+          ON owner_membership.organization_id = lead.organization_id
+          AND owner_membership.id = lead.current_owner_membership_id
+        LEFT JOIN platform.profiles AS owner_profile
+          ON owner_profile.id = owner_membership.profile_id
+        WHERE lead.organization_id = visible.organization_id
+          AND lead.client_id = visible.client_id
+          AND private.platform_can_read_canonical_lead(
+            lead.organization_id,
+            lead.id
+          )
+        ORDER BY lead.updated_at DESC, lead.id DESC
+        LIMIT 25
+      ) AS lead_projection
+    ), '[]'::JSONB),
+    COALESCE((
+      SELECT jsonb_agg(
+        case_projection.item
+        ORDER BY case_projection.updated_at DESC,
+          case_projection.id DESC
+      )
+      FROM (
+        SELECT
+          student_case.id,
+          student_case.updated_at,
+          jsonb_build_object(
+            'student_case_id', student_case.id,
+            'student_display_name', student_case.student_display_name,
+            'operational_stage', student_case.operational_stage,
+            'state', student_case.state,
+            'updated_at', student_case.updated_at
+          ) AS item
+        FROM platform.student_cases AS student_case
+        LEFT JOIN platform.leads AS case_lead
+          ON case_lead.organization_id = student_case.organization_id
+          AND case_lead.id = student_case.canonical_lead_id
+        WHERE student_case.organization_id = visible.organization_id
+          AND (
+            student_case.canonical_client_id = visible.client_id
+            OR case_lead.client_id = visible.client_id
+          )
+          AND private.platform_can_read_student_case(
+            student_case.organization_id,
+            student_case.id
+          )
+        ORDER BY student_case.updated_at DESC, student_case.id DESC
+        LIMIT 25
+      ) AS case_projection
+    ), '[]'::JSONB),
+    COALESCE((
+      SELECT jsonb_agg(
+        conversation_projection.item
+        ORDER BY conversation_projection.updated_at DESC,
+          conversation_projection.id DESC
+      )
+      FROM (
+        SELECT
+          conversation.id,
+          conversation.updated_at,
+          jsonb_build_object(
+            'conversation_id', conversation.id,
+            'subject', conversation.subject,
+            'queue', conversation.queue,
+            'status', conversation.status,
+            'updated_at', conversation.updated_at
+          ) AS item
+        FROM platform.communication_conversations AS conversation
+        LEFT JOIN platform.leads AS conversation_lead
+          ON conversation_lead.organization_id = conversation.organization_id
+          AND conversation_lead.id = conversation.canonical_lead_id
+        WHERE conversation.organization_id = visible.organization_id
+          AND (
+            conversation.canonical_client_id = visible.client_id
+            OR conversation_lead.client_id = visible.client_id
+          )
+          AND private.platform_can_read_communication_full(
+            conversation.organization_id,
+            conversation.id
+          )
+        ORDER BY conversation.updated_at DESC, conversation.id DESC
+        LIMIT 25
+      ) AS conversation_projection
+    ), '[]'::JSONB)
+  FROM visible
+  LIMIT 1
+$$;
+
 REVOKE ALL ON FUNCTION
   platform.staff_waha_sales_intake_page(
     UUID,
@@ -547,7 +856,8 @@ REVOKE ALL ON FUNCTION
     TEXT,
     TEXT
   ),
-  platform.staff_canonical_lead_conversation_link(UUID, UUID, UUID)
+  platform.staff_canonical_lead_conversation_link(UUID, UUID, UUID),
+  platform.staff_canonical_client_detail(UUID)
 FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
 GRANT EXECUTE ON FUNCTION
@@ -559,7 +869,8 @@ GRANT EXECUTE ON FUNCTION
     TEXT,
     TEXT
   ),
-  platform.staff_canonical_lead_conversation_link(UUID, UUID, UUID)
+  platform.staff_canonical_lead_conversation_link(UUID, UUID, UUID),
+  platform.staff_canonical_client_detail(UUID)
 TO authenticated;
 
 COMMENT ON FUNCTION platform_private.bind_waha_chat_to_canonical(UUID, UUID) IS
@@ -579,5 +890,7 @@ COMMENT ON FUNCTION platform.staff_canonical_lead_conversation_link(
   UUID
 ) IS
   'Checks one exact authorized canonical lead-to-conversation relationship for the nested receive-only Sales transcript.';
+COMMENT ON FUNCTION platform.staff_canonical_client_detail(UUID) IS
+  'Returns one exact authorized canonical client detail without evaluating the full visible-client inventory.';
 
 COMMIT;

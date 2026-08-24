@@ -111,6 +111,21 @@ BEGIN
     RAISE EXCEPTION
       'Migration 085 lead conversation link RPC is not executable by authenticated';
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM platform_private.waha_direct_chat_bindings AS binding
+    JOIN platform.communication_conversations AS conversation
+      ON conversation.organization_id = binding.organization_id
+     AND conversation.id = binding.conversation_id
+    WHERE binding.id = '85300000-0000-4000-8000-000000000005'
+      AND binding.normalized_chat_id = '123@c.us'
+      AND conversation.canonical_client_id IS NULL
+      AND conversation.canonical_lead_id IS NULL
+  ) THEN
+    RAISE EXCEPTION
+      'Migration 085 rewrote, rejected, or canonicalized an unsupported historical direct chat';
+  END IF;
 END
 $$;
 

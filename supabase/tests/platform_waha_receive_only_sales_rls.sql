@@ -298,6 +298,91 @@ SELECT pg_temp.u3_assert(
   'phone-only similarity silently merged clients or lost review evidence'
 );
 
+-- The retained Lead-Agent/amoCRM lane may share the same private provider
+-- tables, but it is not U3 canonical Sales intake. Give one such synthetic
+-- row canonical IDs deliberately so both public U3 RPCs must still reject it
+-- by its immutable provider-linked authority source, not by accidental NULLs.
+INSERT INTO platform_private.provider_webhook_events (
+  id, organization_id, provider, provider_account_ref,
+  provider_conversation_ref, provider_event_variant_ref,
+  provider_request_id, waha_session_name, payload_id, event_type,
+  provider_occurred_at, verification_status, raw_payload,
+  verification_headers, verification_evidence_ref, payload_sha256,
+  request_id, received_at
+)
+VALUES (
+  '85400000-0000-4000-8000-000000000001',
+  :'u3_org_a', 'waha', 'waha:evo-inbox', NULL, NULL,
+  'synthetic-u3-legacy-provider-lane', 'evo-inbox',
+  'synthetic-u3-legacy-provider-lane', 'message.any',
+  '2026-08-24T06:30:00Z', 'verified',
+  '{"event":"message.any","session":"evo-inbox","payload":{"id":"synthetic-u3-legacy-provider-lane","from":"14155550999@c.us","fromMe":false,"body":"Legacy provider lane marker"}}',
+  '{"hmac_verified":true}', 'synthetic:u3:legacy-provider-lane',
+  repeat('54', 32),
+  '85400000-0000-4000-8000-000000000002',
+  '2026-08-24T06:30:01Z'
+);
+
+SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
+SET LOCAL ROLE service_role;
+SELECT platform.sync_lead_agent_whatsapp(
+  :'u3_org_a',
+  '85400000-0000-4000-8000-000000000001',
+  :'u3_intake_sales_membership',
+  854001,
+  854002,
+  854003,
+  '85400000-0000-4000-8000-000000000003'
+)::TEXT AS u3_legacy_sync
+\gset
+RESET ROLE;
+RESET request.jwt.claims;
+
+UPDATE platform.communication_conversations AS conversation
+SET canonical_client_id = :'u3_client_id',
+    canonical_lead_id = :'u3_lead_id'
+WHERE conversation.organization_id = :'u3_org_a'
+  AND conversation.id = (
+    :'u3_legacy_sync'::JSONB ->> 'conversation_id'
+  )::UUID;
+
+INSERT INTO platform_private.durable_work_items (
+  id, organization_id, kind, state, source_webhook_event_id,
+  business_key_sha256, queue_message_id, attempt_count, max_attempts,
+  available_at, leased_until, completed_at, request_id, created_at, updated_at
+)
+VALUES (
+  '85400000-0000-4000-8000-000000000004',
+  :'u3_org_a', 'provider_webhook_process', 'succeeded',
+  '85400000-0000-4000-8000-000000000001',
+  repeat('55', 32), 85400001, 1, 4,
+  '2026-08-24T06:30:01Z', NULL, '2026-08-24T06:30:02Z',
+  '85400000-0000-4000-8000-000000000005',
+  '2026-08-24T06:30:01Z', '2026-08-24T06:30:02Z'
+);
+
+INSERT INTO platform_private.waha_work_projection_effects (
+  id, organization_id, work_item_id, source_webhook_event_id, disposition,
+  evidence_ref, result, request_id, projected_at
+)
+VALUES (
+  '85400000-0000-4000-8000-000000000006',
+  :'u3_org_a',
+  '85400000-0000-4000-8000-000000000004',
+  '85400000-0000-4000-8000-000000000001',
+  'succeeded',
+  'synthetic:u3:legacy-provider-lane',
+  jsonb_build_object(
+    'human_review_required', FALSE,
+    'communication_conversation_id',
+      (:'u3_legacy_sync'::JSONB ->> 'conversation_id')::UUID,
+    'canonical_client_id', :'u3_client_id'::UUID,
+    'canonical_lead_id', :'u3_lead_id'::UUID
+  ),
+  '85400000-0000-4000-8000-000000000007',
+  '2026-08-24T06:30:02Z'
+);
+
 -- Seed 1,005 successful synthetic receive rows linked to the same canonical
 -- conversation. Every timestamp is unique so the stable keyset can be checked
 -- across eleven pages, beyond Supabase's default 1,000-row ceiling.
@@ -748,8 +833,21 @@ SELECT pg_temp.u3_assert(
     ) AS page
     WHERE page.message_preview LIKE '%@c.us%'
       OR page.message_preview LIKE '%true_14155550101%'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM platform.staff_waha_sales_intake_page(
+      :'u3_org_a', 101, NULL, NULL, NULL, 'legacy provider lane marker'
+    )
+  )
+  AND NOT (
+    SELECT linked
+    FROM platform.staff_canonical_lead_conversation_link(
+      :'u3_org_a',
+      :'u3_lead_id',
+      (:'u3_legacy_sync'::JSONB ->> 'conversation_id')::UUID
+    )
   ),
-  'safe U3 intake projection exposes private provider evidence'
+  'safe U3 intake admitted provider-linked authority or private evidence'
 );
 
 RESET ROLE;
@@ -777,6 +875,45 @@ SELECT pg_temp.u3_assert(
 
 RESET ROLE;
 RESET request.jwt.claims;
+
+-- A historical projection-request owner is not current object authority.
+-- Point the latest immutable request for one already projected conversation
+-- at an out-of-scope Sales membership; only the live conversation scope may
+-- authorize that row.
+SELECT
+  fixture.work_id AS u3_historical_owner_work,
+  85000000 + fixture.sequence_number AS u3_historical_owner_queue_message
+FROM u3_bulk AS fixture
+WHERE fixture.sequence_number = 1
+\gset
+
+INSERT INTO platform_private.durable_work_attempts (
+  id, organization_id, work_item_id, attempt_number, queue_message_id,
+  queue_read_count, worker_ref, claimed_at, lease_expires_at, finished_at,
+  outcome, evidence_ref, finish_request_id
+)
+VALUES (
+  '85400000-0000-4000-8000-000000000011',
+  :'u3_org_a', :'u3_historical_owner_work', 1,
+  :'u3_historical_owner_queue_message'::BIGINT, 1,
+  'u3-historical-owner', '2026-08-24T08:00:00Z',
+  '2026-08-24T08:05:00Z', '2026-08-24T08:00:01Z',
+  'succeeded', 'synthetic:u3:historical-owner',
+  '85400000-0000-4000-8000-000000000012'
+);
+
+INSERT INTO platform_private.waha_work_projection_requests (
+  request_id, input_sha256, organization_id, work_item_id, attempt_id,
+  intake_sales_membership_id, response, created_at
+)
+VALUES (
+  '85400000-0000-4000-8000-000000000013',
+  repeat('56', 32), :'u3_org_a', :'u3_historical_owner_work',
+  '85400000-0000-4000-8000-000000000011',
+  :'u3_other_sales_membership',
+  '{"disposition":"succeeded","evidence_ref":"synthetic:u3:historical-owner"}',
+  '2026-08-24T08:00:02Z'
+);
 
 -- Sharing a canonical client does not make a different lead the exact owner
 -- of this conversation.

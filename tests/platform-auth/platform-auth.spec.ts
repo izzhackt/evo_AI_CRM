@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 
 type Identity = Readonly<{ email: string; password: string }>;
+type ProvisionableIdentity = Identity & Readonly<{ authUserId: string }>;
 type ConversationFixture = Readonly<{
   id: string;
   subject: string;
@@ -130,7 +131,7 @@ type Fixture = Readonly<{
     crossOrgStudent: Identity;
     lifecycleStudent: Identity;
     blocked: Identity;
-    noMembership: Identity;
+    noMembership: ProvisionableIdentity;
     revocableCurator: Identity;
   }>;
   conversations: Readonly<{
@@ -907,6 +908,55 @@ test("U1 Admin manages individual sensitive permissions while UI, RPC and RLS de
   );
   expect([401, 403]).toContain(nonAdminDirectRead.status);
 
+  const deniedMembershipId = randomUUID();
+  for (const [rpcName, args] of [
+    [
+      "provision_pilot_staff_member",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_member_auth_user_id: randomUUID(),
+        p_member_display_name: "Denied non-Admin provision",
+        p_role: "sales",
+        p_reason: "U1 non-Admin provisioning denial",
+        p_request_id: randomUUID(),
+      },
+    ],
+    [
+      "change_pilot_staff_role",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_membership_id: deniedMembershipId,
+        p_new_role: "curator",
+        p_reason: "U1 non-Admin role denial",
+        p_request_id: randomUUID(),
+      },
+    ],
+    [
+      "change_pilot_staff_status",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_membership_id: deniedMembershipId,
+        p_new_status: "suspended",
+        p_reason: "U1 non-Admin status denial",
+        p_request_id: randomUUID(),
+      },
+    ],
+    [
+      "change_membership_permission",
+      {
+        p_organization_id: fixture.p5b.organizationId,
+        p_membership_id: deniedMembershipId,
+        p_permission_key: "contract.evidence.confirm",
+        p_granted: true,
+        p_reason: "U1 non-Admin permission denial",
+        p_request_id: randomUUID(),
+      },
+    ],
+  ] as const) {
+    const deniedMutation = await platformRpc(salesTokenBefore, rpcName, args);
+    expect(deniedMutation.status, `${rpcName}-non-admin-denial`).toBe(403);
+  }
+
   const deniedContext = await browser.newContext();
   const deniedPage = await deniedContext.newPage();
   await login(deniedPage, fixture.identities.salesScoped);
@@ -916,8 +966,69 @@ test("U1 Admin manages individual sensitive permissions while UI, RPC and RLS de
   await deniedContext.close();
 
   await login(page, fixture.identities.admin);
-  await page.goto(settingsPath);
+  const settingsNav = page
+    .locator(".staff-sidebar")
+    .getByRole("link", { name: "Настройки", exact: true });
+  await expect(settingsNav).toHaveAttribute("href", settingsPath);
+  await settingsNav.click();
   await expect(page.getByTestId("platform-staff-settings")).toBeVisible();
+  await expect(page.getByTestId("platform-audit-settings-link")).toHaveCount(0);
+
+  const lifecycleDisplayName = "Synthetic U1 UI lifecycle";
+  const provisionForm = page.getByTestId("platform-staff-provision");
+  await provisionForm
+    .locator('input[name="auth_user_id"]')
+    .fill(fixture.identities.noMembership.authUserId);
+  await provisionForm
+    .locator('input[name="display_name"]')
+    .fill(lifecycleDisplayName);
+  await provisionForm.locator('select[name="role"]').selectOption("sales");
+  await provisionForm
+    .locator('input[name="reason"]')
+    .fill("U1 browser provisioning lifecycle proof");
+  await provisionForm.getByRole("button", { name: "Добавить" }).click();
+  await expect(page).toHaveURL(/staff_result=provisioned/);
+
+  const lifecycleRow = page.getByTestId("platform-staff-row").filter({
+    hasText: lifecycleDisplayName,
+  });
+  await expect(lifecycleRow).toHaveCount(1);
+  await expect(lifecycleRow).toContainText("Sales Manager");
+
+  const provisionedContext = await browser.newContext();
+  const provisionedPage = await provisionedContext.newPage();
+  await login(provisionedPage, fixture.identities.noMembership);
+  await expect(provisionedPage).toHaveURL(/\/sales$/);
+  await provisionedContext.close();
+
+  const roleForm = lifecycleRow.getByTestId("platform-staff-role");
+  await roleForm.locator('select[name="role"]').selectOption("curator");
+  await roleForm
+    .locator('input[name="reason"]')
+    .fill("U1 browser role lifecycle proof");
+  await roleForm.getByRole("button", { name: "Изменить роль" }).click();
+  await expect(page).toHaveURL(/staff_result=role_changed/);
+  await expect(lifecycleRow).toContainText("Admissions Manager");
+
+  for (const [status, label] of [
+    ["invited", "Приглашён"],
+    ["active", "Активен"],
+    ["suspended", "Приостановлен"],
+    ["active", "Активен"],
+    ["inactive", "Неактивен"],
+    ["active", "Активен"],
+    ["blocked", "Заблокирован"],
+  ] as const) {
+    const statusForm = lifecycleRow.getByTestId("platform-staff-status");
+    await statusForm.locator('select[name="status"]').selectOption(status);
+    await statusForm
+      .locator('input[name="reason"]')
+      .fill(`U1 browser ${status} lifecycle proof`);
+    await statusForm.getByRole("button", { name: "Изменить статус" }).click();
+    await expect(page).toHaveURL(/staff_result=status_changed/);
+    await expect(lifecycleRow).toContainText(label);
+  }
+
   const salesRow = page.getByTestId("platform-staff-row").filter({
     hasText: "Synthetic sales-scoped",
   });
@@ -3578,6 +3689,7 @@ test("P7A searches and exports safe organization audit evidence through connecte
   expectLegacyDatabaseUntouched();
 
   const exportPath = "/api/platform-audit/export";
+  const staffSettingsPath = "/settings?tab=staff";
   const settingsPath = "/settings?tab=audit";
   const safePrivateValues = [
     fixture.p7a.privatePrincipal,
@@ -3604,8 +3716,15 @@ test("P7A searches and exports safe organization audit evidence through connecte
   const settingsNav = page
     .locator(".staff-sidebar")
     .getByRole("link", { name: "Настройки", exact: true });
-  await expect(settingsNav).toHaveAttribute("href", settingsPath);
+  await expect(settingsNav).toHaveAttribute("href", staffSettingsPath);
   await settingsNav.click();
+  await expect(page).toHaveURL(
+    new RegExp(`${escapePathForRegex(staffSettingsPath)}$`),
+  );
+  await expect(page.getByTestId("platform-staff-settings")).toBeVisible();
+  const auditSettingsLink = page.getByTestId("platform-audit-settings-link");
+  await expect(auditSettingsLink).toHaveAttribute("href", settingsPath);
+  await auditSettingsLink.click();
   await expect(page).toHaveURL(new RegExp(`${escapePathForRegex(settingsPath)}$`));
   await expect(
     page

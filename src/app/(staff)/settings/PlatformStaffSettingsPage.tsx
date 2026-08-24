@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import {
   Badge,
   Card,
@@ -23,6 +25,7 @@ import {
   requirePlatformStaffAdminActor,
   type PlatformStaffMember,
 } from "@/lib/platform-staff-directory";
+import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
 
 type SettingsSearchParams = Record<string, string | string[] | undefined>;
 
@@ -125,7 +128,11 @@ function MemberRow({ member }: { member: PlatformStaffMember }) {
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <form action={changePlatformStaffRoleAction} className="grid gap-2">
+        <form
+          action={changePlatformStaffRoleAction}
+          className="grid gap-2"
+          data-testid="platform-staff-role"
+        >
           <input name="membership_id" type="hidden" value={member.membershipId} />
           <label className={labelCls}>Роль пилота</label>
           <select className={inputCls} defaultValue={member.role} name="role">
@@ -143,7 +150,11 @@ function MemberRow({ member }: { member: PlatformStaffMember }) {
           </button>
         </form>
 
-        <form action={changePlatformStaffStatusAction} className="grid gap-2">
+        <form
+          action={changePlatformStaffStatusAction}
+          className="grid gap-2"
+          data-testid="platform-staff-status"
+        >
           <input name="membership_id" type="hidden" value={member.membershipId} />
           <label className={labelCls}>Статус доступа</label>
           <select className={inputCls} defaultValue={member.status} name="status">
@@ -184,6 +195,7 @@ export default async function PlatformStaffSettingsPage({
   const actor = await requirePlatformStaffAdminActor();
   const members = await listPlatformStaffMembers(actor);
   const outcome = readOutcome(searchParams);
+  const auditEnabled = isPlatformP7AAuditEnabled();
 
   return (
     <div className="grid gap-5" data-testid="platform-staff-settings">
@@ -191,6 +203,18 @@ export default async function PlatformStaffSettingsPage({
         title="Доступ сотрудников"
         description="Один Supabase-вход, три роли пилота и личные чувствительные разрешения. Каждое изменение проверяет живая база и попадает в аудит."
       />
+      <nav aria-label="Разделы настроек" className="flex flex-wrap gap-2">
+        <span aria-current="page" className={btnCls}>Доступ сотрудников</span>
+        {auditEnabled ? (
+          <Link
+            className={btnGhostCls}
+            data-testid="platform-audit-settings-link"
+            href="/settings?tab=audit"
+          >
+            Журнал аудита
+          </Link>
+        ) : null}
+      </nav>
       {outcome ? (
         <Card data-testid="platform-staff-outcome">
           <p className="text-[13px] text-fg">{OUTCOME_MESSAGES[outcome]}</p>
@@ -203,7 +227,11 @@ export default async function PlatformStaffSettingsPage({
           Сначала создайте пользователя в Supabase Auth, затем свяжите его UUID
           с одной персональной записью EVO. Пароль здесь не хранится.
         </p>
-        <form action={provisionPlatformStaffMemberAction} className="grid gap-3 lg:grid-cols-2">
+        <form
+          action={provisionPlatformStaffMemberAction}
+          className="grid gap-3 lg:grid-cols-2"
+          data-testid="platform-staff-provision"
+        >
           <div className="grid gap-1">
             <label className={labelCls} htmlFor="staff-auth-user-id">UUID пользователя Auth</label>
             <input className={inputCls} id="staff-auth-user-id" name="auth_user_id" required />

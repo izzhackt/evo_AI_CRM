@@ -770,7 +770,7 @@ const provisionMembership = async (
   role,
 ) => {
   if (["admin", "sales", "curator"].includes(role)) {
-    await rpc(
+    const provisioned = await rpc(
       adminIdentity,
       "provision_pilot_staff_member",
       [
@@ -782,6 +782,10 @@ const provisionMembership = async (
         randomUUID(),
       ],
       `${identity.label}-provision`,
+    );
+    assert(
+      provisioned?.organization_scope_assigned === true,
+      `${identity.label}-pilot-provision-missing-organization-scope`,
     );
   } else {
     // Student Portal and retired Finance identities are historical Storage
@@ -820,17 +824,19 @@ const provisionMembership = async (
     );
   }
   const membership = membershipFor(identity);
-  await rpc(
-    adminIdentity,
-    "assign_organization_scope",
-    [
-      organizationId,
-      membership.id,
-      "local P2H Storage organization scope",
-      randomUUID(),
-    ],
-    `${identity.label}-organization-scope`,
-  );
+  if (!["admin", "sales", "curator"].includes(role)) {
+    await rpc(
+      adminIdentity,
+      "assign_organization_scope",
+      [
+        organizationId,
+        membership.id,
+        "local P2H Storage organization scope",
+        randomUUID(),
+      ],
+      `${identity.label}-organization-scope`,
+    );
+  }
   return membershipFor(identity);
 };
 

@@ -964,7 +964,7 @@ const rpc = async (adminIdentity, routineName, orderedValues) => {
 
 const provisionMembership = async (adminIdentity, organizationId, identity, role) => {
   if (["admin", "sales", "curator"].includes(role)) {
-    await rpc(adminIdentity, "provision_pilot_staff_member", [
+    const provisioned = await rpc(adminIdentity, "provision_pilot_staff_member", [
       organizationId,
       identity.userId,
       `Synthetic ${identity.label}`,
@@ -972,6 +972,10 @@ const provisionMembership = async (adminIdentity, organizationId, identity, role
       "local Auth hook smoke provision",
       randomUUID(),
     ]);
+    assert(
+      provisioned?.organization_scope_assigned === true,
+      `${identity.label}-pilot-provision-missing-organization-scope`,
+    );
   } else {
     // Student Portal and the retired Finance-role fixtures remain historical
     // test setup only. The authenticated U1 provisioning API intentionally
@@ -1008,7 +1012,7 @@ const provisionMembership = async (adminIdentity, organizationId, identity, role
     );
   }
   const membership = membershipFor(identity);
-  if (role !== "admin") {
+  if (!["admin", "sales", "curator"].includes(role)) {
     await rpc(adminIdentity, "assign_organization_scope", [
       organizationId,
       membership.id,
@@ -4442,6 +4446,7 @@ const main = async () => {
           noMembership: {
             email: identities.noMembership.email,
             password: identities.noMembership.password,
+            authUserId: identities.noMembership.userId,
           },
         },
         conversations: {

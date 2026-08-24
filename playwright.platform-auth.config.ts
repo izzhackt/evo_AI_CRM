@@ -4,7 +4,11 @@ import path from "node:path";
 
 const projectRoot = __dirname;
 
-type Identity = Readonly<{ email: string; password: string }>;
+type Identity = Readonly<{
+  email: string;
+  password: string;
+  authUserId?: string;
+}>;
 type Fixture = Readonly<{
   apiUrl: string;
   publishableKey: string;
@@ -371,7 +375,8 @@ if (
 }
 if (
   !/^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/.test(fixture.apiUrl) ||
-  !fixture.publishableKey.startsWith("sb_publishable_")
+  !fixture.publishableKey.startsWith("sb_publishable_") ||
+  !uuidPattern.test(fixture.identities.noMembership.authUserId ?? "")
 ) {
   throw new Error("Platform Auth fixture must target disposable local Supabase");
 }

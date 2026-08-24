@@ -145,6 +145,12 @@ export default async function PlatformAuditSettingsPage({
         title={t("platformAuditTitle")}
         description={t("platformAuditDescription")}
       />
+      <nav aria-label="Разделы настроек" className="flex flex-wrap gap-2">
+        <Link className={btnGhostCls} href="/settings?tab=staff">
+          Доступ сотрудников
+        </Link>
+        <span aria-current="page" className={btnCls}>Журнал аудита</span>
+      </nav>
 
       <ContextBanner
         title={t("platformAuditSafeProjectionTitle")}

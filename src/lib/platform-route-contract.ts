@@ -134,6 +134,20 @@ export function isConnectedPlatformStaffSettingsRequest(
   return true;
 }
 
+export function isConnectedPlatformSettingsRequest(
+  path: string,
+  searchParams: URLSearchParams,
+  { auditEnabled }: { auditEnabled: boolean },
+): boolean {
+  return (
+    isConnectedPlatformStaffSettingsRequest(path, searchParams) ||
+    (
+      auditEnabled &&
+      isConnectedPlatformAuditSettingsRequest(path, searchParams)
+    )
+  );
+}
+
 export function isConnectedPlatformAuditExportApi(path: string): boolean {
   return path === PLATFORM_AUDIT_EXPORT_PATH;
 }

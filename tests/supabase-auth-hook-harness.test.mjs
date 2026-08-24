@@ -87,7 +87,7 @@ test("Auth smoke emits one dedicated revocable browser actor", () => {
   );
 });
 
-test("Auth smoke relies on atomic Admin scope provisioning without a duplicate assignment", () => {
+test("Auth smoke relies on atomic pilot scope provisioning without duplicate assignment", () => {
   const helperStart = authHook.indexOf("const provisionMembership = async");
   const helperEnd = authHook.indexOf(
     "const persistSyntheticFixtureEvent",
@@ -97,13 +97,20 @@ test("Auth smoke relies on atomic Admin scope provisioning without a duplicate a
 
   assert.notEqual(helperStart, -1);
   assert.notEqual(helperEnd, -1);
-  assert.match(helper, /if \(role !== "admin"\) \{/);
+  assert.match(
+    helper,
+    /provisioned\?\.organization_scope_assigned === true/,
+  );
+  assert.match(
+    helper,
+    /if \(!\["admin", "sales", "curator"\]\.includes\(role\)\) \{/,
+  );
   assert.equal(
     (helper.match(/"assign_organization_scope"/g) ?? []).length,
     1,
   );
   assert.ok(
-    helper.indexOf('if (role !== "admin") {') <
+    helper.indexOf('if (!["admin", "sales", "curator"].includes(role)) {') <
       helper.indexOf('"assign_organization_scope"'),
   );
 });

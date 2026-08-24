@@ -4,9 +4,9 @@ import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 import {
   isConnectedPlatformApi,
   isConnectedPlatformAuditExportApi,
-  isConnectedPlatformAuditSettingsRequest,
   isConnectedPlatformPrivateApi,
   isConnectedPlatformPage,
+  isConnectedPlatformSettingsRequest,
   isDirectPlatformStaffAssistantApi,
 } from "@/lib/platform-route-contract";
 import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
@@ -150,10 +150,9 @@ export async function proxy(request: NextRequest) {
   const auditEnabled = isPlatformP7AAuditEnabled();
   if (
     path === "/settings" &&
-    (
-      !auditEnabled ||
-      !isConnectedPlatformAuditSettingsRequest(path, request.nextUrl.searchParams)
-    )
+    !isConnectedPlatformSettingsRequest(path, request.nextUrl.searchParams, {
+      auditEnabled,
+    })
   ) {
     return blockedPlatformRoute(request, id);
   }

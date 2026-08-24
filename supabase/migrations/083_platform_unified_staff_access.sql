@@ -494,6 +494,10 @@ VOLATILE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  provisioned_result JSONB;
+  scope_result JSONB;
+  scope_request_id UUID;
 BEGIN
   IF p_role IS NULL OR p_role::TEXT NOT IN ('admin', 'sales', 'curator') THEN
     RAISE EXCEPTION
@@ -501,7 +505,7 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
-  RETURN platform.provision_member(
+  provisioned_result := platform.provision_member(
     p_organization_id,
     p_member_auth_user_id,
     p_member_display_name,
@@ -509,6 +513,33 @@ BEGIN
     p_reason,
     p_request_id
   );
+
+  -- The historical provisioner assigned the organization scope only to Admin.
+  -- Every U1 staff actor needs that same live scope, so append it inside this
+  -- transaction before returning success. A deterministic child request ID
+  -- preserves idempotent retries while keeping both audit events immutable.
+  IF NOT COALESCE(
+    (provisioned_result ->> 'organization_scope_assigned')::BOOLEAN,
+    FALSE
+  ) THEN
+    scope_request_id := md5(
+      p_request_id::TEXT || ':u1-pilot-organization-scope'
+    )::UUID;
+    scope_result := platform.assign_organization_scope(
+      p_organization_id,
+      (provisioned_result ->> 'membership_id')::UUID,
+      p_reason,
+      scope_request_id
+    );
+    provisioned_result := provisioned_result || jsonb_build_object(
+      'organization_scope_assigned', TRUE,
+      'organization_scope_assignment_version',
+        (scope_result ->> 'assignment_version')::BIGINT,
+      'access_version', (scope_result ->> 'access_version')::BIGINT
+    );
+  END IF;
+
+  RETURN provisioned_result;
 END
 $$;
 

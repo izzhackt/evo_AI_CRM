@@ -80,6 +80,9 @@ test("only audited U1 RPCs are reachable from the connected Admin surface", () =
   assert.match(actions, /change_pilot_staff_role/);
   assert.match(actions, /change_pilot_staff_status/);
   assert.match(actions, /change_membership_permission/);
+  assert.match(migration, /platform\.assign_organization_scope\(/);
+  assert.match(migration, /:u1-pilot-organization-scope/);
+  assert.match(migration, /'organization_scope_assigned', TRUE/);
   assert.doesNotMatch(actions, /service[_-]?role/i);
   assert.match(directory, /platformRole !== "admin"/);
   assert.match(settings, /Подтверждение первого платежа/);

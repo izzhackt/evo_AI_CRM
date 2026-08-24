@@ -86,6 +86,10 @@ Only Admin may use the connected lifecycle RPCs. The old broad provisioning,
 role and status functions are no longer executable by authenticated clients;
 the U1 wrappers reject `finance` and `student` assignments. Direct writes to
 membership and permission-event tables have no browser grants or policies.
+Provisioning appends the required organization scope inside the same database
+transaction before it reports success. The scope assignment has its own
+deterministic child request ID and immutable audit event, so a failed scope
+assignment rolls the membership back and an exact retry remains idempotent.
 
 Every successful provision, role change, status change or sensitive-permission
 change records the actor, target, organization, before/after values, reason,
@@ -125,8 +129,8 @@ The clean U1 worktree based on
   harness removed its disposable resources;
 - `npm run test:security:postgres`: the full isolated PostgreSQL authorization
   harness passed;
-- `npm run test:unit`: 655/655 tests passed;
-- `npm run test:security:node`: 598/598 tests passed after building the local
+- `npm run test:unit`: 656/656 tests passed;
+- `npm run test:security:node`: 599/599 tests passed after building the local
   `better-sqlite3` native test dependency for Node `22.23.1`;
 - `npm run lint` and `npm run build`: both passed, including TypeScript and the
   production Next.js build.

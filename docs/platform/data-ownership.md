@@ -259,10 +259,12 @@ future cutover проверяются отдельно. `chat-media` уже priv
 ### Manual finance
 
 EVO Platform является manual operational finance source v1 и отдельно хранит
-EVO service fee и third-party study cost. Подтверждать obligation, payment,
-refund или stop factor может только индивидуальный staff actor с действующим
-explicit payment-confirmation permission; название роли само по себе права не
-даёт. Сумма хранится целым числом в
+EVO service fee и third-party study cost. В U1 подтверждение payment/refund
+event через существующий `finance.event.confirm` требует действующего
+индивидуального `finance.first.payment.confirm`; название роли само по себе это
+право не даёт. Создание obligation и управление stop factor пока остаются под
+bundle permissions `finance.manage` и `finance.stop.manage` соответственно;
+индивидуальное permission для них не заявляется. Сумма хранится целым числом в
 минимальной единице одной currency; payment не может превысить остаток, а
 refund обязан ссылаться на exact confirmed payment и не может превысить его
 невернутую часть. Actor, effective time, source, evidence и request key

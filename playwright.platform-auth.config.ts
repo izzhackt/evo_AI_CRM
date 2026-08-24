@@ -268,6 +268,7 @@ if (
     "p6d",
     "p7a",
     "p7b",
+    "u2",
     "remaining",
   ].includes(
     platformAuthBrowserPartition,

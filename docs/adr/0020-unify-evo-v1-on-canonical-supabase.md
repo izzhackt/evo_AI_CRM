@@ -6,7 +6,7 @@
 - Decision owner: EVO product owner
 - Parent product contract: GitHub issue #376
 - First execution slice: GitHub issue #377 (U0)
-- Current execution slice: GitHub issue #378 (U1; U0 merged)
+- Current execution slice: GitHub issue #379 (U2; U0 and U1 merged)
 - Starting repository baseline:
   `31d26b6e6bdc8a96fcf9f48210e417d43619370d`
 - Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`

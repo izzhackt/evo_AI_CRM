@@ -233,6 +233,7 @@ test("Platform route contract admits exact admissions pages and one UUID segment
   for (const path of ["/sales", "/clients", "/applications"]) {
     assert.equal(isConnectedPlatformPage(path), true, path);
   }
+  assert.equal(isConnectedPlatformPage(`/sales/${CASE_ID}`), true);
   assert.equal(isConnectedPlatformPage(`/clients/${CASE_ID}`), true);
   assert.equal(
     isConnectedPlatformPage(`/applications/${APPLICATION_ID}`),
@@ -241,7 +242,7 @@ test("Platform route contract admits exact admissions pages and one UUID segment
 
   for (const path of [
     "/sales/1",
-    `/sales/${CASE_ID}`,
+    `/sales/${CASE_ID}/history`,
     "/clients/12",
     `/clients/${CASE_ID}/documents`,
     "/applications/not-a-uuid",
@@ -445,10 +446,10 @@ test("connected Platform runtime modules do not statically import SQLite or lega
     "src/components/platform/core/SalesQuickAdd.tsx",
     "src/app/(staff)/clients/page.tsx",
     "src/app/(staff)/clients/ClientsPageContent.tsx",
-    "src/app/(staff)/clients/PlatformClientsPage.tsx",
+    "src/app/(staff)/clients/ConnectedCanonicalClients.tsx",
     "src/app/(staff)/clients/[id]/page.tsx",
     "src/app/(staff)/clients/[id]/ClientPageContent.tsx",
-    "src/app/(staff)/clients/[id]/PlatformClientPage.tsx",
+    "src/app/(staff)/clients/[id]/ConnectedCanonicalClientDetail.tsx",
     "src/app/(staff)/applications/page.tsx",
     "src/app/(staff)/applications/ApplicationsPresenter.tsx",
     "src/app/(staff)/applications/PlatformApplicationsPage.tsx",
@@ -510,6 +511,12 @@ test("normal staff routes keep one accepted renderer instead of parallel Platfor
   assert.match(clientRoute, /ClientPageContent/);
   assert.doesNotMatch(clientsRoute, /(?:Legacy|Platform)ClientsPage/);
   assert.doesNotMatch(clientRoute, /(?:Legacy|Platform)ClientPage/);
+  const clientRenderer = readFileSync(
+    new URL("../src/app/(staff)/clients/[id]/ClientPageContent.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(clientRenderer, /ConnectedStudentCaseDetail/);
+  assert.match(clientRenderer, /getPlatformCanonicalClient/);
 
   const applicationsRoute = readFileSync(
     new URL("../src/app/(staff)/applications/page.tsx", import.meta.url),
@@ -526,17 +533,20 @@ test("normal staff routes keep one accepted renderer instead of parallel Platfor
 });
 
 test("sales handoff summary keeps sales stage labels distinct from case state labels", () => {
-  const clientPageSource = readFileSync(
-    new URL("../src/app/(staff)/clients/[id]/ClientPageContent.tsx", import.meta.url),
+  const leadDetailSource = readFileSync(
+    new URL(
+      "../src/components/platform/core/CanonicalLeadDetail.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
   assert.match(
-    clientPageSource,
-    /const stageLabel = \(stage: string\) =>[\s\S]*: t\(`stage\.\$\{stage\}`\);/,
+    leadDetailSource,
+    /stage:\s*"Текущий этап EVO"/,
   );
   assert.doesNotMatch(
-    clientPageSource,
-    /const stageLabel = \(stage: string\) =>[\s\S]*: t\(`caseState\.\$\{stage\}`\);/,
+    leadDetailSource,
+    /caseState\./,
   );
 });
 
@@ -552,115 +562,79 @@ test("mutation forms preserve a validated render-time request id across uncertai
   assert.match(actionSource, /buildPlatformAdmissionsRedirectUrl/);
   assert.match(redirectSource, /retry_request_id/);
   for (const file of [
-    "src/app/(staff)/clients/[id]/PlatformClientPage.tsx",
     "src/app/(staff)/applications/PlatformApplicationsPage.tsx",
     "src/app/(staff)/applications/[id]/PlatformApplicationPage.tsx",
   ]) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     assert.match(source, /parsePlatformAdmissionsUuid\(query\.retry_request_id\)/);
   }
-});
-
-test("connected Student 360 wires Admin assignment to the audited Supabase RPC", () => {
-  const actionSource = readFileSync(
-    new URL("../src/lib/platform-admissions-actions.ts", import.meta.url),
-    "utf8",
-  );
-  const adapterSource = readFileSync(
+  const canonicalClientSource = readFileSync(
     new URL(
-      "../src/app/(staff)/clients/[id]/PlatformClientPage.tsx",
+      "../src/app/(staff)/clients/[id]/ConnectedCanonicalClientDetail.tsx",
       import.meta.url,
     ),
     "utf8",
   );
-  const presentationSource = readFileSync(
+  assert.doesNotMatch(canonicalClientSource, /retry_request_id/);
+});
+
+test("connected canonical clients use the bounded canonical detail adapter instead of Student 360 authority", () => {
+  const adapterSource = readFileSync(
+    new URL(
+      "../src/app/(staff)/clients/[id]/ConnectedCanonicalClientDetail.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const rendererSource = readFileSync(
     new URL(
       "../src/app/(staff)/clients/[id]/ClientPageContent.tsx",
       import.meta.url,
     ),
     "utf8",
   );
-  assert.match(actionSource, /assignPlatformStudentCaseCuratorAction/);
-  assert.match(actionSource, /"assign_student_case_curator"/);
-  assert.match(actionSource, /p_curator_membership_id: curatorMembershipId/);
-  assert.match(adapterSource, /listPlatformActiveCurators\(actor\)/);
-  assert.match(adapterSource, /assignCurator: actor\.platformRole === "admin"/);
-  assert.match(presentationSource, /data-testid="curator-assignment-form"/);
-  assert.match(
-    presentationSource,
-    /name="request_id"[\s\S]*value=\{data\.lifecycleRequestId\}/,
-  );
-});
-
-test("connected Student 360 labels its bounded application preview and lower-bound metric", () => {
-  const adapterSource = readFileSync(
+  const detailSource = readFileSync(
     new URL(
-      "../src/app/(staff)/clients/[id]/PlatformClientPage.tsx",
+      "../src/components/platform/core/CanonicalClientDetail.tsx",
       import.meta.url,
     ),
     "utf8",
   );
-  const presentationSource = readFileSync(
+
+  assert.match(adapterSource, /getPlatformCanonicalClient\(actor,\s*id\)/);
+  assert.match(adapterSource, /CanonicalClientDetail client=\{client\}/);
+  assert.match(rendererSource, /ConnectedStudentCaseDetail/);
+  assert.match(rendererSource, /getPlatformCanonicalClient\(actor,\s*id\)/);
+  assert.match(detailSource, /data-testid="canonical-client-detail"/);
+  assert.match(detailSource, /linkedCases/);
+  assert.match(detailSource, /linkedConversations/);
+});
+
+test("connected canonical client detail keeps Student 360 context secondary and removes legacy mutation forms", () => {
+  const rendererSource = readFileSync(
     new URL(
       "../src/app/(staff)/clients/[id]/ClientPageContent.tsx",
       import.meta.url,
     ),
     "utf8",
   );
-  const copySource = readFileSync(
-    new URL("../src/lib/i18n-data.ts", import.meta.url),
+  const detailSource = readFileSync(
+    new URL(
+      "../src/components/platform/core/CanonicalClientDetail.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
-
-  assert.match(
-    adapterSource,
-    /summarizePlatformStudentCaseApplicationPreview\([\s\S]*applicationRows\.hasNext/,
-  );
-  assert.match(
-    presentationSource,
-    /applicationsArePartial\s*\?\s*`≥\$\{num\(activeApps\)\}`\s*:\s*num\(activeApps\)/,
-  );
-  assert.match(
-    presentationSource,
-    /data-testid="platform-application-preview-partial"/,
-  );
-  assert.match(presentationSource, /applicationsFullListHref/);
-  for (const key of [
-    "activeApplicationsLowerBound",
-    "applicationsPreviewPartial",
-    "applicationsFullList",
-  ]) {
-    assert.equal(
-      copySource.match(new RegExp(`\\b${key}:`, "g"))?.length,
-      3,
-      key,
-    );
-  }
-});
-
-test("Student 360 completes a nullable route before immutable checklist binding", () => {
-  const actionSource = readFileSync(
+  const admissionsActionSource = readFileSync(
     new URL("../src/lib/platform-admissions-actions.ts", import.meta.url),
     "utf8",
   );
-  assert.match(actionSource, /rpc\(\s*["']set_student_case_route["']/);
-  assert.match(actionSource, /p_program_direction:\s*programDirection/);
-  assert.match(actionSource, /p_route_approval_status:\s*["']draft["']/);
-  assert.match(actionSource, /response\.data\.program_direction !== programDirection/);
 
-  const connectedPage = readFileSync(
-    new URL("../src/app/(staff)/clients/[id]/PlatformClientPage.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.match(connectedPage, /updateStudentRoute:\s*updatePlatformStudentCaseRouteAction/);
-  assert.match(connectedPage, /programDirection:\s*studentCase\.programDirection/);
-  assert.match(connectedPage, /canEditStudentRoute:[\s\S]*!appliedCountryRequirement/);
-
-  const renderer = readFileSync(
-    new URL("../src/app/(staff)/clients/[id]/ClientPageContent.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.match(renderer, /data-testid="platform-student-route-gate"/);
-  assert.match(renderer, /name="program_direction"/);
-  assert.match(renderer, /name="reason"/);
+  assert.match(admissionsActionSource, /assignPlatformStudentCaseCuratorAction/);
+  assert.match(admissionsActionSource, /updatePlatformStudentCaseRouteAction/);
+  assert.doesNotMatch(rendererSource, /curator-assignment-form/);
+  assert.doesNotMatch(rendererSource, /platform-student-route-gate/);
+  assert.doesNotMatch(detailSource, /name="program_direction"/);
+  assert.doesNotMatch(detailSource, /name="reason"/);
+  assert.match(detailSource, /CanonicalLinkedContext/);
 });

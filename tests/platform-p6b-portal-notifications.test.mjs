@@ -313,7 +313,7 @@ test("accepted portal renders the durable feed above no fake IDs and badges only
   }
 });
 
-test("Student 360 exposes only a bounded negative current-version review action", () => {
+test("the bounded document-review action remains safe while U2 canonical client detail stays read-only", () => {
   const action = readFileSync(
     new URL(
       "../src/lib/platform-document-review-actions.ts",
@@ -323,14 +323,14 @@ test("Student 360 exposes only a bounded negative current-version review action"
   );
   const adapter = readFileSync(
     new URL(
-      "../src/app/(staff)/clients/[id]/PlatformClientPage.tsx",
+      "../src/app/(staff)/clients/[id]/ConnectedCanonicalClientDetail.tsx",
       import.meta.url,
     ),
     "utf8",
   );
   const renderer = readFileSync(
     new URL(
-      "../src/app/(staff)/clients/[id]/ClientPageContent.tsx",
+      "../src/components/platform/core/CanonicalClientDetail.tsx",
       import.meta.url,
     ),
     "utf8",
@@ -355,16 +355,13 @@ test("Student 360 exposes only a bounded negative current-version review action"
   }
   assert.doesNotMatch(action, /better-sqlite3|edu_session|individual_whatsapp|waha/i);
 
-  assert.match(adapter, /reviewPlatformDocumentVersionAction/);
-  assert.match(adapter, /documentVersionId:\s*document\.documentVersionId/);
-  assert.match(adapter, /canReview:/);
-  assert.match(renderer, /data-testid="platform-document-review-form"/);
-  assert.match(renderer, /name="document_version_id"/);
-  assert.match(renderer, /name="decision"/);
-  assert.match(renderer, /name="reason"/);
-  assert.match(renderer, /name="request_id"/);
-  assert.match(renderer, /data-testid="platform-document-review-submit"/);
-  assert.doesNotMatch(renderer, /value="approved"/);
+  assert.match(adapter, /getPlatformCanonicalClient\(actor, id\)/);
+  assert.match(adapter, /<CanonicalClientDetail/);
+  assert.doesNotMatch(adapter, /reviewPlatformDocumentVersionAction|canReview/);
+  assert.doesNotMatch(
+    renderer,
+    /platform-document-review-form|document_version_id|platform-document-review-submit/,
+  );
   assert.ok(
     action.indexOf("listPlatformStudentCaseDocuments") <
       action.indexOf(

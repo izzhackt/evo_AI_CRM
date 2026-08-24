@@ -1,14 +1,33 @@
 import { randomUUID } from "node:crypto";
 
+import { notFound } from "next/navigation";
+
+import { getT } from "@/lib/i18n";
+import {
+  getPlatformStudentCaseView,
+  listPlatformApplicationsForStudentCase,
+  parsePlatformAdmissionsUuid,
+  summarizePlatformStudentCaseApplicationPreview,
+} from "@/lib/platform-admissions";
 import {
   assignPlatformStudentCaseCuratorAction,
   changePlatformStudentCaseStateAction,
   updatePlatformStudentCaseRouteAction,
 } from "@/lib/platform-admissions-actions";
 import {
-  applyPlatformCountryRequirementVersionAction,
-  updatePlatformStudentProfileAction,
-} from "@/lib/platform-student-profile-actions";
+  getPlatformStudentCaseAssignmentState,
+  listPlatformActiveCurators,
+} from "@/lib/platform-case-assignment";
+import {
+  getPlatformCaseVisa,
+  listPlatformCaseFinance,
+  PLATFORM_VISA_STATUSES,
+} from "@/lib/platform-case-operations";
+import {
+  createPlatformPaymentObligationAction,
+  settlePlatformPaymentObligationAction,
+  upsertPlatformCaseVisaAction,
+} from "@/lib/platform-case-operations-actions";
 import {
   approvePlatformContractTemplateVersionAction,
   createPlatformContractTemplateVersionAction,
@@ -20,40 +39,26 @@ import {
   seedPlatformPostContractItemsAction,
   updatePlatformPostContractItemAction,
 } from "@/lib/platform-contract-actions";
+import {
+  getPlatformCaseContractWorkspace,
+  PLATFORM_CONTRACT_MUTATION_OUTCOMES,
+} from "@/lib/platform-contract-workflow";
 import { reviewPlatformDocumentVersionAction } from "@/lib/platform-document-review-actions";
-import {
-  createPlatformPaymentObligationAction,
-  settlePlatformPaymentObligationAction,
-  upsertPlatformCaseVisaAction,
-} from "@/lib/platform-case-operations-actions";
-import {
-  getPlatformCaseVisa,
-  listPlatformCaseFinance,
-  PLATFORM_VISA_STATUSES,
-} from "@/lib/platform-case-operations";
-import { isPlatformP6BPortalNotificationsEnabled } from "@/lib/server/platform-p6b-portal-notifications";
-import {
-  getPlatformStudentCaseView,
-  listPlatformApplicationsForStudentCase,
-  parsePlatformAdmissionsUuid,
-  summarizePlatformStudentCaseApplicationPreview,
-} from "@/lib/platform-admissions";
-import {
-  getPlatformStudentCaseAssignmentState,
-  listPlatformActiveCurators,
-} from "@/lib/platform-case-assignment";
+import { requirePlatformClientsActor } from "@/lib/platform-guards";
 import {
   getPlatformStudentProfile,
   listPlatformCountryRequirementVersions,
   listPlatformStudentCaseDocuments,
 } from "@/lib/platform-student-profile";
 import {
-  getPlatformCaseContractWorkspace,
-  PLATFORM_CONTRACT_MUTATION_OUTCOMES,
-} from "@/lib/platform-contract-workflow";
-import { requirePlatformClientsActor } from "@/lib/platform-guards";
+  applyPlatformCountryRequirementVersionAction,
+  updatePlatformStudentProfileAction,
+} from "@/lib/platform-student-profile-actions";
+import { isPlatformP6BPortalNotificationsEnabled } from "@/lib/server/platform-p6b-portal-notifications";
 
-import type { ClientPagePresentationData } from "./ClientPageContent";
+import FixtureClientPage, {
+  type ClientPagePresentationData,
+} from "./FixtureClientPage";
 import type { ContractDraftReportResult } from "./ContractDraftReportWorkspace";
 
 type Query = {
@@ -69,17 +74,40 @@ type Query = {
   p6d_subject_id?: string;
 };
 
+type SearchParams = Readonly<Record<string, string | string[] | undefined>>;
+
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function normalizeQuery(searchParams: SearchParams): Query {
+  return {
+    result: first(searchParams.result),
+    retry_request_id: first(searchParams.retry_request_id),
+    bw6_result: first(searchParams.bw6_result),
+    bw6_retry_request_id: first(searchParams.bw6_retry_request_id),
+    bw6_retry_operation: first(searchParams.bw6_retry_operation),
+    bw6_subject_id: first(searchParams.bw6_subject_id),
+    p6d_result: first(searchParams.p6d_result),
+    p6d_retry_request_id: first(searchParams.p6d_retry_request_id),
+    p6d_retry_operation: first(searchParams.p6d_retry_operation),
+    p6d_subject_id: first(searchParams.p6d_subject_id),
+  };
+}
+
 function result(value: string | undefined) {
   return value === "saved" || value === "invalid" || value === "unavailable"
     ? value
     : undefined;
 }
 
-function contractResult(value: string | undefined): ContractDraftReportResult | undefined {
+function contractResult(
+  value: string | undefined,
+): ContractDraftReportResult | undefined {
   return value && PLATFORM_CONTRACT_MUTATION_OUTCOMES.includes(
     value as ContractDraftReportResult,
   )
-    ? value as ContractDraftReportResult
+    ? (value as ContractDraftReportResult)
     : undefined;
 }
 
@@ -129,36 +157,35 @@ export async function loadPlatformClientPageData(
     curatorOptions,
     caseVisa,
     caseFinance,
-  ] =
-    await Promise.all([
-      listPlatformApplicationsForStudentCase(actor, studentCase.studentCaseId, {
-        pageSize: 100,
-      }),
-      getPlatformStudentProfile(actor, studentCase.studentCaseId),
-      listPlatformStudentCaseDocuments(actor, studentCase.studentCaseId),
-      listPlatformCountryRequirementVersions(actor, studentCase.studentCaseId),
-      canReadContractWorkspace
-        ? getPlatformCaseContractWorkspace(actor, studentCase.studentCaseId)
-        : Promise.resolve(null),
-      getPlatformStudentCaseAssignmentState(actor, studentCase.studentCaseId),
-      actor.platformRole === "admin"
-        ? listPlatformActiveCurators(actor)
-        : Promise.resolve([]),
-      getPlatformCaseVisa(actor, studentCase.studentCaseId),
-      listPlatformCaseFinance(actor, studentCase.studentCaseId),
-    ]);
+  ] = await Promise.all([
+    listPlatformApplicationsForStudentCase(actor, studentCase.studentCaseId, {
+      pageSize: 100,
+    }),
+    getPlatformStudentProfile(actor, studentCase.studentCaseId),
+    listPlatformStudentCaseDocuments(actor, studentCase.studentCaseId),
+    listPlatformCountryRequirementVersions(actor, studentCase.studentCaseId),
+    canReadContractWorkspace
+      ? getPlatformCaseContractWorkspace(actor, studentCase.studentCaseId)
+      : Promise.resolve(null),
+    getPlatformStudentCaseAssignmentState(actor, studentCase.studentCaseId),
+    actor.platformRole === "admin"
+      ? listPlatformActiveCurators(actor)
+      : Promise.resolve([]),
+    getPlatformCaseVisa(actor, studentCase.studentCaseId),
+    listPlatformCaseFinance(actor, studentCase.studentCaseId),
+  ]);
   if (!assignmentState) return null;
+
   const appliedCountryRequirement =
     countryRequirementVersions.find((version) => version.isApplied) ?? null;
-  const applications = applicationRows.rows
-    .map((application) => ({
-      id: application.universityApplicationId,
-      university: application.institutionName,
-      country: application.targetCountry,
-      program: application.programName,
-      deadline: null,
-      status: application.status,
-    }));
+  const applications = applicationRows.rows.map((application) => ({
+    id: application.universityApplicationId,
+    university: application.institutionName,
+    country: application.targetCountry,
+    program: application.programName,
+    deadline: null,
+    status: application.status,
+  }));
   const applicationSummary = summarizePlatformStudentCaseApplicationPreview(
     applications,
     applicationRows.hasNext,
@@ -236,7 +263,9 @@ export async function loadPlatformClientPageData(
       && p6dRetryRequestId !== null
       && p6dRetrySubjectId === payment.paymentObligationId,
   }));
-  const contractRetryRequestId = parsePlatformAdmissionsUuid(query.bw6_retry_request_id);
+  const contractRetryRequestId = parsePlatformAdmissionsUuid(
+    query.bw6_retry_request_id,
+  );
   const contractRetrySubjectId = parsePlatformAdmissionsUuid(query.bw6_subject_id);
   const contractRequestIdFor = (operation: string, subjectId?: string): string => {
     const retryMatches = query.bw6_retry_operation === operation
@@ -491,4 +520,21 @@ export async function loadPlatformClientPageData(
     connected: true,
     testId: "platform-client-detail-page",
   };
+}
+
+export async function ConnectedStudentCaseDetail({
+  id,
+  searchParams,
+}: Readonly<{
+  id: string;
+  searchParams?: Promise<SearchParams>;
+}>) {
+  const [queryInput, { t, locale }] = await Promise.all([
+    searchParams ?? Promise.resolve({}),
+    getT(),
+  ]);
+  const data = await loadPlatformClientPageData(id, normalizeQuery(queryInput));
+  if (!data) notFound();
+
+  return <FixtureClientPage data={data} locale={locale} t={t} />;
 }

@@ -54,6 +54,7 @@ readonly P6C_BROWSER_TEST="P6C publishes deterministic overdue task and payment 
 readonly P6D_BROWSER_TEST="P6D closes the real Student 360 and Portal cross-domain loop with tenant isolation"
 readonly P7A_BROWSER_TEST="P7A searches and exports safe organization audit evidence through connected Settings"
 readonly P7B_BROWSER_TEST="P7B exposes signed private readiness and metrics without claiming provider health"
+readonly U2_BROWSER_TEST="U2 reads canonical EVO clients and leads through real Supabase with tenant isolation"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -75,7 +76,7 @@ prepare_platform_auth_tsconfig() {
   local tsconfig_path="${BROWSER_BUILD_DIR}/tsconfig-platform-auth-${partition}.json"
 
   case "${partition}" in
-    provider|p5b|p5c|p5d|p5e|p5f1|p5f3|p6a|p6b|p6c|p6d|p7a|p7b|remaining) ;;
+    provider|p5b|p5c|p5d|p5e|p5f1|p5f3|p6a|p6b|p6c|p6d|p7a|p7b|u2|remaining) ;;
     *) return 1 ;;
   esac
 
@@ -1655,6 +1656,47 @@ fi
 if ! set_p6c_runtime_control disable; then
   fail "Unable to disable the exact synthetic P6C organization runtime control; output was withheld."
 fi
+if ! run_with_deadline 240000 env \
+  EVO_P5B_BROWSER_PROOF=0 \
+  EVO_P5C_BROWSER_PROOF=0 \
+  EVO_P5D_BROWSER_PROOF=0 \
+  EVO_P5E_BROWSER_PROOF=0 \
+  EVO_P5F1_BROWSER_PROOF=0 \
+  EVO_P5F3_BROWSER_PROOF=0 \
+  EVO_P6A_BROWSER_PROOF=0 \
+  EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
+  EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_P7B_BROWSER_PROOF=0 \
+  EVO_PLATFORM_P7A_AUDIT_ENABLED=0 \
+  EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0 \
+  EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
+  EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_AMOCRM_READ_ENABLED=0 \
+  EVO_PLATFORM_GEMINI_PROPOSALS_ENABLED=0 \
+  EVO_PLATFORM_WAHA_INGRESS_ENABLED=0 \
+  EVO_PLATFORM_WAHA_WORKER_ENABLED=0 \
+  EVO_PLATFORM_WAHA_HISTORY_ENABLED=0 \
+  EVO_PLATFORM_WAHA_MEDIA_ENABLED=0 \
+  EVO_PLATFORM_AI_MEMORY_ENABLED=0 \
+  EVO_PLATFORM_AUTONOMOUS_REPLIES_ENABLED=0 \
+  EVO_PLATFORM_AUTONOMOUS_REPLIES_KILL_SWITCH=1 \
+  EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
+  EVO_PLATFORM_AUTH_BROWSER_PARTITION=u2 \
+  EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-u2.json" \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep "${U2_BROWSER_TEST}"; then
+  fail "U2 canonical client/lead connected browser proof failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop after the U2 browser partition."
+fi
 if ! run_with_deadline 660000 env \
   EVO_P5B_BROWSER_PROOF=0 \
   EVO_P5C_BROWSER_PROOF=0 \
@@ -1681,7 +1723,7 @@ if ! run_with_deadline 660000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}|${P7B_BROWSER_TEST}"; then
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}|${P7B_BROWSER_TEST}|${U2_BROWSER_TEST}"; then
   fail "Remaining real browser Platform Auth/staff-shell gate failed."
 fi
 if ! stop_exact_browser_server; then
@@ -1841,3 +1883,4 @@ printf 'Verified the disabled-by-default P6C signed worker publishes isolated du
 printf 'Verified the dedicated disabled-by-default P6D browser partition closes the accepted Student 360 and Portal loop for two same-organization Students with cross-tenant and wrong-object denials; this remains synthetic local evidence only.\n'
 printf 'Verified the dedicated disabled-by-default P7A browser partition searches and deterministically exports only the safe organization audit projection with role, tenant, raw-table and route denials; this remains synthetic local evidence only.\n'
 printf 'Verified the dedicated disabled-by-default P7B browser partition authenticates private readiness and Prometheus metrics while truthfully remaining not ready without current real-provider and restore evidence; no provider or production service was called.\n'
+printf 'Verified the dedicated U2 browser partition renders canonical EVO client/lead lists and details with bounded provenance, explicit empty states and cross-tenant absence through real local Auth/PostgREST; no provider or production service was called.\n'

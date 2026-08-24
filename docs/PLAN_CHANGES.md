@@ -10555,3 +10555,99 @@ managed-deployment, backup or rollback claim. Merge requires independent
 launch-control review and required CI on one immutable exact PR head, followed
 by exact-main validation and tree-equivalence evidence. Stop after #378; do not
 start U2/#379.
+
+## 2026-08-24 — Establish the canonical EVO client and lead model
+
+Date: 2026-08-24, workspace timezone (+06).
+Author: Codex implementing owner-approved issues #376 and #379.
+Change type: U2 canonical identity, ownership, stage, provenance, duplicate,
+authorization and connected-read contract.
+Source: GitHub issues #376 and #379; U0 and U1 completion on current `main`.
+Block-ID: `EVO-U2-CANONICAL-CLIENT-LEAD-2026-08-24`.
+Starting repository baseline: GitHub `origin/main` at
+`86b82bd8787dacc99774696d76360de88088d4e2`.
+Focused contract: `docs/platform/u2-canonical-client-lead.md`.
+
+Reason: merged U1 establishes one live staff authority, but the connected
+Sales route still pages Platform communications and explicitly says amoCRM
+owns deal/stage/owner, while the connected Clients route pages Student Cases as
+the client identity. Current migrations have no shared canonical client/lead,
+external-identifier registry, person duplicate-resolution record or bounded
+canonical staff read model. Preserving either current projection as the U2
+identity authority would contradict #376/#379 and ADR 0020.
+
+Decision:
+
+1. Migration 084 adds canonical `platform.clients` and `platform.leads` with
+   immutable EVO UUIDs, tenant keys, normalized comparison fields, lifecycle,
+   canonical EVO owner/stage on the lead, timestamps and same-organization
+   foreign keys. Existing communications and Student Cases receive nullable
+   canonical links only; no legacy row is guessed or imported in U2.
+2. `platform.external_identifiers` makes the full organization/source/object/
+   external-ID tuple unique and links it to exactly one client or lead.
+   `platform.subject_provenance` retains append-only safe source, observation,
+   import and freshness evidence. Raw provider payloads remain private/outside
+   these projections.
+3. Exact active email+phone is the only normalized person tuple that may
+   deduplicate automatically. Exact external identity is also a strong key.
+   Name-only, email-only or phone-only matches create duplicate candidates and
+   never merge silently. Valid multiple leads for one client remain allowed.
+4. Backend-only create-or-link functions use unique arbitration plus
+   transactional key serialization/`INSERT ... ON CONFLICT` so concurrent
+   retries return one canonical result and keep all provenance. Browser roles
+   receive no direct execute grant.
+5. Duplicate candidates, resolution internals and aliases live behind the
+   private boundary. Only an exact live Admin may call the narrow public
+   resolution RPC. It requires reason/request ID, records actor/time/survivor/
+   superseded records, redirects canonical relationships, and preserves the
+   superseded record, external identifiers and provenance behind an auditable
+   alias.
+6. A new v12 role bundle copies v11 and adds `client.read`/`lead.read` for
+   `sales`, `curator` and `admin`, plus `client.duplicate.resolve` only for
+   `admin`. Membership rebinding increments U1 `access_version`; stale tokens
+   fail closed. Every exposed table enables and forces RLS, broad defaults are
+   revoked, and direct reads enforce the same organization/object scope as RPCs.
+7. The accepted read models are bounded keyset page/detail RPCs for canonical
+   clients and leads. Limits are explicit (1–101), application pages are at
+   most 50, ordering is `updated_at DESC, id DESC`, cursor pairs are complete,
+   filters run before pagination and no unbounded compatibility RPC exists.
+8. Connected `/sales` and `/clients` plus their UUID detail routes make the EVO
+   identity and current EVO owner/stage primary. External IDs, provenance,
+   linked conversations and Student Cases are visibly secondary. Connected
+   paths do not import SQLite repositories/actions and never fall back to a
+   legacy record when canonical data is missing.
+9. Acceptance uses the real disposable local migration/Auth/PostgREST/RLS and
+   browser path. It proves more than 1,000 rows across every page, stable
+   cursors, pre-pagination filters, duplicate/concurrency/resolution history,
+   grant and RLS boundaries, three-role positive/negative scope, anonymous and
+   stale/inactive/suspended/blocked/cross-organization denial, and truthful
+   empty/unavailable UI states.
+
+The implementation follows current primary documentation: Supabase requires
+RLS plus least-privilege grants on every exposed table and recommends policy
+tests in the same change; local migrations are replayed with `supabase db
+reset`; Supabase JavaScript/PostgREST range behavior must not be mistaken for
+an application pagination contract; PostgreSQL normal uniqueness treats NULLs
+as distinct unless explicitly changed, partial unique indexes constrain only
+their predicate, and `INSERT ... ON CONFLICT DO UPDATE` provides an atomic
+insert-or-update outcome:
+
+- <https://supabase.com/docs/guides/database/postgres/row-level-security>
+- <https://supabase.com/docs/guides/local-development/database-migrations>
+- <https://supabase.com/docs/guides/local-development/testing/overview>
+- <https://supabase.com/docs/reference/javascript/using-modifiers-range>
+- <https://postgrest.org/en/stable/references/api/pagination_count.html>
+- <https://www.postgresql.org/docs/current/ddl-constraints.html>
+- <https://www.postgresql.org/docs/current/indexes-unique.html>
+- <https://www.postgresql.org/docs/current/indexes-partial.html>
+- <https://www.postgresql.org/docs/current/sql-insert.html>
+
+Execution boundary: this is the one U2/#379 repository/disposable-local PR.
+It performs no managed Supabase apply, production deployment, real-customer
+read/write, WAHA call/configuration, WhatsApp send, amoCRM read/write/import,
+paid AI call, DNS/TLS or server lifecycle action. Migration 084 is forward-only
+and application rollback never drops canonical history or restores SQLite/
+amoCRM authority. Merge requires one immutable head, independent exact-head
+launch-control approval, all four exact-head CI jobs, a match-head squash
+merge, exact-main CI and tree equivalence. Stop after #379; U3/#380 and every
+later U-slice remain unstarted.

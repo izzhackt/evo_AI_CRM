@@ -114,6 +114,17 @@ type Fixture = Readonly<{
     supabaseSecretKey: string;
     observabilitySecret: string;
   }>;
+  u2: Readonly<{
+    clientId: string;
+    leadId: string;
+    clientDisplayName: string;
+    leadStageKey: string;
+    ownerDisplayName: string;
+    clientExternalIdentifier: string;
+    leadExternalIdentifier: string;
+    provenanceSourceSystem: string;
+    linkedConversationSubject: string;
+  }>;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
@@ -772,6 +783,117 @@ test("the three U1 pilot roles use one login and one EVO staff shell", async ({
     ).toBeVisible();
     await context.close();
   }
+});
+
+test("U2 reads canonical EVO clients and leads through real Supabase with tenant isolation", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  expectLegacyDatabaseUntouched();
+
+  const adminContext = await browser.newContext();
+  const adminPage = await adminContext.newPage();
+  await login(adminPage, fixture.identities.admin);
+  await expect(adminPage).toHaveURL(/\/sales$/);
+  await expect(adminPage.getByTestId("canonical-sales-page")).toBeVisible();
+  await expect(adminPage.getByTestId("canonical-evo-authority")).toContainText(
+    /Источник истины — EVO|Чындыктын булагы — EVO|Source of truth — EVO/,
+  );
+
+  const leadRow = adminPage.locator(
+    `[data-testid="canonical-lead-row"][data-lead-id="${fixture.u2.leadId}"]`,
+  );
+  await expect(leadRow).toBeVisible();
+  await expect(leadRow).toContainText(fixture.u2.clientDisplayName);
+  await expect(leadRow.getByTestId("canonical-lead-stage")).toContainText(
+    "Qualified",
+  );
+  await expect(leadRow.getByTestId("canonical-lead-owner")).toContainText(
+    fixture.u2.ownerDisplayName,
+  );
+  await expect(
+    adminPage.getByText(/amoCRM.*(?:источник истины|source of truth)/i),
+  ).toHaveCount(0);
+
+  await adminPage.goto(`/sales/${fixture.u2.leadId}`);
+  const leadDetail = adminPage.getByTestId("canonical-lead-detail");
+  await expect(leadDetail).toBeVisible();
+  await expect(leadDetail.getByTestId("canonical-lead-stage")).toContainText(
+    "Qualified",
+  );
+  await expect(leadDetail.getByTestId("canonical-lead-owner")).toContainText(
+    fixture.u2.ownerDisplayName,
+  );
+  await expect(
+    leadDetail.getByTestId("canonical-external-identifiers"),
+  ).toContainText(fixture.u2.leadExternalIdentifier);
+  await expect(leadDetail.getByTestId("canonical-provenance")).toContainText(
+    "Local Test",
+  );
+  await expect(
+    leadDetail.getByTestId("canonical-linked-context"),
+  ).toContainText(fixture.u2.linkedConversationSubject);
+
+  await adminPage.goto("/sales?q=one&q=two");
+  await expect(
+    adminPage.getByTestId("canonical-records-unavailable"),
+  ).toContainText(/не подставляются|ордуна коюлбайт|not substituted/);
+
+  await adminPage.goto("/clients");
+  await expect(adminPage.getByTestId("canonical-clients-page")).toBeVisible();
+  const clientRow = adminPage.locator(
+    `[data-testid="canonical-client-row"][data-client-id="${fixture.u2.clientId}"]`,
+  );
+  await expect(clientRow).toBeVisible();
+  await expect(clientRow).toContainText(fixture.u2.clientDisplayName);
+
+  await adminPage.goto(`/clients/${fixture.u2.clientId}`);
+  const clientDetail = adminPage.getByTestId("canonical-client-detail");
+  await expect(clientDetail).toBeVisible();
+  await expect(clientDetail).toContainText(fixture.u2.clientDisplayName);
+  await expect(
+    clientDetail.getByTestId("canonical-external-identifiers"),
+  ).toContainText(fixture.u2.clientExternalIdentifier);
+  await expect(clientDetail.getByTestId("canonical-provenance")).toContainText(
+    "Local Test",
+  );
+  await expect(
+    clientDetail.getByTestId("canonical-linked-context"),
+  ).toContainText(fixture.u2.linkedConversationSubject);
+
+  await adminPage.goto("/clients?unexpected=1");
+  await expect(
+    adminPage.getByTestId("canonical-records-unavailable"),
+  ).toContainText(/не подставляются|ордуна коюлбайт|not substituted/);
+  await adminContext.close();
+
+  const crossOrgContext = await browser.newContext();
+  const crossOrgPage = await crossOrgContext.newPage();
+  await login(crossOrgPage, fixture.identities.crossOrgAdmin);
+  await expect(crossOrgPage).toHaveURL(/\/sales$/);
+  await expect(crossOrgPage.getByTestId("canonical-leads-empty")).toContainText(
+    /не подставляются|ордуна коюлбайт|not substituted/,
+  );
+  await crossOrgPage.goto(`/sales/${fixture.u2.leadId}`);
+  await expect(crossOrgPage.getByTestId("canonical-lead-not-found")).toBeVisible();
+  await expect(crossOrgPage.locator("body")).not.toContainText(
+    fixture.u2.clientDisplayName,
+  );
+
+  await crossOrgPage.goto("/clients");
+  await expect(crossOrgPage.getByTestId("canonical-clients-empty")).toContainText(
+    /не подставляются|ордуна коюлбайт|not substituted/,
+  );
+  await crossOrgPage.goto(`/clients/${fixture.u2.clientId}`);
+  await expect(
+    crossOrgPage.getByTestId("canonical-client-not-found"),
+  ).toBeVisible();
+  await expect(crossOrgPage.locator("body")).not.toContainText(
+    fixture.u2.clientDisplayName,
+  );
+  await crossOrgContext.close();
+
+  expectLegacyDatabaseUntouched();
 });
 
 test("route-level auth failures surface an explicit login error", async ({

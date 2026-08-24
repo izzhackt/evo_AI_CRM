@@ -241,11 +241,12 @@ test("profile UUID parser rejects nil and malformed identifiers", () => {
   assert.equal(parsePlatformStudentProfileUuid("not-a-uuid"), null);
 });
 
-test("connected profile modules stay Supabase-native and manual-document honest", () => {
+test("profile modules stay Supabase-native while the U2 canonical client detail is read-only", () => {
   for (const file of [
     "src/lib/platform-student-profile.ts",
     "src/lib/platform-student-profile-actions.ts",
-    "src/app/(staff)/clients/[id]/PlatformClientPage.tsx",
+    "src/app/(staff)/clients/[id]/ConnectedCanonicalClientDetail.tsx",
+    "src/components/platform/core/CanonicalClientDetail.tsx",
   ]) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     assert.doesNotMatch(source, /better-sqlite3|edu_session|service[_-]?role/i, file);
@@ -265,11 +266,16 @@ test("connected profile modules stay Supabase-native and manual-document honest"
   assert.match(actionSource, /retry_request_id/);
 
   const connectedPage = readFileSync(
-    new URL("../src/app/(staff)/clients/[id]/PlatformClientPage.tsx", import.meta.url),
+    new URL(
+      "../src/app/(staff)/clients/[id]/ConnectedCanonicalClientDetail.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
-  assert.match(connectedPage, /connected:\s*false/);
-  assert.doesNotMatch(connectedPage, /addDocument:/);
-  assert.match(connectedPage, /countryRequirementVersions\.find\(\(version\) => version\.isApplied\)/);
-  assert.doesNotMatch(connectedPage, /if\s*\(!profileSnapshot\)\s*return null/);
+  assert.match(connectedPage, /getPlatformCanonicalClient\(actor, id\)/);
+  assert.match(connectedPage, /<CanonicalClientDetail/);
+  assert.doesNotMatch(
+    connectedPage,
+    /platform-student-profile-actions|addDocument|countryRequirementVersions/,
+  );
 });

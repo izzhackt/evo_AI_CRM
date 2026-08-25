@@ -1166,6 +1166,7 @@ test("U5 confirms contract and first mandatory payment before normal Admissions 
   const context = await browser.newContext();
   const page = await context.newPage();
   await login(page, fixture.identities.responsibleSales);
+  await expect(page).toHaveURL(/\/sales$/);
   await page.goto(`/sales/${fixture.u4.orgA.connectedLeadId}`);
 
   await expect(page.getByTestId("admissions-gate-card")).toBeVisible();

@@ -8,21 +8,22 @@ unified platform.
 The target contract is
 [`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`](docs/EVO_PLATFORM_LONG_RUN_PLAN.md) and
 the current architecture/execution decision is
-[`ADR 0020`](docs/adr/0020-unify-evo-v1-on-canonical-supabase.md), under parent
-issue #376 and U0-U14. The 2026-08-24 entry in
+[`ADR 0021`](docs/adr/0021-unified-net-new-pilot-and-human-reviewed-gemini.md),
+which refines ADR 0020 under parent issue #376 and U0-U14. The 2026-08-25 entry in
 [`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md) records the superseding owner
 decision: EVO is one product with one entry point, one staff UI, one role
 model, one cross-module workflow, and one canonical Supabase foundation.
-U0/#377, U1/#378, U2/#379 and U3/#380 are merged. U4/#381 is implemented and
-validated locally as the sole current repository/disposable-local execution
-slice; exact-head review, CI and merge are pending. It adds the bounded, audited Sales
-qualification, owner and next-action workflow on the canonical EVO lead while
-keeping the rollout strictly receive-only. The completed U2 contract is
+U0/#377 through U4/#381 are merged. Long-run 1 is the sequential #382 through
+#387 program and stops before #388. It delivers a net-new pilot candidate:
+canonical contract/payment gate, handoff, minimal Admissions case, bounded
+finance control, one human-reviewed Gemini Flash adapter, and explicit pilot
+cohort/legacy isolation. Broad active/history migration is not part of the
+pilot. The completed U2 contract is
 recorded in
 [`docs/platform/u2-canonical-client-lead.md`](docs/platform/u2-canonical-client-lead.md),
 the completed U3 contract is recorded in
 [`docs/platform/u3-receive-only-sales-queue.md`](docs/platform/u3-receive-only-sales-queue.md),
-the active U4 contract is recorded in
+the completed U4 contract is recorded in
 [`docs/platform/u4-sales-qualification-owner-next-action.md`](docs/platform/u4-sales-qualification-owner-next-action.md),
 and the completed U1 authority/evidence boundary remains in
 [`docs/platform/u1-unified-staff-access.md`](docs/platform/u1-unified-staff-access.md).
@@ -102,8 +103,8 @@ _Avoid_: lead-agent, external bot brain
 
 **Identity Source of Truth**:
 EVO/Supabase, which owns the canonical client, lead, responsible staff, stage,
-next action and deadline. amoCRM is a temporary read/import adapter and
-migration source; its identifiers remain provenance, not operational authority.
+next action and deadline. amoCRM is a temporary read/import adapter; its
+identifiers remain provenance, not operational authority.
 SQLite, mocks, inferred identity, hardcoded IDs and silent fallback remain
 prohibited.
 _Avoid_: amoCRM master record, duplicate identity, second product CRM
@@ -246,9 +247,10 @@ _Avoid_: second operator UI, replacement prototype, dual frontend
 **Unified Platform Data Store**:
 The target dedicated Supabase foundation for canonical EVO operational records,
 including client, lead, stage, responsible staff, next action and deadline,
-with RLS and audit controls. Active legacy data is migrated once with provenance
-and reconciliation. SQLite runtime restoration, dual-read, dual-write and
-compatibility bridges remain prohibited.
+with RLS and audit controls. The pilot is net-new; approved exceptional imports
+carry provenance and never create a live compatibility path. Broad legacy
+migration is post-pilot work. SQLite runtime restoration, dual-read, dual-write
+and compatibility bridges remain prohibited.
 _Avoid_: companion-only database, external canonical CRM, SQLite fallback
 
 **Canonical Supabase Migration Source**:

@@ -56,6 +56,7 @@ readonly P7A_BROWSER_TEST="P7A searches and exports safe organization audit evid
 readonly P7B_BROWSER_TEST="P7B exposes signed private readiness and metrics without claiming provider health"
 readonly U2_BROWSER_TEST="U2 reads canonical EVO clients and leads through real Supabase with tenant isolation"
 readonly U4_BROWSER_TEST="U4 qualifies and assigns canonical Sales leads through audited real Supabase workflow"
+readonly U5_BROWSER_TEST="U5 confirms contract and first mandatory payment before normal Admissions handoff"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -1363,7 +1364,7 @@ if ! run_with_deadline 660000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}|${P7B_BROWSER_TEST}|${U2_BROWSER_TEST}|${U4_BROWSER_TEST}"; then
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}|${P7B_BROWSER_TEST}|${U2_BROWSER_TEST}|${U4_BROWSER_TEST}|${U5_BROWSER_TEST}"; then
   fail "Remaining real browser Platform Auth/staff-shell gate failed."
 fi
 if ! stop_exact_browser_server; then
@@ -1744,11 +1745,11 @@ if ! run_with_deadline 240000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep "${U2_BROWSER_TEST}|${U4_BROWSER_TEST}"; then
-  fail "U2/U4 canonical Sales connected browser proof failed."
+  --grep "${U2_BROWSER_TEST}|${U4_BROWSER_TEST}|${U5_BROWSER_TEST}"; then
+  fail "U2/U4/U5 canonical Sales connected browser proof failed."
 fi
 if ! stop_exact_browser_server; then
-  fail "The exact-worktree Platform browser server did not stop after the U2/U4 browser partition."
+  fail "The exact-worktree Platform browser server did not stop after the U2/U4/U5 browser partition."
 fi
 if ! run_with_deadline 30000 docker exec -i \
   "${DATABASE_CONTAINER}" \
@@ -1960,3 +1961,4 @@ printf 'Verified the dedicated disabled-by-default P6D browser partition closes 
 printf 'Verified the dedicated disabled-by-default P7A browser partition searches and deterministically exports only the safe organization audit projection with role, tenant, raw-table and route denials; this remains synthetic local evidence only.\n'
 printf 'Verified the dedicated disabled-by-default P7B browser partition authenticates private readiness and Prometheus metrics while truthfully remaining not ready without current real-provider and restore evidence; no provider or production service was called.\n'
 printf 'Verified the dedicated U2 browser partition renders canonical EVO client/lead lists and details with bounded provenance, explicit empty states and cross-tenant absence through real local Auth/PostgREST; no provider or production service was called.\n'
+printf 'Verified the dedicated U5 browser partition keeps normal Admissions handoff blocked until synthetic contract and first-payment evidence are permissioned, recorded and audited through real local Auth/PostgREST; no provider or production service was called.\n'

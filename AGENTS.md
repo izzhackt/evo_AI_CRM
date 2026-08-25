@@ -15,12 +15,12 @@
 - For medium/large work, use launch-control: keep `docs/EVO_LAUNCH_PLAN.md` as
   the implementation contract and append architecture/scope changes to
   `docs/PLAN_CHANGES.md` before coding.
-- Do not claim live WhatsApp, amoCRM, Anthropic, telephony, or deployment
+- Do not claim live WhatsApp, amoCRM, Gemini, Anthropic, telephony, or deployment
   success unless the real service was exercised with real credentials.
 - If real credentials/services are missing, fail clearly and name the exact
   blocker.
 - Do not hardcode credentials, WhatsApp session data, customer personal data,
-  amoCRM tokens, WAHA API keys, Anthropic keys, or server secrets.
+  amoCRM tokens, WAHA API keys, Gemini/Anthropic keys, or server secrets.
 - Keep real runtime secrets only in ignored `.env*` files, VPS secret files,
   provider dashboards, or encrypted application settings; commit only safe
   examples such as `.env.example` and documented placeholder values.
@@ -29,16 +29,20 @@
 
 ## Current Product Authority
 
-- Parent issue #376, ADR 0020, `docs/EVO_LAUNCH_PLAN.md` and
+- Parent issue #376, ADR 0021, `docs/EVO_LAUNCH_PLAN.md` and
   `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` define the target and U0-U14 order.
 - EVO is one internal product with one login, one UI, one role model and one
   workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks, Documents and
   AI are modules, not separate target products.
-- Supabase is the permanent canonical operational foundation. SQLite runtime,
+- Supabase is the permanent canonical operational foundation. The pilot is
+  net-new after an explicit cutoff or authorized small allowlist; broad active
+  and historical migration is deferred. SQLite runtime,
   dual-read, dual-write, fallback repositories and compatibility layers are
-  prohibited. amoCRM is a temporary read/import and migration adapter; WAHA is
-  private transport; AI is advisory and human-reviewed.
-- The first live stage is receive-only: no outbound WhatsApp and no amoCRM
+  prohibited. amoCRM is a temporary read/import adapter; WAHA is private
+  transport; Gemini Flash is the single pilot AI provider and remains advisory
+  and human-reviewed.
+- Long-run 1 is #382 through #387 and stops before #388. The first live stage
+  is receive-only: no outbound WhatsApp and no amoCRM
   writes. Existing production sections below describe migration inputs and
   safety boundaries only; they do not override the target architecture or
   authorize a production change.
@@ -145,8 +149,8 @@ canonical store or new dependency.
   `http://evo-crm-app:3000/api/internal/lead-agent/whatsapp`.
 - The existing production path treats amoCRM as its lead/contact and sales-
   status authority. This is current-state migration evidence, not target
-  authority; #376 and ADR 0020 make EVO/Supabase canonical after controlled
-  migration.
+  authority; #376 and ADR 0021 make EVO/Supabase canonical for every net-new
+  pilot case without a compatibility or fallback write path.
 - EVO CRM is the staff/operator UI and stores local shadow fields such as
   `amo_lead_id`, `amo_contact_id`, and `agent_state`.
 - Store `WAHA_API_KEY=sha512:<hash>` in `/opt/evo-crm/.env.waha`; store the

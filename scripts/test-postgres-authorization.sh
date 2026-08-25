@@ -1636,6 +1636,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_sales_workflow_rls.sql
   fi
+
+  # Migration 087 adds the individual-permission contract/payment gate and its
+  # explicit normal-versus-exceptional Admissions handoff assertion boundary.
+  if [[ "$(basename "$migration")" == 087_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_contract_payment_gate_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

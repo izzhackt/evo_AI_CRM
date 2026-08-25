@@ -1,19 +1,21 @@
 # Владение данными в EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Status: active canonical ownership contract under #376 and ADR 0020
-- Last reconciled: 2026-08-24 at
-  `31d26b6e6bdc8a96fcf9f48210e417d43619370d`
-- Architecture decision: `docs/adr/0020-unify-evo-v1-on-canonical-supabase.md`
+- Status: active canonical ownership contract under #376 and ADR 0021
+- Last reconciled: 2026-08-25 at
+  `cfc75ca29a66546886de320aa80c454d18104b92`
+- Architecture decision:
+  `docs/adr/0021-unified-net-new-pilot-and-human-reviewed-gemini.md`
 
 ## 2026-08-24 canonical Supabase and migration boundary
 
-EVO/Supabase is canonical for operational data. Active legacy records required
-for the pilot are archived, checksummed, migrated once and reconciled; closed
-historical records follow after a stable pilot. No runtime SQLite restoration,
-dual-read, dual-write, write-through, fallback repository or compatibility
-layer is permitted. amoCRM is temporary read/import source; WAHA is private
-transport; AI is advisory and human-reviewed.
+EVO/Supabase is canonical for operational data. The pilot is net-new after an
+explicit cutoff or authorized small allowlist; existing active/history legacy
+records remain excluded or read-only until separately approved post-pilot
+work. No runtime SQLite restoration, dual-read, dual-write, write-through,
+fallback repository or compatibility layer is permitted. amoCRM is temporary
+read/import source; WAHA is private transport; Gemini Flash is the single
+pilot AI provider and remains advisory and human-reviewed.
 
 - Student Profile document reading, extracted-fact confirmation, profile
   autofill and profile-form export belong to a separate system outside this
@@ -49,7 +51,7 @@ transport; AI is advisory and human-reviewed.
 | Document binary objects | private Platform Storage после P2H | private objects, object-policy enforcement, download/access audit и separate backup |
 | Visa case | EVO Platform Supabase | Curator-owned operational states и evidence |
 | Platform admissions tasks | EVO Platform Supabase | assignment, priority, due/status и lifecycle history |
-| Active legacy sales tasks needed by pilot | EVO Platform Supabase after U10 | imported task, owner, due/status, source ID, provenance and reconciliation result |
+| Pilot cohort membership | EVO Platform Supabase after U10 | cutoff/allowlist reason, actor, time, provenance, current membership and immutable inclusion/removal history |
 | Call/recording and existing chat-record references | amoCRM/Kommo | verified external IDs, safe metadata/links and sync evidence; raw recordings are not duplicated |
 | Notification intent v1 | EVO Platform Supabase | receive-only stage uses in-app state only; later external delivery needs a separate write-stage decision |
 | WhatsApp provider delivery/ACK | WAHA | наблюдаемое provider evidence, ACK progression и reconciliation state; Platform record не создаёт provider truth |
@@ -86,9 +88,11 @@ temporary bounded adapter must:
    records without creating a permanent synchronization path.
 
 No name-based inference, hardcoded account/stage ID, SQLite/mock substitution or
-silent fallback is allowed. Exact source mapping remains a U10 migration and
-U12 acceptance blocker until real authorized evidence proves it. Any provider
-write requires a later owner decision.
+silent fallback is allowed. Exact source mapping is required only for a
+specifically authorized, bounded legacy read/import case; U10 does not create a
+broad migration or synchronization path. Any such real provider read remains a
+U12 acceptance concern until authorized evidence proves it. Any provider write
+requires a later owner decision.
 
 ## Platform roles и object scope
 
@@ -370,13 +374,14 @@ Realtime with RLS-safe authorization. Browsers never subscribe directly to WAHA.
 
 ## Current-to-target boundary
 
-Root SQLite, companion Supabase, Inbox and Lead Agent data are migration/archive
-sources, not current target authorities. U10 inventories and migrates only
-active records required by the pilot with source IDs, checksums, reconciliation
-counts and rejection reasons. U14 handles historical closed records after U13.
+Root SQLite, companion Supabase, Inbox and Lead Agent data are legacy/archive
+sources, not current target authorities. U10 establishes the explicit net-new
+cutoff/allowlist cohort and blocks legacy writes; it does not broadly migrate
+active records. U14 handles approved historical/archive records after U13.
 
 During preparation, legacy systems may remain operational for records outside
-the pilot. Pilot records cannot depend on new legacy writes after their cutover.
+the pilot. Pilot records start and remain in EVO and cannot depend on legacy
+writes or fallback.
 No dual-read, dual-write, write-through, alias, fallback repository or
 compatibility translation is allowed.
 

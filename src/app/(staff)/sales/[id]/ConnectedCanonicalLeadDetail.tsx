@@ -4,9 +4,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CanonicalLeadDetail } from "@/components/platform/core/CanonicalLeadDetail";
+import { SalesAdmissionsGateCard } from "@/components/platform/sales/SalesAdmissionsGateCard";
 import { SalesLeadWorkflowDetail } from "@/components/platform/sales/SalesLeadWorkflowDetail";
 import { PageHeader, btnGhostCls } from "@/components/ui";
 import { getT, type Locale } from "@/lib/i18n";
+import {
+  getPlatformAdmissionsGate,
+  PlatformAdmissionsGateRepositoryError,
+} from "@/lib/platform-admissions-gate";
 import {
   PlatformCanonicalRecordsRepositoryError,
   getPlatformCanonicalLead,
@@ -25,7 +30,7 @@ export async function ConnectedCanonicalLeadDetail({
     getT(),
     requirePlatformSalesActor(),
   ]);
-  const [workflowResult, ownerResult, canonicalLead] = await Promise.all([
+  const [workflowResult, ownerResult, gateResult, canonicalLead] = await Promise.all([
     getPlatformSalesLeadDetail(actor, id)
       .then((lead) => ({ lead, unavailable: false as const }))
       .catch((error: unknown) => {
@@ -39,6 +44,14 @@ export async function ConnectedCanonicalLeadDetail({
       .catch((error: unknown) => {
         if (error instanceof PlatformSalesWorkflowRepositoryError) {
           return { page: null, unavailable: true as const };
+        }
+        throw error;
+      }),
+    getPlatformAdmissionsGate(actor, id)
+      .then((gate) => ({ gate, unavailable: false as const }))
+      .catch((error: unknown) => {
+        if (error instanceof PlatformAdmissionsGateRepositoryError) {
+          return { gate: null, unavailable: true as const };
         }
         throw error;
       }),
@@ -74,6 +87,22 @@ export async function ConnectedCanonicalLeadDetail({
           requestId={randomUUID()}
         />
       </div>
+      {gateResult.gate ? (
+        <SalesAdmissionsGateCard
+          gate={gateResult.gate}
+          locale={locale}
+          requestIds={{
+            confirmContract: randomUUID(),
+            confirmFirstPayment: randomUUID(),
+            overrideGate: randomUUID(),
+          }}
+        />
+      ) : (
+        <SalesAdmissionsGateUnavailable
+          locale={locale}
+          reason={gateResult.unavailable ? "read_failure" : "not_initialized"}
+        />
+      )}
       {canonicalLead ? (
         <section
           className="border-t border-border pt-6"
@@ -84,6 +113,48 @@ export async function ConnectedCanonicalLeadDetail({
         </section>
       ) : null}
     </div>
+  );
+}
+
+function SalesAdmissionsGateUnavailable({
+  locale,
+  reason,
+}: Readonly<{
+  locale: Locale;
+  reason: "read_failure" | "not_initialized";
+}>) {
+  const copy = {
+    ru: {
+      title: "Допуск в Admissions недоступен",
+      read_failure:
+        "Не удалось прочитать U5 gate. Это ошибка чтения: передача остаётся заблокированной, пока состояние не будет подтверждено.",
+      not_initialized:
+        "Для этого лида U5 gate не создан. Исторические лиды не подключаются автоматически; передача остаётся заблокированной.",
+    },
+    ky: {
+      title: "Admissions бөлүмүнө өткөрүү жеткиликсиз",
+      read_failure:
+        "U5 gate окулган жок. Бул окуу катасы: абал ырасталмайынча өткөрүү бөгөттөлөт.",
+      not_initialized:
+        "Бул лид үчүн U5 gate түзүлгөн эмес. Мурунку лиддер автоматтык түрдө кошулбайт; өткөрүү бөгөттөлөт.",
+    },
+    en: {
+      title: "Admissions handoff gate unavailable",
+      read_failure:
+        "The U5 gate could not be read. This is a read failure; handoff remains blocked until the state can be verified.",
+      not_initialized:
+        "This lead has no U5 gate. Historical leads are not enrolled automatically; handoff remains blocked.",
+    },
+  }[locale];
+
+  return (
+    <section
+      className="rounded-card border border-danger bg-danger-weak px-5 py-4"
+      data-testid={`admissions-gate-${reason}`}
+    >
+      <h2 className="text-[14.5px] font-semibold text-danger">{copy.title}</h2>
+      <p className="mt-1 text-[13px] leading-5 text-fg-2">{copy[reason]}</p>
+    </section>
   );
 }
 

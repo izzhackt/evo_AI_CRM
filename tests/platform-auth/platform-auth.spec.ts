@@ -1298,6 +1298,7 @@ test("U5 confirms contract and first mandatory payment before normal Admissions 
   const crossOrgContext = await browser.newContext();
   const crossOrgPage = await crossOrgContext.newPage();
   await login(crossOrgPage, fixture.identities.crossOrgAdmin);
+  await expect(crossOrgPage).toHaveURL(/\/sales$/);
   await crossOrgPage.goto(`/sales/${fixture.u4.orgA.connectedLeadId}`);
   await expect(
     crossOrgPage.getByTestId("canonical-lead-not-found"),

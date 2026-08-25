@@ -942,6 +942,7 @@ BEGIN
     p_amount IS NULL
     OR p_amount <= 0
     OR p_amount > 999999999999.99
+    OR p_amount <> pg_catalog.trunc(p_amount, 2)
     OR normalized_currency IS NULL
     OR normalized_currency !~ '^[A-Z]{3}$'
     OR p_due_date IS NULL

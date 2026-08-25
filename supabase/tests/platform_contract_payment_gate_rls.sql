@@ -655,6 +655,18 @@ SELECT pg_temp.u5_assert(
   'payment confirmation succeeded without a contract expectation'
 );
 
+SELECT pg_temp.u5_assert(
+  (
+    pg_temp.u5_attempt_mutation(
+      :'u5_lead_paid', 1,
+      '87000000-0000-4000-8000-000000000717',
+      'confirm_contract', 1250.501, 'USD', '2026-09-15', NULL,
+      'contract:over-precision', NULL
+    ) ->> 'message'
+  ) = 'admissions_gate_invalid_contract_confirmation',
+  'contract amount accepted more than two decimal places'
+);
+
 SELECT pg_temp.u5_attempt_mutation(
   :'u5_lead_paid', 1,
   '87000000-0000-4000-8000-000000000710',

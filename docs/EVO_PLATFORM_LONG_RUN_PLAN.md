@@ -435,8 +435,8 @@ Shared plan, schema, migration and deployment surfaces are sequential.
 | U2 | #379 | Canonical Supabase client and lead | Merged prerequisite |
 | U3 | #380 | Receive-only WhatsApp in unified Sales | Merged prerequisite |
 | U4 | #381 | Sales qualification, owner and next action | Merged prerequisite |
-| U5 | #382 | Contract and first-payment evidence | Current Long-run 1 slice; blocked only by merged U4 |
-| U6 | #383 | Audited Sales-to-Admissions handoff | Blocked by U5 |
+| U5 | #382 | Contract and first-payment evidence | Merged prerequisite |
+| U6 | #383 | Audited Sales-to-Admissions handoff | Current Long-run 1 slice; blocked only by merged U5 |
 | U7 | #384 | Complete Admissions case | Blocked by U6 |
 | U8 | #385 | Minimal payment control and finance stop-factor | Blocked by U5/U7 |
 | U9 | #386 | One Gemini Flash assistant with human review | Blocked by U7 |

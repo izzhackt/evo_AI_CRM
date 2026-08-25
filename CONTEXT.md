@@ -13,7 +13,7 @@ which refines ADR 0020 under parent issue #376 and U0-U14. The 2026-08-25 entry 
 [`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md) records the superseding owner
 decision: EVO is one product with one entry point, one staff UI, one role
 model, one cross-module workflow, and one canonical Supabase foundation.
-U0/#377 through U4/#381 are merged. Long-run 1 is the sequential #382 through
+U0/#377 through U5/#382 are merged. Long-run 1 is the sequential #382 through
 #387 program and stops before #388. It delivers a net-new pilot candidate:
 canonical contract/payment gate, handoff, minimal Admissions case, bounded
 finance control, one human-reviewed Gemini Flash adapter, and explicit pilot
@@ -25,6 +25,10 @@ the completed U3 contract is recorded in
 [`docs/platform/u3-receive-only-sales-queue.md`](docs/platform/u3-receive-only-sales-queue.md),
 the completed U4 contract is recorded in
 [`docs/platform/u4-sales-qualification-owner-next-action.md`](docs/platform/u4-sales-qualification-owner-next-action.md),
+the completed U5 gate contract is recorded in
+[`docs/platform/u5-contract-first-payment-gate.md`](docs/platform/u5-contract-first-payment-gate.md),
+the active U6 handoff contract is recorded in
+[`docs/platform/u6-sales-admissions-handoff.md`](docs/platform/u6-sales-admissions-handoff.md),
 and the completed U1 authority/evidence boundary remains in
 [`docs/platform/u1-unified-staff-access.md`](docs/platform/u1-unified-staff-access.md).
 Lead Agent, CRM, and Inbox name internal capabilities or current deployment

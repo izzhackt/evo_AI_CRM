@@ -10991,3 +10991,56 @@ Official primary documentation revalidated on 2026-08-25:
 This entry changes scope before U5 feature coding. It does not claim managed
 Supabase, Gemini credential validity, production, WhatsApp, WAHA, amoCRM or
 customer-data proof.
+
+## 2026-08-25 — Activate U6 audited Sales-to-Admissions handoff
+
+Date: 2026-08-25, workspace timezone (+06).
+Author: Codex implementing Issue #383 after exact-main verification of merged
+U5/#382 PR #397.
+Change type: active-slice implementation contract, canonical case invariant and
+validation boundary.
+Block-ID: `EVO-LONG-RUN-1-U6-HANDOFF-2026-08-25`.
+Starting repository baseline: GitHub `origin/main` at
+`76803cbb214a63aefaa53171ed0ebdf6acf33f32`.
+
+Reason: U5 now owns the locked contract/first-payment gate but deliberately
+does not execute Admissions handoff. U6 must consume that boundary atomically
+and must refine old Student Case assumptions that coupled operational case
+activation to Student Portal activation and required intake facts that U7 has
+not collected yet.
+
+Decision:
+
+1. Add one authenticated, tenant-bound database handoff RPC. It re-resolves the
+   live Sales/Admin actor, verifies canonical lead ownership, verifies an active
+   same-organization Curator owner and calls the U5 gate assertion inside the
+   same transaction. Normal and exceptional-override modes remain distinct.
+2. Derive the only U6 case identity from organization plus canonical lead using
+   `canonical-lead:<lead_id>` as the existing unique `source_key`. Add private
+   request receipts and transaction locks so replay and practical concurrency
+   converge on the same result; a closed case is not reopened implicitly.
+3. Refine `student_cases` so an active operational Admissions case can exist
+   before a Student Portal membership, portal activation, target country or
+   target degree. Keep portal reads fail-closed on a real linked membership and
+   activation timestamp. Never manufacture placeholder facts.
+4. Store one immutable Sales-to-Admissions handoff snapshot binding canonical
+   client, lead and case with mode/state, actor, owner, time, source, reason,
+   consumed gate version, Sales workflow/provenance and bounded conversation
+   linkage. Canonical operational records remain live truth; the snapshot is
+   historical handoff evidence.
+5. Create exactly one bounded starter task set in the existing `case_tasks`
+   domain using stable per-case source keys. Show the mutation in the existing
+   Sales detail and the inherited evidence/tasks in the existing connected
+   Admissions case page. Do not introduce a second Admissions app or broaden
+   post-handoff Sales access.
+6. Prove normal, blocked, exceptional, repeated, conflicting, concurrent,
+   unauthorized, inactive, cross-tenant and direct-duplicate paths in disposable
+   PostgreSQL/Supabase tests. Add real local browser proof for Sales execution
+   and Admissions-side inherited context, and keep migration, unit, security,
+   lint and build gates green on Node.js 22.23.1.
+
+Execution boundary: this is the only active U6/#383 repository/disposable-local
+slice. It performs no managed Supabase apply, production deployment, provider
+call, real-customer mutation, WAHA call/configuration, WhatsApp send or amoCRM
+write. U7/#384 remains unstarted until U6 is merged with match-head protection
+and verified by exact-main CI.

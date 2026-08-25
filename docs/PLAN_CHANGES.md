@@ -10939,3 +10939,55 @@ Validation outcome on 2026-08-24 UTC / 2026-08-25 Asia/Bishkek:
   lint, the 39-route production build and `git diff --check`. This remains
   synthetic disposable-local evidence and does not prove managed Supabase,
   providers, production or real conversations.
+
+## 2026-08-25 — Activate Long-run 1 as a net-new unified pilot
+
+Date: 2026-08-25, workspace timezone (+06).
+Author: Codex implementing the owner-approved Long-run 1 goal and issues
+#382 through #387.
+Change type: superseding pilot scope, AI-provider boundary and merge-evidence
+policy.
+Block-ID: `EVO-LONG-RUN-1-NET-NEW-PILOT-2026-08-25`.
+Starting repository baseline: GitHub `origin/main` at
+`cfc75ca29a66546886de320aa80c454d18104b92` after U4 PR #396.
+Superseding decision: ADR 0021.
+
+Owner correction:
+
+1. EVO remains one internal product and Supabase/PostgreSQL is its canonical
+   operational foundation. WAHA is transport, amoCRM is legacy/read/import
+   only, and no SQLite, dual-read, dual-write, write-through or fallback source
+   of truth is authorized.
+2. The pilot is net-new after an explicit cutoff or an authorized small
+   allowlist. Broad active-data migration is removed from #387; existing active
+   and historical legacy cases stay excluded/read-only. #391 remains post-pilot
+   archive work.
+3. Long-run 1 is #382 -> #383 -> #384 -> #385 -> #386 -> #387 and stops before
+   #388. Every issue receives one fresh worktree, branch and coherent PR after
+   the previous dependency is merged.
+4. `gemini-3.7-flash`, verified as the current stable Flash model on 2026-08-25,
+   is the only pilot AI provider. It is server-side, structured, validated as
+   untrusted input and human-reviewed. It cannot send or perform consequential
+   internal/external mutations.
+5. The separate GitHub Reviews API `APPROVED` record is no longer a merge gate
+   for #382-#388. Exact-diff self-review, all required exact-head CI,
+   `--match-head-commit`, exact-main CI and immutable issue evidence remain
+   mandatory; a changed head invalidates earlier evidence.
+6. Long-run 1 does not deploy, mutate managed Supabase, touch real customer
+   data, change WAHA, send WhatsApp or write amoCRM. Only a minimal sanitized
+   synthetic Gemini verification call with the existing authorized credential
+   is allowed in #386, and only if the project/tier/terms are valid.
+
+Official primary documentation revalidated on 2026-08-25:
+
+- <https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash>
+- <https://ai.google.dev/gemini-api/docs/structured-output>
+- <https://ai.google.dev/gemini-api/docs/zdr>
+- <https://ai.google.dev/gemini-api/terms>
+- <https://supabase.com/docs/guides/database/postgres/row-level-security>
+- <https://supabase.com/docs/guides/storage/security/access-control>
+- <https://supabase.com/docs/guides/storage/schema/design>
+
+This entry changes scope before U5 feature coding. It does not claim managed
+Supabase, Gemini credential validity, production, WhatsApp, WAHA, amoCRM or
+customer-data proof.

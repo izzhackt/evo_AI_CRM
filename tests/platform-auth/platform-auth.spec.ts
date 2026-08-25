@@ -1137,6 +1137,179 @@ test("U4 qualifies and assigns canonical Sales leads through audited real Supaba
   expectLegacyDatabaseUntouched();
 });
 
+test("U5 confirms contract and first mandatory payment before normal Admissions handoff", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  expectLegacyDatabaseUntouched();
+
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  for (const permission of [
+    "contract.evidence.confirm",
+    "finance.first.payment.confirm",
+  ] as const) {
+    const grant = await platformRpc(
+      adminToken,
+      "change_membership_permission",
+      {
+        p_organization_id: fixture.u4.orgA.organizationId,
+        p_membership_id: fixture.u4.orgA.responsibleSalesMembershipId,
+        p_permission_key: permission,
+        p_granted: true,
+        p_reason: `U5 browser grant ${permission}`,
+        p_request_id: randomUUID(),
+      },
+    );
+    expect(grant.status, `${permission}-grant`).toBe(200);
+  }
+
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await login(page, fixture.identities.responsibleSales);
+  await expect(page).toHaveURL(/\/sales$/);
+  await page.goto(`/sales/${fixture.u4.orgA.connectedLeadId}`);
+
+  await expect(page.getByTestId("admissions-gate-card")).toBeVisible();
+  await expect(page.getByTestId("admissions-gate-state")).toContainText(
+    /Передача заблокирована|Handoff blocked/,
+  );
+  await expect(page.getByTestId("admissions-gate-normal-handoff")).toContainText(
+    /Не подтверждено|Not confirmed/,
+  );
+
+  const contractForm = page.getByTestId(
+    "admissions-gate-form-confirm_contract",
+  );
+  await contractForm
+    .getByTestId("admissions-gate-contract-amount")
+    .fill("1250.50");
+  await contractForm
+    .getByTestId("admissions-gate-contract-currency")
+    .fill("USD");
+  await contractForm
+    .getByTestId("admissions-gate-contract-due-date")
+    .fill("2099-12-31");
+  await contractForm
+    .getByTestId("admissions-gate-contract-evidence")
+    .fill("Synthetic contract EVO-U5-001");
+  await contractForm
+    .getByTestId("admissions-gate-submit-confirm_contract")
+    .click();
+  await expect(contractForm).toHaveCount(0);
+  await expect(page.getByTestId("admissions-gate-contract-state")).toContainText(
+    /Подтверждено|Confirmed/,
+  );
+  await expect(
+    page.getByTestId("admissions-gate-form-confirm_first_payment"),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByTestId("admissions-gate-state")).toContainText(
+    /Передача заблокирована|Handoff blocked/,
+  );
+  await expect(page.getByTestId("admissions-gate-contract-state")).toContainText(
+    /Подтверждено|Confirmed/,
+  );
+  await expect(
+    page.getByTestId("admissions-gate-form-confirm_contract"),
+  ).toHaveCount(0);
+
+  const paymentForm = page.getByTestId(
+    "admissions-gate-form-confirm_first_payment",
+  );
+  await paymentForm
+    .getByTestId("admissions-gate-payment-received-date")
+    .fill("2026-08-25");
+  await paymentForm
+    .getByTestId("admissions-gate-payment-evidence")
+    .fill("Synthetic receipt EVO-U5-PAY-001");
+  await paymentForm
+    .getByTestId("admissions-gate-submit-confirm_first_payment")
+    .click();
+  await expect(paymentForm).toHaveCount(0);
+  await expect(page.getByTestId("admissions-gate-state")).toContainText(
+    /Обычная передача разрешена|Normal handoff allowed/,
+  );
+  await expect(page.getByTestId("admissions-gate-normal-handoff")).toContainText(
+    /Подтверждено|Confirmed/,
+  );
+
+  await page.reload();
+  await expect(page.getByTestId("admissions-gate-state")).toContainText(
+    /Обычная передача разрешена|Normal handoff allowed/,
+  );
+  await expect(page.getByTestId("admissions-gate-payment-state")).toContainText(
+    /Подтверждено|Confirmed/,
+  );
+  await expect(page.getByTestId("admissions-gate-normal-handoff")).toContainText(
+    /Подтверждено|Confirmed/,
+  );
+  await expect(
+    page.getByTestId("admissions-gate-form-confirm_first_payment"),
+  ).toHaveCount(0);
+
+  const responsibleSalesToken = await localAccessToken(
+    fixture.identities.responsibleSales,
+  );
+  const gate = await platformRpc(
+    responsibleSalesToken,
+    "staff_lead_admissions_gate",
+    { p_lead_id: fixture.u4.orgA.connectedLeadId },
+  );
+  expect(gate.status).toBe(200);
+  expect(gate.payload).toEqual([
+    expect.objectContaining({
+      organization_id: fixture.u4.orgA.organizationId,
+      lead_id: fixture.u4.orgA.connectedLeadId,
+      contract_confirmed: true,
+      contract_confirmed_by_membership_id:
+        fixture.u4.orgA.responsibleSalesMembershipId,
+      first_payment_received_date: "2026-08-25",
+      first_payment_confirmed_by_membership_id:
+        fixture.u4.orgA.responsibleSalesMembershipId,
+      gate_state: "satisfied",
+      normal_handoff_allowed: true,
+      exceptional_handoff_allowed: false,
+    }),
+  ]);
+
+  const gateAudit = await safeAuditSearch(adminToken, {
+    actions: [
+      "lead.admissions.gate.contract.confirmed",
+      "lead.admissions.gate.firstpayment.confirmed",
+    ],
+    resourceTypes: ["lead"],
+    resourceId: fixture.u4.orgA.connectedLeadId,
+  });
+  expect(gateAudit.status).toBe(200);
+  expect(safeAuditRows(gateAudit.payload)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        action: "lead.admissions.gate.contract.confirmed",
+        resource_id: fixture.u4.orgA.connectedLeadId,
+      }),
+      expect.objectContaining({
+        action: "lead.admissions.gate.firstpayment.confirmed",
+        resource_id: fixture.u4.orgA.connectedLeadId,
+      }),
+    ]),
+  );
+
+  const crossOrgContext = await browser.newContext();
+  const crossOrgPage = await crossOrgContext.newPage();
+  await login(crossOrgPage, fixture.identities.crossOrgAdmin);
+  await expect(crossOrgPage).toHaveURL(/\/sales$/);
+  await crossOrgPage.goto(`/sales/${fixture.u4.orgA.connectedLeadId}`);
+  await expect(
+    crossOrgPage.getByTestId("canonical-lead-not-found"),
+  ).toBeVisible();
+  await expect(crossOrgPage.getByTestId("admissions-gate-card")).toHaveCount(0);
+  await crossOrgContext.close();
+
+  await context.close();
+  expectLegacyDatabaseUntouched();
+});
+
 test("route-level auth failures surface an explicit login error", async ({
   page,
 }) => {
@@ -1246,6 +1419,7 @@ test("U1 Admin manages individual sensitive permissions while UI, RPC and RLS de
   for (const permission of [
     "contract.evidence.confirm",
     "finance.first.payment.confirm",
+    "admissions.handoff.gate.override",
   ] as const) {
     const denied = await platformRpc(
       salesTokenBefore,
@@ -1410,6 +1584,11 @@ test("U1 Admin manages individual sensitive permissions while UI, RPC and RLS de
       form.getByRole("button", { name: "Отозвать" }),
     ).toBeVisible();
   }
+  await expect(
+    salesRow.getByTestId(
+      "platform-staff-permission-admissions.handoff.gate.override",
+    ),
+  ).toHaveCount(0);
 
   const staleAfterGrant = await platformRpc(
     salesTokenBefore,
@@ -1450,6 +1629,16 @@ test("U1 Admin manages individual sensitive permissions while UI, RPC and RLS de
     );
     expect(crossOrganization.status, `${permission}-cross-org`).toBe(403);
   }
+
+  const salesOverrideDenied = await platformRpc(
+    grantedSalesToken,
+    "assert_sensitive_permission",
+    {
+      p_organization_id: fixture.p5b.organizationId,
+      p_permission_key: "admissions.handoff.gate.override",
+    },
+  );
+  expect(salesOverrideDenied.status).toBe(403);
 
   for (const permission of [
     "contract.evidence.confirm",

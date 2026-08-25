@@ -1,19 +1,19 @@
 # EVO Platform Long-Run Execution Contract
 
 Status: active U0-U14 repository implementation contract
-Version date: 2026-08-24 (Asia/Bishkek)
-Current U4 branch baseline: GitHub `origin/main` at
-`730a2c2af6269d59ee0ec5391d9bafe0398af068`
-Authority: parent issue #376, ADR 0020, this plan and the latest merged
-`docs/PLAN_CHANGES.md`. ADR 0015 and ADR 0017 remain active only where ADR 0020
-retains them. Earlier P/BW/NW/P8 plans and ADR 0019 are historical source.
+Version date: 2026-08-25 (Asia/Bishkek)
+Current Long-run 1 baseline: GitHub `origin/main` at
+`cfc75ca29a66546886de320aa80c454d18104b92`
+Authority: parent issue #376, ADR 0021, this plan and the latest merged
+`docs/PLAN_CHANGES.md`. ADR 0020 remains active only where ADR 0021 retains it;
+earlier P/BW/NW/P8 plans and ADR 0019 are historical source.
 
-Current execution checkpoint: U0/#377 through U3/#380 are merged. U4/#381 is
-the only current repository/disposable-local slice and stops before U5/#382.
-It changes no managed Supabase project, provider, production,
-customer data, WAHA session, amoCRM record or WhatsApp message.
-Block-ID: `EVO-U4-SALES-QUALIFICATION-OWNER-NEXT-ACTION-2026-08-24`.
-Focused contract: `docs/platform/u4-sales-qualification-owner-next-action.md`.
+Current execution checkpoint: U0/#377 through U4/#381 are merged. Long-run 1
+executes U5/#382 through U10/#387 sequentially and stops before U11/#388. It
+changes no managed Supabase project, production deployment, customer data,
+WAHA session, amoCRM record or WhatsApp message. Only the bounded sanitized
+Gemini verification authorized in U9/#386 may exercise an external provider.
+Block-ID: `EVO-LONG-RUN-1-NET-NEW-PILOT-2026-08-25`.
 
 ### Historical pre-#376 checkpoint
 
@@ -64,13 +64,14 @@ managed operations authorized for P7C are limited by
 `docs/platform/p7c-managed-recovery-contract.md`; other credential, provider,
 customer-data, staging or production actions remain unauthorized.
 
-For the current owner-authorized MVP lane, older references in this file to a
-scheduled Launch Auditor or controller-only merge are historical unless
-restated inside an active slice. The superseding merge protocol is one fresh
-independent read-only exact-head review, green exact-head GitHub CI, a final
-refresh/recheck that `origin/main`, the PR base and the reviewed head SHA still
-match the evidence, direct merge only of that reviewed head SHA, and then
-exact-main push-CI verification before the next block starts.
+For Long-run 1, older references in this file to a scheduled Launch Auditor,
+controller-only merge or mandatory GitHub `APPROVED` review are historical.
+The owner-authorized merge protocol is exact-diff self-review with no known
+blocker, all required exact-head GitHub CI, a final refresh/recheck that
+`origin/main`, the PR base and head SHA still match the evidence, squash merge
+protected by `--match-head-commit`, and exact-main push-CI verification before
+the next block starts. An optional independent subagent review may add signal
+but is not a merge gate.
 
 ## 1. Outcome and truth boundary
 
@@ -86,11 +87,12 @@ one organization/role model and one end-to-end workflow:
   objects; RLS and server authorization enforce organization and object scope;
 - local/dev, staging and preview environments remain physically isolated from
   production, with no production-data copy by default;
-- active legacy data is archived, checksummed, migrated once and reconciled
-  into the canonical model before pilot. SQLite runtime restoration,
+- the pilot is net-new after an explicit cutoff or authorized small allowlist.
+  Existing active/history legacy records remain excluded or read-only before
+  pilot. SQLite runtime restoration,
   dual-read, dual-write, write-through, fallback repositories, parallel UI and
   compatibility layers are prohibited;
-- amoCRM is a temporary read/import adapter and migration source. It is not
+- amoCRM is a temporary read/import adapter. It is not
   canonical for EVO identity, stage, ownership or workflow, and stage one
   performs no amoCRM write;
 - WAHA is a private transport adapter. Provider IDs and ACK evidence remain
@@ -107,8 +109,8 @@ one organization/role model and one end-to-end workflow:
   creates starter work. Override requires a reason and immutable audit;
 - first live acceptance is receive-only: real inbound WhatsApp and permitted
   external reads, but no outbound WhatsApp and no amoCRM write;
-- active operational records migrate before pilot; historical closed records
-  follow only after a stable pilot.
+- pilot operational writes remain only in EVO/Supabase; broad active migration
+  and historical/archive work require separate post-pilot approval.
 
 The accepted frontend remains the sole staff UI contract and must not gain a
 parallel or fallback Inbox UI. Student Profile document extraction/autofill
@@ -351,9 +353,10 @@ Reversible assumptions pending owner evidence:
   `platform_private` or `pgmq_public`; queue operations use narrowly granted
   service-only paths with negative tests.
 - Legacy Inbox roles `owner`, `admin`, `agent` and `viewer` are not mapped
-  implicitly to pilot roles. U10 may perform a reviewed one-time identity/data
-  migration with explicit mapping and rejection evidence; legacy signup must
-  not create new Platform authority or a compatibility bridge.
+  implicitly to pilot roles. U10 may record one explicitly approved pilot
+  case's bounded identity/context import with provenance, but it must not add
+  a live migration/synchronization path. Legacy signup must not create new
+  Platform authority or a compatibility bridge.
 - Every exposed table has RLS. Browser code receives only the publishable key;
   secret/service-role credentials stay server-side.
 - Custom JWT claims provide coarse role; organization, case, conversation and
@@ -431,13 +434,13 @@ Shared plan, schema, migration and deployment surfaces are sequential.
 | U1 | #378 | One login and three pilot roles | Merged prerequisite |
 | U2 | #379 | Canonical Supabase client and lead | Merged prerequisite |
 | U3 | #380 | Receive-only WhatsApp in unified Sales | Merged prerequisite |
-| U4 | #381 | Sales qualification, owner and next action | Repository/local proof complete; exact-head review and CI pending |
-| U5 | #382 | Contract and first-payment evidence | Blocked by U1/U2/U4 |
+| U4 | #381 | Sales qualification, owner and next action | Merged prerequisite |
+| U5 | #382 | Contract and first-payment evidence | Current Long-run 1 slice; blocked only by merged U4 |
 | U6 | #383 | Audited Sales-to-Admissions handoff | Blocked by U5 |
 | U7 | #384 | Complete Admissions case | Blocked by U6 |
-| U8 | #385 | Payment schedule, overdue and stop factors | Blocked by U6 |
-| U9 | #386 | Human-reviewed AI assistance | Blocked by U3/U7 |
-| U10 | #387 | Active-data migration and legacy-write freeze | Blocked by U2-U9 |
+| U8 | #385 | Minimal payment control and finance stop-factor | Blocked by U5/U7 |
+| U9 | #386 | One Gemini Flash assistant with human review | Blocked by U7 |
+| U10 | #387 | Net-new pilot cohort and legacy isolation | Blocked by U8/U9 |
 | U11 | #388 | Admin health, audit, backup and rollback | Blocked by U1-U10 |
 | U12 | #389 | Real managed receive-only acceptance | Blocked by U10/U11 |
 | U13 | #390 | Ten-workday, five-case pilot | Blocked by U12 |
@@ -1230,12 +1233,13 @@ full local Playwright or live provider proof.
 The implementation may advance safely around these items, but the affected
 gates remain blocked until resolved:
 
-1. exact amoCRM source inventory/mappings and read/import authority for U2/U10;
+1. exact authority and provenance for any exceptional one-time pilot-case
+   identity/context import in U10;
 2. Supabase region, plan, PITR availability and cost owner;
 3. capacity profile, SLO, RPO and RTO;
 4. retention, privacy notice, residency, DPA and legal deletion policy;
-5. AI provider/model, provider DPA and allowed-data policy for advisory,
-   human-reviewed U9 behavior;
+5. Gemini project/tier, DPA/terms and allowed-data policy before any real
+   customer data is used in advisory, human-reviewed U9 behavior;
 6. dedicated sanitized inbound test sender, `evo-inbox` production
    QR/session-recovery owner and receive-only U12 authority;
 7. release window, freeze rules and rollback authority.

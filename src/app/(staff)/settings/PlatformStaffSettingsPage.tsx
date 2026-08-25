@@ -25,6 +25,7 @@ import {
   requirePlatformStaffAdminActor,
   type PlatformStaffMember,
 } from "@/lib/platform-staff-directory";
+import type { PlatformSensitivePermission } from "@/lib/platform-staff-roles";
 import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
 
 type SettingsSearchParams = Record<string, string | string[] | undefined>;
@@ -72,9 +73,7 @@ function PermissionForm({
   granted,
 }: {
   member: PlatformStaffMember;
-  permissionKey:
-    | "contract.evidence.confirm"
-    | "finance.first.payment.confirm";
+  permissionKey: PlatformSensitivePermission;
   label: string;
   granted: boolean;
 }) {
@@ -127,7 +126,7 @@ function MemberRow({ member }: { member: PlatformStaffMember }) {
         </span>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-3">
         <form
           action={changePlatformStaffRoleAction}
           className="grid gap-2"
@@ -182,6 +181,14 @@ function MemberRow({ member }: { member: PlatformStaffMember }) {
           member={member}
           permissionKey="finance.first.payment.confirm"
         />
+        {member.role === "admin" ? (
+          <PermissionForm
+            granted={member.admissionsGateOverrideGranted}
+            label="Исключение для handoff в Admissions"
+            member={member}
+            permissionKey="admissions.handoff.gate.override"
+          />
+        ) : null}
       </div>
     </li>
   );

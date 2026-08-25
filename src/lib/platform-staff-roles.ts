@@ -15,6 +15,7 @@ export type PlatformMembershipStatus =
 export const PLATFORM_SENSITIVE_PERMISSIONS = [
   "contract.evidence.confirm",
   "finance.first.payment.confirm",
+  "admissions.handoff.gate.override",
 ] as const;
 export type PlatformSensitivePermission =
   (typeof PLATFORM_SENSITIVE_PERMISSIONS)[number];

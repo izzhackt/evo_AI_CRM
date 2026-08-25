@@ -22,6 +22,7 @@ export type PlatformStaffMember = Readonly<{
   accessVersion: number;
   contractConfirmationGranted: boolean;
   firstPaymentConfirmationGranted: boolean;
+  admissionsGateOverrideGranted: boolean;
   isActingAdmin: boolean;
 }>;
 
@@ -90,7 +91,8 @@ export async function listPlatformStaffMembers(
       !accessVersion ||
       displayName.length === 0 ||
       typeof row.contract_confirmation_granted !== "boolean" ||
-      typeof row.first_payment_confirmation_granted !== "boolean"
+      typeof row.first_payment_confirmation_granted !== "boolean" ||
+      typeof row.admissions_gate_override_granted !== "boolean"
     ) {
       return null;
     }
@@ -105,6 +107,8 @@ export async function listPlatformStaffMembers(
       contractConfirmationGranted: row.contract_confirmation_granted,
       firstPaymentConfirmationGranted:
         row.first_payment_confirmation_granted,
+      admissionsGateOverrideGranted:
+        row.admissions_gate_override_granted,
       isActingAdmin: membershipId === actor.membershipId,
     });
   }

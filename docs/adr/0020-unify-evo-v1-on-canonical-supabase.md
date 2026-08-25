@@ -1,5 +1,9 @@
 # ADR 0020: Unify EVO v1 on canonical Supabase
 
+> Status note: ADR 0021 retains the unified-product/Supabase authority and
+> supersedes this ADR only for pre-pilot active-data migration timing, the
+> net-new cohort boundary and the single human-reviewed Gemini Flash provider.
+
 - Status: accepted
 - Decision date: 2026-08-23
 - Recorded: 2026-08-24 (Asia/Bishkek)

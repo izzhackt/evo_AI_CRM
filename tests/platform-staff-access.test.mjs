@@ -33,6 +33,7 @@ test("U1 exposes exactly three pilot staff roles and the complete lifecycle", ()
   assert.deepEqual(PLATFORM_SENSITIVE_PERMISSIONS, [
     "contract.evidence.confirm",
     "finance.first.payment.confirm",
+    "admissions.handoff.gate.override",
   ]);
   assert.equal(isPlatformStaffRole("finance"), false);
   assert.equal(isPlatformStaffRole("student"), false);
@@ -86,5 +87,6 @@ test("only audited U1 RPCs are reachable from the connected Admin surface", () =
   assert.doesNotMatch(actions, /service[_-]?role/i);
   assert.match(directory, /platformRole !== "admin"/);
   assert.match(settings, /Подтверждение первого платежа/);
+  assert.match(settings, /Исключение для handoff в Admissions/);
   assert.match(routeContract, /role === "finance".*"\/platform-pending"/s);
 });

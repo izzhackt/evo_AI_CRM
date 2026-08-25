@@ -1,12 +1,9 @@
 # EVO Launch Plan
 
-Status: parent #376 is the active product contract; U0/#377 through U3/#380
-are merged, and U4/#381 is the only current repository/disposable-local
-slice. Its clean local proof passed on 2026-08-24 UTC, after local midnight on
-2026-08-25 in Asia/Bishkek; exact-head review, CI and
-merge remain pending. ADR 0020,
-`docs/platform/u4-sales-qualification-owner-next-action.md`, and the latest
-`docs/PLAN_CHANGES.md` entry are binding.
+Status: parent #376 is the active product contract; U0/#377 through U4/#381
+are merged. Long-run 1 is the sequential U5/#382 through U10/#387 program and
+stops before U11/#388. ADR 0021 and the latest `docs/PLAN_CHANGES.md` entry are
+binding.
 
 ## Current unified v1 authority
 
@@ -17,16 +14,22 @@ merge remain pending. ADR 0020,
   action, Student Case, documents, applications, visa, payment control, tasks,
   communications and audit. SQLite runtime/fallback, dual-read, dual-write and
   compatibility layers are prohibited.
-- amoCRM is a temporary read/import adapter and migration source. WAHA is a
-  private transport adapter. AI is advisory and human-reviewed only.
+- amoCRM is a temporary read/import adapter. WAHA is a private transport
+  adapter. Gemini Flash is the single pilot AI provider; every result is a
+  human-reviewed draft and cannot act autonomously.
 - The normal Admissions handoff requires confirmed contract plus first
   mandatory payment. Director/Admin override requires a reason and audit.
 - The first live stage is receive-only: no outbound WhatsApp and no amoCRM
   write. Repository evidence does not prove managed Supabase, provider,
   deployment, backup or rollback behavior.
-- Active data is migrated once with archive, provenance and reconciliation
-  before pilot; historical closed data follows after a stable pilot. No
-  coexistence bridge is authorized.
+- The pilot is net-new after an explicit cutoff or an authorized small
+  allowlist. Existing active and historical legacy records stay excluded or
+  read-only until separately approved post-pilot work. No coexistence bridge,
+  broad pre-pilot migration or fallback write path is authorized.
+- For #382-#388, exact-diff self-review, all required exact-head CI,
+  `--match-head-commit` and exact-main verification are mandatory. A separate
+  GitHub Reviews API `APPROVED` record is not a merge gate for this owner-
+  authorized program.
 
 The active dependency order is:
 
@@ -40,9 +43,9 @@ The active dependency order is:
 | U5 | #382 | Contract and first-payment evidence |
 | U6 | #383 | Audited Sales-to-Admissions handoff |
 | U7 | #384 | First complete Admissions case |
-| U8 | #385 | Payment schedule, overdue and stop factors |
-| U9 | #386 | Human-reviewed AI assistance |
-| U10 | #387 | Active-data migration and legacy-write freeze |
+| U8 | #385 | Minimal payment control and finance stop-factor |
+| U9 | #386 | One Gemini Flash assistant with human review |
+| U10 | #387 | Net-new pilot cohort and legacy isolation |
 | U11 | #388 | Truthful admin health, audit, backup and rollback |
 | U12 | #389 | Real managed receive-only acceptance |
 | U13 | #390 | Ten-workday, five-case internal pilot |
@@ -58,17 +61,18 @@ identity, provenance, duplicate and bounded read contract described in
 `docs/platform/u2-canonical-client-lead.md`. U3 merged in PR #395 with signed
 receive-only WAHA intake, canonical conversation linkage and bounded Sales
 intake/history reads described in
-`docs/platform/u3-receive-only-sales-queue.md`. U4 now owns only canonical
+`docs/platform/u3-receive-only-sales-queue.md`. U4 merged in PR #396 and owns
+only canonical
 Sales qualification, eligible owner assignment, paired next action/deadline,
 truthful connected/unconnected queue filters and durable audit described in
-`docs/platform/u4-sales-qualification-owner-next-action.md`. Stop after #381;
-do not begin U5 in this branch or PR.
+`docs/platform/u4-sales-qualification-owner-next-action.md`. U5/#382 is the
+current slice; do not start U6 until U5 is merged.
 
 ## Historical pre-#376 execution record
 
 Everything below this boundary records earlier P/BW/NW/P8 planning and exact
 historical evidence. It is not an active execution sequence and cannot
-override #376, ADR 0020 or U0-U14.
+override #376, ADR 0021 or U0-U14.
 
 Historical P1, reusable greenfield P2A-P2H, BW0, P3A-P3C, BW1-BW7,
 P2R0-P2R4 and P4A are merged. PR #118 merged the P4B docs-only contract, PR

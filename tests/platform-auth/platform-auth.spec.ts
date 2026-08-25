@@ -1195,7 +1195,13 @@ test("U5 confirms contract and first mandatory payment before normal Admissions 
   await contractForm
     .getByTestId("admissions-gate-submit-confirm_contract")
     .click();
-  await expect(contractForm.getByTestId("admissions-gate-saved")).toBeVisible();
+  await expect(contractForm).toHaveCount(0);
+  await expect(page.getByTestId("admissions-gate-contract-state")).toContainText(
+    /Подтверждено|Confirmed/,
+  );
+  await expect(
+    page.getByTestId("admissions-gate-form-confirm_first_payment"),
+  ).toBeVisible();
 
   await page.reload();
   await expect(page.getByTestId("admissions-gate-state")).toContainText(
@@ -1220,7 +1226,13 @@ test("U5 confirms contract and first mandatory payment before normal Admissions 
   await paymentForm
     .getByTestId("admissions-gate-submit-confirm_first_payment")
     .click();
-  await expect(paymentForm.getByTestId("admissions-gate-saved")).toBeVisible();
+  await expect(paymentForm).toHaveCount(0);
+  await expect(page.getByTestId("admissions-gate-state")).toContainText(
+    /Обычная передача разрешена|Normal handoff allowed/,
+  );
+  await expect(page.getByTestId("admissions-gate-normal-handoff")).toContainText(
+    /Подтверждено|Confirmed/,
+  );
 
   await page.reload();
   await expect(page.getByTestId("admissions-gate-state")).toContainText(

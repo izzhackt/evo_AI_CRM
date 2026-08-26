@@ -36,6 +36,10 @@ import {
 } from "@/lib/platform-case-operations-actions";
 import { getPlatformCaseFinanceControl } from "@/lib/platform-finance-control";
 import {
+  getPlatformPilotWriteBoundary,
+  getPlatformStudentCasePilotCohort,
+} from "@/lib/platform-pilot-cohort";
+import {
   approvePlatformContractTemplateVersionAction,
   createPlatformContractTemplateVersionAction,
   generatePlatformPostContractReportAction,
@@ -89,6 +93,10 @@ type Query = {
   u8_retry_request_id?: string;
   u8_retry_operation?: string;
   u8_subject_id?: string;
+  u10_result?: string;
+  u10_retry_request_id?: string;
+  u10_retry_operation?: string;
+  u10_subject_id?: string;
 };
 
 type SearchParams = Readonly<Record<string, string | string[] | undefined>>;
@@ -114,6 +122,10 @@ function normalizeQuery(searchParams: SearchParams): Query {
     u8_retry_request_id: first(searchParams.u8_retry_request_id),
     u8_retry_operation: first(searchParams.u8_retry_operation),
     u8_subject_id: first(searchParams.u8_subject_id),
+    u10_result: first(searchParams.u10_result),
+    u10_retry_request_id: first(searchParams.u10_retry_request_id),
+    u10_retry_operation: first(searchParams.u10_retry_operation),
+    u10_subject_id: first(searchParams.u10_subject_id),
   };
 }
 
@@ -185,6 +197,8 @@ export async function loadPlatformClientPageData(
     caseFinanceControl,
     handoffState,
     caseWorkspace,
+    pilotCohortRead,
+    legacyWriteBoundaryRead,
   ] = await Promise.all([
     listPlatformApplicationsForStudentCase(actor, studentCase.studentCaseId, {
       pageSize: 100,
@@ -210,6 +224,16 @@ export async function loadPlatformClientPageData(
           limit: 20,
         })
       : Promise.resolve(null),
+    getPlatformStudentCasePilotCohort(actor, studentCase.studentCaseId, 20)
+      .then(
+        (value) => ({ value, unavailable: false as const }),
+        () => ({ value: null, unavailable: true as const }),
+      ),
+    getPlatformPilotWriteBoundary(actor, studentCase.studentCaseId, "legacy_crm")
+      .then(
+        (value) => ({ value, unavailable: false as const }),
+        () => ({ value: null, unavailable: true as const }),
+      ),
   ]);
   if (!assignmentState || (canReadCaseWorkspace && !caseWorkspace)) return null;
 
@@ -297,6 +321,17 @@ export async function loadPlatformClientPageData(
     && u8RetryRequestId
     && u8RetrySubjectId === subjectId
       ? u8RetryRequestId
+      : randomUUID();
+  const u10RetryRequestId = parsePlatformAdmissionsUuid(
+    query.u10_retry_request_id,
+  );
+  const u10RetrySubjectId = parsePlatformAdmissionsUuid(query.u10_subject_id);
+  const u10RequestIdFor = (
+    operation: "configuration" | "include" | "exclude",
+  ): string => query.u10_retry_operation === operation
+    && u10RetryRequestId
+    && u10RetrySubjectId === studentCase.studentCaseId
+      ? u10RetryRequestId
       : randomUUID();
   const payments = caseFinanceControl.obligations.map((payment) => ({
     id: payment.paymentObligationId,
@@ -496,6 +531,15 @@ export async function loadPlatformClientPageData(
       reason: event.reason ?? "—",
       occurred_at: event.createdAt,
     })),
+    pilotCohort: pilotCohortRead.value,
+    pilotLegacyWriteBoundary: legacyWriteBoundaryRead.value,
+    pilotCohortUnavailable:
+      pilotCohortRead.unavailable || legacyWriteBoundaryRead.unavailable,
+    canManagePilotCohort: actor.platformRole === "admin",
+    pilotConfigurationRequestId: u10RequestIdFor("configuration"),
+    pilotIncludeRequestId: u10RequestIdFor("include"),
+    pilotExcludeRequestId: u10RequestIdFor("exclude"),
+    pilotResult: result(query.u10_result),
     tasks: tasks ?? [],
     handoffContext,
     updates: workspaceUpdates.map((update) => ({

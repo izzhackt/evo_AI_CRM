@@ -6,12 +6,20 @@ import { Badge, Card, EmptyState, StatCard, inputCls, btnCls, btnGhostCls, label
 import { AiSummary } from "@/components/AiSummary";
 import { StudentProgress } from "@/components/platform/core/StudentProgress";
 import {
+  PlatformPilotCohortCard,
+  type PlatformPilotCohortCardLabels,
+} from "@/components/platform/cases/PlatformPilotCohortCard";
+import {
   ContractDraftReportWorkspace,
   type ContractDraftReportActions,
   type ContractDraftReportRequestIdFor,
   type ContractDraftReportResult,
 } from "./ContractDraftReportWorkspace";
 import type { PlatformCaseContractWorkspace } from "@/lib/platform-contract-workflow";
+import type {
+  PlatformPilotWriteBoundary,
+  PlatformStudentCasePilotCohort,
+} from "@/lib/platform-pilot-cohort";
 import {
   PLATFORM_STUDENT_PROFILE_DECISION_PARTICIPANTS_INPUT_MAX_LENGTH,
   PLATFORM_STUDENT_PROFILE_DECISION_PARTICIPANTS_INPUT_PATTERN,
@@ -286,6 +294,14 @@ export type ClientPagePresentationData =
       visa: PresentationVisa | null;
       payments: readonly PresentationPayment[];
       financeHistory?: readonly PresentationFinanceHistoryEvent[];
+      pilotCohort?: PlatformStudentCasePilotCohort | null;
+      pilotLegacyWriteBoundary?: PlatformPilotWriteBoundary | null;
+      pilotCohortUnavailable?: boolean;
+      canManagePilotCohort?: boolean;
+      pilotConfigurationRequestId?: string;
+      pilotIncludeRequestId?: string;
+      pilotExcludeRequestId?: string;
+      pilotResult?: "saved" | "invalid" | "unavailable";
       tasks: readonly PresentationTask[];
       handoffContext?: PresentationAdmissionsHandoffContext | null;
       updates: readonly PresentationUpdate[];
@@ -549,6 +565,14 @@ export default async function FixtureClientPage({
     visa,
     payments,
     financeHistory = [],
+    pilotCohort = null,
+    pilotLegacyWriteBoundary = null,
+    pilotCohortUnavailable = false,
+    canManagePilotCohort = false,
+    pilotConfigurationRequestId = randomUUID(),
+    pilotIncludeRequestId = randomUUID(),
+    pilotExcludeRequestId = randomUUID(),
+    pilotResult,
     tasks,
     handoffContext = null,
     updates,
@@ -585,6 +609,59 @@ export default async function FixtureClientPage({
     contractRetrySubjectId,
     connected,
   } = data;
+  const pilotLabels: PlatformPilotCohortCardLabels = {
+    title: t("platformPilotCohortTitle"),
+    hint: t("platformPilotCohortHint"),
+    unavailable: t("platformPilotCohortUnavailable"),
+    resultSaved: t("platformPilotCohortResultSaved"),
+    resultInvalid: t("platformPilotCohortResultInvalid"),
+    resultUnavailable: t("platformPilotCohortResultUnavailable"),
+    status: t("platformPilotCohortStatus"),
+    statusLabels: {
+      outside: t("platformPilotCohortStatusOutside"),
+      included: t("platformPilotCohortStatusIncluded"),
+      excluded: t("platformPilotCohortStatusExcluded"),
+    },
+    basis: t("platformPilotCohortBasis"),
+    basisLabels: {
+      cutoff_rule: t("platformPilotCohortBasisCutoff"),
+      manual_include: t("platformPilotCohortBasisManualInclude"),
+      manual_exclude: t("platformPilotCohortBasisManualExclude"),
+    },
+    notApplicable: t("platformPilotCohortNotApplicable"),
+    reason: t("platformPilotCohortReason"),
+    provenance: t("platformPilotCohortProvenance"),
+    actor: t("platformPilotCohortActor"),
+    changedAt: t("platformPilotCohortChangedAt"),
+    configuration: t("platformPilotCohortConfiguration"),
+    configurationMissing: t("platformPilotCohortConfigurationMissing"),
+    configurationState: t("platformPilotCohortConfigurationState"),
+    configurationActive: t("platformPilotCohortConfigurationActive"),
+    configurationPaused: t("platformPilotCohortConfigurationPaused"),
+    cutoff: t("platformPilotCohortCutoff"),
+    configurationVersion: t("platformPilotCohortConfigurationVersion"),
+    counts: t("platformPilotCohortCounts"),
+    countOutside: t("platformPilotCohortCountOutside"),
+    countIncluded: t("platformPilotCohortCountIncluded"),
+    countExcluded: t("platformPilotCohortCountExcluded"),
+    countTotal: t("platformPilotCohortCountTotal"),
+    authority: t("platformPilotCohortAuthority"),
+    evoOnly: t("platformPilotCohortEvoOnly"),
+    canonicalTarget: t("platformPilotCohortCanonicalTarget"),
+    canonicalAllowed: t("platformPilotCohortCanonicalAllowed"),
+    canonicalBlocked: t("platformPilotCohortCanonicalBlocked"),
+    legacyTarget: t("platformPilotCohortLegacyTarget"),
+    legacyBlocked: t("platformPilotCohortLegacyBlocked"),
+    noFallback: t("platformPilotCohortNoFallback"),
+    history: t("platformPilotCohortHistory"),
+    historyEmpty: t("platformPilotCohortHistoryEmpty"),
+    configure: t("platformPilotCohortConfigure"),
+    saveConfiguration: t("platformPilotCohortSaveConfiguration"),
+    include: t("platformPilotCohortInclude"),
+    exclude: t("platformPilotCohortExclude"),
+    manualReason: t("platformPilotCohortManualReason"),
+    manualProvenance: t("platformPilotCohortManualProvenance"),
+  };
   const profileLabels = {
     ru: {
       title: "Профиль студента",
@@ -962,6 +1039,20 @@ export default async function FixtureClientPage({
           <h2 className="text-[14px] font-bold">{data.warning.title}</h2>
           <p className="mt-1 text-[12.5px] leading-5 text-fg-2">{data.warning.description}</p>
         </section>
+      )}
+
+      {connected && (
+        <PlatformPilotCohortCard
+          cohort={pilotCohort}
+          legacyWriteBoundary={pilotLegacyWriteBoundary}
+          unavailable={pilotCohortUnavailable}
+          canManage={canManagePilotCohort}
+          configurationRequestId={pilotConfigurationRequestId}
+          includeRequestId={pilotIncludeRequestId}
+          excludeRequestId={pilotExcludeRequestId}
+          outcome={pilotResult}
+          labels={pilotLabels}
+        />
       )}
 
       <div className="space-y-2">

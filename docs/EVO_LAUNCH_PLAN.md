@@ -75,13 +75,16 @@ completed successfully. Its workspace contract remains
 `docs/platform/u7-admissions-case-workspace.md`. U8/#385 merged in PR #400 at
 `e3a681774bcb2c37a7f4c1600341cc16d6282892`; exact-main run `33013322714`
 completed successfully. Its implementation contract is
-`docs/platform/u8-payment-control-stop-factor.md`. The active U9/#386 contract
-is `docs/platform/u9-gemini-human-review.md`; it may extend the existing
-connected Gemini proposal request/result path with schema version 2 and an
-append-only human-review decision. It is rebound onto that exact U8 main head
-and may now proceed through its own independent review, exact-head PR and
-protected merge gates; local evidence cannot be treated as live Gemini or
-production proof.
+`docs/platform/u8-payment-control-stop-factor.md`. U9/#386 merged in PR #401 at
+`48d15818d51a629ea97f914b93c2beca82ee0c2b`; exact-main run `33017855457`
+completed successfully. Its human-review contract remains
+`docs/platform/u9-gemini-human-review.md`; repository evidence does not claim
+live Gemini or production proof. The active U10/#387 contract is
+`docs/platform/u10-net-new-pilot-cohort-legacy-isolation.md`. It is rebound
+onto that exact U9 main head and may proceed through independent review,
+exact-head PR and protected merge gates. U10 extends canonical Student Cases
+with explicit pilot membership and a truthful legacy-write boundary; it does
+not authorize a legacy fallback, provider action or production rollout.
 
 ## Historical pre-#376 execution record
 

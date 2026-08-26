@@ -3060,6 +3060,678 @@ test("U9 reviews synthetic Gemini proposals with human-only authority and tenant
   expectLegacyDatabaseUntouched();
 });
 
+test("U10 isolates a net-new pilot cohort from legacy writes with audited exact replay", async ({
+  browser,
+}) => {
+  test.skip(
+    process.env.EVO_U10_BROWSER_PROOF !== "1",
+    "U10 feature proof runs in its isolated browser invocation.",
+  );
+  test.setTimeout(240_000);
+  expectLegacyDatabaseUntouched();
+
+  const organizationId = fixture.u4.orgA.organizationId;
+  expect(organizationId).toBe(fixture.u6.organizationId);
+  const cutoffAt = "2000-01-01T00:00:00+00:00";
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const responsibleSalesToken = await localAccessToken(
+    fixture.identities.responsibleSales,
+  );
+  const crossOrganizationToken = await localAccessToken(
+    fixture.identities.crossOrgAdmin,
+  );
+  const adminAuthority = await platformRpc(
+    adminToken,
+    "current_actor_authority",
+    {},
+  );
+  expect(adminAuthority.status).toBe(200);
+  expect(adminAuthority.payload).toEqual([
+    expect.objectContaining({
+      organization_id: organizationId,
+      membership_id: expect.any(String),
+      platform_role: "admin",
+    }),
+  ]);
+
+  const legacyLead = await platformRpc(
+    adminToken,
+    "staff_canonical_lead_detail",
+    { p_lead_id: fixture.u6.leadId },
+  );
+  expect(legacyLead.status).toBe(200);
+  const legacyLinkedCases = Array.isArray(legacyLead.payload)
+    && legacyLead.payload[0]
+    && typeof legacyLead.payload[0] === "object"
+    && Array.isArray(
+      (legacyLead.payload[0] as Record<string, unknown>).linked_student_cases,
+    )
+      ? (legacyLead.payload[0] as { linked_student_cases: Array<Record<string, unknown>> })
+        .linked_student_cases
+      : [];
+  const legacyCaseId = legacyLinkedCases[0]?.student_case_id;
+  if (typeof legacyCaseId !== "string") {
+    throw new Error(
+      "U10 proof requires the pre-existing U6 canonical case created before pilot configuration.",
+    );
+  }
+
+  const legacyBeforeConfiguration = await platformRpc(
+    adminToken,
+    "staff_student_case_pilot_cohort",
+    {
+      p_organization_id: organizationId,
+      p_student_case_id: legacyCaseId,
+      p_history_limit: 20,
+    },
+  );
+  expect(legacyBeforeConfiguration.status).toBe(200);
+  expect(legacyBeforeConfiguration.payload).toEqual([
+    expect.objectContaining({
+      organization_id: organizationId,
+      student_case_id: legacyCaseId,
+      membership_status: "outside",
+      membership_basis: null,
+      configuration: null,
+      history: [],
+      write_boundary: expect.objectContaining({
+        requested_target: "evo_supabase",
+        allowed: false,
+        reason_code: "pilot_membership_required",
+        authority: "evo_supabase_only",
+        fallback_allowed: false,
+      }),
+    }),
+  ]);
+
+  const communicationBefore = await platformRpc(
+    adminToken,
+    "staff_communication_page",
+    {
+      p_organization_id: organizationId,
+      p_limit: 50,
+      p_before_sort_at: null,
+      p_before_conversation_id: null,
+      p_queue: null,
+      p_status: null,
+      p_conversation_id: null,
+    },
+  );
+  const wahaBefore = await platformRpc(
+    adminToken,
+    "staff_waha_session_health",
+    {
+      p_organization_id: organizationId,
+      p_waha_session_name: "evo-inbox",
+    },
+  );
+  const intakeBefore = await platformRpc(
+    responsibleSalesToken,
+    "staff_waha_sales_intake_page",
+    {
+      p_organization_id: organizationId,
+      p_limit: 51,
+      p_before_sort_at: null,
+      p_before_work_item_id: null,
+      p_state: null,
+      p_query: null,
+    },
+  );
+  const workflowBefore = await platformRpc(
+    adminToken,
+    "staff_conversation_workflow",
+    {
+      p_organization_id: organizationId,
+      p_conversation_id: fixture.conversations.orgA.id,
+    },
+  );
+  const amoCrmBefore = await platformRpc(
+    adminToken,
+    "staff_amocrm_canonical_context",
+    {
+      p_organization_id: organizationId,
+      p_conversation_id: fixture.conversations.orgA.id,
+    },
+  );
+  for (const projection of [
+    communicationBefore,
+    wahaBefore,
+    intakeBefore,
+    workflowBefore,
+    amoCrmBefore,
+  ]) {
+    expect(projection.status).toBe(200);
+  }
+
+  const configurationRequestId = randomUUID();
+  const configurationArgs = {
+    p_organization_id: organizationId,
+    p_cutoff_at: cutoffAt,
+    p_state: "active",
+    p_reason: "Activate the synthetic local U10 net-new pilot cutoff",
+    p_request_id: configurationRequestId,
+  } as const;
+  const configured = await platformRpc(
+    adminToken,
+    "configure_pilot_cohort",
+    configurationArgs,
+  );
+  expect(configured.status).toBe(200);
+  expect(configured.payload).toEqual(
+    expect.objectContaining({
+      organization_id: organizationId,
+      state: "active",
+      cutoff_at: cutoffAt,
+      version: 1,
+      replayed: false,
+    }),
+  );
+  const configurationReplay = await platformRpc(
+    adminToken,
+    "configure_pilot_cohort",
+    configurationArgs,
+  );
+  expect(configurationReplay.status).toBe(200);
+  expect(configurationReplay.payload).toEqual(
+    expect.objectContaining({
+      configuration_id: (
+        configured.payload as Record<string, unknown>
+      ).configuration_id,
+      replayed: true,
+    }),
+  );
+
+  const unauthorizedConfiguration = await platformRpc(
+    responsibleSalesToken,
+    "configure_pilot_cohort",
+    {
+      ...configurationArgs,
+      p_request_id: randomUUID(),
+      p_reason: "U10 non-Admin configuration denial",
+    },
+  );
+  expect(unauthorizedConfiguration.status).toBe(403);
+
+  const externalBrowserWrites: string[] = [];
+  const localOrigins = new Set([
+    new URL(appOrigin).origin,
+    new URL(fixture.apiUrl).origin,
+  ]);
+  const adminContext = await browser.newContext();
+  adminContext.on("request", (request) => {
+    if (["GET", "HEAD", "OPTIONS"].includes(request.method())) return;
+    const requestUrl = new URL(request.url());
+    if (!localOrigins.has(requestUrl.origin)) {
+      externalBrowserWrites.push(`${request.method()} ${requestUrl.origin}`);
+    }
+  });
+  const adminPage = await adminContext.newPage();
+  await login(adminPage, fixture.identities.admin);
+  await expect(adminPage).toHaveURL(/\/sales$/);
+  await adminPage.goto(`/clients/${legacyCaseId}#pilot-cohort`);
+  const legacyCard = adminPage.getByTestId("platform-pilot-cohort-card");
+  await expect(legacyCard).toBeVisible();
+  await expect(
+    adminPage.getByTestId("platform-pilot-cohort-unavailable"),
+  ).toHaveCount(0);
+  await expect(legacyCard).toContainText("Вне пилота");
+  await expect(legacyCard).toContainText("Активна");
+  await expect(
+    adminPage.getByTestId("platform-pilot-write-boundary"),
+  ).toContainText("Запись в старую CRM");
+  await expect(
+    adminPage.getByTestId("platform-pilot-write-boundary"),
+  ).toContainText("Заблокирована правдиво");
+  await expect(
+    adminPage.getByTestId("platform-pilot-write-boundary"),
+  ).toContainText("двойная запись запрещены");
+
+  const includeReason = "Approve one bounded pre-existing case for the U10 local proof";
+  const includeReference = "synthetic-u10-browser-approval";
+  const includeForm = adminPage.getByTestId(
+    "platform-pilot-membership-include-form",
+  );
+  await includeForm.locator('input[name="reason"]').fill(includeReason);
+  await includeForm
+    .locator('input[name="provenance"]')
+    .fill(includeReference);
+  const includeRequestId = await includeForm
+    .locator('input[name="request_id"]')
+    .inputValue();
+  const includeArgs = {
+    p_organization_id: organizationId,
+    p_student_case_id: legacyCaseId,
+    p_membership_action: "include",
+    p_reason: includeReason,
+    p_provenance: {
+      source: "staff_manual_decision",
+      reference: includeReference,
+    },
+    p_request_id: includeRequestId,
+  } as const;
+  const included = await platformRpc(
+    adminToken,
+    "set_student_case_pilot_membership",
+    includeArgs,
+  );
+  expect(included.status).toBe(200);
+  expect(included.payload).toEqual(
+    expect.objectContaining({
+      membership_status: "included",
+      membership_basis: "manual_include",
+      replayed: false,
+    }),
+  );
+  const inclusionReplay = await platformRpc(
+    adminToken,
+    "set_student_case_pilot_membership",
+    includeArgs,
+  );
+  expect(inclusionReplay.status).toBe(200);
+  expect(inclusionReplay.payload).toEqual(
+    expect.objectContaining({
+      event_id: (included.payload as Record<string, unknown>).event_id,
+      membership_status: "included",
+      replayed: true,
+    }),
+  );
+
+  await adminPage.goto(`/clients/${legacyCaseId}?u10_result=saved#pilot-cohort`);
+  await expect(
+    adminPage.getByTestId("platform-pilot-cohort-result-saved"),
+  ).toBeVisible();
+  await expect(legacyCard).toContainText("Включён");
+  await expect(legacyCard).toContainText("Ручное включение");
+  await expect(legacyCard).toContainText(includeReference);
+  await expect(
+    adminPage.getByTestId("platform-pilot-membership-history"),
+  ).toContainText(includeReason);
+
+  const excludeReason = "Remove the approved legacy case while retaining audit history";
+  const excludeReference = "synthetic-u10-browser-exclusion";
+  const excludeForm = adminPage.getByTestId(
+    "platform-pilot-membership-exclude-form",
+  );
+  await excludeForm.locator('input[name="reason"]').fill(excludeReason);
+  await excludeForm
+    .locator('input[name="provenance"]')
+    .fill(excludeReference);
+  await excludeForm.getByRole("button").click();
+  await expect(adminPage).toHaveURL(
+    new RegExp(`/clients/${legacyCaseId}\\?u10_result=saved#pilot-cohort$`),
+  );
+  await expect(legacyCard).toContainText("Исключён");
+  await expect(legacyCard).toContainText("Ручное исключение");
+  const retainedHistory = adminPage.getByTestId(
+    "platform-pilot-membership-history",
+  );
+  await expect(retainedHistory).toContainText(includeReason);
+  await expect(retainedHistory).toContainText(excludeReason);
+  const excludedLegacyMembership = await platformRpc(
+    adminToken,
+    "staff_student_case_pilot_cohort",
+    {
+      p_organization_id: organizationId,
+      p_student_case_id: legacyCaseId,
+      p_history_limit: 20,
+    },
+  );
+  expect(excludedLegacyMembership.status).toBe(200);
+  expect(excludedLegacyMembership.payload).toEqual([
+    expect.objectContaining({
+      membership_status: "excluded",
+      membership_basis: "manual_exclude",
+      history: expect.arrayContaining([
+        expect.objectContaining({ basis: "manual_include" }),
+        expect.objectContaining({ basis: "manual_exclude" }),
+      ]),
+    }),
+  ]);
+
+  const targetLead = await platformRpc(
+    adminToken,
+    "staff_canonical_lead_detail",
+    { p_lead_id: fixture.u4.orgA.claimableLeadId },
+  );
+  expect(targetLead.status).toBe(200);
+  const targetLeadRow = Array.isArray(targetLead.payload)
+    && targetLead.payload[0]
+    && typeof targetLead.payload[0] === "object"
+      ? targetLead.payload[0] as Record<string, unknown>
+      : null;
+  const targetClientId = targetLeadRow?.client_id;
+  const targetLeadCreatedAt = targetLeadRow?.created_at;
+  if (
+    typeof targetClientId !== "string"
+    || typeof targetLeadCreatedAt !== "string"
+  ) {
+    throw new Error("U10 target canonical client/lead timestamps are unavailable.");
+  }
+  expect(targetLeadRow?.stage_key).toBe("qualified");
+  expect(targetLeadRow?.linked_student_cases).toEqual([]);
+  expect(Date.parse(targetLeadCreatedAt)).toBeGreaterThanOrEqual(
+    Date.parse(cutoffAt),
+  );
+  const targetClient = await platformRows(
+    adminToken,
+    "clients",
+    new URLSearchParams({
+      select: "id,created_at",
+      id: `eq.${targetClientId}`,
+    }),
+  );
+  expect(targetClient.status).toBe(200);
+  expect(targetClient.payload).toEqual([
+    expect.objectContaining({
+      id: targetClientId,
+      created_at: expect.any(String),
+    }),
+  ]);
+  expect(
+    Date.parse(
+      (targetClient.payload as Array<Record<string, string>>)[0].created_at,
+    ),
+  ).toBeGreaterThanOrEqual(Date.parse(cutoffAt));
+
+  const gateBefore = await platformRpc(
+    responsibleSalesToken,
+    "staff_lead_admissions_gate",
+    { p_lead_id: fixture.u4.orgA.claimableLeadId },
+  );
+  expect(gateBefore.status).toBe(200);
+  const gateBeforeRow = (gateBefore.payload as Array<Record<string, unknown>>)[0];
+  expect(gateBeforeRow).toEqual(
+    expect.objectContaining({
+      contract_confirmed: false,
+      gate_state: "blocked",
+      gate_version: expect.any(Number),
+    }),
+  );
+  const contractConfirmed = await platformRpc(
+    responsibleSalesToken,
+    "mutate_lead_admissions_gate",
+    {
+      p_lead_id: fixture.u4.orgA.claimableLeadId,
+      p_expected_gate_version: gateBeforeRow.gate_version,
+      p_request_id: randomUUID(),
+      p_action: "confirm_contract",
+      p_amount: 1500.5,
+      p_currency: "USD",
+      p_due_date: "2099-12-31",
+      p_received_date: null,
+      p_evidence_reference: "Synthetic U10 canonical contract",
+      p_reason: "Prepare the cutoff-eligible synthetic U10 handoff",
+    },
+  );
+  expect(contractConfirmed.status).toBe(200);
+  expect(contractConfirmed.payload).toEqual(
+    expect.objectContaining({
+      contract_confirmed: true,
+      gate_state: "blocked",
+      gate_version: expect.any(Number),
+    }),
+  );
+  const paymentConfirmed = await platformRpc(
+    responsibleSalesToken,
+    "mutate_lead_admissions_gate",
+    {
+      p_lead_id: fixture.u4.orgA.claimableLeadId,
+      p_expected_gate_version: (
+        contractConfirmed.payload as Record<string, unknown>
+      ).gate_version,
+      p_request_id: randomUUID(),
+      p_action: "confirm_first_payment",
+      p_amount: null,
+      p_currency: null,
+      p_due_date: null,
+      p_received_date: "2026-08-27",
+      p_evidence_reference: "Synthetic U10 first-payment receipt",
+      p_reason: "Satisfy the normal synthetic U10 handoff gate",
+    },
+  );
+  expect(paymentConfirmed.status).toBe(200);
+  expect(paymentConfirmed.payload).toEqual(
+    expect.objectContaining({
+      gate_state: "satisfied",
+      normal_handoff_allowed: true,
+      gate_version: expect.any(Number),
+    }),
+  );
+
+  const handoff = await platformRpc(
+    responsibleSalesToken,
+    "handoff_lead_to_admissions",
+    {
+      p_lead_id: fixture.u4.orgA.claimableLeadId,
+      p_expected_gate_version: (
+        paymentConfirmed.payload as Record<string, unknown>
+      ).gate_version,
+      p_admissions_owner_membership_id:
+        fixture.u6.admissionsOwnerMembershipId,
+      p_handoff_mode: "normal",
+      p_reason: "Create one cutoff-eligible U10 canonical Admissions case",
+      p_request_id: randomUUID(),
+    },
+  );
+  expect(handoff.status).toBe(200);
+  expect(handoff.payload).toEqual(
+    expect.objectContaining({
+      case_id: expect.any(String),
+    }),
+  );
+  const newCaseId = (handoff.payload as Record<string, unknown>).case_id;
+  if (typeof newCaseId !== "string") {
+    throw new Error("U10 handoff did not return the new canonical case ID.");
+  }
+
+  const automaticMembership = await platformRpc(
+    adminToken,
+    "staff_student_case_pilot_cohort",
+    {
+      p_organization_id: organizationId,
+      p_student_case_id: newCaseId,
+      p_history_limit: 20,
+    },
+  );
+  expect(automaticMembership.status).toBe(200);
+  expect(automaticMembership.payload).toEqual([
+    expect.objectContaining({
+      organization_id: organizationId,
+      student_case_id: newCaseId,
+      membership_status: "included",
+      membership_basis: "cutoff_rule",
+      reason: "Eligible by the configured net-new cutoff",
+      provenance: expect.objectContaining({
+        source: "automatic_cutoff",
+        source_key: `canonical-lead:${fixture.u4.orgA.claimableLeadId}`,
+      }),
+      configuration: expect.objectContaining({
+        state: "active",
+        cutoff_at: cutoffAt,
+      }),
+      counts: expect.objectContaining({
+        outside: expect.any(Number),
+        included: expect.any(Number),
+        excluded: expect.any(Number),
+        total: expect.any(Number),
+      }),
+      history: expect.arrayContaining([
+        expect.objectContaining({
+          basis: "cutoff_rule",
+          provenance: expect.objectContaining({ source: "automatic_cutoff" }),
+        }),
+      ]),
+      write_boundary: expect.objectContaining({
+        requested_target: "evo_supabase",
+        allowed: true,
+        reason_code: "canonical_write_allowed",
+        authority: "evo_supabase_only",
+        fallback_allowed: false,
+      }),
+    }),
+  ]);
+
+  const legacyWriteBoundary = await platformRpc(
+    adminToken,
+    "staff_pilot_write_boundary",
+    {
+      p_organization_id: organizationId,
+      p_student_case_id: newCaseId,
+      p_target: "legacy_crm",
+    },
+  );
+  expect(legacyWriteBoundary.status).toBe(200);
+  expect(legacyWriteBoundary.payload).toEqual([
+    {
+      requested_target: "legacy_crm",
+      allowed: false,
+      reason_code: "legacy_write_forbidden",
+      authority: "evo_supabase_only",
+      fallback_allowed: false,
+    },
+  ]);
+
+  const crossOrganizationMembership = await platformRpc(
+    crossOrganizationToken,
+    "set_student_case_pilot_membership",
+    {
+      p_organization_id: organizationId,
+      p_student_case_id: newCaseId,
+      p_membership_action: "exclude",
+      p_reason: "U10 cross-organization mutation denial",
+      p_provenance: {
+        source: "browser_local_proof",
+        reference: "must-not-write",
+      },
+      p_request_id: randomUUID(),
+    },
+  );
+  expect(crossOrganizationMembership.status).toBe(403);
+  const crossOrganizationRead = await platformRpc(
+    crossOrganizationToken,
+    "staff_student_case_pilot_cohort",
+    {
+      p_organization_id: organizationId,
+      p_student_case_id: newCaseId,
+      p_history_limit: 20,
+    },
+  );
+  expect(crossOrganizationRead.status).toBe(403);
+
+  const canonicalUpdate = await platformRpc(
+    adminToken,
+    "append_student_case_update",
+    {
+      p_organization_id: organizationId,
+      p_student_case_id: newCaseId,
+      p_body: "U10 canonical EVO/Supabase update remains available",
+      p_source: "staff_note",
+      p_student_visible: false,
+      p_occurred_at: "2026-08-27T12:00:00.000Z",
+      p_request_id: randomUUID(),
+    },
+  );
+  expect(canonicalUpdate.status).toBe(200);
+  expect(canonicalUpdate.payload).toEqual(
+    expect.objectContaining({ student_case_id: newCaseId }),
+  );
+  const canonicalTask = await platformRpc(
+    adminToken,
+    "create_case_task",
+    {
+      p_organization_id: organizationId,
+      p_student_case_id: newCaseId,
+      p_task_type: "follow_up",
+      p_title: "U10 canonical pilot follow-up",
+      p_assignee_membership_id: fixture.u6.admissionsOwnerMembershipId,
+      p_priority: "normal",
+      p_due_at: "2099-12-31T09:00:00.000Z",
+      p_status: "open",
+      p_student_visible: false,
+      p_request_id: randomUUID(),
+    },
+  );
+  expect(canonicalTask.status).toBe(200);
+  expect(canonicalTask.payload).toEqual(
+    expect.objectContaining({ student_case_id: newCaseId }),
+  );
+
+  await adminPage.goto(`/clients/${newCaseId}#pilot-cohort`);
+  const automaticCard = adminPage.getByTestId("platform-pilot-cohort-card");
+  await expect(automaticCard).toBeVisible();
+  await expect(automaticCard).toContainText("Включён");
+  await expect(automaticCard).toContainText("Автоматически по дате отсечения");
+  await expect(automaticCard).toContainText("automatic_cutoff");
+  await expect(automaticCard).toContainText(
+    `canonical-lead:${fixture.u4.orgA.claimableLeadId}`,
+  );
+  await expect(
+    adminPage.getByTestId("platform-pilot-write-boundary"),
+  ).toContainText("Разрешена для включённого кейса");
+  await expect(
+    adminPage.getByTestId("platform-pilot-write-boundary"),
+  ).toContainText("Заблокирована правдиво");
+
+  const communicationAfter = await platformRpc(
+    adminToken,
+    "staff_communication_page",
+    {
+      p_organization_id: organizationId,
+      p_limit: 50,
+      p_before_sort_at: null,
+      p_before_conversation_id: null,
+      p_queue: null,
+      p_status: null,
+      p_conversation_id: null,
+    },
+  );
+  const wahaAfter = await platformRpc(
+    adminToken,
+    "staff_waha_session_health",
+    {
+      p_organization_id: organizationId,
+      p_waha_session_name: "evo-inbox",
+    },
+  );
+  const intakeAfter = await platformRpc(
+    responsibleSalesToken,
+    "staff_waha_sales_intake_page",
+    {
+      p_organization_id: organizationId,
+      p_limit: 51,
+      p_before_sort_at: null,
+      p_before_work_item_id: null,
+      p_state: null,
+      p_query: null,
+    },
+  );
+  const workflowAfter = await platformRpc(
+    adminToken,
+    "staff_conversation_workflow",
+    {
+      p_organization_id: organizationId,
+      p_conversation_id: fixture.conversations.orgA.id,
+    },
+  );
+  const amoCrmAfter = await platformRpc(
+    adminToken,
+    "staff_amocrm_canonical_context",
+    {
+      p_organization_id: organizationId,
+      p_conversation_id: fixture.conversations.orgA.id,
+    },
+  );
+  expect(communicationAfter).toEqual(communicationBefore);
+  expect(wahaAfter).toEqual(wahaBefore);
+  expect(intakeAfter).toEqual(intakeBefore);
+  expect(workflowAfter).toEqual(workflowBefore);
+  expect(amoCrmAfter).toEqual(amoCrmBefore);
+  expect(externalBrowserWrites).toEqual([]);
+
+  await adminContext.close();
+  expectLegacyDatabaseUntouched();
+});
+
 test("route-level auth failures surface an explicit login error", async ({
   page,
 }) => {

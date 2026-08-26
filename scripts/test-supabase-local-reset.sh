@@ -7,6 +7,7 @@ export DO_NOT_TRACK=1
 export SUPABASE_TELEMETRY_DISABLED=1
 export EVO_U8_BROWSER_PROOF=0
 export EVO_U9_BROWSER_PROOF=0
+export EVO_U10_BROWSER_PROOF=0
 umask 077
 
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -63,6 +64,7 @@ readonly U6_BROWSER_TEST="U6 performs one audited Sales-to-Admissions handoff wi
 readonly U7_BROWSER_TEST="U7 operates one complete canonical Admissions case with bounded history"
 readonly U8_BROWSER_TEST="U8 controls overdue payment stops and finance history without provider writes"
 readonly U9_BROWSER_TEST="U9 reviews synthetic Gemini proposals with human-only authority and tenant isolation"
+readonly U10_BROWSER_TEST="U10 isolates a net-new pilot cohort from legacy writes with audited exact replay"
 # Keep the established cross-checkout namespace: older repository revisions
 # use this exact lock while operating the same Docker project ID.
 readonly LOCK_DIR="${TMPDIR:-/tmp}/evo-supabase-p2c-${SUPABASE_PROJECT_ID}.lock"
@@ -84,7 +86,7 @@ prepare_platform_auth_tsconfig() {
   local tsconfig_path="${BROWSER_BUILD_DIR}/tsconfig-platform-auth-${partition}.json"
 
   case "${partition}" in
-    provider|p5b|p5c|p5d|p5e|p5f1|p5f3|p6a|p6b|p6c|p6d|p7a|p7b|u2|u6|u7|u8|u9|remaining) ;;
+    provider|p5b|p5c|p5d|p5e|p5f1|p5f3|p6a|p6b|p6c|p6d|p7a|p7b|u2|u6|u7|u8|u9|u10|remaining) ;;
     *) return 1 ;;
   esac
 
@@ -1303,7 +1305,7 @@ fi
   || fail "Storage gate did not delete the credential-bearing local status file."
 
 refresh_synthetic_browser_health
-for browser_partition in provider p5b p5c p5d p5e p5f1 p5f3 p6a p6b p6c p6d p7a p7b u2 u6 u7 u8 u9 remaining; do
+for browser_partition in provider p5b p5c p5d p5e p5f1 p5f3 p6a p6b p6c p6d p7a p7b u2 u6 u7 u8 u9 u10 remaining; do
   prepare_platform_auth_tsconfig "${browser_partition}" \
     || fail "Unable to create the disposable ${browser_partition} browser tsconfig."
 done
@@ -1372,7 +1374,7 @@ if ! run_with_deadline 660000 env \
   "${PLAYWRIGHT_CLI}" \
   test \
   --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
-  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}|${P7B_BROWSER_TEST}|${U2_BROWSER_TEST}|${U4_BROWSER_TEST}|${U5_BROWSER_TEST}|${U6_BROWSER_TEST}|${U7_BROWSER_TEST}|${U8_BROWSER_TEST}|${U9_BROWSER_TEST}"; then
+  --grep-invert "${PROVIDER_GATED_BROWSER_TESTS}|${P5B_BROWSER_TEST}|${P5C_BROWSER_TEST}|${P5D_BROWSER_TEST}|${P5E_BROWSER_TEST}|${P5F1_BROWSER_TEST}|${P5F3_BROWSER_TEST}|${P6A_BROWSER_TEST}|${P6B_BROWSER_TEST}|${P6C_BROWSER_TEST}|${P6D_BROWSER_TEST}|${P7A_BROWSER_TEST}|${P7B_BROWSER_TEST}|${U2_BROWSER_TEST}|${U4_BROWSER_TEST}|${U5_BROWSER_TEST}|${U6_BROWSER_TEST}|${U7_BROWSER_TEST}|${U8_BROWSER_TEST}|${U9_BROWSER_TEST}|${U10_BROWSER_TEST}"; then
   fail "Remaining real browser Platform Auth/staff-shell gate failed."
 fi
 if ! stop_exact_browser_server; then
@@ -1916,6 +1918,7 @@ if ! run_with_deadline 360000 env \
   EVO_U7_BROWSER_PROOF=0 \
   EVO_U8_BROWSER_PROOF=0 \
   EVO_U9_BROWSER_PROOF=1 \
+  EVO_U10_BROWSER_PROOF=0 \
   EVO_PLATFORM_P5B_ENABLED=0 \
   EVO_PLATFORM_P5C_HISTORY_ENABLED=0 \
   EVO_PLATFORM_P5D_MEDIA_ENABLED=0 \
@@ -1950,6 +1953,59 @@ if ! run_with_deadline 360000 env \
 fi
 if ! stop_exact_browser_server; then
   fail "The exact-worktree Platform browser server did not stop after the U9 browser proof."
+fi
+if ! run_with_deadline 360000 env \
+  EVO_P5B_BROWSER_PROOF=0 \
+  EVO_P5C_BROWSER_PROOF=0 \
+  EVO_P5D_BROWSER_PROOF=0 \
+  EVO_P5E_BROWSER_PROOF=0 \
+  EVO_P5F1_BROWSER_PROOF=0 \
+  EVO_P5F3_BROWSER_PROOF=0 \
+  EVO_P6A_BROWSER_PROOF=0 \
+  EVO_P6B_BROWSER_PROOF=0 \
+  EVO_P6C_BROWSER_PROOF=0 \
+  EVO_P6D_BROWSER_PROOF=0 \
+  EVO_P7A_BROWSER_PROOF=0 \
+  EVO_P7B_BROWSER_PROOF=0 \
+  EVO_U6_BROWSER_PROOF=0 \
+  EVO_U7_BROWSER_PROOF=0 \
+  EVO_U8_BROWSER_PROOF=0 \
+  EVO_U9_BROWSER_PROOF=0 \
+  EVO_U10_BROWSER_PROOF=1 \
+  EVO_PLATFORM_P5B_ENABLED=0 \
+  EVO_PLATFORM_P5C_HISTORY_ENABLED=0 \
+  EVO_PLATFORM_P5D_MEDIA_ENABLED=0 \
+  EVO_PLATFORM_P5E_ACK_ENABLED=0 \
+  EVO_PLATFORM_P5F1_MEMORY_ENABLED=0 \
+  EVO_PLATFORM_P5F3_AUTONOMOUS_ENABLED=0 \
+  EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0 \
+  EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6C_TASK_FINANCE_NOTIFICATIONS_ENABLED=0 \
+  EVO_PLATFORM_P6D_STUDENT_360_ENABLED=0 \
+  EVO_PLATFORM_P7A_AUDIT_EXPORT_ENABLED=0 \
+  EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0 \
+  EVO_PLATFORM_AMOCRM_READ_ENABLED=0 \
+  EVO_PLATFORM_GEMINI_PROPOSALS_ENABLED=0 \
+  EVO_PLATFORM_WAHA_INGRESS_ENABLED=0 \
+  EVO_PLATFORM_WAHA_WORKER_ENABLED=0 \
+  EVO_PLATFORM_WAHA_HISTORY_ENABLED=0 \
+  EVO_PLATFORM_WAHA_MEDIA_ENABLED=0 \
+  EVO_PLATFORM_AI_MEMORY_ENABLED=0 \
+  EVO_PLATFORM_AUTONOMOUS_REPLIES_ENABLED=0 \
+  EVO_PLATFORM_AUTONOMOUS_REPLIES_KILL_SWITCH=1 \
+  EVO_PLATFORM_AUTH_DEV_RUN_KEY="${BROWSER_BUILD_RUN_KEY}" \
+  EVO_PLATFORM_AUTH_BROWSER_PARTITION=u10 \
+  EVO_PLATFORM_AUTH_TSCONFIG_PATH="${PLATFORM_AUTH_TSCONFIG_DIR_RELATIVE}/tsconfig-platform-auth-u10.json" \
+  EVO_PLATFORM_AUTH_FIXTURE_PATH="${PLATFORM_AUTH_BROWSER_FIXTURE}" \
+  EVO_PLATFORM_LEGACY_DB_SENTINEL="${LEGACY_DB_SENTINEL}" \
+  "${PLAYWRIGHT_CLI}" \
+  test \
+  --config "${REPO_ROOT}/playwright.platform-auth.config.ts" \
+  --grep "${U10_BROWSER_TEST}"; then
+  fail "U10 pilot cohort and legacy-isolation browser proof failed."
+fi
+if ! stop_exact_browser_server; then
+  fail "The exact-worktree Platform browser server did not stop after the U10 browser proof."
 fi
 if ! run_with_deadline 30000 docker exec -i \
   "${DATABASE_CONTAINER}" \
@@ -2166,3 +2222,4 @@ printf 'Verified the dedicated U6 browser proof creates or reuses one canonical 
 printf 'Verified the dedicated U7 browser proof operates tasks, documents, one application track and one visa milestone on that same canonical Admissions case with bounded authored history and denied cross-case access; no provider, Portal notification or production service was called.\n'
 printf 'Verified the dedicated U8 browser proof exposes one overdue canonical payment, asserts and clears one explicit finance stop factor, updates the Admissions manager queue and preserves bounded finance history with tenant and mutation denials; no provider, legacy SQLite or production service was called.\n'
 printf 'Verified the dedicated U9 browser proof renders one schema-v2 synthetic Gemini proposal, records accept, edit and reject decisions with actor/time audit evidence, denies unauthorized and cross-tenant review, and leaves provider, WAHA, amoCRM and outbox execution disabled.\n'
+printf 'Verified the dedicated U10 browser proof keeps pre-existing cases outside automatic entry, includes only a cutoff-eligible newly handed-off canonical case, records exact-replay manual membership history, blocks legacy writes without fallback and leaves provider, WAHA, amoCRM and outbox projections unchanged.\n'

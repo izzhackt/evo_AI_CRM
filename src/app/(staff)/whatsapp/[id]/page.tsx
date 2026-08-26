@@ -26,12 +26,14 @@ import {
   readPlatformConversationAiMemory,
 } from "@/lib/server/platform-ai-memory-repository";
 import { readPlatformGeminiProposal } from "@/lib/server/platform-gemini-proposals-repository";
+import { readPlatformGeminiProposalReviews } from "@/lib/server/platform-gemini-proposal-reviews-repository";
 
 import { CommunicationsSourceDisclosure } from "../CommunicationsSourceDisclosure";
 
 type ConversationSearchParams = Promise<{
   mode?: string | string[];
   result?: string | string[];
+  u9_result?: string | string[];
   before_at?: string | string[];
   before_id?: string | string[];
   messages_before_at?: string | string[];
@@ -113,6 +115,7 @@ export default async function ConversationPage({
     aiMemory,
     aiRetrievalCapabilities,
     geminiProposal,
+    geminiProposalReviews,
     autonomousReply,
     wahaSessionHealth,
   ] =
@@ -123,6 +126,10 @@ export default async function ConversationPage({
       readPlatformGeminiProposal(actor, id).then(
         (proposal) => ({ proposal, unavailable: false as const }),
         () => ({ proposal: null, unavailable: true as const }),
+      ),
+      readPlatformGeminiProposalReviews(actor, id, 20).then(
+        (reviews) => ({ reviews, unavailable: false as const }),
+        () => ({ reviews: [], unavailable: true as const }),
       ),
       readPlatformAutonomousReplyState(actor, id).then(
         (state) => ({ state, unavailable: false as const }),
@@ -178,6 +185,11 @@ export default async function ConversationPage({
         aiRetrievalEvidence={aiRetrievalEvidence}
         geminiProposal={geminiProposal.proposal}
         geminiProposalUnavailable={geminiProposal.unavailable}
+        geminiProposalReviews={geminiProposalReviews.reviews}
+        geminiProposalReviewsUnavailable={geminiProposalReviews.unavailable}
+        geminiReviewMutationOutcome={decisionMutationOutcome(
+          resolvedSearchParams.u9_result,
+        )}
         autonomousReplyState={autonomousReply.state}
         autonomousReplyUnavailable={autonomousReply.unavailable}
         autonomousReplyRuntimeEnabled={autonomousReplyRuntimeEnabled()}

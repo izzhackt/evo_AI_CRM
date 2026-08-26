@@ -1,3 +1,7 @@
+import { randomUUID } from "node:crypto";
+
+import { reviewPlatformGeminiProposalAction } from "@/lib/platform-gemini-proposal-review-actions";
+import type { PlatformGeminiProposalReview } from "@/lib/platform-gemini-proposal-reviews";
 import type {
   PlatformGeminiFailureCode,
   PlatformGeminiHandoffReason,
@@ -44,8 +48,34 @@ export type PlatformGeminiProposalCardLabels = Readonly<{
   noCitations: string;
   model: string;
   schemaVersion: string;
+  sourceMessage: string;
   requestedAt: string;
   completedAt: string;
+  summary: string;
+  nextAction: string;
+  internalNote: string;
+  missingDocument: string;
+  noMissingDocument: string;
+  deadlineWarning: string;
+  noDeadlineWarning: string;
+  limitations: string;
+  uncertainty: string;
+  uncertaintyLabels: Readonly<Record<"low" | "medium" | "high", string>>;
+  reviewTitle: string;
+  reviewsUnavailable: string;
+  reviewAccepted: string;
+  reviewEdited: string;
+  reviewRejected: string;
+  reviewedBy: string;
+  reviewReason: string;
+  acceptAction: string;
+  editAction: string;
+  rejectAction: string;
+  editHint: string;
+  rejectReason: string;
+  mutationSaved: string;
+  mutationInvalid: string;
+  mutationUnavailable: string;
   intentLabels: Readonly<Record<PlatformGeminiProposalIntent, string>>;
   riskLabels: Readonly<Record<PlatformGeminiProposalRisk, string>>;
   handoffReasonLabels: Readonly<Record<PlatformGeminiHandoffReason, string>>;
@@ -84,20 +114,45 @@ function outcomeLabel(
 }
 
 export function PlatformGeminiProposalCard({
+  conversationId,
   labels,
   locale,
   proposal,
+  reviews,
+  reviewsUnavailable,
+  reviewMutationOutcome,
   testIdSuffix = "",
   unavailable,
 }: {
+  conversationId: string;
   labels: PlatformGeminiProposalCardLabels;
   locale: string;
   proposal: PlatformGeminiProposal | null;
+  reviews: readonly PlatformGeminiProposalReview[];
+  reviewsUnavailable: boolean;
+  reviewMutationOutcome: "saved" | "invalid" | "unavailable" | null;
   testIdSuffix?: string;
   unavailable: boolean;
 }) {
+  const currentReview = proposal
+    ? reviews.find((review) => review.proposalRequestId === proposal.requestId) ?? null
+    : null;
+  const decisionLabel = (review: PlatformGeminiProposalReview) =>
+    review.decision === "accepted"
+      ? labels.reviewAccepted
+      : review.decision === "edited"
+        ? labels.reviewEdited
+        : labels.reviewRejected;
+  const mutationLabel = reviewMutationOutcome === "saved"
+    ? labels.mutationSaved
+    : reviewMutationOutcome === "invalid"
+      ? labels.mutationInvalid
+      : reviewMutationOutcome === "unavailable"
+        ? labels.mutationUnavailable
+        : null;
   return (
     <section
+      id="gemini-review"
       className="border-y border-border py-3"
       data-autonomous-authority={String(proposal?.autonomousAuthority ?? false)}
       data-human-review-required={String(proposal?.humanReviewRequired ?? true)}
@@ -160,6 +215,51 @@ export function PlatformGeminiProposalCard({
         </div>
       ) : (
         <>
+          {proposal.schemaVersion === 2 ? (
+            <div
+              className="mt-3 grid gap-2"
+              data-testid={testId("platform-gemini-proposal-guidance", testIdSuffix)}
+            >
+              {[
+                [labels.summary, proposal.summary],
+                [labels.nextAction, proposal.nextAction],
+                [labels.internalNote, proposal.draftInternalNote],
+                [
+                  labels.missingDocument,
+                  proposal.missingDocumentSuggestion ?? labels.noMissingDocument,
+                ],
+                [
+                  labels.deadlineWarning,
+                  proposal.deadlineWarning ?? labels.noDeadlineWarning,
+                ],
+              ].map(([label, value]) => (
+                <div className="border-l border-info/30 pl-2" key={label}>
+                  <p className="text-[9.5px] font-bold uppercase tracking-[0.04em] text-fg-3">
+                    {label}
+                  </p>
+                  <p className="mt-0.5 whitespace-pre-wrap break-words text-[10.5px] leading-4 text-fg-2">
+                    {value}
+                  </p>
+                </div>
+              ))}
+              <div className="border-l border-warn/30 pl-2">
+                <p className="text-[9.5px] font-bold uppercase tracking-[0.04em] text-fg-3">
+                  {labels.limitations}
+                </p>
+                <ul className="mt-0.5 space-y-1 text-[10.5px] leading-4 text-fg-2">
+                  {proposal.limitations.map((limitation) => (
+                    <li key={limitation}>• {limitation}</li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-[10.5px] font-semibold text-warn">
+                  {labels.uncertainty}: {proposal.uncertainty
+                    ? labels.uncertaintyLabels[proposal.uncertainty]
+                    : "—"}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           <div
             className="mt-3 border-l-2 border-info/40 pl-2"
             data-testid={testId("platform-gemini-proposal-reply", testIdSuffix)}
@@ -294,6 +394,7 @@ export function PlatformGeminiProposalCard({
           {[
             [labels.model, proposal.modelRef],
             [labels.schemaVersion, `v${proposal.schemaVersion}`],
+            [labels.sourceMessage, proposal.sourceMessageId],
             [labels.requestedAt, formatTimestamp(proposal.requestedAt, locale)],
             [
               labels.completedAt,
@@ -312,6 +413,141 @@ export function PlatformGeminiProposalCard({
             </div>
           ))}
         </dl>
+      ) : null}
+
+      {proposal?.outcome === "proposal_ready" && proposal.schemaVersion === 2 ? (
+        <div
+          className="mt-3 border-t border-border pt-3"
+          data-testid={testId("platform-gemini-proposal-review", testIdSuffix)}
+        >
+          <p className="text-[10px] font-bold uppercase tracking-[0.04em] text-fg-3">
+            {labels.reviewTitle}
+          </p>
+          {mutationLabel ? (
+            <p
+              className="mt-2 rounded-md border border-border bg-surface-2 px-2 py-1.5 text-[10.5px] font-semibold text-fg-2"
+              data-review-mutation-outcome={reviewMutationOutcome ?? undefined}
+            >
+              {mutationLabel}
+            </p>
+          ) : null}
+          {reviewsUnavailable ? (
+            <p className="mt-2 text-[10.5px] font-semibold text-danger">
+              {labels.reviewsUnavailable}
+            </p>
+          ) : currentReview ? (
+            <div
+              className="mt-2 border-l-2 border-ok/40 pl-2 text-[10.5px] leading-4 text-fg-2"
+              data-review-decision={currentReview.decision}
+            >
+              <p className="font-bold">{decisionLabel(currentReview)}</p>
+              <p>
+                {labels.reviewedBy}: {currentReview.reviewedByName} ·{" "}
+                {formatTimestamp(currentReview.reviewedAt, locale)}
+              </p>
+              {currentReview.reason ? (
+                <p>{labels.reviewReason}: {currentReview.reason}</p>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-2 space-y-3">
+              <form action={reviewPlatformGeminiProposalAction}>
+                <input type="hidden" name="conversation_id" value={conversationId} />
+                <input type="hidden" name="proposal_request_id" value={proposal.requestId} />
+                <input type="hidden" name="review_request_id" value={randomUUID()} />
+                <input type="hidden" name="decision" value="accepted" />
+                <input type="hidden" name="reason" value="" />
+                <button
+                  className="rounded-md bg-ok px-3 py-1.5 text-[10.5px] font-bold text-white"
+                  type="submit"
+                >
+                  {labels.acceptAction}
+                </button>
+              </form>
+
+              <details className="rounded-md border border-border p-2">
+                <summary className="cursor-pointer text-[10.5px] font-bold text-fg-2">
+                  {labels.editAction}
+                </summary>
+                <p className="mt-1 text-[10px] leading-4 text-fg-3">{labels.editHint}</p>
+                <form action={reviewPlatformGeminiProposalAction} className="mt-2 space-y-2">
+                  <input type="hidden" name="conversation_id" value={conversationId} />
+                  <input type="hidden" name="proposal_request_id" value={proposal.requestId} />
+                  <input type="hidden" name="review_request_id" value={randomUUID()} />
+                  <input type="hidden" name="decision" value="edited" />
+                  <label className="block text-[10px] font-semibold text-fg-3">
+                    {labels.summary}
+                    <textarea className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-[11px] text-fg" defaultValue={proposal.summary ?? ""} maxLength={2000} name="summary" required rows={2} />
+                  </label>
+                  <label className="block text-[10px] font-semibold text-fg-3">
+                    {labels.nextAction}
+                    <textarea className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-[11px] text-fg" defaultValue={proposal.nextAction ?? ""} maxLength={1000} name="next_action" required rows={2} />
+                  </label>
+                  <label className="block text-[10px] font-semibold text-fg-3">
+                    {labels.reply}
+                    <textarea className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-[11px] text-fg" defaultValue={proposal.replyText} maxLength={2000} name="reply_text" required rows={4} />
+                  </label>
+                  <label className="block text-[10px] font-semibold text-fg-3">
+                    {labels.internalNote}
+                    <textarea className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-[11px] text-fg" defaultValue={proposal.draftInternalNote ?? ""} maxLength={4000} name="draft_internal_note" required rows={3} />
+                  </label>
+                  <label className="block text-[10px] font-semibold text-fg-3">
+                    {labels.missingDocument}
+                    <textarea className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-[11px] text-fg" defaultValue={proposal.missingDocumentSuggestion ?? ""} maxLength={1000} name="missing_document_suggestion" rows={2} />
+                  </label>
+                  <label className="block text-[10px] font-semibold text-fg-3">
+                    {labels.deadlineWarning}
+                    <textarea className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-[11px] text-fg" defaultValue={proposal.deadlineWarning ?? ""} maxLength={1000} name="deadline_warning" rows={2} />
+                  </label>
+                  <label className="block text-[10px] font-semibold text-fg-3">
+                    {labels.limitations}
+                    <textarea className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-[11px] text-fg" defaultValue={proposal.limitations.join("\n")} maxLength={4007} name="limitations" required rows={3} />
+                  </label>
+                  <label className="block text-[10px] font-semibold text-fg-3">
+                    {labels.uncertainty}
+                    <select className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-[11px] text-fg" defaultValue={proposal.uncertainty ?? "medium"} name="uncertainty">
+                      {(["low", "medium", "high"] as const).map((level) => (
+                        <option key={level} value={level}>{labels.uncertaintyLabels[level]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-[10px] font-semibold text-fg-3">
+                    {labels.reviewReason}
+                    <input className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-[11px] text-fg" maxLength={1000} name="reason" />
+                  </label>
+                  <button className="rounded-md bg-info px-3 py-1.5 text-[10.5px] font-bold text-white" type="submit">
+                    {labels.editAction}
+                  </button>
+                </form>
+              </details>
+
+              <form action={reviewPlatformGeminiProposalAction} className="rounded-md border border-danger/20 p-2">
+                <input type="hidden" name="conversation_id" value={conversationId} />
+                <input type="hidden" name="proposal_request_id" value={proposal.requestId} />
+                <input type="hidden" name="review_request_id" value={randomUUID()} />
+                <input type="hidden" name="decision" value="rejected" />
+                <label className="block text-[10px] font-semibold text-fg-3">
+                  {labels.rejectReason}
+                  <input className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-[11px] text-fg" maxLength={1000} minLength={1} name="reason" required />
+                </label>
+                <button className="mt-2 rounded-md border border-danger/30 px-3 py-1.5 text-[10.5px] font-bold text-danger" type="submit">
+                  {labels.rejectAction}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {reviews.length ? (
+            <ol className="mt-3 space-y-1" data-testid={testId("platform-gemini-review-history", testIdSuffix)}>
+              {reviews.map((review) => (
+                <li className="text-[10px] leading-4 text-fg-3" key={review.reviewId}>
+                  {decisionLabel(review)} · {review.reviewedByName} ·{" "}
+                  {formatTimestamp(review.reviewedAt, locale)}
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </div>
       ) : null}
     </section>
   );

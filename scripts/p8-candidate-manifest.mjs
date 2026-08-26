@@ -356,10 +356,10 @@ export function collectMigrationInventory(repoRoot) {
     .filter((name) => /^\d{3}_.+\.sql$/.test(name))
     .sort()
     .map((name) => ({ name, sha256: sha256File(join(directory, name)) }));
-  if (migrations.length !== 90) fail("migration inventory must contain 90 files");
+  if (migrations.length !== 91) fail("migration inventory must contain 91 files");
   migrations.forEach((migration, index) => {
     if (migration.name.slice(0, 3) !== String(index + 1).padStart(3, "0")) {
-      fail("migration inventory must be contiguous 001-090");
+      fail("migration inventory must be contiguous 001-091");
     }
   });
   return migrations;
@@ -551,7 +551,7 @@ export function createCandidateManifest({
   const segments = {
     configuration_identity: verifiedSegment(candidateCommit, normalizedTimestamp, configurationEvidence, "hash reviewed deployment configuration", `${configuration.length} files hashed`),
     image_identity: verifiedSegment(candidateCommit, normalizedTimestamp, imageEvidence, "inspect OrbStack candidate images and retained builds", "3 OCI revision-bound image digests recorded"),
-    migration_identity: verifiedSegment(candidateCommit, normalizedTimestamp, migrationEvidence, "hash contiguous Supabase migrations", "001-088 hashed"),
+    migration_identity: verifiedSegment(candidateCommit, normalizedTimestamp, migrationEvidence, "hash contiguous Supabase migrations", "001-091 hashed"),
     repository_identity: verifiedSegment(candidateCommit, normalizedTimestamp, repositoryEvidence, "verify clean exact Git candidate", "clean exact candidate"),
     runtime_setting_inventory: verifiedSegment(candidateCommit, normalizedTimestamp, runtimeEvidence, "inventory required runtime setting names", `${runtimeSettings.length} names with presence and ownership recorded`),
     validation_identity: {

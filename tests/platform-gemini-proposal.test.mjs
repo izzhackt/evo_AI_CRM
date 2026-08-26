@@ -1,29 +1,42 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { registerHooks } from "node:module";
 import test from "node:test";
 
 import { ApiError } from "@google/genai";
 
-import {
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === "server-only") {
+      return {
+        shortCircuit: true,
+        url: `data:text/javascript,${encodeURIComponent("export {};")}`,
+      };
+    }
+    return nextResolve(specifier, context);
+  },
+});
+
+const {
   loadPlatformGeminiProposalConfig,
   PLATFORM_GEMINI_PROPOSAL_MODEL,
   PlatformGeminiProposalConfigurationError,
-} from "../src/lib/server/platform-gemini-proposal-config.ts";
-import {
+} = await import("../src/lib/server/platform-gemini-proposal-config.ts");
+const {
   parsePlatformGeminiProposal,
   PLATFORM_GEMINI_PROPOSAL_JSON_SCHEMA,
   PlatformGeminiProposalValidationError,
-} from "../src/lib/server/platform-gemini-proposal-contract.ts";
-import {
+} = await import("../src/lib/server/platform-gemini-proposal-contract.ts");
+const {
   createPlatformGeminiProposalProvider,
   PlatformGeminiProposalProviderError,
-} from "../src/lib/server/platform-gemini-proposal-client.ts";
-import {
+} = await import("../src/lib/server/platform-gemini-proposal-client.ts");
+const {
   buildPlatformGeminiProposalPrompt,
   createPlatformGeminiProposalHandler,
   createPlatformGeminiProposalRepository,
-} from "../src/lib/server/platform-gemini-proposal-service.ts";
+} = await import("../src/lib/server/platform-gemini-proposal-service.ts");
 
 const ORGANIZATION_ID = "10000000-0000-4000-8000-000000000001";
 const CONVERSATION_ID = "20000000-0000-4000-8000-000000000002";
@@ -38,6 +51,7 @@ const SUPABASE_SECRET = ["sb", "secret", "synthetic_platform_test_only"].join("_
 function enabledEnvironment(overrides = {}) {
   return {
     EVO_PLATFORM_GEMINI_PROPOSALS_ENABLED: "1",
+    EVO_PLATFORM_GEMINI_REVIEW_PRIVACY_APPROVED: "1",
     NEXT_PUBLIC_SUPABASE_URL: "https://platform-test.supabase.co",
     EVO_PLATFORM_SUPABASE_SECRET_KEY: SUPABASE_SECRET,
     EVO_PLATFORM_GEMINI_PROPOSAL_HMAC_SECRET: HMAC_SECRET,
@@ -50,7 +64,7 @@ function enabledEnvironment(overrides = {}) {
 
 function proposal(overrides = {}) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     language: "ru",
     intent: "admissions_discovery",
     confidence: 84,
@@ -79,6 +93,13 @@ function proposal(overrides = {}) {
       notes: null,
     },
     reply_text: "Расскажите, пожалуйста, какую программу вы рассматриваете?",
+    summary: "Клиенту нужен следующий шаг по подбору программы.",
+    next_action: "Уточнить программу и бюджет.",
+    draft_internal_note: "Нужна проверка деталей программы перед обещаниями.",
+    missing_document_suggestion: null,
+    deadline_warning: null,
+    limitations: ["Точный дедлайн нужно подтвердить по актуальному источнику."],
+    uncertainty: "medium",
     ...overrides,
   };
 }
@@ -227,7 +248,8 @@ test("Gemini proposal lane is disabled by default and requires an exact enable f
 test("enabled config isolates the credential and fails provider config durably", () => {
   const ready = loadPlatformGeminiProposalConfig(enabledEnvironment());
   assert.equal(ready.enabled, true);
-  assert.equal(ready.modelRef, "gemini-3.5-flash");
+  assert.equal(ready.modelRef, "gemini-3.7-flash");
+  assert.equal(ready.promptPolicyVersion, "u9-gemini-human-review-v1");
   assert.deepEqual(ready.provider, { ready: true, apiKey: TEST_GEMINI_VALUE });
   assert.equal("GEMINI_API_KEY" in ready, false);
 
@@ -243,6 +265,19 @@ test("enabled config isolates the credential and fails provider config durably",
       failureCode: "configuration_missing",
     });
   }
+});
+
+test("enabled config reports privacy gate truthfully before provider use", () => {
+  const config = loadPlatformGeminiProposalConfig(
+    enabledEnvironment({
+      EVO_PLATFORM_GEMINI_REVIEW_PRIVACY_APPROVED: "0",
+    }),
+  );
+  assert.equal(config.enabled, true);
+  assert.deepEqual(config.provider, {
+    ready: false,
+    failureCode: "privacy_not_approved",
+  });
 });
 
 test("enabled config rejects an unsafe route or Supabase boundary before work", () => {
@@ -278,41 +313,86 @@ test("proposal parser accepts the exact v1 shape and independently grounds citat
     "memory_changes",
     "qualification",
     "reply_text",
+    "summary",
+    "next_action",
+    "draft_internal_note",
+    "missing_document_suggestion",
+    "deadline_warning",
+    "limitations",
+    "uncertainty",
   ]);
 });
 
+test("proposal parser still accepts historical v1 shape and fills v2 fields safely", () => {
+  const legacy = {
+    ...proposal(),
+    schema_version: 1,
+  };
+  delete legacy.summary;
+  delete legacy.next_action;
+  delete legacy.draft_internal_note;
+  delete legacy.missing_document_suggestion;
+  delete legacy.deadline_warning;
+  delete legacy.limitations;
+  delete legacy.uncertainty;
+  const parsed = parsePlatformGeminiProposal(JSON.stringify(legacy), {
+    evidence: context().retrieval.evidence,
+  });
+  assert.equal(parsed.schema_version, 1);
+  assert.equal(parsed.summary, null);
+  assert.equal(parsed.next_action, null);
+  assert.equal(parsed.draft_internal_note, null);
+  assert.equal(parsed.missing_document_suggestion, null);
+  assert.equal(parsed.deadline_warning, null);
+  assert.deepEqual(parsed.limitations, []);
+  assert.equal(parsed.uncertainty, null);
+});
+
 test("proposal parser rejects unknown keys, bad fact actions, ungrounded evidence, and guarantees", () => {
-  const cases = [
-    [proposal({ extra: true }), "invalid_proposal"],
-    [
-      proposal({
-        memory_changes: [
-          {
-            fact_key: "preferred_country",
-            action: "clear",
-            value: "Китай",
-            confidence: 50,
-          },
-        ],
-      }),
-      "invalid_proposal",
-    ],
-    [
-      proposal({
-        citations: [
-          {
-            knowledge_key: "invented",
-            knowledge_version: 1,
-            evidence_ordinal: 9,
-          },
-        ],
-      }),
-      "missing_evidence",
-    ],
-    [proposal({ reply_text: "Мы гарантируем 100% получение визы." }), "unsafe_semantics"],
+  const contractCases = [
+    proposal({ extra: true }),
+    proposal({
+      memory_changes: [
+        {
+          fact_key: "preferred_country",
+          action: "clear",
+          value: "Китай",
+          confidence: 50,
+        },
+      ],
+    }),
+    proposal({
+      citations: [
+        {
+          knowledge_key: "invented",
+          knowledge_version: 1,
+          evidence_ordinal: 9,
+        },
+      ],
+    }),
+    proposal({ limitations: ["same", "same"] }),
   ];
 
-  for (const [candidate, code] of cases) {
+  for (const candidate of contractCases) {
+    assert.throws(
+      () =>
+        parsePlatformGeminiProposal(JSON.stringify(candidate), {
+          evidence: context().retrieval.evidence,
+        }),
+      (error) => error?.name === "PlatformGeminiProposalContractError",
+    );
+  }
+
+  const validationCases = [
+    [
+      proposal({
+        reply_text: "Мы гарантируем 100% получение визы.",
+      }),
+      "unsafe_semantics",
+    ],
+  ];
+
+  for (const [candidate, code] of validationCases) {
     assert.throws(
       () =>
         parsePlatformGeminiProposal(JSON.stringify(candidate), {
@@ -373,7 +453,7 @@ test("official SDK adapter sends one stateless Interactions request with no tool
   );
 
   const result = await provider.createProposal({
-    model: "gemini-3.5-flash",
+    model: "gemini-3.7-flash",
     prompt: "synthetic bounded prompt",
     store: false,
     background: false,
@@ -386,7 +466,7 @@ test("official SDK adapter sends one stateless Interactions request with no tool
   assert.equal(result.status, "completed");
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].params, {
-    model: "gemini-3.5-flash",
+    model: "gemini-3.7-flash",
     input: "synthetic bounded prompt",
     store: false,
     background: false,
@@ -397,7 +477,7 @@ test("official SDK adapter sends one stateless Interactions request with no tool
     },
     generation_config: {
       max_output_tokens: 2_048,
-      thinking_level: "medium",
+      thinking_level: "low",
       tool_choice: "none",
     },
   });
@@ -412,7 +492,7 @@ test("official SDK adapter sends one stateless Interactions request with no tool
 
 test("official SDK adapter rejects truncated and non-completed interactions", async () => {
   for (const [status, code] of [
-    ["incomplete", "output_truncated"],
+    ["incomplete", "provider_rejected"],
     ["requires_action", "provider_rejected"],
   ]) {
     const provider = createPlatformGeminiProposalProvider(
@@ -429,7 +509,7 @@ test("official SDK adapter rejects truncated and non-completed interactions", as
     );
     await assert.rejects(
       provider.createProposal({
-        model: "gemini-3.5-flash",
+        model: "gemini-3.7-flash",
         prompt: "synthetic bounded prompt",
         store: false,
         background: false,
@@ -451,6 +531,7 @@ test("official SDK adapter maps timeout, authentication, rate limit, and outage 
   for (const [providerError, code] of [
     [new DOMException("synthetic abort", "AbortError"), "provider_timeout"],
     [new ApiError({ message: "synthetic auth", status: 401 }), "provider_authentication_failed"],
+    [new ApiError({ message: "synthetic forbidden", status: 403 }), "provider_forbidden"],
     [new ApiError({ message: "synthetic rate", status: 429 }), "provider_rate_limited"],
     [new ApiError({ message: "synthetic outage", status: 503 }), "provider_unavailable"],
   ]) {
@@ -468,7 +549,7 @@ test("official SDK adapter maps timeout, authentication, rate limit, and outage 
     );
     await assert.rejects(
       provider.createProposal({
-        model: "gemini-3.5-flash",
+        model: "gemini-3.7-flash",
         prompt: "synthetic bounded prompt",
         store: false,
         background: false,
@@ -532,9 +613,9 @@ test("service repository binds exact begin and finish RPCs and normalizes safe i
     conversationId: CONVERSATION_ID,
     sourceMessageId: SOURCE_MESSAGE_ID,
     requestId: REQUEST_ID,
-    modelRef: "gemini-3.5-flash",
-    schemaVersion: 1,
-    promptPolicyVersion: "p5f2-consultative-sales-v2",
+    modelRef: "gemini-3.7-flash",
+    schemaVersion: 2,
+    promptPolicyVersion: "u9-gemini-human-review-v1",
   });
   assert.equal(begun.context.source_message.direction, "inbound");
   assert.deepEqual(begun.context.memory.facts[0].value, [
@@ -562,9 +643,9 @@ test("service repository binds exact begin and finish RPCs and normalizes safe i
         p_conversation_id: CONVERSATION_ID,
         p_source_message_id: SOURCE_MESSAGE_ID,
         p_request_id: REQUEST_ID,
-        p_model_ref: "gemini-3.5-flash",
-        p_schema_version: 1,
-        p_prompt_policy_version: "p5f2-consultative-sales-v2",
+        p_model_ref: "gemini-3.7-flash",
+        p_schema_version: 2,
+        p_prompt_policy_version: "u9-gemini-human-review-v1",
       },
     },
     {
@@ -672,7 +753,7 @@ test("handler persists proposal_ready and returns only a bounded non-authoritati
     ["begin", "provider", "finish"],
   );
   const providerInput = calls[1][1];
-  assert.equal(providerInput.model, "gemini-3.5-flash");
+  assert.equal(providerInput.model, "gemini-3.7-flash");
   assert.equal(providerInput.store, false);
   assert.equal(providerInput.background, false);
   assert.equal(providerInput.toolChoice, "none");
@@ -786,7 +867,7 @@ test("handler durably preserves a non-clean Interaction status and reference", a
   const response = await handler(rawRequest(requestBody()));
   assert.equal(response.status, 200);
   assert.equal(finishes.length, 1);
-  assert.equal(finishes[0].failureCode, "output_truncated");
+  assert.equal(finishes[0].failureCode, "provider_rejected");
   assert.equal(finishes[0].providerStatus, "incomplete");
   assert.equal(
     finishes[0].providerInteractionRef,
@@ -849,7 +930,7 @@ test("handler downgrades malformed Interaction evidence to local_error without a
     const response = await handler(rawRequest(requestBody()));
     assert.equal(response.status, 200);
     assert.equal(finishes.length, 1);
-    assert.equal(finishes[0].failureCode, "provider_rejected");
+    assert.equal(finishes[0].failureCode, "malformed_output");
     assert.equal(finishes[0].providerStatus, "local_error");
     assert.equal(finishes[0].providerInteractionRef, null);
   }
@@ -955,6 +1036,11 @@ test("route and examples keep the provider lane server-only and disabled", async
 
   assert.match(route, /runtime = "nodejs"/);
   assert.match(environment, /EVO_PLATFORM_GEMINI_PROPOSALS_ENABLED=0/);
+  assert.match(environment, /EVO_PLATFORM_GEMINI_REVIEW_PRIVACY_APPROVED=0/);
+  assert.match(
+    environment,
+    /EVO_PLATFORM_GEMINI_PROPOSAL_MODEL=gemini-3\.7-flash/,
+  );
   assert.match(environment, /EVO_PLATFORM_GEMINI_API_KEY=/);
   assert.doesNotMatch(environment, /NEXT_PUBLIC_GEMINI/);
   assert.match(packageJson, /"@google\/genai": "2\.16\.0"/);

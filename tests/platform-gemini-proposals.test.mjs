@@ -54,8 +54,8 @@ function readyRow(overrides = {}) {
     source_message_id: MESSAGE_ID,
     outcome: "proposal_ready",
     failure_code: null,
-    model_ref: "gemini-3.5-flash",
-    schema_version: 1,
+    model_ref: "gemini-3.7-flash",
+    schema_version: 2,
     language: "ru",
     intent: "admissions_discovery",
     confidence: 86,
@@ -84,6 +84,13 @@ function readyRow(overrides = {}) {
       notes: "Confirm the budget and intake.",
     },
     reply_text: "Спасибо! Уточните, пожалуйста, бюджет и желаемый набор.",
+    summary: "Клиент планирует поступление в Германию.",
+    next_action: "Проверить бюджет и желаемый набор.",
+    draft_internal_note: "Уточнить бюджет до консультации.",
+    missing_document_suggestion: "Попросить копию аттестата.",
+    deadline_warning: null,
+    limitations: ["Ответ основан на подтвержденных источниках."],
+    uncertainty: "low",
     requested_at: "2026-08-11T07:00:00Z",
     completed_at: "2026-08-11T07:00:02Z",
     human_review_required: true,
@@ -105,6 +112,13 @@ function nullProposalFields(overrides = {}) {
     memory_changes: null,
     qualification: null,
     reply_text: null,
+    summary: null,
+    next_action: null,
+    draft_internal_note: null,
+    missing_document_suggestion: null,
+    deadline_warning: null,
+    limitations: null,
+    uncertainty: null,
     ...overrides,
   });
 }
@@ -112,16 +126,47 @@ function nullProposalFields(overrides = {}) {
 test("normalizes one exact safe proposal without private provider fields", () => {
   const proposal = normalizePlatformGeminiProposal(readyRow());
   assert.equal(proposal.outcome, "proposal_ready");
-  assert.equal(proposal.modelRef, "gemini-3.5-flash");
+  assert.equal(proposal.modelRef, "gemini-3.7-flash");
   assert.equal(proposal.autonomousAuthority, false);
   assert.equal(proposal.providerProofState, "blocked");
   assert.equal(proposal.replyText.startsWith("Спасибо"), true);
+  assert.equal(proposal.summary, "Клиент планирует поступление в Германию.");
+  assert.equal(proposal.nextAction, "Проверить бюджет и желаемый набор.");
+  assert.equal(proposal.draftInternalNote, "Уточнить бюджет до консультации.");
+  assert.equal(proposal.missingDocumentSuggestion, "Попросить копию аттестата.");
+  assert.equal(proposal.deadlineWarning, null);
+  assert.deepEqual(proposal.limitations, [
+    "Ответ основан на подтвержденных источниках.",
+  ]);
+  assert.equal(proposal.uncertainty, "low");
   assert.deepEqual(proposal.citations[0], {
     knowledgeKey: "admissions.requirements",
     knowledgeVersion: 3,
     evidenceOrdinal: 1,
   });
   assert.equal(proposal.qualification.status, "ready_for_staff_review");
+});
+
+test("normalizes historical schema-v1 staff rows without inventing U9 fields", () => {
+  const proposal = normalizePlatformGeminiProposal(
+    readyRow({
+      model_ref: "gemini-3.5-flash",
+      schema_version: 1,
+      summary: null,
+      next_action: null,
+      draft_internal_note: null,
+      missing_document_suggestion: null,
+      deadline_warning: null,
+      limitations: null,
+      uncertainty: null,
+    }),
+  );
+
+  assert.equal(proposal.schemaVersion, 1);
+  assert.equal(proposal.summary, null);
+  assert.equal(proposal.nextAction, null);
+  assert.deepEqual(proposal.limitations, []);
+  assert.equal(proposal.uncertainty, null);
 });
 
 test("normalizes pending and durable human-review states", () => {
@@ -153,6 +198,8 @@ test("safe proposal contract rejects private, autonomous, unknown and unsafe sha
     readyRow({ autonomous_authority: true }),
     readyRow({ provider_proof_state: "observed" }),
     readyRow({ model_ref: "gemini-3.6-flash" }),
+    readyRow({ model_ref: "gemini-3.5-flash", schema_version: 2 }),
+    readyRow({ model_ref: "gemini-3.7-flash", schema_version: 1 }),
     readyRow({ intent: "invented_intent" }),
     readyRow({ handoff_required: false }),
     readyRow({ qualification: { ...readyRow().qualification, status: "staff_confirmed" } }),
@@ -304,7 +351,11 @@ test("accepted conversation renders a localized read-only safe proposal inspecto
   assert.match(cardSource, /data-human-review-required/);
   assert.match(cardSource, /data-autonomous-authority/);
   assert.match(cardSource, /data-provider-proof-state/);
-  assert.doesNotMatch(cardSource, /<button\b|<form\b|action=|provider_interaction_ref|context_sha|prompt_text|raw_waha/i);
+  assert.match(cardSource, /reviewPlatformGeminiProposalAction/);
+  assert.match(cardSource, /name="decision" value="accepted"/);
+  assert.match(cardSource, /name="decision" value="edited"/);
+  assert.match(cardSource, /name="decision" value="rejected"/);
+  assert.doesNotMatch(cardSource, /provider_interaction_ref|context_sha|prompt_text|raw_waha/i);
   assert.match(viewSource, /PlatformGeminiProposalCard/);
   assert.match(viewSource, /unavailable=\{geminiProposalUnavailable\}/);
   assert.match(pageSource, /readPlatformGeminiProposal/);

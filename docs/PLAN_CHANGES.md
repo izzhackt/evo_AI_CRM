@@ -11284,3 +11284,100 @@ Decision:
 
 Validation impact: dependency evidence changes from stacked/local to exact
 main. Functional acceptance and negative authorization cases are unchanged.
+
+## 2026-08-26 — Prepare U9 as a dependency-gated human-review extension
+
+Date: 2026-08-26, workspace timezone (+04).
+Author: Codex following the owner's instruction to continue useful local work
+while sequential GitHub gates run.
+Change type: stacked implementation contract; no merge-order or evidence
+exception.
+Block-ID: `EVO-LONG-RUN-1-U9-STACKED-PREP-2026-08-26`.
+Stacked starting point: local U8 commit
+`73381744df283b03a69ff84a858564405ddc435e`.
+
+Reason: U8 has passed its full disposable-local gate and independent review,
+while U7 exact-main and the later U8 GitHub gates remain sequential work. Issue
+#386 can be prepared safely on the verified local U8 tree without opening a PR,
+claiming the dependency satisfied or touching a provider/production service.
+
+Decision:
+
+1. Extend the accepted Platform conversation surface and the existing
+   migration-066 `gemini_proposal_requests` / `gemini_proposal_results`
+   authority instead of the legacy Anthropic routes, staff-assistant path or a
+   second product. One server-side Gemini proposal adapter uses stable
+   `gemini-3.7-flash` through the Interactions API, requests JSON schema output,
+   sets `store: false`, declares no tools and validates the response again
+   inside EVO.
+2. Evolve only new proposal generations from schema version 1 to version 2;
+   historical version-1 rows remain readable. Version 2 preserves the existing
+   intent, draft reply, citations/provenance, qualification and memory proposal
+   fields and adds summary, next action, internal note, missing-document
+   suggestion, deadline warning, limitations and uncertainty. It does not add
+   duplicate request/result, intent-state, draft-reply or source-ID authority.
+3. Keep review explicit and auditable. An authorized active staff member may
+   Accept the exact bundle, Edit and accept a validated bundle, or Reject it;
+   every transition records actor, time, reason and content hash. No decision
+   sends WhatsApp, writes amoCRM, changes ownership/stage, confirms payment,
+   approves a document, completes a task or executes a handoff.
+4. Reuse the existing bounded proposal failure codes for missing configuration,
+   unapproved privacy posture, provider timeout/rate/permission/service failure
+   and malformed output. Never render absence or failure as a healthy
+   suggestion.
+5. Keep the existing request/result authorization and add only an append-only
+   human-review decision tied to the exact successful request/result. Bind its
+   read/review authorization in PostgreSQL to active organization membership
+   and accepted conversation scope. Direct writes, cross-organization access,
+   inactive actors and unauthorized review fail closed independently of hidden
+   UI controls.
+6. Keep this branch local and stacked until U8 is protected-merged and its
+   exact-main CI is green. Rebase onto that exact main SHA, rerun affected
+   disposable-local evidence, then create the only U9 PR.
+
+Validation impact: add strict provider/config/unit tests; disposable PostgreSQL
+and RLS tests for request, completion, blocked outcomes, review idempotency and
+negative authorization; authenticated browser proof for provenance,
+Accept/Edit/Reject and audit history; retain lint, typecheck, build, full local
+Supabase, exact-head, match-head and exact-main gates.
+
+Official primary documentation revalidated on 2026-08-26:
+
+- <https://ai.google.dev/gemini-api/docs/interactions-overview>
+- <https://ai.google.dev/gemini-api/docs/structured-output>
+- <https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash>
+- <https://ai.google.dev/gemini-api/docs/generate-content/api-errors>
+- <https://ai.google.dev/gemini-api/docs/zdr>
+
+## 2026-08-27 — Rebind U9 to the verified U8 exact-main head
+
+Date: 2026-08-27, workspace timezone (+04).
+Author: Codex after the protected U8 merge and exact-main gate.
+Change type: dependency-gate completion; no U9 scope expansion.
+Block-ID: `EVO-LONG-RUN-1-U9-EXACT-MAIN-REBIND-2026-08-27`.
+
+Evidence:
+
+- U8/#385 exact PR head `81f0240198cd8c9068ad3108b792a5d7cfab8f6e`
+  passed required run `33011228137`.
+- PR #400 was squash-merged with `--match-head-commit`; exact main became
+  `e3a681774bcb2c37a7f4c1600341cc16d6282892`.
+- Exact-main push run `33013322714` completed successfully for Main CRM, EVO
+  Inbox and EVO Lead Agent; Changed range was skipped as expected for a push.
+
+Decision:
+
+1. Rebase the single U9 implementation commit directly onto exact main
+   `e3a681774bcb2c37a7f4c1600341cc16d6282892` before opening its PR.
+2. Preserve historical U8 plan evidence while advancing the migration,
+   release-manifest and Inbox containment boundaries through migration 091.
+3. Keep schema-v2 Gemini proposals human-only: Accept, Edit and Reject append
+   audit evidence but never send WhatsApp, write amoCRM, execute a task or
+   contact a provider during repository proof.
+4. Rerun the complete disposable-local gate plus lint, typecheck and build on
+   the rebased implementation tree, then require independent exact-head review,
+   protected merge and exact-main CI for #386.
+
+Validation impact: dependency evidence changes from stacked/local to exact
+main. Functional acceptance, tenant isolation and disabled-provider boundaries
+remain unchanged.

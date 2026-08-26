@@ -1763,6 +1763,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_finance_stop_factor_rls.sql
   fi
+
+  # Migration 091 upgrades only new Gemini proposals to the pinned U9 v2
+  # contract and adds an append-only, human-reviewed decision boundary.
+  if [[ "$(basename "$migration")" == 091_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_human_review_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

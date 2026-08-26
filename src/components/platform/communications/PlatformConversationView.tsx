@@ -16,6 +16,7 @@ import type {
   PlatformConversationAiMemory,
 } from "@/lib/platform-ai-memory";
 import type { PlatformGeminiProposal } from "@/lib/platform-gemini-proposals";
+import type { PlatformGeminiProposalReview } from "@/lib/platform-gemini-proposal-reviews";
 import type { PlatformAutonomousReplyState } from "@/lib/platform-autonomous-replies";
 import type {
   PlatformConversationMessage,
@@ -96,6 +97,9 @@ export async function PlatformConversationView({
   aiRetrievalEvidence,
   geminiProposal,
   geminiProposalUnavailable,
+  geminiProposalReviews,
+  geminiProposalReviewsUnavailable,
+  geminiReviewMutationOutcome,
   autonomousReplyState,
   autonomousReplyUnavailable,
   autonomousReplyRuntimeEnabled,
@@ -120,6 +124,9 @@ export async function PlatformConversationView({
   aiRetrievalEvidence: PlatformAiRetrievalEvidence | null;
   geminiProposal: PlatformGeminiProposal | null;
   geminiProposalUnavailable: boolean;
+  geminiProposalReviews: readonly PlatformGeminiProposalReview[];
+  geminiProposalReviewsUnavailable: boolean;
+  geminiReviewMutationOutcome: "saved" | "invalid" | "unavailable" | null;
   autonomousReplyState: PlatformAutonomousReplyState | null;
   autonomousReplyUnavailable: boolean;
   autonomousReplyRuntimeEnabled: boolean;
@@ -525,8 +532,38 @@ export async function PlatformConversationView({
     noCitations: t("platformGeminiProposalNoCitations"),
     model: t("platformGeminiProposalModel"),
     schemaVersion: t("platformGeminiProposalSchemaVersion"),
+    sourceMessage: t("platformGeminiProposalSourceMessage"),
     requestedAt: t("platformGeminiProposalRequestedAt"),
     completedAt: t("platformGeminiProposalCompletedAt"),
+    summary: t("platformGeminiProposalSummary"),
+    nextAction: t("platformGeminiProposalNextAction"),
+    internalNote: t("platformGeminiProposalInternalNote"),
+    missingDocument: t("platformGeminiProposalMissingDocument"),
+    noMissingDocument: t("platformGeminiProposalNoMissingDocument"),
+    deadlineWarning: t("platformGeminiProposalDeadlineWarning"),
+    noDeadlineWarning: t("platformGeminiProposalNoDeadlineWarning"),
+    limitations: t("platformGeminiProposalLimitations"),
+    uncertainty: t("platformGeminiProposalUncertainty"),
+    uncertaintyLabels: {
+      low: t("platformGeminiProposalUncertaintyLow"),
+      medium: t("platformGeminiProposalUncertaintyMedium"),
+      high: t("platformGeminiProposalUncertaintyHigh"),
+    },
+    reviewTitle: t("platformGeminiProposalReviewTitle"),
+    reviewsUnavailable: t("platformGeminiProposalReviewsUnavailable"),
+    reviewAccepted: t("platformGeminiProposalReviewAccepted"),
+    reviewEdited: t("platformGeminiProposalReviewEdited"),
+    reviewRejected: t("platformGeminiProposalReviewRejected"),
+    reviewedBy: t("platformGeminiProposalReviewedBy"),
+    reviewReason: t("platformGeminiProposalReviewReason"),
+    acceptAction: t("platformGeminiProposalAcceptAction"),
+    editAction: t("platformGeminiProposalEditAction"),
+    rejectAction: t("platformGeminiProposalRejectAction"),
+    editHint: t("platformGeminiProposalEditHint"),
+    rejectReason: t("platformGeminiProposalRejectReason"),
+    mutationSaved: t("platformGeminiProposalMutationSaved"),
+    mutationInvalid: t("platformGeminiProposalMutationInvalid"),
+    mutationUnavailable: t("platformGeminiProposalMutationUnavailable"),
     intentLabels: {
       greeting: t("platformGeminiProposalIntentGreeting"),
       admissions_discovery: t(
@@ -575,6 +612,9 @@ export async function PlatformConversationView({
       configuration_missing: t(
         "platformGeminiProposalFailureConfigurationMissing",
       ),
+      privacy_not_approved: t(
+        "platformGeminiProposalFailurePrivacyNotApproved",
+      ),
       provider_timeout: t("platformGeminiProposalFailureProviderTimeout"),
       provider_rate_limited: t(
         "platformGeminiProposalFailureProviderRateLimited",
@@ -582,6 +622,7 @@ export async function PlatformConversationView({
       provider_authentication_failed: t(
         "platformGeminiProposalFailureProviderAuthenticationFailed",
       ),
+      provider_forbidden: t("platformGeminiProposalFailureProviderForbidden"),
       provider_unavailable: t(
         "platformGeminiProposalFailureProviderUnavailable",
       ),
@@ -590,6 +631,7 @@ export async function PlatformConversationView({
       empty_response: t("platformGeminiProposalFailureEmptyResponse"),
       output_truncated: t("platformGeminiProposalFailureOutputTruncated"),
       malformed_response: t("platformGeminiProposalFailureMalformedResponse"),
+      malformed_output: t("platformGeminiProposalFailureMalformedOutput"),
       unsupported_language: t(
         "platformGeminiProposalFailureUnsupportedLanguage",
       ),
@@ -809,9 +851,13 @@ export async function PlatformConversationView({
           </summary>
           <div className="px-4 pb-3">
             <PlatformGeminiProposalCard
+              conversationId={conversation.id}
               labels={geminiProposalLabels}
               locale={locale}
               proposal={geminiProposal}
+              reviewMutationOutcome={geminiReviewMutationOutcome}
+              reviews={geminiProposalReviews}
+              reviewsUnavailable={geminiProposalReviewsUnavailable}
               testIdSuffix="-mobile"
               unavailable={geminiProposalUnavailable}
             />
@@ -950,9 +996,13 @@ export async function PlatformConversationView({
             unavailable={autonomousReplyUnavailable}
           />
           <PlatformGeminiProposalCard
+            conversationId={conversation.id}
             labels={geminiProposalLabels}
             locale={locale}
             proposal={geminiProposal}
+            reviewMutationOutcome={geminiReviewMutationOutcome}
+            reviews={geminiProposalReviews}
+            reviewsUnavailable={geminiProposalReviewsUnavailable}
             unavailable={geminiProposalUnavailable}
           />
           <PlatformAiMemoryCard

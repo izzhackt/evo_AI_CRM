@@ -2,11 +2,15 @@ import "server-only";
 
 import {
   PLATFORM_GEMINI_HANDOFF_REASONS,
+  PLATFORM_GEMINI_PROPOSAL_CURRENT_SCHEMA_VERSION,
   PLATFORM_GEMINI_PROPOSAL_FACT_KEYS,
   PLATFORM_GEMINI_PROPOSAL_INTENTS,
   PLATFORM_GEMINI_PROPOSAL_QUALIFICATION_STATES,
   PLATFORM_GEMINI_PROPOSAL_RISKS,
-  PLATFORM_GEMINI_PROPOSAL_SCHEMA_VERSION,
+  PLATFORM_GEMINI_PROPOSAL_UNCERTAINTY,
+  normalizePlatformGeminiProposalPayload,
+  type PlatformGeminiProposalSchemaVersion,
+  type PlatformGeminiProposalUncertainty,
   type PlatformGeminiFailureCode,
   type PlatformGeminiHandoffReason,
   type PlatformGeminiProposalFactKey,
@@ -27,6 +31,15 @@ const TOP_LEVEL_KEYS = [
   "memory_changes",
   "qualification",
   "reply_text",
+] as const;
+const V2_OPTIONAL_KEYS = [
+  "summary",
+  "next_action",
+  "draft_internal_note",
+  "missing_document_suggestion",
+  "deadline_warning",
+  "limitations",
+  "uncertainty",
 ] as const;
 const CITATION_KEYS = [
   "knowledge_key",
@@ -57,7 +70,7 @@ export type PlatformGeminiProposalEvidence = Readonly<{
 }>;
 
 export type PlatformGeminiProposalPayload = Readonly<{
-  schema_version: typeof PLATFORM_GEMINI_PROPOSAL_SCHEMA_VERSION;
+  schema_version: PlatformGeminiProposalSchemaVersion;
   language: "ru" | "en";
   intent: PlatformGeminiProposalIntent;
   confidence: number;
@@ -82,6 +95,13 @@ export type PlatformGeminiProposalPayload = Readonly<{
     notes: string | null;
   }>;
   reply_text: string;
+  summary: string | null;
+  next_action: string | null;
+  draft_internal_note: string | null;
+  missing_document_suggestion: string | null;
+  deadline_warning: string | null;
+  limitations: readonly string[];
+  uncertainty: PlatformGeminiProposalUncertainty | null;
 }>;
 
 export class PlatformGeminiProposalValidationError extends Error {
@@ -108,154 +128,15 @@ function invalid(
   throw new PlatformGeminiProposalValidationError(code);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return false;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-
-function exactKeys(
-  value: Record<string, unknown>,
-  expected: readonly string[],
-): boolean {
-  const keys = Object.keys(value);
-  return (
-    keys.length === expected.length &&
-    keys.every((key) => expected.includes(key))
-  );
-}
-
-function integer(value: unknown, minimum: number, maximum: number): number {
-  if (
-    typeof value !== "number" ||
-    !Number.isInteger(value) ||
-    value < minimum ||
-    value > maximum
-  ) {
-    return invalid();
-  }
-  return value;
-}
-
-function text(value: unknown, maximum: number): string {
-  if (
-    typeof value !== "string" ||
-    value.trim() !== value ||
-    value.length < 1 ||
-    value.length > maximum
-  ) {
-    return invalid();
-  }
-  return value;
-}
-
-function optionalText(value: unknown, maximum: number): string | null {
-  return value === null ? null : text(value, maximum);
-}
-
-function enumValue<const T extends readonly string[]>(
-  value: unknown,
-  allowed: T,
-): T[number] {
-  if (typeof value !== "string" || !allowed.includes(value)) return invalid();
-  return value as T[number];
-}
-
-function uniqueEnums<const T extends readonly string[]>(
-  value: unknown,
-  allowed: T,
-  maximum: number,
-): readonly T[number][] {
-  if (!Array.isArray(value) || value.length > maximum) return invalid();
-  const result = value.map((item) => enumValue(item, allowed));
-  if (new Set(result).size !== result.length) return invalid();
-  return result;
-}
-
-function parseCitations(
-  value: unknown,
-  evidence: readonly PlatformGeminiProposalEvidence[],
-): PlatformGeminiProposalPayload["citations"] {
-  if (!Array.isArray(value) || value.length > 6) return invalid();
-  const allowedEvidence = new Set(
-    evidence.map(
-      (item) =>
-        `${item.knowledge_key}\u0000${item.knowledge_version}\u0000${item.evidence_ordinal}`,
-    ),
-  );
-  const seen = new Set<string>();
-  return value.map((item) => {
-    if (!isRecord(item) || !exactKeys(item, CITATION_KEYS)) return invalid();
-    const citation = {
-      knowledge_key: text(item.knowledge_key, 160),
-      knowledge_version: integer(item.knowledge_version, 1, 2_147_483_647),
-      evidence_ordinal: integer(item.evidence_ordinal, 1, 10),
-    };
-    const key = `${citation.knowledge_key}\u0000${citation.knowledge_version}\u0000${citation.evidence_ordinal}`;
-    if (seen.has(key)) return invalid();
-    seen.add(key);
-    if (!allowedEvidence.has(key)) return invalid("missing_evidence");
-    return citation;
-  });
-}
-
-function parseMemoryChanges(
-  value: unknown,
-): PlatformGeminiProposalPayload["memory_changes"] {
-  if (
-    !Array.isArray(value) ||
-    value.length > PLATFORM_GEMINI_PROPOSAL_FACT_KEYS.length
-  ) return invalid();
-  const seen = new Set<string>();
-  return value.map((item) => {
-    if (!isRecord(item) || !exactKeys(item, MEMORY_CHANGE_KEYS)) return invalid();
-    const action = enumValue(item.action, ["set", "clear"] as const);
-    const parsedValue = optionalText(item.value, 500);
-    if (
-      (action === "set" && parsedValue === null) ||
-      (action === "clear" && parsedValue !== null)
-    ) {
-      return invalid();
-    }
-    const factKey = enumValue(item.fact_key, PLATFORM_GEMINI_PROPOSAL_FACT_KEYS);
-    if (seen.has(factKey)) return invalid();
-    seen.add(factKey);
-    return {
-      fact_key: factKey,
-      action,
-      value: parsedValue,
-      confidence: integer(item.confidence, 0, 100),
-    };
-  });
-}
-
-function parseQualification(
-  value: unknown,
-): PlatformGeminiProposalPayload["qualification"] {
-  if (!isRecord(value) || !exactKeys(value, QUALIFICATION_KEYS)) return invalid();
-  return {
-    status: enumValue(
-      value.status,
-      PLATFORM_GEMINI_PROPOSAL_QUALIFICATION_STATES,
-    ),
-    completeness: integer(value.completeness, 0, 100),
-    missing_fact_keys: uniqueEnums(
-      value.missing_fact_keys,
-      PLATFORM_GEMINI_PROPOSAL_FACT_KEYS,
-      9,
-    ),
-    notes: optionalText(value.notes, 2_000),
-  };
-}
-
 export const PLATFORM_GEMINI_PROPOSAL_JSON_SCHEMA = Object.freeze({
   type: "object",
   additionalProperties: false,
-  required: [...TOP_LEVEL_KEYS],
+  required: [...TOP_LEVEL_KEYS, ...V2_OPTIONAL_KEYS],
   properties: {
-    schema_version: { type: "integer", enum: [1] },
+    schema_version: {
+      type: "integer",
+      enum: [PLATFORM_GEMINI_PROPOSAL_CURRENT_SCHEMA_VERSION],
+    },
     language: { type: "string", enum: ["ru", "en"] },
     intent: { type: "string", enum: [...PLATFORM_GEMINI_PROPOSAL_INTENTS] },
     confidence: { type: "integer", minimum: 0, maximum: 100 },
@@ -320,6 +201,22 @@ export const PLATFORM_GEMINI_PROPOSAL_JSON_SCHEMA = Object.freeze({
       },
     },
     reply_text: { type: "string" },
+    summary: { type: "string", maxLength: 2000 },
+    next_action: { type: "string", maxLength: 1000 },
+    draft_internal_note: { type: "string", maxLength: 4000 },
+    missing_document_suggestion: { type: ["string", "null"], maxLength: 1000 },
+    deadline_warning: { type: ["string", "null"], maxLength: 1000 },
+    limitations: {
+      type: "array",
+      minItems: 1,
+      maxItems: 8,
+      items: { type: "string", maxLength: 500 },
+      uniqueItems: true,
+    },
+    uncertainty: {
+      type: "string",
+      enum: [...PLATFORM_GEMINI_PROPOSAL_UNCERTAINTY],
+    },
   },
 } as const);
 
@@ -338,41 +235,51 @@ export function parsePlatformGeminiProposal(
   } catch {
     return invalid("malformed_response");
   }
-  if (!isRecord(decoded) || !exactKeys(decoded, TOP_LEVEL_KEYS)) return invalid();
-  if (decoded.schema_version !== PLATFORM_GEMINI_PROPOSAL_SCHEMA_VERSION) {
-    return invalid();
-  }
-  if (decoded.language !== "ru" && decoded.language !== "en") {
-    return invalid("unsupported_language");
-  }
-  if (typeof decoded.handoff_required !== "boolean") return invalid();
-  const handoffReasons = uniqueEnums(
-    decoded.handoff_reasons,
-    PLATFORM_GEMINI_HANDOFF_REASONS,
-    8,
+  const normalized = normalizePlatformGeminiProposalPayload(
+    decoded,
+    input.evidence.map((item) => ({
+      knowledgeKey: item.knowledge_key,
+      knowledgeVersion: item.knowledge_version,
+      evidenceOrdinal: item.evidence_ordinal,
+    })),
   );
-  if (
-    (!decoded.handoff_required && handoffReasons.length !== 0) ||
-    (decoded.handoff_required && handoffReasons.length === 0)
-  ) {
-    return invalid();
-  }
-  const replyText = text(decoded.reply_text, 2_000);
+  const replyText = normalized.replyText;
   if (UNSAFE_EXTERNAL_OUTCOME_PATTERNS.some((pattern) => pattern.test(replyText))) {
     return invalid("unsafe_semantics");
   }
 
   return {
-    schema_version: PLATFORM_GEMINI_PROPOSAL_SCHEMA_VERSION,
-    language: decoded.language,
-    intent: enumValue(decoded.intent, PLATFORM_GEMINI_PROPOSAL_INTENTS),
-    confidence: integer(decoded.confidence, 0, 100),
-    risk: enumValue(decoded.risk, PLATFORM_GEMINI_PROPOSAL_RISKS),
-    handoff_required: decoded.handoff_required,
-    handoff_reasons: handoffReasons,
-    citations: parseCitations(decoded.citations, input.evidence),
-    memory_changes: parseMemoryChanges(decoded.memory_changes),
-    qualification: parseQualification(decoded.qualification),
+    schema_version: normalized.schemaVersion,
+    language: normalized.language,
+    intent: normalized.intent,
+    confidence: normalized.confidence,
+    risk: normalized.risk,
+    handoff_required: normalized.handoffRequired,
+    handoff_reasons: normalized.handoffReasons,
+    citations: normalized.citations.map((citation) => ({
+      knowledge_key: citation.knowledgeKey,
+      knowledge_version: citation.knowledgeVersion,
+      evidence_ordinal: citation.evidenceOrdinal,
+    })),
+    memory_changes: normalized.memoryChanges.map((change) => ({
+      fact_key: change.factKey,
+      action: change.action,
+      value: change.value,
+      confidence: change.confidence,
+    })),
+    qualification: {
+      status: normalized.qualification.status,
+      completeness: normalized.qualification.completeness,
+      missing_fact_keys: normalized.qualification.missingFactKeys,
+      notes: normalized.qualification.notes,
+    },
     reply_text: replyText,
+    summary: normalized.summary,
+    next_action: normalized.nextAction,
+    draft_internal_note: normalized.draftInternalNote,
+    missing_document_suggestion: normalized.missingDocumentSuggestion,
+    deadline_warning: normalized.deadlineWarning,
+    limitations: normalized.limitations,
+    uncertainty: normalized.uncertainty,
   };
 }

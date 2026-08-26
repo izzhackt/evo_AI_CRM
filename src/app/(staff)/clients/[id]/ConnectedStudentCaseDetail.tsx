@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
 
 import { getT } from "@/lib/i18n";
+import * as platformAdmissionsModule from "@/lib/platform-admissions";
+import * as platformAdmissionsWorkspaceModule from "@/lib/platform-admissions-case-workspace";
 import {
   getPlatformStudentCaseView,
   listPlatformApplicationsForStudentCase,
@@ -13,6 +15,8 @@ import { getPlatformStudentCaseAdmissionsHandoff } from "@/lib/platform-admissio
 import {
   assignPlatformStudentCaseCuratorAction,
   changePlatformStudentCaseStateAction,
+  changePlatformUniversityApplicationAction,
+  createPlatformUniversityApplicationAction,
   updatePlatformStudentCaseRouteAction,
 } from "@/lib/platform-admissions-actions";
 import {
@@ -44,7 +48,6 @@ import {
   getPlatformCaseContractWorkspace,
   PLATFORM_CONTRACT_MUTATION_OUTCOMES,
 } from "@/lib/platform-contract-workflow";
-import { reviewPlatformDocumentVersionAction } from "@/lib/platform-document-review-actions";
 import { requirePlatformClientsActor } from "@/lib/platform-guards";
 import {
   getPlatformStudentProfile,
@@ -55,7 +58,12 @@ import {
   applyPlatformCountryRequirementVersionAction,
   updatePlatformStudentProfileAction,
 } from "@/lib/platform-student-profile-actions";
-import { isPlatformP6BPortalNotificationsEnabled } from "@/lib/server/platform-p6b-portal-notifications";
+import {
+  appendPlatformCaseUpdateAction,
+  changePlatformCaseTaskAction,
+  createPlatformCaseTaskAction,
+  reviewPlatformCaseDocumentVersionAction,
+} from "@/lib/platform-admissions-case-workspace-actions";
 
 import FixtureClientPage, {
   type ClientPagePresentationData,
@@ -113,6 +121,154 @@ function contractResult(
     : undefined;
 }
 
+type WorkspaceTask = Readonly<{
+  id: string;
+  title: string;
+  dueDate: string | null;
+  status: string;
+  priority: string;
+  assigneeMembershipId: string | null;
+  assigneeName: string | null;
+  requestId: string;
+}>;
+
+type WorkspaceUpdate = Readonly<{
+  id: string;
+  message: string;
+  authorName: string | null;
+  createdAt: string;
+}>;
+
+type WorkspaceAudit = Readonly<{
+  id: string;
+  eventType: string;
+  reason: string;
+  actorName: string;
+  occurredAt: string;
+  resourceKind: string | null;
+  changeSummary: string | null;
+  headline: string | null;
+}>;
+
+type WorkspaceAssignee = Readonly<{
+  id: string;
+  name: string;
+}>;
+
+const { getPlatformAdmissionsCaseWorkspace } = platformAdmissionsWorkspaceModule;
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function arrayValue(value: unknown): readonly unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function workspaceId(row: Record<string, unknown>, keys: readonly string[]) {
+  for (const key of keys) {
+    const parsed = parsePlatformAdmissionsUuid(row[key]);
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
+function workspaceText(row: Record<string, unknown>, keys: readonly string[]) {
+  for (const key of keys) {
+    const value = stringValue(row[key]);
+    if (value) return value;
+  }
+  return null;
+}
+
+function normalizeWorkspaceTasks(workspace: unknown): readonly WorkspaceTask[] {
+  const root = recordValue(workspace);
+  const rows = arrayValue(root?.tasks);
+  return rows.flatMap((value) => {
+    const row = recordValue(value);
+    if (!row) return [];
+    const id = workspaceId(row, ["caseTaskId"]);
+    const title = workspaceText(row, ["title"]);
+    const status = workspaceText(row, ["status"]);
+    if (!id || !title || !status) return [];
+    return [{
+      id,
+      title,
+      dueDate: workspaceText(row, ["dueAt"]),
+      status,
+      priority: workspaceText(row, ["priority"]) ?? "normal",
+      assigneeMembershipId: workspaceId(row, ["assigneeMembershipId"]),
+      assigneeName: workspaceText(row, ["assigneeDisplayName"]),
+      requestId: randomUUID(),
+    }];
+  });
+}
+
+function normalizeWorkspaceAssignees(workspace: unknown): readonly WorkspaceAssignee[] {
+  const root = recordValue(workspace);
+  const rows = arrayValue(root?.taskAssignees);
+  return rows.flatMap((value) => {
+    const row = recordValue(value);
+    if (!row) return [];
+    const id = workspaceId(row, ["membershipId"]);
+    const name = workspaceText(row, ["displayName"]);
+    return id && name ? [{ id, name }] : [];
+  });
+}
+
+function normalizeWorkspaceUpdates(workspace: unknown): readonly WorkspaceUpdate[] {
+  const root = recordValue(workspace);
+  const rows = arrayValue(root?.updates);
+  return rows.flatMap((value) => {
+    const row = recordValue(value);
+    if (!row) return [];
+    const id = workspaceId(row, ["studentCaseUpdateId"]) ?? randomUUID();
+    const message = workspaceText(row, ["body"]);
+    const createdAt = workspaceText(row, ["occurredAt"]);
+    if (!message || !createdAt) return [];
+    return [{
+      id,
+      message,
+      authorName: workspaceText(row, ["authorDisplayName"]),
+      createdAt,
+    }];
+  });
+}
+
+function normalizeWorkspaceAudit(workspace: unknown): readonly WorkspaceAudit[] {
+  const root = recordValue(workspace);
+  const rows = arrayValue(root?.audit);
+  return rows.flatMap((value) => {
+    const row = recordValue(value);
+    if (!row) return [];
+    const id = workspaceId(row, ["auditEventId"]) ?? randomUUID();
+    const eventType = workspaceText(row, ["action"])
+      ?? "updated";
+    const occurredAt = workspaceText(row, ["eventAt"]);
+    const actorName = workspaceText(row, ["actorDisplayName"]) ?? "—";
+    if (!occurredAt) return [];
+    const changeSummary = workspaceText(row, ["changeSummary"]);
+    const reason = workspaceText(row, ["reason"]) ?? changeSummary ?? "—";
+    const resourceKind = workspaceText(row, ["resourceKind"]);
+    return [{
+      id,
+      eventType,
+      reason,
+      actorName,
+      occurredAt,
+      resourceKind,
+      changeSummary,
+      headline: null,
+    }];
+  });
+}
+
 /**
  * Connected Supabase adapter for the accepted Student 360 renderer.
  * It returns only repository-authorized fields; Sales handoff summaries never
@@ -151,6 +307,8 @@ export async function loadPlatformClientPageData(
     || actor.platformRole === "curator";
   const canReadAdmissionsHandoffContext = actor.platformRole === "admin"
     || actor.platformRole === "curator";
+  const canReadCaseWorkspace = actor.platformRole === "admin"
+    || actor.platformRole === "curator";
   const [
     applicationRows,
     profileSnapshot,
@@ -162,6 +320,7 @@ export async function loadPlatformClientPageData(
     caseVisa,
     caseFinance,
     handoffState,
+    caseWorkspace,
   ] = await Promise.all([
     listPlatformApplicationsForStudentCase(actor, studentCase.studentCaseId, {
       pageSize: 100,
@@ -180,6 +339,12 @@ export async function loadPlatformClientPageData(
     listPlatformCaseFinance(actor, studentCase.studentCaseId),
     canReadAdmissionsHandoffContext
       ? getPlatformStudentCaseAdmissionsHandoff(actor, studentCase.studentCaseId)
+      : Promise.resolve(null),
+    canReadCaseWorkspace
+      ? getPlatformAdmissionsCaseWorkspace({
+          studentCaseId: studentCase.studentCaseId,
+          limit: 20,
+        })
       : Promise.resolve(null),
   ]);
   if (!assignmentState) return null;
@@ -201,8 +366,8 @@ export async function loadPlatformClientPageData(
     applicationRows.hasNext,
     studentCase.studentCaseId,
   );
-  const canReviewDocuments = isPlatformP6BPortalNotificationsEnabled()
-    && (actor.platformRole === "admin" || actor.platformRole === "curator");
+  const canReviewDocuments =
+    actor.platformRole === "admin" || actor.platformRole === "curator";
   const documents = documentRows.map((document: (typeof documentRows)[number]) => ({
     id: document.documentSlotId,
     name: document.requirementLabel,
@@ -307,14 +472,35 @@ export async function loadPlatformClientPageData(
       : null,
     handoffState?.handoffReason ? `Причина handoff: ${handoffState.handoffReason}` : null,
   ].filter((value): value is string => Boolean(value)).join(" · ");
-  const tasks = handoffState?.starterTasks.map((task) => ({
-    id: task.taskId,
-    title: task.title,
-    due_date: task.dueAt,
-    status: task.status,
-    priority: task.priority,
-    assignee_name: task.assigneeDisplayName,
-  }));
+  const workspaceTasks = normalizeWorkspaceTasks(caseWorkspace);
+  const tasks = workspaceTasks.length > 0
+    ? workspaceTasks.map((task) => ({
+        id: task.id,
+        title: task.title,
+        due_date: task.dueDate,
+        status: task.status,
+        priority: task.priority,
+        assignee_name: task.assigneeName,
+        assignee_membership_id: task.assigneeMembershipId,
+        student_visible: false,
+        task_type: "admissions_case_task",
+        request_id: task.requestId,
+      }))
+    : handoffState?.starterTasks.map((task) => ({
+        id: task.taskId,
+        title: task.title,
+        due_date: task.dueAt,
+        status: task.status,
+        priority: task.priority,
+        assignee_name: task.assigneeDisplayName,
+        assignee_membership_id: null,
+        student_visible: false,
+        task_type: "admissions_case_task",
+        request_id: randomUUID(),
+      }));
+  const workspaceUpdates = normalizeWorkspaceUpdates(caseWorkspace);
+  const workspaceAudit = normalizeWorkspaceAudit(caseWorkspace);
+  const workspaceAssignees = normalizeWorkspaceAssignees(caseWorkspace);
   const inheritedHandoff = handoffState?.inheritedContext ?? null;
   const handoffContext =
     inheritedHandoff &&
@@ -389,13 +575,32 @@ export async function loadPlatformClientPageData(
     payments,
     tasks: tasks ?? [],
     handoffContext,
-    updates: [],
-    taskAssignees: [],
+    updates: workspaceUpdates.map((update) => ({
+      id: update.id,
+      message: update.message,
+      author_name: update.authorName,
+      created_at: update.createdAt,
+    })),
+    taskAssignees: workspaceAssignees.map((assignee) => ({
+      id: assignee.id,
+      name: assignee.name,
+    })),
     curators: curatorOptions.map((curator: (typeof curatorOptions)[number]) => ({
       id: curator.membershipId,
       name: curator.displayName,
     })),
-    audit: [],
+    audit: workspaceAudit.map((event) => ({
+      id: event.id,
+      event_type: event.eventType,
+      reason: event.reason,
+      actor_name: event.actorName,
+      before_curator_name: null,
+      after_curator_name: null,
+      occurred_at: event.occurredAt,
+      resource_kind: event.resourceKind,
+      change_summary: event.changeSummary,
+      headline: event.headline,
+    })),
     snapshot: {
       stageTimeline: [
         { stage: "pending", labelKey: "caseState.pending" },
@@ -439,11 +644,19 @@ export async function loadPlatformClientPageData(
       { key: "active", label: "Активно" },
       { key: "closed", label: "Закрыто" },
     ],
-    applicationStatuses: [],
-    taskColumns: ["todo", "in_progress", "review", "done"],
-    taskPriorities: ["low", "normal", "high"],
+    applicationStatuses: [...platformAdmissionsModule.PLATFORM_APPLICATION_STATUSES],
+    taskColumns: ["open", "in_progress", "blocked", "done", "cancelled"],
+    taskPriorities: ["low", "normal", "high", "urgent"],
     visaStatuses: [...PLATFORM_VISA_STATUSES],
     actions: {
+      addApplication:
+        actor.platformRole === "admin" || actor.platformRole === "curator"
+          ? createPlatformUniversityApplicationAction
+          : undefined,
+      setApplicationStatus:
+        actor.platformRole === "admin" || actor.platformRole === "curator"
+          ? changePlatformUniversityApplicationAction
+          : undefined,
       assignCurator: actor.platformRole === "admin"
         ? assignPlatformStudentCaseCuratorAction
         : undefined,
@@ -452,7 +665,16 @@ export async function loadPlatformClientPageData(
       updateStudentProfile: updatePlatformStudentProfileAction,
       applyCountryRequirementVersion: applyPlatformCountryRequirementVersionAction,
       reviewPlatformDocument: canReviewDocuments
-        ? reviewPlatformDocumentVersionAction
+        ? reviewPlatformCaseDocumentVersionAction
+        : undefined,
+      addTask: canReadCaseWorkspace
+        ? createPlatformCaseTaskAction
+        : undefined,
+      moveTask: canReadCaseWorkspace
+        ? changePlatformCaseTaskAction
+        : undefined,
+      postUpdate: canReadCaseWorkspace
+        ? appendPlatformCaseUpdateAction
         : undefined,
       upsertPlatformVisa:
         actor.platformRole === "admin" || actor.platformRole === "curator"
@@ -466,7 +688,7 @@ export async function loadPlatformClientPageData(
         : undefined,
     },
     canManageLifecycle,
-    canViewCaseAudit: false,
+    canViewCaseAudit: workspaceAudit.length > 0 || canReadCaseWorkspace,
     canMutatePayments: actor.platformRole === "admin",
     canUseAiSummary: false,
     studentRoute: {

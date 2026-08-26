@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getT, type Locale } from "@/lib/i18n";
@@ -138,6 +139,10 @@ type PresentationTask = Readonly<{
   status: string;
   priority: string;
   assignee_name: string | null;
+  assignee_membership_id?: string | null;
+  student_visible?: boolean;
+  task_type?: string | null;
+  request_id?: string;
 }>;
 type PresentationAdmissionsHandoffContext = Readonly<{
   mode: string;
@@ -178,6 +183,9 @@ type PresentationAuditEvent = Readonly<{
   before_curator_name: string | null;
   after_curator_name: string | null;
   occurred_at: string;
+  resource_kind?: string | null;
+  change_summary?: string | null;
+  headline?: string | null;
 }>;
 type PresentationSnapshot = Readonly<{
   stageTimeline: readonly Readonly<{ stage: string; labelKey: string }>[];
@@ -215,6 +223,21 @@ type PresentationActions = Readonly<{
   applyCountryRequirementVersion?: ServerFormAction;
   reviewPlatformDocument?: ServerFormAction;
 }>;
+
+function connectedAuditHeadline(event: PresentationAuditEvent, t: (key: string) => string) {
+  if (event.headline) return event.headline;
+  const legacyLabel = (() => {
+    try {
+      return t(`caseEvent.${event.event_type}`);
+    } catch {
+      return event.event_type;
+    }
+  })();
+  if (event.resource_kind) {
+    return `${event.resource_kind} · ${legacyLabel}`;
+  }
+  return legacyLabel;
+}
 
 export type ClientPagePresentationData =
   | Readonly<{
@@ -526,6 +549,7 @@ export default async function FixtureClientPage({
     contractRequestIdFor,
     contractResult,
     contractRetrySubjectId,
+    connected,
   } = data;
   const profileLabels = {
     ru: {
@@ -932,7 +956,9 @@ export default async function FixtureClientPage({
                 {updates.slice(0, 3).map((update) => (
                   <li key={update.id}>
                     <p className="text-[12.5px] leading-5 text-fg">{update.message}</p>
-                    <p className="mt-1 font-mono text-[10.5px] text-fg-3">{update.created_at}</p>
+                    <p className="mt-1 font-mono text-[10.5px] text-fg-3">
+                      {update.author_name ?? "—"} · {update.created_at}
+                    </p>
                   </li>
                 ))}
               </ol>
@@ -1179,12 +1205,18 @@ export default async function FixtureClientPage({
                   {caseAudit.map((event) => (
                     <li key={event.id}>
                       <p className="text-[12.5px] font-medium text-fg">
-                        {t(`caseEvent.${event.event_type}`)}
+                        {connectedAuditHeadline(event, t)}
                       </p>
-                      <p className="mt-1 text-[12px] leading-5 text-fg-2">{event.reason}</p>
-                      <p className="mt-1 text-[11px] text-fg-3">
-                        {event.actor_name} · {event.before_curator_name ?? "—"} → {event.after_curator_name ?? "—"}
+                      <p className="mt-1 text-[12px] leading-5 text-fg-2">
+                        {event.change_summary ?? event.reason}
                       </p>
+                      {event.before_curator_name !== null || event.after_curator_name !== null ? (
+                        <p className="mt-1 text-[11px] text-fg-3">
+                          {event.actor_name} · {event.before_curator_name ?? "—"} → {event.after_curator_name ?? "—"}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-[11px] text-fg-3">{event.actor_name}</p>
+                      )}
                       <p className="mt-1 font-mono text-[10.5px] text-fg-3">{event.occurred_at}</p>
                     </li>
                   ))}
@@ -1601,15 +1633,42 @@ export default async function FixtureClientPage({
                   </div>
                 </div>
                 {actions.setApplicationStatus ? (
-                <form action={actions.setApplicationStatus} className="flex w-full items-end gap-1.5 sm:w-auto">
-                  <input type="hidden" name="id" value={a.id} />
-                  <input type="hidden" name="client_id" value={client.id} />
-                  <label className={cn(labelCls, "mb-0 min-w-0 flex-1 sm:min-w-36")}>
+                <form
+                  action={actions.setApplicationStatus}
+                  className="grid w-full gap-2 rounded-ctl border border-border bg-surface-2 p-2 sm:w-80"
+                  data-testid={`platform-case-application-status-form-${a.id}`}
+                >
+                  {connected ? (
+                    <>
+                      <input type="hidden" name="application_id" value={a.id} />
+                      <input type="hidden" name="request_id" value={randomUUID()} />
+                    </>
+                  ) : (
+                    <>
+                      <input type="hidden" name="id" value={a.id} />
+                      <input type="hidden" name="client_id" value={client.id} />
+                    </>
+                  )}
+                  <label className={cn(labelCls, "mb-0")}>
                     {t("status")}
                     <select name="status" defaultValue={a.status} className={cn(selectCls, "mt-1 w-full")}>
-                      {APP_STATUSES.map((s) => <option key={s} value={s}>{t(`app.${s}`)}</option>)}
+                      {(connected ? APP_STATUSES : APP_STATUSES).map((s) => (
+                        <option key={s} value={s}>{t(`app.${s}`)}</option>
+                      ))}
                     </select>
                   </label>
+                  {connected ? (
+                    <>
+                      <label className={cn(labelCls, "mb-0")}>
+                        {t("platformDecisionEvidenceRef")}
+                        <input name="evidence_reference" autoComplete="off" className={cn(inputCls, "mt-1")} />
+                      </label>
+                      <label className={cn(labelCls, "mb-0")}>
+                        {t("notes")}
+                        <input name="note" className={cn(inputCls, "mt-1")} />
+                      </label>
+                    </>
+                  ) : null}
                   <button type="submit" className={btnGhostCls}>{t("save")}</button>
                 </form>
                 ) : (
@@ -1635,28 +1694,72 @@ export default async function FixtureClientPage({
             <summary className={cn(btnGhostCls, "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>
               + {t("addApplication")}
             </summary>
-            <form action={actions.addApplication} className="mt-3 grid gap-2 sm:grid-cols-2">
-              <input type="hidden" name="client_id" value={client.id} />
+            <form
+              action={actions.addApplication}
+              className="mt-3 grid gap-2 sm:grid-cols-2"
+              data-testid="platform-case-application-create-form"
+            >
+              {connected ? (
+                <>
+                  <input type="hidden" name="student_case_id" value={client.id} />
+                  <input type="hidden" name="request_id" value={randomUUID()} />
+                </>
+              ) : (
+                <input type="hidden" name="client_id" value={client.id} />
+              )}
               <label className={cn(labelCls, "mb-0")}>
                 {t("university")}
-                <input name="university" required placeholder={t("university")} className={cn(inputCls, "mt-1")} />
+                <input
+                  name={connected ? "institution_name" : "university"}
+                  required
+                  placeholder={t("university")}
+                  className={cn(inputCls, "mt-1")}
+                />
               </label>
               <label className={cn(labelCls, "mb-0")}>
                 {t("program")}
-                <input name="program" placeholder={t("program")} className={cn(inputCls, "mt-1")} />
+                <input
+                  name={connected ? "program_name" : "program"}
+                  required={connected}
+                  placeholder={t("program")}
+                  className={cn(inputCls, "mt-1")}
+                />
               </label>
-              <label className={cn(labelCls, "mb-0")}>
-                {t("degree")}
-                <input name="degree" placeholder={t("degree")} className={cn(inputCls, "mt-1")} />
-              </label>
-              <label className={cn(labelCls, "mb-0")}>
-                {t("country")}
-                <input name="country" placeholder={t("country")} className={cn(inputCls, "mt-1")} />
-              </label>
-              <label className={cn(labelCls, "mb-0")}>
-                {t("deadline")}
-                <input name="deadline" type="date" className={cn(inputCls, "mt-1 font-mono")} />
-              </label>
+              {connected ? (
+                <>
+                  <label className={cn(labelCls, "mb-0")}>
+                    {t("status")}
+                    <select name="status" defaultValue="preparation" className={cn(inputCls, "mt-1")}>
+                      {APP_STATUSES.map((status) => (
+                        <option key={status} value={status}>{t(`app.${status}`)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className={cn(labelCls, "mb-0")}>
+                    {t("platformDecisionEvidenceRef")}
+                    <input name="evidence_reference" autoComplete="off" className={cn(inputCls, "mt-1")} />
+                  </label>
+                  <label className={cn(labelCls, "mb-0 sm:col-span-2")}>
+                    {t("notes")}
+                    <input name="note" className={cn(inputCls, "mt-1")} />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label className={cn(labelCls, "mb-0")}>
+                    {t("degree")}
+                    <input name="degree" placeholder={t("degree")} className={cn(inputCls, "mt-1")} />
+                  </label>
+                  <label className={cn(labelCls, "mb-0")}>
+                    {t("country")}
+                    <input name="country" placeholder={t("country")} className={cn(inputCls, "mt-1")} />
+                  </label>
+                  <label className={cn(labelCls, "mb-0")}>
+                    {t("deadline")}
+                    <input name="deadline" type="date" className={cn(inputCls, "mt-1 font-mono")} />
+                  </label>
+                </>
+              )}
               <button type="submit" className={cn(btnCls, "sm:col-span-2")}>+ {t("addApplication")}</button>
             </form>
           </details>
@@ -1871,12 +1974,46 @@ export default async function FixtureClientPage({
                   </div>
                 </div>
                 {actions.moveTask && (
-                <form action={actions.moveTask} className="flex w-full items-end gap-1.5 sm:w-auto">
-                  <input type="hidden" name="id" value={task.id} />
+                <form
+                  action={actions.moveTask}
+                  className="grid w-full gap-2 rounded-ctl border border-border bg-surface-2 p-2 sm:w-72"
+                  data-testid={`platform-case-task-change-form-${task.id}`}
+                >
+                  {connected ? (
+                    <>
+                      <input type="hidden" name="student_case_id" value={client.id} />
+                      <input type="hidden" name="case_task_id" value={task.id} />
+                      <input type="hidden" name="request_id" value={task.request_id ?? randomUUID()} />
+                      <input
+                        type="hidden"
+                        name="assignee_membership_id"
+                        value={task.assignee_membership_id ?? ""}
+                      />
+                      <input type="hidden" name="priority" value={task.priority} />
+                      <input type="hidden" name="due_at" value={task.due_date ?? ""} />
+                      <input
+                        type="hidden"
+                        name="student_visible"
+                        value={task.student_visible ? "true" : "false"}
+                      />
+                    </>
+                  ) : (
+                    <input type="hidden" name="id" value={task.id} />
+                  )}
                   <label className={cn(labelCls, "mb-0 min-w-0 flex-1 sm:min-w-32")}>
                     {t("status")}
-                    <select name="status" defaultValue={task.status} className={cn(selectCls, "mt-1 w-full")}>
-                      {TASK_COLUMNS.map((s) => <option key={s} value={s}>{t(`col.${s}`)}</option>)}
+                    <select
+                      name="status"
+                      defaultValue={task.status}
+                      className={cn(selectCls, "mt-1 w-full")}
+                    >
+                      {(connected
+                        ? ["open", "in_progress", "blocked", "done", "cancelled"]
+                        : TASK_COLUMNS).map((s) => (
+                        <option key={s} value={s}>
+                          {connected ? s : t(`col.${s}`)}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <button type="submit" className={btnGhostCls}>{t("save")}</button>
@@ -1891,8 +2028,22 @@ export default async function FixtureClientPage({
             <summary className={cn(btnGhostCls, "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>
               + {t("addTask")}
             </summary>
-            <form action={actions.addTask} className="mt-3 grid gap-2 sm:grid-cols-2">
-              <input type="hidden" name="client_id" value={client.id} />
+            <form
+              action={actions.addTask}
+              className="mt-3 grid gap-2 sm:grid-cols-2"
+              data-testid="platform-case-task-create-form"
+            >
+              {connected ? (
+                <>
+                  <input type="hidden" name="student_case_id" value={client.id} />
+                  <input type="hidden" name="request_id" value={randomUUID()} />
+                  <input type="hidden" name="task_type" value="admissions_case_task" />
+                  <input type="hidden" name="status" value="open" />
+                  <input type="hidden" name="student_visible" value="false" />
+                </>
+              ) : (
+                <input type="hidden" name="client_id" value={client.id} />
+              )}
               <label className={cn(labelCls, "mb-0 sm:col-span-2")}>
                 {t("title")}
                 <input name="title" required placeholder={t("title")} className={cn(inputCls, "mt-1")} />
@@ -1905,14 +2056,22 @@ export default async function FixtureClientPage({
               </label>
               <label className={cn(labelCls, "mb-0")}>
                 {t("assignee")}
-                <select name="assignee_id" className={cn(inputCls, "mt-1")}>
-                  <option value="">{t("notAssigned")}</option>
+                <select
+                  name={connected ? "assignee_membership_id" : "assignee_id"}
+                  required={connected}
+                  className={cn(inputCls, "mt-1")}
+                >
+                  {connected ? null : <option value="">{t("notAssigned")}</option>}
                   {taskAssignees.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </label>
               <label className={cn(labelCls, "mb-0")}>
                 {t("dueDate")}
-                <input name="due_date" type="date" className={cn(inputCls, "mt-1 font-mono")} />
+                <input
+                  name={connected ? "due_at" : "due_date"}
+                  type="date"
+                  className={cn(inputCls, "mt-1 font-mono")}
+                />
               </label>
               <button type="submit" className={btnCls}>+ {t("addTask")}</button>
             </form>
@@ -2072,11 +2231,34 @@ export default async function FixtureClientPage({
       <section id="updates" className="scroll-mt-24">
         <Card title={t("updates")}>
         {actions.postUpdate && (
-        <form action={actions.postUpdate} className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">
-          <input type="hidden" name="client_id" value={client.id} />
+        <form
+          action={actions.postUpdate}
+          className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end"
+          data-testid="platform-case-update-form"
+        >
+          {connected ? (
+            <>
+              <input type="hidden" name="student_case_id" value={client.id} />
+              <input type="hidden" name="request_id" value={randomUUID()} />
+              <input type="hidden" name="source" value="staff_manual_note" />
+              <input type="hidden" name="student_visible" value="false" />
+              <input
+                type="hidden"
+                name="occurred_at"
+                value={new Date().toISOString()}
+              />
+            </>
+          ) : (
+            <input type="hidden" name="client_id" value={client.id} />
+          )}
           <label className={cn(labelCls, "mb-0 min-w-0 flex-1")}>
             {t("updates")}
-            <input name="message" required placeholder={t("updatePlaceholder")} className={cn(inputCls, "mt-1")} />
+            <input
+              name={connected ? "body" : "message"}
+              required
+              placeholder={t("updatePlaceholder")}
+              className={cn(inputCls, "mt-1")}
+            />
           </label>
           <button type="submit" className={btnCls}>{t("send")}</button>
         </form>

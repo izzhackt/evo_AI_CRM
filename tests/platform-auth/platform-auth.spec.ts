@@ -1679,6 +1679,327 @@ test("U6 performs one audited Sales-to-Admissions handoff with full-versus-summa
   expectLegacyDatabaseUntouched();
 });
 
+test("U7 operates one complete canonical Admissions case with bounded history", async ({
+  browser,
+}) => {
+  test.skip(
+    process.env.EVO_U7_BROWSER_PROOF !== "1",
+    "U7 feature proof runs in its isolated browser invocation.",
+  );
+  test.setTimeout(180_000);
+  expectLegacyDatabaseUntouched();
+
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const linkedCaseIdFrom = (payload: unknown): string | null => {
+    if (!Array.isArray(payload) || !payload[0] || typeof payload[0] !== "object") {
+      return null;
+    }
+    const candidate = (payload[0] as { linked_student_cases?: unknown }).linked_student_cases;
+    if (!Array.isArray(candidate) || candidate.length === 0) return null;
+    const caseId = (candidate[0] as { student_case_id?: unknown }).student_case_id;
+    return typeof caseId === "string" ? caseId : null;
+  };
+
+  let leadDetail = await platformRpc(adminToken, "staff_canonical_lead_detail", {
+    p_lead_id: fixture.u6.leadId,
+  });
+  expect(leadDetail.status).toBe(200);
+  let createdCaseId = linkedCaseIdFrom(leadDetail.payload);
+
+  if (!createdCaseId) {
+    for (const permission of [
+      "contract.evidence.confirm",
+      "finance.first.payment.confirm",
+    ] as const) {
+      const currentSalesToken = await localAccessToken(
+        fixture.identities.responsibleSales,
+      );
+      const currentAuthority = await platformRpc(
+        currentSalesToken,
+        "assert_sensitive_permission",
+        {
+          p_organization_id: fixture.u6.organizationId,
+          p_permission_key: permission,
+        },
+      );
+      if (currentAuthority.status === 403) {
+        const grant = await platformRpc(
+          adminToken,
+          "change_membership_permission",
+          {
+            p_organization_id: fixture.u6.organizationId,
+            p_membership_id: fixture.u4.orgA.responsibleSalesMembershipId,
+            p_permission_key: permission,
+            p_granted: true,
+            p_reason: `U7 browser grant ${permission}`,
+            p_request_id: randomUUID(),
+          },
+        );
+        expect(grant.status, `${permission}-grant`).toBe(200);
+      } else {
+        expect(currentAuthority.status, `${permission}-authority`).toBe(200);
+      }
+    }
+
+    const salesContext = await browser.newContext();
+    const salesPage = await salesContext.newPage();
+    await login(salesPage, fixture.identities.responsibleSales);
+    await expect(salesPage).toHaveURL(/\/sales$/);
+    await salesPage.goto(`/sales/${fixture.u6.leadId}`);
+
+    const contractForm = salesPage.getByTestId(
+      "admissions-gate-form-confirm_contract",
+    );
+    if (await contractForm.count() > 0) {
+      await contractForm
+        .getByTestId("admissions-gate-contract-date")
+        .fill("2026-08-25");
+      await contractForm
+        .getByTestId("admissions-gate-contract-evidence")
+        .fill("Synthetic contract EVO-U7-001");
+      await contractForm
+        .getByTestId("admissions-gate-submit-confirm_contract")
+        .click();
+    }
+
+    const paymentForm = salesPage.getByTestId(
+      "admissions-gate-form-confirm_first_payment",
+    );
+    if (await paymentForm.count() > 0) {
+      await paymentForm
+        .getByTestId("admissions-gate-payment-received-date")
+        .fill("2026-08-25");
+      await paymentForm
+        .getByTestId("admissions-gate-payment-evidence")
+        .fill("Synthetic payment EVO-U7-001");
+      await paymentForm
+        .getByTestId("admissions-gate-submit-confirm_first_payment")
+        .click();
+    }
+
+    await performU6BrowserHandoff(
+      salesPage,
+      fixture.u6.admissionsOwnerMembershipId,
+      fixture.u6.handoffReason,
+    );
+    await salesContext.close();
+
+    leadDetail = await platformRpc(adminToken, "staff_canonical_lead_detail", {
+      p_lead_id: fixture.u6.leadId,
+    });
+    expect(leadDetail.status).toBe(200);
+    createdCaseId = linkedCaseIdFrom(leadDetail.payload);
+  }
+
+  expect(createdCaseId).toEqual(expect.any(String));
+  if (!createdCaseId) {
+    throw new Error("U7 proof could not resolve the canonical Student Case ID.");
+  }
+
+  const casePath = `/clients/${createdCaseId}`;
+  const studentCaseBefore = await platformRows(
+    adminToken,
+    "student_cases",
+    new URLSearchParams({
+      select: "id,portal_activated_at",
+      id: `eq.${createdCaseId}`,
+    }),
+  );
+  expect(studentCaseBefore.status).toBe(200);
+  expect(studentCaseBefore.payload).toEqual([
+    expect.objectContaining({ id: createdCaseId }),
+  ]);
+  const portalActivatedAtBefore = (
+    studentCaseBefore.payload as Array<Record<string, unknown>>
+  )[0]?.portal_activated_at ?? null;
+
+  const curatorContext = await browser.newContext();
+  const curatorPage = await curatorContext.newPage();
+  await login(curatorPage, fixture.identities.curator);
+  await expect(curatorPage).toHaveURL(/\/clients$/);
+
+  await curatorPage.goto(`${casePath}#tasks`);
+  await expect(curatorPage.getByTestId("platform-client-detail-page")).toBeVisible();
+  await expect(
+    curatorPage.getByTestId("platform-admissions-handoff-context"),
+  ).toBeVisible();
+
+  const taskCreateForm = curatorPage.getByTestId("platform-case-task-create-form");
+  await expect(taskCreateForm).toBeVisible();
+  const assigneeSelect = taskCreateForm.locator(
+    'select[name="assignee_membership_id"]',
+  );
+  const assigneeValue = await assigneeSelect
+    .locator("option")
+    .first()
+    .getAttribute("value");
+  if (!assigneeValue) {
+    throw new Error("U7 task form did not expose an assignee option.");
+  }
+  await assigneeSelect.selectOption(assigneeValue);
+  await taskCreateForm.locator('input[name="title"]').fill("U7 synthetic case task");
+  await taskCreateForm.locator('select[name="priority"]').selectOption("high");
+  await taskCreateForm.locator('input[name="due_at"]').fill("2026-08-27");
+  await taskCreateForm.getByRole("button", { name: /\+|add|добав/i }).click();
+  await expect(curatorPage).toHaveURL(
+    new RegExp(`/clients/${createdCaseId}\\?result=saved#tasks$`),
+  );
+  await expect(curatorPage.locator("#tasks")).toContainText("U7 synthetic case task");
+
+  const taskChangeForm = curatorPage.locator(
+    '[data-testid^="platform-case-task-change-form-"]',
+  ).first();
+  await expect(taskChangeForm).toBeVisible();
+  await taskChangeForm.locator('select[name="status"]').selectOption("in_progress");
+  await taskChangeForm.getByRole("button", { name: /save|сохран/i }).click();
+  await expect(curatorPage).toHaveURL(
+    new RegExp(`/clients/${createdCaseId}\\?result=saved#tasks$`),
+  );
+
+  await curatorPage.goto(`${casePath}#updates`);
+  const updateForm = curatorPage.getByTestId("platform-case-update-form");
+  await expect(updateForm).toBeVisible();
+  const updateBody = "U7 synthetic update for bounded case history";
+  await updateForm.locator('input[name="body"]').fill(updateBody);
+  await updateForm.getByRole("button", { name: /send|отправ/i }).click();
+  await expect(curatorPage).toHaveURL(
+    new RegExp(`/clients/${createdCaseId}\\?result=saved#updates$`),
+  );
+  await expect(curatorPage.locator("#updates")).toContainText(updateBody);
+  await expect(curatorPage.getByText(updateBody, { exact: true }).first()).toBeVisible();
+
+  await curatorPage.goto(`${casePath}#applications`);
+  const applicationCreateForm = curatorPage.getByTestId(
+    "platform-case-application-create-form",
+  );
+  await expect(applicationCreateForm).toBeVisible();
+  const applicationRequestId = await applicationCreateForm
+    .locator('input[name="request_id"]')
+    .inputValue();
+  await applicationCreateForm
+    .locator('input[name="institution_name"]')
+    .fill("U7 Synthetic University");
+  await applicationCreateForm
+    .locator('input[name="program_name"]')
+    .fill("U7 Synthetic Program");
+  await applicationCreateForm
+    .locator('select[name="status"]')
+    .selectOption("preparation");
+  await applicationCreateForm.getByRole("button", { name: /\+|add|добав/i }).click();
+  await expect(curatorPage).toHaveURL(/\/applications\?result=saved$/);
+
+  const applicationPage = await platformRpc(
+    adminToken,
+    "staff_application_page",
+    {
+      p_limit: 10,
+      p_before_updated_at: null,
+      p_before_application_id: null,
+      p_status: null,
+      p_student_case_id: createdCaseId,
+      p_application_id: null,
+    },
+  );
+  expect(applicationPage.status).toBe(200);
+  expect(applicationPage.payload).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        student_case_id: createdCaseId,
+        institution_name: "U7 Synthetic University",
+        program_name: "U7 Synthetic Program",
+      }),
+    ]),
+  );
+  const createdApplication = (applicationPage.payload as Array<Record<string, unknown>>)
+    .find((row) => row.institution_name === "U7 Synthetic University");
+  expect(createdApplication?.university_application_id).toEqual(expect.any(String));
+  const createdApplicationId = createdApplication?.university_application_id;
+  expect(typeof createdApplicationId).toBe("string");
+  if (typeof createdApplicationId !== "string") {
+    throw new Error("U7 application create proof did not return an application id.");
+  }
+  const applicationCreateAuditRows = await applicationCreateAudit(
+    adminToken,
+    createdApplicationId,
+    applicationRequestId,
+  );
+  expect(applicationCreateAuditRows).toHaveLength(1);
+
+  await curatorPage.goto(`${casePath}#documents`);
+  const reviewForm = curatorPage.getByTestId("platform-document-review-form");
+  await expect(reviewForm).toHaveCount(1);
+  await reviewForm.locator('select[name="decision"]').selectOption("correction_required");
+  await reviewForm
+    .locator('input[name="reason"]')
+    .fill("U7 synthetic document correction request");
+  await reviewForm.getByTestId("platform-document-review-submit").click();
+  await expect(curatorPage).toHaveURL(
+    new RegExp(`/clients/${createdCaseId}\\?result=saved#documents$`),
+  );
+  await expect(curatorPage.locator("#documents")).toContainText(
+    "U7 synthetic document correction request",
+  );
+
+  const studentCaseAfterReview = await platformRows(
+    adminToken,
+    "student_cases",
+    new URLSearchParams({
+      select: "id,portal_activated_at",
+      id: `eq.${createdCaseId}`,
+    }),
+  );
+  expect(studentCaseAfterReview.status).toBe(200);
+  expect(
+    (studentCaseAfterReview.payload as Array<Record<string, unknown>>)[0]
+      ?.portal_activated_at ?? null,
+  ).toBe(portalActivatedAtBefore);
+
+  await curatorPage.goto(`${casePath}#visa`);
+  const visaForm = curatorPage.getByTestId("platform-visa-form");
+  await expect(visaForm).toBeVisible();
+  const visaEvidence = `synthetic:u7:visa:${randomUUID()}`;
+  const visaNote = "U7 synthetic visa milestone";
+  await visaForm.locator('select[name="status"]').selectOption("docs");
+  await visaForm.locator('input[name="evidence_reference"]').fill(visaEvidence);
+  await visaForm.locator('input[name="note"]').fill(visaNote);
+  await visaForm.getByRole("button").click();
+  await expect(curatorPage).toHaveURL(/p6d_result=saved.*#visa$/);
+  const curatorToken = await localAccessToken(fixture.identities.curator);
+  const visaRows = await platformRpc(curatorToken, "staff_case_visa", {
+    p_student_case_id: createdCaseId,
+  });
+  expect(visaRows.status).toBe(200);
+  await expect(curatorPage.locator("body")).not.toContainText(visaEvidence);
+
+  await curatorPage.goto(`${casePath}#case-lifecycle`);
+  await expect(curatorPage.locator("#case-lifecycle")).toContainText(
+    "U7 synthetic update for bounded case history",
+  );
+  await expect(curatorPage.locator("#case-lifecycle")).toContainText(
+    "document.version.review",
+  );
+  await curatorContext.close();
+
+  const summaryContext = await browser.newContext();
+  const summaryPage = await summaryContext.newPage();
+  await login(summaryPage, fixture.identities.responsibleSales);
+  await expect(summaryPage).toHaveURL(/\/sales$/);
+  await summaryPage.goto(casePath);
+  await expect(summaryPage.getByTestId("platform-sales-handoff-summary")).toBeVisible();
+  await expect(summaryPage.getByTestId("platform-client-detail-page")).toHaveCount(0);
+  await summaryContext.close();
+
+  const crossOrgContext = await browser.newContext();
+  const crossOrgPage = await crossOrgContext.newPage();
+  await login(crossOrgPage, fixture.identities.crossOrgAdmin);
+  await expect(crossOrgPage).toHaveURL(/\/sales$/);
+  await crossOrgPage.goto(casePath);
+  await expect(crossOrgPage.getByTestId("canonical-client-not-found")).toBeVisible();
+  await crossOrgContext.close();
+
+  expectLegacyDatabaseUntouched();
+});
+
 test("route-level auth failures surface an explicit login error", async ({
   page,
 }) => {

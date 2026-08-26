@@ -1755,6 +1755,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_admissions_case_workspace_rls.sql
   fi
+
+  # Migration 090 adds the U8 canonical payment-control and finance stop-factor
+  # read models while retaining the existing P2E audited mutation authority.
+  if [[ "$(basename "$migration")" == 090_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_finance_stop_factor_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

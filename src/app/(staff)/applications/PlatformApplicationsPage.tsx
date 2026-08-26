@@ -26,6 +26,7 @@ import {
   listPlatformCatalogInstitutions,
   listPlatformCatalogSources,
 } from "@/lib/platform-catalog";
+import { listPlatformFinanceControlQueue } from "@/lib/platform-finance-control";
 import {
   buildPlatformCatalogBatchPageHref,
   parsePlatformCatalogCandidatePage,
@@ -542,37 +543,61 @@ export async function loadPlatformApplicationsPage({
     ? [requestedFullStudentCase, ...pagedStudentCases]
     : pagedStudentCases;
   const applications = applicationPage.rows;
+  const applicationStudentCaseIds = [
+    ...new Set(applications.map((application) => application.studentCaseId)),
+  ];
+  const financeControlQueue = applicationStudentCaseIds.length === 0
+    ? []
+    : await listPlatformFinanceControlQueue(actor, {
+        limit: applicationStudentCaseIds.length,
+        studentCaseIds: applicationStudentCaseIds,
+      });
+  const financeControlByStudentCaseId = new Map(
+    financeControlQueue.map((row) => [row.studentCaseId, row] as const),
+  );
   const statusOptions = PLATFORM_APPLICATION_STATUSES.map((value) => ({
     value,
     label: STATUS_COPY[locale][value],
   }));
   const present = (
     application: (typeof applications)[number],
-  ): ApplicationQueuePresenterRow => ({
-    id: application.universityApplicationId,
-    studentCaseId: application.studentCaseId,
-    studentDisplayName: application.studentDisplayName,
-    caseStage: null,
-    institutionName: application.institutionName,
-    programName: application.programName,
-    degree: application.targetDegree,
-    country: application.targetCountry,
-    status: application.status,
-    statusLabel: STATUS_COPY[locale][application.status],
-    deadline: null,
-    documentCount: application.documentCount,
-    openDocumentCount: application.openDocumentCount,
-    openTaskCount: application.openTaskCount,
-    pendingPaymentCount: application.outstandingPaymentObligationCount,
-    needsAttention:
-      application.openDocumentCount > 0 ||
-      application.openTaskCount > 0 ||
-      application.outstandingPaymentObligationCount > 0,
-    readyForDecision: ["submitted", "under_review", "offer"].includes(
-      application.status,
-    ),
-    statusHiddenFields: [],
-  });
+  ): ApplicationQueuePresenterRow => {
+    const financeControl = financeControlByStudentCaseId.get(
+      application.studentCaseId,
+    );
+    return {
+      id: application.universityApplicationId,
+      studentCaseId: application.studentCaseId,
+      studentDisplayName: application.studentDisplayName,
+      caseStage: null,
+      institutionName: application.institutionName,
+      programName: application.programName,
+      degree: application.targetDegree,
+      country: application.targetCountry,
+      status: application.status,
+      statusLabel: STATUS_COPY[locale][application.status],
+      deadline: null,
+      documentCount: application.documentCount,
+      openDocumentCount: application.openDocumentCount,
+      openTaskCount: application.openTaskCount,
+      pendingPaymentCount: application.outstandingPaymentObligationCount,
+      overduePaymentCount: financeControl?.overdueObligationCount ?? 0,
+      activeStopFactorCount: financeControl?.activeStopFactorCount ?? 0,
+      financeBlockedAction: financeControl?.blockedAction ?? null,
+      financeStopReason: financeControl?.stopReason ?? null,
+      financeStopNextAction: financeControl?.stopNextAction ?? null,
+      needsAttention:
+        application.openDocumentCount > 0 ||
+        application.openTaskCount > 0 ||
+        application.outstandingPaymentObligationCount > 0 ||
+        (financeControl?.overdueObligationCount ?? 0) > 0 ||
+        (financeControl?.activeStopFactorCount ?? 0) > 0,
+      readyForDecision: ["submitted", "under_review", "offer"].includes(
+        application.status,
+      ),
+      statusHiddenFields: [],
+    };
+  };
   const rows = applications.map(present);
   const selectedStudentCaseId = studentCases.some(
     (studentCase) => studentCase.studentCaseId === query.student_case_id,

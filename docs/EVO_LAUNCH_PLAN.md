@@ -1,7 +1,7 @@
 # EVO Launch Plan
 
-Status: parent #376 is the active product contract; U0/#377 through U6/#383
-are merged. Long-run 1 is the sequential U5/#382 through U10/#387 program and
+Status: parent #376 is the active product contract; U0/#377 through U7/#384
+are merged and exact-main green. Long-run 1 is the sequential U5/#382 through U10/#387 program and
 stops before U11/#388. ADR 0021 and the latest `docs/PLAN_CHANGES.md` entry are
 binding.
 
@@ -69,10 +69,15 @@ truthful connected/unconnected queue filters and durable audit described in
 #397 and owns the contract/first-payment gate described in
 `docs/platform/u5-contract-first-payment-gate.md`. U6 merged in PR #398 and
 owns the audited canonical handoff described in
-`docs/platform/u6-sales-admissions-handoff.md`. U7/#384 is the current slice
-and completes the existing connected canonical Admissions case workspace under
-`docs/platform/u7-admissions-case-workspace.md`; it must not add a second case,
-SQLite fallback, Finance stop-factor or Student Portal activation.
+`docs/platform/u6-sales-admissions-handoff.md`. U7/#384 merged in PR #399 at
+`bbc78a376b017a1d068c20ccce7978a128858371`; exact-main run `33004299957`
+completed successfully. Its workspace contract remains
+`docs/platform/u7-admissions-case-workspace.md`. The active U8/#385
+implementation contract is `docs/platform/u8-payment-control-stop-factor.md`;
+it is rebound directly onto that exact U7 main head and extends connected
+canonical case and queue finance visibility without adding a second case,
+SQLite fallback, a legacy
+`/finance` authority path or Student Portal activation.
 
 ## Historical pre-#376 execution record
 

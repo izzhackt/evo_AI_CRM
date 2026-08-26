@@ -119,6 +119,16 @@ type PresentationVisa = Readonly<{
   appointment_at: string | null;
   notes: string | null;
 }>;
+type PresentationFinanceStop = Readonly<{
+  id: EntityId;
+  reason: string;
+  blocked_action: string;
+  next_action: string;
+  owner_name: string;
+  created_at: string;
+  resolution_request_id?: string;
+  resolution_retry?: boolean;
+}>;
 type PresentationPayment = Readonly<{
   id: EntityId;
   title: string;
@@ -128,9 +138,24 @@ type PresentationPayment = Readonly<{
   status: string;
   category?: "evo_service_fee" | "third_party_cost";
   next_action?: string;
+  total_paid_minor?: number;
+  total_refunded_minor?: number;
   outstanding_minor?: number;
+  payment_confirmation_count?: number;
+  last_payment_at?: string | null;
+  active_stop_factors?: readonly PresentationFinanceStop[];
+  stop_create_request_id?: string;
+  stop_create_retry?: boolean;
   settlement_request_id?: string;
   settlement_retry?: boolean;
+}>;
+type PresentationFinanceHistoryEvent = Readonly<{
+  id: EntityId;
+  action: string;
+  resource_kind: string;
+  actor_name: string;
+  reason: string;
+  occurred_at: string;
 }>;
 type PresentationTask = Readonly<{
   id: EntityId;
@@ -211,6 +236,8 @@ type PresentationActions = Readonly<{
   addPlatformPayment?: ServerFormAction;
   markPaymentPaid?: ServerFormAction;
   markPlatformPaymentPaid?: ServerFormAction;
+  createPlatformFinanceStop?: ServerFormAction;
+  resolvePlatformFinanceStop?: ServerFormAction;
   addTask?: ServerFormAction;
   moveTask?: ServerFormAction;
   postUpdate?: ServerFormAction;
@@ -258,6 +285,7 @@ export type ClientPagePresentationData =
       documents: readonly PresentationDocument[];
       visa: PresentationVisa | null;
       payments: readonly PresentationPayment[];
+      financeHistory?: readonly PresentationFinanceHistoryEvent[];
       tasks: readonly PresentationTask[];
       handoffContext?: PresentationAdmissionsHandoffContext | null;
       updates: readonly PresentationUpdate[];
@@ -275,6 +303,7 @@ export type ClientPagePresentationData =
       canManageLifecycle: boolean;
       canViewCaseAudit: boolean;
       canMutatePayments: boolean;
+      canMutateFinanceStops?: boolean;
       canUseAiSummary: boolean;
       sourceHint: string;
       metrics?: Readonly<{
@@ -519,6 +548,7 @@ export default async function FixtureClientPage({
     documents: docs,
     visa,
     payments,
+    financeHistory = [],
     tasks,
     handoffContext = null,
     updates,
@@ -535,6 +565,7 @@ export default async function FixtureClientPage({
     canManageLifecycle,
     canViewCaseAudit,
     canMutatePayments,
+    canMutateFinanceStops = false,
     studentRoute,
     studentProfile,
     countryRequirementVersions = [],
@@ -652,6 +683,109 @@ export default async function FixtureClientPage({
       saveRoute: "Save route",
     },
   }[locale];
+  const financeLabels = {
+    ru: {
+      expected: "Ожидается",
+      received: "Подтверждено получено",
+      remaining: "Осталось",
+      confirmations: "Подтверждений оплаты",
+      lastConfirmation: "Последнее подтверждение",
+      stopped: "Дальнейшая работа остановлена",
+      blockedWork: "Что заблокировано",
+      stopReason: "Почему остановлено",
+      stopNextAction: "Как снять блокировку",
+      stopOwner: "Ответственный",
+      stopCreatedAt: "Стоп установлен",
+      createStop: "Установить финансовый стоп",
+      clearStop: "Снять финансовый стоп",
+      evidence: "Ссылка на подтверждение",
+      reason: "Причина решения",
+      nextAction: "Что нужно сделать дальше",
+      history: "История финансовых изменений",
+      historyEmpty: "Финансовых изменений пока нет.",
+      actions: {
+        application_submission: "Подача заявки в университет",
+        document_processing: "Обработка документов",
+        visa_submission: "Подача на визу",
+        case_progression: "Дальнейшее движение дела",
+      },
+      historyActions: {
+        "finance.obligation.create": "Добавлен платежный этап",
+        "finance.payment.record": "Оплата подтверждена сотрудником",
+        "finance.stop.create": "Финансовый стоп установлен",
+        "finance.stop.resolve": "Финансовый стоп снят",
+      },
+    },
+    ky: {
+      expected: "Күтүлгөн сумма",
+      received: "Алынганы ырасталды",
+      remaining: "Калды",
+      confirmations: "Төлөм ырастоолору",
+      lastConfirmation: "Акыркы ырастоо",
+      stopped: "Кийинки иш токтотулду",
+      blockedWork: "Кайсы иш бөгөттөлдү",
+      stopReason: "Эмне үчүн токтотулду",
+      stopNextAction: "Бөгөттү кантип алып салуу керек",
+      stopOwner: "Жооптуу",
+      stopCreatedAt: "Стоп коюлду",
+      createStop: "Финансылык стоп коюу",
+      clearStop: "Финансылык стопту алуу",
+      evidence: "Ырастоого шилтеме",
+      reason: "Чечимдин себеби",
+      nextAction: "Кийинки эмне кылуу керек",
+      history: "Финансылык өзгөрүүлөрдүн тарыхы",
+      historyEmpty: "Финансылык өзгөрүүлөр азырынча жок.",
+      actions: {
+        application_submission: "Университетке арыз тапшыруу",
+        document_processing: "Документтерди иштетүү",
+        visa_submission: "Визага тапшыруу",
+        case_progression: "Иштин кийинки жүрүшү",
+      },
+      historyActions: {
+        "finance.obligation.create": "Төлөм этабы кошулду",
+        "finance.payment.record": "Төлөм кызматкер тарабынан ырасталды",
+        "finance.stop.create": "Финансылык стоп коюлду",
+        "finance.stop.resolve": "Финансылык стоп алынды",
+      },
+    },
+    en: {
+      expected: "Expected",
+      received: "Confirmed received",
+      remaining: "Remaining",
+      confirmations: "Payment confirmations",
+      lastConfirmation: "Latest confirmation",
+      stopped: "Downstream work is stopped",
+      blockedWork: "Blocked work",
+      stopReason: "Why it is stopped",
+      stopNextAction: "How to clear the block",
+      stopOwner: "Owner",
+      stopCreatedAt: "Stop asserted",
+      createStop: "Assert finance stop",
+      clearStop: "Clear finance stop",
+      evidence: "Evidence reference",
+      reason: "Decision reason",
+      nextAction: "Required next action",
+      history: "Finance change history",
+      historyEmpty: "No finance changes yet.",
+      actions: {
+        application_submission: "University application submission",
+        document_processing: "Document processing",
+        visa_submission: "Visa submission",
+        case_progression: "Further case progression",
+      },
+      historyActions: {
+        "finance.obligation.create": "Payment checkpoint added",
+        "finance.payment.record": "Payment confirmed by staff",
+        "finance.stop.create": "Finance stop asserted",
+        "finance.stop.resolve": "Finance stop cleared",
+      },
+    },
+  }[locale];
+  const financeBlockedActionLabel = (value: string): string =>
+    (financeLabels.actions as Readonly<Record<string, string>>)[value] ?? value;
+  const financeHistoryActionLabel = (value: string): string =>
+    (financeLabels.historyActions as Readonly<Record<string, string>>)[value]
+      ?? value;
   const profileFieldLabels: Readonly<Record<string, string>> = {
     preferred_display_name: profileLabels.preferredName,
     legal_display_name: profileLabels.legalName,
@@ -2163,22 +2297,81 @@ export default async function FixtureClientPage({
             {payments.map((p) => (
               <li
                 key={p.id}
-                className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0"
+                className="grid gap-3 py-4 first:pt-0 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)]"
                 data-testid={p.settlement_request_id ? `platform-payment-${p.id}` : undefined}
               >
                 <div className="min-w-0">
                   <div className="text-[13.5px] font-medium text-fg">{p.title}</div>
                   <div className="font-mono text-[12px] text-fg-3">
-                    {num(p.amount)} {p.currency}
+                    {financeLabels.expected}: {num(p.amount)} {p.currency}
                     {p.due_date ? ` · ${t("dueDate")}: ${p.due_date}` : ""}
                   </div>
+                  {typeof p.total_paid_minor === "number"
+                    && typeof p.outstanding_minor === "number" ? (
+                    <div className="mt-1 font-mono text-[12px] text-fg-3">
+                      {financeLabels.received}: {num(p.total_paid_minor / 100)} {p.currency}
+                      {p.total_refunded_minor
+                        ? ` · Refund: ${num(p.total_refunded_minor / 100)} ${p.currency}`
+                        : ""}
+                      {` · ${financeLabels.remaining}: ${num(p.outstanding_minor / 100)} ${p.currency}`}
+                    </div>
+                  ) : null}
+                  {typeof p.payment_confirmation_count === "number" ? (
+                    <div className="mt-1 text-[12px] text-fg-3">
+                      {financeLabels.confirmations}: {p.payment_confirmation_count}
+                      {p.last_payment_at
+                        ? ` · ${financeLabels.lastConfirmation}: ${p.last_payment_at}`
+                        : ""}
+                    </div>
+                  ) : null}
                   {p.next_action ? (
                     <div className="mt-1 text-[12px] text-fg-3">
                       {t("nextAction")}: {p.next_action}
                     </div>
                   ) : null}
+                  {(p.active_stop_factors ?? []).map((stop) => (
+                    <div
+                      key={stop.id}
+                      className="mt-3 rounded-ctl border border-danger/30 bg-danger-weak p-3 text-[12px]"
+                      data-testid={`platform-finance-stop-${stop.id}`}
+                    >
+                      <div className="font-bold text-danger">{financeLabels.stopped}</div>
+                      <dl className="mt-2 grid gap-1 text-fg-2">
+                        <div><dt className="inline font-semibold">{financeLabels.blockedWork}: </dt><dd className="inline">{financeBlockedActionLabel(stop.blocked_action)}</dd></div>
+                        <div><dt className="inline font-semibold">{financeLabels.stopReason}: </dt><dd className="inline">{stop.reason}</dd></div>
+                        <div><dt className="inline font-semibold">{financeLabels.stopNextAction}: </dt><dd className="inline">{stop.next_action}</dd></div>
+                        <div><dt className="inline font-semibold">{financeLabels.stopOwner}: </dt><dd className="inline">{stop.owner_name}</dd></div>
+                        <div><dt className="inline font-semibold">{financeLabels.stopCreatedAt}: </dt><dd className="inline font-mono">{stop.created_at}</dd></div>
+                      </dl>
+                      {canMutateFinanceStops
+                        && actions.resolvePlatformFinanceStop
+                        && stop.resolution_request_id ? (
+                        <details className="mt-3 border-t border-danger/20 pt-2">
+                          <summary className={cn(btnGhostCls, "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>{financeLabels.clearStop}</summary>
+                          <form
+                            action={actions.resolvePlatformFinanceStop}
+                            className="mt-2 grid gap-2"
+                            data-testid={`platform-finance-stop-resolve-form-${stop.id}`}
+                          >
+                            <input type="hidden" name="student_case_id" value={client.id} />
+                            <input type="hidden" name="stop_factor_id" value={stop.id} />
+                            <input type="hidden" name="request_id" value={stop.resolution_request_id} />
+                            <label className={cn(labelCls, "mb-0")}>
+                              {financeLabels.evidence}
+                              <input name="evidence_ref" required autoComplete="off" className={cn(inputCls, "mt-1")} />
+                            </label>
+                            <label className={cn(labelCls, "mb-0")}>
+                              {financeLabels.reason}
+                              <input name="reason" required minLength={3} className={cn(inputCls, "mt-1")} />
+                            </label>
+                            <button type="submit" className={btnGhostCls}>{financeLabels.clearStop}</button>
+                          </form>
+                        </details>
+                      ) : null}
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-stretch gap-2">
                   <Badge value={p.status} label={t(`pay.${p.status}`)} />
                   {canMutatePayments
                     && actions.markPlatformPaymentPaid
@@ -2213,6 +2406,42 @@ export default async function FixtureClientPage({
                       <button type="submit" className={btnGhostCls}>{t("markPaid")}</button>
                     </form>
                   )}
+                  {canMutateFinanceStops
+                    && actions.createPlatformFinanceStop
+                    && p.status !== "paid"
+                    && p.stop_create_request_id ? (
+                    <details className="rounded-ctl border border-border bg-surface-2 p-2">
+                      <summary className={cn(btnGhostCls, "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>{financeLabels.createStop}</summary>
+                      <form
+                        action={actions.createPlatformFinanceStop}
+                        className="mt-2 grid gap-2"
+                        data-testid={`platform-finance-stop-create-form-${p.id}`}
+                      >
+                        <input type="hidden" name="student_case_id" value={client.id} />
+                        <input type="hidden" name="payment_obligation_id" value={p.id} />
+                        <input type="hidden" name="request_id" value={p.stop_create_request_id} />
+                        <label className={cn(labelCls, "mb-0")}>
+                          {financeLabels.blockedWork}
+                          <select name="blocked_action" defaultValue="application_submission" className={cn(inputCls, "mt-1")}>
+                            {Object.entries(financeLabels.actions).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                          </select>
+                        </label>
+                        <label className={cn(labelCls, "mb-0")}>
+                          {financeLabels.stopReason}
+                          <input name="reason" required minLength={3} className={cn(inputCls, "mt-1")} />
+                        </label>
+                        <label className={cn(labelCls, "mb-0")}>
+                          {financeLabels.nextAction}
+                          <input name="next_action" required minLength={3} className={cn(inputCls, "mt-1")} />
+                        </label>
+                        <label className={cn(labelCls, "mb-0")}>
+                          {financeLabels.evidence}
+                          <input name="evidence_ref" required autoComplete="off" className={cn(inputCls, "mt-1")} />
+                        </label>
+                        <button type="submit" className={btnGhostCls}>{financeLabels.createStop}</button>
+                      </form>
+                    </details>
+                  ) : null}
                 </div>
               </li>
             ))}
@@ -2299,6 +2528,20 @@ export default async function FixtureClientPage({
               </form>
             </details>
           )}
+          <div className="mt-4 border-t border-border pt-4">
+            <h3 className="text-[12px] font-bold uppercase tracking-[0.06em] text-fg-3">{financeLabels.history}</h3>
+            {financeHistory.length > 0 ? (
+              <ol className="mt-2 divide-y divide-border" data-testid="platform-finance-history">
+                {financeHistory.map((event) => (
+                  <li key={event.id} className="py-2 text-[12px]" data-testid="platform-finance-history-row">
+                    <div className="font-semibold text-fg">{financeHistoryActionLabel(event.action)}</div>
+                    <div className="mt-0.5 text-fg-2">{event.reason}</div>
+                    <div className="mt-0.5 font-mono text-[11px] text-fg-3">{event.actor_name} · {event.occurred_at}</div>
+                  </li>
+                ))}
+              </ol>
+            ) : <p className="mt-2 text-[12px] text-fg-3">{financeLabels.historyEmpty}</p>}
+          </div>
           </Card>
         </section>
       </div>

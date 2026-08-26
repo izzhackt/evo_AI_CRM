@@ -7,6 +7,7 @@ import {
   hasExactPlatformCaseOperationFormKeys,
   normalizePlatformCaseFinanceRow,
   normalizePlatformCaseVisa,
+  resolvePlatformFinanceStopFactorWithReconciliation,
 } from "../src/lib/platform-case-operations.ts";
 
 const CASE_ID = "11111111-1111-4111-8111-111111111111";
@@ -83,6 +84,25 @@ test("form contracts accept only their fields plus Next Server Action metadata",
   );
 });
 
+test("U8 reconciles one committed stop resolution after its first response is lost", async () => {
+  let calls = 0;
+  let auditEvents = 0;
+
+  const resolved = await resolvePlatformFinanceStopFactorWithReconciliation(
+    async () => {
+      calls += 1;
+      if (auditEvents === 0) auditEvents += 1;
+      if (calls === 1) throw new Error("transport response was lost");
+      return { stopFactorId: VISA_ID, replayed: true };
+    },
+    (response) => response.stopFactorId === VISA_ID,
+  );
+
+  assert.equal(resolved, true);
+  assert.equal(calls, 2);
+  assert.equal(auditEvents, 1);
+});
+
 test("visa rows fail closed on another case or extra keys", () => {
   for (const row of [
     visaRow({ case_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
@@ -149,6 +169,41 @@ test("P6D actions bind the exact case and never accept browser amount or time fo
     actionSource,
     /redirect\(`\$\{path\}\?\$\{params\.toString\(\)\}#\$\{anchor\}`\);/,
   );
+});
+
+test("U8 stop-factor actions stay admin-only, case-bound, and provider-free", () => {
+  const actionSource = readFileSync(
+    new URL("../src/lib/platform-case-operations-actions.ts", import.meta.url),
+    "utf8",
+  );
+  const createSource = actionSource.slice(
+    actionSource.indexOf("export async function createPlatformFinanceStopFactorAction"),
+    actionSource.indexOf("export async function resolvePlatformFinanceStopFactorAction"),
+  );
+  const resolveSource = actionSource.slice(
+    actionSource.indexOf("export async function resolvePlatformFinanceStopFactorAction"),
+  );
+
+  assert.match(createSource, /actor\.platformRole !== "admin"/);
+  assert.match(resolveSource, /actor\.platformRole !== "admin"/);
+  assert.match(createSource, /listPlatformCaseFinance\(actor, studentCaseId\)/);
+  assert.match(
+    createSource,
+    /rpc\(\s*["']create_stop_factor["'][\s\S]*p_student_case_id:\s*studentCaseId/,
+  );
+  assert.match(
+    resolveSource,
+    /const rpcArguments = \{[\s\S]*p_student_case_id:\s*studentCaseId[\s\S]*p_resolution_kind:\s*"admin_override"/,
+  );
+  assert.match(
+    resolveSource,
+    /resolvePlatformFinanceStopFactorWithReconciliation\([\s\S]*rpc\(\s*["']resolve_case_stop_factor["'],\s*rpcArguments/,
+  );
+  assert.doesNotMatch(resolveSource, /activeStopFactors\.some/);
+  assert.match(createSource, /revalidatePath\("\/applications"\)/);
+  assert.match(resolveSource, /revalidatePath\("\/applications"\)/);
+  assert.match(actionSource, /if \(!studentCaseId\) \{\s*redirect\("\/clients"\);\s*\}/);
+  assert.doesNotMatch(actionSource, /amoCRM|WhatsApp|WAHA/);
 });
 
 test("U2 canonical client detail exposes no case-operation or private-evidence mutation form", () => {

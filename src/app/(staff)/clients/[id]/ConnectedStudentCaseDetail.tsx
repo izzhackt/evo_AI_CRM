@@ -25,14 +25,16 @@ import {
 } from "@/lib/platform-case-assignment";
 import {
   getPlatformCaseVisa,
-  listPlatformCaseFinance,
   PLATFORM_VISA_STATUSES,
 } from "@/lib/platform-case-operations";
 import {
+  createPlatformFinanceStopFactorAction,
   createPlatformPaymentObligationAction,
+  resolvePlatformFinanceStopFactorAction,
   settlePlatformPaymentObligationAction,
   upsertPlatformCaseVisaAction,
 } from "@/lib/platform-case-operations-actions";
+import { getPlatformCaseFinanceControl } from "@/lib/platform-finance-control";
 import {
   approvePlatformContractTemplateVersionAction,
   createPlatformContractTemplateVersionAction,
@@ -83,6 +85,10 @@ type Query = {
   p6d_retry_request_id?: string;
   p6d_retry_operation?: string;
   p6d_subject_id?: string;
+  u8_result?: string;
+  u8_retry_request_id?: string;
+  u8_retry_operation?: string;
+  u8_subject_id?: string;
 };
 
 type SearchParams = Readonly<Record<string, string | string[] | undefined>>;
@@ -104,6 +110,10 @@ function normalizeQuery(searchParams: SearchParams): Query {
     p6d_retry_request_id: first(searchParams.p6d_retry_request_id),
     p6d_retry_operation: first(searchParams.p6d_retry_operation),
     p6d_subject_id: first(searchParams.p6d_subject_id),
+    u8_result: first(searchParams.u8_result),
+    u8_retry_request_id: first(searchParams.u8_retry_request_id),
+    u8_retry_operation: first(searchParams.u8_retry_operation),
+    u8_subject_id: first(searchParams.u8_subject_id),
   };
 }
 
@@ -172,7 +182,7 @@ export async function loadPlatformClientPageData(
     assignmentState,
     curatorOptions,
     caseVisa,
-    caseFinance,
+    caseFinanceControl,
     handoffState,
     caseWorkspace,
   ] = await Promise.all([
@@ -190,7 +200,7 @@ export async function loadPlatformClientPageData(
       ? listPlatformActiveCurators(actor)
       : Promise.resolve([]),
     getPlatformCaseVisa(actor, studentCase.studentCaseId),
-    listPlatformCaseFinance(actor, studentCase.studentCaseId),
+    getPlatformCaseFinanceControl(actor, studentCase.studentCaseId, 50),
     canReadAdmissionsHandoffContext
       ? getPlatformStudentCaseAdmissionsHandoff(actor, studentCase.studentCaseId)
       : Promise.resolve(null),
@@ -276,7 +286,19 @@ export async function loadPlatformClientPageData(
     "payment-create",
     studentCase.studentCaseId,
   );
-  const payments = caseFinance.map((payment: (typeof caseFinance)[number]) => ({
+  const u8RetryRequestId = parsePlatformAdmissionsUuid(
+    query.u8_retry_request_id,
+  );
+  const u8RetrySubjectId = parsePlatformAdmissionsUuid(query.u8_subject_id);
+  const u8RequestIdFor = (
+    operation: "stop-create" | "stop-resolve",
+    subjectId: string,
+  ): string => query.u8_retry_operation === operation
+    && u8RetryRequestId
+    && u8RetrySubjectId === subjectId
+      ? u8RetryRequestId
+      : randomUUID();
+  const payments = caseFinanceControl.obligations.map((payment) => ({
     id: payment.paymentObligationId,
     title: payment.label,
     amount: payment.amountMinor / 100,
@@ -285,7 +307,33 @@ export async function loadPlatformClientPageData(
     status: payment.status,
     category: payment.category,
     next_action: payment.nextAction,
+    total_paid_minor: payment.totalPaidMinor,
+    total_refunded_minor: payment.totalRefundedMinor,
     outstanding_minor: payment.outstandingMinor,
+    payment_confirmation_count: payment.paymentConfirmationCount,
+    last_payment_at: payment.lastPaymentAt,
+    active_stop_factors: payment.activeStopFactors.map((stop) => ({
+      id: stop.stopFactorId,
+      reason: stop.reason,
+      blocked_action: stop.blockedAction,
+      next_action: stop.nextAction,
+      owner_name: stop.ownerDisplayName,
+      created_at: stop.createdAt,
+      resolution_request_id: u8RequestIdFor(
+        "stop-resolve",
+        stop.stopFactorId,
+      ),
+      resolution_retry: query.u8_retry_operation === "stop-resolve"
+        && u8RetryRequestId !== null
+        && u8RetrySubjectId === stop.stopFactorId,
+    })),
+    stop_create_request_id: u8RequestIdFor(
+      "stop-create",
+      payment.paymentObligationId,
+    ),
+    stop_create_retry: query.u8_retry_operation === "stop-create"
+      && u8RetryRequestId !== null
+      && u8RetrySubjectId === payment.paymentObligationId,
     settlement_request_id: p6dRequestIdFor(
       "payment-settle",
       payment.paymentObligationId,
@@ -312,6 +360,14 @@ export async function loadPlatformClientPageData(
       : null,
     studentCase.overdueObligationCount > 0
       ? `Просроченные оплаты: ${studentCase.overdueObligationCount}`
+      : null,
+    caseFinanceControl.obligations.some(
+      (payment) => payment.activeStopFactors.length > 0,
+    )
+      ? `Финансовый стоп: ${caseFinanceControl.obligations
+        .flatMap((payment) => payment.activeStopFactors)
+        .map((stop) => `${stop.blockedAction} — ${stop.reason}`)
+        .join(", ")}`
       : null,
     studentCase.rejectedDocumentCount > 0
       ? `Документы на доработке: ${studentCase.rejectedDocumentCount}`
@@ -432,6 +488,14 @@ export async function loadPlatformClientPageData(
       notes: caseVisa.note,
     } : null,
     payments,
+    financeHistory: caseFinanceControl.history.map((event) => ({
+      id: event.auditEventId,
+      action: event.action,
+      resource_kind: event.resourceType,
+      actor_name: event.actorDisplayName ?? "—",
+      reason: event.reason ?? "—",
+      occurred_at: event.createdAt,
+    })),
     tasks: tasks ?? [],
     handoffContext,
     updates: workspaceUpdates.map((update) => ({
@@ -548,10 +612,17 @@ export async function loadPlatformClientPageData(
       markPlatformPaymentPaid: actor.platformRole === "admin"
         ? settlePlatformPaymentObligationAction
         : undefined,
+      createPlatformFinanceStop: actor.platformRole === "admin"
+        ? createPlatformFinanceStopFactorAction
+        : undefined,
+      resolvePlatformFinanceStop: actor.platformRole === "admin"
+        ? resolvePlatformFinanceStopFactorAction
+        : undefined,
     },
     canManageLifecycle,
     canViewCaseAudit: workspaceAudit.length > 0 || canReadCaseWorkspace,
     canMutatePayments: actor.platformRole === "admin",
+    canMutateFinanceStops: actor.platformRole === "admin",
     canUseAiSummary: false,
     studentRoute: {
       targetCountry: studentCase.targetCountry ?? "",
@@ -639,13 +710,18 @@ export async function loadPlatformClientPageData(
       activeApplications: applicationSummary.activeApplications,
       openDocuments: documents.filter((document) => document.status !== "approved").length,
       openTasks: studentCase.overdueTaskCount,
-      pendingPayments: studentCase.overdueObligationCount,
+      pendingPayments: caseFinanceControl.obligations.filter(
+        (payment) => payment.status !== "paid",
+      ).length,
       nextDeadline: studentCase.handoff?.dueAt ?? "—",
     },
     blocker: riskSignals.length > 0
       ? { label: "Требует внимания", detail: riskSignals.join(" · "), href: "#overview" }
       : null,
-    result: result(query.p6d_result) ?? result(query.result),
+    result:
+      result(query.u8_result)
+      ?? result(query.p6d_result)
+      ?? result(query.result),
     lifecycleRequestId,
     warning: !studentCase.appliedOzoWorkflowContractVersionId
       ? {

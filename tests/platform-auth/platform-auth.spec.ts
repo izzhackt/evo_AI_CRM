@@ -2181,6 +2181,416 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   expectLegacyDatabaseUntouched();
 });
 
+test("U8 controls overdue payment stops and finance history without provider writes", async ({
+  browser,
+}) => {
+  test.skip(
+    process.env.EVO_U8_BROWSER_PROOF !== "1",
+    "U8 feature proof runs in its isolated browser invocation.",
+  );
+  test.setTimeout(180_000);
+  expectLegacyDatabaseUntouched();
+
+  const adminToken = await localAccessToken(fixture.identities.admin);
+  const adminAuthority = await platformRpc(
+    adminToken,
+    "current_actor_authority",
+    {},
+  );
+  expect(adminAuthority.status).toBe(200);
+  expect(adminAuthority.payload).toEqual([
+    expect.objectContaining({
+      organization_id: fixture.u6.organizationId,
+      membership_id: expect.any(String),
+      platform_role: "admin",
+    }),
+  ]);
+  const adminMembershipId = (
+    adminAuthority.payload as Array<Record<string, unknown>>
+  )[0]?.membership_id;
+  if (typeof adminMembershipId !== "string") {
+    throw new Error("U8 proof could not resolve the Admin membership ID.");
+  }
+
+  const leadDetail = await platformRpc(
+    adminToken,
+    "staff_canonical_lead_detail",
+    { p_lead_id: fixture.u6.leadId },
+  );
+  expect(leadDetail.status).toBe(200);
+  const linkedCases = Array.isArray(leadDetail.payload)
+    && leadDetail.payload[0]
+    && typeof leadDetail.payload[0] === "object"
+      ? (leadDetail.payload[0] as { linked_student_cases?: unknown })
+        .linked_student_cases
+      : null;
+  const studentCaseId = Array.isArray(linkedCases)
+    && linkedCases[0]
+    && typeof linkedCases[0] === "object"
+    && typeof (linkedCases[0] as { student_case_id?: unknown }).student_case_id
+      === "string"
+      ? (linkedCases[0] as { student_case_id: string }).student_case_id
+      : null;
+  if (!studentCaseId) {
+    throw new Error(
+      "U8 proof requires the canonical U6/U7 Admissions case created by the preceding partitions.",
+    );
+  }
+
+  const overdueLabel = `U8 overdue checkpoint ${randomUUID()}`;
+  const obligationNextAction = "Confirm the overdue U8 payment with Finance";
+  const createObligation = await platformRpc(
+    adminToken,
+    "create_payment_obligation",
+    {
+      p_organization_id: fixture.u6.organizationId,
+      p_student_case_id: studentCaseId,
+      p_label: overdueLabel,
+      p_category: "evo_service_fee",
+      p_amount_minor: 125_000,
+      p_currency: "KGS",
+      p_due_at: "2026-01-15T09:00:00.000Z",
+      p_next_action: obligationNextAction,
+      p_reason: "Create the real overdue U8 browser checkpoint",
+      p_request_id: randomUUID(),
+    },
+  );
+  expect(createObligation.status).toBe(200);
+  expect(createObligation.payload).toEqual(
+    expect.objectContaining({
+      organization_id: fixture.u6.organizationId,
+      student_case_id: studentCaseId,
+      payment_obligation_id: expect.any(String),
+      label: overdueLabel,
+      amount_minor: 125_000,
+      currency: "KGS",
+    }),
+  );
+  const paymentObligationId = (
+    createObligation.payload as Record<string, unknown>
+  ).payment_obligation_id;
+  if (typeof paymentObligationId !== "string") {
+    throw new Error("U8 payment obligation ID was unavailable.");
+  }
+
+  const initialControl = await platformRpc(
+    adminToken,
+    "staff_case_finance_control",
+    {
+      p_student_case_id: studentCaseId,
+      p_history_limit: 50,
+    },
+  );
+  expect(initialControl.status).toBe(200);
+  expect(initialControl.payload).toEqual(
+    expect.objectContaining({
+      organization_id: fixture.u6.organizationId,
+      student_case_id: studentCaseId,
+      obligations: expect.arrayContaining([
+        expect.objectContaining({
+          payment_obligation_id: paymentObligationId,
+          label: overdueLabel,
+          derived_status: "overdue",
+          overdue: true,
+          outstanding_minor: 125_000,
+          active_stop_factors: [],
+        }),
+      ]),
+    }),
+  );
+
+  const deniedCreateBody = {
+    p_organization_id: fixture.u6.organizationId,
+    p_student_case_id: studentCaseId,
+    p_payment_obligation_id: paymentObligationId,
+    p_owner_membership_id: adminMembershipId,
+    p_reason: "Denied U8 stop create",
+    p_blocked_action: "application_submission",
+    p_next_action: "Denied U8 next action",
+    p_created_evidence_ref: "local://u8/denied-create",
+  } as const;
+  for (const identity of [
+    fixture.identities.curator,
+    fixture.identities.responsibleSales,
+  ]) {
+    const deniedToken = await localAccessToken(identity);
+    const deniedCreate = await platformRpc(
+      deniedToken,
+      "create_stop_factor",
+      {
+        ...deniedCreateBody,
+        p_request_id: randomUUID(),
+      },
+    );
+    expect(deniedCreate.status).toBe(403);
+  }
+
+  const externalBrowserWrites: string[] = [];
+  const localOrigins = new Set([
+    new URL(appOrigin).origin,
+    new URL(fixture.apiUrl).origin,
+  ]);
+  const adminContext = await browser.newContext();
+  adminContext.on("request", (request) => {
+    if (["GET", "HEAD", "OPTIONS"].includes(request.method())) return;
+    const requestUrl = new URL(request.url());
+    if (!localOrigins.has(requestUrl.origin)) {
+      externalBrowserWrites.push(`${request.method()} ${requestUrl.origin}`);
+    }
+  });
+  const adminPage = await adminContext.newPage();
+  await login(adminPage, fixture.identities.admin);
+  await expect(adminPage).toHaveURL(/\/sales$/);
+  const casePath = `/clients/${studentCaseId}`;
+  await adminPage.goto(`${casePath}#payments`);
+
+  const paymentRow = adminPage.getByTestId(
+    `platform-payment-${paymentObligationId}`,
+  );
+  await expect(paymentRow).toBeVisible();
+  await expect(paymentRow).toContainText(overdueLabel);
+  await expect(paymentRow).toContainText("Просрочен");
+  await expect(paymentRow).toContainText(obligationNextAction);
+
+  const createStopReason = "Просроченный платёж блокирует подачу U8";
+  const stopNextAction = "Подтвердить оплату или оформить ручное снятие стопа";
+  const createStopEvidence = `local://u8/stop/${randomUUID()}`;
+  const createStopForm = adminPage.getByTestId(
+    `platform-finance-stop-create-form-${paymentObligationId}`,
+  );
+  const createStopDetails = paymentRow.locator("details").filter({
+    has: createStopForm,
+  });
+  await createStopDetails.locator("summary").click();
+  await expect(createStopForm).toBeVisible();
+  await createStopForm
+    .locator('select[name="blocked_action"]')
+    .selectOption("application_submission");
+  await createStopForm
+    .locator('input[name="reason"]')
+    .fill(createStopReason);
+  await createStopForm
+    .locator('input[name="next_action"]')
+    .fill(stopNextAction);
+  await createStopForm
+    .locator('input[name="evidence_ref"]')
+    .fill(createStopEvidence);
+  await createStopForm.locator('button[type="submit"]').click();
+  await expect(adminPage).toHaveURL(
+    new RegExp(`/clients/${studentCaseId}\\?u8_result=saved#payments$`),
+  );
+
+  const activeStops = await platformRows(
+    adminToken,
+    "stop_factors",
+    new URLSearchParams({
+      select: "id,status,reason,blocked_action,next_action,payment_obligation_id",
+      payment_obligation_id: `eq.${paymentObligationId}`,
+      status: "eq.active",
+    }),
+  );
+  expect(activeStops.status).toBe(200);
+  expect(activeStops.payload).toEqual([
+    expect.objectContaining({
+      id: expect.any(String),
+      status: "active",
+      reason: createStopReason,
+      blocked_action: "application_submission",
+      next_action: stopNextAction,
+      payment_obligation_id: paymentObligationId,
+    }),
+  ]);
+  const stopFactorId = (
+    activeStops.payload as Array<Record<string, unknown>>
+  )[0]?.id;
+  if (typeof stopFactorId !== "string") {
+    throw new Error("U8 active stop-factor ID was unavailable.");
+  }
+
+  const activeStopCard = adminPage.getByTestId(
+    `platform-finance-stop-${stopFactorId}`,
+  );
+  await expect(activeStopCard).toBeVisible();
+  await expect(activeStopCard).toContainText(createStopReason);
+  await expect(activeStopCard).toContainText(stopNextAction);
+  await expect(activeStopCard).toContainText("Подача заявки в университет");
+  await expect(
+    adminPage.getByTestId("platform-finance-history-row").filter({
+      hasText: createStopReason,
+    }),
+  ).toBeVisible();
+
+  const curatorToken = await localAccessToken(fixture.identities.curator);
+  const curatorControl = await platformRpc(
+    curatorToken,
+    "staff_case_finance_control",
+    {
+      p_student_case_id: studentCaseId,
+      p_history_limit: 50,
+    },
+  );
+  expect(curatorControl.status).toBe(200);
+  expect(curatorControl.payload).toEqual(
+    expect.objectContaining({
+      student_case_id: studentCaseId,
+      obligations: expect.arrayContaining([
+        expect.objectContaining({
+          payment_obligation_id: paymentObligationId,
+          active_stop_factors: expect.arrayContaining([
+            expect.objectContaining({
+              stop_factor_id: stopFactorId,
+              reason: createStopReason,
+              blocked_action: "application_submission",
+              next_action: stopNextAction,
+            }),
+          ]),
+        }),
+      ]),
+    }),
+  );
+
+  for (const identity of [
+    fixture.identities.curator,
+    fixture.identities.responsibleSales,
+  ]) {
+    const deniedToken = await localAccessToken(identity);
+    const deniedResolve = await platformRpc(
+      deniedToken,
+      "resolve_stop_factor",
+      {
+        p_organization_id: fixture.u6.organizationId,
+        p_stop_factor_id: stopFactorId,
+        p_resolution_kind: "admin_override",
+        p_payment_event_id: null,
+        p_reason: "Denied U8 stop resolution",
+        p_evidence_ref: "local://u8/denied-resolve",
+        p_request_id: randomUUID(),
+      },
+    );
+    expect(deniedResolve.status).toBe(403);
+  }
+
+  const crossOrgToken = await localAccessToken(
+    fixture.identities.crossOrgAdmin,
+  );
+  const crossOrgControl = await platformRpc(
+    crossOrgToken,
+    "staff_case_finance_control",
+    {
+      p_student_case_id: studentCaseId,
+      p_history_limit: 50,
+    },
+  );
+  expect(crossOrgControl.status).toBe(403);
+
+  await adminPage.goto("/applications");
+  await expect(adminPage.getByTestId("platform-applications-page")).toBeVisible();
+  const managerQueueStop = adminPage.locator(
+    `[data-testid="platform-finance-queue-stop-${studentCaseId}"]:visible`,
+  );
+  expect(await managerQueueStop.count()).toBeGreaterThan(0);
+  await expect(managerQueueStop.first()).toBeVisible();
+  await expect(managerQueueStop.first()).toContainText("Просроченные платежи");
+  await expect(managerQueueStop.first()).toContainText(createStopReason);
+  await expect(managerQueueStop.first()).toContainText(stopNextAction);
+
+  await adminPage.goto(`${casePath}#payments`);
+  const resolveStopReason = "U8 ручная проверка завершена, стоп снят";
+  const resolveStopEvidence = `local://u8/override/${randomUUID()}`;
+  const refreshedStopCard = adminPage.getByTestId(
+    `platform-finance-stop-${stopFactorId}`,
+  );
+  const resolveStopForm = adminPage.getByTestId(
+    `platform-finance-stop-resolve-form-${stopFactorId}`,
+  );
+  const resolveStopDetails = refreshedStopCard.locator("details").filter({
+    has: resolveStopForm,
+  });
+  await resolveStopDetails.locator("summary").click();
+  await expect(resolveStopForm).toBeVisible();
+  await resolveStopForm
+    .locator('input[name="evidence_ref"]')
+    .fill(resolveStopEvidence);
+  await resolveStopForm
+    .locator('input[name="reason"]')
+    .fill(resolveStopReason);
+  await resolveStopForm.locator('button[type="submit"]').click();
+  await expect(adminPage).toHaveURL(
+    new RegExp(`/clients/${studentCaseId}\\?u8_result=saved#payments$`),
+  );
+
+  const resolvedStops = await platformRows(
+    adminToken,
+    "stop_factors",
+    new URLSearchParams({
+      select: "id,status,resolution_kind,resolution_reason",
+      id: `eq.${stopFactorId}`,
+    }),
+  );
+  expect(resolvedStops.status).toBe(200);
+  expect(resolvedStops.payload).toEqual([
+    expect.objectContaining({
+      id: stopFactorId,
+      status: "resolved",
+      resolution_kind: "admin_override",
+      resolution_reason: resolveStopReason,
+    }),
+  ]);
+
+  await expect(
+    adminPage.getByTestId(`platform-finance-stop-${stopFactorId}`),
+  ).toHaveCount(0);
+  await expect(
+    adminPage.getByTestId("platform-finance-history-row").filter({
+      hasText: resolveStopReason,
+    }),
+  ).toBeVisible();
+  await expect(
+    adminPage.getByTestId(`platform-payment-${paymentObligationId}`),
+  ).not.toContainText(createStopReason);
+
+  const finalControl = await platformRpc(
+    adminToken,
+    "staff_case_finance_control",
+    {
+      p_student_case_id: studentCaseId,
+      p_history_limit: 50,
+    },
+  );
+  expect(finalControl.status).toBe(200);
+  expect(finalControl.payload).toEqual(
+    expect.objectContaining({
+      obligations: expect.arrayContaining([
+        expect.objectContaining({
+          payment_obligation_id: paymentObligationId,
+          overdue: true,
+          active_stop_factors: [],
+        }),
+      ]),
+      history: expect.arrayContaining([
+        expect.objectContaining({
+          action: "finance.stop.create",
+          resource_id: stopFactorId,
+          reason: createStopReason,
+        }),
+        expect.objectContaining({
+          action: "finance.stop.resolve",
+          resource_id: stopFactorId,
+          reason: resolveStopReason,
+        }),
+      ]),
+    }),
+  );
+
+  await adminPage.goto("/applications");
+  await expect(
+    adminPage.getByTestId(`platform-finance-queue-stop-${studentCaseId}`),
+  ).toHaveCount(0);
+  expect(externalBrowserWrites).toEqual([]);
+  await adminContext.close();
+  expectLegacyDatabaseUntouched();
+});
+
 test("route-level auth failures surface an explicit login error", async ({
   page,
 }) => {

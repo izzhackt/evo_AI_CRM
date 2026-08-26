@@ -3,14 +3,14 @@ import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
 
 import { getT } from "@/lib/i18n";
-import * as platformAdmissionsModule from "@/lib/platform-admissions";
-import * as platformAdmissionsWorkspaceModule from "@/lib/platform-admissions-case-workspace";
 import {
   getPlatformStudentCaseView,
   listPlatformApplicationsForStudentCase,
   parsePlatformAdmissionsUuid,
+  PLATFORM_APPLICATION_STATUSES,
   summarizePlatformStudentCaseApplicationPreview,
 } from "@/lib/platform-admissions";
+import { getPlatformAdmissionsCaseWorkspace } from "@/lib/platform-admissions-case-workspace";
 import { getPlatformStudentCaseAdmissionsHandoff } from "@/lib/platform-admissions-handoff";
 import {
   assignPlatformStudentCaseCuratorAction,
@@ -121,154 +121,6 @@ function contractResult(
     : undefined;
 }
 
-type WorkspaceTask = Readonly<{
-  id: string;
-  title: string;
-  dueDate: string | null;
-  status: string;
-  priority: string;
-  assigneeMembershipId: string | null;
-  assigneeName: string | null;
-  requestId: string;
-}>;
-
-type WorkspaceUpdate = Readonly<{
-  id: string;
-  message: string;
-  authorName: string | null;
-  createdAt: string;
-}>;
-
-type WorkspaceAudit = Readonly<{
-  id: string;
-  eventType: string;
-  reason: string;
-  actorName: string;
-  occurredAt: string;
-  resourceKind: string | null;
-  changeSummary: string | null;
-  headline: string | null;
-}>;
-
-type WorkspaceAssignee = Readonly<{
-  id: string;
-  name: string;
-}>;
-
-const { getPlatformAdmissionsCaseWorkspace } = platformAdmissionsWorkspaceModule;
-
-function stringValue(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function arrayValue(value: unknown): readonly unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
-function recordValue(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
-function workspaceId(row: Record<string, unknown>, keys: readonly string[]) {
-  for (const key of keys) {
-    const parsed = parsePlatformAdmissionsUuid(row[key]);
-    if (parsed) return parsed;
-  }
-  return null;
-}
-
-function workspaceText(row: Record<string, unknown>, keys: readonly string[]) {
-  for (const key of keys) {
-    const value = stringValue(row[key]);
-    if (value) return value;
-  }
-  return null;
-}
-
-function normalizeWorkspaceTasks(workspace: unknown): readonly WorkspaceTask[] {
-  const root = recordValue(workspace);
-  const rows = arrayValue(root?.tasks);
-  return rows.flatMap((value) => {
-    const row = recordValue(value);
-    if (!row) return [];
-    const id = workspaceId(row, ["caseTaskId"]);
-    const title = workspaceText(row, ["title"]);
-    const status = workspaceText(row, ["status"]);
-    if (!id || !title || !status) return [];
-    return [{
-      id,
-      title,
-      dueDate: workspaceText(row, ["dueAt"]),
-      status,
-      priority: workspaceText(row, ["priority"]) ?? "normal",
-      assigneeMembershipId: workspaceId(row, ["assigneeMembershipId"]),
-      assigneeName: workspaceText(row, ["assigneeDisplayName"]),
-      requestId: randomUUID(),
-    }];
-  });
-}
-
-function normalizeWorkspaceAssignees(workspace: unknown): readonly WorkspaceAssignee[] {
-  const root = recordValue(workspace);
-  const rows = arrayValue(root?.taskAssignees);
-  return rows.flatMap((value) => {
-    const row = recordValue(value);
-    if (!row) return [];
-    const id = workspaceId(row, ["membershipId"]);
-    const name = workspaceText(row, ["displayName"]);
-    return id && name ? [{ id, name }] : [];
-  });
-}
-
-function normalizeWorkspaceUpdates(workspace: unknown): readonly WorkspaceUpdate[] {
-  const root = recordValue(workspace);
-  const rows = arrayValue(root?.updates);
-  return rows.flatMap((value) => {
-    const row = recordValue(value);
-    if (!row) return [];
-    const id = workspaceId(row, ["studentCaseUpdateId"]) ?? randomUUID();
-    const message = workspaceText(row, ["body"]);
-    const createdAt = workspaceText(row, ["occurredAt"]);
-    if (!message || !createdAt) return [];
-    return [{
-      id,
-      message,
-      authorName: workspaceText(row, ["authorDisplayName"]),
-      createdAt,
-    }];
-  });
-}
-
-function normalizeWorkspaceAudit(workspace: unknown): readonly WorkspaceAudit[] {
-  const root = recordValue(workspace);
-  const rows = arrayValue(root?.audit);
-  return rows.flatMap((value) => {
-    const row = recordValue(value);
-    if (!row) return [];
-    const id = workspaceId(row, ["auditEventId"]) ?? randomUUID();
-    const eventType = workspaceText(row, ["action"])
-      ?? "updated";
-    const occurredAt = workspaceText(row, ["eventAt"]);
-    const actorName = workspaceText(row, ["actorDisplayName"]) ?? "—";
-    if (!occurredAt) return [];
-    const changeSummary = workspaceText(row, ["changeSummary"]);
-    const reason = workspaceText(row, ["reason"]) ?? changeSummary ?? "—";
-    const resourceKind = workspaceText(row, ["resourceKind"]);
-    return [{
-      id,
-      eventType,
-      reason,
-      actorName,
-      occurredAt,
-      resourceKind,
-      changeSummary,
-      headline: null,
-    }];
-  });
-}
-
 /**
  * Connected Supabase adapter for the accepted Student 360 renderer.
  * It returns only repository-authorized fields; Sales handoff summaries never
@@ -347,7 +199,7 @@ export async function loadPlatformClientPageData(
         })
       : Promise.resolve(null),
   ]);
-  if (!assignmentState) return null;
+  if (!assignmentState || (canReadCaseWorkspace && !caseWorkspace)) return null;
 
   const appliedCountryRequirement =
     countryRequirementVersions.find(
@@ -472,19 +324,18 @@ export async function loadPlatformClientPageData(
       : null,
     handoffState?.handoffReason ? `Причина handoff: ${handoffState.handoffReason}` : null,
   ].filter((value): value is string => Boolean(value)).join(" · ");
-  const workspaceTasks = normalizeWorkspaceTasks(caseWorkspace);
-  const tasks = workspaceTasks.length > 0
-    ? workspaceTasks.map((task) => ({
-        id: task.id,
+  const tasks = caseWorkspace
+    ? caseWorkspace.tasks.map((task) => ({
+        id: task.caseTaskId,
         title: task.title,
-        due_date: task.dueDate,
+        due_date: task.dueAt?.slice(0, 10) ?? null,
         status: task.status,
         priority: task.priority,
-        assignee_name: task.assigneeName,
+        assignee_name: task.assigneeDisplayName,
         assignee_membership_id: task.assigneeMembershipId,
-        student_visible: false,
-        task_type: "admissions_case_task",
-        request_id: task.requestId,
+        student_visible: task.studentVisible,
+        task_type: task.taskType,
+        request_id: randomUUID(),
       }))
     : handoffState?.starterTasks.map((task) => ({
         id: task.taskId,
@@ -498,9 +349,9 @@ export async function loadPlatformClientPageData(
         task_type: "admissions_case_task",
         request_id: randomUUID(),
       }));
-  const workspaceUpdates = normalizeWorkspaceUpdates(caseWorkspace);
-  const workspaceAudit = normalizeWorkspaceAudit(caseWorkspace);
-  const workspaceAssignees = normalizeWorkspaceAssignees(caseWorkspace);
+  const workspaceUpdates = caseWorkspace?.updates ?? [];
+  const workspaceAudit = caseWorkspace?.audit ?? [];
+  const workspaceAssignees = caseWorkspace?.taskAssignees ?? [];
   const inheritedHandoff = handoffState?.inheritedContext ?? null;
   const handoffContext =
     inheritedHandoff &&
@@ -576,30 +427,30 @@ export async function loadPlatformClientPageData(
     tasks: tasks ?? [],
     handoffContext,
     updates: workspaceUpdates.map((update) => ({
-      id: update.id,
-      message: update.message,
-      author_name: update.authorName,
-      created_at: update.createdAt,
+      id: update.studentCaseUpdateId,
+      message: update.body,
+      author_name: update.authorDisplayName,
+      created_at: update.occurredAt,
     })),
     taskAssignees: workspaceAssignees.map((assignee) => ({
-      id: assignee.id,
-      name: assignee.name,
+      id: assignee.membershipId,
+      name: assignee.displayName,
     })),
     curators: curatorOptions.map((curator: (typeof curatorOptions)[number]) => ({
       id: curator.membershipId,
       name: curator.displayName,
     })),
     audit: workspaceAudit.map((event) => ({
-      id: event.id,
-      event_type: event.eventType,
-      reason: event.reason,
-      actor_name: event.actorName,
+      id: event.auditEventId,
+      event_type: event.action,
+      reason: event.reason ?? event.changeSummary ?? "—",
+      actor_name: event.actorDisplayName ?? "—",
       before_curator_name: null,
       after_curator_name: null,
-      occurred_at: event.occurredAt,
+      occurred_at: event.eventAt,
       resource_kind: event.resourceKind,
       change_summary: event.changeSummary,
-      headline: event.headline,
+      headline: null,
     })),
     snapshot: {
       stageTimeline: [
@@ -644,7 +495,7 @@ export async function loadPlatformClientPageData(
       { key: "active", label: "Активно" },
       { key: "closed", label: "Закрыто" },
     ],
-    applicationStatuses: [...platformAdmissionsModule.PLATFORM_APPLICATION_STATUSES],
+    applicationStatuses: [...PLATFORM_APPLICATION_STATUSES],
     taskColumns: ["open", "in_progress", "blocked", "done", "cancelled"],
     taskPriorities: ["low", "normal", "high", "urgent"],
     visaStatuses: [...PLATFORM_VISA_STATUSES],

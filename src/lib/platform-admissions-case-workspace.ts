@@ -6,7 +6,6 @@ const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Platform Admissions case workspace is unavailable.";
 const TIMESTAMPTZ_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 
@@ -29,13 +28,16 @@ const PLATFORM_CASE_AUDIT_ACTIONS = [
   "application.status.change",
   "case.create",
   "case.curator.set",
-  "case.handoff.create",
   "case.lifecycle.change",
   "case.route.change",
   "case.update.append",
+  "document.validation.attest",
+  "document.version.record",
   "document.version.review",
+  "lead.admissions.handoff.completed",
   "task.change",
   "task.create",
+  "visa.create",
   "visa.status.change",
 ] as const;
 const PLATFORM_CASE_AUDIT_RESOURCE_KINDS = [
@@ -188,18 +190,6 @@ function optionalTimestamp(value: unknown): string | null {
   return value === null ? null : requiredTimestamp(value);
 }
 
-function optionalDate(value: unknown): string | null {
-  if (value === null) return null;
-  if (
-    typeof value !== "string" ||
-    !DATE_PATTERN.test(value) ||
-    Number.isNaN(new Date(`${value}T00:00:00Z`).getTime())
-  ) {
-    return invalidShape();
-  }
-  return value;
-}
-
 function requiredBoolean(value: unknown): boolean {
   return typeof value === "boolean" ? value : invalidShape();
 }
@@ -240,18 +230,11 @@ function unwrapSingleObject(value: unknown): Record<string, unknown> {
   return invalidShape();
 }
 
-function assertCaseScope(value: unknown, expectedCaseId: string): void {
-  if (requiredUuid(value) !== expectedCaseId) invalidShape();
-}
-
 function normalizeTask(
   value: unknown,
-  organizationId: string,
   studentCaseId: string,
 ): PlatformAdmissionsCaseWorkspaceTask {
   if (!isRecord(value)) return invalidShape();
-  if (requiredUuid(value.organization_id) !== organizationId) invalidShape();
-  assertCaseScope(value.student_case_id, studentCaseId);
   return Object.freeze({
     caseTaskId: requiredUuid(value.case_task_id),
     studentCaseId,
@@ -260,7 +243,7 @@ function normalizeTask(
     assigneeMembershipId: requiredUuid(value.assignee_membership_id),
     assigneeDisplayName: optionalText(value.assignee_display_name, 200),
     priority: oneOf(value.priority, PLATFORM_CASE_TASK_PRIORITIES),
-    dueAt: optionalDate(value.due_at),
+    dueAt: optionalTimestamp(value.due_at),
     status: oneOf(value.status, PLATFORM_CASE_TASK_STATUSES),
     studentVisible: requiredBoolean(value.student_visible),
   });
@@ -268,10 +251,8 @@ function normalizeTask(
 
 function normalizeAssignee(
   value: unknown,
-  organizationId: string,
 ): PlatformAdmissionsCaseWorkspaceAssignee {
   if (!isRecord(value)) return invalidShape();
-  if (requiredUuid(value.organization_id) !== organizationId) invalidShape();
   return Object.freeze({
     membershipId: requiredUuid(value.membership_id),
     displayName: requiredText(value.display_name, 200),
@@ -281,14 +262,11 @@ function normalizeAssignee(
 
 function normalizeUpdate(
   value: unknown,
-  organizationId: string,
   studentCaseId: string,
 ): PlatformAdmissionsCaseWorkspaceUpdate {
   if (!isRecord(value)) return invalidShape();
-  if (requiredUuid(value.organization_id) !== organizationId) invalidShape();
-  assertCaseScope(value.student_case_id, studentCaseId);
   return Object.freeze({
-    studentCaseUpdateId: requiredUuid(value.student_case_update_id),
+    studentCaseUpdateId: requiredUuid(value.case_update_id),
     studentCaseId,
     body: requiredText(value.body, 4_000),
     source: requiredText(value.source, 100),
@@ -300,20 +278,17 @@ function normalizeUpdate(
 
 function normalizeAuditEntry(
   value: unknown,
-  organizationId: string,
   studentCaseId: string,
 ): PlatformAdmissionsCaseWorkspaceAuditEntry {
   if (!isRecord(value)) return invalidShape();
-  if (requiredUuid(value.organization_id) !== organizationId) invalidShape();
-  assertCaseScope(value.student_case_id, studentCaseId);
   return Object.freeze({
     auditEventId: requiredUuid(value.audit_event_id),
     studentCaseId,
     action: oneOf(value.action, PLATFORM_CASE_AUDIT_ACTIONS),
-    resourceKind: oneOf(value.resource_kind, PLATFORM_CASE_AUDIT_RESOURCE_KINDS),
+    resourceKind: oneOf(value.resource_type, PLATFORM_CASE_AUDIT_RESOURCE_KINDS),
     actorDisplayName: optionalText(value.actor_display_name, 200),
-    eventAt: requiredTimestamp(value.event_at),
-    reason: optionalText(value.reason, 1_000),
+    eventAt: requiredTimestamp(value.created_at),
+    reason: optionalText(value.reason_code, 1_000),
     changeSummary: optionalText(value.change_summary, 2_000),
   });
 }
@@ -358,12 +333,12 @@ export function normalizePlatformAdmissionsCaseWorkspacePayload(
     studentCaseId,
     tasks: normalizeUniqueArray(
       payload.tasks,
-      (row) => normalizeTask(row, organizationId, studentCaseId),
+      (row) => normalizeTask(row, studentCaseId),
       "caseTaskId",
     ),
     taskAssignees: normalizeUniqueArray(
       payload.assignees,
-      (row) => normalizeAssignee(row, organizationId),
+      (row) => normalizeAssignee(row),
       "membershipId",
     ),
   });
@@ -393,12 +368,12 @@ export function normalizePlatformAdmissionsCaseActivityPayload(
     studentCaseId,
     updates: normalizeUniqueArray(
       payload.updates,
-      (row) => normalizeUpdate(row, organizationId, studentCaseId),
+      (row) => normalizeUpdate(row, studentCaseId),
       "studentCaseUpdateId",
     ),
     audit: normalizeUniqueArray(
       payload.audit,
-      (row) => normalizeAuditEntry(row, organizationId, studentCaseId),
+      (row) => normalizeAuditEntry(row, studentCaseId),
       "auditEventId",
     ),
   });
@@ -479,8 +454,10 @@ export async function getPlatformAdmissionsCaseWorkspace(
   input: PlatformAdmissionsCaseWorkspaceInput,
   dependencies: PlatformAdmissionsCaseWorkspaceDependencies = {},
 ): Promise<PlatformAdmissionsCaseWorkspace | null> {
-  const actor = dependencies.actor ?? await import("./platform-guards.ts").then(
-    ({ requirePlatformClientsActor }) => requirePlatformClientsActor(),
-  );
+  let actor = dependencies.actor;
+  if (!actor) {
+    const { requirePlatformClientsActor } = await import("./platform-guards.ts");
+    actor = await requirePlatformClientsActor();
+  }
   return getPlatformAdmissionsCaseWorkspaceForActor(actor, input, dependencies);
 }

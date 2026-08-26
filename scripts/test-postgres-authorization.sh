@@ -1746,6 +1746,15 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_sales_admissions_handoff_rls.sql
   fi
+
+  # Migration 089 completes the existing canonical Admissions case workspace
+  # with bounded task and case-activity projections while reusing the audited
+  # task, document, application and visa mutation boundaries.
+  if [[ "$(basename "$migration")" == 089_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_admissions_case_workspace_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

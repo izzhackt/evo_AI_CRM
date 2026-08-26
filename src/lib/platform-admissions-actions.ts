@@ -80,7 +80,7 @@ function safeRedirect(
   path: string,
   outcome: "saved" | "invalid" | "unavailable",
   retryRequestId?: string | null,
-  anchor?: "case-lifecycle",
+  anchor?: "case-lifecycle" | "applications",
 ): never {
   redirect(
     buildPlatformAdmissionsRedirectUrl(
@@ -328,6 +328,12 @@ export async function createPlatformUniversityApplicationAction(
   const actor = await requirePlatformApplicationsActor();
   const studentCaseId = requiredUuid(form, "student_case_id");
   const requestId = requiredUuid(form, "request_id");
+  const returnToCaseValue = value(form, "return_to_case");
+  const returnToCase = returnToCaseValue === "1";
+  const targetPath = returnToCase && studentCaseId
+    ? `/clients/${studentCaseId}`
+    : "/applications";
+  const targetAnchor = returnToCase ? "applications" as const : undefined;
   const catalogInstitutionValue = value(form, "catalog_institution_id");
   const catalogInstitutionId = catalogInstitutionValue
     ? parsePlatformAdmissionsUuid(catalogInstitutionValue)
@@ -341,6 +347,7 @@ export async function createPlatformUniversityApplicationAction(
   if (
     !studentCaseId ||
     !requestId ||
+    (returnToCaseValue !== "" && !returnToCase) ||
     (catalogInstitutionValue !== "" && !catalogInstitutionId) ||
     (!catalogInstitutionId && !institutionName) ||
     !programName ||
@@ -349,7 +356,7 @@ export async function createPlatformUniversityApplicationAction(
     note === undefined ||
     (PLATFORM_APPLICATION_EVIDENCE_STATUSES.has(status) && !evidence)
   ) {
-    safeRedirect("/applications", "invalid", requestId);
+    safeRedirect(targetPath, "invalid", requestId, targetAnchor);
   }
 
   try {
@@ -396,15 +403,15 @@ export async function createPlatformUniversityApplicationAction(
           catalogInstitutionId) ||
       response.data.status !== status
     ) {
-      safeRedirect("/applications", "unavailable", requestId);
+      safeRedirect(targetPath, "unavailable", requestId, targetAnchor);
     }
   } catch {
-    safeRedirect("/applications", "unavailable", requestId);
+    safeRedirect(targetPath, "unavailable", requestId, targetAnchor);
   }
 
   revalidatePath("/applications");
   revalidatePath(`/clients/${studentCaseId}`);
-  safeRedirect("/applications", "saved");
+  safeRedirect(targetPath, "saved", null, targetAnchor);
 }
 
 export async function changePlatformUniversityApplicationAction(
@@ -413,22 +420,32 @@ export async function changePlatformUniversityApplicationAction(
   const actor = await requirePlatformApplicationsActor();
   const applicationId = requiredUuid(form, "application_id");
   const requestId = requiredUuid(form, "request_id");
+  const returnToCaseValue = value(form, "return_to_case");
+  const returnToCase = returnToCaseValue === "1";
+  const studentCaseId = returnToCase
+    ? requiredUuid(form, "student_case_id")
+    : null;
   const status = applicationStatus(value(form, "status"));
   const evidence = optionalBoundedText(form, "evidence_reference", 1000);
   const note = optionalBoundedText(form, "note", 1000);
-  const targetPath = applicationId
-    ? `/applications/${applicationId}`
-    : "/applications";
+  const targetPath = returnToCase && studentCaseId
+    ? `/clients/${studentCaseId}`
+    : applicationId
+      ? `/applications/${applicationId}`
+      : "/applications";
+  const targetAnchor = returnToCase ? "applications" as const : undefined;
 
   if (
     !applicationId ||
     !requestId ||
+    (returnToCaseValue !== "" && !returnToCase) ||
+    (returnToCase && !studentCaseId) ||
     !status ||
     evidence === undefined ||
     note === undefined ||
     (PLATFORM_APPLICATION_EVIDENCE_STATUSES.has(status) && !evidence)
   ) {
-    safeRedirect(targetPath, "invalid", requestId);
+    safeRedirect(targetPath, "invalid", requestId, targetAnchor);
   }
 
   try {
@@ -452,15 +469,19 @@ export async function changePlatformUniversityApplicationAction(
       parsePlatformAdmissionsUuid(
         response.data.university_application_id,
       ) !== applicationId ||
+      (returnToCase &&
+        parsePlatformAdmissionsUuid(response.data.student_case_id) !==
+          studentCaseId) ||
       response.data.status !== status
     ) {
-      safeRedirect(targetPath, "unavailable", requestId);
+      safeRedirect(targetPath, "unavailable", requestId, targetAnchor);
     }
   } catch {
-    safeRedirect(targetPath, "unavailable", requestId);
+    safeRedirect(targetPath, "unavailable", requestId, targetAnchor);
   }
 
   revalidatePath("/applications");
+  if (studentCaseId) revalidatePath(`/clients/${studentCaseId}`);
   revalidatePath(targetPath);
-  safeRedirect(targetPath, "saved");
+  safeRedirect(targetPath, "saved", null, targetAnchor);
 }

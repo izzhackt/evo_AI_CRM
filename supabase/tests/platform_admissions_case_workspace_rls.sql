@@ -139,12 +139,15 @@ WHERE student_case.source_key = 'synthetic:amocrm:lead:org-b'
 SELECT
   membership.id AS admin_a_membership_id,
   membership.current_bundle_id AS admin_a_bundle_id,
+  bundle.version AS admin_a_bundle_version,
   profile.id AS admin_a_profile_id,
   profile.auth_user_id AS admin_a_user_id,
   profile.access_version AS admin_a_access_version
 FROM platform.organization_memberships AS membership
 JOIN platform.profiles AS profile
   ON profile.id = membership.profile_id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
 WHERE membership.organization_id = :'org_a_id'
   AND membership.status = 'active'
   AND membership."current_role" = 'admin'
@@ -153,11 +156,16 @@ LIMIT 1
 \gset
 
 SELECT
+  membership.id AS admin_b_membership_id,
+  membership.current_bundle_id AS admin_b_bundle_id,
+  bundle.version AS admin_b_bundle_version,
   profile.auth_user_id AS admin_b_user_id,
   profile.access_version AS admin_b_access_version
 FROM platform.organization_memberships AS membership
 JOIN platform.profiles AS profile
   ON profile.id = membership.profile_id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
 WHERE membership.organization_id = :'org_b_id'
   AND membership.status = 'active'
   AND membership."current_role" = 'admin'
@@ -167,30 +175,43 @@ LIMIT 1
 
 SELECT
   profile.auth_user_id AS curator_a_user_id,
-  profile.access_version AS curator_a_access_version
+  profile.access_version AS curator_a_access_version,
+  membership.current_bundle_id AS curator_a_bundle_id,
+  bundle.version AS curator_a_bundle_version
 FROM platform.organization_memberships AS membership
 JOIN platform.profiles AS profile
   ON profile.id = membership.profile_id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
 WHERE membership.organization_id = :'org_a_id'
   AND membership.id = :'curator_a_membership_id'
 \gset
 
 SELECT
   profile.auth_user_id AS curator_b_user_id,
-  profile.access_version AS curator_b_access_version
+  profile.access_version AS curator_b_access_version,
+  membership.current_bundle_id AS curator_b_bundle_id,
+  bundle.version AS curator_b_bundle_version
 FROM platform.organization_memberships AS membership
 JOIN platform.profiles AS profile
   ON profile.id = membership.profile_id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
 WHERE membership.organization_id = :'org_a_id'
   AND membership.id = :'curator_b_membership_id'
 \gset
 
 SELECT
+  membership.id AS previous_curator_membership_id,
+  membership.current_bundle_id AS previous_curator_bundle_id,
+  bundle.version AS previous_curator_bundle_version,
   profile.auth_user_id AS previous_curator_user_id,
   profile.access_version AS previous_curator_access_version
 FROM platform.organization_memberships AS membership
 JOIN platform.profiles AS profile
   ON profile.id = membership.profile_id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
 WHERE membership.organization_id = :'org_a_id'
   AND profile.auth_user_id = '10000000-0000-4000-8000-000000000003'
 \gset
@@ -210,11 +231,16 @@ LIMIT 1
 \gset
 
 SELECT
+  membership.id AS sales_a_membership_id,
+  membership.current_bundle_id AS sales_a_bundle_id,
+  bundle.version AS sales_a_bundle_version,
   profile.auth_user_id AS sales_a_user_id,
   profile.access_version AS sales_a_access_version
 FROM platform.organization_memberships AS membership
 JOIN platform.profiles AS profile
   ON profile.id = membership.profile_id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
 WHERE membership.organization_id = :'org_a_id'
   AND profile.auth_user_id = '42000000-0000-4000-8000-000000000002'
 \gset
@@ -235,14 +261,6 @@ ORDER BY visa.id
 LIMIT 1
 \gset
 
-SELECT document_version.id AS version_a_id
-FROM platform.document_versions AS document_version
-WHERE document_version.organization_id = :'org_a_id'
-  AND document_version.student_case_id = :'case_a_id'
-ORDER BY document_version.id
-LIMIT 1
-\gset
-
 \set u7_inactive_user '89000000-0000-4000-8000-000000000101'
 \set u7_inactive_profile '89000000-0000-4000-8000-000000000201'
 \set u7_inactive_membership '89000000-0000-4000-8000-000000000301'
@@ -259,8 +277,12 @@ LIMIT 1
 \set u7_sales_app_request '89000000-0000-4000-8000-000000000508'
 \set u7_sales_visa_request '89000000-0000-4000-8000-000000000509'
 \set u7_sales_review_request '89000000-0000-4000-8000-00000000050a'
+\set u7_curator_no_case_bundle '89000000-0000-4000-8000-000000000601'
+\set u7_document_requirement '89000000-0000-4000-8000-000000000701'
+\set u7_document_slot '89000000-0000-4000-8000-000000000702'
+\set version_a_id '89000000-0000-4000-8000-000000000703'
 
-INSERT INTO auth.users (id, email, raw_app_meta_data)
+INSERT INTO auth.users (id, email, raw_user_meta_data)
 VALUES (
   :'u7_inactive_user',
   'u7-inactive-curator@example.invalid',
@@ -296,6 +318,81 @@ INSERT INTO platform.organization_memberships (
   'curator',
   '00000000-0000-4000-8000-000000001303'
 );
+
+INSERT INTO platform.document_requirements (
+  id,
+  organization_id,
+  target_country,
+  target_degree,
+  program_direction,
+  checklist_version,
+  requirement_key,
+  label,
+  instructions,
+  status,
+  created_by_membership_id
+) VALUES (
+  :'u7_document_requirement',
+  :'org_a_id',
+  'U7 synthetic country',
+  'U7 synthetic degree',
+  'U7 synthetic program',
+  890001,
+  'u7.synthetic.review',
+  'U7 synthetic review document',
+  'Synthetic local-only document for the U7 base review proof.',
+  'active',
+  :'admin_a_membership_id'
+);
+
+INSERT INTO platform.document_slots (
+  id,
+  organization_id,
+  student_case_id,
+  requirement_id,
+  status,
+  created_by_membership_id
+) VALUES (
+  :'u7_document_slot',
+  :'org_a_id',
+  :'case_a_id',
+  :'u7_document_requirement',
+  'required',
+  :'admin_a_membership_id'
+);
+
+INSERT INTO platform.document_versions (
+  id,
+  organization_id,
+  student_case_id,
+  document_slot_id,
+  version_no,
+  original_filename,
+  declared_mime_type,
+  byte_size,
+  sha256_hex,
+  ingest_evidence_ref,
+  submitted_by_membership_id
+) VALUES (
+  :'version_a_id',
+  :'org_a_id',
+  :'case_a_id',
+  :'u7_document_slot',
+  1,
+  'u7-synthetic-review.pdf',
+  'application/pdf',
+  1024,
+  repeat('7', 64),
+  'synthetic:u7:document-review',
+  :'curator_a_membership_id'
+);
+
+UPDATE platform.document_slots
+SET
+  status = 'submitted',
+  current_version_id = :'version_a_id',
+  current_version_no = 1
+WHERE id = :'u7_document_slot';
 
 INSERT INTO platform.student_case_updates (
   id,
@@ -458,43 +555,71 @@ SELECT jsonb_build_object(
   'sub', :'admin_a_user_id',
   'role', 'authenticated',
   'platform_role', 'admin',
-  'platform_access_version', :'admin_a_access_version'::BIGINT
+  'platform_access_version', :'admin_a_access_version'::BIGINT,
+  'platform_organization_id', :'org_a_id',
+  'platform_membership_id', :'admin_a_membership_id',
+  'platform_bundle_id', :'admin_a_bundle_id',
+  'platform_bundle_version', :'admin_a_bundle_version'::INTEGER
 )::TEXT AS admin_a_claims,
 jsonb_build_object(
   'sub', :'admin_b_user_id',
   'role', 'authenticated',
   'platform_role', 'admin',
-  'platform_access_version', :'admin_b_access_version'::BIGINT
+  'platform_access_version', :'admin_b_access_version'::BIGINT,
+  'platform_organization_id', :'org_b_id',
+  'platform_membership_id', :'admin_b_membership_id',
+  'platform_bundle_id', :'admin_b_bundle_id',
+  'platform_bundle_version', :'admin_b_bundle_version'::INTEGER
 )::TEXT AS admin_b_claims,
 jsonb_build_object(
   'sub', :'curator_a_user_id',
   'role', 'authenticated',
   'platform_role', 'curator',
-  'platform_access_version', :'curator_a_access_version'::BIGINT
+  'platform_access_version', :'curator_a_access_version'::BIGINT,
+  'platform_organization_id', :'org_a_id',
+  'platform_membership_id', :'curator_a_membership_id',
+  'platform_bundle_id', :'curator_a_bundle_id',
+  'platform_bundle_version', :'curator_a_bundle_version'::INTEGER
 )::TEXT AS curator_a_claims,
 jsonb_build_object(
   'sub', :'curator_b_user_id',
   'role', 'authenticated',
   'platform_role', 'curator',
-  'platform_access_version', :'curator_b_access_version'::BIGINT
+  'platform_access_version', :'curator_b_access_version'::BIGINT,
+  'platform_organization_id', :'org_a_id',
+  'platform_membership_id', :'curator_b_membership_id',
+  'platform_bundle_id', :'curator_b_bundle_id',
+  'platform_bundle_version', :'curator_b_bundle_version'::INTEGER
 )::TEXT AS curator_b_claims,
 jsonb_build_object(
   'sub', :'previous_curator_user_id',
   'role', 'authenticated',
   'platform_role', 'curator',
-  'platform_access_version', :'previous_curator_access_version'::BIGINT
+  'platform_access_version', :'previous_curator_access_version'::BIGINT,
+  'platform_organization_id', :'org_a_id',
+  'platform_membership_id', :'previous_curator_membership_id',
+  'platform_bundle_id', :'previous_curator_bundle_id',
+  'platform_bundle_version', :'previous_curator_bundle_version'::INTEGER
 )::TEXT AS previous_curator_claims,
 jsonb_build_object(
   'sub', :'sales_a_user_id',
   'role', 'authenticated',
   'platform_role', 'sales',
-  'platform_access_version', :'sales_a_access_version'::BIGINT
+  'platform_access_version', :'sales_a_access_version'::BIGINT,
+  'platform_organization_id', :'org_a_id',
+  'platform_membership_id', :'sales_a_membership_id',
+  'platform_bundle_id', :'sales_a_bundle_id',
+  'platform_bundle_version', :'sales_a_bundle_version'::INTEGER
 )::TEXT AS sales_a_claims,
 jsonb_build_object(
   'sub', :'u7_inactive_user',
   'role', 'authenticated',
   'platform_role', 'curator',
-  'platform_access_version', 1
+  'platform_access_version', 1,
+  'platform_organization_id', :'org_a_id',
+  'platform_membership_id', :'u7_inactive_membership',
+  'platform_bundle_id', :'curator_a_bundle_id',
+  'platform_bundle_version', :'curator_a_bundle_version'::INTEGER
 )::TEXT AS inactive_curator_claims
 \gset
 
@@ -547,6 +672,64 @@ SET ROLE authenticated;
 SELECT pg_temp.u7_attempt_task_workspace(:'case_a_id') AS u7_curator_task_workspace \gset
 SELECT pg_temp.u7_attempt_activity(:'case_a_id', 100) AS u7_curator_activity \gset
 RESET ROLE;
+
+INSERT INTO platform.role_bundle_versions (
+  id,
+  role,
+  version,
+  status,
+  label,
+  published_at
+) VALUES (
+  :'u7_curator_no_case_bundle',
+  'curator',
+  890001,
+  'draft',
+  'U7 curator without case.read.full',
+  NULL
+);
+
+INSERT INTO platform.role_bundle_permissions (
+  bundle_id,
+  bundle_role,
+  permission_key
+) VALUES (
+  :'u7_curator_no_case_bundle',
+  'curator',
+  'organization.read'
+);
+
+UPDATE platform.role_bundle_versions
+SET
+  status = 'published',
+  published_at = statement_timestamp()
+WHERE id = :'u7_curator_no_case_bundle';
+
+UPDATE platform.organization_memberships
+SET current_bundle_id = :'u7_curator_no_case_bundle'
+WHERE id = :'curator_a_membership_id';
+
+SELECT jsonb_build_object(
+  'sub', :'curator_a_user_id',
+  'role', 'authenticated',
+  'platform_role', 'curator',
+  'platform_access_version', :'curator_a_access_version'::BIGINT,
+  'platform_organization_id', :'org_a_id',
+  'platform_membership_id', :'curator_a_membership_id',
+  'platform_bundle_id', :'u7_curator_no_case_bundle',
+  'platform_bundle_version', 890001
+)::TEXT AS curator_a_missing_case_permission_claims
+\gset
+
+SET request.jwt.claims TO :'curator_a_missing_case_permission_claims';
+SET ROLE authenticated;
+SELECT pg_temp.u7_attempt_task_workspace(:'case_a_id') AS u7_missing_permission_task_workspace \gset
+SELECT pg_temp.u7_attempt_activity(:'case_a_id', 100) AS u7_missing_permission_activity \gset
+RESET ROLE;
+
+UPDATE platform.organization_memberships
+SET current_bundle_id = :'curator_a_bundle_id'
+WHERE id = :'curator_a_membership_id';
 
 SET request.jwt.claims TO :'sales_a_claims';
 SET ROLE authenticated;
@@ -648,6 +831,14 @@ SELECT pg_temp.assert_true(
   AND (:'u7_curator_task_workspace'::JSONB ->> 'ok')::BOOLEAN
   AND (:'u7_curator_activity'::JSONB ->> 'ok')::BOOLEAN,
   'admin and assigned curator must read both U7 RPCs'
+);
+
+SELECT pg_temp.assert_true(
+  NOT (:'u7_missing_permission_task_workspace'::JSONB ->> 'ok')::BOOLEAN
+  AND NOT (:'u7_missing_permission_activity'::JSONB ->> 'ok')::BOOLEAN
+  AND :'u7_missing_permission_task_workspace'::JSONB ->> 'sqlstate' = '42501'
+  AND :'u7_missing_permission_activity'::JSONB ->> 'sqlstate' = '42501',
+  'assigned curator without case.read.full must be denied by both U7 RPCs'
 );
 
 SELECT pg_temp.assert_true(

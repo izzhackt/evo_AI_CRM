@@ -1641,7 +1641,9 @@ export default async function FixtureClientPage({
                   {connected ? (
                     <>
                       <input type="hidden" name="application_id" value={a.id} />
+                      <input type="hidden" name="student_case_id" value={client.id} />
                       <input type="hidden" name="request_id" value={randomUUID()} />
+                      <input type="hidden" name="return_to_case" value="1" />
                     </>
                   ) : (
                     <>
@@ -1652,7 +1654,7 @@ export default async function FixtureClientPage({
                   <label className={cn(labelCls, "mb-0")}>
                     {t("status")}
                     <select name="status" defaultValue={a.status} className={cn(selectCls, "mt-1 w-full")}>
-                      {(connected ? APP_STATUSES : APP_STATUSES).map((s) => (
+                      {APP_STATUSES.map((s) => (
                         <option key={s} value={s}>{t(`app.${s}`)}</option>
                       ))}
                     </select>
@@ -1703,6 +1705,7 @@ export default async function FixtureClientPage({
                 <>
                   <input type="hidden" name="student_case_id" value={client.id} />
                   <input type="hidden" name="request_id" value={randomUUID()} />
+                  <input type="hidden" name="return_to_case" value="1" />
                 </>
               ) : (
                 <input type="hidden" name="client_id" value={client.id} />
@@ -1986,13 +1989,6 @@ export default async function FixtureClientPage({
                       <input type="hidden" name="request_id" value={task.request_id ?? randomUUID()} />
                       <input
                         type="hidden"
-                        name="assignee_membership_id"
-                        value={task.assignee_membership_id ?? ""}
-                      />
-                      <input type="hidden" name="priority" value={task.priority} />
-                      <input type="hidden" name="due_at" value={task.due_date ?? ""} />
-                      <input
-                        type="hidden"
                         name="student_visible"
                         value={task.student_visible ? "true" : "false"}
                       />
@@ -2016,6 +2012,48 @@ export default async function FixtureClientPage({
                       ))}
                     </select>
                   </label>
+                  {connected ? (
+                    <>
+                      <label className={cn(labelCls, "mb-0")}>
+                        {t("assignee")}
+                        <select
+                          name="assignee_membership_id"
+                          defaultValue={task.assignee_membership_id ?? ""}
+                          required
+                          className={cn(selectCls, "mt-1 w-full")}
+                        >
+                          {taskAssignees.map((assignee) => (
+                            <option key={assignee.id} value={assignee.id}>
+                              {assignee.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className={cn(labelCls, "mb-0")}>
+                        {t("priority")}
+                        <select
+                          name="priority"
+                          defaultValue={task.priority}
+                          className={cn(selectCls, "mt-1 w-full")}
+                        >
+                          {TASK_PRIORITIES.map((priority) => (
+                            <option key={priority} value={priority}>
+                              {t(`prio.${priority}`)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className={cn(labelCls, "mb-0")}>
+                        {t("dueDate")}
+                        <input
+                          name="due_at"
+                          type="date"
+                          defaultValue={task.due_date ?? ""}
+                          className={cn(inputCls, "mt-1 w-full font-mono")}
+                        />
+                      </label>
+                    </>
+                  ) : null}
                   <button type="submit" className={btnGhostCls}>{t("save")}</button>
                 </form>
                 )}

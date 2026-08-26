@@ -67,10 +67,6 @@ type ReviewDocumentInput = Readonly<{
   requestId: string;
 }>;
 
-function value(form: FormData, key: string): string {
-  return String(form.get(key) ?? "").trim();
-}
-
 function singleString(form: FormData, key: string): string | null {
   const values = form.getAll(key);
   if (values.length !== 1 || typeof values[0] !== "string") return null;
@@ -422,11 +418,11 @@ export async function reviewPlatformCaseDocumentVersionAction(
       input.requestId,
     );
   }
-  if (
-    !caseDocuments.some((document) =>
-      isCurrentSubmittedPlatformDocumentVersion(document, input.documentVersionId)
-    )
-  ) {
+  if (!isCurrentSubmittedPlatformDocumentVersion(
+    caseDocuments,
+    input.studentCaseId,
+    input.documentVersionId,
+  )) {
     redirectWithResult(input.studentCaseId, "invalid", "documents", input.requestId);
   }
 

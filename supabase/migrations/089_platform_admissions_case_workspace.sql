@@ -37,10 +37,28 @@ BEGIN
   JOIN platform.student_cases AS student_case
     ON student_case.organization_id = authority.organization_id
     AND student_case.id = p_student_case_id
-  WHERE authority.platform_role = 'admin'
-    OR (
-      authority.platform_role = 'curator'
-      AND student_case.current_curator_membership_id = authority.membership_id
+  WHERE private.platform_has_permission(
+      authority.organization_id,
+      'case.read.full'
+    )
+    AND (
+      (
+        authority.platform_role = 'admin'
+        AND private.platform_has_scope(
+          authority.organization_id,
+          'organization',
+          authority.organization_id
+        )
+      )
+      OR (
+        authority.platform_role = 'curator'
+        AND student_case.current_curator_membership_id = authority.membership_id
+        AND private.platform_has_scope(
+          authority.organization_id,
+          'student_case',
+          student_case.id
+        )
+      )
     );
 
   IF NOT FOUND THEN
@@ -406,6 +424,16 @@ BEGIN
       )
       AND (
         (event.resource_type = 'student_case' AND event.resource_id = actor.student_case_id)
+        OR (
+          event.resource_type = 'student_case_update'
+          AND EXISTS (
+            SELECT 1
+            FROM platform.student_case_updates AS case_update
+            WHERE case_update.organization_id = actor.organization_id
+              AND case_update.id = event.resource_id
+              AND case_update.student_case_id = actor.student_case_id
+          )
+        )
         OR (
           event.resource_type = 'case_task'
           AND EXISTS (

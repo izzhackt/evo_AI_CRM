@@ -1801,7 +1801,7 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
     adminToken,
     "student_cases",
     new URLSearchParams({
-      select: "id,portal_activated_at",
+      select: "id,portal_activated_at,target_country,target_degree,program_direction",
       id: `eq.${createdCaseId}`,
     }),
   );
@@ -1812,6 +1812,84 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   const portalActivatedAtBefore = (
     studentCaseBefore.payload as Array<Record<string, unknown>>
   )[0]?.portal_activated_at ?? null;
+  const studentCaseRoute = (
+    studentCaseBefore.payload as Array<Record<string, unknown>>
+  )[0];
+  const targetCountry = studentCaseRoute?.target_country;
+  const targetDegree = studentCaseRoute?.target_degree;
+  const programDirection = studentCaseRoute?.program_direction;
+  if (
+    typeof targetCountry !== "string" || !targetCountry.trim() ||
+    typeof targetDegree !== "string" || !targetDegree.trim() ||
+    typeof programDirection !== "string" || !programDirection.trim()
+  ) {
+    throw new Error("U7 canonical case route is incomplete for document proof.");
+  }
+
+  const documentRequirement = await platformRpc(
+    adminToken,
+    "create_document_requirement",
+    {
+      p_organization_id: fixture.u6.organizationId,
+      p_target_country: targetCountry,
+      p_target_degree: targetDegree,
+      p_program_direction: programDirection,
+      p_checklist_version: Date.now(),
+      p_requirement_key: `u7.synthetic.${randomUUID().replaceAll("-", "")}`,
+      p_label: "U7 synthetic case review document",
+      p_instructions: "Synthetic local-only document for base review proof.",
+      p_request_id: randomUUID(),
+    },
+  );
+  expect(documentRequirement.status).toBe(200);
+  const documentRequirementId = (
+    documentRequirement.payload as Record<string, unknown>
+  ).document_requirement_id;
+  expect(documentRequirementId).toEqual(expect.any(String));
+  if (typeof documentRequirementId !== "string") {
+    throw new Error("U7 document requirement was not created.");
+  }
+
+  const documentSlot = await platformRpc(adminToken, "create_document_slot", {
+    p_organization_id: fixture.u6.organizationId,
+    p_student_case_id: createdCaseId,
+    p_document_requirement_id: documentRequirementId,
+    p_deadline: null,
+    p_next_action: "Review the synthetic U7 document",
+    p_request_id: randomUUID(),
+  });
+  expect(documentSlot.status).toBe(200);
+  const documentSlotId = (documentSlot.payload as Record<string, unknown>)
+    .document_slot_id;
+  expect(documentSlotId).toEqual(expect.any(String));
+  if (typeof documentSlotId !== "string") {
+    throw new Error("U7 document slot was not created.");
+  }
+
+  const documentVersion = await platformRpc(
+    fixture.p6c.supabaseSecretKey,
+    "record_document_version_metadata",
+    {
+      p_organization_id: fixture.u6.organizationId,
+      p_document_slot_id: documentSlotId,
+      p_submitted_by_membership_id: fixture.u6.admissionsOwnerMembershipId,
+      p_original_filename: "u7-synthetic-case-review.pdf",
+      p_declared_mime_type: "application/pdf",
+      p_byte_size: 4096,
+      p_sha256_hex: "8".repeat(64),
+      p_ingest_evidence_ref: "synthetic-non-storage:u7-browser-proof",
+      p_request_id: randomUUID(),
+    },
+    fixture.p6c.supabaseSecretKey,
+  );
+  expect(documentVersion.status).toBe(200);
+  const documentVersionId = (
+    documentVersion.payload as Record<string, unknown>
+  ).document_version_id;
+  expect(documentVersionId).toEqual(expect.any(String));
+  if (typeof documentVersionId !== "string") {
+    throw new Error("U7 current submitted document version was not created.");
+  }
 
   const curatorContext = await browser.newContext();
   const curatorPage = await curatorContext.newPage();
@@ -1846,15 +1924,24 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   );
   await expect(curatorPage.locator("#tasks")).toContainText("U7 synthetic case task");
 
-  const taskChangeForm = curatorPage.locator(
-    '[data-testid^="platform-case-task-change-form-"]',
-  ).first();
+  const taskChangeForm = curatorPage
+    .locator("#tasks li")
+    .filter({ hasText: "U7 synthetic case task" })
+    .locator('[data-testid^="platform-case-task-change-form-"]');
   await expect(taskChangeForm).toBeVisible();
   await taskChangeForm.locator('select[name="status"]').selectOption("in_progress");
+  await taskChangeForm
+    .locator('select[name="assignee_membership_id"]')
+    .selectOption(assigneeValue);
+  await taskChangeForm.locator('select[name="priority"]').selectOption("urgent");
+  await taskChangeForm.locator('input[name="due_at"]').fill("2026-08-28");
   await taskChangeForm.getByRole("button", { name: /save|сохран/i }).click();
   await expect(curatorPage).toHaveURL(
     new RegExp(`/clients/${createdCaseId}\\?result=saved#tasks$`),
   );
+  await expect(
+    curatorPage.locator("#tasks li").filter({ hasText: "U7 synthetic case task" }),
+  ).toContainText("2026-08-28");
 
   await curatorPage.goto(`${casePath}#updates`);
   const updateForm = curatorPage.getByTestId("platform-case-update-form");
@@ -1886,7 +1973,9 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
     .locator('select[name="status"]')
     .selectOption("preparation");
   await applicationCreateForm.getByRole("button", { name: /\+|add|добав/i }).click();
-  await expect(curatorPage).toHaveURL(/\/applications\?result=saved$/);
+  await expect(curatorPage).toHaveURL(
+    new RegExp(`/clients/${createdCaseId}\\?result=saved#applications$`),
+  );
 
   const applicationPage = await platformRpc(
     adminToken,
@@ -1925,8 +2014,38 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   );
   expect(applicationCreateAuditRows).toHaveLength(1);
 
+  const applicationStatusForm = curatorPage.getByTestId(
+    `platform-case-application-status-form-${createdApplicationId}`,
+  );
+  await expect(applicationStatusForm).toBeVisible();
+  const applicationStatusRequestId = await applicationStatusForm
+    .locator('input[name="request_id"]')
+    .inputValue();
+  await applicationStatusForm.locator('select[name="status"]').selectOption("ready");
+  await applicationStatusForm.getByRole("button", { name: /save|сохран/i }).click();
+  await expect(curatorPage).toHaveURL(
+    new RegExp(`/clients/${createdCaseId}\\?result=saved#applications$`),
+  );
+  const applicationStatusAudit = await safeAuditSearch(adminToken, {
+    actions: ["application.status.change"],
+    resourceTypes: ["university_application"],
+    resourceId: createdApplicationId,
+  });
+  expect(applicationStatusAudit.status).toBe(200);
+  expect(
+    safeAuditRows(applicationStatusAudit.payload).filter(
+      (row) => row.request_id === applicationStatusRequestId,
+    ),
+  ).toHaveLength(1);
+
   await curatorPage.goto(`${casePath}#documents`);
-  const reviewForm = curatorPage.getByTestId("platform-document-review-form");
+  const reviewForm = curatorPage
+    .getByTestId("platform-document-review-form")
+    .filter({
+      has: curatorPage.locator(
+        `input[name="document_version_id"][value="${documentVersionId}"]`,
+      ),
+    });
   await expect(reviewForm).toHaveCount(1);
   await reviewForm.locator('select[name="decision"]').selectOption("correction_required");
   await reviewForm

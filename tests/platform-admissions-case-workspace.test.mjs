@@ -56,20 +56,21 @@ function workspacePayload(overrides = {}) {
     organization_id: ORGANIZATION_ID,
     student_case_id: STUDENT_CASE_ID,
     tasks: [{
-      organization_id: ORGANIZATION_ID,
-      student_case_id: STUDENT_CASE_ID,
       case_task_id: TASK_ID,
       task_type: "u6.document_request_plan",
       title: "Collect first passport scan",
       assignee_membership_id: ASSIGNEE_ID,
       assignee_display_name: "Curator Owner",
       priority: "high",
-      due_at: "2026-08-27",
+      due_at: "2026-08-27T00:00:00+00:00",
       status: "open",
       student_visible: false,
+      creator_membership_id: ASSIGNEE_ID,
+      creator_display_name: "Curator Owner",
+      created_at: "2026-08-26T10:10:00+00:00",
+      updated_at: "2026-08-26T10:10:00+00:00",
     }],
     assignees: [{
-      organization_id: ORGANIZATION_ID,
       membership_id: ASSIGNEE_ID,
       display_name: "Curator Owner",
       role: "curator",
@@ -83,25 +84,27 @@ function activityPayload(overrides = {}) {
     organization_id: ORGANIZATION_ID,
     student_case_id: STUDENT_CASE_ID,
     updates: [{
-      organization_id: ORGANIZATION_ID,
-      student_case_id: STUDENT_CASE_ID,
-      student_case_update_id: UPDATE_ID,
+      case_update_id: UPDATE_ID,
       body: "Student uploaded corrected passport copy",
       source: "operator_note",
       occurred_at: "2026-08-26T10:11:12+06:00",
+      author_membership_id: ASSIGNEE_ID,
       author_display_name: "Curator Owner",
       student_visible: false,
+      created_at: "2026-08-26T04:11:12+00:00",
     }],
     audit: [{
-      organization_id: ORGANIZATION_ID,
-      student_case_id: STUDENT_CASE_ID,
       audit_event_id: AUDIT_ID,
       action: "document.version.review",
-      resource_kind: "document_version",
+      resource_type: "document_version",
+      resource_id: DOCUMENT_VERSION_ID,
+      actor_kind: "user",
       actor_display_name: "Curator Owner",
-      event_at: "2026-08-26T10:12:13+06:00",
-      reason: "Current document version reviewed",
-      change_summary: "Rejected with correction request",
+      created_at: "2026-08-26T10:12:13+06:00",
+      request_id: "00000000-0000-4000-8000-000000000099",
+      reason_code: "document_review_recorded",
+      changed_field_codes: ["review_decision"],
+      change_summary: "document_review_recorded",
     }],
     ...overrides,
   };
@@ -154,10 +157,7 @@ test("U7 activity payload normalization fails closed on cross-case leakage", () 
     () =>
       normalizePlatformAdmissionsCaseActivityPayload(
         activityPayload({
-          audit: [{
-            ...activityPayload().audit[0],
-            student_case_id: "00000000-0000-4000-8000-000000000099",
-          }],
+          student_case_id: "00000000-0000-4000-8000-000000000099",
         }),
         ORGANIZATION_ID,
         STUDENT_CASE_ID,
@@ -239,8 +239,11 @@ globalThis.__platformAdmissionsCaseWorkspaceActionTest = {
   async listDocuments() {
     return this.documents;
   },
-  isCurrentSubmitted(document, documentVersionId) {
-    return document.documentVersionId === documentVersionId && document.slotStatus === "submitted";
+  isCurrentSubmitted(documents, studentCaseId, documentVersionId) {
+    return studentCaseId === STUDENT_CASE_ID && documents.some((document) =>
+      document.documentVersionId === documentVersionId &&
+      document.slotStatus === "submitted"
+    );
   },
   async rpc(functionName, args) {
     this.rpcCalls.push({ functionName, args });

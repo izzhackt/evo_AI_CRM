@@ -35,7 +35,7 @@ export function buildPlatformAdmissionsRedirectUrl(
   path: string,
   outcome: "saved" | "invalid" | "unavailable",
   retryRequestId?: string | null,
-  anchor?: "case-lifecycle",
+  anchor?: "case-lifecycle" | "applications",
 ): string {
   const params = new URLSearchParams({ result: outcome });
   if (retryRequestId) params.set("retry_request_id", retryRequestId);

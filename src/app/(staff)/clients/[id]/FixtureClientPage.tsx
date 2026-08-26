@@ -262,6 +262,7 @@ export type ClientPagePresentationData =
       handoffContext?: PresentationAdmissionsHandoffContext | null;
       updates: readonly PresentationUpdate[];
       taskAssignees: readonly Readonly<{ id: EntityId; name: string }>[];
+      taskMutationScope: "full" | "status_only";
       curators: readonly Readonly<{ id: EntityId; name: string }>[];
       audit: readonly PresentationAuditEvent[];
       snapshot: PresentationSnapshot;
@@ -385,6 +386,7 @@ async function loadFixtureClientPageData(id: string): Promise<ClientPagePresenta
     taskAssignees: queries.listStaff().filter((person) =>
       access.canReceiveClientTask(person, sourceClient),
     ),
+    taskMutationScope: "full",
     curators: user.role === "admin" ? queries.listCurators() : [],
     audit: canManageLifecycle
       ? queries.studentCaseAuditForActor(user, clientId)
@@ -521,6 +523,7 @@ export default async function FixtureClientPage({
     handoffContext = null,
     updates,
     taskAssignees,
+    taskMutationScope,
     curators,
     audit: caseAudit,
     snapshot,
@@ -2037,7 +2040,7 @@ export default async function FixtureClientPage({
                       ))}
                     </select>
                   </label>
-                  {connected ? (
+                  {connected ? taskMutationScope === "full" ? (
                     <>
                       <label className={cn(labelCls, "mb-0")}>
                         {t("assignee")}
@@ -2077,6 +2080,16 @@ export default async function FixtureClientPage({
                           className={cn(inputCls, "mt-1 w-full font-mono")}
                         />
                       </label>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        type="hidden"
+                        name="assignee_membership_id"
+                        value={task.assignee_membership_id ?? ""}
+                      />
+                      <input type="hidden" name="priority" value={task.priority} />
+                      <input type="hidden" name="due_at" value={task.due_date ?? ""} />
                     </>
                   ) : null}
                   <button type="submit" className={btnGhostCls}>{t("save")}</button>

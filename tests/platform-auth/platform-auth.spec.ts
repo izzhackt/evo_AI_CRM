@@ -1958,24 +1958,31 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   );
   await expect(curatorPage.locator("#tasks")).toContainText("U7 synthetic case task");
 
+  await curatorPage.goto(`${casePath}#tasks`);
   const taskChangeForm = curatorPage
     .locator("#tasks li")
     .filter({ hasText: "U7 synthetic case task" })
     .locator('[data-testid^="platform-case-task-change-form-"]');
   await expect(taskChangeForm).toBeVisible();
+  await expect(
+    taskChangeForm.locator('select[name="assignee_membership_id"]'),
+  ).toHaveCount(0);
+  await expect(taskChangeForm.locator('select[name="priority"]')).toHaveCount(0);
+  await expect(taskChangeForm.locator('input[name="due_at"][type="date"]')).toHaveCount(0);
+  await expect(
+    taskChangeForm.locator('input[name="assignee_membership_id"]'),
+  ).toHaveValue(assigneeValue);
+  await expect(taskChangeForm.locator('input[name="priority"]')).toHaveValue("high");
+  await expect(taskChangeForm.locator('input[name="due_at"]')).toHaveValue("2026-08-27");
   await taskChangeForm.locator('select[name="status"]').selectOption("in_progress");
-  await taskChangeForm
-    .locator('select[name="assignee_membership_id"]')
-    .selectOption(assigneeValue);
-  await taskChangeForm.locator('select[name="priority"]').selectOption("urgent");
-  await taskChangeForm.locator('input[name="due_at"]').fill("2026-08-28");
   await taskChangeForm.getByRole("button", { name: /save|сохран/i }).click();
   await expect(curatorPage).toHaveURL(
     new RegExp(`/clients/${createdCaseId}\\?result=saved#tasks$`),
   );
+  await expect(taskChangeForm.locator('select[name="status"]')).toHaveValue("in_progress");
   await expect(
     curatorPage.locator("#tasks li").filter({ hasText: "U7 synthetic case task" }),
-  ).toContainText("2026-08-28");
+  ).toContainText("2026-08-27");
 
   await curatorPage.goto(`${casePath}#updates`);
   const updateForm = curatorPage.getByTestId("platform-case-update-form");
@@ -2053,6 +2060,7 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   );
   expect(applicationCreateAuditRows).toHaveLength(1);
 
+  await curatorPage.goto(`${casePath}#applications`);
   const applicationStatusForm = curatorPage.getByTestId(
     `platform-case-application-status-form-${createdApplicationId}`,
   );

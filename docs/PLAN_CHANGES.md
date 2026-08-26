@@ -11105,3 +11105,25 @@ Official primary documentation revalidated on 2026-08-26:
 - <https://supabase.com/docs/guides/database/functions>
 - <https://supabase.com/docs/guides/database/postgres/row-level-security>
 - <https://supabase.com/docs/guides/api/securing-your-api>
+
+## 2026-08-26 — U7 exact-head follow-up on connected task mutation scope
+
+Date: 2026-08-26, workspace timezone (+06).
+Author: Codex during Issue #384 exact-head CI correction.
+Change type: discovered-contract clarification, no scope expansion.
+
+Reason: the first exact-head CI run for PR #399 proved the connected U7 browser
+flow still tried to let the assigned Curator mutate `assignee_membership_id`,
+`priority` and `due_at` on task update. The underlying SQL contract already
+forbids that path for non-Admin actors and allows only own-task status changes.
+
+Decision:
+
+1. Keep the existing PostgreSQL authorization contract unchanged. Do not widen
+   `platform.change_case_task` for non-Admin actors.
+2. On the connected U7 case page, keep Admin on the full task-change surface
+   and render the assigned Curator path as status-only while preserving the
+   current assignee, priority and due date as hidden submitted values.
+3. Update the U7 browser proof to assert the restricted controls explicitly and
+   synchronize the later application-status step against the post-redirect case
+   page instead of reusing stale form state.

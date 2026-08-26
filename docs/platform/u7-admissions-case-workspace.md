@@ -92,9 +92,10 @@ The existing `/clients/[caseId]` page remains the one Admissions workspace.
   case snapshot and `/clients` queue/search. Direct links keep the same case
   UUID and return not-found/access-denied when the actor loses scope.
 - Tasks show real platform rows, ownership, due date, priority and status.
-  Admin or the assigned Curator can create a task and change its status or
-  assignee through platform server actions. The connected branch never calls
-  `src/lib/actions.ts` task functions.
+  Admin has the full existing task-change surface. The assigned Curator can
+  create a self-assigned task with its priority and due date, then change only
+  that task's status; the UI keeps the other values visible but not editable.
+  The connected branch never calls `src/lib/actions.ts` task functions.
 - Applications expose one inline platform create/status path in the case
   context. Platform-specific field names, evidence requirements and request
   IDs are not translated through the legacy SQLite form.

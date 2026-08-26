@@ -444,6 +444,7 @@ export async function loadPlatformClientPageData(
       id: assignee.membershipId,
       name: assignee.displayName,
     })),
+    taskMutationScope: actor.platformRole === "admin" ? "full" : "status_only",
     curators: curatorOptions.map((curator: (typeof curatorOptions)[number]) => ({
       id: curator.membershipId,
       name: curator.displayName,

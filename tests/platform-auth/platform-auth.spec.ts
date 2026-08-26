@@ -1935,6 +1935,11 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   ).toBeVisible();
 
   const taskCreateForm = curatorPage.getByTestId("platform-case-task-create-form");
+  await curatorPage
+    .locator("#tasks details")
+    .filter({ has: taskCreateForm })
+    .locator("summary")
+    .click();
   await expect(taskCreateForm).toBeVisible();
   const assigneeSelect = taskCreateForm.locator(
     'select[name="assignee_membership_id"]',
@@ -1991,6 +1996,11 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   const applicationCreateForm = curatorPage.getByTestId(
     "platform-case-application-create-form",
   );
+  await curatorPage
+    .locator("#applications details")
+    .filter({ has: applicationCreateForm })
+    .locator("summary")
+    .click();
   await expect(applicationCreateForm).toBeVisible();
   const applicationRequestId = await applicationCreateForm
     .locator('input[name="request_id"]')

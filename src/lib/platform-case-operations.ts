@@ -81,6 +81,22 @@ export function hasExactPlatformCaseOperationFormKeys(
     && expectedKeys.every((key) => form.getAll(key).length === 1);
 }
 
+export async function resolvePlatformFinanceStopFactorWithReconciliation<T>(
+  invoke: () => PromiseLike<T>,
+  isResolved: (response: T) => boolean,
+): Promise<boolean> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await invoke();
+      if (isResolved(response)) return true;
+    } catch {
+      // A committed mutation can lose its transport response. One exact retry
+      // lets the request-id replay contract reconcile that uncertain outcome.
+    }
+  }
+  return false;
+}
+
 function invalidShape(): never {
   throw new PlatformCaseOperationsRepositoryError();
 }

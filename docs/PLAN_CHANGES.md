@@ -11127,3 +11127,160 @@ Decision:
 3. Update the U7 browser proof to assert the restricted controls explicitly and
    synchronize the later application-status step against the post-redirect case
    page instead of reusing stale form state.
+
+## 2026-08-26 — Prepare U8 while the U7 GitHub gate is unavailable
+
+Date: 2026-08-26, workspace timezone (+04).
+Author: Codex following the owner's explicit instruction to keep implementing
+while GitHub Actions recovers.
+Change type: temporary execution-order exception; merge order and evidence
+policy remain unchanged.
+Block-ID: `EVO-LONG-RUN-1-U8-STACKED-PREP-2026-08-26`.
+Stacked starting point: U7 PR #399 exact head
+`e388847321017c49fad1c00b21a726a073c8b4cd`.
+
+Reason: GitHub Status incident `y1t7p9fzrlj2` reports a critical Actions outage.
+GitHub did not create an exact-head run for U7 PR #399 even after its verified
+head and one explicit retrigger reached the open PR. The owner explicitly asked
+Codex to continue useful implementation work and finish the GitHub Actions
+gates after the queue recovers.
+
+Decision:
+
+1. Prepare U8/#385 in a separate stacked worktree and branch based on the exact
+   U7 head so implementation can use the canonical U7 case workspace without
+   editing the dirty root checkout or creating a parallel product path.
+2. Do not merge U8, claim its dependency satisfied or close Issue #385 before
+   U7 is protected-merged and exact-main CI is green.
+3. After U7 merges, rebind U8 to the resulting current `origin/main`, rerun all
+   affected real repository/disposable-local gates and treat the resulting U8
+   head as the only valid exact-head evidence.
+4. This exception waives only idle implementation time. It does not waive the
+   U7 or U8 exact-head CI, independent review, `--match-head-commit`, exact-main
+   verification, authorization, tenant isolation or production/provider
+   boundaries.
+
+## 2026-08-26 — Activate U8 minimal payment control on the stacked U7 case
+
+Date: 2026-08-26, workspace timezone (+04).
+Author: Codex implementing Issue #385 on the owner-approved stacked branch.
+Change type: active-slice implementation contract, canonical finance visibility
+and queue-scope clarification.
+Block-ID: `EVO-LONG-RUN-1-U8-FINANCE-CONTROL-2026-08-26`.
+Starting stacked baseline: U7 PR #399 exact head
+`e388847321017c49fad1c00b21a726a073c8b4cd`.
+
+Reason: U7 now exposes the connected canonical Admissions case and already
+reads case-scoped finance rows, but it still shows only obligation counts and a
+generic payments section. Issue #385 requires a truthful operational payment
+schedule, overdue state, explicit finance stop-factor visibility, bounded
+history and manager-facing queue context without reviving the old standalone
+finance surface, inventing hidden conventions or broadening the pilot role
+model.
+
+Decision:
+
+1. Treat the connected `/clients/[caseId]` page plus canonical Admissions and
+   application queues as the U8 staff surfaces. Do not make legacy
+   `src/lib/queries`, `/finance` or SQLite-backed fixture behavior the source
+   of truth for this slice.
+2. Reuse the existing canonical finance schema and permissions from migration
+   043: `platform.payment_obligations`, `platform.payment_events`,
+   `platform.stop_factors`, `platform.stop_factor_events`,
+   `platform.case_finance_summaries()`, `platform.create_stop_factor(...)` and
+   `platform.resolve_stop_factor(...)`. Add only the minimum new read-model,
+   adapter and UI wiring needed for the connected branch and relevant manager
+   queues.
+3. Preserve the accepted pilot authority model: Finance remains a module, not a
+   fourth pilot role. Stop-factor management remains behind the approved Admin
+   bundle permission `finance.stop.manage`; payment confirmation also keeps the
+   later individual `finance.first.payment.confirm` gate. Job title, hidden
+   client controls or route access never substitute for the live database
+   permission check.
+4. U8 must show which downstream work is blocked and why using explicit
+   stop-factor/category/resolution facts derived from canonical rows. It must
+   not invent browser-only blocked state, hidden operator conventions, external
+   reminders, amoCRM writes or WhatsApp sends.
+5. Queue visibility for U8 is bounded to the places where an Admissions manager
+   already works: the canonical case shell and relevant connected queue pages.
+   Any new queue signal must come from hardened platform read models and remain
+   organization-scoped, deterministic and fail closed on foreign/malformed
+   input.
+6. Follow the official Supabase function, RLS and API-security guidance checked
+   on 2026-08-26: `SECURITY DEFINER` read models use an empty `search_path`,
+   schema-qualified names, explicit execute revocation/grants, and internal
+   tenant/permission checks. Table grants, RLS and RPC authorization remain
+   complementary controls; none substitutes for the others. The source links
+   and implementation implications are recorded in
+   `docs/platform/u8-payment-control-stop-factor.md`.
+
+Validation impact: add or update disposable-local PostgreSQL/RLS coverage for
+allowed and denied stop-factor create/resolve paths, cross-organization finance
+read denial, and blocked-downstream interpretation. Add unit/UI coverage for
+connected case normalization, queue visibility and bounded finance history.
+Keep the existing repository/disposable-local migration, lint, typecheck, build
+and exact-head/exact-main gates.
+
+Reviewer notes: reject any implementation that routes U8 through the legacy
+`/finance` page, broadens the pilot role model, hides the true blocked reason,
+or claims queue/permission behavior without SQL-backed proof.
+
+## 2026-08-26 — Bind U8 queue finance state to the visible application cases
+
+Date: 2026-08-26, workspace timezone (+04).
+Author: Codex after independent read-only U8 review.
+Change type: correctness hardening inside the active U8 scope.
+Block-ID: `EVO-LONG-RUN-1-U8-EXACT-QUEUE-SCOPE-2026-08-26`.
+
+Reason: the first queue draft independently loaded the global top 100 finance
+cases and joined that partial result onto the current application page. A valid
+application case outside that independent top-100 slice would then receive
+zero/null presenter defaults, hiding its real overdue or active-stop state.
+
+Decision:
+
+1. The connected application queue derives the unique canonical Student Case
+   IDs from its current page before requesting finance-control rows.
+2. `platform.staff_finance_control_queue(...)` accepts an optional bounded,
+   duplicate-free UUID array and applies that filter before authorization,
+   aggregation, ordering and limit.
+3. The server adapter sends the exact page IDs and rejects any response row for
+   a case outside that requested set. Empty pages make no finance RPC.
+4. Keep the global bounded mode for other manager-queue consumers, but never
+   treat absence from an unrelated global top-N slice as a clean finance state
+   for a visible application row.
+
+Validation impact: extend unit and disposable PostgreSQL/RLS coverage for exact
+RPC arguments, duplicate/foreign case rejection and filtered tenant/case scope;
+retain the full authenticated queue browser proof.
+
+## 2026-08-26 — Rebind U8 to the verified U7 exact-main head
+
+Date: 2026-08-26, workspace timezone (+04).
+Author: Codex after the protected U7 merge and exact-main gate.
+Change type: dependency-gate completion; no U8 scope expansion.
+Block-ID: `EVO-LONG-RUN-1-U8-EXACT-MAIN-REBIND-2026-08-26`.
+
+Evidence:
+
+- U7/#384 exact PR head `31c80887d6cac0918384ff19b6881f42b5297329`
+  passed required run `33002197132`.
+- PR #399 was squash-merged with `--match-head-commit`; exact main became
+  `bbc78a376b017a1d068c20ccce7978a128858371`.
+- Exact-main run `33004299957` completed successfully for Changed range, Main
+  CRM, EVO Inbox and EVO Lead Agent.
+
+Decision:
+
+1. Rebase the single reviewed U8 implementation commit directly onto exact
+   main `bbc78a376b017a1d068c20ccce7978a128858371` before opening its PR.
+2. Preserve the accepted U8 boundary: canonical Supabase payment visibility,
+   explicit finance stop factors, bounded history and connected case/queue UI;
+   no provider, production, legacy SQLite, `/finance` authority or Student
+   Portal activation.
+3. Rerun the complete disposable-local proof and normal code-quality checks on
+   the rebound head, then use the same exact-head, match-head and exact-main
+   sequence for #385.
+
+Validation impact: dependency evidence changes from stacked/local to exact
+main. Functional acceptance and negative authorization cases are unchanged.

@@ -74,6 +74,10 @@ export type ApplicationsPresenterCopy = Readonly<{
   documents: string;
   openTasks: string;
   pendingPayments: string;
+  overduePayments: string;
+  blocked: string;
+  reason: string;
+  nextAction: string;
   university: string;
   payments: string;
   save: string;
@@ -115,6 +119,10 @@ export function createApplicationsPresenterCopy(
     documents: t("documents"),
     openTasks: t("openTasks"),
     pendingPayments: t("pendingPayments"),
+    overduePayments: t("overduePayments"),
+    blocked: t("platformHealthBlocked"),
+    reason: t("platformDecisionReason"),
+    nextAction: t("nextAction"),
     university: t("university"),
     payments: t("payments"),
     save: t("save"),
@@ -156,6 +164,11 @@ export type ApplicationQueuePresenterRow = Readonly<{
   openDocumentCount: number;
   openTaskCount: number;
   pendingPaymentCount: number;
+  overduePaymentCount?: number;
+  activeStopFactorCount?: number;
+  financeBlockedAction?: string | null;
+  financeStopReason?: string | null;
+  financeStopNextAction?: string | null;
   needsAttention: boolean;
   readyForDecision: boolean;
   statusHiddenFields: readonly Readonly<{
@@ -226,6 +239,49 @@ function ResultBanner({ banner }: { banner?: PresenterBanner }) {
       tone={banner.tone}
     />
   ) : null;
+}
+
+function FinanceControlSignal({
+  row,
+  copy,
+}: {
+  row: ApplicationQueuePresenterRow;
+  copy: ApplicationsPresenterCopy;
+}) {
+  const overduePaymentCount = row.overduePaymentCount ?? 0;
+  const activeStopFactorCount = row.activeStopFactorCount ?? 0;
+  if (overduePaymentCount === 0 && activeStopFactorCount === 0) return null;
+
+  return (
+    <div
+      className="mt-2 rounded-nav border border-danger/30 bg-danger/5 px-2.5 py-2 text-[11.5px] text-danger"
+      data-testid={activeStopFactorCount > 0
+        ? `platform-finance-queue-stop-${row.studentCaseId}`
+        : undefined}
+    >
+      {overduePaymentCount > 0 ? (
+        <p className="font-semibold">
+          {copy.overduePayments}: {overduePaymentCount}
+        </p>
+      ) : null}
+      {activeStopFactorCount > 0 ? (
+        <div className={cn(overduePaymentCount > 0 && "mt-1.5")}>
+          <p className="font-bold">
+            {copy.payments} · {copy.blocked}: {activeStopFactorCount} ·{" "}
+            {row.financeBlockedAction ?? "—"}
+          </p>
+          <p className="mt-1">
+            <span className="font-semibold">{copy.reason}:</span>{" "}
+            {row.financeStopReason ?? "—"}
+          </p>
+          <p className="mt-1">
+            <span className="font-semibold">{copy.nextAction}:</span>{" "}
+            {row.financeStopNextAction ?? "—"}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function QueueStatusForm({
@@ -566,6 +622,7 @@ export function ApplicationsQueuePresenter({
                     </p>
                   </div>
                 </div>
+                <FinanceControlSignal row={row} copy={model.copy} />
                 {model.queueStatusAction ? (
                   <div className="mt-4 border-t border-border pt-3">
                     <QueueStatusForm
@@ -647,6 +704,7 @@ export function ApplicationsQueuePresenter({
                           {row.openTaskCount} {model.copy.openTasks} ·{" "}
                           {row.pendingPaymentCount} {model.copy.payments}
                         </div>
+                        <FinanceControlSignal row={row} copy={model.copy} />
                       </td>
                       <td
                         className={cn(

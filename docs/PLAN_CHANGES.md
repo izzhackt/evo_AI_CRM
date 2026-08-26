@@ -11044,3 +11044,64 @@ slice. It performs no managed Supabase apply, production deployment, provider
 call, real-customer mutation, WAHA call/configuration, WhatsApp send or amoCRM
 write. U7/#384 remains unstarted until U6 is merged with match-head protection
 and verified by exact-main CI.
+
+## 2026-08-26 — Activate U7 canonical Admissions case workspace
+
+Date: 2026-08-26, workspace timezone (+06).
+Author: Codex implementing Issue #384 after exact-main verification of merged
+U6/#383 PR #398.
+Change type: active-slice implementation contract, connected-case read model
+and legacy-isolation boundary.
+Block-ID: `EVO-LONG-RUN-1-U7-CASE-WORKSPACE-2026-08-26`.
+Starting repository baseline: GitHub `origin/main` at
+`1b8a806429f6164f873848770a838096816bab7a`.
+
+Reason: U6 now creates or reuses exactly one canonical Admissions case and
+preserves the Sales handoff, but the connected case page still presents only
+starter-task placeholders and synthetic/empty activity. Existing platform
+operations for applications, documents, visa, tasks and staff updates are not
+yet all wired into that single case context. U7 must finish that connected
+workspace without reviving legacy SQLite or pre-empting U8 Finance behavior.
+
+Decision:
+
+1. Keep `/clients/[caseId]` and `platform.student_cases.id` as the single case
+   workspace and identity. Reuse the connected page, existing case snapshot,
+   U6 context, applications, documents and visa repositories; create no
+   parallel Admissions app or module-specific case copy.
+2. Add migration 089 with one bounded case-task projection and one bounded
+   case-activity/audit projection. Re-resolve live actor, organization and case
+   scope inside hardened RPCs; return whitelisted action/change fields, never
+   raw audit JSON, evidence references, storage paths or another case's data.
+3. Reuse existing idempotent platform mutations for case tasks, staff updates,
+   one application track, base internal document review and one visa
+   milestone. Add only the repository/server-action/UI adapters required by
+   the connected page. The U7 document adapter must call
+   `platform.review_document_version` directly and must not call the Portal
+   notification wrapper or depend on its feature flag. Never call the fixture
+   SQLite actions from the connected branch.
+4. Show real task ownership/due dates/status plus actor/time/change history on
+   the existing case page. Keep search/back-navigation/direct links bound to
+   the same canonical UUID and fail closed when actor scope is missing.
+5. Preserve current Admin/assigned-Curator database authorization. Sales keeps
+   only its bounded post-handoff summary. Cross-case, cross-organization,
+   inactive, unrelated and malformed reads/mutations are denied in SQL for
+   task, document, application and visa paths and proven independently of
+   hidden UI controls. Internal document review must prove zero Portal
+   notification/activation side effects.
+6. Start browser proof from a real U6 handoff and operate task, application,
+   document review and visa milestone on that same case. Prove bounded
+   timeline/audit visibility and direct-link denial while keeping all U1-U6,
+   migration, security, lint, typecheck and build gates green.
+
+Execution boundary: this is the only active U7/#384 repository/disposable-local
+slice. It changes no Finance stop-factor/payment semantics, Student Portal,
+provider, WAHA, WhatsApp, amoCRM, production deployment, managed Supabase or
+customer data. U8/#385 remains unstarted until U7 is merged with exact-head,
+match-head and exact-main evidence.
+
+Official primary documentation revalidated on 2026-08-26:
+
+- <https://supabase.com/docs/guides/database/functions>
+- <https://supabase.com/docs/guides/database/postgres/row-level-security>
+- <https://supabase.com/docs/guides/api/securing-your-api>

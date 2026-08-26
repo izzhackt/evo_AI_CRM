@@ -938,12 +938,10 @@ export function createPlatformGeminiProposalHandler(
         evidence: begun.context.retrieval.evidence,
       });
     } catch (error) {
-      const code =
-        error instanceof PlatformGeminiProposalValidationError
-          ? error.code
-          : "invalid_proposal";
       return finishHumanReview(
-        code,
+        error instanceof PlatformGeminiProposalValidationError
+          ? "malformed_output"
+          : "malformed_output",
         providerResult.status,
         providerResult.interactionRef,
         privateResponseEvidence(providerResult.outputText),

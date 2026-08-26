@@ -2591,6 +2591,475 @@ test("U8 controls overdue payment stops and finance history without provider wri
   expectLegacyDatabaseUntouched();
 });
 
+test("U9 reviews synthetic Gemini proposals with human-only authority and tenant isolation", async ({
+  browser,
+}) => {
+  test.skip(
+    process.env.EVO_U9_BROWSER_PROOF !== "1",
+    "U9 feature proof runs in its isolated browser invocation.",
+  );
+  test.setTimeout(180_000);
+  expectLegacyDatabaseUntouched();
+
+  const target = fixture.p3c.mutations.aiRequest;
+  const reviewerToken = await localAccessToken(
+    fixture.identities.crossOrgAdmin,
+  );
+  const reviewerAuthority = await platformRpc(
+    reviewerToken,
+    "current_actor_authority",
+    {},
+  );
+  expect(reviewerAuthority.status).toBe(200);
+  expect(reviewerAuthority.payload).toEqual([
+    expect.objectContaining({
+      organization_id: target.organizationId,
+      membership_id: expect.any(String),
+      platform_role: "admin",
+    }),
+  ]);
+  const reviewerMembershipId = (
+    reviewerAuthority.payload as Array<Record<string, unknown>>
+  )[0]?.membership_id;
+  if (typeof reviewerMembershipId !== "string") {
+    throw new Error("U9 proof could not resolve the reviewer membership ID.");
+  }
+
+  const serviceToken = fixture.p5b.supabaseSecretKey;
+  const proposalPath = `/whatsapp/${target.conversationId}`;
+  const externalBrowserWrites: string[] = [];
+  const localOrigins = new Set([
+    new URL(appOrigin).origin,
+    new URL(fixture.apiUrl).origin,
+  ]);
+
+  const messagesBefore = await platformRpc(
+    reviewerToken,
+    "staff_conversation_message_page",
+    {
+      p_organization_id: target.organizationId,
+      p_conversation_id: target.conversationId,
+      p_limit: 201,
+      p_before_created_at: null,
+      p_before_message_id: null,
+    },
+  );
+  expect(messagesBefore.status).toBe(200);
+  expect(messagesBefore.payload).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        message_id: target.sourceMessageId,
+        direction: "inbound",
+      }),
+    ]),
+  );
+  const workflowBefore = await platformRpc(
+    reviewerToken,
+    "staff_conversation_workflow",
+    {
+      p_organization_id: target.organizationId,
+      p_conversation_id: target.conversationId,
+    },
+  );
+  expect(workflowBefore.status).toBe(200);
+  const amoCrmBefore = await platformRpc(
+    reviewerToken,
+    "staff_amocrm_canonical_context",
+    {
+      p_organization_id: target.organizationId,
+      p_conversation_id: target.conversationId,
+    },
+  );
+  expect(amoCrmBefore.status).toBe(200);
+
+  function outboxProjection(payload: unknown) {
+    const row = Array.isArray(payload) && payload[0]
+      && typeof payload[0] === "object"
+      ? payload[0] as Record<string, unknown>
+      : {};
+    return Object.fromEntries(
+      Object.entries(row).filter(([key]) => key.startsWith("latest_outbox_")),
+    );
+  }
+
+  async function seedProposal(sequence: "accepted" | "edited" | "rejected") {
+    const begin = await platformRpc(
+      serviceToken,
+      "begin_gemini_proposal",
+      {
+        p_organization_id: target.organizationId,
+        p_conversation_id: target.conversationId,
+        p_source_message_id: target.sourceMessageId,
+        p_request_id: randomUUID(),
+        p_model_ref: "gemini-3.7-flash",
+        p_schema_version: 2,
+        p_prompt_policy_version: "u9-gemini-human-review-v1",
+      },
+      serviceToken,
+    );
+    expect(begin.status).toBe(200);
+    const beginRow = Array.isArray(begin.payload)
+      && begin.payload[0]
+      && typeof begin.payload[0] === "object"
+      ? begin.payload[0] as Record<string, unknown>
+      : null;
+    const proposalRequestId = beginRow?.proposal_request_id;
+    if (typeof proposalRequestId !== "string") {
+      throw new Error(`U9 ${sequence} proposal request ID was unavailable.`);
+    }
+    const context = beginRow?.context;
+    const allowedCitations = context
+      && typeof context === "object"
+      && Array.isArray((context as Record<string, unknown>).allowed_citations)
+      ? (context as { allowed_citations: unknown[] }).allowed_citations
+      : [];
+    expect(allowedCitations.length).toBeGreaterThan(0);
+    const citation = allowedCitations[0];
+    expect(citation).toEqual(
+      expect.objectContaining({
+        knowledge_key: expect.any(String),
+        knowledge_version: expect.any(Number),
+        evidence_ordinal: expect.any(Number),
+      }),
+    );
+
+    const payload = {
+      schema_version: 2,
+      language: "ru",
+      intent: "documents",
+      confidence: 84,
+      risk: "medium",
+      handoff_required: true,
+      handoff_reasons: ["missing_evidence"],
+      citations: [citation],
+      memory_changes: [],
+      qualification: {
+        status: "collecting",
+        completeness: 70,
+        missing_fact_keys: ["preferred_program"],
+        notes: "Synthetic U9 browser evidence requires staff review.",
+      },
+      reply_text: `U9 ${sequence} synthetic reply for staff review.`,
+      summary: `U9 ${sequence} synthetic proposal summary.`,
+      next_action: `Complete the ${sequence} human decision in the CRM.`,
+      draft_internal_note: "Synthetic local proof; do not send externally.",
+      missing_document_suggestion: "Passport copy",
+      deadline_warning: null,
+      limitations: [
+        `U9 ${sequence} is synthetic local evidence, not provider proof.`,
+      ],
+      uncertainty: "medium",
+    } as const;
+    const finish = await platformRpc(
+      serviceToken,
+      "finish_gemini_proposal",
+      {
+        p_organization_id: target.organizationId,
+        p_conversation_id: target.conversationId,
+        p_source_message_id: target.sourceMessageId,
+        p_proposal_request_id: proposalRequestId,
+        p_outcome: "proposal_ready",
+        p_failure_code: null,
+        p_prompt_text: `Synthetic local U9 ${sequence} proposal contract proof`,
+        p_provider_interaction_ref: `local-u9-${sequence}-${randomUUID()}`,
+        p_provider_status: "completed",
+        p_response_json: payload,
+      },
+      serviceToken,
+    );
+    expect(finish.status).toBe(200);
+    expect(finish.payload).toEqual([
+      expect.objectContaining({
+        proposal_request_id: proposalRequestId,
+        outcome: "proposal_ready",
+        human_review_required: true,
+        autonomous_authority: false,
+        provider_proof_state: "blocked",
+      }),
+    ]);
+    return { proposalRequestId, payload, citation };
+  }
+
+  async function proposalProjection() {
+    const result = await platformRpc(
+      reviewerToken,
+      "staff_gemini_proposal",
+      {
+        p_organization_id: target.organizationId,
+        p_conversation_id: target.conversationId,
+      },
+    );
+    expect(result.status).toBe(200);
+    return result.payload;
+  }
+
+  async function reviewHistory() {
+    const result = await platformRpc(
+      reviewerToken,
+      "staff_gemini_proposal_reviews",
+      {
+        p_organization_id: target.organizationId,
+        p_conversation_id: target.conversationId,
+        p_limit: 20,
+      },
+    );
+    expect(result.status).toBe(200);
+    return result.payload as Array<Record<string, unknown>>;
+  }
+
+  const reviewerContext = await browser.newContext();
+  reviewerContext.on("request", (request) => {
+    if (["GET", "HEAD", "OPTIONS"].includes(request.method())) return;
+    const requestUrl = new URL(request.url());
+    if (!localOrigins.has(requestUrl.origin)) {
+      externalBrowserWrites.push(`${request.method()} ${requestUrl.origin}`);
+    }
+  });
+  const reviewerPage = await reviewerContext.newPage();
+  await login(reviewerPage, fixture.identities.crossOrgAdmin);
+  await expect(reviewerPage).toHaveURL(/\/sales$/);
+
+  const accepted = await seedProposal("accepted");
+  const acceptedProjectionBefore = await proposalProjection();
+  await reviewerPage.goto(proposalPath);
+  const proposalCard = reviewerPage.getByTestId(
+    "platform-gemini-proposal-card",
+  );
+  await expect(proposalCard).toBeVisible();
+  await expect(
+    reviewerPage.getByTestId("platform-gemini-proposal-guidance"),
+  ).toContainText(accepted.payload.summary);
+  await expect(
+    reviewerPage.getByTestId("platform-gemini-proposal-guidance"),
+  ).toContainText(accepted.payload.limitations[0]);
+  await expect(proposalCard).toContainText("gemini-3.7-flash");
+  await expect(proposalCard).toContainText("v2");
+  await expect(proposalCard).toContainText(target.sourceMessageId);
+  const acceptedCitation = accepted.citation as Record<string, unknown>;
+  await expect(
+    reviewerPage.getByTestId("platform-gemini-proposal-citations"),
+  ).toContainText(
+    `${acceptedCitation.knowledge_key} · v${acceptedCitation.knowledge_version} · #${acceptedCitation.evidence_ordinal}`,
+  );
+
+  const acceptedForm = reviewerPage
+    .getByTestId("platform-gemini-proposal-review")
+    .locator('form:has(input[name="decision"][value="accepted"])');
+  await expect(acceptedForm).toHaveCount(1);
+  const acceptedReviewRequestId = await acceptedForm
+    .locator('input[name="review_request_id"]')
+    .inputValue();
+  await acceptedForm.locator('button[type="submit"]').click();
+  await expect(reviewerPage).toHaveURL(
+    new RegExp(
+      `/whatsapp/${target.conversationId}\\?u9_result=saved#gemini-review$`,
+    ),
+  );
+  const acceptedDecision = reviewerPage
+    .getByTestId("platform-gemini-proposal-review")
+    .locator('[data-review-decision="accepted"]');
+  await expect(acceptedDecision).toBeVisible();
+  const acceptedReviews = await reviewHistory();
+  const acceptedReview = acceptedReviews.find(
+    (row) => row.proposal_request_id === accepted.proposalRequestId,
+  );
+  expect(acceptedReview).toEqual(
+    expect.objectContaining({
+      decision: "accepted",
+      reviewed_payload: accepted.payload,
+      reviewed_by_membership_id: reviewerMembershipId,
+      reviewed_by_name: expect.any(String),
+      reviewed_at: expect.any(String),
+    }),
+  );
+  await expect(acceptedDecision).toContainText(
+    String(acceptedReview?.reviewed_by_name),
+  );
+  await expect(acceptedDecision).toContainText(
+    String(acceptedReview?.reviewed_at).slice(0, 4),
+  );
+  expect(await proposalProjection()).toEqual(acceptedProjectionBefore);
+
+  const acceptedAudit = await safeAuditSearch(reviewerToken, {
+    actions: ["ai.proposal.review"],
+    resourceTypes: ["gemini_proposal_review"],
+    resourceId: String(acceptedReview?.review_id),
+  });
+  expect(acceptedAudit.status).toBe(200);
+  expect(
+    safeAuditRows(acceptedAudit.payload).filter(
+      (row) => row.request_id === acceptedReviewRequestId,
+    ),
+  ).toEqual([
+    expect.objectContaining({
+      action: "ai.proposal.review",
+      resource_type: "gemini_proposal_review",
+      resource_id: acceptedReview?.review_id,
+      actor_kind: "user",
+      created_at: expect.any(String),
+    }),
+  ]);
+
+  const edited = await seedProposal("edited");
+  await reviewerPage.goto(proposalPath);
+  const editReviewCard = reviewerPage.getByTestId(
+    "platform-gemini-proposal-review",
+  );
+  const editDetails = editReviewCard.locator("details");
+  await editDetails.locator("summary").click();
+  const editForm = editDetails.locator(
+    'form:has(input[name="decision"][value="edited"])',
+  );
+  const editedSummary = "U9 staff-edited summary with explicit human control.";
+  const editedReply = "U9 staff-edited reply that remains unsent.";
+  const editedLimitation = "Human edit remains a local proposal, not provider or send proof.";
+  await editForm.locator('textarea[name="summary"]').fill(editedSummary);
+  await editForm.locator('textarea[name="reply_text"]').fill(editedReply);
+  await editForm
+    .locator('textarea[name="limitations"]')
+    .fill(editedLimitation);
+  await editForm.locator('select[name="uncertainty"]').selectOption("high");
+  await editForm
+    .locator('input[name="reason"]')
+    .fill("U9 staff corrected the synthetic wording");
+  await editForm.locator('button[type="submit"]').click();
+  await expect(reviewerPage).toHaveURL(
+    new RegExp(
+      `/whatsapp/${target.conversationId}\\?u9_result=saved#gemini-review$`,
+    ),
+  );
+  const editedReview = (await reviewHistory()).find(
+    (row) => row.proposal_request_id === edited.proposalRequestId,
+  );
+  expect(editedReview).toEqual(
+    expect.objectContaining({
+      decision: "edited",
+      reason: "U9 staff corrected the synthetic wording",
+      reviewed_by_membership_id: reviewerMembershipId,
+      reviewed_at: expect.any(String),
+      reviewed_payload: expect.objectContaining({
+        schema_version: 2,
+        summary: editedSummary,
+        reply_text: editedReply,
+        limitations: [editedLimitation],
+        uncertainty: "high",
+        citations: edited.payload.citations,
+        qualification: edited.payload.qualification,
+      }),
+    }),
+  );
+  await expect(
+    reviewerPage
+      .getByTestId("platform-gemini-proposal-review")
+      .locator('[data-review-decision="edited"]'),
+  ).toContainText(String(editedReview?.reviewed_by_name));
+
+  const rejected = await seedProposal("rejected");
+  const rejectedProjectionBefore = await proposalProjection();
+  const deniedReviewBody = {
+    p_organization_id: target.organizationId,
+    p_conversation_id: target.conversationId,
+    p_proposal_request_id: rejected.proposalRequestId,
+    p_review_request_id: randomUUID(),
+    p_decision: "rejected",
+    p_reviewed_payload: null,
+    p_reason: "Denied U9 review attempt",
+  } as const;
+  const unauthorizedToken = await localAccessToken(fixture.identities.student);
+  const unauthorizedReview = await platformRpc(
+    unauthorizedToken,
+    "review_gemini_proposal",
+    deniedReviewBody,
+  );
+  expect(unauthorizedReview.status).toBe(403);
+  const crossOrgToken = await localAccessToken(fixture.identities.admin);
+  const crossOrgReview = await platformRpc(
+    crossOrgToken,
+    "review_gemini_proposal",
+    {
+      ...deniedReviewBody,
+      p_review_request_id: randomUUID(),
+    },
+  );
+  expect(crossOrgReview.status).toBe(403);
+
+  await reviewerPage.goto(proposalPath);
+  const rejectForm = reviewerPage
+    .getByTestId("platform-gemini-proposal-review")
+    .locator('form:has(input[name="decision"][value="rejected"])');
+  await rejectForm
+    .locator('input[name="reason"]')
+    .fill("U9 staff rejected the synthetic proposal");
+  await rejectForm.locator('button[type="submit"]').click();
+  await expect(reviewerPage).toHaveURL(
+    new RegExp(
+      `/whatsapp/${target.conversationId}\\?u9_result=saved#gemini-review$`,
+    ),
+  );
+  const finalReviews = await reviewHistory();
+  const rejectedReview = finalReviews.find(
+    (row) => row.proposal_request_id === rejected.proposalRequestId,
+  );
+  expect(rejectedReview).toEqual(
+    expect.objectContaining({
+      decision: "rejected",
+      reviewed_payload: null,
+      reviewed_payload_sha256: null,
+      reason: "U9 staff rejected the synthetic proposal",
+      reviewed_by_membership_id: reviewerMembershipId,
+      reviewed_at: expect.any(String),
+    }),
+  );
+  expect(finalReviews).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ decision: "accepted" }),
+      expect.objectContaining({ decision: "edited" }),
+      expect.objectContaining({ decision: "rejected" }),
+    ]),
+  );
+  await expect(
+    reviewerPage.getByTestId("platform-gemini-review-history"),
+  ).toContainText(String(rejectedReview?.reviewed_by_name));
+  expect(await proposalProjection()).toEqual(rejectedProjectionBefore);
+
+  const messagesAfter = await platformRpc(
+    reviewerToken,
+    "staff_conversation_message_page",
+    {
+      p_organization_id: target.organizationId,
+      p_conversation_id: target.conversationId,
+      p_limit: 201,
+      p_before_created_at: null,
+      p_before_message_id: null,
+    },
+  );
+  expect(messagesAfter).toEqual(messagesBefore);
+  const workflowAfter = await platformRpc(
+    reviewerToken,
+    "staff_conversation_workflow",
+    {
+      p_organization_id: target.organizationId,
+      p_conversation_id: target.conversationId,
+    },
+  );
+  expect(workflowAfter.status).toBe(200);
+  expect(outboxProjection(workflowAfter.payload)).toEqual(
+    outboxProjection(workflowBefore.payload),
+  );
+  const amoCrmAfter = await platformRpc(
+    reviewerToken,
+    "staff_amocrm_canonical_context",
+    {
+      p_organization_id: target.organizationId,
+      p_conversation_id: target.conversationId,
+    },
+  );
+  expect(amoCrmAfter).toEqual(amoCrmBefore);
+  expect(externalBrowserWrites).toEqual([]);
+  await reviewerContext.close();
+  expectLegacyDatabaseUntouched();
+});
+
 test("route-level auth failures surface an explicit login error", async ({
   page,
 }) => {
@@ -7517,9 +7986,9 @@ test("P5F3 persists and reconciles one synthetic autonomous reply in the accepte
         p_conversation_id: conversationId,
         p_source_message_id: sourceMessageId,
         p_request_id: randomUUID(),
-        p_model_ref: "gemini-3.5-flash",
-        p_schema_version: 1,
-        p_prompt_policy_version: "p5f2-consultative-sales-v2",
+        p_model_ref: "gemini-3.7-flash",
+        p_schema_version: 2,
+        p_prompt_policy_version: "u9-gemini-human-review-v1",
       },
       serviceToken,
     );
@@ -7543,7 +8012,7 @@ test("P5F3 persists and reconciles one synthetic autonomous reply in the accepte
         p_provider_interaction_ref: `local-contract-${randomUUID()}`,
         p_provider_status: "completed",
         p_response_json: {
-          schema_version: 1,
+          schema_version: 2,
           language: "en",
           intent: "greeting",
           confidence: 96,
@@ -7559,6 +8028,13 @@ test("P5F3 persists and reconciles one synthetic autonomous reply in the accepte
             notes: null,
           },
           reply_text: replyText,
+          summary: "Synthetic P5F3 proposal remains blocked for staff review.",
+          next_action: "Keep the autonomous lane paused until a human decides.",
+          draft_internal_note: "Local contract proof only; no provider was called.",
+          missing_document_suggestion: null,
+          deadline_warning: null,
+          limitations: ["Synthetic local evidence cannot prove provider execution."],
+          uncertainty: "low",
         },
       },
       serviceToken,

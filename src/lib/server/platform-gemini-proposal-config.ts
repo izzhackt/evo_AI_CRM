@@ -1,8 +1,8 @@
 import "server-only";
 
 import {
-  PLATFORM_GEMINI_PROPOSAL_MODEL,
-  PLATFORM_GEMINI_PROPOSAL_SCHEMA_VERSION,
+  PLATFORM_GEMINI_PROPOSAL_CURRENT_MODEL,
+  PLATFORM_GEMINI_PROPOSAL_CURRENT_SCHEMA_VERSION,
   type PlatformGeminiFailureCode,
 } from "../platform-gemini-proposals.ts";
 
@@ -14,10 +14,10 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 const MIN_TIMEOUT_MS = 1_000;
 const MAX_TIMEOUT_MS = 60_000;
 
-export { PLATFORM_GEMINI_PROPOSAL_MODEL };
+export { PLATFORM_GEMINI_PROPOSAL_CURRENT_MODEL as PLATFORM_GEMINI_PROPOSAL_MODEL };
 
 export const PLATFORM_GEMINI_PROPOSAL_PROMPT_POLICY_VERSION =
-  "p5f2-consultative-sales-v2" as const;
+  "u9-gemini-human-review-v1" as const;
 export const PLATFORM_GEMINI_PROPOSAL_MAX_OUTPUT_TOKENS = 2_048;
 export const PLATFORM_GEMINI_PROPOSAL_MAX_REQUEST_BODY_BYTES = 4_096;
 
@@ -27,7 +27,10 @@ export type PlatformGeminiProposalDisabledConfig = Readonly<{
 
 type ProviderUnavailable = Readonly<{
   ready: false;
-  failureCode: Extract<PlatformGeminiFailureCode, "configuration_missing">;
+  failureCode: Extract<
+    PlatformGeminiFailureCode,
+    "configuration_missing" | "privacy_not_approved"
+  >;
 }>;
 
 type ProviderReady = Readonly<{
@@ -40,8 +43,8 @@ export type PlatformGeminiProposalEnabledConfig = Readonly<{
   supabaseUrl: string;
   supabaseSecretKey: string;
   hmacSecret: string;
-  modelRef: typeof PLATFORM_GEMINI_PROPOSAL_MODEL;
-  schemaVersion: typeof PLATFORM_GEMINI_PROPOSAL_SCHEMA_VERSION;
+  modelRef: typeof PLATFORM_GEMINI_PROPOSAL_CURRENT_MODEL;
+  schemaVersion: typeof PLATFORM_GEMINI_PROPOSAL_CURRENT_SCHEMA_VERSION;
   promptPolicyVersion: typeof PLATFORM_GEMINI_PROPOSAL_PROMPT_POLICY_VERSION;
   timeoutMs: number;
   maxOutputTokens: typeof PLATFORM_GEMINI_PROPOSAL_MAX_OUTPUT_TOKENS;
@@ -141,6 +144,7 @@ function readProvider(
 }> {
   const configuredModel = environment.EVO_PLATFORM_GEMINI_PROPOSAL_MODEL;
   const apiKey = environment.EVO_PLATFORM_GEMINI_API_KEY;
+  const privacyApproved = environment.EVO_PLATFORM_GEMINI_REVIEW_PRIVACY_APPROVED;
   const timeoutValue =
     environment.EVO_PLATFORM_GEMINI_PROPOSAL_TIMEOUT_MS ??
     String(DEFAULT_TIMEOUT_MS);
@@ -158,11 +162,25 @@ function readProvider(
     timeoutMs >= MIN_TIMEOUT_MS &&
     timeoutMs <= MAX_TIMEOUT_MS;
 
-  if (
-    configuredModel !== PLATFORM_GEMINI_PROPOSAL_MODEL ||
-    !validApiKey ||
-    !validTimeout
-  ) {
+  if (configuredModel !== PLATFORM_GEMINI_PROPOSAL_CURRENT_MODEL) {
+    return {
+      provider: Object.freeze({
+        ready: false,
+        failureCode: "configuration_missing",
+      }),
+      timeoutMs: validTimeout ? timeoutMs : DEFAULT_TIMEOUT_MS,
+    };
+  }
+  if (privacyApproved !== "1") {
+    return {
+      provider: Object.freeze({
+        ready: false,
+        failureCode: "privacy_not_approved",
+      }),
+      timeoutMs: validTimeout ? timeoutMs : DEFAULT_TIMEOUT_MS,
+    };
+  }
+  if (!validApiKey || !validTimeout) {
     return {
       provider: Object.freeze({
         ready: false,
@@ -194,8 +212,8 @@ export function loadPlatformGeminiProposalConfig(
     hmacSecret: readHmacSecret(
       environment.EVO_PLATFORM_GEMINI_PROPOSAL_HMAC_SECRET,
     ),
-    modelRef: PLATFORM_GEMINI_PROPOSAL_MODEL,
-    schemaVersion: PLATFORM_GEMINI_PROPOSAL_SCHEMA_VERSION,
+    modelRef: PLATFORM_GEMINI_PROPOSAL_CURRENT_MODEL,
+    schemaVersion: PLATFORM_GEMINI_PROPOSAL_CURRENT_SCHEMA_VERSION,
     promptPolicyVersion: PLATFORM_GEMINI_PROPOSAL_PROMPT_POLICY_VERSION,
     timeoutMs: provider.timeoutMs,
     maxOutputTokens: PLATFORM_GEMINI_PROPOSAL_MAX_OUTPUT_TOKENS,

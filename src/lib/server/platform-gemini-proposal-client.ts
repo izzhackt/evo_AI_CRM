@@ -6,7 +6,7 @@ import type { PlatformGeminiFailureCode } from "../platform-gemini-proposals.ts"
 import { PLATFORM_GEMINI_PROPOSAL_JSON_SCHEMA } from "./platform-gemini-proposal-contract.ts";
 
 export type PlatformGeminiProposalProviderInput = Readonly<{
-  model: "gemini-3.5-flash";
+  model: "gemini-3.5-flash" | "gemini-3.7-flash";
   prompt: string;
   store: false;
   background: false;
@@ -67,10 +67,10 @@ export class PlatformGeminiProposalProviderError extends Error {
     | "provider_timeout"
     | "provider_rate_limited"
     | "provider_authentication_failed"
+    | "provider_forbidden"
     | "provider_unavailable"
     | "provider_rejected"
-    | "provider_error"
-    | "output_truncated"
+    | "malformed_output"
   >;
   readonly interactionRef: string | null;
   readonly providerStatus: PlatformGeminiProviderEvidenceStatus;
@@ -108,8 +108,13 @@ function mapError(error: unknown): never {
     return providerError("provider_timeout", { providerStatus: "transport_error" });
   }
   if (error instanceof ApiError) {
-    if (error.status === 401 || error.status === 403) {
+    if (error.status === 401) {
       return providerError("provider_authentication_failed", {
+        providerStatus: "transport_error",
+      });
+    }
+    if (error.status === 403) {
+      return providerError("provider_forbidden", {
         providerStatus: "transport_error",
       });
     }
@@ -129,7 +134,9 @@ function mapError(error: unknown): never {
       });
     }
   }
-  return providerError("provider_error", { providerStatus: "transport_error" });
+  return providerError("provider_unavailable", {
+    providerStatus: "transport_error",
+  });
 }
 
 function cleanReference(value: unknown): string | null {
@@ -176,7 +183,7 @@ export function createPlatformGeminiProposalProvider(
             },
             generation_config: {
               max_output_tokens: request.maxOutputTokens,
-              thinking_level: "medium",
+              thinking_level: "low",
               tool_choice: request.toolChoice,
             },
           },
@@ -190,12 +197,12 @@ export function createPlatformGeminiProposalProvider(
         const interactionRef = cleanReference(interaction.id);
         const providerStatus = cleanStatus(interaction.status);
         if (providerStatus === null) {
-          return providerError("provider_rejected", {
+          return providerError("malformed_output", {
             providerStatus: "local_error",
           });
         }
         if (interactionRef === null) {
-          return providerError("provider_rejected", {
+          return providerError("malformed_output", {
             providerStatus: "local_error",
           });
         }
@@ -210,7 +217,7 @@ export function createPlatformGeminiProposalProvider(
           providerStatus === "incomplete" ||
           providerStatus === "budget_exceeded"
         ) {
-          return providerError("output_truncated", {
+          return providerError("provider_rejected", {
             interactionRef,
             providerStatus,
           });

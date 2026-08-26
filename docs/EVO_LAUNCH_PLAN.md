@@ -72,12 +72,16 @@ owns the audited canonical handoff described in
 `docs/platform/u6-sales-admissions-handoff.md`. U7/#384 merged in PR #399 at
 `bbc78a376b017a1d068c20ccce7978a128858371`; exact-main run `33004299957`
 completed successfully. Its workspace contract remains
-`docs/platform/u7-admissions-case-workspace.md`. The active U8/#385
-implementation contract is `docs/platform/u8-payment-control-stop-factor.md`;
-it is rebound directly onto that exact U7 main head and extends connected
-canonical case and queue finance visibility without adding a second case,
-SQLite fallback, a legacy
-`/finance` authority path or Student Portal activation.
+`docs/platform/u7-admissions-case-workspace.md`. U8/#385 merged in PR #400 at
+`e3a681774bcb2c37a7f4c1600341cc16d6282892`; exact-main run `33013322714`
+completed successfully. Its implementation contract is
+`docs/platform/u8-payment-control-stop-factor.md`. The active U9/#386 contract
+is `docs/platform/u9-gemini-human-review.md`; it may extend the existing
+connected Gemini proposal request/result path with schema version 2 and an
+append-only human-review decision. It is rebound onto that exact U8 main head
+and may now proceed through its own independent review, exact-head PR and
+protected merge gates; local evidence cannot be treated as live Gemini or
+production proof.
 
 ## Historical pre-#376 execution record
 

@@ -288,7 +288,7 @@ globalThis.__platformAdmissionsCaseWorkspaceActionTest = {
             body: args.p_body,
             source: args.p_source,
             student_visible: args.p_student_visible,
-            occurred_at: args.p_occurred_at,
+            occurred_at: "2026-08-26T10:11:12+00:00",
           },
           error: null,
         };
@@ -408,6 +408,33 @@ test("U7 actions select canonical RPCs and revalidate only internal case paths",
   assert.equal(
     globalThis.__platformAdmissionsCaseWorkspaceActionTest.rpcCalls[0].functionName,
     "create_case_task",
+  );
+  assert.deepEqual(
+    globalThis.__platformAdmissionsCaseWorkspaceActionTest.revalidated,
+    ["/clients", `/clients/${STUDENT_CASE_ID}`],
+  );
+
+  reset();
+  await assert.rejects(
+    actions.appendPlatformCaseUpdateAction(
+      formData({
+        student_case_id: STUDENT_CASE_ID,
+        body: "Admissions milestone recorded",
+        source: "staff_manual_note",
+        student_visible: "false",
+        occurred_at: "2026-08-26T10:11:12.000Z",
+        request_id: "00000000-0000-4000-8000-000000000012",
+      }),
+    ),
+    /redirect:\/clients\//,
+  );
+  assert.equal(
+    globalThis.__platformAdmissionsCaseWorkspaceActionTest.rpcCalls[0].functionName,
+    "append_student_case_update",
+  );
+  assert.equal(
+    globalThis.__platformAdmissionsCaseWorkspaceActionTest.redirects.at(-1),
+    `/clients/${STUDENT_CASE_ID}?result=saved#updates`,
   );
   assert.deepEqual(
     globalThis.__platformAdmissionsCaseWorkspaceActionTest.revalidated,

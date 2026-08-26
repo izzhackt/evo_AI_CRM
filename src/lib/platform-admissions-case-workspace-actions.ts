@@ -277,6 +277,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function sameTimestamp(value: unknown, expected: string): boolean {
+  return typeof value === "string" &&
+    Number.isFinite(Date.parse(value)) &&
+    Date.parse(value) === Date.parse(expected);
+}
+
 export async function createPlatformCaseTaskAction(form: FormData): Promise<void> {
   const actor = await requirePlatformClientsActor();
   const input = parseCreateTaskForm(form);
@@ -389,7 +395,7 @@ export async function appendPlatformCaseUpdateAction(form: FormData): Promise<vo
       response.data.body !== input.body ||
       response.data.source !== input.source ||
       response.data.student_visible !== input.studentVisible ||
-      response.data.occurred_at !== input.occurredAt ||
+      !sameTimestamp(response.data.occurred_at, input.occurredAt) ||
       !parsePlatformAdmissionsUuid(response.data.author_membership_id)
     ) {
       redirectWithResult(input.studentCaseId, "unavailable", "updates", input.requestId);

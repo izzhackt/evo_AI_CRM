@@ -602,7 +602,6 @@ export async function loadPlatformClientPageData(
       actor.platformRole === "admin" && hasStudentRouteFacts,
     canEditStudentRoute:
       !appliedCountryRequirement
-      && hasStudentRouteFacts
       && (
         actor.platformRole === "admin"
         || actor.platformRole === "sales"

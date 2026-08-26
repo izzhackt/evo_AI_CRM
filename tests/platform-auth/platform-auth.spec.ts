@@ -1944,13 +1944,10 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   const assigneeSelect = taskCreateForm.locator(
     'select[name="assignee_membership_id"]',
   );
-  const assigneeValue = await assigneeSelect
-    .locator("option")
-    .first()
-    .getAttribute("value");
-  if (!assigneeValue) {
-    throw new Error("U7 task form did not expose an assignee option.");
-  }
+  const assigneeValue = fixture.u6.admissionsOwnerMembershipId;
+  await expect(
+    assigneeSelect.locator(`option[value="${assigneeValue}"]`),
+  ).toHaveCount(1);
   await assigneeSelect.selectOption(assigneeValue);
   await taskCreateForm.locator('input[name="title"]').fill("U7 synthetic case task");
   await taskCreateForm.locator('select[name="priority"]').selectOption("high");

@@ -355,7 +355,11 @@ export async function loadPlatformClientPageData(
       }));
   const workspaceUpdates = caseWorkspace?.updates ?? [];
   const workspaceAudit = caseWorkspace?.audit ?? [];
-  const workspaceAssignees = caseWorkspace?.taskAssignees ?? [];
+  const workspaceAssignees = (caseWorkspace?.taskAssignees ?? []).filter(
+    (assignee) =>
+      actor.platformRole === "admin"
+      || assignee.membershipId === actor.membershipId,
+  );
   const inheritedHandoff = handoffState?.inheritedContext ?? null;
   const handoffContext =
     inheritedHandoff &&

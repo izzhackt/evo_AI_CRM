@@ -2102,8 +2102,23 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   await expect(curatorPage).toHaveURL(
     new RegExp(`/clients/${createdCaseId}\\?result=saved#documents$`),
   );
-  await expect(curatorPage.locator("#documents")).toContainText(
-    "U7 synthetic document approval",
+  await expect(reviewForm).toHaveCount(0);
+  const reviewedDocuments = await platformRpc(
+    adminToken,
+    "staff_student_case_documents",
+    { p_student_case_id: createdCaseId },
+  );
+  expect(reviewedDocuments.status).toBe(200);
+  expect(reviewedDocuments.payload).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        document_version_id: documentVersionId,
+        slot_status: "approved",
+        review_decision: "approved",
+        rework_reason: null,
+        reviewed_at: expect.any(String),
+      }),
+    ]),
   );
 
   const studentCaseAfterReview = await platformRows(
@@ -2138,7 +2153,7 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   await expect(curatorPage.locator("body")).not.toContainText(visaEvidence);
 
   await curatorPage.goto(`${casePath}#case-lifecycle`);
-  await expect(curatorPage.locator("#case-lifecycle")).toContainText(
+  await expect(curatorPage.locator("#updates")).toContainText(
     "U7 synthetic update for bounded case history",
   );
   await expect(curatorPage.locator("#case-lifecycle")).toContainText(

@@ -1826,6 +1826,7 @@ export default async function FixtureClientPage({
                           defaultValue="correction_required"
                           className={cn(selectCls, "mt-1 w-full")}
                         >
+                          <option value="approved">{t("doc.approved")}</option>
                           <option value="correction_required">
                             {t("correctionRequired")}
                           </option>

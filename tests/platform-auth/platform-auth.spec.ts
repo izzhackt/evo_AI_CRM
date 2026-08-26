@@ -1890,6 +1890,21 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   if (typeof documentVersionId !== "string") {
     throw new Error("U7 current submitted document version was not created.");
   }
+  const documentValidation = await platformRpc(
+    fixture.p6c.supabaseSecretKey,
+    "attest_document_validation",
+    {
+      p_organization_id: fixture.u6.organizationId,
+      p_document_version_id: documentVersionId,
+      p_integrity_status: "verified",
+      p_malware_status: "clean",
+      p_validation_source: "synthetic-u7-browser-proof",
+      p_evidence_ref: "synthetic:document:validation:u7-browser-proof",
+      p_request_id: randomUUID(),
+    },
+    fixture.p6c.supabaseSecretKey,
+  );
+  expect(documentValidation.status).toBe(200);
 
   const curatorContext = await browser.newContext();
   const curatorPage = await curatorContext.newPage();
@@ -2047,16 +2062,16 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
       ),
     });
   await expect(reviewForm).toHaveCount(1);
-  await reviewForm.locator('select[name="decision"]').selectOption("correction_required");
+  await reviewForm.locator('select[name="decision"]').selectOption("approved");
   await reviewForm
     .locator('input[name="reason"]')
-    .fill("U7 synthetic document correction request");
+    .fill("U7 synthetic document approval");
   await reviewForm.getByTestId("platform-document-review-submit").click();
   await expect(curatorPage).toHaveURL(
     new RegExp(`/clients/${createdCaseId}\\?result=saved#documents$`),
   );
   await expect(curatorPage.locator("#documents")).toContainText(
-    "U7 synthetic document correction request",
+    "U7 synthetic document approval",
   );
 
   const studentCaseAfterReview = await platformRows(

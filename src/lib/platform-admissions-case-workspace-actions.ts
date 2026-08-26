@@ -21,7 +21,11 @@ const TASK_STATUSES = [
   "done",
   "cancelled",
 ] as const;
-const DOCUMENT_REVIEW_DECISIONS = ["correction_required", "rejected"] as const;
+const DOCUMENT_REVIEW_DECISIONS = [
+  "approved",
+  "correction_required",
+  "rejected",
+] as const;
 
 type TaskPriority = (typeof TASK_PRIORITIES)[number];
 type TaskStatus = (typeof TASK_STATUSES)[number];

@@ -36,7 +36,9 @@ An active responsible Sales membership may execute the normal path for its own
 canonical lead. An active Admin in the same organization may execute either an
 allowed normal path or the explicit exceptional path. A role label or client
 control never substitutes for the live tenant, membership, ownership and gate
-checks performed inside the transaction.
+checks performed inside the transaction. Both paths require the lead itself to
+retain an active same-organization Sales owner with an active profile and
+published role bundle; Admin authority does not repair an ownerless lead.
 
 The target Admissions owner is an active same-organization `curator`
 membership. `student_cases.current_curator_membership_id` remains the canonical
@@ -54,13 +56,20 @@ lock for organization plus lead, locks the U5 gate through
 `platform_private.assert_lead_admissions_handoff_gate(...)`, and locks the
 canonical lead before it reads or writes the case.
 
+An existing pending canonical case may be activated instead of duplicated only
+when its organization, lead, client, source key, responsible Sales owner and
+contract-evidence fields still match the locked canonical lead. Any mismatch
+fails closed; U6 does not silently rewrite protected identity or gate evidence.
+
 Each request has a UUID receipt with a normalized payload fingerprint. Reusing
 the request UUID with the same payload returns the committed result. Reusing it
 with different input fails as a conflict. A different request for an already
 completed identical handoff returns the same active case without writing a
 second handoff or task set. Changing owner or reason after completion is not a
 retry and fails closed; existing audited reassignment workflows own later owner
-changes. A closed case is never silently reopened by handoff.
+changes. A completed U6 handoff remains the canonical case for that lead. If it
+is later closed, this RPC neither reopens it nor creates a second lifecycle; a
+future multi-lifecycle policy would require its own explicit audited design.
 
 ## Case and Student Portal separation
 

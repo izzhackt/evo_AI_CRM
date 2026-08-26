@@ -30,6 +30,11 @@ u2_concurrency_worker_a_log="$(mktemp -t evo-u2-concurrency-a.XXXXXX)"
 u2_concurrency_worker_b_log="$(mktemp -t evo-u2-concurrency-b.XXXXXX)"
 u2_concurrency_assert_log="$(mktemp -t evo-u2-concurrency-assert.XXXXXX)"
 u2_concurrency_worker_a_pid=""
+u6c_concurrency_setup_log="$(mktemp -t evo-u6c-concurrency-setup.XXXXXX)"
+u6c_concurrency_worker_a_log="$(mktemp -t evo-u6c-concurrency-a.XXXXXX)"
+u6c_concurrency_worker_b_log="$(mktemp -t evo-u6c-concurrency-b.XXXXXX)"
+u6c_concurrency_assert_log="$(mktemp -t evo-u6c-concurrency-assert.XXXXXX)"
+u6c_concurrency_worker_a_pid=""
 
 cleanup() {
   if [[ -n "$p6c_concurrency_worker_a_pid" ]]; then
@@ -43,6 +48,10 @@ cleanup() {
   if [[ -n "$u2_concurrency_worker_a_pid" ]]; then
     kill "$u2_concurrency_worker_a_pid" >/dev/null 2>&1 || true
     wait "$u2_concurrency_worker_a_pid" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$u6c_concurrency_worker_a_pid" ]]; then
+    kill "$u6c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
+    wait "$u6c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
   fi
   node "$deadline_runner" 30000 docker rm -f "$container_name" \
     >/dev/null 2>&1 || true
@@ -62,7 +71,11 @@ cleanup() {
     "$p8r4_cutover_guard_log" \
     "$u2_concurrency_worker_a_log" \
     "$u2_concurrency_worker_b_log" \
-    "$u2_concurrency_assert_log"
+    "$u2_concurrency_assert_log" \
+    "$u6c_concurrency_setup_log" \
+    "$u6c_concurrency_worker_a_log" \
+    "$u6c_concurrency_worker_b_log" \
+    "$u6c_concurrency_assert_log"
 }
 trap cleanup EXIT
 
@@ -1643,6 +1656,95 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_contract_payment_gate_rls.sql
+  fi
+
+  # Migration 088 adds the audited Sales-to-Admissions handoff over U5's gate,
+  # one canonical active case, immutable handoff evidence and stable starter
+  # tasks without broadening Student Portal access.
+  if [[ "$(basename "$migration")" == 088_* ]]; then
+    if ! docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_sales_admissions_handoff_concurrency_setup.sql \
+      >"$u6c_concurrency_setup_log" 2>&1; then
+      echo "U6 concurrency setup failed." >&2
+      cat "$u6c_concurrency_setup_log" >&2
+      exit 1
+    fi
+
+    node "$deadline_runner" 15000 docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v u6c_hold_lock=1 \
+      -v u6c_hold_seconds=4 \
+      -v u6c_worker_ref=worker-a \
+      -v u6c_request_id=88100000-0000-4000-8000-000000000701 \
+      -f /workspace/supabase/tests/platform_sales_admissions_handoff_concurrency_worker.sql \
+      >"$u6c_concurrency_worker_a_log" 2>&1 &
+    u6c_concurrency_worker_a_pid=$!
+
+    u6c_concurrency_ready=0
+    for _ in {1..50}; do
+      if grep -Fq 'U6C_LOCK_HELD=1' "$u6c_concurrency_worker_a_log" 2>/dev/null; then
+        u6c_concurrency_ready=1
+        break
+      fi
+      sleep 0.1
+    done
+
+    if [[ "$u6c_concurrency_ready" != "1" ]]; then
+      echo "U6 concurrency worker did not reach the overlap marker." >&2
+      cat "$u6c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! node "$deadline_runner" 12000 docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v u6c_hold_lock=0 \
+      -v u6c_hold_seconds=0 \
+      -v u6c_worker_ref=worker-b \
+      -v u6c_request_id=88100000-0000-4000-8000-000000000702 \
+      -f /workspace/supabase/tests/platform_sales_admissions_handoff_concurrency_worker.sql \
+      >"$u6c_concurrency_worker_b_log" 2>&1; then
+      echo "U6 overlapping handoff worker failed." >&2
+      cat "$u6c_concurrency_worker_b_log" >&2
+      exit 1
+    fi
+
+    if ! wait "$u6c_concurrency_worker_a_pid"; then
+      u6c_concurrency_worker_a_pid=""
+      echo "U6 lock-owning handoff worker failed." >&2
+      cat "$u6c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+    u6c_concurrency_worker_a_pid=""
+
+    u6c_worker_a_case="$({
+      sed -n 's/^U6C_CASE_ID=//p' "$u6c_concurrency_worker_a_log"
+    } | tail -1)"
+    u6c_worker_b_case="$({
+      sed -n 's/^U6C_CASE_ID=//p' "$u6c_concurrency_worker_b_log"
+    } | tail -1)"
+    if [[ -z "$u6c_worker_a_case" ]] \
+      || [[ "$u6c_worker_a_case" != "$u6c_worker_b_case" ]]; then
+      echo "U6 concurrent workers returned different case UUIDs." >&2
+      cat "$u6c_concurrency_worker_a_log" >&2
+      cat "$u6c_concurrency_worker_b_log" >&2
+      exit 1
+    fi
+
+    if ! docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v u6c_request_id_a=88100000-0000-4000-8000-000000000701 \
+      -v u6c_request_id_b=88100000-0000-4000-8000-000000000702 \
+      -f /workspace/supabase/tests/platform_sales_admissions_handoff_concurrency_assert.sql \
+      >"$u6c_concurrency_assert_log" 2>&1; then
+      echo "U6 concurrent handoff durable-state assertion failed." >&2
+      cat "$u6c_concurrency_assert_log" >&2
+      exit 1
+    fi
+
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_sales_admissions_handoff_rls.sql
   fi
 done < <(
   cd "$repo_root"

@@ -62,8 +62,8 @@ export type PlatformStudentCaseQueueRow = Readonly<{
   organizationId: string;
   studentCaseId: string;
   studentDisplayName: string;
-  targetCountry: string;
-  targetDegree: string;
+  targetCountry: string | null;
+  targetDegree: string | null;
   programDirection: string | null;
   intake: string | null;
   languageAssumption: string | null;
@@ -103,8 +103,8 @@ export type PlatformStudentCaseSnapshot = PlatformStudentCaseQueueRow &
 export type PlatformSalesHandoffSummary = Readonly<{
   studentCaseId: string;
   studentDisplayName: string;
-  targetCountry: string;
-  targetDegree: string;
+  targetCountry: string | null;
+  targetDegree: string | null;
   state: "active" | "closed";
   assignedCuratorDisplayName: string;
   handoffAt: string;
@@ -115,8 +115,8 @@ export type PlatformApplicationQueueRow = Readonly<{
   universityApplicationId: string;
   studentCaseId: string;
   studentDisplayName: string;
-  targetCountry: string;
-  targetDegree: string;
+  targetCountry: string | null;
+  targetDegree: string | null;
   programDirection: string | null;
   intake: string | null;
   institutionName: string;
@@ -452,8 +452,8 @@ export function normalizePlatformStudentCaseQueueRow(
     organizationId,
     studentCaseId: requiredUuid(value.student_case_id),
     studentDisplayName: requiredText(value.student_display_name, 200),
-    targetCountry: requiredText(value.target_country, 200),
-    targetDegree: requiredText(value.target_degree, 200),
+    targetCountry: optionalText(value.target_country, 200),
+    targetDegree: optionalText(value.target_degree, 200),
     programDirection: optionalText(value.program_direction, 300),
     intake: optionalText(value.intake, 200),
     languageAssumption: optionalText(value.language_assumption, 200),
@@ -541,8 +541,8 @@ export function normalizePlatformSalesHandoffSummary(
   return {
     studentCaseId: requiredUuid(value.case_id),
     studentDisplayName: requiredText(value.student_display_name, 200),
-    targetCountry: requiredText(value.target_country, 200),
-    targetDegree: requiredText(value.target_degree, 200),
+    targetCountry: optionalText(value.target_country, 200),
+    targetDegree: optionalText(value.target_degree, 200),
     state: oneOf(value.case_state, ["active", "closed"] as const),
     assignedCuratorDisplayName: requiredText(
       value.assigned_curator_display_name,
@@ -566,8 +566,8 @@ export function normalizePlatformApplicationQueueRow(
     universityApplicationId: requiredUuid(value.university_application_id),
     studentCaseId: requiredUuid(value.student_case_id),
     studentDisplayName: requiredText(value.student_display_name, 200),
-    targetCountry: requiredText(value.target_country, 200),
-    targetDegree: requiredText(value.target_degree, 200),
+    targetCountry: optionalText(value.target_country, 200),
+    targetDegree: optionalText(value.target_degree, 200),
     programDirection: optionalText(value.program_direction, 300),
     intake: optionalText(value.intake, 200),
     institutionName: requiredText(value.institution_name, 300),

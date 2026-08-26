@@ -4,9 +4,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CanonicalLeadDetail } from "@/components/platform/core/CanonicalLeadDetail";
+import { SalesAdmissionsHandoffCard } from "@/components/platform/sales/SalesAdmissionsHandoffCard";
 import { SalesAdmissionsGateCard } from "@/components/platform/sales/SalesAdmissionsGateCard";
 import { SalesLeadWorkflowDetail } from "@/components/platform/sales/SalesLeadWorkflowDetail";
 import { PageHeader, btnGhostCls } from "@/components/ui";
+import {
+  getPlatformAdmissionsHandoff,
+  PlatformAdmissionsHandoffRepositoryError,
+} from "@/lib/platform-admissions-handoff";
 import { getT, type Locale } from "@/lib/i18n";
 import {
   getPlatformAdmissionsGate,
@@ -30,7 +35,7 @@ export async function ConnectedCanonicalLeadDetail({
     getT(),
     requirePlatformSalesActor(),
   ]);
-  const [workflowResult, ownerResult, gateResult, canonicalLead] = await Promise.all([
+  const [workflowResult, ownerResult, gateResult, handoffResult, canonicalLead] = await Promise.all([
     getPlatformSalesLeadDetail(actor, id)
       .then((lead) => ({ lead, unavailable: false as const }))
       .catch((error: unknown) => {
@@ -52,6 +57,14 @@ export async function ConnectedCanonicalLeadDetail({
       .catch((error: unknown) => {
         if (error instanceof PlatformAdmissionsGateRepositoryError) {
           return { gate: null, unavailable: true as const };
+        }
+        throw error;
+      }),
+    getPlatformAdmissionsHandoff(actor, id)
+      .then((handoff) => ({ handoff, unavailable: false as const }))
+      .catch((error: unknown) => {
+        if (error instanceof PlatformAdmissionsHandoffRepositoryError) {
+          return { handoff: null, unavailable: true as const };
         }
         throw error;
       }),
@@ -103,6 +116,18 @@ export async function ConnectedCanonicalLeadDetail({
           reason={gateResult.unavailable ? "read_failure" : "not_initialized"}
         />
       )}
+      {handoffResult.handoff ? (
+        <SalesAdmissionsHandoffCard
+          handoff={handoffResult.handoff}
+          locale={locale}
+          requestId={randomUUID()}
+        />
+      ) : (
+        <SalesAdmissionsHandoffUnavailable
+          locale={locale}
+          reason={handoffResult.unavailable ? "read_failure" : "not_initialized"}
+        />
+      )}
       {canonicalLead ? (
         <section
           className="border-t border-border pt-6"
@@ -113,6 +138,48 @@ export async function ConnectedCanonicalLeadDetail({
         </section>
       ) : null}
     </div>
+  );
+}
+
+function SalesAdmissionsHandoffUnavailable({
+  locale,
+  reason,
+}: Readonly<{
+  locale: Locale;
+  reason: "read_failure" | "not_initialized";
+}>) {
+  const copy = {
+    ru: {
+      title: "Передача в Admissions недоступна",
+      read_failure:
+        "Не удалось прочитать U6 handoff state. Это fail-closed ошибка чтения: передача не считается разрешённой.",
+      not_initialized:
+        "Для этого канонического лида U6 handoff state ещё не инициализирован. Пока передача не может считаться подтверждённой.",
+    },
+    ky: {
+      title: "Admissions'ке өткөрүү жеткиликсиз",
+      read_failure:
+        "U6 handoff абалы окулган жок. Бул fail-closed окуу катасы: өткөрүү уруксат берилди деп эсептелбейт.",
+      not_initialized:
+        "Бул каноникалык лид үчүн U6 handoff абалы азырынча инициализацияланган эмес. Азырынча өткөрүү тастыкталды деп эсептелбейт.",
+    },
+    en: {
+      title: "Admissions handoff unavailable",
+      read_failure:
+        "The U6 handoff state could not be read. This is a fail-closed read error, so handoff is not considered authorized.",
+      not_initialized:
+        "The U6 handoff state has not been initialized for this canonical lead yet. The handoff cannot be treated as confirmed.",
+    },
+  }[locale];
+
+  return (
+    <section
+      className="rounded-card border border-danger bg-danger-weak px-5 py-4"
+      data-testid={`admissions-handoff-${reason}`}
+    >
+      <h2 className="text-[14.5px] font-semibold text-danger">{copy.title}</h2>
+      <p className="mt-1 text-[13px] leading-5 text-fg-2">{copy[reason]}</p>
+    </section>
   );
 }
 

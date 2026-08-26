@@ -9,6 +9,7 @@ import {
   parsePlatformAdmissionsUuid,
   summarizePlatformStudentCaseApplicationPreview,
 } from "@/lib/platform-admissions";
+import { getPlatformStudentCaseAdmissionsHandoff } from "@/lib/platform-admissions-handoff";
 import {
   assignPlatformStudentCaseCuratorAction,
   changePlatformStudentCaseStateAction,
@@ -75,6 +76,7 @@ type Query = {
 };
 
 type SearchParams = Readonly<Record<string, string | string[] | undefined>>;
+const NOT_SET = "Не указано";
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -147,6 +149,8 @@ export async function loadPlatformClientPageData(
   const canReadContractWorkspace = actor.platformRole === "admin"
     || actor.platformRole === "sales"
     || actor.platformRole === "curator";
+  const canReadAdmissionsHandoffContext = actor.platformRole === "admin"
+    || actor.platformRole === "curator";
   const [
     applicationRows,
     profileSnapshot,
@@ -157,6 +161,7 @@ export async function loadPlatformClientPageData(
     curatorOptions,
     caseVisa,
     caseFinance,
+    handoffState,
   ] = await Promise.all([
     listPlatformApplicationsForStudentCase(actor, studentCase.studentCaseId, {
       pageSize: 100,
@@ -173,15 +178,20 @@ export async function loadPlatformClientPageData(
       : Promise.resolve([]),
     getPlatformCaseVisa(actor, studentCase.studentCaseId),
     listPlatformCaseFinance(actor, studentCase.studentCaseId),
+    canReadAdmissionsHandoffContext
+      ? getPlatformStudentCaseAdmissionsHandoff(actor, studentCase.studentCaseId)
+      : Promise.resolve(null),
   ]);
   if (!assignmentState) return null;
 
   const appliedCountryRequirement =
-    countryRequirementVersions.find((version) => version.isApplied) ?? null;
-  const applications = applicationRows.rows.map((application) => ({
+    countryRequirementVersions.find(
+      (version: (typeof countryRequirementVersions)[number]) => version.isApplied,
+    ) ?? null;
+  const applications = applicationRows.rows.map((application: (typeof applicationRows.rows)[number]) => ({
     id: application.universityApplicationId,
     university: application.institutionName,
-    country: application.targetCountry,
+    country: application.targetCountry ?? NOT_SET,
     program: application.programName,
     deadline: null,
     status: application.status,
@@ -193,7 +203,7 @@ export async function loadPlatformClientPageData(
   );
   const canReviewDocuments = isPlatformP6BPortalNotificationsEnabled()
     && (actor.platformRole === "admin" || actor.platformRole === "curator");
-  const documents = documentRows.map((document) => ({
+  const documents = documentRows.map((document: (typeof documentRows)[number]) => ({
     id: document.documentSlotId,
     name: document.requirementLabel,
     status: document.slotStatus === "submitted"
@@ -245,7 +255,7 @@ export async function loadPlatformClientPageData(
     "payment-create",
     studentCase.studentCaseId,
   );
-  const payments = caseFinance.map((payment) => ({
+  const payments = caseFinance.map((payment: (typeof caseFinance)[number]) => ({
     id: payment.paymentObligationId,
     title: payment.label,
     amount: payment.amountMinor / 100,
@@ -292,7 +302,54 @@ export async function loadPlatformClientPageData(
     studentCase.intake ? `Набор: ${studentCase.intake}` : null,
     studentCase.languageAssumption ? `Язык: ${studentCase.languageAssumption}` : null,
     studentCase.fundingAssumption ? `Финансирование: ${studentCase.fundingAssumption}` : null,
+    handoffState?.handoffMode
+      ? `U6: ${handoffState.handoffMode === "normal" ? "normal" : "exceptional_override"}`
+      : null,
+    handoffState?.handoffReason ? `Причина handoff: ${handoffState.handoffReason}` : null,
   ].filter((value): value is string => Boolean(value)).join(" · ");
+  const tasks = handoffState?.starterTasks.map((task) => ({
+    id: task.taskId,
+    title: task.title,
+    due_date: task.dueAt,
+    status: task.status,
+    priority: task.priority,
+    assignee_name: task.assigneeDisplayName,
+  }));
+  const inheritedHandoff = handoffState?.inheritedContext ?? null;
+  const handoffContext =
+    inheritedHandoff &&
+    handoffState?.handoffMode &&
+    handoffState.handoffReason &&
+    handoffState.handedOffAt &&
+    handoffState.admissionsOwnerDisplayName
+      ? {
+          mode: handoffState.handoffMode,
+          reason: handoffState.handoffReason,
+          handedOffAt: handoffState.handedOffAt,
+          actorName: inheritedHandoff.actorDisplayName,
+          ownerName: handoffState.admissionsOwnerDisplayName,
+          clientName: inheritedHandoff.client.displayName,
+          salesStage: inheritedHandoff.sales.stageKey,
+          nextAction: inheritedHandoff.sales.nextAction,
+          nextActionDueDate: inheritedHandoff.sales.nextActionDueDate,
+          conversations: inheritedHandoff.conversations.map((conversation) => ({
+            id: conversation.conversationId,
+            subject: conversation.subject,
+            queue: conversation.queue,
+            status: conversation.status,
+            updatedAt: conversation.updatedAt,
+          })),
+          provenance: inheritedHandoff.provenance.map((source) => ({
+            id: source.provenanceId,
+            sourceSystem: source.sourceSystem,
+            evidenceType: source.evidenceType,
+            sourceReference: source.sourceReference,
+            observedAt: source.observedAt,
+          })),
+        }
+      : null;
+  const hasStudentRouteFacts =
+    studentCase.targetCountry !== null && studentCase.targetDegree !== null;
   const canManageLifecycle =
     (actor.platformRole === "admin" || actor.platformRole === "curator")
     && (studentCase.state === "active" || studentCase.state === "closed");
@@ -307,8 +364,8 @@ export async function loadPlatformClientPageData(
       email: "",
       phone: null,
       stage: studentCase.state,
-      target_country: studentCase.targetCountry,
-      target_degree: studentCase.targetDegree,
+      target_country: studentCase.targetCountry ?? NOT_SET,
+      target_degree: studentCase.targetDegree ?? NOT_SET,
       case_state: studentCase.state,
       contract_confirmed_at: studentCase.handoff?.createdAt ?? null,
       contract_confirmation_ref: studentCase.handoff?.studentCaseOpHandoffId ?? null,
@@ -324,16 +381,17 @@ export async function loadPlatformClientPageData(
     documents,
     visa: caseVisa ? {
       id: caseVisa.visaCaseId,
-      country: studentCase.targetCountry,
+      country: studentCase.targetCountry ?? NOT_SET,
       status: caseVisa.status,
       appointment_at: null,
       notes: caseVisa.note,
     } : null,
     payments,
-    tasks: [],
+    tasks: tasks ?? [],
+    handoffContext,
     updates: [],
     taskAssignees: [],
-    curators: curatorOptions.map((curator) => ({
+    curators: curatorOptions.map((curator: (typeof curatorOptions)[number]) => ({
       id: curator.membershipId,
       name: curator.displayName,
     })),
@@ -363,16 +421,16 @@ export async function loadPlatformClientPageData(
             phone: null,
           }
         : null,
-      documents: documents.map((document) => ({
+      documents: documents.map((document: (typeof documents)[number]) => ({
         name: document.name,
         status: document.status,
       })),
-      payments: payments.map((payment) => ({
+      payments: payments.map((payment: (typeof payments)[number]) => ({
         title: payment.title,
         status: payment.status,
       })),
       visa: caseVisa ? {
-        country: studentCase.targetCountry,
+        country: studentCase.targetCountry ?? NOT_SET,
         status: caseVisa.status,
       } : null,
     },
@@ -382,8 +440,8 @@ export async function loadPlatformClientPageData(
       { key: "closed", label: "Закрыто" },
     ],
     applicationStatuses: [],
-    taskColumns: [],
-    taskPriorities: [],
+    taskColumns: ["todo", "in_progress", "review", "done"],
+    taskPriorities: ["low", "normal", "high"],
     visaStatuses: [...PLATFORM_VISA_STATUSES],
     actions: {
       assignCurator: actor.platformRole === "admin"
@@ -412,8 +470,8 @@ export async function loadPlatformClientPageData(
     canMutatePayments: actor.platformRole === "admin",
     canUseAiSummary: false,
     studentRoute: {
-      targetCountry: studentCase.targetCountry,
-      targetDegree: studentCase.targetDegree,
+      targetCountry: studentCase.targetCountry ?? NOT_SET,
+      targetDegree: studentCase.targetDegree ?? NOT_SET,
       programDirection: studentCase.programDirection,
       intake: studentCase.intake,
       languageAssumption: studentCase.languageAssumption,
@@ -449,7 +507,7 @@ export async function loadPlatformClientPageData(
         ?? appliedCountryRequirement?.requiredProfileFields
         ?? [],
     },
-    countryRequirementVersions: countryRequirementVersions.map((version) => ({
+    countryRequirementVersions: countryRequirementVersions.map((version: (typeof countryRequirementVersions)[number]) => ({
       id: version.countryRequirementVersionId,
       checklistVersion: version.version,
       status: version.status,
@@ -461,9 +519,11 @@ export async function loadPlatformClientPageData(
         || actor.platformRole === "sales"
         || actor.platformRole === "curator"
       ),
-    canApplyCountryRequirements: actor.platformRole === "admin",
+    canApplyCountryRequirements:
+      actor.platformRole === "admin" && hasStudentRouteFacts,
     canEditStudentRoute:
       !appliedCountryRequirement
+      && hasStudentRouteFacts
       && (
         actor.platformRole === "admin"
         || actor.platformRole === "sales"

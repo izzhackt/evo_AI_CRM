@@ -247,6 +247,15 @@ if (
   throw new Error("EVO_U6_BROWSER_PROOF must be 0 or 1");
 }
 const u6BrowserProof = u6BrowserProofFlag === "1";
+const u7BrowserProofFlag = process.env.EVO_U7_BROWSER_PROOF;
+if (
+  u7BrowserProofFlag !== undefined &&
+  u7BrowserProofFlag !== "0" &&
+  u7BrowserProofFlag !== "1"
+) {
+  throw new Error("EVO_U7_BROWSER_PROOF must be 0 or 1");
+}
+const u7BrowserProof = u7BrowserProofFlag === "1";
 const platformAuthDevRunKey = process.env.EVO_PLATFORM_AUTH_DEV_RUN_KEY;
 const platformAuthBrowserPartition =
   process.env.EVO_PLATFORM_AUTH_BROWSER_PARTITION;
@@ -278,6 +287,7 @@ if (
     "p7a",
     "p7b",
     "u6",
+    "u7",
     "u2",
     "remaining",
   ].includes(
@@ -309,11 +319,12 @@ if (
     Number(p6dBrowserProof) +
     Number(p7aBrowserProof) +
     Number(p7bBrowserProof) +
-    Number(u6BrowserProof) >
+    Number(u6BrowserProof) +
+    Number(u7BrowserProof) >
   1
 ) {
   throw new Error(
-    "P5B, P5C, P5D, P5E, P5F1, P5F3, P6A, P6B, P6C, P6D, P7A, P7B and U6 browser proof partitions are mutually exclusive",
+    "P5B, P5C, P5D, P5E, P5F1, P5F3, P6A, P6B, P6C, P6D, P7A, P7B, U6 and U7 browser proof partitions are mutually exclusive",
   );
 }
 if (
@@ -376,6 +387,11 @@ if ((platformAuthBrowserPartition === "p7b") !== p7bBrowserProof) {
 if ((platformAuthBrowserPartition === "u6") !== u6BrowserProof) {
   throw new Error(
     "EVO_U6_BROWSER_PROOF must be enabled only for the u6 browser partition",
+  );
+}
+if ((platformAuthBrowserPartition === "u7") !== u7BrowserProof) {
+  throw new Error(
+    "EVO_U7_BROWSER_PROOF must be enabled only for the u7 browser partition",
   );
 }
 if (

@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-Status: parent #376 is the active product contract; U0/#377 through U5/#382
+Status: parent #376 is the active product contract; U0/#377 through U6/#383
 are merged. Long-run 1 is the sequential U5/#382 through U10/#387 program and
 stops before U11/#388. ADR 0021 and the latest `docs/PLAN_CHANGES.md` entry are
 binding.
@@ -67,10 +67,12 @@ Sales qualification, eligible owner assignment, paired next action/deadline,
 truthful connected/unconnected queue filters and durable audit described in
 `docs/platform/u4-sales-qualification-owner-next-action.md`. U5 merged in PR
 #397 and owns the contract/first-payment gate described in
-`docs/platform/u5-contract-first-payment-gate.md`. U6/#383 is the current slice
-and consumes that locked gate to create one audited canonical Admissions case
-under `docs/platform/u6-sales-admissions-handoff.md`; do not start U7 until U6
-is merged and verified on exact main.
+`docs/platform/u5-contract-first-payment-gate.md`. U6 merged in PR #398 and
+owns the audited canonical handoff described in
+`docs/platform/u6-sales-admissions-handoff.md`. U7/#384 is the current slice
+and completes the existing connected canonical Admissions case workspace under
+`docs/platform/u7-admissions-case-workspace.md`; it must not add a second case,
+SQLite fallback, Finance stop-factor or Student Portal activation.
 
 ## Historical pre-#376 execution record
 

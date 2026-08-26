@@ -202,6 +202,10 @@ test("every long-running child gate has a process-group deadline", () => {
   );
   assert.match(
     executableLines,
+    /run_with_deadline 360000 env \\\n\s+EVO_P5B_BROWSER_PROOF=0[\s\S]*?EVO_U7_BROWSER_PROOF=1[\s\S]*?EVO_PLATFORM_AUTH_FIXTURE_PATH=[\s\S]*?"\$\{PLAYWRIGHT_CLI\}" \\\n\s+test/,
+  );
+  assert.match(
+    executableLines,
     /run_with_deadline 600000 node \\\n\s+"\$\{REPO_ROOT\}\/scripts\/test-p2h-storage-api\.mjs"/,
   );
   assert.match(
@@ -489,7 +493,7 @@ test("the P7A browser partition is singleton, bounded, and audit-only", () => {
     1,
   );
   assert.equal(executableLines.match(/EVO_P7A_BROWSER_PROOF=1/g)?.length, 1);
-  assert.equal(executableLines.match(/EVO_P7A_BROWSER_PROOF=0/g)?.length, 15);
+  assert.equal(executableLines.match(/EVO_P7A_BROWSER_PROOF=0/g)?.length, 16);
   assert.equal(
     executableLines.match(/EVO_PLATFORM_P7A_AUDIT_ENABLED=0/g)?.length,
     14,
@@ -571,10 +575,10 @@ test("the P7B browser partition is singleton, bounded, and observability-only", 
     1,
   );
   assert.equal(executableLines.match(/EVO_P7B_BROWSER_PROOF=1/g)?.length, 1);
-  assert.equal(executableLines.match(/EVO_P7B_BROWSER_PROOF=0/g)?.length, 15);
+  assert.equal(executableLines.match(/EVO_P7B_BROWSER_PROOF=0/g)?.length, 16);
   assert.equal(
     executableLines.match(/EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0/g)?.length,
-    15,
+    16,
   );
 });
 
@@ -692,6 +696,40 @@ test("the U6 browser proof runs in its own bounded invocation after the U2/U4/U5
   assert.ok(harness.includes(`readonly U6_BROWSER_TEST="${u6Title}"`));
   assert.equal(platformAuthSpec.split(`test("${u6Title}"`).length - 1, 1);
   assert.match(authHook, /u6:\s*\{/);
+});
+
+test("the U7 browser proof runs in its own bounded invocation after U6", () => {
+  const u7Title =
+    "U7 operates one complete canonical Admissions case with bounded history";
+  const u6Flag = executableLines.indexOf("EVO_U6_BROWSER_PROOF=1");
+  const u7Flag = executableLines.indexOf("EVO_U7_BROWSER_PROOF=1", u6Flag);
+  const u7Partition = executableLines.indexOf(
+    "EVO_PLATFORM_AUTH_BROWSER_PARTITION=u7",
+    u7Flag,
+  );
+  const u7Command = executableLines.lastIndexOf(
+    "run_with_deadline 360000 env",
+    u7Flag,
+  );
+  const u7Grep = executableLines.indexOf('--grep "${U7_BROWSER_TEST}"', u7Flag);
+  const u7Cleanup = executableLines.indexOf(
+    'fail "The exact-worktree Platform browser server did not stop after the U7 browser proof."',
+    u7Flag,
+  );
+
+  assert.notEqual(u6Flag, -1);
+  assert.notEqual(u7Flag, -1);
+  assert.notEqual(u7Partition, -1);
+  assert.notEqual(u7Command, -1);
+  assert.notEqual(u7Grep, -1);
+  assert.notEqual(u7Cleanup, -1);
+  assert.ok(u6Flag < u7Flag);
+  assert.ok(u7Command < u7Flag);
+  assert.ok(u7Flag < u7Partition);
+  assert.ok(u7Partition < u7Grep);
+  assert.ok(u7Grep < u7Cleanup);
+  assert.ok(harness.includes(`readonly U7_BROWSER_TEST="${u7Title}"`));
+  assert.equal(platformAuthSpec.split(`test("${u7Title}"`).length - 1, 1);
 });
 
 test("the P7B acceptance runs one pinned disposable Caddy denial proof", () => {
@@ -1027,7 +1065,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
   );
   assert.match(
     harness.slice(remainingPass, remainingCleanup),
-    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_P6B_BROWSER_PROOF=0[\s\S]*EVO_P6C_BROWSER_PROOF=0[\s\S]*EVO_P6D_BROWSER_PROOF=0[\s\S]*EVO_P7A_BROWSER_PROOF=0[\s\S]*EVO_P7B_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P7A_AUDIT_ENABLED=0[\s\S]*EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0[\s\S]*EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}\|\$\{P5C_BROWSER_TEST\}\|\$\{P5D_BROWSER_TEST\}\|\$\{P5E_BROWSER_TEST\}\|\$\{P5F1_BROWSER_TEST\}\|\$\{P5F3_BROWSER_TEST\}\|\$\{P6A_BROWSER_TEST\}\|\$\{P6B_BROWSER_TEST\}\|\$\{P6C_BROWSER_TEST\}\|\$\{P6D_BROWSER_TEST\}\|\$\{P7A_BROWSER_TEST\}\|\$\{P7B_BROWSER_TEST\}\|\$\{U2_BROWSER_TEST\}\|\$\{U4_BROWSER_TEST\}\|\$\{U5_BROWSER_TEST\}\|\$\{U6_BROWSER_TEST\}"/,
+    /EVO_P5B_BROWSER_PROOF=0[\s\S]*EVO_P5C_BROWSER_PROOF=0[\s\S]*EVO_P5D_BROWSER_PROOF=0[\s\S]*EVO_P5E_BROWSER_PROOF=0[\s\S]*EVO_P5F1_BROWSER_PROOF=0[\s\S]*EVO_P5F3_BROWSER_PROOF=0[\s\S]*EVO_P6A_BROWSER_PROOF=0[\s\S]*EVO_P6B_BROWSER_PROOF=0[\s\S]*EVO_P6C_BROWSER_PROOF=0[\s\S]*EVO_P6D_BROWSER_PROOF=0[\s\S]*EVO_P7A_BROWSER_PROOF=0[\s\S]*EVO_P7B_BROWSER_PROOF=0[\s\S]*EVO_PLATFORM_P7A_AUDIT_ENABLED=0[\s\S]*EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0[\s\S]*EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0[\s\S]*EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0[\s\S]*EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED=0[\s\S]*--grep-invert "\$\{PROVIDER_GATED_BROWSER_TESTS\}\|\$\{P5B_BROWSER_TEST\}\|\$\{P5C_BROWSER_TEST\}\|\$\{P5D_BROWSER_TEST\}\|\$\{P5E_BROWSER_TEST\}\|\$\{P5F1_BROWSER_TEST\}\|\$\{P5F3_BROWSER_TEST\}\|\$\{P6A_BROWSER_TEST\}\|\$\{P6B_BROWSER_TEST\}\|\$\{P6C_BROWSER_TEST\}\|\$\{P6D_BROWSER_TEST\}\|\$\{P7A_BROWSER_TEST\}\|\$\{P7B_BROWSER_TEST\}\|\$\{U2_BROWSER_TEST\}\|\$\{U4_BROWSER_TEST\}\|\$\{U5_BROWSER_TEST\}\|\$\{U6_BROWSER_TEST\}\|\$\{U7_BROWSER_TEST\}"/,
   );
   assert.equal(
     harness.slice(providerPass, finalCleanup).match(/EVO_P5B_BROWSER_PROOF=1/g)
@@ -1059,7 +1097,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
     harness
       .slice(providerPass, finalCleanup)
       .match(/EVO_P5F1_BROWSER_PROOF=0/g)?.length,
-    13,
+    14,
   );
   assert.equal(
     harness
@@ -1071,7 +1109,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
     harness
       .slice(providerPass, finalCleanup)
       .match(/EVO_P5F3_BROWSER_PROOF=0/g)?.length,
-    13,
+    14,
   );
   assert.equal(
     harness
@@ -1083,7 +1121,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
     harness
       .slice(providerPass, finalCleanup)
       .match(/EVO_P6A_BROWSER_PROOF=0/g)?.length,
-    13,
+    14,
   );
   assert.equal(
     harness
@@ -1095,7 +1133,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
     harness
       .slice(providerPass, finalCleanup)
       .match(/EVO_PLATFORM_P6A_PORTAL_ATTENTION_ENABLED=0/g)?.length,
-    12,
+    13,
   );
   assert.equal(
     harness
@@ -1107,7 +1145,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
     harness
       .slice(providerPass, finalCleanup)
       .match(/EVO_P6B_BROWSER_PROOF=0/g)?.length,
-    13,
+    14,
   );
   assert.equal(
     harness
@@ -1119,7 +1157,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
     harness
       .slice(providerPass, finalCleanup)
       .match(/EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED=0/g)?.length,
-    11,
+    12,
   );
   assert.equal(
     harness
@@ -1131,7 +1169,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
     harness
       .slice(providerPass, finalCleanup)
       .match(/EVO_P6C_BROWSER_PROOF=0/g)?.length,
-    13,
+    14,
   );
   assert.equal(
     harness
@@ -1155,7 +1193,7 @@ test("dedicated browser partitions run in the exact state-safe sequence", () => 
     harness
       .slice(providerPass, finalCleanup)
       .match(/EVO_P6D_BROWSER_PROOF=0/g)?.length,
-    13,
+    14,
   );
   assert.equal(
     harness.match(/EVO_PLATFORM_AUTH_BROWSER_PARTITION=p5e/g)?.length,
@@ -2257,6 +2295,7 @@ test("browser partitions isolate Next dev artifacts by disposable run and partit
     "p7b",
     "u2",
     "u6",
+    "u7",
     "remaining",
   ]) {
     assert.match(
@@ -2293,11 +2332,11 @@ test("browser partitions keep Next type includes out of the tracked root tsconfi
   assert.match(harness, /prepare_platform_auth_tsconfig\(\)/);
   assert.match(
     harness,
-    /for browser_partition in provider p5b p5c p5d p5e p5f1 p5f3 p6a p6b p6c p6d p7a p7b u2 u6 remaining; do/,
+    /for browser_partition in provider p5b p5c p5d p5e p5f1 p5f3 p6a p6b p6c p6d p7a p7b u2 u6 u7 remaining; do/,
   );
   assert.match(
     harness,
-    /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|p6a\|p6b\|p6c\|p6d\|p7a\|p7b\|u2\|u6\|remaining\) ;;/,
+    /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|p6a\|p6b\|p6c\|p6d\|p7a\|p7b\|u2\|u6\|u7\|remaining\) ;;/,
   );
   assert.match(
     harness,
@@ -2319,6 +2358,7 @@ test("browser partitions keep Next type includes out of the tracked root tsconfi
     "p7b",
     "u2",
     "u6",
+    "u7",
     "remaining",
   ]) {
     assert.match(

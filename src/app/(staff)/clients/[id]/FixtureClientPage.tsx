@@ -579,6 +579,8 @@ export default async function FixtureClientPage({
       routeTitle: "Маршрут перед чек-листом",
       routeMissing: "Укажите направление программы — без него нельзя безопасно выбрать страновой чек-лист.",
       routeReady: "Проверьте направление программы перед назначением неизменяемой версии чек-листа.",
+      targetCountry: "Страна обучения",
+      targetDegree: "Степень",
       programDirection: "Направление программы",
       saveRoute: "Сохранить маршрут",
     },
@@ -609,6 +611,8 @@ export default async function FixtureClientPage({
       routeTitle: "Чек-листке чейинки маршрут",
       routeMissing: "Программанын багытын көрсөтүңүз — ансыз өлкө чек-листин коопсуз тандоо мүмкүн эмес.",
       routeReady: "Өзгөрбөс чек-лист версиясын дайындоодон мурда программанын багытын текшериңиз.",
+      targetCountry: "Окуу өлкөсү",
+      targetDegree: "Даража",
       programDirection: "Программанын багыты",
       saveRoute: "Маршрутту сактоо",
     },
@@ -639,6 +643,8 @@ export default async function FixtureClientPage({
       routeTitle: "Route before checklist",
       routeMissing: "Enter the program direction before a country checklist can be selected safely.",
       routeReady: "Confirm the program direction before assigning an immutable checklist version.",
+      targetCountry: "Study country",
+      targetDegree: "Degree",
       programDirection: "Program direction",
       saveRoute: "Save route",
     },
@@ -1252,13 +1258,31 @@ export default async function FixtureClientPage({
                 >
                   <input type="hidden" name="student_case_id" value={client.id} />
                   {routeRequestId && <input type="hidden" name="request_id" value={routeRequestId} />}
-                  <input type="hidden" name="target_country" value={studentRoute.targetCountry} />
-                  <input type="hidden" name="target_degree" value={studentRoute.targetDegree} />
                   <input type="hidden" name="intake" value={studentRoute.intake ?? ""} />
                   <input type="hidden" name="language_assumption" value={studentRoute.languageAssumption ?? ""} />
                   <input type="hidden" name="funding_assumption" value={studentRoute.fundingAssumption ?? ""} />
                   <input type="hidden" name="operational_stage" value={studentRoute.operationalStage} />
                   <input type="hidden" name="next_action" value={studentRoute.nextAction ?? ""} />
+                  <label className={labelCls}>
+                    {profileLabels.targetCountry}
+                    <input
+                      name="target_country"
+                      required
+                      maxLength={120}
+                      defaultValue={studentRoute.targetCountry}
+                      className={cn(inputCls, "mt-1")}
+                    />
+                  </label>
+                  <label className={labelCls}>
+                    {profileLabels.targetDegree}
+                    <input
+                      name="target_degree"
+                      required
+                      maxLength={160}
+                      defaultValue={studentRoute.targetDegree}
+                      className={cn(inputCls, "mt-1")}
+                    />
+                  </label>
                   <label className={labelCls}>
                     {profileLabels.programDirection}
                     <input

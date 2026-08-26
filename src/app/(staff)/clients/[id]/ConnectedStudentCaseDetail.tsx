@@ -549,8 +549,8 @@ export async function loadPlatformClientPageData(
     canMutatePayments: actor.platformRole === "admin",
     canUseAiSummary: false,
     studentRoute: {
-      targetCountry: studentCase.targetCountry ?? NOT_SET,
-      targetDegree: studentCase.targetDegree ?? NOT_SET,
+      targetCountry: studentCase.targetCountry ?? "",
+      targetDegree: studentCase.targetDegree ?? "",
       programDirection: studentCase.programDirection,
       intake: studentCase.intake,
       languageAssumption: studentCase.languageAssumption,

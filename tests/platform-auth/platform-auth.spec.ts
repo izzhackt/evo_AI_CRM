@@ -1797,6 +1797,28 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
   }
 
   const casePath = `/clients/${createdCaseId}`;
+  const curatorContext = await browser.newContext();
+  const curatorPage = await curatorContext.newPage();
+  await login(curatorPage, fixture.identities.curator);
+  await expect(curatorPage).toHaveURL(/\/clients$/);
+  await curatorPage.goto(`${casePath}#profile`);
+  const routeForm = curatorPage
+    .getByTestId("platform-student-route-gate")
+    .locator("form");
+  await expect(routeForm).toBeVisible();
+  await routeForm.locator('input[name="target_country"]').fill("Germany");
+  await routeForm.locator('input[name="target_degree"]').fill("Bachelor");
+  await routeForm
+    .locator('input[name="program_direction"]')
+    .fill("Computer Science");
+  await routeForm
+    .locator('input[name="reason"]')
+    .fill("Complete the synthetic U7 admissions route");
+  await routeForm.getByRole("button").click();
+  await expect(curatorPage).toHaveURL(
+    new RegExp(`/clients/${createdCaseId}\\?result=saved$`),
+  );
+
   const studentCaseBefore = await platformRows(
     adminToken,
     "student_cases",
@@ -1905,11 +1927,6 @@ test("U7 operates one complete canonical Admissions case with bounded history", 
     fixture.p6c.supabaseSecretKey,
   );
   expect(documentValidation.status).toBe(200);
-
-  const curatorContext = await browser.newContext();
-  const curatorPage = await curatorContext.newPage();
-  await login(curatorPage, fixture.identities.curator);
-  await expect(curatorPage).toHaveURL(/\/clients$/);
 
   await curatorPage.goto(`${casePath}#tasks`);
   await expect(curatorPage.getByTestId("platform-client-detail-page")).toBeVisible();

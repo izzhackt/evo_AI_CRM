@@ -48,6 +48,7 @@ import {
   getPlatformCaseContractWorkspace,
   PLATFORM_CONTRACT_MUTATION_OUTCOMES,
 } from "@/lib/platform-contract-workflow";
+import { reviewPlatformDocumentVersionAction } from "@/lib/platform-document-review-actions";
 import { requirePlatformClientsActor } from "@/lib/platform-guards";
 import {
   getPlatformStudentProfile,
@@ -64,6 +65,7 @@ import {
   createPlatformCaseTaskAction,
   reviewPlatformCaseDocumentVersionAction,
 } from "@/lib/platform-admissions-case-workspace-actions";
+import { isPlatformP6BPortalNotificationsEnabled } from "@/lib/server/platform-p6b-portal-notifications";
 
 import FixtureClientPage, {
   type ClientPagePresentationData,
@@ -220,6 +222,8 @@ export async function loadPlatformClientPageData(
   );
   const canReviewDocuments =
     actor.platformRole === "admin" || actor.platformRole === "curator";
+  const usePortalNotificationDocumentReview =
+    canReviewDocuments && isPlatformP6BPortalNotificationsEnabled();
   const documents = documentRows.map((document: (typeof documentRows)[number]) => ({
     id: document.documentSlotId,
     name: document.requirementLabel,
@@ -516,7 +520,9 @@ export async function loadPlatformClientPageData(
       updateStudentProfile: updatePlatformStudentProfileAction,
       applyCountryRequirementVersion: applyPlatformCountryRequirementVersionAction,
       reviewPlatformDocument: canReviewDocuments
-        ? reviewPlatformCaseDocumentVersionAction
+        ? usePortalNotificationDocumentReview
+          ? reviewPlatformDocumentVersionAction
+          : reviewPlatformCaseDocumentVersionAction
         : undefined,
       addTask: canReadCaseWorkspace
         ? createPlatformCaseTaskAction

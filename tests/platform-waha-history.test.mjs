@@ -768,17 +768,17 @@ test("history audit actions satisfy the Platform dotted-action contract", async 
   );
 });
 
-test("the isolated browser build admits the P5C through U2 partitions", async () => {
+test("the isolated browser build admits the P5C through U6 partitions", async () => {
   const [nextConfigSource, resetHarnessSource] = await Promise.all([
     readFile("next.config.ts", "utf8"),
     readFile("scripts/test-supabase-local-reset.sh", "utf8"),
   ]);
   assert.match(
     nextConfigSource,
-    /new Set\(\[\s*"provider",\s*"p5b",\s*"p5c",\s*"p5d",\s*"p5e",\s*"p5f1",\s*"p5f3",\s*"p6a",\s*"p6b",\s*"p6c",\s*"p6d",\s*"p7a",\s*"p7b",\s*"u2",\s*"remaining",?\s*\]\)/,
+    /new Set\(\[\s*"provider",\s*"p5b",\s*"p5c",\s*"p5d",\s*"p5e",\s*"p5f1",\s*"p5f3",\s*"p6a",\s*"p6b",\s*"p6c",\s*"p6d",\s*"p7a",\s*"p7b",\s*"u2",\s*"u6",\s*"remaining",?\s*\]\)/,
   );
   assert.match(
     resetHarnessSource,
-    /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|p6a\|p6b\|p6c\|p6d\|p7a\|p7b\|u2\|remaining/,
+    /provider\|p5b\|p5c\|p5d\|p5e\|p5f1\|p5f3\|p6a\|p6b\|p6c\|p6d\|p7a\|p7b\|u2\|u6\|remaining/,
   );
 });

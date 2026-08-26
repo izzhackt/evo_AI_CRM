@@ -2791,6 +2791,31 @@ const main = async () => {
       },
     ],
   });
+  const u6Conversation = createSyntheticConversationFixture({
+    organizationId: adminAMembership.organization_id,
+    studentCaseId: null,
+    responsibleSalesMembershipId: responsibleSalesMembership.id,
+    fixtureKey: "u6-sales-admissions",
+    subject: "[SYNTHETIC-NON-PROVIDER] U6 Sales to Admissions handoff",
+    accountSeed: 91_301,
+    occurredAt: "2026-08-24T10:00:00+06:00",
+    messages: [
+      {
+        providerMessageId:
+          "synthetic-local-fixture-u6-sales-admissions-message-1",
+        bodyText:
+          "Синтетический U6 лид. До передачи кейса нет, но conversation уже связан с canonical lead.",
+        occurredAt: "2026-08-24T10:00:00+06:00",
+      },
+      {
+        providerMessageId:
+          "synthetic-local-fixture-u6-sales-admissions-message-2",
+        bodyText:
+          "Второе синтетическое сообщение U6. Провайдер не вызывался.",
+        occurredAt: "2026-08-24T10:02:00+06:00",
+      },
+    ],
+  });
   const orgAManualConversation = createSyntheticConversationFixture({
     organizationId: adminAMembership.organization_id,
     studentCaseId: orgAStudentCaseId,
@@ -4180,6 +4205,10 @@ const main = async () => {
   const u2BrowserLeadExternalIdentifier = "legacy-lead-u2-379";
   const u2BrowserClientProvenanceRef = "local:u2:canonical-client";
   const u2BrowserLeadProvenanceRef = "local:u2:canonical-lead";
+  const u6BrowserClientId = "10000000-0000-4000-8000-000000001506";
+  const u6BrowserLeadId = "20000000-0000-4000-8000-000000001506";
+  const u6BrowserClientName = "U6 Admissions Browser Client";
+  const u6BrowserLeadSourceKey = "u6-browser-admissions-handoff";
 
   runSql(
     `
@@ -4354,6 +4383,7 @@ const main = async () => {
         "u2-conversation-org",
       )}
         AND id = ${sqlUuid(orgAConversation.id, "u2-conversation-id")};
+
     `,
     "u2-canonical-read-model-fixtures",
   );
@@ -6012,6 +6042,70 @@ const main = async () => {
     "u4-final-connected-browser-state",
   );
 
+  // Keep the dedicated U6 browser lead outside the bounded U2/U4 exact-set
+  // fixtures above. Otherwise this additional valid Sales lead changes those
+  // older traversal contracts from 1,005 rows to 1,006 before they are proved.
+  runSql(
+    `
+      INSERT INTO platform.clients (
+        id,
+        organization_id,
+        display_name,
+        normalized_name,
+        lifecycle_state,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${sqlUuid(u6BrowserClientId, "u6-browser-client-id")},
+        ${sqlUuid(adminAMembership.organization_id, "u6-browser-client-org")},
+        ${sqlText(u6BrowserClientName)},
+        platform_private.normalize_person_name(${sqlText(u6BrowserClientName)}),
+        'active',
+        TIMESTAMPTZ '2026-08-24 04:05:00+00',
+        TIMESTAMPTZ '2026-08-24 04:06:00+00'
+      );
+
+      INSERT INTO platform.leads (
+        id,
+        organization_id,
+        client_id,
+        current_owner_membership_id,
+        stage_key,
+        source_key,
+        lifecycle_state,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${sqlUuid(u6BrowserLeadId, "u6-browser-lead-id")},
+        ${sqlUuid(adminAMembership.organization_id, "u6-browser-lead-org")},
+        ${sqlUuid(u6BrowserClientId, "u6-browser-lead-client")},
+        ${sqlUuid(responsibleSalesMembership.id, "u6-browser-lead-owner")},
+        'qualified',
+        ${sqlText(u6BrowserLeadSourceKey)},
+        'open',
+        TIMESTAMPTZ '2026-08-24 04:07:00+00',
+        TIMESTAMPTZ '2026-08-24 04:08:00+00'
+      );
+
+      UPDATE platform.communication_conversations
+      SET
+        canonical_client_id = ${sqlUuid(
+          u6BrowserClientId,
+          "u6-conversation-client",
+        )},
+        canonical_lead_id = ${sqlUuid(
+          u6BrowserLeadId,
+          "u6-conversation-lead",
+        )}
+      WHERE organization_id = ${sqlUuid(
+        adminAMembership.organization_id,
+        "u6-conversation-org",
+      )}
+        AND id = ${sqlUuid(u6Conversation.id, "u6-conversation-id")};
+    `,
+    "u6-browser-handoff-fixture",
+  );
+
   const legacySideEffects = Number(
     runSql(
       `
@@ -6323,6 +6417,21 @@ const main = async () => {
             laterPageOwnerMembershipId: u4LaterPageOwner.membershipId,
             laterPageOwnerDisplayName: u4LaterPageOwner.displayLabel,
           },
+        },
+        u6: {
+          organizationId: adminAMembership.organization_id,
+          leadId: u6BrowserLeadId,
+          sourceKey: `canonical-lead:${u6BrowserLeadId}`,
+          handoffReason:
+            "Synthetic U6 Admissions handoff after confirmed contract and first payment",
+          linkedConversationSubject: u6Conversation.subject,
+          admissionsOwnerMembershipId: roleMembers.curator.id,
+          admissionsOwnerDisplayName: "Synthetic curator",
+          expectedStarterTasks: [
+            "Проверить унаследованный контекст Sales",
+            "Подтвердить маршрут обучения и недостающие данные",
+            "Подготовить первичный план запроса документов",
+          ],
         },
         p5f3: {
           autonomousReplyTriggerSecret: p5f3AutonomousReplyTriggerSecret,

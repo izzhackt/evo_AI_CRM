@@ -143,6 +143,16 @@ type Fixture = Readonly<{
       laterPageOwnerDisplayName: string;
     }>;
   }>;
+  u6: Readonly<{
+    organizationId: string;
+    leadId: string;
+    sourceKey: string;
+    handoffReason: string;
+    linkedConversationSubject: string;
+    admissionsOwnerMembershipId: string;
+    admissionsOwnerDisplayName: string;
+    expectedStarterTasks: readonly [string, string, string];
+  }>;
   identities: Readonly<{
     admin: Identity;
     curator: Identity;
@@ -618,6 +628,79 @@ async function platformRows(
   let payload: unknown = null;
   if (text) payload = JSON.parse(text);
   return { status: response.status, payload };
+}
+
+async function firstVisibleLocator(
+  page: Page,
+  locators: readonly Locator[],
+): Promise<Locator | null> {
+  for (const locator of locators) {
+    if (await locator.count() > 0 && await locator.first().isVisible()) {
+      return locator.first();
+    }
+  }
+  return null;
+}
+
+async function performU6BrowserHandoff(
+  page: Page,
+  admissionsOwnerMembershipId: string,
+  handoffReason: string,
+) {
+  const handoffCard = await firstVisibleLocator(page, [
+    page.getByTestId("admissions-handoff-card"),
+    page.getByTestId("platform-admissions-handoff-card"),
+  ]);
+  if (!handoffCard) {
+    throw new Error(
+      "U6 handoff card is unavailable in the shared UI. Expected admissions-handoff-card or platform-admissions-handoff-card.",
+    );
+  }
+
+  const ownerSelect = await firstVisibleLocator(page, [
+    handoffCard.getByTestId("admissions-handoff-owner"),
+    handoffCard.getByTestId("platform-admissions-handoff-owner"),
+    handoffCard.locator('select[name="admissions_owner_membership_id"]'),
+    handoffCard.locator('select[name="owner_membership_id"]'),
+    handoffCard.locator('select[name="curator_membership_id"]'),
+  ]);
+  if (!ownerSelect) {
+    throw new Error(
+      "U6 handoff owner selector is unavailable in the shared UI.",
+    );
+  }
+  await ownerSelect.selectOption(admissionsOwnerMembershipId);
+
+  const reasonField = await firstVisibleLocator(page, [
+    handoffCard.getByTestId("admissions-handoff-reason"),
+    handoffCard.getByTestId("platform-admissions-handoff-reason"),
+    handoffCard.locator('textarea[name="handoff_reason"]'),
+    handoffCard.locator('textarea[name="reason"]'),
+  ]);
+  if (!reasonField) {
+    throw new Error(
+      "U6 handoff reason field is unavailable in the shared UI.",
+    );
+  }
+  await reasonField.fill(handoffReason);
+
+  const submitButton = await firstVisibleLocator(page, [
+    handoffCard.getByTestId("admissions-handoff-submit"),
+    handoffCard.getByTestId("platform-admissions-handoff-submit"),
+    handoffCard.getByRole("button", {
+      name: /Передать|Handoff|Create case|Создать case|Admissions case/,
+    }),
+  ]);
+  if (!submitButton) {
+    throw new Error(
+      "U6 handoff submit button is unavailable in the shared UI.",
+    );
+  }
+  await submitButton.click();
+  await expect(handoffCard.getByTestId("admissions-handoff-form")).toHaveCount(0);
+  await expect(
+    handoffCard.getByTestId("admissions-handoff-case-link"),
+  ).toBeVisible();
 }
 
 function expectLegacyDatabaseUntouched() {
@@ -1307,6 +1390,292 @@ test("U5 confirms contract and first mandatory payment before normal Admissions 
   await crossOrgContext.close();
 
   await context.close();
+  expectLegacyDatabaseUntouched();
+});
+
+test("U6 performs one audited Sales-to-Admissions handoff with full-versus-summary visibility", async ({
+  browser,
+}) => {
+  test.skip(
+    process.env.EVO_U6_BROWSER_PROOF !== "1",
+    "U6 feature proof runs in its isolated browser invocation.",
+  );
+  test.setTimeout(180_000);
+  expectLegacyDatabaseUntouched();
+
+  const adminToken = await localAccessToken(fixture.identities.admin);
+
+  const blockedSalesContext = await browser.newContext();
+  const blockedSalesPage = await blockedSalesContext.newPage();
+  await login(blockedSalesPage, fixture.identities.responsibleSales);
+  await expect(blockedSalesPage).toHaveURL(/\/sales$/);
+  await blockedSalesPage.goto(`/sales/${fixture.u6.leadId}`);
+  await expect(blockedSalesPage.getByTestId("admissions-gate-card")).toBeVisible();
+  await expect(blockedSalesPage.getByTestId("admissions-gate-state")).toContainText(
+    /Передача заблокирована|Handoff blocked/,
+  );
+
+  const blockedLeadDetail = await platformRpc(
+    adminToken,
+    "staff_canonical_lead_detail",
+    { p_lead_id: fixture.u6.leadId },
+  );
+  expect(blockedLeadDetail.status).toBe(200);
+  expect(blockedLeadDetail.payload).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        lead_id: fixture.u6.leadId,
+        linked_student_cases: [],
+      }),
+    ]),
+  );
+  await blockedSalesContext.close();
+
+  for (const permission of [
+    "contract.evidence.confirm",
+    "finance.first.payment.confirm",
+  ] as const) {
+    const currentSalesToken = await localAccessToken(
+      fixture.identities.responsibleSales,
+    );
+    const currentAuthority = await platformRpc(
+      currentSalesToken,
+      "assert_sensitive_permission",
+      {
+        p_organization_id: fixture.u6.organizationId,
+        p_permission_key: permission,
+      },
+    );
+    if (currentAuthority.status === 403) {
+      const grant = await platformRpc(
+        adminToken,
+        "change_membership_permission",
+        {
+          p_organization_id: fixture.u6.organizationId,
+          p_membership_id: fixture.u4.orgA.responsibleSalesMembershipId,
+          p_permission_key: permission,
+          p_granted: true,
+          p_reason: `U6 browser grant ${permission}`,
+          p_request_id: randomUUID(),
+        },
+      );
+      expect(grant.status, `${permission}-grant`).toBe(200);
+    } else {
+      expect(currentAuthority.status, `${permission}-authority`).toBe(200);
+    }
+  }
+
+  const salesContext = await browser.newContext();
+  const salesPage = await salesContext.newPage();
+  await login(salesPage, fixture.identities.responsibleSales);
+  await expect(salesPage).toHaveURL(/\/sales$/);
+  await salesPage.goto(`/sales/${fixture.u6.leadId}`);
+  await expect(salesPage.getByTestId("admissions-gate-card")).toBeVisible();
+
+  const contractForm = salesPage.getByTestId(
+    "admissions-gate-form-confirm_contract",
+  );
+  await contractForm.getByTestId("admissions-gate-contract-amount").fill("1250.50");
+  await contractForm.getByTestId("admissions-gate-contract-currency").fill("USD");
+  await contractForm.getByTestId("admissions-gate-contract-due-date").fill("2099-12-31");
+  await contractForm
+    .getByTestId("admissions-gate-contract-evidence")
+    .fill("Synthetic contract EVO-U6-001");
+  await contractForm
+    .getByTestId("admissions-gate-submit-confirm_contract")
+    .click();
+  await expect(contractForm).toHaveCount(0);
+
+  const paymentForm = salesPage.getByTestId(
+    "admissions-gate-form-confirm_first_payment",
+  );
+  await paymentForm
+    .getByTestId("admissions-gate-payment-received-date")
+    .fill("2026-08-25");
+  await paymentForm
+    .getByTestId("admissions-gate-payment-evidence")
+    .fill("Synthetic payment EVO-U6-001");
+  await paymentForm
+    .getByTestId("admissions-gate-submit-confirm_first_payment")
+    .click();
+  await expect(paymentForm).toHaveCount(0);
+  await expect(salesPage.getByTestId("admissions-gate-state")).toContainText(
+    /Обычная передача разрешена|Normal handoff allowed/,
+  );
+
+  await performU6BrowserHandoff(
+    salesPage,
+    fixture.u6.admissionsOwnerMembershipId,
+    fixture.u6.handoffReason,
+  );
+
+  const firstLeadDetail = await platformRpc(
+    adminToken,
+    "staff_canonical_lead_detail",
+    { p_lead_id: fixture.u6.leadId },
+  );
+  expect(firstLeadDetail.status).toBe(200);
+  const firstLinkedCases = Array.isArray(
+    (firstLeadDetail.payload as Array<Record<string, unknown>>)[0]
+      ?.linked_student_cases,
+  )
+    ? ((firstLeadDetail.payload as Array<Record<string, unknown>>)[0]
+        ?.linked_student_cases as Array<Record<string, unknown>>)
+    : [];
+  expect(firstLinkedCases).toHaveLength(1);
+  const [createdCase] = firstLinkedCases;
+  expect(createdCase).toEqual(
+    expect.objectContaining({
+      student_case_id: expect.any(String),
+    }),
+  );
+  const createdCaseId = createdCase.student_case_id;
+  expect(typeof createdCaseId).toBe("string");
+
+  await salesPage.reload();
+  await expect(salesPage.getByTestId("admissions-gate-state")).toContainText(
+    /Обычная передача разрешена|Normal handoff allowed/,
+  );
+  await expect(salesPage.getByTestId("admissions-handoff-form")).toHaveCount(0);
+  await expect(salesPage.getByTestId("admissions-handoff-case-link")).toBeVisible();
+  const replaySalesToken = await localAccessToken(
+    fixture.identities.responsibleSales,
+  );
+  const completedHandoff = await platformRpc(
+    replaySalesToken,
+    "staff_lead_admissions_handoff",
+    { p_lead_id: fixture.u6.leadId },
+  );
+  expect(completedHandoff.status).toBe(200);
+  const completedHandoffRow = (
+    completedHandoff.payload as Array<Record<string, unknown>>
+  )[0];
+  expect(completedHandoffRow?.case_id).toBe(createdCaseId);
+  const repeatedHandoff = await platformRpc(
+    replaySalesToken,
+    "handoff_lead_to_admissions",
+    {
+      p_lead_id: fixture.u6.leadId,
+      p_expected_gate_version: completedHandoffRow?.gate_version,
+      p_admissions_owner_membership_id:
+        fixture.u6.admissionsOwnerMembershipId,
+      p_handoff_mode: "normal",
+      p_reason: fixture.u6.handoffReason,
+      p_request_id: randomUUID(),
+    },
+  );
+  expect(repeatedHandoff.status).toBe(200);
+  expect(
+    (repeatedHandoff.payload as Record<string, unknown>).case_id,
+  ).toBe(createdCaseId);
+
+  const repeatedLeadDetail = await platformRpc(
+    adminToken,
+    "staff_canonical_lead_detail",
+    { p_lead_id: fixture.u6.leadId },
+  );
+  expect(repeatedLeadDetail.status).toBe(200);
+  expect(
+    (
+      repeatedLeadDetail.payload as Array<Record<string, unknown>>
+    )[0]?.linked_student_cases,
+  ).toHaveLength(1);
+
+  const caseRows = await platformRows(
+    adminToken,
+    "student_cases",
+    new URLSearchParams({
+      select:
+        "id,organization_id,source_key,current_curator_membership_id,handoff_at,portal_activated_at",
+      id: `eq.${createdCaseId as string}`,
+    }),
+  );
+  expect(caseRows.status).toBe(200);
+  expect(caseRows.payload).toEqual([
+    expect.objectContaining({
+      id: createdCaseId,
+      organization_id: fixture.u6.organizationId,
+      source_key: fixture.u6.sourceKey,
+      current_curator_membership_id: fixture.u6.admissionsOwnerMembershipId,
+      handoff_at: expect.any(String),
+      portal_activated_at: null,
+    }),
+  ]);
+
+  const taskRows = await platformRows(
+    adminToken,
+    "case_tasks",
+    new URLSearchParams({
+      select: "student_case_id,title,assignee_membership_id,source_key,status",
+      student_case_id: `eq.${createdCaseId as string}`,
+      order: "source_key.asc",
+    }),
+  );
+  expect(taskRows.status).toBe(200);
+  expect(taskRows.payload).toHaveLength(3);
+  expect(
+    (taskRows.payload as Array<Record<string, unknown>>)
+      .map((row) => row.title)
+      .sort(),
+  ).toEqual([...fixture.u6.expectedStarterTasks].sort());
+  expect(
+    (taskRows.payload as Array<Record<string, unknown>>)
+      .map((row) => row.source_key)
+      .sort(),
+  ).toEqual([
+    "u6.document-request-plan",
+    "u6.sales-context-review",
+    "u6.study-route-confirmation",
+  ]);
+
+  const curatorCaseContext = await browser.newContext();
+  const curatorCasePage = await curatorCaseContext.newPage();
+  await login(curatorCasePage, fixture.identities.curator);
+  await expect(curatorCasePage).toHaveURL(/\/clients$/);
+  await curatorCasePage.goto(`/clients/${createdCaseId as string}#case-lifecycle`);
+  await expect(curatorCasePage.getByTestId("platform-client-detail-page")).toBeVisible();
+  await expect(curatorCasePage.getByTestId("curator-assignment-form")).toHaveCount(0);
+  await expect(
+    curatorCasePage.locator("#case-lifecycle").getByText(
+      fixture.u6.admissionsOwnerDisplayName,
+      { exact: true },
+    ),
+  ).toBeVisible();
+  const handoffContext = curatorCasePage.getByTestId(
+    "platform-admissions-handoff-context",
+  );
+  for (const text of [
+    fixture.u6.handoffReason,
+    fixture.u6.linkedConversationSubject,
+  ]) {
+    await expect(handoffContext.getByText(text, { exact: true })).toBeVisible();
+  }
+  const taskSection = curatorCasePage.locator("#tasks");
+  for (const title of fixture.u6.expectedStarterTasks) {
+    await expect(taskSection.getByText(title, { exact: true })).toBeVisible();
+  }
+  await curatorCaseContext.close();
+
+  const summaryContext = await browser.newContext();
+  const summaryPage = await summaryContext.newPage();
+  await login(summaryPage, fixture.identities.responsibleSales);
+  await expect(summaryPage).toHaveURL(/\/sales$/);
+  await summaryPage.goto(`/clients/${createdCaseId as string}`);
+  await expect(summaryPage.getByTestId("platform-sales-handoff-summary"))
+    .toBeVisible();
+  await expect(summaryPage.getByTestId("platform-client-detail-page")).toHaveCount(0);
+  await expect(summaryPage.getByTestId("curator-assignment-form")).toHaveCount(0);
+  await summaryContext.close();
+
+  const crossOrgContext = await browser.newContext();
+  const crossOrgPage = await crossOrgContext.newPage();
+  await login(crossOrgPage, fixture.identities.crossOrgAdmin);
+  await expect(crossOrgPage).toHaveURL(/\/sales$/);
+  await crossOrgPage.goto(`/clients/${createdCaseId as string}`);
+  await expect(crossOrgPage.getByTestId("canonical-client-not-found")).toBeVisible();
+  await crossOrgContext.close();
+
+  await salesContext.close();
   expectLegacyDatabaseUntouched();
 });
 

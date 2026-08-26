@@ -314,6 +314,33 @@ test("existing unbound case keeps an explicit null handoff", () => {
   assert.equal(snapshot.handoff, null);
 });
 
+test("U6 case projections allow null intake facts without inventing defaults", () => {
+  const snapshot = normalizePlatformStudentCaseSnapshot({
+    ...caseRow({
+      target_country: null,
+      target_degree: null,
+    }),
+    student_case_op_handoff_id: null,
+    op_workflow_contract_version_id: null,
+    approved_commercial_fields: null,
+    unresolved_questions: null,
+    promises: null,
+    handoff_next_step: null,
+    handoff_due_at: null,
+    handoff_responsible_role: null,
+    handoff_created_at: null,
+  });
+  assert.equal(snapshot.targetCountry, null);
+  assert.equal(snapshot.targetDegree, null);
+
+  const application = normalizePlatformApplicationQueueRow(
+    applicationRow({ target_country: null, target_degree: null }),
+    ORGANIZATION_ID,
+  );
+  assert.equal(application.targetCountry, null);
+  assert.equal(application.targetDegree, null);
+});
+
 test("malformed, cross-organization and partially-null projections fail closed", () => {
   assert.equal(parsePlatformAdmissionsUuid("00000000-0000-0000-0000-000000000000"), null);
   assert.throws(

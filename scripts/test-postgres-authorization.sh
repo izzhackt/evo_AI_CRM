@@ -1771,6 +1771,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_ai_human_review_rls.sql
   fi
+
+  # Migration 092 adds the U10 net-new pilot cohort while keeping legacy cases
+  # outside by default and preserving an explicit no-fallback write boundary.
+  if [[ "$(basename "$migration")" == 092_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_pilot_cohort_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

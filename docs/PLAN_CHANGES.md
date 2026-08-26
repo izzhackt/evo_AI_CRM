@@ -11381,3 +11381,88 @@ Decision:
 Validation impact: dependency evidence changes from stacked/local to exact
 main. Functional acceptance, tenant isolation and disabled-provider boundaries
 remain unchanged.
+
+## 2026-08-26 — Prepare U10 as a dependency-gated pilot cohort boundary
+
+Date: 2026-08-26, workspace timezone (+04).
+Author: Codex following the owner's instruction to continue useful local work
+while GitHub queue state remains outside local control.
+Change type: stacked implementation contract; no merge-order or evidence
+exception.
+Block-ID: `EVO-LONG-RUN-1-U10-STACKED-PREP-2026-08-26`.
+Stacked starting point: local U9 commit
+`ac5f3a0e1efdbba89d315b0c9cbceb9380c9dbee`.
+
+Reason: U9 is already verified locally on the stacked branch, but the exact
+GitHub merge gates for #385 and then #386 remain sequential external work.
+Issue #387 can still be prepared safely on the verified local U9 tree without
+opening a PR, claiming dependency completion or touching providers/production.
+
+Decision:
+
+1. Implement pilot membership inside the canonical `platform.student_cases`
+   model instead of creating a second pilot entity, a sidecar workspace or a
+   compatibility database. Reads may project current pilot membership directly
+   from the canonical case row, but every change must also be preserved as an
+   append-only membership event.
+2. Add one explicit pilot configuration authority with enable/disable state,
+   cutoff timestamp, provenance and actor/audit metadata. Automatic inclusion
+   is allowed only for new canonical cases created after that exact cutoff and
+   only when the configuration is active.
+3. Existing legacy cases never enter automatically. An authorized Admin-only
+   include or exclude action may change one exact case with a required reason,
+   provenance and request-id idempotency. Removal preserves history; it does
+   not delete or rewrite prior audit evidence.
+4. Reuse the existing handoff/case/read/audit seams and role controls. Pilot
+   membership must be visible from canonical case detail/read models and
+   bounded aggregate counts, while cross-organization visibility/mutation and
+   inactive/unauthorized actors fail closed.
+5. Add a truthful write-boundary evaluator for pilot operations. Canonical
+   EVO/Supabase writes remain allowed for included pilot cases; any path that
+   would require a forbidden legacy write must return an explicit blocked
+   result and may not silently downgrade to a compatibility path or dual-write.
+6. Keep this branch local and stacked until #386 is protected-merged and its
+   exact-main CI is green. Rebase onto that exact main SHA, rerun affected
+   disposable-local evidence, then create the only U10 PR.
+
+Validation impact: add unit coverage for cohort normalization and write-boundary
+evaluation; disposable PostgreSQL/RLS coverage for config, auto-entry,
+include/exclude, audit/idempotency and negative authorization; authenticated
+browser proof for visible pilot status, automatic inclusion, legacy exclusion,
+authorized include/exclude and blocked legacy-write behavior; retain lint,
+typecheck, build, full local Supabase, exact-head, match-head and exact-main
+gates.
+
+## 2026-08-27 — Rebind U10 to the verified U9 exact-main head
+
+Date: 2026-08-27, workspace timezone (+04).
+Author: Codex after the protected U9 merge and exact-main gate.
+Change type: dependency-gate completion; no U10 scope expansion.
+Block-ID: `EVO-LONG-RUN-1-U10-EXACT-MAIN-REBIND-2026-08-27`.
+
+Evidence:
+
+- U9/#386 exact PR head `8ffdbbb8b732ab456220de49038083ad9e5af37d`
+  passed required run `33016140835`.
+- PR #401 was squash-merged with `--match-head-commit`; exact main became
+  `48d15818d51a629ea97f914b93c2beca82ee0c2b`.
+- Exact-main push run `33017855457` completed successfully for Main CRM, EVO
+  Inbox and EVO Lead Agent; Changed range was skipped as expected for a push.
+
+Decision:
+
+1. Rebase the single U10 implementation commit from its local stacked U9
+   parent directly onto exact main
+   `48d15818d51a629ea97f914b93c2beca82ee0c2b` before opening the PR.
+2. Preserve historical U9 evidence while advancing the migration,
+   release-manifest and Inbox containment boundaries through migration 092.
+3. Keep automatic cohort entry insert-only, manual include/exclude Admin-only,
+   mutation receipts bound to the exact request ID, and every legacy write
+   target explicitly blocked without fallback.
+4. Rerun the complete disposable-local gate plus lint, typecheck and build on
+   the rebased implementation tree, then require independent exact-head review,
+   protected merge and exact-main CI for #387.
+
+Validation impact: dependency evidence changes from stacked/local to exact
+main. Functional acceptance, tenant isolation, append-only audit and disabled
+provider/legacy-write boundaries remain unchanged.

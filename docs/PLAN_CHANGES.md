@@ -11466,3 +11466,85 @@ Decision:
 Validation impact: dependency evidence changes from stacked/local to exact
 main. Functional acceptance, tenant isolation, append-only audit and disabled
 provider/legacy-write boundaries remain unchanged.
+
+## 2026-08-27 — Authorize staged V1 staff rollout and isolated V2 continuation
+
+Date: 2026-08-27, workspace timezone (+04).
+Author: Codex after the owner requested one stable employee-used Version 1 and
+one separate Version 2 for continued work.
+Change type: post-Long-run-1 rollout scope, release ordering, environment
+topology and effect-specific gate clarification.
+Block-ID: `EVO-V1-STAFF-V2-STAGING-ROLLOUT-2026-08-27`.
+Affected plan section: `docs/EVO_LAUNCH_PLAN.md`, V1 staff rollout and isolated
+V2 continuation.
+
+Owner decision:
+
+1. Replace the active old production application with the accepted V1 after
+   real staging acceptance. Do not keep the old application as a second active
+   staff product.
+2. Preserve the prior image, configuration and fresh pre-cutover backups as
+   rollback inventory. Do not delete the production database, employee
+   accounts, live data or rollback evidence during the cutover.
+3. Create Version 2 from the exact accepted V1 release and operate it through a
+   separate branch, deployment, Supabase identity, secrets set, Compose project,
+   network, volumes and hostname.
+4. Treat "copy" as an identical code/release baseline, not blanket permission
+   to copy production customer data into development.
+5. Follow the existing Long-run-2 safety order: U11/#388 truthful readiness and
+   exercised non-production backup/rollback, U12/#389 real managed acceptance,
+   then U13/#390 controlled employee pilot evidence.
+6. Start employee use with the approved net-new or explicitly allowlisted
+   cohort. Preserve legacy data outside normal V1 writes and defer broad
+   historical/archive migration to #391 after the pilot.
+
+Read-only evidence captured before this amendment:
+
+- `origin/main` and the completed V1 feature baseline are exact commit
+  `2ea92ac547d7f526f0e886a81f871936af456635`; its exact-main run
+  `33024106321` passed.
+- production CRM is healthy on older revision
+  `ee8a825ebc72f84449636e3feaefab7a330913d4` with zero restarts.
+- the latest retained managed migration evidence is `001-077`; current main
+  requires the contiguous repository history through `092`.
+- `crm.evoadmissions.com` is unresolved; the technical fallback health and
+  login routes return HTTP `200`.
+- visible production logical backup files end before later SQLite WAL/SHM
+  state, so a fresh cutover backup is mandatory.
+- GitHub currently has zero deployment Environments, zero repository deployment
+  secrets and zero deployment variables.
+- managed Supabase Auth responds, but public email signup is enabled and no
+  real current-V1 staff sign-in has been proved.
+- current server disk/memory headroom is sufficient for bounded staging
+  preparation, but server and Compose isolation must still be enforced.
+
+Interpretation:
+
+- `2ea92ac...` is `V1_FEATURE_BASELINE`, not yet tag `v1.0.0`.
+- the exact post-U11 protected-main release commit becomes
+  `V1_RELEASE_REVISION` after no unrelated feature drift is proved;
+- direct app-only deployment is forbidden because production schema, Auth,
+  backup, DNS and release-controller readiness are not yet proved;
+- old application rollback cannot be claimed compatible after forward managed
+  migrations unless that exact combination is exercised. A post-migration
+  failure is reconciliation-required unless provider recovery or a reviewed
+  forward fix is proved.
+
+Authorization boundary:
+
+The owner's "make a plan and we go with it" authorizes this plan, issue/PR
+preparation, read-only production/provider inspection and non-destructive
+repository implementation. It does not invent the missing billed-resource,
+DNS, staff-account, WhatsApp-input or maintenance-window values. Each external
+effect proceeds only when its exact target and owner input are recorded in the
+execution evidence. No production, DNS, managed database, Auth-user, WAHA or
+amoCRM mutation is performed by this docs-only amendment.
+
+Validation impact:
+
+- this planning PR requires `git diff --check`, exact-head CI, independent
+  launch-control review, protected merge and exact-main verification;
+- #388 implementation must add real staging isolation and exercised
+  backup/restore evidence before #389;
+- production promotion must use the exact staging-accepted image and preserve
+  the prior release; V2 must begin from the resulting immutable `v1.0.0` tag.

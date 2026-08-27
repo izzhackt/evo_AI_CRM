@@ -4744,8 +4744,11 @@ Block-ID: `EVO-V1-STAFF-V2-STAGING-ROLLOUT-2026-08-27`.
 The accepted target is one stable Version 1 used by EVO staff and one isolated
 Version 2 derived from that accepted release for continued development. The
 currently active production application is replaced only after the new V1 has
-passed real managed acceptance. It is retained as rollback inventory during
-the cutover and is not kept as a second active product.
+passed real managed acceptance, the owner has completed at least one hands-on
+staging feedback/fix round and the owner then gives a separate explicit
+production approval. Until that message, V1 stays outside production. The old
+production release is retained as rollback inventory during the later cutover
+and is not kept as a second active product.
 
 This block starts the separately authorized post-Long-run-1 preparation. It
 does not reinterpret repository evidence as managed or production proof and it
@@ -4888,11 +4891,26 @@ ownership, data classification and current ledger must be proved before use.
    Record zero outbound WhatsApp and zero amoCRM writes.
 6. Exercise the staging backup/restore controller and repeat the login and
    tenant-isolation smoke after restore.
+7. Give the owner a real staging URL and approved Admin login for at least one
+   hands-on exploratory round. The owner may report both defects and places
+   that feel wrong or need product/UI adjustment.
+8. Record every accepted owner report, fix it through reviewed code, redeploy
+   the new exact candidate to staging and repeat affected automated, security
+   and hands-on checks. Any changed commit or image invalidates the earlier
+   acceptance evidence for that surface.
+9. Keep this feedback/fix loop open until the owner explicitly accepts the
+   exact staging revision as Version 1. Silence, a green CI run or technical
+   acceptance alone is not owner acceptance.
 
 Fixture-only, local-only, configured-only or synthetic provider evidence does
 not close R3.
 
 #### R4 - promote the exact accepted V1 to production
+
+R4 has an additional owner gate: it is unauthorized until, after the staging
+feedback/fix loop, the owner sends a separate explicit instruction that the
+exact accepted V1 may replace production. The earlier instruction to make and
+follow this plan does not satisfy that later production gate.
 
 1. Freeze a maintenance window and recheck exact main, release-candidate image,
    CI, staging evidence, production containers, disk, DNS, managed project,

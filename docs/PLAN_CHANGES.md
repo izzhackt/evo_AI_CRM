@@ -11557,3 +11557,36 @@ Validation impact:
   backup/restore evidence before #389;
 - production promotion must use the exact staging-accepted image and preserve
   the prior release; V2 must begin from the resulting immutable `v1.0.0` tag.
+
+## 2026-08-27 — Require owner V1 feedback round before production
+
+Date: 2026-08-27, workspace timezone (+04).
+Author: Codex after the owner clarified that Version 1 must first be available
+for a small hands-on bug and product-feedback round.
+Change type: production authorization gate clarification; no product feature or
+provider authority expansion.
+Block-ID: `EVO-V1-OWNER-FEEDBACK-GATE-2026-08-27`.
+Affected plan section: `docs/EVO_LAUNCH_PLAN.md`, R3 staging acceptance and R4
+production promotion.
+
+Owner decision:
+
+1. Do not deploy the new V1 to production as part of the current preparation.
+2. First expose the real isolated staging V1 to the owner with an approved
+   Admin login so the owner can report bugs and places they do not like.
+3. Run at least one fix-and-retest loop on staging. Every changed revision must
+   repeat the affected automated, authorization and hands-on checks.
+4. Production remains unchanged until the owner accepts the exact staging
+   revision and then gives a separate explicit production instruction.
+5. The earlier "make a plan and we go with it" instruction authorizes planning,
+   repository work and the staged testing path; it is not the later production
+   approval.
+
+Validation impact:
+
+- technical acceptance, green CI and silence cannot substitute for owner
+  acceptance;
+- the accepted staging commit and image must be recorded after the final
+  feedback fix, not before it;
+- R4 remains closed until the separate owner production instruction is present
+  in the execution evidence.

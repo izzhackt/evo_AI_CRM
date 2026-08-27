@@ -73,8 +73,8 @@ evo-crm.72.62.119.112.sslip.io {
 	reverse_proxy evo-crm-app:3000
 }
 
-# Fallback-only until authoritative DNS exists for staging.crm.evoadmissions.com.
-# Add the canonical hostname here only after DNS and canonical TLS are verified.
+# Fallback-only while the authoritative staging DNS record is absent.
+# Add the canonical staging hostname only after DNS and TLS are verified.
 staging-crm.72.62.119.112.sslip.io {
 	import evo_app
 	request_body {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import type { SupabasePublicConfig } from "@/lib/supabase/config";
 
 const REFRESH_DEBOUNCE_MS = 250;
 
@@ -14,17 +15,24 @@ const REFRESH_DEBOUNCE_MS = 250;
 export function PortalNotificationsRealtime({
   organizationId,
   membershipId,
+  supabaseConfig,
 }: {
   organizationId: string;
   membershipId: string;
+  supabaseConfig: SupabasePublicConfig;
 }) {
   const router = useRouter();
+  const supabaseUrl = supabaseConfig.url;
+  const supabasePublishableKey = supabaseConfig.publishableKey;
   const [state, setState] = useState<
     "connecting" | "subscribed" | "disconnected"
   >("connecting");
 
   useEffect(() => {
-    const client = createSupabaseBrowserClient();
+    const client = createSupabaseBrowserClient({
+      url: supabaseUrl,
+      publishableKey: supabasePublishableKey,
+    });
     const channel = client.channel(
       `platform-portal-notifications:${organizationId}:${membershipId}`,
       { config: { private: true } },
@@ -62,7 +70,7 @@ export function PortalNotificationsRealtime({
       if (refreshTimer) clearTimeout(refreshTimer);
       void client.removeChannel(channel);
     };
-  }, [membershipId, organizationId, router]);
+  }, [membershipId, organizationId, router, supabasePublishableKey, supabaseUrl]);
 
   return (
     <span

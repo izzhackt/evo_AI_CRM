@@ -15,6 +15,19 @@ export {
   platformStudentPortalRedirect,
 };
 
+const PLATFORM_ORGANIZATION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
+function configuredPlatformOrganizationId(): string | null {
+  const value = process.env.EVO_PLATFORM_ORGANIZATION_ID;
+  if (!value || value !== value.trim() || !PLATFORM_ORGANIZATION_ID_PATTERN.test(value)) {
+    return null;
+  }
+  const normalized = value.toLowerCase();
+  return normalized === NIL_UUID ? null : normalized;
+}
+
 export async function requirePlatformActor(): Promise<PlatformActor> {
   const result = await resolvePlatformActor();
   if (result.status === "anonymous") redirect("/login");
@@ -80,6 +93,19 @@ export async function requirePlatformAuditAdminActor(): Promise<PlatformActor> {
   const actor = await requirePlatformStaffActor();
   if (actor.platformRole !== "admin") {
     redirect("/platform-pending?from=%2Fsettings%3Ftab%3Daudit");
+  }
+  return actor;
+}
+
+export async function requirePlatformOperationsAdminActor(): Promise<PlatformActor> {
+  const actor = await requirePlatformActor();
+  const organizationId = configuredPlatformOrganizationId();
+  if (
+    actor.platformRole !== "admin" ||
+    organizationId === null ||
+    actor.organizationId !== organizationId
+  ) {
+    redirect("/platform-pending?from=%2Fsettings%3Ftab%3Doperations");
   }
   return actor;
 }

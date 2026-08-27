@@ -234,6 +234,10 @@ test("portal realtime is private, membership-scoped, and invalidate-only", () =>
     /`platform-portal-notifications:\$\{organizationId\}:\$\{membershipId\}`/,
   );
   assert.match(source, /config:\s*\{\s*private:\s*true\s*\}/);
+  assert.match(
+    source,
+    /createSupabaseBrowserClient\(\{\s*url:\s*supabaseUrl,\s*publishableKey:\s*supabasePublishableKey,?\s*\}\)/,
+  );
   assert.match(source, /\.on\("broadcast",\s*\{\s*event:\s*"invalidate"\s*\}/);
   assert.match(source, /router\.refresh\(\)/);
   assert.doesNotMatch(source, /payload\.|notification_id|document_version|waha/i);
@@ -245,6 +249,7 @@ test("portal realtime is private, membership-scoped, and invalidate-only", () =>
   );
   assert.match(layout, /notificationsRealtimeScope\s*&&/);
   assert.match(layout, /<PortalNotificationsRealtime/);
+  assert.match(layout, /supabaseConfig=\{supabaseConfig\}/);
 });
 
 test("accepted portal renders the durable feed above no fake IDs and badges only unread durable rows", () => {

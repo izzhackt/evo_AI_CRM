@@ -171,7 +171,10 @@ test("uses a private invalidation-only Realtime channel with reconnect fallback 
     "utf8",
   );
 
-  assert.match(realtime, /createSupabaseBrowserClient\(\)/);
+  assert.match(
+    realtime,
+    /createSupabaseBrowserClient\(\{\s*url:\s*supabaseUrl,\s*publishableKey:\s*supabasePublishableKey,?\s*\}\)/,
+  );
   assert.match(realtime, /channel\(`platform-messaging:\$\{organizationId\}`/);
   assert.match(realtime, /config:\s*\{\s*private:\s*true\s*\}/);
   assert.match(realtime, /\.on\("broadcast",\s*\{\s*event:\s*"invalidate"\s*\},\s*\(\)\s*=>\s*refresh\(\)\)/);
@@ -197,8 +200,14 @@ test("uses a private invalidation-only Realtime channel with reconnect fallback 
     threadPage.lastIndexOf("getPlatformWahaSessionHealth(") >
       threadPage.indexOf("if (!thread || !workflow) notFound()"),
   );
-  assert.match(listPage, /PlatformMessagingRealtime organizationId=\{actor\.organizationId\}/);
-  assert.match(threadPage, /PlatformMessagingRealtime organizationId=\{actor\.organizationId\}/);
+  assert.match(
+    listPage,
+    /<PlatformMessagingRealtime[\s\S]*?organizationId=\{actor\.organizationId\}[\s\S]*?supabaseConfig=\{supabaseConfig\}/,
+  );
+  assert.match(
+    threadPage,
+    /<PlatformMessagingRealtime[\s\S]*?organizationId=\{actor\.organizationId\}[\s\S]*?supabaseConfig=\{supabaseConfig\}/,
+  );
   assert.doesNotMatch(listPage, /AutoRefresh/);
   assert.match(threadView, /data-session-status=\{wahaSessionHealth\?\.status \?\? "UNKNOWN"\}/);
   assert.match(threadView, /data-waha-ack-name=/);

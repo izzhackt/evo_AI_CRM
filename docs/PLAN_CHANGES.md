@@ -11645,3 +11645,84 @@ Validation impact: use TDD for the public seams and controller stop paths; run
 focused Node tests, real local Supabase/Auth/RLS/Storage proof, real OrbStack
 release-controller proof, lint, typecheck and build; then require independent
 launch-control review, exact-head CI, protected merge and exact-main CI.
+
+## 2026-08-27 — Keep one accepted image portable across staging and production
+
+Date: 2026-08-27, workspace timezone (+04).
+Author: Codex during U11 implementation review.
+Change type: release-integrity correction; no new provider authority.
+Block-ID: `EVO-U11-RUNTIME-PUBLIC-CONFIG-2026-08-27`.
+Affected plan section: U11 controlled staging and R4 exact-image promotion.
+
+Evidence:
+
+- the Dockerfile runs `next build` once and the release workflow promotes the
+  resulting immutable image without rebuilding it;
+- the browser Supabase helper currently reaches
+  `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` through
+  client code;
+- Next.js 16 inlines `NEXT_PUBLIC_*` references into browser JavaScript at
+  build time, so changing only the container environment cannot retarget that
+  already-built browser bundle;
+- staging and production must use different Supabase identities, therefore the
+  current browser path would invalidate the exact-image promotion guarantee.
+
+Decision:
+
+1. Continue using one reviewed immutable image for staging acceptance and the
+   later separately approved production promotion.
+2. Read and validate the public Supabase URL and publishable key in existing
+   server components at request runtime, then pass that serializable public
+   configuration explicitly to the two Realtime client components.
+3. Remove every `process.env.NEXT_PUBLIC_*` read from the browser helper. Cache
+   browser clients by the exact public configuration instead of one unkeyed
+   process-global client.
+4. Add regression tests that keep environment reads server-side and prove each
+   Realtime call site receives runtime configuration. This change exposes no
+   server secret and authorizes no deployment or provider mutation.
+
+Validation impact: rerun focused runtime-configuration and Realtime tests,
+lint, typecheck and a production standalone build; retain the U11 exact-image,
+staging-isolation and exact-head gates.
+
+## 2026-08-27 — Bind U11 staging preflight to the concrete private app environment
+
+Date: 2026-08-27, workspace timezone (+04).
+Author: Codex during independent U11 implementation review.
+Change type: staging-isolation correction; no provider, VPS, DNS, data or
+production mutation authorization.
+Block-ID: `EVO-U11-CONCRETE-STAGING-IDENTITY-2026-08-27`.
+Affected plan section: U11 controlled staging and R3 staging acceptance.
+
+Evidence:
+
+- the first controlled profile compared caller-supplied friendly Supabase
+  identity strings, but it did not read the `.env.staging` file consumed by
+  `docker-compose.staging.yml`;
+- therefore a profile could look isolated while the app's concrete
+  `NEXT_PUBLIC_SUPABASE_URL`, publishable key, server key or tenant UUID still
+  pointed at the wrong identity;
+- modern Supabase keys are opaque, so project membership cannot be inferred
+  from their text without exercising the provider.
+
+Decision:
+
+1. Keep the effect-free profile gate, but require exact 20-character project
+   refs and pin the current production project ref in code.
+2. Require the controlled preflight to read the exact private Compose app env
+   file and bind its concrete Supabase URL to the approved staging project ref.
+3. Bind the concrete publishable and server keys through protected SHA-256
+   fingerprints and bind `EVO_PLATFORM_ORGANIZATION_ID` to the approved
+   staging tenant UUID. Reject production collisions without printing any
+   value.
+4. Materialize the protected GitHub staging env secret only in a mode-`0600`
+   runner temporary file, unset it after writing, delete the file on exit and
+   upload only redacted result fields.
+5. Run the same concrete identity gate before any future controller `deploy`
+   with `EVO_RELEASE_ENVIRONMENT=staging`. The current staging workflow remains
+   validation-only and performs no SSH, Docker, provider or DNS mutation.
+
+Validation impact: add RED/GREEN tests for the concrete environment seam,
+production URL collision, key fingerprints, tenant binding, closed CLI output,
+workflow handling and the controller path; rerun the complete OrbStack release
+harness and existing U11 gates.

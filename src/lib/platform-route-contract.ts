@@ -60,6 +60,7 @@ const PLATFORM_AUDIT_SETTINGS_QUERY_KEYS = new Set([
   "cursor_id",
 ]);
 const PLATFORM_STAFF_SETTINGS_QUERY_KEYS = new Set(["tab", "staff_result"]);
+const PLATFORM_OPERATIONS_SETTINGS_QUERY_KEYS = new Set(["tab"]);
 
 export function platformHomeRoute(role: PlatformRole): string {
   if (role === "admin" || role === "sales") return "/sales";
@@ -142,6 +143,26 @@ export function isConnectedPlatformStaffSettingsRequest(
   return true;
 }
 
+export function isConnectedPlatformOperationsSettingsRequest(
+  path: string,
+  searchParams: URLSearchParams,
+): boolean {
+  if (path !== "/settings" || searchParams.getAll("tab").length !== 1) {
+    return false;
+  }
+  if (searchParams.get("tab") !== "operations") return false;
+
+  for (const key of new Set(searchParams.keys())) {
+    if (
+      !PLATFORM_OPERATIONS_SETTINGS_QUERY_KEYS.has(key) ||
+      searchParams.getAll(key).length !== 1
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function isConnectedPlatformSettingsRequest(
   path: string,
   searchParams: URLSearchParams,
@@ -149,6 +170,7 @@ export function isConnectedPlatformSettingsRequest(
 ): boolean {
   return (
     isConnectedPlatformStaffSettingsRequest(path, searchParams) ||
+    isConnectedPlatformOperationsSettingsRequest(path, searchParams) ||
     (
       auditEnabled &&
       isConnectedPlatformAuditSettingsRequest(path, searchParams)

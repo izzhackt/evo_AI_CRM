@@ -109,7 +109,8 @@ The UI projection contains only:
 - canonical component status and fixed alert/runbook codes;
 - safe aggregate queue/media/autonomy counts;
 - observation timestamps, ages and partial-data flags;
-- closed recovery result codes and artifact SHA-256 presence;
+- closed database/Storage recovery statuses and evidence age; artifact hashes
+  remain in the private evidence file;
 - exact non-secret commit, image and environment aliases;
 - explicit evidence absence or failure.
 
@@ -127,8 +128,9 @@ starts a container, preflight must verify at least:
 - Compose project, private network, volumes and fixed container names are
   staging-owned;
 - the public hostname is the exact staging hostname;
-- the staging Supabase identity is present and differs from the recorded
-  production identity;
+- the exact private app env file consumed by staging Compose uses the approved
+  staging Supabase project URL, publishable/server key fingerprints and tenant
+  UUID, while the pinned production project and key fingerprints are rejected;
 - the observed managed migration ledger has no drift and the requested range
   is contiguous;
 - rollback image, configuration and pre-migration recovery inputs exist;
@@ -210,4 +212,9 @@ reset, OrbStack rollback or backup-file hash substitutes for that real proof.
   explicit resource-name collision checks because the current Compose file
   also contains fixed names:
   <https://docs.docker.com/compose/how-tos/project-name/>.
-
+- Next.js inlines browser-visible `NEXT_PUBLIC_*` references at build time, so
+  an immutable image promoted across environments must obtain its public
+  Supabase configuration through a runtime server path and pass it to Client
+  Components instead of reading environment variables in browser code:
+  <https://nextjs.org/docs/pages/guides/environment-variables> and
+  <https://nextjs.org/docs/app/getting-started/server-and-client-components>.

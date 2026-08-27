@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
 import {
   isConnectedPlatformAuditSettingsRequest,
+  isConnectedPlatformOperationsSettingsRequest,
   isConnectedPlatformStaffSettingsRequest,
 } from "@/lib/platform-route-contract";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
@@ -29,6 +30,12 @@ export default async function SettingsPage({
         "./PlatformStaffSettingsPage"
       );
       return <PlatformStaffSettingsPage searchParams={params} />;
+    }
+    if (isConnectedPlatformOperationsSettingsRequest("/settings", exactQuery)) {
+      const { default: PlatformOperationsSettingsPage } = await import(
+        "./PlatformOperationsSettingsPage"
+      );
+      return <PlatformOperationsSettingsPage />;
     }
     if (
       !isPlatformP7AAuditEnabled() ||

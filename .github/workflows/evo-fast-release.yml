@@ -7,18 +7,103 @@ on:
         description: Exact current main commit SHA
         required: true
         type: string
+      release_environment:
+        description: Production fast release or validation-only staging preflight
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
 
 permissions:
   contents: read
   checks: read
 
 concurrency:
-  group: evo-production-release
+  group: evo-${{ inputs.release_environment }}-release
   cancel-in-progress: false
 
 jobs:
+  staging_profile_preflight:
+    name: Validate the closed staging identity without effects
+    if: inputs.release_environment == 'staging'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging
+    steps:
+      - name: Check out the requested immutable commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.release_revision }}
+          fetch-depth: 0
+
+      - name: Set up the repository Node.js runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Require exact current main and exact-SHA green CI
+        env:
+          EVO_RELEASE_REVISION: ${{ inputs.release_revision }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$EVO_RELEASE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          [[ "$(git rev-parse HEAD)" == "$EVO_RELEASE_REVISION" ]]
+          [[ "$(git rev-parse origin/main)" == "$EVO_RELEASE_REVISION" ]]
+          node scripts/fast-release-ci-gate.mjs
+
+      - name: Validate the effect-free controlled staging profile
+        env:
+          EVO_RELEASE_ENVIRONMENT: staging
+          EVO_RELEASE_GITHUB_ENVIRONMENT: staging
+          EVO_RELEASE_ROOT: /opt/evo-crm-staging
+          EVO_RELEASE_IMMUTABLE_ROOT: /opt/evo-crm-staging/releases
+          EVO_RELEASE_STAGING_ROOT: /opt/evo-crm-staging/.release-staging
+          EVO_RELEASE_EVIDENCE_ROOT: /opt/evo-crm-staging/evidence
+          EVO_RELEASE_PROJECT_NAME: evo-crm-staging
+          EVO_RELEASE_PRIVATE_NETWORK: evo_crm_staging_private
+          EVO_RELEASE_PUBLIC_NETWORK: evo_public_web
+          EVO_RELEASE_VOLUME_NAMES: evo_crm_staging_data,evo_crm_staging_output,evo_crm_staging_backups,evo_crm_staging_waha_sessions,evo_crm_staging_lead_agent_data
+          EVO_RELEASE_FIXED_CONTAINER_NAMES: evo-crm-staging-manual-send-worker
+          EVO_RELEASE_PUBLIC_HOSTNAME: staging.crm.evoadmissions.com
+          EVO_RELEASE_APP_ENV_FILE: ${{ runner.temp }}/evo-staging-app.env
+          EVO_RELEASE_ENV_EXAMPLE_FILE: ${{ github.workspace }}/deploy/env.staging.example
+          EVO_RELEASE_STAGING_APP_ENV: ${{ secrets.EVO_RELEASE_STAGING_APP_ENV }}
+          EVO_RELEASE_SUPABASE_PROJECT_REF: ${{ vars.EVO_RELEASE_SUPABASE_PROJECT_REF }}
+          EVO_PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.EVO_PRODUCTION_SUPABASE_PROJECT_REF }}
+          EVO_RELEASE_PLATFORM_ORGANIZATION_ID: ${{ vars.EVO_RELEASE_PLATFORM_ORGANIZATION_ID }}
+          EVO_RELEASE_SUPABASE_PUBLISHABLE_KEY_SHA256: ${{ vars.EVO_RELEASE_SUPABASE_PUBLISHABLE_KEY_SHA256 }}
+          EVO_RELEASE_SUPABASE_SECRET_KEY_SHA256: ${{ vars.EVO_RELEASE_SUPABASE_SECRET_KEY_SHA256 }}
+          EVO_PRODUCTION_SUPABASE_PUBLISHABLE_KEY_SHA256: ${{ vars.EVO_PRODUCTION_SUPABASE_PUBLISHABLE_KEY_SHA256 }}
+          EVO_PRODUCTION_SUPABASE_SECRET_KEY_SHA256: ${{ vars.EVO_PRODUCTION_SUPABASE_SECRET_KEY_SHA256 }}
+        run: |
+          set -Eeuo pipefail
+          trap 'rm -f -- "$EVO_RELEASE_APP_ENV_FILE"' EXIT
+          install -m 600 /dev/null "$EVO_RELEASE_APP_ENV_FILE"
+          printf '%s' "$EVO_RELEASE_STAGING_APP_ENV" > "$EVO_RELEASE_APP_ENV_FILE"
+          unset EVO_RELEASE_STAGING_APP_ENV
+          result_json=$(scripts/evo-fast-release.sh controlled-staging-preflight)
+          [[ "$(jq -er '.ok' <<<"$result_json")" == true ]]
+          [[ "$(jq -er '.effectsAllowed' <<<"$result_json")" == false ]]
+          [[ "$(jq -er '.environment' <<<"$result_json")" == staging ]]
+          [[ "$(jq -er '.releaseStatus' <<<"$result_json")" == blocked ]]
+          [[ "$(jq -er '.blocker' <<<"$result_json")" == managed_staging_inputs_required ]]
+          printf '%s\n' "$result_json" > /tmp/evo-controlled-staging-preflight.json
+
+      - name: Upload the redacted staging preflight result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: evo-controlled-staging-preflight-${{ inputs.release_revision }}
+          if-no-files-found: error
+          retention-days: 30
+          path: /tmp/evo-controlled-staging-preflight.json
+
   prepare:
     name: Validate and build immutable CRM image
+    if: inputs.release_environment == 'production'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -95,6 +180,7 @@ jobs:
 
   release:
     name: Approve, deploy, and verify CRM app
+    if: inputs.release_environment == 'production'
     needs: prepare
     runs-on: ubuntu-latest
     environment: production

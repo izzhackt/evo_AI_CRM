@@ -2,17 +2,26 @@
 
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getSupabasePublicConfig } from "./config";
+import type { SupabasePublicConfig } from "./config";
 
-let browserClient: SupabaseClient | undefined;
+const browserClients = new Map<string, Map<string, SupabaseClient>>();
 
 /**
- * Lazily creates one browser client for the current page lifetime.
+ * Lazily creates one browser client per validated runtime public configuration.
  */
-export function createSupabaseBrowserClient(): SupabaseClient {
-  if (browserClient) return browserClient;
+export function createSupabaseBrowserClient({
+  url,
+  publishableKey,
+}: SupabasePublicConfig): SupabaseClient {
+  const clientsForUrl = browserClients.get(url);
+  const existingClient = clientsForUrl?.get(publishableKey);
+  if (existingClient) return existingClient;
 
-  const config = getSupabasePublicConfig();
-  browserClient = createBrowserClient(config.url, config.publishableKey);
+  const browserClient = createBrowserClient(url, publishableKey);
+  if (clientsForUrl) {
+    clientsForUrl.set(publishableKey, browserClient);
+  } else {
+    browserClients.set(url, new Map([[publishableKey, browserClient]]));
+  }
   return browserClient;
 }

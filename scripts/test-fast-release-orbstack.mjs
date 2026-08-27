@@ -9,6 +9,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -35,7 +36,8 @@ const candidateTag = `evo-crm:${candidateRevision}`;
 const badTag = `evo-crm:${badRevision}`;
 const successRollbackTag = `evo-crm:rollback-${successRunId}`;
 const failureRollbackTag = `evo-crm:rollback-${failureRunId}`;
-const harnessRoot = mkdtempSync(join(tmpdir(), "evo-fast-release-"));
+const temporaryRoot = realpathSync(tmpdir());
+const harnessRoot = mkdtempSync(join(temporaryRoot, "evo-fast-release-"));
 const stagingRoot = join(harnessRoot, "staging");
 const evidenceRoot = join(harnessRoot, "evidence");
 const deployRoot = join(harnessRoot, "deploy");
@@ -415,7 +417,7 @@ try {
       process.stderr.write(`Harness image cleanup warning for ${tag}: ${error.message}\n`);
     }
   }
-  if (harnessRoot.startsWith(`${tmpdir()}/evo-fast-release-`)) {
+  if (harnessRoot.startsWith(`${temporaryRoot}/evo-fast-release-`)) {
     rmSync(harnessRoot, { recursive: true, force: true });
   }
 }

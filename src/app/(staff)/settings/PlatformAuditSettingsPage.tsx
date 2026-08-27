@@ -150,6 +150,9 @@ export default async function PlatformAuditSettingsPage({
           Доступ сотрудников
         </Link>
         <span aria-current="page" className={btnCls}>Журнал аудита</span>
+        <Link className={btnGhostCls} href="/settings?tab=operations">
+          Операции
+        </Link>
       </nav>
 
       <ContextBanner

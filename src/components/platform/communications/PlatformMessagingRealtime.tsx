@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import type { SupabasePublicConfig } from "@/lib/supabase/config";
 
 const REFRESH_DEBOUNCE_MS = 250;
 const DISCONNECTED_FALLBACK_MS = 60_000;
@@ -14,16 +15,23 @@ const DISCONNECTED_FALLBACK_MS = 60_000;
  */
 export function PlatformMessagingRealtime({
   organizationId,
+  supabaseConfig,
 }: {
   organizationId: string;
+  supabaseConfig: SupabasePublicConfig;
 }) {
   const router = useRouter();
+  const supabaseUrl = supabaseConfig.url;
+  const supabasePublishableKey = supabaseConfig.publishableKey;
   const [realtimeState, setRealtimeState] = useState<
     "connecting" | "subscribed" | "disconnected"
   >("connecting");
 
   useEffect(() => {
-    const client = createSupabaseBrowserClient();
+    const client = createSupabaseBrowserClient({
+      url: supabaseUrl,
+      publishableKey: supabasePublishableKey,
+    });
     const channel = client.channel(`platform-messaging:${organizationId}`, {
       config: { private: true },
     });
@@ -81,7 +89,7 @@ export function PlatformMessagingRealtime({
       if (refreshTimer) clearTimeout(refreshTimer);
       void client.removeChannel(channel);
     };
-  }, [organizationId, router]);
+  }, [organizationId, router, supabasePublishableKey, supabaseUrl]);
 
   return (
     <span

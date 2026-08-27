@@ -11726,3 +11726,93 @@ Validation impact: add RED/GREEN tests for the concrete environment seam,
 production URL collision, key fingerprints, tenant binding, closed CLI output,
 workflow handling and the controller path; rerun the complete OrbStack release
 harness and existing U11 gates.
+
+## 2026-08-27 — Execute the owner-approved isolated V1 staging contour
+
+Date: 2026-08-27, workspace timezone (+04).
+Author: Codex during the owner-authorized V1 staging rollout.
+Change type: managed staging execution and source-of-truth reconciliation; no
+production promotion.
+Block-ID: `EVO-V1-STAGING-EXECUTION-2026-08-27`.
+Affected plan section: R2 isolated managed staging and the opening gates of R3.
+
+Owner authorization:
+
+- create one staging environment with a target budget of at most USD 15 per
+  month;
+- provision one owner-supplied first Admin identity;
+- keep the old production application running and do not replace, delete or
+  restart it;
+- use staging for the owner's feedback-and-fix round before any later,
+  separately approved production promotion.
+
+Executed evidence:
+
+1. Exact current `main` and the deployed staging candidate were both pinned to
+   `6d2109b865da334bd41ad8c432147a2f7045937b`. The immutable Linux AMD64 image
+   is `evo-crm:6d2109b865da334bd41ad8c432147a2f7045937b`, image ID
+   `sha256:73e73f0a557d67c2f4bba4e32ae34fafe0a0dceeb10ac3efc1fb845a3a5757e7`,
+   release version `2026-08-27.v1-staging.1`.
+2. Supabase persistent Micro branch `evo-v1-staging`, project ref
+   `brkihdobevpknkjvbuep`, was created from production project ref
+   `iosckaqtovbbnssqcpde` in `ap-southeast-1` with `with_data=false`. No
+   production customer data was copied.
+3. The first incremental migration attempt exposed a managed branch-history
+   inconsistency: the ledger claimed earlier migrations while the `private`
+   schema was absent. Because the approved staging branch was still empty, a
+   controlled remote reset replayed repository migrations `001-092`. Direct
+   database checks then proved both private schemas and the Admin bootstrap
+   RPC, one organization/profile/Admin membership, zero Storage objects and
+   the contiguous `001-092` ledger. The branch project is `ACTIVE_HEALTHY`;
+   the provider's earlier branch-action record still reports the failed first
+   migration attempt and must not be treated as the current database truth.
+4. Public signup is disabled. The approved Admin identity is email-confirmed;
+   a real password grant returned a token whose subject, organization,
+   `platform_role=admin` and `platform_access_version=1` matched the database.
+   The password remains outside Git and chat in the owner's macOS Keychain.
+5. Protected GitHub Environment `staging` now owns the closed app env secret,
+   project/tenant variables and production-collision fingerprints. Validation-
+   only workflow run `33084233185` passed for the exact candidate and uploaded
+   a redacted `controlled_staging_profile_valid` artifact with
+   `effectsAllowed=false`. A production Environment was not created by this
+   execution.
+6. `/opt/evo-crm-staging` now owns its private env, immutable release/evidence
+   roots, Compose project `evo-crm-staging`, network
+   `evo_crm_staging_private` and staging volumes. Only
+   `evo-crm-staging-app-1` was started. WAHA, manual-send worker and Lead Agent
+   were not started; outbound WhatsApp, autonomous replies and amoCRM writes
+   remain disabled.
+7. The existing `evo-edge-caddy` received only the fallback route
+   `staging-crm.72.62.119.112.sslip.io -> evo-crm-staging-app:3000` through a
+   validated hot reload. The previous Caddyfile is retained under the private
+   staging evidence root. VPS-origin SNI verification proved a valid Let's
+   Encrypt certificate and HTTP `200` health response.
+8. Production remained healthy on
+   `evo-crm:ee8a825ebc72f84449636e3feaefab7a330913d4`, with the same image ID,
+   start time and restart count `0` before and after staging deployment. The
+   edge container also retained its start time and restart count `0`.
+
+Remaining gates:
+
+- `staging.crm.evoadmissions.com` still has no DNS record at the authoritative
+  `web-x.kz` nameservers. The dynamic fallback is intercepted by Fortinet in
+  the current operator browser path, so it is server proof, not yet an owner-
+  usable browser-acceptance URL.
+- Direct Auth/JWT proof passed, but the real browser UI login, workflow smoke,
+  owner feedback round and explicit acceptance of the exact candidate remain
+  open.
+- The managed Database plus separate Storage restore drill is still not done;
+  Issue #388 remains open. No disposable restore destination was created and
+  no synthetic Storage object was substituted for real recovery evidence.
+- One persistent Micro branch is billed per branch-hour and is not protected
+  by the Supabase Spend Cap. The owner-approved USD 15 target is therefore an
+  operating target, not a provider-enforced hard cap; do not create another
+  branch or enable extra paid usage without a new cost decision.
+- Production replacement, Version 1 tagging and Version 2 re-baselining remain
+  unauthorized until the owner completes the feedback/fix loop and gives the
+  separate R4 production instruction.
+
+Validation impact: keep the exact staging route in the repository edge source,
+re-run the closed staging preflight and Caddy validation after reconciliation,
+require independent review and exact-head CI for this record, and repeat the
+production identity/health check after every later staging change.

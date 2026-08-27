@@ -3,7 +3,7 @@
 - Owner: технический ответственный EVO Admissions
 - Snapshot date: 2026-08-27
 - Repository baseline: GitHub `origin/main`
-  `6d2109b865da334bd41ad8c432147a2f7045937b`
+  `edb58d22c9390dbf97e1e82a8975617cc3972d8a`
 - Active product contract: GitHub issue #376
 - Active implementation block: U11/#388 managed staging and recovery proof
 - Target decision: `docs/adr/0020-unify-evo-v1-on-canonical-supabase.md`
@@ -12,8 +12,9 @@
   `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
 - Evidence rule: code/configuration is not real-provider proof
 - Provider/production status: re-read 2026-08-27; isolated app-only staging is
-  running server-side, production is unchanged, canonical browser/recovery
-  acceptance is open
+  running server-side, a real read-only Admin smoke succeeded through a
+  temporary SSH loopback path, production is unchanged, public owner-network
+  acceptance and managed recovery proof are still open
 
 ## Короткий вывод
 
@@ -35,13 +36,18 @@ Owner-approved V1 staging теперь существует отдельно о�
 - production CRM остался на
   `ee8a825ebc72f84449636e3feaefab7a330913d4`, healthy, restart count `0`.
 
-Это ещё не staff-ready acceptance. `staging.crm.evoadmissions.com` не имеет
-DNS-записи; технический `sslip.io` fallback проверен на VPS, но текущий
-operator browser блокируется Fortinet TLS interception. Реальный browser UI
-login, owner feedback/fix round и managed Database + Storage restore drill не
-завершены. Issue #388 остаётся открытым. Production replacement, outbound
-WhatsApp, autonomous replies, amoCRM writes, V1 tag и V2 re-baseline не
-разрешены этим staging execution.
+Это ещё не staff-ready acceptance. Owner разрешил временно использовать
+`https://staging-crm.72.62.119.112.sslip.io`, поэтому canonical staging DNS
+больше не является prerequisite для первого feedback loop. Реальный Admin UI
+login и read-only smoke по `/sales`, `/clients`, `/applications`, `/whatsapp`
+и `/settings?tab=staff` прошли через временный SSH loopback к live staging app
+без fatal и console errors. Это не заменяет owner-network proof: certificate
+warnings bypass-ить нельзя, а на локальном Fortinet path раньше был
+`ERR_CERT_AUTHORITY_INVALID`, хотя сам public sslip route на VPS отвечал
+HTTP 200 с valid TLS. Owner feedback/fix round и managed Database + Storage
+restore drill не завершены, поэтому Issue #388 остаётся открытым. Production
+replacement, outbound WhatsApp, autonomous replies, amoCRM writes, V1 tag и V2
+re-baseline не разрешены этим staging execution.
 
 ## Historical repository snapshot before #376
 

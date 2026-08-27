@@ -4816,7 +4816,7 @@ effect. These blockers prohibit a direct application-only production update.
 | Boundary | Stable V1 production | V2 staging and V1 acceptance |
 | --- | --- | --- |
 | Git | protected `main` plus immutable `v1.0.0` tag | protected long-lived `v2` branch created from `v1.0.0` |
-| Public URL | `https://crm.evoadmissions.com` | `https://staging.crm.evoadmissions.com` |
+| Public URL | `https://crm.evoadmissions.com` | temporary owner test URL `https://staging-crm.72.62.119.112.sslip.io`; canonical `https://staging.crm.evoadmissions.com` deferred |
 | GitHub Environment | `production` | `staging` |
 | Server root | `/opt/evo-crm` secrets plus immutable `/opt/evo-releases/<sha>/repo` source | `/opt/evo-crm-staging` secrets plus a distinct immutable release root |
 | Compose project | `evo-crm` | `evo-crm-staging` |
@@ -4916,6 +4916,16 @@ ownership, data classification and current ledger must be proved before use.
 9. Keep this feedback/fix loop open until the owner explicitly accepts the
    exact staging revision as Version 1. Silence, a green CI run or technical
    acceptance alone is not owner acceptance.
+
+As of 2026-08-27, the app-only staging contour, approved Admin login and a
+read-only smoke of `/sales`, `/clients`, `/applications`, `/whatsapp` and
+`/settings?tab=staff` succeeded against the live staging app without fatal or
+console errors by using a temporary SSH loopback path. That is operator smoke
+evidence, not owner-network acceptance. Public owner testing through
+`https://staging-crm.72.62.119.112.sslip.io` remains open, and certificate
+warnings must never be bypassed. Local Fortinet interception previously caused
+`ERR_CERT_AUTHORITY_INVALID` even though the sslip route answered HTTP 200 with
+valid VPS-origin TLS.
 
 Fixture-only, local-only, configured-only or synthetic provider evidence does
 not close R3.

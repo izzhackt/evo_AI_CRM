@@ -73,8 +73,8 @@ evo-crm.72.62.119.112.sslip.io {
 	reverse_proxy evo-crm-app:3000
 }
 
-# Fallback-only while the authoritative staging DNS record is absent.
-# Add the canonical staging hostname only after DNS and TLS are verified.
+# Temporary owner test route approved on 2026-08-27; never bypass TLS warnings.
+# Canonical staging DNS is deferred unless the owner later requests it.
 staging-crm.72.62.119.112.sslip.io {
 	import evo_app
 	request_body {

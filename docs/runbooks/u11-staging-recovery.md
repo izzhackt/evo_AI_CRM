@@ -1,9 +1,9 @@
 # U11 isolated V1 staging and recovery runbook
 
 Status: isolated managed staging is partially executed. The data-less backend,
-first Admin, protected GitHub profile and app-only VPS runtime are live; the
-canonical DNS/browser acceptance and managed Database plus Storage recovery
-drill are not complete.
+first Admin, protected GitHub profile, app-only VPS runtime and operator
+read-only browser smoke are live; public owner-network acceptance and managed
+Database plus Storage recovery drill are not complete.
 
 This runbook creates the test copy requested by the owner without replacing
 the current production CRM. In plain language, staging is a separate room:
@@ -17,11 +17,13 @@ tests Version 1.
   `evo-crm:ee8a825ebc72f84449636e3feaefab7a330913d4`. It stayed healthy with
   restart count `0` while staging was created; no production container, data,
   secret or volume was replaced.
-- `staging.crm.evoadmissions.com` is the reserved V1 test hostname, but it is
-  still unresolved at the authoritative DNS provider. The technical fallback
-  `staging-crm.72.62.119.112.sslip.io` routes to staging and has a valid
-  Let's Encrypt certificate when verified at the VPS, but Fortinet interception
-  blocks the current operator browser path. Do not call it owner browser proof.
+- `staging.crm.evoadmissions.com` remains the reserved canonical V1 test
+  hostname, but the owner approved `https://staging-crm.72.62.119.112.sslip.io`
+  as the temporary test URL on 2026-08-27, so canonical staging DNS is no
+  longer a prerequisite for the first feedback loop. The sslip route answered
+  HTTP 200 and presented valid VPS-origin Let's Encrypt TLS when verified at
+  the VPS. Local Fortinet interception previously caused
+  `ERR_CERT_AUTHORITY_INVALID`; never bypass a certificate warning.
 - Supabase persistent Micro branch `evo-v1-staging` (project ref
   `brkihdobevpknkjvbuep`) is `ACTIVE_HEALTHY`, data-less relative to
   production, and has the contiguous repository ledger `001-092`. One approved
@@ -38,6 +40,11 @@ tests Version 1.
   `/opt/evo-crm-staging` currently runs only `evo-crm-staging-app-1` at exact
   revision `6d2109b865da334bd41ad8c432147a2f7045937b`; staging WAHA, worker and
   Lead Agent are absent.
+- A real Admin browser login and read-only smoke succeeded against the live
+  staging app through a temporary SSH loopback path. `/sales`, `/clients`,
+  `/applications`, `/whatsapp` and `/settings?tab=staff` loaded without fatal
+  or console errors. Integrations remained blocked or draft-only, and no
+  create/edit/send mutation was performed.
 - `deploy/env.staging.example` contains placeholders only. The real mode-`0600`
   file exists only at `/opt/evo-crm-staging/.env.staging` and as the protected
   GitHub `staging` Environment secret; its values never belong in Git or logs.
@@ -53,8 +60,9 @@ tests Version 1.
 3. Do not use Supabase `--with-data` or otherwise copy production customer data
    into staging. Use approved synthetic/minimized test records only.
 4. Keep WhatsApp outbound, autonomous replies and amoCRM writes disabled.
-5. Do not create a paid Supabase branch/project, staff identity, DNS record or
-   VPS deployment until the owner approves that exact external action.
+5. Do not create a paid Supabase branch/project, staff identity, canonical DNS
+   record or VPS deployment until the owner approves that exact external
+   action.
 6. A successful backup export or checksum is not recovery proof. Both the
    database and Storage objects must be restored to a disposable
    non-production destination and checked through the restored app.
@@ -166,14 +174,16 @@ reconfirming every external target and cost decision:
 8. Build the candidate once, record its digest and revision label, and deploy
    that exact immutable image to staging. Do not rebuild it when the owner later
    accepts or rejects the candidate.
-9. Add the staging edge route and DNS record only after the app is healthy on
-   the private network. Confirm the production route still resolves to the
-   unchanged production container before and after the addition.
+9. Add the staging edge route after the app is healthy on the private network.
+   Treat canonical DNS as a later optional step, not a prerequisite for the
+   first owner feedback loop. Confirm the production route still resolves to
+   the unchanged production container before and after any public route change.
 
 ## Owner test and fixing loop
 
-Give the owner the staging URL and one approved Admin login. The owner checks
-real workflows and reports bugs or disliked behavior. For every fixing round:
+Give the owner the temporary staging URL and one approved Admin login. First
+perform a read-only operator smoke, then the owner checks real workflows and
+reports bugs or disliked behavior. For every fixing round:
 
 1. record the feedback as a bounded issue or checklist;
 2. fix and test it in the repository;

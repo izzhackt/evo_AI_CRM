@@ -11816,3 +11816,61 @@ Validation impact: keep the exact staging route in the repository edge source,
 re-run the closed staging preflight and Caddy validation after reconciliation,
 require independent review and exact-head CI for this record, and repeat the
 production identity/health check after every later staging change.
+
+## 2026-08-27 — Accept the sslip staging URL for the owner feedback loop
+
+Date: 2026-08-27, workspace timezone (+04).
+Author: Codex after the owner's staging URL decision and authorized Admin smoke.
+Change type: staging acceptance-path clarification and real browser evidence;
+no production promotion, provider write or customer-data mutation.
+Block-ID: `EVO-V1-SSLIP-OWNER-TEST-2026-08-27`.
+Affected plan section: R2 staging address and the opening browser checks of R3.
+
+Owner decision:
+
+- use `https://staging-crm.72.62.119.112.sslip.io` as the temporary V1 staging
+  URL for the owner's feedback-and-fix round;
+- defer `staging.crm.evoadmissions.com`; a canonical staging DNS record is not
+  a prerequisite for this feedback round;
+- preserve the separate later gate before any production replacement.
+
+Execution evidence:
+
+1. The public sslip route still returned HTTP `200` with certificate
+   verification from the VPS. The current operator network intercepted the
+   same hostname with Fortinet and the browser returned
+   `ERR_CERT_AUTHORITY_INVALID`; the warning was not bypassed.
+2. A temporary SSH loopback tunnel reached the same live
+   `evo-crm-staging-app-1` container without changing its configuration. A real
+   browser login with the approved Keychain-held Admin credential succeeded
+   against the staging Supabase identity and opened `/sales` as
+   `EVO Admissions Admin`, role `Director/Admin`, on release
+   `2026-08-27.v1-staging.1` / revision `6d2109b8`.
+3. Read-only browser smoke passed for `/sales`, `/clients`, `/applications`,
+   `/whatsapp` and `/settings?tab=staff`. None redirected back to login, no
+   fatal application text or browser console errors appeared, and the UI kept
+   amoCRM and WhatsApp blocked with AI limited to drafts. No create, edit,
+   send, role-change or provider action was performed.
+4. After the smoke, staging remained healthy with restart count `0` and no
+   application-log error signal. Production still ran the unchanged
+   `evo-crm:ee8a825ebc72f84449636e3feaefab7a330913d4` image with its original
+   start time and restart count `0`. The temporary tunnel was closed.
+
+Decision:
+
+1. Treat the sslip hostname as the owner-approved temporary staging test URL,
+   but use it only when the owner's browser shows a valid certificate. Never
+   bypass a certificate warning.
+2. The successful tunnel smoke proves the real staging application, Admin Auth
+   and primary read-only pages. It does not prove the public browser path on
+   the owner's network and does not replace the owner's hands-on feedback.
+3. Keep canonical staging DNS deferred. Canonical production DNS/TLS remains a
+   separate R4 cutover requirement.
+4. Keep Issue #388 open for the managed Database plus separate Storage restore
+   drill. Keep owner acceptance, production replacement, V1 tagging and V2
+   re-baselining open and separately authorized.
+
+Validation impact: update the launch plan, current status, runbook and edge
+comment to match this decision; keep the route itself unchanged; validate
+Caddy and documentation consistency; then use exact-head CI and protected
+merge evidence.

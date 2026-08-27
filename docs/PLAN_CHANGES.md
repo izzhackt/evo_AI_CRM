@@ -11590,3 +11590,58 @@ Validation impact:
   feedback fix, not before it;
 - R4 remains closed until the separate owner production instruction is present
   in the execution evidence.
+
+## 2026-08-27 — Bind U11 to truthful Admin operations and isolated recovery
+
+Date: 2026-08-27, workspace timezone (+04).
+Author: Codex after the V1/V2 rollout contract was protected-merged and its
+exact-main CI passed.
+Change type: U11 implementation contract; no production, provider, DNS, data or
+managed-resource mutation authorization.
+Block-ID: `EVO-LONG-RUN-1-U11-ADMIN-RECOVERY-2026-08-27`.
+Starting point: exact-main commit
+`ccbc115ca1ea334d8d6b45e009ee68562898c79c`, verified by run
+`33064118897`.
+Contract: `docs/platform/u11-admin-operations-backup-rollback.md`.
+
+Reason: Issue #388 requires truthful private operational visibility and real
+non-production backup/restore evidence before V1 staging acceptance. Existing
+code already has a canonical readiness model, bounded operational signals,
+append-only audit, local Supabase/Auth/RLS/Storage proof and an exact-SHA
+app-only release controller. It does not yet provide an Admin operations page,
+an isolated migration-bearing staging lane or a managed database plus separate
+Storage restore result.
+
+Decision:
+
+1. Add exact `/settings?tab=operations` routing behind the existing verified
+   active-Admin server guard. Reuse canonical readiness and safe bounded
+   operational signals; do not expose the private HMAC endpoint or invent a
+   second health model.
+2. Render disabled, unavailable, stale, partial, missing, failed and blocked
+   inputs truthfully. Recovery evidence remains a separate critical section;
+   it becomes ready only after a restored service passes the required checks.
+3. Extend `.github/workflows/evo-fast-release.yml` and
+   `scripts/evo-fast-release.sh` as the only release authority. Preserve the
+   presentation-only lane and add a controlled staging/migration-bearing mode
+   with exact-SHA, CI, image, environment, resource-identity, ledger and
+   rollback preflights.
+4. Make staging isolation fail closed when any server root, Compose project,
+   private network, volume, fixed container name, hostname or Supabase identity
+   can resolve to production. Sharing only the neutral public edge network is
+   permitted.
+5. Implement a closed redacted recovery evidence contract for independent
+   database and Storage restore results. Local tests prove orchestration and
+   stop paths; they do not mark managed recovery ready.
+6. Keep Issue #388 open until an owner-approved managed staging source and
+   disposable target are actually restored and the restored app passes login,
+   same-tenant, cross-tenant denial, private Storage and blocked-integration
+   checks.
+7. Do not create a billed branch/project, copy managed data, change production,
+   send WhatsApp, write amoCRM or delete a restore target without the exact
+   separately approved target and scope.
+
+Validation impact: use TDD for the public seams and controller stop paths; run
+focused Node tests, real local Supabase/Auth/RLS/Storage proof, real OrbStack
+release-controller proof, lint, typecheck and build; then require independent
+launch-control review, exact-head CI, protected merge and exact-main CI.

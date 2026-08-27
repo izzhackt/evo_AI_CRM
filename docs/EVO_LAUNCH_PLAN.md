@@ -1,8 +1,10 @@
 # EVO Launch Plan
 
-Status: parent #376 is the active product contract; U0/#377 through U7/#384
-are merged and exact-main green. Long-run 1 is the sequential U5/#382 through U10/#387 program and
-stops before U11/#388. ADR 0021 and the latest `docs/PLAN_CHANGES.md` entry are
+Status: parent #376 is the active product contract; U0/#377 through U10/#387
+are merged and exact-main green. Long-run 1 completed at
+`2ea92ac547d7f526f0e886a81f871936af456635` and stops before U11/#388. The
+separately owner-authorized V1/V2 rollout begins with the docs-only R0 block
+below, then U11/#388. ADR 0021 and the latest `docs/PLAN_CHANGES.md` entry are
 binding.
 
 ## Current unified v1 authority
@@ -79,12 +81,13 @@ completed successfully. Its implementation contract is
 `48d15818d51a629ea97f914b93c2beca82ee0c2b`; exact-main run `33017855457`
 completed successfully. Its human-review contract remains
 `docs/platform/u9-gemini-human-review.md`; repository evidence does not claim
-live Gemini or production proof. The active U10/#387 contract is
-`docs/platform/u10-net-new-pilot-cohort-legacy-isolation.md`. It is rebound
-onto that exact U9 main head and may proceed through independent review,
-exact-head PR and protected merge gates. U10 extends canonical Student Cases
-with explicit pilot membership and a truthful legacy-write boundary; it does
-not authorize a legacy fallback, provider action or production rollout.
+live Gemini or production proof. U10/#387 merged in PR #402 at
+`2ea92ac547d7f526f0e886a81f871936af456635`; exact-main run `33024106321`
+completed successfully. Its contract remains
+`docs/platform/u10-net-new-pilot-cohort-legacy-isolation.md`. U10 extends
+canonical Student Cases with explicit pilot membership and a truthful
+legacy-write boundary; it does not authorize a legacy fallback, provider
+action or production rollout.
 
 ## Historical pre-#376 execution record
 
@@ -4731,3 +4734,282 @@ clean worktree removal, and safe local `git branch -d` happen as separate
 verified stages. Force deletion, global prune/garbage collection, deployment,
 DNS/TLS changes, live provider calls, WhatsApp sends, amoCRM writes, WAHA
 session changes and the dedicated security scan are outside this lane.
+
+## V1 staff rollout and isolated V2 continuation (2026-08-27)
+
+Block-ID: `EVO-V1-STAFF-V2-STAGING-ROLLOUT-2026-08-27`.
+
+### Owner outcome
+
+The accepted target is one stable Version 1 used by EVO staff and one isolated
+Version 2 derived from that accepted release for continued development. The
+currently active production application is replaced only after the new V1 has
+passed real managed acceptance, the owner has completed at least one hands-on
+staging feedback/fix round and the owner then gives a separate explicit
+production approval. Until that message, V1 stays outside production. The old
+production release is retained as rollback inventory during the later cutover
+and is not kept as a second active product.
+
+This block starts the separately authorized post-Long-run-1 preparation. It
+does not reinterpret repository evidence as managed or production proof and it
+does not skip U11/#388, U12/#389 or the U13/#390 pilot evidence sequence.
+Staff use begins with the approved net-new or explicitly allowlisted pilot
+cohort. Existing legacy cases and history are preserved but are not broadly
+migrated, silently copied or used as a runtime fallback; #391 remains the
+post-pilot historical/archive boundary.
+
+### Frozen identities and current blockers
+
+The exact feature baseline completed by Long-run 1 is
+`2ea92ac547d7f526f0e886a81f871936af456635`. That commit is the immutable
+business-feature floor for V1, not yet the final release tag. The final
+`V1_RELEASE_REVISION` is the protected exact-main commit after the U11
+readiness/release work is reviewed and merged. No unrelated feature may enter
+between the feature baseline and that release revision.
+
+The read-only preflight on 2026-08-27 observed:
+
+- production CRM is healthy on older application revision
+  `ee8a825ebc72f84449636e3feaefab7a330913d4`;
+- the last retained managed Supabase ledger evidence is `001-077`, while the
+  V1 feature baseline requires the contiguous repository history `001-092`;
+- the canonical hostname `crm.evoadmissions.com` does not resolve. A
+  VPS-origin request with certificate verification bypassed returned HTTP
+  `200` from the technical `sslip.io` fallback, a verified local TLS request
+  failed its issuer check and a separate reviewer path returned HTTP `403`.
+  Therefore that fallback is neither canonical nor stable acceptance proof;
+- the newest visible logical SQLite backup predates later live WAL/SHM state;
+- GitHub has no configured deployment Environments, repository deployment
+  secrets or deployment variables;
+- current main already contains the exact-SHA immutable fast app release
+  workflow/controller. Its deliberately presentation-only scope correctly
+  rejects the migration-bearing `ee8a825...` to V1 range, and GitHub has none
+  of its required Environment secrets or variables configured;
+- the managed Auth and settings endpoints respond, but provider-level email
+  signup is still enabled and no real V1 staff login has been proved;
+- the installed `/opt/evo-crm` checkout is stale and does not contain the
+  current-main controller files or a configured migration-bearing cutover
+  mode. The existing repository controller is the release authority to extend
+  and install; its server configuration gap does not authorize a parallel
+  controller.
+
+Every observation is time-bound and must be re-read immediately before an
+effect. These blockers prohibit a direct application-only production update.
+
+### Two-environment topology
+
+| Boundary | Stable V1 production | V2 staging and V1 acceptance |
+| --- | --- | --- |
+| Git | protected `main` plus immutable `v1.0.0` tag | protected long-lived `v2` branch created from `v1.0.0` |
+| Public URL | `https://crm.evoadmissions.com` | `https://staging.crm.evoadmissions.com` |
+| GitHub Environment | `production` | `staging` |
+| Server root | `/opt/evo-crm` secrets plus immutable `/opt/evo-releases/<sha>/repo` source | `/opt/evo-crm-staging` secrets plus a distinct immutable release root |
+| Compose project | `evo-crm` | `evo-crm-staging` |
+| Private network and volumes | existing production-owned names | staging-owned names; no production volume mount |
+| Supabase | dedicated production project | distinct managed project or persistent branch with distinct URL and keys |
+| Auth | approved real EVO staff only | separately provisioned staging staff identities |
+| Providers | receive-only gates remain explicit | external writes disabled; no production WAHA session or amoCRM mutation |
+| Data | live production authority | no blanket production-data clone; only approved minimized acceptance records |
+
+The same staging environment first runs the exact V1 release candidate for
+acceptance. After that exact artifact is promoted to production and passes its
+smoke gate, staging is re-baselined from tag `v1.0.0` and becomes Version 2.
+Acceptance evidence is retained before the re-baseline.
+
+Docker Compose project names, container names, networks, volumes, paths,
+domains and environment files must all be distinct. Sharing the public edge
+network for Caddy routing is permitted; sharing a mutable database, private
+network, volume, Auth tenant, WAHA session or provider credential is not.
+
+### Ordered execution blocks
+
+#### R0 - freeze the plan and feature boundary
+
+1. Merge this docs-only plan through protected exact-head and exact-main CI.
+2. Record `2ea92ac...` as `V1_FEATURE_BASELINE`.
+3. Permit only U11 readiness, truthful health, backup/rollback, environment
+   isolation and fixes required by real acceptance before the final V1 tag.
+4. Reject unrelated product features from the V1 release range.
+
+R0 changes no server, DNS, provider, managed database, user or live data.
+
+#### R1 - implement and close U11/#388
+
+1. Implement truthful Admin readiness/audit visibility and explicitly blocked
+   states; configured-only or generic HTTP success is not healthy.
+2. Extend and harden the existing `.github/workflows/evo-fast-release.yml` and
+   `scripts/evo-fast-release.sh` release authority with a reviewed
+   migration-bearing mode for the V1 range. Keep the current presentation-only
+   fast lane as a constrained mode; do not create a parallel second
+   controller. The migration-bearing mode must pin exact current main, exact
+   green CI, immutable linux/amd64 images, environment identity, managed
+   migration ledger, app health and rollback inputs.
+3. Add a staging deployment contour whose source, Compose project, paths,
+   network, volumes, environment and Supabase identity cannot resolve to
+   production.
+4. Exercise backup and restore in non-production using the real managed schema
+   and a real staging application path. Do not claim that a file merely exists;
+   restore it and verify the restored service and authorization boundary.
+5. Require an independent launch-control reviewer, protected merge and
+   exact-main CI before infrastructure configuration.
+
+R1 remains repository and non-production work. Its output defines the exact
+`V1_RELEASE_REVISION` candidate; it does not yet deploy production.
+
+#### R2 - provision isolated managed staging
+
+1. Create protected GitHub `staging` and `production` Environments with
+   environment-scoped secrets, branch restrictions, concurrency and owner
+   review before secrets become available.
+2. Select an owner-approved staging Supabase project or persistent branch.
+   Record only non-secret project/environment identities in evidence.
+3. Apply repository migrations `001-092` to staging through the reviewed
+   migration path, then prove the exact ledger, exposed schemas, Auth hook,
+   RLS, private Storage and negative cross-organization cases.
+4. Configure staging Auth Site URL and redirect URLs for the staging hostname;
+   disable public signup and provision only approved staging staff identities.
+5. Deploy the exact release-candidate image as Compose project
+   `evo-crm-staging` with separate secrets, network and volumes. Keep WhatsApp
+   outbound, autonomous replies and amoCRM writes disabled.
+
+Creating a billed Supabase project/branch stops until its expected cost and
+exact target are approved. If an existing staging project is offered, its
+ownership, data classification and current ledger must be proved before use.
+
+#### R3 - complete real managed acceptance under U12/#389
+
+1. Sign in through the real staging URL with an approved EVO Admin account and
+   prove the live organization/membership/JWT/RLS authority chain.
+2. Provision and verify approved `sales`, `curator` and `admin` staff roles;
+   prove inactive, unauthorized and cross-organization denials.
+3. Exercise the critical staff path through canonical Sales, contract/payment
+   gate, Admissions handoff/case, finance control, human-reviewed Gemini state
+   and pilot-cohort visibility using approved controlled acceptance records.
+4. Prove blocked integrations are shown blocked, not healthy.
+5. Exercise the one real receive-only inbound WhatsApp acceptance required by
+   #389 only after the exact EVO-controlled sender/session/message is approved.
+   Record zero outbound WhatsApp and zero amoCRM writes.
+6. Exercise the staging backup/restore controller and repeat the login and
+   tenant-isolation smoke after restore.
+7. Give the owner a real staging URL and approved Admin login for at least one
+   hands-on exploratory round. The owner may report both defects and places
+   that feel wrong or need product/UI adjustment.
+8. Record every accepted owner report, fix it through reviewed code, redeploy
+   the new exact candidate to staging and repeat affected automated, security
+   and hands-on checks. Any changed commit or image invalidates the earlier
+   acceptance evidence for that surface.
+9. Keep this feedback/fix loop open until the owner explicitly accepts the
+   exact staging revision as Version 1. Silence, a green CI run or technical
+   acceptance alone is not owner acceptance.
+
+Fixture-only, local-only, configured-only or synthetic provider evidence does
+not close R3.
+
+#### R4 - promote the exact accepted V1 to production
+
+R4 has an additional owner gate: it is unauthorized until, after the staging
+feedback/fix loop, the owner sends a separate explicit instruction that the
+exact accepted V1 may replace production. The earlier instruction to make and
+follow this plan does not satisfy that later production gate.
+
+1. Freeze a maintenance window and recheck exact main, release-candidate image,
+   CI, staging evidence, production containers, disk, DNS, managed project,
+   migration ledger and all provider kill switches.
+2. Capture a fresh logical SQLite backup, a consistent snapshot of every
+   production volume, exact prior images/configuration and the provider-backed
+   Supabase recovery point available on the approved plan. Verify backup
+   readability before the first change.
+3. Apply only missing reviewed forward migrations from the observed production
+   ledger through `092`; re-read the exact ledger and stop on any drift or
+   ambiguous response. Database migration rollback is forward reconciliation,
+   never an unreviewed destructive down migration.
+4. Configure production Auth hook, URLs and signup policy; provision the
+   approved real staff identities through the reviewed bootstrap/admin path.
+5. Deploy the exact image already accepted in staging. Change only the minimum
+   required service boundaries and retain the prior `ee8a825...` images,
+   configuration and backup evidence.
+6. Verify production health, exact revision, real staff login, role/RLS
+   negatives and critical staff pages on the technical route. Then establish
+   canonical DNS/TLS and repeat the same checks on
+   `https://crm.evoadmissions.com`.
+7. Tag the exact deployed commit `v1.0.0` only after the protected production
+   smoke passes. A changed commit or image invalidates staging acceptance.
+
+If application verification fails before an irreversible database effect, the
+controller restores the exact prior application image. If migrations have
+already committed, the controller must not pretend the old application plus
+new schema is a verified rollback: it stops in reconciliation-required state
+and follows a reviewed forward fix or a proved provider recovery procedure.
+
+#### R5 - run the U13/#390 internal staff pilot
+
+1. Run the approved net-new/allowlisted cohort for ten consecutive working
+   days and at least five real cases.
+2. Keep receive-only, no-amoCRM-write and human-review constraints active.
+3. Record critical blockers, workarounds, fallback pressure, revision changes
+   and each case's inclusion basis without exposing client data in GitHub.
+4. Finish with an evidence-backed go, hold or rollback recommendation.
+
+Version 1 is the active staff system during this controlled pilot. The old
+runtime is rollback inventory, not a second user-facing production version.
+
+#### R6 - fork and operate Version 2
+
+1. Create the protected `v2` branch from exact tag `v1.0.0`, not from a moving
+   local branch or the pre-U11 feature baseline.
+2. Re-baseline the isolated staging database from reviewed migrations without
+   importing production customer data, then deploy `v2` through the staging
+   Environment.
+3. Keep `main` as the stable V1 release line. Production hotfixes branch from
+   `main`, merge through the normal gates and are forward-ported to `v2`.
+4. V2 changes reach staff production only through a later explicit promotion
+   plan and never by pointing staging at production secrets or data.
+
+### Effect-specific approval gates
+
+The owner's instruction authorizes this plan, issue/PR preparation and safe
+read-only preflights. Before the named external effect, the execution record
+must also identify:
+
+- staging resource creation: exact Supabase target, owner and expected billing;
+- DNS: provider/account, exact `A`/`CNAME` record, TTL and rollback record;
+- staff Auth: approved work email(s), role(s) and secure password-delivery path;
+- real WhatsApp acceptance: dedicated sender, private `evo-inbox` session and
+  one bounded inbound message;
+- production cutover: maintenance window, exact release revision and named
+  owner available for go/rollback.
+
+Missing any input is a truthful blocked state, not permission to invent a
+value, clone production data, create a billed resource or weaken a gate.
+
+### Completion evidence
+
+The program is complete only when all of the following are retained and tied
+to exact revisions and dates:
+
+- protected planning, U11 and any required correction PRs plus exact-main CI;
+- distinct hashed production/staging environment and Supabase identities;
+- staging and production migration ledgers through the exact release tip;
+- real managed staff login and negative authorization evidence;
+- staging backup/restore and fresh production backup readability evidence;
+- immutable production release result and preserved prior-release manifest;
+- canonical DNS/TLS and production health evidence;
+- zero outbound WhatsApp and zero amoCRM-write evidence for acceptance/pilot;
+- `v1.0.0` tag identity and protected V2 branch/staging deployment identity;
+- U13 duration/case evidence and final go, hold or rollback decision.
+
+Old images, paths and backups are not deleted by this program. Cleanup is a
+later itemized, separately approved and recoverability-checked operation.
+
+### Current official implementation basis
+
+- GitHub Environments, protection rules, environment secrets and concurrency:
+  <https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments>.
+- Supabase separate staging/production projects and migration promotion:
+  <https://supabase.com/docs/guides/deployment/managing-environments>.
+- Supabase persistent branches and their isolated Database, Auth, Storage and
+  API credentials: <https://supabase.com/docs/guides/deployment/branching>.
+- Supabase production checklist and RLS/backup guidance:
+  <https://supabase.com/docs/guides/deployment/going-into-prod>.
+- Docker Compose project-name isolation:
+  <https://docs.docker.com/compose/how-tos/project-name/>.

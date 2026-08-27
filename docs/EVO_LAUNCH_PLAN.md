@@ -1,8 +1,10 @@
 # EVO Launch Plan
 
-Status: parent #376 is the active product contract; U0/#377 through U7/#384
-are merged and exact-main green. Long-run 1 is the sequential U5/#382 through U10/#387 program and
-stops before U11/#388. ADR 0021 and the latest `docs/PLAN_CHANGES.md` entry are
+Status: parent #376 is the active product contract; U0/#377 through U10/#387
+are merged and exact-main green. Long-run 1 completed at
+`2ea92ac547d7f526f0e886a81f871936af456635` and stops before U11/#388. The
+separately owner-authorized V1/V2 rollout begins with the docs-only R0 block
+below, then U11/#388. ADR 0021 and the latest `docs/PLAN_CHANGES.md` entry are
 binding.
 
 ## Current unified v1 authority
@@ -79,12 +81,13 @@ completed successfully. Its implementation contract is
 `48d15818d51a629ea97f914b93c2beca82ee0c2b`; exact-main run `33017855457`
 completed successfully. Its human-review contract remains
 `docs/platform/u9-gemini-human-review.md`; repository evidence does not claim
-live Gemini or production proof. The active U10/#387 contract is
-`docs/platform/u10-net-new-pilot-cohort-legacy-isolation.md`. It is rebound
-onto that exact U9 main head and may proceed through independent review,
-exact-head PR and protected merge gates. U10 extends canonical Student Cases
-with explicit pilot membership and a truthful legacy-write boundary; it does
-not authorize a legacy fallback, provider action or production rollout.
+live Gemini or production proof. U10/#387 merged in PR #402 at
+`2ea92ac547d7f526f0e886a81f871936af456635`; exact-main run `33024106321`
+completed successfully. Its contract remains
+`docs/platform/u10-net-new-pilot-cohort-legacy-isolation.md`. U10 extends
+canonical Student Cases with explicit pilot membership and a truthful
+legacy-write boundary; it does not authorize a legacy fallback, provider
+action or production rollout.
 
 ## Historical pre-#376 execution record
 
@@ -4767,17 +4770,25 @@ The read-only preflight on 2026-08-27 observed:
   `ee8a825ebc72f84449636e3feaefab7a330913d4`;
 - the last retained managed Supabase ledger evidence is `001-077`, while the
   V1 feature baseline requires the contiguous repository history `001-092`;
-- the canonical hostname `crm.evoadmissions.com` does not resolve, while the
-  technical `sslip.io` fallback health and login routes return HTTP `200`;
+- the canonical hostname `crm.evoadmissions.com` does not resolve. A
+  VPS-origin request with certificate verification bypassed returned HTTP
+  `200` from the technical `sslip.io` fallback, a verified local TLS request
+  failed its issuer check and a separate reviewer path returned HTTP `403`.
+  Therefore that fallback is neither canonical nor stable acceptance proof;
 - the newest visible logical SQLite backup predates later live WAL/SHM state;
 - GitHub has no configured deployment Environments, repository deployment
   secrets or deployment variables;
-- the current main fast-release workflow is presentation-only and cannot
-  authorize the migration-bearing `ee8a825...` to V1 range;
+- current main already contains the exact-SHA immutable fast app release
+  workflow/controller. Its deliberately presentation-only scope correctly
+  rejects the migration-bearing `ee8a825...` to V1 range, and GitHub has none
+  of its required Environment secrets or variables configured;
 - the managed Auth and settings endpoints respond, but provider-level email
   signup is still enabled and no real V1 staff login has been proved;
-- the installed production paths do not contain a current-main release
-  controller suitable for this cutover.
+- the installed `/opt/evo-crm` checkout is stale and does not contain the
+  current-main controller files or a configured migration-bearing cutover
+  mode. The existing repository controller is the release authority to extend
+  and install; its server configuration gap does not authorize a parallel
+  controller.
 
 Every observation is time-bound and must be re-read immediately before an
 effect. These blockers prohibit a direct application-only production update.
@@ -4823,10 +4834,13 @@ R0 changes no server, DNS, provider, managed database, user or live data.
 
 1. Implement truthful Admin readiness/audit visibility and explicitly blocked
    states; configured-only or generic HTTP success is not healthy.
-2. Add a closed release controller for the migration-bearing V1 range. It must
-   pin exact current main, exact green CI, immutable linux/amd64 images,
-   environment identity, managed migration ledger, app health and rollback
-   inputs.
+2. Extend and harden the existing `.github/workflows/evo-fast-release.yml` and
+   `scripts/evo-fast-release.sh` release authority with a reviewed
+   migration-bearing mode for the V1 range. Keep the current presentation-only
+   fast lane as a constrained mode; do not create a parallel second
+   controller. The migration-bearing mode must pin exact current main, exact
+   green CI, immutable linux/amd64 images, environment identity, managed
+   migration ledger, app health and rollback inputs.
 3. Add a staging deployment contour whose source, Compose project, paths,
    network, volumes, environment and Supabase identity cannot resolve to
    production.

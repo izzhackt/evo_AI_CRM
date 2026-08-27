@@ -11507,8 +11507,11 @@ Read-only evidence captured before this amendment:
   `ee8a825ebc72f84449636e3feaefab7a330913d4` with zero restarts.
 - the latest retained managed migration evidence is `001-077`; current main
   requires the contiguous repository history through `092`.
-- `crm.evoadmissions.com` is unresolved; the technical fallback health and
-  login routes return HTTP `200`.
+- `crm.evoadmissions.com` is unresolved. A VPS-origin request with certificate
+  verification bypassed returned HTTP `200` from the technical `sslip.io`
+  fallback, a verified local TLS request failed its issuer check and a separate
+  reviewer path returned HTTP `403`; the fallback is not stable or canonical
+  acceptance proof.
 - visible production logical backup files end before later SQLite WAL/SHM
   state, so a fresh cutover backup is mandatory.
 - GitHub currently has zero deployment Environments, zero repository deployment
@@ -11517,6 +11520,11 @@ Read-only evidence captured before this amendment:
   real current-V1 staff sign-in has been proved.
 - current server disk/memory headroom is sufficient for bounded staging
   preparation, but server and Compose isolation must still be enforced.
+- current main already has one exact-SHA immutable fast app release authority.
+  Its intentionally presentation-only mode rejects this migration-bearing
+  range, its GitHub Environment inputs are not configured, and the stale
+  `/opt/evo-crm` checkout does not contain the current controller files. U11
+  must extend and install that authority, not invent a parallel controller.
 
 Interpretation:
 
@@ -11524,7 +11532,8 @@ Interpretation:
 - the exact post-U11 protected-main release commit becomes
   `V1_RELEASE_REVISION` after no unrelated feature drift is proved;
 - direct app-only deployment is forbidden because production schema, Auth,
-  backup, DNS and release-controller readiness are not yet proved;
+  backup, DNS and the existing release authority's migration-bearing
+  configuration/readiness are not yet proved;
 - old application rollback cannot be claimed compatible after forward managed
   migrations unless that exact combination is exercised. A post-migration
   failure is reconciliation-required unless provider recovery or a reviewed

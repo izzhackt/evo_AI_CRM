@@ -717,11 +717,12 @@ export default defineConfig({
           ? "1"
           : "0",
       EVO_PLATFORM_AI_MEMORY_ENABLED: p5f1BrowserProof ? "1" : "0",
-      EVO_PLATFORM_ORGANIZATION_ID: platformMessagingProof
-        ? p5dBrowserProof
-          ? fixture.p5d.organizationId
-          : fixture.p5b.organizationId
-        : "",
+      EVO_PLATFORM_ORGANIZATION_ID:
+        platformMessagingProof || p7aBrowserProof
+          ? p5dBrowserProof
+            ? fixture.p5d.organizationId
+            : fixture.p5b.organizationId
+          : "",
       EVO_PLATFORM_SUPABASE_SECRET_KEY:
         platformMessagingProof || p6cBrowserProof || p6dBrowserProof || p7bBrowserProof
           ? p5dBrowserProof

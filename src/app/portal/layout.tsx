@@ -3,10 +3,14 @@ import type { ReactNode } from "react";
 import { PortalShell } from "@/components/platform/portal/PortalShell";
 import { PortalNotificationsRealtime } from "@/components/platform/portal/PortalNotificationsRealtime";
 import { getPortalPageData } from "@/lib/portal";
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 export default async function StudentPortalLayout({ children }: { children: ReactNode }) {
   const { user, snapshot, locale, notificationsRealtimeScope } =
     await getPortalPageData();
+  const supabaseConfig = notificationsRealtimeScope
+    ? getSupabasePublicConfig()
+    : null;
   const durableNotificationsEnabled = notificationsRealtimeScope !== null;
   const unreadNotificationCount = durableNotificationsEnabled
     ? snapshot?.notifications?.filter((notification) => !notification.isRead)
@@ -14,10 +18,11 @@ export default async function StudentPortalLayout({ children }: { children: Reac
     : snapshot?.updates.filter((update) => !update.isRead).length ?? 0;
   return (
     <>
-      {notificationsRealtimeScope && (
+      {notificationsRealtimeScope && supabaseConfig && (
         <PortalNotificationsRealtime
           organizationId={notificationsRealtimeScope.organizationId}
           membershipId={notificationsRealtimeScope.membershipId}
+          supabaseConfig={supabaseConfig}
         />
       )}
       <PortalShell

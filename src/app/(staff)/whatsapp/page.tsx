@@ -9,6 +9,7 @@ import {
 } from "@/lib/platform-communications";
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
 import { isUiContractFixtureMode } from "@/lib/runtime-mode";
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 import { CommunicationsSourceDisclosure } from "./CommunicationsSourceDisclosure";
 
@@ -32,6 +33,7 @@ export default async function WhatsAppPage({
     requirePlatformMessagingActor(),
     searchParams,
   ]);
+  const supabaseConfig = getSupabasePublicConfig();
   const cursor = parsePlatformConversationCursor(query.before_at, query.before_id);
   const conversations = await listPlatformConversations(actor, {
     cursor,
@@ -49,7 +51,10 @@ export default async function WhatsAppPage({
         description={t("platformCommunicationsSourceHint")}
         mobileSummary={t("platformCommunicationsSourceSummary")}
       />
-      <PlatformMessagingRealtime organizationId={actor.organizationId} />
+      <PlatformMessagingRealtime
+        organizationId={actor.organizationId}
+        supabaseConfig={supabaseConfig}
+      />
       <div className="flex h-[calc(100vh-310px)] min-h-[500px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
         <PlatformWaList
           conversations={conversations.rows}

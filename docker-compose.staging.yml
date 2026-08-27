@@ -1,0 +1,185 @@
+name: evo-crm-staging
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        EVO_IMAGE_SOURCE: "${EVO_IMAGE_SOURCE:-https://github.com/izzhackt/evo_AI_CRM}"
+        EVO_IMAGE_REVISION: "${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
+        EVO_IMAGE_VERSION: "${EVO_RELEASE_VERSION:?set EVO_RELEASE_VERSION}"
+    image: "evo-crm:${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
+    labels:
+      org.opencontainers.image.revision: "${EVO_RELEASE_REVISION}"
+      org.opencontainers.image.version: "${EVO_RELEASE_VERSION}"
+    restart: unless-stopped
+    init: true
+    cpus: "1.50"
+    mem_limit: 1536m
+    pids_limit: 256
+    logging: &bounded-logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    env_file:
+      - "${EVO_CRM_APP_ENV_FILE:-.env.staging}"
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      EVO_DB_PATH: /app/data/edu-admin.db
+      EVO_BACKUP_DIR: /app/backups
+    expose:
+      - "3000"
+    volumes:
+      - evo_crm_staging_data:/app/data
+      - evo_crm_staging_output:/app/output
+      - evo_crm_staging_backups:/app/backups
+      - "${EVO_PLATFORM_U11_RECOVERY_EVIDENCE_HOST_ROOT:-/opt/evo-crm-staging/evidence}:/app/recovery-evidence:ro"
+    networks:
+      private:
+        aliases:
+          - evo-crm-staging-app
+      web:
+        aliases:
+          - evo-crm-staging-app
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  manual-send-worker:
+    image: "evo-crm:${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
+    container_name: evo-crm-staging-manual-send-worker
+    labels:
+      org.opencontainers.image.revision: "${EVO_RELEASE_REVISION}"
+      org.opencontainers.image.version: "${EVO_RELEASE_VERSION}"
+    restart: "no"
+    init: true
+    read_only: true
+    cpus: "0.25"
+    mem_limit: 128m
+    pids_limit: 64
+    logging: *bounded-logging
+    env_file:
+      - "${EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE:-.env.staging.manual-send-worker}"
+    environment:
+      NODE_ENV: production
+      EVO_MANUAL_SEND_WORKER_ENDPOINT: http://evo-crm-staging-app:3000/api/internal/platform-messaging/manual-send/work
+    command: ["node", "scripts/manual-whatsapp-send-worker.mjs"]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=8m,mode=1777
+    depends_on:
+      app:
+        condition: service_healthy
+      waha:
+        condition: service_healthy
+    networks:
+      private:
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"import('./scripts/manual-whatsapp-send-worker.mjs').then(async m=>process.exit(await m.checkManualSendHeartbeat()?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  waha:
+    image: "${EVO_WAHA_IMAGE_REPOSITORY:-devlikeapro/waha}@${EVO_WAHA_IMAGE_DIGEST:?set EVO_WAHA_IMAGE_DIGEST to an immutable sha256 digest}"
+    labels:
+      com.evo.image.provenance: "third-party-digest"
+    restart: unless-stopped
+    init: true
+    cpus: "2.00"
+    mem_limit: 2048m
+    pids_limit: 512
+    logging: *bounded-logging
+    env_file:
+      - "${EVO_CRM_WAHA_ENV_FILE:-.env.staging.waha}"
+    expose:
+      - "3000"
+    volumes:
+      - evo_crm_staging_waha_sessions:/app/.sessions
+    networks:
+      private:
+        aliases:
+          - evo-crm-staging-waha
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/ping').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  lead-agent:
+    build:
+      context: ./evo-lead-agent
+      dockerfile: Dockerfile
+      args:
+        EVO_IMAGE_SOURCE: "${EVO_IMAGE_SOURCE:-https://github.com/izzhackt/evo_AI_CRM}"
+        EVO_IMAGE_REVISION: "${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
+        EVO_IMAGE_VERSION: "${EVO_RELEASE_VERSION:?set EVO_RELEASE_VERSION}"
+    image: "evo-lead-agent:${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
+    labels:
+      org.opencontainers.image.revision: "${EVO_RELEASE_REVISION}"
+      org.opencontainers.image.version: "${EVO_RELEASE_VERSION}"
+    restart: unless-stopped
+    init: true
+    cpus: "1.00"
+    mem_limit: 768m
+    pids_limit: 192
+    logging: *bounded-logging
+    env_file:
+      - "${EVO_CRM_LEAD_AGENT_ENV_FILE:-.env.staging.lead-agent}"
+    environment:
+      EVO_AGENT_ENV: staging
+      EVO_AGENT_DB_PATH: /app/data/evo-lead-agent.db
+      EVO_AGENT_WAHA_BASE_URL: http://evo-crm-staging-waha:3000
+      EVO_AGENT_WAHA_SESSION: evo-inbox-staging
+      EVO_AGENT_CRM_BASE_URL: http://evo-crm-staging-app:3000
+      EVO_AGENT_CRM_SYNC_PATH: /api/internal/lead-agent/whatsapp
+      EVO_AGENT_FROZEN: "true"
+      EVO_AGENT_WORKER_ENABLED: "false"
+      EVO_AGENT_AUTOREPLY_ENABLED: "false"
+      EVO_AGENT_OUTBOUND_ENABLED: "false"
+    expose:
+      - "8000"
+    volumes:
+      - evo_crm_staging_lead_agent_data:/app/data
+    depends_on:
+      - app
+      - waha
+    networks:
+      private:
+        aliases:
+          - evo-crm-staging-lead-agent
+    healthcheck:
+      test: ["CMD-SHELL", "python - <<'PY'\nimport json, urllib.request\nr=urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)\nraise SystemExit(0 if json.load(r).get('ok') else 1)\nPY"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  evo_crm_staging_data:
+    name: evo_crm_staging_data
+  evo_crm_staging_output:
+    name: evo_crm_staging_output
+  evo_crm_staging_backups:
+    name: evo_crm_staging_backups
+  evo_crm_staging_waha_sessions:
+    name: evo_crm_staging_waha_sessions
+  evo_crm_staging_lead_agent_data:
+    name: evo_crm_staging_lead_agent_data
+
+networks:
+  private:
+    external: true
+    name: evo_crm_staging_private
+  web:
+    external: true
+    name: ${EVO_CADDY_NETWORK:-evo_public_web}

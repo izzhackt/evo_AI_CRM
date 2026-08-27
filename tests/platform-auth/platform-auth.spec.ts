@@ -7169,6 +7169,154 @@ test("P7A searches and exports safe organization audit evidence through connecte
   expectLegacyDatabaseUntouched();
 });
 
+test("U11 Settings Operations stays Admin-only, tenant-bound, private, and fail-closed", async ({
+  browser,
+  page,
+}) => {
+  test.skip(
+    process.env.EVO_P7A_BROWSER_PROOF !== "1",
+    "Runs only in the dedicated local P7A browser-proof partition.",
+  );
+  test.setTimeout(120_000);
+  expectLegacyDatabaseUntouched();
+
+  const settingsPath = "/settings?tab=operations";
+  const deniedPath = "/platform-pending";
+  const privateValues = [
+    fixture.p7a.privatePrincipal,
+    fixture.p7a.privatePhone,
+    fixture.p7a.privateReason,
+    fixture.p7a.privateBefore,
+    fixture.p7a.privateAfter,
+    fixture.p7b.observabilitySecret,
+    fixture.p7b.supabaseSecretKey,
+    fixture.p5b.organizationId,
+    fixture.p6b.studentCaseId,
+  ];
+  const privateHeaderNames = [
+    "x-evo-observability-request-id",
+    "x-evo-observability-timestamp",
+    "x-evo-observability-hmac-algorithm",
+    "x-evo-observability-hmac",
+  ];
+  const expectDenied = async (targetPage: Page, label: string) => {
+    await targetPage.goto(settingsPath);
+    await expect
+      .poll(() => new URL(targetPage.url()).pathname, { message: label })
+      .toBe(deniedPath);
+    expect(new URL(targetPage.url()).searchParams.get("from"), label).toBe(
+      settingsPath,
+    );
+    await expect(
+      targetPage.getByTestId("platform-operations-settings"),
+      label,
+    ).toHaveCount(0);
+  };
+
+  const browserReadinessRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/readiness") {
+      browserReadinessRequests.push(request.url());
+    }
+  });
+  await login(page, fixture.identities.admin);
+  await expect(page).toHaveURL(expectedStaffHome(fixture.identities.admin));
+  await page.goto(settingsPath);
+  await expect(page).toHaveURL(
+    new RegExp(`${escapePathForRegex(settingsPath)}$`),
+  );
+  const operations = page.getByTestId("platform-operations-settings");
+  await expect(operations).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Операционная готовность" }),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("platform-readiness-summary").locator("[data-status]"),
+  ).toHaveAttribute("data-status", "not_ready");
+  await expect(operations).toContainText("Платформа не готова к работе");
+  await expect(operations).not.toContainText("Основные рабочие службы готовы");
+  await expect(operations.locator('[data-status="ready"]')).toHaveCount(0);
+  await expect(operations).toContainText(
+    "Безопасные операционные показатели недоступны; состояние не считается готовым.",
+  );
+  expect(browserReadinessRequests).toEqual([]);
+
+  const renderedHtml = await page.content();
+  for (const privateValue of privateValues) {
+    expect(renderedHtml).not.toContain(privateValue);
+  }
+  for (const headerName of privateHeaderNames) {
+    expect(renderedHtml.toLowerCase()).not.toContain(headerName);
+  }
+
+  for (const [label, identity] of [
+    ["sales", fixture.identities.salesScoped],
+    ["curator", fixture.identities.curator],
+    ["finance", fixture.identities.finance],
+    ["student", fixture.identities.student],
+  ] as const) {
+    const deniedContext = await browser.newContext();
+    const deniedPage = await deniedContext.newPage();
+    await login(deniedPage, identity);
+    await expect(deniedPage).toHaveURL(expectedStaffHome(identity));
+    if (identity === fixture.identities.finance) {
+      await deniedPage.goto(settingsPath);
+      await expect(deniedPage).toHaveURL(/\/login$/);
+      await expect(
+        deniedPage.getByTestId("platform-operations-settings"),
+        label,
+      ).toHaveCount(0);
+    } else if (identity === fixture.identities.student) {
+      await deniedPage.goto(settingsPath);
+      await expect(deniedPage).toHaveURL(/\/portal$/);
+      await expect(
+        deniedPage.getByTestId("platform-operations-settings"),
+        label,
+      ).toHaveCount(0);
+    } else {
+      await expectDenied(deniedPage, label);
+    }
+    await deniedContext.close();
+  }
+
+  const inactiveContext = await browser.newContext();
+  const inactivePage = await inactiveContext.newPage();
+  await installP7APlatformSession(
+    inactivePage,
+    fixture.p7a.inactiveAdminAccessToken,
+  );
+  await inactivePage.goto(settingsPath);
+  await expect
+    .poll(() => new URL(inactivePage.url()).pathname, {
+      message: "inactive Admin",
+    })
+    .toBe("/login");
+  await expect(
+    inactivePage.getByTestId("platform-operations-settings"),
+  ).toHaveCount(0);
+  await inactiveContext.close();
+
+  const crossOrgContext = await browser.newContext();
+  const crossOrgPage = await crossOrgContext.newPage();
+  await login(crossOrgPage, fixture.identities.crossOrgAdmin);
+  await expect(crossOrgPage).toHaveURL(
+    expectedStaffHome(fixture.identities.crossOrgAdmin),
+  );
+  await expectDenied(crossOrgPage, "cross-organization Admin");
+  await crossOrgContext.close();
+
+  const anonymousContext = await browser.newContext();
+  const anonymousPage = await anonymousContext.newPage();
+  await anonymousPage.goto(settingsPath);
+  await expect(anonymousPage).toHaveURL(/\/login$/);
+  await expect(
+    anonymousPage.getByTestId("platform-operations-settings"),
+  ).toHaveCount(0);
+  await anonymousContext.close();
+
+  expectLegacyDatabaseUntouched();
+});
+
 test("P7B exposes signed private readiness and metrics without claiming provider health", async ({
   page,
 }) => {

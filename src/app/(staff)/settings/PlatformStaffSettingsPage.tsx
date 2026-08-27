@@ -221,6 +221,9 @@ export default async function PlatformStaffSettingsPage({
             Журнал аудита
           </Link>
         ) : null}
+        <Link className={btnGhostCls} href="/settings?tab=operations">
+          Операции
+        </Link>
       </nav>
       {outcome ? (
         <Card data-testid="platform-staff-outcome">

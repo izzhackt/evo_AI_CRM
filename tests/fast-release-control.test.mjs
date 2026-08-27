@@ -182,6 +182,9 @@ test("release controller is app-only, wait-gated, and avoids destructive shortcu
   assert.match(controller, /--wait/u);
   assert.match(controller, /rollback_from_state/u);
   assert.match(preflight, /verify_archive/u);
+  assert.match(preflight, /verify_env_contract/u);
+  assert.match(controller, /evo-app-env-contract\.mjs/u);
+  assert.match(controller, /app_env_contract_invalid/u);
   assert.doesNotMatch(preflight, /docker image load/u);
   assert.match(deploy, /load_candidate_image/u);
   assert.match(controller, /archive_layers_invalid/u);
@@ -189,6 +192,120 @@ test("release controller is app-only, wait-gated, and avoids destructive shortcu
   assert.doesNotMatch(controller, /docker system prune/u);
   assert.doesNotMatch(controller, /git pull/u);
   assert.doesNotMatch(controller, /rm -rf/u);
+});
+
+test("release controller exposes a validation-only controlled staging preflight", () => {
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const start = controller.indexOf("controlled_staging_preflight() {");
+  const end = controller.indexOf("\npreflight() {", start);
+  assert.notEqual(start, -1);
+  assert.ok(end > start);
+
+  const stagingPreflight = controller.slice(start, end);
+  assert.match(stagingPreflight, /evo-release-environment-profile\.mjs/u);
+  assert.match(stagingPreflight, /verify_controlled_staging_env_contract/u);
+  assert.match(controller, /evo-app-env-contract\.mjs/u);
+  assert.match(controller, /--controlled-staging/u);
+  assert.match(controller, /EVO_RELEASE_APP_ENV_FILE/u);
+  assert.match(controller, /EVO_RELEASE_ENV_EXAMPLE_FILE/u);
+  assert.match(
+    controller,
+    /export EVO_CRM_APP_ENV_FILE=\$EVO_RELEASE_APP_ENV_FILE/u,
+  );
+  assert.match(controller, /controlled-staging-preflight\)/u);
+  assert.doesNotMatch(stagingPreflight, /load_configuration/u);
+  assert.doesNotMatch(stagingPreflight, /load_candidate_configuration/u);
+  assert.doesNotMatch(stagingPreflight, /docker/u);
+  assert.doesNotMatch(stagingPreflight, /curl/u);
+  assert.doesNotMatch(stagingPreflight, /ssh/u);
+  assert.doesNotMatch(stagingPreflight, /supabase (db|migration|link)/u);
+});
+
+test("staging Compose file owns every mutable identity and keeps outbound closed", () => {
+  const stagingCompose = readFileSync("docker-compose.staging.yml", "utf8");
+  assert.match(stagingCompose, /^name: evo-crm-staging$/mu);
+  assert.match(stagingCompose, /\$\{EVO_CRM_APP_ENV_FILE:-\.env\.staging\}/u);
+  assert.match(stagingCompose, /container_name: evo-crm-staging-manual-send-worker/u);
+  assert.match(stagingCompose, /name: evo_crm_staging_private/u);
+  for (const volume of [
+    "evo_crm_staging_data",
+    "evo_crm_staging_output",
+    "evo_crm_staging_backups",
+    "evo_crm_staging_waha_sessions",
+    "evo_crm_staging_lead_agent_data",
+  ]) {
+    assert.match(stagingCompose, new RegExp(`name: ${volume}`, "u"), volume);
+  }
+  assert.match(stagingCompose, /name: \$\{EVO_CADDY_NETWORK:-evo_public_web\}/u);
+  assert.match(stagingCompose, /EVO_AGENT_ENV: staging/u);
+  assert.match(stagingCompose, /EVO_AGENT_WAHA_SESSION: evo-inbox-staging/u);
+  assert.match(stagingCompose, /EVO_AGENT_FROZEN: "true"/u);
+  assert.match(stagingCompose, /EVO_AGENT_WORKER_ENABLED: "false"/u);
+  assert.match(stagingCompose, /EVO_AGENT_AUTOREPLY_ENABLED: "false"/u);
+  assert.match(stagingCompose, /EVO_AGENT_OUTBOUND_ENABLED: "false"/u);
+  assert.doesNotMatch(stagingCompose, /name: evo_crm_private$/mu);
+  assert.doesNotMatch(stagingCompose, /container_name: evo-crm-manual-send-worker/u);
+});
+
+test("staging app mounts only its private recovery evidence and has a safe env template", () => {
+  const stagingCompose = readFileSync("docker-compose.staging.yml", "utf8");
+  const stagingEnvironment = readFileSync("deploy/env.staging.example", "utf8");
+
+  assert.match(
+    stagingCompose,
+    /EVO_PLATFORM_U11_RECOVERY_EVIDENCE_HOST_ROOT:-\/opt\/evo-crm-staging\/evidence\}:\/app\/recovery-evidence:ro/u,
+  );
+  assert.match(stagingEnvironment, /^EVO_CRM_DOMAIN=staging\.crm\.evoadmissions\.com$/mu);
+  assert.match(stagingEnvironment, /^EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=1$/mu);
+  assert.match(stagingEnvironment, /^EVO_PLATFORM_P7B_OBSERVABILITY_SECRET=$/mu);
+  assert.match(stagingEnvironment, /^AUTH_SECRET=$/mu);
+  assert.match(stagingEnvironment, /^EVO_SECRET_ENCRYPTION_KEY=$/mu);
+  assert.match(
+    stagingEnvironment,
+    /^EVO_PLATFORM_U11_RECOVERY_EVIDENCE_ROOT=\/app\/recovery-evidence$/mu,
+  );
+  assert.match(
+    stagingEnvironment,
+    /^EVO_PLATFORM_U11_RECOVERY_EVIDENCE_PATH=\/app\/recovery-evidence\/u11-recovery-result\.json$/mu,
+  );
+  assert.doesNotMatch(stagingEnvironment, /iosckaqtovbbnssqcpde/u);
+  assert.doesNotMatch(stagingEnvironment, /evo-inbox(?!-staging)/u);
+  assert.doesNotMatch(stagingEnvironment, /replace-with-distinct-staging-(?:observability|auth|encryption)/u);
+});
+
+test("workflow keeps controlled staging preflight protected and effect-free", () => {
+  const workflow = readFileSync(".github/workflows/evo-fast-release.yml", "utf8");
+  const start = workflow.indexOf("  staging_profile_preflight:");
+  const end = workflow.indexOf("\n  prepare:", start);
+  assert.notEqual(start, -1);
+  assert.ok(end > start);
+
+  const stagingJob = workflow.slice(start, end);
+  assert.match(workflow, /release_environment:/u);
+  assert.match(workflow, /- staging/u);
+  assert.match(stagingJob, /if: inputs\.release_environment == 'staging'/u);
+  assert.match(stagingJob, /environment: staging/u);
+  assert.match(stagingJob, /git rev-parse origin\/main/u);
+  assert.match(stagingJob, /fast-release-ci-gate\.mjs/u);
+  assert.match(stagingJob, /controlled-staging-preflight/u);
+  assert.match(stagingJob, /secrets\.EVO_RELEASE_STAGING_APP_ENV/u);
+  assert.match(stagingJob, /EVO_RELEASE_APP_ENV_FILE/u);
+  assert.match(stagingJob, /EVO_RELEASE_ENV_EXAMPLE_FILE/u);
+  assert.match(stagingJob, /EVO_RELEASE_SUPABASE_PROJECT_REF/u);
+  assert.match(stagingJob, /EVO_RELEASE_PLATFORM_ORGANIZATION_ID/u);
+  assert.match(stagingJob, /EVO_RELEASE_SUPABASE_SECRET_KEY_SHA256/u);
+  assert.match(stagingJob, /EVO_PRODUCTION_SUPABASE_SECRET_KEY_SHA256/u);
+  assert.match(stagingJob, /install -m 600 \/dev\/null/u);
+  assert.match(stagingJob, /trap .*rm -f/u);
+  assert.match(stagingJob, /effectsAllowed/u);
+  assert.match(stagingJob, /releaseStatus/u);
+  assert.doesNotMatch(stagingJob, /set -x/u);
+  assert.doesNotMatch(stagingJob, /echo .*STAGING_APP_ENV/u);
+  assert.doesNotMatch(stagingJob, /cat .*STAGING_APP_ENV/u);
+  assert.doesNotMatch(stagingJob, /\bssh\b/u);
+  assert.doesNotMatch(stagingJob, /\bscp\b/u);
+  assert.doesNotMatch(stagingJob, /docker (build|compose|save|load)/u);
+  assert.doesNotMatch(stagingJob, /supabase (db|migration|link)/u);
 });
 
 test("workflow binds one protected approval to exact main and runner-built artifact", () => {

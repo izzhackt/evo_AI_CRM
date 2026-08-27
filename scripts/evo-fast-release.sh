@@ -167,16 +167,53 @@ compose() {
 }
 
 verify_env_contract() {
-  local example_file=$EVO_RELEASE_ROOT/deploy/env.production.example
+  local example_file=${EVO_RELEASE_ENV_EXAMPLE_FILE:-$EVO_RELEASE_ROOT/deploy/env.production.example}
+  local script_dir validator
+  script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+  validator=$script_dir/evo-app-env-contract.mjs
   require_file "$example_file" "env_example_missing"
   require_file "$EVO_RELEASE_APP_ENV_FILE" "app_env_missing"
+  require_file "$validator" "app_env_validator_missing"
   local mode
   mode=$(file_mode "$EVO_RELEASE_APP_ENV_FILE")
   [[ $mode == 600 || $mode == 640 ]] || fail "app_env_permissions_invalid"
-  while IFS= read -r key; do
-    [[ -n $key ]] || continue
-    grep -Eq "^${key}=" "$EVO_RELEASE_APP_ENV_FILE" || fail "required_env_name_missing"
-  done < <(sed -n 's/^[[:space:]]*\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$example_file")
+  node "$validator" \
+    --example "$example_file" \
+    --env "$EVO_RELEASE_APP_ENV_FILE" \
+    >/dev/null || fail "app_env_contract_invalid"
+}
+
+verify_controlled_staging_env_contract() {
+  local variable
+  for variable in \
+    EVO_RELEASE_APP_ENV_FILE \
+    EVO_RELEASE_ENV_EXAMPLE_FILE \
+    EVO_RELEASE_SUPABASE_PROJECT_REF \
+    EVO_PRODUCTION_SUPABASE_PROJECT_REF \
+    EVO_RELEASE_PLATFORM_ORGANIZATION_ID \
+    EVO_RELEASE_SUPABASE_PUBLISHABLE_KEY_SHA256 \
+    EVO_RELEASE_SUPABASE_SECRET_KEY_SHA256 \
+    EVO_PRODUCTION_SUPABASE_PUBLISHABLE_KEY_SHA256 \
+    EVO_PRODUCTION_SUPABASE_SECRET_KEY_SHA256 \
+    EVO_RELEASE_PUBLIC_HOSTNAME; do
+    require_variable "$variable"
+  done
+  require_absolute_path "$EVO_RELEASE_APP_ENV_FILE" "app_env_path_invalid"
+  require_absolute_path "$EVO_RELEASE_ENV_EXAMPLE_FILE" "env_example_path_invalid"
+
+  local script_dir validator mode
+  script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+  validator=$script_dir/evo-app-env-contract.mjs
+  require_file "$EVO_RELEASE_ENV_EXAMPLE_FILE" "env_example_missing"
+  require_file "$EVO_RELEASE_APP_ENV_FILE" "app_env_missing"
+  require_file "$validator" "app_env_validator_missing"
+  mode=$(file_mode "$EVO_RELEASE_APP_ENV_FILE")
+  [[ $mode == 600 || $mode == 640 ]] || fail "app_env_permissions_invalid"
+  node "$validator" \
+    --controlled-staging \
+    --example "$EVO_RELEASE_ENV_EXAMPLE_FILE" \
+    --env "$EVO_RELEASE_APP_ENV_FILE" \
+    >/dev/null || fail "controlled_staging_env_contract_invalid"
 }
 
 verify_current_containers() {
@@ -313,16 +350,37 @@ verify_external_health() {
     "$EVO_RELEASE_EXTERNAL_HEALTH_URL" || return 1
 }
 
+controlled_staging_preflight() {
+  require_command node
+  local script_dir
+  script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+  verify_controlled_staging_env_contract
+  node "$script_dir/evo-release-environment-profile.mjs" --from-env
+}
+
 preflight() {
   require_command curl
   require_command docker
   require_command jq
+  require_command node
   require_command realpath
   require_command sha256sum
   require_command tar
   load_configuration
   load_candidate_configuration
   verify_env_contract
+  case ${EVO_RELEASE_ENVIRONMENT:-production} in
+    production)
+      ;;
+    staging)
+      verify_controlled_staging_env_contract
+      node "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/evo-release-environment-profile.mjs" \
+        --from-env >/dev/null
+      ;;
+    *)
+      fail "release_environment_invalid"
+      ;;
+  esac
   verify_current_containers
   verify_capacity
   verify_compose
@@ -473,6 +531,10 @@ case "$command_name" in
   preflight)
     [[ $# -eq 1 ]] || fail "invalid_arguments"
     preflight
+    ;;
+  controlled-staging-preflight)
+    [[ $# -eq 1 ]] || fail "invalid_arguments"
+    controlled_staging_preflight
     ;;
   deploy)
     [[ $# -eq 1 ]] || fail "invalid_arguments"

@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoadmissions.com/schemas/u11-recovery-result.schema.json",
+  "title": "EVO U11 non-production recovery evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "observed_at",
+    "result_code",
+    "preflight",
+    "execution_status",
+    "environment",
+    "subjects",
+    "smoke",
+    "blockers"
+  ],
+  "properties": {
+    "schema_version": { "const": "u11-recovery-result/v1" },
+    "observed_at": { "$ref": "#/$defs/timestamp" },
+    "result_code": {
+      "enum": [
+        "recovery_ready",
+        "recovery_incomplete",
+        "recovery_failed",
+        "preflight_blocked"
+      ]
+    },
+    "preflight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": { "enum": ["verified", "blocked"] }
+      }
+    },
+    "execution_status": { "enum": ["not_run", "observed"] },
+    "environment": { "$ref": "#/$defs/environment" },
+    "subjects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["database", "storage"],
+      "properties": {
+        "database": { "$ref": "#/$defs/subject" },
+        "storage": { "$ref": "#/$defs/subject" }
+      }
+    },
+    "smoke": { "$ref": "#/$defs/smoke" },
+    "blockers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/blocker" }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "result_code": { "const": "recovery_ready" } },
+        "required": ["result_code"]
+      },
+      "then": {
+        "properties": {
+          "preflight": {
+            "properties": { "status": { "const": "verified" } }
+          },
+          "execution_status": { "const": "observed" },
+          "subjects": {
+            "properties": {
+              "database": {
+                "properties": { "status": { "const": "ready" } }
+              },
+              "storage": {
+                "properties": { "status": { "const": "ready" } }
+              }
+            }
+          },
+          "smoke": { "$ref": "#/$defs/passed_smoke" },
+          "blockers": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "result_code": { "const": "preflight_blocked" } },
+        "required": ["result_code"]
+      },
+      "then": {
+        "properties": {
+          "preflight": {
+            "properties": { "status": { "const": "blocked" } }
+          },
+          "execution_status": { "const": "not_run" },
+          "subjects": { "$ref": "#/$defs/not_run_subjects" },
+          "smoke": { "$ref": "#/$defs/not_run_smoke" },
+          "blockers": { "minItems": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "execution_status": { "const": "not_run" } },
+        "required": ["execution_status"]
+      },
+      "then": {
+        "properties": {
+          "subjects": { "$ref": "#/$defs/not_run_subjects" },
+          "smoke": { "$ref": "#/$defs/not_run_smoke" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "alias": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_alias",
+        "source_identity_sha256",
+        "destination_alias",
+        "destination_identity_sha256",
+        "production_identity_sha256",
+        "identities_distinct",
+        "production_collision"
+      ],
+      "properties": {
+        "source_alias": { "$ref": "#/$defs/alias" },
+        "source_identity_sha256": { "$ref": "#/$defs/sha256" },
+        "destination_alias": { "$ref": "#/$defs/alias" },
+        "destination_identity_sha256": { "$ref": "#/$defs/sha256" },
+        "production_identity_sha256": { "$ref": "#/$defs/sha256" },
+        "identities_distinct": { "type": "boolean" },
+        "production_collision": { "type": "boolean" }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "artifact_sha256"],
+      "properties": {
+        "status": { "enum": ["not_run", "listed", "verified", "failed"] },
+        "artifact_sha256": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "verified" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "artifact_sha256": { "$ref": "#/$defs/sha256" }
+            }
+          },
+          "else": {
+            "properties": { "artifact_sha256": { "type": "null" } }
+          }
+        }
+      ]
+    },
+    "restore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "verified_at"],
+      "properties": {
+        "status": { "enum": ["not_run", "verified", "failed"] },
+        "verified_at": {
+          "oneOf": [
+            { "$ref": "#/$defs/timestamp" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "verified" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "verified_at": { "$ref": "#/$defs/timestamp" }
+            }
+          },
+          "else": {
+            "properties": { "verified_at": { "type": "null" } }
+          }
+        }
+      ]
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backup", "restore", "status"],
+      "properties": {
+        "backup": { "$ref": "#/$defs/backup" },
+        "restore": { "$ref": "#/$defs/restore" },
+        "status": { "enum": ["missing", "failed", "ready"] }
+      }
+    },
+    "smoke_status": { "enum": ["not_run", "passed", "failed"] },
+    "smoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "restored_app",
+        "admin_login",
+        "same_organization_access",
+        "cross_organization_denial",
+        "private_storage_access",
+        "blocked_integration_guard"
+      ],
+      "properties": {
+        "restored_app": { "$ref": "#/$defs/smoke_status" },
+        "admin_login": { "$ref": "#/$defs/smoke_status" },
+        "same_organization_access": { "$ref": "#/$defs/smoke_status" },
+        "cross_organization_denial": { "$ref": "#/$defs/smoke_status" },
+        "private_storage_access": { "$ref": "#/$defs/smoke_status" },
+        "blocked_integration_guard": { "$ref": "#/$defs/smoke_status" }
+      }
+    },
+    "passed_smoke": {
+      "allOf": [
+        { "$ref": "#/$defs/smoke" },
+        {
+          "properties": {
+            "restored_app": { "const": "passed" },
+            "admin_login": { "const": "passed" },
+            "same_organization_access": { "const": "passed" },
+            "cross_organization_denial": { "const": "passed" },
+            "private_storage_access": { "const": "passed" },
+            "blocked_integration_guard": { "const": "passed" }
+          }
+        }
+      ]
+    },
+    "not_run_smoke": {
+      "allOf": [
+        { "$ref": "#/$defs/smoke" },
+        {
+          "properties": {
+            "restored_app": { "const": "not_run" },
+            "admin_login": { "const": "not_run" },
+            "same_organization_access": { "const": "not_run" },
+            "cross_organization_denial": { "const": "not_run" },
+            "private_storage_access": { "const": "not_run" },
+            "blocked_integration_guard": { "const": "not_run" }
+          }
+        }
+      ]
+    },
+    "not_run_subjects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["database", "storage"],
+      "properties": {
+        "database": { "$ref": "#/$defs/not_run_subject" },
+        "storage": { "$ref": "#/$defs/not_run_subject" }
+      }
+    },
+    "not_run_subject": {
+      "allOf": [
+        { "$ref": "#/$defs/subject" },
+        {
+          "properties": {
+            "backup": {
+              "properties": {
+                "status": { "const": "not_run" },
+                "artifact_sha256": { "type": "null" }
+              }
+            },
+            "restore": {
+              "properties": {
+                "status": { "const": "not_run" },
+                "verified_at": { "type": "null" }
+              }
+            },
+            "status": { "const": "missing" }
+          }
+        }
+      ]
+    },
+    "blocker": {
+      "enum": [
+        "managed_drill_not_run",
+        "source_destination_identity_collision",
+        "production_source_rejected",
+        "production_destination_rejected",
+        "database_backup_missing",
+        "database_backup_failed",
+        "database_backup_not_verified",
+        "database_restore_missing",
+        "database_restore_failed",
+        "storage_backup_missing",
+        "storage_backup_failed",
+        "storage_backup_not_verified",
+        "storage_restore_missing",
+        "storage_restore_failed",
+        "restored_app_missing",
+        "restored_app_failed",
+        "admin_login_missing",
+        "admin_login_failed",
+        "same_organization_access_missing",
+        "same_organization_access_failed",
+        "cross_organization_denial_missing",
+        "cross_organization_denial_failed",
+        "private_storage_access_missing",
+        "private_storage_access_failed",
+        "blocked_integration_check_missing",
+        "blocked_integration_became_unblocked"
+      ]
+    }
+  }
+}

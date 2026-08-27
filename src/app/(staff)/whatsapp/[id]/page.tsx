@@ -27,6 +27,7 @@ import {
 } from "@/lib/server/platform-ai-memory-repository";
 import { readPlatformGeminiProposal } from "@/lib/server/platform-gemini-proposals-repository";
 import { readPlatformGeminiProposalReviews } from "@/lib/server/platform-gemini-proposal-reviews-repository";
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 import { CommunicationsSourceDisclosure } from "../CommunicationsSourceDisclosure";
 
@@ -110,6 +111,7 @@ export default async function ConversationPage({
       getPlatformConversationBw4Workspace(actor, id).catch(() => null),
     ]);
   if (!thread || !workflow) notFound();
+  const supabaseConfig = getSupabasePublicConfig();
   const [
     amocrmCanonicalContext,
     aiMemory,
@@ -154,7 +156,10 @@ export default async function ConversationPage({
         description={t("platformCommunicationsSourceHint")}
         mobileSummary={t("platformCommunicationsSourceSummary")}
       />
-      <PlatformMessagingRealtime organizationId={actor.organizationId} />
+      <PlatformMessagingRealtime
+        organizationId={actor.organizationId}
+        supabaseConfig={supabaseConfig}
+      />
       <PlatformConversationView
         conversations={conversationPage.rows}
         conversation={thread.conversation}

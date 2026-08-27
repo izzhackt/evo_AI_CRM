@@ -73,6 +73,15 @@ evo-crm.72.62.119.112.sslip.io {
 	reverse_proxy evo-crm-app:3000
 }
 
+staging-crm.72.62.119.112.sslip.io {
+	import evo_app
+	request_body {
+		max_size 105MB
+	}
+	encode zstd gzip
+	reverse_proxy evo-crm-staging-app:3000
+}
+
 # Existing VPS routes are intentionally part of the EVO edge source of truth.
 # Keep them when reconciling the live, locally edited Caddyfile.
 invite-bishkek.72.62.119.112.sslip.io {

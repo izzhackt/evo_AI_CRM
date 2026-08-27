@@ -1,17 +1,19 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-08-24
+- Snapshot date: 2026-08-27
 - Repository baseline: GitHub `origin/main`
-  `31d26b6e6bdc8a96fcf9f48210e417d43619370d`
+  `6d2109b865da334bd41ad8c432147a2f7045937b`
 - Active product contract: GitHub issue #376
-- Active implementation block: U0/#377 docs-only authority reconciliation
+- Active implementation block: U11/#388 managed staging and recovery proof
 - Target decision: `docs/adr/0020-unify-evo-v1-on-canonical-supabase.md`
 - Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
 - Active Student Profile automation boundary:
   `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
 - Evidence rule: code/configuration is not real-provider proof
-- Provider/production status: not re-read in U0; no new live-readiness claim
+- Provider/production status: re-read 2026-08-27; isolated app-only staging is
+  running server-side, production is unchanged, canonical browser/recovery
+  acceptance is open
 
 ## Короткий вывод
 
@@ -21,9 +23,25 @@ AI. Active data должна пройти one-time migration/reconciliation; SQL
 runtime, dual-read/write и compatibility layers запрещены. Первый live stage
 receive-only: no outbound WhatsApp and no amoCRM writes.
 
-U0 не проверял production или providers и не менял их. Поэтому repository
-capability нельзя называть managed Supabase, provider, deployment, backup,
-rollback или pilot proof. Текущий executable шаг — только docs PR #377.
+Owner-approved V1 staging теперь существует отдельно от production:
+
+- Supabase branch `evo-v1-staging` / `brkihdobevpknkjvbuep` создан без
+  production data и проверен с migration ledger `001-092`;
+- один approved Admin подтверждён реальным password grant и Admin JWT claims;
+- protected GitHub staging preflight run `33084233185` зелёный;
+- на `hermes-vps` запущен только `evo-crm-staging-app-1` exact revision
+  `6d2109b865da334bd41ad8c432147a2f7045937b`; staging WAHA, worker и Lead
+  Agent не запускались;
+- production CRM остался на
+  `ee8a825ebc72f84449636e3feaefab7a330913d4`, healthy, restart count `0`.
+
+Это ещё не staff-ready acceptance. `staging.crm.evoadmissions.com` не имеет
+DNS-записи; технический `sslip.io` fallback проверен на VPS, но текущий
+operator browser блокируется Fortinet TLS interception. Реальный browser UI
+login, owner feedback/fix round и managed Database + Storage restore drill не
+завершены. Issue #388 остаётся открытым. Production replacement, outbound
+WhatsApp, autonomous replies, amoCRM writes, V1 tag и V2 re-baseline не
+разрешены этим staging execution.
 
 ## Historical repository snapshot before #376
 

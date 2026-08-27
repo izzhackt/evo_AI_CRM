@@ -1,7 +1,9 @@
 # U11 isolated V1 staging and recovery runbook
 
-Status: repository implementation runbook; managed execution is not yet
-authorized or complete.
+Status: isolated managed staging is partially executed. The data-less backend,
+first Admin, protected GitHub profile and app-only VPS runtime are live; the
+canonical DNS/browser acceptance and managed Database plus Storage recovery
+drill are not complete.
 
 This runbook creates the test copy requested by the owner without replacing
 the current production CRM. In plain language, staging is a separate room:
@@ -11,17 +13,34 @@ tests Version 1.
 
 ## Current truth
 
-- `crm.evoadmissions.com` remains the existing production application.
+- Production remains on the pre-V1 image
+  `evo-crm:ee8a825ebc72f84449636e3feaefab7a330913d4`. It stayed healthy with
+  restart count `0` while staging was created; no production container, data,
+  secret or volume was replaced.
 - `staging.crm.evoadmissions.com` is the reserved V1 test hostname, but it is
-  not live merely because this repository contains its profile.
+  still unresolved at the authoritative DNS provider. The technical fallback
+  `staging-crm.72.62.119.112.sslip.io` routes to staging and has a valid
+  Let's Encrypt certificate when verified at the VPS, but Fortinet interception
+  blocks the current operator browser path. Do not call it owner browser proof.
+- Supabase persistent Micro branch `evo-v1-staging` (project ref
+  `brkihdobevpknkjvbuep`) is `ACTIVE_HEALTHY`, data-less relative to
+  production, and has the contiguous repository ledger `001-092`. One approved
+  email-confirmed Admin/organization/membership exists; a real password grant
+  proved the expected Admin JWT claims. No production customer data or Storage
+  object was copied.
 - The `staging_profile_preflight` GitHub job validates the closed resource
   names plus the concrete protected app env identity and stops with
   `releaseStatus=blocked`; it intentionally cannot SSH, create a provider
-  resource, migrate data, start containers or change DNS.
+  resource, migrate data, start containers or change DNS. Exact-main run
+  `33084233185` passed this validation on 2026-08-27 and uploaded only the
+  redacted result.
 - `docker-compose.staging.yml` is isolated from the production Compose project.
-- `deploy/env.staging.example` contains placeholders only. Real staging values
-  belong in `/opt/evo-crm-staging/.env.staging` and protected provider/GitHub
-  storage, never Git.
+  `/opt/evo-crm-staging` currently runs only `evo-crm-staging-app-1` at exact
+  revision `6d2109b865da334bd41ad8c432147a2f7045937b`; staging WAHA, worker and
+  Lead Agent are absent.
+- `deploy/env.staging.example` contains placeholders only. The real mode-`0600`
+  file exists only at `/opt/evo-crm-staging/.env.staging` and as the protected
+  GitHub `staging` Environment secret; its values never belong in Git or logs.
 - Database and Storage recovery remain non-ready until a real managed restore
   drill and restored-application checks succeed.
 
@@ -95,12 +114,19 @@ targets:
 - the DNS record for `staging.crm.evoadmissions.com`;
 - the exact approved EVO staff accounts allowed to sign in.
 
-That approval does not authorize a production replacement. Production requires
-a second, later owner decision after the feedback-and-fix round is accepted.
+The owner recorded approval on 2026-08-27 for one isolated staging contour,
+one first Admin identity and a target spend of at most USD 15 per month. That
+approval covered the Supabase branch, protected GitHub staging Environment,
+`/opt/evo-crm-staging` app-only runtime and staging hostname work recorded
+above. It did not authorize a disposable recovery target, production
+replacement, production data copy, WhatsApp send, amoCRM write or Version 2
+cutover. Production still requires a second, later owner decision after the
+feedback-and-fix round is accepted.
 
 ## Provision the isolated contour
 
-After approval, use this order:
+The approved contour used this order. Reuse it for a later rebuild only after
+reconfirming every external target and cost decision:
 
 1. Create the protected GitHub `staging` Environment. Require the owner as a
    reviewer before any future effectful deployment job receives staging

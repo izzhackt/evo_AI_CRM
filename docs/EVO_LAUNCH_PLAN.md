@@ -2,10 +2,12 @@
 
 Status: parent #376 is the active product contract; U0/#377 through U10/#387
 are merged and exact-main green. Long-run 1 completed at
-`2ea92ac547d7f526f0e886a81f871936af456635` and stops before U11/#388. The
-separately owner-authorized V1/V2 rollout begins with the docs-only R0 block
-below, then U11/#388. ADR 0021 and the latest `docs/PLAN_CHANGES.md` entry are
-binding.
+`2ea92ac547d7f526f0e886a81f871936af456635`. U11 repository implementation
+merged in PR #404 at `6d2109b865da334bd41ad8c432147a2f7045937b`, and its
+isolated managed staging contour is partially executed. Issue #388 remains
+open because canonical browser acceptance and the real managed Database plus
+Storage restore drill are not complete. ADR 0021 and the latest
+`docs/PLAN_CHANGES.md` entry are binding.
 
 ## Current unified v1 authority
 
@@ -88,6 +90,19 @@ completed successfully. Its contract remains
 canonical Student Cases with explicit pilot membership and a truthful
 legacy-write boundary; it does not authorize a legacy fallback, provider
 action or production rollout.
+
+U11 repository implementation merged in PR #404 at
+`6d2109b865da334bd41ad8c432147a2f7045937b`; exact-main run `33073539999`
+completed successfully. On 2026-08-27 the owner-authorized staging execution
+created a data-less persistent Supabase Micro branch, applied migrations
+`001-092`, provisioned one approved Admin, passed protected validation-only
+GitHub run `33084233185`, and started only the exact V1 CRM app under Compose
+project `evo-crm-staging`. Production remained on
+`ee8a825ebc72f84449636e3feaefab7a330913d4` with restart count `0`.
+Canonical `staging.crm.evoadmissions.com` DNS, real browser UI acceptance and
+the Database plus separate Storage recovery drill remain blocked/open, so this
+execution does not close #388, complete R3 or authorize R4 production
+promotion.
 
 ## Historical pre-#376 execution record
 

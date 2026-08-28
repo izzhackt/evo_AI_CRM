@@ -730,16 +730,14 @@ test("U5 server action preserves retry IDs and exposes repository outcomes", asy
   }
 });
 
-test("U5 connected Sales detail renders a fail-closed permissioned gate UI", () => {
+test("U5 gate stays off the canonical Sales screen until #431 replaces it", () => {
   const detail = read(
     "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
   );
   const card = read(
     "src/components/platform/sales/SalesAdmissionsGateCard.tsx",
   );
-  assert.match(detail, /getPlatformAdmissionsGate\(actor, id\)/);
-  assert.match(detail, /reason=\{gateResult\.unavailable \? "read_failure" : "not_initialized"\}/);
-  assert.match(detail, /Historical leads are not enrolled automatically/);
+  assert.doesNotMatch(detail, /getPlatformAdmissionsGate|SalesAdmissionsGateCard/);
   assert.match(card, /data-testid="admissions-gate-state"/);
   assert.match(card, /action="confirm_contract"/);
   assert.match(card, /action="confirm_first_payment"/);

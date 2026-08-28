@@ -10,8 +10,10 @@ import {
   appendCanonicalInboundMessage,
   createCanonicalPersonLead,
   handoffCanonicalLeadToAdmissions,
+  listCanonicalSalesLeads,
   listCanonicalStudentCases,
   recordCanonicalSalesGateEvidence,
+  updateCanonicalSalesLeadWorkflow,
 } from "../src/lib/server/canonical-crm-repository.ts";
 import { closeDatabaseConnections } from "../src/lib/server/database.ts";
 
@@ -48,6 +50,14 @@ function commandContext(runId, name, actorRole = "sales") {
     actorRole,
     correlationId: `acceptance:${runId}:${name}`,
     idempotencyKey: `acceptance:${runId}:${name}`,
+  };
+}
+
+function technicalCommandContext(runId, name, actorRole = "sales") {
+  return {
+    actorRole,
+    correlationId: `technical:${runId}:${name}`,
+    idempotencyKey: `technical:${runId}:${name}`,
   };
 }
 
@@ -147,11 +157,19 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     );
     assert.equal(preQualifiedCaseCount, 0);
 
-    await sql`
-      update evo_leads
-      set stage = 'qualified', version = version + 1, updated_at = now()
-      where id = ${lead.leadId}
-    `;
+    const qualifiedLead = await updateCanonicalSalesLeadWorkflow(
+      technicalCommandContext(runId, "qualified-before-gate"),
+      {
+        leadId: lead.leadId,
+        expectedVersion: lead.version,
+        stage: "qualified",
+        qualificationSummary: "Technical qualification before gate",
+        nextAction: "Complete the technical handoff gate",
+        nextActionAt: "2026-08-29",
+      },
+    );
+    assert.equal(qualifiedLead.stage, "qualified");
+    assert.equal(qualifiedLead.nextActionAt, "2026-08-29T03:00:00.000Z");
 
     await assert.rejects(
       handoffCanonicalLeadToAdmissions({
@@ -249,6 +267,20 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     assert.equal(normalHandoffEvents[0].businessObjectId, handoff.studentCaseId);
     assert.equal(normalHandoffEvents[1].businessObjectType, "handoff");
     assert.equal(normalHandoffEvents[1].businessObjectId, handoff.handoffId);
+    const handedOffPage = await listCanonicalSalesLeads({
+      actorRole: "sales",
+      query: lead.leadId,
+      stage: "handed_off",
+    });
+    assert.equal(handedOffPage.rows.length, 1);
+    assert.equal(handedOffPage.rows[0].nextAction, null);
+    assert.equal(handedOffPage.rows[0].nextActionAt, null);
+    const handedOffScheduledPage = await listCanonicalSalesLeads({
+      actorRole: "admin",
+      query: lead.leadId,
+      due: "scheduled",
+    });
+    assert.deepEqual(handedOffScheduledPage.rows, []);
 
     const evidenceCountBeforeTerminalProbe = Number(
       (
@@ -663,6 +695,31 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     );
     assert.equal(eventCountAfterMutation, eventCountBeforeMutation);
 
+    const [browserCalendar] = await sql`
+      select to_char(
+        (now() at time zone 'Asia/Bishkek')::date + 1,
+        'YYYY-MM-DD'
+      ) as tomorrow
+    `;
+    const browserLead = await createCanonicalPersonLead({
+      ...technicalCommandContext(runId, "browser-active-lead", "admin"),
+      displayName: `technical-browser-active-${runId}`,
+      email: `browser-active-${runId}@technical.invalid`,
+      source: `technical-browser-source-${runId}`,
+    });
+    const browserActiveLead = await updateCanonicalSalesLeadWorkflow(
+      technicalCommandContext(runId, "browser-active-workflow", "admin"),
+      {
+        leadId: browserLead.leadId,
+        expectedVersion: browserLead.version,
+        stage: "qualifying",
+        qualificationSummary: "Technical browser-ready lead",
+        nextAction: "Exercise the technical Sales form",
+        nextActionAt: browserCalendar.tomorrow,
+      },
+    );
+    assert.equal(browserActiveLead.stage, "qualifying");
+
     const originalDatabaseUrl = process.env.DATABASE_URL;
     await closeDatabaseConnections();
     process.env.DATABASE_URL =
@@ -681,9 +738,437 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     if (resultFile) {
       await writeFile(
         resultFile,
-        `${JSON.stringify({ canonicalLeadId: lead.leadId, privateDocumentCaseId: handoff.studentCaseId })}\n`,
+        `${JSON.stringify({ canonicalLeadId: browserActiveLead.leadId, privateDocumentCaseId: handoff.studentCaseId })}\n`,
         { encoding: "utf8", mode: 0o600 },
       );
+    }
+  } finally {
+    await closeDatabaseConnections();
+    await sql.end({ timeout: 5 });
+  }
+});
+
+test("canonical Sales repository runs the technical queue and workflow on real PostgreSQL", async () => {
+  const databaseUrl = requiredDatabaseUrl();
+  const sql = postgres(databaseUrl, {
+    idle_timeout: 5,
+    max: 1,
+    onnotice: () => undefined,
+  });
+  const runId = randomUUID();
+
+  try {
+    const [calendar] = await sql`
+      select
+        to_char((now() at time zone 'Asia/Bishkek')::date, 'YYYY-MM-DD') as today,
+        to_char((now() at time zone 'Asia/Bishkek')::date - 1, 'YYYY-MM-DD') as yesterday,
+        to_char((now() at time zone 'Asia/Bishkek')::date + 1, 'YYYY-MM-DD') as tomorrow
+    `;
+    const phoneSuffix = (
+      BigInt(`0x${runId.replaceAll("-", "").slice(0, 10)}`) % 1_000_000_000n
+    )
+      .toString()
+      .padStart(9, "0");
+    const literalPhone = `+971${phoneSuffix}`;
+    const literalEmail = `sales-literal-${runId}@technical.invalid`;
+
+    const literalLead = await createCanonicalPersonLead({
+      ...technicalCommandContext(runId, "literal-lead", "admin"),
+      displayName: `technical-sales-100%_literal-${runId}`,
+      email: literalEmail,
+      phone: literalPhone,
+      source: `technical-sales-source-${runId}`,
+    });
+    const overdueLead = await createCanonicalPersonLead({
+      ...technicalCommandContext(runId, "overdue-lead"),
+      displayName: `technical-sales-overdue-${runId}`,
+      email: `sales-overdue-${runId}@technical.invalid`,
+      source: `technical-sales-source-${runId}`,
+    });
+    const futureLead = await createCanonicalPersonLead({
+      ...technicalCommandContext(runId, "future-lead"),
+      displayName: `technical-sales-future-${runId}`,
+      email: `sales-future-${runId}@technical.invalid`,
+      source: `technical-sales-source-${runId}`,
+    });
+    const unscheduledLead = await createCanonicalPersonLead({
+      ...technicalCommandContext(runId, "unscheduled-lead"),
+      displayName: `technical-sales-Xliteral-${runId}`,
+      email: `sales-unscheduled-${runId}@technical.invalid`,
+      source: `technical-sales-source-${runId}`,
+    });
+    const disqualifiedLead = await createCanonicalPersonLead({
+      ...technicalCommandContext(runId, "disqualified-lead"),
+      displayName: `technical-sales-disqualified-${runId}`,
+      email: `sales-disqualified-${runId}@technical.invalid`,
+      source: `technical-sales-source-${runId}`,
+    });
+
+    const literalWorkflowContext = technicalCommandContext(
+      runId,
+      "literal-workflow",
+    );
+    const literalWorkflowInput = {
+      leadId: literalLead.leadId,
+      expectedVersion: literalLead.version,
+      stage: "qualifying",
+      qualificationSummary: null,
+      nextAction: "  Confirm   technical follow-up  ",
+      nextActionAt: calendar.today,
+      reason: null,
+    };
+    const literalWorkflow = await updateCanonicalSalesLeadWorkflow(
+      literalWorkflowContext,
+      literalWorkflowInput,
+    );
+    assert.deepEqual(
+      {
+        stage: literalWorkflow.stage,
+        ownerRole: literalWorkflow.ownerRole,
+        qualificationSummary: literalWorkflow.qualificationSummary,
+        nextAction: literalWorkflow.nextAction,
+        nextActionAt: literalWorkflow.nextActionAt,
+        version: literalWorkflow.version,
+      },
+      {
+        stage: "qualifying",
+        ownerRole: "sales",
+        qualificationSummary: null,
+        nextAction: "Confirm technical follow-up",
+        nextActionAt: `${calendar.today}T03:00:00.000Z`,
+        version: 2,
+      },
+    );
+    const literalEventsBeforeReplay = await sql`
+      select
+        business_object_type as "businessObjectType",
+        business_object_id as "businessObjectId",
+        transition,
+        from_state as "fromState",
+        to_state as "toState",
+        reason,
+        event_sequence as "eventSequence"
+      from evo_business_events
+      where idempotency_key = ${literalWorkflowContext.idempotencyKey}
+      order by event_sequence
+    `;
+    assert.deepEqual(
+      literalEventsBeforeReplay.map((event) => ({
+        businessObjectType: event.businessObjectType,
+        businessObjectId: event.businessObjectId,
+        transition: event.transition,
+        fromState: event.fromState,
+        toState: event.toState,
+        reason: event.reason,
+        eventSequence: event.eventSequence,
+      })),
+      [
+        {
+          businessObjectType: "lead",
+          businessObjectId: literalLead.leadId,
+          transition: "sales_lead.workflow_updated",
+          fromState: "new",
+          toState: "qualifying",
+          reason: null,
+          eventSequence: 1,
+        },
+      ],
+    );
+    const [literalReceipt] = await sql`
+      select
+        status,
+        business_object_type as "businessObjectType",
+        business_object_id as "businessObjectId",
+        result_payload ->> 'leadId' as "resultLeadId"
+      from evo_command_receipts
+      where idempotency_key = ${literalWorkflowContext.idempotencyKey}
+    `;
+    assert.deepEqual(literalReceipt, {
+      status: "succeeded",
+      businessObjectType: "lead",
+      businessObjectId: literalLead.leadId,
+      resultLeadId: literalLead.leadId,
+    });
+
+    const literalReplay = await updateCanonicalSalesLeadWorkflow(
+      literalWorkflowContext,
+      literalWorkflowInput,
+    );
+    assert.deepEqual(literalReplay, literalWorkflow);
+    const [literalEventCountAfterReplay] = await sql`
+      select count(*)::int as count
+      from evo_business_events
+      where idempotency_key = ${literalWorkflowContext.idempotencyKey}
+    `;
+    assert.equal(literalEventCountAfterReplay.count, 1);
+    await assert.rejects(
+      updateCanonicalSalesLeadWorkflow(literalWorkflowContext, {
+        ...literalWorkflowInput,
+        nextAction: "Different technical follow-up",
+      }),
+      repositoryError("idempotency_conflict"),
+    );
+
+    const staleContext = technicalCommandContext(runId, "stale-workflow");
+    await assert.rejects(
+      updateCanonicalSalesLeadWorkflow(staleContext, {
+        leadId: literalLead.leadId,
+        expectedVersion: 1,
+        stage: "qualified",
+        qualificationSummary: "Technical qualification",
+        nextAction: "Confirm technical qualification",
+        nextActionAt: calendar.tomorrow,
+      }),
+      repositoryError("conflict"),
+    );
+    const [staleReceiptCount] = await sql`
+      select count(*)::int as count
+      from evo_command_receipts
+      where idempotency_key = ${staleContext.idempotencyKey}
+    `;
+    const [staleEventCount] = await sql`
+      select count(*)::int as count
+      from evo_business_events
+      where idempotency_key = ${staleContext.idempotencyKey}
+    `;
+    assert.equal(staleReceiptCount.count, 0);
+    assert.equal(staleEventCount.count, 0);
+    await assert.rejects(
+      updateCanonicalSalesLeadWorkflow(
+        technicalCommandContext(runId, "admissions-workflow", "admissions"),
+        {
+          ...literalWorkflowInput,
+          expectedVersion: literalWorkflow.version,
+        },
+      ),
+      repositoryError("forbidden"),
+    );
+
+    const overdueWorkflow = await updateCanonicalSalesLeadWorkflow(
+      technicalCommandContext(runId, "overdue-workflow"),
+      {
+        leadId: overdueLead.leadId,
+        expectedVersion: overdueLead.version,
+        stage: "qualifying",
+        nextAction: "Review overdue technical item",
+        nextActionAt: calendar.yesterday,
+      },
+    );
+    assert.equal(overdueWorkflow.nextActionAt, `${calendar.yesterday}T03:00:00.000Z`);
+    const futureWorkflow = await updateCanonicalSalesLeadWorkflow(
+      technicalCommandContext(runId, "future-workflow", "admin"),
+      {
+        leadId: futureLead.leadId,
+        expectedVersion: futureLead.version,
+        stage: "qualified",
+        qualificationSummary: "Technical qualification summary",
+        nextAction: "Review future technical item",
+        nextActionAt: calendar.tomorrow,
+      },
+    );
+    assert.equal(futureWorkflow.stage, "qualified");
+
+    const disqualifiedActive = await updateCanonicalSalesLeadWorkflow(
+      technicalCommandContext(runId, "disqualified-active"),
+      {
+        leadId: disqualifiedLead.leadId,
+        expectedVersion: disqualifiedLead.version,
+        stage: "qualifying",
+        nextAction: "Review before technical disqualification",
+        nextActionAt: calendar.tomorrow,
+      },
+    );
+    const disqualifiedContext = technicalCommandContext(
+      runId,
+      "disqualified-workflow",
+    );
+    const disqualifiedWorkflow = await updateCanonicalSalesLeadWorkflow(
+      disqualifiedContext,
+      {
+        leadId: disqualifiedLead.leadId,
+        expectedVersion: disqualifiedActive.version,
+        stage: "disqualified",
+        qualificationSummary: "Technical qualification stopped",
+        nextAction: "This value must be cleared",
+        nextActionAt: calendar.tomorrow,
+        reason: "Technical disqualification reason",
+      },
+    );
+    assert.deepEqual(
+      {
+        stage: disqualifiedWorkflow.stage,
+        nextAction: disqualifiedWorkflow.nextAction,
+        nextActionAt: disqualifiedWorkflow.nextActionAt,
+        version: disqualifiedWorkflow.version,
+      },
+      {
+        stage: "disqualified",
+        nextAction: null,
+        nextActionAt: null,
+        version: 3,
+      },
+    );
+    const [disqualifiedEvent] = await sql`
+      select from_state as "fromState", to_state as "toState", reason
+      from evo_business_events
+      where idempotency_key = ${disqualifiedContext.idempotencyKey}
+    `;
+    assert.deepEqual(disqualifiedEvent, {
+      fromState: "qualifying",
+      toState: "disqualified",
+      reason: "Technical disqualification reason",
+    });
+
+    const newestAt = "2026-08-28T15:00:00.000Z";
+    const tiedAt = "2026-08-28T14:00:00.000Z";
+    const unscheduledAt = "2026-08-28T13:00:00.000Z";
+    const disqualifiedAt = "2026-08-28T12:00:00.000Z";
+    await sql`
+      update evo_leads
+      set updated_at = case id
+        when ${literalLead.leadId} then ${newestAt}::timestamptz
+        when ${overdueLead.leadId} then ${tiedAt}::timestamptz
+        when ${futureLead.leadId} then ${tiedAt}::timestamptz
+        when ${unscheduledLead.leadId} then ${unscheduledAt}::timestamptz
+        when ${disqualifiedLead.leadId} then ${disqualifiedAt}::timestamptz
+      end
+      where id in (
+        ${literalLead.leadId},
+        ${overdueLead.leadId},
+        ${futureLead.leadId},
+        ${unscheduledLead.leadId},
+        ${disqualifiedLead.leadId}
+      )
+    `;
+
+    await assert.rejects(
+      listCanonicalSalesLeads({ actorRole: "admissions", query: runId }),
+      repositoryError("forbidden"),
+    );
+    const tiedIds = [overdueLead.leadId, futureLead.leadId].sort((left, right) =>
+      left > right ? -1 : left < right ? 1 : 0,
+    );
+    const firstPage = await listCanonicalSalesLeads({
+      actorRole: "admin",
+      query: runId,
+      pageSize: 2,
+    });
+    assert.deepEqual(
+      firstPage.rows.map((row) => row.leadId),
+      [literalLead.leadId, tiedIds[0]],
+    );
+    assert.equal(firstPage.hasNext, true);
+    assert.deepEqual(firstPage.nextCursor, {
+      updatedAt: tiedAt,
+      id: tiedIds[0],
+    });
+    const secondPage = await listCanonicalSalesLeads({
+      actorRole: "sales",
+      query: runId,
+      pageSize: 2,
+      cursor: firstPage.nextCursor,
+    });
+    assert.deepEqual(secondPage.rows.map((row) => row.leadId), [
+      tiedIds[1],
+      unscheduledLead.leadId,
+    ]);
+    assert.equal(secondPage.hasNext, true);
+    const thirdPage = await listCanonicalSalesLeads({
+      actorRole: "admin",
+      query: runId,
+      pageSize: 2,
+      cursor: secondPage.nextCursor,
+    });
+    assert.deepEqual(thirdPage.rows.map((row) => row.leadId), [
+      disqualifiedLead.leadId,
+    ]);
+    assert.equal(thirdPage.hasNext, false);
+    assert.equal(thirdPage.nextCursor, null);
+    assert.equal(
+      new Set(
+        [...firstPage.rows, ...secondPage.rows, ...thirdPage.rows].map(
+          (row) => row.leadId,
+        ),
+      ).size,
+      5,
+    );
+
+    const qualifiedPage = await listCanonicalSalesLeads({
+      actorRole: "sales",
+      query: runId,
+      stage: "qualified",
+    });
+    assert.deepEqual(qualifiedPage.rows.map((row) => row.leadId), [
+      futureLead.leadId,
+    ]);
+    assert.equal(qualifiedPage.rows[0].qualificationSummary, "Technical qualification summary");
+    assert.equal(qualifiedPage.rows[0].ownerRole, "sales");
+
+    const scheduledPage = await listCanonicalSalesLeads({
+      actorRole: "admin",
+      query: runId,
+      due: "scheduled",
+    });
+    assert.deepEqual(
+      new Set(scheduledPage.rows.map((row) => row.leadId)),
+      new Set([literalLead.leadId, overdueLead.leadId, futureLead.leadId]),
+    );
+    const unscheduledPage = await listCanonicalSalesLeads({
+      actorRole: "sales",
+      query: runId,
+      due: "unscheduled",
+    });
+    assert.deepEqual(
+      new Set(unscheduledPage.rows.map((row) => row.leadId)),
+      new Set([unscheduledLead.leadId, disqualifiedLead.leadId]),
+    );
+    const dueTodayPage = await listCanonicalSalesLeads({
+      actorRole: "admin",
+      query: runId,
+      due: "due_today",
+    });
+    assert.deepEqual(dueTodayPage.rows.map((row) => row.leadId), [
+      literalLead.leadId,
+    ]);
+    const overduePage = await listCanonicalSalesLeads({
+      actorRole: "sales",
+      query: runId,
+      due: "overdue",
+    });
+    assert.deepEqual(overduePage.rows.map((row) => row.leadId), [
+      overdueLead.leadId,
+    ]);
+
+    for (const query of [
+      `100%_literal-${runId}`,
+      literalEmail,
+      literalPhone,
+      literalLead.personId,
+      literalLead.leadId,
+    ]) {
+      const searchPage = await listCanonicalSalesLeads({
+        actorRole: "admin",
+        query,
+      });
+      assert.deepEqual(
+        searchPage.rows.map((row) => row.leadId),
+        [literalLead.leadId],
+        `literal Sales queue search failed for ${query}`,
+      );
+    }
+
+    const originalDatabaseUrl = process.env.DATABASE_URL;
+    await closeDatabaseConnections();
+    process.env.DATABASE_URL =
+      "postgresql://technical:technical@127.0.0.1:1/technical";
+    try {
+      await assert.rejects(
+        listCanonicalSalesLeads({ actorRole: "admin", query: runId }),
+        repositoryError("unavailable"),
+      );
+    } finally {
+      process.env.DATABASE_URL = originalDatabaseUrl;
+      await closeDatabaseConnections();
     }
   } finally {
     await closeDatabaseConnections();

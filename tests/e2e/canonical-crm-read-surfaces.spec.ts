@@ -16,7 +16,9 @@ function requireUuid(name: string): string {
   return value.toLowerCase();
 }
 
-function credentials(role: "sales" | "admissions") {
+type TestRole = "admin" | "sales" | "admissions";
+
+function credentials(role: TestRole) {
   const prefix = `EVO_DEV_GATE_${role.toUpperCase()}`;
   const identifier = process.env[`${prefix}_IDENTIFIER`];
   const secret = process.env[`${prefix}_SECRET`];
@@ -26,7 +28,7 @@ function credentials(role: "sales" | "admissions") {
   return { identifier, secret };
 }
 
-async function submitGate(page: Page, role: "sales" | "admissions") {
+async function submitGate(page: Page, role: TestRole) {
   const { identifier, secret } = credentials(role);
   await page.context().clearCookies();
   await page.goto("/login");
@@ -48,6 +50,9 @@ test("missing PostgreSQL authority fails closed without a read fallback", async 
   await expect(page.getByTestId("canonical-student-cases-page")).toHaveCount(0);
 
   await submitGate(page, "sales");
+  await expect(page).toHaveURL(/\/sales(?:\?|$)/);
+  await expect(page.getByTestId("canonical-records-unavailable")).toBeVisible();
+  await expect(page.getByTestId("canonical-sales-page")).toBeVisible();
   await page.goto(`/sales/${unavailableProbeLeadId}`);
   await expect(page.getByTestId("canonical-records-unavailable")).toBeVisible();
   await expect(page.getByTestId("canonical-lead-detail")).toHaveCount(0);
@@ -74,13 +79,69 @@ test("Admissions reads the real canonical Student Case queue", async ({ page }) 
   ).toBeVisible();
 });
 
-test("Sales reads the real canonical PostgreSQL lead detail", async ({ page }) => {
+test("Sales reads and updates the real canonical PostgreSQL workflow", async ({
+  page,
+}) => {
   test.skip(mode !== "configured", "only exercised in configured mode");
   const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
 
   await submitGate(page, "sales");
+  await expect(page).toHaveURL(/\/sales(?:\?|$)/);
+  await expect(page.getByTestId("canonical-sales-page")).toBeVisible();
+  const row = page.locator(
+    `[data-testid="canonical-lead-row"][data-lead-id="${leadId}"]`,
+  );
+  await expect(row).toBeVisible();
+
+  await page.goto(`/sales?q=${encodeURIComponent(leadId)}`);
+  await expect(
+    page.locator(
+      `[data-testid="canonical-lead-row"][data-lead-id="${leadId}"]`,
+    ),
+  ).toBeVisible();
+
   await page.goto(`/sales/${leadId}`);
   const detail = page.getByTestId("canonical-lead-detail");
   await expect(detail).toBeVisible();
   await expect(detail).toContainText(leadId);
+
+  const form = page.getByTestId("canonical-sales-workflow-form");
+  await expect(form).toBeVisible();
+  await form.locator('select[name="stage"]').selectOption("qualified");
+  await form
+    .locator('textarea[name="qualification_summary"]')
+    .fill("Browser-proven qualification summary");
+  await form
+    .locator('input[name="next_action"]')
+    .fill("Browser-proven follow-up call");
+  await form.locator('input[name="next_action_at"]').fill("2026-09-15");
+  await form.getByRole("button", { name: "Сохранить" }).click();
+  await expect(
+    page.getByTestId("canonical-sales-workflow-saved"),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByTestId("canonical-lead-detail")).toContainText(
+    "Browser-proven qualification summary",
+  );
+  await expect(
+    page.locator('input[name="next_action"]'),
+  ).toHaveValue("Browser-proven follow-up call");
+});
+
+test("Admin sees the Sales union while Admissions stays server-denied", async ({
+  page,
+}) => {
+  test.skip(mode !== "configured", "only exercised in configured mode");
+  const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
+
+  await submitGate(page, "admin");
+  await page.goto(`/sales/${leadId}`);
+  await expect(page.getByTestId("canonical-lead-detail")).toBeVisible();
+  await expect(page.getByTestId("canonical-sales-workflow-form")).toBeVisible();
+
+  await submitGate(page, "admissions");
+  await page.goto("/sales");
+  await expect(page).toHaveURL(/\/access-denied\?from=%2Fsales/);
+  await expect(page.getByTestId("canonical-sales-page")).toHaveCount(0);
 });

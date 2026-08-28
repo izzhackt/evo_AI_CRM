@@ -23,6 +23,9 @@ const COPY = {
     phone: "Телефон",
     stage: "Текущий этап EVO",
     owner: "Роль-владелец",
+    qualificationSummary: "Итог квалификации",
+    nextAction: "Следующее действие",
+    nextActionAt: "Срок следующего действия",
     source: "Источник лида",
     version: "Версия записи",
     createdAt: "Создано",
@@ -39,6 +42,9 @@ const COPY = {
     phone: "Телефон",
     stage: "EVO учурдагы этабы",
     owner: "Ээ роль",
+    qualificationSummary: "Квалификация жыйынтыгы",
+    nextAction: "Кийинки аракет",
+    nextActionAt: "Кийинки аракеттин мөөнөтү",
     source: "Лид булагы",
     version: "Жазуунун версиясы",
     createdAt: "Түзүлгөн",
@@ -55,6 +61,9 @@ const COPY = {
     phone: "Phone",
     stage: "Current EVO stage",
     owner: "Owner role",
+    qualificationSummary: "Qualification summary",
+    nextAction: "Next action",
+    nextActionAt: "Next-action deadline",
     source: "Lead source",
     version: "Record version",
     createdAt: "Created",
@@ -108,6 +117,19 @@ export function CanonicalLeadDetail({
           </Fact>
           <Fact label={copy.owner}>
             <CanonicalKeyBadge value={lead.ownerRole} />
+          </Fact>
+          <Fact label={copy.qualificationSummary}>
+            {lead.qualificationSummary ?? "—"}
+          </Fact>
+          <Fact label={copy.nextAction}>{lead.nextAction ?? "—"}</Fact>
+          <Fact label={copy.nextActionAt}>
+            {lead.nextActionAt ? (
+              <span className="font-mono text-[11.5px]">
+                {formatCanonicalTimestamp(lead.nextActionAt, locale)}
+              </span>
+            ) : (
+              "—"
+            )}
           </Fact>
           <Fact label={copy.source}>
             <span className="font-medium text-fg">{lead.source}</span>

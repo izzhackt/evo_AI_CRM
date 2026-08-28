@@ -543,7 +543,7 @@ test("U6 server action revalidates Sales and Admissions paths after success", as
   );
 });
 
-test("U6 sources wire the bounded card and connected case path", () => {
+test("U6 card stays off Sales until #431 while the connected case path remains", () => {
   const componentSource = read("src/components/platform/sales/SalesAdmissionsHandoffCard.tsx");
   assert.match(componentSource, /admissions-handoff-case-link/);
   assert.match(componentSource, /eligibleAdmissionsOwners/);
@@ -552,8 +552,7 @@ test("U6 sources wire the bounded card and connected case path", () => {
   assert.match(componentSource, /admissions-handoff-refresh/);
 
   const salesSource = read("src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx");
-  assert.match(salesSource, /SalesAdmissionsHandoffCard/);
-  assert.match(salesSource, /admissions-handoff-/);
+  assert.doesNotMatch(salesSource, /SalesAdmissionsHandoffCard|admissions-handoff-/);
 
   const clientSource = read("src/app/(staff)/clients/[id]/StudentWorkspace.tsx");
   assert.match(clientSource, /getPlatformStudentCaseAdmissionsHandoff/);

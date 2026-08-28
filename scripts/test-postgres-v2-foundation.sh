@@ -230,6 +230,8 @@ canonical_read_browser_assert() {
     EVO_EXPECT_CANONICAL_READ_MODE="$read_mode" \
     EVO_CANONICAL_LEAD_ID="$canonical_lead_id" \
     EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
+    EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
+    EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
     EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
     EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
     EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \

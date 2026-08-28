@@ -13,13 +13,20 @@ test("fixed roles enforce the Sales, Admissions and Admin union", () => {
   for (const capability of ["sales.read", "sales.write", "messaging.read"]) {
     assert.equal(fixedRoleCan("sales", capability), true, capability);
   }
-  for (const capability of ["admissions.read", "admissions.write"]) {
+  for (const capability of [
+    "admissions.read",
+    "admissions.write",
+    "documents.read",
+    "documents.write",
+  ]) {
     assert.equal(fixedRoleCan("sales", capability), false, capability);
   }
 
   for (const capability of [
     "admissions.read",
     "admissions.write",
+    "documents.read",
+    "documents.write",
     "messaging.read",
   ]) {
     assert.equal(fixedRoleCan("admissions", capability), true, capability);

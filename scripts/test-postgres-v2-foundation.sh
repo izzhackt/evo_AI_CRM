@@ -9,6 +9,8 @@ env_file="$tmp_dir/postgres.env"
 app_log="$tmp_dir/app.log"
 verification_log="$tmp_dir/verification.log"
 broken_log="$tmp_dir/broken-migration.log"
+private_document_root="$tmp_dir/private-documents"
+missing_private_document_root="$tmp_dir/missing-private-documents"
 app_pid=""
 compose_args=()
 
@@ -102,9 +104,15 @@ fi
 start_app() {
   local app_database_url="$1"
   local gate_mode="${2:-configured}"
+  local document_mode="${3:-configured}"
+  local document_root="$private_document_root"
+  if [[ "$document_mode" == "unavailable" ]]; then
+    document_root="$missing_private_document_root"
+  fi
   : >"$app_log"
   if [[ "$gate_mode" == "configured" ]]; then
     DATABASE_URL="$app_database_url" \
+      EVO_PRIVATE_DOCUMENT_ROOT="$document_root" \
       EVO_DEV_GATE_SESSION_SECRET="$gate_session_secret" \
       EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
       EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
@@ -124,6 +132,7 @@ start_app() {
       -u EVO_DEV_GATE_ADMISSIONS_IDENTIFIER \
       -u EVO_DEV_GATE_ADMISSIONS_SECRET \
       DATABASE_URL="$app_database_url" \
+      EVO_PRIVATE_DOCUMENT_ROOT="$document_root" \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   fi
@@ -177,6 +186,20 @@ development_gate_browser_assert() {
       --config=playwright.development-gate.config.ts
 }
 
+private_document_browser_assert() {
+  local document_mode="$1"
+  PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
+    EVO_EXPECT_DOCUMENT_MODE="$document_mode" \
+    EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
+    EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
+    EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
+    EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
+    EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
+    EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+    "$node_bin" node_modules/@playwright/test/cli.js test \
+      --config=playwright.private-documents.config.ts
+}
+
 assert_no_gate_value_logs() {
   local value
   for value in \
@@ -207,6 +230,7 @@ expect_verify_failure() {
 }
 
 cd "$repo_root"
+mkdir -m 700 "$private_document_root"
 
 "$node_bin" --conditions=react-server --experimental-strip-types --test \
   tests/database-config.test.mjs \
@@ -269,50 +293,90 @@ DATABASE_URL="$database_url" "$node_bin" scripts/migrate-drizzle.mjs
 DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs
 browser_assert 200
 development_gate_browser_assert configured
+private_document_browser_assert configured
 assert_no_gate_value_logs
+
+document_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM evo_private_documents;')"
+version_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM evo_private_document_versions;')"
+[[ "$document_count" == "1" ]] || fail "Private document browser proof did not persist exactly one logical document"
+[[ "$version_count" == "2" ]] || fail "Private document browser proof did not persist exactly two immutable versions"
+
+stored_object_count="$(EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" "$node_bin" --input-type=module <<'EOF'
+import { lstat, readdir } from "node:fs/promises";
+import { join } from "node:path";
+
+const root = process.env.EVO_PRIVATE_DOCUMENT_ROOT;
+const objects = join(root, "objects");
+const rootStat = await lstat(root);
+const objectsStat = await lstat(objects);
+if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) process.exit(2);
+if (!objectsStat.isDirectory() || objectsStat.isSymbolicLink()) process.exit(3);
+if ((objectsStat.mode & 0o777) !== 0o700) process.exit(4);
+const entries = await readdir(objects);
+for (const entry of entries) {
+  const stat = await lstat(join(objects, entry));
+  if (!stat.isFile() || stat.isSymbolicLink()) process.exit(5);
+  if ((stat.mode & 0o777) !== 0o600) process.exit(6);
+}
+console.log(entries.length);
+EOF
+)"
+[[ "$stored_object_count" == "2" ]] || fail "Private document browser proof did not finalize exactly two private objects"
 
 # Runtime contract drift blocks the real browser path.
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE evo_database_contract SET version = 2 WHERE id = 1;" >/dev/null
+  --command "UPDATE evo_database_contract SET version = 3 WHERE id = 1;" >/dev/null
 browser_assert 503 database_contract_mismatch
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE evo_database_contract SET version = 1 WHERE id = 1;" >/dev/null
+  --command "UPDATE evo_database_contract SET version = 2 WHERE id = 1;" >/dev/null
 browser_assert 200
 
-# Applied-history proof covers missing, extra, reordered and tampered rows.
-original_hash="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT hash FROM drizzle.__drizzle_migrations ORDER BY id LIMIT 1;')"
-original_created_at="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT created_at FROM drizzle.__drizzle_migrations ORDER BY id LIMIT 1;')"
+# Applied-history proof covers missing, extra, reordered and tampered rows while
+# preserving every expected migration in the now multi-migration journal.
+docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
+  --command 'CREATE TABLE public.evo_test_migration_history_backup AS TABLE drizzle.__drizzle_migrations;' >/dev/null
+original_id="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT id FROM public.evo_test_migration_history_backup ORDER BY id LIMIT 1;')"
+original_hash="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT hash FROM public.evo_test_migration_history_backup ORDER BY id LIMIT 1;')"
+original_created_at="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT created_at FROM public.evo_test_migration_history_backup ORDER BY id LIMIT 1;')"
+[[ "$original_id" =~ ^[0-9]+$ ]] || fail "Stored migration id has an unexpected shape"
 [[ "$original_hash" =~ ^[0-9a-f]{64}$ ]] || fail "Stored migration hash has an unexpected shape"
 [[ "$original_created_at" =~ ^[0-9]+$ ]] || fail "Stored migration timestamp has an unexpected shape"
 
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command 'DELETE FROM drizzle.__drizzle_migrations;' >/dev/null
+  --command "DELETE FROM drizzle.__drizzle_migrations WHERE id = ${original_id};" >/dev/null
 expect_verify_failure "missing applied migration"
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('${original_hash}', ${original_created_at});" >/dev/null
+  --command "INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) SELECT id, hash, created_at FROM public.evo_test_migration_history_backup WHERE id = ${original_id};" >/dev/null
 
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('${original_hash}', $((original_created_at + 1)));" >/dev/null
+  --command "INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('${original_hash}', $((original_created_at + 999999)));" >/dev/null
 expect_verify_failure "extra applied migration"
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "DELETE FROM drizzle.__drizzle_migrations WHERE created_at = $((original_created_at + 1));" >/dev/null
+  --command 'DELETE FROM drizzle.__drizzle_migrations WHERE id NOT IN (SELECT id FROM public.evo_test_migration_history_backup);' >/dev/null
 
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE drizzle.__drizzle_migrations SET created_at = $((original_created_at + 1));" >/dev/null
+  --command "UPDATE drizzle.__drizzle_migrations SET created_at = $((original_created_at + 1)) WHERE id = ${original_id};" >/dev/null
 expect_verify_failure "reordered migration timestamp"
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE drizzle.__drizzle_migrations SET created_at = ${original_created_at};" >/dev/null
+  --command "UPDATE drizzle.__drizzle_migrations SET created_at = ${original_created_at} WHERE id = ${original_id};" >/dev/null
 
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE drizzle.__drizzle_migrations SET hash = repeat('0', 64);" >/dev/null
+  --command "UPDATE drizzle.__drizzle_migrations SET hash = repeat('0', 64) WHERE id = ${original_id};" >/dev/null
 expect_verify_failure "tampered migration hash"
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE drizzle.__drizzle_migrations SET hash = '${original_hash}';" >/dev/null
+  --command "UPDATE drizzle.__drizzle_migrations SET hash = '${original_hash}' WHERE id = ${original_id};" >/dev/null
 DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs
+docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
+  --command 'DROP TABLE public.evo_test_migration_history_backup;' >/dev/null
+
+stop_app
+start_app "$database_url" configured unavailable
+private_document_browser_assert unavailable
+assert_no_gate_value_logs
 
 stop_app
 start_app "$database_url" unavailable
 development_gate_browser_assert unavailable
 assert_no_gate_value_logs
 
-echo "Real PostgreSQL, Drizzle, development gate, application and Chromium proof passed."
+echo "Real PostgreSQL, Drizzle, development gate, private files, application and Chromium proof passed."

@@ -47,7 +47,7 @@
     "test:a11y": "playwright test tests/e2e/platform-accessibility.spec.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:u1": "node --conditions=react-server --experimental-strip-types --test tests/fixed-role-authorization.test.mjs tests/fixed-role-route-contract.test.mjs tests/fixed-role-settings-ui.test.mjs",
+    "test:u1": "node --conditions=react-server --experimental-strip-types --test tests/fixed-role-authorization.test.mjs tests/fixed-role-route-contract.test.mjs tests/fixed-role-settings-ui.test.mjs tests/private-document-files.test.mjs tests/private-document-route-handlers.test.mjs",
     "test:u2": "node --conditions=react-server --experimental-strip-types --test tests/platform-sales-workspace.test.mjs",
     "test:u4": "node --conditions=react-server --experimental-strip-types --test tests/platform-sales-workflow.test.mjs",
     "test:u5": "node --conditions=react-server --experimental-strip-types --test tests/platform-admissions-gate.test.mjs",

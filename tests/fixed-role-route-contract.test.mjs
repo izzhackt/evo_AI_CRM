@@ -56,3 +56,28 @@ test("the deferred audit export is not an active V2 browser API", () => {
   assert.doesNotMatch(proxy, /isPlatformP7AAuditEnabled/);
   assert.doesNotMatch(proxy, /isConnectedPlatformAuditExportApi/);
 });
+
+test("only the exact private document APIs enter the active V2 route contract", () => {
+  const documentId = "10000000-0000-4000-8000-000000000001";
+  const versionId = "20000000-0000-4000-8000-000000000002";
+
+  assert.equal(isConnectedPlatformApi("/api/v2/documents"), true);
+  assert.equal(
+    isConnectedPlatformApi(`/api/v2/documents/${documentId}/resubmissions`),
+    true,
+  );
+  assert.equal(
+    isConnectedPlatformApi(`/api/v2/document-versions/${versionId}/download`),
+    true,
+  );
+
+  for (const path of [
+    "/api/v2/documents/",
+    "/api/v2/documents/not-a-uuid/resubmissions",
+    `/api/v2/documents/${documentId}/download`,
+    `/api/v2/document-versions/${versionId}`,
+    "/private-documents/anything",
+  ]) {
+    assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+});

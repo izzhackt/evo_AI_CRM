@@ -4,3 +4,8 @@ export {
   DATABASE_CONTRACT_VERSION,
   evoDatabaseContract,
 } from "./database-contract.ts";
+export {
+  PRIVATE_DOCUMENT_MAX_BYTE_LENGTH,
+  evoPrivateDocuments,
+  evoPrivateDocumentVersions,
+} from "./private-documents.ts";

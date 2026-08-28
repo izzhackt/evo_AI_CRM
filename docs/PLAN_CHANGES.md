@@ -12079,3 +12079,13 @@ technical contract returns 503; prove tampered applied journal history makes
 verification exit nonzero; run ordinary lint, typecheck, build and CI; and
 attach a scoped `rg` inventory showing the replacement foundation has no
 Supabase, SQLite, `EVO_DB_PATH`, fixture or fallback reference.
+
+Official implementation references: Drizzle documents the committed migration
+folder and configurable `drizzle.__drizzle_migrations` journal in
+https://orm.drizzle.team/docs/drizzle-config-file and explicitly supports
+applying generated SQL through the ORM `migrate()` API in
+https://orm.drizzle.team/docs/drizzle-kit-generate. The official PostgreSQL
+container documentation records the PostgreSQL 18 `PGDATA` path as
+`/var/lib/postgresql/18/docker` and the volume root as
+`/var/lib/postgresql` in
+https://github.com/docker-library/docs/blob/master/postgres/content.md.

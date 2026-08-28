@@ -14,10 +14,6 @@ const postgresHarness = readFileSync(
   new URL("../scripts/test-postgres-authorization.sh", import.meta.url),
   "utf8",
 );
-const localResetHarness = readFileSync(
-  new URL("../scripts/test-supabase-local-reset.sh", import.meta.url),
-  "utf8",
-);
 const p2gHarness = readFileSync(
   new URL("../scripts/test-p2g-queues-runtime.sh", import.meta.url),
   "utf8",
@@ -32,20 +28,9 @@ test("P8V transactional runtime proof is isolated from migration 045", () => {
     /if \[\[ "\$\(basename "\$migration"\)" == 077_\* \]\]; then[\s\S]*test-p8v-runtime\.sh[\s\S]*"\$container_name"[\s\S]*"\$test_database"/,
   );
 
-  const p2gCall = localResetHarness.indexOf(
-    '"${REPO_ROOT}/scripts/test-p2g-queues-runtime.sh"',
-  );
-  const p8r6Call = localResetHarness.indexOf(
-    '"${REPO_ROOT}/scripts/test-p8r6-runtime.sh"',
-  );
-  const postQueueReset = localResetHarness.indexOf("post-queue-reset.json");
-
-  assert.ok(p2gCall > 0);
-  assert.ok(p8r6Call > p2gCall);
-  assert.ok(postQueueReset > p8r6Call);
-  assert.doesNotMatch(
-    localResetHarness,
-    /REPO_ROOT}\/scripts\/test-p8v-runtime\.sh/,
+  assert.equal(
+    existsSync(new URL("../scripts/test-supabase-local-reset.sh", import.meta.url)),
+    false,
   );
 });
 

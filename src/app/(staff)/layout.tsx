@@ -6,6 +6,7 @@ import { Icon } from "@/components/icons";
 import { MobileStaffNav, StaffNav, type MobileNavCopy, type NavGroup } from "@/components/StaffNav";
 import { TopBar } from "@/components/TopBar";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
+import { logoutDevelopmentGateAction } from "@/lib/development-gate-actions";
 import { STAFF_NAV_ITEMS, isStaffRole } from "@/lib/domain";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
@@ -124,7 +125,7 @@ async function loadFixtureShellProvider(): Promise<ShellProvider> {
     user: { name: user.name, role: user.role },
     homeHref: "/dashboard",
     availableRoutes: null,
-    logout: actions.logoutAction,
+    logout: logoutDevelopmentGateAction,
     LanguageSwitcher: language.LangSwitcher,
     notifications: notificationBatch.slice(0, queries.OPERATOR_NOTIFICATION_LIMIT),
     notificationCountCapped:
@@ -144,9 +145,8 @@ async function loadFixtureShellProvider(): Promise<ShellProvider> {
 }
 
 async function loadConnectedShellProvider(): Promise<ShellProvider> {
-  const [guards, actions, language] = await Promise.all([
+  const [guards, language] = await Promise.all([
     import("@/lib/platform-guards"),
-    import("@/lib/platform-admissions-actions"),
     import("@/components/platform/PlatformLangSwitcher"),
   ]);
   const actor = await guards.requirePlatformStaffActor();
@@ -158,7 +158,7 @@ async function loadConnectedShellProvider(): Promise<ShellProvider> {
     user: { name: actor.displayName, role: actor.role },
     homeHref: guards.platformHomeRoute(actor.platformRole),
     availableRoutes: new Set(CONNECTED_STAFF_ROUTES),
-    logout: actions.logoutPlatformAction,
+    logout: logoutDevelopmentGateAction,
     LanguageSwitcher: language.PlatformLangSwitcher,
     notifications: [],
     notificationCountCapped: false,

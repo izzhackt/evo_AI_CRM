@@ -3,7 +3,7 @@ import Link from "next/link";
 import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { btnCls } from "@/components/ui";
-import { logoutAction } from "@/lib/actions";
+import { logoutDevelopmentGateAction } from "@/lib/development-gate-actions";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import { requirePlatformActor } from "@/lib/platform-guards";
@@ -89,7 +89,7 @@ export default async function PlatformPendingPage() {
               {copy.openInbox}
             </Link>
           )}
-          <form action={logoutAction}>
+          <form action={logoutDevelopmentGateAction}>
             <button type="submit" className={btnCls}>
               {t("logout")}
             </button>

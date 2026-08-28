@@ -248,14 +248,14 @@ test("anonymous, non-Admin and disabled export fail closed without RPC", async (
   }
 });
 
-test("the production route shares one request-scoped authenticated client across actor and export checks", () => {
+test("the route separates the development actor from the temporary anonymous repository client", () => {
   assert.match(
     routeSource,
     /const context = await createSupabaseServerContext\(\);/,
   );
   assert.match(
     routeSource,
-    /resolvePlatformActor\(context\.client, context\.authCookiePresent\)/,
+    /loadActor: resolvePlatformActor/,
   );
   assert.match(
     routeSource,

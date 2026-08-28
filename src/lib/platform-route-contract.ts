@@ -3,7 +3,6 @@ import type { PlatformRole } from "./platform-auth";
 const PLATFORM_PAGE_ALLOWLIST = new Set([
   "/",
   "/login",
-  "/register",
   "/platform-pending",
   "/sales",
   "/clients",
@@ -64,7 +63,7 @@ const PLATFORM_OPERATIONS_SETTINGS_QUERY_KEYS = new Set(["tab"]);
 
 export function platformHomeRoute(role: PlatformRole): string {
   if (role === "admin" || role === "sales") return "/sales";
-  if (role === "curator") return "/clients";
+  if (role === "admissions" || role === "curator") return "/clients";
   if (role === "student") return "/portal";
   return "/platform-pending";
 }

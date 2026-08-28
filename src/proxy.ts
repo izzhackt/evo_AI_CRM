@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requestId } from "@/lib/request-id";
-import { isUiContractFixtureMode } from "@/lib/runtime-mode";
+
+import {
+  DEVELOPMENT_SESSION_COOKIE,
+  readDevelopmentGateConfig,
+  verifyDevelopmentSessionToken,
+} from "@/lib/development-gate-core";
+import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
 import {
   isConnectedPlatformApi,
   isConnectedPlatformAuditExportApi,
@@ -9,20 +14,10 @@ import {
   isConnectedPlatformSettingsRequest,
   isDirectPlatformStaffAssistantApi,
 } from "@/lib/platform-route-contract";
-import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
-import {
-  SupabaseConfigurationError,
-} from "@/lib/supabase/config";
-import { createSupabaseServerClientFromCookies } from "@/lib/supabase/server";
-
-// All other routes belong to the separate legacy CRM or to later Platform
-// blocks. In Platform runtime they stay unreachable until a reviewed adapter
-// replaces them; the retained legacy deployment continues on its own revision.
+import { requestId } from "@/lib/request-id";
 
 function nextResponse(requestHeaders: Headers) {
-  return NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 function setResponseHeaders(response: NextResponse, id: string) {
@@ -31,10 +26,14 @@ function setResponseHeaders(response: NextResponse, id: string) {
   return response;
 }
 
-function blockedPlatformRoute(
-  request: NextRequest,
-  id: string,
-) {
+function hiddenNotFound(id: string) {
+  const response = new NextResponse(null, { status: 404 });
+  response.headers.set("x-request-id", id);
+  response.headers.set("Cache-Control", "no-store");
+  return response;
+}
+
+function blockedPlatformRoute(request: NextRequest, id: string) {
   const path = request.nextUrl.pathname;
   if (path.startsWith("/api/") || !["GET", "HEAD"].includes(request.method)) {
     return setResponseHeaders(
@@ -50,37 +49,49 @@ function blockedPlatformRoute(
   target.pathname = "/platform-pending";
   target.search = "";
   target.searchParams.set("from", path);
-  const response = NextResponse.redirect(target);
-  response.headers.set("x-request-id", id);
-  response.headers.set("Cache-Control", "private, no-store");
+  return setResponseHeaders(NextResponse.redirect(target), id);
+}
+
+function accessDeniedResponse(
+  request: NextRequest,
+  id: string,
+  reason: "gate_unavailable" | "session_invalid" | null,
+) {
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return setResponseHeaders(
+      NextResponse.json(
+        { error: reason === "gate_unavailable" ? reason : "authentication_required" },
+        { status: reason === "gate_unavailable" ? 503 : 401 },
+      ),
+      id,
+    );
+  }
+
+  const target = request.nextUrl.clone();
+  target.pathname = "/login";
+  target.search = "";
+  if (reason) target.searchParams.set("error", reason);
+  const response = setResponseHeaders(NextResponse.redirect(target), id);
+  if (reason === "session_invalid") {
+    response.cookies.delete(DEVELOPMENT_SESSION_COOKIE);
+  }
   return response;
 }
 
-async function refreshPlatformAuth(
-  request: NextRequest,
-  requestHeaders: Headers,
-  id: string,
-) {
-  let response = nextResponse(requestHeaders);
-  const client = createSupabaseServerClientFromCookies({
-    getAll() {
-      return request.cookies.getAll();
-    },
-    setAll(cookiesToSet) {
-      for (const { name, value } of cookiesToSet) {
-        request.cookies.set(name, value);
-      }
-      response = nextResponse(requestHeaders);
-      for (const { name, value, options } of cookiesToSet) {
-        response.cookies.set(name, value, options);
-      }
-    },
-  });
-
-  // Optimistic refresh only. Pages and actions independently call getClaims()
-  // and the live authority RPC before authorizing access or mutation.
-  await client.auth.getClaims();
-  return setResponseHeaders(response, id);
+function sessionState(request: NextRequest):
+  | "authenticated"
+  | "invalid"
+  | "missing"
+  | "unavailable" {
+  const token = request.cookies.get(DEVELOPMENT_SESSION_COOKIE)?.value;
+  if (!token) return "missing";
+  try {
+    return verifyDevelopmentSessionToken(readDevelopmentGateConfig(), token)
+      ? "authenticated"
+      : "invalid";
+  } catch {
+    return "unavailable";
+  }
 }
 
 export async function proxy(request: NextRequest) {
@@ -101,65 +112,37 @@ export async function proxy(request: NextRequest) {
     }));
   }
 
-  if (path === "/auth/platform-session") {
-    // The Route Handler owns response-writable session recovery. It repeats
-    // getClaims() plus live authority and must not be blocked or pre-refreshed
-    // by the connected-page proxy contract.
-    return setResponseHeaders(nextResponse(requestHeaders), id);
+  if (
+    path === "/register" ||
+    path.startsWith("/register/") ||
+    path === "/auth/platform-session" ||
+    path.startsWith("/auth/platform-session/")
+  ) {
+    return hiddenNotFound(id);
   }
 
   if (path === "/api/readiness" || path === "/metrics") {
-    // These exact private endpoints own their feature flag, request signature,
-    // method, query, body and response decisions. Bypass only staff-cookie
-    // refresh; near paths continue through the disconnected-route boundary.
     const response = nextResponse(requestHeaders);
     response.headers.set("x-request-id", id);
     return response;
   }
-  if (path.startsWith("/api/readiness") || path.startsWith("/metrics")) {
-    // Do not let lookalike observability paths inherit the generic Platform
-    // redirect/403 behavior. They are deliberately hidden as empty 404s.
-    const response = new NextResponse(null, { status: 404 });
-    response.headers.set("x-request-id", id);
-    response.headers.set("Cache-Control", "no-store");
-    return response;
-  }
-
-  if (isUiContractFixtureMode()) {
-    return setResponseHeaders(nextResponse(requestHeaders), id);
-  }
+  if (observabilityPathCandidate) return hiddenNotFound(id);
 
   if (path === "/api/database/status") {
-    // This exact technical probe owns its fail-closed PostgreSQL decision.
-    // It is private-local and deliberately bypasses the frozen Supabase
-    // session refresh until #426 replaces that session path.
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
-  if (path.startsWith("/api/database/status")) {
-    const response = new NextResponse(null, { status: 404 });
-    response.headers.set("x-request-id", id);
-    response.headers.set("Cache-Control", "no-store");
-    return response;
-  }
+  if (path.startsWith("/api/database/status")) return hiddenNotFound(id);
 
   if (path === "/api/health" || path === "/api/version") {
-    // Version owns its authenticated-staff check in the Route Handler. Passing
-    // it through here does not make release metadata public.
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
   if (isDirectPlatformStaffAssistantApi(path)) {
-    // This exact route repeats the enabling-config, same-origin, actor, role,
-    // organization, rate-limit, retrieval, provider and audit checks. Passing
-    // it through here avoids the generic disconnected-route response and the
-    // separate optimistic cookie refresh; it does not authorize or draft.
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
   if (isConnectedPlatformPrivateApi(path)) {
-    // These exact private service-to-service endpoints own their own HMAC or
-    // bearer-secret checks. They must not be redirected into the staff-cookie
-    // flow, while every other legacy/internal API route remains disconnected.
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
+
   const auditEnabled = isPlatformP7AAuditEnabled();
   if (
     path === "/settings" &&
@@ -169,42 +152,34 @@ export async function proxy(request: NextRequest) {
   ) {
     return blockedPlatformRoute(request, id);
   }
-  if (
-    isConnectedPlatformAuditExportApi(path) &&
-    !auditEnabled
-  ) {
+  if (isConnectedPlatformAuditExportApi(path) && !auditEnabled) {
     return blockedPlatformRoute(request, id);
   }
   if (!isConnectedPlatformPage(path) && !isConnectedPlatformApi(path)) {
     return blockedPlatformRoute(request, id);
   }
 
-  try {
-    return await refreshPlatformAuth(request, requestHeaders, id);
-  } catch (error) {
-    console.warn(JSON.stringify({
-      event: "platform_auth_refresh_unavailable",
-      request_id: id,
-      code:
-        error instanceof SupabaseConfigurationError
-          ? error.code
-          : "provider_unavailable",
-      service: "evo-crm",
-    }));
-
-    if (path === "/login" || path === "/register") {
-      return setResponseHeaders(nextResponse(requestHeaders), id);
+  const state = sessionState(request);
+  if (path === "/login") {
+    if (state !== "authenticated") {
+      const response = setResponseHeaders(nextResponse(requestHeaders), id);
+      if (state === "invalid") response.cookies.delete(DEVELOPMENT_SESSION_COOKIE);
+      return response;
     }
-
     const target = request.nextUrl.clone();
-    target.pathname = "/login";
+    target.pathname = "/";
     target.search = "";
-    target.searchParams.set("error", "platform_unavailable");
-    const response = NextResponse.redirect(target);
-    response.headers.set("x-request-id", id);
-    response.headers.set("Cache-Control", "private, no-store");
-    return response;
+    return setResponseHeaders(NextResponse.redirect(target), id);
   }
+
+  if (state === "missing") return accessDeniedResponse(request, id, null);
+  if (state === "invalid") {
+    return accessDeniedResponse(request, id, "session_invalid");
+  }
+  if (state === "unavailable") {
+    return accessDeniedResponse(request, id, "gate_unavailable");
+  }
+  return setResponseHeaders(nextResponse(requestHeaders), id);
 }
 
 export const config = {

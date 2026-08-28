@@ -7,14 +7,15 @@ globalThis.__evoSupabaseBrowserClientCalls = [];
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === "@supabase/ssr") {
+    if (specifier === "@supabase/supabase-js") {
       return {
         shortCircuit: true,
         url: `data:text/javascript,${encodeURIComponent(`
-          export function createBrowserClient(url, publishableKey) {
+          export function createClient(url, publishableKey, options) {
             const client = Object.freeze({
               url,
               publishableKey,
+              options,
               sequence: globalThis.__evoSupabaseBrowserClientCalls.length,
             });
             globalThis.__evoSupabaseBrowserClientCalls.push(client);
@@ -79,6 +80,13 @@ test("browser clients are reused only for the exact runtime public configuration
     })),
     [staging, production, rotatedStagingKey],
   );
+  for (const client of globalThis.__evoSupabaseBrowserClientCalls) {
+    assert.deepEqual(client.options.auth, {
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      persistSession: false,
+    });
+  }
 });
 
 test("realtime client components use injected runtime config and never read browser environment variables", () => {

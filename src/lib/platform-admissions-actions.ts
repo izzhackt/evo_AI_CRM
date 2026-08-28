@@ -17,8 +17,6 @@ import {
   requirePlatformClientsActor,
 } from "./platform-guards";
 import {
-  clearSupabaseAuthCookies,
-  createSupabaseServerContext,
   createSupabaseServerClient,
 } from "./supabase/server";
 
@@ -104,18 +102,6 @@ export async function setPlatformLocaleAction(form: FormData): Promise<void> {
     secure: process.env.NODE_ENV === "production",
   });
   revalidatePath("/", "layout");
-}
-
-export async function logoutPlatformAction(): Promise<void> {
-  try {
-    const { client } = await createSupabaseServerContext();
-    await client.auth.signOut({ scope: "local" });
-  } catch {
-    // Clearing the local auth cookies is the fail-closed provider fallback.
-  } finally {
-    await clearSupabaseAuthCookies();
-  }
-  redirect("/login");
 }
 
 export async function changePlatformStudentCaseStateAction(

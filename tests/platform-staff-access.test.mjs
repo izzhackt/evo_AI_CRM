@@ -41,7 +41,12 @@ test("U1 exposes exactly three pilot staff roles and the complete lifecycle", ()
   assert.equal(isPlatformSensitivePermission("finance.event.confirm"), false);
 });
 
-test("JWT and live authority bind organization, membership, bundle, role and access version", () => {
+test("the V2 actor resolves only from the fixed development role session", () => {
+  assert.match(auth, /currentUser\(\)/);
+  assert.match(auth, /user\.developmentRole/);
+  assert.match(auth, /DEVELOPMENT_PLATFORM_ROLES/);
+  assert.doesNotMatch(auth, /getClaims|current_actor_authority|authCookiePresent/);
+
   for (const claim of [
     "platform_organization_id",
     "platform_membership_id",
@@ -51,7 +56,6 @@ test("JWT and live authority bind organization, membership, bundle, role and acc
     "platform_access_version",
   ]) {
     assert.match(migration, new RegExp(claim));
-    assert.match(auth, new RegExp(claim));
   }
   assert.match(migration, /membership\.organization_id::TEXT =/);
   assert.match(migration, /membership\.id::TEXT =/);

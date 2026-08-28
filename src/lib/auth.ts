@@ -1,86 +1,102 @@
-import { cookies } from "next/headers";
-import { createHmac, timingSafeEqual } from "crypto";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { db } from "./db";
-import { isRole, type Role } from "./roles";
-import { isUiContractFixtureMode } from "./runtime-mode";
 
-const DEV_AUTH_SECRET = "edu-admin-dev-secret-change-in-production";
-const COOKIE = "edu_session";
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+import {
+  DEVELOPMENT_SESSION_COOKIE,
+  authenticateDevelopmentProfile,
+  createDevelopmentSessionToken,
+  developmentSessionCookieOptions,
+  readDevelopmentGateConfig,
+  verifyDevelopmentSessionToken,
+  type DevelopmentGateRole,
+} from "./development-gate-core";
+import type { Role } from "./roles";
 
-export type SessionUser = {
+const TECHNICAL_PROFILES = {
+  admin: {
+    id: -101,
+    email: "admin@development.invalid",
+    name: "Director/Admin",
+    role: "admin",
+  },
+  sales: {
+    id: -102,
+    email: "sales@development.invalid",
+    name: "Sales Manager",
+    role: "sales",
+  },
+  admissions: {
+    id: -103,
+    email: "admissions@development.invalid",
+    name: "Admissions Manager",
+    // The accepted pre-#427 shell still names this UI role `curator`. Server
+    // authorization must use developmentRole; #427 removes this UI projection.
+    role: "curator",
+  },
+} as const satisfies Record<
+  DevelopmentGateRole,
+  Readonly<{ id: number; email: string; name: string; role: Role }>
+>;
+
+export type SessionUser = Readonly<{
   id: number;
   email: string;
   name: string;
   role: Role;
-};
+  developmentRole: DevelopmentGateRole;
+}>;
 
-function authSecret(): string {
-  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("AUTH_SECRET must be configured in production");
+function requestUsesHttps(requestHeaders: Headers): boolean {
+  if (process.env.NODE_ENV === "production") return true;
+  return requestHeaders
+    .get("x-forwarded-proto")
+    ?.split(",")
+    .some((value) => value.trim().toLowerCase() === "https") ?? false;
+}
+
+export function authenticateDevelopmentGate(
+  identifier: string,
+  secret: string,
+): DevelopmentGateRole | null {
+  const config = readDevelopmentGateConfig();
+  return authenticateDevelopmentProfile(config, identifier, secret);
+}
+
+export async function setSession(role: DevelopmentGateRole): Promise<void> {
+  const config = readDevelopmentGateConfig();
+  const token = createDevelopmentSessionToken(config, role);
+  const [cookieStore, requestHeaders] = await Promise.all([cookies(), headers()]);
+  cookieStore.set(
+    DEVELOPMENT_SESSION_COOKIE,
+    token,
+    developmentSessionCookieOptions({ secure: requestUsesHttps(requestHeaders) }),
+  );
+}
+
+export async function clearSession(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(DEVELOPMENT_SESSION_COOKIE);
+}
+
+export async function currentDevelopmentRole(): Promise<DevelopmentGateRole | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(DEVELOPMENT_SESSION_COOKIE)?.value;
+  if (!token) return null;
+
+  try {
+    return verifyDevelopmentSessionToken(readDevelopmentGateConfig(), token)?.role ?? null;
+  } catch {
+    return null;
   }
-  return DEV_AUTH_SECRET;
-}
-
-function sign(payload: string): string {
-  return createHmac("sha256", authSecret()).update(payload).digest("hex");
-}
-
-export function makeToken(userId: number): string {
-  const payload = `${userId}.${Date.now()}`;
-  return `${payload}.${sign(payload)}`;
-}
-
-function parseToken(token: string): number | null {
-  const lastDot = token.lastIndexOf(".");
-  if (lastDot < 0) return null;
-  const payload = token.slice(0, lastDot);
-  const sig = token.slice(lastDot + 1);
-  const expected = sign(payload);
-  if (sig.length !== expected.length) return null;
-  if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
-  const [rawId, rawIssuedAt] = payload.split(".");
-  const id = parseInt(rawId, 10);
-  const issuedAt = Number(rawIssuedAt);
-  if (!Number.isFinite(issuedAt)) return null;
-  const ageMs = Date.now() - issuedAt;
-  if (ageMs < -60_000 || ageMs > SESSION_MAX_AGE_SECONDS * 1000) return null;
-  return Number.isFinite(id) ? id : null;
-}
-
-export async function setSession(userId: number) {
-  if (!isUiContractFixtureMode()) {
-    throw new Error("Legacy SQLite sessions are disabled for EVO Platform");
-  }
-  const store = await cookies();
-  store.set(COOKIE, makeToken(userId), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: SESSION_MAX_AGE_SECONDS,
-  });
-}
-
-export async function clearSession() {
-  const store = await cookies();
-  store.delete(COOKIE);
 }
 
 export async function currentUser(): Promise<SessionUser | null> {
-  if (!isUiContractFixtureMode()) return null;
-  const store = await cookies();
-  const token = store.get(COOKIE)?.value;
-  if (!token) return null;
-  const id = parseToken(token);
-  if (id == null) return null;
-  const row = db()
-    .prepare("SELECT id, email, name, role FROM users WHERE id = ?")
-    .get(id) as Omit<SessionUser, "role"> & { role: string } | undefined;
-  if (!row || !isRole(row.role)) return null;
-  return { ...row, role: row.role };
+  const developmentRole = await currentDevelopmentRole();
+  if (!developmentRole) return null;
+  return {
+    ...TECHNICAL_PROFILES[developmentRole],
+    developmentRole,
+  };
 }
 
 export function isStaff(role: Role): boolean {
@@ -95,12 +111,18 @@ export async function requireAdminApi(): Promise<AdminApiAuthorization> {
   const user = await currentUser();
   if (!user) {
     return {
-      response: NextResponse.json({ error: "authentication_required" }, { status: 401 }),
+      response: NextResponse.json(
+        { error: "authentication_required" },
+        { status: 401, headers: { "Cache-Control": "no-store" } },
+      ),
     };
   }
-  if (user.role !== "admin") {
+  if (user.developmentRole !== "admin") {
     return {
-      response: NextResponse.json({ error: "forbidden" }, { status: 403 }),
+      response: NextResponse.json(
+        { error: "forbidden" },
+        { status: 403, headers: { "Cache-Control": "no-store" } },
+      ),
     };
   }
   return { user };

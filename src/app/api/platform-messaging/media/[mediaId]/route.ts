@@ -151,7 +151,7 @@ async function createDefaultDependencies(): Promise<RouteDependencies> {
 
   return {
     async loadActor() {
-      return resolvePlatformActor(context.client, context.authCookiePresent);
+      return resolvePlatformActor();
     },
     async grantDownload(input) {
       const response = await context.client

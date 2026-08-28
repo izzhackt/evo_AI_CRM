@@ -15,18 +15,11 @@ import {
   getSetting,
   hashPassword,
   setSetting,
-  verifyPassword,
 } from "./db";
 import { getDefaultWhatsAppAccount, sendWhatsApp } from "./whatsapp";
 import { createAmoCrmAdapter, getAmoCrmLocalStatus, normalizeAmoCrmAccountBaseUrl } from "./amocrm";
-import { setSession, clearSession, currentUser, isStaff, type SessionUser } from "./auth";
-import { resolvePlatformActor } from "./platform-auth";
-import { platformHomeRoute } from "./platform-guards";
+import { currentUser, isStaff, type SessionUser } from "./auth";
 import { isUiContractFixtureMode } from "./runtime-mode";
-import {
-  clearSupabaseAuthCookies,
-  createSupabaseServerContext,
-} from "./supabase/server";
 import {
   canClientCapability,
   canMutateClientlessTask,
@@ -191,118 +184,6 @@ function revalidateStaffCrm(clientId?: number | null) {
 
 function revalidateLeadTask(leadId?: number | null) {
   if (leadId) revalidatePath(`/sales/${leadId}`);
-}
-
-// ---------- auth ----------
-
-type PlatformAuthClient = Awaited<
-  ReturnType<typeof createSupabaseServerContext>
->["client"];
-
-async function clearPlatformAuthSession(
-  client?: PlatformAuthClient,
-): Promise<void> {
-  try {
-    if (client) await client.auth.signOut({ scope: "local" });
-  } finally {
-    await clearSupabaseAuthCookies();
-    await clearSession();
-  }
-}
-
-export async function loginAction(_prev: string | null, form: FormData): Promise<string | null> {
-  const email = str(form, "email").toLowerCase();
-  const password = str(form, "password");
-  if (!email || !password) return "fillAllFields";
-
-  if (isUiContractFixtureMode()) {
-    const row = db()
-      .prepare("SELECT id, password_hash, role FROM users WHERE lower(email) = ?")
-      .get(email) as { id: number; password_hash: string; role: string } | undefined;
-    if (!row || !verifyPassword(password, row.password_hash)) return "invalidCredentials";
-    if (!isRole(row.role)) return "roleMigrationRequired";
-
-    await setSession(row.id);
-    redirect(ROLE_HOME_ROUTE[row.role]);
-  }
-
-  let context: Awaited<ReturnType<typeof createSupabaseServerContext>>;
-  let accessToken: string;
-  try {
-    context = await createSupabaseServerContext();
-    const { data, error } = await context.client.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) return "invalidCredentials";
-    if (!data.session?.access_token) {
-      await clearPlatformAuthSession(context.client);
-      return "platformUnavailable";
-    }
-    accessToken = data.session.access_token;
-  } catch {
-    return "platformUnavailable";
-  }
-
-  const result = await resolvePlatformActor(context.client, true, accessToken);
-  if (result.status !== "authenticated") {
-    const rejectionError =
-      result.status === "invalid" &&
-      result.reason === "authority_lookup_failed"
-        ? "platformUnavailable"
-        : "accessNotProvisioned";
-    console.warn(JSON.stringify({
-      event: "platform_login_authority_rejected",
-      code:
-        result.status === "invalid"
-          ? result.reason
-          : "authority_not_authenticated",
-      service: "evo-crm",
-    }));
-    await clearPlatformAuthSession(context.client);
-    return rejectionError;
-  }
-
-  await clearSession();
-  redirect(platformHomeRoute(result.actor.platformRole));
-}
-
-export async function registerAction(_prev: string | null, form: FormData): Promise<string | null> {
-  if (!isUiContractFixtureMode()) return "invitationRequired";
-
-  const name = str(form, "name");
-  const email = str(form, "email").toLowerCase();
-  const phone = str(form, "phone");
-  const password = str(form, "password");
-  if (!name || !email || !password) return "fillAllFields";
-
-  const d = db();
-  const exists = d.prepare("SELECT id FROM users WHERE lower(email) = ?").get(email);
-  if (exists) return "emailTaken";
-
-  const user = d
-    .prepare("INSERT INTO users (email, phone, password_hash, name, role) VALUES (?, ?, ?, ?, 'client')")
-    .run(email, phone || null, hashPassword(password), name);
-  d.prepare("INSERT INTO clients (user_id, stage, source) VALUES (?, 'lead', 'Самостоятельная регистрация')")
-    .run(user.lastInsertRowid);
-
-  await setSession(Number(user.lastInsertRowid));
-  redirect("/portal");
-}
-
-export async function logoutAction() {
-  if (!isUiContractFixtureMode()) {
-    let client: PlatformAuthClient | undefined;
-    try {
-      ({ client } = await createSupabaseServerContext());
-    } catch {
-      // The local cookie fallback below does not depend on provider access.
-    }
-    await clearPlatformAuthSession(client);
-  } else {
-    await clearSession();
-  }
-  redirect("/login");
 }
 
 export async function setLocaleAction(form: FormData) {

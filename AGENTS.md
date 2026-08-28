@@ -79,8 +79,9 @@
 - Before merge, attach a scoped `rg`/inventory proving that no active import or
   runtime reference to the superseded path remains. Also prove that a missing
   or failed primary path stops clearly instead of falling back.
-- Frozen V1 staging/production and historical ADRs, migrations and evidence are
-  the only exception. Preserve them as deployment/rollback inputs until a
+- Frozen V1 staging/production and historical ADRs, migrations, runbooks,
+  archived docs, evidence and other historical decision/rollback documentation
+  are the only exception. Preserve them as deployment/rollback inputs until a
   separately authorized cutover, but never import, execute, bundle or treat
   them as V2 authority.
 - Temporary coexistence requires explicit owner approval naming every file,

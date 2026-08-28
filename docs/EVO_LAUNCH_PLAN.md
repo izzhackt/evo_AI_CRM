@@ -71,7 +71,8 @@ scripts, routes, webhooks/workers and parallel `Legacy*`/`Connected*`/
 `Fixture*` screens. Its PR includes a scoped `rg` inventory and a real
 fail-closed check showing no fallback survives.
 
-Only frozen V1 staging/production and historical ADRs, migrations and evidence
+Only frozen V1 staging/production and historical ADRs, migrations, runbooks,
+archived docs, evidence and other historical decision/rollback documentation
 may remain as inert deployment/rollback inputs; V2 may not import, execute,
 bundle or treat them as authority. Temporary coexistence requires explicit
 owner approval with named files, reason, expiry/exit criteria and a deletion

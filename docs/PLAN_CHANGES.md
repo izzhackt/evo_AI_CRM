@@ -12007,3 +12007,23 @@ Validation impact: each implementation PR needs real database/app/browser
 proof for its owned capability, outcome tests at the new interface, an exact
 `rg` inventory, a deliberate primary-path failure test and the normal
 independent-review/exact-head/match-head/exact-main gates.
+
+## 2026-08-28 - Clarify the full V1 history preservation exception
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under the owner's wording-review correction.
+Change type: append-only clarification of the replace-not-layer preservation
+boundary.
+Affected plan section: the V1 exception within the active replacement
+discipline in `AGENTS.md`, `docs/EVO_LAUNCH_PLAN.md` and ADR 0022.
+
+Reason: naming only historical ADRs, migrations and evidence was too narrow and
+could be misread as authority to delete runbooks, archived docs or other V1
+decision/rollback records.
+
+Owner clarification: preserve frozen V1 staging/production and historical
+ADRs, migrations, runbooks, archived docs, evidence and every other historical
+decision/rollback document as inert deployment/rollback inputs until a
+separately authorized cutover. V2 must not import, execute, bundle or treat
+those materials as authority. This broader documentation exception does not
+permit any legacy runtime, compatibility adapter, dual path or fallback in V2.

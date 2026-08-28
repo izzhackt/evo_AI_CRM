@@ -6,7 +6,8 @@
 - Parent contract: GitHub issue #407
 - Active implementation sequence: GitHub issues #424 through #433
 - Supersedes in conflict for V2: ADR 0014, ADR 0015, ADR 0020 and ADR 0021
-- Preserves: frozen V1 staging/production, V1 history and rollback artifacts
+- Preserves: frozen V1 staging/production, historical ADRs, migrations,
+  runbooks, archived docs, evidence and other decision/rollback documentation
 - Verified starting baseline:
   `9b185dba93b2363d9bf942483b2c0febee4c3b30`
 
@@ -120,11 +121,12 @@ that same slice. Outcome tests at the new module interface replace old
 implementation tests. A scoped `rg` inventory and a fail-closed no-fallback
 proof are merge evidence.
 
-Frozen V1 staging/production plus historical ADRs, migrations and evidence are
-the only exception. They remain inert deployment/rollback inputs and cannot be
-imported, executed, bundled or treated as V2 authority. Any temporary
-coexistence requires explicit owner approval with named files, reason,
-expiry/exit criteria and a deletion issue.
+Frozen V1 staging/production plus historical ADRs, migrations, runbooks,
+archived docs, evidence and other historical decision/rollback documentation
+are the only exception. They remain inert deployment/rollback inputs and
+cannot be imported, executed, bundled or treated as V2 authority. Any
+temporary coexistence requires explicit owner approval with named files,
+reason, expiry/exit criteria and a deletion issue.
 
 ### Canonical CRM and event model
 

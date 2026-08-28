@@ -40,12 +40,6 @@ export function hashPassword(password: string): string {
   return `${salt}:${hash}`;
 }
 
-export function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(":");
-  if (!salt || !hash) return false;
-  return scryptSync(password, salt, 64).toString("hex") === hash;
-}
-
 let _db: Database.Database | null = null;
 const SECRET_SETTING_KEYS = new Set([
   "wa_token",

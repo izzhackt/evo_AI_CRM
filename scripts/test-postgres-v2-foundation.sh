@@ -21,6 +21,21 @@ private_document_case_id=""
 app_pid=""
 compose_args=()
 
+kill_repo_next_dev() {
+  local runtime_pid=""
+  while read -r runtime_pid; do
+    [[ -n "$runtime_pid" ]] || continue
+    kill "$runtime_pid" >/dev/null 2>&1 || true
+  done < <(
+    ps -axo pid=,command= | awk -v repo_root="$repo_root" '
+      index($0, repo_root "/node_modules/next/dist/bin/next dev") ||
+      index($0, repo_root "/.next/dev/build/") {
+        print $1
+      }
+    '
+  )
+}
+
 fail() {
   echo "$1" >&2
   exit 1
@@ -44,6 +59,7 @@ cleanup() {
     kill "$app_pid" >/dev/null 2>&1 || true
     wait "$app_pid" >/dev/null 2>&1 || true
   fi
+  kill_repo_next_dev
   if (( ${#compose_args[@]} > 0 )); then
     docker compose "${compose_args[@]}" down --volumes --remove-orphans >/dev/null 2>&1 || true
   fi
@@ -174,6 +190,7 @@ stop_app() {
     wait "$app_pid" >/dev/null 2>&1 || true
     app_pid=""
   fi
+  kill_repo_next_dev
 }
 
 assert_app_reachable() {
@@ -317,6 +334,7 @@ stop_app
 # A reachable but unmigrated real database is still blocked.
 start_app "$database_url"
 browser_assert 503 database_migration_required
+stop_app
 
 DATABASE_URL="$database_url" "$node_bin" node_modules/drizzle-kit/bin.cjs check
 expect_verify_failure "no applied migration journal"
@@ -365,7 +383,7 @@ DATABASE_URL="$database_url" \
   EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
     tests/canonical-crm-postgres.test.mjs
-read -r canonical_lead_id private_document_case_id <<<"$(
+canonical_ids="$(
   EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
     "$node_bin" --input-type=module <<'EOF'
 import { readFile } from "node:fs/promises";
@@ -385,8 +403,10 @@ if (
 console.log(result.canonicalLeadId, result.privateDocumentCaseId);
 EOF
 )"
+read -r canonical_lead_id private_document_case_id <<<"$canonical_ids"
 echo "Canonical CRM graph, transactional idempotency, gate and append-only event checks passed."
 
+start_app "$database_url"
 browser_assert 200
 development_gate_browser_assert configured
 canonical_read_browser_assert configured
@@ -451,6 +471,7 @@ original_created_at="$(docker exec "$container_id" psql --username "$postgres_us
 [[ "$original_id" =~ ^[0-9]+$ ]] || fail "Stored migration id has an unexpected shape"
 [[ "$original_hash" =~ ^[0-9a-f]{64}$ ]] || fail "Stored migration hash has an unexpected shape"
 [[ "$original_created_at" =~ ^[0-9]+$ ]] || fail "Stored migration timestamp has an unexpected shape"
+extra_created_at="$((10#$original_created_at + 999999))"
 
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
   --command "DELETE FROM drizzle.__drizzle_migrations WHERE id = ${original_id};" >/dev/null
@@ -459,7 +480,7 @@ docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres
   --command "INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) SELECT id, hash, created_at FROM public.evo_test_migration_history_backup WHERE id = ${original_id};" >/dev/null
 
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('${original_hash}', $((original_created_at + 999999)));" >/dev/null
+  --command "INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('${original_hash}', ${extra_created_at});" >/dev/null
 expect_verify_failure "extra applied migration"
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
   --command 'DELETE FROM drizzle.__drizzle_migrations WHERE id NOT IN (SELECT id FROM public.evo_test_migration_history_backup);' >/dev/null

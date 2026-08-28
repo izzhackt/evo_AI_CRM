@@ -771,10 +771,7 @@ test("history audit actions satisfy the Platform dotted-action contract", async 
 
 test("the isolated browser build no longer depends on the legacy auth partition harness", async () => {
   const nextConfigSource = await readFile("next.config.ts", "utf8");
-  assert.match(
-    nextConfigSource,
-    /new Set\(\[\s*"provider",\s*"p5b",\s*"p5c",\s*"p5d",\s*"p5e",\s*"p5f1",\s*"p5f3",\s*"p6a",\s*"p6b",\s*"p6c",\s*"p6d",\s*"p7a",\s*"p7b",\s*"u2",\s*"u6",\s*"u7",\s*"u8",\s*"u9",\s*"u10",\s*"remaining",?\s*\]\)/,
-  );
+  assert.doesNotMatch(nextConfigSource, /EVO_PLATFORM_AUTH_|\.next\/platform-auth\//);
   assert.equal(existsSync("scripts/test-supabase-local-reset.sh"), false);
   assert.equal(existsSync("playwright.platform-auth.config.ts"), false);
 });

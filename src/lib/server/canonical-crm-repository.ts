@@ -1036,11 +1036,16 @@ async function selectStudentCaseHandoffSnapshot(
       executedAt: evoSalesAdmissionsHandoffs.executedAt,
       contractEvidenceId: evoSalesAdmissionsHandoffs.contractEvidenceId,
       firstPaymentEvidenceId: evoSalesAdmissionsHandoffs.firstPaymentEvidenceId,
+      idempotencyKey: evoSalesAdmissionsHandoffs.idempotencyKey,
     })
     .from(evoSalesAdmissionsHandoffs)
     .where(eq(evoSalesAdmissionsHandoffs.studentCaseId, studentCaseId))
     .limit(1);
   if (!handoffRow) throw new CanonicalCrmRepositoryError("not_found");
+  const {
+    idempotencyKey: handoffIdempotencyKey,
+    ...handoffSnapshot
+  } = handoffRow;
 
   const starterTasks = await transaction
     .select({
@@ -1052,15 +1057,28 @@ async function selectStudentCaseHandoffSnapshot(
       createdAt: evoAdmissionsTasks.createdAt,
     })
     .from(evoAdmissionsTasks)
+    .innerJoin(
+      evoBusinessEvents,
+      and(
+        eq(evoBusinessEvents.businessObjectType, "task"),
+        eq(evoBusinessEvents.businessObjectId, evoAdmissionsTasks.id),
+        eq(evoBusinessEvents.transition, "task.created"),
+        eq(evoBusinessEvents.idempotencyKey, handoffIdempotencyKey),
+      ),
+    )
     .where(eq(evoAdmissionsTasks.studentCaseId, studentCaseId))
     .orderBy(evoAdmissionsTasks.createdAt, evoAdmissionsTasks.id);
+
+  if (starterTasks.length !== CANONICAL_ADMISSIONS_STARTER_TASKS.length) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
 
   return {
     studentCase,
     handoff: {
-      ...handoffRow,
-      executedByRole: databaseRole(handoffRow.executedByRole),
-      executedAt: dateString(handoffRow.executedAt),
+      ...handoffSnapshot,
+      executedByRole: databaseRole(handoffSnapshot.executedByRole),
+      executedAt: dateString(handoffSnapshot.executedAt),
     },
     starterTasks: starterTasks.map((task) => ({
       ...task,

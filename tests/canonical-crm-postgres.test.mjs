@@ -749,6 +749,26 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
         )
       `;
 
+      const preExistingAdmissionsTaskId = randomUUID();
+      await sql`
+        insert into evo_admissions_tasks (
+          id,
+          student_case_id,
+          title,
+          status,
+          closed_at,
+          closed_by_role
+        )
+        values (
+          ${preExistingAdmissionsTaskId},
+          ${existingStudentCaseId},
+          'Проверить унаследованный контекст Sales',
+          'completed',
+          now(),
+          'admissions'
+        )
+      `;
+
       const existingCaseHandoffInput = {
         ...commandContext(
           runId,
@@ -763,6 +783,24 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       );
       assert.equal(existingCaseHandoff.studentCaseId, existingStudentCaseId);
       assert.equal(existingCaseHandoff.isOverride, false);
+
+      const existingCaseSnapshot =
+        await getCanonicalStudentCaseHandoffSnapshot({
+          actorRole: "admissions",
+          studentCaseId: existingStudentCaseId,
+        });
+      assert.equal(existingCaseSnapshot.starterTasks.length, 3);
+      assert.ok(
+        existingCaseSnapshot.starterTasks.every(
+          (task) => task.status === "open",
+        ),
+      );
+      assert.equal(
+        existingCaseSnapshot.starterTasks.some(
+          (task) => task.taskId === preExistingAdmissionsTaskId,
+        ),
+        false,
+      );
 
       const [reactivatedCase] = await sql`
         select
@@ -848,7 +886,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
           ) as events
       `;
       assert.deepEqual(countsBeforeReplay, {
-        tasks: 3,
+        tasks: 4,
         handoffs: 1,
         events: 5,
       });

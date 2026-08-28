@@ -12722,3 +12722,30 @@ tasks; test the React envelope and hostile extra-field rejection; and attach an
 `rg` inventory with no active old gate/handoff import or fallback. Next.js
 documents that Server Action `FormData` contains extra `$ACTION_` properties at
 https://nextjs.org/docs/app/guides/forms.
+
+## 2026-08-29 - Bind the V2-7 starter-task read model to its handoff
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #431 after independent exact-head review.
+Change type: read-authority correction.
+Affected plan section: V2-7 (#431) canonical handoff result.
+
+Reason: selecting every Admissions task by `student_case_id` makes a reused
+case's older or later tasks appear as the three tasks created by the Sales
+handoff. Filtering only by the fixed titles is also ambiguous if an existing
+case already contains a task with the same title.
+
+Decision: the canonical handoff snapshot identifies its exact three starter
+tasks through the existing transaction provenance: each task must have the
+`task.created` business event written under the handoff row's unique
+`idempotency_key`. The case id remains an additional boundary. This uses the
+already durable event record and does not add the deferred `source_key` or
+priority schema. A later status change does not erase starter-task identity.
+The read fails closed if the provenance does not resolve to exactly three
+tasks.
+
+Validation impact: seed a `paused` and a `closed` case with a pre-existing
+completed Admissions task whose title matches a starter title, execute the real
+handoff, prove the table contains four total tasks while the handoff snapshot
+contains only its three open starter tasks, and replay the command without
+adding tasks, handoffs or events.

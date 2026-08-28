@@ -10,6 +10,8 @@ import {
   appendCanonicalInboundMessage,
   createCanonicalPersonLead,
   getCanonicalLeadConversationThread,
+  getCanonicalLeadGateSnapshot,
+  getCanonicalStudentCaseHandoffSnapshot,
   handoffCanonicalLeadToAdmissions,
   listCanonicalLeadConversations,
   listCanonicalSalesLeads,
@@ -437,6 +439,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       handoffCanonicalLeadToAdmissions({
         ...commandContext(runId, "handoff-before-qualified"),
         leadId: lead.leadId,
+        expectedVersion: lead.version,
       }),
       repositoryError("conflict"),
     );
@@ -469,6 +472,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       handoffCanonicalLeadToAdmissions({
         ...commandContext(runId, "handoff-before-gate"),
         leadId: lead.leadId,
+        expectedVersion: qualifiedLead.version,
       }),
       repositoryError("gate_unsatisfied"),
     );
@@ -509,9 +513,32 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     const paymentReplay = await recordCanonicalSalesGateEvidence(paymentInput);
     assert.equal(paymentReplay.evidenceId, payment.evidenceId);
 
+    const satisfiedGate = await getCanonicalLeadGateSnapshot({
+      actorRole: "sales",
+      leadId: lead.leadId,
+    });
+    assert.equal(satisfiedGate.state, "satisfied");
+    assert.equal(satisfiedGate.normalHandoffAllowed, true);
+    assert.equal(satisfiedGate.exceptionalHandoffAllowed, false);
+    assert.equal(satisfiedGate.contractEvidence?.evidenceId, contract.evidenceId);
+    assert.equal(
+      satisfiedGate.firstPaymentEvidence?.evidenceId,
+      payment.evidenceId,
+    );
+
+    await assert.rejects(
+      handoffCanonicalLeadToAdmissions({
+        ...commandContext(runId, "handoff-stale-version"),
+        leadId: lead.leadId,
+        expectedVersion: qualifiedLead.version - 1,
+      }),
+      repositoryError("conflict"),
+    );
+
     const handoffInput = {
       ...commandContext(runId, "handoff"),
       leadId: lead.leadId,
+      expectedVersion: qualifiedLead.version,
     };
     const handoff = await handoffCanonicalLeadToAdmissions(handoffInput);
     const handoffEventCountBeforeReplay = Number(
@@ -554,13 +581,55 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       })),
       [
         { transition: "student_case.created", eventSequence: 1 },
-        { transition: "sales_admissions.handed_off", eventSequence: 2 },
+        { transition: "task.created", eventSequence: 2 },
+        { transition: "task.created", eventSequence: 3 },
+        { transition: "task.created", eventSequence: 4 },
+        { transition: "sales_admissions.handed_off", eventSequence: 5 },
       ],
     );
     assert.equal(normalHandoffEvents[0].businessObjectType, "student_case");
     assert.equal(normalHandoffEvents[0].businessObjectId, handoff.studentCaseId);
-    assert.equal(normalHandoffEvents[1].businessObjectType, "handoff");
-    assert.equal(normalHandoffEvents[1].businessObjectId, handoff.handoffId);
+    assert.ok(
+      normalHandoffEvents.slice(1, 4).every(
+        (event) => event.businessObjectType === "task",
+      ),
+    );
+    assert.equal(normalHandoffEvents[4].businessObjectType, "handoff");
+    assert.equal(normalHandoffEvents[4].businessObjectId, handoff.handoffId);
+
+    const handedOffGate = await getCanonicalLeadGateSnapshot({
+      actorRole: "admin",
+      leadId: lead.leadId,
+    });
+    assert.equal(handedOffGate.state, "satisfied");
+    assert.equal(handedOffGate.normalHandoffAllowed, false);
+    assert.equal(handedOffGate.handoff?.handoffId, handoff.handoffId);
+
+    const admissionsHandoff = await getCanonicalStudentCaseHandoffSnapshot({
+      actorRole: "admissions",
+      studentCaseId: handoff.studentCaseId,
+    });
+    assert.equal(admissionsHandoff.handoff.handoffId, handoff.handoffId);
+    assert.equal(admissionsHandoff.handoff.isOverride, false);
+    assert.equal(admissionsHandoff.starterTasks.length, 3);
+    assert.deepEqual(
+      new Set(admissionsHandoff.starterTasks.map((task) => task.title)),
+      new Set([
+        "Проверить унаследованный контекст Sales",
+        "Подтвердить маршрут обучения и недостающие данные",
+        "Подготовить первичный план запроса документов",
+      ]),
+    );
+    assert.ok(
+      admissionsHandoff.starterTasks.every((task) => task.status === "open"),
+    );
+    await assert.rejects(
+      getCanonicalStudentCaseHandoffSnapshot({
+        actorRole: "sales",
+        studentCaseId: handoff.studentCaseId,
+      }),
+      repositoryError("forbidden"),
+    );
     const handedOffPage = await listCanonicalSalesLeads({
       actorRole: "sales",
       query: lead.leadId,
@@ -625,6 +694,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       handoffCanonicalLeadToAdmissions({
         ...commandContext(runId, "override-missing-reason", "admin"),
         leadId: overrideLead.leadId,
+        expectedVersion: overrideLead.version + 1,
         adminOverride: { reason: " " },
       }),
       repositoryError("invalid_input"),
@@ -633,6 +703,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       handoffCanonicalLeadToAdmissions({
         ...commandContext(runId, "override-wrong-role"),
         leadId: overrideLead.leadId,
+        expectedVersion: overrideLead.version + 1,
         adminOverride: { reason: `technical-reason-${runId}` },
       }),
       repositoryError("forbidden"),
@@ -640,6 +711,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     const overrideInput = {
       ...commandContext(runId, "override", "admin"),
       leadId: overrideLead.leadId,
+      expectedVersion: overrideLead.version + 1,
       adminOverride: { reason: `technical-reason-${runId}` },
     };
     const override = await handoffCanonicalLeadToAdmissions(overrideInput);
@@ -658,9 +730,25 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       })),
       [
         { transition: "student_case.created", eventSequence: 1 },
-        { transition: "sales_admissions.handoff_override", eventSequence: 2 },
+        { transition: "task.created", eventSequence: 2 },
+        { transition: "task.created", eventSequence: 3 },
+        { transition: "task.created", eventSequence: 4 },
+        { transition: "sales_admissions.handoff_override", eventSequence: 5 },
       ],
     );
+
+    const overriddenGate = await getCanonicalLeadGateSnapshot({
+      actorRole: "admin",
+      leadId: overrideLead.leadId,
+    });
+    assert.equal(overriddenGate.state, "overridden");
+    assert.equal(overriddenGate.handoff?.handoffId, override.handoffId);
+    const overrideCaseHandoff = await getCanonicalStudentCaseHandoffSnapshot({
+      actorRole: "admissions",
+      studentCaseId: override.studentCaseId,
+    });
+    assert.equal(overrideCaseHandoff.handoff.isOverride, true);
+    assert.equal(overrideCaseHandoff.starterTasks.length, 3);
 
     const phoneSuffix = (
       BigInt(`0x${runId.replaceAll("-", "").slice(0, 10)}`) % 1_000_000_000n
@@ -684,6 +772,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     const literalHandoff = await handoffCanonicalLeadToAdmissions({
       ...commandContext(runId, "literal-handoff", "admin"),
       leadId: literalLead.leadId,
+      expectedVersion: literalLead.version + 1,
       adminOverride: { reason: `technical-read-acceptance-${runId}` },
     });
 

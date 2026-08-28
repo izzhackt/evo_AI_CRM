@@ -27,6 +27,7 @@ import {
   evoBusinessEvents,
   evoCommandReceipts,
 } from "../../db/schema/canonical-crm-events.ts";
+import { evoAdmissionsTasks } from "../../db/schema/canonical-crm-operations.ts";
 import {
   CANONICAL_SALES_DUE_FILTERS,
   CANONICAL_SALES_STAGES,
@@ -133,6 +134,40 @@ export type CanonicalLeadSnapshot = Readonly<{
   updatedAt: string;
 }>;
 
+export type CanonicalLeadGateEvidenceSnapshot = Readonly<{
+  evidenceId: string;
+  evidenceType: "contract" | "first_payment";
+  decision: "confirmed" | "rejected";
+  evidenceReference: string;
+  amountMinor: number | null;
+  currency: string | null;
+  recordedByRole: FixedRole;
+  occurredAt: string;
+  reason: string | null;
+  createdAt: string;
+}>;
+
+export type CanonicalLeadGateState = "blocked" | "satisfied" | "overridden";
+
+export type CanonicalLeadGateSnapshot = Readonly<{
+  leadId: string;
+  state: CanonicalLeadGateState;
+  normalHandoffAllowed: boolean;
+  exceptionalHandoffAllowed: boolean;
+  contractEvidence: CanonicalLeadGateEvidenceSnapshot | null;
+  firstPaymentEvidence: CanonicalLeadGateEvidenceSnapshot | null;
+  handoff:
+    | Readonly<{
+        handoffId: string;
+        studentCaseId: string;
+        isOverride: boolean;
+        executedByRole: FixedRole;
+        executedAt: string;
+      }>
+    | null;
+  updatedAt: string;
+}>;
+
 export type CanonicalSalesLeadQueueRow = CanonicalLeadSnapshot;
 
 export type CanonicalSalesLeadQueuePage = Readonly<{
@@ -183,6 +218,29 @@ export type CanonicalStudentCaseSnapshot = Readonly<{
   updatedAt: string;
 }>;
 
+export type CanonicalAdmissionsStarterTaskSnapshot = Readonly<{
+  taskId: string;
+  title: string;
+  details: string | null;
+  status: "open" | "completed" | "cancelled";
+  dueAt: string | null;
+  createdAt: string;
+}>;
+
+export type CanonicalStudentCaseHandoffSnapshot = Readonly<{
+  studentCase: CanonicalStudentCaseSnapshot;
+  handoff: Readonly<{
+    handoffId: string;
+    leadId: string;
+    isOverride: boolean;
+    executedByRole: FixedRole;
+    executedAt: string;
+    contractEvidenceId: string | null;
+    firstPaymentEvidenceId: string | null;
+  }>;
+  starterTasks: readonly CanonicalAdmissionsStarterTaskSnapshot[];
+}>;
+
 export type CanonicalInboundMessageResult = Readonly<{
   conversationId: string;
   messageId: string;
@@ -208,6 +266,24 @@ type CommandContext = Readonly<{
   idempotencyKey: string;
   correlationId: string;
 }>;
+
+const CANONICAL_ADMISSIONS_STARTER_TASKS = [
+  {
+    title: "Проверить унаследованный контекст Sales",
+    details:
+      "Проверьте qualification summary, последние входящие сообщения и статус handoff перед началом Admissions работы.",
+  },
+  {
+    title: "Подтвердить маршрут обучения и недостающие данные",
+    details:
+      "Сверьте программу, страну, intake и список недостающих данных, чтобы открыть следующий admissions шаг без догадок.",
+  },
+  {
+    title: "Подготовить первичный план запроса документов",
+    details:
+      "Зафиксируйте минимальный стартовый план по документам после передачи кейса в Admissions.",
+  },
+] as const;
 
 function invalidInput(): never {
   throw new CanonicalCrmRepositoryError("invalid_input");
@@ -744,6 +820,94 @@ function optionalDateString(value: Date | null): string | null {
   return value === null ? null : dateString(value);
 }
 
+function databaseTaskStatus(
+  value: string,
+): "open" | "completed" | "cancelled" {
+  if (value !== "open" && value !== "completed" && value !== "cancelled") {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function databaseGateState(
+  value: string,
+): "blocked" | "satisfied" | "overridden" {
+  if (value !== "blocked" && value !== "satisfied" && value !== "overridden") {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function isConfirmedEvidence(
+  evidence: Pick<CanonicalLeadGateEvidenceSnapshot, "decision"> | null,
+): boolean {
+  return evidence?.decision === "confirmed";
+}
+
+function deriveLeadGateState(input: Readonly<{
+  contractEvidence: CanonicalLeadGateEvidenceSnapshot | null;
+  firstPaymentEvidence: CanonicalLeadGateEvidenceSnapshot | null;
+  handoffIsOverride: boolean;
+}>): CanonicalLeadGateState {
+  if (input.handoffIsOverride) return "overridden";
+  if (
+    isConfirmedEvidence(input.contractEvidence) &&
+    isConfirmedEvidence(input.firstPaymentEvidence)
+  ) {
+    return "satisfied";
+  }
+  return "blocked";
+}
+
+async function selectLatestGateEvidence(
+  transaction: DatabaseTransaction,
+  leadId: string,
+  evidenceType: "contract" | "first_payment",
+): Promise<CanonicalLeadGateEvidenceSnapshot | null> {
+  const [row] = await transaction
+    .select({
+      evidenceId: evoSalesGateEvidence.id,
+      evidenceType: evoSalesGateEvidence.evidenceType,
+      decision: evoSalesGateEvidence.decision,
+      evidenceReference: evoSalesGateEvidence.evidenceReference,
+      amountMinor: evoSalesGateEvidence.amountMinor,
+      currency: evoSalesGateEvidence.currency,
+      recordedByRole: evoSalesGateEvidence.recordedByRole,
+      occurredAt: evoSalesGateEvidence.occurredAt,
+      reason: evoSalesGateEvidence.reason,
+      createdAt: evoSalesGateEvidence.createdAt,
+    })
+    .from(evoSalesGateEvidence)
+    .where(
+      and(
+        eq(evoSalesGateEvidence.leadId, leadId),
+        eq(evoSalesGateEvidence.evidenceType, evidenceType),
+      ),
+    )
+    .orderBy(
+      desc(evoSalesGateEvidence.occurredAt),
+      desc(evoSalesGateEvidence.createdAt),
+      desc(evoSalesGateEvidence.id),
+    )
+    .limit(1);
+
+  if (!row) return null;
+  if (
+    (row.evidenceType !== "contract" && row.evidenceType !== "first_payment") ||
+    (row.decision !== "confirmed" && row.decision !== "rejected")
+  ) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return {
+    ...row,
+    evidenceType: row.evidenceType,
+    decision: row.decision,
+    recordedByRole: databaseRole(row.recordedByRole),
+    occurredAt: dateString(row.occurredAt),
+    createdAt: dateString(row.createdAt),
+  };
+}
+
 async function selectLeadSnapshot(
   transaction: DatabaseTransaction,
   leadId: string,
@@ -803,9 +967,105 @@ async function selectStudentCaseSnapshot(
   if (!row) throw new CanonicalCrmRepositoryError("not_found");
   return {
     ...row,
+    status: databaseStudentCaseStatus(row.status),
     assignedRole: databaseRole(row.assignedRole),
     createdAt: dateString(row.createdAt),
     updatedAt: dateString(row.updatedAt),
+  };
+}
+
+async function selectLeadGateSnapshot(
+  transaction: DatabaseTransaction,
+  leadId: string,
+): Promise<CanonicalLeadGateSnapshot> {
+  const lead = await selectLeadSnapshot(transaction, leadId);
+  const [contractEvidence, firstPaymentEvidence, handoffRow] = await Promise.all([
+    selectLatestGateEvidence(transaction, leadId, "contract"),
+    selectLatestGateEvidence(transaction, leadId, "first_payment"),
+    transaction
+      .select({
+        handoffId: evoSalesAdmissionsHandoffs.id,
+        studentCaseId: evoSalesAdmissionsHandoffs.studentCaseId,
+        isOverride: evoSalesAdmissionsHandoffs.isOverride,
+        executedByRole: evoSalesAdmissionsHandoffs.executedByRole,
+        executedAt: evoSalesAdmissionsHandoffs.executedAt,
+      })
+      .from(evoSalesAdmissionsHandoffs)
+      .where(eq(evoSalesAdmissionsHandoffs.leadId, leadId))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
+  ]);
+
+  const state = deriveLeadGateState({
+    contractEvidence,
+    firstPaymentEvidence,
+    handoffIsOverride: handoffRow?.isOverride ?? false,
+  });
+
+  return {
+    leadId,
+    state: databaseGateState(state),
+    normalHandoffAllowed: state === "satisfied" && handoffRow === null,
+    exceptionalHandoffAllowed: state === "blocked" && handoffRow === null,
+    contractEvidence,
+    firstPaymentEvidence,
+    handoff: handoffRow
+      ? {
+          ...handoffRow,
+          executedByRole: databaseRole(handoffRow.executedByRole),
+          executedAt: dateString(handoffRow.executedAt),
+        }
+      : null,
+    updatedAt: lead.updatedAt,
+  };
+}
+
+async function selectStudentCaseHandoffSnapshot(
+  transaction: DatabaseTransaction,
+  studentCaseId: string,
+): Promise<CanonicalStudentCaseHandoffSnapshot> {
+  const studentCase = await selectStudentCaseSnapshot(transaction, studentCaseId);
+  const [handoffRow] = await transaction
+    .select({
+      handoffId: evoSalesAdmissionsHandoffs.id,
+      leadId: evoSalesAdmissionsHandoffs.leadId,
+      isOverride: evoSalesAdmissionsHandoffs.isOverride,
+      executedByRole: evoSalesAdmissionsHandoffs.executedByRole,
+      executedAt: evoSalesAdmissionsHandoffs.executedAt,
+      contractEvidenceId: evoSalesAdmissionsHandoffs.contractEvidenceId,
+      firstPaymentEvidenceId: evoSalesAdmissionsHandoffs.firstPaymentEvidenceId,
+    })
+    .from(evoSalesAdmissionsHandoffs)
+    .where(eq(evoSalesAdmissionsHandoffs.studentCaseId, studentCaseId))
+    .limit(1);
+  if (!handoffRow) throw new CanonicalCrmRepositoryError("not_found");
+
+  const starterTasks = await transaction
+    .select({
+      taskId: evoAdmissionsTasks.id,
+      title: evoAdmissionsTasks.title,
+      details: evoAdmissionsTasks.details,
+      status: evoAdmissionsTasks.status,
+      dueAt: evoAdmissionsTasks.dueAt,
+      createdAt: evoAdmissionsTasks.createdAt,
+    })
+    .from(evoAdmissionsTasks)
+    .where(eq(evoAdmissionsTasks.studentCaseId, studentCaseId))
+    .orderBy(evoAdmissionsTasks.createdAt, evoAdmissionsTasks.id);
+
+  return {
+    studentCase,
+    handoff: {
+      ...handoffRow,
+      executedByRole: databaseRole(handoffRow.executedByRole),
+      executedAt: dateString(handoffRow.executedAt),
+    },
+    starterTasks: starterTasks.map((task) => ({
+      ...task,
+      status: databaseTaskStatus(task.status),
+      dueAt: optionalDateString(task.dueAt),
+      createdAt: dateString(task.createdAt),
+    })),
   };
 }
 
@@ -1621,11 +1881,13 @@ export async function handoffCanonicalLeadToAdmissions(
     idempotencyKey: string;
     correlationId: string;
     leadId: string;
+    expectedVersion: number;
     adminOverride?: Readonly<{ reason: string }> | null;
   }>,
 ): Promise<CanonicalHandoffResult> {
   const context = parseCommandContext(input, ["admin", "sales"]);
   const leadId = uuid(input.leadId);
+  const expectedVersion = positiveVersion(input.expectedVersion);
   if (input.adminOverride && context.actorRole !== "admin") {
     throw new CanonicalCrmRepositoryError("forbidden");
   }
@@ -1639,6 +1901,7 @@ export async function handoffCanonicalLeadToAdmissions(
   const requestHash = sha256({
     actorRole: context.actorRole,
     leadId,
+    expectedVersion,
     isOverride,
     overrideReason,
   });
@@ -1666,13 +1929,17 @@ export async function handoffCanonicalLeadToAdmissions(
         id: evoLeads.id,
         personId: evoLeads.personId,
         stage: evoLeads.stage,
+        version: evoLeads.version,
       })
       .from(evoLeads)
       .where(eq(evoLeads.id, leadId))
       .limit(1)
       .for("update");
     if (!lead) throw new CanonicalCrmRepositoryError("not_found");
-    if (lead.stage !== "qualified" && lead.stage !== "handoff_ready") {
+    if (
+      lead.version !== expectedVersion ||
+      (lead.stage !== "qualified" && lead.stage !== "handoff_ready")
+    ) {
       throw new CanonicalCrmRepositoryError("conflict");
     }
 
@@ -1719,6 +1986,7 @@ export async function handoffCanonicalLeadToAdmissions(
         .orderBy(
           desc(evoSalesGateEvidence.occurredAt),
           desc(evoSalesGateEvidence.createdAt),
+          desc(evoSalesGateEvidence.id),
         )
         .limit(1);
       const [firstPaymentEvidence] = await transaction
@@ -1736,6 +2004,7 @@ export async function handoffCanonicalLeadToAdmissions(
         .orderBy(
           desc(evoSalesGateEvidence.occurredAt),
           desc(evoSalesGateEvidence.createdAt),
+          desc(evoSalesGateEvidence.id),
         )
         .limit(1);
       if (
@@ -1769,6 +2038,7 @@ export async function handoffCanonicalLeadToAdmissions(
     }
     if (!studentCase) throw new CanonicalCrmRepositoryError("unavailable");
 
+    let eventSequence = 1;
     if (studentCaseCreated) {
       await insertBusinessEvent(transaction, {
         context,
@@ -1776,8 +2046,37 @@ export async function handoffCanonicalLeadToAdmissions(
         businessObjectId: studentCase.id,
         transition: "student_case.created",
         toState: "active",
-        eventSequence: 1,
+        eventSequence,
       });
+      eventSequence += 1;
+    }
+
+    const starterTasks = await transaction
+      .insert(evoAdmissionsTasks)
+      .values(
+        CANONICAL_ADMISSIONS_STARTER_TASKS.map((task) => ({
+          id: randomUUID(),
+          studentCaseId: studentCase.id,
+          title: task.title,
+          details: task.details,
+          status: "open",
+          assignedRole: "admissions",
+        })),
+      )
+      .returning({ id: evoAdmissionsTasks.id });
+    if (starterTasks.length !== CANONICAL_ADMISSIONS_STARTER_TASKS.length) {
+      throw new CanonicalCrmRepositoryError("unavailable");
+    }
+    for (const task of starterTasks) {
+      await insertBusinessEvent(transaction, {
+        context,
+        businessObjectType: "task",
+        businessObjectId: task.id,
+        transition: "task.created",
+        toState: "open",
+        eventSequence,
+      });
+      eventSequence += 1;
     }
 
     const handoffId = randomUUID();
@@ -1813,7 +2112,7 @@ export async function handoffCanonicalLeadToAdmissions(
       fromState: lead.stage,
       toState: "handed_off",
       reason: overrideReason,
-      eventSequence: studentCaseCreated ? 2 : 1,
+      eventSequence,
     });
     const result = {
       handoffId,
@@ -1841,6 +2140,16 @@ export async function getCanonicalLeadSnapshot(
   );
 }
 
+export async function getCanonicalLeadGateSnapshot(
+  input: Readonly<{ actorRole: FixedRole; leadId: string }>,
+): Promise<CanonicalLeadGateSnapshot> {
+  actorRole(input.actorRole, ["admin", "sales"]);
+  const leadId = uuid(input.leadId);
+  return runTransaction((transaction) =>
+    selectLeadGateSnapshot(transaction, leadId),
+  );
+}
+
 export async function getCanonicalStudentCaseSnapshot(
   input: Readonly<{ actorRole: FixedRole; studentCaseId: string }>,
 ): Promise<CanonicalStudentCaseSnapshot> {
@@ -1848,6 +2157,16 @@ export async function getCanonicalStudentCaseSnapshot(
   const studentCaseId = uuid(input.studentCaseId);
   return runTransaction((transaction) =>
     selectStudentCaseSnapshot(transaction, studentCaseId),
+  );
+}
+
+export async function getCanonicalStudentCaseHandoffSnapshot(
+  input: Readonly<{ actorRole: FixedRole; studentCaseId: string }>,
+): Promise<CanonicalStudentCaseHandoffSnapshot> {
+  actorRole(input.actorRole, ["admin", "admissions"]);
+  const studentCaseId = uuid(input.studentCaseId);
+  return runTransaction((transaction) =>
+    selectStudentCaseHandoffSnapshot(transaction, studentCaseId),
   );
 }
 

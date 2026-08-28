@@ -1,18 +1,16 @@
 import { notFound } from "next/navigation";
 
-import { StudentWorkspace } from "./StudentWorkspace";
+import { CanonicalStudentCaseWorkspace } from "./CanonicalStudentCaseWorkspace";
 
 const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export default async function ClientPageContent({
   params,
-  searchParams,
 }: Readonly<{
   params: Promise<{ id: string }>;
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }>) {
   const { id } = await params;
   if (!UUID_PATTERN.test(id)) notFound();
-  return <StudentWorkspace id={id} searchParams={searchParams} />;
+  return <CanonicalStudentCaseWorkspace id={id} />;
 }

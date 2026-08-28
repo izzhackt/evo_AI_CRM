@@ -27,7 +27,12 @@ import {
   evoBusinessEvents,
   evoCommandReceipts,
 } from "../../db/schema/canonical-crm-events.ts";
-import { evoAdmissionsTasks } from "../../db/schema/canonical-crm-operations.ts";
+import {
+  evoAdmissionsTasks,
+  evoFinanceStopStates,
+  evoUniversityApplications,
+  evoVisaMilestones,
+} from "../../db/schema/canonical-crm-operations.ts";
 import {
   CANONICAL_SALES_DUE_FILTERS,
   CANONICAL_SALES_STAGES,
@@ -213,7 +218,7 @@ export type CanonicalStudentCaseSnapshot = Readonly<{
   leadId: string;
   personId: string;
   displayName: string;
-  status: string;
+  status: CanonicalStudentCaseStatus;
   assignedRole: FixedRole;
   version: number;
   createdAt: string;
@@ -264,6 +269,142 @@ export type CanonicalAdmissionsTaskResult = Readonly<{
   studentCaseId: string;
   status: CanonicalAdmissionsTaskStatus;
   version: number;
+}>;
+
+export const CANONICAL_UNIVERSITY_APPLICATION_STATUSES = [
+  "draft",
+  "submitted",
+  "accepted",
+  "rejected",
+  "withdrawn",
+] as const;
+
+export type CanonicalUniversityApplicationStatus =
+  (typeof CANONICAL_UNIVERSITY_APPLICATION_STATUSES)[number];
+
+export const CANONICAL_VISA_MILESTONE_KINDS = [
+  "document_preparation",
+  "appointment",
+  "submission",
+  "biometrics",
+  "interview",
+  "decision",
+] as const;
+
+export type CanonicalVisaMilestoneKind =
+  (typeof CANONICAL_VISA_MILESTONE_KINDS)[number];
+
+export const CANONICAL_VISA_MILESTONE_STATUSES = [
+  "pending",
+  "in_progress",
+  "completed",
+  "blocked",
+] as const;
+
+export type CanonicalVisaMilestoneStatus =
+  (typeof CANONICAL_VISA_MILESTONE_STATUSES)[number];
+
+export type CanonicalUniversityApplicationRow = Readonly<{
+  applicationId: string;
+  studentCaseId: string;
+  institutionName: string;
+  programName: string;
+  targetIntake: string;
+  status: CanonicalUniversityApplicationStatus;
+  ownerRole: "admissions";
+  nextAction: string | null;
+  nextActionAt: string | null;
+  submittedAt: string | null;
+  decidedAt: string | null;
+  decisionReason: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  studentCaseStatus: CanonicalStudentCaseStatus;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+}>;
+
+export type CanonicalUniversityApplicationQueuePage = Readonly<{
+  rows: readonly CanonicalUniversityApplicationRow[];
+  hasNext: boolean;
+  nextCursor: CanonicalReadCursor | null;
+}>;
+
+export type CanonicalUniversityApplicationResult = Readonly<{
+  applicationId: string;
+  studentCaseId: string;
+  status: CanonicalUniversityApplicationStatus;
+  version: number;
+}>;
+
+export type CanonicalVisaMilestoneRow = Readonly<{
+  visaMilestoneId: string;
+  studentCaseId: string;
+  milestoneKind: CanonicalVisaMilestoneKind;
+  status: CanonicalVisaMilestoneStatus;
+  ownerRole: "admissions";
+  nextAction: string | null;
+  nextActionAt: string | null;
+  dueAt: string | null;
+  completedAt: string | null;
+  blockedReason: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  studentCaseStatus: CanonicalStudentCaseStatus;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+}>;
+
+export type CanonicalVisaMilestoneQueuePage = Readonly<{
+  rows: readonly CanonicalVisaMilestoneRow[];
+  hasNext: boolean;
+  nextCursor: CanonicalReadCursor | null;
+}>;
+
+export type CanonicalVisaMilestoneResult = Readonly<{
+  visaMilestoneId: string;
+  studentCaseId: string;
+  milestoneKind: CanonicalVisaMilestoneKind;
+  status: CanonicalVisaMilestoneStatus;
+  version: number;
+}>;
+
+export type CanonicalFinanceStopRow = Readonly<{
+  financeStopId: string;
+  studentCaseId: string;
+  isStopped: boolean;
+  reason: string;
+  changedByRole: "admin" | "admissions";
+  version: number;
+  changedAt: string;
+  studentCaseStatus: CanonicalStudentCaseStatus;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+}>;
+
+export type CanonicalFinanceStopQueuePage = Readonly<{
+  rows: readonly CanonicalFinanceStopRow[];
+  hasNext: boolean;
+  nextCursor: CanonicalReadCursor | null;
+}>;
+
+export type CanonicalFinanceStopResult = Readonly<{
+  financeStopId: string;
+  studentCaseId: string;
+  isStopped: boolean;
+  version: number;
+}>;
+
+export type CanonicalAdmissionsOperationsSnapshot = Readonly<{
+  studentCase: CanonicalStudentCaseSnapshot;
+  applications: readonly CanonicalUniversityApplicationRow[];
+  visaMilestones: readonly CanonicalVisaMilestoneRow[];
+  financeStop: CanonicalFinanceStopRow | null;
 }>;
 
 export type CanonicalStudentCaseHandoffSnapshot = Readonly<{
@@ -603,6 +744,64 @@ function positiveVersion(value: unknown): number {
   return Number(value);
 }
 
+function nonNegativeVersion(value: unknown): number {
+  if (!Number.isSafeInteger(value) || Number(value) < 0) invalidInput();
+  return Number(value);
+}
+
+function requiredOperationsTimestamp(value: unknown): Date {
+  const timestamp = canonicalTaskDueAt(value);
+  if (!timestamp) invalidInput();
+  return timestamp;
+}
+
+function isCanonicalUniversityApplicationStatus(
+  value: unknown,
+): value is CanonicalUniversityApplicationStatus {
+  return CANONICAL_UNIVERSITY_APPLICATION_STATUSES.some(
+    (status) => status === value,
+  );
+}
+
+function canonicalUniversityApplicationTransitionStatus(
+  value: unknown,
+): Exclude<CanonicalUniversityApplicationStatus, "draft"> {
+  if (
+    value === "submitted" ||
+    value === "accepted" ||
+    value === "rejected" ||
+    value === "withdrawn"
+  ) {
+    return value;
+  }
+  invalidInput();
+}
+
+function isCanonicalVisaMilestoneKind(
+  value: unknown,
+): value is CanonicalVisaMilestoneKind {
+  return CANONICAL_VISA_MILESTONE_KINDS.some((kind) => kind === value);
+}
+
+function isCanonicalVisaMilestoneStatus(
+  value: unknown,
+): value is CanonicalVisaMilestoneStatus {
+  return CANONICAL_VISA_MILESTONE_STATUSES.some((status) => status === value);
+}
+
+function canonicalVisaMilestoneTransitionStatus(
+  value: unknown,
+): Exclude<CanonicalVisaMilestoneStatus, "pending"> {
+  if (
+    value === "in_progress" ||
+    value === "completed" ||
+    value === "blocked"
+  ) {
+    return value;
+  }
+  invalidInput();
+}
+
 function sha256(value: Readonly<Record<string, unknown>>): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -828,6 +1027,27 @@ function resultTaskStatus(
   return databaseTaskStatus(resultString(payload, key));
 }
 
+function resultUniversityApplicationStatus(
+  payload: Record<string, unknown>,
+  key: string,
+): CanonicalUniversityApplicationStatus {
+  return databaseUniversityApplicationStatus(resultString(payload, key));
+}
+
+function resultVisaMilestoneKind(
+  payload: Record<string, unknown>,
+  key: string,
+): CanonicalVisaMilestoneKind {
+  return databaseVisaMilestoneKind(resultString(payload, key));
+}
+
+function resultVisaMilestoneStatus(
+  payload: Record<string, unknown>,
+  key: string,
+): CanonicalVisaMilestoneStatus {
+  return databaseVisaMilestoneStatus(resultString(payload, key));
+}
+
 async function runTransaction<T>(
   operation: (transaction: DatabaseTransaction) => Promise<T>,
 ): Promise<T> {
@@ -922,6 +1142,149 @@ function databaseAdmissionsTaskRole(value: string): "admissions" {
   return value;
 }
 
+function databaseAdmissionsOperationsRole(value: string): "admissions" {
+  if (value !== "admissions") {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function databaseAdmissionsOperationsActorRole(
+  value: string,
+): "admin" | "admissions" {
+  if (value !== "admin" && value !== "admissions") {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function databaseUniversityApplicationStatus(
+  value: string,
+): CanonicalUniversityApplicationStatus {
+  if (!isCanonicalUniversityApplicationStatus(value)) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function databaseVisaMilestoneKind(
+  value: string,
+): CanonicalVisaMilestoneKind {
+  if (!isCanonicalVisaMilestoneKind(value)) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function databaseVisaMilestoneStatus(
+  value: string,
+): CanonicalVisaMilestoneStatus {
+  if (!isCanonicalVisaMilestoneStatus(value)) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+type UniversityApplicationDatabaseRow = Readonly<{
+  applicationId: string;
+  studentCaseId: string;
+  institutionName: string;
+  programName: string;
+  targetIntake: string;
+  status: string;
+  ownerRole: string;
+  nextAction: string | null;
+  nextActionAt: Date | null;
+  submittedAt: Date | null;
+  decidedAt: Date | null;
+  decisionReason: string | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+  studentCaseStatus: string;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+}>;
+
+function canonicalUniversityApplicationRow(
+  row: UniversityApplicationDatabaseRow,
+): CanonicalUniversityApplicationRow {
+  return {
+    ...row,
+    status: databaseUniversityApplicationStatus(row.status),
+    ownerRole: databaseAdmissionsOperationsRole(row.ownerRole),
+    nextActionAt: optionalDateString(row.nextActionAt),
+    submittedAt: optionalDateString(row.submittedAt),
+    decidedAt: optionalDateString(row.decidedAt),
+    createdAt: dateString(row.createdAt),
+    updatedAt: dateString(row.updatedAt),
+    studentCaseStatus: databaseStudentCaseStatus(row.studentCaseStatus),
+  };
+}
+
+type VisaMilestoneDatabaseRow = Readonly<{
+  visaMilestoneId: string;
+  studentCaseId: string;
+  milestoneKind: string;
+  status: string;
+  ownerRole: string;
+  nextAction: string | null;
+  nextActionAt: Date | null;
+  dueAt: Date | null;
+  completedAt: Date | null;
+  blockedReason: string | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+  studentCaseStatus: string;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+}>;
+
+function canonicalVisaMilestoneRow(
+  row: VisaMilestoneDatabaseRow,
+): CanonicalVisaMilestoneRow {
+  return {
+    ...row,
+    milestoneKind: databaseVisaMilestoneKind(row.milestoneKind),
+    status: databaseVisaMilestoneStatus(row.status),
+    ownerRole: databaseAdmissionsOperationsRole(row.ownerRole),
+    nextActionAt: optionalDateString(row.nextActionAt),
+    dueAt: optionalDateString(row.dueAt),
+    completedAt: optionalDateString(row.completedAt),
+    createdAt: dateString(row.createdAt),
+    updatedAt: dateString(row.updatedAt),
+    studentCaseStatus: databaseStudentCaseStatus(row.studentCaseStatus),
+  };
+}
+
+type FinanceStopDatabaseRow = Readonly<{
+  financeStopId: string;
+  studentCaseId: string;
+  isStopped: boolean;
+  reason: string;
+  changedByRole: string;
+  version: number;
+  changedAt: Date;
+  studentCaseStatus: string;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+}>;
+
+function canonicalFinanceStopRow(
+  row: FinanceStopDatabaseRow,
+): CanonicalFinanceStopRow {
+  return {
+    ...row,
+    changedByRole: databaseAdmissionsOperationsActorRole(row.changedByRole),
+    changedAt: dateString(row.changedAt),
+    studentCaseStatus: databaseStudentCaseStatus(row.studentCaseStatus),
+  };
+}
+
 function databaseTaskClosedByRole(
   value: string | null,
 ): "admin" | "admissions" | null {
@@ -961,6 +1324,42 @@ function deriveLeadGateState(input: Readonly<{
   return "blocked";
 }
 
+async function requireHandedOffStudentCase(
+  transaction: DatabaseTransaction,
+  studentCaseId: string,
+): Promise<void> {
+  const [studentCase] = await transaction
+    .select({
+      leadId: evoStudentCases.leadId,
+      status: evoStudentCases.status,
+      ownerRole: evoStudentCases.ownerRole,
+    })
+    .from(evoStudentCases)
+    .where(eq(evoStudentCases.id, studentCaseId))
+    .limit(1);
+  if (!studentCase) throw new CanonicalCrmRepositoryError("not_found");
+  databaseAdmissionsTaskRole(studentCase.ownerRole);
+  databaseStudentCaseStatus(studentCase.status);
+
+  const [handoff] = await transaction
+    .select({
+      id: evoSalesAdmissionsHandoffs.id,
+      leadStage: evoLeads.stage,
+    })
+    .from(evoSalesAdmissionsHandoffs)
+    .innerJoin(evoLeads, eq(evoLeads.id, evoSalesAdmissionsHandoffs.leadId))
+    .where(
+      and(
+        eq(evoSalesAdmissionsHandoffs.studentCaseId, studentCaseId),
+        eq(evoSalesAdmissionsHandoffs.leadId, studentCase.leadId),
+      ),
+    )
+    .limit(1);
+  if (!handoff || databaseSalesStage(handoff.leadStage) !== "handed_off") {
+    throw new CanonicalCrmRepositoryError("conflict");
+  }
+}
+
 async function lockActiveHandedOffStudentCase(
   transaction: DatabaseTransaction,
   studentCaseId: string,
@@ -998,6 +1397,20 @@ async function lockActiveHandedOffStudentCase(
     .limit(1);
   if (!handoff || databaseSalesStage(handoff.leadStage) !== "handed_off") {
     throw new CanonicalCrmRepositoryError("conflict");
+  }
+}
+
+async function requireFinanceProgressAllowed(
+  transaction: DatabaseTransaction,
+  studentCaseId: string,
+): Promise<void> {
+  const [financeStop] = await transaction
+    .select({ isStopped: evoFinanceStopStates.isStopped })
+    .from(evoFinanceStopStates)
+    .where(eq(evoFinanceStopStates.studentCaseId, studentCaseId))
+    .limit(1);
+  if (financeStop?.isStopped) {
+    throw new CanonicalCrmRepositoryError("gate_unsatisfied");
   }
 }
 
@@ -2286,6 +2699,33 @@ export async function handoffCanonicalLeadToAdmissions(
       eventSequence += 1;
     }
 
+    const visaMilestones = await transaction
+      .insert(evoVisaMilestones)
+      .values(
+        CANONICAL_VISA_MILESTONE_KINDS.map((milestoneKind) => ({
+          id: randomUUID(),
+          studentCaseId: studentCase.id,
+          milestoneKind,
+          status: "pending",
+          ownerRole: "admissions",
+        })),
+      )
+      .returning({ id: evoVisaMilestones.id });
+    if (visaMilestones.length !== CANONICAL_VISA_MILESTONE_KINDS.length) {
+      throw new CanonicalCrmRepositoryError("unavailable");
+    }
+    for (const visaMilestone of visaMilestones) {
+      await insertBusinessEvent(transaction, {
+        context,
+        businessObjectType: "visa_milestone",
+        businessObjectId: visaMilestone.id,
+        transition: "visa_milestone.created",
+        toState: "pending",
+        eventSequence,
+      });
+      eventSequence += 1;
+    }
+
     const handoffId = randomUUID();
     await transaction.insert(evoSalesAdmissionsHandoffs).values({
       id: handoffId,
@@ -2557,6 +2997,825 @@ export async function transitionCanonicalAdmissionsTask(
   });
 }
 
+export async function createCanonicalUniversityApplication(
+  input: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+    studentCaseId: string;
+    institutionName: string;
+    programName: string;
+    targetIntake: string;
+    nextAction: string;
+    nextActionAt: string;
+  }>,
+): Promise<CanonicalUniversityApplicationResult> {
+  const context = parseCommandContext(input, ["admin", "admissions"]);
+  const studentCaseId = uuid(input.studentCaseId);
+  const institutionName = boundedText(input.institutionName, {
+    maxLength: 200,
+    collapseWhitespace: true,
+  });
+  const programName = boundedText(input.programName, {
+    maxLength: 200,
+    collapseWhitespace: true,
+  });
+  const targetIntake = boundedText(input.targetIntake, {
+    maxLength: 100,
+    collapseWhitespace: true,
+  });
+  const nextAction = boundedText(input.nextAction, {
+    maxLength: 500,
+    collapseWhitespace: true,
+  });
+  const nextActionAt = requiredOperationsTimestamp(input.nextActionAt);
+  const requestHash = sha256({
+    actorRole: context.actorRole,
+    studentCaseId,
+    institutionName,
+    programName,
+    targetIntake,
+    nextAction,
+    nextActionAt: nextActionAt.toISOString(),
+  });
+
+  return runTransaction(async (transaction) => {
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical.university_application.create",
+      context,
+      requestHash,
+    });
+    if (reservation.kind === "replay") {
+      return {
+        applicationId: resultUuid(
+          reservation.resultPayload,
+          "applicationId",
+        ),
+        studentCaseId: resultUuid(
+          reservation.resultPayload,
+          "studentCaseId",
+        ),
+        status: resultUniversityApplicationStatus(
+          reservation.resultPayload,
+          "status",
+        ),
+        version: resultPositiveVersion(reservation.resultPayload, "version"),
+      };
+    }
+
+    await lockActiveHandedOffStudentCase(transaction, studentCaseId);
+    const [existing] = await transaction
+      .select({ id: evoUniversityApplications.id })
+      .from(evoUniversityApplications)
+      .where(
+        and(
+          eq(evoUniversityApplications.studentCaseId, studentCaseId),
+          eq(evoUniversityApplications.institutionName, institutionName),
+          eq(evoUniversityApplications.programName, programName),
+          eq(evoUniversityApplications.targetIntake, targetIntake),
+        ),
+      )
+      .limit(1);
+    if (existing) throw new CanonicalCrmRepositoryError("conflict");
+
+    const [application] = await transaction
+      .insert(evoUniversityApplications)
+      .values({
+        id: randomUUID(),
+        studentCaseId,
+        institutionName,
+        programName,
+        targetIntake,
+        status: "draft",
+        ownerRole: "admissions",
+        nextAction,
+        nextActionAt,
+      })
+      .returning({
+        id: evoUniversityApplications.id,
+        studentCaseId: evoUniversityApplications.studentCaseId,
+        status: evoUniversityApplications.status,
+        version: evoUniversityApplications.version,
+      });
+    if (!application) throw new CanonicalCrmRepositoryError("unavailable");
+
+    const result = {
+      applicationId: application.id,
+      studentCaseId: application.studentCaseId,
+      status: databaseUniversityApplicationStatus(application.status),
+      version: application.version,
+    };
+    await insertBusinessEvent(transaction, {
+      context,
+      businessObjectType: "application",
+      businessObjectId: application.id,
+      transition: "application.created",
+      toState: "draft",
+    });
+    await completeCommand(transaction, {
+      receiptId: reservation.receiptId,
+      businessObjectType: "application",
+      businessObjectId: application.id,
+      resultPayload: result,
+    });
+    return result;
+  });
+}
+
+export async function updateCanonicalUniversityApplication(
+  input: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+    applicationId: string;
+    expectedVersion: number;
+    nextAction: string;
+    nextActionAt: string;
+  }>,
+): Promise<CanonicalUniversityApplicationResult> {
+  const context = parseCommandContext(input, ["admin", "admissions"]);
+  const applicationId = uuid(input.applicationId);
+  const expectedVersion = positiveVersion(input.expectedVersion);
+  const nextAction = boundedText(input.nextAction, {
+    maxLength: 500,
+    collapseWhitespace: true,
+  });
+  const nextActionAt = requiredOperationsTimestamp(input.nextActionAt);
+  const requestHash = sha256({
+    actorRole: context.actorRole,
+    applicationId,
+    expectedVersion,
+    nextAction,
+    nextActionAt: nextActionAt.toISOString(),
+  });
+
+  return runTransaction(async (transaction) => {
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical.university_application.update",
+      context,
+      requestHash,
+    });
+    if (reservation.kind === "replay") {
+      return {
+        applicationId: resultUuid(
+          reservation.resultPayload,
+          "applicationId",
+        ),
+        studentCaseId: resultUuid(
+          reservation.resultPayload,
+          "studentCaseId",
+        ),
+        status: resultUniversityApplicationStatus(
+          reservation.resultPayload,
+          "status",
+        ),
+        version: resultPositiveVersion(reservation.resultPayload, "version"),
+      };
+    }
+
+    const [candidate] = await transaction
+      .select({ studentCaseId: evoUniversityApplications.studentCaseId })
+      .from(evoUniversityApplications)
+      .where(eq(evoUniversityApplications.id, applicationId))
+      .limit(1);
+    if (!candidate) throw new CanonicalCrmRepositoryError("not_found");
+    await lockActiveHandedOffStudentCase(
+      transaction,
+      candidate.studentCaseId,
+    );
+    const [current] = await transaction
+      .select({
+        studentCaseId: evoUniversityApplications.studentCaseId,
+        status: evoUniversityApplications.status,
+        version: evoUniversityApplications.version,
+      })
+      .from(evoUniversityApplications)
+      .where(eq(evoUniversityApplications.id, applicationId))
+      .limit(1)
+      .for("update");
+    if (!current) throw new CanonicalCrmRepositoryError("not_found");
+    const currentStatus = databaseUniversityApplicationStatus(current.status);
+    if (
+      current.version !== expectedVersion ||
+      (currentStatus !== "draft" && currentStatus !== "submitted")
+    ) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+
+    const [application] = await transaction
+      .update(evoUniversityApplications)
+      .set({
+        nextAction,
+        nextActionAt,
+        version: sql`${evoUniversityApplications.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(evoUniversityApplications.id, applicationId),
+          eq(evoUniversityApplications.version, expectedVersion),
+          or(
+            eq(evoUniversityApplications.status, "draft"),
+            eq(evoUniversityApplications.status, "submitted"),
+          ),
+        ),
+      )
+      .returning({
+        id: evoUniversityApplications.id,
+        studentCaseId: evoUniversityApplications.studentCaseId,
+        status: evoUniversityApplications.status,
+        version: evoUniversityApplications.version,
+      });
+    if (!application) throw new CanonicalCrmRepositoryError("conflict");
+
+    const result = {
+      applicationId: application.id,
+      studentCaseId: application.studentCaseId,
+      status: databaseUniversityApplicationStatus(application.status),
+      version: application.version,
+    };
+    await insertBusinessEvent(transaction, {
+      context,
+      businessObjectType: "application",
+      businessObjectId: application.id,
+      transition: "application.next_action_updated",
+      fromState: currentStatus,
+      toState: currentStatus,
+    });
+    await completeCommand(transaction, {
+      receiptId: reservation.receiptId,
+      businessObjectType: "application",
+      businessObjectId: application.id,
+      resultPayload: result,
+    });
+    return result;
+  });
+}
+
+export async function transitionCanonicalUniversityApplication(
+  input: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+    applicationId: string;
+    expectedVersion: number;
+    toStatus: Exclude<CanonicalUniversityApplicationStatus, "draft">;
+    reason?: string | null;
+  }>,
+): Promise<CanonicalUniversityApplicationResult> {
+  const context = parseCommandContext(input, ["admin", "admissions"]);
+  const applicationId = uuid(input.applicationId);
+  const expectedVersion = positiveVersion(input.expectedVersion);
+  const toStatus = canonicalUniversityApplicationTransitionStatus(
+    input.toStatus,
+  );
+  const reason = optionalBoundedText(input.reason, { maxLength: 2_000 });
+  const needsReason = toStatus === "rejected" || toStatus === "withdrawn";
+  if ((needsReason && reason === null) || (!needsReason && reason !== null)) {
+    invalidInput();
+  }
+  const requestHash = sha256({
+    actorRole: context.actorRole,
+    applicationId,
+    expectedVersion,
+    toStatus,
+    reason,
+  });
+
+  return runTransaction(async (transaction) => {
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical.university_application.transition",
+      context,
+      requestHash,
+    });
+    if (reservation.kind === "replay") {
+      return {
+        applicationId: resultUuid(
+          reservation.resultPayload,
+          "applicationId",
+        ),
+        studentCaseId: resultUuid(
+          reservation.resultPayload,
+          "studentCaseId",
+        ),
+        status: resultUniversityApplicationStatus(
+          reservation.resultPayload,
+          "status",
+        ),
+        version: resultPositiveVersion(reservation.resultPayload, "version"),
+      };
+    }
+
+    const [candidate] = await transaction
+      .select({ studentCaseId: evoUniversityApplications.studentCaseId })
+      .from(evoUniversityApplications)
+      .where(eq(evoUniversityApplications.id, applicationId))
+      .limit(1);
+    if (!candidate) throw new CanonicalCrmRepositoryError("not_found");
+    await lockActiveHandedOffStudentCase(
+      transaction,
+      candidate.studentCaseId,
+    );
+    const [current] = await transaction
+      .select({
+        studentCaseId: evoUniversityApplications.studentCaseId,
+        status: evoUniversityApplications.status,
+        version: evoUniversityApplications.version,
+      })
+      .from(evoUniversityApplications)
+      .where(eq(evoUniversityApplications.id, applicationId))
+      .limit(1)
+      .for("update");
+    if (!current) throw new CanonicalCrmRepositoryError("not_found");
+    const currentStatus = databaseUniversityApplicationStatus(current.status);
+    const transitionAllowed =
+      (currentStatus === "draft" &&
+        (toStatus === "submitted" || toStatus === "withdrawn")) ||
+      (currentStatus === "submitted" &&
+        (toStatus === "accepted" ||
+          toStatus === "rejected" ||
+          toStatus === "withdrawn"));
+    if (current.version !== expectedVersion || !transitionAllowed) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+    if (toStatus === "submitted") {
+      await requireFinanceProgressAllowed(transaction, current.studentCaseId);
+    }
+
+    const now = new Date();
+    const [application] = await transaction
+      .update(evoUniversityApplications)
+      .set({
+        status: toStatus,
+        ...(toStatus === "submitted" ? { submittedAt: now } : {}),
+        ...(toStatus === "accepted" ||
+        toStatus === "rejected" ||
+        toStatus === "withdrawn"
+          ? {
+              decidedAt: now,
+              decisionReason: reason,
+              nextAction: null,
+              nextActionAt: null,
+            }
+          : {}),
+        version: sql`${evoUniversityApplications.version} + 1`,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(evoUniversityApplications.id, applicationId),
+          eq(evoUniversityApplications.version, expectedVersion),
+          eq(evoUniversityApplications.status, currentStatus),
+        ),
+      )
+      .returning({
+        id: evoUniversityApplications.id,
+        studentCaseId: evoUniversityApplications.studentCaseId,
+        status: evoUniversityApplications.status,
+        version: evoUniversityApplications.version,
+      });
+    if (!application) throw new CanonicalCrmRepositoryError("conflict");
+
+    const result = {
+      applicationId: application.id,
+      studentCaseId: application.studentCaseId,
+      status: databaseUniversityApplicationStatus(application.status),
+      version: application.version,
+    };
+    await insertBusinessEvent(transaction, {
+      context,
+      businessObjectType: "application",
+      businessObjectId: application.id,
+      transition: `application.${toStatus}`,
+      fromState: currentStatus,
+      toState: toStatus,
+      reason,
+    });
+    await completeCommand(transaction, {
+      receiptId: reservation.receiptId,
+      businessObjectType: "application",
+      businessObjectId: application.id,
+      resultPayload: result,
+    });
+    return result;
+  });
+}
+
+export async function transitionCanonicalVisaMilestone(
+  input: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+    visaMilestoneId: string;
+    expectedVersion: number;
+    toStatus: Exclude<CanonicalVisaMilestoneStatus, "pending">;
+    reason?: string | null;
+    nextAction?: string | null;
+    nextActionAt?: string | null;
+    dueAt?: string | null;
+  }>,
+): Promise<CanonicalVisaMilestoneResult> {
+  const context = parseCommandContext(input, ["admin", "admissions"]);
+  const visaMilestoneId = uuid(input.visaMilestoneId);
+  const expectedVersion = positiveVersion(input.expectedVersion);
+  const toStatus = canonicalVisaMilestoneTransitionStatus(input.toStatus);
+  const reason = optionalBoundedText(input.reason, { maxLength: 2_000 });
+  const nextAction = optionalBoundedText(input.nextAction, {
+    maxLength: 500,
+    collapseWhitespace: true,
+  });
+  const nextActionAt = canonicalTaskDueAt(input.nextActionAt);
+  const dueAt = canonicalTaskDueAt(input.dueAt);
+  if (
+    (toStatus === "blocked" && reason === null) ||
+    (toStatus !== "blocked" && reason !== null) ||
+    (nextActionAt !== null && nextAction === null) ||
+    (toStatus === "completed" &&
+      (nextAction !== null || nextActionAt !== null))
+  ) {
+    invalidInput();
+  }
+  const requestHash = sha256({
+    actorRole: context.actorRole,
+    visaMilestoneId,
+    expectedVersion,
+    toStatus,
+    reason,
+    nextAction,
+    nextActionAt: nextActionAt?.toISOString() ?? null,
+    dueAt: dueAt?.toISOString() ?? null,
+  });
+
+  return runTransaction(async (transaction) => {
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical.visa_milestone.transition",
+      context,
+      requestHash,
+    });
+    if (reservation.kind === "replay") {
+      return {
+        visaMilestoneId: resultUuid(
+          reservation.resultPayload,
+          "visaMilestoneId",
+        ),
+        studentCaseId: resultUuid(
+          reservation.resultPayload,
+          "studentCaseId",
+        ),
+        milestoneKind: resultVisaMilestoneKind(
+          reservation.resultPayload,
+          "milestoneKind",
+        ),
+        status: resultVisaMilestoneStatus(
+          reservation.resultPayload,
+          "status",
+        ),
+        version: resultPositiveVersion(reservation.resultPayload, "version"),
+      };
+    }
+
+    const [candidate] = await transaction
+      .select({ studentCaseId: evoVisaMilestones.studentCaseId })
+      .from(evoVisaMilestones)
+      .where(eq(evoVisaMilestones.id, visaMilestoneId))
+      .limit(1);
+    if (!candidate) throw new CanonicalCrmRepositoryError("not_found");
+    await lockActiveHandedOffStudentCase(
+      transaction,
+      candidate.studentCaseId,
+    );
+    const [current] = await transaction
+      .select({
+        studentCaseId: evoVisaMilestones.studentCaseId,
+        milestoneKind: evoVisaMilestones.milestoneKind,
+        status: evoVisaMilestones.status,
+        version: evoVisaMilestones.version,
+      })
+      .from(evoVisaMilestones)
+      .where(eq(evoVisaMilestones.id, visaMilestoneId))
+      .limit(1)
+      .for("update");
+    if (!current) throw new CanonicalCrmRepositoryError("not_found");
+    const currentStatus = databaseVisaMilestoneStatus(current.status);
+    const milestoneKind = databaseVisaMilestoneKind(current.milestoneKind);
+    const transitionAllowed =
+      (currentStatus === "pending" &&
+        (toStatus === "in_progress" || toStatus === "blocked")) ||
+      (currentStatus === "in_progress" &&
+        (toStatus === "completed" || toStatus === "blocked")) ||
+      (currentStatus === "blocked" && toStatus === "in_progress");
+    if (current.version !== expectedVersion || !transitionAllowed) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+    if (
+      milestoneKind === "submission" &&
+      (toStatus === "in_progress" || toStatus === "completed")
+    ) {
+      await requireFinanceProgressAllowed(transaction, current.studentCaseId);
+    }
+
+    const now = new Date();
+    const [visaMilestone] = await transaction
+      .update(evoVisaMilestones)
+      .set({
+        status: toStatus,
+        ownerRole: "admissions",
+        nextAction: toStatus === "completed" ? null : nextAction,
+        nextActionAt: toStatus === "completed" ? null : nextActionAt,
+        dueAt,
+        completedAt: toStatus === "completed" ? now : null,
+        blockedReason: toStatus === "blocked" ? reason : null,
+        version: sql`${evoVisaMilestones.version} + 1`,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(evoVisaMilestones.id, visaMilestoneId),
+          eq(evoVisaMilestones.version, expectedVersion),
+          eq(evoVisaMilestones.status, currentStatus),
+        ),
+      )
+      .returning({
+        id: evoVisaMilestones.id,
+        studentCaseId: evoVisaMilestones.studentCaseId,
+        milestoneKind: evoVisaMilestones.milestoneKind,
+        status: evoVisaMilestones.status,
+        version: evoVisaMilestones.version,
+      });
+    if (!visaMilestone) throw new CanonicalCrmRepositoryError("conflict");
+
+    const result = {
+      visaMilestoneId: visaMilestone.id,
+      studentCaseId: visaMilestone.studentCaseId,
+      milestoneKind: databaseVisaMilestoneKind(
+        visaMilestone.milestoneKind,
+      ),
+      status: databaseVisaMilestoneStatus(visaMilestone.status),
+      version: visaMilestone.version,
+    };
+    await insertBusinessEvent(transaction, {
+      context,
+      businessObjectType: "visa_milestone",
+      businessObjectId: visaMilestone.id,
+      transition: `visa_milestone.${toStatus}`,
+      fromState: currentStatus,
+      toState: toStatus,
+      reason,
+    });
+    await completeCommand(transaction, {
+      receiptId: reservation.receiptId,
+      businessObjectType: "visa_milestone",
+      businessObjectId: visaMilestone.id,
+      resultPayload: result,
+    });
+    return result;
+  });
+}
+
+export async function assertCanonicalFinanceStop(
+  input: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+    studentCaseId: string;
+    expectedVersion: number;
+    reason: string;
+  }>,
+): Promise<CanonicalFinanceStopResult> {
+  const context = parseCommandContext(input, ["admin", "admissions"]);
+  const studentCaseId = uuid(input.studentCaseId);
+  const expectedVersion = nonNegativeVersion(input.expectedVersion);
+  const reason = boundedText(input.reason, { maxLength: 2_000 });
+  const requestHash = sha256({
+    actorRole: context.actorRole,
+    studentCaseId,
+    expectedVersion,
+    reason,
+  });
+
+  return runTransaction(async (transaction) => {
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical.finance_stop.assert",
+      context,
+      requestHash,
+    });
+    if (reservation.kind === "replay") {
+      return {
+        financeStopId: resultUuid(
+          reservation.resultPayload,
+          "financeStopId",
+        ),
+        studentCaseId: resultUuid(
+          reservation.resultPayload,
+          "studentCaseId",
+        ),
+        isStopped: resultBoolean(reservation.resultPayload, "isStopped"),
+        version: resultPositiveVersion(reservation.resultPayload, "version"),
+      };
+    }
+
+    await lockActiveHandedOffStudentCase(transaction, studentCaseId);
+    const [current] = await transaction
+      .select({
+        id: evoFinanceStopStates.id,
+        isStopped: evoFinanceStopStates.isStopped,
+        version: evoFinanceStopStates.version,
+      })
+      .from(evoFinanceStopStates)
+      .where(eq(evoFinanceStopStates.studentCaseId, studentCaseId))
+      .limit(1)
+      .for("update");
+    if (
+      (current &&
+        (current.version !== expectedVersion || current.isStopped)) ||
+      (!current && expectedVersion !== 0)
+    ) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+
+    const now = new Date();
+    const [financeStop] = current
+      ? await transaction
+          .update(evoFinanceStopStates)
+          .set({
+            isStopped: true,
+            reason,
+            changedByRole: context.actorRole,
+            version: sql`${evoFinanceStopStates.version} + 1`,
+            changedAt: now,
+          })
+          .where(
+            and(
+              eq(evoFinanceStopStates.id, current.id),
+              eq(evoFinanceStopStates.version, expectedVersion),
+              eq(evoFinanceStopStates.isStopped, false),
+            ),
+          )
+          .returning({
+            id: evoFinanceStopStates.id,
+            studentCaseId: evoFinanceStopStates.studentCaseId,
+            isStopped: evoFinanceStopStates.isStopped,
+            version: evoFinanceStopStates.version,
+          })
+      : await transaction
+          .insert(evoFinanceStopStates)
+          .values({
+            id: randomUUID(),
+            studentCaseId,
+            isStopped: true,
+            reason,
+            changedByRole: context.actorRole,
+            changedAt: now,
+          })
+          .returning({
+            id: evoFinanceStopStates.id,
+            studentCaseId: evoFinanceStopStates.studentCaseId,
+            isStopped: evoFinanceStopStates.isStopped,
+            version: evoFinanceStopStates.version,
+          });
+    if (!financeStop) throw new CanonicalCrmRepositoryError("conflict");
+
+    const result = {
+      financeStopId: financeStop.id,
+      studentCaseId: financeStop.studentCaseId,
+      isStopped: financeStop.isStopped,
+      version: financeStop.version,
+    };
+    await insertBusinessEvent(transaction, {
+      context,
+      businessObjectType: "finance_stop",
+      businessObjectId: financeStop.id,
+      transition: "finance_stop.asserted",
+      fromState: current ? "released" : null,
+      toState: "stopped",
+      reason,
+    });
+    await completeCommand(transaction, {
+      receiptId: reservation.receiptId,
+      businessObjectType: "finance_stop",
+      businessObjectId: financeStop.id,
+      resultPayload: result,
+    });
+    return result;
+  });
+}
+
+export async function releaseCanonicalFinanceStop(
+  input: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+    financeStopId: string;
+    expectedVersion: number;
+    reason: string;
+  }>,
+): Promise<CanonicalFinanceStopResult> {
+  const context = parseCommandContext(input, ["admin"]);
+  const financeStopId = uuid(input.financeStopId);
+  const expectedVersion = positiveVersion(input.expectedVersion);
+  const reason = boundedText(input.reason, { maxLength: 2_000 });
+  const requestHash = sha256({
+    actorRole: context.actorRole,
+    financeStopId,
+    expectedVersion,
+    reason,
+  });
+
+  return runTransaction(async (transaction) => {
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical.finance_stop.release",
+      context,
+      requestHash,
+    });
+    if (reservation.kind === "replay") {
+      return {
+        financeStopId: resultUuid(
+          reservation.resultPayload,
+          "financeStopId",
+        ),
+        studentCaseId: resultUuid(
+          reservation.resultPayload,
+          "studentCaseId",
+        ),
+        isStopped: resultBoolean(reservation.resultPayload, "isStopped"),
+        version: resultPositiveVersion(reservation.resultPayload, "version"),
+      };
+    }
+
+    const [candidate] = await transaction
+      .select({ studentCaseId: evoFinanceStopStates.studentCaseId })
+      .from(evoFinanceStopStates)
+      .where(eq(evoFinanceStopStates.id, financeStopId))
+      .limit(1);
+    if (!candidate) throw new CanonicalCrmRepositoryError("not_found");
+    await lockActiveHandedOffStudentCase(
+      transaction,
+      candidate.studentCaseId,
+    );
+    const [current] = await transaction
+      .select({
+        studentCaseId: evoFinanceStopStates.studentCaseId,
+        isStopped: evoFinanceStopStates.isStopped,
+        version: evoFinanceStopStates.version,
+      })
+      .from(evoFinanceStopStates)
+      .where(eq(evoFinanceStopStates.id, financeStopId))
+      .limit(1)
+      .for("update");
+    if (!current) throw new CanonicalCrmRepositoryError("not_found");
+    if (current.version !== expectedVersion || !current.isStopped) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+
+    const [financeStop] = await transaction
+      .update(evoFinanceStopStates)
+      .set({
+        isStopped: false,
+        reason,
+        changedByRole: context.actorRole,
+        version: sql`${evoFinanceStopStates.version} + 1`,
+        changedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(evoFinanceStopStates.id, financeStopId),
+          eq(evoFinanceStopStates.version, expectedVersion),
+          eq(evoFinanceStopStates.isStopped, true),
+        ),
+      )
+      .returning({
+        id: evoFinanceStopStates.id,
+        studentCaseId: evoFinanceStopStates.studentCaseId,
+        isStopped: evoFinanceStopStates.isStopped,
+        version: evoFinanceStopStates.version,
+      });
+    if (!financeStop) throw new CanonicalCrmRepositoryError("conflict");
+
+    const result = {
+      financeStopId: financeStop.id,
+      studentCaseId: financeStop.studentCaseId,
+      isStopped: financeStop.isStopped,
+      version: financeStop.version,
+    };
+    await insertBusinessEvent(transaction, {
+      context,
+      businessObjectType: "finance_stop",
+      businessObjectId: financeStop.id,
+      transition: "finance_stop.released",
+      fromState: "stopped",
+      toState: "released",
+      reason,
+    });
+    await completeCommand(transaction, {
+      receiptId: reservation.receiptId,
+      businessObjectType: "finance_stop",
+      businessObjectId: financeStop.id,
+      resultPayload: result,
+    });
+    return result;
+  });
+}
+
 export async function getCanonicalLeadSnapshot(
   input: Readonly<{ actorRole: FixedRole; leadId: string }>,
 ): Promise<CanonicalLeadSnapshot> {
@@ -2595,6 +3854,372 @@ export async function getCanonicalStudentCaseHandoffSnapshot(
   return runTransaction((transaction) =>
     selectStudentCaseHandoffSnapshot(transaction, studentCaseId),
   );
+}
+
+export async function getCanonicalAdmissionsOperationsSnapshot(
+  input: Readonly<{ actorRole: FixedRole; studentCaseId: string }>,
+): Promise<CanonicalAdmissionsOperationsSnapshot> {
+  actorRole(input.actorRole, ["admin", "admissions"]);
+  const studentCaseId = uuid(input.studentCaseId);
+
+  return runTransaction(async (transaction) => {
+    await requireHandedOffStudentCase(transaction, studentCaseId);
+    const studentCase = await selectStudentCaseSnapshot(
+      transaction,
+      studentCaseId,
+    );
+    const applicationRows = await transaction
+      .select({
+        applicationId: evoUniversityApplications.id,
+        studentCaseId: evoUniversityApplications.studentCaseId,
+        institutionName: evoUniversityApplications.institutionName,
+        programName: evoUniversityApplications.programName,
+        targetIntake: evoUniversityApplications.targetIntake,
+        status: evoUniversityApplications.status,
+        ownerRole: evoUniversityApplications.ownerRole,
+        nextAction: evoUniversityApplications.nextAction,
+        nextActionAt: evoUniversityApplications.nextActionAt,
+        submittedAt: evoUniversityApplications.submittedAt,
+        decidedAt: evoUniversityApplications.decidedAt,
+        decisionReason: evoUniversityApplications.decisionReason,
+        version: evoUniversityApplications.version,
+        createdAt: evoUniversityApplications.createdAt,
+        updatedAt: evoUniversityApplications.updatedAt,
+        studentCaseStatus: evoStudentCases.status,
+        displayName: evoPeople.fullName,
+        email: evoPeople.email,
+        phone: evoPeople.phoneE164,
+      })
+      .from(evoUniversityApplications)
+      .innerJoin(
+        evoStudentCases,
+        eq(evoStudentCases.id, evoUniversityApplications.studentCaseId),
+      )
+      .innerJoin(evoPeople, eq(evoPeople.id, evoStudentCases.personId))
+      .where(eq(evoUniversityApplications.studentCaseId, studentCaseId))
+      .orderBy(
+        desc(evoUniversityApplications.updatedAt),
+        desc(evoUniversityApplications.id),
+      );
+    const visaRows = await transaction
+      .select({
+        visaMilestoneId: evoVisaMilestones.id,
+        studentCaseId: evoVisaMilestones.studentCaseId,
+        milestoneKind: evoVisaMilestones.milestoneKind,
+        status: evoVisaMilestones.status,
+        ownerRole: evoVisaMilestones.ownerRole,
+        nextAction: evoVisaMilestones.nextAction,
+        nextActionAt: evoVisaMilestones.nextActionAt,
+        dueAt: evoVisaMilestones.dueAt,
+        completedAt: evoVisaMilestones.completedAt,
+        blockedReason: evoVisaMilestones.blockedReason,
+        version: evoVisaMilestones.version,
+        createdAt: evoVisaMilestones.createdAt,
+        updatedAt: evoVisaMilestones.updatedAt,
+        studentCaseStatus: evoStudentCases.status,
+        displayName: evoPeople.fullName,
+        email: evoPeople.email,
+        phone: evoPeople.phoneE164,
+      })
+      .from(evoVisaMilestones)
+      .innerJoin(
+        evoStudentCases,
+        eq(evoStudentCases.id, evoVisaMilestones.studentCaseId),
+      )
+      .innerJoin(evoPeople, eq(evoPeople.id, evoStudentCases.personId))
+      .where(eq(evoVisaMilestones.studentCaseId, studentCaseId));
+    if (visaRows.length !== CANONICAL_VISA_MILESTONE_KINDS.length) {
+      throw new CanonicalCrmRepositoryError("unavailable");
+    }
+    const financeRows = await transaction
+      .select({
+        financeStopId: evoFinanceStopStates.id,
+        studentCaseId: evoFinanceStopStates.studentCaseId,
+        isStopped: evoFinanceStopStates.isStopped,
+        reason: evoFinanceStopStates.reason,
+        changedByRole: evoFinanceStopStates.changedByRole,
+        version: evoFinanceStopStates.version,
+        changedAt: evoFinanceStopStates.changedAt,
+        studentCaseStatus: evoStudentCases.status,
+        displayName: evoPeople.fullName,
+        email: evoPeople.email,
+        phone: evoPeople.phoneE164,
+      })
+      .from(evoFinanceStopStates)
+      .innerJoin(
+        evoStudentCases,
+        eq(evoStudentCases.id, evoFinanceStopStates.studentCaseId),
+      )
+      .innerJoin(evoPeople, eq(evoPeople.id, evoStudentCases.personId))
+      .where(eq(evoFinanceStopStates.studentCaseId, studentCaseId))
+      .limit(2);
+    if (financeRows.length > 1) {
+      throw new CanonicalCrmRepositoryError("unavailable");
+    }
+
+    const visaMilestones = visaRows
+      .map(canonicalVisaMilestoneRow)
+      .sort(
+        (left, right) =>
+          CANONICAL_VISA_MILESTONE_KINDS.indexOf(left.milestoneKind) -
+          CANONICAL_VISA_MILESTONE_KINDS.indexOf(right.milestoneKind),
+      );
+    return {
+      studentCase,
+      applications: applicationRows.map(canonicalUniversityApplicationRow),
+      visaMilestones,
+      financeStop: financeRows[0]
+        ? canonicalFinanceStopRow(financeRows[0])
+        : null,
+    };
+  });
+}
+
+export async function listCanonicalUniversityApplications(
+  input: Readonly<{
+    actorRole: FixedRole;
+    cursor?: CanonicalReadCursor;
+    pageSize?: number;
+  }>,
+): Promise<CanonicalUniversityApplicationQueuePage> {
+  actorRole(input.actorRole, ["admin", "admissions"]);
+  const cursor = optionalCanonicalReadCursor(input.cursor);
+  const pageSize = canonicalReadPageSize(input.pageSize);
+
+  return runTransaction(async (transaction) => {
+    const cursorDate = cursor ? new Date(cursor.updatedAt) : undefined;
+    const result = await transaction
+      .select({
+        applicationId: evoUniversityApplications.id,
+        studentCaseId: evoUniversityApplications.studentCaseId,
+        institutionName: evoUniversityApplications.institutionName,
+        programName: evoUniversityApplications.programName,
+        targetIntake: evoUniversityApplications.targetIntake,
+        status: evoUniversityApplications.status,
+        ownerRole: evoUniversityApplications.ownerRole,
+        nextAction: evoUniversityApplications.nextAction,
+        nextActionAt: evoUniversityApplications.nextActionAt,
+        submittedAt: evoUniversityApplications.submittedAt,
+        decidedAt: evoUniversityApplications.decidedAt,
+        decisionReason: evoUniversityApplications.decisionReason,
+        version: evoUniversityApplications.version,
+        createdAt: evoUniversityApplications.createdAt,
+        updatedAt: evoUniversityApplications.updatedAt,
+        studentCaseStatus: evoStudentCases.status,
+        displayName: evoPeople.fullName,
+        email: evoPeople.email,
+        phone: evoPeople.phoneE164,
+      })
+      .from(evoUniversityApplications)
+      .innerJoin(
+        evoStudentCases,
+        eq(evoStudentCases.id, evoUniversityApplications.studentCaseId),
+      )
+      .innerJoin(evoPeople, eq(evoPeople.id, evoStudentCases.personId))
+      .innerJoin(
+        evoSalesAdmissionsHandoffs,
+        eq(
+          evoSalesAdmissionsHandoffs.studentCaseId,
+          evoStudentCases.id,
+        ),
+      )
+      .innerJoin(
+        evoLeads,
+        eq(evoLeads.id, evoSalesAdmissionsHandoffs.leadId),
+      )
+      .where(
+        and(
+          eq(evoStudentCases.status, "active"),
+          eq(evoLeads.stage, "handed_off"),
+          cursorDate
+            ? or(
+                lt(evoUniversityApplications.updatedAt, cursorDate),
+                and(
+                  eq(evoUniversityApplications.updatedAt, cursorDate),
+                  lt(evoUniversityApplications.id, cursor!.id),
+                ),
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(
+        desc(evoUniversityApplications.updatedAt),
+        desc(evoUniversityApplications.id),
+      )
+      .limit(pageSize + 1);
+    const hasNext = result.length > pageSize;
+    const rows = result
+      .slice(0, pageSize)
+      .map(canonicalUniversityApplicationRow);
+    const lastRow = rows.at(-1);
+    return {
+      rows,
+      hasNext,
+      nextCursor:
+        hasNext && lastRow
+          ? { updatedAt: lastRow.updatedAt, id: lastRow.applicationId }
+          : null,
+    };
+  });
+}
+
+export async function listCanonicalVisaMilestones(
+  input: Readonly<{
+    actorRole: FixedRole;
+    cursor?: CanonicalReadCursor;
+    pageSize?: number;
+  }>,
+): Promise<CanonicalVisaMilestoneQueuePage> {
+  actorRole(input.actorRole, ["admin", "admissions"]);
+  const cursor = optionalCanonicalReadCursor(input.cursor);
+  const pageSize = canonicalReadPageSize(input.pageSize);
+
+  return runTransaction(async (transaction) => {
+    const cursorDate = cursor ? new Date(cursor.updatedAt) : undefined;
+    const result = await transaction
+      .select({
+        visaMilestoneId: evoVisaMilestones.id,
+        studentCaseId: evoVisaMilestones.studentCaseId,
+        milestoneKind: evoVisaMilestones.milestoneKind,
+        status: evoVisaMilestones.status,
+        ownerRole: evoVisaMilestones.ownerRole,
+        nextAction: evoVisaMilestones.nextAction,
+        nextActionAt: evoVisaMilestones.nextActionAt,
+        dueAt: evoVisaMilestones.dueAt,
+        completedAt: evoVisaMilestones.completedAt,
+        blockedReason: evoVisaMilestones.blockedReason,
+        version: evoVisaMilestones.version,
+        createdAt: evoVisaMilestones.createdAt,
+        updatedAt: evoVisaMilestones.updatedAt,
+        studentCaseStatus: evoStudentCases.status,
+        displayName: evoPeople.fullName,
+        email: evoPeople.email,
+        phone: evoPeople.phoneE164,
+      })
+      .from(evoVisaMilestones)
+      .innerJoin(
+        evoStudentCases,
+        eq(evoStudentCases.id, evoVisaMilestones.studentCaseId),
+      )
+      .innerJoin(evoPeople, eq(evoPeople.id, evoStudentCases.personId))
+      .innerJoin(
+        evoSalesAdmissionsHandoffs,
+        eq(
+          evoSalesAdmissionsHandoffs.studentCaseId,
+          evoStudentCases.id,
+        ),
+      )
+      .innerJoin(
+        evoLeads,
+        eq(evoLeads.id, evoSalesAdmissionsHandoffs.leadId),
+      )
+      .where(
+        and(
+          eq(evoStudentCases.status, "active"),
+          eq(evoLeads.stage, "handed_off"),
+          cursorDate
+            ? or(
+                lt(evoVisaMilestones.updatedAt, cursorDate),
+                and(
+                  eq(evoVisaMilestones.updatedAt, cursorDate),
+                  lt(evoVisaMilestones.id, cursor!.id),
+                ),
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(desc(evoVisaMilestones.updatedAt), desc(evoVisaMilestones.id))
+      .limit(pageSize + 1);
+    const hasNext = result.length > pageSize;
+    const rows = result.slice(0, pageSize).map(canonicalVisaMilestoneRow);
+    const lastRow = rows.at(-1);
+    return {
+      rows,
+      hasNext,
+      nextCursor:
+        hasNext && lastRow
+          ? { updatedAt: lastRow.updatedAt, id: lastRow.visaMilestoneId }
+          : null,
+    };
+  });
+}
+
+export async function listCanonicalFinanceStops(
+  input: Readonly<{
+    actorRole: FixedRole;
+    cursor?: CanonicalReadCursor;
+    pageSize?: number;
+  }>,
+): Promise<CanonicalFinanceStopQueuePage> {
+  actorRole(input.actorRole, ["admin", "admissions"]);
+  const cursor = optionalCanonicalReadCursor(input.cursor);
+  const pageSize = canonicalReadPageSize(input.pageSize);
+
+  return runTransaction(async (transaction) => {
+    const cursorDate = cursor ? new Date(cursor.updatedAt) : undefined;
+    const result = await transaction
+      .select({
+        financeStopId: evoFinanceStopStates.id,
+        studentCaseId: evoFinanceStopStates.studentCaseId,
+        isStopped: evoFinanceStopStates.isStopped,
+        reason: evoFinanceStopStates.reason,
+        changedByRole: evoFinanceStopStates.changedByRole,
+        version: evoFinanceStopStates.version,
+        changedAt: evoFinanceStopStates.changedAt,
+        studentCaseStatus: evoStudentCases.status,
+        displayName: evoPeople.fullName,
+        email: evoPeople.email,
+        phone: evoPeople.phoneE164,
+      })
+      .from(evoFinanceStopStates)
+      .innerJoin(
+        evoStudentCases,
+        eq(evoStudentCases.id, evoFinanceStopStates.studentCaseId),
+      )
+      .innerJoin(evoPeople, eq(evoPeople.id, evoStudentCases.personId))
+      .innerJoin(
+        evoSalesAdmissionsHandoffs,
+        eq(
+          evoSalesAdmissionsHandoffs.studentCaseId,
+          evoStudentCases.id,
+        ),
+      )
+      .innerJoin(
+        evoLeads,
+        eq(evoLeads.id, evoSalesAdmissionsHandoffs.leadId),
+      )
+      .where(
+        and(
+          eq(evoStudentCases.status, "active"),
+          eq(evoLeads.stage, "handed_off"),
+          cursorDate
+            ? or(
+                lt(evoFinanceStopStates.changedAt, cursorDate),
+                and(
+                  eq(evoFinanceStopStates.changedAt, cursorDate),
+                  lt(evoFinanceStopStates.id, cursor!.id),
+                ),
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(
+        desc(evoFinanceStopStates.changedAt),
+        desc(evoFinanceStopStates.id),
+      )
+      .limit(pageSize + 1);
+    const hasNext = result.length > pageSize;
+    const rows = result.slice(0, pageSize).map(canonicalFinanceStopRow);
+    const lastRow = rows.at(-1);
+    return {
+      rows,
+      hasNext,
+      nextCursor:
+        hasNext && lastRow
+          ? { updatedAt: lastRow.changedAt, id: lastRow.financeStopId }
+          : null,
+    };
+  });
 }
 
 export async function listCanonicalLeadConversations(

@@ -8,19 +8,29 @@ import postgres from "postgres";
 import {
   CanonicalCrmRepositoryError,
   appendCanonicalInboundMessage,
+  assertCanonicalFinanceStop,
   createCanonicalAdmissionsTask,
+  createCanonicalUniversityApplication,
   createCanonicalPersonLead,
+  getCanonicalAdmissionsOperationsSnapshot,
   getCanonicalLeadConversationThread,
   getCanonicalLeadGateSnapshot,
   getCanonicalStudentCaseHandoffSnapshot,
   handoffCanonicalLeadToAdmissions,
   listCanonicalAdmissionsTasks,
+  listCanonicalFinanceStops,
   listCanonicalLeadConversations,
   listCanonicalSalesLeads,
   listCanonicalStudentCases,
+  listCanonicalUniversityApplications,
+  listCanonicalVisaMilestones,
   receiveCanonicalWhatsAppInbound,
   recordCanonicalSalesGateEvidence,
+  releaseCanonicalFinanceStop,
   transitionCanonicalAdmissionsTask,
+  transitionCanonicalUniversityApplication,
+  transitionCanonicalVisaMilestone,
+  updateCanonicalUniversityApplication,
   updateCanonicalSalesLeadWorkflow,
 } from "../src/lib/server/canonical-crm-repository.ts";
 import { closeDatabaseConnections } from "../src/lib/server/database.ts";
@@ -587,7 +597,13 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
         { transition: "task.created", eventSequence: 2 },
         { transition: "task.created", eventSequence: 3 },
         { transition: "task.created", eventSequence: 4 },
-        { transition: "sales_admissions.handed_off", eventSequence: 5 },
+        { transition: "visa_milestone.created", eventSequence: 5 },
+        { transition: "visa_milestone.created", eventSequence: 6 },
+        { transition: "visa_milestone.created", eventSequence: 7 },
+        { transition: "visa_milestone.created", eventSequence: 8 },
+        { transition: "visa_milestone.created", eventSequence: 9 },
+        { transition: "visa_milestone.created", eventSequence: 10 },
+        { transition: "sales_admissions.handed_off", eventSequence: 11 },
       ],
     );
     assert.equal(normalHandoffEvents[0].businessObjectType, "student_case");
@@ -597,8 +613,13 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
         (event) => event.businessObjectType === "task",
       ),
     );
-    assert.equal(normalHandoffEvents[4].businessObjectType, "handoff");
-    assert.equal(normalHandoffEvents[4].businessObjectId, handoff.handoffId);
+    assert.ok(
+      normalHandoffEvents.slice(4, 10).every(
+        (event) => event.businessObjectType === "visa_milestone",
+      ),
+    );
+    assert.equal(normalHandoffEvents[10].businessObjectType, "handoff");
+    assert.equal(normalHandoffEvents[10].businessObjectId, handoff.handoffId);
 
     const handedOffGate = await getCanonicalLeadGateSnapshot({
       actorRole: "admin",
@@ -1191,7 +1212,13 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
           { transition: "task.created", eventSequence: 2 },
           { transition: "task.created", eventSequence: 3 },
           { transition: "task.created", eventSequence: 4 },
-          { transition: "sales_admissions.handed_off", eventSequence: 5 },
+          { transition: "visa_milestone.created", eventSequence: 5 },
+          { transition: "visa_milestone.created", eventSequence: 6 },
+          { transition: "visa_milestone.created", eventSequence: 7 },
+          { transition: "visa_milestone.created", eventSequence: 8 },
+          { transition: "visa_milestone.created", eventSequence: 9 },
+          { transition: "visa_milestone.created", eventSequence: 10 },
+          { transition: "sales_admissions.handed_off", eventSequence: 11 },
         ],
       );
       assert.deepEqual(
@@ -1213,9 +1240,14 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
           .slice(1, 4)
           .every((event) => event.businessObjectType === "task"),
       );
-      assert.equal(reactivationEvents[4].businessObjectType, "handoff");
+      assert.ok(
+        reactivationEvents.slice(4, 10).every(
+          (event) => event.businessObjectType === "visa_milestone",
+        ),
+      );
+      assert.equal(reactivationEvents[10].businessObjectType, "handoff");
       assert.equal(
-        reactivationEvents[4].businessObjectId,
+        reactivationEvents[10].businessObjectId,
         existingCaseHandoff.handoffId,
       );
 
@@ -1233,6 +1265,11 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
           ) as handoffs,
           (
             select count(*)::int
+            from evo_visa_milestones
+            where student_case_id = ${existingStudentCaseId}
+          ) as "visaMilestones",
+          (
+            select count(*)::int
             from evo_business_events
             where idempotency_key = ${existingCaseHandoffInput.idempotencyKey}
           ) as events
@@ -1240,7 +1277,8 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       assert.deepEqual(countsBeforeReplay, {
         tasks: 4,
         handoffs: 1,
-        events: 5,
+        visaMilestones: 6,
+        events: 11,
       });
       const existingCaseReplay = await handoffCanonicalLeadToAdmissions(
         existingCaseHandoffInput,
@@ -1258,6 +1296,11 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
             from evo_sales_admissions_handoffs
             where lead_id = ${existingCaseLead.leadId}
           ) as handoffs,
+          (
+            select count(*)::int
+            from evo_visa_milestones
+            where student_case_id = ${existingStudentCaseId}
+          ) as "visaMilestones",
           (
             select count(*)::int
             from evo_business_events
@@ -1321,7 +1364,13 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
         { transition: "task.created", eventSequence: 2 },
         { transition: "task.created", eventSequence: 3 },
         { transition: "task.created", eventSequence: 4 },
-        { transition: "sales_admissions.handoff_override", eventSequence: 5 },
+        { transition: "visa_milestone.created", eventSequence: 5 },
+        { transition: "visa_milestone.created", eventSequence: 6 },
+        { transition: "visa_milestone.created", eventSequence: 7 },
+        { transition: "visa_milestone.created", eventSequence: 8 },
+        { transition: "visa_milestone.created", eventSequence: 9 },
+        { transition: "visa_milestone.created", eventSequence: 10 },
+        { transition: "sales_admissions.handoff_override", eventSequence: 11 },
       ],
     );
 
@@ -1337,6 +1386,469 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     });
     assert.equal(overrideCaseHandoff.handoff.isOverride, true);
     assert.equal(overrideCaseHandoff.starterTasks.length, 3);
+
+    const initialOperations = await getCanonicalAdmissionsOperationsSnapshot({
+      actorRole: "admissions",
+      studentCaseId: override.studentCaseId,
+    });
+    assert.equal(initialOperations.studentCase.studentCaseId, override.studentCaseId);
+    assert.equal(initialOperations.applications.length, 0);
+    assert.equal(initialOperations.visaMilestones.length, 6);
+    assert.equal(initialOperations.financeStop, null);
+    assert.deepEqual(
+      new Set(initialOperations.visaMilestones.map((row) => row.milestoneKind)),
+      new Set([
+        "document_preparation",
+        "appointment",
+        "submission",
+        "biometrics",
+        "interview",
+        "decision",
+      ]),
+    );
+    assert.ok(
+      initialOperations.visaMilestones.every(
+        (row) =>
+          row.studentCaseId === override.studentCaseId &&
+          row.ownerRole === "admissions" &&
+          row.status === "pending" &&
+          row.version === 1,
+      ),
+    );
+    await assert.rejects(
+      getCanonicalAdmissionsOperationsSnapshot({
+        actorRole: "sales",
+        studentCaseId: override.studentCaseId,
+      }),
+      repositoryError("forbidden"),
+    );
+
+    const applicationInput = {
+      ...commandContext(runId, "operations-application-create", "admissions"),
+      studentCaseId: override.studentCaseId,
+      institutionName: `technical-university-${runId}`,
+      programName: `technical-program-${runId}`,
+      targetIntake: "2027 Spring",
+      nextAction: "Проверить технический комплект документов",
+      nextActionAt: "2026-09-15T10:00:00.000Z",
+    };
+    const application = await createCanonicalUniversityApplication(
+      applicationInput,
+    );
+    assert.deepEqual(application, {
+      applicationId: application.applicationId,
+      studentCaseId: override.studentCaseId,
+      status: "draft",
+      version: 1,
+    });
+    const applicationReplay = await createCanonicalUniversityApplication(
+      applicationInput,
+    );
+    assert.deepEqual(applicationReplay, application);
+    await assert.rejects(
+      createCanonicalUniversityApplication({
+        ...applicationInput,
+        programName: `technical-conflicting-program-${runId}`,
+      }),
+      repositoryError("idempotency_conflict"),
+    );
+    await assert.rejects(
+      createCanonicalUniversityApplication({
+        ...applicationInput,
+        ...commandContext(
+          runId,
+          "operations-application-duplicate",
+          "admissions",
+        ),
+      }),
+      repositoryError("conflict"),
+    );
+    await assert.rejects(
+      createCanonicalUniversityApplication({
+        ...applicationInput,
+        ...commandContext(runId, "operations-sales-create", "sales"),
+      }),
+      repositoryError("forbidden"),
+    );
+
+    const updatedApplication = await updateCanonicalUniversityApplication({
+      ...commandContext(runId, "operations-application-update", "admissions"),
+      applicationId: application.applicationId,
+      expectedVersion: application.version,
+      nextAction: "Подготовить заверенный технический перевод",
+      nextActionAt: "2026-09-16T11:30:00.000Z",
+    });
+    assert.deepEqual(updatedApplication, {
+      applicationId: application.applicationId,
+      studentCaseId: override.studentCaseId,
+      status: "draft",
+      version: 2,
+    });
+
+    const financeStopInput = {
+      ...commandContext(runId, "operations-finance-assert", "admissions"),
+      studentCaseId: override.studentCaseId,
+      expectedVersion: 0,
+      reason: "Ожидается обязательный внутренний технический платеж",
+    };
+    const financeStop = await assertCanonicalFinanceStop(financeStopInput);
+    assert.deepEqual(financeStop, {
+      financeStopId: financeStop.financeStopId,
+      studentCaseId: override.studentCaseId,
+      isStopped: true,
+      version: 1,
+    });
+    assert.deepEqual(
+      await assertCanonicalFinanceStop(financeStopInput),
+      financeStop,
+    );
+    await assert.rejects(
+      assertCanonicalFinanceStop({
+        ...financeStopInput,
+        ...commandContext(runId, "operations-finance-sales", "sales"),
+      }),
+      repositoryError("forbidden"),
+    );
+
+    const submissionMilestone = initialOperations.visaMilestones.find(
+      (row) => row.milestoneKind === "submission",
+    );
+    const documentMilestone = initialOperations.visaMilestones.find(
+      (row) => row.milestoneKind === "document_preparation",
+    );
+    const appointmentMilestone = initialOperations.visaMilestones.find(
+      (row) => row.milestoneKind === "appointment",
+    );
+    assert.ok(submissionMilestone);
+    assert.ok(documentMilestone);
+    assert.ok(appointmentMilestone);
+
+    const blockedApplicationInput = {
+      ...commandContext(
+        runId,
+        "operations-application-blocked-submit",
+        "admissions",
+      ),
+      applicationId: application.applicationId,
+      expectedVersion: updatedApplication.version,
+      toStatus: "submitted",
+    };
+    await assert.rejects(
+      transitionCanonicalUniversityApplication(blockedApplicationInput),
+      repositoryError("gate_unsatisfied"),
+    );
+    const blockedSubmissionInput = {
+      ...commandContext(
+        runId,
+        "operations-visa-blocked-submission",
+        "admissions",
+      ),
+      visaMilestoneId: submissionMilestone.visaMilestoneId,
+      expectedVersion: submissionMilestone.version,
+      toStatus: "in_progress",
+      nextAction: "Подготовить подачу после снятия стопа",
+      nextActionAt: "2026-09-20T09:00:00.000Z",
+      dueAt: "2026-09-25T09:00:00.000Z",
+    };
+    await assert.rejects(
+      transitionCanonicalVisaMilestone(blockedSubmissionInput),
+      repositoryError("gate_unsatisfied"),
+    );
+    const [blockedWriteCounts] = await sql`
+      select
+        (
+          select count(*)::int
+          from evo_command_receipts
+          where idempotency_key in (
+            ${blockedApplicationInput.idempotencyKey},
+            ${blockedSubmissionInput.idempotencyKey}
+          )
+        ) as receipts,
+        (
+          select count(*)::int
+          from evo_business_events
+          where idempotency_key in (
+            ${blockedApplicationInput.idempotencyKey},
+            ${blockedSubmissionInput.idempotencyKey}
+          )
+        ) as events
+    `;
+    assert.deepEqual(blockedWriteCounts, { receipts: 0, events: 0 });
+
+    const documentInProgress = await transitionCanonicalVisaMilestone({
+      ...commandContext(runId, "operations-visa-document-start", "admissions"),
+      visaMilestoneId: documentMilestone.visaMilestoneId,
+      expectedVersion: documentMilestone.version,
+      toStatus: "in_progress",
+      nextAction: "Сверить технический документ",
+      nextActionAt: "2026-09-18T09:00:00.000Z",
+      dueAt: "2026-09-19T09:00:00.000Z",
+    });
+    assert.equal(documentInProgress.status, "in_progress");
+    assert.equal(documentInProgress.version, 2);
+    const documentCompleted = await transitionCanonicalVisaMilestone({
+      ...commandContext(
+        runId,
+        "operations-visa-document-complete",
+        "admissions",
+      ),
+      visaMilestoneId: documentMilestone.visaMilestoneId,
+      expectedVersion: documentInProgress.version,
+      toStatus: "completed",
+    });
+    assert.equal(documentCompleted.status, "completed");
+    assert.equal(documentCompleted.version, 3);
+
+    const appointmentBlocked = await transitionCanonicalVisaMilestone({
+      ...commandContext(
+        runId,
+        "operations-visa-appointment-block",
+        "admissions",
+      ),
+      visaMilestoneId: appointmentMilestone.visaMilestoneId,
+      expectedVersion: appointmentMilestone.version,
+      toStatus: "blocked",
+      reason: "Нужно уточнить техническое время",
+      dueAt: "2026-09-22T09:00:00.000Z",
+    });
+    assert.equal(appointmentBlocked.status, "blocked");
+    assert.equal(appointmentBlocked.version, 2);
+    const appointmentResumed = await transitionCanonicalVisaMilestone({
+      ...commandContext(
+        runId,
+        "operations-visa-appointment-resume",
+        "admissions",
+      ),
+      visaMilestoneId: appointmentMilestone.visaMilestoneId,
+      expectedVersion: appointmentBlocked.version,
+      toStatus: "in_progress",
+      nextAction: "Подтвердить техническое время",
+      nextActionAt: "2026-09-21T09:00:00.000Z",
+      dueAt: "2026-09-22T09:00:00.000Z",
+    });
+    assert.equal(appointmentResumed.status, "in_progress");
+    assert.equal(appointmentResumed.version, 3);
+
+    await assert.rejects(
+      releaseCanonicalFinanceStop({
+        ...commandContext(
+          runId,
+          "operations-finance-release-wrong-role",
+          "admissions",
+        ),
+        financeStopId: financeStop.financeStopId,
+        expectedVersion: financeStop.version,
+        reason: "Admissions не может снять стоп",
+      }),
+      repositoryError("forbidden"),
+    );
+    const releaseInput = {
+      ...commandContext(runId, "operations-finance-release", "admin"),
+      financeStopId: financeStop.financeStopId,
+      expectedVersion: financeStop.version,
+      reason: "Admin подтвердил снятие технического ограничения",
+    };
+    const releasedFinanceStop = await releaseCanonicalFinanceStop(releaseInput);
+    assert.deepEqual(releasedFinanceStop, {
+      financeStopId: financeStop.financeStopId,
+      studentCaseId: override.studentCaseId,
+      isStopped: false,
+      version: 2,
+    });
+    assert.deepEqual(
+      await releaseCanonicalFinanceStop(releaseInput),
+      releasedFinanceStop,
+    );
+
+    const submittedApplication =
+      await transitionCanonicalUniversityApplication({
+        ...commandContext(
+          runId,
+          "operations-application-submit",
+          "admissions",
+        ),
+        applicationId: application.applicationId,
+        expectedVersion: updatedApplication.version,
+        toStatus: "submitted",
+      });
+    assert.equal(submittedApplication.status, "submitted");
+    assert.equal(submittedApplication.version, 3);
+    const acceptedApplication =
+      await transitionCanonicalUniversityApplication({
+        ...commandContext(runId, "operations-application-accept", "admin"),
+        applicationId: application.applicationId,
+        expectedVersion: submittedApplication.version,
+        toStatus: "accepted",
+      });
+    assert.equal(acceptedApplication.status, "accepted");
+    assert.equal(acceptedApplication.version, 4);
+    await assert.rejects(
+      transitionCanonicalUniversityApplication({
+        ...commandContext(
+          runId,
+          "operations-application-terminal-reopen",
+          "admin",
+        ),
+        applicationId: application.applicationId,
+        expectedVersion: acceptedApplication.version,
+        toStatus: "withdrawn",
+        reason: "Терминальная заявка не должна измениться",
+      }),
+      repositoryError("conflict"),
+    );
+
+    const submissionInProgress = await transitionCanonicalVisaMilestone({
+      ...commandContext(runId, "operations-visa-submission-start", "admin"),
+      visaMilestoneId: submissionMilestone.visaMilestoneId,
+      expectedVersion: submissionMilestone.version,
+      toStatus: "in_progress",
+      nextAction: "Выполнить техническую подачу",
+      nextActionAt: "2026-09-20T09:00:00.000Z",
+      dueAt: "2026-09-25T09:00:00.000Z",
+    });
+    assert.equal(submissionInProgress.status, "in_progress");
+    assert.equal(submissionInProgress.version, 2);
+    const submissionCompleted = await transitionCanonicalVisaMilestone({
+      ...commandContext(
+        runId,
+        "operations-visa-submission-complete",
+        "admin",
+      ),
+      visaMilestoneId: submissionMilestone.visaMilestoneId,
+      expectedVersion: submissionInProgress.version,
+      toStatus: "completed",
+      dueAt: "2026-09-25T09:00:00.000Z",
+    });
+    assert.equal(submissionCompleted.status, "completed");
+    assert.equal(submissionCompleted.version, 3);
+
+    const finalOperations = await getCanonicalAdmissionsOperationsSnapshot({
+      actorRole: "admin",
+      studentCaseId: override.studentCaseId,
+    });
+    assert.equal(finalOperations.applications.length, 1);
+    assert.deepEqual(
+      {
+        status: finalOperations.applications[0].status,
+        version: finalOperations.applications[0].version,
+        nextAction: finalOperations.applications[0].nextAction,
+        nextActionAt: finalOperations.applications[0].nextActionAt,
+      },
+      {
+        status: "accepted",
+        version: 4,
+        nextAction: null,
+        nextActionAt: null,
+      },
+    );
+    assert.deepEqual(
+      {
+        isStopped: finalOperations.financeStop?.isStopped,
+        reason: finalOperations.financeStop?.reason,
+        changedByRole: finalOperations.financeStop?.changedByRole,
+        version: finalOperations.financeStop?.version,
+      },
+      {
+        isStopped: false,
+        reason: releaseInput.reason,
+        changedByRole: "admin",
+        version: 2,
+      },
+    );
+    const finalVisaByKind = Object.fromEntries(
+      finalOperations.visaMilestones.map((row) => [row.milestoneKind, row]),
+    );
+    assert.deepEqual(
+      {
+        document: [
+          finalVisaByKind.document_preparation.status,
+          finalVisaByKind.document_preparation.version,
+        ],
+        appointment: [
+          finalVisaByKind.appointment.status,
+          finalVisaByKind.appointment.version,
+        ],
+        submission: [
+          finalVisaByKind.submission.status,
+          finalVisaByKind.submission.version,
+        ],
+      },
+      {
+        document: ["completed", 3],
+        appointment: ["in_progress", 3],
+        submission: ["completed", 3],
+      },
+    );
+
+    const [applicationQueue, visaQueue, financeQueue] = await Promise.all([
+      listCanonicalUniversityApplications({ actorRole: "admissions" }),
+      listCanonicalVisaMilestones({ actorRole: "admin" }),
+      listCanonicalFinanceStops({ actorRole: "admissions" }),
+    ]);
+    assert.ok(
+      applicationQueue.rows.some(
+        (row) =>
+          row.applicationId === application.applicationId &&
+          row.status === "accepted",
+      ),
+    );
+    assert.equal(
+      visaQueue.rows.filter(
+        (row) => row.studentCaseId === override.studentCaseId,
+      ).length,
+      6,
+    );
+    assert.ok(
+      financeQueue.rows.some(
+        (row) =>
+          row.financeStopId === financeStop.financeStopId &&
+          row.isStopped === false,
+      ),
+    );
+    const firstVisaPage = await listCanonicalVisaMilestones({
+      actorRole: "admissions",
+      pageSize: 2,
+    });
+    assert.equal(firstVisaPage.rows.length, 2);
+    assert.equal(firstVisaPage.hasNext, true);
+    assert.ok(firstVisaPage.nextCursor);
+    const secondVisaPage = await listCanonicalVisaMilestones({
+      actorRole: "admissions",
+      cursor: firstVisaPage.nextCursor ?? undefined,
+      pageSize: 2,
+    });
+    assert.equal(secondVisaPage.rows.length, 2);
+    assert.equal(
+      secondVisaPage.rows.some((row) =>
+        firstVisaPage.rows.some(
+          (firstRow) => firstRow.visaMilestoneId === row.visaMilestoneId,
+        ),
+      ),
+      false,
+    );
+    const [operationEvidence] = await sql`
+      select
+        (
+          select count(*)::int
+          from evo_command_receipts
+          where idempotency_key like ${`acceptance:${runId}:operations-%`}
+        ) as receipts,
+        (
+          select count(*)::int
+          from evo_business_events
+          where business_object_id = ${application.applicationId}
+        ) as application_events,
+        (
+          select count(*)::int
+          from evo_business_events
+          where business_object_id = ${financeStop.financeStopId}
+        ) as finance_events
+    `;
+    assert.deepEqual(operationEvidence, {
+      receipts: 12,
+      application_events: 4,
+      finance_events: 2,
+    });
 
     const phoneSuffix = (
       BigInt(`0x${runId.replaceAll("-", "").slice(0, 10)}`) % 1_000_000_000n
@@ -1479,47 +1991,6 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
           ${randomUUID()},
           ${handoff.studentCaseId},
           ${`technical-task-${runId}`}
-        )
-      `;
-      await transaction`
-        insert into evo_university_applications (
-          id,
-          student_case_id,
-          institution_name,
-          program_name,
-          target_intake
-        ) values (
-          ${randomUUID()},
-          ${handoff.studentCaseId},
-          ${`technical-institution-${runId}`},
-          ${`technical-program-${runId}`},
-          ${`technical-intake-${runId}`}
-        )
-      `;
-      await transaction`
-        insert into evo_visa_milestones (
-          id,
-          student_case_id,
-          milestone_kind
-        ) values (
-          ${randomUUID()},
-          ${handoff.studentCaseId},
-          'document_preparation'
-        )
-      `;
-      await transaction`
-        insert into evo_finance_stop_states (
-          id,
-          student_case_id,
-          is_stopped,
-          reason,
-          changed_by_role
-        ) values (
-          ${randomUUID()},
-          ${handoff.studentCaseId},
-          false,
-          ${`technical-initial-state-${runId}`},
-          'admissions'
         )
       `;
       await transaction`
@@ -1740,6 +2211,29 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
         repositoryError("forbidden"),
       );
       await assert.rejects(
+        getCanonicalAdmissionsOperationsSnapshot({
+          actorRole: "sales",
+          studentCaseId: handoff.studentCaseId,
+        }),
+        repositoryError("forbidden"),
+      );
+      await assert.rejects(
+        createCanonicalUniversityApplication({
+          ...commandContext(
+            runId,
+            "operations-unavailable-sales-create",
+            "sales",
+          ),
+          studentCaseId: handoff.studentCaseId,
+          institutionName: "Sales cannot create an application",
+          programName: "Forbidden",
+          targetIntake: "2027 Spring",
+          nextAction: "This must fail before database access",
+          nextActionAt: "2026-09-15T10:00:00.000Z",
+        }),
+        repositoryError("forbidden"),
+      );
+      await assert.rejects(
         listCanonicalAdmissionsTasks({
           actorRole: "admissions",
           pageSize: 51,
@@ -1774,6 +2268,29 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       );
       await assert.rejects(
         listCanonicalStudentCases({ actorRole: "admin", query: runId }),
+        repositoryError("unavailable"),
+      );
+      await assert.rejects(
+        getCanonicalAdmissionsOperationsSnapshot({
+          actorRole: "admissions",
+          studentCaseId: handoff.studentCaseId,
+        }),
+        repositoryError("unavailable"),
+      );
+      await assert.rejects(
+        createCanonicalUniversityApplication({
+          ...commandContext(
+            runId,
+            "operations-unavailable-create",
+            "admissions",
+          ),
+          studentCaseId: handoff.studentCaseId,
+          institutionName: "Unavailable PostgreSQL",
+          programName: "No fallback",
+          targetIntake: "2027 Spring",
+          nextAction: "Fail clearly without a write",
+          nextActionAt: "2026-09-15T10:00:00.000Z",
+        }),
         repositoryError("unavailable"),
       );
     } finally {

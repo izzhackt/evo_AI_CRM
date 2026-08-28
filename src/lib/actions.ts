@@ -4,11 +4,9 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import {
-  APP_STATUSES,
   DOC_STATUSES,
   LEAD_STATUSES,
   STAGES,
-  VISA_STATUSES,
   db,
   getSetting,
   hashPassword,
@@ -24,7 +22,6 @@ import {
   type ClientAccessSubject,
   type ClientCapability,
 } from "./access";
-import { ROLE_HOME_ROUTE } from "./domain";
 import { LOCALES, type Locale } from "./i18n-data";
 import { normalizePhone } from "./phone";
 import {
@@ -39,8 +36,6 @@ import {
   canCreateManualWhatsAppConversation,
 } from "./whatsapp-policy";
 import { getConversationForActor } from "./queries";
-
-const CURRENCIES = ["KGS", "USD", "EUR"] as const;
 
 function str(form: FormData, key: string): string {
   return String(form.get(key) ?? "").trim();
@@ -90,22 +85,6 @@ async function requireSalesStaff() {
 
 async function requireWhatsAppStaff() {
   return requireStaff();
-}
-
-async function requireFinanceStaff() {
-  const user = await requireStaff();
-  if (user.role !== "admin" && user.role !== "admissions") {
-    redirect("/dashboard");
-  }
-  return user;
-}
-
-async function requireVisaOperationsStaff() {
-  const user = await requireStaff();
-  if (user.role !== "admin" && user.role !== "admissions") {
-    redirect(ROLE_HOME_ROUTE[user.role]);
-  }
-  return user;
 }
 
 function assertClientCapability(
@@ -394,36 +373,6 @@ export async function reopenStudentCaseAction(form: FormData) {
   await transitionStudentCase(form, "closed", "active", "reopened");
 }
 
-// ---------- applications ----------
-
-export async function addApplicationAction(form: FormData) {
-  const actor = await requireAdmissionsStaff();
-  const clientId = optNum(form, "client_id");
-  const university = str(form, "university");
-  if (!clientId || !university) return;
-  assertClientCapability(actor, clientId, "write_applications");
-  db()
-    .prepare("INSERT INTO applications (client_id, university, country, program, degree, deadline) VALUES (?, ?, ?, ?, ?, ?)")
-    .run(clientId, university, str(form, "country") || null, str(form, "program") || null, str(form, "degree") || null, str(form, "deadline") || null);
-  revalidateStaffCrm(clientId);
-}
-
-export async function setApplicationStatusAction(form: FormData) {
-  const actor = await requireAdmissionsStaff();
-  const id = optNum(form, "id");
-  const status = str(form, "status");
-  if (!id || !(APP_STATUSES as readonly string[]).includes(status)) return;
-  const d = db();
-  const row = d.prepare("SELECT client_id FROM applications WHERE id = ?").get(id) as { client_id: number } | undefined;
-  if (!row) notFound();
-  assertClientCapability(actor, row.client_id, "write_applications");
-  d
-    .prepare("UPDATE applications SET status = ?, updated_at = datetime('now') WHERE id = ?")
-    .run(status, id);
-  revalidateStaffCrm(row.client_id);
-  revalidatePath("/portal");
-}
-
 // ---------- documents ----------
 
 export async function addDocumentAction(form: FormData) {
@@ -448,62 +397,6 @@ export async function setDocumentStatusAction(form: FormData) {
   d
     .prepare("UPDATE documents SET status = ?, updated_at = datetime('now') WHERE id = ?")
     .run(status, id);
-  revalidateStaffCrm(row.client_id);
-  revalidatePath("/portal");
-}
-
-// ---------- visa ----------
-
-export async function upsertVisaCaseAction(form: FormData) {
-  const actor = await requireVisaOperationsStaff();
-  const clientId = optNum(form, "client_id");
-  if (!clientId) return;
-  const status = str(form, "status");
-  if (!(VISA_STATUSES as readonly string[]).includes(status)) return;
-  assertClientCapability(actor, clientId, "write_visa");
-  const d = db();
-  const existing = d.prepare("SELECT id FROM visa_cases WHERE client_id = ?").get(clientId) as { id: number } | undefined;
-  if (existing) {
-    d.prepare("UPDATE visa_cases SET country = ?, status = ?, appointment_at = ?, notes = ?, updated_at = datetime('now') WHERE id = ?")
-      .run(str(form, "country") || "—", status, str(form, "appointment_at") || null, str(form, "notes") || null, existing.id);
-  } else {
-    d.prepare("INSERT INTO visa_cases (client_id, country, status, appointment_at, notes) VALUES (?, ?, ?, ?, ?)")
-      .run(clientId, str(form, "country") || "—", status, str(form, "appointment_at") || null, str(form, "notes") || null);
-  }
-  revalidateStaffCrm(clientId);
-  revalidatePath("/visa");
-  if (existing) revalidatePath(`/visa/${existing.id}`);
-  revalidatePath("/portal");
-}
-
-// ---------- payments ----------
-
-export async function addPaymentAction(form: FormData) {
-  const actor = await requireFinanceStaff();
-  const clientId = optNum(form, "client_id");
-  const title = str(form, "title");
-  const amount = parseFloat(str(form, "amount"));
-  const currency = str(form, "currency") || "KGS";
-  if (!clientId || !title || !Number.isFinite(amount) || amount <= 0) return;
-  if (!(CURRENCIES as readonly string[]).includes(currency)) return;
-  assertClientCapability(actor, clientId, "write_finance");
-  db()
-    .prepare("INSERT INTO payments (client_id, title, amount, currency, due_date) VALUES (?, ?, ?, ?, ?)")
-    .run(clientId, title, amount, currency, str(form, "due_date") || null);
-  revalidateStaffCrm(clientId);
-}
-
-export async function markPaymentPaidAction(form: FormData) {
-  const actor = await requireFinanceStaff();
-  const id = optNum(form, "id");
-  if (!id) return;
-  const d = db();
-  const row = d.prepare("SELECT client_id FROM payments WHERE id = ?").get(id) as { client_id: number } | undefined;
-  if (!row) notFound();
-  assertClientCapability(actor, row.client_id, "write_finance");
-  d
-    .prepare("UPDATE payments SET status = 'paid', paid_at = date('now') WHERE id = ?")
-    .run(id);
   revalidateStaffCrm(row.client_id);
   revalidatePath("/portal");
 }

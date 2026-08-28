@@ -1,215 +1,159 @@
 import Link from "next/link";
-import { getT } from "@/lib/i18n";
-import {
-  listClientsForActor,
-  listVisaCasesForActor,
-  type VisaQueueRow,
-} from "@/lib/queries";
-import { VISA_STATUSES } from "@/lib/db";
-import { upsertVisaCaseAction } from "@/lib/actions";
-import { requireStaffRoute } from "@/lib/guards";
-import { Badge, Card, EmptyState, btnCls, btnGhostCls, cn, inputCls, labelCls } from "@/components/ui";
-import {
-  ContextBanner,
-  QueueMetrics,
-} from "@/components/platform/operations/OperationsPrimitives";
 
-function VisaStatusForm({
-  visaCase,
-  t,
-}: {
-  visaCase: VisaQueueRow;
-  t: (key: string) => string;
-}) {
-  return (
-    <form action={upsertVisaCaseAction} className="flex min-w-0 items-center gap-1.5">
-      <input type="hidden" name="client_id" value={visaCase.client_id} />
-      <input type="hidden" name="country" value={visaCase.country} />
-      <input type="hidden" name="appointment_at" value={visaCase.appointment_at ?? ""} />
-      <input type="hidden" name="notes" value={visaCase.notes ?? ""} />
-      <label className="sr-only" htmlFor={`visa-status-${visaCase.id}`}>
-        {t("status")}
-      </label>
-      <select
-        id={`visa-status-${visaCase.id}`}
-        name="status"
-        defaultValue={visaCase.status}
-        className="h-10 min-w-0 flex-1 rounded-nav border border-border-strong bg-surface px-2 text-[12px] text-fg focus-visible:border-accent"
-      >
-        {VISA_STATUSES.map((value) => (
-          <option key={value} value={value}>
-            {t(`visa.${value}`)}
-          </option>
-        ))}
-      </select>
-      <button type="submit" className={btnGhostCls}>
-        {t("save")}
-      </button>
-    </form>
-  );
-}
+import { Card, btnGhostCls, cn } from "@/components/ui";
+import { getT } from "@/lib/i18n";
+import { requirePlatformCapability } from "@/lib/platform-guards";
+import {
+  CanonicalCrmRepositoryError,
+  listCanonicalVisaMilestones,
+  parseCanonicalReadCursor,
+  type CanonicalReadCursor,
+} from "@/lib/server/canonical-crm-repository";
+
+type SearchParams = Readonly<{
+  before_at?: string | string[];
+  before_id?: string | string[];
+}>;
+
+const COPY = {
+  ru: {
+    eyebrow: "Admissions · PostgreSQL",
+    title: "Визовые этапы",
+    description: "Шесть канонических этапов по каждому переданному кейсу. Изменения выполняются в Student 360.",
+    empty: "Визовых этапов пока нет.",
+    open: "Открыть Student 360",
+    first: "К началу",
+    next: "Следующие этапы",
+    kinds: {
+      document_preparation: "Подготовка документов",
+      appointment: "Запись",
+      submission: "Подача",
+      biometrics: "Биометрия",
+      interview: "Интервью",
+      decision: "Решение",
+    },
+  },
+  ky: {
+    eyebrow: "Admissions · PostgreSQL",
+    title: "Виза этаптары",
+    description: "Ар бир өткөрүлгөн кейстеги алты каноникалык этап. Өзгөртүүлөр Student 360 ичинде жасалат.",
+    empty: "Азырынча виза этаптары жок.",
+    open: "Student 360 ачуу",
+    first: "Башына",
+    next: "Кийинки этаптар",
+    kinds: {
+      document_preparation: "Документтерди даярдоо",
+      appointment: "Жазылуу",
+      submission: "Тапшыруу",
+      biometrics: "Биометрия",
+      interview: "Маек",
+      decision: "Чечим",
+    },
+  },
+  en: {
+    eyebrow: "Admissions · PostgreSQL",
+    title: "Visa milestones",
+    description: "Six canonical milestones for every handed-off case. All changes are made inside Student 360.",
+    empty: "No visa milestones yet.",
+    open: "Open Student 360",
+    first: "First page",
+    next: "Next milestones",
+    kinds: {
+      document_preparation: "Document preparation",
+      appointment: "Appointment",
+      submission: "Submission",
+      biometrics: "Biometrics",
+      interview: "Interview",
+      decision: "Decision",
+    },
+  },
+} as const;
+
+const STATUS_CLASS = {
+  pending: "bg-surface-2 text-fg-2",
+  in_progress: "bg-info-weak text-info",
+  completed: "bg-ok-weak text-ok",
+  blocked: "bg-danger-weak text-danger",
+} as const;
 
 export default async function VisaPage({
   searchParams,
-}: {
-  searchParams: Promise<{ status?: string }>;
-}) {
-  const user = await requireStaffRoute("/visa");
-  const { t } = await getT();
-  const { status } = await searchParams;
-  const selectedStatus =
-    status && (VISA_STATUSES as readonly string[]).includes(status) ? status : undefined;
-  const cases = listVisaCasesForActor(user, { status: selectedStatus });
-  const allRows = selectedStatus ? listVisaCasesForActor(user) : cases;
-  const clients = listClientsForActor(user).filter(
-    (client) => client.access_mode !== "sales_post_handoff_summary",
-  );
-  const clientIdsWithCase = new Set(allRows.map((visaCase) => visaCase.client_id));
-  const availableClients = clients.filter((client) => !clientIdsWithCase.has(client.id));
-  const statusCount = (value: string) => allRows.filter((visaCase) => visaCase.status === value).length;
-  const needsDocuments = allRows.filter((visaCase) => visaCase.document_open > 0).length;
-  const withAppointment = allRows.filter((visaCase) => !!visaCase.appointment_at).length;
-  const approved = statusCount("approved");
-
-  const pills = [
-    { value: "", label: t("all"), count: allRows.length, active: !selectedStatus, href: "/visa" },
-    ...VISA_STATUSES.map((value) => ({
-      value,
-      label: t(`visa.${value}`),
-      count: statusCount(value),
-      active: selectedStatus === value,
-      href: `/visa?status=${value}`,
-    })),
-  ];
+}: Readonly<{ searchParams: Promise<SearchParams> }>) {
+  const [{ locale }, actor, params] = await Promise.all([
+    getT(),
+    requirePlatformCapability("admissions.read", "/visa"),
+    searchParams,
+  ]);
+  const cursor = queueCursor(params);
+  const page = await listCanonicalVisaMilestones({
+    actorRole: actor.platformRole,
+    cursor: cursor ?? undefined,
+    pageSize: 50,
+  });
+  const copy = COPY[locale];
 
   return (
-    <div className="space-y-5">
-      <ContextBanner
-        title={t("operationalStageNotice")}
-        description={t("operationalStageHint")}
-        tone="info"
-      />
+    <div className="space-y-5" data-testid="canonical-visa-queue">
+      <header className="border-b border-border pb-5">
+        <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-accent">{copy.eyebrow}</p>
+        <h1 className="mt-2 text-[22px] font-semibold tracking-[-0.02em] text-fg">{copy.title}</h1>
+        <p className="mt-2 max-w-2xl text-[12.5px] leading-5 text-fg-3">{copy.description}</p>
+      </header>
 
-      <QueueMetrics
-        items={[
-          { label: t("visaCase"), value: allRows.length, tone: "accent" },
-          { label: t("attentionRequired"), value: needsDocuments, tone: needsDocuments ? "danger" : "ok" },
-          { label: t("appointment"), value: withAppointment, tone: "info" },
-          { label: t("visa.approved"), value: approved, tone: "ok" },
-        ]}
-      />
-
-      <details className="rounded-card border border-border bg-surface shadow-evo">
-        <summary className="cursor-pointer list-none px-5 py-4 text-[13.5px] font-semibold text-fg marker:hidden">
-          <span className="inline-flex items-center gap-2 text-accent">
-            <span aria-hidden="true">＋</span>
-            {t("addVisaCase")}
-          </span>
-        </summary>
-        <form action={upsertVisaCaseAction} className="grid gap-3 border-t border-border px-5 py-4 sm:grid-cols-2 xl:grid-cols-5">
-          <div className="sm:col-span-2 xl:col-span-1">
-            <label htmlFor="visa-client" className={labelCls}>{t("client")}</label>
-            <select id="visa-client" name="client_id" required className={inputCls}>
-              <option value="">{t("client")}</option>
-              {availableClients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="visa-country" className={labelCls}>{t("country")}</label>
-            <input id="visa-country" name="country" className={inputCls} />
-          </div>
-          <div>
-            <label htmlFor="visa-status" className={labelCls}>{t("status")}</label>
-            <select id="visa-status" name="status" defaultValue="not_started" className={inputCls}>
-              {VISA_STATUSES.map((value) => (
-                <option key={value} value={value}>{t(`visa.${value}`)}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="visa-appointment" className={labelCls}>{t("appointment")}</label>
-            <input id="visa-appointment" name="appointment_at" type="datetime-local" className={inputCls} />
-          </div>
-          <div className="sm:col-span-2 xl:col-span-1">
-            <label htmlFor="visa-notes" className={labelCls}>{t("notes")}</label>
-            <input id="visa-notes" name="notes" className={inputCls} />
-          </div>
-          <button type="submit" className={cn(btnCls, "sm:col-span-2 xl:col-span-5 xl:w-fit")}>
-            {t("add")}
-          </button>
-        </form>
-      </details>
-
-      <nav aria-label={t("visaQueue")} className="flex flex-wrap gap-2">
-        {pills.map((pill) => (
-          <Link
-            key={pill.value || "all"}
-            href={pill.href}
-            aria-current={pill.active ? "page" : undefined}
-            className={cn(
-              "inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-[12.5px] font-medium",
-              pill.active ? "bg-accent text-on-accent" : "bg-surface-2 text-fg-2 hover:text-fg",
-            )}
-          >
-            {pill.label}
-            <span className={cn("font-mono text-[11.5px]", pill.active ? "text-on-accent/80" : "text-fg-3")}>
-              {pill.count}
-            </span>
-          </Link>
-        ))}
-      </nav>
-
-      {cases.length === 0 ? (
-        <Card>
-          <EmptyState text={t("noResults")} />
-        </Card>
+      {page.rows.length === 0 ? (
+        <p className="border-y border-border py-8 text-[13px] text-fg-3">{copy.empty}</p>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {cases.map((visaCase) => (
-            <article key={visaCase.id} className="rounded-card border border-border bg-surface p-5 shadow-evo">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <Link href={`/visa/${visaCase.id}`} className="text-[15px] font-bold text-fg hover:text-accent">
-                    {visaCase.client_name}
+        <Card>
+          <ul className="divide-y divide-border">
+            {page.rows.map((milestone) => (
+              <li key={milestone.visaMilestoneId} className="py-4 first:pt-0 last:pb-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-[13.5px] font-semibold text-fg">{copy.kinds[milestone.milestoneKind]}</h2>
+                      <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-semibold", STATUS_CLASS[milestone.status])}>
+                        {milestone.status}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[12.5px] text-fg-2">{milestone.displayName}</p>
+                    {milestone.nextAction ? <p className="mt-2 text-[11.5px] text-fg-3">{milestone.nextAction}</p> : null}
+                  </div>
+                  <Link href={`/clients/${milestone.studentCaseId}#visa`} className="shrink-0 text-[12px] font-semibold text-accent hover:underline">
+                    {copy.open}
                   </Link>
-                  <p className="mt-1 text-[12px] text-fg-3">
-                    {[visaCase.country, visaCase.manager_name, visaCase.curator_name].filter(Boolean).join(" · ") || "—"}
-                  </p>
                 </div>
-                <Badge value={visaCase.status} label={t(`visa.${visaCase.status}`)} />
-              </div>
-              <dl className="mt-4 grid grid-cols-2 gap-3 rounded-nav bg-surface-2 p-3 text-[12px] sm:grid-cols-4">
-                <div>
-                  <dt className="text-fg-3">{t("documents")}</dt>
-                  <dd className="mt-1 font-mono font-semibold text-fg">
-                    {visaCase.document_total - visaCase.document_open}/{visaCase.document_total}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-fg-3">{t("applications")}</dt>
-                  <dd className="mt-1 font-mono font-semibold text-fg">{visaCase.active_applications}</dd>
-                </div>
-                <div>
-                  <dt className="text-fg-3">{t("openTasks")}</dt>
-                  <dd className="mt-1 font-mono font-semibold text-fg">{visaCase.open_tasks}</dd>
-                </div>
-                <div>
-                  <dt className="text-fg-3">{t("appointment")}</dt>
-                  <dd className="mt-1 font-mono font-semibold text-fg">{visaCase.appointment_at ?? "—"}</dd>
-                </div>
-              </dl>
-              {visaCase.notes && <p className="mt-3 text-[12.5px] leading-5 text-fg-2">{visaCase.notes}</p>}
-              <div className="mt-4 border-t border-border pt-3">
-                <VisaStatusForm visaCase={visaCase} t={t} />
-              </div>
-            </article>
-          ))}
-        </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
+
+      <nav className="flex items-center justify-between gap-3" aria-label={copy.title}>
+        {cursor ? <Link href="/visa" className={btnGhostCls}>← {copy.first}</Link> : <span />}
+        {page.hasNext && page.nextCursor ? <Link href={queueHref("/visa", page.nextCursor)} className={btnGhostCls} rel="next">{copy.next} →</Link> : null}
+      </nav>
     </div>
   );
+}
+
+function queueCursor(params: SearchParams): CanonicalReadCursor | null {
+  if (Object.keys(params).some((key) => key !== "before_at" && key !== "before_id")) {
+    throw new CanonicalCrmRepositoryError("invalid_input");
+  }
+  const beforeAt = singleValue(params.before_at);
+  const beforeId = singleValue(params.before_id);
+  if ((beforeAt && !beforeId) || (!beforeAt && beforeId)) {
+    throw new CanonicalCrmRepositoryError("invalid_input");
+  }
+  return beforeAt && beforeId ? parseCanonicalReadCursor(beforeAt, beforeId) : null;
+}
+
+function singleValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) throw new CanonicalCrmRepositoryError("invalid_input");
+  return value;
+}
+
+function queueHref(path: string, cursor: CanonicalReadCursor): string {
+  const query = new URLSearchParams({ before_at: cursor.updatedAt, before_id: cursor.id });
+  return `${path}?${query.toString()}`;
 }

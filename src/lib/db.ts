@@ -26,10 +26,7 @@ export const STAGES = [
 ] as const;
 export type Stage = (typeof STAGES)[number];
 
-export const APP_STATUSES = ["preparing", "submitted", "offer", "rejected", "enrolled"] as const;
 export const DOC_STATUSES = ["required", "uploaded", "review", "approved", "rejected"] as const;
-export const VISA_STATUSES = ["not_started", "docs", "appointment", "submitted", "approved", "rejected"] as const;
-export const PAYMENT_STATUSES = ["pending", "paid", "overdue"] as const;
 
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString("hex");
@@ -647,28 +644,12 @@ function seed(d: Database.Database) {
     "pending", null, null, null, null
   );
 
-  const insertApp = d.prepare(
-    "INSERT INTO applications (client_id, university, country, program, degree, deadline, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  );
-  insertApp.run(c1.lastInsertRowid, "TU München", "Германия", "Informatics", "Бакалавриат", "2026-07-15", "submitted");
-  insertApp.run(c1.lastInsertRowid, "RWTH Aachen", "Германия", "Computer Science", "Бакалавриат", "2026-07-15", "preparing");
-
   const insertDoc = d.prepare("INSERT INTO documents (client_id, name, status) VALUES (?, ?, ?)");
   insertDoc.run(c1.lastInsertRowid, "Аттестат (нотариальный перевод)", "approved");
   insertDoc.run(c1.lastInsertRowid, "Сертификат IELTS", "approved");
   insertDoc.run(c1.lastInsertRowid, "Мотивационное письмо", "review");
   insertDoc.run(c1.lastInsertRowid, "Рекомендательное письмо", "required");
   insertDoc.run(c2.lastInsertRowid, "Диплом бакалавра", "required");
-
-  d.prepare("INSERT INTO visa_cases (client_id, country, status, notes) VALUES (?, ?, ?, ?)")
-    .run(c1.lastInsertRowid, "Германия", "not_started", "Начнём после получения оффера");
-
-  const insertPayment = d.prepare(
-    "INSERT INTO payments (client_id, title, amount, currency, due_date, paid_at, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  );
-  insertPayment.run(c1.lastInsertRowid, "Консалтинговый пакет — 1-й взнос", 50000, "KGS", "2026-03-01", "2026-02-25", "paid");
-  insertPayment.run(c1.lastInsertRowid, "Консалтинговый пакет — 2-й взнос", 50000, "KGS", "2026-07-01", null, "pending");
-  insertPayment.run(c2.lastInsertRowid, "Первичная консультация", 3000, "KGS", "2026-06-15", null, "pending");
 
   const insertTask = d.prepare(
     "INSERT INTO tasks (title, description, client_id, assignee_id, due_date, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)"

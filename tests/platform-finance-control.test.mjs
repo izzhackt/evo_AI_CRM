@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -344,39 +343,4 @@ test("U8 queue loader rejects duplicate cases, unbounded limits, and unauthorize
     ),
     PlatformFinanceControlRepositoryError,
   );
-});
-
-test("U8 connected applications queue exposes read-only finance stop details", () => {
-  const pageSource = readFileSync(
-    new URL(
-      "../src/app/(staff)/applications/ApplicationsWorkspace.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  const presenterSource = readFileSync(
-    new URL(
-      "../src/app/(staff)/applications/ApplicationsPresenter.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-
-  assert.match(pageSource, /applicationStudentCaseIds = \[/);
-  assert.match(pageSource, /listPlatformFinanceControlQueue\(actor, \{/);
-  assert.match(pageSource, /studentCaseIds: applicationStudentCaseIds/);
-  assert.doesNotMatch(pageSource, /listPlatformFinanceControlQueue\(actor, 100\)/);
-  assert.match(pageSource, /financeControlByStudentCaseId\.get\(/);
-  assert.match(pageSource, /activeStopFactorCount:/);
-  assert.match(pageSource, /financeBlockedAction:/);
-  assert.match(pageSource, /financeStopReason:/);
-  assert.match(pageSource, /financeStopNextAction:/);
-  assert.doesNotMatch(
-    pageSource,
-    /createPlatformStopFactorAction|resolvePlatformStopFactorAction/,
-  );
-  assert.match(presenterSource, /platform-finance-queue-stop-/);
-  assert.match(presenterSource, /row\.financeBlockedAction/);
-  assert.match(presenterSource, /row\.financeStopReason/);
-  assert.match(presenterSource, /row\.financeStopNextAction/);
 });

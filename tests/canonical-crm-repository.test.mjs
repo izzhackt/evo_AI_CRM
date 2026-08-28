@@ -3,25 +3,38 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  CANONICAL_UNIVERSITY_APPLICATION_STATUSES,
+  CANONICAL_VISA_MILESTONE_KINDS,
+  CANONICAL_VISA_MILESTONE_STATUSES,
   CANONICAL_SALES_DUE_FILTERS,
   CANONICAL_SALES_STAGES,
   CANONICAL_STUDENT_CASE_STATUSES,
   CanonicalCrmRepositoryError,
   appendCanonicalInboundMessage,
+  assertCanonicalFinanceStop,
+  createCanonicalUniversityApplication,
   createCanonicalPersonLead,
+  getCanonicalAdmissionsOperationsSnapshot,
   getCanonicalLeadConversationThread,
   getCanonicalLeadGateSnapshot,
   getCanonicalLeadSnapshot,
   getCanonicalStudentCaseHandoffSnapshot,
   getCanonicalStudentCaseSnapshot,
   handoffCanonicalLeadToAdmissions,
+  listCanonicalFinanceStops,
   listCanonicalLeadConversations,
   listCanonicalSalesLeads,
   listCanonicalStudentCases,
+  listCanonicalUniversityApplications,
+  listCanonicalVisaMilestones,
   normalizeCanonicalPersonIdentity,
   parseCanonicalMessageCursor,
   parseCanonicalReadCursor,
   recordCanonicalSalesGateEvidence,
+  releaseCanonicalFinanceStop,
+  transitionCanonicalUniversityApplication,
+  transitionCanonicalVisaMilestone,
+  updateCanonicalUniversityApplication,
   updateCanonicalSalesLeadWorkflow,
 } from "../src/lib/server/canonical-crm-repository.ts";
 
@@ -503,4 +516,219 @@ test("canonical repository has no Supabase, SQLite, compatibility, or fallback a
   assert.match(source, /let eventSequence = 1/);
   assert.match(source, /eventSequence \+= 1/);
   assert.match(source, /CANONICAL_ADMISSIONS_STARTER_TASKS\.map/);
+});
+
+test("canonical admissions operations expose the fixed application and visa contracts", () => {
+  assert.deepEqual(CANONICAL_UNIVERSITY_APPLICATION_STATUSES, [
+    "draft",
+    "submitted",
+    "accepted",
+    "rejected",
+    "withdrawn",
+  ]);
+  assert.deepEqual(CANONICAL_VISA_MILESTONE_KINDS, [
+    "document_preparation",
+    "appointment",
+    "submission",
+    "biometrics",
+    "interview",
+    "decision",
+  ]);
+  assert.deepEqual(CANONICAL_VISA_MILESTONE_STATUSES, [
+    "pending",
+    "in_progress",
+    "completed",
+    "blocked",
+  ]);
+});
+
+test("canonical admissions queues reject malformed cursors before database access", async () => {
+  for (const listQueue of [
+    listCanonicalUniversityApplications,
+    listCanonicalVisaMilestones,
+    listCanonicalFinanceStops,
+  ]) {
+    await assert.rejects(
+      listQueue({
+        actorRole: "admissions",
+        cursor: { updatedAt: "not-a-timestamp", id: UUID_A },
+      }),
+      rejectsWithCode("invalid_input"),
+    );
+    await assert.rejects(
+      listQueue({
+        actorRole: "admissions",
+        cursor: { updatedAt: "2026-08-29T00:00:00.000Z", id: "not-a-uuid" },
+      }),
+      rejectsWithCode("invalid_input"),
+    );
+  }
+});
+
+test("sales is denied every canonical admissions operations seam before database access", async () => {
+  const readInputs = [
+    () =>
+      getCanonicalAdmissionsOperationsSnapshot({
+        actorRole: "sales",
+        studentCaseId: UUID_A,
+      }),
+    () => listCanonicalUniversityApplications({ actorRole: "sales" }),
+    () => listCanonicalVisaMilestones({ actorRole: "sales" }),
+    () => listCanonicalFinanceStops({ actorRole: "sales" }),
+  ];
+  for (const read of readInputs) {
+    await assert.rejects(read(), rejectsWithCode("forbidden"));
+  }
+
+  const context = {
+    actorRole: "sales",
+    idempotencyKey: "admissions-operations-request",
+    correlationId: "admissions-operations-request",
+  };
+  const mutationInputs = [
+    () =>
+      createCanonicalUniversityApplication({
+        ...context,
+        studentCaseId: UUID_A,
+        institutionName: "Technical University",
+        programName: "Computer Science",
+        targetIntake: "Fall 2027",
+        nextAction: "Collect the transcript",
+        nextActionAt: "2026-09-01T12:00:00.000Z",
+      }),
+    () =>
+      updateCanonicalUniversityApplication({
+        ...context,
+        applicationId: UUID_A,
+        expectedVersion: 1,
+        nextAction: "Submit the transcript",
+        nextActionAt: "2026-09-02T12:00:00.000Z",
+      }),
+    () =>
+      transitionCanonicalUniversityApplication({
+        ...context,
+        applicationId: UUID_A,
+        expectedVersion: 1,
+        toStatus: "submitted",
+      }),
+    () =>
+      transitionCanonicalVisaMilestone({
+        ...context,
+        visaMilestoneId: UUID_A,
+        expectedVersion: 1,
+        toStatus: "in_progress",
+      }),
+    () =>
+      assertCanonicalFinanceStop({
+        ...context,
+        studentCaseId: UUID_A,
+        expectedVersion: 0,
+        reason: "First payment needs review",
+      }),
+    () =>
+      releaseCanonicalFinanceStop({
+        ...context,
+        financeStopId: UUID_A,
+        expectedVersion: 1,
+        reason: "Payment was verified",
+      }),
+  ];
+  for (const mutate of mutationInputs) {
+    await assert.rejects(mutate(), rejectsWithCode("forbidden"));
+  }
+});
+
+test("canonical admissions operations reject incomplete state transitions before database access", async () => {
+  const context = {
+    actorRole: "admissions",
+    idempotencyKey: "admissions-validation-request",
+    correlationId: "admissions-validation-request",
+  };
+  await assert.rejects(
+    createCanonicalUniversityApplication({
+      ...context,
+      studentCaseId: UUID_A,
+      institutionName: "Technical University",
+      programName: "Computer Science",
+      targetIntake: "Fall 2027",
+      nextAction: " ",
+      nextActionAt: "2026-09-01T12:00:00.000Z",
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    transitionCanonicalUniversityApplication({
+      ...context,
+      applicationId: UUID_A,
+      expectedVersion: 1,
+      toStatus: "rejected",
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    transitionCanonicalVisaMilestone({
+      ...context,
+      visaMilestoneId: UUID_A,
+      expectedVersion: 1,
+      toStatus: "blocked",
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    assertCanonicalFinanceStop({
+      ...context,
+      studentCaseId: UUID_A,
+      expectedVersion: 0,
+      reason: " ",
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    releaseCanonicalFinanceStop({
+      ...context,
+      financeStopId: UUID_A,
+      expectedVersion: 1,
+      reason: "Payment was verified",
+    }),
+    rejectsWithCode("forbidden"),
+  );
+});
+
+test("handoff materializes exactly six canonical visa milestones with atomic creation events", async () => {
+  const source = await readFile(
+    new URL("../src/lib/server/canonical-crm-repository.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /CANONICAL_VISA_MILESTONE_KINDS\.map/);
+  assert.match(source, /businessObjectType: "visa_milestone"/);
+  assert.match(source, /transition: "visa_milestone\.created"/);
+});
+
+test("admissions operations snapshot reads inactive handed-off cases without a write lock", async () => {
+  const source = await readFile(
+    new URL("../src/lib/server/canonical-crm-repository.ts", import.meta.url),
+    "utf8",
+  );
+  const snapshotSource = source.slice(
+    source.indexOf(
+      "export async function getCanonicalAdmissionsOperationsSnapshot",
+    ),
+    source.indexOf("export async function listCanonicalUniversityApplications"),
+  );
+  assert.match(snapshotSource, /requireHandedOffStudentCase/);
+  assert.doesNotMatch(snapshotSource, /lockActiveHandedOffStudentCase/);
+
+  const readGuardSource = source.slice(
+    source.indexOf("async function requireHandedOffStudentCase"),
+    source.indexOf("async function lockActiveHandedOffStudentCase"),
+  );
+  assert.doesNotMatch(readGuardSource, /\.for\("update"\)/);
+  assert.doesNotMatch(readGuardSource, /!== "active"/);
+
+  const writeGuardSource = source.slice(
+    source.indexOf("async function lockActiveHandedOffStudentCase"),
+    source.indexOf("async function requireFinanceProgressAllowed"),
+  );
+  assert.match(writeGuardSource, /\.for\("update"\)/);
+  assert.match(writeGuardSource, /!== "active"/);
 });

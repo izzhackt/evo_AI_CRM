@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
 
 import {
+  CanonicalAdmissionsOperationsPanel,
+  type CanonicalAdmissionsOperationsRequestIds,
+} from "@/components/platform/admissions/CanonicalAdmissionsOperationsPanel";
+import {
   CanonicalAdmissionsTaskPanel,
   type CanonicalAdmissionsTaskRequestIds,
 } from "@/components/platform/admissions/CanonicalAdmissionsTaskPanel";
@@ -12,6 +16,7 @@ import { getT } from "@/lib/i18n";
 import { requirePlatformAdmissionsActor } from "@/lib/platform-guards";
 import {
   CanonicalCrmRepositoryError,
+  getCanonicalAdmissionsOperationsSnapshot,
   getCanonicalStudentCaseHandoffSnapshot,
   getCanonicalStudentCaseSnapshot,
   listCanonicalAdmissionsTasks,
@@ -132,8 +137,11 @@ export async function CanonicalStudentCaseWorkspace({
     ReturnType<typeof getCanonicalStudentCaseHandoffSnapshot>
   >;
   let tasksPage: Awaited<ReturnType<typeof listCanonicalAdmissionsTasks>>;
+  let operations: Awaited<
+    ReturnType<typeof getCanonicalAdmissionsOperationsSnapshot>
+  >;
   try {
-    [studentCase, handoff, tasksPage] = await Promise.all([
+    [studentCase, handoff, tasksPage, operations] = await Promise.all([
       getCanonicalStudentCaseSnapshot({
         actorRole: actor.platformRole,
         studentCaseId: id,
@@ -146,6 +154,10 @@ export async function CanonicalStudentCaseWorkspace({
         actorRole: actor.platformRole,
         studentCaseId: id,
         pageSize: 50,
+      }),
+      getCanonicalAdmissionsOperationsSnapshot({
+        actorRole: actor.platformRole,
+        studentCaseId: id,
       }),
     ]);
   } catch (error: unknown) {
@@ -166,6 +178,32 @@ export async function CanonicalStudentCaseWorkspace({
         Object.freeze({ complete: randomUUID(), cancel: randomUUID() }),
       ]),
     );
+  const operationRequestIds: CanonicalAdmissionsOperationsRequestIds = {
+    createApplication: randomUUID(),
+    applications: Object.fromEntries(
+      operations.applications.map((application) => [
+        application.applicationId,
+        Object.freeze({
+          update: randomUUID(),
+          submitted: randomUUID(),
+          accepted: randomUUID(),
+          rejected: randomUUID(),
+          withdrawn: randomUUID(),
+        }),
+      ]),
+    ),
+    visaMilestones: Object.fromEntries(
+      operations.visaMilestones.map((milestone) => [
+        milestone.visaMilestoneId,
+        Object.freeze({
+          in_progress: randomUUID(),
+          completed: randomUUID(),
+          blocked: randomUUID(),
+        }),
+      ]),
+    ),
+    finance: Object.freeze({ assert: randomUUID(), release: randomUUID() }),
+  };
   return (
     <div className="space-y-5" data-testid="canonical-student-case-workspace">
       <header className="border-b border-border pb-5">
@@ -300,6 +338,17 @@ export async function CanonicalStudentCaseWorkspace({
             : undefined
         }
         hasNext={tasksPage.hasNext}
+      />
+
+      <CanonicalAdmissionsOperationsPanel
+        locale={locale}
+        actorRole={actor.platformRole}
+        studentCaseId={id}
+        studentCaseStatus={operations.studentCase.status}
+        applications={operations.applications}
+        visaMilestones={operations.visaMilestones}
+        financeStop={operations.financeStop}
+        requestIds={operationRequestIds}
       />
     </div>
   );

@@ -229,24 +229,23 @@ function applicationRow(overrides = {}) {
   };
 }
 
-test("Platform route contract admits exact admissions pages and one UUID segment", () => {
-  for (const path of ["/sales", "/clients", "/applications"]) {
+test("Platform route contract admits canonical queue pages and rejects removed detail routes", () => {
+  for (const path of ["/sales", "/clients", "/applications", "/visa", "/finance"]) {
     assert.equal(isConnectedPlatformPage(path), true, path);
   }
   assert.equal(isConnectedPlatformPage(`/sales/${CASE_ID}`), true);
   assert.equal(isConnectedPlatformPage(`/clients/${CASE_ID}`), true);
-  assert.equal(
-    isConnectedPlatformPage(`/applications/${APPLICATION_ID}`),
-    true,
-  );
 
   for (const path of [
     "/sales/1",
     `/sales/${CASE_ID}/history`,
     "/clients/12",
     `/clients/${CASE_ID}/documents`,
+    `/applications/${APPLICATION_ID}`,
     "/applications/not-a-uuid",
     `/applications/${APPLICATION_ID}/history`,
+    `/visa/${APPLICATION_ID}`,
+    `/finance/${APPLICATION_ID}`,
     `/whatsapp/${CASE_ID}/messages`,
   ]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
@@ -476,11 +475,10 @@ test("connected Platform runtime modules do not statically import SQLite or lega
     "src/app/(staff)/clients/StudentQueue.tsx",
     "src/app/(staff)/clients/[id]/page.tsx",
     "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+    "src/components/platform/admissions/CanonicalAdmissionsOperationsPanel.tsx",
     "src/app/(staff)/applications/page.tsx",
-    "src/app/(staff)/applications/ApplicationsPresenter.tsx",
-    "src/app/(staff)/applications/ApplicationsWorkspace.tsx",
-    "src/app/(staff)/applications/[id]/page.tsx",
-    "src/app/(staff)/applications/[id]/ApplicationWorkspace.tsx",
+    "src/app/(staff)/visa/page.tsx",
+    "src/app/(staff)/finance/page.tsx",
     "src/components/TopBar.tsx",
     "src/components/platform/PlatformLangSwitcher.tsx",
   ];
@@ -543,14 +541,12 @@ test("normal staff routes keep one accepted renderer instead of parallel Platfor
     new URL("../src/app/(staff)/applications/page.tsx", import.meta.url),
     "utf8",
   );
-  const applicationRoute = readFileSync(
-    new URL("../src/app/(staff)/applications\/\[id\]\/page.tsx", import.meta.url),
-    "utf8",
+  assert.match(applicationsRoute, /listCanonicalUniversityApplications/);
+  assert.match(applicationsRoute, /data-testid="canonical-application-queue"/);
+  assert.doesNotMatch(
+    applicationsRoute,
+    /Applications(?:QueuePresenter|Workspace)|ApplicationDetailPresenter|better-sqlite3|platform-admissions/,
   );
-  assert.match(applicationsRoute, /ApplicationsQueuePresenter/);
-  assert.match(applicationRoute, /ApplicationDetailPresenter/);
-  assert.doesNotMatch(applicationsRoute, /<(?:Legacy|Platform)ApplicationsPage/);
-  assert.doesNotMatch(applicationRoute, /<(?:Legacy|Platform)ApplicationPage/);
 });
 
 test("sales handoff summary keeps sales stage labels distinct from case state labels", () => {
@@ -569,26 +565,6 @@ test("sales handoff summary keeps sales stage labels distinct from case state la
     leadDetailSource,
     /caseState\./,
   );
-});
-
-test("mutation forms preserve a validated render-time request id across uncertain results", () => {
-  const actionSource = readFileSync(
-    new URL("../src/lib/platform-admissions-actions.ts", import.meta.url),
-    "utf8",
-  );
-  const redirectSource = readFileSync(
-    new URL("../src/lib/platform-admissions.ts", import.meta.url),
-    "utf8",
-  );
-  assert.match(actionSource, /buildPlatformAdmissionsRedirectUrl/);
-  assert.match(redirectSource, /retry_request_id/);
-  for (const file of [
-    "src/app/(staff)/applications/ApplicationsWorkspace.tsx",
-    "src/app/(staff)/applications/[id]/ApplicationWorkspace.tsx",
-  ]) {
-    const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
-    assert.match(source, /parsePlatformAdmissionsUuid\(query\.retry_request_id\)/);
-  }
 });
 
 test("clients use one canonical PostgreSQL Student 360 renderer", () => {

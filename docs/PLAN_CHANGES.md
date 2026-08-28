@@ -12833,3 +12833,85 @@ work; V2-8C must delete them before Issue #432 closes. This is not permission
 to restore their task path or treat Supabase/SQLite as V2 authority. Frozen V1
 deployments and historical decision/rollback material remain preserved under
 the repository-wide exception.
+
+## 2026-08-29 - Pin the V2-8B applications, visa and finance-stop boundary
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #432 on exact-main
+`ec1c821341f23c6ef7c4c44fbf22e2191f6d5669`.
+Change type: implementation contract before coding.
+Affected plan section: V2-8B applications, visa and finance stop/release.
+
+Decision: use the existing canonical `evo_university_applications`,
+`evo_visa_milestones`, `evo_finance_stop_states`, `evo_command_receipts` and
+`evo_business_events` tables as the only V2 authority. Student 360 is the only
+write UI. `/applications`, `/visa` and `/finance` become read-only canonical
+queues that link to the same case surface; remove their superseded dynamic
+details and mutation paths after real proof.
+
+Applications follow `draft -> submitted -> accepted|rejected`, with reasoned
+withdrawal from `draft` or `submitted`; terminal states do not reopen. The
+handoff command materializes the six fixed visa milestone kinds. Milestones
+follow `pending -> in_progress -> completed`, support reasoned blocking and
+resume from `blocked`, and never reverse after completion. One case-level
+finance stop blocks application submission and progress of the visa
+`submission` milestone. Admissions or Admin may assert a stop with a reason;
+only Admin may release it with a reason.
+
+Every command is active-case-only, server-authorized, idempotent, optimistic-
+versioned and evented in one PostgreSQL transaction. Exact replay adds no row
+or event; request-key conflicts and stale versions fail without writes. Sales
+is denied the mutations and Admin preview uses the exact Admissions controls.
+Browser acceptance must exercise create, update, stop, blocked submission,
+Admin release, application submission/outcome, visa block/resume/completion and
+then prove the rows, versions, receipts and business events with direct
+PostgreSQL reads. Missing PostgreSQL must fail clearly without rendering or
+invoking the removed Supabase/RPC/SQLite paths.
+
+## 2026-08-29 - Complete the V2-8B applications, visa and finance-stop replacement
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #432 after real PostgreSQL and Chromium proof.
+Change type: implementation boundary, real-path evidence and legacy deletion
+record.
+Affected plan section: V2-8B applications, visa and finance stop/release.
+
+Decision: the active `/applications`, `/visa` and `/finance` queues and the
+corresponding Student 360 controls now use one canonical PostgreSQL repository,
+one Server Action family and one write UI. The handoff transaction creates the
+six fixed visa milestones. Application, visa and finance commands are
+server-authorized, optimistic-versioned, idempotent and evented in the same
+transaction. Sales is rejected before mutation; only Admin can release a
+finance stop; stopped cases reject application submission and progress of the
+visa submission milestone without reserving a successful receipt or writing an
+event.
+
+Deleted the superseded application workspace/import/detail components, the
+dynamic application, visa and finance detail routes, their SQLite mutation and
+queue/detail query APIs, their demo seeds, and the obsolete Supabase catalog
+runtime and implementation-level tests in this same vertical. Scoped inventory
+over the active application, visa, finance and canonical Student 360 files has
+no import of `@/lib/db`, `@/lib/queries`, the old platform operation modules or
+Supabase. Only the three queue pages remain under their route trees; a missing
+PostgreSQL authority fails closed instead of reaching a removed detail or
+fallback path. Those queues use deterministic timestamp-plus-UUID cursors, so
+records after the first 50 remain reachable. Paused or closed handed-off cases
+remain readable in Student 360 but render no application, visa or finance
+mutation controls; the repository independently rejects every such write.
+
+Real acceptance used the pinned disposable PostgreSQL 18.6 database, all committed
+migrations, the actual Next application and desktop Chromium through the
+two-field development gate. It exercised create/update/idempotent replay,
+finance stop, blocked submission, Admin release, application submit/accept,
+visa start/complete/block/resume and fixed-role denial/preview. Direct SQL then
+proved the exact rows, versions, `succeeded` receipts and minimal business
+events. The ordinary unit, security, lint, typecheck and production-build gates
+also pass.
+
+Issue #432 intentionally remains open for its already approved V2-8C exit:
+wire private document persistence into the canonical document UI and delete
+the remaining superseded Student 360/Admissions source and its reachable
+SQLite/Supabase projections. This bounded coexistence expires in V2-8C before
+#432 may close; it is not a fallback or authority for the V2-8B routes, and it
+does not authorize deleting frozen V1 deployments or historical
+decision/rollback documentation.

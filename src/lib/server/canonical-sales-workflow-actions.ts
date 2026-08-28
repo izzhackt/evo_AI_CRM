@@ -98,7 +98,10 @@ export async function updateCanonicalSalesLeadWorkflowAction(
       : DATE_PATTERN.test(nextActionAtValue)
         ? nextActionAtValue
         : undefined;
-  const reason = text(form, "reason", 500);
+  const reason =
+    !form.has("reason") && stage !== "disqualified"
+      ? null
+      : text(form, "reason", 500);
 
   if (
     leadId === null ||

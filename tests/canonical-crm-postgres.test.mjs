@@ -909,6 +909,48 @@ test("canonical Sales repository runs the technical queue and workflow on real P
       repositoryError("idempotency_conflict"),
     );
 
+    const literalNoChangeContext = technicalCommandContext(
+      runId,
+      "literal-workflow-no-change",
+    );
+    const literalNoChange = await updateCanonicalSalesLeadWorkflow(
+      literalNoChangeContext,
+      {
+        ...literalWorkflowInput,
+        expectedVersion: literalWorkflow.version,
+      },
+    );
+    assert.deepEqual(
+      literalNoChange,
+      literalWorkflow,
+      "a fresh request whose normalized snapshot is unchanged must not advance the lead",
+    );
+    const [literalNoChangeReceipt] = await sql`
+      select
+        status,
+        business_object_type as "businessObjectType",
+        business_object_id as "businessObjectId",
+        result_payload ->> 'leadId' as "resultLeadId"
+      from evo_command_receipts
+      where idempotency_key = ${literalNoChangeContext.idempotencyKey}
+    `;
+    assert.deepEqual(literalNoChangeReceipt, {
+      status: "succeeded",
+      businessObjectType: "lead",
+      businessObjectId: literalLead.leadId,
+      resultLeadId: literalLead.leadId,
+    });
+    const [literalNoChangeEventCount] = await sql`
+      select count(*)::int as count
+      from evo_business_events
+      where idempotency_key = ${literalNoChangeContext.idempotencyKey}
+    `;
+    assert.equal(
+      literalNoChangeEventCount.count,
+      0,
+      "an unchanged snapshot must not manufacture a business event",
+    );
+
     const staleContext = technicalCommandContext(runId, "stale-workflow");
     await assert.rejects(
       updateCanonicalSalesLeadWorkflow(staleContext, {

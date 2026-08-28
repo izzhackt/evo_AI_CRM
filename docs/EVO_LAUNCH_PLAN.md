@@ -1,15 +1,163 @@
 # EVO Launch Plan
 
-Status: parent #376 is the active product contract; U0/#377 through U10/#387
-are merged and exact-main green. Long-run 1 completed at
-`2ea92ac547d7f526f0e886a81f871936af456635`. U11 repository implementation
-merged in PR #404 at `6d2109b865da334bd41ad8c432147a2f7045937b`, and its
-isolated managed staging contour is partially executed. Issue #388 remains
-open because canonical browser acceptance and the real managed Database plus
-Storage restore drill are not complete. ADR 0021 and the latest
-`docs/PLAN_CHANGES.md` entry are binding.
+Status: active product-first V2 local-development contract
+Date: 2026-08-28 (Asia/Dubai)
+Authority: owner direction, parent issue #407, ADR 0022, this plan and the
+latest append-only `docs/PLAN_CHANGES.md` entry
+Verified starting baseline: GitHub `origin/main` at
+`9b185dba93b2363d9bf942483b2c0febee4c3b30`
 
-## Current unified v1 authority
+## Current V2 authority: validate the CRM product first
+
+The active goal is to prove the main EVO CRM product quickly in a private local
+contour. It is not to build production infrastructure or declare V2 ready to
+replace V1.
+
+V2 keeps one staff interface and the core workflow across Sales, Student 360,
+Admissions, Documents, Applications, Visa, Finance, WhatsApp and advisory AI.
+It replaces the Supabase execution path with a direct self-hosted runtime:
+
+- a real private local PostgreSQL service;
+- Drizzle schema definitions and committed, reviewed SQL migrations;
+- a two-field server-side development gate with a short signed HttpOnly
+  session cookie;
+- three fixed test roles: Director/Admin, Sales Manager and Admissions Manager;
+- server-side role authorization, with Admin as the full functional superset;
+- Admin role-preview that renders the exact Sales or Admissions interface and
+  permissions rather than a cosmetic approximation;
+- application-owned private document bytes plus PostgreSQL metadata;
+- a minimal append-only business event log sufficient to debug and verify
+  consequential transitions.
+
+The completed V2 product path may not use Supabase SDK/Auth/Storage/Realtime,
+Supabase migrations or runtime environment variables. It may not dual-read,
+dual-write, write through, fall back to Supabase/SQLite or preserve a Supabase
+compatibility layer.
+
+### Development access and fixed roles
+
+The access page has exactly two fields. The first identifier selects one of
+three technical profiles configured only through ignored local secrets; the
+second value is that profile's secret. Both lookup and comparison happen only
+on the server. A successful comparison creates a short-lived signed HttpOnly
+cookie that carries only the selected technical role and expiry.
+
+This is development access, not staff identity. There is no active account
+lifecycle, signup, invitation, password recovery, per-user grant system,
+membership administration or real-staff claim. The local contour remains
+private/non-public and contains no real applicant/customer data.
+
+The roles still have real server-side behavior:
+
+- Sales Manager owns the Sales pipeline, lead qualification, next action and
+  pre-handoff customer work;
+- Admissions Manager owns handed-off Student 360 cases, tasks, documents,
+  applications and visa work;
+- Director/Admin can perform the union of both roles, exercise explicit
+  overrides and preview the exact Sales or Admissions interface.
+
+Role enforcement occurs in route handlers/server services and transactional
+database commands. The active product-first build uses one local EVO
+organization and does not build multi-organization tenancy, memberships,
+cross-organization RLS or fine-grained per-user grants.
+
+### Replace, do not layer
+
+Each completed V2 slice leaves exactly one active runtime, data authority,
+session/file path and UI for the capability it replaces. After real
+database/application/browser proof, the same slice removes the superseded
+runtime code, imports, dependencies, implementation tests, environment/config,
+scripts, routes, webhooks/workers and parallel `Legacy*`/`Connected*`/
+`Fixture*` screens. Its PR includes a scoped `rg` inventory and a real
+fail-closed check showing no fallback survives.
+
+Only frozen V1 staging/production and historical ADRs, migrations, runbooks,
+archived docs, evidence and other historical decision/rollback documentation
+may remain as inert deployment/rollback inputs; V2 may not import, execute,
+bundle or treat them as authority. Temporary coexistence requires explicit
+owner approval with named files, reason, expiry/exit criteria and a deletion
+issue. Phase 0 records this rule and deletes no V1 code.
+
+### Product paths that must work
+
+1. Start real local PostgreSQL, apply the complete migration chain and query it
+   from the application.
+2. Enter the real app through each fixed technical role and verify the exact
+   role interface plus direct server denials.
+3. Create and qualify a canonical Sales lead with owner and next action.
+4. Show the lead and communications in the WhatsApp workflow without enabling
+   an outbound production action.
+5. Enforce contract plus first mandatory payment before normal handoff.
+6. Perform the audited Sales-to-Admissions handoff.
+7. Operate Student 360: case, tasks, private documents, applications and visa.
+8. Raise and release the minimal finance stop with a durable reason.
+9. Produce and human-review a Gemini draft without granting the model action
+   authority.
+10. Explain every consequential transition through the minimal event log.
+
+Private documents need real local persistence, authorized upload/download and
+resubmission, metadata, byte length and checksum. Full backup/restore drills,
+off-host retention and production rollback evidence are not active scope.
+
+WhatsApp and Gemini must remain real product paths rather than mocks or fake
+success. Provider credentials or provider-side actions are exercised only when
+separately authorized; until then the actual adapter must report blocked. No
+outbound WhatsApp, amoCRM write, provider configuration mutation or production
+claim is authorized.
+
+### Active sequential issue contract
+
+| Order | Issue | Product outcome |
+| --- | --- | --- |
+| V2-0 | #424 | merge this product-first architecture and issue reset |
+| V2-1 | #425 | real private PostgreSQL and Drizzle migration gate |
+| V2-2 | #426 | two-field development gate and three fixed role sessions |
+| V2-3 | #427 | fixed Admin/Sales/Admissions server-side behavior and Admin preview |
+| V2-4 | #428 | private local document persistence and authorized file routes |
+| V2-5 | #429 | canonical CRM model and minimal business event log |
+| V2-6 | #430 | Sales pipeline, lead qualification and inbound WhatsApp workflow |
+| V2-7 | #431 | contract/payment gate and audited Admissions handoff |
+| V2-8 | #432 | Student 360, tasks, documents, applications, visa and finance stop/release |
+| V2-9 | #433 | staff WhatsApp workflow and human-reviewed Gemini draft |
+
+Only #424 through #433 are active V2 long-run issues. They execute in order as
+small PRs. Each PR requires independent exact-head review, all protected
+exact-head CI checks, `gh pr merge --match-head-commit` and exact-main CI
+verification before the next slice starts.
+
+### Real validation boundary
+
+- Use Node `22.23.1` and OrbStack with Docker context exactly `orbstack`.
+- Use real PostgreSQL, actual SQL migrations, actual application routes, real
+  file bytes and a real browser.
+- Isolated technical records may prove mechanics, but no fake/demo record may
+  be presented as business acceptance.
+- Do not invent provider success. A missing real credential is a named blocked
+  state, not a mock, fallback or skipped-success result.
+- Ordinary lint, typecheck, unit/integration, browser and build checks remain
+  required in proportion to each slice.
+
+### Deferred before any real use
+
+The following are preserved only as one deferred-before-real-use note and are
+not active issues, dependencies or blockers for local product validation:
+production-grade staff authentication/account lifecycle; multi-organization
+tenancy and cross-organization RLS; fine-grained per-user grants; public/VPS
+deployment, DNS/TLS/Caddy and paid infrastructure; production monitoring,
+health center, compliance-style audit/export; full database/file restore drills
+and production rollback proof; managed staff/provider acceptance; a 10-day or
+five-case pilot; historical migration; replacement, cutover and tagging.
+
+Before real staff, real customer data, public/managed exposure or any V1
+replacement, the owner must create and authorize a new plan covering the
+applicable deferred controls. This note grants no deployment, migration,
+provider mutation or cutover authority.
+
+V1 staging and production, their code, data, images, runbooks and rollback
+artifacts remain unchanged. The V1 history below is retained as evidence and
+does not override the active V2 product-first contract.
+
+## Frozen unified V1 authority and execution evidence
 
 - EVO is one internal platform with one login, one accepted UI, one pilot role
   model and one end-to-end workflow. CRM, Inbox, Lead Agent, Admissions,
@@ -35,7 +183,7 @@ Storage restore drill are not complete. ADR 0021 and the latest
   GitHub Reviews API `APPROVED` record is not a merge gate for this owner-
   authorized program.
 
-The active dependency order is:
+The historical V1 dependency order was:
 
 | Slice | Issue | Outcome |
 | --- | --- | --- |
@@ -108,7 +256,7 @@ promotion.
 
 Everything below this boundary records earlier P/BW/NW/P8 planning and exact
 historical evidence. It is not an active execution sequence and cannot
-override #376, ADR 0021 or U0-U14.
+override #407, ADR 0022 or active V2 issues #424-#433.
 
 Historical P1, reusable greenfield P2A-P2H, BW0, P3A-P3C, BW1-BW7,
 P2R0-P2R4 and P4A are merged. PR #118 merged the P4B docs-only contract, PR

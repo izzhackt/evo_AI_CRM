@@ -2,23 +2,25 @@
 
 EVO Admissions CRM coordinates admissions leads, student operations, and
 operator follow-up for EVO Admissions. This glossary pins down rollout and
-identity language used across the current CRM/companion runtimes and the target
-unified platform.
+identity language used across the frozen V1 deployment contour and the active
+V2 self-hosted replacement line.
 
-The target contract is
-[`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`](docs/EVO_PLATFORM_LONG_RUN_PLAN.md) and
-the current architecture/execution decision is
-[`ADR 0021`](docs/adr/0021-unified-net-new-pilot-and-human-reviewed-gemini.md),
-which refines ADR 0020 under parent issue #376 and U0-U14. The 2026-08-25 entry in
-[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md) records the superseding owner
-decision: EVO is one product with one entry point, one staff UI, one role
-model, one cross-module workflow, and one canonical Supabase foundation.
-U0/#377 through U6/#383 are merged. Long-run 1 is the sequential #382 through
-#387 program and stops before #388. It delivers a net-new pilot candidate:
-canonical contract/payment gate, handoff, minimal Admissions case, bounded
-finance control, one human-reviewed Gemini Flash adapter, and explicit pilot
-cohort/legacy isolation. Broad active/history migration is not part of the
-pilot. The completed U2 contract is
+The active contract is [`docs/EVO_LAUNCH_PLAN.md`](docs/EVO_LAUNCH_PLAN.md)
+together with
+[`ADR 0022`](docs/adr/0022-build-evo-v2-as-a-self-hosted-postgresql-monolith.md),
+parent issue `#407`, and the latest append-only entry in
+[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md). As of 2026-08-28, V1 staging
+and production remain frozen deployment boundaries while V2 replaces the old
+Supabase-native target with a private local PostgreSQL/Drizzle product contour,
+a two-field development gate, three fixed technical roles, server-enforced
+role behavior, private document persistence and a minimal business event log.
+Production authentication, multi-organization tenancy, public deployment,
+readiness/recovery, pilot, migration and cutover work are deferred before real
+use rather than active blockers. Any glossary entry below that names Supabase
+as the target canonical runtime should be read as historical V1 evidence unless
+a newer contract explicitly reactivates it.
+
+The completed U2 contract is
 recorded in
 [`docs/platform/u2-canonical-client-lead.md`](docs/platform/u2-canonical-client-lead.md),
 the completed U3 contract is recorded in
@@ -29,7 +31,7 @@ the completed U5 gate contract is recorded in
 [`docs/platform/u5-contract-first-payment-gate.md`](docs/platform/u5-contract-first-payment-gate.md),
 the completed U6 handoff contract is recorded in
 [`docs/platform/u6-sales-admissions-handoff.md`](docs/platform/u6-sales-admissions-handoff.md),
-the active U7 canonical case workspace contract is recorded in
+the completed historical U7 canonical case workspace contract is recorded in
 [`docs/platform/u7-admissions-case-workspace.md`](docs/platform/u7-admissions-case-workspace.md),
 and the completed U1 authority/evidence boundary remains in
 [`docs/platform/u1-unified-staff-access.md`](docs/platform/u1-unified-staff-access.md).
@@ -37,14 +39,28 @@ Lead Agent, CRM, and Inbox name internal capabilities or current deployment
 contours; they are not separate target products, user applications, or data
 authorities. ADR 0018 remains historical current-state evidence only; ADR 0019
 is superseded where it authorizes autonomous replies or canonical amoCRM
-context. The canonical Supabase schema/migration mechanics remain refined by
-[`docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`](docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md).
+context. ADR 0015 remains historical evidence for how the repository adopted a
+single migration authority before the V2 reset; it no longer defines the
+runtime target for new implementation work.
 Companion-era terms below remain as honest descriptions of separate runtimes
 that may still exist before a separately authorized cutover. They are migration
 inputs to retire, not target architecture, permanent compatibility contracts,
 or a second source of truth.
 
 ## Language
+
+**V2 Product-First Local Contour**:
+The private non-production EVO environment used to prove the main CRM workflow
+on real local PostgreSQL, Drizzle migrations, private document bytes and the
+actual browser. It is not public, contains no real applicant/customer data and
+does not prove production readiness.
+_Avoid_: production candidate, managed acceptance, pilot environment
+
+**Development Access Profile**:
+One of the fixed Director/Admin, Sales Manager or Admissions Manager technical
+roles entered through the two-field server-side development gate. It exists to
+exercise real role behavior and is not a staff account or verified identity.
+_Avoid_: user account, employee identity, production authentication
 
 **First Live Rollout**:
 The first production proof that one controlled real inbound WhatsApp message can travel through the admissions lead path and become visible to staff. It is not a full automation launch.

@@ -11874,3 +11874,156 @@ Validation impact: update the launch plan, current status, runbook and edge
 comment to match this decision; keep the route itself unchanged; validate
 Caddy and documentation consistency; then use exact-head CI and protected
 merge evidence.
+
+## 2026-08-28 - Reset the active launch contract for self-hosted EVO V2
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under the owner handoff.
+Change type: architecture, scope, acceptance criteria, merge order,
+validation, and issue-sequence reset.
+Affected plan section: all active sections of `docs/EVO_LAUNCH_PLAN.md`,
+the active runtime ADR line, and the GitHub implementation sequence after the
+Phase 0 reset merge.
+Reason: the owner explicitly replaced the Supabase-native long-run direction
+with a new autonomous V2 program that keeps the accepted EVO product outcome
+but removes Supabase from the target runtime. Existing active plan/ADR/issue
+text still described Supabase as the permanent canonical operational
+foundation, so implementing V2 code without a contract reset would be stale
+and misleading.
+Decision: replace the active launch plan with a V2 self-hosted contract; add a
+superseding ADR that keeps prior long-run artifacts as history but makes
+self-hosted PostgreSQL, Drizzle migrations, Better Auth, server-enforced
+tenant/role authorization, and private-file handling the active V2 target;
+re-sequence the GitHub backlog into explicit V2 foundation and vertical slices;
+preserve V1 staging and production as frozen deployment boundaries and prohibit
+Supabase compatibility, dual-read, dual-write, fallback runtime paths, customer
+data migration, provider writes, paid infrastructure, and cutover without
+separate authorization.
+Validation impact: before the reset PR merges, verify the exact shared
+baseline, current open issue state, current open PR state, and refreshed
+official Better Auth, Drizzle, and PostgreSQL RLS documentation. For the first
+docs/issues reset slice, run real repository checks appropriate to the changed
+files, then require exact-head CI, independent review, `--match-head-commit`,
+and exact-main verification before Phase 1 begins.
+Reviewer notes: reject any PR that continues the old Supabase issue sequence
+unchanged, launders V2 scope into V1 deployment work, or claims foundation
+proof without real PostgreSQL and real browser evidence.
+
+## 2026-08-28 - Narrow active V2 to local CRM product validation
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under the owner's explicit product-first correction.
+Change type: scope reduction, authentication simplification, role model,
+acceptance criteria, issue sequence and deferred-gate correction.
+Affected plan section: the active V2 section of `docs/EVO_LAUNCH_PLAN.md`, ADR
+0022 and GitHub issues under parent #407.
+
+Reason: the first self-hosted reset still put production infrastructure ahead
+of the owner's immediate question: whether the heavy CRM product works end to
+end. Better Auth, multi-organization tenancy, recovery/readiness programs,
+managed acceptance, a timed pilot and cutover planning would delay that proof.
+
+Owner decision:
+
+1. Make private local CRM product validation the only active V2 long-run.
+2. Replace full staff authentication with a two-field server-side development
+   gate. The first value selects an ignored-env technical profile and the
+   second value is its secret; success creates a short signed HttpOnly cookie.
+3. Keep exactly three fixed roles: Director/Admin, Sales Manager and Admissions
+   Manager. Admin is the full functional superset and can preview the exact
+   Sales or Admissions interface. Enforce role behavior on the server.
+4. Use one local EVO organization. Do not build organizations, memberships,
+   cross-organization RLS or fine-grained per-user grants in active V2.
+5. Keep active product work to real local PostgreSQL/Drizzle, canonical CRM,
+   Sales, Student 360, contract/payment gate, handoff, Admissions operations,
+   private document persistence, minimal finance stop/release, WhatsApp,
+   human-reviewed Gemini and the minimal event log needed to verify business
+   transitions.
+6. Preserve production authentication, public/VPS/DNS/TLS/Caddy, paid
+   infrastructure, production monitoring/health center, compliance audit/export,
+   full database/file restore and rollback, managed acceptance, timed pilot,
+   historical migration and cutover/tagging only as one compact
+   deferred-before-real-use note. They are not active issues or blockers.
+7. Preserve V1 code, history, staging/production, data, images, runbooks and
+   rollback artifacts unchanged.
+
+Active issue order: #424, #425, #426, #427, #428, #429, #430, #431, #432 and
+#433. Close/defer duplicate or production-readiness V2 issues so autonomous
+execution sees only this product-building sequence.
+
+Validation impact: Phase 0 remains docs/tracker only. Require independent
+exact-head review, protected exact-head CI, `--match-head-commit` and exact-main
+CI. Follow-on slices use real PostgreSQL, actual migrations, real file bytes,
+actual app/browser paths and ordinary CI. Technical records may prove mechanics
+but cannot be called real business acceptance. Missing provider credentials
+must produce a truthful blocked state, never a mock or fake success.
+
+## 2026-08-28 - Require replacement instead of layered V2 compatibility
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under the owner's explicit replacement rule.
+Change type: runtime replacement discipline, slice acceptance criteria and
+legacy-eradication issue mapping.
+Affected plan section: active V2 implementation rules, ADR 0022 and issues
+#424-#433 under parent #407.
+
+Reason: a new self-hosted path beside active SQLite/Supabase paths would test a
+shadow product, retain contradictory authorities and make failure silently fall
+back to V1. That would delay the main CRM proof and create permanent migration
+debt.
+
+Owner decision:
+
+1. Use "replace, do not layer." A completed V2 slice has exactly one active
+   runtime path, data authority, auth/session path, private-file path and UI for
+   every capability it replaces.
+2. Do not keep parallel `Legacy*`, `Connected*` or `Fixture*` screens,
+   SQLite/Supabase adapters, dual reads/writes, fallback repositories, shadow
+   runtimes, permanent feature flags, old webhooks/workers or stale package,
+   environment, config, script and deploy dependencies for safety.
+3. After real database, application and browser proof, delete the superseded
+   active code, imports, dependencies, implementation-level tests,
+   environment/config, scripts and routes in the same slice. Replace old tests
+   with outcome tests at the new module interface.
+4. Every replacing PR must attach a scoped `rg`/inventory showing no active
+   reference remains and must prove that a missing or failed primary path stops
+   clearly instead of falling back.
+5. Preserve frozen V1 staging/production and historical ADRs, migrations and
+   evidence as inert deployment/rollback inputs until separately authorized
+   cutover. They may not be imported, executed, bundled or treated as V2
+   authority. Phase 0 deletes no V1 code.
+6. Temporary coexistence needs explicit owner approval naming the files,
+   reason, expiry/exit criteria and deletion issue. Open-ended compatibility is
+   prohibited.
+
+Issue mapping: #425 owns database/migration-foundation eradication; #426 owns
+session/access-path eradication; #427 owns parallel role-UI eradication; #428
+owns private-file-path eradication; #429 owns canonical data/RPC/repository
+eradication; #430-#433 each remove the superseded workflow routes,
+webhooks/workers and interface paths for the vertical capability they replace.
+#424 records the rule only and physically deletes no V1 code.
+
+Validation impact: each implementation PR needs real database/app/browser
+proof for its owned capability, outcome tests at the new interface, an exact
+`rg` inventory, a deliberate primary-path failure test and the normal
+independent-review/exact-head/match-head/exact-main gates.
+
+## 2026-08-28 - Clarify the full V1 history preservation exception
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under the owner's wording-review correction.
+Change type: append-only clarification of the replace-not-layer preservation
+boundary.
+Affected plan section: the V1 exception within the active replacement
+discipline in `AGENTS.md`, `docs/EVO_LAUNCH_PLAN.md` and ADR 0022.
+
+Reason: naming only historical ADRs, migrations and evidence was too narrow and
+could be misread as authority to delete runbooks, archived docs or other V1
+decision/rollback records.
+
+Owner clarification: preserve frozen V1 staging/production and historical
+ADRs, migrations, runbooks, archived docs, evidence and every other historical
+decision/rollback document as inert deployment/rollback inputs until a
+separately authorized cutover. V2 must not import, execute, bundle or treat
+those materials as authority. This broader documentation exception does not
+permit any legacy runtime, compatibility adapter, dual path or fallback in V2.

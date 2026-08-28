@@ -29,23 +29,64 @@
 
 ## Current Product Authority
 
-- Parent issue #376, ADR 0021, `docs/EVO_LAUNCH_PLAN.md` and
-  `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` define the target and U0-U14 order.
-- EVO is one internal product with one login, one UI, one role model and one
-  workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks, Documents and
-  AI are modules, not separate target products.
-- Supabase is the permanent canonical operational foundation. The pilot is
-  net-new after an explicit cutoff or authorized small allowlist; broad active
-  and historical migration is deferred. SQLite runtime,
-  dual-read, dual-write, fallback repositories and compatibility layers are
-  prohibited. amoCRM is a temporary read/import adapter; WAHA is private
-  transport; Gemini Flash is the single pilot AI provider and remains advisory
-  and human-reviewed.
-- Long-run 1 is #382 through #387 and stops before #388. The first live stage
-  is receive-only: no outbound WhatsApp and no amoCRM
-  writes. Existing production sections below describe migration inputs and
-  safety boundaries only; they do not override the target architecture or
+- For active V2 implementation work, the owner's product-first direction of
+  2026-08-28, parent issue #407, ADR 0022, `docs/EVO_LAUNCH_PLAN.md`, and the
+  latest merged `docs/PLAN_CHANGES.md` entry define the target and #424 through
+  #433 order.
+- EVO remains one internal product with one access surface, one UI, one role
+  model and one workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks,
+  Documents and AI are modules, not separate target products.
+- Active V2 is a private local CRM product-validation contour, not a
+  production-readiness program. Its runtime is the existing Next.js app, one
+  real private PostgreSQL database, Drizzle migrations, a two-field
+  server-side development gate, three fixed technical roles, server-enforced
+  role behavior, private local document persistence, and a minimal business
+  event log. Admin is the full functional superset and can preview the exact
+  Sales or Admissions interface.
+- Do not add Better Auth or another full account lifecycle, organizations,
+  memberships, multi-organization tenancy, cross-organization RLS,
+  fine-grained per-user grants, production health/audit/export, restore drills,
+  managed acceptance, pilot, migration or cutover work to active #424-#433.
+  Those controls are one deferred-before-real-use set, not active blockers.
+- Supabase runtime dependencies, dual-read, dual-write, fallback repositories
+  and compatibility layers are prohibited in the completed V2 product path.
+- V1 staging and production are frozen boundaries. Do not deploy V2 over V1,
+  delete V1, migrate customer data, send WhatsApp, write amoCRM, create paid
+  infrastructure, or perform final cutover without separate explicit owner
+  authorization.
+- WhatsApp and Gemini remain real product paths, not mocks or fake success.
+  Real provider calls or changes still require credentials and separate
+  authorization; missing access must show blocked. Gemini remains advisory and
+  human-reviewed. Outbound WhatsApp and amoCRM writes remain forbidden.
+- Existing production sections below describe historical V1 boundaries and
+  safety inputs only; they do not override the active local V2 scope or
   authorize a production change.
+
+## V2 Replacement Discipline
+
+- V2 uses **replace, do not layer**. A completed slice has exactly one active
+  runtime path, data authority, auth/session path, private-file path and UI for
+  every capability that slice replaces.
+- Do not retain `Legacy*`, `Connected*` or `Fixture*` parallel screens;
+  SQLite/Supabase compatibility adapters; dual reads/writes; fallback
+  repositories; shadow runtimes; permanent feature flags; superseded
+  webhooks/workers; or stale package, environment, config, script and deploy
+  dependencies "just in case."
+- After real database, application and browser proof exists, delete the
+  superseded runtime code, imports, dependencies, implementation-level tests,
+  environment/config entries, scripts and routes in the same slice. Replace
+  old implementation tests with outcome tests at the new module interface.
+- Before merge, attach a scoped `rg`/inventory proving that no active import or
+  runtime reference to the superseded path remains. Also prove that a missing
+  or failed primary path stops clearly instead of falling back.
+- Frozen V1 staging/production and historical ADRs, migrations, runbooks,
+  archived docs, evidence and other historical decision/rollback documentation
+  are the only exception. Preserve them as deployment/rollback inputs until a
+  separately authorized cutover, but never import, execute, bundle or treat
+  them as V2 authority.
+- Temporary coexistence requires explicit owner approval naming every file,
+  the reason, an expiry or exit criterion and a deletion issue. Open-ended
+  compatibility is prohibited.
 
 ## Local Container Runtime
 
@@ -142,8 +183,10 @@ canonical store or new dependency.
 - CRM-to-WAHA base URL: `http://evo-crm-waha:3000`.
 - The lead-agent owns WAHA inbound automation:
   `http://evo-lead-agent:8000/webhooks/waha`.
-- The CRM legacy WAHA webhook route may remain for compatibility, but new WAHA
-  session configuration should point at the lead-agent private webhook.
+- The CRM legacy WAHA webhook route describes the frozen V1 deployment only.
+  It is not V2 compatibility permission: V2 must not import, execute, bundle or
+  route through it, and the replacing V2 slice must remove its superseded
+  active references after real proof.
 - The lead-agent resolves/creates amoCRM contact and lead first, then posts a
   signed internal sync event to:
   `http://evo-crm-app:3000/api/internal/lead-agent/whatsapp`.

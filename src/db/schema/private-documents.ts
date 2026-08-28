@@ -8,13 +8,17 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 
+import { evoStudentCases } from "./canonical-crm-core.ts";
+
 export const PRIVATE_DOCUMENT_MAX_BYTE_LENGTH = 25 * 1024 * 1024;
 
 export const evoPrivateDocuments = pgTable(
   "evo_private_documents",
   {
     id: text("id").primaryKey(),
-    caseId: text("case_id").notNull(),
+    caseId: text("case_id")
+      .notNull()
+      .references(() => evoStudentCases.id, { onDelete: "restrict" }),
     createdByRole: text("created_by_role").notNull(),
     createdAt: timestamp("created_at", {
       withTimezone: true,

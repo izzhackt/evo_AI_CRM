@@ -9,8 +9,10 @@ env_file="$tmp_dir/postgres.env"
 app_log="$tmp_dir/app.log"
 verification_log="$tmp_dir/verification.log"
 broken_log="$tmp_dir/broken-migration.log"
+canonical_acceptance_result="$tmp_dir/canonical-acceptance.json"
 private_document_root="$tmp_dir/private-documents"
 missing_private_document_root="$tmp_dir/missing-private-documents"
+private_document_case_id=""
 app_pid=""
 compose_args=()
 
@@ -161,9 +163,26 @@ stop_app() {
   fi
 }
 
+assert_app_reachable() {
+  local deadline=$((SECONDS + 30))
+  local code=""
+  while (( SECONDS < deadline )); do
+    if [[ -n "$app_pid" ]] && ! kill -0 "$app_pid" >/dev/null 2>&1; then
+      sed -n '1,200p' "$app_log" >&2
+      fail "The application exited before browser validation"
+    fi
+    code="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${app_port}/api/health" || true)"
+    [[ "$code" == "200" ]] && return
+    sleep 1
+  done
+  sed -n '1,200p' "$app_log" >&2
+  fail "The application became unreachable before browser validation"
+}
+
 browser_assert() {
   local expected_status="$1"
   local expected_code="${2:-}"
+  assert_app_reachable
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
     EVO_EXPECT_STATUS="$expected_status" \
     EVO_EXPECT_DATABASE_CODE="$expected_code" \
@@ -173,6 +192,7 @@ browser_assert() {
 
 development_gate_browser_assert() {
   local gate_mode="$1"
+  assert_app_reachable
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
     EVO_EXPECT_GATE_MODE="$gate_mode" \
     EVO_DEV_GATE_SESSION_SECRET="$gate_session_secret" \
@@ -188,8 +208,10 @@ development_gate_browser_assert() {
 
 private_document_browser_assert() {
   local document_mode="$1"
+  assert_app_reachable
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
     EVO_EXPECT_DOCUMENT_MODE="$document_mode" \
+    EVO_PRIVATE_DOCUMENT_CASE_ID="$private_document_case_id" \
     EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
     EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
     EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
@@ -235,10 +257,11 @@ mkdir -m 700 "$private_document_root"
 "$node_bin" --conditions=react-server --experimental-strip-types --test \
   tests/database-config.test.mjs \
   tests/database-status-route.test.mjs
+echo "Missing and malformed DATABASE_URL fail closed without any alternate local database path."
 
-# Missing application configuration must block even though legacy env values
-# are present. The exact browser route must not invoke those old paths.
-EVO_DB_PATH="$tmp_dir/legacy.sqlite" \
+# Missing application configuration must block even if old environment values
+# are present. The exact browser route must not invoke those paths.
+EVO_DB_PATH="$tmp_dir/inert-local.db" \
   NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321" \
   start_app ""
 browser_assert 503 database_configuration_missing
@@ -291,6 +314,36 @@ partial_contract="$(docker exec "$container_id" psql --username "$postgres_user"
 DATABASE_URL="$database_url" "$node_bin" scripts/migrate-drizzle.mjs
 DATABASE_URL="$database_url" "$node_bin" scripts/migrate-drizzle.mjs
 DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs
+migration_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM drizzle.__drizzle_migrations;')"
+contract_version="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT version FROM evo_database_contract WHERE id = 1;')"
+[[ "$migration_count" == "3" ]] || fail "Expected exact 0000 -> 0001 -> 0002 migration history"
+[[ "$contract_version" == "3" ]] || fail "Canonical CRM migration did not publish database contract version 3"
+echo "Exact 0000 -> 0001 -> 0002 migration, repeat migration and stored history passed."
+
+DATABASE_URL="$database_url" \
+  EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
+  "$node_bin" --conditions=react-server --experimental-strip-types --test \
+    tests/canonical-crm-postgres.test.mjs
+private_document_case_id="$(
+  EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
+    "$node_bin" --input-type=module <<'EOF'
+import { readFile } from "node:fs/promises";
+
+const path = process.env.EVO_CANONICAL_ACCEPTANCE_RESULT_FILE;
+const result = JSON.parse(await readFile(path, "utf8"));
+if (
+  typeof result.privateDocumentCaseId !== "string" ||
+  !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    result.privateDocumentCaseId,
+  )
+) {
+  throw new Error("Canonical acceptance did not return a valid handoff case id");
+}
+console.log(result.privateDocumentCaseId);
+EOF
+)"
+echo "Canonical CRM graph, transactional idempotency, gate and append-only event checks passed."
+
 browser_assert 200
 development_gate_browser_assert configured
 private_document_browser_assert configured
@@ -300,6 +353,8 @@ document_count="$(docker exec "$container_id" psql --username "$postgres_user" -
 version_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM evo_private_document_versions;')"
 [[ "$document_count" == "1" ]] || fail "Private document browser proof did not persist exactly one logical document"
 [[ "$version_count" == "2" ]] || fail "Private document browser proof did not persist exactly two immutable versions"
+linked_document_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM evo_private_documents AS document INNER JOIN evo_student_cases AS student_case ON student_case.id = document.case_id;')"
+[[ "$linked_document_count" == "1" ]] || fail "Private document browser proof did not persist a canonical case foreign key"
 
 stored_object_count="$(EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" "$node_bin" --input-type=module <<'EOF'
 import { lstat, readdir } from "node:fs/promises";
@@ -325,10 +380,10 @@ EOF
 
 # Runtime contract drift blocks the real browser path.
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE evo_database_contract SET version = 3 WHERE id = 1;" >/dev/null
+  --command "UPDATE evo_database_contract SET version = 4 WHERE id = 1;" >/dev/null
 browser_assert 503 database_contract_mismatch
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE evo_database_contract SET version = 2 WHERE id = 1;" >/dev/null
+  --command "UPDATE evo_database_contract SET version = 3 WHERE id = 1;" >/dev/null
 browser_assert 200
 
 # Applied-history proof covers missing, extra, reordered and tampered rows while
@@ -379,4 +434,4 @@ start_app "$database_url" unavailable
 development_gate_browser_assert unavailable
 assert_no_gate_value_logs
 
-echo "Real PostgreSQL, Drizzle, development gate, private files, application and Chromium proof passed."
+echo "Real PostgreSQL, Drizzle, canonical CRM, development gate, private files, application and Chromium proof passed."

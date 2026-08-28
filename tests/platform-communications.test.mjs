@@ -166,9 +166,19 @@ test("keeps Platform communications runtime imports outside the legacy data plan
   );
   assert.match(
     listPage,
+    /requirePlatformMessagingActor\(\)/,
+  );
+  assert.match(listPage, /<PlatformWaList/);
+  assert.doesNotMatch(
+    listPage,
     /await import\(\s*["']\.\/LegacyWhatsAppPage["']\s*\)/,
   );
   assert.match(
+    threadPage,
+    /requirePlatformMessagingActor\(\)/,
+  );
+  assert.match(threadPage, /<PlatformConversationView/);
+  assert.doesNotMatch(
     threadPage,
     /await import\(\s*["']\.\/LegacyConversationPage["']\s*\)/,
   );

@@ -82,7 +82,7 @@ function formatTimestamp(value: string, locale: string) {
 function roleLabel(role: PlatformDecisionOwnerRole, labels: Labels) {
   if (role === "admin") return labels.platformDecisionOwnerAdmin;
   if (role === "sales") return labels.platformDecisionOwnerSales;
-  return labels.platformDecisionOwnerCurator;
+  return labels.platformDecisionOwnerAdmissions;
 }
 
 function statusLabel(status: PlatformDecisionStatus, labels: Labels) {

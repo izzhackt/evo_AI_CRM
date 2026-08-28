@@ -334,7 +334,7 @@ test("version endpoint stays staff-authenticated while public health stays minim
   const route = readFileSync("src/app/api/version/route.ts", "utf8");
   const proxy = readFileSync("src/proxy.ts", "utf8");
   const health = readFileSync("src/app/api/health/route.ts", "utf8");
-  assert.match(route, /currentDevelopmentRole\(\)/u);
+  assert.match(route, /currentUser\(\)/u);
   assert.match(route, /authentication_required/u);
   assert.match(proxy, /path === "\/api\/version"/u);
   assert.doesNotMatch(health, /EVO_RELEASE/u);

@@ -608,11 +608,11 @@ test("U10 UI exposes status, provenance, bounded history, EVO-only authority, an
     "utf8",
   );
   const connected = readFileSync(
-    new URL("../src/app/(staff)/clients/[id]/ConnectedStudentCaseDetail.tsx", import.meta.url),
+    new URL("../src/app/(staff)/clients/[id]/StudentWorkspace.tsx", import.meta.url),
     "utf8",
   );
   const fixture = readFileSync(
-    new URL("../src/app/(staff)/clients/[id]/FixtureClientPage.tsx", import.meta.url),
+    new URL("../src/app/(staff)/clients/[id]/StudentWorkspacePresenter.tsx", import.meta.url),
     "utf8",
   );
   const i18n = readFileSync(new URL("../src/lib/i18n-data.ts", import.meta.url), "utf8");

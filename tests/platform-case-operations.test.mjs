@@ -205,32 +205,3 @@ test("U8 stop-factor actions stay admin-only, case-bound, and provider-free", ()
   assert.match(actionSource, /if \(!studentCaseId\) \{\s*redirect\("\/clients"\);\s*\}/);
   assert.doesNotMatch(actionSource, /amoCRM|WhatsApp|WAHA/);
 });
-
-test("U2 canonical client detail exposes no case-operation or private-evidence mutation form", () => {
-  const adapterSource = readFileSync(
-    new URL(
-      "../src/app/(staff)/clients/[id]/ConnectedCanonicalClientDetail.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  const detailSource = readFileSync(
-    new URL(
-      "../src/components/platform/core/CanonicalClientDetail.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  assert.match(adapterSource, /getPlatformCanonicalClient\(actor, id\)/);
-  assert.match(adapterSource, /<CanonicalClientDetail/);
-  assert.match(
-    detailSource,
-    /data-testid="canonical-client-detail"/,
-  );
-  for (const source of [adapterSource, detailSource]) {
-    assert.doesNotMatch(
-      source,
-      /platform-visa-form|platform-payment-create-form|platform-payment-settle-form|evidence_reference|evidence_ref/,
-    );
-  }
-});

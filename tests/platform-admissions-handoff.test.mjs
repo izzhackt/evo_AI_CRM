@@ -455,7 +455,7 @@ test("U6 read repository rejects malformed or cross-tenant rows", async () => {
   );
 });
 
-test("U6 curator case read uses the student-case scoped handoff RPC", async () => {
+test("U6 Admissions case read uses the student-case scoped handoff RPC", async () => {
   const calls = [];
   const client = {
     schema(schemaName) {
@@ -475,7 +475,7 @@ test("U6 curator case read uses the student-case scoped handoff RPC", async () =
   };
 
   const result = await getPlatformStudentCaseAdmissionsHandoff(
-    actor("curator"),
+    actor("admissions"),
     CASE_ID,
     { client },
   );
@@ -551,15 +551,15 @@ test("U6 sources wire the bounded card and connected case path", () => {
   assert.match(componentSource, /window\.location\.reload\(\)/);
   assert.match(componentSource, /admissions-handoff-refresh/);
 
-  const salesSource = read("src/app/(staff)/sales/[id]/ConnectedCanonicalLeadDetail.tsx");
+  const salesSource = read("src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx");
   assert.match(salesSource, /SalesAdmissionsHandoffCard/);
   assert.match(salesSource, /admissions-handoff-/);
 
-  const clientSource = read("src/app/(staff)/clients/[id]/ConnectedStudentCaseDetail.tsx");
+  const clientSource = read("src/app/(staff)/clients/[id]/StudentWorkspace.tsx");
   assert.match(clientSource, /getPlatformStudentCaseAdmissionsHandoff/);
   assert.match(
     clientSource,
-    /canReadAdmissionsHandoffContext[\s\S]*actor\.platformRole === "admin"[\s\S]*actor\.platformRole === "curator"/,
+    /canReadAdmissionsHandoffContext[\s\S]*actor\.platformRole === "admin"[\s\S]*actor\.platformRole === "admissions"/,
   );
   assert.match(
     clientSource,

@@ -4,6 +4,7 @@ import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { btnCls } from "@/components/ui";
 import { logoutDevelopmentGateAction } from "@/lib/development-gate-actions";
+import { fixedRoleCan, isFixedRole } from "@/lib/fixed-role-policy";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import { requirePlatformActor } from "@/lib/platform-guards";
@@ -16,21 +17,21 @@ const COPY: Record<
     eyebrow: "Доступ подтверждён",
     title: "Раздел ещё не подключён",
     description:
-      "Ваша Supabase-сессия и роль EVO Platform проверены. Этот модуль пока не подключён к greenfield-репозиторию, поэтому legacy CRM данные не загружались.",
+      "Ваша временная V2-сессия и тестовая роль проверены. Этот модуль ещё не заменён, поэтому старый runtime не запускался.",
     openInbox: "Открыть сообщения",
   },
   ky: {
     eyebrow: "Кирүү ырасталды",
     title: "Бөлүм азырынча туташкан эмес",
     description:
-      "Supabase сессияңыз жана EVO Platform ролуңуз текшерилди. Бул модуль greenfield репозиторийине али туташкан эмес, ошондуктан legacy CRM маалыматтары жүктөлгөн жок.",
+      "Убактылуу V2 сессияңыз жана тесттик ролуңуз текшерилди. Бул модуль али алмаштырыла элек, ошондуктан эски runtime иштетилген жок.",
     openInbox: "Билдирүүлөрдү ачуу",
   },
   en: {
     eyebrow: "Access verified",
     title: "This module is not connected yet",
     description:
-      "Your Supabase session and EVO Platform role were verified. This module is not connected to its greenfield repository yet, so no legacy CRM data was loaded.",
+      "Your temporary V2 session and test role were verified. This module has not been replaced yet, so its old runtime was not started.",
     openInbox: "Open messaging",
   },
 };
@@ -40,9 +41,8 @@ export default async function PlatformPendingPage() {
   const { t, locale } = await getT();
   const copy = COPY[locale];
   const canOpenInbox =
-    actor.platformRole === "admin" ||
-    actor.platformRole === "sales" ||
-    actor.platformRole === "curator";
+    isFixedRole(actor.platformRole) &&
+    fixedRoleCan(actor.platformRole, "messaging.read");
 
   return (
     <main className="relative grid min-h-dvh place-items-center bg-bg px-4 py-10">
@@ -76,7 +76,9 @@ export default async function PlatformPendingPage() {
         <dl className="mt-5 grid gap-2 rounded-ctl bg-surface-2 p-4 text-[13px]">
           <div className="flex items-center justify-between gap-4">
             <dt className="text-fg-3">{t("role")}</dt>
-            <dd className="font-semibold text-fg">{t(`role.${actor.role}`)}</dd>
+            <dd className="font-semibold text-fg">
+              {t(`role.${actor.platformRole}`)}
+            </dd>
           </div>
           <div className="flex items-center justify-between gap-4">
             <dt className="text-fg-3">{t("name")}</dt>

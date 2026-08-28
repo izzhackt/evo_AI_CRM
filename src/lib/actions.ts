@@ -34,7 +34,6 @@ import { ROLE_HOME_ROUTE, isRole } from "./domain";
 import { LOCALES, type Locale } from "./i18n-data";
 import { normalizePhone } from "./phone";
 import {
-  canAssignCurator,
   canTransitionStudentCase,
   isStudentCaseState,
   nextCaseStateForAssignment,
@@ -77,13 +76,15 @@ async function requireStaff() {
 
 async function requireAdminStaff() {
   const user = await requireStaff();
-  if (!canAssignCurator(user.role)) redirect("/dashboard");
+  if (user.role !== "admin") redirect("/dashboard");
   return user;
 }
 
 async function requireAdmissionsStaff() {
   const user = await requireStaff();
-  if (user.role === "finance") redirect("/dashboard");
+  if (user.role !== "admin" && user.role !== "admissions") {
+    redirect("/dashboard");
+  }
   return user;
 }
 
@@ -94,20 +95,20 @@ async function requireSalesStaff() {
 }
 
 async function requireWhatsAppStaff() {
-  const user = await requireStaff();
-  if (user.role !== "admin" && user.role !== "sales" && user.role !== "curator") redirect("/dashboard");
-  return user;
+  return requireStaff();
 }
 
 async function requireFinanceStaff() {
   const user = await requireStaff();
-  if (user.role !== "admin" && user.role !== "finance") redirect("/dashboard");
+  if (user.role !== "admin" && user.role !== "admissions") {
+    redirect("/dashboard");
+  }
   return user;
 }
 
 async function requireVisaOperationsStaff() {
   const user = await requireStaff();
-  if (user.role !== "admin" && user.role !== "curator") {
+  if (user.role !== "admin" && user.role !== "admissions") {
     redirect(ROLE_HOME_ROUTE[user.role]);
   }
   return user;

@@ -1050,7 +1050,7 @@ async function readPortalRpc(
  * browser-safe DTO and deliberately drops every unapproved source column.
  */
 export async function listPlatformStudentPortalNotifications(
-  actor: PlatformActor,
+  actor: PlatformActor<"student">,
   options: Pick<PlatformPortalRepositoryOptions, "client"> = {},
 ): Promise<readonly StudentPortalNotification[]> {
   try {
@@ -1077,7 +1077,7 @@ export async function listPlatformStudentPortalNotifications(
 
 /** Reads only the actor-derived P6C union and rejects every extra SQL key. */
 export async function listPlatformStudentPortalNotificationsV2(
-  actor: PlatformActor,
+  actor: PlatformActor<"student">,
   options: Pick<PlatformPortalRepositoryOptions, "client"> = {},
 ): Promise<readonly StudentPortalNotificationV2[]> {
   try {
@@ -1104,7 +1104,7 @@ export async function listPlatformStudentPortalNotificationsV2(
  * provider-error response fails closed.
  */
 export async function getPlatformStudentPortalSnapshot(
-  actor: PlatformActor,
+  actor: PlatformActor<"student">,
   options: PlatformPortalRepositoryOptions = {},
 ): Promise<StudentPortalSnapshot | null> {
   try {

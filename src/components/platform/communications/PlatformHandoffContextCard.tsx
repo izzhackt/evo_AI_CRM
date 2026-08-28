@@ -23,7 +23,7 @@ function roleLabel(
 ) {
   if (role === "admin") return labels.platformDecisionOwnerAdmin;
   if (role === "sales") return labels.platformDecisionOwnerSales;
-  return labels.platformDecisionOwnerCurator;
+  return labels.platformDecisionOwnerAdmissions;
 }
 
 function scalarLabel(

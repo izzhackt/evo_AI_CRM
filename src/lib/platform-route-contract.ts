@@ -1,23 +1,15 @@
-import type { PlatformRole } from "./platform-auth";
+import { fixedRoleHomeRoute, type FixedRole } from "./fixed-role-policy.ts";
 
 const PLATFORM_PAGE_ALLOWLIST = new Set([
   "/",
   "/login",
+  "/access-denied",
   "/platform-pending",
   "/sales",
   "/clients",
   "/applications",
   "/whatsapp",
   "/settings",
-  "/portal",
-  "/portal/applications",
-  "/portal/documents",
-  "/portal/messages",
-  "/portal/notifications",
-  "/portal/payments",
-  "/portal/profile",
-  "/portal/team",
-  "/portal/visa",
 ]);
 const PLATFORM_CONVERSATION_PATH =
   /^\/whatsapp\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,7 +23,6 @@ const PLATFORM_APPLICATION_PATH =
   /^\/applications\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_MEDIA_DOWNLOAD_PATH =
   /^\/api\/platform-messaging\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
 const PLATFORM_STAFF_ASSISTANT_PATH =
   "/api/platform-ai/staff-assistant";
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
@@ -45,39 +36,8 @@ const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/internal/lead-agent/whatsapp",
   "/api/internal/platform-ai/gemini/proposal",
 ]);
-const PLATFORM_AUDIT_SETTINGS_QUERY_KEYS = new Set([
-  "tab",
-  "start_at",
-  "end_at",
-  "actions",
-  "resource_types",
-  "resource_id",
-  "page_size",
-  "snapshot_created_at",
-  "snapshot_id",
-  "cursor_created_at",
-  "cursor_id",
-]);
-const PLATFORM_STAFF_SETTINGS_QUERY_KEYS = new Set(["tab", "staff_result"]);
-const PLATFORM_OPERATIONS_SETTINGS_QUERY_KEYS = new Set(["tab"]);
-
-export function platformHomeRoute(role: PlatformRole): string {
-  if (role === "admin" || role === "sales") return "/sales";
-  if (role === "admissions" || role === "curator") return "/clients";
-  if (role === "student") return "/portal";
-  return "/platform-pending";
-}
-
-export function platformStudentPortalRedirect(
-  role: PlatformRole,
-): string | null {
-  return role === "student" ? null : platformHomeRoute(role);
-}
-
-export function platformStaffRedirect(role: PlatformRole): string | null {
-  if (role === "student") return "/portal";
-  if (role === "finance") return "/platform-pending";
-  return null;
+export function platformHomeRoute(role: FixedRole): "/sales" | "/clients" {
+  return fixedRoleHomeRoute(role);
 }
 
 /**
@@ -97,88 +57,11 @@ export function isConnectedPlatformPage(path: string): boolean {
   );
 }
 
-/**
- * `/settings` must be present in the path-only proxy allowlist, so the page
- * repeats this exact query check before it imports or reads the legacy SQLite
- * settings provider. Unknown and duplicate fields fail closed.
- */
-export function isConnectedPlatformAuditSettingsRequest(
-  path: string,
-  searchParams: URLSearchParams,
-): boolean {
-  if (path !== "/settings" || searchParams.getAll("tab").length !== 1) {
-    return false;
-  }
-  if (searchParams.get("tab") !== "audit") return false;
-
-  for (const key of new Set(searchParams.keys())) {
-    if (
-      !PLATFORM_AUDIT_SETTINGS_QUERY_KEYS.has(key) ||
-      searchParams.getAll(key).length !== 1
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
-
-export function isConnectedPlatformStaffSettingsRequest(
-  path: string,
-  searchParams: URLSearchParams,
-): boolean {
-  if (path !== "/settings" || searchParams.getAll("tab").length !== 1) {
-    return false;
-  }
-  if (searchParams.get("tab") !== "staff") return false;
-
-  for (const key of new Set(searchParams.keys())) {
-    if (
-      !PLATFORM_STAFF_SETTINGS_QUERY_KEYS.has(key) ||
-      searchParams.getAll(key).length !== 1
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
-
-export function isConnectedPlatformOperationsSettingsRequest(
-  path: string,
-  searchParams: URLSearchParams,
-): boolean {
-  if (path !== "/settings" || searchParams.getAll("tab").length !== 1) {
-    return false;
-  }
-  if (searchParams.get("tab") !== "operations") return false;
-
-  for (const key of new Set(searchParams.keys())) {
-    if (
-      !PLATFORM_OPERATIONS_SETTINGS_QUERY_KEYS.has(key) ||
-      searchParams.getAll(key).length !== 1
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
-
 export function isConnectedPlatformSettingsRequest(
   path: string,
   searchParams: URLSearchParams,
-  { auditEnabled }: { auditEnabled: boolean },
 ): boolean {
-  return (
-    isConnectedPlatformStaffSettingsRequest(path, searchParams) ||
-    isConnectedPlatformOperationsSettingsRequest(path, searchParams) ||
-    (
-      auditEnabled &&
-      isConnectedPlatformAuditSettingsRequest(path, searchParams)
-    )
-  );
-}
-
-export function isConnectedPlatformAuditExportApi(path: string): boolean {
-  return path === PLATFORM_AUDIT_EXPORT_PATH;
+  return path === "/settings" && [...searchParams.keys()].length === 0;
 }
 
 /**
@@ -208,7 +91,6 @@ export function isConnectedPlatformPrivateApi(path: string): boolean {
 export function isConnectedPlatformApi(path: string): boolean {
   return (
     PLATFORM_MEDIA_DOWNLOAD_PATH.test(path) ||
-    isConnectedPlatformAuditExportApi(path) ||
     isConnectedPlatformPrivateApi(path)
   );
 }

@@ -143,7 +143,7 @@ function workflow(
   }));
 }
 
-export async function loadPlatformApplicationDetail({
+export async function loadApplicationWorkspace({
   params,
   searchParams,
 }: {
@@ -246,7 +246,7 @@ export async function loadPlatformApplicationDetail({
     ],
     ownerItems: [
       {
-        label: t("curator"),
+        label: t("role.admissions"),
         value: application.currentCuratorDisplayName,
       },
       {

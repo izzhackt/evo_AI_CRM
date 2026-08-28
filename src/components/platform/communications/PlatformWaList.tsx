@@ -67,7 +67,7 @@ export async function PlatformWaList({
               const queueLabel =
                 conversation.queue === "sales"
                   ? t("platformQueueSales")
-                  : t("platformQueueCurator");
+                  : t("platformQueueAdmissions");
               const statusLabel =
                 conversation.status === "open"
                   ? t("platformStatusOpen")

@@ -1,18 +1,20 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import type { ComponentType } from "react";
 
 import { Icon } from "@/components/icons";
 import { MobileStaffNav, StaffNav, type MobileNavCopy, type NavGroup } from "@/components/StaffNav";
 import { TopBar } from "@/components/TopBar";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
-import { logoutDevelopmentGateAction } from "@/lib/development-gate-actions";
+import {
+  logoutDevelopmentGateAction,
+  selectDevelopmentRolePreviewAction,
+} from "@/lib/development-gate-actions";
 import { STAFF_NAV_ITEMS, isStaffRole } from "@/lib/domain";
+import { isFixedRole, type FixedRole } from "@/lib/fixed-role-policy";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import type { StaffRole } from "@/lib/roles";
 import { formatReleaseLabel, readReleaseMetadata } from "@/lib/release-metadata";
-import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 
 const NAV_GROUP_DEFS = [
   { key: "navOperations", hrefs: ["/dashboard", "/sales", "/clients", "/applications", "/documents", "/visa"] },
@@ -28,8 +30,6 @@ const CONNECTED_STAFF_ROUTES = new Set([
   "/whatsapp",
   "/settings",
 ]);
-
-const PLATFORM_STAFF_SETTINGS_HREF = "/settings?tab=staff";
 
 const SHELL_COPY: Record<
   Locale,
@@ -68,29 +68,20 @@ const SHELL_COPY: Record<
   },
 };
 
-type ShellNotification = {
-  id: string;
-  title: string;
-  subject: string | null;
-  href: string;
-};
-
 type ShellProvider = {
   user: {
     name: string;
     role: StaffRole;
+    authorityRole: FixedRole;
   };
   homeHref: string;
   availableRoutes: ReadonlySet<string> | null;
   logout: () => Promise<void>;
   LanguageSwitcher: ComponentType<{ current: Locale }>;
-  notifications: ShellNotification[];
-  notificationCountCapped: boolean;
   integrationStatus: {
     amo: "not_configured" | "configured_not_verified" | "blocked";
     whatsapp: "not_configured" | "configured_not_verified" | "blocked";
   };
-  connectedRoutesOnly: boolean;
 };
 
 function initials(name: string) {
@@ -104,69 +95,30 @@ function initials(name: string) {
   );
 }
 
-async function loadFixtureShellProvider(): Promise<ShellProvider> {
-  const [auth, actions, queries, language] = await Promise.all([
-    import("@/lib/auth"),
-    import("@/lib/actions"),
-    import("@/lib/queries"),
-    import("@/components/LangSwitcher"),
-  ]);
-  const user = await auth.currentUser();
-  if (!user) redirect("/login");
-  if (!isStaffRole(user.role)) redirect("/portal");
-
-  const notificationBatch = queries.listOperatorNotificationsForActor(
-    { id: user.id, role: user.role },
-    queries.OPERATOR_NOTIFICATION_LIMIT + 1,
-  );
-  const integrations = await actions.getIntegrationStatus();
-
-  return {
-    user: { name: user.name, role: user.role },
-    homeHref: "/dashboard",
-    availableRoutes: null,
-    logout: logoutDevelopmentGateAction,
-    LanguageSwitcher: language.LangSwitcher,
-    notifications: notificationBatch.slice(0, queries.OPERATOR_NOTIFICATION_LIMIT),
-    notificationCountCapped:
-      notificationBatch.length > queries.OPERATOR_NOTIFICATION_LIMIT,
-    integrationStatus: {
-      amo:
-        integrations.amocrm.status === "configured"
-          ? "configured_not_verified"
-          : integrations.amocrm.status,
-      whatsapp:
-        integrations.whatsappState === "configured"
-          ? "configured_not_verified"
-          : integrations.whatsappState,
-    },
-    connectedRoutesOnly: false,
-  };
-}
-
-async function loadConnectedShellProvider(): Promise<ShellProvider> {
+async function loadShellProvider(): Promise<ShellProvider> {
   const [guards, language] = await Promise.all([
     import("@/lib/platform-guards"),
     import("@/components/platform/PlatformLangSwitcher"),
   ]);
   const actor = await guards.requirePlatformStaffActor();
-  if (!isStaffRole(actor.role)) {
-    redirect("/platform-pending?from=%2Fportal");
+  if (!isFixedRole(actor.platformRole) || !isStaffRole(actor.platformRole)) {
+    throw new Error("fixed_role_shell_received_unsupported_role");
   }
 
   return {
-    user: { name: actor.displayName, role: actor.role },
+    user: {
+      name: actor.displayName,
+      role: actor.platformRole,
+      authorityRole: actor.authorityRole,
+    },
     homeHref: guards.platformHomeRoute(actor.platformRole),
     availableRoutes: new Set(CONNECTED_STAFF_ROUTES),
     logout: logoutDevelopmentGateAction,
     LanguageSwitcher: language.PlatformLangSwitcher,
-    notifications: [],
-    notificationCountCapped: false,
     integrationStatus: {
       amo: "blocked",
       whatsapp: "blocked",
     },
-    connectedRoutesOnly: true,
   };
 }
 
@@ -175,9 +127,8 @@ export default async function StaffLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const fixtureMode = isUiContractFixtureMode();
   const [provider, { t, locale }] = await Promise.all([
-    fixtureMode ? loadFixtureShellProvider() : loadConnectedShellProvider(),
+    loadShellProvider(),
     getT(),
   ]);
   const shellCopy = SHELL_COPY[locale];
@@ -197,13 +148,7 @@ export default async function StaffLayout({
       label: t(group.key),
       items: group.hrefs
         .filter((href) => allowed.has(href))
-        .map((href) => ({
-          href:
-            provider.connectedRoutesOnly && href === "/settings"
-              ? PLATFORM_STAFF_SETTINGS_HREF
-              : href,
-          label: allowed.get(href)!,
-        })),
+        .map((href) => ({ href, label: allowed.get(href)! })),
     }))
     .filter((group) => group.items.length > 0);
 
@@ -298,17 +243,36 @@ export default async function StaffLayout({
           <TopBar
             titles={titles}
             locale={locale}
-            role={provider.user.role}
             homeHref={provider.homeHref}
-            addLabel={t("add")}
             themeLabel={t("toggleTheme")}
             languageSwitcher={<LanguageSwitcher current={locale} />}
-            notificationCount={provider.notifications.length}
-            notificationCountCapped={provider.notificationCountCapped}
             integrationStatus={provider.integrationStatus}
-            notificationPreview={provider.notifications.slice(0, 3)}
-            connectedRoutesOnly={provider.connectedRoutesOnly}
           />
+          {provider.user.authorityRole === "admin" ? (
+            <section
+              data-testid="staff-role-preview"
+              data-effective-role={provider.user.role}
+              className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-card border border-accent/25 bg-accent-weak px-4 py-3 sm:mx-6"
+            >
+              <p className="text-sm font-semibold text-fg">
+                Admin preview: {provider.user.role}
+              </p>
+              <form action={selectDevelopmentRolePreviewAction} className="flex flex-wrap gap-2">
+                {(["admin", "sales", "admissions"] as const).map((role) => (
+                  <button
+                    key={role}
+                    type="submit"
+                    name="role"
+                    value={role}
+                    aria-pressed={provider.user.role === role}
+                    className="min-h-10 rounded-ctl border border-border bg-surface px-3 text-xs font-semibold aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent"
+                  >
+                    {role}
+                  </button>
+                ))}
+              </form>
+            </section>
+          ) : null}
           <main
             id="staff-main"
             tabIndex={-1}

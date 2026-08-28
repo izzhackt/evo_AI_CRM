@@ -1,20 +1,13 @@
-import { isUiContractFixtureMode } from "@/lib/runtime-mode";
-
 import {
   ApplicationsQueuePresenter,
   type ApplicationsSearchParams,
 } from "./ApplicationsPresenter";
+import { loadApplicationsWorkspace } from "./ApplicationsWorkspace";
 
 export default async function ApplicationsPage(props: {
   searchParams: Promise<ApplicationsSearchParams>;
 }) {
-  const model = isUiContractFixtureMode()
-    ? await (await import("./LegacyApplicationsPage")).loadLegacyApplicationsPage(
-        props,
-      )
-    : await (
-        await import("./PlatformApplicationsPage")
-      ).loadPlatformApplicationsPage(props);
+  const model = await loadApplicationsWorkspace(props);
 
   return <ApplicationsQueuePresenter model={model} />;
 }

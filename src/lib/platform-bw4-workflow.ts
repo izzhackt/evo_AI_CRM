@@ -25,7 +25,7 @@ const MAX_AVAILABLE_REQUIREMENTS = 200;
 export const PLATFORM_DECISION_OWNER_ROLES = [
   "admin",
   "sales",
-  "curator",
+  "admissions",
 ] as const;
 export const PLATFORM_DECISION_STATUSES = [
   "unresolved",
@@ -993,7 +993,7 @@ function requireWorkspaceActor(actor: PlatformActor): Readonly<{
   if (
     actor.platformRole !== "admin" &&
     actor.platformRole !== "sales" &&
-    actor.platformRole !== "curator"
+    actor.platformRole !== "admissions"
   ) {
     return invalidShape();
   }

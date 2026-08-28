@@ -16,7 +16,6 @@ import {
   listApprovedPlatformKnowledge,
 } from "@/lib/platform-messaging-workflow";
 import { getPlatformConversationBw4Workspace } from "@/lib/platform-bw4-workflow";
-import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 import { getPlatformAmoCrmCanonicalContext } from "@/lib/server/platform-amocrm-canonical-context-service";
 import { loadPlatformAutonomousReplyConfig } from "@/lib/server/platform-autonomous-reply-config";
 import { readPlatformAutonomousReplyState } from "@/lib/server/platform-autonomous-replies-repository";
@@ -64,18 +63,6 @@ export default async function ConversationPage({
   params: Promise<{ id: string }>;
   searchParams: ConversationSearchParams;
 }) {
-  if (isUiContractFixtureMode()) {
-    const { default: LegacyConversationPage } = await import(
-      "./LegacyConversationPage"
-    );
-    return (
-      <LegacyConversationPage
-        params={params}
-        searchParams={searchParams}
-      />
-    );
-  }
-
   const [{ id }, resolvedSearchParams, { t }, actor] = await Promise.all([
     params,
     searchParams,

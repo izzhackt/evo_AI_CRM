@@ -30,7 +30,7 @@ const SAFE_REPOSITORY_ERROR_MESSAGE =
 export const PLATFORM_CONTRACT_ACTOR_ROLES = [
   "admin",
   "sales",
-  "curator",
+  "admissions",
 ] as const;
 export const PLATFORM_CONTRACT_TEMPLATE_STATUSES = [
   "draft",
@@ -123,7 +123,7 @@ export type PlatformContractManifestField = Readonly<{
 export type PlatformPostContractChecklistBlueprintItem = Readonly<{
   itemKey: string;
   label: string;
-  ownerRole: "admin" | "curator";
+  ownerRole: "admin" | "admissions";
   nextAction: string;
 }>;
 
@@ -199,7 +199,7 @@ export type PlatformPostContractItem = Readonly<{
   itemKey: string;
   label: string;
   status: PlatformPostContractItemStatus;
-  ownerRole: "admin" | "curator";
+  ownerRole: "admin" | "admissions";
   ownerMembershipId: string;
   nextAction: string | null;
   evidenceRef: string | null;
@@ -215,7 +215,7 @@ export type PlatformPostContractReportItemSnapshot = Readonly<{
   itemKey: string;
   label: string;
   status: PlatformPostContractItemStatus;
-  ownerRole: "admin" | "curator";
+  ownerRole: "admin" | "admissions";
   ownerMembershipId: string;
   nextAction: string | null;
   evidenceRef: string | null;
@@ -536,7 +536,7 @@ function normalizeBlueprintItem(
   requireExactKeys(value, ["item_key", "label", "owner_role", "next_action"]);
   const itemKey = safeSingleLine(value.item_key, 1, 64);
   if (!ITEM_KEY_PATTERN.test(itemKey)) return invalidShape();
-  const ownerRole = oneOf(value.owner_role, ["admin", "curator"] as const);
+  const ownerRole = oneOf(value.owner_role, ["admin", "admissions"] as const);
   return {
     itemKey,
     label: safeSingleLine(value.label, 1, 240),
@@ -919,7 +919,7 @@ function normalizeItemCore(
     itemKey,
     label: safeSingleLine(value.label, 1, 240),
     status,
-    ownerRole: oneOf(value.owner_role, ["admin", "curator"] as const),
+    ownerRole: oneOf(value.owner_role, ["admin", "admissions"] as const),
     ownerMembershipId: requiredUuid(value.owner_membership_id),
     nextAction,
     evidenceRef,

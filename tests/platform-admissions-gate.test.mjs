@@ -732,15 +732,11 @@ test("U5 server action preserves retry IDs and exposes repository outcomes", asy
 
 test("U5 connected Sales detail renders a fail-closed permissioned gate UI", () => {
   const detail = read(
-    "src/app/(staff)/sales/[id]/ConnectedCanonicalLeadDetail.tsx",
+    "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
   );
   const card = read(
     "src/components/platform/sales/SalesAdmissionsGateCard.tsx",
   );
-  const settings = read(
-    "src/app/(staff)/settings/PlatformStaffSettingsPage.tsx",
-  );
-
   assert.match(detail, /getPlatformAdmissionsGate\(actor, id\)/);
   assert.match(detail, /reason=\{gateResult\.unavailable \? "read_failure" : "not_initialized"\}/);
   assert.match(detail, /Historical leads are not enrolled automatically/);
@@ -753,5 +749,4 @@ test("U5 connected Sales detail renders a fail-closed permissioned gate UI", () 
   assert.match(card, /gate\.canOverrideGate/);
   assert.match(card, /name="evidence_reference"/);
   assert.match(card, /name="reason"/);
-  assert.match(settings, /member\.role === "admin"/);
 });

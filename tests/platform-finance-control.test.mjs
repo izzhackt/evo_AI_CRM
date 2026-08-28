@@ -24,7 +24,7 @@ const actor = Object.freeze({
   membershipId: "80000000-0000-4000-8000-000000000001",
   organizationId: ORGANIZATION_ID,
   displayName: "Admissions Admin",
-  platformRole: "admin",
+  platformRole: "admissions",
   platformAccessVersion: 1,
   platformBundleId: "90000000-0000-4000-8000-000000000001",
   platformBundleVersion: 1,
@@ -349,7 +349,7 @@ test("U8 queue loader rejects duplicate cases, unbounded limits, and unauthorize
 test("U8 connected applications queue exposes read-only finance stop details", () => {
   const pageSource = readFileSync(
     new URL(
-      "../src/app/(staff)/applications/PlatformApplicationsPage.tsx",
+      "../src/app/(staff)/applications/ApplicationsWorkspace.tsx",
       import.meta.url,
     ),
     "utf8",

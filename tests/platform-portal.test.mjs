@@ -473,7 +473,7 @@ test("repository adds the durable P6B notification RPC only when explicitly enab
   assert.equal(snapshot.notifications?.[0]?.id, UPDATE_ID);
 });
 
-test("normal connected portal modules have no static legacy auth or SQLite reachability", () => {
+test("frozen V1 portal modules remain isolated from active legacy auth and SQLite", () => {
   for (const file of [
     "src/lib/portal.ts",
     "src/lib/platform-portal.ts",
@@ -498,7 +498,8 @@ test("normal connected portal modules have no static legacy auth or SQLite reach
     "utf8",
   );
   assert.match(fixtureFacade, /if \(!isUiContractFixtureMode\(\)\)/);
-  assert.match(fixtureFacade, /studentPortalSnapshotForUser/);
+  assert.match(fixtureFacade, /legacy portal fixture runtime was removed/);
+  assert.doesNotMatch(fixtureFacade, /studentPortalSnapshotForUser|from\s+["']\.\/queries["']/);
 });
 
 test("accepted documents page preserves the honest upload-unavailable boundary", () => {

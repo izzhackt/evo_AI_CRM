@@ -155,12 +155,14 @@ test("server entry points resolve public Supabase config at request runtime and 
   }
 
   for (const source of [listPage, threadPage]) {
-    const fixtureGuard = source.indexOf("if (isUiContractFixtureMode())");
     const runtimeRead = source.indexOf(
       "const supabaseConfig = getSupabasePublicConfig();",
     );
-    assert.ok(fixtureGuard >= 0);
-    assert.ok(runtimeRead > fixtureGuard);
+    assert.ok(runtimeRead >= 0);
+    assert.doesNotMatch(
+      source,
+      /isUiContractFixtureMode|LegacyWhatsApp|LegacyConversation/,
+    );
     assert.match(
       source,
       /<PlatformMessagingRealtime[\s\S]*?organizationId=\{actor\.organizationId\}[\s\S]*?supabaseConfig=\{supabaseConfig\}[\s\S]*?\/>/,

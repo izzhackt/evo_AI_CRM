@@ -1,41 +1,45 @@
 import { currentUser } from "./auth";
 import type { DevelopmentGateRole } from "./development-gate-core";
-import type { Role } from "./roles";
 
-// Only DEVELOPMENT_PLATFORM_ROLES can be issued by the V2 gate. The three
-// historical values remain in the shared repository actor type until the
-// already approved UI/repository deletion slices #427/#429.
+// Only DEVELOPMENT_PLATFORM_ROLES can be issued by the active V2 gate.
 export const DEVELOPMENT_PLATFORM_ROLES = [
   "admin",
   "sales",
   "admissions",
 ] as const satisfies readonly DevelopmentGateRole[];
 
-export const PLATFORM_ROLES = [
-  ...DEVELOPMENT_PLATFORM_ROLES,
+export const HISTORICAL_PLATFORM_ROLES = [
   "curator",
   "finance",
   "student",
 ] as const;
 
-export type PlatformRole = (typeof PLATFORM_ROLES)[number];
+export type HistoricalPlatformRole = (typeof HISTORICAL_PLATFORM_ROLES)[number];
+export type PlatformRole = DevelopmentGateRole | HistoricalPlatformRole;
 
-export type PlatformActor = Readonly<{
+export type PlatformActor<
+  Role extends PlatformRole = DevelopmentGateRole,
+> = Readonly<{
   authUserId: string;
   profileId: string;
   membershipId: string;
   organizationId: string;
   displayName: string;
-  platformRole: PlatformRole;
+  platformRole: Role;
+  authorityRole: DevelopmentGateRole;
   platformAccessVersion: number;
   platformBundleId: string;
   platformBundleVersion: number;
-  /**
-   * Temporary accepted-shell projection. Authorization uses platformRole;
-   * #427 deletes the historical role UI and this field with it.
-   */
-  role: Role;
 }>;
+
+/** The only actor shape the active V2 development gate can resolve. */
+export type ActivePlatformActor = PlatformActor<DevelopmentGateRole>;
+
+/**
+ * Explicit repository-only tail for code that expires in #429 or the frozen
+ * student portal. The active resolver never creates this broad actor shape.
+ */
+export type HistoricalRepositoryActor = PlatformActor<PlatformRole>;
 
 export type PlatformActorInvalidReason = "development_session_invalid";
 
@@ -46,7 +50,7 @@ export type PlatformActorResult =
       actor: null;
       reason: PlatformActorInvalidReason;
     }>
-  | Readonly<{ status: "authenticated"; actor: PlatformActor }>;
+  | Readonly<{ status: "authenticated"; actor: ActivePlatformActor }>;
 
 const LOCAL_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
 const LOCAL_BUNDLE_ID = "00000000-0000-4000-8000-000000000002";
@@ -80,18 +84,18 @@ export async function resolvePlatformActor(): Promise<PlatformActorResult> {
   const user = await currentUser();
   if (!user) return { status: "anonymous", actor: null };
 
-  const ids = TECHNICAL_ACTOR_IDS[user.developmentRole];
+  const ids = TECHNICAL_ACTOR_IDS[user.role];
   return {
     status: "authenticated",
     actor: {
       ...ids,
       organizationId: LOCAL_ORGANIZATION_ID,
       displayName: user.name,
-      platformRole: user.developmentRole,
+      platformRole: user.role,
+      authorityRole: user.authorityRole,
       platformAccessVersion: 1,
       platformBundleId: LOCAL_BUNDLE_ID,
       platformBundleVersion: 1,
-      role: user.role,
     },
   };
 }

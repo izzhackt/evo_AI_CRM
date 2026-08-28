@@ -65,6 +65,36 @@ async function developmentSessionCookie(
   );
 }
 
+function profile(role: (typeof PROFILES)[number]["role"]) {
+  const value = PROFILES.find((candidate) => candidate.role === role);
+  if (!value?.identifier || !value.secret) {
+    throw new Error(`missing browser credential for ${role}`);
+  }
+  return value as typeof value & { identifier: string; secret: string };
+}
+
+async function expectActiveRole(
+  page: import("@playwright/test").Page,
+  role: (typeof PROFILES)[number]["role"],
+  authorityRole = role,
+) {
+  await expect(page.getByTestId("active-role")).toHaveAttribute("data-role", role);
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-authority-role",
+    authorityRole,
+  );
+}
+
+async function expectDirectRouteDenied(
+  page: import("@playwright/test").Page,
+  path: "/sales" | "/clients" | "/applications" | "/settings",
+) {
+  await page.goto(path);
+  await expect(page).toHaveURL(
+    new RegExp(`/access-denied\\?from=${encodeURIComponent(path)}$`),
+  );
+}
+
 test("the private gate has exactly two fields and removed access routes stay 404", async ({
   page,
 }) => {
@@ -121,6 +151,10 @@ test("all three fixed roles persist, authorize the app, and log out", async ({ p
       "data-role",
       profile.role,
     );
+    await expect(page.getByTestId("active-role")).toHaveAttribute(
+      "data-authority-role",
+      profile.role,
+    );
     await expect(page.getByTestId("active-role")).toHaveText(profile.label);
     await expect(page.getByTestId("database-status")).toHaveAttribute(
       "data-status",
@@ -152,6 +186,67 @@ test("all three fixed roles persist, authorize the app, and log out", async ({ p
       ),
     ).toBe(false);
   }
+});
+
+test("Sales and Admissions receive exact route boundaries from the signed session", async ({
+  page,
+}) => {
+  test.skip(gateMode !== "configured");
+
+  const sales = profile("sales");
+  await login(page, sales.identifier, sales.secret);
+  await expectActiveRole(page, "sales");
+  await expect(page.getByTestId("open-role-workspace")).toHaveAttribute(
+    "href",
+    "/sales",
+  );
+  for (const path of ["/clients", "/applications", "/settings"] as const) {
+    await expectDirectRouteDenied(page, path);
+  }
+
+  await page.context().clearCookies();
+  const admissions = profile("admissions");
+  await login(page, admissions.identifier, admissions.secret);
+  await expectActiveRole(page, "admissions");
+  await expect(page.getByTestId("open-role-workspace")).toHaveAttribute(
+    "href",
+    "/clients",
+  );
+  await expectDirectRouteDenied(page, "/sales");
+  await expectDirectRouteDenied(page, "/settings");
+});
+
+test("Admin preview preserves Admin authority while enforcing the exact effective role", async ({
+  page,
+}) => {
+  test.skip(gateMode !== "configured");
+
+  const admin = profile("admin");
+  await login(page, admin.identifier, admin.secret);
+  await expectActiveRole(page, "admin");
+
+  await page.goto("/settings");
+  await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
+  await page.goto("/");
+
+  await page.getByTestId("preview-role-sales").click();
+  await expectActiveRole(page, "sales", "admin");
+  await expect(page.getByTestId("preview-active")).toBeVisible();
+  await expectDirectRouteDenied(page, "/clients");
+  await expectDirectRouteDenied(page, "/applications");
+  await expectDirectRouteDenied(page, "/settings");
+
+  await page.goto("/");
+  await page.getByTestId("preview-role-admissions").click();
+  await expectActiveRole(page, "admissions", "admin");
+  await expectDirectRouteDenied(page, "/sales");
+  await expectDirectRouteDenied(page, "/settings");
+
+  await page.goto("/");
+  await page.getByTestId("preview-role-admin").click();
+  await expectActiveRole(page, "admin", "admin");
+  await page.goto("/settings");
+  await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
 });
 
 test("tampered and expired role cookies fail closed", async ({ page }) => {

@@ -28,7 +28,7 @@ import {
   listPlatformSalesOwnerOptions,
 } from "@/lib/platform-sales-workflow";
 
-export async function ConnectedCanonicalLeadDetail({
+export async function SalesLeadWorkspace({
   id,
 }: Readonly<{ id: string }>) {
   const [{ locale }, actor] = await Promise.all([

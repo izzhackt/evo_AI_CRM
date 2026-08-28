@@ -61,7 +61,7 @@ export async function reviewPlatformDocumentVersionAction(
 
   if (
     !isPlatformP6BPortalNotificationsEnabled() ||
-    (actor.platformRole !== "admin" && actor.platformRole !== "curator") ||
+    (actor.platformRole !== "admin" && actor.platformRole !== "admissions") ||
     !studentCaseId ||
     !documentVersionId ||
     !requestId ||

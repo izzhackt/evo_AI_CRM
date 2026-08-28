@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getT, type Locale } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n";
 import { Badge, Card, EmptyState, StatCard, inputCls, btnCls, btnGhostCls, labelCls, cn } from "@/components/ui";
 import { AiSummary } from "@/components/AiSummary";
 import { StudentProgress } from "@/components/platform/core/StudentProgress";
@@ -249,7 +248,6 @@ type PresentationActions = Readonly<{
   addTask?: ServerFormAction;
   moveTask?: ServerFormAction;
   postUpdate?: ServerFormAction;
-  assignCurator?: ServerFormAction;
   closeCase?: ServerFormAction;
   reopenCase?: ServerFormAction;
   changePlatformState?: ServerFormAction;
@@ -307,7 +305,6 @@ export type ClientPagePresentationData =
       updates: readonly PresentationUpdate[];
       taskAssignees: readonly Readonly<{ id: EntityId; name: string }>[];
       taskMutationScope: "full" | "status_only";
-      curators: readonly Readonly<{ id: EntityId; name: string }>[];
       audit: readonly PresentationAuditEvent[];
       snapshot: PresentationSnapshot;
       stageItems: Array<{ key: string; label: string }>;
@@ -358,146 +355,17 @@ function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
 }
 
-async function loadFixtureClientPageData(id: string): Promise<ClientPagePresentationData | null> {
-  const [{ requireStaffRoute }, queries, dbValues, actions, access] = await Promise.all([
-    import("@/lib/guards"),
-    import("@/lib/queries"),
-    import("@/lib/db"),
-    import("@/lib/actions"),
-    import("@/lib/access"),
-  ]);
-  const user = await requireStaffRoute("/clients");
-  const clientId = parseInt(id, 10);
-  const sourceClient = queries.getClientForActor(user, clientId);
-  if (!sourceClient) return null;
-
-  if (sourceClient.access_mode === "sales_post_handoff_summary") {
-    return {
-      access: "summary",
-      client: {
-        access_mode: sourceClient.access_mode,
-        id: sourceClient.id,
-        name: sourceClient.name,
-        stage: sourceClient.stage,
-        target_country: sourceClient.target_country,
-        target_degree: sourceClient.target_degree,
-        case_state: sourceClient.case_state,
-        curator_name: sourceClient.curator_name,
-        handoff_at: sourceClient.handoff_at,
-      },
-      testId: "sales-handoff-summary",
-    };
-  }
-
-  const snapshot = queries.studentCaseSnapshotForUser(sourceClient.user_id);
-  if (!snapshot) return null;
-  const applications = queries.clientApplicationsForActor(user, clientId);
-  const documents = queries.clientDocumentsForActor(user, clientId);
-  const visa = queries.clientVisaCaseForActor(user, clientId) ?? null;
-  const payments = queries.clientPaymentsForActor(user, clientId);
-  const tasks = queries.clientTasksForActor(user, clientId);
-  const updates = queries.clientUpdatesForActor(user, clientId);
-  const canManageLifecycle =
-    user.role === "admin" || (user.role === "curator" && sourceClient.curator_id === user.id);
-
-  return {
-    access: "full",
-    actor: { id: user.id, role: user.role },
-    client: {
-      access_mode: "full",
-      id: sourceClient.id,
-      name: sourceClient.name,
-      email: sourceClient.email,
-      phone: sourceClient.phone,
-      stage: sourceClient.stage,
-      target_country: sourceClient.target_country,
-      target_degree: sourceClient.target_degree,
-      case_state: sourceClient.case_state,
-      contract_confirmed_at: sourceClient.contract_confirmed_at,
-      contract_confirmation_ref: sourceClient.contract_confirmation_ref,
-      portal_activated_at: sourceClient.portal_activated_at,
-      handoff_at: sourceClient.handoff_at,
-      curator_id: sourceClient.curator_id,
-      curator_name: sourceClient.curator_name,
-      manager_name: sourceClient.manager_name,
-      notes: sourceClient.notes,
-    },
-    applications,
-    documents,
-    visa,
-    payments,
-    tasks,
-    updates,
-    taskAssignees: queries.listStaff().filter((person) =>
-      access.canReceiveClientTask(person, sourceClient),
-    ),
-    taskMutationScope: "full",
-    curators: user.role === "admin" ? queries.listCurators() : [],
-    audit: canManageLifecycle
-      ? queries.studentCaseAuditForActor(user, clientId)
-      : [],
-    snapshot: {
-      stageTimeline: snapshot.stageTimeline,
-      nextAction: snapshot.nextAction,
-      manager: snapshot.manager,
-      curator: snapshot.curator,
-      documents: snapshot.documents,
-      payments: snapshot.payments,
-      visa: snapshot.visa,
-    },
-    stageItems: dbValues.STAGES.map((stage) => ({ key: stage, label: "" })),
-    applicationStatuses: dbValues.APP_STATUSES,
-    taskColumns: dbValues.TASK_COLUMNS,
-    taskPriorities: dbValues.TASK_PRIORITIES,
-    visaStatuses: dbValues.VISA_STATUSES,
-    actions: {
-      updateClient: actions.updateClientAction,
-      addApplication: actions.addApplicationAction,
-      setApplicationStatus: actions.setApplicationStatusAction,
-      addDocument: actions.addDocumentAction,
-      upsertVisa: actions.upsertVisaCaseAction,
-      addPayment: actions.addPaymentAction,
-      markPaymentPaid: actions.markPaymentPaidAction,
-      addTask: actions.addTaskAction,
-      moveTask: actions.moveTaskAction,
-      postUpdate: actions.postUpdateAction,
-      assignCurator: actions.assignCuratorAction,
-      closeCase: actions.closeStudentCaseAction,
-      reopenCase: actions.reopenStudentCaseAction,
-    },
-    canManageLifecycle,
-    canViewCaseAudit: canManageLifecycle,
-    canMutatePayments: user.role === "admin" || user.role === "finance",
-    canUseAiSummary: true,
-    sourceHint: "",
-    connected: false,
-    testId: "client-full-detail",
-  };
-}
-
-type FixtureClientPageProps = Readonly<{
-  params?: Promise<{ id: string }>;
-  data?: ClientPagePresentationData;
-  locale?: Locale;
-  t?: (key: string) => string;
+type StudentWorkspacePresenterProps = Readonly<{
+  data: ClientPagePresentationData;
+  locale: Locale;
+  t: (key: string) => string;
 }>;
 
-export default async function FixtureClientPage({
-  params,
-  data: providedData,
-  locale: providedLocale,
-  t: providedT,
-}: FixtureClientPageProps) {
-  const data = providedData ?? (
-    params
-      ? await loadFixtureClientPageData((await params).id)
-      : null
-  );
-  if (!data) notFound();
-
-  const { t, locale } = providedLocale && providedT
-    ? { t: providedT, locale: providedLocale }
-    : await getT();
+export async function StudentWorkspacePresenter({
+  data,
+  locale,
+  t,
+}: StudentWorkspacePresenterProps) {
   const stageLabel = (stage: string) =>
     data.access === "full"
       ? data.stageItems.find((item) => item.key === stage)?.label || t(`stage.${stage}`)
@@ -543,7 +411,7 @@ export default async function FixtureClientPage({
               [t("country"), client.target_country ?? "—"],
               [t("degree"), client.target_degree ?? "—"],
               [t("caseState"), t(`caseState.${client.case_state}`)],
-              [t("curator"), client.curator_name ?? t("notAssigned")],
+              [t("role.admissions"), client.curator_name ?? t("notAssigned")],
               [t("handoffAt"), client.handoff_at ?? "—"],
             ].map(([label, value]) => (
               <div key={label} className="rounded-ctl bg-surface-2 p-3">
@@ -559,7 +427,6 @@ export default async function FixtureClientPage({
 
   const client = data.client;
   const {
-    actor: user,
     applications: apps,
     documents: docs,
     visa,
@@ -578,7 +445,6 @@ export default async function FixtureClientPage({
     updates,
     taskAssignees,
     taskMutationScope,
-    curators,
     audit: caseAudit,
     snapshot,
     applicationStatuses: APP_STATUSES,
@@ -1164,7 +1030,7 @@ export default async function FixtureClientPage({
             <dl className="mt-3 space-y-3">
               {[
                 [t("manager"), snapshot.manager],
-                [t("curator"), snapshot.curator],
+                [t("role.admissions"), snapshot.curator],
               ].map(([role, contact]) => (
                 <div key={String(role)} className="rounded-ctl bg-surface-2 p-3">
                   <dt className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-fg-3">{String(role)}</dt>
@@ -1320,60 +1186,6 @@ export default async function FixtureClientPage({
               <p className="mt-2 font-mono text-[11px] text-fg-2">{client.portal_activated_at ?? "—"}</p>
             </div>
           </div>
-
-          {user.role === "admin" && actions.assignCurator ? (
-            <form
-              action={actions.assignCurator}
-              data-testid="curator-assignment-form"
-              className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-2"
-            >
-              <input type="hidden" name="client_id" value={client.id} />
-              {actions.changePlatformState && data.lifecycleRequestId ? (
-                <input
-                  type="hidden"
-                  name="request_id"
-                  value={data.lifecycleRequestId}
-                />
-              ) : null}
-              <div className="sm:col-span-2">
-                <p className="text-[13px] font-semibold text-fg">{t("curatorAssignment")}</p>
-                <p className="mt-1 text-[11px] leading-4 text-fg-3">{t("curatorAssignmentHint")}</p>
-              </div>
-              <label className={labelCls}>
-                {t("curator")}
-                <select
-                  name="curator_id"
-                  required
-                  defaultValue={client.curator_id ?? ""}
-                  className={cn(inputCls, "mt-1")}
-                >
-                  <option value="">{t("notAssigned")}</option>
-                  {curators.map((curator) => (
-                    <option key={curator.id} value={curator.id}>{curator.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className={labelCls}>
-                {t("assignmentReason")}
-                <textarea
-                  name="reason"
-                  required
-                  maxLength={1000}
-                  rows={2}
-                  className={cn(inputCls, "mt-1 resize-y py-2")}
-                />
-              </label>
-              <div className="sm:col-span-2">
-                <button
-                  type="submit"
-                  disabled={!contractConfirmed}
-                  className={cn(btnCls, !contractConfirmed && "cursor-not-allowed opacity-55")}
-                >
-                  {client.curator_id ? t("reassignCurator") : t("assignCurator")}
-                </button>
-              </div>
-            </form>
-          ) : null}
 
           {canManageLifecycle && client.case_state === "active" && closeCaseAction ? (
             <form
@@ -1810,9 +1622,9 @@ export default async function FixtureClientPage({
             <p className="mt-1 text-[10.5px] leading-4 text-fg-3">{t("managerReadOnlyHint")}</p>
           </div>
           <div className="rounded-nav border border-border bg-surface-2 p-3">
-            <p className={labelCls}>{t("curator")}</p>
+            <p className={labelCls}>{t("role.admissions")}</p>
             <p className="mt-1 text-[13px] font-medium text-fg">{client.curator_name ?? t("notAssigned")}</p>
-            <p className="mt-1 text-[10.5px] leading-4 text-fg-3">{t("curatorReadOnlyHint")}</p>
+            <p className="mt-1 text-[10.5px] leading-4 text-fg-3">{t("admissionsOwnerReadOnlyHint")}</p>
           </div>
           <label className={labelCls}>
             {t("country")}
@@ -1833,7 +1645,7 @@ export default async function FixtureClientPage({
             {[
               [t("stage"), stageLabel(client.stage)],
               [t("manager"), client.manager_name ?? t("notAssigned")],
-              [t("curator"), client.curator_name ?? t("notAssigned")],
+              [t("role.admissions"), client.curator_name ?? t("notAssigned")],
               [t("country"), client.target_country ?? "—"],
               [t("degree"), client.target_degree ?? "—"],
               [t("notes"), client.notes ?? "—"],

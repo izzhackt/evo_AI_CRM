@@ -186,17 +186,14 @@ export default async function TasksPage({
       : staff.filter((person) =>
           person.id === user.id
           || (
-            (user.role === "sales" || user.role === "curator")
+            (user.role === "sales" || user.role === "admissions")
             && person.role === "admin"
           )
         );
   const clientlessTaskAssignees = taskAssignees.filter(canReceiveClientlessTask);
-  const clients =
-    user.role === "finance"
-      ? []
-      : listClientsForActor(user).filter(
-          (client) => client.access_mode !== "sales_post_handoff_summary",
-        );
+  const clients = listClientsForActor(user).filter(
+    (client) => client.access_mode !== "sales_post_handoff_summary",
+  );
   const canOpenSales = user.role === "admin" || user.role === "sales";
   const canOpenCalls = canOpenSales;
   const meetingLeads = canOpenSales

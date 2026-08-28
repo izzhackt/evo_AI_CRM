@@ -61,6 +61,43 @@ database commands. The active product-first build uses one local EVO
 organization and does not build multi-organization tenancy, memberships,
 cross-organization RLS or fine-grained per-user grants.
 
+#### V2-3 fixed-role execution contract
+
+V2-3 uses one canonical role vocabulary everywhere: `admin`, `sales` and
+`admissions`. `curator`, `finance`, membership status and individual grant
+vocabularies are not active authorization inputs. A server-resolved role policy
+drives navigation, page guards, Server Actions, Route Handlers and repository
+commands; a page-level redirect or hidden control is never the only check.
+
+| Effective role | Allowed product responsibility | Required denial |
+| --- | --- | --- |
+| `sales` | Sales pipeline, qualification, ownership, next action and pre-handoff work | Admissions case/document/application/visa commands |
+| `admissions` | handed-off Student 360, tasks, documents, applications, visa and the later minimal finance stop/release | Sales ownership and pre-handoff qualification commands |
+| `admin` | union of Sales and Admissions plus explicit Admin controls | none inside the fixed-role product union |
+
+The signed development session records both the gate-selected authority role
+and the effective role. They are identical for Sales and Admissions. Admin may
+ask a server action to reissue the same signed session with effective role
+`sales` or `admissions`; while previewing, both the rendered interface and
+server command checks use that effective role. Only the server-confirmed Admin
+authority may enter, change or exit preview. Client state, query parameters and
+unsigned cookies are never role or preview authority.
+
+V2-3 replaces the historical staff-role shell in place. It removes the
+`curator` projection, the fixture/connected/legacy staff-screen switches, the
+staff fixture flag from those routes, and the real-staff lifecycle settings
+surface that contradicts the three fixed profiles. The single surviving Sales,
+Admissions and shared shell components receive neutral product names rather
+than `Legacy*`, `Connected*` or `Fixture*` names. Supabase-backed business
+repositories remain only under their already approved #429 expiry and are not
+accepted as V2 proof; V2-3 adds no adapter, fallback or second UI around them.
+
+Acceptance uses the real signed session, real Next.js routes/actions, real
+PostgreSQL-connected app and real Chromium. It proves all three role shells,
+Admin preview entry/exit, allowed route/command policy and direct denials without
+creating fake leads or cases. Later business slices must exercise this same
+policy when their real commands and canonical PostgreSQL records are added.
+
 ### Replace, do not layer
 
 Each completed V2 slice leaves exactly one active runtime, data authority,

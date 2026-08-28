@@ -66,10 +66,9 @@ export const APP_ROUTES = {
 } as const;
 
 export const ROLE_HOME_ROUTE = {
-  admin: APP_ROUTES.staff.dashboard,
+  admin: APP_ROUTES.staff.sales,
   sales: APP_ROUTES.staff.sales,
-  curator: APP_ROUTES.staff.clients,
-  finance: APP_ROUTES.staff.finance,
+  admissions: APP_ROUTES.staff.clients,
   client: APP_ROUTES.portal,
 } satisfies Record<Role, StaffRoute | ClientRoute>;
 
@@ -93,27 +92,27 @@ export const STAFF_NAV_ITEMS = [
   {
     href: APP_ROUTES.staff.clients,
     labelKey: "clients",
-    allowedRoles: ["admin", "sales", "curator"],
+    allowedRoles: ["admin", "admissions"],
   },
   {
     href: APP_ROUTES.staff.applications,
     labelKey: "applications",
-    allowedRoles: ["admin", "sales", "curator"],
+    allowedRoles: ["admin", "admissions"],
   },
   {
     href: APP_ROUTES.staff.documents,
     labelKey: "documents",
-    allowedRoles: ["admin", "sales", "curator"],
+    allowedRoles: ["admin", "admissions"],
   },
   {
     href: APP_ROUTES.staff.visa,
     labelKey: "visa",
-    allowedRoles: ["admin", "curator"],
+    allowedRoles: ["admin", "admissions"],
   },
   {
     href: APP_ROUTES.staff.whatsapp,
     labelKey: "whatsapp",
-    allowedRoles: ["admin", "sales", "curator"],
+    allowedRoles: STAFF_ROLES,
   },
   {
     href: APP_ROUTES.staff.calls,
@@ -138,12 +137,12 @@ export const STAFF_NAV_ITEMS = [
   {
     href: APP_ROUTES.staff.reports,
     labelKey: "reports",
-    allowedRoles: ["admin", "sales", "finance"],
+    allowedRoles: STAFF_ROLES,
   },
   {
     href: APP_ROUTES.staff.finance,
     labelKey: "finance",
-    allowedRoles: ["admin", "finance"],
+    allowedRoles: ["admin", "admissions"],
   },
   {
     href: APP_ROUTES.staff.settings,

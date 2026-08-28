@@ -4,15 +4,17 @@ import test from "node:test";
 import { DICTS, LOCALES } from "../src/lib/i18n-data.ts";
 import { ROLES, STAFF_ROLES, isRole } from "../src/lib/roles.ts";
 
-test("release role policy excludes a separate visa role", () => {
-  assert.deepEqual(STAFF_ROLES, ["admin", "sales", "curator", "finance"]);
-  assert.deepEqual(ROLES, ["admin", "sales", "curator", "finance", "client"]);
+test("V2 role policy exposes only the three fixed staff roles", () => {
+  assert.deepEqual(STAFF_ROLES, ["admin", "sales", "admissions"]);
+  assert.deepEqual(ROLES, ["admin", "sales", "admissions", "client"]);
   assert.equal(isRole("visa"), false);
-  assert.equal(isRole("curator"), true);
+  assert.equal(isRole("admissions"), true);
+  assert.equal(isRole("curator"), false);
+  assert.equal(isRole("finance"), false);
   assert.equal(isRole("unknown"), false);
 
   for (const locale of LOCALES) {
     assert.equal(DICTS[locale]["role.visa"], undefined, locale);
-    assert.equal(typeof DICTS[locale]["role.curator"], "string", locale);
+    assert.equal(typeof DICTS[locale]["role.admissions"], "string", locale);
   }
 });

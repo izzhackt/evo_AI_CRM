@@ -438,7 +438,7 @@ const SALES_WORKFLOW_COPY = {
 } as const;
 
 /** Connected U4 surface: one canonical qualification queue plus the U3 receive-only intake. */
-export async function ConnectedCanonicalSales({
+export async function SalesWorkspace({
   searchParams,
 }: Readonly<{ searchParams: Promise<SearchParams> }>) {
   const [{ locale }, actor, params] = await Promise.all([

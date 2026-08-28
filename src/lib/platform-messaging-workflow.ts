@@ -301,7 +301,7 @@ function isMessagingActor(actor: PlatformActor): boolean {
   return (
     (actor.platformRole === "admin" ||
       actor.platformRole === "sales" ||
-      actor.platformRole === "curator") &&
+      actor.platformRole === "admissions") &&
     parsePlatformRouteUuid(actor.organizationId) !== null
   );
 }

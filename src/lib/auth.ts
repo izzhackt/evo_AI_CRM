@@ -9,6 +9,7 @@ import {
   readDevelopmentGateConfig,
   verifyDevelopmentSessionToken,
   type DevelopmentGateRole,
+  type DevelopmentSession,
 } from "./development-gate-core";
 import type { Role } from "./roles";
 
@@ -17,33 +18,28 @@ const TECHNICAL_PROFILES = {
     id: -101,
     email: "admin@development.invalid",
     name: "Director/Admin",
-    role: "admin",
   },
   sales: {
     id: -102,
     email: "sales@development.invalid",
     name: "Sales Manager",
-    role: "sales",
   },
   admissions: {
     id: -103,
     email: "admissions@development.invalid",
     name: "Admissions Manager",
-    // The accepted pre-#427 shell still names this UI role `curator`. Server
-    // authorization must use developmentRole; #427 removes this UI projection.
-    role: "curator",
   },
 } as const satisfies Record<
   DevelopmentGateRole,
-  Readonly<{ id: number; email: string; name: string; role: Role }>
+  Readonly<{ id: number; email: string; name: string }>
 >;
 
 export type SessionUser = Readonly<{
   id: number;
   email: string;
   name: string;
-  role: Role;
-  developmentRole: DevelopmentGateRole;
+  role: DevelopmentGateRole;
+  authorityRole: DevelopmentGateRole;
 }>;
 
 function requestUsesHttps(requestHeaders: Headers): boolean {
@@ -62,9 +58,14 @@ export function authenticateDevelopmentGate(
   return authenticateDevelopmentProfile(config, identifier, secret);
 }
 
-export async function setSession(role: DevelopmentGateRole): Promise<void> {
+export async function setSession(
+  authorityRole: DevelopmentGateRole,
+  effectiveRole: DevelopmentGateRole = authorityRole,
+): Promise<void> {
   const config = readDevelopmentGateConfig();
-  const token = createDevelopmentSessionToken(config, role);
+  const token = createDevelopmentSessionToken(config, authorityRole, {
+    effectiveRole,
+  });
   const [cookieStore, requestHeaders] = await Promise.all([cookies(), headers()]);
   cookieStore.set(
     DEVELOPMENT_SESSION_COOKIE,
@@ -78,24 +79,25 @@ export async function clearSession(): Promise<void> {
   cookieStore.delete(DEVELOPMENT_SESSION_COOKIE);
 }
 
-export async function currentDevelopmentRole(): Promise<DevelopmentGateRole | null> {
+export async function currentDevelopmentSession(): Promise<DevelopmentSession | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(DEVELOPMENT_SESSION_COOKIE)?.value;
   if (!token) return null;
 
   try {
-    return verifyDevelopmentSessionToken(readDevelopmentGateConfig(), token)?.role ?? null;
+    return verifyDevelopmentSessionToken(readDevelopmentGateConfig(), token);
   } catch {
     return null;
   }
 }
 
 export async function currentUser(): Promise<SessionUser | null> {
-  const developmentRole = await currentDevelopmentRole();
-  if (!developmentRole) return null;
+  const session = await currentDevelopmentSession();
+  if (!session) return null;
   return {
-    ...TECHNICAL_PROFILES[developmentRole],
-    developmentRole,
+    ...TECHNICAL_PROFILES[session.effectiveRole],
+    role: session.effectiveRole,
+    authorityRole: session.role,
   };
 }
 
@@ -117,7 +119,7 @@ export async function requireAdminApi(): Promise<AdminApiAuthorization> {
       ),
     };
   }
-  if (user.developmentRole !== "admin") {
+  if (user.role !== "admin") {
     return {
       response: NextResponse.json(
         { error: "forbidden" },

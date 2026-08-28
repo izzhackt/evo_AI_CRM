@@ -1,4 +1,4 @@
-import { isUiContractFixtureMode } from "@/lib/runtime-mode";
+import { SalesWorkspace } from "./SalesWorkspace";
 
 type SalesSearchParams = Readonly<{
   before_at?: string | string[];
@@ -22,13 +22,5 @@ export default async function SalesPageContent({
 }: Readonly<{
   searchParams: Promise<SalesSearchParams>;
 }>) {
-  if (isUiContractFixtureMode()) {
-    const { default: FixtureSalesPage } = await import("./FixtureSalesPage");
-    return <FixtureSalesPage searchParams={searchParams} />;
-  }
-
-  const { ConnectedCanonicalSales } = await import(
-    "./ConnectedCanonicalSales"
-  );
-  return <ConnectedCanonicalSales searchParams={searchParams} />;
+  return <SalesWorkspace searchParams={searchParams} />;
 }

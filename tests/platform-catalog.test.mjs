@@ -282,7 +282,7 @@ test("catalog UI remains inside the accepted applications route and preserves un
   );
   const loader = readFileSync(
     new URL(
-      "../src/app/(staff)/applications/PlatformApplicationsPage.tsx",
+      "../src/app/(staff)/applications/ApplicationsWorkspace.tsx",
       import.meta.url,
     ),
     "utf8",

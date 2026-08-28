@@ -95,7 +95,7 @@ export type PlatformStudentCaseSnapshot = PlatformStudentCaseQueueRow &
       promises: readonly string[];
       nextStep: string;
       dueAt: string;
-      responsibleRole: "admin" | "sales" | "curator";
+      responsibleRole: "admin" | "sales" | "admissions";
       createdAt: string;
     }> | null;
   }>;
@@ -397,7 +397,7 @@ function requireAdmissionsOrganization(actor: PlatformActor): string {
   if (
     actor.platformRole !== "admin" &&
     actor.platformRole !== "sales" &&
-    actor.platformRole !== "curator"
+    actor.platformRole !== "admissions"
   ) {
     return invalidShape();
   }
@@ -527,7 +527,7 @@ export function normalizePlatformStudentCaseSnapshot(
           responsibleRole: oneOf(value.handoff_responsible_role, [
             "admin",
             "sales",
-            "curator",
+            "admissions",
           ] as const),
           createdAt: requiredTimestamp(value.handoff_created_at),
         },

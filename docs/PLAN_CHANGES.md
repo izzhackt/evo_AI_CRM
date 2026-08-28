@@ -12180,3 +12180,67 @@ https://nextjs.org/docs/app/guides/data-security. Node documents equal-length
 buffer comparison with `crypto.timingSafeEqual()` at
 https://nodejs.org/api/crypto.html#cryptotimingsafeequala-b and HMAC signing at
 https://nodejs.org/api/crypto.html#cryptocreatehmacalgorithm-key-options.
+
+## 2026-08-28 - Make one fixed-role policy and signed Admin preview the V2-3 authority
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under the owner-approved V2-3 scope in #427.
+Change type: role-policy replacement, Admin exact-role preview, server
+authorization and staff-UI legacy eradication.
+Affected plan section: V2-3 (#427); the already assigned Supabase business-data
+repository expiry remains #429.
+
+Reason: after #426 the session contains one of the correct three technical
+roles, but the staff shell still projects Admissions to historical `curator`,
+keeps `finance` and membership/grant vocabulary, selects alternate staff UIs
+through `EVO_UI_CONTRACT_FIXTURES`, and has no Admin exact-role preview. That
+creates two role languages and parallel `Legacy*`, `Connected*` and `Fixture*`
+screens. UI hiding also cannot prove direct Server Action or Route Handler
+authorization.
+
+Decision:
+
+1. Make `admin`, `sales` and `admissions` the only active staff-role vocabulary.
+   The fixed role policy is the shared authority for visible navigation, page
+   entry, route handlers, Server Actions and later transactional commands.
+2. Give the signed development session an authority role and an effective role.
+   They are equal by default. Only authority `admin` can reissue that same
+   session with effective `sales` or `admissions`, or return it to `admin`.
+3. During preview, both UI and server authorization use the effective role.
+   Admin authority is consulted only for the preview control itself, so a direct
+   command cannot bypass the exact-role preview restriction. No query parameter,
+   browser state or unsigned cookie becomes authorization evidence.
+4. Define the active boundary as Sales pre-handoff commands versus Admissions
+   handed-off case commands, with Admin as the normal union. Admissions also
+   owns the later minimal finance stop/release; no fourth Finance role exists.
+5. Replace the fixture/connected staff shell and Sales/Clients/Applications/
+   WhatsApp/settings screen branches with one canonical route and component per
+   capability. Delete the superseded staff UI files, dynamic imports, runtime
+   flag branches and implementation-level branch tests; rename the surviving
+   product components without `Legacy*`, `Connected*` or `Fixture*` prefixes.
+6. Remove the active real-staff lifecycle settings UI from V2-3. Accounts,
+   invitations, membership status and per-user grants remain deferred before
+   real staff/public use; they are not replaced with another local directory.
+7. Keep Supabase-backed business repositories only until their explicit #429
+   deletion boundary already recorded on 2026-08-28. V2-3 must not add an
+   adapter or claim those calls as V2 proof, and must not mutate V1 or provider
+   state.
+8. Test the pure role matrix and signed preview token, then exercise real
+   session cookies, page/action denial and all three role shells in Chromium
+   while the app is connected to disposable real PostgreSQL. Use no fake lead,
+   applicant or case acceptance data. Before merge attach a scoped `rg`
+   inventory for the removed role projection and parallel staff screens.
+
+Validation impact: run focused Node 22 policy/session tests, the complete
+security and unit suites, lint, typecheck and production build. On OrbStack
+only, run the PostgreSQL/Drizzle/application/Chromium harness with normal Sales,
+normal Admissions, normal Admin, Admin-as-Sales and Admin-as-Admissions, plus
+direct cross-role denial. A missing/invalid primary session or preview request
+must fail clearly without importing a fixture, SQLite or Supabase fallback.
+
+Official implementation reference: the current Next.js Authentication guide
+states that Proxy checks are optimistic and that Server Actions and Route
+Handlers must be treated as public-facing endpoints with their own role checks:
+https://nextjs.org/docs/app/guides/authentication. The current Data Security
+guide likewise treats every exported Server Action as a public HTTP endpoint:
+https://nextjs.org/docs/app/guides/data-security.

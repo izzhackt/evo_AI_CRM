@@ -107,7 +107,13 @@ test("Sales reads and updates the real canonical PostgreSQL workflow", async ({
 
   const form = page.getByTestId("canonical-sales-workflow-form");
   await expect(form).toBeVisible();
+  const reason = form.locator('textarea[name="reason"]');
+  await form.locator('select[name="stage"]').selectOption("disqualified");
+  await expect(reason).toBeEnabled();
+  await reason.fill("Browser reconsidered disqualification");
   await form.locator('select[name="stage"]').selectOption("qualified");
+  await expect(reason).toBeDisabled();
+  await expect(reason).toHaveValue("");
   await form
     .locator('textarea[name="qualification_summary"]')
     .fill("Browser-proven qualification summary");

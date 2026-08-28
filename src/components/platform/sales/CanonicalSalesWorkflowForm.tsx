@@ -140,6 +140,7 @@ export function CanonicalSalesWorkflowForm({
     initialState,
   );
   const [stage, setStage] = useState<CanonicalSalesStage>(lead.stage);
+  const [reason, setReason] = useState("");
   const version = result.version ?? lead.version;
 
   if (lead.stage === "handed_off") {
@@ -179,9 +180,11 @@ export function CanonicalSalesWorkflowForm({
           <select
             name="stage"
             value={stage}
-            onChange={(event) =>
-              setStage(event.target.value as CanonicalSalesStage)
-            }
+            onChange={(event) => {
+              const nextStage = event.target.value as CanonicalSalesStage;
+              setStage(nextStage);
+              if (nextStage !== "disqualified") setReason("");
+            }}
             className={inputCls}
           >
             {CANONICAL_SALES_STAGES.filter(
@@ -235,8 +238,11 @@ export function CanonicalSalesWorkflowForm({
         <span className={labelCls}>{copy.reason}</span>
         <textarea
           name="reason"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
           placeholder={copy.reasonPlaceholder}
           required={stage === "disqualified"}
+          disabled={stage !== "disqualified"}
           maxLength={500}
           rows={3}
           className={cn(inputCls, "h-auto resize-y py-2")}

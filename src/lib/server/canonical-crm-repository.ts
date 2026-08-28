@@ -1114,6 +1114,9 @@ export async function updateCanonicalSalesLeadWorkflow(
         id: evoLeads.id,
         stage: evoLeads.stage,
         ownerRole: evoLeads.ownerRole,
+        qualificationSummary: evoLeads.qualificationSummary,
+        nextAction: evoLeads.nextAction,
+        nextActionAt: evoLeads.nextActionAt,
         version: evoLeads.version,
       })
       .from(evoLeads)
@@ -1125,6 +1128,23 @@ export async function updateCanonicalSalesLeadWorkflow(
     databaseSalesOwnerRole(lead.ownerRole);
     if (fromStage === "handed_off" || lead.version !== expectedVersion) {
       throw new CanonicalCrmRepositoryError("conflict");
+    }
+
+    const unchanged =
+      fromStage === stage &&
+      lead.qualificationSummary === qualificationSummary &&
+      lead.nextAction === nextAction &&
+      (lead.nextActionAt?.getTime() ?? null) ===
+        (nextActionAt?.getTime() ?? null);
+    if (unchanged) {
+      const result = await selectLeadSnapshot(transaction, leadId);
+      await completeCommand(transaction, {
+        receiptId: reservation.receiptId,
+        businessObjectType: "lead",
+        businessObjectId: leadId,
+        resultPayload: { leadId },
+      });
+      return result;
     }
 
     const [updated] = await transaction

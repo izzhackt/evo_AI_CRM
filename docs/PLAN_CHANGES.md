@@ -12429,3 +12429,38 @@ https://nextjs.org/docs/app/guides/forms. Drizzle documents parameterized
 updates and PostgreSQL `returning()` at https://orm.drizzle.team/docs/update;
 the existing canonical repository transaction and idempotency contract remains
 the controlling local pattern.
+
+## 2026-08-28 - Correct Sales no-change audit semantics before inbound work
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex following the independent post-merge audit of PR #446.
+Change type: V2-6 corrective sequencing and business-event integrity.
+Affected plan section: V2-6 (#430) canonical Sales workflow.
+
+Reason: the merged PostgreSQL Sales command accepted a fresh request identifier
+whose normalized snapshot was identical to the locked lead. It still advanced
+the version, timestamp and event sequence, creating audit history without a
+business transition. The client also retained a disqualification reason after
+the operator switched back to an active stage, so the strict server boundary
+rejected an otherwise valid workflow.
+
+Decision:
+
+1. Under the existing row lock and optimistic version check, compare the full
+   normalized workflow snapshot before updating. An unchanged command completes
+   its idempotency receipt and returns the current snapshot without changing the
+   row version/timestamp or appending a business event. A stale expected version
+   still fails before this comparison.
+2. Make the disqualification reason a controlled field. Leaving the
+   `disqualified` stage clears and disables it so browser form submission cannot
+   carry hidden stale state. The server keeps its strict rule that active stages
+   do not accept a reason.
+3. Add real PostgreSQL proof for a fresh-id unchanged command and browser proof
+   for the disqualify-then-reconsider interaction. Merge the correction through
+   a separate exact-head PR before beginning the inbound transport replacement.
+
+Validation impact: the PostgreSQL test must prove unchanged version,
+`updated_at`, and event count while preserving a succeeded replayable command
+receipt. Chromium must prove the reason is cleared/disabled and the subsequent
+active-stage save succeeds. Run the full V2 database/browser harness and normal
+CI gates; no provider, V1 or production state is touched.

@@ -61,7 +61,7 @@ const COPY: Record<Locale, Copy> = {
     currentReason: "Зафиксированная причина",
     starterTasks: "Стартовые задачи",
     caseLink: "Открыть Admissions case",
-    noOwnerChoices: "Нет доступных активных curator owner-ов в tenant-bound ответе.",
+    noOwnerChoices: "Нет доступных активных Admissions owner-ов в ответе.",
     noSubmissionAuthority:
       "Текущий сотрудник не может запустить handoff в этом состоянии. Карточка остаётся только для чтения.",
     submit: "Передать в Admissions",
@@ -92,7 +92,7 @@ const COPY: Record<Locale, Copy> = {
     currentReason: "Катталган себеп",
     starterTasks: "Баштапкы тапшырмалар",
     caseLink: "Admissions case ачуу",
-    noOwnerChoices: "Tenant-bound жоопто жеткиликтүү активдүү curator owner жок.",
+    noOwnerChoices: "Жоопто жеткиликтүү активдүү Admissions owner жок.",
     noSubmissionAuthority:
       "Учурдагы кызматкер бул абалда handoff баштай албайт. Карточка окуу үчүн гана калат.",
     submit: "Admissions'ке өткөрүү",
@@ -123,7 +123,7 @@ const COPY: Record<Locale, Copy> = {
     currentReason: "Recorded reason",
     starterTasks: "Starter tasks",
     caseLink: "Open Admissions case",
-    noOwnerChoices: "No active curator owners were returned by the tenant-bound response.",
+    noOwnerChoices: "No active Admissions owners were returned by the response.",
     noSubmissionAuthority:
       "The current staff member cannot submit handoff in this state. The card remains read-only.",
     submit: "Send to Admissions",

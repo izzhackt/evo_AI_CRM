@@ -19,7 +19,8 @@ export default async function FinancePage() {
   const { t } = await getT();
   const payments = listPaymentsForActor(user);
   const clients = listFinanceClientsForActor(user);
-  const canMutatePayments = user.role === "admin" || user.role === "finance";
+  const canMutatePayments =
+    user.role === "admin" || user.role === "admissions";
   const today = new Date().toISOString().slice(0, 10);
   const overduePayments = payments.filter(
     (payment) => payment.status !== "paid" && payment.due_date && payment.due_date < today,

@@ -456,7 +456,7 @@ function buildApplicationQueueHref(
   return serialized ? `/applications?${serialized}` : "/applications";
 }
 
-export async function loadPlatformApplicationsPage({
+export async function loadApplicationsWorkspace({
   searchParams,
 }: {
   searchParams: Promise<ApplicationsSearchParams>;

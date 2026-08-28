@@ -242,14 +242,14 @@ function requireActor(actor: PlatformActor): Readonly<{
 function requireReadActor(actor: PlatformActor): Readonly<{
   organizationId: string;
   membershipId: string;
-  platformRole: "admin" | "curator";
+  platformRole: "admin" | "admissions";
 }> {
   const organizationId = parsePlatformAdmissionsHandoffUuid(actor.organizationId);
   const membershipId = parsePlatformAdmissionsHandoffUuid(actor.membershipId);
   if (
     organizationId === null ||
     membershipId === null ||
-    (actor.platformRole !== "admin" && actor.platformRole !== "curator")
+    (actor.platformRole !== "admin" && actor.platformRole !== "admissions")
   ) {
     return invalid("forbidden");
   }
@@ -419,7 +419,7 @@ function normalizeInheritedContext(
 export function normalizePlatformAdmissionsHandoff(
   value: unknown,
   expectedOrganizationId?: string,
-  actorRole?: "admin" | "sales" | "curator",
+  actorRole?: "admin" | "sales",
 ): PlatformAdmissionsHandoff {
   if (!isRecord(value)) return invalid();
   const organizationId = requiredUuid(value.organization_id);

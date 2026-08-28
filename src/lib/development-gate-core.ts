@@ -17,7 +17,7 @@ export type DevelopmentGateRole = (typeof DEVELOPMENT_GATE_ROLES)[number];
 export const DEVELOPMENT_SESSION_COOKIE = "evo_v2_dev_session";
 export const DEVELOPMENT_SESSION_MAX_AGE_SECONDS = 30 * 60;
 
-const SESSION_VERSION = 1;
+const SESSION_VERSION = 2;
 const MAX_IDENTIFIER_LENGTH = 256;
 const MAX_SUBMITTED_SECRET_LENGTH = 1024;
 const MIN_CONFIGURED_SECRET_LENGTH = 32;
@@ -43,6 +43,7 @@ export type DevelopmentGateConfig = Readonly<{
 
 export type DevelopmentSession = Readonly<{
   role: DevelopmentGateRole;
+  effectiveRole: DevelopmentGateRole;
   issuedAt: number;
   expiresAt: number;
 }>;
@@ -175,13 +176,24 @@ function isDevelopmentGateRole(value: unknown): value is DevelopmentGateRole {
 export function createDevelopmentSessionToken(
   config: DevelopmentGateConfig,
   role: DevelopmentGateRole,
-  options: Readonly<{ now?: number; nonce?: string }> = {},
+  options: Readonly<{
+    effectiveRole?: DevelopmentGateRole;
+    now?: number;
+    nonce?: string;
+  }> = {},
 ): string {
   if (!isDevelopmentGateRole(role)) {
     throw new TypeError("development_session_role_invalid");
   }
 
   const issuedAt = Math.floor((options.now ?? Date.now()) / 1000);
+  const effectiveRole = options.effectiveRole ?? role;
+  if (
+    !isDevelopmentGateRole(effectiveRole) ||
+    (role !== "admin" && effectiveRole !== role)
+  ) {
+    throw new TypeError("development_session_effective_role_invalid");
+  }
   const nonce = options.nonce ?? randomBytes(18).toString("base64url");
   if (!NONCE_PATTERN.test(nonce)) {
     throw new TypeError("development_session_nonce_invalid");
@@ -191,6 +203,7 @@ export function createDevelopmentSessionToken(
     JSON.stringify({
       v: SESSION_VERSION,
       role,
+      effectiveRole,
       iat: issuedAt,
       exp: issuedAt + DEVELOPMENT_SESSION_MAX_AGE_SECONDS,
       nonce,
@@ -245,13 +258,16 @@ export function verifyDevelopmentSessionToken(
   }
   if (!isRecord(payload)) return null;
   const role = payload.role;
+  const effectiveRole = payload.effectiveRole;
   const issuedAt = payload.iat;
   const expiresAt = payload.exp;
   const nonce = payload.nonce;
   if (
-    Object.keys(payload).length !== 5 ||
+    Object.keys(payload).length !== 6 ||
     payload.v !== SESSION_VERSION ||
     !isDevelopmentGateRole(role) ||
+    !isDevelopmentGateRole(effectiveRole) ||
+    (role !== "admin" && effectiveRole !== role) ||
     typeof issuedAt !== "number" ||
     !Number.isSafeInteger(issuedAt) ||
     typeof expiresAt !== "number" ||
@@ -268,6 +284,7 @@ export function verifyDevelopmentSessionToken(
 
   return {
     role,
+    effectiveRole,
     issuedAt,
     expiresAt,
   };

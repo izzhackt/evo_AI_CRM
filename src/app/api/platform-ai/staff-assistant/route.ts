@@ -22,10 +22,7 @@ type ActorResult =
         platformRole:
           | "admin"
           | "sales"
-          | "admissions"
-          | "curator"
-          | "finance"
-          | "student";
+          | "admissions";
       }>;
     }>;
 
@@ -175,7 +172,9 @@ export function createPlatformStaffAssistantHandler(loadDependencies: Dependenci
     if (actor.status === "anonymous") return errorResponse(401, "auth_required");
     if (actor.status !== "authenticated") return errorResponse(403, "forbidden");
     if (actor.actor.organizationId !== dependencies.config.organizationId) return errorResponse(403, "forbidden");
-    if (!["admin", "sales", "curator"].includes(actor.actor.platformRole)) return errorResponse(403, "forbidden");
+    if (!["admin", "sales", "admissions"].includes(actor.actor.platformRole)) {
+      return errorResponse(403, "forbidden");
+    }
 
     try {
       const result = normalizePlatformStaffAssistantResult(await dependencies.createDraft({

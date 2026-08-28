@@ -17,7 +17,6 @@ import {
   PlatformSalesIntakeRepositoryError,
   isPlatformLeadConversationLinked,
 } from "@/lib/platform-sales-intake";
-import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 
 type SearchParams = Readonly<{
   before_at?: string | string[];
@@ -31,8 +30,6 @@ export default async function SalesConversationPage({
   params: Promise<{ id: string; conversationId: string }>;
   searchParams: Promise<SearchParams>;
 }>) {
-  if (isUiContractFixtureMode()) notFound();
-
   const [{ id, conversationId }, query, { locale }, actor] = await Promise.all([
     params,
     searchParams,

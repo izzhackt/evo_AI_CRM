@@ -241,12 +241,12 @@ test("profile UUID parser rejects nil and malformed identifiers", () => {
   assert.equal(parsePlatformStudentProfileUuid("not-a-uuid"), null);
 });
 
-test("profile modules stay Supabase-native while the U2 canonical client detail is read-only", () => {
+test("profile modules stay isolated while Student 360 owns the single UI", () => {
   for (const file of [
     "src/lib/platform-student-profile.ts",
     "src/lib/platform-student-profile-actions.ts",
-    "src/app/(staff)/clients/[id]/ConnectedCanonicalClientDetail.tsx",
-    "src/components/platform/core/CanonicalClientDetail.tsx",
+    "src/app/(staff)/clients/[id]/StudentWorkspace.tsx",
+    "src/app/(staff)/clients/[id]/StudentWorkspacePresenter.tsx",
   ]) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     assert.doesNotMatch(source, /better-sqlite3|edu_session|service[_-]?role/i, file);
@@ -265,17 +265,15 @@ test("profile modules stay Supabase-native while the U2 canonical client detail 
   assert.match(actionSource, /p_reason/);
   assert.match(actionSource, /retry_request_id/);
 
-  const connectedPage = readFileSync(
+  const workspace = readFileSync(
     new URL(
-      "../src/app/(staff)/clients/[id]/ConnectedCanonicalClientDetail.tsx",
+      "../src/app/(staff)/clients/[id]/StudentWorkspace.tsx",
       import.meta.url,
     ),
     "utf8",
   );
-  assert.match(connectedPage, /getPlatformCanonicalClient\(actor, id\)/);
-  assert.match(connectedPage, /<CanonicalClientDetail/);
-  assert.doesNotMatch(
-    connectedPage,
-    /platform-student-profile-actions|addDocument|countryRequirementVersions/,
-  );
+  assert.match(workspace, /getPlatformStudentProfile\(actor,/);
+  assert.match(workspace, /platform-student-profile-actions/);
+  assert.match(workspace, /countryRequirementVersions/);
+  assert.match(workspace, /<StudentWorkspacePresenter/);
 });

@@ -218,7 +218,7 @@ export function createPlatformMessagingMediaHandler(
     if (
       actor.actor.platformRole !== "admin" &&
       actor.actor.platformRole !== "sales" &&
-      actor.actor.platformRole !== "curator"
+      actor.actor.platformRole !== "admissions"
     ) {
       return genericResponse(403);
     }

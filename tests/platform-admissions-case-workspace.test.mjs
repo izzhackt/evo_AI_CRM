@@ -31,7 +31,7 @@ registerHooks({
         return {
           shortCircuit: true,
           url: dataModule(
-            "export const requirePlatformClientsActor = async () => ({ organizationId: '00000000-0000-4000-8000-000000000001', platformRole: 'curator' });",
+            "export const requirePlatformClientsActor = async () => ({ organizationId: '00000000-0000-4000-8000-000000000001', platformRole: 'admissions' });",
           ),
         };
       }
@@ -73,7 +73,7 @@ function workspacePayload(overrides = {}) {
     assignees: [{
       membership_id: ASSIGNEE_ID,
       display_name: "Curator Owner",
-      role: "curator",
+      role: "admissions",
     }],
     ...overrides,
   };
@@ -187,7 +187,7 @@ test("U7 loader calls only task-workspace and activity RPCs with bounded args", 
   };
   const actor = {
     organizationId: ORGANIZATION_ID,
-    platformRole: "curator",
+    platformRole: "admissions",
   };
 
   const workspace = await getPlatformAdmissionsCaseWorkspaceForActor(
@@ -214,7 +214,7 @@ test("U7 loader calls only task-workspace and activity RPCs with bounded args", 
 globalThis.__platformAdmissionsCaseWorkspaceActionTest = {
   actor: {
     organizationId: ORGANIZATION_ID,
-    platformRole: "curator",
+    platformRole: "admissions",
     membershipId: ASSIGNEE_ID,
   },
   redirects: [],

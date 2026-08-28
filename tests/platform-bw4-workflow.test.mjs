@@ -93,7 +93,7 @@ function workspaceRow(overrides = {}) {
     student_case_id: STUDENT_CASE_ID,
     actor_role: "admin",
     can_manage_decisions: true,
-    allowed_owner_roles: ["admin", "sales", "curator"],
+    allowed_owner_roles: ["admin", "sales", "admissions"],
     handoff: {
       handoff_id: HANDOFF_ID,
       student_case_id: STUDENT_CASE_ID,
@@ -108,9 +108,9 @@ function workspaceRow(overrides = {}) {
       },
       unresolved_questions: ["Confirm payment schedule"],
       promises: ["Send the approved checklist"],
-      next_step: "Assign the curator",
+      next_step: "Assign Admissions",
       due_at: AT,
-      responsible_role: "curator",
+      responsible_role: "admissions",
       created_at: AT,
     },
     available_requirements: [
@@ -196,7 +196,7 @@ test("normalizes the complete metadata-only BW4 workspace and derives controls",
 
   assert.equal(workspace.studentCaseId, STUDENT_CASE_ID);
   assert.equal(workspace.canCreateDecision, true);
-  assert.deepEqual(workspace.allowedOwnerRoles, ["admin", "sales", "curator"]);
+  assert.deepEqual(workspace.allowedOwnerRoles, ["admin", "sales", "admissions"]);
   assert.equal(workspace.handoff?.approvedCommercialFieldEntries.length, 3);
   assert.deepEqual(workspace.handoff?.approvedCommercialFieldEntries[0], {
     key: "consultation_fee",

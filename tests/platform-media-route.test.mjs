@@ -59,7 +59,7 @@ test("media route returns 404 for anonymous callers and invalid ids", async () =
 test("media route returns 403 for authenticated but unauthorized roles", async () => {
   const handler = createPlatformMessagingMediaHandler(async () => ({
     async loadActor() {
-      return authenticatedActor("finance");
+      return authenticatedActor("student");
     },
     async grantDownload() {
       throw new Error("should not run");
@@ -85,7 +85,7 @@ test("media route consumes one audited grant and redirects with status 307", asy
   const calls = [];
   const handler = createPlatformMessagingMediaHandler(async () => ({
     async loadActor() {
-      return authenticatedActor("curator");
+      return authenticatedActor("admissions");
     },
     async grantDownload(input) {
       calls.push(["grant", input]);

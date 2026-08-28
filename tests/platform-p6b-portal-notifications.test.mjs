@@ -318,7 +318,7 @@ test("accepted portal renders the durable feed above no fake IDs and badges only
   }
 });
 
-test("the bounded document-review action remains safe while U2 canonical client detail stays read-only", () => {
+test("the bounded document-review action is wired only into Student 360", () => {
   const action = readFileSync(
     new URL(
       "../src/lib/platform-document-review-actions.ts",
@@ -326,16 +326,16 @@ test("the bounded document-review action remains safe while U2 canonical client 
     ),
     "utf8",
   );
-  const adapter = readFileSync(
+  const workspace = readFileSync(
     new URL(
-      "../src/app/(staff)/clients/[id]/ConnectedCanonicalClientDetail.tsx",
+      "../src/app/(staff)/clients/[id]/StudentWorkspace.tsx",
       import.meta.url,
     ),
     "utf8",
   );
   const renderer = readFileSync(
     new URL(
-      "../src/components/platform/core/CanonicalClientDetail.tsx",
+      "../src/app/(staff)/clients/[id]/StudentWorkspacePresenter.tsx",
       import.meta.url,
     ),
     "utf8",
@@ -360,13 +360,15 @@ test("the bounded document-review action remains safe while U2 canonical client 
   }
   assert.doesNotMatch(action, /better-sqlite3|edu_session|individual_whatsapp|waha/i);
 
-  assert.match(adapter, /getPlatformCanonicalClient\(actor, id\)/);
-  assert.match(adapter, /<CanonicalClientDetail/);
-  assert.doesNotMatch(adapter, /reviewPlatformDocumentVersionAction|canReview/);
-  assert.doesNotMatch(
-    renderer,
-    /platform-document-review-form|document_version_id|platform-document-review-submit/,
+  assert.match(workspace, /requirePlatformClientsActor\(\)/);
+  assert.match(workspace, /reviewPlatformDocumentVersionAction/);
+  assert.match(
+    workspace,
+    /actor\.platformRole === "admin" \|\| actor\.platformRole === "admissions"/,
   );
+  assert.match(renderer, /data-testid="platform-document-review-form"/);
+  assert.match(renderer, /name="document_version_id"/);
+  assert.match(renderer, /data-testid="platform-document-review-submit"/);
   assert.ok(
     action.indexOf("listPlatformStudentCaseDocuments") <
       action.indexOf(

@@ -7,7 +7,7 @@ function source(path) {
 }
 
 const salesSource = source(
-  "../src/app/(staff)/sales/ConnectedCanonicalSales.tsx",
+  "../src/app/(staff)/sales/SalesWorkspace.tsx",
 );
 const leadDetailSource = source(
   "../src/components/platform/core/CanonicalLeadDetail.tsx",

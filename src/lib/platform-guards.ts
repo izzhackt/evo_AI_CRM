@@ -1,86 +1,64 @@
 import { redirect } from "next/navigation";
 import {
+  fixedRoleCan,
+  type FixedRoleCapability,
+} from "./fixed-role-policy";
+import {
   resolvePlatformActor,
+  type ActivePlatformActor,
   type PlatformActor,
 } from "./platform-auth";
 import {
   platformHomeRoute,
-  platformStaffRedirect,
-  platformStudentPortalRedirect,
 } from "./platform-route-contract";
 
-export {
-  platformHomeRoute,
-  platformStaffRedirect,
-  platformStudentPortalRedirect,
-};
+export { platformHomeRoute };
 
-export async function requirePlatformActor(): Promise<PlatformActor> {
+export async function requirePlatformActor(): Promise<ActivePlatformActor> {
   const result = await resolvePlatformActor();
   if (result.status === "anonymous") redirect("/login");
   if (result.status === "invalid") redirect("/login?error=session_invalid");
   return result.actor;
 }
 
-export async function requirePlatformStaffActor(): Promise<PlatformActor> {
-  const actor = await requirePlatformActor();
-  const destination = platformStaffRedirect(actor.platformRole);
-  if (destination) redirect(destination);
+export async function requirePlatformStaffActor(): Promise<ActivePlatformActor> {
+  return requirePlatformActor();
+}
+
+export async function requirePlatformCapability(
+  capability: FixedRoleCapability,
+  from: string,
+): Promise<ActivePlatformActor> {
+  const actor = await requirePlatformStaffActor();
+  if (!fixedRoleCan(actor.platformRole, capability)) {
+    redirect(`/access-denied?from=${encodeURIComponent(from)}`);
+  }
   return actor;
 }
 
-export async function requirePlatformStudentPortalActor(): Promise<PlatformActor> {
-  const actor = await requirePlatformActor();
-  const destination = platformStudentPortalRedirect(actor.platformRole);
-  if (destination) redirect(destination);
-  return actor;
+export async function requirePlatformStudentPortalActor(): Promise<PlatformActor<"student">> {
+  await requirePlatformActor();
+  redirect("/platform-pending?from=%2Fportal");
 }
 
-export async function requirePlatformMessagingActor(): Promise<PlatformActor> {
-  return requirePlatformStaffActor();
+export async function requirePlatformMessagingActor(): Promise<ActivePlatformActor> {
+  return requirePlatformCapability("messaging.read", "/whatsapp");
 }
 
 export async function requirePlatformAdmissionsActor(
   route: "/clients" | "/applications" = "/clients",
-): Promise<PlatformActor> {
-  const actor = await requirePlatformStaffActor();
-  if (
-    actor.platformRole !== "admin" &&
-    actor.platformRole !== "admissions"
-  ) {
-    redirect(`/platform-pending?from=${encodeURIComponent(route)}`);
-  }
-  return actor;
+): Promise<ActivePlatformActor> {
+  return requirePlatformCapability("admissions.read", route);
 }
 
-export function requirePlatformClientsActor(): Promise<PlatformActor> {
+export function requirePlatformClientsActor(): Promise<ActivePlatformActor> {
   return requirePlatformAdmissionsActor("/clients");
 }
 
-export function requirePlatformApplicationsActor(): Promise<PlatformActor> {
+export function requirePlatformApplicationsActor(): Promise<ActivePlatformActor> {
   return requirePlatformAdmissionsActor("/applications");
 }
 
-export async function requirePlatformSalesActor(): Promise<PlatformActor> {
-  const actor = await requirePlatformStaffActor();
-  if (actor.platformRole !== "admin" && actor.platformRole !== "sales") {
-    redirect("/platform-pending?from=%2Fsales");
-  }
-  return actor;
-}
-
-export async function requirePlatformAuditAdminActor(): Promise<PlatformActor> {
-  const actor = await requirePlatformStaffActor();
-  if (actor.platformRole !== "admin") {
-    redirect("/platform-pending?from=%2Fsettings%3Ftab%3Daudit");
-  }
-  return actor;
-}
-
-export async function requirePlatformOperationsAdminActor(): Promise<PlatformActor> {
-  const actor = await requirePlatformActor();
-  if (actor.platformRole !== "admin") {
-    redirect("/platform-pending?from=%2Fsettings%3Ftab%3Doperations");
-  }
-  return actor;
+export async function requirePlatformSalesActor(): Promise<ActivePlatformActor> {
+  return requirePlatformCapability("sales.read", "/sales");
 }

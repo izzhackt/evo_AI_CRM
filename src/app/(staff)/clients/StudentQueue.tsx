@@ -112,7 +112,7 @@ const COPY = {
   },
 } as const;
 
-export async function ConnectedCanonicalClients({
+export async function StudentQueue({
   searchParams,
 }: Readonly<{ searchParams: Promise<SearchParams> }>) {
   const [{ locale }, actor, params] = await Promise.all([

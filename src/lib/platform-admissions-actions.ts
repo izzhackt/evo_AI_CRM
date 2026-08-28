@@ -117,7 +117,7 @@ export async function changePlatformStudentCaseStateAction(
     : "/clients";
 
   if (
-    (actor.platformRole !== "admin" && actor.platformRole !== "curator") ||
+    (actor.platformRole !== "admin" && actor.platformRole !== "admissions") ||
     !studentCaseId ||
     !requestId ||
     (newStateValue !== "active" && newStateValue !== "closed") ||

@@ -638,7 +638,7 @@ export async function updatePlatformPostContractItemAction(
     ) {
       throw new Error("Invalid BW6 item response");
     }
-    if (row.owner_role !== "admin" && row.owner_role !== "curator") {
+    if (row.owner_role !== "admin" && row.owner_role !== "admissions") {
       throw new Error("Invalid BW6 item owner");
     }
     if (row.next_action !== input.nextAction || row.evidence_ref !== input.evidenceRef) {

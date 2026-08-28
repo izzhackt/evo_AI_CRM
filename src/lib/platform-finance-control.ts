@@ -11,7 +11,7 @@ const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 
-const PLATFORM_FINANCE_CONTROL_ROLES = ["admin", "sales", "curator"] as const;
+const PLATFORM_FINANCE_CONTROL_ROLES = ["admin", "sales", "admissions"] as const;
 const PLATFORM_OBLIGATION_CATEGORIES = [
   "evo_service_fee",
   "third_party_cost",

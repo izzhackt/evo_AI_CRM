@@ -1,4 +1,10 @@
-import { logoutDevelopmentGateAction } from "@/lib/development-gate-actions";
+import Link from "next/link";
+
+import {
+  logoutDevelopmentGateAction,
+  selectDevelopmentRolePreviewAction,
+} from "@/lib/development-gate-actions";
+import { fixedRoleHomeRoute } from "@/lib/fixed-role-policy";
 import { requirePlatformActor } from "@/lib/platform-guards";
 import { readDatabaseStatus } from "@/lib/server/database-status";
 
@@ -17,6 +23,7 @@ export default async function Home() {
   if (role !== "admin" && role !== "sales" && role !== "admissions") {
     throw new Error("development_gate_issued_unsupported_role");
   }
+  const previewing = actor.authorityRole === "admin" && role !== "admin";
 
   return (
     <main
@@ -65,6 +72,7 @@ export default async function Home() {
               <p
                 data-testid="active-role"
                 data-role={role}
+                data-authority-role={actor.authorityRole}
                 className="mt-2 text-xl font-bold"
               >
                 {ROLE_LABELS[role]}
@@ -85,6 +93,52 @@ export default async function Home() {
               </p>
             </article>
           </div>
+
+          {actor.authorityRole === "admin" ? (
+            <section
+              data-testid="admin-role-preview"
+              className="mt-5 rounded-[18px] border border-border bg-bg p-5"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-fg-3">
+                Admin · точный просмотр роли
+              </p>
+              <p className="mt-2 text-sm leading-6 text-fg-3">
+                Интерфейс и серверные проверки используют выбранную роль. Подпись
+                сессии сохраняет Admin как единственного владельца переключателя.
+              </p>
+              <form
+                action={selectDevelopmentRolePreviewAction}
+                className="mt-4 flex flex-wrap gap-2"
+              >
+                {(["admin", "sales", "admissions"] as const).map((targetRole) => (
+                  <button
+                    key={targetRole}
+                    type="submit"
+                    name="role"
+                    value={targetRole}
+                    data-testid={`preview-role-${targetRole}`}
+                    aria-pressed={role === targetRole}
+                    className="min-h-11 rounded-ctl border border-border px-4 text-sm font-semibold transition-colors hover:bg-surface-2 aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent"
+                  >
+                    {ROLE_LABELS[targetRole]}
+                  </button>
+                ))}
+              </form>
+              {previewing ? (
+                <p data-testid="preview-active" className="mt-3 text-sm font-semibold text-accent">
+                  Admin сейчас ограничен точными правами {ROLE_LABELS[role]}.
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
+          <Link
+            href={fixedRoleHomeRoute(role)}
+            data-testid="open-role-workspace"
+            className="mt-5 inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent"
+          >
+            Открыть рабочий интерфейс
+          </Link>
         </section>
       </div>
     </main>

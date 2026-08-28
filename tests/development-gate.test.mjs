@@ -110,6 +110,7 @@ test("the signed role session survives refresh but rejects tampering and expiry"
 
   assert.deepEqual(verifyDevelopmentSessionToken(config, token, { now }), {
     role: "admissions",
+    effectiveRole: "admissions",
     issuedAt: Math.floor(now / 1000),
     expiresAt: Math.floor(now / 1000) + DEVELOPMENT_SESSION_MAX_AGE_SECONDS,
   });
@@ -117,6 +118,7 @@ test("the signed role session survives refresh but rejects tampering and expiry"
     verifyDevelopmentSessionToken(config, token, { now: now + 60_000 }),
     {
       role: "admissions",
+      effectiveRole: "admissions",
       issuedAt: Math.floor(now / 1000),
       expiresAt: Math.floor(now / 1000) + DEVELOPMENT_SESSION_MAX_AGE_SECONDS,
     },
@@ -139,6 +141,30 @@ test("the signed role session survives refresh but rejects tampering and expiry"
   assert.equal(
     verifyDevelopmentSessionToken(config, `${payload}.${signature.slice(1)}`, { now }),
     null,
+  );
+});
+
+test("only an Admin session can carry a different signed effective role", () => {
+  const config = readDevelopmentGateConfig(validEnvironment());
+  const now = 2_000_000_000_000;
+  const preview = createDevelopmentSessionToken(config, "admin", {
+    effectiveRole: "sales",
+    now,
+    nonce: "admin-sales-preview",
+  });
+
+  assert.deepEqual(verifyDevelopmentSessionToken(config, preview, { now }), {
+    role: "admin",
+    effectiveRole: "sales",
+    issuedAt: Math.floor(now / 1000),
+    expiresAt: Math.floor(now / 1000) + DEVELOPMENT_SESSION_MAX_AGE_SECONDS,
+  });
+  assert.throws(
+    () =>
+      createDevelopmentSessionToken(config, "sales", {
+        effectiveRole: "admissions",
+      }),
+    /development_session_effective_role_invalid/,
   );
 });
 

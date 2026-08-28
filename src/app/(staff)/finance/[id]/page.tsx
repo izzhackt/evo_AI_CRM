@@ -24,7 +24,7 @@ export default async function PaymentDetailPage({
   const payment = getPaymentForActor(user, Number(id));
   if (!payment) notFound();
 
-  const canMutate = user.role === "admin" || user.role === "finance";
+  const canMutate = user.role === "admin" || user.role === "admissions";
   const today = new Date().toISOString().slice(0, 10);
   const isOverdue =
     payment.status !== "paid" &&

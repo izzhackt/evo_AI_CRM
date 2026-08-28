@@ -238,7 +238,7 @@ export async function upsertPlatformCaseVisaAction(
       "note",
       "request_id",
     ])
-    || (actor.platformRole !== "admin" && actor.platformRole !== "curator")
+    || (actor.platformRole !== "admin" && actor.platformRole !== "admissions")
     || !studentCaseId
     || (visaCaseIdValue !== "" && !visaCaseId)
     || !status

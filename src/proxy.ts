@@ -5,10 +5,8 @@ import {
   readDevelopmentGateConfig,
   verifyDevelopmentSessionToken,
 } from "@/lib/development-gate-core";
-import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
 import {
   isConnectedPlatformApi,
-  isConnectedPlatformAuditExportApi,
   isConnectedPlatformPrivateApi,
   isConnectedPlatformPage,
   isConnectedPlatformSettingsRequest,
@@ -143,16 +141,10 @@ export async function proxy(request: NextRequest) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
 
-  const auditEnabled = isPlatformP7AAuditEnabled();
   if (
     path === "/settings" &&
-    !isConnectedPlatformSettingsRequest(path, request.nextUrl.searchParams, {
-      auditEnabled,
-    })
+    !isConnectedPlatformSettingsRequest(path, request.nextUrl.searchParams)
   ) {
-    return blockedPlatformRoute(request, id);
-  }
-  if (isConnectedPlatformAuditExportApi(path) && !auditEnabled) {
     return blockedPlatformRoute(request, id);
   }
   if (!isConnectedPlatformPage(path) && !isConnectedPlatformApi(path)) {

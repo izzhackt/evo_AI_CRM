@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { currentDevelopmentRole } from "@/lib/auth";
+import { currentUser } from "@/lib/auth";
 import { readReleaseMetadata } from "@/lib/release-metadata";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (!(await currentDevelopmentRole())) {
+  if (!(await currentUser())) {
     return NextResponse.json(
       { error: "authentication_required" },
       { status: 401, headers: { "Cache-Control": "no-store" } },

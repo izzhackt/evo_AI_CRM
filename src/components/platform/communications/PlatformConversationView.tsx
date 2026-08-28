@@ -235,7 +235,7 @@ export async function PlatformConversationView({
     platformDecisionOwner: t("platformDecisionOwner"),
     platformDecisionOwnerAdmin: t("platformDecisionOwnerAdmin"),
     platformDecisionOwnerSales: t("platformDecisionOwnerSales"),
-    platformDecisionOwnerCurator: t("platformDecisionOwnerCurator"),
+    platformDecisionOwnerAdmissions: t("platformDecisionOwnerAdmissions"),
     platformDecisionOwnerFixed: t("platformDecisionOwnerFixed"),
     platformDecisionStatus: t("platformDecisionStatus"),
     platformDecisionStatusUnresolved: t(
@@ -778,7 +778,7 @@ export async function PlatformConversationView({
             <p className="mt-0.5 text-[11.5px] text-fg-3">
               {conversation.queue === "sales"
                 ? t("platformQueueSales")
-                : t("platformQueueCurator")}
+                : t("platformQueueAdmissions")}
               {" · "}
               {conversation.status === "open"
                 ? t("platformStatusOpen")

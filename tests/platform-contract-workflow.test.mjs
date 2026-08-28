@@ -70,7 +70,7 @@ function template(overrides = {}) {
       {
         item_key: "welcome_pack",
         label: "Send welcome pack",
-        owner_role: "curator",
+        owner_role: "admissions",
         next_action: "Send the approved welcome pack",
       },
     ],
@@ -125,7 +125,7 @@ function item(overrides = {}) {
     item_key: "welcome_pack",
     label: "Send welcome pack",
     status: "open",
-    owner_role: "curator",
+    owner_role: "admissions",
     owner_membership_id: MEMBERSHIP_ID,
     next_action: "Send the approved welcome pack",
     evidence_ref: null,
@@ -261,7 +261,7 @@ test("rejects a report snapshot that mixes checklist template versions", () => {
 test("accepts a non-admin approved-template workspace without source-management rows", () => {
   const parsed = normalizePlatformCaseContractWorkspace(
     workspace({
-      actor_role: "sales",
+      actor_role: "admissions",
       can_manage_templates: false,
       can_manage_post_contract: false,
       can_review_report: false,
@@ -270,7 +270,7 @@ test("accepts a non-admin approved-template workspace without source-management 
       reports: [],
     }),
   );
-  assert.equal(parsed.actorRole, "sales");
+  assert.equal(parsed.actorRole, "admissions");
   assert.equal(parsed.templates[0].status, "approved");
 });
 
@@ -293,10 +293,10 @@ test("parses strict manifest, template and checklist line grammars", () => {
   );
 
   const blueprint = parsePlatformPostContractChecklistLines(
-    "welcome_pack|Send welcome pack|curator|Send the approved welcome pack",
+    "welcome_pack|Send welcome pack|admissions|Send the approved welcome pack",
   );
   assert.ok(blueprint);
-  assert.equal(blueprint[0].ownerRole, "curator");
+  assert.equal(blueprint[0].ownerRole, "admissions");
 });
 
 test("parses a strict Next Server Action form and reuses its request UUID", () => {
@@ -315,7 +315,7 @@ test("parses a strict Next Server Action form and reuses its request UUID", () =
   );
   form.set(
     "checklist_lines",
-    "welcome_pack|Send welcome pack|curator|Send the approved welcome pack",
+    "welcome_pack|Send welcome pack|admissions|Send the approved welcome pack",
   );
   form.set("reason", "Create reviewed synthetic template");
   form.set("request_id", REQUEST_ID);
@@ -465,7 +465,7 @@ test("rejects duplicate and unknown manifest or checklist definitions", () => {
   );
   assert.equal(
     parsePlatformPostContractChecklistLines(
-      "welcome_pack|Send welcome pack|curator|Send it\n" +
+      "welcome_pack|Send welcome pack|admissions|Send it\n" +
         "welcome_pack|Duplicate|admin|Repeat it",
     ),
     null,
@@ -492,7 +492,7 @@ test("rejects FormData multi-values, arbitrary JSON fields and unsafe decisions"
   createForm.set("template_text", "Student: {{student_name}}");
   createForm.set(
     "checklist_lines",
-    "welcome_pack|Send welcome pack|curator|Send the approved welcome pack",
+    "welcome_pack|Send welcome pack|admissions|Send the approved welcome pack",
   );
   createForm.set("reason", "Create reviewed synthetic template");
   createForm.set("request_id", REQUEST_ID);

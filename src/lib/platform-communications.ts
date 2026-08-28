@@ -12,7 +12,7 @@ const MAX_PROVIDER_REFERENCE_LENGTH = 512;
 const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Platform communications are unavailable.";
 
-export type PlatformConversationQueue = "sales" | "curator";
+export type PlatformConversationQueue = "sales" | "admissions";
 export type PlatformConversationStatus = "open" | "closed";
 export type PlatformWahaSessionName = "evo-inbox";
 // Provider provenance is immutable: old conversations may still name the
@@ -459,7 +459,7 @@ export function normalizePlatformConversationSummary(
   if (
     id === null ||
     (value.student_case_id !== null && studentCaseId === null) ||
-    (value.queue !== "sales" && value.queue !== "curator") ||
+    (value.queue !== "sales" && value.queue !== "admissions") ||
     (value.status !== "open" && value.status !== "closed") ||
     subject === null ||
     wahaSessionName === null ||
@@ -599,7 +599,7 @@ function requireMessagingOrganization(actor: PlatformActor): string {
   if (
     (actor.platformRole !== "admin" &&
       actor.platformRole !== "sales" &&
-      actor.platformRole !== "curator") ||
+      actor.platformRole !== "admissions") ||
     parsePlatformRouteUuid(actor.organizationId) === null
   ) {
     return invalidShape();

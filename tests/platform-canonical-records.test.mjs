@@ -409,7 +409,7 @@ test("canonical client pages pass a complete keyset cursor to the bounded GET RP
   };
 
   const page = await listPlatformCanonicalClients(
-    platformActor("curator"),
+    platformActor("admissions"),
     { cursor, lifecycleState: "active", query: "aizhan@example.com" },
     { client: repository.client },
   );

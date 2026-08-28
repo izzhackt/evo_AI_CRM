@@ -268,7 +268,7 @@ function requireCatalogReader(actor: PlatformActor): string {
   if (
     actor.platformRole !== "admin" &&
     actor.platformRole !== "sales" &&
-    actor.platformRole !== "curator"
+    actor.platformRole !== "admissions"
   ) {
     return invalidShape();
   }

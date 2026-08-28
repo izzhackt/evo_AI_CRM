@@ -5,9 +5,11 @@ import { redirect } from "next/navigation";
 import {
   authenticateDevelopmentGate,
   clearSession,
+  currentUser,
   setSession,
 } from "./auth";
 import { DevelopmentGateConfigError } from "./development-gate-core";
+import { canAdminSelectEffectiveRole } from "./fixed-role-policy";
 
 export type DevelopmentGateActionState =
   | "accessDenied"
@@ -54,4 +56,19 @@ export async function loginDevelopmentGateAction(
 export async function logoutDevelopmentGateAction(): Promise<void> {
   await clearSession();
   redirect("/login");
+}
+
+export async function selectDevelopmentRolePreviewAction(
+  form: FormData,
+): Promise<void> {
+  const user = await currentUser();
+  if (!user) redirect("/login");
+
+  const requestedRole = form.get("role");
+  if (!canAdminSelectEffectiveRole(user.authorityRole, requestedRole)) {
+    redirect("/access-denied?from=%2Fsettings");
+  }
+
+  await setSession(user.authorityRole, requestedRole);
+  redirect("/");
 }

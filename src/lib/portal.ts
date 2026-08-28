@@ -9,11 +9,10 @@ import { isPlatformP6BPortalNotificationsEnabled } from "./server/platform-p6b-p
 import { isPlatformP6COverdueNotificationsEnabled } from "./server/platform-p6c-overdue-config";
 
 /**
- * Request-memoized page facade for every accepted /portal page.
- *
- * Identity comes only from the verified Supabase actor. The repository calls
- * RLS-scoped, argument-free RPCs, so a route cannot select another student's
- * case by URL, query string or legacy numeric identifier.
+ * Frozen V1 student-portal facade retained only as historical migration and
+ * rollback input. The V2 route contract rejects every /portal page, so this
+ * Supabase-backed path is not active authority and must not be imported by a
+ * V2 capability until a later owner-approved replacement slice removes it.
  */
 export const getPortalPageData = cache(async () => {
   if (isUiContractFixtureMode()) {

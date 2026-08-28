@@ -184,7 +184,7 @@ function requireStaffCaseActor(actor: PlatformActor): void {
   if (
     actor.platformRole !== "admin"
     && actor.platformRole !== "sales"
-    && actor.platformRole !== "curator"
+    && actor.platformRole !== "admissions"
   ) {
     return invalidShape();
   }

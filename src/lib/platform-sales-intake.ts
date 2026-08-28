@@ -143,7 +143,7 @@ function requireOrganization(actor: PlatformActor): string {
     organizationId === null ||
     (actor.platformRole !== "admin" &&
       actor.platformRole !== "sales" &&
-      actor.platformRole !== "curator")
+      actor.platformRole !== "admissions")
   ) {
     return invalidShape();
   }

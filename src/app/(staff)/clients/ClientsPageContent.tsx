@@ -1,4 +1,4 @@
-import { isUiContractFixtureMode } from "@/lib/runtime-mode";
+import { StudentQueue } from "./StudentQueue";
 
 type SearchParams = Readonly<{
   stage?: string;
@@ -13,15 +13,5 @@ export default async function ClientsPageContent({
 }: Readonly<{
   searchParams: Promise<SearchParams>;
 }>) {
-  if (isUiContractFixtureMode()) {
-    const { default: FixtureClientsPage } = await import(
-      "./FixtureClientsPage"
-    );
-    return <FixtureClientsPage searchParams={searchParams} />;
-  }
-
-  const { ConnectedCanonicalClients } = await import(
-    "./ConnectedCanonicalClients"
-  );
-  return <ConnectedCanonicalClients searchParams={searchParams} />;
+  return <StudentQueue searchParams={searchParams} />;
 }

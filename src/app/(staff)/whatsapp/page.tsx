@@ -8,7 +8,6 @@ import {
   parsePlatformConversationCursor,
 } from "@/lib/platform-communications";
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
-import { isUiContractFixtureMode } from "@/lib/runtime-mode";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 import { CommunicationsSourceDisclosure } from "./CommunicationsSourceDisclosure";
@@ -21,13 +20,6 @@ export default async function WhatsAppPage({
     before_id?: string | string[];
   }>;
 }) {
-  if (isUiContractFixtureMode()) {
-    const { default: LegacyWhatsAppPage } = await import(
-      "./LegacyWhatsAppPage"
-    );
-    return <LegacyWhatsAppPage />;
-  }
-
   const [{ t }, actor, query] = await Promise.all([
     getT(),
     requirePlatformMessagingActor(),

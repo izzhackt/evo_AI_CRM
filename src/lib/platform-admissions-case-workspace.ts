@@ -22,7 +22,7 @@ const PLATFORM_CASE_TASK_PRIORITIES = [
   "high",
   "urgent",
 ] as const;
-const PLATFORM_CASE_ASSIGNEE_ROLES = ["admin", "sales", "curator"] as const;
+const PLATFORM_CASE_ASSIGNEE_ROLES = ["admin", "sales", "admissions"] as const;
 const PLATFORM_CASE_AUDIT_ACTIONS = [
   "application.create",
   "application.status.change",
@@ -390,7 +390,7 @@ function requireActor(actor: PlatformActor): Readonly<{
   if (!actor.organizationId) return invalidShape();
   if (
     actor.platformRole !== "admin" &&
-    actor.platformRole !== "curator"
+    actor.platformRole !== "admissions"
   ) {
     return invalidShape();
   }

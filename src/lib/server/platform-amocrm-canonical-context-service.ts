@@ -70,7 +70,7 @@ function requireActor(actor: PlatformActor): Readonly<{
   if (
     actor.platformRole !== "admin" &&
     actor.platformRole !== "sales" &&
-    actor.platformRole !== "curator"
+    actor.platformRole !== "admissions"
   ) {
     return invalidShape();
   }

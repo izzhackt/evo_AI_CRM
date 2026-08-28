@@ -13,7 +13,6 @@ import {
 import { getPlatformAdmissionsCaseWorkspace } from "@/lib/platform-admissions-case-workspace";
 import { getPlatformStudentCaseAdmissionsHandoff } from "@/lib/platform-admissions-handoff";
 import {
-  assignPlatformStudentCaseCuratorAction,
   changePlatformStudentCaseStateAction,
   changePlatformUniversityApplicationAction,
   createPlatformUniversityApplicationAction,
@@ -21,7 +20,6 @@ import {
 } from "@/lib/platform-admissions-actions";
 import {
   getPlatformStudentCaseAssignmentState,
-  listPlatformActiveCurators,
 } from "@/lib/platform-case-assignment";
 import {
   getPlatformCaseVisa,
@@ -73,9 +71,10 @@ import {
 } from "@/lib/platform-admissions-case-workspace-actions";
 import { isPlatformP6BPortalNotificationsEnabled } from "@/lib/server/platform-p6b-portal-notifications";
 
-import FixtureClientPage, {
+import {
+  StudentWorkspacePresenter,
   type ClientPagePresentationData,
-} from "./FixtureClientPage";
+} from "./StudentWorkspacePresenter";
 import type { ContractDraftReportResult } from "./ContractDraftReportWorkspace";
 
 type Query = {
@@ -150,7 +149,7 @@ function contractResult(
  * It returns only repository-authorized fields; Sales handoff summaries never
  * receive the full case object.
  */
-export async function loadPlatformClientPageData(
+export async function loadStudentWorkspaceData(
   id: string,
   query: Query,
 ): Promise<ClientPagePresentationData | null> {
@@ -180,11 +179,11 @@ export async function loadPlatformClientPageData(
   const studentCase = view.studentCase;
   const canReadContractWorkspace = actor.platformRole === "admin"
     || actor.platformRole === "sales"
-    || actor.platformRole === "curator";
+    || actor.platformRole === "admissions";
   const canReadAdmissionsHandoffContext = actor.platformRole === "admin"
-    || actor.platformRole === "curator";
+    || actor.platformRole === "admissions";
   const canReadCaseWorkspace = actor.platformRole === "admin"
-    || actor.platformRole === "curator";
+    || actor.platformRole === "admissions";
   const [
     applicationRows,
     profileSnapshot,
@@ -192,7 +191,6 @@ export async function loadPlatformClientPageData(
     countryRequirementVersions,
     contractWorkspace,
     assignmentState,
-    curatorOptions,
     caseVisa,
     caseFinanceControl,
     handoffState,
@@ -210,9 +208,6 @@ export async function loadPlatformClientPageData(
       ? getPlatformCaseContractWorkspace(actor, studentCase.studentCaseId)
       : Promise.resolve(null),
     getPlatformStudentCaseAssignmentState(actor, studentCase.studentCaseId),
-    actor.platformRole === "admin"
-      ? listPlatformActiveCurators(actor)
-      : Promise.resolve([]),
     getPlatformCaseVisa(actor, studentCase.studentCaseId),
     getPlatformCaseFinanceControl(actor, studentCase.studentCaseId, 50),
     canReadAdmissionsHandoffContext
@@ -255,7 +250,7 @@ export async function loadPlatformClientPageData(
     studentCase.studentCaseId,
   );
   const canReviewDocuments =
-    actor.platformRole === "admin" || actor.platformRole === "curator";
+    actor.platformRole === "admin" || actor.platformRole === "admissions";
   const usePortalNotificationDocumentReview =
     canReviewDocuments && isPlatformP6BPortalNotificationsEnabled();
   const documents = documentRows.map((document: (typeof documentRows)[number]) => ({
@@ -487,7 +482,7 @@ export async function loadPlatformClientPageData(
   const hasStudentRouteFacts =
     studentCase.targetCountry !== null && studentCase.targetDegree !== null;
   const canManageLifecycle =
-    (actor.platformRole === "admin" || actor.platformRole === "curator")
+    (actor.platformRole === "admin" || actor.platformRole === "admissions")
     && (studentCase.state === "active" || studentCase.state === "closed");
 
   return {
@@ -553,10 +548,6 @@ export async function loadPlatformClientPageData(
       name: assignee.displayName,
     })),
     taskMutationScope: actor.platformRole === "admin" ? "full" : "status_only",
-    curators: curatorOptions.map((curator: (typeof curatorOptions)[number]) => ({
-      id: curator.membershipId,
-      name: curator.displayName,
-    })),
     audit: workspaceAudit.map((event) => ({
       id: event.auditEventId,
       event_type: event.action,
@@ -618,16 +609,13 @@ export async function loadPlatformClientPageData(
     visaStatuses: [...PLATFORM_VISA_STATUSES],
     actions: {
       addApplication:
-        actor.platformRole === "admin" || actor.platformRole === "curator"
+        actor.platformRole === "admin" || actor.platformRole === "admissions"
           ? createPlatformUniversityApplicationAction
           : undefined,
       setApplicationStatus:
-        actor.platformRole === "admin" || actor.platformRole === "curator"
+        actor.platformRole === "admin" || actor.platformRole === "admissions"
           ? changePlatformUniversityApplicationAction
           : undefined,
-      assignCurator: actor.platformRole === "admin"
-        ? assignPlatformStudentCaseCuratorAction
-        : undefined,
       changePlatformState: changePlatformStudentCaseStateAction,
       updateStudentRoute: updatePlatformStudentCaseRouteAction,
       updateStudentProfile: updatePlatformStudentProfileAction,
@@ -647,7 +635,7 @@ export async function loadPlatformClientPageData(
         ? appendPlatformCaseUpdateAction
         : undefined,
       upsertPlatformVisa:
-        actor.platformRole === "admin" || actor.platformRole === "curator"
+        actor.platformRole === "admin" || actor.platformRole === "admissions"
           ? upsertPlatformCaseVisaAction
           : undefined,
       addPlatformPayment: actor.platformRole === "admin"
@@ -716,7 +704,7 @@ export async function loadPlatformClientPageData(
       && (
         actor.platformRole === "admin"
         || actor.platformRole === "sales"
-        || actor.platformRole === "curator"
+        || actor.platformRole === "admissions"
       ),
     canApplyCountryRequirements:
       actor.platformRole === "admin" && hasStudentRouteFacts,
@@ -725,7 +713,7 @@ export async function loadPlatformClientPageData(
       && (
         actor.platformRole === "admin"
         || actor.platformRole === "sales"
-        || actor.platformRole === "curator"
+        || actor.platformRole === "admissions"
       ),
     routeRequestId,
     profileRequestId,
@@ -785,7 +773,7 @@ export async function loadPlatformClientPageData(
   };
 }
 
-export async function ConnectedStudentCaseDetail({
+export async function StudentWorkspace({
   id,
   searchParams,
 }: Readonly<{
@@ -796,8 +784,8 @@ export async function ConnectedStudentCaseDetail({
     searchParams ?? Promise.resolve({}),
     getT(),
   ]);
-  const data = await loadPlatformClientPageData(id, normalizeQuery(queryInput));
+  const data = await loadStudentWorkspaceData(id, normalizeQuery(queryInput));
   if (!data) notFound();
 
-  return <FixtureClientPage data={data} locale={locale} t={t} />;
+  return <StudentWorkspacePresenter data={data} locale={locale} t={t} />;
 }

@@ -188,6 +188,7 @@ test("sales gate and handoff write only through canonical PostgreSQL commands", 
   assert.match(gateCardSource, /name="evidence_reference"/);
   assert.match(gateCardSource, /name="amount_minor"/);
   assert.match(gateCardSource, /name="currency"/);
+  assert.match(gateCardSource, /router\.refresh\(\)/);
 
   assert.match(handoffActionSource, /requirePlatformSalesActor\(\)/);
   assert.match(handoffActionSource, /handoffCanonicalLeadToAdmissions\(/);
@@ -214,6 +215,14 @@ test("clients detail is the minimal canonical post-handoff view", () => {
   );
   assert.match(clientsDetailWorkspaceSource, /data-testid="canonical-student-case-workspace"/);
   assert.match(clientsDetailWorkspaceSource, /data-testid="canonical-student-case-handoff"/);
+  assert.match(
+    clientsDetailWorkspaceSource,
+    /data-testid="canonical-handoff-override-reason"/,
+  );
+  assert.match(
+    clientsDetailWorkspaceSource,
+    /data-testid="canonical-admissions-starter-task"/,
+  );
   assert.doesNotMatch(
     clientsDetailWorkspaceSource,
     /getPlatformStudentCaseView|getPlatformAdmissionsCaseWorkspace|getPlatformStudentCaseAdmissionsHandoff|platform-admissions|platform-contract|platform-finance|platform-pilot/i,

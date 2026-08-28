@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 
 import { requirePlatformSalesActor } from "@/lib/platform-guards";
 
+import { exactActionStringFields } from "./action-form-fields";
+
 import {
   CanonicalCrmRepositoryError,
   getCanonicalLeadGateSnapshot,
@@ -58,18 +60,6 @@ type GateForm = Readonly<{
   requestId: string;
 }>;
 
-function exactStringFields(form: FormData): Map<string, string> | null {
-  const expected = new Set<string>(GATE_FORM_KEYS);
-  const fields = new Map<string, string>();
-  for (const [key, value] of form.entries()) {
-    if (!expected.has(key) || typeof value !== "string" || fields.has(key)) {
-      return null;
-    }
-    fields.set(key, value);
-  }
-  return fields.size === GATE_FORM_KEYS.length ? fields : null;
-}
-
 function normalizedText(
   value: string | undefined,
   maxLength: number,
@@ -87,7 +77,7 @@ function normalizedText(
 }
 
 function parseGateForm(form: FormData): GateForm | null {
-  const fields = exactStringFields(form);
+  const fields = exactActionStringFields(form, GATE_FORM_KEYS);
   if (!fields) return null;
 
   const leadId = fields.get("lead_id")?.toLowerCase();

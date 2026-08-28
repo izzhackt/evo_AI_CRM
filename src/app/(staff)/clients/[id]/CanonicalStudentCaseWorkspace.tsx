@@ -25,6 +25,7 @@ const COPY = {
     handoff: "Контекст передачи",
     normal: "Обычная передача",
     override: "Исключение Admin",
+    overrideReason: "Причина исключения",
     executedBy: "Выполнила роль",
     executedAt: "Время передачи",
     contractEvidence: "Доказательство договора",
@@ -50,6 +51,7 @@ const COPY = {
     handoff: "Өткөрүү контексти",
     normal: "Кадимки өткөрүү",
     override: "Admin өзгөчө чечими",
+    overrideReason: "Өзгөчө чечимдин себеби",
     executedBy: "Аткарган роль",
     executedAt: "Өткөрүү убактысы",
     contractEvidence: "Келишим далили",
@@ -75,6 +77,7 @@ const COPY = {
     handoff: "Handoff context",
     normal: "Normal handoff",
     override: "Admin exception",
+    overrideReason: "Exception reason",
     executedBy: "Executed by role",
     executedAt: "Handoff time",
     contractEvidence: "Contract evidence",
@@ -201,6 +204,13 @@ export async function CanonicalStudentCaseWorkspace({
           <Fact label={copy.executedAt}>
             {formatTimestamp(handoff.handoff.executedAt, locale)}
           </Fact>
+          {handoff.handoff.isOverride ? (
+            <Fact label={copy.overrideReason}>
+              <span data-testid="canonical-handoff-override-reason">
+                {handoff.handoff.overrideReason}
+              </span>
+            </Fact>
+          ) : null}
           <Fact label={copy.contractEvidence}>
             <span className="font-mono text-[11.5px]">
               {handoff.handoff.contractEvidenceId ?? copy.absent}
@@ -223,7 +233,11 @@ export async function CanonicalStudentCaseWorkspace({
         ) : (
           <ul className="mt-3 divide-y divide-border border-y border-border">
             {handoff.starterTasks.map((task) => (
-              <li key={task.taskId} className="flex gap-4 py-3">
+              <li
+                key={task.taskId}
+                className="flex gap-4 py-3"
+                data-testid="canonical-admissions-starter-task"
+              >
                 <span
                   className={cn(
                     "mt-0.5 h-fit shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",

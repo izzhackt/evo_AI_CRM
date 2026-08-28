@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 
 import { requirePlatformSalesActor } from "@/lib/platform-guards";
 
+import { exactActionStringFields } from "./action-form-fields";
+
 import {
   CanonicalCrmRepositoryError,
   handoffCanonicalLeadToAdmissions,
@@ -48,15 +50,8 @@ type HandoffForm = Readonly<{
 }>;
 
 function parseHandoffForm(form: FormData): HandoffForm | null {
-  const expected = new Set<string>(HANDOFF_FORM_KEYS);
-  const fields = new Map<string, string>();
-  for (const [key, value] of form.entries()) {
-    if (!expected.has(key) || typeof value !== "string" || fields.has(key)) {
-      return null;
-    }
-    fields.set(key, value);
-  }
-  if (fields.size !== HANDOFF_FORM_KEYS.length) return null;
+  const fields = exactActionStringFields(form, HANDOFF_FORM_KEYS);
+  if (!fields) return null;
 
   const leadId = fields.get("lead_id")?.toLowerCase();
   const requestId = fields.get("request_id")?.toLowerCase();

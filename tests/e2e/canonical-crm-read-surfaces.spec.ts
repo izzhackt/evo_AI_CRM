@@ -320,7 +320,7 @@ test("Admin sees the Sales union while Admissions stays server-denied", async ({
   page,
 }) => {
   test.skip(mode !== "configured", "only exercised in configured mode");
-  const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
+  const leadId = requireUuid("EVO_CANONICAL_OVERRIDE_LEAD_ID");
 
   await submitGate(page, "admin");
   await page.goto(`/sales/${leadId}`);
@@ -331,4 +331,106 @@ test("Admin sees the Sales union while Admissions stays server-denied", async ({
   await page.goto("/sales");
   await expect(page).toHaveURL(/\/access-denied\?from=%2Fsales/);
   await expect(page.getByTestId("canonical-sales-page")).toHaveCount(0);
+});
+
+test("Sales records the real gate and Admissions receives exactly three starter tasks", async ({
+  page,
+}) => {
+  test.skip(mode !== "configured", "only exercised in configured mode");
+  const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
+
+  await submitGate(page, "sales");
+  await page.goto(`/sales/${leadId}`);
+  await expect(page.getByTestId("canonical-lead-detail")).toBeVisible();
+
+  const contractForm = page.getByTestId("canonical-contract-evidence-form");
+  await contractForm
+    .locator('input[name="evidence_reference"]')
+    .fill("browser-contract-431");
+  await contractForm.locator('button[type="submit"]').click();
+  await expect(page.getByTestId("canonical-contract-evidence")).toContainText(
+    "browser-contract-431",
+  );
+
+  const paymentForm = page.getByTestId("canonical-first_payment-evidence-form");
+  await paymentForm
+    .locator('input[name="evidence_reference"]')
+    .fill("browser-first-payment-431");
+  await paymentForm.locator('input[name="amount_minor"]').fill("125000");
+  await paymentForm.locator('input[name="currency"]').fill("KGS");
+  await paymentForm.locator('button[type="submit"]').click();
+  await expect(
+    page.getByTestId("canonical-first-payment-evidence"),
+  ).toContainText("browser-first-payment-431");
+
+  const handoffForm = page.getByTestId("canonical-sales-handoff-form");
+  await expect(handoffForm).toBeVisible();
+  await expect(handoffForm.locator('input[name="is_override"]')).toHaveValue(
+    "false",
+  );
+  await handoffForm.locator('button[type="submit"]').click();
+
+  const caseLink = page.getByTestId("canonical-admissions-case-link");
+  await expect(caseLink).toBeVisible();
+  const caseHref = await caseLink.getAttribute("href");
+  expect(caseHref).toMatch(
+    /^\/clients\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+
+  await submitGate(page, "admissions");
+  await page.goto(caseHref!);
+  await expect(
+    page.getByTestId("canonical-student-case-workspace"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("canonical-student-case-handoff"),
+  ).toContainText(/Обычная передача|Кадимки өткөрүү|Normal handoff/);
+  const starterTasks = page.getByTestId("canonical-admissions-starter-task");
+  await expect(starterTasks).toHaveCount(3);
+  for (const title of [
+    "Проверить унаследованный контекст Sales",
+    "Подтвердить маршрут обучения и недостающие данные",
+    "Подготовить первичный план запроса документов",
+  ]) {
+    await expect(starterTasks.filter({ hasText: title })).toHaveCount(1);
+  }
+});
+
+test("Admin records a reasoned exception and opens the resulting case", async ({
+  page,
+}) => {
+  test.skip(mode !== "configured", "only exercised in configured mode");
+  const leadId = requireUuid("EVO_CANONICAL_OVERRIDE_LEAD_ID");
+
+  await submitGate(page, "admin");
+  await page.goto(`/sales/${leadId}`);
+  const overrideReason = "Browser-verified Admin exception for CRM validation";
+  const handoffForm = page.getByTestId("canonical-sales-handoff-form");
+  await expect(handoffForm).toBeVisible();
+  await expect(handoffForm.locator('input[name="is_override"]')).toHaveValue(
+    "true",
+  );
+  await handoffForm
+    .locator('textarea[name="override_reason"]')
+    .fill(overrideReason);
+  await handoffForm.locator('button[type="submit"]').click();
+
+  const caseLink = page.getByTestId("canonical-admissions-case-link");
+  await expect(caseLink).toBeVisible();
+  await caseLink.click();
+  await expect(page).toHaveURL(
+    /\/clients\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  await expect(
+    page.getByTestId("canonical-student-case-workspace"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("canonical-student-case-handoff"),
+  ).toContainText(/Исключение Admin|Admin өзгөчө чечими|Admin exception/);
+  await expect(
+    page.getByTestId("canonical-handoff-override-reason"),
+  ).toHaveText(overrideReason);
+  await expect(
+    page.getByTestId("canonical-admissions-starter-task"),
+  ).toHaveCount(3);
 });

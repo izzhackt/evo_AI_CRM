@@ -176,31 +176,6 @@ type PresentationTask = Readonly<{
   task_type?: string | null;
   request_id?: string;
 }>;
-type PresentationAdmissionsHandoffContext = Readonly<{
-  mode: string;
-  reason: string;
-  handedOffAt: string;
-  actorName: string;
-  ownerName: string;
-  clientName: string;
-  salesStage: string;
-  nextAction: string | null;
-  nextActionDueDate: string | null;
-  conversations: readonly Readonly<{
-    id: string;
-    subject: string;
-    queue: string;
-    status: string;
-    updatedAt: string;
-  }>[];
-  provenance: readonly Readonly<{
-    id: string;
-    sourceSystem: string;
-    evidenceType: string;
-    sourceReference: string | null;
-    observedAt: string;
-  }>[];
-}>;
 type PresentationUpdate = Readonly<{
   id: EntityId;
   message: string;
@@ -301,7 +276,6 @@ export type ClientPagePresentationData =
       pilotExcludeRequestId?: string;
       pilotResult?: "saved" | "invalid" | "unavailable";
       tasks: readonly PresentationTask[];
-      handoffContext?: PresentationAdmissionsHandoffContext | null;
       updates: readonly PresentationUpdate[];
       taskAssignees: readonly Readonly<{ id: EntityId; name: string }>[];
       taskMutationScope: "full" | "status_only";
@@ -441,7 +415,6 @@ export async function StudentWorkspacePresenter({
     pilotExcludeRequestId = randomUUID(),
     pilotResult,
     tasks,
-    handoffContext = null,
     updates,
     taskAssignees,
     taskMutationScope,
@@ -768,47 +741,6 @@ export async function StudentWorkspacePresenter({
     ?? payments.filter((payment) => payment.status !== "paid").length;
   const openTasks = data.metrics?.openTasks
     ?? tasks.filter((task) => task.status !== "done").length;
-  const handoffLabels = {
-    ru: {
-      title: "Контекст передачи из Sales",
-      mode: "Режим",
-      reason: "Причина",
-      actor: "Передал",
-      owner: "Admissions owner",
-      client: "Клиент",
-      stage: "Sales-этап",
-      nextAction: "Следующее действие Sales",
-      conversations: "Связанные разговоры",
-      provenance: "Источники происхождения",
-      none: "Нет",
-    },
-    ky: {
-      title: "Sales бөлүмүнөн өткөрүлгөн контекст",
-      mode: "Режим",
-      reason: "Себеп",
-      actor: "Өткөргөн",
-      owner: "Admissions owner",
-      client: "Кардар",
-      stage: "Sales этабы",
-      nextAction: "Sales кийинки аракети",
-      conversations: "Байланышкан сүйлөшүүлөр",
-      provenance: "Булак далилдери",
-      none: "Жок",
-    },
-    en: {
-      title: "Inherited Sales handoff context",
-      mode: "Mode",
-      reason: "Reason",
-      actor: "Handed off by",
-      owner: "Admissions owner",
-      client: "Client",
-      stage: "Sales stage",
-      nextAction: "Sales next action",
-      conversations: "Linked conversations",
-      provenance: "Provenance sources",
-      none: "None",
-    },
-  }[locale];
   const nextDeadline = data.metrics?.nextDeadline
     ?? apps.find((app) => app.deadline && app.status !== "enrolled" && app.status !== "rejected")?.deadline
     ?? "—";
@@ -1079,91 +1011,6 @@ export async function StudentWorkspacePresenter({
 
       <section id="case-lifecycle" className="scroll-mt-24">
         <Card title={t("studentCaseLifecycle")}>
-          {handoffContext ? (
-            <div
-              className="mb-4 rounded-nav border border-border bg-surface-2 p-3"
-              data-testid="platform-admissions-handoff-context"
-            >
-              <p className="text-[13px] font-semibold text-fg">{handoffLabels.title}</p>
-              <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {[
-                  [handoffLabels.mode, handoffContext.mode],
-                  [handoffLabels.actor, handoffContext.actorName],
-                  [handoffLabels.owner, handoffContext.ownerName],
-                  [handoffLabels.client, handoffContext.clientName],
-                  [handoffLabels.stage, handoffContext.salesStage],
-                  [
-                    handoffLabels.nextAction,
-                    handoffContext.nextAction
-                      ? `${handoffContext.nextAction}${
-                        handoffContext.nextActionDueDate
-                          ? ` · ${handoffContext.nextActionDueDate}`
-                          : ""
-                      }`
-                      : handoffLabels.none,
-                  ],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-fg-3">
-                      {label}
-                    </dt>
-                    <dd className="mt-1 break-words text-[12.5px] text-fg-2">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <div className="mt-3">
-                <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-fg-3">
-                  {handoffLabels.reason}
-                </p>
-                <p className="mt-1 break-words text-[12.5px] text-fg-2">
-                  {handoffContext.reason}
-                </p>
-              </div>
-              <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                <div>
-                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-fg-3">
-                    {handoffLabels.conversations}
-                  </p>
-                  {handoffContext.conversations.length > 0 ? (
-                    <ul className="mt-1 space-y-2">
-                      {handoffContext.conversations.map((conversation) => (
-                        <li key={conversation.id} className="text-[12.5px] text-fg-2">
-                          <p>{conversation.subject}</p>
-                          <p className="text-[11px] text-fg-3">
-                            {conversation.queue} · {conversation.status} · {conversation.updatedAt}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-1 text-[12.5px] text-fg-3">{handoffLabels.none}</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-fg-3">
-                    {handoffLabels.provenance}
-                  </p>
-                  {handoffContext.provenance.length > 0 ? (
-                    <ul className="mt-1 space-y-2">
-                      {handoffContext.provenance.map((source) => (
-                        <li key={source.id} className="text-[12.5px] text-fg-2">
-                          <p>{source.sourceSystem} · {source.evidenceType}</p>
-                          <p className="break-all text-[11px] text-fg-3">
-                            {source.sourceReference ?? handoffLabels.none} · {source.observedAt}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-1 text-[12.5px] text-fg-3">{handoffLabels.none}</p>
-                  )}
-                </div>
-              </div>
-              <p className="mt-3 font-mono text-[10.5px] text-fg-3">
-                {handoffContext.handedOffAt}
-              </p>
-            </div>
-          ) : null}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-nav border border-border bg-surface-2 p-3">
               <p className="text-[11px] text-fg-3">{t("caseState")}</p>

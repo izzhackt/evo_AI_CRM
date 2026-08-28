@@ -11,7 +11,6 @@ import {
   summarizePlatformStudentCaseApplicationPreview,
 } from "@/lib/platform-admissions";
 import { getPlatformAdmissionsCaseWorkspace } from "@/lib/platform-admissions-case-workspace";
-import { getPlatformStudentCaseAdmissionsHandoff } from "@/lib/platform-admissions-handoff";
 import {
   changePlatformStudentCaseStateAction,
   changePlatformUniversityApplicationAction,
@@ -180,8 +179,6 @@ export async function loadStudentWorkspaceData(
   const canReadContractWorkspace = actor.platformRole === "admin"
     || actor.platformRole === "sales"
     || actor.platformRole === "admissions";
-  const canReadAdmissionsHandoffContext = actor.platformRole === "admin"
-    || actor.platformRole === "admissions";
   const canReadCaseWorkspace = actor.platformRole === "admin"
     || actor.platformRole === "admissions";
   const [
@@ -193,7 +190,6 @@ export async function loadStudentWorkspaceData(
     assignmentState,
     caseVisa,
     caseFinanceControl,
-    handoffState,
     caseWorkspace,
     pilotCohortRead,
     legacyWriteBoundaryRead,
@@ -210,9 +206,6 @@ export async function loadStudentWorkspaceData(
     getPlatformStudentCaseAssignmentState(actor, studentCase.studentCaseId),
     getPlatformCaseVisa(actor, studentCase.studentCaseId),
     getPlatformCaseFinanceControl(actor, studentCase.studentCaseId, 50),
-    canReadAdmissionsHandoffContext
-      ? getPlatformStudentCaseAdmissionsHandoff(actor, studentCase.studentCaseId)
-      : Promise.resolve(null),
     canReadCaseWorkspace
       ? getPlatformAdmissionsCaseWorkspace({
           studentCaseId: studentCase.studentCaseId,
@@ -409,36 +402,19 @@ export async function loadStudentWorkspaceData(
     studentCase.intake ? `Набор: ${studentCase.intake}` : null,
     studentCase.languageAssumption ? `Язык: ${studentCase.languageAssumption}` : null,
     studentCase.fundingAssumption ? `Финансирование: ${studentCase.fundingAssumption}` : null,
-    handoffState?.handoffMode
-      ? `U6: ${handoffState.handoffMode === "normal" ? "normal" : "exceptional_override"}`
-      : null,
-    handoffState?.handoffReason ? `Причина handoff: ${handoffState.handoffReason}` : null,
   ].filter((value): value is string => Boolean(value)).join(" · ");
-  const tasks = caseWorkspace
-    ? caseWorkspace.tasks.map((task) => ({
-        id: task.caseTaskId,
-        title: task.title,
-        due_date: task.dueAt?.slice(0, 10) ?? null,
-        status: task.status,
-        priority: task.priority,
-        assignee_name: task.assigneeDisplayName,
-        assignee_membership_id: task.assigneeMembershipId,
-        student_visible: task.studentVisible,
-        task_type: task.taskType,
-        request_id: randomUUID(),
-      }))
-    : handoffState?.starterTasks.map((task) => ({
-        id: task.taskId,
-        title: task.title,
-        due_date: task.dueAt,
-        status: task.status,
-        priority: task.priority,
-        assignee_name: task.assigneeDisplayName,
-        assignee_membership_id: null,
-        student_visible: false,
-        task_type: "admissions_case_task",
-        request_id: randomUUID(),
-      }));
+  const tasks = caseWorkspace?.tasks.map((task) => ({
+    id: task.caseTaskId,
+    title: task.title,
+    due_date: task.dueAt?.slice(0, 10) ?? null,
+    status: task.status,
+    priority: task.priority,
+    assignee_name: task.assigneeDisplayName,
+    assignee_membership_id: task.assigneeMembershipId,
+    student_visible: task.studentVisible,
+    task_type: task.taskType,
+    request_id: randomUUID(),
+  }));
   const workspaceUpdates = caseWorkspace?.updates ?? [];
   const workspaceAudit = caseWorkspace?.audit ?? [];
   const workspaceAssignees = (caseWorkspace?.taskAssignees ?? []).filter(
@@ -446,39 +422,6 @@ export async function loadStudentWorkspaceData(
       actor.platformRole === "admin"
       || assignee.membershipId === actor.membershipId,
   );
-  const inheritedHandoff = handoffState?.inheritedContext ?? null;
-  const handoffContext =
-    inheritedHandoff &&
-    handoffState?.handoffMode &&
-    handoffState.handoffReason &&
-    handoffState.handedOffAt &&
-    handoffState.admissionsOwnerDisplayName
-      ? {
-          mode: handoffState.handoffMode,
-          reason: handoffState.handoffReason,
-          handedOffAt: handoffState.handedOffAt,
-          actorName: inheritedHandoff.actorDisplayName,
-          ownerName: handoffState.admissionsOwnerDisplayName,
-          clientName: inheritedHandoff.client.displayName,
-          salesStage: inheritedHandoff.sales.stageKey,
-          nextAction: inheritedHandoff.sales.nextAction,
-          nextActionDueDate: inheritedHandoff.sales.nextActionDueDate,
-          conversations: inheritedHandoff.conversations.map((conversation) => ({
-            id: conversation.conversationId,
-            subject: conversation.subject,
-            queue: conversation.queue,
-            status: conversation.status,
-            updatedAt: conversation.updatedAt,
-          })),
-          provenance: inheritedHandoff.provenance.map((source) => ({
-            id: source.provenanceId,
-            sourceSystem: source.sourceSystem,
-            evidenceType: source.evidenceType,
-            sourceReference: source.sourceReference,
-            observedAt: source.observedAt,
-          })),
-        }
-      : null;
   const hasStudentRouteFacts =
     studentCase.targetCountry !== null && studentCase.targetDegree !== null;
   const canManageLifecycle =
@@ -536,7 +479,6 @@ export async function loadStudentWorkspaceData(
     pilotExcludeRequestId: u10RequestIdFor("exclude"),
     pilotResult: result(query.u10_result),
     tasks: tasks ?? [],
-    handoffContext,
     updates: workspaceUpdates.map((update) => ({
       id: update.studentCaseUpdateId,
       message: update.body,

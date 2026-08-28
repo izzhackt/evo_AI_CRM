@@ -679,6 +679,204 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       evidenceCountBeforeTerminalProbe,
     );
 
+    for (const existingCaseStatus of ["paused", "closed"]) {
+      const existingCaseMarker = randomUUID();
+      const existingCaseLead = await createCanonicalPersonLead({
+        ...commandContext(
+          runId,
+          `existing-${existingCaseStatus}-case-lead`,
+          "admin",
+        ),
+        displayName: `technical-existing-${existingCaseStatus}-${existingCaseMarker}`,
+        email: `existing-${existingCaseStatus}-${existingCaseMarker}@acceptance.invalid`,
+        source: "technical-existing-case-acceptance",
+      });
+      const existingCaseQualifiedLead = await updateCanonicalSalesLeadWorkflow(
+        commandContext(
+          runId,
+          `existing-${existingCaseStatus}-case-qualified`,
+          "admin",
+        ),
+        {
+          leadId: existingCaseLead.leadId,
+          expectedVersion: existingCaseLead.version,
+          stage: "qualified",
+          qualificationSummary: `Technical ${existingCaseStatus} case reactivation acceptance`,
+          nextAction: "Complete the existing-case handoff",
+          nextActionAt: "2026-08-30",
+        },
+      );
+      for (const evidenceType of ["contract", "first_payment"]) {
+        await recordCanonicalSalesGateEvidence({
+          ...commandContext(
+            runId,
+            `existing-${existingCaseStatus}-${evidenceType}`,
+            "admin",
+          ),
+          leadId: existingCaseLead.leadId,
+          evidenceType,
+          decision: "confirmed",
+          evidenceReference: `technical-${existingCaseStatus}-${evidenceType}-${existingCaseMarker}`,
+          amountMinor: evidenceType === "first_payment" ? 1 : null,
+          currency: evidenceType === "first_payment" ? "USD" : null,
+          occurredAt,
+        });
+      }
+
+      const existingStudentCaseId = randomUUID();
+      const existingCaseVersion = 7;
+      const existingCaseUpdatedAt = "2026-08-27T09:00:00.000Z";
+      await sql`
+        insert into evo_student_cases (
+          id,
+          person_id,
+          lead_id,
+          status,
+          owner_role,
+          version,
+          created_at,
+          updated_at
+        )
+        values (
+          ${existingStudentCaseId},
+          ${existingCaseLead.personId},
+          ${existingCaseLead.leadId},
+          ${existingCaseStatus},
+          'admissions',
+          ${existingCaseVersion},
+          ${existingCaseUpdatedAt},
+          ${existingCaseUpdatedAt}
+        )
+      `;
+
+      const existingCaseHandoffInput = {
+        ...commandContext(
+          runId,
+          `existing-${existingCaseStatus}-case-handoff`,
+          "admin",
+        ),
+        leadId: existingCaseLead.leadId,
+        expectedVersion: existingCaseQualifiedLead.version,
+      };
+      const existingCaseHandoff = await handoffCanonicalLeadToAdmissions(
+        existingCaseHandoffInput,
+      );
+      assert.equal(existingCaseHandoff.studentCaseId, existingStudentCaseId);
+      assert.equal(existingCaseHandoff.isOverride, false);
+
+      const [reactivatedCase] = await sql`
+        select
+          status,
+          version,
+          updated_at as "updatedAt"
+        from evo_student_cases
+        where id = ${existingStudentCaseId}
+      `;
+      assert.equal(reactivatedCase.status, "active");
+      assert.equal(reactivatedCase.version, existingCaseVersion + 1);
+      assert.ok(
+        reactivatedCase.updatedAt.getTime() >
+          new Date(existingCaseUpdatedAt).getTime(),
+      );
+
+      const reactivationEvents = await sql`
+        select
+          transition,
+          event_sequence as "eventSequence",
+          business_object_type as "businessObjectType",
+          business_object_id as "businessObjectId",
+          from_state as "fromState",
+          to_state as "toState"
+        from evo_business_events
+        where idempotency_key = ${existingCaseHandoffInput.idempotencyKey}
+        order by event_sequence
+      `;
+      assert.deepEqual(
+        reactivationEvents.map((event) => ({
+          transition: event.transition,
+          eventSequence: event.eventSequence,
+        })),
+        [
+          { transition: "student_case.activated", eventSequence: 1 },
+          { transition: "task.created", eventSequence: 2 },
+          { transition: "task.created", eventSequence: 3 },
+          { transition: "task.created", eventSequence: 4 },
+          { transition: "sales_admissions.handed_off", eventSequence: 5 },
+        ],
+      );
+      assert.deepEqual(
+        {
+          businessObjectType: reactivationEvents[0].businessObjectType,
+          businessObjectId: reactivationEvents[0].businessObjectId,
+          fromState: reactivationEvents[0].fromState,
+          toState: reactivationEvents[0].toState,
+        },
+        {
+          businessObjectType: "student_case",
+          businessObjectId: existingStudentCaseId,
+          fromState: existingCaseStatus,
+          toState: "active",
+        },
+      );
+      assert.ok(
+        reactivationEvents
+          .slice(1, 4)
+          .every((event) => event.businessObjectType === "task"),
+      );
+      assert.equal(reactivationEvents[4].businessObjectType, "handoff");
+      assert.equal(
+        reactivationEvents[4].businessObjectId,
+        existingCaseHandoff.handoffId,
+      );
+
+      const [countsBeforeReplay] = await sql`
+        select
+          (
+            select count(*)::int
+            from evo_admissions_tasks
+            where student_case_id = ${existingStudentCaseId}
+          ) as tasks,
+          (
+            select count(*)::int
+            from evo_sales_admissions_handoffs
+            where lead_id = ${existingCaseLead.leadId}
+          ) as handoffs,
+          (
+            select count(*)::int
+            from evo_business_events
+            where idempotency_key = ${existingCaseHandoffInput.idempotencyKey}
+          ) as events
+      `;
+      assert.deepEqual(countsBeforeReplay, {
+        tasks: 3,
+        handoffs: 1,
+        events: 5,
+      });
+      const existingCaseReplay = await handoffCanonicalLeadToAdmissions(
+        existingCaseHandoffInput,
+      );
+      assert.deepEqual(existingCaseReplay, existingCaseHandoff);
+      const [countsAfterReplay] = await sql`
+        select
+          (
+            select count(*)::int
+            from evo_admissions_tasks
+            where student_case_id = ${existingStudentCaseId}
+          ) as tasks,
+          (
+            select count(*)::int
+            from evo_sales_admissions_handoffs
+            where lead_id = ${existingCaseLead.leadId}
+          ) as handoffs,
+          (
+            select count(*)::int
+            from evo_business_events
+            where idempotency_key = ${existingCaseHandoffInput.idempotencyKey}
+          ) as events
+      `;
+      assert.deepEqual(countsAfterReplay, countsBeforeReplay);
+    }
+
     const overrideLead = await createCanonicalPersonLead({
       ...commandContext(runId, "override-lead", "admin"),
       displayName: `technical-Xliteral-${runId}`,
@@ -1103,6 +1301,25 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     );
     assert.equal(browserActiveLead.stage, "qualifying");
 
+    const browserOverrideLead = await createCanonicalPersonLead({
+      ...technicalCommandContext(runId, "browser-override-lead", "admin"),
+      displayName: `technical-browser-override-${randomUUID()}`,
+      email: `browser-override-${randomUUID()}@technical.invalid`,
+      source: "technical-browser-override-source",
+    });
+    const browserOverrideReadyLead = await updateCanonicalSalesLeadWorkflow(
+      technicalCommandContext(runId, "browser-override-workflow", "admin"),
+      {
+        leadId: browserOverrideLead.leadId,
+        expectedVersion: browserOverrideLead.version,
+        stage: "qualified",
+        qualificationSummary: "Technical browser Admin override lead",
+        nextAction: "Exercise the browser Admin handoff exception",
+        nextActionAt: browserCalendar.tomorrow,
+      },
+    );
+    assert.equal(browserOverrideReadyLead.stage, "qualified");
+
     const originalDatabaseUrl = process.env.DATABASE_URL;
     await closeDatabaseConnections();
     process.env.DATABASE_URL =
@@ -1121,7 +1338,11 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     if (resultFile) {
       await writeFile(
         resultFile,
-        `${JSON.stringify({ canonicalLeadId: browserActiveLead.leadId, privateDocumentCaseId: handoff.studentCaseId })}\n`,
+        `${JSON.stringify({
+          canonicalLeadId: browserActiveLead.leadId,
+          canonicalOverrideLeadId: browserOverrideReadyLead.leadId,
+          privateDocumentCaseId: handoff.studentCaseId,
+        })}\n`,
         { encoding: "utf8", mode: 0o600 },
       );
     }

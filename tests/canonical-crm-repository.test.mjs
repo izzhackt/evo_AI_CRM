@@ -498,5 +498,9 @@ test("canonical repository has no Supabase, SQLite, compatibility, or fallback a
     /lead\.stage !== "qualified" && lead\.stage !== "handoff_ready"/,
   );
   assert.match(source, /transition: "student_case\.created"/);
-  assert.match(source, /eventSequence: studentCaseCreated \? 2 : 1/);
+  assert.match(source, /transition: "student_case\.activated"/);
+  assert.match(source, /fromState: studentCaseActivatedFromStatus/);
+  assert.match(source, /let eventSequence = 1/);
+  assert.match(source, /eventSequence \+= 1/);
+  assert.match(source, /CANONICAL_ADMISSIONS_STARTER_TASKS\.map/);
 });

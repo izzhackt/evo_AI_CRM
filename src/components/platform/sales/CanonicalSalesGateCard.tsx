@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 import { Card, btnCls, cn, inputCls, labelCls } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
@@ -227,6 +228,7 @@ function EvidenceForm({
   locale: Locale;
 }>) {
   const copy = COPY[locale];
+  const router = useRouter();
   const initialState: CanonicalSalesGateActionState = {
     status: "idle",
     requestId,
@@ -238,6 +240,10 @@ function EvidenceForm({
     initialState,
   );
   const message = actionMessage(state, copy);
+
+  useEffect(() => {
+    if (state.status === "saved") router.refresh();
+  }, [router, state.status, state.changedAt]);
 
   return (
     <form

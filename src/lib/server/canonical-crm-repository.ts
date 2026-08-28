@@ -233,6 +233,7 @@ export type CanonicalStudentCaseHandoffSnapshot = Readonly<{
     handoffId: string;
     leadId: string;
     isOverride: boolean;
+    overrideReason: string | null;
     executedByRole: FixedRole;
     executedAt: string;
     contractEvidenceId: string | null;
@@ -1030,6 +1031,7 @@ async function selectStudentCaseHandoffSnapshot(
       handoffId: evoSalesAdmissionsHandoffs.id,
       leadId: evoSalesAdmissionsHandoffs.leadId,
       isOverride: evoSalesAdmissionsHandoffs.isOverride,
+      overrideReason: evoSalesAdmissionsHandoffs.overrideReason,
       executedByRole: evoSalesAdmissionsHandoffs.executedByRole,
       executedAt: evoSalesAdmissionsHandoffs.executedAt,
       contractEvidenceId: evoSalesAdmissionsHandoffs.contractEvidenceId,
@@ -2018,11 +2020,18 @@ export async function handoffCanonicalLeadToAdmissions(
     }
 
     let [studentCase] = await transaction
-      .select({ id: evoStudentCases.id })
+      .select({
+        id: evoStudentCases.id,
+        status: evoStudentCases.status,
+        version: evoStudentCases.version,
+      })
       .from(evoStudentCases)
       .where(eq(evoStudentCases.leadId, leadId))
-      .limit(1);
+      .limit(1)
+      .for("update");
     let studentCaseCreated = false;
+    let studentCaseActivatedFromStatus: CanonicalStudentCaseStatus | null =
+      null;
     if (!studentCase) {
       [studentCase] = await transaction
         .insert(evoStudentCases)
@@ -2033,8 +2042,35 @@ export async function handoffCanonicalLeadToAdmissions(
           status: "active",
           ownerRole: "admissions",
         })
-        .returning({ id: evoStudentCases.id });
+        .returning({
+          id: evoStudentCases.id,
+          status: evoStudentCases.status,
+          version: evoStudentCases.version,
+        });
       studentCaseCreated = true;
+    } else {
+      const currentCaseStatus = databaseStudentCaseStatus(studentCase.status);
+      if (currentCaseStatus !== "active") {
+        studentCaseActivatedFromStatus = currentCaseStatus;
+        [studentCase] = await transaction
+          .update(evoStudentCases)
+          .set({
+            status: "active",
+            version: sql`${evoStudentCases.version} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(evoStudentCases.id, studentCase.id),
+              eq(evoStudentCases.version, studentCase.version),
+            ),
+          )
+          .returning({
+            id: evoStudentCases.id,
+            status: evoStudentCases.status,
+            version: evoStudentCases.version,
+          });
+      }
     }
     if (!studentCase) throw new CanonicalCrmRepositoryError("unavailable");
 
@@ -2045,6 +2081,18 @@ export async function handoffCanonicalLeadToAdmissions(
         businessObjectType: "student_case",
         businessObjectId: studentCase.id,
         transition: "student_case.created",
+        toState: "active",
+        eventSequence,
+      });
+      eventSequence += 1;
+    }
+    if (studentCaseActivatedFromStatus) {
+      await insertBusinessEvent(transaction, {
+        context,
+        businessObjectType: "student_case",
+        businessObjectId: studentCase.id,
+        transition: "student_case.activated",
+        fromState: studentCaseActivatedFromStatus,
         toState: "active",
         eventSequence,
       });

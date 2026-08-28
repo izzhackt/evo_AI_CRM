@@ -12679,3 +12679,46 @@ The fixed titles remain:
 Replay safety comes from the single handoff transaction and handoff
 idempotency/uniqueness, not a new task-source-key column. Any richer task
 metadata belongs to #432 or a later explicitly planned schema change.
+
+## 2026-08-29 - Correct V2-7 case activation and Server Action form handling
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #431 after independent review and real-browser proof.
+Change type: transactional and application-boundary correction.
+Affected plan section: V2-7 (#431) canonical gate and handoff.
+
+Reason: the first V2-7 implementation reused an existing Student 360 case
+without reactivating a `paused` or `closed` status. The real Next.js browser
+path also showed that React `useActionState` wraps user fields and includes
+framework `$ACTION_*` metadata plus a state slot; treating the entire wire
+`FormData` as user input rejected otherwise valid gate and handoff forms.
+
+Decision:
+
+1. The handoff transaction locks an existing case and changes `paused` or
+   `closed` to `active`, advances its version and timestamp, and writes a
+   sequenced `student_case.activated` event before starter-task and handoff
+   events. An already-active case is not rewritten. Exact command replay still
+   returns the original handoff without duplicate case, tasks or events.
+2. Gate and handoff actions share one fail-closed extractor. It unwraps the
+   exact React action-state user-field prefix, ignores only validated
+   `$ACTION_*` framework metadata and the required state slot, and then applies
+   the existing exact user-key contract. Duplicate fields, malformed envelope
+   shapes and every other unexpected field remain rejected.
+3. Successful gate writes refresh the current Server Component tree so the
+   durable evidence and handoff availability update without a manual browser
+   reload. The canonical case view exposes the persisted Admin override reason
+   and the exact starter-task set.
+4. After the real PostgreSQL/application/browser proof, remove the superseded
+   gate/handoff repositories, actions, contracts, cards and implementation-
+   level tests, plus the unused `ClientPageContent` bridge. Remove only the old
+   handoff slice from the broader inactive `StudentWorkspace` source retained
+   for #432; do not delete the rest of Student 360 in #431.
+
+Validation impact: prove both `paused` and `closed` activation branches and
+replay against disposable PostgreSQL; run the normal Sales gate and Admin
+override through Chromium; verify the case reason and exactly three starter
+tasks; test the React envelope and hostile extra-field rejection; and attach an
+`rg` inventory with no active old gate/handoff import or fallback. Next.js
+documents that Server Action `FormData` contains extra `$ACTION_` properties at
+https://nextjs.org/docs/app/guides/forms.

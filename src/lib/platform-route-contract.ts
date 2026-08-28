@@ -23,6 +23,11 @@ const PLATFORM_APPLICATION_PATH =
   /^\/applications\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_MEDIA_DOWNLOAD_PATH =
   /^\/api\/platform-messaging\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PRIVATE_DOCUMENT_UPLOAD_PATH = "/api/v2/documents";
+const PRIVATE_DOCUMENT_RESUBMISSION_PATH =
+  /^\/api\/v2\/documents\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/resubmissions$/i;
+const PRIVATE_DOCUMENT_DOWNLOAD_PATH =
+  /^\/api\/v2\/document-versions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/download$/i;
 const PLATFORM_STAFF_ASSISTANT_PATH =
   "/api/platform-ai/staff-assistant";
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
@@ -91,6 +96,9 @@ export function isConnectedPlatformPrivateApi(path: string): boolean {
 export function isConnectedPlatformApi(path: string): boolean {
   return (
     PLATFORM_MEDIA_DOWNLOAD_PATH.test(path) ||
+    path === PRIVATE_DOCUMENT_UPLOAD_PATH ||
+    PRIVATE_DOCUMENT_RESUBMISSION_PATH.test(path) ||
+    PRIVATE_DOCUMENT_DOWNLOAD_PATH.test(path) ||
     isConnectedPlatformPrivateApi(path)
   );
 }

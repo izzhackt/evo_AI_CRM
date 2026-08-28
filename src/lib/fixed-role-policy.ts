@@ -8,6 +8,8 @@ export const FIXED_ROLE_CAPABILITIES = [
   "sales.write",
   "admissions.read",
   "admissions.write",
+  "documents.read",
+  "documents.write",
   "messaging.read",
   "admin.preview",
 ] as const;
@@ -35,6 +37,8 @@ const ROLE_CAPABILITIES = {
   admissions: new Set<FixedRoleCapability>([
     "admissions.read",
     "admissions.write",
+    "documents.read",
+    "documents.write",
     "messaging.read",
   ]),
 } as const satisfies Record<FixedRole, ReadonlySet<FixedRoleCapability>>;

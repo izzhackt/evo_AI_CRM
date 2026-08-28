@@ -85,11 +85,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Generate route types
-        run: node node_modules/next/dist/bin/next typegen
-
       - name: Typecheck
-        run: node node_modules/typescript/bin/tsc --noEmit
+        run: npm run typecheck
 
       - name: Build
         run: npm run build

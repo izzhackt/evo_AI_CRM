@@ -8,16 +8,19 @@ import postgres from "postgres";
 import {
   CanonicalCrmRepositoryError,
   appendCanonicalInboundMessage,
+  createCanonicalAdmissionsTask,
   createCanonicalPersonLead,
   getCanonicalLeadConversationThread,
   getCanonicalLeadGateSnapshot,
   getCanonicalStudentCaseHandoffSnapshot,
   handoffCanonicalLeadToAdmissions,
+  listCanonicalAdmissionsTasks,
   listCanonicalLeadConversations,
   listCanonicalSalesLeads,
   listCanonicalStudentCases,
   receiveCanonicalWhatsAppInbound,
   recordCanonicalSalesGateEvidence,
+  transitionCanonicalAdmissionsTask,
   updateCanonicalSalesLeadWorkflow,
 } from "../src/lib/server/canonical-crm-repository.ts";
 import { closeDatabaseConnections } from "../src/lib/server/database.ts";
@@ -630,6 +633,355 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       }),
       repositoryError("forbidden"),
     );
+
+    const initialAdmissionsTasks = await listCanonicalAdmissionsTasks({
+      actorRole: "admissions",
+      studentCaseId: handoff.studentCaseId,
+      pageSize: 50,
+    });
+    assert.equal(initialAdmissionsTasks.rows.length, 3);
+    assert.equal(initialAdmissionsTasks.hasNext, false);
+    assert.ok(
+      initialAdmissionsTasks.rows.every(
+        (task) =>
+          task.studentCaseId === handoff.studentCaseId &&
+          task.studentCaseStatus === "active" &&
+          task.displayName === leadInput.displayName &&
+          task.email === leadInput.email &&
+          task.phone === null &&
+          task.assignedRole === "admissions" &&
+          task.status === "open" &&
+          task.version === 1 &&
+          task.closedAt === null &&
+          task.closedByRole === null &&
+          task.closureReason === null,
+      ),
+    );
+    const boundedAdmissionsTasks = await listCanonicalAdmissionsTasks({
+      actorRole: "admin",
+      studentCaseId: handoff.studentCaseId,
+      pageSize: 2,
+    });
+    const boundedAdmissionsTasksReplay = await listCanonicalAdmissionsTasks({
+      actorRole: "admin",
+      studentCaseId: handoff.studentCaseId,
+      pageSize: 2,
+    });
+    assert.equal(boundedAdmissionsTasks.rows.length, 2);
+    assert.equal(boundedAdmissionsTasks.hasNext, true);
+    assert.deepEqual(
+      boundedAdmissionsTasksReplay.rows.map((task) => task.taskId),
+      boundedAdmissionsTasks.rows.map((task) => task.taskId),
+    );
+
+    const createAdmissionsTaskInput = {
+      ...commandContext(runId, "admissions-task-create", "admissions"),
+      studentCaseId: handoff.studentCaseId,
+      title: `Подготовить техническую задачу ${runId}`,
+      details: "Проверить канонический PostgreSQL task workflow.",
+      dueAt: "2026-09-15T09:30:00.000Z",
+    };
+    const createdAdmissionsTask = await createCanonicalAdmissionsTask(
+      createAdmissionsTaskInput,
+    );
+    assert.deepEqual(createdAdmissionsTask, {
+      taskId: createdAdmissionsTask.taskId,
+      studentCaseId: handoff.studentCaseId,
+      status: "open",
+      version: 1,
+    });
+    const createdTaskEventCountBeforeReplay = Number(
+      (
+        await sql`
+          select count(*)::int as count
+          from evo_business_events
+          where idempotency_key = ${createAdmissionsTaskInput.idempotencyKey}
+        `
+      )[0].count,
+    );
+    const createdAdmissionsTaskReplay = await createCanonicalAdmissionsTask(
+      createAdmissionsTaskInput,
+    );
+    const createdTaskEventCountAfterReplay = Number(
+      (
+        await sql`
+          select count(*)::int as count
+          from evo_business_events
+          where idempotency_key = ${createAdmissionsTaskInput.idempotencyKey}
+        `
+      )[0].count,
+    );
+    assert.deepEqual(createdAdmissionsTaskReplay, createdAdmissionsTask);
+    assert.equal(createdTaskEventCountBeforeReplay, 1);
+    assert.equal(createdTaskEventCountAfterReplay, 1);
+    const [createdTaskEvent] = await sql`
+      select
+        actor_role as "actorRole",
+        business_object_type as "businessObjectType",
+        business_object_id as "businessObjectId",
+        transition,
+        from_state as "fromState",
+        to_state as "toState",
+        reason,
+        event_sequence as "eventSequence"
+      from evo_business_events
+      where idempotency_key = ${createAdmissionsTaskInput.idempotencyKey}
+    `;
+    assert.deepEqual(createdTaskEvent, {
+      actorRole: "admissions",
+      businessObjectType: "task",
+      businessObjectId: createdAdmissionsTask.taskId,
+      transition: "task.created",
+      fromState: null,
+      toState: "open",
+      reason: null,
+      eventSequence: 1,
+    });
+    const [createdTaskDurable] = await sql`
+      select
+        student_case_id as "studentCaseId",
+        title,
+        details,
+        status,
+        assigned_role as "assignedRole",
+        to_char(
+          due_at at time zone 'UTC',
+          'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+        ) as "dueAt",
+        version,
+        closed_at as "closedAt",
+        closed_by_role as "closedByRole",
+        closure_reason as "closureReason"
+      from evo_admissions_tasks
+      where student_case_id = ${handoff.studentCaseId}
+        and id = ${createdAdmissionsTask.taskId}
+    `;
+    assert.deepEqual(createdTaskDurable, {
+      studentCaseId: handoff.studentCaseId,
+      title: createAdmissionsTaskInput.title,
+      details: createAdmissionsTaskInput.details,
+      status: "open",
+      assignedRole: "admissions",
+      dueAt: createAdmissionsTaskInput.dueAt,
+      version: 1,
+      closedAt: null,
+      closedByRole: null,
+      closureReason: null,
+    });
+
+    const admissionsTasksAfterCreate = await listCanonicalAdmissionsTasks({
+      actorRole: "admissions",
+      studentCaseId: handoff.studentCaseId,
+      pageSize: 50,
+    });
+    assert.equal(admissionsTasksAfterCreate.rows.length, 4);
+    const completeTask = initialAdmissionsTasks.rows[0];
+    const completeTaskInput = {
+      ...commandContext(runId, "admissions-task-complete", "admissions"),
+      taskId: completeTask.taskId,
+      expectedVersion: completeTask.version,
+      toStatus: "completed",
+    };
+    const completedTask = await transitionCanonicalAdmissionsTask(
+      completeTaskInput,
+    );
+    assert.deepEqual(completedTask, {
+      taskId: completeTask.taskId,
+      studentCaseId: handoff.studentCaseId,
+      status: "completed",
+      version: 2,
+    });
+    const completedTaskReplay = await transitionCanonicalAdmissionsTask(
+      completeTaskInput,
+    );
+    assert.deepEqual(completedTaskReplay, completedTask);
+    const completedTaskEvents = await sql`
+      select
+        transition,
+        from_state as "fromState",
+        to_state as "toState",
+        reason,
+        business_object_id as "businessObjectId"
+      from evo_business_events
+      where idempotency_key = ${completeTaskInput.idempotencyKey}
+    `;
+    assert.deepEqual(Array.from(completedTaskEvents), [
+      {
+        transition: "task.completed",
+        fromState: "open",
+        toState: "completed",
+        reason: null,
+        businessObjectId: completeTask.taskId,
+      },
+    ]);
+
+    const cancelTask = initialAdmissionsTasks.rows[1];
+    const cancellationReason = "Задача больше не требуется после сверки кейса.";
+    const cancelledTask = await transitionCanonicalAdmissionsTask({
+      ...commandContext(runId, "admissions-task-cancel", "admin"),
+      taskId: cancelTask.taskId,
+      expectedVersion: cancelTask.version,
+      toStatus: "cancelled",
+      reason: cancellationReason,
+    });
+    assert.deepEqual(cancelledTask, {
+      taskId: cancelTask.taskId,
+      studentCaseId: handoff.studentCaseId,
+      status: "cancelled",
+      version: 2,
+    });
+    const [closedTaskRows] = await sql`
+      select jsonb_agg(
+        jsonb_build_object(
+          'taskId', id,
+          'status', status,
+          'version', version,
+          'closedAtPresent', closed_at is not null,
+          'closedByRole', closed_by_role,
+          'closureReason', closure_reason
+        ) order by id
+      ) as rows
+      from evo_admissions_tasks
+      where id in (${completeTask.taskId}, ${cancelTask.taskId})
+    `;
+    assert.deepEqual(
+      closedTaskRows.rows,
+      [
+        {
+          taskId: completeTask.taskId,
+          status: "completed",
+          version: 2,
+          closedAtPresent: true,
+          closedByRole: "admissions",
+          closureReason: null,
+        },
+        {
+          taskId: cancelTask.taskId,
+          status: "cancelled",
+          version: 2,
+          closedAtPresent: true,
+          closedByRole: "admin",
+          closureReason: cancellationReason,
+        },
+      ].sort((left, right) => left.taskId.localeCompare(right.taskId)),
+    );
+    const [cancelledTaskEvent] = await sql`
+      select
+        transition,
+        from_state as "fromState",
+        to_state as "toState",
+        reason,
+        actor_role as "actorRole"
+      from evo_business_events
+      where idempotency_key = ${`acceptance:${runId}:admissions-task-cancel`}
+    `;
+    assert.deepEqual(cancelledTaskEvent, {
+      transition: "task.cancelled",
+      fromState: "open",
+      toState: "cancelled",
+      reason: cancellationReason,
+      actorRole: "admin",
+    });
+
+    const staleTaskContext = commandContext(
+      runId,
+      "admissions-task-stale",
+      "admissions",
+    );
+    await assert.rejects(
+      transitionCanonicalAdmissionsTask({
+        ...staleTaskContext,
+        taskId: createdAdmissionsTask.taskId,
+        expectedVersion: createdAdmissionsTask.version + 1,
+        toStatus: "completed",
+      }),
+      repositoryError("conflict"),
+    );
+    const [staleTaskProof] = await sql`
+      select
+        task.status,
+        task.version,
+        (select count(*)::int from evo_business_events where idempotency_key = ${staleTaskContext.idempotencyKey}) as events,
+        (select count(*)::int from evo_command_receipts where idempotency_key = ${staleTaskContext.idempotencyKey}) as receipts
+      from evo_admissions_tasks task
+      where task.id = ${createdAdmissionsTask.taskId}
+    `;
+    assert.deepEqual(staleTaskProof, {
+      status: "open",
+      version: 1,
+      events: 0,
+      receipts: 0,
+    });
+
+    const closedTaskContext = commandContext(
+      runId,
+      "admissions-task-already-closed",
+      "admin",
+    );
+    await assert.rejects(
+      transitionCanonicalAdmissionsTask({
+        ...closedTaskContext,
+        taskId: completedTask.taskId,
+        expectedVersion: completedTask.version,
+        toStatus: "cancelled",
+        reason: "Нельзя повторно закрывать завершенную задачу.",
+      }),
+      repositoryError("conflict"),
+    );
+    const [closedTaskConflictProof] = await sql`
+      select
+        task.status,
+        task.version,
+        (select count(*)::int from evo_business_events where idempotency_key = ${closedTaskContext.idempotencyKey}) as events,
+        (select count(*)::int from evo_command_receipts where idempotency_key = ${closedTaskContext.idempotencyKey}) as receipts
+      from evo_admissions_tasks task
+      where task.id = ${completedTask.taskId}
+    `;
+    assert.deepEqual(closedTaskConflictProof, {
+      status: "completed",
+      version: 2,
+      events: 0,
+      receipts: 0,
+    });
+
+    const inactiveTaskContext = commandContext(
+      runId,
+      "admissions-task-inactive-case",
+      "admissions",
+    );
+    await sql`
+      update evo_student_cases
+      set status = 'paused'
+      where id = ${handoff.studentCaseId}
+    `;
+    try {
+      await assert.rejects(
+        createCanonicalAdmissionsTask({
+          ...inactiveTaskContext,
+          studentCaseId: handoff.studentCaseId,
+          title: "Эта задача не должна сохраниться на paused кейсе",
+        }),
+        repositoryError("conflict"),
+      );
+      const [inactiveTaskProof] = await sql`
+        select
+          (select count(*)::int from evo_admissions_tasks where student_case_id = ${handoff.studentCaseId}) as tasks,
+          (select count(*)::int from evo_business_events where idempotency_key = ${inactiveTaskContext.idempotencyKey}) as events,
+          (select count(*)::int from evo_command_receipts where idempotency_key = ${inactiveTaskContext.idempotencyKey}) as receipts
+      `;
+      assert.deepEqual(inactiveTaskProof, {
+        tasks: 4,
+        events: 0,
+        receipts: 0,
+      });
+    } finally {
+      await sql`
+        update evo_student_cases
+        set status = 'active'
+        where id = ${handoff.studentCaseId}
+      `;
+    }
+
     const handedOffPage = await listCanonicalSalesLeads({
       actorRole: "sales",
       query: lead.leadId,
@@ -1363,6 +1715,63 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     process.env.DATABASE_URL =
       "postgresql://technical:technical@127.0.0.1:1/technical";
     try {
+      await assert.rejects(
+        listCanonicalAdmissionsTasks({
+          actorRole: "sales",
+          studentCaseId: handoff.studentCaseId,
+        }),
+        repositoryError("forbidden"),
+      );
+      await assert.rejects(
+        createCanonicalAdmissionsTask({
+          ...commandContext(runId, "sales-task-create", "sales"),
+          studentCaseId: handoff.studentCaseId,
+          title: "Sales не может создать Admissions задачу",
+        }),
+        repositoryError("forbidden"),
+      );
+      await assert.rejects(
+        transitionCanonicalAdmissionsTask({
+          ...commandContext(runId, "sales-task-transition", "sales"),
+          taskId: createdAdmissionsTask.taskId,
+          expectedVersion: createdAdmissionsTask.version,
+          toStatus: "completed",
+        }),
+        repositoryError("forbidden"),
+      );
+      await assert.rejects(
+        listCanonicalAdmissionsTasks({
+          actorRole: "admissions",
+          pageSize: 51,
+        }),
+        repositoryError("invalid_input"),
+      );
+      await assert.rejects(
+        createCanonicalAdmissionsTask({
+          ...commandContext(
+            runId,
+            "task-due-at-submillisecond-precision",
+            "admissions",
+          ),
+          studentCaseId: handoff.studentCaseId,
+          title: "Due timestamp не должен молча терять точность",
+          dueAt: "2026-09-15T09:30:00.123456Z",
+        }),
+        repositoryError("invalid_input"),
+      );
+      await assert.rejects(
+        transitionCanonicalAdmissionsTask({
+          ...commandContext(
+            runId,
+            "missing-task-cancellation-reason",
+            "admissions",
+          ),
+          taskId: createdAdmissionsTask.taskId,
+          expectedVersion: createdAdmissionsTask.version,
+          toStatus: "cancelled",
+        }),
+        repositoryError("invalid_input"),
+      );
       await assert.rejects(
         listCanonicalStudentCases({ actorRole: "admin", query: runId }),
         repositoryError("unavailable"),

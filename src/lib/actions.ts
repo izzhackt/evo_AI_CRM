@@ -8,8 +8,6 @@ import {
   DOC_STATUSES,
   LEAD_STATUSES,
   STAGES,
-  TASK_COLUMNS,
-  TASK_PRIORITIES,
   VISA_STATUSES,
   db,
   getSetting,
@@ -22,15 +20,11 @@ import { currentUser, isStaff, type SessionUser } from "./auth";
 import { isUiContractFixtureMode } from "./runtime-mode";
 import {
   canClientCapability,
-  canMutateClientlessTask,
-  canReceiveClientlessTask,
-  canReceiveClientTask,
   resolveClientAccess,
-  type AccessActor,
   type ClientAccessSubject,
   type ClientCapability,
 } from "./access";
-import { ROLE_HOME_ROUTE, isRole } from "./domain";
+import { ROLE_HOME_ROUTE } from "./domain";
 import { LOCALES, type Locale } from "./i18n-data";
 import { normalizePhone } from "./phone";
 import {
@@ -149,29 +143,6 @@ function assertClientCapability(
   return subject;
 }
 
-function assertTaskMutationCapability(
-  actor: SessionUser,
-  task: {
-    client_id: number | null;
-    assignee_id: number | null;
-  },
-) {
-  if (task.client_id) {
-    assertClientCapability(actor, task.client_id, "write_tasks");
-    return;
-  }
-  if (!canMutateClientlessTask(actor, task.assignee_id)) notFound();
-}
-
-function assertStaffTaskAssignee(assigneeId: number | null): AccessActor | null {
-  if (!assigneeId) return null;
-  const assignee = db()
-    .prepare("SELECT id, role FROM users WHERE id = ?")
-    .get(assigneeId) as AccessActor | undefined;
-  if (!assignee || !isRole(assignee.role) || !isStaff(assignee.role)) notFound();
-  return assignee;
-}
-
 function revalidateStaffCrm(clientId?: number | null) {
   revalidatePath("/dashboard");
   revalidatePath("/sales");
@@ -181,10 +152,6 @@ function revalidateStaffCrm(clientId?: number | null) {
   revalidatePath("/tasks");
   revalidatePath("/finance");
   if (clientId) revalidatePath(`/clients/${clientId}`);
-}
-
-function revalidateLeadTask(leadId?: number | null) {
-  if (leadId) revalidatePath(`/sales/${leadId}`);
 }
 
 export async function setLocaleAction(form: FormData) {
@@ -541,52 +508,6 @@ export async function markPaymentPaidAction(form: FormData) {
   revalidatePath("/portal");
 }
 
-// ---------- tasks ----------
-
-export async function addTaskAction(form: FormData) {
-  const user = await requireStaff();
-  const title = str(form, "title");
-  const clientId = optNum(form, "client_id");
-  const leadId = optNum(form, "lead_id");
-  const assigneeId = optNum(form, "assignee_id");
-  const priority = str(form, "priority") || "normal";
-  if (!title) return;
-  if (!(TASK_PRIORITIES as readonly string[]).includes(priority)) return;
-  const assignee = assertStaffTaskAssignee(assigneeId);
-  if (clientId) {
-    const client = assertClientCapability(user, clientId, "write_tasks");
-    if (assignee && !canReceiveClientTask(assignee, client)) notFound();
-  } else {
-    if (assignee && !canReceiveClientlessTask(assignee)) notFound();
-    if (!canMutateClientlessTask(user, assigneeId)) notFound();
-  }
-  db()
-    .prepare("INSERT INTO tasks (title, description, lead_id, client_id, assignee_id, due_date, priority, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 'todo', ?)")
-    .run(
-      title, str(form, "description") || null, leadId, clientId, assigneeId,
-      str(form, "due_date") || null, priority, user.id
-    );
-  revalidateStaffCrm(clientId);
-  revalidateLeadTask(leadId);
-}
-
-export async function completeTaskAction(form: FormData) {
-  const actor = await requireStaff();
-  const id = optNum(form, "id");
-  if (!id) return;
-  const d = db();
-  const row = d.prepare("SELECT client_id, lead_id, assignee_id FROM tasks WHERE id = ?").get(id) as {
-    client_id: number | null;
-    lead_id: number | null;
-    assignee_id: number | null;
-  } | undefined;
-  if (!row) notFound();
-  assertTaskMutationCapability(actor, row);
-  d.prepare("UPDATE tasks SET status = 'done' WHERE id = ?").run(id);
-  revalidateStaffCrm(row.client_id);
-  revalidateLeadTask(row.lead_id);
-}
-
 // ---------- sales / leads ----------
 
 export async function addLeadAction(form: FormData) {
@@ -686,26 +607,6 @@ export async function sendChannelMessageAction(form: FormData) {
   db().prepare("INSERT INTO channel_messages (channel_id, author_id, text) VALUES (?, ?, ?)")
     .run(channelId, user.id, text);
   revalidatePath(`/chat/${channelId}`);
-}
-
-// ---------- tasks (kanban) ----------
-
-export async function moveTaskAction(form: FormData) {
-  const actor = await requireStaff();
-  const id = optNum(form, "id");
-  const status = str(form, "status");
-  if (!id || !(TASK_COLUMNS as readonly string[]).includes(status)) return;
-  const d = db();
-  const row = d.prepare("SELECT client_id, lead_id, assignee_id FROM tasks WHERE id = ?").get(id) as {
-    client_id: number | null;
-    lead_id: number | null;
-    assignee_id: number | null;
-  } | undefined;
-  if (!row) notFound();
-  assertTaskMutationCapability(actor, row);
-  d.prepare("UPDATE tasks SET status = ? WHERE id = ?").run(status, id);
-  revalidateStaffCrm(row.client_id);
-  revalidateLeadTask(row.lead_id);
 }
 
 // ---------- whatsapp ----------

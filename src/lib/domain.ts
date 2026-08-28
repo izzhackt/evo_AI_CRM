@@ -127,7 +127,7 @@ export const STAFF_NAV_ITEMS = [
   {
     href: APP_ROUTES.staff.tasks,
     labelKey: "tasks",
-    allowedRoles: STAFF_ROLES,
+    allowedRoles: ["admin", "admissions"],
   },
   {
     href: APP_ROUTES.staff.chat,

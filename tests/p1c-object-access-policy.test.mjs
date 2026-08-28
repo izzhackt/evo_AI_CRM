@@ -7,9 +7,6 @@ import {
   buildVisibleClientPredicate,
   buildVisaClientPredicate,
   canClientCapability,
-  canMutateClientlessTask,
-  canReceiveClientlessTask,
-  canReceiveClientTask,
   resolveClientAccess,
 } from "../src/lib/access.ts";
 
@@ -128,7 +125,6 @@ test("capabilities are granted only by the resolved access mode", () => {
     "write_applications",
     "write_documents",
     "write_visa",
-    "write_tasks",
     "write_updates",
     "write_finance",
     "transition_case",
@@ -145,7 +141,6 @@ test("capabilities are granted only by the resolved access mode", () => {
       "write_profile",
       "write_applications",
       "write_documents",
-      "write_tasks",
       "write_updates",
     ],
     sales_post_handoff_summary: ["read_summary"],
@@ -156,7 +151,6 @@ test("capabilities are granted only by the resolved access mode", () => {
       "write_applications",
       "write_documents",
       "write_visa",
-      "write_tasks",
       "write_updates",
       "transition_case",
       "read_case_audit",
@@ -176,85 +170,6 @@ test("capabilities are granted only by the resolved access mode", () => {
 
   assert.equal(canClientCapability("admin_full", "external_approval"), false);
   assert.equal(canClientCapability("invented_mode", "read_full"), false);
-});
-
-test("clientless task mutations stay Admin-wide or assignee-scoped", () => {
-  assert.equal(
-    canMutateClientlessTask({ id: 1, role: "admin" }, null),
-    true,
-  );
-  assert.equal(
-    canMutateClientlessTask({ id: 11, role: "sales" }, 11),
-    true,
-  );
-  assert.equal(
-    canMutateClientlessTask({ id: 11, role: "sales" }, 12),
-    false,
-  );
-  assert.equal(
-    canMutateClientlessTask({ id: 33, role: "finance" }, 33),
-    true,
-  );
-  assert.equal(
-    canMutateClientlessTask({ id: 22, role: "curator" }, 22),
-    false,
-  );
-  assert.equal(
-    canMutateClientlessTask({ id: 99, role: "unknown" }, 99),
-    false,
-  );
-});
-
-test("clientless task recipients must be able to complete the task", () => {
-  assert.equal(canReceiveClientlessTask({ id: 1, role: "admin" }), true);
-  assert.equal(canReceiveClientlessTask({ id: 11, role: "sales" }), true);
-  assert.equal(canReceiveClientlessTask({ id: 22, role: "curator" }), false);
-  assert.equal(canReceiveClientlessTask({ id: 33, role: "finance" }), true);
-  assert.equal(canReceiveClientlessTask({ id: 99, role: "unknown" }), false);
-});
-
-test("client task assignees must hold task access to that exact case", () => {
-  assert.equal(
-    canReceiveClientTask({ id: 1, role: "admin" }, pendingCase),
-    true,
-  );
-  assert.equal(
-    canReceiveClientTask({ id: 11, role: "sales" }, pendingCase),
-    true,
-  );
-  assert.equal(
-    canReceiveClientTask({ id: 12, role: "sales" }, pendingCase),
-    false,
-  );
-  assert.equal(
-    canReceiveClientTask({ id: 22, role: "curator" }, pendingCase),
-    false,
-  );
-  assert.equal(
-    canReceiveClientTask({ id: 33, role: "finance" }, pendingCase),
-    false,
-  );
-
-  assert.equal(
-    canReceiveClientTask({ id: 1, role: "admin" }, activeCase),
-    true,
-  );
-  assert.equal(
-    canReceiveClientTask({ id: 11, role: "sales" }, activeCase),
-    false,
-  );
-  assert.equal(
-    canReceiveClientTask({ id: 22, role: "curator" }, activeCase),
-    true,
-  );
-  assert.equal(
-    canReceiveClientTask({ id: 23, role: "curator" }, activeCase),
-    false,
-  );
-  assert.equal(
-    canReceiveClientTask({ id: 33, role: "finance" }, activeCase),
-    false,
-  );
 });
 
 test("visible, full, and visa SQL predicates are parameterized and role-scoped", () => {

@@ -421,6 +421,15 @@ inbound_event_count="$(docker exec "$container_id" psql --username "$postgres_us
 [[ "$inbound_lead_count" == "1" ]] || fail "Inbound HTTP replay persisted duplicate canonical WhatsApp leads"
 [[ "$inbound_event_count" == "1" ]] || fail "Inbound HTTP replay persisted duplicate message events"
 
+browser_completed_task_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_admissions_tasks WHERE title = 'Browser V2-8A: проверить перевод аттестата' AND status = 'completed' AND version = 2;")"
+browser_completed_task_event_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_business_events WHERE business_object_type = 'task' AND business_object_id IN (SELECT id FROM evo_admissions_tasks WHERE title = 'Browser V2-8A: проверить перевод аттестата') AND transition IN ('task.created', 'task.completed');")"
+browser_cancelled_task_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_admissions_tasks WHERE title = 'Проверить унаследованный контекст Sales' AND status = 'cancelled' AND closure_reason = 'Контекст Sales уже проверен во время browser acceptance' AND version = 2;")"
+browser_cancelled_task_event_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_business_events WHERE business_object_type = 'task' AND transition = 'task.cancelled' AND business_object_id IN (SELECT id FROM evo_admissions_tasks WHERE title = 'Проверить унаследованный контекст Sales' AND closure_reason = 'Контекст Sales уже проверен во время browser acceptance');")"
+[[ "$browser_completed_task_count" == "1" ]] || fail "Admissions browser proof did not persist exactly one completed canonical task"
+[[ "$browser_completed_task_event_count" == "2" ]] || fail "Admissions browser proof did not persist exactly one create and one completion event"
+[[ "$browser_cancelled_task_count" == "1" ]] || fail "Admissions browser proof did not persist exactly one reasoned canonical cancellation"
+[[ "$browser_cancelled_task_event_count" == "1" ]] || fail "Admissions browser proof did not persist exactly one cancellation event"
+
 stored_object_count="$(EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" "$node_bin" --input-type=module <<'EOF'
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";

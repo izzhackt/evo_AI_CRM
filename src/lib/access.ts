@@ -30,7 +30,6 @@ export type ClientCapability =
   | "write_applications"
   | "write_documents"
   | "write_visa"
-  | "write_tasks"
   | "write_updates"
   | "write_finance"
   | "transition_case"
@@ -49,7 +48,6 @@ const ALL_CAPABILITIES = [
   "write_applications",
   "write_documents",
   "write_visa",
-  "write_tasks",
   "write_updates",
   "write_finance",
   "transition_case",
@@ -68,7 +66,6 @@ const CAPABILITIES_BY_MODE: Record<
     "write_profile",
     "write_applications",
     "write_documents",
-    "write_tasks",
     "write_updates",
   ]),
   sales_post_handoff_summary: new Set(["read_summary"]),
@@ -79,7 +76,6 @@ const CAPABILITIES_BY_MODE: Record<
     "write_applications",
     "write_documents",
     "write_visa",
-    "write_tasks",
     "write_updates",
     "transition_case",
     "read_case_audit",
@@ -131,35 +127,6 @@ export function canClientCapability(
 ): boolean {
   const grants = CAPABILITIES_BY_MODE[mode as ClientAccessMode];
   return grants?.has(capability as ClientCapability) ?? false;
-}
-
-export function canMutateClientlessTask(
-  actor: AccessActor,
-  assigneeId: number | null,
-): boolean {
-  if (actor.role === "admin") return true;
-  return (
-    (actor.role === "sales" || actor.role === "finance")
-    && assigneeId === actor.id
-  );
-}
-
-export function canReceiveClientlessTask(assignee: AccessActor): boolean {
-  return (
-    assignee.role === "admin"
-    || assignee.role === "sales"
-    || assignee.role === "finance"
-  );
-}
-
-export function canReceiveClientTask(
-  assignee: AccessActor,
-  client: ClientAccessSubject,
-): boolean {
-  return canClientCapability(
-    resolveClientAccess(assignee, client),
-    "write_tasks",
-  );
 }
 
 export function buildVisibleClientPredicate(

@@ -12749,3 +12749,87 @@ completed Admissions task whose title matches a starter title, execute the real
 handoff, prove the table contains four total tasks while the handoff snapshot
 contains only its three open starter tasks, and replay the command without
 adding tasks, handoffs or events.
+
+## 2026-08-29 - Execute V2-8 as three product verticals under Issue #432
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under the owner's product-first, small-sequential-PR direction.
+Change type: implementation sequencing and replacement boundary.
+Affected plan section: V2-8 (#432).
+
+Reason: #432 contains the whole post-handoff Admissions product path: Student
+360, tasks, private documents, applications, visa milestones and minimal
+finance stop/release. Shipping all of those as one review unit would delay
+browser validation of the main CRM workflow and make replace-not-layer cleanup
+harder to verify. The canonical PostgreSQL tables and private-file foundation
+already exist, so the product can be proven in three independently mergeable
+verticals without creating another authority.
+
+Decision:
+
+1. V2-8A replaces the task capability first. The active
+   `/clients/:studentCaseId` Student 360 surface and `/tasks` queue use one
+   canonical PostgreSQL task read model and commands. Admissions and Admin may
+   create, complete or cancel tasks on an active handed-off case; cancellation
+   requires a reason. Sales and anonymous/direct calls are denied on the
+   server. Commands use idempotency receipts, optimistic task versions and a
+   same-transaction business event. Admin preview must render and authorize the
+   exact Admissions or Sales interface. After real database/application/browser
+   proof, remove the superseded SQLite task actions, queries, constants and UI
+   imports in this same vertical.
+2. V2-8B replaces university applications, visa milestones and minimal finance
+   stop/release. Admissions and Admin operate durable owner, status and next
+   action fields. A current finance stop blocks application submission and visa
+   submission milestone progress; Admin release requires a reason. Each command
+   is versioned, idempotent and writes its minimal event atomically. After proof,
+   delete the owned Supabase/RPC and SQLite runtime paths for those capabilities.
+3. V2-8C uses the existing #428 private metadata/byte/version authority for
+   authorized upload, list, download and resubmission from the canonical case
+   UI. It does not invent a second file or document-review store. After real
+   file/application/browser proof, remove the superseded staff document runtime
+   and the remaining inactive Student 360/Admissions screens, imports and tests
+   owned by #432. Frozen V1 deployments and historical ADRs, migrations,
+   runbooks, archived docs, evidence and rollback documentation remain
+   preserved as history, never active V2 authority.
+
+V2-8A acceptance: a real handed-off PostgreSQL case begins with its three
+starter tasks; Admissions creates one additional task in the browser, completes
+one task and cancels one with a reason; refresh and direct PostgreSQL reads show
+the same state and event sequence; exact command replay adds nothing; stale
+versions fail without a write; Sales is denied the case/task mutations; Admin
+preview exercises the exact Admissions task interface; and missing PostgreSQL
+fails closed without exposing the removed task path.
+
+Later V2-8 verticals do not block V2-8A merge, but #432 does not close until
+applications, visa, finance stop/release, private document workflow and the
+final replacement inventory all pass real PostgreSQL/file/browser validation.
+
+## 2026-08-29 - Complete the V2-8A task replacement boundary
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #432 after real PostgreSQL and Chromium proof.
+Change type: implementation boundary and legacy deletion record.
+Affected plan section: V2-8A task vertical.
+
+Decision: `/clients/:studentCaseId` and `/tasks` now have one active task
+authority, command path and UI: `evo_admissions_tasks` through the canonical
+PostgreSQL repository and strict Admissions task Server Actions. Remove the
+superseded SQLite `addTaskAction`, `moveTaskAction`, `completeTaskAction`,
+`listTasks`, `listTasksForActor`, task constants and task-specific local access
+helpers/tests in the same vertical. Keep no active import, route fallback or
+compatibility adapter to those contracts. The local acceptance harness must
+also read PostgreSQL after the browser run and prove the created/completed task,
+reasoned cancellation and their exact business events.
+
+Temporary inactive source remains only for the already approved #432 exit:
+`src/app/(staff)/clients/[id]/StudentWorkspace.tsx`,
+`src/app/(staff)/clients/[id]/StudentWorkspacePresenter.tsx`,
+`src/lib/platform-admissions-case-workspace.ts`,
+`src/lib/platform-admissions-case-workspace-actions.ts` and
+`tests/platform-admissions-case-workspace.test.mjs`. These files are not
+imported by the active V2 client or task routes. Their reason for coexistence is
+the still-unfinished applications, visa, finance and document replacement
+work; V2-8C must delete them before Issue #432 closes. This is not permission
+to restore their task path or treat Supabase/SQLite as V2 authority. Frozen V1
+deployments and historical decision/rollback material remain preserved under
+the repository-wide exception.

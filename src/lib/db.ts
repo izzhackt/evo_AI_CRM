@@ -31,9 +31,6 @@ export const DOC_STATUSES = ["required", "uploaded", "review", "approved", "reje
 export const VISA_STATUSES = ["not_started", "docs", "appointment", "submitted", "approved", "rejected"] as const;
 export const PAYMENT_STATUSES = ["pending", "paid", "overdue"] as const;
 
-export const TASK_COLUMNS = ["todo", "in_progress", "review", "done"] as const;
-export const TASK_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
-
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString("hex");
   const hash = scryptSync(password, salt, 64).toString("hex");

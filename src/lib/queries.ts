@@ -572,28 +572,6 @@ export function clientUpdates(clientId: number) {
   }[];
 }
 
-export function listTasks(assigneeId?: number) {
-  const where = assigneeId ? "WHERE t.assignee_id = ?" : "";
-  const params = assigneeId ? [assigneeId] : [];
-  return db().prepare(`
-    SELECT t.*, a.name AS assignee_name, u.name AS client_name, c.id AS client_id,
-      c.stage, c.target_country, l.name AS lead_name, l.status AS lead_status
-    FROM tasks t
-    LEFT JOIN users a ON a.id = t.assignee_id
-    LEFT JOIN clients c ON c.id = t.client_id
-    LEFT JOIN users u ON u.id = c.user_id
-    LEFT JOIN leads l ON l.id = t.lead_id
-    ${where}
-    ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
-             t.due_date IS NULL, t.due_date
-  `).all(...params) as {
-    id: number; title: string; description: string | null; due_date: string | null;
-    status: string; priority: string; assignee_name: string | null;
-    client_name: string | null; client_id: number | null; lead_id: number | null;
-    lead_name: string | null; lead_status: string | null; stage: Stage | null; target_country: string | null;
-  }[];
-}
-
 export function listStaff() {
   return db().prepare(`
     SELECT id, name, email, role, created_at
@@ -1402,46 +1380,6 @@ export function getPaymentForActor(
     JOIN users u ON u.id = c.user_id
     WHERE p.id = ? AND ? IN ('admin', 'finance')
   `).get(id, actor.role) as FinancePaymentRow | undefined;
-}
-
-export function listTasksForActor(actor: AccessActor, assigneeId?: number) {
-  const scope = buildFullClientPredicate(actor, "c");
-  const params: unknown[] = [];
-  let accessSql = "0 = 1";
-
-  if (actor.role === "admin") {
-    accessSql = "1 = 1";
-  } else if (actor.role === "sales") {
-    accessSql = `(
-      (t.client_id IS NULL AND t.assignee_id = ?)
-      OR (t.client_id IS NOT NULL AND (${scope.sql}))
-    )`;
-    params.push(actor.id, ...scope.params);
-  } else if (actor.role === "curator") {
-    accessSql = `(t.client_id IS NOT NULL AND (${scope.sql}))`;
-    params.push(...scope.params);
-  } else if (actor.role === "finance") {
-    accessSql = "(t.client_id IS NULL AND t.assignee_id = ?)";
-    params.push(actor.id);
-  }
-
-  if (assigneeId !== undefined) {
-    accessSql = `(${accessSql}) AND t.assignee_id = ?`;
-    params.push(assigneeId);
-  }
-
-  return db().prepare(`
-    SELECT t.*, a.name AS assignee_name, u.name AS client_name, c.id AS client_id,
-      c.stage, c.target_country, l.name AS lead_name, l.status AS lead_status
-    FROM tasks t
-    LEFT JOIN users a ON a.id = t.assignee_id
-    LEFT JOIN clients c ON c.id = t.client_id
-    LEFT JOIN users u ON u.id = c.user_id
-    LEFT JOIN leads l ON l.id = t.lead_id
-    WHERE ${accessSql}
-    ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
-      t.due_date IS NULL, t.due_date
-  `).all(...params) as ReturnType<typeof listTasks>;
 }
 
 type WhatsAppAccessProbeRow = {

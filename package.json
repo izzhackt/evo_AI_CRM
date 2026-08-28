@@ -50,7 +50,7 @@
     "test:u1": "node --conditions=react-server --experimental-strip-types --test tests/fixed-role-authorization.test.mjs tests/fixed-role-route-contract.test.mjs tests/fixed-role-settings-ui.test.mjs tests/private-document-files.test.mjs tests/private-document-route-handlers.test.mjs tests/canonical-crm-repository.test.mjs tests/canonical-whatsapp-inbound.test.mjs",
     "test:u2": "node --conditions=react-server --experimental-strip-types --test tests/platform-sales-workspace.test.mjs",
     "test:u4": "node --conditions=react-server --experimental-strip-types --test tests/action-form-fields.test.mjs tests/canonical-crm-repository.test.mjs tests/platform-sales-workspace.test.mjs",
-    "test:u7": "node --conditions=react-server --experimental-strip-types --test tests/platform-admissions-case-workspace.test.mjs",
+    "test:u7": "node --conditions=react-server --experimental-strip-types --test tests/platform-admissions-case-workspace.test.mjs tests/canonical-admissions-task-actions.test.mjs tests/platform-admissions-tasks.test.mjs",
     "test:u8": "node --conditions=react-server --experimental-strip-types --test tests/platform-finance-control.test.mjs tests/platform-case-operations.test.mjs",
     "test:u9": "node --conditions=react-server --experimental-strip-types --test tests/platform-gemini-proposal.test.mjs tests/platform-gemini-proposals.test.mjs tests/platform-gemini-human-review.test.mjs",
     "test:u10": "node --conditions=react-server --experimental-strip-types --test tests/platform-pilot-cohort.test.mjs",

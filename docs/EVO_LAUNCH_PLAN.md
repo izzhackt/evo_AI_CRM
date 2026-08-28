@@ -162,6 +162,20 @@ small PRs. Each PR requires independent exact-head review, all protected
 exact-head CI checks, `gh pr merge --match-head-commit` and exact-main CI
 verification before the next slice starts.
 
+V2-8 (#432) is intentionally delivered as three internal vertical PRs under
+the same issue:
+
+1. replace the active Student 360 task path with canonical PostgreSQL reads and
+   task commands in `/clients/:studentCaseId` and `/tasks`;
+2. replace applications, visa milestones and minimal finance stop/release with
+   canonical commands and UI;
+3. wire the existing private-file foundation into the canonical document UI,
+   then remove the remaining superseded Student 360/Admissions runtime paths.
+
+Each internal PR must remove the old runtime path for the capability it proves;
+the split is not permission for dual read/write or fallback. Issue #432 remains
+open until all three verticals and the final scoped legacy inventory are green.
+
 ### Real validation boundary
 
 - Use Node `22.23.1` and OrbStack with Docker context exactly `orbstack`.

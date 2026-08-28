@@ -475,8 +475,7 @@ test("connected Platform runtime modules do not statically import SQLite or lega
     "src/app/(staff)/clients/ClientsPageContent.tsx",
     "src/app/(staff)/clients/StudentQueue.tsx",
     "src/app/(staff)/clients/[id]/page.tsx",
-    "src/app/(staff)/clients/[id]/ClientPageContent.tsx",
-    "src/app/(staff)/clients/[id]/StudentWorkspace.tsx",
+    "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
     "src/app/(staff)/applications/page.tsx",
     "src/app/(staff)/applications/ApplicationsPresenter.tsx",
     "src/app/(staff)/applications/ApplicationsWorkspace.tsx",
@@ -535,14 +534,10 @@ test("normal staff routes keep one accepted renderer instead of parallel Platfor
     "utf8",
   );
   assert.match(clientsRoute, /ClientsPageContent/);
-  assert.match(clientRoute, /ClientPageContent/);
+  assert.match(clientRoute, /CanonicalStudentCaseWorkspace/);
   assert.doesNotMatch(clientsRoute, /(?:Legacy|Platform)ClientsPage/);
   assert.doesNotMatch(clientRoute, /(?:Legacy|Platform)ClientPage/);
-  const clientRenderer = readFileSync(
-    new URL("../src/app/(staff)/clients/[id]/ClientPageContent.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.match(clientRenderer, /StudentWorkspace/);
+  assert.doesNotMatch(clientRoute, /ClientPageContent|StudentWorkspace/);
 
   const applicationsRoute = readFileSync(
     new URL("../src/app/(staff)/applications/page.tsx", import.meta.url),
@@ -596,36 +591,29 @@ test("mutation forms preserve a validated render-time request id across uncertai
   }
 });
 
-test("clients use one server-authorized Student 360 workspace", () => {
+test("clients use one canonical PostgreSQL Student 360 renderer", () => {
+  const routeSource = readFileSync(
+    new URL(
+      "../src/app/(staff)/clients/[id]/page.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
   const workspaceSource = readFileSync(
     new URL(
-      "../src/app/(staff)/clients/[id]/StudentWorkspace.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  const rendererSource = readFileSync(
-    new URL(
-      "../src/app/(staff)/clients/[id]/ClientPageContent.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  const presenterSource = readFileSync(
-    new URL(
-      "../src/app/(staff)/clients/[id]/StudentWorkspacePresenter.tsx",
+      "../src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
       import.meta.url,
     ),
     "utf8",
   );
 
-  assert.match(workspaceSource, /requirePlatformClientsActor\(\)/);
-  assert.match(workspaceSource, /getPlatformStudentCaseView\(actor, id\)/);
-  assert.match(workspaceSource, /<StudentWorkspacePresenter/);
-  assert.match(rendererSource, /StudentWorkspace/);
-  assert.match(presenterSource, /data-testid=\{data\.testId\}/);
+  assert.match(routeSource, /<CanonicalStudentCaseWorkspace id=\{id\}/);
+  assert.match(workspaceSource, /requirePlatformAdmissionsActor\("\/clients"\)/);
+  assert.match(workspaceSource, /getCanonicalStudentCaseSnapshot\(/);
+  assert.match(workspaceSource, /getCanonicalStudentCaseHandoffSnapshot\(/);
+  assert.match(workspaceSource, /data-testid="canonical-student-case-workspace"/);
   assert.doesNotMatch(
-    `${workspaceSource}\n${rendererSource}`,
-    /ConnectedCanonicalClientDetail|FixtureClientPage|isUiContractFixtureMode/,
+    `${routeSource}\n${workspaceSource}`,
+    /ClientPageContent|StudentWorkspace|ConnectedCanonicalClientDetail|FixtureClientPage|isUiContractFixtureMode|platform-admissions-handoff/,
   );
 });

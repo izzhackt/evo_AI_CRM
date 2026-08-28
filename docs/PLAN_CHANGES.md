@@ -12578,3 +12578,174 @@ and both workflow versions. The real Sales lead and conversation read surfaces
 must also sort the later-touched rows ahead of otherwise matching rows with an
 intermediate provider timestamp. Handler unit tests must expose only the
 single `receiveInbound` dependency and stable atomic command identity.
+
+## 2026-08-28 - Keep V2-7 narrow: canonical Sales gate and handoff only
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under Issue #431 and the owner's product-first rule.
+Change type: V2-7 scope clarification, active UI authority and legacy runtime
+eradication.
+Affected plan section: V2-7 (#431) contract/payment gate and audited Admissions
+handoff.
+
+Reason: the canonical PostgreSQL repository already contains durable commands
+for contract evidence, first-payment evidence and Sales-to-Admissions handoff,
+but the active root V2 UI still lacks a canonical Sales gate/handoff surface.
+Separate historical `platform-admissions-gate*` and
+`platform-admissions-handoff*` modules still encode the older Supabase/RPC
+path, and the current canonical handoff does not yet create the bounded starter
+task set required by Issue #431. Without a narrow contract, this slice could
+either layer old and new paths together or drift into the broader Student 360
+scope owned by #432.
+
+Decision:
+
+1. Keep #431 strictly on the Sales side. The active V2 surface is the canonical
+   `/sales/:leadId` workspace only. It gains exactly one canonical
+   contract/payment gate card and exactly one canonical Sales-to-Admissions
+   handoff card. The `/clients` queue remains the Admissions proof surface for
+   the resulting case. Full Student 360 detail, task management, applications,
+   visa and finance operations remain #432.
+2. Replace the old Supabase/RPC gate authority with one canonical PostgreSQL
+   read/write path. Gate reads must derive only from the latest durable
+   `contract` and `first_payment` evidence for the canonical lead plus the live
+   Admin override state. Gate writes must call only the canonical repository
+   command and keep the browser as a pure FormData boundary. There is no
+   Supabase read, RPC mutation, feature flag, fallback adapter or parallel card.
+3. Replace the old Supabase/RPC handoff authority with one canonical
+   PostgreSQL read/write path. Normal handoff requires a currently confirmed
+   contract and first payment. `admin` may execute an explicit override path
+   with a non-empty reason; `sales` may not. The command remains idempotent and
+   conflict-safe at the repository boundary.
+4. Expand the canonical handoff transaction so that a successful first handoff
+   creates one Admissions-owned `evo_student_cases` row and exactly three open
+   Admissions starter tasks in the same transaction. Their stable source keys
+   and titles are:
+   `v2.sales-context-review` -> `Проверить унаследованный контекст Sales`;
+   `v2.study-route-confirmation` -> `Подтвердить маршрут обучения и недостающие данные`;
+   `v2.document-request-plan` -> `Подготовить первичный план запроса документов`.
+   Replays must return the existing case and task set without duplicates.
+5. Browser proof for #431 must show one canonical Sales lead reaching the gate,
+   recording contract evidence, recording first-payment evidence, executing a
+   normal handoff, and then appearing once in the canonical `/clients` queue
+   for `admissions`. A second proof must show `admin` override with a reason.
+   The UI may link to `/clients/:studentCaseId`, but deep Student 360 behavior
+   is not acceptance for this slice.
+6. After real database/application/browser proof, delete or supersede the
+   active root modules owned by this capability that still target the old
+   authority path: `src/lib/platform-admissions-gate.ts`,
+   `src/lib/platform-admissions-gate-actions.ts`,
+   `src/lib/platform-admissions-handoff.ts`,
+   `src/lib/platform-admissions-handoff-actions.ts`,
+   `src/components/platform/sales/SalesAdmissionsGateCard.tsx`, and
+   `src/components/platform/sales/SalesAdmissionsHandoffCard.tsx`, together
+   with their old tests, if they are no longer the canonical V2 surface. Keep
+   only code that the completed V2 runtime still imports directly.
+7. Frozen V1 staging/production configuration, historical ADRs, migrations,
+   runbooks, archived docs, evidence and other historical decision or rollback
+   documentation remain unchanged as historical inputs. They may not be reused
+   as active V2 authority, but they are not deletion targets for this slice.
+
+Validation impact: add repository tests for the starter-task transaction and
+canonical gate/handoff summaries; add Sales workspace tests proving the active
+cards are canonical-only; extend the OrbStack PostgreSQL plus browser harness
+to exercise contract evidence, first-payment evidence, normal handoff, admin
+override, idempotent replay and resulting `/clients` queue visibility; run
+Node 22 lint, typecheck, build and exact-head CI. Before merge attach a scoped
+`rg` inventory proving that the active `/sales/:leadId` gate/handoff surface no
+longer imports the superseded authority modules and that failed canonical
+commands stop clearly instead of falling back.
+
+## 2026-08-28 - Correct V2-7 starter-task metadata to match the active schema
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under Issue #431.
+Change type: schema-alignment correction.
+Affected plan section: the immediately preceding V2-7 entry.
+
+Reason: the active V2 `evo_admissions_tasks` schema has no `source_key` or
+`priority` columns. The prior V2-7 entry described stable source keys and
+priority-like semantics derived from historical U6 material, which would
+incorrectly authorize a schema assumption not present in the active product
+path.
+
+Decision: for active V2 #431, the bounded starter task set is defined only by
+exact fixed titles, `assigned_role = 'admissions'`, open status, one linked
+`student_case_id` and single-transaction creation under the canonical handoff.
+The fixed titles remain:
+`Проверить унаследованный контекст Sales`,
+`Подтвердить маршрут обучения и недостающие данные`,
+`Подготовить первичный план запроса документов`.
+Replay safety comes from the single handoff transaction and handoff
+idempotency/uniqueness, not a new task-source-key column. Any richer task
+metadata belongs to #432 or a later explicitly planned schema change.
+
+## 2026-08-29 - Correct V2-7 case activation and Server Action form handling
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #431 after independent review and real-browser proof.
+Change type: transactional and application-boundary correction.
+Affected plan section: V2-7 (#431) canonical gate and handoff.
+
+Reason: the first V2-7 implementation reused an existing Student 360 case
+without reactivating a `paused` or `closed` status. The real Next.js browser
+path also showed that React `useActionState` wraps user fields and includes
+framework `$ACTION_*` metadata plus a state slot; treating the entire wire
+`FormData` as user input rejected otherwise valid gate and handoff forms.
+
+Decision:
+
+1. The handoff transaction locks an existing case and changes `paused` or
+   `closed` to `active`, advances its version and timestamp, and writes a
+   sequenced `student_case.activated` event before starter-task and handoff
+   events. An already-active case is not rewritten. Exact command replay still
+   returns the original handoff without duplicate case, tasks or events.
+2. Gate and handoff actions share one fail-closed extractor. It unwraps the
+   exact React action-state user-field prefix, ignores only validated
+   `$ACTION_*` framework metadata and the required state slot, and then applies
+   the existing exact user-key contract. Duplicate fields, malformed envelope
+   shapes and every other unexpected field remain rejected.
+3. Successful gate writes refresh the current Server Component tree so the
+   durable evidence and handoff availability update without a manual browser
+   reload. The canonical case view exposes the persisted Admin override reason
+   and the exact starter-task set.
+4. After the real PostgreSQL/application/browser proof, remove the superseded
+   gate/handoff repositories, actions, contracts, cards and implementation-
+   level tests, plus the unused `ClientPageContent` bridge. Remove only the old
+   handoff slice from the broader inactive `StudentWorkspace` source retained
+   for #432; do not delete the rest of Student 360 in #431.
+
+Validation impact: prove both `paused` and `closed` activation branches and
+replay against disposable PostgreSQL; run the normal Sales gate and Admin
+override through Chromium; verify the case reason and exactly three starter
+tasks; test the React envelope and hostile extra-field rejection; and attach an
+`rg` inventory with no active old gate/handoff import or fallback. Next.js
+documents that Server Action `FormData` contains extra `$ACTION_` properties at
+https://nextjs.org/docs/app/guides/forms.
+
+## 2026-08-29 - Bind the V2-7 starter-task read model to its handoff
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #431 after independent exact-head review.
+Change type: read-authority correction.
+Affected plan section: V2-7 (#431) canonical handoff result.
+
+Reason: selecting every Admissions task by `student_case_id` makes a reused
+case's older or later tasks appear as the three tasks created by the Sales
+handoff. Filtering only by the fixed titles is also ambiguous if an existing
+case already contains a task with the same title.
+
+Decision: the canonical handoff snapshot identifies its exact three starter
+tasks through the existing transaction provenance: each task must have the
+`task.created` business event written under the handoff row's unique
+`idempotency_key`. The case id remains an additional boundary. This uses the
+already durable event record and does not add the deferred `source_key` or
+priority schema. A later status change does not erase starter-task identity.
+The read fails closed if the provenance does not resolve to exactly three
+tasks.
+
+Validation impact: seed a `paused` and a `closed` case with a pre-existing
+completed Admissions task whose title matches a starter title, execute the real
+handoff, prove the table contains four total tasks while the handoff snapshot
+contains only its three open starter tasks, and replay the command without
+adding tasks, handoffs or events.

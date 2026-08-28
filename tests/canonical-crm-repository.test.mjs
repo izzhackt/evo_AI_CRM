@@ -10,7 +10,9 @@ import {
   appendCanonicalInboundMessage,
   createCanonicalPersonLead,
   getCanonicalLeadConversationThread,
+  getCanonicalLeadGateSnapshot,
   getCanonicalLeadSnapshot,
+  getCanonicalStudentCaseHandoffSnapshot,
   getCanonicalStudentCaseSnapshot,
   handoffCanonicalLeadToAdmissions,
   listCanonicalLeadConversations,
@@ -207,7 +209,11 @@ test("all consequential commands require bounded idempotency and correlation key
     rejectsWithCode("invalid_input"),
   );
   await assert.rejects(
-    handoffCanonicalLeadToAdmissions({ ...common, leadId: UUID_A }),
+    handoffCanonicalLeadToAdmissions({
+      ...common,
+      leadId: UUID_A,
+      expectedVersion: 1,
+    }),
     rejectsWithCode("invalid_input"),
   );
 });
@@ -237,6 +243,7 @@ test("only Admin can request a gate override and a reason is mandatory", async (
       idempotencyKey: "handoff:1",
       correlationId: "request:6",
       leadId: UUID_A,
+      expectedVersion: 1,
       adminOverride: { reason: "Director exception" },
     }),
     rejectsWithCode("forbidden"),
@@ -248,7 +255,21 @@ test("only Admin can request a gate override and a reason is mandatory", async (
       idempotencyKey: "handoff:2",
       correlationId: "request:7",
       leadId: UUID_A,
+      expectedVersion: 1,
       adminOverride: { reason: " " },
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+});
+
+test("handoff requires a positive expected lead version", async () => {
+  await assert.rejects(
+    handoffCanonicalLeadToAdmissions({
+      actorRole: "sales",
+      idempotencyKey: "handoff:version",
+      correlationId: "request:version",
+      leadId: UUID_A,
+      expectedVersion: 0,
     }),
     rejectsWithCode("invalid_input"),
   );
@@ -260,11 +281,36 @@ test("snapshot reads reject malformed UUIDs before database access", async () =>
     rejectsWithCode("invalid_input"),
   );
   await assert.rejects(
+    getCanonicalLeadGateSnapshot({ actorRole: "sales", leadId: "lead-1" }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
     getCanonicalStudentCaseSnapshot({
       actorRole: "admissions",
       studentCaseId: "case-1",
     }),
     rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    getCanonicalStudentCaseHandoffSnapshot({
+      actorRole: "admissions",
+      studentCaseId: "case-1",
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+});
+
+test("gate and handoff reads enforce the fixed role boundary before database access", async () => {
+  await assert.rejects(
+    getCanonicalLeadGateSnapshot({ actorRole: "admissions", leadId: UUID_A }),
+    rejectsWithCode("forbidden"),
+  );
+  await assert.rejects(
+    getCanonicalStudentCaseHandoffSnapshot({
+      actorRole: "sales",
+      studentCaseId: UUID_A,
+    }),
+    rejectsWithCode("forbidden"),
   );
 });
 
@@ -452,5 +498,9 @@ test("canonical repository has no Supabase, SQLite, compatibility, or fallback a
     /lead\.stage !== "qualified" && lead\.stage !== "handoff_ready"/,
   );
   assert.match(source, /transition: "student_case\.created"/);
-  assert.match(source, /eventSequence: studentCaseCreated \? 2 : 1/);
+  assert.match(source, /transition: "student_case\.activated"/);
+  assert.match(source, /fromState: studentCaseActivatedFromStatus/);
+  assert.match(source, /let eventSequence = 1/);
+  assert.match(source, /eventSequence \+= 1/);
+  assert.match(source, /CANONICAL_ADMISSIONS_STARTER_TASKS\.map/);
 });

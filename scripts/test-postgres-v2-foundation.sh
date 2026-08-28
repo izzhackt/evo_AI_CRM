@@ -17,6 +17,7 @@ inbound_test_conversation_id="v2-browser-conversation-430"
 inbound_test_message_id="v2-browser-message-430"
 inbound_test_text="V2 inbound browser proof 430"
 canonical_lead_id=""
+canonical_override_lead_id=""
 private_document_case_id=""
 app_pid=""
 compose_args=()
@@ -241,6 +242,7 @@ canonical_read_browser_assert() {
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
     EVO_EXPECT_CANONICAL_READ_MODE="$read_mode" \
     EVO_CANONICAL_LEAD_ID="$canonical_lead_id" \
+    EVO_CANONICAL_OVERRIDE_LEAD_ID="$canonical_override_lead_id" \
     EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
     EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$whatsapp_inbound_secret" \
     EVO_V2_INBOUND_TEST_PHONE="$inbound_test_phone" \
@@ -365,7 +367,7 @@ DATABASE_URL="$database_url" \
   EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
     tests/canonical-crm-postgres.test.mjs
-read -r canonical_lead_id private_document_case_id <<<"$(
+read -r canonical_lead_id canonical_override_lead_id private_document_case_id <<<"$(
   EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
     "$node_bin" --input-type=module <<'EOF'
 import { readFile } from "node:fs/promises";
@@ -377,12 +379,20 @@ const uuidPattern =
 if (
   typeof result.canonicalLeadId !== "string" ||
   !uuidPattern.test(result.canonicalLeadId) ||
+  typeof result.canonicalOverrideLeadId !== "string" ||
+  !uuidPattern.test(result.canonicalOverrideLeadId) ||
   typeof result.privateDocumentCaseId !== "string" ||
   !uuidPattern.test(result.privateDocumentCaseId)
 ) {
-  throw new Error("Canonical acceptance did not return valid lead and case ids");
+  throw new Error(
+    "Canonical acceptance did not return valid normal lead, override lead and case ids",
+  );
 }
-console.log(result.canonicalLeadId, result.privateDocumentCaseId);
+console.log(
+  result.canonicalLeadId,
+  result.canonicalOverrideLeadId,
+  result.privateDocumentCaseId,
+);
 EOF
 )"
 echo "Canonical CRM graph, transactional idempotency, gate and append-only event checks passed."

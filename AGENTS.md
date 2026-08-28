@@ -29,23 +29,29 @@
 
 ## Current Product Authority
 
-- Parent issue #376, ADR 0021, `docs/EVO_LAUNCH_PLAN.md` and
-  `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` define the target and U0-U14 order.
-- EVO is one internal product with one login, one UI, one role model and one
-  workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks, Documents and
-  AI are modules, not separate target products.
-- Supabase is the permanent canonical operational foundation. The pilot is
-  net-new after an explicit cutoff or authorized small allowlist; broad active
-  and historical migration is deferred. SQLite runtime,
-  dual-read, dual-write, fallback repositories and compatibility layers are
-  prohibited. amoCRM is a temporary read/import adapter; WAHA is private
-  transport; Gemini Flash is the single pilot AI provider and remains advisory
-  and human-reviewed.
-- Long-run 1 is #382 through #387 and stops before #388. The first live stage
-  is receive-only: no outbound WhatsApp and no amoCRM
-  writes. Existing production sections below describe migration inputs and
-  safety boundaries only; they do not override the target architecture or
-  authorize a production change.
+- For active V2 implementation work, the owner handoff of 2026-08-28,
+  ADR 0022, `docs/EVO_LAUNCH_PLAN.md`, and the latest merged
+  `docs/PLAN_CHANGES.md` entry define the target and V2-0 through V2-13 order.
+- EVO remains one internal product with one login, one UI, one role model and
+  one workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks, Documents
+  and AI are modules, not separate target products.
+- V2 is a self-hosted replacement candidate. Its target runtime is one
+  self-hosted Next.js application, one private PostgreSQL operational
+  database, Better Auth for staff sessions, server-enforced tenant/role
+  authorization, and private file storage behind authenticated application
+  routes. Supabase runtime dependencies, dual-read, dual-write, fallback
+  repositories and compatibility layers are prohibited in the completed V2
+  runtime.
+- V1 staging and production are frozen boundaries. Do not deploy V2 over V1,
+  delete V1, migrate customer data, send WhatsApp, write amoCRM, create paid
+  infrastructure, or perform final cutover without separate explicit owner
+  authorization.
+- WAHA remains a private transport boundary. amoCRM remains a temporary
+  read/import adapter. Gemini remains advisory and human-reviewed.
+- The first real external stage remains receive-only: no outbound WhatsApp and
+  no amoCRM writes. Existing production sections below describe historical V1
+  boundaries and safety inputs only; they do not override the V2 target
+  architecture or authorize a production change.
 
 ## Local Container Runtime
 

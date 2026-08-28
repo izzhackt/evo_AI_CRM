@@ -11874,3 +11874,37 @@ Validation impact: update the launch plan, current status, runbook and edge
 comment to match this decision; keep the route itself unchanged; validate
 Caddy and documentation consistency; then use exact-head CI and protected
 merge evidence.
+
+## 2026-08-28 - Reset the active launch contract for self-hosted EVO V2
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under the owner handoff.
+Change type: architecture, scope, acceptance criteria, merge order,
+validation, and issue-sequence reset.
+Affected plan section: all active sections of `docs/EVO_LAUNCH_PLAN.md`,
+the active runtime ADR line, and the GitHub implementation sequence after the
+Phase 0 reset merge.
+Reason: the owner explicitly replaced the Supabase-native long-run direction
+with a new autonomous V2 program that keeps the accepted EVO product outcome
+but removes Supabase from the target runtime. Existing active plan/ADR/issue
+text still described Supabase as the permanent canonical operational
+foundation, so implementing V2 code without a contract reset would be stale
+and misleading.
+Decision: replace the active launch plan with a V2 self-hosted contract; add a
+superseding ADR that keeps prior long-run artifacts as history but makes
+self-hosted PostgreSQL, Drizzle migrations, Better Auth, server-enforced
+tenant/role authorization, and private-file handling the active V2 target;
+re-sequence the GitHub backlog into explicit V2 foundation and vertical slices;
+preserve V1 staging and production as frozen deployment boundaries and prohibit
+Supabase compatibility, dual-read, dual-write, fallback runtime paths, customer
+data migration, provider writes, paid infrastructure, and cutover without
+separate authorization.
+Validation impact: before the reset PR merges, verify the exact shared
+baseline, current open issue state, current open PR state, and refreshed
+official Better Auth, Drizzle, and PostgreSQL RLS documentation. For the first
+docs/issues reset slice, run real repository checks appropriate to the changed
+files, then require exact-head CI, independent review, `--match-head-commit`,
+and exact-main verification before Phase 1 begins.
+Reviewer notes: reject any PR that continues the old Supabase issue sequence
+unchanged, launders V2 scope into V1 deployment work, or claims foundation
+proof without real PostgreSQL and real browser evidence.

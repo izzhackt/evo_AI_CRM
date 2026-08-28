@@ -1,13 +1,144 @@
+import Link from "next/link";
+
+import { Card, btnGhostCls, cn } from "@/components/ui";
+import { getT } from "@/lib/i18n";
+import { requirePlatformCapability } from "@/lib/platform-guards";
 import {
-  ApplicationsQueuePresenter,
-  type ApplicationsSearchParams,
-} from "./ApplicationsPresenter";
-import { loadApplicationsWorkspace } from "./ApplicationsWorkspace";
+  CanonicalCrmRepositoryError,
+  listCanonicalUniversityApplications,
+  parseCanonicalReadCursor,
+  type CanonicalReadCursor,
+} from "@/lib/server/canonical-crm-repository";
 
-export default async function ApplicationsPage(props: {
-  searchParams: Promise<ApplicationsSearchParams>;
-}) {
-  const model = await loadApplicationsWorkspace(props);
+type SearchParams = Readonly<{
+  before_at?: string | string[];
+  before_id?: string | string[];
+}>;
 
-  return <ApplicationsQueuePresenter model={model} />;
+const COPY = {
+  ru: {
+    eyebrow: "Admissions · PostgreSQL",
+    title: "Заявки в университеты",
+    description: "Очередь только для чтения. Изменения выполняются в Student 360.",
+    empty: "Заявок пока нет.",
+    open: "Открыть Student 360",
+    nextAction: "Следующее действие",
+    noNextAction: "Не задано",
+    first: "К началу",
+    next: "Следующие заявки",
+  },
+  ky: {
+    eyebrow: "Admissions · PostgreSQL",
+    title: "Университет арыздары",
+    description: "Окуу үчүн гана кезек. Өзгөртүүлөр Student 360 ичинде жасалат.",
+    empty: "Азырынча арыздар жок.",
+    open: "Student 360 ачуу",
+    nextAction: "Кийинки аракет",
+    noNextAction: "Көрсөтүлгөн эмес",
+    first: "Башына",
+    next: "Кийинки арыздар",
+  },
+  en: {
+    eyebrow: "Admissions · PostgreSQL",
+    title: "University applications",
+    description: "Read-only queue. All changes are made inside Student 360.",
+    empty: "No applications yet.",
+    open: "Open Student 360",
+    nextAction: "Next action",
+    noNextAction: "Not set",
+    first: "First page",
+    next: "Next applications",
+  },
+} as const;
+
+const STATUS_CLASS = {
+  draft: "bg-surface-2 text-fg-2",
+  submitted: "bg-info-weak text-info",
+  accepted: "bg-ok-weak text-ok",
+  rejected: "bg-danger-weak text-danger",
+  withdrawn: "bg-warn-weak text-warn",
+} as const;
+
+export default async function ApplicationsPage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<SearchParams> }>) {
+  const [{ locale }, actor, params] = await Promise.all([
+    getT(),
+    requirePlatformCapability("admissions.read", "/applications"),
+    searchParams,
+  ]);
+  const cursor = queueCursor(params);
+  const page = await listCanonicalUniversityApplications({
+    actorRole: actor.platformRole,
+    cursor: cursor ?? undefined,
+    pageSize: 50,
+  });
+  const copy = COPY[locale];
+
+  return (
+    <div className="space-y-5" data-testid="canonical-application-queue">
+      <header className="border-b border-border pb-5">
+        <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-accent">{copy.eyebrow}</p>
+        <h1 className="mt-2 text-[22px] font-semibold tracking-[-0.02em] text-fg">{copy.title}</h1>
+        <p className="mt-2 max-w-2xl text-[12.5px] leading-5 text-fg-3">{copy.description}</p>
+      </header>
+
+      {page.rows.length === 0 ? (
+        <p className="border-y border-border py-8 text-[13px] text-fg-3">{copy.empty}</p>
+      ) : (
+        <Card>
+          <ul className="divide-y divide-border">
+            {page.rows.map((application) => (
+              <li key={application.applicationId} className="py-4 first:pt-0 last:pb-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-[13.5px] font-semibold text-fg">{application.institutionName}</h2>
+                      <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-semibold", STATUS_CLASS[application.status])}>
+                        {application.status}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[12.5px] text-fg-2">{application.programName} · {application.targetIntake}</p>
+                    <p className="mt-2 text-[11.5px] text-fg-3">
+                      {application.displayName} · {copy.nextAction}: {application.nextAction ?? copy.noNextAction}
+                    </p>
+                  </div>
+                  <Link href={`/clients/${application.studentCaseId}#applications`} className="shrink-0 text-[12px] font-semibold text-accent hover:underline">
+                    {copy.open}
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      <nav className="flex items-center justify-between gap-3" aria-label={copy.title}>
+        {cursor ? <Link href="/applications" className={btnGhostCls}>← {copy.first}</Link> : <span />}
+        {page.hasNext && page.nextCursor ? <Link href={queueHref("/applications", page.nextCursor)} className={btnGhostCls} rel="next">{copy.next} →</Link> : null}
+      </nav>
+    </div>
+  );
+}
+
+function queueCursor(params: SearchParams): CanonicalReadCursor | null {
+  if (Object.keys(params).some((key) => key !== "before_at" && key !== "before_id")) {
+    throw new CanonicalCrmRepositoryError("invalid_input");
+  }
+  const beforeAt = singleValue(params.before_at);
+  const beforeId = singleValue(params.before_id);
+  if ((beforeAt && !beforeId) || (!beforeAt && beforeId)) {
+    throw new CanonicalCrmRepositoryError("invalid_input");
+  }
+  return beforeAt && beforeId ? parseCanonicalReadCursor(beforeAt, beforeId) : null;
+}
+
+function singleValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) throw new CanonicalCrmRepositoryError("invalid_input");
+  return value;
+}
+
+function queueHref(path: string, cursor: CanonicalReadCursor): string {
+  const query = new URLSearchParams({ before_at: cursor.updatedAt, before_id: cursor.id });
+  return `${path}?${query.toString()}`;
 }

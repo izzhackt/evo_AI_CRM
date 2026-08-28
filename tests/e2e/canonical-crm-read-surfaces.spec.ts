@@ -333,7 +333,7 @@ test("Admin sees the Sales union while Admissions stays server-denied", async ({
   await expect(page.getByTestId("canonical-sales-page")).toHaveCount(0);
 });
 
-test("Sales hands off a case and Admissions operates its canonical task queue", async ({
+test("Sales hands off a case and Admissions operates canonical Student 360", async ({
   page,
 }) => {
   test.skip(mode !== "configured", "only exercised in configured mode");
@@ -430,6 +430,119 @@ test("Sales hands off a case and Admissions operates its canonical task queue", 
   await expect(cancelledTask).toContainText(/Отменена|Жокко чыгарылды|Cancelled/);
   await expect(cancelledTask).toContainText(cancellationReason);
 
+  const operations = page.getByTestId("canonical-admissions-operations");
+  await expect(operations).toBeVisible();
+  await expect(page.getByTestId("canonical-visa-milestone")).toHaveCount(6);
+
+  const applicationCreateForm = page.getByTestId(
+    "canonical-university-application-create-form",
+  );
+  await applicationCreateForm
+    .locator('input[name="institution_name"]')
+    .fill("Browser Technical University");
+  await applicationCreateForm
+    .locator('input[name="program_name"]')
+    .fill("Canonical CRM validation");
+  await applicationCreateForm
+    .locator('input[name="target_intake"]')
+    .fill("2027 Spring");
+  await applicationCreateForm
+    .locator('input[name="next_action"]')
+    .fill("Проверить комплект документов");
+  await applicationCreateForm
+    .locator('input[type="datetime-local"]')
+    .fill("2026-09-15T10:00");
+  await applicationCreateForm.locator('button[type="submit"]').click();
+
+  const application = page
+    .getByTestId("canonical-university-application")
+    .filter({ hasText: "Browser Technical University" });
+  await expect(application).toHaveCount(1);
+  await expect(application).toHaveAttribute("data-status", "draft");
+
+  const applicationUpdateForm = application.getByTestId(
+    "canonical-university-application-update-form",
+  );
+  await applicationUpdateForm
+    .locator('input[name="next_action"]')
+    .fill("Подготовить заверенный перевод");
+  await applicationUpdateForm
+    .locator('input[type="datetime-local"]')
+    .fill("2026-09-16T11:30");
+  await applicationUpdateForm.locator('button[type="submit"]').click();
+  await expect(
+    application
+      .getByTestId("canonical-university-application-update-form")
+      .locator('input[name="next_action"]'),
+  ).toHaveValue("Подготовить заверенный перевод");
+
+  const financeStopReason = "Ожидается обязательный внутренний платеж";
+  const assertStopForm = page.getByTestId("canonical-finance-stop-assert-form");
+  await assertStopForm.locator('textarea[name="reason"]').fill(financeStopReason);
+  await assertStopForm.locator('button[type="submit"]').click();
+  await expect(page.getByTestId("canonical-finance-stop")).toHaveAttribute(
+    "data-is-stopped",
+    "true",
+  );
+  await expect(page.getByTestId("canonical-finance-stop")).toContainText(
+    financeStopReason,
+  );
+
+  await application
+    .getByTestId("canonical-university-application-transition-form")
+    .filter({ has: page.locator('input[name="to_status"][value="submitted"]') })
+    .locator('button[type="submit"]')
+    .click();
+  await expect(application).toHaveAttribute("data-status", "draft");
+  await expect(application).toContainText(
+    /финансов|каржыл|finance/i,
+  );
+
+  const visaSubmission = page.locator(
+    '[data-testid="canonical-visa-milestone"][data-kind="submission"]',
+  );
+  await expect(visaSubmission).toHaveAttribute("data-status", "pending");
+  await visaSubmission
+    .getByTestId("canonical-visa-milestone-transition-form")
+    .filter({ has: page.locator('input[name="to_status"][value="in_progress"]') })
+    .locator('button[type="submit"]')
+    .click();
+  await expect(visaSubmission).toHaveAttribute("data-status", "pending");
+
+  const documentPreparation = page.locator(
+    '[data-testid="canonical-visa-milestone"][data-kind="document_preparation"]',
+  );
+  await documentPreparation
+    .getByTestId("canonical-visa-milestone-transition-form")
+    .filter({ has: page.locator('input[name="to_status"][value="in_progress"]') })
+    .locator('button[type="submit"]')
+    .click();
+  await expect(documentPreparation).toHaveAttribute("data-status", "in_progress");
+  await documentPreparation
+    .getByTestId("canonical-visa-milestone-transition-form")
+    .filter({ has: page.locator('input[name="to_status"][value="completed"]') })
+    .locator('button[type="submit"]')
+    .click();
+  await expect(documentPreparation).toHaveAttribute("data-status", "completed");
+
+  const appointment = page.locator(
+    '[data-testid="canonical-visa-milestone"][data-kind="appointment"]',
+  );
+  const blockAppointmentForm = appointment
+    .getByTestId("canonical-visa-milestone-transition-form")
+    .filter({ has: page.locator('input[name="to_status"][value="blocked"]') });
+  await blockAppointmentForm
+    .locator('input[name="reason"]')
+    .fill("Нужно уточнить доступное время");
+  await blockAppointmentForm.locator('button[type="submit"]').click();
+  await expect(appointment).toHaveAttribute("data-status", "blocked");
+  await appointment
+    .getByTestId("canonical-visa-milestone-transition-form")
+    .filter({ has: page.locator('input[name="to_status"][value="in_progress"]') })
+    .locator('button[type="submit"]')
+    .click();
+  await expect(appointment).toHaveAttribute("data-status", "in_progress");
+
   await page.goto("/tasks");
   await expect(
     page.getByTestId("canonical-admissions-task-queue"),
@@ -449,13 +562,68 @@ test("Sales hands off a case and Admissions operates its canonical task queue", 
   ).toContainText(cancellationReason);
 
   await submitGate(page, "sales");
-  await page.goto("/tasks");
-  await expect(page).toHaveURL(/\/access-denied\?from=%2Ftasks$/);
-  await expect(
-    page.getByTestId("canonical-admissions-task-queue"),
-  ).toHaveCount(0);
+  for (const deniedRoute of ["/tasks", "/applications", "/visa", "/finance"]) {
+    await page.goto(deniedRoute);
+    await expect(page).toHaveURL(/\/access-denied\?from=/);
+  }
 
   await submitGate(page, "admin");
+  await page.goto(caseHref!);
+  const releaseReason = "Admin подтвердил снятие внутреннего ограничения";
+  const releaseStopForm = page.getByTestId("canonical-finance-stop-release-form");
+  await releaseStopForm.locator('textarea[name="reason"]').fill(releaseReason);
+  await releaseStopForm.locator('button[type="submit"]').click();
+  await expect(page.getByTestId("canonical-finance-stop")).toHaveAttribute(
+    "data-is-stopped",
+    "false",
+  );
+
+  const adminApplication = page
+    .getByTestId("canonical-university-application")
+    .filter({ hasText: "Browser Technical University" });
+  await adminApplication
+    .getByTestId("canonical-university-application-transition-form")
+    .filter({ has: page.locator('input[name="to_status"][value="submitted"]') })
+    .locator('button[type="submit"]')
+    .click();
+  await expect(adminApplication).toHaveAttribute("data-status", "submitted");
+  await adminApplication
+    .getByTestId("canonical-university-application-transition-form")
+    .filter({ has: page.locator('input[name="to_status"][value="accepted"]') })
+    .locator('button[type="submit"]')
+    .click();
+  await expect(adminApplication).toHaveAttribute("data-status", "accepted");
+
+  const adminVisaSubmission = page.locator(
+    '[data-testid="canonical-visa-milestone"][data-kind="submission"]',
+  );
+  await adminVisaSubmission
+    .getByTestId("canonical-visa-milestone-transition-form")
+    .filter({ has: page.locator('input[name="to_status"][value="in_progress"]') })
+    .locator('button[type="submit"]')
+    .click();
+  await expect(adminVisaSubmission).toHaveAttribute(
+    "data-status",
+    "in_progress",
+  );
+  await adminVisaSubmission
+    .getByTestId("canonical-visa-milestone-transition-form")
+    .filter({ has: page.locator('input[name="to_status"][value="completed"]') })
+    .locator('button[type="submit"]')
+    .click();
+  await expect(adminVisaSubmission).toHaveAttribute("data-status", "completed");
+
+  await page.goto("/applications");
+  await expect(page.getByTestId("canonical-application-queue")).toContainText(
+    "Browser Technical University",
+  );
+  await page.goto("/visa");
+  await expect(page.getByTestId("canonical-visa-queue")).toBeVisible();
+  await page.goto("/finance");
+  await expect(page.getByTestId("canonical-finance-stop-queue")).toContainText(
+    releaseReason,
+  );
+
   await page.goto("/");
   await expect(page.getByTestId("active-role")).toHaveAttribute(
     "data-role",
@@ -482,6 +650,11 @@ test("Sales hands off a case and Admissions operates its canonical task queue", 
     "data-effective-role",
     "admissions",
   );
+  await page.goto(caseHref!);
+  await expect(page.getByTestId("canonical-admissions-operations")).toBeVisible();
+  await expect(
+    page.getByTestId("canonical-finance-stop-release-form"),
+  ).toHaveCount(0);
 });
 
 test("Admin records a reasoned exception and opens the resulting case", async ({

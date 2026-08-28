@@ -1,209 +1,137 @@
 import Link from "next/link";
+
+import { Card, btnGhostCls, cn } from "@/components/ui";
 import { getT } from "@/lib/i18n";
+import { requirePlatformCapability } from "@/lib/platform-guards";
 import {
-  listFinanceClientsForActor,
-  listPaymentsForActor,
-} from "@/lib/queries";
-import { addPaymentAction, markPaymentPaidAction } from "@/lib/actions";
-import { requireStaffRoute } from "@/lib/guards";
-import { Badge, Card, EmptyState, inputCls, btnCls, btnGhostCls, cn, labelCls } from "@/components/ui";
-import {
-  ContextBanner,
-  QueueMetrics,
-} from "@/components/platform/operations/OperationsPrimitives";
+  CanonicalCrmRepositoryError,
+  listCanonicalFinanceStops,
+  parseCanonicalReadCursor,
+  type CanonicalReadCursor,
+} from "@/lib/server/canonical-crm-repository";
 
-const num = (n: number) => n.toLocaleString("ru-RU");
+type SearchParams = Readonly<{
+  before_at?: string | string[];
+  before_id?: string | string[];
+}>;
 
-export default async function FinancePage() {
-  const user = await requireStaffRoute("/finance");
-  const { t } = await getT();
-  const payments = listPaymentsForActor(user);
-  const clients = listFinanceClientsForActor(user);
-  const canMutatePayments =
-    user.role === "admin" || user.role === "admissions";
-  const today = new Date().toISOString().slice(0, 10);
-  const overduePayments = payments.filter(
-    (payment) => payment.status !== "paid" && payment.due_date && payment.due_date < today,
-  ).length;
+const COPY = {
+  ru: {
+    eyebrow: "Admissions · PostgreSQL",
+    title: "Финансовые стопы",
+    description: "Минимальный контроль кейса, а не платёжный реестр. Изменения выполняются в Student 360.",
+    empty: "Финансовых стоп-состояний пока нет.",
+    stopped: "Стоп активен",
+    released: "Стоп снят",
+    changedBy: "Изменила роль",
+    open: "Открыть Student 360",
+    first: "К началу",
+    next: "Следующие состояния",
+  },
+  ky: {
+    eyebrow: "Admissions · PostgreSQL",
+    title: "Каржылык стоптор",
+    description: "Бул төлөм реестри эмес, кейстин минималдуу көзөмөлү. Өзгөртүүлөр Student 360 ичинде жасалат.",
+    empty: "Азырынча каржылык стоп абалдары жок.",
+    stopped: "Стоп активдүү",
+    released: "Стоп алынды",
+    changedBy: "Өзгөрткөн роль",
+    open: "Student 360 ачуу",
+    first: "Башына",
+    next: "Кийинки абалдар",
+  },
+  en: {
+    eyebrow: "Admissions · PostgreSQL",
+    title: "Finance stops",
+    description: "Minimal case control, not a payment ledger. All changes are made inside Student 360.",
+    empty: "No finance-stop states yet.",
+    stopped: "Stop active",
+    released: "Stop released",
+    changedBy: "Changed by role",
+    open: "Open Student 360",
+    first: "First page",
+    next: "Next states",
+  },
+} as const;
 
-  const totals = (status: "paid" | "pending") => {
-    const sums = new Map<string, number>();
-    for (const payment of payments) {
-      const match = status === "paid" ? payment.status === "paid" : payment.status !== "paid";
-      if (match) sums.set(payment.currency, (sums.get(payment.currency) ?? 0) + payment.amount);
-    }
-    return [...sums.entries()].map(([currency, sum]) => `${num(sum)} ${currency}`).join(" + ") || "0";
-  };
+export default async function FinancePage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<SearchParams> }>) {
+  const [{ locale }, actor, params] = await Promise.all([
+    getT(),
+    requirePlatformCapability("admissions.read", "/finance"),
+    searchParams,
+  ]);
+  const cursor = queueCursor(params);
+  const page = await listCanonicalFinanceStops({
+    actorRole: actor.platformRole,
+    cursor: cursor ?? undefined,
+    pageSize: 50,
+  });
+  const copy = COPY[locale];
 
   return (
-    <div className="space-y-5">
-      <ContextBanner
-        title={canMutatePayments ? t("sourceBoundary") : t("readOnly")}
-        description={canMutatePayments ? t("localRecordHint") : t("financeReadOnlyHint")}
-        tone={canMutatePayments ? "neutral" : "warning"}
-      />
+    <div className="space-y-5" data-testid="canonical-finance-stop-queue">
+      <header className="border-b border-border pb-5">
+        <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-accent">{copy.eyebrow}</p>
+        <h1 className="mt-2 text-[22px] font-semibold tracking-[-0.02em] text-fg">{copy.title}</h1>
+        <p className="mt-2 max-w-2xl text-[12.5px] leading-5 text-fg-3">{copy.description}</p>
+      </header>
 
-      <QueueMetrics
-        items={[
-          { label: t("totalPaid"), value: totals("paid"), tone: "ok" },
-          { label: t("totalPending"), value: totals("pending"), tone: "warn" },
-          { label: t("overduePayments"), value: overduePayments, tone: overduePayments ? "danger" : "ok" },
-          { label: t("payments"), value: payments.length, tone: "info" },
-        ]}
-      />
-
-      {canMutatePayments && (
-        <details id="add" className="scroll-mt-24 rounded-card border border-border bg-surface shadow-evo">
-          <summary className="cursor-pointer list-none px-5 py-4 text-[13.5px] font-semibold text-accent marker:hidden">
-            ＋ {t("addPayment")}
-          </summary>
-          <form action={addPaymentAction} className="grid gap-3 border-t border-border px-5 py-4 sm:grid-cols-2 xl:grid-cols-3">
-            <div>
-              <label htmlFor="payment-client" className={labelCls}>{t("client")}</label>
-              <select id="payment-client" name="client_id" required className={inputCls}>
-                <option value="">{t("client")}…</option>
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id}>{client.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="sm:col-span-1 xl:col-span-2">
-              <label htmlFor="payment-title" className={labelCls}>{t("payment")}</label>
-              <input id="payment-title" name="title" required className={inputCls} />
-            </div>
-            <div>
-              <label htmlFor="payment-amount" className={labelCls}>{t("amount")}</label>
-              <input id="payment-amount" name="amount" type="number" step="0.01" required className={inputCls} />
-            </div>
-            <div>
-              <label htmlFor="payment-currency" className={labelCls}>KGS / USD / EUR</label>
-              <select id="payment-currency" name="currency" className={inputCls}>
-                <option value="KGS">KGS</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="payment-due" className={labelCls}>{t("dueDate")}</label>
-              <input id="payment-due" name="due_date" type="date" className={cn(inputCls, "font-mono")} />
-            </div>
-            <button type="submit" className={cn(btnCls, "sm:col-span-2 sm:w-fit xl:col-span-3")}>
-              {t("add")}
-            </button>
-          </form>
-        </details>
-      )}
-
-      {payments.length === 0 ? (
-        <Card>
-          <EmptyState text={t("noResults")} />
-        </Card>
+      {page.rows.length === 0 ? (
+        <p className="border-y border-border py-8 text-[13px] text-fg-3">{copy.empty}</p>
       ) : (
-        <>
-          <div className="grid gap-3 md:hidden">
-            {payments.map((payment) => {
-              const isOverdue =
-                payment.status !== "paid" &&
-                !!payment.due_date &&
-                payment.due_date < today;
-              const visibleStatus = isOverdue ? "overdue" : payment.status;
-              return (
-                <article key={payment.id} className="rounded-card border border-border bg-surface p-4 shadow-evo">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <Link href={`/finance/${payment.id}`} className="font-bold text-fg hover:text-accent">
-                        {payment.title}
-                      </Link>
-                      <p className="mt-1 text-[12.5px] font-medium text-fg-2">
-                        {payment.client_name}
-                      </p>
+        <Card>
+          <ul className="divide-y divide-border">
+            {page.rows.map((financeStop) => (
+              <li key={financeStop.financeStopId} className="py-4 first:pt-0 last:pb-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-[13.5px] font-semibold text-fg">{financeStop.displayName}</h2>
+                      <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-semibold", financeStop.isStopped ? "bg-danger-weak text-danger" : "bg-ok-weak text-ok")}>
+                        {financeStop.isStopped ? copy.stopped : copy.released}
+                      </span>
                     </div>
-                    <Badge value={visibleStatus} label={t(`pay.${visibleStatus}`)} />
+                    <p className="mt-2 whitespace-pre-wrap text-[12.5px] leading-5 text-fg-2">{financeStop.reason}</p>
+                    <p className="mt-2 text-[11.5px] text-fg-3">{copy.changedBy}: {financeStop.changedByRole}</p>
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-3 rounded-nav bg-surface-2 p-3">
-                    <div>
-                      <div className="text-[11.5px] text-fg-3">{t("amount")}</div>
-                      <div className="mt-1 font-mono text-[15px] font-bold text-fg">
-                        {num(payment.amount)} {payment.currency}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[11.5px] text-fg-3">{t("dueDate")}</div>
-                      <div className={cn("mt-1 font-mono text-[13px] font-semibold", isOverdue ? "text-danger" : "text-fg")}>
-                        {payment.due_date ?? "—"}
-                      </div>
-                    </div>
-                  </div>
-                  {canMutatePayments && payment.status !== "paid" && (
-                    <form action={markPaymentPaidAction} className="mt-4">
-                      <input type="hidden" name="id" value={payment.id} />
-                      <button type="submit" className={cn(btnCls, "w-full")}>{t("markPaid")}</button>
-                    </form>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-
-          <Card bodyClassName="px-0 py-0" className="hidden md:block">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] text-left text-[13px]">
-                <thead className="border-b border-border bg-surface-2 text-[11px] uppercase tracking-[0.04em] text-fg-3">
-                  <tr>
-                    <th className="px-5 py-3 font-semibold">{t("client")}</th>
-                    <th className="px-4 py-3 font-semibold">{t("payment")}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t("amount")}</th>
-                    <th className="px-4 py-3 font-semibold">{t("dueDate")}</th>
-                    <th className="px-4 py-3 font-semibold">{t("status")}</th>
-                    <th className="px-5 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {payments.map((payment) => {
-                    const isOverdue =
-                      payment.status !== "paid" &&
-                      !!payment.due_date &&
-                      payment.due_date < today;
-                    const visibleStatus = isOverdue ? "overdue" : payment.status;
-                    return (
-                      <tr key={payment.id} className="transition-[background-color] hover:bg-surface-2">
-                        <td className="px-5 py-3">
-                          <span className="font-semibold text-fg">
-                            {payment.client_name}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Link href={`/finance/${payment.id}`} className="font-semibold text-fg hover:text-accent">
-                            {payment.title}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono font-semibold text-fg">
-                          {num(payment.amount)} {payment.currency}
-                        </td>
-                        <td className={cn("px-4 py-3 font-mono text-[12.5px]", isOverdue ? "font-bold text-danger" : "text-fg-2")}>
-                          {payment.due_date ?? "—"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge value={visibleStatus} label={t(`pay.${visibleStatus}`)} />
-                          {payment.paid_at && <div className="mt-0.5 font-mono text-[11px] text-fg-3">{payment.paid_at}</div>}
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          {canMutatePayments && payment.status !== "paid" && (
-                            <form action={markPaymentPaidAction}>
-                              <input type="hidden" name="id" value={payment.id} />
-                              <button type="submit" className={btnGhostCls}>{t("markPaid")}</button>
-                            </form>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </>
+                  <Link href={`/clients/${financeStop.studentCaseId}#finance`} className="shrink-0 text-[12px] font-semibold text-accent hover:underline">
+                    {copy.open}
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
+
+      <nav className="flex items-center justify-between gap-3" aria-label={copy.title}>
+        {cursor ? <Link href="/finance" className={btnGhostCls}>← {copy.first}</Link> : <span />}
+        {page.hasNext && page.nextCursor ? <Link href={queueHref("/finance", page.nextCursor)} className={btnGhostCls} rel="next">{copy.next} →</Link> : null}
+      </nav>
     </div>
   );
+}
+
+function queueCursor(params: SearchParams): CanonicalReadCursor | null {
+  if (Object.keys(params).some((key) => key !== "before_at" && key !== "before_id")) {
+    throw new CanonicalCrmRepositoryError("invalid_input");
+  }
+  const beforeAt = singleValue(params.before_at);
+  const beforeId = singleValue(params.before_id);
+  if ((beforeAt && !beforeId) || (!beforeAt && beforeId)) {
+    throw new CanonicalCrmRepositoryError("invalid_input");
+  }
+  return beforeAt && beforeId ? parseCanonicalReadCursor(beforeAt, beforeId) : null;
+}
+
+function singleValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) throw new CanonicalCrmRepositoryError("invalid_input");
+  return value;
+}
+
+function queueHref(path: string, cursor: CanonicalReadCursor): string {
+  const query = new URLSearchParams({ before_at: cursor.updatedAt, before_id: cursor.id });
+  return `${path}?${query.toString()}`;
 }

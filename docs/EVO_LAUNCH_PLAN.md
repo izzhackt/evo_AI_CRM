@@ -172,6 +172,44 @@ the same issue:
 3. wire the existing private-file foundation into the canonical document UI,
    then remove the remaining superseded Student 360/Admissions runtime paths.
 
+#### V2-8B applications, visa and finance-stop execution contract
+
+V2-8B has one write surface inside `/clients/:studentCaseId`. The
+`/applications`, `/visa` and `/finance` routes are read-only queues over the
+same canonical PostgreSQL authority and link back to the relevant Student 360
+section; they are not parallel workflow implementations. Superseded dynamic
+detail routes and their Supabase/RPC or SQLite actions, queries and
+implementation tests are deleted after the canonical browser proof.
+
+Admissions and Admin may create a university application as `draft`, update
+its required next action, submit it and record an outcome. The allowed status
+graph is `draft -> submitted -> accepted|rejected`, plus a reasoned withdrawal
+from `draft` or `submitted`. Accepted, rejected and withdrawn applications are
+terminal. Rejection and withdrawal require a durable reason. Every application
+is owned by the fixed `admissions` role and is unique per case, institution,
+program and intake.
+
+Every newly handed-off case receives exactly one milestone for each canonical
+visa kind: document preparation, appointment, submission, biometrics,
+interview and decision. Allowed progress is `pending -> in_progress ->
+completed`; `pending|in_progress -> blocked` requires a reason and `blocked ->
+in_progress` resumes work. Completed milestones are terminal. Milestones keep
+the fixed Admissions owner plus next action and due date where applicable.
+
+Finance control is one case-level stop state, not a payment ledger or fourth
+staff role. Admissions or Admin may assert the stop with a reason. Only Admin
+may release an active stop, also with a reason. While stopped, server commands
+reject both application submission and progress of the visa `submission`
+milestone; no UI state, alternate route or legacy repository may bypass that
+check. Other visa milestones remain operable.
+
+All mutations require an active handed-off case, server-resolved Admissions or
+Admin authority, optimistic row versions, idempotency receipts and an atomic
+minimal business event. Exact replay returns the recorded result; a reused key
+with a different request fails; a stale version or unavailable PostgreSQL
+writes nothing and exposes no fallback. Sales is denied every mutation, while
+Admin preview exercises the exact Admissions interface.
+
 Each internal PR must remove the old runtime path for the capability it proves;
 the split is not permission for dual read/write or fallback. Issue #432 remains
 open until all three verticals and the final scoped legacy inventory are green.

@@ -2,12 +2,36 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { fixedRoleCanAccessRoute } from "../src/lib/fixed-role-policy.ts";
 import {
   isConnectedPlatformApi,
   isConnectedPlatformPage,
   isConnectedPlatformSettingsRequest,
   platformHomeRoute,
 } from "../src/lib/platform-route-contract.ts";
+
+test("visa and finance queues use the fixed Admissions read boundary", () => {
+  for (const route of ["/visa", "/finance"]) {
+    assert.equal(fixedRoleCanAccessRoute("admissions", route), true, route);
+    assert.equal(fixedRoleCanAccessRoute("admin", route), true, route);
+    assert.equal(fixedRoleCanAccessRoute("sales", route), false, route);
+  }
+});
+
+test("only the read-only admissions operations queues enter the page contract", () => {
+  assert.equal(isConnectedPlatformPage("/applications"), true);
+  assert.equal(isConnectedPlatformPage("/visa"), true);
+  assert.equal(isConnectedPlatformPage("/finance"), true);
+
+  const id = "10000000-0000-4000-8000-000000000001";
+  for (const path of [
+    `/applications/${id}`,
+    `/visa/${id}`,
+    `/finance/${id}`,
+  ]) {
+    assert.equal(isConnectedPlatformPage(path), false, path);
+  }
+});
 
 test("fixed roles resolve to their exact private workspaces", () => {
   assert.equal(platformHomeRoute("admin"), "/sales");

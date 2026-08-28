@@ -4,18 +4,24 @@
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.v2_runtime_state": {
-      "name": "v2_runtime_state",
+    "public.evo_database_contract": {
+      "name": "evo_database_contract",
       "schema": "",
       "columns": {
-        "key": {
-          "name": "key",
-          "type": "text",
+        "id": {
+          "name": "id",
+          "type": "integer",
           "primaryKey": true,
           "notNull": true
         },
-        "value": {
-          "name": "value",
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "authority": {
+          "name": "authority",
           "type": "text",
           "primaryKey": false,
           "notNull": true

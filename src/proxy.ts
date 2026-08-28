@@ -129,7 +129,23 @@ export async function proxy(request: NextRequest) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
 
-  if (path === "/api/health" || path === "/api/version") {
+  if (path === "/api/database/status") {
+    // This exact technical probe owns its fail-closed PostgreSQL decision.
+    // It is private-local and deliberately bypasses the frozen Supabase
+    // session refresh until #426 replaces that session path.
+    return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+  if (path.startsWith("/api/database/status")) {
+    const response = new NextResponse(null, { status: 404 });
+    response.headers.set("x-request-id", id);
+    response.headers.set("Cache-Control", "no-store");
+    return response;
+  }
+
+  if (
+    path === "/api/health" ||
+    path === "/api/version"
+  ) {
     // Version owns its authenticated-staff check in the Route Handler. Passing
     // it through here does not make release metadata public.
     return setResponseHeaders(nextResponse(requestHeaders), id);

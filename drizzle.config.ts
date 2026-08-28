@@ -1,39 +1,40 @@
 import { defineConfig } from "drizzle-kit";
 
-function readRequired(name: string): string {
-  const value = process.env[name];
+function readDatabaseUrl(): string {
+  const value = process.env.DATABASE_URL;
   if (!value) {
-    throw new Error(`${name} must be set for Drizzle commands`);
+    throw new Error("DATABASE_URL must be set for Drizzle commands");
   }
   if (value !== value.trim()) {
-    throw new Error(`${name} must not contain leading or trailing whitespace`);
+    throw new Error("DATABASE_URL must not contain leading or trailing whitespace");
   }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("DATABASE_URL must be a valid URL");
+  }
+
+  if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
+    throw new Error("DATABASE_URL must use the postgres or postgresql scheme");
+  }
+  if (!parsed.username || !parsed.password || !parsed.hostname || parsed.pathname === "/") {
+    throw new Error("DATABASE_URL must include user, password, host and database name");
+  }
+
   return value;
 }
-
-function readPort(name: string): number {
-  const value = readRequired(name);
-  if (!/^\d+$/.test(value)) {
-    throw new Error(`${name} must be an integer port`);
-  }
-  const port = Number(value);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error(`${name} must be an integer port`);
-  }
-  return port;
-}
-
-const user = readRequired("EVO_POSTGRES_USER");
-const password = readRequired("EVO_POSTGRES_PASSWORD");
-const host = readRequired("EVO_POSTGRES_HOST");
-const port = readPort("EVO_POSTGRES_PORT");
-const database = readRequired("EVO_POSTGRES_DB");
 
 export default defineConfig({
   dialect: "postgresql",
   schema: "./src/db/schema/*.ts",
   out: "./drizzle",
+  migrations: {
+    schema: "drizzle",
+    table: "__drizzle_migrations",
+  },
   dbCredentials: {
-    url: `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${database}`,
+    url: readDatabaseUrl(),
   },
 });

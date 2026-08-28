@@ -55,7 +55,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Test active V2 database and server-side boundaries
+      - name: Test active V2 server-side boundaries
         run: npm run test:security
 
       - name: Install the locked Playwright Chromium runtime

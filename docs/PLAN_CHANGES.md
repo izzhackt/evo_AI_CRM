@@ -12027,3 +12027,55 @@ decision/rollback document as inert deployment/rollback inputs until a
 separately authorized cutover. V2 must not import, execute, bundle or treat
 those materials as authority. This broader documentation exception does not
 permit any legacy runtime, compatibility adapter, dual path or fallback in V2.
+
+## 2026-08-28 - Fix the exact V2 database-foundation replacement boundary
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under Issue #425 and the owner's replace-not-layer rule.
+Change type: implementation boundary, configuration contract, probe contract,
+migration authority, staged coexistence and acceptance evidence.
+Affected plan section: active V2 foundation Issue #425.
+
+Reason: the first implementation draft coupled database readiness to the
+frozen V1 `/api/health` contract, split application credentials across custom
+environment variables and relied on the Drizzle CLI exit code without proving
+the database's applied migration journal. That would change a V1 deployment
+contract, weaken fail-closed proof and leave ambiguity about the final V2
+foundation path.
+
+Decision:
+
+1. Keep `/api/health` unchanged as the frozen V1 liveness contract. The only
+   V2 foundation probe is the exact `GET /api/database/status` route, backed by
+   final-neutral `src/lib/server/database*.ts` modules and `src/db/schema/*`.
+   Lookalike paths return an empty 404.
+2. `DATABASE_URL` is the application and migration connection authority. A
+   missing, malformed or non-PostgreSQL value blocks clearly; `EVO_DB_PATH`,
+   Supabase configuration and fixture mode are never consulted as fallback.
+3. The committed Drizzle SQL chain creates only a technical database-contract
+   record. It contains no staff, customer, demo or other business fixture.
+   Runtime readiness requires the expected PostgreSQL authority and contract
+   version through the real Drizzle application client.
+4. A migration command uses a dedicated single-connection Postgres.js client,
+   applies the committed Drizzle chain and then compares every stored journal
+   timestamp and hash with the committed files. A separate verification
+   command performs the same comparison and exits nonzero for missing,
+   pending, extra, reordered or tampered history. `drizzle-kit check` remains
+   only the repository collision check, not proof of an applied database.
+5. Remove the active Supabase CLI/reset/migration-history authority and its CI
+   invocation from the V2 foundation gate. Preserve frozen V1 migrations,
+   runbooks, archived documentation, evidence and other historical
+   decision/rollback material unchanged and inert; never execute it as V2
+   acceptance.
+6. The owner-approved temporary coexistence remains exactly scoped: current
+   session/access modules expire in #426, role UI branches in #427,
+   Supabase/private-file paths in #428, and `src/lib/db.ts`, SQLite-backed
+   domain consumers and Supabase repositories in #429. The new database
+   foundation may not import or fall back to any of them.
+
+Validation impact: prove the route in real Chromium against a disposable real
+PostgreSQL database before and after migration; prove a deliberately stale
+technical contract returns 503; prove tampered applied journal history makes
+verification exit nonzero; run ordinary lint, typecheck, build and CI; and
+attach a scoped `rg` inventory showing the replacement foundation has no
+Supabase, SQLite, `EVO_DB_PATH`, fixture or fallback reference.

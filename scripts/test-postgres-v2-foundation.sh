@@ -59,6 +59,7 @@ postgres_user="evo_foundation"
 postgres_database="evo_foundation"
 broken_database="evo_foundation_broken"
 postgres_password="$(openssl rand -hex 24)"
+auth_secret="$(openssl rand -hex 32)"
 database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
 broken_database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${broken_database}"
 
@@ -96,7 +97,7 @@ start_app() {
   local app_database_url="$1"
   : >"$app_log"
   DATABASE_URL="$app_database_url" \
-    AUTH_SECRET="database-foundation-browser-only" \
+    AUTH_SECRET="$auth_secret" \
     "$node_bin" node_modules/next/dist/bin/next dev \
       --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   app_pid=$!

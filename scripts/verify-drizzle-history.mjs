@@ -57,13 +57,13 @@ function databaseErrorCode(error) {
   return typeof code === "string" && /^[A-Z0-9]{3,10}$/.test(code) ? code : null;
 }
 
-export function formatSafeCliError(error, fallbackMessage) {
+export function formatSafeCliError(error, safeMessage) {
   if (error instanceof DrizzleHistoryError) {
     return error.message;
   }
 
   const code = databaseErrorCode(error);
-  return code ? `${fallbackMessage} (database error ${code}).` : `${fallbackMessage}.`;
+  return code ? `${safeMessage} (database error ${code}).` : `${safeMessage}.`;
 }
 
 async function readExpectedMigrations(migrationsFolder) {

@@ -41,6 +41,7 @@ EOF
 }
 
 cleanup() {
+  stop_repo_next_dev >/dev/null 2>&1 || true
   if [[ -n "$app_pid" ]]; then
     kill "$app_pid" >/dev/null 2>&1 || true
     wait "$app_pid" >/dev/null 2>&1 || true
@@ -53,6 +54,23 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+process_cwd() {
+  local pid="$1"
+  lsof -a -d cwd -p "$pid" -Fn 2>/dev/null | sed -n 's/^n//p' | head -n 1
+}
+
+stop_repo_next_dev() {
+  local candidate=""
+  local cwd=""
+  while IFS= read -r candidate; do
+    [[ -n "$candidate" ]] || continue
+    cwd="$(process_cwd "$candidate")"
+    [[ "$cwd" == "$repo_root" ]] || continue
+    kill "$candidate" >/dev/null 2>&1 || true
+    wait "$candidate" >/dev/null 2>&1 || true
+  done < <(pgrep -f "node_modules/next/dist/bin/next dev|next-server" || true)
+}
 
 if [[ "$($node_bin --version)" != v22.* ]]; then
   fail "The database foundation gate requires Node 22.x"
@@ -111,6 +129,7 @@ if [[ "$status" != "healthy" ]]; then
 fi
 
 start_app() {
+  stop_repo_next_dev >/dev/null 2>&1 || true
   local app_database_url="$1"
   local gate_mode="${2:-configured}"
   local document_mode="${3:-configured}"
@@ -170,6 +189,7 @@ start_app() {
 }
 
 stop_app() {
+  stop_repo_next_dev >/dev/null 2>&1 || true
   if [[ -n "$app_pid" ]]; then
     kill "$app_pid" >/dev/null 2>&1 || true
     wait "$app_pid" >/dev/null 2>&1 || true

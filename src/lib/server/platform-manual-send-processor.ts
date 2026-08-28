@@ -13,7 +13,7 @@ import {
   createPlatformManualSendWahaClient,
   PlatformManualSendWahaError,
 } from "./platform-manual-send-waha-client.ts";
-import { PLATFORM_WAHA_SESSION_NAME } from "./platform-waha-ingress-config.ts";
+import { PLATFORM_WAHA_SESSION_NAME } from "./platform-messaging-backend-config.ts";
 import {
   isSafeWahaProviderId,
   isWahaDirectChatId,

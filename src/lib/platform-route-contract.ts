@@ -31,14 +31,10 @@ const PRIVATE_DOCUMENT_DOWNLOAD_PATH =
 const PLATFORM_STAFF_ASSISTANT_PATH =
   "/api/platform-ai/staff-assistant";
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
-  "/api/internal/platform-messaging/waha/events",
-  "/api/internal/platform-messaging/waha/work",
-  "/api/internal/platform-messaging/waha/history",
-  "/api/internal/platform-messaging/waha/media",
+  "/api/v2/whatsapp/inbound",
   "/api/internal/platform-messaging/waha/autonomous-reply",
   "/api/internal/platform-messaging/manual-send/work",
   "/api/internal/platform-operations/portal-overdue",
-  "/api/internal/lead-agent/whatsapp",
   "/api/internal/platform-ai/gemini/proposal",
 ]);
 export function platformHomeRoute(role: FixedRole): "/sales" | "/clients" {

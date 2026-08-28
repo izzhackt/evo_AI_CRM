@@ -4,7 +4,7 @@ import {
   isSafeWahaProviderId,
   isWahaDirectChatId,
 } from "./platform-waha-identifiers.ts";
-import { PLATFORM_WAHA_SESSION_NAME } from "./platform-waha-ingress-config.ts";
+import { PLATFORM_WAHA_SESSION_NAME } from "./platform-messaging-backend-config.ts";
 
 const MAX_RESPONSE_BYTES = 65_536;
 const MAX_TEXT_CHARACTERS = 4_096;

@@ -168,11 +168,9 @@ test("enabled P7B config rejects missing, malformed, or reused observability sec
 
   for (const reservedName of [
     "EVO_PLATFORM_SUPABASE_SECRET_KEY",
-    "EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET",
-    "EVO_PLATFORM_WAHA_WORKER_TRIGGER_SECRET",
+    "EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET",
     "EVO_PLATFORM_AUTONOMOUS_REPLIES_TRIGGER_SECRET",
     "EVO_AGENT_CRM_SYNC_SECRET",
-    "EVO_LEAD_AGENT_SYNC_SECRET",
   ]) {
     assert.throws(
       () =>

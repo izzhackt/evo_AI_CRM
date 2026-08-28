@@ -135,7 +135,7 @@ function readObservabilitySecret(value: string | undefined): string {
 function isProtectedSecretName(name: string): boolean {
   if (name === OBSERVABILITY_SECRET_NAME) return false;
   if (!/(?:SECRET|KEY|TOKEN)/.test(name)) return false;
-  return /(?:SUPABASE|WAHA|WEBHOOK|WORKER|AUTONOMOUS|LEAD_AGENT|^EVO_AGENT_)/.test(
+  return /(?:SUPABASE|WAHA|WHATSAPP|WEBHOOK|WORKER|AUTONOMOUS|LEAD_AGENT|^EVO_AGENT_)/.test(
     name,
   );
 }

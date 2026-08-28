@@ -3,10 +3,10 @@ import "server-only";
 import { isIP } from "node:net";
 
 import {
-  getPlatformWahaBackendConfig,
-  PlatformWahaIngressConfigurationError,
-  type PlatformWahaBackendConfig,
-} from "./platform-waha-ingress-config.ts";
+  getPlatformMessagingBackendConfig,
+  PlatformMessagingBackendConfigurationError,
+  type PlatformMessagingBackendConfig,
+} from "./platform-messaging-backend-config.ts";
 
 const INTERNAL_HOST_PATTERN =
   /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:internal|local|localhost))?$/i;
@@ -32,7 +32,7 @@ export type PlatformAutonomousReplyDisabledConfig = Readonly<{
   enabled: false;
 }>;
 
-export type PlatformAutonomousReplyEnabledConfig = PlatformWahaBackendConfig &
+export type PlatformAutonomousReplyEnabledConfig = PlatformMessagingBackendConfig &
   Readonly<{
     enabled: true;
     killSwitchEngaged: boolean;
@@ -103,11 +103,11 @@ function readKillSwitch(value: string | undefined): boolean {
 
 function requirePlatformBackend(
   environment: NodeJS.ProcessEnv,
-): PlatformWahaBackendConfig {
+): PlatformMessagingBackendConfig {
   try {
-    return getPlatformWahaBackendConfig(environment);
+    return getPlatformMessagingBackendConfig(environment);
   } catch (error) {
-    if (error instanceof PlatformWahaIngressConfigurationError) {
+    if (error instanceof PlatformMessagingBackendConfigurationError) {
       return invalidConfiguration("platform_backend_not_configured");
     }
     throw error;

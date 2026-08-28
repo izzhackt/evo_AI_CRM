@@ -9,12 +9,15 @@ import {
   CanonicalCrmRepositoryError,
   appendCanonicalInboundMessage,
   createCanonicalPersonLead,
+  getCanonicalLeadConversationThread,
   getCanonicalLeadSnapshot,
   getCanonicalStudentCaseSnapshot,
   handoffCanonicalLeadToAdmissions,
+  listCanonicalLeadConversations,
   listCanonicalSalesLeads,
   listCanonicalStudentCases,
   normalizeCanonicalPersonIdentity,
+  parseCanonicalMessageCursor,
   parseCanonicalReadCursor,
   recordCanonicalSalesGateEvidence,
   updateCanonicalSalesLeadWorkflow,
@@ -86,6 +89,47 @@ test("canonical read cursor normalizes one real timestamp and non-nil UUID pair"
       rejectsWithCode("invalid_input"),
     );
   }
+});
+
+test("canonical message cursor normalizes one real timestamp and non-nil UUID pair", () => {
+  assert.deepEqual(
+    parseCanonicalMessageCursor("2026-08-28T16:30:00+04:00", UUID_B),
+    {
+      occurredAt: "2026-08-28T12:30:00.000Z",
+      id: UUID_B,
+    },
+  );
+
+  for (const [occurredAt, id] of [
+    [undefined, UUID_B],
+    ["2026-08-28T12:30:00.000Z", undefined],
+    ["2026-02-30T12:30:00.000Z", UUID_B],
+    ["2026-08-28T25:30:00.000Z", UUID_B],
+    ["2026-08-28T12:30:00.000Z", "not-a-uuid"],
+  ]) {
+    assert.throws(
+      () => parseCanonicalMessageCursor(occurredAt, id),
+      rejectsWithCode("invalid_input"),
+    );
+  }
+});
+
+test("Sales conversation reads reject Admissions before database access", async () => {
+  await assert.rejects(
+    listCanonicalLeadConversations({
+      actorRole: "admissions",
+      leadId: UUID_A,
+    }),
+    rejectsWithCode("forbidden"),
+  );
+  await assert.rejects(
+    getCanonicalLeadConversationThread({
+      actorRole: "admissions",
+      leadId: UUID_A,
+      conversationId: UUID_B,
+    }),
+    rejectsWithCode("forbidden"),
+  );
 });
 
 test("canonical phone normalization rejects letters instead of deleting them", () => {

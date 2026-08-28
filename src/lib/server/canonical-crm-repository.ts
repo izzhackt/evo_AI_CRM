@@ -63,6 +63,11 @@ export type CanonicalReadCursor = Readonly<{
   id: string;
 }>;
 
+export type CanonicalMessageCursor = Readonly<{
+  occurredAt: string;
+  id: string;
+}>;
+
 export type CanonicalStudentCaseQueueRow = Readonly<{
   studentCaseId: string;
   leadId: string;
@@ -134,6 +139,36 @@ export type CanonicalSalesLeadQueuePage = Readonly<{
   rows: readonly CanonicalSalesLeadQueueRow[];
   hasNext: boolean;
   nextCursor: CanonicalReadCursor | null;
+}>;
+
+export type CanonicalLeadConversationSummary = Readonly<{
+  conversationId: string;
+  leadId: string;
+  channel: "whatsapp";
+  externalConversationId: string | null;
+  status: "open" | "closed";
+  owningRole: "sales" | "admissions";
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}>;
+
+export type CanonicalConversationMessage = Readonly<{
+  messageId: string;
+  conversationId: string;
+  direction: "inbound" | "outbound";
+  externalMessageId: string | null;
+  body: string;
+  authorRole: FixedRole | null;
+  occurredAt: string;
+  createdAt: string;
+}>;
+
+export type CanonicalLeadConversationThread = Readonly<{
+  conversation: CanonicalLeadConversationSummary;
+  messages: readonly CanonicalConversationMessage[];
+  hasNext: boolean;
+  nextCursor: CanonicalMessageCursor | null;
 }>;
 
 export type CanonicalStudentCaseSnapshot = Readonly<{
@@ -327,6 +362,30 @@ export function parseCanonicalReadCursor(
   const parsed = new Date(updatedAt);
   if (!Number.isFinite(parsed.getTime())) invalidInput();
   return { updatedAt: parsed.toISOString(), id: uuid(id) };
+}
+
+export function parseCanonicalMessageCursor(
+  occurredAt: unknown,
+  id: unknown,
+): CanonicalMessageCursor {
+  const cursor = parseCanonicalReadCursor(occurredAt, id);
+  return { occurredAt: cursor.updatedAt, id: cursor.id };
+}
+
+function optionalCanonicalMessageCursor(
+  value: unknown,
+): CanonicalMessageCursor | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "object" || Array.isArray(value)) invalidInput();
+  const candidate = value as Record<string, unknown>;
+  if (
+    Object.keys(candidate).some(
+      (key) => key !== "occurredAt" && key !== "id",
+    )
+  ) {
+    invalidInput();
+  }
+  return parseCanonicalMessageCursor(candidate.occurredAt, candidate.id);
 }
 
 function fixedRole(value: unknown): FixedRole {
@@ -639,6 +698,36 @@ function databaseSalesStage(value: string): CanonicalSalesStage {
 
 function databaseStudentCaseStatus(value: string): CanonicalStudentCaseStatus {
   if (!isCanonicalStudentCaseStatus(value)) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function databaseConversationChannel(value: string): "whatsapp" {
+  if (value !== "whatsapp") {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function databaseConversationStatus(value: string): "open" | "closed" {
+  if (value !== "open" && value !== "closed") {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function databaseConversationOwningRole(
+  value: string,
+): "sales" | "admissions" {
+  if (value !== "sales" && value !== "admissions") {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function databaseMessageDirection(value: string): "inbound" | "outbound" {
+  if (value !== "inbound" && value !== "outbound") {
     throw new CanonicalCrmRepositoryError("unavailable");
   }
   return value;
@@ -1552,6 +1641,160 @@ export async function getCanonicalStudentCaseSnapshot(
   return runTransaction((transaction) =>
     selectStudentCaseSnapshot(transaction, studentCaseId),
   );
+}
+
+export async function listCanonicalLeadConversations(
+  input: Readonly<{ actorRole: FixedRole; leadId: string }>,
+): Promise<readonly CanonicalLeadConversationSummary[]> {
+  actorRole(input.actorRole, ["admin", "sales"]);
+  const leadId = uuid(input.leadId);
+
+  return runTransaction(async (transaction) => {
+    const [lead] = await transaction
+      .select({ id: evoLeads.id })
+      .from(evoLeads)
+      .where(eq(evoLeads.id, leadId))
+      .limit(1);
+    if (!lead) throw new CanonicalCrmRepositoryError("not_found");
+
+    const rows = await transaction
+      .select({
+        conversationId: evoConversations.id,
+        leadId: evoConversations.leadId,
+        channel: evoConversations.channel,
+        externalConversationId: evoConversations.externalConversationId,
+        status: evoConversations.status,
+        owningRole: evoConversations.owningRole,
+        version: evoConversations.version,
+        createdAt: evoConversations.createdAt,
+        updatedAt: evoConversations.updatedAt,
+      })
+      .from(evoConversations)
+      .where(eq(evoConversations.leadId, leadId))
+      .orderBy(desc(evoConversations.updatedAt), desc(evoConversations.id))
+      .limit(50);
+
+    return rows.map((row) => ({
+      ...row,
+      channel: databaseConversationChannel(row.channel),
+      status: databaseConversationStatus(row.status),
+      owningRole: databaseConversationOwningRole(row.owningRole),
+      createdAt: dateString(row.createdAt),
+      updatedAt: dateString(row.updatedAt),
+    }));
+  });
+}
+
+export async function getCanonicalLeadConversationThread(
+  input: Readonly<{
+    actorRole: FixedRole;
+    leadId: string;
+    conversationId: string;
+    cursor?: CanonicalMessageCursor | null;
+    pageSize?: number;
+  }>,
+): Promise<CanonicalLeadConversationThread> {
+  actorRole(input.actorRole, ["admin", "sales"]);
+  const leadId = uuid(input.leadId);
+  const conversationId = uuid(input.conversationId);
+  const cursor = optionalCanonicalMessageCursor(input.cursor);
+  const pageSize = canonicalReadPageSize(input.pageSize);
+
+  return runTransaction(async (transaction) => {
+    const [conversationRow] = await transaction
+      .select({
+        conversationId: evoConversations.id,
+        leadId: evoConversations.leadId,
+        channel: evoConversations.channel,
+        externalConversationId: evoConversations.externalConversationId,
+        status: evoConversations.status,
+        owningRole: evoConversations.owningRole,
+        version: evoConversations.version,
+        createdAt: evoConversations.createdAt,
+        updatedAt: evoConversations.updatedAt,
+      })
+      .from(evoConversations)
+      .where(
+        and(
+          eq(evoConversations.id, conversationId),
+          eq(evoConversations.leadId, leadId),
+        ),
+      )
+      .limit(1);
+    if (!conversationRow) {
+      throw new CanonicalCrmRepositoryError("not_found");
+    }
+
+    const cursorDate = cursor ? new Date(cursor.occurredAt) : undefined;
+    const result = await transaction
+      .select({
+        messageId: evoMessages.id,
+        conversationId: evoMessages.conversationId,
+        direction: evoMessages.direction,
+        externalMessageId: evoMessages.externalMessageId,
+        body: evoMessages.body,
+        authorRole: evoMessages.authorRole,
+        occurredAt: evoMessages.occurredAt,
+        createdAt: evoMessages.createdAt,
+      })
+      .from(evoMessages)
+      .where(
+        and(
+          eq(evoMessages.conversationId, conversationId),
+          cursorDate
+            ? or(
+                lt(evoMessages.occurredAt, cursorDate),
+                and(
+                  eq(evoMessages.occurredAt, cursorDate),
+                  lt(evoMessages.id, cursor!.id),
+                ),
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(desc(evoMessages.occurredAt), desc(evoMessages.id))
+      .limit(pageSize + 1);
+
+    const hasNext = result.length > pageSize;
+    const messages = result.slice(0, pageSize).map((row) => {
+      const direction = databaseMessageDirection(row.direction);
+      const normalizedAuthorRole =
+        row.authorRole === null ? null : databaseRole(row.authorRole);
+      if (
+        (direction === "inbound" && normalizedAuthorRole !== null) ||
+        (direction === "outbound" && normalizedAuthorRole === null)
+      ) {
+        throw new CanonicalCrmRepositoryError("unavailable");
+      }
+      return {
+        ...row,
+        direction,
+        authorRole: normalizedAuthorRole,
+        occurredAt: dateString(row.occurredAt),
+        createdAt: dateString(row.createdAt),
+      };
+    });
+    const lastMessage = messages.at(-1);
+
+    return {
+      conversation: {
+        ...conversationRow,
+        channel: databaseConversationChannel(conversationRow.channel),
+        status: databaseConversationStatus(conversationRow.status),
+        owningRole: databaseConversationOwningRole(
+          conversationRow.owningRole,
+        ),
+        createdAt: dateString(conversationRow.createdAt),
+        updatedAt: dateString(conversationRow.updatedAt),
+      },
+      messages,
+      hasNext,
+      nextCursor:
+        hasNext && lastMessage
+          ? { occurredAt: lastMessage.occurredAt, id: lastMessage.messageId }
+          : null,
+    };
+  });
 }
 
 export async function listCanonicalStudentCases(

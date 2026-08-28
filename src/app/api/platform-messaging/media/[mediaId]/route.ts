@@ -141,12 +141,12 @@ async function createDefaultDependencies(): Promise<RouteDependencies> {
       import("../../../../../lib/supabase/server.ts"),
     ]);
   const context = await createSupabaseServerContext();
-  const [{ getPlatformWahaBackendConfig }, { createPlatformSupabaseServiceClient }] =
+  const [{ getPlatformMessagingBackendConfig }, { createPlatformSupabaseServiceClient }] =
     await Promise.all([
-      import("../../../../../lib/server/platform-waha-ingress-config.ts"),
+      import("../../../../../lib/server/platform-messaging-backend-config.ts"),
       import("../../../../../lib/server/platform-supabase-service-client.ts"),
     ]);
-  const backend = getPlatformWahaBackendConfig();
+  const backend = getPlatformMessagingBackendConfig();
   const serviceClient = createPlatformSupabaseServiceClient(backend);
 
   return {

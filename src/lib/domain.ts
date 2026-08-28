@@ -39,14 +39,13 @@ export const STAFF_ROUTE_VALUES = [
 ] as const;
 
 export type StaffRoute = (typeof STAFF_ROUTE_VALUES)[number];
-export type PublicRoute = "/" | "/login" | "/register";
+export type PublicRoute = "/" | "/login";
 export type ClientRoute = "/portal";
 export type AppRoute = PublicRoute | ClientRoute | StaffRoute;
 
 export const APP_ROUTES = {
   root: "/" satisfies PublicRoute,
   login: "/login" satisfies PublicRoute,
-  register: "/register" satisfies PublicRoute,
   portal: "/portal" satisfies ClientRoute,
   staff: {
     dashboard: "/dashboard",

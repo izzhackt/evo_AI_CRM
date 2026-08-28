@@ -1,16 +1,18 @@
-import {
-  isAuthSessionMissingError,
-  type SupabaseClient,
-} from "@supabase/supabase-js";
+import { currentUser } from "./auth";
+import type { DevelopmentGateRole } from "./development-gate-core";
 import type { Role } from "./roles";
-import {
-  createSupabaseServerContext,
-  type SupabaseServerContext,
-} from "./supabase/server";
 
-export const PLATFORM_ROLES = [
+// Only DEVELOPMENT_PLATFORM_ROLES can be issued by the V2 gate. The three
+// historical values remain in the shared repository actor type until the
+// already approved UI/repository deletion slices #427/#429.
+export const DEVELOPMENT_PLATFORM_ROLES = [
   "admin",
   "sales",
+  "admissions",
+] as const satisfies readonly DevelopmentGateRole[];
+
+export const PLATFORM_ROLES = [
+  ...DEVELOPMENT_PLATFORM_ROLES,
   "curator",
   "finance",
   "student",
@@ -29,275 +31,67 @@ export type PlatformActor = Readonly<{
   platformBundleId: string;
   platformBundleVersion: number;
   /**
-   * Compatibility role for the accepted frontend. Authorization must use
-   * platformRole; only the database `student` role is renamed to UI `client`.
+   * Temporary accepted-shell projection. Authorization uses platformRole;
+   * #427 deletes the historical role UI and this field with it.
    */
   role: Role;
 }>;
 
-export type PlatformActorInvalidReason =
-  | "auth_verification_failed"
-  | "claims_invalid"
-  | "authority_lookup_failed"
-  | "authority_not_found"
-  | "authority_invalid"
-  | "authority_mismatch";
+export type PlatformActorInvalidReason = "development_session_invalid";
 
 export type PlatformActorResult =
-  | Readonly<{
-      status: "anonymous";
-      actor: null;
-    }>
+  | Readonly<{ status: "anonymous"; actor: null }>
   | Readonly<{
       status: "invalid";
       actor: null;
       reason: PlatformActorInvalidReason;
     }>
-  | Readonly<{
-      status: "authenticated";
-      actor: PlatformActor;
-    }>;
+  | Readonly<{ status: "authenticated"; actor: PlatformActor }>;
 
-type VerifiedAuthorityClaims = Readonly<{
-  authUserId: string;
-  platformRole: PlatformRole;
-  platformAccessVersion: number;
-  platformOrganizationId: string;
-  platformMembershipId: string;
-  platformBundleId: string;
-  platformBundleVersion: number;
-}>;
+const LOCAL_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
+const LOCAL_BUNDLE_ID = "00000000-0000-4000-8000-000000000002";
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+const TECHNICAL_ACTOR_IDS = {
+  admin: {
+    authUserId: "00000000-0000-4000-8000-000000000101",
+    profileId: "00000000-0000-4000-8000-000000000201",
+    membershipId: "00000000-0000-4000-8000-000000000301",
+  },
+  sales: {
+    authUserId: "00000000-0000-4000-8000-000000000102",
+    profileId: "00000000-0000-4000-8000-000000000202",
+    membershipId: "00000000-0000-4000-8000-000000000302",
+  },
+  admissions: {
+    authUserId: "00000000-0000-4000-8000-000000000103",
+    profileId: "00000000-0000-4000-8000-000000000203",
+    membershipId: "00000000-0000-4000-8000-000000000303",
+  },
+} as const satisfies Record<
+  DevelopmentGateRole,
+  Readonly<{
+    authUserId: string;
+    profileId: string;
+    membershipId: string;
+  }>
+>;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+export async function resolvePlatformActor(): Promise<PlatformActorResult> {
+  const user = await currentUser();
+  if (!user) return { status: "anonymous", actor: null };
 
-function parseUuid(value: unknown): string | null {
-  if (typeof value !== "string" || !UUID_PATTERN.test(value)) return null;
-
-  const normalized = value.toLowerCase();
-  return normalized === NIL_UUID ? null : normalized;
-}
-
-function parsePlatformRole(value: unknown): PlatformRole | null {
-  return typeof value === "string" &&
-    (PLATFORM_ROLES as readonly string[]).includes(value)
-    ? (value as PlatformRole)
-    : null;
-}
-
-function parseAccessVersion(value: unknown): number | null {
-  if (typeof value === "number") {
-    return Number.isSafeInteger(value) && value > 0 ? value : null;
-  }
-
-  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) return null;
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) ? parsed : null;
-}
-
-function parseClaims(value: unknown): VerifiedAuthorityClaims | null {
-  if (!isRecord(value) || value.role !== "authenticated") return null;
-
-  const authUserId = parseUuid(value.sub);
-  const platformRole = parsePlatformRole(value.platform_role);
-  const platformAccessVersion = parseAccessVersion(
-    value.platform_access_version,
-  );
-  const platformOrganizationId = parseUuid(value.platform_organization_id);
-  const platformMembershipId = parseUuid(value.platform_membership_id);
-  const platformBundleId = parseUuid(value.platform_bundle_id);
-  const platformBundleVersion = parseAccessVersion(
-    value.platform_bundle_version,
-  );
-
-  if (
-    !authUserId ||
-    !platformRole ||
-    !platformAccessVersion ||
-    !platformOrganizationId ||
-    !platformMembershipId ||
-    !platformBundleId ||
-    !platformBundleVersion
-  ) {
-    return null;
-  }
-  return {
-    authUserId,
-    platformRole,
-    platformAccessVersion,
-    platformOrganizationId,
-    platformMembershipId,
-    platformBundleId,
-    platformBundleVersion,
-  };
-}
-
-function toUiRole(platformRole: PlatformRole): Role {
-  return platformRole === "student" ? "client" : platformRole;
-}
-
-function invalid(reason: PlatformActorInvalidReason): PlatformActorResult {
-  return { status: "invalid", actor: null, reason };
-}
-
-function safeAuthErrorLabel(value: unknown): string {
-  return typeof value === "string" && /^[A-Za-z0-9_.:-]{1,64}$/.test(value)
-    ? value
-    : "unclassified";
-}
-
-function logAuthVerificationFailure(error: unknown): void {
-  const record = isRecord(error) ? error : {};
-  console.warn(JSON.stringify({
-    event: "platform_auth_verification_failed",
-    error_name: safeAuthErrorLabel(record.name),
-    error_code: safeAuthErrorLabel(record.code),
-    status:
-      typeof record.status === "number" && Number.isSafeInteger(record.status)
-        ? record.status
-        : null,
-    service: "evo-crm",
-  }));
-}
-
-function parseAuthority(
-  value: unknown,
-  claims: VerifiedAuthorityClaims,
-): PlatformActorResult {
-  if (!isRecord(value)) return invalid("authority_invalid");
-
-  const authUserId = parseUuid(value.auth_user_id);
-  const profileId = parseUuid(value.profile_id);
-  const membershipId = parseUuid(value.membership_id);
-  const organizationId = parseUuid(value.organization_id);
-  const platformRole = parsePlatformRole(value.platform_role);
-  const platformAccessVersion = parseAccessVersion(
-    value.platform_access_version,
-  );
-  const displayName =
-    typeof value.display_name === "string" ? value.display_name.trim() : "";
-
-  if (
-    !authUserId ||
-    !profileId ||
-    !membershipId ||
-    !organizationId ||
-    !platformRole ||
-    !platformAccessVersion ||
-    displayName.length === 0
-  ) {
-    return invalid("authority_invalid");
-  }
-
-  if (
-    authUserId !== claims.authUserId ||
-    platformRole !== claims.platformRole ||
-    platformAccessVersion !== claims.platformAccessVersion ||
-    organizationId !== claims.platformOrganizationId ||
-    membershipId !== claims.platformMembershipId
-  ) {
-    return invalid("authority_mismatch");
-  }
-
+  const ids = TECHNICAL_ACTOR_IDS[user.developmentRole];
   return {
     status: "authenticated",
     actor: {
-      authUserId,
-      profileId,
-      membershipId,
-      organizationId,
-      displayName,
-      platformRole,
-      platformAccessVersion,
-      platformBundleId: claims.platformBundleId,
-      platformBundleVersion: claims.platformBundleVersion,
-      role: toUiRole(platformRole),
+      ...ids,
+      organizationId: LOCAL_ORGANIZATION_ID,
+      displayName: user.name,
+      platformRole: user.developmentRole,
+      platformAccessVersion: 1,
+      platformBundleId: LOCAL_BUNDLE_ID,
+      platformBundleVersion: 1,
+      role: user.role,
     },
   };
-}
-
-async function resolveClient(
-  client: SupabaseClient | undefined,
-  authCookiePresent: boolean | undefined,
-): Promise<SupabaseServerContext> {
-  if (client) {
-    return {
-      client,
-      authCookiePresent: authCookiePresent ?? false,
-    };
-  }
-  return createSupabaseServerContext();
-}
-
-/**
- * Resolves a server actor from a cryptographically verified Supabase JWT and
- * the live fail-closed Platform authority RPC. getSession() is intentionally
- * never used as authorization evidence.
- */
-export async function resolvePlatformActor(
-  client?: SupabaseClient,
-  authCookiePresent?: boolean,
-  accessToken?: string,
-): Promise<PlatformActorResult> {
-  const context = await resolveClient(client, authCookiePresent);
-
-  let claimsResponse: Awaited<
-    ReturnType<SupabaseClient["auth"]["getClaims"]>
-  >;
-  try {
-    claimsResponse = await context.client.auth.getClaims(accessToken);
-  } catch (error) {
-    logAuthVerificationFailure(error);
-    return invalid("auth_verification_failed");
-  }
-
-  if (claimsResponse.error) {
-    if (
-      isAuthSessionMissingError(claimsResponse.error) &&
-      !context.authCookiePresent
-    ) {
-      return { status: "anonymous", actor: null };
-    }
-    logAuthVerificationFailure(claimsResponse.error);
-    return invalid("auth_verification_failed");
-  }
-
-  const rawClaims = claimsResponse.data?.claims;
-  const claims = parseClaims(rawClaims);
-  if (!claims) {
-    if (!context.authCookiePresent && rawClaims == null) {
-      return { status: "anonymous", actor: null };
-    }
-    return invalid("claims_invalid");
-  }
-
-  let authorityResponse: {
-    data: unknown;
-    error: unknown;
-  };
-  try {
-    authorityResponse = await context.client
-      .schema("platform")
-      .rpc("current_actor_authority");
-  } catch {
-    return invalid("authority_lookup_failed");
-  }
-
-  if (authorityResponse.error) return invalid("authority_lookup_failed");
-  if (!Array.isArray(authorityResponse.data)) {
-    return invalid("authority_invalid");
-  }
-  if (authorityResponse.data.length === 0) {
-    return invalid("authority_not_found");
-  }
-  if (authorityResponse.data.length !== 1) {
-    return invalid("authority_invalid");
-  }
-
-  return parseAuthority(authorityResponse.data[0], claims);
 }

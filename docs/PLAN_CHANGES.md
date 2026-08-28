@@ -12089,3 +12089,94 @@ container documentation records the PostgreSQL 18 `PGDATA` path as
 `/var/lib/postgresql/18/docker` and the volume root as
 `/var/lib/postgresql` in
 https://github.com/docker-library/docs/blob/master/postgres/content.md.
+
+## 2026-08-28 - Replace both V1 session paths with the V2 development gate
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under the owner-approved V2-2 scope in #426.
+Change type: access/session replacement, fixed technical-role contract,
+fail-closed routing and browser acceptance.
+Affected plan section: V2-2 (#426), with only the previously approved
+temporary UI/repository boundaries retained for #427 and #429.
+
+Reason: the repository still has two mutually exclusive session authorities:
+the `edu_session` SQLite fixture cookie and Supabase Auth cookies/claims. Adding
+a third gate beside them would violate the owner's replace-not-layer rule and
+would let the local V2 contour authenticate through a provider that is not its
+authority.
+
+Decision:
+
+1. Replace `src/lib/auth.ts` in place with the only V2 access/session
+   authority. It reads exactly three ignored-env technical profiles and one
+   independent signing secret:
+   `EVO_DEV_GATE_ADMIN_IDENTIFIER` / `EVO_DEV_GATE_ADMIN_SECRET`,
+   `EVO_DEV_GATE_SALES_IDENTIFIER` / `EVO_DEV_GATE_SALES_SECRET`,
+   `EVO_DEV_GATE_ADMISSIONS_IDENTIFIER` /
+   `EVO_DEV_GATE_ADMISSIONS_SECRET`, and
+   `EVO_DEV_GATE_SESSION_SECRET`. There is no default credential, generated
+   business user, database lookup or provider lookup.
+2. The submitted form has exactly `identifier` and `secret`. The server bounds
+   both values, evaluates all three configured profiles with fixed-length
+   digest comparisons, returns one generic rejection, and never logs submitted
+   values. Missing, weak, malformed or duplicate configuration makes the gate
+   unavailable rather than falling back.
+3. A successful comparison creates one short-lived signed
+   `evo_v2_dev_session` cookie. Its signed payload contains only a schema
+   version, one of `admin`, `sales` or `admissions`, issue/expiry times and a
+   random nonce. Cookie options are `HttpOnly`, `SameSite=Strict`, `Path=/`, a
+   30-minute maximum age, and `Secure` whenever the request is HTTPS. Every
+   protected server boundary verifies the signature, role and expiry again;
+   Proxy is only an optimistic prefilter. Logout deletes this cookie.
+4. Rewrite `src/lib/platform-auth.ts` and `src/lib/platform-guards.ts` to derive
+   their technical actor solely from that verified session. Fixed local
+   technical UUIDs exist only to keep the already approved repository-shaped
+   calls type-safe until their PostgreSQL replacement in #429; they are not
+   staff identities, memberships, customer data or multi-organization
+   authority. The active session can never issue the historical `curator`,
+   `finance` or `student` roles.
+5. Replace `src/proxy.ts`, `src/app/login/page.tsx`,
+   `src/components/AuthForms.tsx`, `src/app/page.tsx` and
+   `src/app/api/version/route.ts` at the same boundary. Delete
+   `src/app/register/page.tsx`, `src/app/auth/platform-session/route.ts` and
+   `src/lib/supabase/auth-cookies.ts`; remove sign-up, password-account,
+   Supabase sign-in/sign-out/claim refresh and the old cookie repair route.
+6. `src/lib/supabase/server.ts` and `src/lib/supabase/browser.ts` may remain
+   only for the owner-approved business-repository expiry in #429. They must
+   use non-persisting anonymous clients with no cookie storage, token refresh,
+   URL session detection or Auth API call, so they cannot form a second access
+   path. The root `@supabase/ssr` dependency is removed when its final V2 Auth
+   import is deleted.
+7. Delete the superseded Auth implementation tests, Supabase Auth browser
+   suite/config and local Auth reset harness. Replace them with outcome tests
+   for configuration failure, timing-safe profile selection, signed-cookie
+   tamper/expiry rejection, missing-session denial, refresh persistence,
+   logout, all three roles, generic invalid input, `/register` 404 and no
+   secret logging.
+8. The already owner-approved UI branches in `src/app/(staff)/layout.tsx`,
+   `src/app/(staff)/**/Fixture*.tsx`, `src/app/(staff)/**/Legacy*.tsx` and
+   `src/app/(staff)/**/Platform*.tsx` still expire in #427. The Supabase-backed
+   business repositories that those Platform screens call still expire in
+   #429. This entry grants neither set a second session: all reachable server
+   boundaries must use the single development gate, and missing primary
+   configuration or an invalid cookie must stop before either retained path.
+
+Validation impact: run focused unit tests under Node 22, lint, typecheck,
+security/unit suites and a production build. On OrbStack only, exercise the
+gate in real Chromium while the app is connected to the disposable real
+PostgreSQL/Drizzle foundation from #425. Inspect browser cookies, refresh each
+technical role, mutate and expire cookies, log out, verify `/register` is 404,
+and scan the application log for the submitted rejection probes. Before merge,
+attach an `rg` inventory with no active `edu_session`, Supabase Auth API,
+Supabase auth-cookie helper, registration route or old session-repair import.
+
+Official implementation references: Next.js requires asynchronous `cookies()`
+and permits cookie writes only in Server Functions or Route Handlers at
+https://nextjs.org/docs/app/api-reference/functions/cookies; it treats Proxy as
+an optimistic check rather than the only authorization boundary at
+https://nextjs.org/docs/app/guides/authentication and requires authorization to
+be repeated inside Server Actions at
+https://nextjs.org/docs/app/guides/data-security. Node documents equal-length
+buffer comparison with `crypto.timingSafeEqual()` at
+https://nodejs.org/api/crypto.html#cryptotimingsafeequala-b and HMAC signing at
+https://nodejs.org/api/crypto.html#cryptocreatehmacalgorithm-key-options.

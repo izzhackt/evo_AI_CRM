@@ -94,29 +94,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Initialize the scenario database through the CRM schema
-        env:
-          SCENARIO_BUILD_DIR: ${{ runner.temp }}/evo-scenario-bootstrap
-          SCENARIO_DB_PATH: ${{ github.workspace }}/data/edu-admin.db
-        run: |
-          mkdir -p "$SCENARIO_BUILD_DIR" "$GITHUB_WORKSPACE/data"
-          node node_modules/typescript/bin/tsc \
-            src/lib/db.ts \
-            src/lib/lead-stages.ts \
-            --outDir "$SCENARIO_BUILD_DIR" \
-            --module commonjs \
-            --target ES2022 \
-            --moduleResolution node \
-            --esModuleInterop \
-            --skipLibCheck
-          NODE_PATH="$GITHUB_WORKSPACE/node_modules" \
-            EVO_DB_PATH="$SCENARIO_DB_PATH" \
-            node -e 'const { db } = require(process.argv[1]); db().close()' \
-            "$SCENARIO_BUILD_DIR/db.js"
-
-      - name: Run CRM scenarios
-        run: npm run scenarios
-
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=moderate
 

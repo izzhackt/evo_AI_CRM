@@ -19,7 +19,13 @@ type ActorResult =
       actor: Readonly<{
         authUserId: string;
         organizationId: string;
-        platformRole: "admin" | "sales" | "curator" | "finance" | "student";
+        platformRole:
+          | "admin"
+          | "sales"
+          | "admissions"
+          | "curator"
+          | "finance"
+          | "student";
       }>;
     }>;
 
@@ -122,16 +128,14 @@ async function defaultDependencies(): Promise<Dependencies> {
       },
     };
   }
-  const [{ resolvePlatformActor }, { createSupabaseServerContext }, { createPlatformStaffAssistantRuntime }] = await Promise.all([
+  const [{ resolvePlatformActor }, { createPlatformStaffAssistantRuntime }] = await Promise.all([
     import("../../../../lib/platform-auth.ts"),
-    import("../../../../lib/supabase/server.ts"),
     import("../../../../lib/server/platform-staff-assistant-service.ts"),
   ]);
-  const context = await createSupabaseServerContext();
   const runtime = createPlatformStaffAssistantRuntime(config);
   return {
     config,
-    loadActor: () => resolvePlatformActor(context.client, context.authCookiePresent),
+    loadActor: resolvePlatformActor,
     createDraft: runtime.createDraft,
   };
 }

@@ -728,26 +728,18 @@ test("manual-send text keeps an explicit accessible label", () => {
   );
 });
 
-test("local browser handoff refreshes expiring synthetic AI readiness", () => {
-  const authHookSource = readFileSync(
-    new URL("../scripts/test-supabase-auth-hook.mjs", import.meta.url),
-    "utf8",
-  );
+test("browser proof uses the dedicated development gate flow instead of the legacy auth harness", () => {
   const browserSpecSource = readFileSync(
-    new URL("./platform-auth/platform-auth.spec.ts", import.meta.url),
+    new URL("./e2e/development-gate.spec.ts", import.meta.url),
     "utf8",
   );
-  const browserHandoff = authHookSource.slice(
-    authHookSource.indexOf("if (browserFixturePath)"),
+  const browserConfigSource = readFileSync(
+    new URL("../playwright.development-gate.config.ts", import.meta.url),
+    "utf8",
   );
 
-  assert.match(
-    browserHandoff,
-    /recordHealthEvent\(\{[\s\S]*?organizationId: adminBMembership\.organization_id,[\s\S]*?target: "ai",[\s\S]*?readiness: "ready",[\s\S]*?evidenceKind: "provider_observed",[\s\S]*?stage: "p3c-org-b-ai-browser-ready"[\s\S]*?\}\);[\s\S]*?writeFileSync\(/,
-  );
-  const languageScenarioIndex = browserSpecSource.indexOf(
-    'test("RU and EN draft requests work while uncertain language stops for manual selection"',
-  );
-  assert.ok(languageScenarioIndex > 0);
-  assert.equal(languageScenarioIndex, browserSpecSource.indexOf('test("'));
+  assert.match(browserConfigSource, /testMatch:\s*"development-gate\.spec\.ts"/);
+  assert.match(browserSpecSource, /DEVELOPMENT_SESSION_COOKIE/);
+  assert.match(browserSpecSource, /toHaveURL\(\/\\\/login\\\?error=session_invalid\$\//);
+  assert.doesNotMatch(browserSpecSource, /edu_session|@supabase|auth\/v1\/admin\/users/i);
 });

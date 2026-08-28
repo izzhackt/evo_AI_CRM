@@ -145,8 +145,7 @@ async function defaultDependencies(): Promise<PlatformAuditExportRouteDependenci
   );
   return {
     env: process.env,
-    loadActor: () =>
-      resolvePlatformActor(context.client, context.authCookiePresent),
+    loadActor: resolvePlatformActor,
     exportAudit: (input) => repository.export(input),
   };
 }

@@ -59,7 +59,13 @@ postgres_user="evo_foundation"
 postgres_database="evo_foundation"
 broken_database="evo_foundation_broken"
 postgres_password="$(openssl rand -hex 24)"
-auth_secret="$(openssl rand -hex 32)"
+gate_session_secret="$(openssl rand -hex 32)"
+gate_admin_identifier="director-local-$RANDOM"
+gate_admin_secret="$(openssl rand -hex 32)"
+gate_sales_identifier="sales-local-$RANDOM"
+gate_sales_secret="$(openssl rand -hex 32)"
+gate_admissions_identifier="admissions-local-$RANDOM"
+gate_admissions_secret="$(openssl rand -hex 32)"
 database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
 broken_database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${broken_database}"
 
@@ -95,11 +101,32 @@ fi
 
 start_app() {
   local app_database_url="$1"
+  local gate_mode="${2:-configured}"
   : >"$app_log"
-  DATABASE_URL="$app_database_url" \
-    AUTH_SECRET="$auth_secret" \
-    "$node_bin" node_modules/next/dist/bin/next dev \
-      --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
+  if [[ "$gate_mode" == "configured" ]]; then
+    DATABASE_URL="$app_database_url" \
+      EVO_DEV_GATE_SESSION_SECRET="$gate_session_secret" \
+      EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
+      EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
+      EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
+      EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
+      EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
+      EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+      "$node_bin" node_modules/next/dist/bin/next dev \
+        --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
+  else
+    env \
+      -u EVO_DEV_GATE_SESSION_SECRET \
+      -u EVO_DEV_GATE_ADMIN_IDENTIFIER \
+      -u EVO_DEV_GATE_ADMIN_SECRET \
+      -u EVO_DEV_GATE_SALES_IDENTIFIER \
+      -u EVO_DEV_GATE_SALES_SECRET \
+      -u EVO_DEV_GATE_ADMISSIONS_IDENTIFIER \
+      -u EVO_DEV_GATE_ADMISSIONS_SECRET \
+      DATABASE_URL="$app_database_url" \
+      "$node_bin" node_modules/next/dist/bin/next dev \
+        --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
+  fi
   app_pid=$!
 
   local deadline=$((SECONDS + 120))
@@ -133,6 +160,40 @@ browser_assert() {
     EVO_EXPECT_DATABASE_CODE="$expected_code" \
     "$node_bin" node_modules/@playwright/test/cli.js test \
       --config=playwright.database.config.ts
+}
+
+development_gate_browser_assert() {
+  local gate_mode="$1"
+  PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
+    EVO_EXPECT_GATE_MODE="$gate_mode" \
+    EVO_DEV_GATE_SESSION_SECRET="$gate_session_secret" \
+    EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
+    EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
+    EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
+    EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
+    EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
+    EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+    "$node_bin" node_modules/@playwright/test/cli.js test \
+      --config=playwright.development-gate.config.ts
+}
+
+assert_no_gate_value_logs() {
+  local value
+  for value in \
+    "gate-invalid-identifier-probe" \
+    "gate-invalid-secret-probe" \
+    "any-identifier" \
+    "any-secret" \
+    "$gate_admin_identifier" \
+    "$gate_admin_secret" \
+    "$gate_sales_identifier" \
+    "$gate_sales_secret" \
+    "$gate_admissions_identifier" \
+    "$gate_admissions_secret"; do
+    if grep -F "$value" "$app_log" >/dev/null; then
+      fail "The application log exposed a submitted or configured gate value"
+    fi
+  done
 }
 
 expect_verify_failure() {
@@ -207,6 +268,8 @@ DATABASE_URL="$database_url" "$node_bin" scripts/migrate-drizzle.mjs
 DATABASE_URL="$database_url" "$node_bin" scripts/migrate-drizzle.mjs
 DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs
 browser_assert 200
+development_gate_browser_assert configured
+assert_no_gate_value_logs
 
 # Runtime contract drift blocks the real browser path.
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
@@ -247,4 +310,9 @@ docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres
   --command "UPDATE drizzle.__drizzle_migrations SET hash = '${original_hash}';" >/dev/null
 DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs
 
-echo "Real PostgreSQL, Drizzle, application and Chromium foundation proof passed."
+stop_app
+start_app "$database_url" unavailable
+development_gate_browser_assert unavailable
+assert_no_gate_value_logs
+
+echo "Real PostgreSQL, Drizzle, development gate, application and Chromium proof passed."

@@ -3,7 +3,19 @@ import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 
 const documentMode = process.env.EVO_EXPECT_DOCUMENT_MODE ?? "configured";
-const caseId = "00000000-0000-4000-8000-000000000428";
+function requirePrivateDocumentCaseId(): string {
+  const value = process.env.EVO_PRIVATE_DOCUMENT_CASE_ID;
+  if (
+    !value ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+  ) {
+    throw new Error("EVO_PRIVATE_DOCUMENT_CASE_ID must be a valid non-nil UUID");
+  }
+  return value;
+}
+const caseId = requirePrivateDocumentCaseId();
 const guessedDocumentId = "00000000-0000-4000-8000-000000000498";
 const guessedVersionId = "00000000-0000-4000-8000-000000000499";
 const initialBytes = Buffer.from(

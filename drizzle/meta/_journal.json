@@ -15,6 +15,13 @@
       "when": 1787933864425,
       "tag": "0001_v2_private_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787936601463,
+      "tag": "0002_v2_canonical_crm",
+      "breakpoints": true
     }
   ]
 }

@@ -28,6 +28,26 @@ test("database status blocks without DATABASE_URL and never opens a legacy fallb
   }
 });
 
+test("database status distinguishes malformed PostgreSQL configuration", async () => {
+  const previous = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = "mysql://evo:private@127.0.0.1:3306/evo";
+
+  try {
+    assert.deepEqual(await readDatabaseStatus(), {
+      ok: false,
+      status: "blocked",
+      database: "postgresql",
+      code: "database_configuration_invalid",
+    });
+  } finally {
+    if (previous === undefined) {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = previous;
+    }
+  }
+});
+
 test("the neutral probe is exact and leaves frozen V1 health unchanged", async () => {
   const [route, health, proxy] = await Promise.all([
     readFile(new URL("../src/app/api/database/status/route.ts", import.meta.url), "utf8"),

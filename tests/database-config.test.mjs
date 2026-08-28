@@ -40,6 +40,13 @@ test("DATABASE_URL rejects whitespace, other drivers and incomplete credentials"
     "postgresql://evo@127.0.0.1:55432/evo",
     "postgresql://evo:private@127.0.0.1:55432/",
   ]) {
-    assert.throws(() => readDatabaseUrl({ DATABASE_URL: value }), DatabaseConfigError);
+    assert.throws(
+      () => readDatabaseUrl({ DATABASE_URL: value }),
+      (error) => {
+        assert.ok(error instanceof DatabaseConfigError);
+        assert.equal(error.code, "database_configuration_invalid");
+        return true;
+      },
+    );
   }
 });

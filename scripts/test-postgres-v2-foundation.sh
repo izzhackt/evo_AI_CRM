@@ -159,6 +159,12 @@ EVO_DB_PATH="$tmp_dir/legacy.sqlite" \
 browser_assert 503 database_configuration_missing
 stop_app
 
+# Malformed configuration must be distinguished from an absent value without
+# exposing the rejected connection string.
+start_app "mysql://evo:private@127.0.0.1:3306/evo"
+browser_assert 503 database_configuration_invalid
+stop_app
+
 # A reachable but unmigrated real database is still blocked.
 start_app "$database_url"
 browser_assert 503 database_migration_required

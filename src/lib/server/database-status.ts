@@ -13,6 +13,7 @@ import { DatabaseConfigError } from "./database-config.ts";
 
 type DatabaseStatusCode =
   | "database_configuration_missing"
+  | "database_configuration_invalid"
   | "database_migration_required"
   | "database_contract_mismatch"
   | "database_unavailable";
@@ -90,7 +91,7 @@ export async function readDatabaseStatus(): Promise<DatabaseStatus> {
         ok: false,
         status: "blocked",
         database: "postgresql",
-        code: "database_configuration_missing",
+        code: error.code,
       };
     }
 

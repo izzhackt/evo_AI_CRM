@@ -333,7 +333,7 @@ test("Admin sees the Sales union while Admissions stays server-denied", async ({
   await expect(page.getByTestId("canonical-sales-page")).toHaveCount(0);
 });
 
-test("Sales records the real gate and Admissions receives exactly three starter tasks", async ({
+test("Sales hands off a case and Admissions operates its canonical task queue", async ({
   page,
 }) => {
   test.skip(mode !== "configured", "only exercised in configured mode");
@@ -394,6 +394,94 @@ test("Sales records the real gate and Admissions receives exactly three starter 
   ]) {
     await expect(starterTasks.filter({ hasText: title })).toHaveCount(1);
   }
+
+  const taskItems = page.getByTestId("canonical-admissions-task");
+  await expect(taskItems).toHaveCount(3);
+
+  const createdTaskTitle = "Browser V2-8A: проверить перевод аттестата";
+  const createTaskForm = page.getByTestId(
+    "canonical-admissions-task-create-form",
+  );
+  await createTaskForm.locator('input[name="title"]').fill(createdTaskTitle);
+  await createTaskForm
+    .locator('textarea[name="details"]')
+    .fill("Создано реальным браузером для проверки canonical PostgreSQL path");
+  await createTaskForm.locator('button[type="submit"]').click();
+
+  const createdTask = taskItems.filter({ hasText: createdTaskTitle });
+  await expect(createdTask).toHaveCount(1);
+  await expect(taskItems).toHaveCount(4);
+
+  await createdTask
+    .getByTestId("canonical-admissions-task-complete-form")
+    .locator('button[type="submit"]')
+    .click();
+  await expect(createdTask).toContainText(/Завершена|Аяктады|Completed/);
+
+  const cancelledTaskTitle = "Проверить унаследованный контекст Sales";
+  const cancelledTask = taskItems.filter({ hasText: cancelledTaskTitle });
+  const cancellationReason =
+    "Контекст Sales уже проверен во время browser acceptance";
+  const cancelTaskForm = cancelledTask.getByTestId(
+    "canonical-admissions-task-cancel-form",
+  );
+  await cancelTaskForm.locator('input[name="reason"]').fill(cancellationReason);
+  await cancelTaskForm.locator('button[type="submit"]').click();
+  await expect(cancelledTask).toContainText(/Отменена|Жокко чыгарылды|Cancelled/);
+  await expect(cancelledTask).toContainText(cancellationReason);
+
+  await page.goto("/tasks");
+  await expect(
+    page.getByTestId("canonical-admissions-task-queue"),
+  ).toBeVisible();
+  const caseQueueTasks = page
+    .getByTestId("canonical-admissions-task")
+    .filter({ has: page.locator(`a[href="${caseHref}"]`) });
+  await expect(caseQueueTasks).toHaveCount(4);
+  await expect(
+    caseQueueTasks.filter({ hasText: createdTaskTitle }),
+  ).toContainText(/Завершена|Аяктады|Completed/);
+  await expect(
+    caseQueueTasks.filter({ hasText: cancelledTaskTitle }),
+  ).toContainText(/Отменена|Жокко чыгарылды|Cancelled/);
+  await expect(
+    caseQueueTasks.filter({ hasText: cancelledTaskTitle }),
+  ).toContainText(cancellationReason);
+
+  await submitGate(page, "sales");
+  await page.goto("/tasks");
+  await expect(page).toHaveURL(/\/access-denied\?from=%2Ftasks$/);
+  await expect(
+    page.getByTestId("canonical-admissions-task-queue"),
+  ).toHaveCount(0);
+
+  await submitGate(page, "admin");
+  await page.goto("/");
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-role",
+    "admin",
+  );
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-authority-role",
+    "admin",
+  );
+  await page.getByTestId("preview-role-admissions").click();
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-role",
+    "admissions",
+  );
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-authority-role",
+    "admin",
+  );
+  await page.goto("/tasks");
+  await expect(
+    page.getByTestId("canonical-admissions-task-queue"),
+  ).toBeVisible();
+  await expect(page.getByTestId("staff-role-preview")).toHaveAttribute(
+    "data-effective-role",
+    "admissions",
+  );
 });
 
 test("Admin records a reasoned exception and opens the resulting case", async ({

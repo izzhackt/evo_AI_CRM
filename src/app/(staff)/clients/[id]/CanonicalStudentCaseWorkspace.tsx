@@ -1,5 +1,11 @@
+import { randomUUID } from "node:crypto";
+
 import { notFound } from "next/navigation";
 
+import {
+  CanonicalAdmissionsTaskPanel,
+  type CanonicalAdmissionsTaskRequestIds,
+} from "@/components/platform/admissions/CanonicalAdmissionsTaskPanel";
 import { Card, cn } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
 import { getT } from "@/lib/i18n";
@@ -8,6 +14,7 @@ import {
   CanonicalCrmRepositoryError,
   getCanonicalStudentCaseHandoffSnapshot,
   getCanonicalStudentCaseSnapshot,
+  listCanonicalAdmissionsTasks,
 } from "@/lib/server/canonical-crm-repository";
 
 const COPY = {
@@ -124,8 +131,9 @@ export async function CanonicalStudentCaseWorkspace({
   let handoff: Awaited<
     ReturnType<typeof getCanonicalStudentCaseHandoffSnapshot>
   >;
+  let tasksPage: Awaited<ReturnType<typeof listCanonicalAdmissionsTasks>>;
   try {
-    [studentCase, handoff] = await Promise.all([
+    [studentCase, handoff, tasksPage] = await Promise.all([
       getCanonicalStudentCaseSnapshot({
         actorRole: actor.platformRole,
         studentCaseId: id,
@@ -133,6 +141,11 @@ export async function CanonicalStudentCaseWorkspace({
       getCanonicalStudentCaseHandoffSnapshot({
         actorRole: actor.platformRole,
         studentCaseId: id,
+      }),
+      listCanonicalAdmissionsTasks({
+        actorRole: actor.platformRole,
+        studentCaseId: id,
+        pageSize: 50,
       }),
     ]);
   } catch (error: unknown) {
@@ -146,6 +159,13 @@ export async function CanonicalStudentCaseWorkspace({
   }
 
   const copy = COPY[locale];
+  const transitionRequestIds: CanonicalAdmissionsTaskRequestIds =
+    Object.fromEntries(
+      tasksPage.rows.map((task) => [
+        task.taskId,
+        Object.freeze({ complete: randomUUID(), cancel: randomUUID() }),
+      ]),
+    );
   return (
     <div className="space-y-5" data-testid="canonical-student-case-workspace">
       <header className="border-b border-border pb-5">
@@ -269,6 +289,18 @@ export async function CanonicalStudentCaseWorkspace({
           </ul>
         )}
       </section>
+
+      <CanonicalAdmissionsTaskPanel
+        locale={locale}
+        tasks={tasksPage.rows}
+        transitionRequestIds={transitionRequestIds}
+        create={
+          studentCase.status === "active"
+            ? { studentCaseId: id, requestId: randomUUID() }
+            : undefined
+        }
+        hasNext={tasksPage.hasNext}
+      />
     </div>
   );
 }

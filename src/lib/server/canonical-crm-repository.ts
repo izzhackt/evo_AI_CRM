@@ -45,6 +45,8 @@ const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 const ISO_TIMESTAMP_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?(?:Z|[+-](\d{2}):(\d{2}))$/;
+const TASK_DUE_TIMESTAMP_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|[+-](\d{2}):(\d{2}))$/;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export { CANONICAL_SALES_DUE_FILTERS, CANONICAL_SALES_STAGES };
@@ -225,6 +227,43 @@ export type CanonicalAdmissionsStarterTaskSnapshot = Readonly<{
   status: "open" | "completed" | "cancelled";
   dueAt: string | null;
   createdAt: string;
+}>;
+
+export type CanonicalAdmissionsTaskStatus =
+  | "open"
+  | "completed"
+  | "cancelled";
+
+export type CanonicalAdmissionsTaskQueueRow = Readonly<{
+  taskId: string;
+  studentCaseId: string;
+  title: string;
+  details: string | null;
+  status: CanonicalAdmissionsTaskStatus;
+  dueAt: string | null;
+  assignedRole: "admissions";
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  closedByRole: "admin" | "admissions" | null;
+  closureReason: string | null;
+  studentCaseStatus: CanonicalStudentCaseStatus;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+}>;
+
+export type CanonicalAdmissionsTaskQueuePage = Readonly<{
+  rows: readonly CanonicalAdmissionsTaskQueueRow[];
+  hasNext: boolean;
+}>;
+
+export type CanonicalAdmissionsTaskResult = Readonly<{
+  taskId: string;
+  studentCaseId: string;
+  status: CanonicalAdmissionsTaskStatus;
+  version: number;
 }>;
 
 export type CanonicalStudentCaseHandoffSnapshot = Readonly<{
@@ -517,6 +556,34 @@ function isoTimestamp(value: unknown): Date {
   return parsed;
 }
 
+function canonicalTaskDueAt(value: unknown): Date | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string" || value.length > 40) invalidInput();
+  const match = TASK_DUE_TIMESTAMP_PATTERN.exec(value);
+  if (!match) invalidInput();
+
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText] =
+    match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const calendarProbe = new Date(Date.UTC(year, month - 1, day));
+  if (
+    calendarProbe.getUTCFullYear() !== year ||
+    calendarProbe.getUTCMonth() !== month - 1 ||
+    calendarProbe.getUTCDate() !== day ||
+    Number(hourText) > 23 ||
+    Number(minuteText) > 59 ||
+    Number(secondText) > 59 ||
+    (match[7] !== undefined && Number(match[7]) > 23) ||
+    (match[8] !== undefined && Number(match[8]) > 59)
+  ) {
+    invalidInput();
+  }
+
+  return isoTimestamp(value);
+}
+
 function canonicalSalesDeadline(value: unknown): Date {
   if (typeof value !== "string" || !ISO_DATE_PATTERN.test(value)) {
     invalidInput();
@@ -743,6 +810,24 @@ function resultBoolean(payload: Record<string, unknown>, key: string): boolean {
   return value;
 }
 
+function resultPositiveVersion(
+  payload: Record<string, unknown>,
+  key: string,
+): number {
+  const value = payload[key];
+  if (!Number.isSafeInteger(value) || Number(value) < 1) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return Number(value);
+}
+
+function resultTaskStatus(
+  payload: Record<string, unknown>,
+  key: string,
+): CanonicalAdmissionsTaskStatus {
+  return databaseTaskStatus(resultString(payload, key));
+}
+
 async function runTransaction<T>(
   operation: (transaction: DatabaseTransaction) => Promise<T>,
 ): Promise<T> {
@@ -823,8 +908,24 @@ function optionalDateString(value: Date | null): string | null {
 
 function databaseTaskStatus(
   value: string,
-): "open" | "completed" | "cancelled" {
+): CanonicalAdmissionsTaskStatus {
   if (value !== "open" && value !== "completed" && value !== "cancelled") {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function databaseAdmissionsTaskRole(value: string): "admissions" {
+  if (value !== "admissions") {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function databaseTaskClosedByRole(
+  value: string | null,
+): "admin" | "admissions" | null {
+  if (value !== null && value !== "admin" && value !== "admissions") {
     throw new CanonicalCrmRepositoryError("unavailable");
   }
   return value;
@@ -858,6 +959,46 @@ function deriveLeadGateState(input: Readonly<{
     return "satisfied";
   }
   return "blocked";
+}
+
+async function lockActiveHandedOffStudentCase(
+  transaction: DatabaseTransaction,
+  studentCaseId: string,
+): Promise<void> {
+  const [studentCase] = await transaction
+    .select({
+      id: evoStudentCases.id,
+      leadId: evoStudentCases.leadId,
+      status: evoStudentCases.status,
+      ownerRole: evoStudentCases.ownerRole,
+    })
+    .from(evoStudentCases)
+    .where(eq(evoStudentCases.id, studentCaseId))
+    .limit(1)
+    .for("update");
+  if (!studentCase) throw new CanonicalCrmRepositoryError("not_found");
+  databaseAdmissionsTaskRole(studentCase.ownerRole);
+  if (databaseStudentCaseStatus(studentCase.status) !== "active") {
+    throw new CanonicalCrmRepositoryError("conflict");
+  }
+
+  const [handoff] = await transaction
+    .select({
+      id: evoSalesAdmissionsHandoffs.id,
+      leadStage: evoLeads.stage,
+    })
+    .from(evoSalesAdmissionsHandoffs)
+    .innerJoin(evoLeads, eq(evoLeads.id, evoSalesAdmissionsHandoffs.leadId))
+    .where(
+      and(
+        eq(evoSalesAdmissionsHandoffs.studentCaseId, studentCaseId),
+        eq(evoSalesAdmissionsHandoffs.leadId, studentCase.leadId),
+      ),
+    )
+    .limit(1);
+  if (!handoff || databaseSalesStage(handoff.leadStage) !== "handed_off") {
+    throw new CanonicalCrmRepositoryError("conflict");
+  }
 }
 
 async function selectLatestGateEvidence(
@@ -2196,6 +2337,226 @@ export async function handoffCanonicalLeadToAdmissions(
   });
 }
 
+export async function createCanonicalAdmissionsTask(
+  input: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+    studentCaseId: string;
+    title: string;
+    details?: string | null;
+    dueAt?: string | null;
+  }>,
+): Promise<CanonicalAdmissionsTaskResult> {
+  const context = parseCommandContext(input, ["admin", "admissions"]);
+  const studentCaseId = uuid(input.studentCaseId);
+  const title = boundedText(input.title, {
+    maxLength: 200,
+    collapseWhitespace: true,
+  });
+  const details = optionalBoundedText(input.details, { maxLength: 2_000 });
+  const dueAt = canonicalTaskDueAt(input.dueAt);
+  const requestHash = sha256({
+    actorRole: context.actorRole,
+    studentCaseId,
+    title,
+    details,
+    dueAt: dueAt?.toISOString() ?? null,
+  });
+
+  return runTransaction(async (transaction) => {
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical.admissions_task.create",
+      context,
+      requestHash,
+    });
+    if (reservation.kind === "replay") {
+      return {
+        taskId: resultUuid(reservation.resultPayload, "taskId"),
+        studentCaseId: resultUuid(
+          reservation.resultPayload,
+          "studentCaseId",
+        ),
+        status: resultTaskStatus(reservation.resultPayload, "status"),
+        version: resultPositiveVersion(reservation.resultPayload, "version"),
+      };
+    }
+
+    await lockActiveHandedOffStudentCase(transaction, studentCaseId);
+    const [task] = await transaction
+      .insert(evoAdmissionsTasks)
+      .values({
+        id: randomUUID(),
+        studentCaseId,
+        title,
+        details,
+        status: "open",
+        assignedRole: "admissions",
+        dueAt,
+      })
+      .returning({
+        id: evoAdmissionsTasks.id,
+        studentCaseId: evoAdmissionsTasks.studentCaseId,
+        status: evoAdmissionsTasks.status,
+        version: evoAdmissionsTasks.version,
+      });
+    if (!task) throw new CanonicalCrmRepositoryError("unavailable");
+
+    const result = {
+      taskId: task.id,
+      studentCaseId: task.studentCaseId,
+      status: databaseTaskStatus(task.status),
+      version: task.version,
+    };
+    await insertBusinessEvent(transaction, {
+      context,
+      businessObjectType: "task",
+      businessObjectId: task.id,
+      transition: "task.created",
+      toState: "open",
+    });
+    await completeCommand(transaction, {
+      receiptId: reservation.receiptId,
+      businessObjectType: "task",
+      businessObjectId: task.id,
+      resultPayload: result,
+    });
+    return result;
+  });
+}
+
+export async function transitionCanonicalAdmissionsTask(
+  input: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+    taskId: string;
+    expectedVersion: number;
+    toStatus: "completed" | "cancelled";
+    reason?: string | null;
+  }>,
+): Promise<CanonicalAdmissionsTaskResult> {
+  const context = parseCommandContext(input, ["admin", "admissions"]);
+  const taskId = uuid(input.taskId);
+  const expectedVersion = positiveVersion(input.expectedVersion);
+  if (input.toStatus !== "completed" && input.toStatus !== "cancelled") {
+    invalidInput();
+  }
+  const reason = optionalBoundedText(input.reason, { maxLength: 2_000 });
+  if (
+    (input.toStatus === "cancelled" && reason === null) ||
+    (input.toStatus === "completed" && reason !== null)
+  ) {
+    invalidInput();
+  }
+  const requestHash = sha256({
+    actorRole: context.actorRole,
+    taskId,
+    expectedVersion,
+    toStatus: input.toStatus,
+    reason,
+  });
+
+  return runTransaction(async (transaction) => {
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical.admissions_task.transition",
+      context,
+      requestHash,
+    });
+    if (reservation.kind === "replay") {
+      return {
+        taskId: resultUuid(reservation.resultPayload, "taskId"),
+        studentCaseId: resultUuid(
+          reservation.resultPayload,
+          "studentCaseId",
+        ),
+        status: resultTaskStatus(reservation.resultPayload, "status"),
+        version: resultPositiveVersion(reservation.resultPayload, "version"),
+      };
+    }
+
+    const [taskPointer] = await transaction
+      .select({ studentCaseId: evoAdmissionsTasks.studentCaseId })
+      .from(evoAdmissionsTasks)
+      .where(eq(evoAdmissionsTasks.id, taskId))
+      .limit(1);
+    if (!taskPointer) throw new CanonicalCrmRepositoryError("not_found");
+    await lockActiveHandedOffStudentCase(
+      transaction,
+      taskPointer.studentCaseId,
+    );
+
+    const [currentTask] = await transaction
+      .select({
+        studentCaseId: evoAdmissionsTasks.studentCaseId,
+        status: evoAdmissionsTasks.status,
+        version: evoAdmissionsTasks.version,
+      })
+      .from(evoAdmissionsTasks)
+      .where(eq(evoAdmissionsTasks.id, taskId))
+      .limit(1)
+      .for("update");
+    if (!currentTask) throw new CanonicalCrmRepositoryError("not_found");
+    if (
+      currentTask.studentCaseId !== taskPointer.studentCaseId ||
+      databaseTaskStatus(currentTask.status) !== "open" ||
+      currentTask.version !== expectedVersion
+    ) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+
+    const closedAt = new Date();
+    const [task] = await transaction
+      .update(evoAdmissionsTasks)
+      .set({
+        status: input.toStatus,
+        closedAt,
+        closedByRole: context.actorRole,
+        closureReason: reason,
+        version: sql`${evoAdmissionsTasks.version} + 1`,
+        updatedAt: closedAt,
+      })
+      .where(
+        and(
+          eq(evoAdmissionsTasks.id, taskId),
+          eq(evoAdmissionsTasks.status, "open"),
+          eq(evoAdmissionsTasks.version, expectedVersion),
+        ),
+      )
+      .returning({
+        id: evoAdmissionsTasks.id,
+        studentCaseId: evoAdmissionsTasks.studentCaseId,
+        status: evoAdmissionsTasks.status,
+        version: evoAdmissionsTasks.version,
+      });
+    if (!task) throw new CanonicalCrmRepositoryError("conflict");
+
+    const result = {
+      taskId: task.id,
+      studentCaseId: task.studentCaseId,
+      status: databaseTaskStatus(task.status),
+      version: task.version,
+    };
+    await insertBusinessEvent(transaction, {
+      context,
+      businessObjectType: "task",
+      businessObjectId: task.id,
+      transition:
+        input.toStatus === "completed" ? "task.completed" : "task.cancelled",
+      fromState: "open",
+      toState: input.toStatus,
+      reason,
+    });
+    await completeCommand(transaction, {
+      receiptId: reservation.receiptId,
+      businessObjectType: "task",
+      businessObjectId: task.id,
+      resultPayload: result,
+    });
+    return result;
+  });
+}
+
 export async function getCanonicalLeadSnapshot(
   input: Readonly<{ actorRole: FixedRole; leadId: string }>,
 ): Promise<CanonicalLeadSnapshot> {
@@ -2387,6 +2748,69 @@ export async function getCanonicalLeadConversationThread(
           ? { occurredAt: lastMessage.occurredAt, id: lastMessage.messageId }
           : null,
     };
+  });
+}
+
+export async function listCanonicalAdmissionsTasks(
+  input: Readonly<{
+    actorRole: FixedRole;
+    studentCaseId?: string;
+    pageSize?: number;
+  }>,
+): Promise<CanonicalAdmissionsTaskQueuePage> {
+  actorRole(input.actorRole, ["admin", "admissions"]);
+  const studentCaseId =
+    input.studentCaseId === undefined ? undefined : uuid(input.studentCaseId);
+  const pageSize = canonicalReadPageSize(input.pageSize);
+
+  return runTransaction(async (transaction) => {
+    const result = await transaction
+      .select({
+        taskId: evoAdmissionsTasks.id,
+        studentCaseId: evoAdmissionsTasks.studentCaseId,
+        title: evoAdmissionsTasks.title,
+        details: evoAdmissionsTasks.details,
+        status: evoAdmissionsTasks.status,
+        dueAt: evoAdmissionsTasks.dueAt,
+        assignedRole: evoAdmissionsTasks.assignedRole,
+        version: evoAdmissionsTasks.version,
+        createdAt: evoAdmissionsTasks.createdAt,
+        updatedAt: evoAdmissionsTasks.updatedAt,
+        closedAt: evoAdmissionsTasks.closedAt,
+        closedByRole: evoAdmissionsTasks.closedByRole,
+        closureReason: evoAdmissionsTasks.closureReason,
+        studentCaseStatus: evoStudentCases.status,
+        displayName: evoPeople.fullName,
+        email: evoPeople.email,
+        phone: evoPeople.phoneE164,
+      })
+      .from(evoAdmissionsTasks)
+      .innerJoin(
+        evoStudentCases,
+        eq(evoStudentCases.id, evoAdmissionsTasks.studentCaseId),
+      )
+      .innerJoin(evoPeople, eq(evoPeople.id, evoStudentCases.personId))
+      .where(
+        studentCaseId
+          ? eq(evoAdmissionsTasks.studentCaseId, studentCaseId)
+          : undefined,
+      )
+      .orderBy(desc(evoAdmissionsTasks.createdAt), desc(evoAdmissionsTasks.id))
+      .limit(pageSize + 1);
+
+    const hasNext = result.length > pageSize;
+    const rows = result.slice(0, pageSize).map((row) => ({
+      ...row,
+      status: databaseTaskStatus(row.status),
+      dueAt: optionalDateString(row.dueAt),
+      assignedRole: databaseAdmissionsTaskRole(row.assignedRole),
+      createdAt: dateString(row.createdAt),
+      updatedAt: dateString(row.updatedAt),
+      closedAt: optionalDateString(row.closedAt),
+      closedByRole: databaseTaskClosedByRole(row.closedByRole),
+      studentCaseStatus: databaseStudentCaseStatus(row.studentCaseStatus),
+    }));
+    return { rows, hasNext };
   });
 }
 

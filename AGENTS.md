@@ -29,29 +29,38 @@
 
 ## Current Product Authority
 
-- For active V2 implementation work, the owner handoff of 2026-08-28,
-  ADR 0022, `docs/EVO_LAUNCH_PLAN.md`, and the latest merged
-  `docs/PLAN_CHANGES.md` entry define the target and V2-0 through V2-13 order.
+- For active V2 implementation work, the owner's product-first direction of
+  2026-08-28, parent issue #407, ADR 0022, `docs/EVO_LAUNCH_PLAN.md`, and the
+  latest merged `docs/PLAN_CHANGES.md` entry define the target and #424 through
+  #433 order.
 - EVO remains one internal product with one login, one UI, one role model and
   one workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks, Documents
   and AI are modules, not separate target products.
-- V2 is a self-hosted replacement candidate. Its target runtime is one
-  self-hosted Next.js application, one private PostgreSQL operational
-  database, Better Auth for staff sessions, server-enforced tenant/role
-  authorization, and private file storage behind authenticated application
-  routes. Supabase runtime dependencies, dual-read, dual-write, fallback
-  repositories and compatibility layers are prohibited in the completed V2
-  runtime.
+- Active V2 is a private local CRM product-validation contour, not a
+  production-readiness program. Its runtime is the existing Next.js app, one
+  real private PostgreSQL database, Drizzle migrations, a two-field
+  server-side development gate, three fixed technical roles, server-enforced
+  role behavior, private local document persistence, and a minimal business
+  event log. Admin is the full functional superset and can preview the exact
+  Sales or Admissions interface.
+- Do not add Better Auth or another full account lifecycle, organizations,
+  memberships, multi-organization tenancy, cross-organization RLS,
+  fine-grained per-user grants, production health/audit/export, restore drills,
+  managed acceptance, pilot, migration or cutover work to active #424-#433.
+  Those controls are one deferred-before-real-use set, not active blockers.
+- Supabase runtime dependencies, dual-read, dual-write, fallback repositories
+  and compatibility layers are prohibited in the completed V2 product path.
 - V1 staging and production are frozen boundaries. Do not deploy V2 over V1,
   delete V1, migrate customer data, send WhatsApp, write amoCRM, create paid
   infrastructure, or perform final cutover without separate explicit owner
   authorization.
-- WAHA remains a private transport boundary. amoCRM remains a temporary
-  read/import adapter. Gemini remains advisory and human-reviewed.
-- The first real external stage remains receive-only: no outbound WhatsApp and
-  no amoCRM writes. Existing production sections below describe historical V1
-  boundaries and safety inputs only; they do not override the V2 target
-  architecture or authorize a production change.
+- WhatsApp and Gemini remain real product paths, not mocks or fake success.
+  Real provider calls or changes still require credentials and separate
+  authorization; missing access must show blocked. Gemini remains advisory and
+  human-reviewed. Outbound WhatsApp and amoCRM writes remain forbidden.
+- Existing production sections below describe historical V1 boundaries and
+  safety inputs only; they do not override the active local V2 scope or
+  authorize a production change.
 
 ## Local Container Runtime
 

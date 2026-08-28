@@ -11908,3 +11908,52 @@ and exact-main verification before Phase 1 begins.
 Reviewer notes: reject any PR that continues the old Supabase issue sequence
 unchanged, launders V2 scope into V1 deployment work, or claims foundation
 proof without real PostgreSQL and real browser evidence.
+
+## 2026-08-28 - Narrow active V2 to local CRM product validation
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under the owner's explicit product-first correction.
+Change type: scope reduction, authentication simplification, role model,
+acceptance criteria, issue sequence and deferred-gate correction.
+Affected plan section: the active V2 section of `docs/EVO_LAUNCH_PLAN.md`, ADR
+0022 and GitHub issues under parent #407.
+
+Reason: the first self-hosted reset still put production infrastructure ahead
+of the owner's immediate question: whether the heavy CRM product works end to
+end. Better Auth, multi-organization tenancy, recovery/readiness programs,
+managed acceptance, a timed pilot and cutover planning would delay that proof.
+
+Owner decision:
+
+1. Make private local CRM product validation the only active V2 long-run.
+2. Replace full staff authentication with a two-field server-side development
+   gate. The first value selects an ignored-env technical profile and the
+   second value is its secret; success creates a short signed HttpOnly cookie.
+3. Keep exactly three fixed roles: Director/Admin, Sales Manager and Admissions
+   Manager. Admin is the full functional superset and can preview the exact
+   Sales or Admissions interface. Enforce role behavior on the server.
+4. Use one local EVO organization. Do not build organizations, memberships,
+   cross-organization RLS or fine-grained per-user grants in active V2.
+5. Keep active product work to real local PostgreSQL/Drizzle, canonical CRM,
+   Sales, Student 360, contract/payment gate, handoff, Admissions operations,
+   private document persistence, minimal finance stop/release, WhatsApp,
+   human-reviewed Gemini and the minimal event log needed to verify business
+   transitions.
+6. Preserve production authentication, public/VPS/DNS/TLS/Caddy, paid
+   infrastructure, production monitoring/health center, compliance audit/export,
+   full database/file restore and rollback, managed acceptance, timed pilot,
+   historical migration and cutover/tagging only as one compact
+   deferred-before-real-use note. They are not active issues or blockers.
+7. Preserve V1 code, history, staging/production, data, images, runbooks and
+   rollback artifacts unchanged.
+
+Active issue order: #424, #425, #426, #427, #428, #429, #430, #431, #432 and
+#433. Close/defer duplicate or production-readiness V2 issues so autonomous
+execution sees only this product-building sequence.
+
+Validation impact: Phase 0 remains docs/tracker only. Require independent
+exact-head review, protected exact-head CI, `--match-head-commit` and exact-main
+CI. Follow-on slices use real PostgreSQL, actual migrations, real file bytes,
+actual app/browser paths and ordinary CI. Technical records may prove mechanics
+but cannot be called real business acceptance. Missing provider credentials
+must produce a truthful blocked state, never a mock or fake success.

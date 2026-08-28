@@ -1,230 +1,225 @@
-# ADR 0022: Build EVO V2 as a self-hosted PostgreSQL monolith
+# ADR 0022: Validate the self-hosted EVO V2 product before production infrastructure
 
 - Status: accepted
 - Decision date: 2026-08-28 (Asia/Dubai)
 - Decision owner: EVO product owner
-- Supersedes in conflict for V2: ADR 0014, ADR 0015, ADR 0020, ADR 0021
-- Execution contract: `docs/EVO_LAUNCH_PLAN.md`
-- Decision log: `docs/PLAN_CHANGES.md`
-- Verified baseline: GitHub `origin/main` at
+- Parent contract: GitHub issue #407
+- Active implementation sequence: GitHub issues #424 through #433
+- Supersedes in conflict for V2: ADR 0014, ADR 0015, ADR 0020 and ADR 0021
+- Preserves: frozen V1 staging/production, V1 history and rollback artifacts
+- Verified starting baseline:
   `9b185dba93b2363d9bf942483b2c0febee4c3b30`
 
 ## Context
 
-The repository's latest accepted long-run documents made Supabase the permanent
-canonical runtime for the unified EVO product. That direction produced useful
-business rules, UI shape, audit expectations and bounded provider behavior, but
-it no longer matches the owner's current execution choice.
+The previous target coupled EVO to Supabase Auth, RPC/RLS helpers, Realtime,
+Storage, the Supabase CLI test stack and Supabase-aware release gates. The
+owner selected a self-hosted V2 with no Supabase runtime, dual-read, dual-write,
+compatibility layer or fallback path.
 
-On 2026-08-28 the owner selected a new heavy development line:
+The first V2 plan then reproduced a production-readiness program: full staff
+authentication, multi-organization tenancy, recovery drills, managed
+acceptance, a timed pilot and cutover planning. That delayed the owner's more
+important question: does the main CRM product work end to end on a clean
+self-hosted foundation?
 
-- V2 must be self-hosted and must not depend on Supabase runtime services.
-- Breaking changes are acceptable.
-- There must be no dual-read, dual-write, compatibility layer or fallback path.
-- V1 staging and production stay frozen until a later explicit replacement
-  decision.
-- V2 must prove real behavior with real services, real PostgreSQL and real
-  browser validation, while stopping at provider, staff, paid-infrastructure,
-  pilot-time and cutover authorization gates.
-
-Without a new ADR, the active repo contract would still tell implementers that
-Supabase Auth, Storage and migrations are the target authority. That would make
-the next V2 PRs formally stale even if the code were technically correct.
+The owner therefore narrowed active V2 scope. Build and validate the heavy CRM
+product locally first. Production infrastructure and real-use readiness are a
+later, separately authorized program.
 
 ## Decision
 
-### One product, new runtime
+### Product-first local V2
 
-EVO remains one internal product with one accepted staff UI, one login, one
-role model and one end-to-end workflow across CRM, Admissions, Documents,
-Applications, Visa, Finance control, Tasks, Communications, AI and
-Administration.
+V2 remains one internal EVO product with one staff UI and one workflow across:
 
-V2 changes the runtime foundation only:
+- Sales pipeline and lead qualification;
+- WhatsApp communications;
+- contract and first-payment control;
+- Sales-to-Admissions handoff;
+- Student 360;
+- Admissions tasks, private documents, applications and visa;
+- minimal finance stop/release;
+- human-reviewed Gemini drafts;
+- a minimal event log for business-transition debugging and verification.
 
-- one self-hosted Next.js application runtime;
-- one private self-hosted PostgreSQL service as the canonical operational
-  database;
-- one reviewed SQL migration chain generated from Drizzle schema definitions;
-- one application-owned private file storage path;
-- one Better Auth session system for staff authentication.
+The active contour is private and local. It contains no real staff identity or
+applicant/customer data and creates no public or production claim.
 
-### Database and migration authority
+### Canonical runtime
 
-PostgreSQL owns canonical operational state for:
+The active runtime uses:
 
-- staff organizations, memberships, roles and capabilities;
-- leads, people, cases, tasks, communications, applications, visa milestones
-  and finance stop state;
-- immutable audit records and idempotency ledgers;
-- private file metadata, checksums, ownership and restore inventory;
-- AI proposal lineage and human-review decisions.
+- the existing Next.js application;
+- one real private local PostgreSQL service;
+- Drizzle schema definitions and committed reviewed SQL migrations;
+- application-owned private document bytes with PostgreSQL metadata;
+- real application, browser, database and file execution paths.
 
-Drizzle schema definitions plus committed SQL migration files are the only V2
-schema authority. Merged migrations are immutable. Corrections use forward
-migrations and must run against a real disposable PostgreSQL environment before
+The completed V2 product path contains no Supabase SDK, Supabase Auth,
+Supabase Storage, Supabase Realtime, Supabase migration/config/runtime
+environment dependency, SQLite fallback or compatibility repository.
+
+Merged V2 migrations are immutable. Corrections use forward migrations. Every
+migration slice is applied to a real disposable PostgreSQL instance before
 merge.
 
-### Authentication
+### Two-field development gate
 
-Better Auth owns V2 staff authentication and session lifecycle.
+The access screen has exactly two fields:
 
-The initial V2 authentication contract is:
+1. a technical profile identifier;
+2. that profile's secret.
 
-- email/password sessions backed by the database;
-- secure HttpOnly cookies set and read server-side;
-- trusted origins configured explicitly;
-- no public self-registration for staff;
-- staff creation only through authorized admin tooling or a reviewed bootstrap
-  path;
-- logout, revocation and inactive membership must fail closed.
+The identifier maps on the server to one of three profiles configured only in
+ignored local secret state:
 
-The first accepted human-facing roles are `admin`, `sales` and `admissions`.
-Sensitive actions still require explicit server-side capabilities.
+- Director/Admin;
+- Sales Manager;
+- Admissions Manager.
 
-### Authorization and tenant isolation
+The browser receives neither the credential map nor secret values. Comparison
+happens only on the server, returns one generic failure, logs no submitted
+value and uses a timing-safe secret comparison. Success creates a short-lived
+signed HttpOnly cookie containing only the selected technical role and expiry.
+The cookie is SameSite-protected, Secure under HTTPS and cleared on logout.
+Editing client state or cookie contents cannot change the role.
 
-Authentication does not grant authorization. V2 enforces default-deny access at
-two layers:
+This is a private development gate, not staff authentication. It does not
+include accounts, signup, invitations, password recovery, revocation or real
+identity proof.
 
-1. application services, route handlers and server actions;
-2. PostgreSQL grants plus Row-Level Security where practical.
+### Fixed role behavior
 
-Each request must set explicit database session context such as the effective
-actor, organization and role. Policies and authorization helpers must treat
-missing or malformed context as denied access.
+The product has exactly three active test roles:
 
-No route may rely on hidden buttons or client-side filtering for protection.
-Cross-tenant access, inactive membership access, direct object identifier
-guessing and privilege escalation through stale sessions are explicit negative
-test cases.
+- Sales Manager owns the Sales pipeline, qualification, ownership, next action
+  and pre-handoff workflow;
+- Admissions Manager owns handed-off Student 360 work, tasks, documents,
+  applications and visa milestones;
+- Director/Admin is the full functional superset, may perform explicit
+  overrides and may preview the exact Sales or Admissions interface.
 
-### Private file handling
+The gate-selected role is resolved on the server. Route handlers, server
+services and transactional database commands enforce role boundaries. UI
+hiding alone is not authorization.
 
-Private file bytes live outside the public web root on a dedicated private
-application volume. The application serves files only through authenticated
-routes after authorization checks.
+The product-first contour uses one local EVO organization. It does not build
+organizations, memberships, multi-tenant administration, cross-organization
+RLS or fine-grained per-user grants. Database constraints and service checks
+still prevent a role from invoking another role's consequential command.
 
-PostgreSQL stores:
+### Canonical CRM and event model
 
-- logical document/file identifiers;
-- checksum and media metadata;
-- case or entity ownership;
-- version lineage and review/resubmission state;
-- access audit and restore inventory.
+PostgreSQL owns the V2 records for people, leads, conversations, messages,
+student cases, contract/payment evidence, handoffs, tasks, documents,
+applications, visa milestones, finance stop state and AI proposals.
 
-Database backup and private-file backup are separate required evidence streams.
-A database-only restore does not prove that V2 can recover accepted files.
+Commands preserve the existing business invariants:
 
-### Bounded external adapters
+- idempotent inbound processing and handoff;
+- contract plus first mandatory payment before normal Admissions handoff;
+- reasoned Director/Admin override;
+- durable ownership and next action;
+- finance stop enforced by server commands;
+- AI output remains advisory and requires human Accept/Edit/Reject;
+- no autonomous WhatsApp send, amoCRM write or provider-side mutation.
 
-The earlier bounded adapter rules remain in force unless a later explicit owner
-decision changes them:
+A small append-only event table records the actor role, business object,
+transition, reason where required, timestamp and correlation/idempotency key.
+It exists to debug and verify product behavior, not to implement a
+compliance-style audit/export center.
 
-- WAHA is private and receive-only for the approved acceptance stage.
-- amoCRM is read-only or import-only, never canonical operational authority.
-- Gemini is server-side and human-reviewed; it cannot autonomously send,
-  confirm, assign, hand off or override permissions.
+### Private document persistence
 
-### V1 boundary
+Document keys are opaque and server-generated. User input cannot choose a
+filesystem path. Upload, download and resubmission pass through application
+routes that resolve the current technical role and case ownership. PostgreSQL
+stores metadata, byte length, checksum and business linkage. Partial or failed
+writes do not become accepted documents.
 
-V1 staging and production remain frozen deployment boundaries. This ADR does
-not authorize:
+Local durable persistence is active scope. Full database/file restore drills,
+off-host retention, production RPO/RTO and rollback evidence are deferred.
 
-- deployment over V1;
-- deletion of V1;
-- migration of real customer data;
-- WhatsApp send;
-- amoCRM write;
-- paid infrastructure creation;
-- final cutover.
+### WhatsApp and Gemini remain real product paths
 
-## Supersession
+The application must retain actual WhatsApp and Gemini adapters and truthful
+blocked states. Tests may not replace them with mocks, demo providers or fake
+success.
 
-For V2 work, this ADR supersedes conflicting target-runtime clauses in earlier
-documents as follows:
+Provider calls or provider-side changes require real credentials and separate
+authorization. Until those exist, the product path can be implemented and
+browser-tested up to the real adapter boundary, which must return blocked.
+Outbound WhatsApp and amoCRM writes remain forbidden.
 
-- ADR 0014 remains useful only as history for the unified-product shape, bounded
-  adapters and audit intent. Its Supabase-native runtime and amoCRM-era details
-  are not current V2 authority.
-- ADR 0015 remains historical evidence for migration immutability and schema
-  discipline, but its `supabase/` chain, Supabase-managed schemas and provider
-  assumptions are not V2 authority.
-- ADR 0020 remains historical evidence for one product, one workflow and no
-  fallback runtime. Its rule that Supabase is the permanent canonical
-  foundation is superseded for V2.
-- ADR 0021 remains historical evidence for the net-new pilot boundary and
-  human-reviewed Gemini constraint. Its Supabase-specific runtime authority and
-  its execution order are superseded for V2.
+### Real validation
 
-Historical provider, deployment and production observations remain true only
-for the exact older system, SHA and date they described. They do not become V2
-acceptance evidence.
+Use real PostgreSQL, committed SQL migrations, actual application routes, real
+file bytes and a real browser. Isolated technical records may prove mechanics;
+they are not fake business acceptance and cannot be called real applicant or
+provider proof.
+
+Each active issue lands as one small sequential PR with independent exact-head
+review, all protected exact-head checks, `gh pr merge --match-head-commit` and
+exact-main CI verification.
+
+## Active sequence
+
+1. #424 contract and issue reset;
+2. #425 PostgreSQL and Drizzle migration gate;
+3. #426 two-field development gate and role sessions;
+4. #427 fixed role behavior and Admin exact-role preview;
+5. #428 private local document persistence;
+6. #429 canonical CRM model and minimal event log;
+7. #430 Sales pipeline, qualification and inbound WhatsApp workflow;
+8. #431 contract/payment gate and audited handoff;
+9. #432 Student 360, Admissions operations and finance stop/release;
+10. #433 staff WhatsApp workflow and human-reviewed Gemini.
+
+No production-readiness issue blocks this sequence.
+
+## Deferred before real use
+
+The following are one compact deferred set, not active issues or dependencies:
+production-grade staff authentication/account lifecycle; multi-organization
+tenancy and cross-organization RLS; fine-grained per-user grants; public/VPS
+deployment, DNS/TLS/Caddy and paid infrastructure; production monitoring and
+health center; compliance-style audit/export; full database/file restore drills
+and production rollback proof; managed staff/provider acceptance; a 10-day or
+five-case pilot; historical migration; replacement, cutover and tagging.
+
+Before real staff, customer data, public/managed exposure or V1 replacement,
+the owner must authorize a new plan for the applicable deferred controls. This
+ADR grants no deployment, provider mutation, data migration or cutover.
+
+## V1 boundary
+
+V1 staging and production remain unchanged. Do not deploy V2 over V1, delete
+V1, change its data, remove its images/runbooks/rollback artifacts, send
+WhatsApp, write amoCRM, create paid infrastructure or perform cutover under
+this ADR.
 
 ## Consequences
 
-- V2 implementation must begin with a contract reset before foundation code.
-- The repository may temporarily contain legacy Supabase code while V1 remains
-  frozen, but no completed V2 runtime path may depend on it.
-- The first V2 foundation slices must add new PostgreSQL, Better Auth,
-  authorization and private-file paths before removing older code wholesale.
-- Real browser login/logout and denied-access checks become first-class proof,
-  not optional polish.
-- Backup and restore evidence must cover both database state and private-file
-  bytes.
+- The team tests the expensive CRM workflow before investing in production
+  infrastructure.
+- The two-field gate is intentionally minimal and cannot be mistaken for real
+  staff security.
+- Admin/Sales/Admissions behavior remains testable through the actual UI and
+  server path.
+- Deferred controls must be consciously reintroduced before real use rather
+  than quietly smuggled into the product-validation critical path.
+- V1 history and operational artifacts remain available and unchanged.
 
-## Rejected alternatives
+## Official primary sources verified 2026-08-28
 
-### Keep Supabase for runtime and only self-host the database later
-
-Rejected because it preserves the exact runtime dependency the owner removed and
-would invite partial compatibility paths.
-
-### Introduce a compatibility bridge or dual-write migration period
-
-Rejected because it increases drift risk, hides source-of-truth ambiguity and
-contradicts the owner's explicit no-bridge instruction.
-
-### Use public staff signup and rely on role review after login
-
-Rejected because staff identity creation is a privileged operational action and
-must default to deny.
-
-### Rely on application-layer checks only
-
-Rejected because a second enforcement layer in PostgreSQL reduces blast radius
-from handler mistakes and direct-query mistakes.
-
-### Store private files in public object URLs with obscured names
-
-Rejected because obscurity is not authorization and does not provide auditable
-access control.
-
-## Official primary sources
-
-- Better Auth Next.js integration:
-  <https://better-auth.com/docs/integrations/next>
-- Better Auth email/password authentication:
-  <https://better-auth.com/docs/authentication/email-password>
-- Better Auth options and trusted origins:
-  <https://better-auth.com/docs/reference/options>
-- Better Auth database and CLI schema generation:
-  <https://better-auth.com/docs/concepts/database>
-  and <https://better-auth.com/docs/concepts/cli>
-- Better Auth Drizzle adapter:
-  <https://better-auth.com/docs/adapters/drizzle>
-- Drizzle migrations overview:
-  <https://orm.drizzle.team/docs/migrations>
-- Drizzle migration generation:
+- Drizzle SQL migration generation:
   <https://orm.drizzle.team/docs/drizzle-kit-generate>
-- Drizzle migration application:
-  <https://orm.drizzle.team/docs/drizzle-kit-migrate>
-- Drizzle config and migration log:
-  <https://orm.drizzle.team/docs/drizzle-config-file>
-- PostgreSQL row security:
+- Drizzle migration commands and checks:
+  <https://orm.drizzle.team/docs/kit-overview>
+- PostgreSQL Row-Level Security behavior retained as future/deferred reference:
   <https://www.postgresql.org/docs/current/ddl-rowsecurity.html>
-- PostgreSQL CREATE POLICY default-deny behavior:
-  <https://www.postgresql.org/docs/current/sql-createpolicy.html>
-- Next.js async cookies and App Router route handlers:
+- Next.js server cookie API:
   <https://nextjs.org/docs/app/api-reference/functions/cookies>
-  and <https://nextjs.org/docs/app/api-reference/file-conventions/route>
+- Node.js HMAC and timing-safe comparison primitives:
+  <https://nodejs.org/api/crypto.html>

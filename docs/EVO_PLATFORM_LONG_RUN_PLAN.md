@@ -1,19 +1,32 @@
 # EVO Platform Long-Run Execution Contract
 
-Status: active U0-U14 repository implementation contract
-Version date: 2026-08-25 (Asia/Bishkek)
-Current Long-run 1 baseline: GitHub `origin/main` at
-`cfc75ca29a66546886de320aa80c454d18104b92`
-Authority: parent issue #376, ADR 0021, this plan and the latest merged
-`docs/PLAN_CHANGES.md`. ADR 0020 remains active only where ADR 0021 retains it;
-earlier P/BW/NW/P8 plans and ADR 0019 are historical source.
+Status: historical V1/Supabase execution record as of 2026-08-28
+(Asia/Dubai).
+Active authority moved to `docs/EVO_LAUNCH_PLAN.md`, ADR 0022, parent issue
+`#407`, and the latest append-only `docs/PLAN_CHANGES.md` entry.
 
-Current execution checkpoint: U0/#377 through U4/#381 are merged. Long-run 1
-executes U5/#382 through U10/#387 sequentially and stops before U11/#388. It
-changes no managed Supabase project, production deployment, customer data,
-WAHA session, amoCRM record or WhatsApp message. Only the bounded sanitized
-Gemini verification authorized in U9/#386 may exercise an external provider.
-Block-ID: `EVO-LONG-RUN-1-NET-NEW-PILOT-2026-08-25`.
+This file remains in the repository because it records the reviewed
+Supabase-native long-run sequence and its evidence. It is not the active
+architecture or execution contract for new V2 implementation work. Any section
+below that names Supabase as the target runtime, or that relaxes independent
+review expectations from the new `launch-control` requirement, is historical
+only unless a later owner decision explicitly reactivates it.
+
+The active V2 sequence is product-first #424-#433. Full staff authentication,
+multi-organization tenancy, public deployment, production monitoring/audit,
+restore/rollback drills, managed acceptance, timed pilot, historical migration
+and cutover are deferred before real use and are not active blockers.
+
+Historical V1/Supabase baseline captured here: GitHub `origin/main` at
+`cfc75ca29a66546886de320aa80c454d18104b92` on 2026-08-25.
+
+Current execution checkpoint at the time of that baseline: U0/#377 through
+U4/#381 were merged; Long-run 1 executed U5/#382 through U10/#387 sequentially
+and stopped before U11/#388; no managed Supabase project, production
+deployment, customer data, WAHA session, amoCRM record or WhatsApp message was
+authorized by that contract. The bounded sanitized Gemini verification in
+U9/#386 was the only permitted provider exercise under that historical line.
+Historical Block-ID: `EVO-LONG-RUN-1-NET-NEW-PILOT-2026-08-25`.
 
 ### Historical pre-#376 checkpoint
 
